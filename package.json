@@ -1,0 +1,17 @@
+{
+  "name": "local-video-compressor",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "concurrently -k -n agent,web \"npm run dev -w @video-compressor/agent\" \"npm run dev -w @video-compressor/web\"",
+    "build": "npm run build -w @video-compressor/shared && npm run build -w @video-compressor/web && npm run build -w @video-compressor/agent",
+    "start": "npm run start -w @video-compressor/agent",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}
