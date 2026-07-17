@@ -59,6 +59,7 @@ app.addHook('preHandler', async (request, reply) => {
   if (supplied !== token) return reply.code(401).send({ error: 'Invalid session token.' });
 });
 app.get('/api/health', async () => ({ ok: tools.ffmpeg && tools.ffprobe, tools, version: config.version, apiVersion: 1 }));
+app.get('/health', async () => ({ product: 'local-video-compressor-agent', ready: tools.ffmpeg && tools.ffprobe }));
 app.get('/api/diagnostics', async () => ({ version: config.version, macOS: os.release(), architecture: os.arch(), ffmpeg: tools.ffmpeg && tools.ffprobe ? 'ready' : 'unavailable', lastError: queue.state().warning ?? null }));
 app.get('/api/queue', async () => queue.state());
 app.get('/api/events', async (request, reply) => {
