@@ -9,7 +9,7 @@ attach=$(hdiutil attach -readonly -nobrowse "$dmg"); mount=$(print -r -- "$attac
 [[ -d "$mount/Local Video Compressor Agent.app" && -L "$mount/Applications" && -f "$mount/.background/background.png" ]]
 ditto "$mount/Local Video Compressor Agent.app" "$work/Local Video Compressor Agent.app"
 app="$work/Local Video Compressor Agent.app"; [[ -f "$app/Contents/Resources/AppIcon.icns" ]]
-file "$app/Contents/Resources/runtime/bin/ffmpeg" "$app/Contents/Resources/runtime/bin/ffprobe" "$app/Contents/Resources/runtime/node" | grep -q arm64
+for binary in "$app/Contents/Resources/runtime/bin/ffmpeg" "$app/Contents/Resources/runtime/bin/ffprobe" "$app/Contents/Resources/runtime/node"; do [[ "$(file "$binary")" == *arm64* ]]; done
 mkdir -p "$work/home/Library/Application Support/Local Video Compressor" "$work/video"
 ffmpeg="$app/Contents/Resources/runtime/bin/ffmpeg"; ffprobe="$app/Contents/Resources/runtime/bin/ffprobe"
 "$ffmpeg" -hide_banner -loglevel error -f lavfi -i testsrc2=size=640x360:rate=24 -f lavfi -i sine=frequency=440 -t 3 -c:v libx264 -c:a aac -shortest "$work/video/test input.mp4"
@@ -28,7 +28,7 @@ token=$(sed -n 's/^[Ll]ocation: .*#agentToken=\([a-f0-9]*\).*/\1/p' "$headers" |
 origin='https://local-video-compressor-test.pages.dev'; health=$(/usr/bin/curl -fsS -H "Origin: $origin" -H "x-session-token: $token" http://127.0.0.1:43120/api/health); print -r -- "$health" | grep -q '"ok":true'
 /usr/bin/curl -fsS -X POST -H "Origin: $origin" -H "x-session-token: $token" http://127.0.0.1:43120/api/queue/start >/dev/null
 for i in {1..40}; do state=$(/usr/bin/curl -fsS -H "Origin: $origin" -H "x-session-token: $token" http://127.0.0.1:43120/api/queue); print -r -- "$state" | grep -q '"status":"completed"' && break; sleep .25; done
-print -r -- "$state" | grep -q '"status":"completed"'; "$ffprobe" -v error -show_entries format=duration,size -of json "$work/video/test output.mp4" | grep -q '"duration"'
+print -r -- "$state" | grep -q '"status":"completed"'; probe_result=$("$ffprobe" -v error -show_entries format=duration,size -of json "$work/video/test output.mp4"); [[ "$probe_result" == *'"duration"'* ]]
 /usr/bin/open "$app"; sleep 1; [[ "$(lsof -tiTCP:43120 -sTCP:LISTEN | wc -l | tr -d ' ')" == 1 ]]
 /usr/bin/osascript -e 'tell application id "local.video.compressor.test" to quit'; for i in {1..20}; do kill -0 "$listener_pid" 2>/dev/null || break; sleep .25; done; ! kill -0 "$listener_pid" 2>/dev/null
 agent_pid=''; listener_pid=''

@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var openedPairing = false
   private var statusItem: NSStatusItem?
   private var lockFD: Int32 = -1
+  private var isTerminating = false
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     installMenuBarItem()
@@ -22,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
   func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+    isTerminating = true
     readinessTimer?.invalidate()
     if let process, process.isRunning { process.terminate(); process.waitUntilExit() }
     return .terminateNow
@@ -67,7 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     child.terminationHandler = { [weak self] finished in
       DispatchQueue.main.async {
-        guard let self, !self.openedPairing else { return }
+        guard let self, !self.isTerminating else { return }
         self.readinessTimer?.invalidate()
         self.showFailure("The local agent exited with status \(finished.terminationStatus).", details: self.stderrText)
       }
