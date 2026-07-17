@@ -1,7 +1,7 @@
 # Local Video Compressor — test guide
 
 ## How to install
-Download the ZIP, open it, and move **LocalVideoCompressor** to Applications.
+Download the DMG, open it, and drag **Local Video Compressor Agent** to Applications.
 
 ## If macOS shows a warning
 Control-click the app, choose **Open**, then confirm **Open**. Never disable macOS security.

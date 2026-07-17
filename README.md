@@ -27,7 +27,7 @@ npm run package:mac
 npm run verify:package
 ```
 
-This creates an ad-hoc-signed `release/LocalVideoCompressor-macOS-arm64.zip` and SHA-256 file. Do not commit `release/`. Create (but do not publish without owner approval) GitHub release `v0.1.0-test`, attach both files, `TESTER_GUIDE.md`, `RELEASE_NOTES.md`, and the completed third-party notice. This test build is not Apple-notarized; production requires Developer ID signing and notarization. Intel/Universal support has not been verified and is not claimed.
+This creates the ad-hoc-signed app and backup ZIP. Run `npm run package:dmg` to create `release/LocalVideoCompressor-v0.1.0-test-macOS-arm64.dmg` and its SHA-256 file. Do not commit `release/`. Attach the DMG, checksum, optional ZIP, `TESTER_GUIDE.md`, `RELEASE_NOTES.md`, and the completed third-party notice to release `v0.1.0-test`. This test build is not Apple-notarized; production requires Developer ID signing and notarization. Intel/Universal support has not been verified and is not claimed.
 
 ## Daily use
 

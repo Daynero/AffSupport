@@ -10,3 +10,4 @@ release/
 !apps/web/.env.production
 coverage/
 .idea/
+packaging/icon-source/
