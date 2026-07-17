@@ -58,7 +58,7 @@ app.addHook('preHandler', async (request, reply) => {
   const supplied = request.headers['x-session-token'] ?? (request.query as { token?: string }).token;
   if (supplied !== token) return reply.code(401).send({ error: 'Invalid session token.' });
 });
-app.get('/api/health', async () => ({ ok: tools.ffmpeg && tools.ffprobe, tools, version: config.version }));
+app.get('/api/health', async () => ({ ok: tools.ffmpeg && tools.ffprobe, tools, version: config.version, apiVersion: 1 }));
 app.get('/api/diagnostics', async () => ({ version: config.version, macOS: os.release(), architecture: os.arch(), ffmpeg: tools.ffmpeg && tools.ffprobe ? 'ready' : 'unavailable', lastError: queue.state().warning ?? null }));
 app.get('/api/queue', async () => queue.state());
 app.get('/api/events', async (request, reply) => {
@@ -106,6 +106,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const webRoot = path.resolve(here, '../../web/dist');
 await app.register(fastifyStatic, { root: webRoot, wildcard: false });
 app.get('/pair', async (_request, reply) => reply.redirect(`${config.publicOrigin ?? `http://${config.host}:${config.port}`}/#agentToken=${token}`));
+app.get('/local', async (_request, reply) => reply.redirect(`http://${config.host}:${config.port}/#agentToken=${token}`));
 app.setNotFoundHandler((request, reply) => request.url.startsWith('/api/') ? reply.code(404).send({ error: 'API action not found.' }) : reply.sendFile('index.html'));
 
 try {

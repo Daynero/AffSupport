@@ -1,6 +1,6 @@
 #!/bin/zsh
 set -euo pipefail
-app="$PWD/release/LocalVideoCompressor.app"
+app="$PWD/release/Local Video Compressor Agent.app"
 [[ -d "$app" && -x "$app/Contents/MacOS/LocalVideoCompressor" && -x "$app/Contents/Resources/runtime/node" ]]
 for name in ffmpeg ffprobe; do binary="$app/Contents/Resources/runtime/bin/$name"; [[ -x "$binary" ]]; file "$binary" | grep -q arm64; "$binary" -version >/dev/null; done
 [[ -f apps/web/dist/index.html && -f "$app/Contents/Resources/agent/dist/index.js" ]]

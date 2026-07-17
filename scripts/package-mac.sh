@@ -7,7 +7,7 @@ set -euo pipefail
 : "${X264_SOURCE_ARCHIVE:?Set X264_SOURCE_ARCHIVE to the matching x264 source archive}"
 [[ "$PUBLIC_SITE_ORIGIN" == https://* ]] || { print -u2 "PUBLIC_SITE_ORIGIN must use HTTPS"; exit 1; }
 for binary in "$FFMPEG_BINARY" "$FFPROBE_BINARY"; do file "$binary" | grep -q 'arm64' || { print -u2 "$binary is not arm64"; exit 1; }; otool -L "$binary" | tail -n +2 | grep -Ev '^\s+(/usr/lib|/System/Library)' && { print -u2 "$binary has non-system dynamic dependencies"; exit 1; } || true; done
-root="$PWD/release"; app="$root/LocalVideoCompressor.app"; rm -rf "$app"; mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/runtime/bin" "$app/Contents/Resources/agent"
+root="$PWD/release"; app="$root/Local Video Compressor Agent.app"; rm -rf "$app"; mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/runtime/bin" "$app/Contents/Resources/agent"
 sed "s|__PUBLIC_SITE_ORIGIN__|$PUBLIC_SITE_ORIGIN|g" packaging/Launcher.swift > "$root/Launcher.generated.swift"
 swiftc "$root/Launcher.generated.swift" -o "$app/Contents/MacOS/LocalVideoCompressor" -framework AppKit
 cp "$(command -v node)" "$app/Contents/Resources/runtime/node"; cp "$FFMPEG_BINARY" "$app/Contents/Resources/runtime/bin/ffmpeg"; cp "$FFPROBE_BINARY" "$app/Contents/Resources/runtime/bin/ffprobe"
