@@ -110,9 +110,23 @@ app.get('/pair', async (_request, reply) => reply.redirect(`${config.publicOrigi
 app.get('/local', async (_request, reply) => reply.redirect(`http://${config.host}:${config.port}/#agentToken=${token}`));
 app.setNotFoundHandler((request, reply) => request.url.startsWith('/api/') ? reply.code(404).send({ error: 'API action not found.' }) : reply.sendFile('index.html'));
 
+let shuttingDown = false;
+async function shutdown(code = 0) {
+  if (shuttingDown) return; shuttingDown = true;
+  try { await estimator.shutdown(); await queue.shutdown(); await app.close(); } catch (error) { app.log.error(error, 'Shutdown failed'); }
+  process.exit(code);
+}
 try {
   await app.listen({ host: config.host, port: config.port });
   app.log.info(`Local Video Compressor: http://${config.host}:${config.port}`);
   if (process.env.NODE_ENV !== 'test' && process.env.NO_OPEN !== '1') await open(`http://${config.host}:${config.port}/pair`);
 } catch (error) { app.log.error(error); process.exit(1); }
-for(const signal of ['SIGINT','SIGTERM'] as const)process.once(signal,async()=>{await estimator.shutdown();await queue.shutdown();await app.close();process.exit(0)});
+for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => { void shutdown(0); });
+// When packaged, the Swift launcher owns this process. If that launcher crashes or is
+// force-quit it cannot send SIGTERM, so this agent would be reparented to launchd and keep
+// port 43120 held, making the next launch fail with EADDRINUSE. Exit as soon as we are orphaned.
+if (process.env.PACKAGED_APP === '1') {
+  const parentPid = process.ppid;
+  const watchdog = setInterval(() => { if (process.ppid !== parentPid) { clearInterval(watchdog); void shutdown(0); } }, 1000);
+  watchdog.unref();
+}

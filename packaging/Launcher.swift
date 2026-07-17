@@ -49,6 +49,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   private func startAgent() {
+    // A healthy agent may already be listening — e.g. one orphaned by a crashed launcher
+    // that has not yet exited, or a developer instance. Adopt it instead of spawning a
+    // duplicate that would fail to bind port 43120 and surface a scary error.
+    probeReady(timeout: 1) { [weak self] ready in
+      guard let self, !self.openedPairing else { return }
+      if ready { self.openedPairing = true; self.openPairing() }
+      else { self.spawnAgent() }
+    }
+  }
+
+  private func probeReady(timeout: TimeInterval, completion: @escaping (Bool) -> Void) {
+    var request = URLRequest(url: agentBaseURL.appendingPathComponent("health"))
+    request.timeoutInterval = timeout
+    URLSession.shared.dataTask(with: request) { data, response, _ in
+      let ready = (response as? HTTPURLResponse)?.statusCode == 200 && data.flatMap { String(data: $0, encoding: .utf8) }?.contains("\"product\":\"local-video-compressor-agent\"") == true
+      DispatchQueue.main.async { completion(ready) }
+    }.resume()
+  }
+
+  private func spawnAgent() {
     let resources = Bundle.main.resourceURL!
     let executable = resources.appendingPathComponent("runtime/node")
     let agentDirectory = resources.appendingPathComponent("agent")
