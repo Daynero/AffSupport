@@ -5,8 +5,8 @@ import { ffmpegPath } from './tools.js';
 
 export interface EncodeResult { code: number | null; stderr: string; cancelled: boolean }
 
-export function encodeVideo(input: string, output: string, duration: number | null, preset: PresetId, transcodeAudio: boolean, onProgress: (value: number | null) => void): { child: ChildProcessWithoutNullStreams; done: Promise<EncodeResult> } {
-  const args = buildFfmpegArgs(input, output, preset, transcodeAudio);
+export function encodeVideo(input: string, output: string, duration: number | null, preset: PresetId, transcodeAudio: boolean, onProgress: (value: number | null) => void, frameRate?: number): { child: ChildProcessWithoutNullStreams; done: Promise<EncodeResult> } {
+  const args = buildFfmpegArgs(input, output, preset, frameRate, transcodeAudio);
   const child = spawn(ffmpegPath, args, { shell: false });
   let stderr = '', buffer = '', cancelled = false;
   child.stdout.on('data', chunk => {

@@ -48,11 +48,11 @@ New queued videos are estimated automatically, one at a time, by the local agent
 
 An estimate is explicitly marked with `Estimated` and `≈`; it is not a guarantee. The tooltip shows a likely range because CRF output depends on scene complexity. Starting real compression immediately stops the estimation process first, so the real encode never waits for all estimates and the two FFmpeg workloads do not run together. After compression, the factual before/after size replaces the forecast.
 
-Changing preset invalidates queued forecasts and schedules a debounced recalculation. Results are cached locally using absolute path, file size, modification time, preset, and algorithm version. The cache is capped at 300 recent entries. Temporary sample files are removed after success, failure, cancellation, and agent shutdown.
+Changing the preset or the Quality frame rate invalidates queued forecasts and schedules a debounced recalculation. Results are cached locally using absolute path, file size, modification time, preset, frame rate, and algorithm version. The cache is capped at 300 recent entries. Temporary sample files are removed after success, failure, cancellation, and agent shutdown.
 
 ### Presets
 
-- **Quality:** original dimensions and frame rate, H.264 CRF 24, copied audio when compatible, controlled AAC 96k fallback.
+- **Quality:** original dimensions, H.264 CRF 24, copied audio when compatible, controlled AAC 96k fallback. A frame-rate slider (24–120 fps) caps the output rate; the source rate is never exceeded, and lowering it shrinks the file. Balanced and Ultra Small keep their own lower frame-rate caps regardless of the slider.
 - **Balanced** (default): H.264 CRF 26, longest side up to 720 px, at most 24 FPS, AAC 96k.
 - **Ultra Small:** H.264 CRF 30, longest side up to 550 px, at most 20 FPS, mono AAC 48k.
 

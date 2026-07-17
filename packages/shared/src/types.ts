@@ -2,7 +2,10 @@ export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'canc
 export type PresetId = 'quality' | 'balanced' | 'ultra-small';
 export type OutputMode = 'next-to-originals' | 'chosen-folder';
 export type EstimateStatus = 'waiting' | 'estimating' | 'estimated' | 'unavailable' | 'cancelled';
-export interface AgentSettings { preset: PresetId; outputMode: OutputMode; outputFolder: string | null }
+export const FRAME_RATE_MIN = 24, FRAME_RATE_MAX = 120, DEFAULT_FRAME_RATE = 120;
+export function clampFrameRate(value: unknown): number { const n = Math.round(Number(value)); return Number.isFinite(n) ? Math.min(FRAME_RATE_MAX, Math.max(FRAME_RATE_MIN, n)) : DEFAULT_FRAME_RATE; }
+// frameRate caps the output frame rate (min with the preset's own cap and the source rate).
+export interface AgentSettings { preset: PresetId; outputMode: OutputMode; outputFolder: string | null; frameRate?: number }
 
 export interface CompressionJob {
   id: string;

@@ -6,7 +6,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import open from 'open';
-import type { AgentEvent } from '@video-compressor/shared';
+import { DEFAULT_FRAME_RATE, FRAME_RATE_MAX, FRAME_RATE_MIN, type AgentEvent } from '@video-compressor/shared';
 import { commandExists } from './ffmpeg/tools.js';
 import { selectOutputFolder, selectVideos } from './files/picker.js';
 import { JobQueue } from './queue/queue.js';
@@ -36,7 +36,7 @@ function broadcast(type:AgentEventType='state') {
 const restored = await loadState();
 queue = new JobQueue(tools, broadcast, restored.jobs, restored.settings);
 await saveState(queue.persisted());
-estimator=new EstimationWorker(()=>queue.estimationJobs(),(id,patch,event)=>queue.updateEstimate(id,patch,event),()=>queue.state().running);
+estimator=new EstimationWorker(()=>queue.estimationJobs(),(id,patch,event)=>queue.updateEstimate(id,patch,event),()=>queue.state().running,undefined,()=>queue.state().settings.frameRate ?? DEFAULT_FRAME_RATE);
 queue.attachEstimator({schedule:()=>estimator.schedule(),invalidateForPreset:preset=>estimator.invalidateForPreset(preset),resume:()=>estimator.resume()});
 await estimator.init();
 
@@ -85,6 +85,7 @@ app.post<{ Body: Partial<AgentSettings> }>('/api/settings', async (request, repl
   const allowed: Partial<AgentSettings> = {};
   if (body.preset !== undefined) { if (!['quality', 'balanced', 'ultra-small'].includes(body.preset)) return reply.code(400).send({ error: 'Invalid preset.' }); allowed.preset = body.preset; }
   if (body.outputMode !== undefined) { if (!['next-to-originals', 'chosen-folder'].includes(body.outputMode)) return reply.code(400).send({ error: 'Invalid output mode.' }); allowed.outputMode = body.outputMode; }
+  if (body.frameRate !== undefined) { const n = Number(body.frameRate); if (!Number.isInteger(n) || n < FRAME_RATE_MIN || n > FRAME_RATE_MAX) return reply.code(400).send({ error: 'Invalid frame rate.' }); allowed.frameRate = n; }
   queue.updateSettings(allowed); return queue.state();
 });
 app.post('/api/queue/start', async (_request, reply) => {
