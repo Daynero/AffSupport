@@ -4,7 +4,7 @@ A private local video compressor controlled from a browser. Videos are selected 
 
 ## Run
 
-Requirements: macOS, Node.js 22+, and FFmpeg/FFprobe (`brew install ffmpeg`).
+Developer requirements: macOS, Node.js 22+, and FFmpeg/FFprobe. Testers using the packaged app need none of these.
 
 ```bash
 npm install
@@ -12,7 +12,22 @@ npm run build
 npm start
 ```
 
-The agent listens only on `http://127.0.0.1:43117` and opens that page automatically. Development mode is `npm run dev`. Verification commands are `npm test` and `npm run build`.
+The agent listens only on `http://127.0.0.1:43120` and opens the paired website automatically. Development mode is `npm run dev` with the fixed `http://127.0.0.1:5173` origin.
+
+## Hosted closed test
+
+Cloudflare Pages needs no backend or Functions: videos are selected through the local agent and never enter the web build. Create a GitHub repository, connect it in Pages, set build command `npm ci && npm run build:web`, output directory `apps/web/dist`, and variables `VITE_AGENT_URL=http://127.0.0.1:43120` plus `VITE_AGENT_DOWNLOAD_URL` from `.env.example`. Deploy, copy the exact HTTPS origin, then build the agent with that origin. The included `_redirects` supplies SPA fallback.
+
+Before packaging, obtain matching standalone Apple Silicon FFmpeg and FFprobe from a reviewed, reproducible distribution; record version, configure flags, license, source URL and checksums in `THIRD_PARTY_NOTICES.md`. Homebrew-linked binaries are rejected. Then run:
+
+```bash
+PUBLIC_SITE_ORIGIN=https://YOUR-PROJECT.pages.dev \
+FFMPEG_BINARY=/approved/ffmpeg FFPROBE_BINARY=/approved/ffprobe \
+npm run package:mac
+npm run verify:package
+```
+
+This creates an ad-hoc-signed `release/LocalVideoCompressor-macOS-arm64.zip` and SHA-256 file. Do not commit `release/`. Create (but do not publish without owner approval) GitHub release `v0.1.0-test`, attach both files, `TESTER_GUIDE.md`, `RELEASE_NOTES.md`, and the completed third-party notice. This test build is not Apple-notarized; production requires Developer ID signing and notarization. Intel/Universal support has not been verified and is not claimed.
 
 ## Daily use
 

@@ -37,7 +37,7 @@ export class JobQueue {
     this.notify('estimate:queued'); this.estimateHooks?.schedule(); return warnings;
   }
   async start() { this.warning = await this.diskWarning(); this.started = true; this.notify(); void this.pump(); }
-  async cancel(id: string) { const job = this.jobs.find(j => j.id === id); if (!job || job.status !== 'processing') return false; job.status = 'cancelled'; job.error = 'Compression was cancelled.'; this.active?.kill('SIGTERM'); this.notify(); return true; }
+  async cancel(id: string) { const job = this.jobs.find(j => j.id === id); if (!job || job.status !== 'processing') return false; job.status = 'cancelled'; job.error = 'Compression was cancelled.'; job.estimateStatus='waiting';job.estimatedOutputBytes=null;job.estimatedSavingPercent=null;job.estimateRangeMinBytes=null;job.estimateRangeMaxBytes=null;job.estimateProgress=null;job.estimateError=null;job.estimatePreset=job.preset;this.active?.kill('SIGTERM'); this.notify('estimate:queued');this.estimateHooks?.schedule(); return true; }
   remove(id: string) { const before = this.jobs.length; this.jobs = this.jobs.filter(j => !(j.id === id && j.status === 'queued')); this.notify(); return before !== this.jobs.length; }
   retry(id: string) { const job = this.jobs.find(j => j.id === id); if (!job || !['failed', 'interrupted', 'cancelled'].includes(job.status)) return false; job.status = 'queued'; job.error = null; job.progress = job.durationSeconds ? 0 : null; job.finalSize = null; this.notify(); if (this.started) void this.pump(); return true; }
   clearCompleted() { this.jobs = this.jobs.filter(j => !['completed', 'failed', 'cancelled'].includes(j.status)); this.notify(); }

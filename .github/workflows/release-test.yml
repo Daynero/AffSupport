@@ -1,0 +1,12 @@
+name: Build test release
+on: { workflow_dispatch: {} }
+jobs:
+  package:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm test && npm run build:web
+      - run: echo "Packaging intentionally requires owner-approved FFmpeg/FFprobe artifacts and PUBLIC_SITE_ORIGIN; see README."

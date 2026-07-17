@@ -14,12 +14,13 @@ import { loadState, saveState } from './queue/store.js';
 import type { AgentSettings } from '@video-compressor/shared';
 import type { AgentEventType } from '@video-compressor/shared';
 import { EstimationWorker } from './estimate/worker.js';
+import { allowedOrigins, config } from './config.js';
+import os from 'node:os';
+import { ffmpegPath, ffprobePath } from './ffmpeg/tools.js';
 
-const HOST = '127.0.0.1';
-const PORT = 43117;
 const token = randomBytes(32).toString('hex');
 const app = Fastify({ logger: true, bodyLimit: 16_384 });
-const tools = { ffmpeg: await commandExists('ffmpeg'), ffprobe: await commandExists('ffprobe') };
+const tools = { ffmpeg: await commandExists(ffmpegPath), ffprobe: await commandExists(ffprobePath) };
 const clients = new Set<NodeJS.WritableStream>();
 let queue: JobQueue;
 let estimator: EstimationWorker;
@@ -40,17 +41,25 @@ queue.attachEstimator({schedule:()=>estimator.schedule(),invalidateForPreset:pre
 await estimator.init();
 
 await app.register(cors, {
-  origin: (origin, cb) => cb(null, !origin || origin === `http://${HOST}:${PORT}` || origin === 'http://127.0.0.1:5173'),
-  methods: ['GET', 'POST', 'DELETE']
+  origin: (origin, cb) => cb(null, !origin || allowedOrigins.has(origin)),
+  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'], allowedHeaders: ['content-type', 'x-session-token']
+});
+app.addHook('onRequest', async (request, reply) => {
+  const origin = request.headers.origin;
+  if (request.url.startsWith('/api/') && origin && !allowedOrigins.has(origin)) return reply.code(403).send({ error: 'Origin is not allowed.' });
+});
+app.addHook('onSend', async (request, reply, payload) => {
+  if (request.headers['access-control-request-private-network'] === 'true' && request.headers.origin && allowedOrigins.has(request.headers.origin)) reply.header('Access-Control-Allow-Private-Network', 'true');
+  return payload;
 });
 
-app.get('/api/session', async () => ({ token }));
 app.addHook('preHandler', async (request, reply) => {
-  if (!request.url.startsWith('/api/') || request.url === '/api/session') return;
+  if (!request.url.startsWith('/api/')) return;
   const supplied = request.headers['x-session-token'] ?? (request.query as { token?: string }).token;
   if (supplied !== token) return reply.code(401).send({ error: 'Invalid session token.' });
 });
-app.get('/api/health', async () => ({ ok: tools.ffmpeg && tools.ffprobe, tools, version: '0.1.0' }));
+app.get('/api/health', async () => ({ ok: tools.ffmpeg && tools.ffprobe, tools, version: config.version }));
+app.get('/api/diagnostics', async () => ({ version: config.version, macOS: os.release(), architecture: os.arch(), ffmpeg: tools.ffmpeg && tools.ffprobe ? 'ready' : 'unavailable', lastError: queue.state().warning ?? null }));
 app.get('/api/queue', async () => queue.state());
 app.get('/api/events', async (request, reply) => {
   reply.hijack();
@@ -78,7 +87,7 @@ app.post<{ Body: Partial<AgentSettings> }>('/api/settings', async (request, repl
   queue.updateSettings(allowed); return queue.state();
 });
 app.post('/api/queue/start', async (_request, reply) => {
-  if (!tools.ffmpeg) return reply.code(503).send({ error: 'FFmpeg is not installed. Install it with: brew install ffmpeg' });
+  if (!tools.ffmpeg) return reply.code(503).send({ error: 'The bundled video engine is unavailable. Reinstall the Mac Agent.' });
   await estimator.pause(); await queue.start(); return queue.state();
 });
 app.post<{ Params: { id: string } }>('/api/jobs/:id/cancel', async (request, reply) => (await queue.cancel(request.params.id)) ? queue.state() : reply.code(409).send({ error: 'Only the current job can be cancelled.' }));
@@ -96,11 +105,12 @@ app.post('/api/output/reveal', async (_request, reply) => { const folder = queue
 const here = path.dirname(fileURLToPath(import.meta.url));
 const webRoot = path.resolve(here, '../../web/dist');
 await app.register(fastifyStatic, { root: webRoot, wildcard: false });
+app.get('/pair', async (_request, reply) => reply.redirect(`${config.publicOrigin ?? `http://${config.host}:${config.port}`}/#agentToken=${token}`));
 app.setNotFoundHandler((request, reply) => request.url.startsWith('/api/') ? reply.code(404).send({ error: 'API action not found.' }) : reply.sendFile('index.html'));
 
 try {
-  await app.listen({ host: HOST, port: PORT });
-  app.log.info(`Local Video Compressor: http://${HOST}:${PORT}`);
-  if (process.env.NODE_ENV !== 'test') await open(`http://${HOST}:${PORT}`);
+  await app.listen({ host: config.host, port: config.port });
+  app.log.info(`Local Video Compressor: http://${config.host}:${config.port}`);
+  if (process.env.NODE_ENV !== 'test' && process.env.NO_OPEN !== '1') await open(`http://${config.host}:${config.port}/pair`);
 } catch (error) { app.log.error(error); process.exit(1); }
 for(const signal of ['SIGINT','SIGTERM'] as const)process.once(signal,async()=>{await estimator.shutdown();await queue.shutdown();await app.close();process.exit(0)});

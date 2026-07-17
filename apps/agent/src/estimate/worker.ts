@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { AgentEventType, CompressionJob, PresetId } from '@video-compressor/shared';
 import { buildEstimateArgs } from '../ffmpeg/presets.js';
+import { ffmpegPath, ffprobePath } from '../ffmpeg/tools.js';
 import { EstimateCache, estimateCacheKey } from './cache.js';
 import { createSamplePlan, estimateFromSamples } from './sampler.js';
 
@@ -21,12 +22,12 @@ export class EstimationWorker {
   schedule(delay = 0) { if (this.debounce) clearTimeout(this.debounce); this.debounce = setTimeout(() => { this.debounce = null; void this.pump(); }, delay); }
   invalidateForPreset(preset: PresetId) { this.generation++; this.child?.kill('SIGTERM'); for (const job of this.jobs()) if (job.status !== 'completed') this.update(job.id, { estimateStatus: 'waiting', estimatedOutputBytes: null, estimatedSavingPercent: null, estimateRangeMinBytes: null, estimateRangeMaxBytes: null, estimateProgress: null, estimateError: null, estimatePreset: preset }, 'estimate:queued'); this.schedule(450); }
   async pause() { this.paused = true; this.generation++; const child = this.child; child?.kill('SIGTERM'); if (child) setTimeout(() => { if (this.child === child) child.kill('SIGKILL'); }, 2000).unref(); await this.currentDone; }
-  resume() { this.paused = false; for (const job of this.jobs()) if (job.status === 'queued' && job.estimateStatus === 'cancelled') this.update(job.id, { estimateStatus: 'waiting', estimateError: null }, 'estimate:queued'); this.schedule(); }
+  resume() { this.paused = false; for (const job of this.jobs()) if (!['completed', 'processing'].includes(job.status) && job.estimateStatus === 'cancelled') this.update(job.id, { estimateStatus: 'waiting', estimateError: null }, 'estimate:queued'); this.schedule(); }
   async shutdown() { this.paused = true; this.child?.kill('SIGTERM'); await this.currentDone; }
   private async pump() {
     if (this.pumping || this.paused || this.compressionRunning()) return;
     this.pumping = true;
-    try { while (!this.paused && !this.compressionRunning()) { const job = this.jobs().find(j => j.status === 'queued' && j.estimateStatus === 'waiting'); if (!job) break; const run = this.estimate(job, this.generation); this.currentDone = run; await run; this.currentDone = null; } }
+    try { while (!this.paused && !this.compressionRunning()) { const job = this.jobs().find(j => !['completed', 'processing'].includes(j.status) && j.estimateStatus === 'waiting'); if (!job) break; const run = this.estimate(job, this.generation); this.currentDone = run; await run; this.currentDone = null; } }
     finally { this.pumping = false; }
   }
   private async estimate(job: CompressionJob, generation: number) {
@@ -53,7 +54,7 @@ export class EstimationWorker {
       else this.update(job.id, { estimateStatus: 'unavailable', estimateProgress: null, estimateError: error instanceof Error ? error.message : 'Estimate unavailable.' }, 'estimate:failed');
     } finally { this.child = null; if (temp) await rm(temp, { recursive: true, force: true }); }
   }
-  private runFfmpeg(args: string[]) { return new Promise<number | null>(resolve => { const child = spawn('ffmpeg', args, { shell: false }); this.child = child; child.on('error', () => resolve(null)); child.on('close', resolve); }); }
+  private runFfmpeg(args: string[]) { return new Promise<number | null>(resolve => { const child = spawn(ffmpegPath, args, { shell: false }); this.child = child; child.on('error', () => resolve(null)); child.on('close', resolve); }); }
 }
 class Cancelled extends Error {}
-function probe(input: string) { return new Promise<{ duration: number; audioBitrate: number; hasAudio: boolean }>((resolve, reject) => { const process = spawn('ffprobe', ['-v', 'error', '-show_entries', 'format=duration:stream=codec_type,bit_rate', '-of', 'json', input], { shell: false }); let out = ''; process.stdout.on('data', d => { out += d; }); process.on('error', reject); process.on('close', code => { try { if (code !== 0) throw new Error(); const value = JSON.parse(out), duration = Number(value.format?.duration); if (!Number.isFinite(duration) || duration <= 0) throw new Error(); const audio = value.streams?.find((stream: { codec_type: string }) => stream.codec_type === 'audio'); resolve({ duration, audioBitrate: Number(audio?.bit_rate) || 128_000, hasAudio: Boolean(audio) }); } catch { reject(new Error('FFprobe could not determine duration.')); } }); }); }
+function probe(input: string) { return new Promise<{ duration: number; audioBitrate: number; hasAudio: boolean }>((resolve, reject) => { const process = spawn(ffprobePath, ['-v', 'error', '-show_entries', 'format=duration:stream=codec_type,bit_rate', '-of', 'json', input], { shell: false }); let out = ''; process.stdout.on('data', d => { out += d; }); process.on('error', reject); process.on('close', code => { try { if (code !== 0) throw new Error(); const value = JSON.parse(out), duration = Number(value.format?.duration); if (!Number.isFinite(duration) || duration <= 0) throw new Error(); const audio = value.streams?.find((stream: { codec_type: string }) => stream.codec_type === 'audio'); resolve({ duration, audioBitrate: Number(audio?.bit_rate) || 128_000, hasAudio: Boolean(audio) }); } catch { reject(new Error('FFprobe could not determine duration.')); } }); }); }
