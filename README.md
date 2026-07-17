@@ -23,11 +23,15 @@ Before packaging, obtain matching standalone Apple Silicon FFmpeg and FFprobe fr
 ```bash
 PUBLIC_SITE_ORIGIN=https://YOUR-PROJECT.pages.dev \
 FFMPEG_BINARY=/approved/ffmpeg FFPROBE_BINARY=/approved/ffprobe \
+FFMPEG_SOURCE_ARCHIVE=/approved/ffmpeg-7.1.1.tar.xz \
+X264_SOURCE_ARCHIVE=/approved/x264-source.tar.gz \
 npm run package:mac
 npm run verify:package
 ```
 
-This creates the ad-hoc-signed app and backup ZIP. Run `npm run package:dmg` to create `release/LocalVideoCompressor-v0.1.0-test-macOS-arm64.dmg` and its SHA-256 file. Do not commit `release/`. Attach the DMG, checksum, optional ZIP, `TESTER_GUIDE.md`, `RELEASE_NOTES.md`, and the completed third-party notice to release `v0.1.0-test`. This test build is not Apple-notarized; production requires Developer ID signing and notarization. Intel/Universal support has not been verified and is not claimed.
+All five variables are required; `scripts/package-mac.sh` aborts if any is missing. This creates the ad-hoc-signed app and backup ZIP. Run `npm run package:dmg` to create `release/LocalVideoCompressor-v0.1.0-test-macOS-arm64.dmg` and its SHA-256 file. Do not commit `release/`. Attach the DMG, checksum, optional ZIP, `TESTER_GUIDE.md`, `RELEASE_NOTES.md`, and the completed third-party notice to release `v0.1.0-test`.
+
+This test build is **ad-hoc signed, not Apple-notarized**. macOS quarantines it after download and Gatekeeper will not launch it directly (there is no "Open Anyway" affordance for an ad-hoc signature). Testers must run `xattr -dr com.apple.quarantine "/Applications/Local Video Compressor Agent.app"` once after installing — see `TESTER_GUIDE.md`. A production release requires a Developer ID Application certificate, `--options runtime` hardened signing, and Apple notarization + stapling, after which no such step is needed. Intel/Universal support has not been verified and is not claimed.
 
 ## Daily use
 
@@ -72,11 +76,13 @@ Before starting, the agent conservatively compares free space in every relevant 
 
 ## Local API
 
-All actions except session bootstrap require a random per-process 256-bit token. CORS permits only the production page and fixed local development origin. Request bodies are structurally validated, preset parameters are defined only in the agent, and every external process uses argument arrays with `shell: false`.
+Every `/api/*` route requires a random per-process 256-bit token. The token is issued only through the `/pair` redirect (production origin) or `/local` (development), which place it in the page URL fragment; the unauthenticated `/health` route exists solely so the packaged launcher can detect readiness. CORS permits only the production page and fixed local development origin. Request bodies are structurally validated, preset parameters are defined only in the agent, and every external process uses argument arrays with `shell: false`.
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/session`, `/api/health`, `/api/queue` | Connect and obtain current state |
+| GET | `/health` | Unauthenticated readiness probe used by the launcher |
+| GET | `/pair`, `/local` | Redirect to the site with a fresh session token |
+| GET | `/api/health`, `/api/queue`, `/api/diagnostics` | Obtain current state and diagnostics |
 | GET | `/api/events` | Live SSE queue snapshots |
 | POST | `/api/files/select`, `/api/files/confirm` | Native selection and explicit warning confirmation |
 | POST | `/api/settings`, `/api/output/select` | Preset/output settings and native folder selection |
@@ -96,7 +102,7 @@ All actions except session bootstrap require a random per-process 256-bit token.
 
 ## Current limitations
 
-- macOS only; no packaged `.app` or automatic updates yet.
+- macOS Apple Silicon only. A packaged `.app` and drag-to-Applications DMG exist (`npm run package:dmg`), but the test build is ad-hoc signed, not notarized, so it needs the one-time quarantine step above. No automatic updates yet.
 - One local agent and one FFmpeg encoding process at a time.
 - Retry restarts a file from the beginning; there is no partial resume.
 - State is local JSON, not a multi-user database. Source files moved after selection will fail clearly.

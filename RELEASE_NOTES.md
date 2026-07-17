@@ -2,4 +2,12 @@
 
 Private, non-notarized Apple Silicon test build. Install using the DMG by dragging the app to Applications. Video selection, estimation, queueing and compression happen locally; video data is never uploaded.
 
-Known limitations: macOS arm64 only; Chrome may request Local Network Access; Safari may block HTTPS-to-HTTP loopback, in which case use **Open local compressor**; no automatic updates; one agent and one encode at a time. See `TESTER_GUIDE.md` for the macOS warning.
+Because this build is ad-hoc signed (not notarized), macOS quarantines it after download and will not launch it directly. After dragging the app to Applications, run once in Terminal:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Local Video Compressor Agent.app"
+```
+
+This clears only the download-quarantine flag for this app and does not disable macOS security. See `TESTER_GUIDE.md`.
+
+Known limitations: macOS arm64 only; the Agent runs from the menu bar and has no Dock icon; Chrome may request Local Network Access; Safari may block HTTPS-to-HTTP loopback, in which case use **Open local version**; no automatic updates; one agent and one encode at a time.
