@@ -1,5 +1,7 @@
+import { AGENT_API_VERSION } from '@video-compressor/shared';
+
 export type ConnectionState = 'checking' | 'not_installed_or_not_running' | 'connecting' | 'connected' | 'incompatible_version' | 'connection_blocked' | 'disconnected';
-export const SUPPORTED_API_VERSION = 2;
+export const SUPPORTED_API_VERSION = AGENT_API_VERSION;
 export function versionState(apiVersion: number): ConnectionState { return apiVersion === SUPPORTED_API_VERSION ? 'connected' : 'incompatible_version'; }
 export function pairingPath(agentOrigin: string, pageOrigin: string) { return agentOrigin === pageOrigin ? '/local' : '/pair'; }
 

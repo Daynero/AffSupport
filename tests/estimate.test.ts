@@ -1,7 +1,192 @@
-import { afterEach, describe, expect, it } from 'vitest';import { copyFile,mkdtemp,rm } from 'node:fs/promises';import { spawn } from 'node:child_process';import os from 'node:os';import path from 'node:path';import type { AgentEventType,CompressionJob } from '../packages/shared/src/types.js';import { createSamplePlan,estimateFromSamples } from '../apps/agent/src/estimate/sampler.js';import { EstimateCache,estimateCacheKey } from '../apps/agent/src/estimate/cache.js';import { EstimationWorker } from '../apps/agent/src/estimate/worker.js';
-let dir='';afterEach(async()=>{if(dir)await rm(dir,{recursive:true,force:true})});
-describe('estimate planning and cache',()=>{it('samples long videos across the whole timeline',()=>{const p=createSamplePlan(3600);expect(p).toHaveLength(8);expect(p[0].start).toBe(0);expect(p.at(-1)!.start).toBeCloseTo(3595);for(const f of [.2,.4,.6,.8])expect(p.some(x=>Math.abs(x.start/3595-f)<.01)).toBe(true)});it('keeps short points valid',()=>{for(const d of [.2,2,8,15])for(const p of createSamplePlan(d)){expect(p.start).toBeGreaterThanOrEqual(0);expect(p.duration).toBeGreaterThan(0);expect(p.start+p.duration).toBeLessThanOrEqual(d+.001)}});it('uses path, size, mtime and preset in cache keys',()=>{const base=estimateCacheKey('/a',10,20,'balanced');expect(estimateCacheKey('/b',10,20,'balanced')).not.toBe(base);expect(estimateCacheKey('/a',11,20,'balanced')).not.toBe(base);expect(estimateCacheKey('/a',10,21,'balanced')).not.toBe(base);expect(estimateCacheKey('/a',10,20,'quality')).not.toBe(base)});it('creates an honest range',()=>{const e=estimateFromSamples([100,200,100],[1,1,1],10,0,5000)!;expect(e.estimateRangeMinBytes).toBeLessThan(e.estimatedOutputBytes);expect(e.estimateRangeMaxBytes).toBeGreaterThan(e.estimatedOutputBytes)})});
-describe('estimation worker',()=>{it('estimates ten jobs strictly one at a time and appends a later job',async()=>{dir=await mkdtemp(path.join(os.tmpdir(),'estimate-worker-'));const source=path.join(dir,'source.mp4');expect(await ffmpeg(['-f','lavfi','-i','testsrc2=size=96x54:rate=5','-t','.25','-c:v','libx264','-an',source])).toBe(0);const jobs:CompressionJob[]=[];for(let i=0;i<10;i++){const file=path.join(dir,`clip-${i}.mp4`);await copyFile(source,file);jobs.push(makeJob(String(i),file))}let active=0,maxActive=0;const order:string[]=[];const cache=new EstimateCache(path.join(dir,'cache.json'));const worker=new EstimationWorker(()=>jobs,(id,patch,event)=>{Object.assign(jobs.find(j=>j.id===id)!,patch);if(event==='estimate:started'){active++;maxActive=Math.max(maxActive,active);order.push(id)}if(['estimate:completed','estimate:failed','estimate:cancelled'].includes(event))active--},()=>false,cache);await worker.init();await until(()=>order.length>0);const late=path.join(dir,'late.mp4');await copyFile(source,late);jobs.push(makeJob('late',late));worker.schedule();await until(()=>jobs.every(j=>['estimated','unavailable'].includes(j.estimateStatus!)),20000);expect(maxActive).toBe(1);expect(order).toEqual([...Array.from({length:10},(_,i)=>String(i)),'late']);await worker.shutdown()},30000);it('continues after failure and pause cancels estimation before compression',async()=>{dir=await mkdtemp(path.join(os.tmpdir(),'estimate-priority-'));const good=path.join(dir,'good.mp4');expect(await ffmpeg(['-f','lavfi','-i','testsrc2=size=640x360:rate=24','-t','3','-c:v','libx264','-an',good])).toBe(0);const jobs=[makeJob('bad',path.join(dir,'missing.mp4')),makeJob('good',good)];let compression=false;const worker=new EstimationWorker(()=>jobs,(id,patch)=>Object.assign(jobs.find(j=>j.id===id)!,patch),()=>compression,new EstimateCache(path.join(dir,'cache.json')));await worker.init();await until(()=>jobs[0].estimateStatus==='unavailable'&&jobs[1].estimateStatus==='estimating');compression=true;await worker.pause();expect(jobs[0].status).toBe('queued');expect(jobs[1].status).toBe('queued');expect(jobs[1].estimateStatus).toBe('cancelled');await worker.shutdown()},20000)});
-describe('prioritized estimation',()=>{it('runs only priority requests in FIFO order while regular estimation is paused',async()=>{dir=await mkdtemp(path.join(os.tmpdir(),'estimate-priority-fifo-'));const source=path.join(dir,'source.mp4');expect(await ffmpeg(['-f','lavfi','-i','testsrc2=size=96x54:rate=5','-t','.25','-c:v','libx264','-an',source])).toBe(0);const jobs:CompressionJob[]=[];for(const id of ['later','first','regular']){const file=path.join(dir,`${id}.mp4`);await copyFile(source,file);jobs.push(makeJob(id,file))}jobs[0].estimatePriorityOrder=2;jobs[1].estimatePriorityOrder=1;const order:string[]=[];const worker=new EstimationWorker(()=>jobs,(id,patch,event)=>{Object.assign(jobs.find(job=>job.id===id)!,patch);if(event==='estimate:started')order.push(id)},()=>false,new EstimateCache(path.join(dir,'cache.json')));await worker.pause();await worker.init();await worker.runPrioritized();expect(order).toEqual(['first','later']);expect(jobs.slice(0,2).every(job=>job.estimateStatus==='estimated'&&job.estimatePriorityOrder===null)).toBe(true);expect(jobs[2].estimateStatus).toBe('waiting');await worker.shutdown()},20000);it('cancels an active priority request and leaves it waiting normally',async()=>{dir=await mkdtemp(path.join(os.tmpdir(),'estimate-priority-cancel-'));const source=path.join(dir,'source.mp4');expect(await ffmpeg(['-f','lavfi','-i','testsrc2=size=640x360:rate=24','-t','3','-c:v','libx264','-an',source])).toBe(0);const jobs=[makeJob('cancel-me',source)];jobs[0].estimatePriorityOrder=1;const worker=new EstimationWorker(()=>jobs,(id,patch)=>Object.assign(jobs.find(job=>job.id===id)!,patch),()=>false,new EstimateCache(path.join(dir,'cache.json')));await worker.pause();await worker.init();const running=worker.runPrioritized();await until(()=>jobs[0].estimateStatus==='estimating');jobs[0].estimatePriorityOrder=null;worker.cancelPrioritized(jobs[0].id);await running;expect(jobs[0].estimateStatus).toBe('waiting');expect(jobs[0].estimateProgress).toBeNull();await worker.shutdown()},20000)});
-function makeJob(id:string,inputPath:string):CompressionJob{return{id,inputPath,outputPath:`${inputPath}.out.mp4`,fileName:path.basename(inputPath),durationSeconds:null,originalSize:1000,finalSize:null,progress:null,status:'queued',error:null,preset:'balanced',estimateStatus:'waiting',estimatedOutputBytes:null,estimatedSavingPercent:null,estimateRangeMinBytes:null,estimateRangeMaxBytes:null,estimateProgress:null,estimateError:null,estimatePreset:'balanced'}}
-const ffmpeg=(args:string[])=>new Promise<number|null>((resolve,reject)=>{const p=spawn('ffmpeg',['-hide_banner','-loglevel','error','-y',...args.map(a=>a==='.25'?'0.25':a)],{shell:false});p.on('error',reject);p.on('close',resolve)});async function until(check:()=>boolean,timeout=10000){const end=Date.now()+timeout;while(!check()){if(Date.now()>end)throw new Error('Timed out');await new Promise(r=>setTimeout(r,20))}}
+import { afterEach, describe, expect, it } from 'vitest';
+import { spawn } from 'node:child_process';
+import { copyFile, mkdtemp, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import type { CompressionJob } from '../packages/shared/src/types.js';
+import { EstimateCache, estimateCacheKey } from '../apps/agent/src/estimate/cache.js';
+import { createSamplePlan, estimateFromSamples } from '../apps/agent/src/estimate/sampler.js';
+import { EstimationWorker } from '../apps/agent/src/estimate/worker.js';
+import { customEncoding, makeJob, optimalEncoding } from './helpers.js';
+
+let directory = '';
+afterEach(async () => {
+  if (directory) await rm(directory, { recursive: true, force: true });
+  directory = '';
+});
+
+describe('estimate planning and cache', () => {
+  it('samples long videos across the whole timeline and keeps short points valid', () => {
+    const points = createSamplePlan(3600);
+    expect(points).toHaveLength(8);
+    expect(points[0].start).toBe(0);
+    expect(points.at(-1)!.start).toBeCloseTo(3595);
+    for (const duration of [0.2, 2, 8, 15]) {
+      for (const point of createSamplePlan(duration)) {
+        expect(point.start).toBeGreaterThanOrEqual(0);
+        expect(point.duration).toBeGreaterThan(0);
+        expect(point.start + point.duration).toBeLessThanOrEqual(duration + 0.001);
+      }
+    }
+  });
+
+  it('includes every active encoding parameter in the cache key', () => {
+    const base = estimateCacheKey('/a', 10, 20, optimalEncoding);
+    expect(estimateCacheKey('/b', 10, 20, optimalEncoding)).not.toBe(base);
+    expect(estimateCacheKey('/a', 11, 20, optimalEncoding)).not.toBe(base);
+    expect(estimateCacheKey('/a', 10, 21, optimalEncoding)).not.toBe(base);
+    expect(estimateCacheKey('/a', 10, 20, customEncoding)).not.toBe(base);
+    expect(
+      estimateCacheKey('/a', 10, 20, { ...customEncoding, rateControl: 'bitrate', videoBitrateKbps: 2000 })
+    ).not.toBe(estimateCacheKey('/a', 10, 20, customEncoding));
+  });
+
+  it('creates an honest range and reports a larger forecast as a negative saving', () => {
+    const estimate = estimateFromSamples([100, 200, 100], [1, 1, 1], 10, 0, 5000)!;
+    expect(estimate.estimateRangeMinBytes).toBeLessThan(estimate.estimatedOutputBytes);
+    expect(estimate.estimateRangeMaxBytes).toBeGreaterThan(estimate.estimatedOutputBytes);
+    expect(estimateFromSamples([1000], [1], 10, 0, 100)!.estimatedSavingPercent).toBeLessThan(0);
+  });
+});
+
+describe('sequential estimation worker', () => {
+  it('estimates ten jobs strictly one at a time and exposes the estimating state', async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), 'estimate-worker-'));
+    const source = path.join(directory, 'source.mp4');
+    expect(await makeVideo(source, 0.25, '96x54', 5)).toBe(0);
+    const jobs: CompressionJob[] = [];
+    for (let index = 0; index < 10; index++) {
+      const file = path.join(directory, `clip-${index}.mp4`);
+      await copyFile(source, file);
+      jobs.push(makeEstimationJob(String(index), file));
+    }
+    let active = 0;
+    let maxActive = 0;
+    const order: string[] = [];
+    const worker = new EstimationWorker(
+      () => jobs,
+      (id, patch, event) => {
+        Object.assign(jobs.find(job => job.id === id)!, patch);
+        if (event === 'estimate:started') {
+          active++;
+          maxActive = Math.max(maxActive, active);
+          order.push(id);
+          expect(jobs.find(job => job.id === id)!.estimateStatus).toBe('estimating');
+        }
+        if (['estimate:completed', 'estimate:failed', 'estimate:cancelled'].includes(event)) active--;
+      },
+      () => false,
+      new EstimateCache(path.join(directory, 'cache.json'))
+    );
+    await worker.init();
+    try {
+      await until(() => jobs.every(job => ['estimated', 'unavailable'].includes(job.estimateStatus)), 60_000);
+      expect(maxActive).toBe(1);
+      expect(order).toEqual(Array.from({ length: 10 }, (_, index) => String(index)));
+    } finally {
+      await worker.shutdown();
+    }
+  }, 90_000);
+
+  it('cancels normal estimation before compression and resumes it later', async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), 'estimate-pause-'));
+    const source = path.join(directory, 'source.mp4');
+    expect(await makeVideo(source, 3, '640x360', 24)).toBe(0);
+    const jobs = [makeEstimationJob('pause', source)];
+    const worker = new EstimationWorker(
+      () => jobs,
+      (id, patch) => Object.assign(jobs.find(job => job.id === id)!, patch),
+      () => false,
+      new EstimateCache(path.join(directory, 'cache.json'))
+    );
+    await worker.init();
+    await until(() => jobs[0].estimateStatus === 'estimating');
+    await worker.pause();
+    expect(jobs[0].estimateStatus).toBe('cancelled');
+    worker.resume();
+    await until(() => ['estimated', 'unavailable'].includes(jobs[0].estimateStatus), 20_000);
+    await worker.shutdown();
+  }, 25_000);
+});
+
+describe('prioritized estimation', () => {
+  it('runs queued priority estimates in FIFO order', async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), 'estimate-priority-'));
+    const source = path.join(directory, 'source.mp4');
+    expect(await makeVideo(source, 0.25, '96x54', 5)).toBe(0);
+    const jobs: CompressionJob[] = [];
+    for (const id of ['later', 'first', 'regular']) {
+      const file = path.join(directory, `${id}.mp4`);
+      await copyFile(source, file);
+      jobs.push(makeEstimationJob(id, file, 'queued'));
+    }
+    jobs[0].estimatePriorityOrder = 2;
+    jobs[1].estimatePriorityOrder = 1;
+    const order: string[] = [];
+    const worker = new EstimationWorker(
+      () => jobs,
+      (id, patch, event) => {
+        Object.assign(jobs.find(job => job.id === id)!, patch);
+        if (event === 'estimate:started') order.push(id);
+      },
+      () => false,
+      new EstimateCache(path.join(directory, 'cache.json'))
+    );
+    await worker.pause();
+    await worker.init();
+    await worker.runPrioritized();
+    expect(order).toEqual(['first', 'later']);
+    expect(jobs[2].estimateStatus).toBe('waiting');
+    await worker.shutdown();
+  }, 20_000);
+});
+
+function makeEstimationJob(id: string, inputPath: string, status: 'ready' | 'queued' = 'ready') {
+  return makeJob(id, status, {
+    inputPath,
+    outputPath: `${inputPath}.out.mp4`,
+    fileName: path.basename(inputPath),
+    originalSize: 10_000,
+    durationSeconds: null,
+    sourceWidth: null,
+    sourceHeight: null,
+    sourceFrameRate: null,
+    sourceBitrate: null,
+    sourceCodec: null
+  });
+}
+
+function makeVideo(file: string, duration: number, size: string, rate: number) {
+  return new Promise<number | null>((resolve, reject) => {
+    const process = spawn(
+      'ffmpeg',
+      [
+        '-hide_banner',
+        '-loglevel',
+        'error',
+        '-y',
+        '-f',
+        'lavfi',
+        '-i',
+        `testsrc2=size=${size}:rate=${rate}`,
+        '-t',
+        String(duration),
+        '-c:v',
+        'libx264',
+        '-an',
+        file
+      ],
+      { shell: false }
+    );
+    process.on('error', reject);
+    process.on('close', resolve);
+  });
+}
+
+async function until(check: () => boolean, timeout = 10_000) {
+  const end = Date.now() + timeout;
+  while (!check()) {
+    if (Date.now() > end) throw new Error('Timed out');
+    await new Promise(resolve => setTimeout(resolve, 20));
+  }
+}

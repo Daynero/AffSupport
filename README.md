@@ -35,28 +35,28 @@ This test build is **ad-hoc signed, not Apple-notarized**. macOS quarantines it 
 
 ## Daily use
 
-1. Choose a compression preset.
-2. Keep **Next to originals**, or use **Choose output folder** for a native folder dialog.
-3. Select any number of videos and start compression. New videos can be added while the queue runs.
-4. Use Cancel, Remove, Retry, Clear finished, Show in Finder, or Show output folder as needed.
+1. Keep the default **Optimal** mode, or open **Custom settings** for FPS, longest-side resolution, and CRF or target bitrate.
+2. Keep **Next to originals**, or use **Separate folder** for a native folder dialog.
+3. Add videos with the native picker or by dropping files onto the drop zone.
+4. Select rows with their checkboxes and choose **Compress selected**. New videos can be added while the queue runs.
+5. Use Cancel, Remove, Try again, Clear finished, Show in folder, Open, or Show output folder as needed.
 
 The app warns before adding an `_compressed` file or a duplicate already represented in the queue. The user can explicitly confirm either case.
 
 ### Size estimates
 
-New queued videos are estimated automatically, one at a time, by the local agent. The estimate uses short FFmpeg samples spread across the full timeline (including the beginning, 20/40/60/80%, and near the end), the selected preset, source audio information, and a small container allowance. Short videos may be sampled in full because that is both fast and more reliable.
+New ready videos are estimated automatically, one at a time, by the local agent. The estimate uses short FFmpeg samples spread across the full timeline (including the beginning, 20/40/60/80%, and near the end), the exact per-job encoding snapshot, source audio information, and a small container allowance. Short videos may be sampled in full because that is both fast and more reliable.
 
 An estimate is explicitly marked with `Estimated` and `≈`; it is not a guarantee. The tooltip shows a likely range because CRF output depends on scene complexity. Starting real compression immediately stops automatic estimation first, so the real encode never waits for all estimates and the two FFmpeg workloads do not run together. While compression is active, a queued file waiting for an estimate has a compact priority button. It pauses the current FFmpeg encode without discarding progress, runs prioritized estimates in click order, then resumes that same encode. A prioritized request can be cancelled before or during its estimate. After compression, the factual before/after size replaces the forecast.
 
-Each queued video shows its source resolution, frame rate, and bitrate. Changing the preset or any Quality control invalidates queued forecasts and schedules a debounced recalculation. Results are cached locally using absolute path, file size, modification time, preset, frame rate, quality, bitrate, resolution option, and algorithm version. The cache is capped at 300 recent entries. Temporary sample files are removed after success, failure, cancellation, and agent shutdown.
+Each video shows source size, resolution, frame rate, bitrate, duration, and codec. Changing any custom encoding control clears ready-job forecasts and schedules a debounced recalculation. Results are cached locally using absolute path, file size, modification time, the complete encoding snapshot, and algorithm version. The cache is capped at 300 recent entries. Temporary sample files are removed after success, failure, cancellation, and agent shutdown.
 
-### Presets
+### Compression modes
 
-- **Quality:** original dimensions, copied audio when compatible, controlled AAC 96k fallback. Manual controls (only on this preset): a frame-rate slider (24–120 fps, never above the source), a **quality (CRF)** slider (14–34, lower is better/larger), an optional **target bitrate** (kbps) that overrides CRF when set, and a **keep original resolution** checkbox (on by default; off reveals a field to type the target longest side in pixels, default 1080p, aspect ratio preserved, never upscaled). Balanced and Ultra Small keep their own fixed caps regardless of these controls.
-- **Balanced** (default): H.264 CRF 26, longest side up to 720 px, at most 24 FPS, AAC 96k.
-- **Ultra Small:** H.264 CRF 30, longest side up to 550 px, at most 20 FPS, mono AAC 48k.
+- **Optimal** (default): H.264 CRF 26, original resolution, original frame rate, copied audio when compatible, and controlled AAC 96k fallback.
+- **Custom settings:** original or explicit FPS, original or explicit longest-side resolution, and one active rate-control method: CRF 16–35 or target video bitrate. CRF and bitrate are never sent together.
 
-Scaling preserves aspect ratio for horizontal and vertical video. FPS is capped but never increased. Every preset produces an MP4 with fast-start metadata.
+Scaling preserves aspect ratio for horizontal and vertical video, makes the calculated side even, and never upscales. Every mode produces an H.264 MP4 with yuv420p pixels and fast-start metadata.
 
 ## Files, state, and safety
 
@@ -76,7 +76,7 @@ Before starting, the agent conservatively compares free space in every relevant 
 
 ## Local API
 
-Every `/api/*` route requires a random per-process 256-bit token. The token is issued only through the `/pair` redirect (production origin) or `/local` (development), which place it in the page URL fragment; the unauthenticated `/health` route exists solely so the packaged launcher can detect readiness. CORS permits only the production page and fixed local development origin. Request bodies are structurally validated, preset parameters are defined only in the agent, and every external process uses argument arrays with `shell: false`.
+Every `/api/*` route requires a random per-process 256-bit token. The token is issued only through the `/pair` redirect (production origin) or `/local` (development), which place it in the page URL fragment; the unauthenticated `/health` route exists solely so the packaged launcher can detect readiness. CORS permits only the production page and fixed local development origin. Request bodies are structurally validated, encoding parameters are defined only in the agent, and every external process uses argument arrays with `shell: false`.
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -84,12 +84,12 @@ Every `/api/*` route requires a random per-process 256-bit token. The token is i
 | GET | `/pair`, `/local` | Redirect to the site with a fresh session token |
 | GET | `/api/health`, `/api/queue`, `/api/diagnostics` | Obtain current state and diagnostics |
 | GET | `/api/events` | Live SSE queue snapshots |
-| POST | `/api/files/select`, `/api/files/confirm` | Native selection and explicit warning confirmation |
-| POST | `/api/settings`, `/api/output/select` | Preset/output settings and native folder selection |
-| POST | `/api/queue/start` | Start or continue sequential work |
+| POST | `/api/files/select`, `/api/files/confirm`, `/api/files/upload` | Native selection, drop upload, and explicit warning confirmation |
+| POST | `/api/settings`, `/api/output/select` | Compression/output settings and native folder selection |
+| POST | `/api/queue/start` | Start selected ready jobs as a sequential batch |
 | POST, DELETE | `/api/jobs/:id/estimate-priority` | Queue or cancel an immediate size estimate during compression |
-| POST | `/api/jobs/:id/cancel`, `/retry`, `/reveal` | Manage one job |
-| DELETE | `/api/jobs/:id`, `/api/jobs/completed` | Remove queued or clear finished jobs |
+| POST | `/api/jobs/:id/cancel`, `/retry`, `/reveal`, `/open` | Manage one job |
+| POST, DELETE | `/api/jobs/remove`, `/api/jobs/:id`, `/api/jobs/completed` | Remove selected rows or clear finished rows without deleting outputs |
 | POST | `/api/output/reveal` | Open an available output folder |
 
 ## Troubleshooting

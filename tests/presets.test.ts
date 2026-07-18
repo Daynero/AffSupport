@@ -1,15 +1,106 @@
 import { describe, expect, it } from 'vitest';
-import { buildFfmpegArgs } from '../apps/agent/src/ffmpeg/presets.js';
-describe('preset argument arrays', () => {
-  it('defines Quality without resizing', () => { const a=buildFfmpegArgs('in.mov','out.mp4','quality'); expect(a).toContain('24'); expect(a).toContain('copy'); expect(a).not.toContain('-vf'); });
-  it('defines Balanced with 720 and non-increasing 24 FPS', () => { const a=buildFfmpegArgs('in.mov','out.mp4','balanced'); expect(a).toContain('26'); expect(a.join(' ')).toContain('min(720'); expect(a.join(' ')).toContain('min(24,source_fps)'); expect(a).toContain('96k'); });
-  it('defines Ultra Small with 550, 20 FPS and mono audio', () => { const a=buildFfmpegArgs('in.mov','out.mp4','ultra-small'); expect(a).toContain('30'); expect(a).toContain('veryslow'); expect(a.join(' ')).toContain('min(550'); expect(a.join(' ')).toContain('min(20,source_fps)'); expect(a).toContain('48k'); expect(a).toContain('1'); });
-  it('passes paths as intact arguments and never enables overwrite', () => { const a=buildFfmpegArgs('/tmp/Моє відео.mov','/tmp/out file.mp4','balanced'); expect(a).toContain('/tmp/Моє відео.mov'); expect(a).toContain('/tmp/out file.mp4'); expect(a).toContain('-n'); });
-  it('caps Quality frame rate with the chosen rate', () => { const a=buildFfmpegArgs('in.mov','out.mp4','quality',{frameRate:72}); expect(a.join(' ')).toContain("fps='min(72,source_fps)'"); expect(a.join(' ')).not.toContain('scale='); });
-  it('never lets a higher frame rate raise a preset above its own cap', () => { expect(buildFfmpegArgs('in.mov','out.mp4','balanced',{frameRate:120}).join(' ')).toContain('min(24,source_fps)'); expect(buildFfmpegArgs('in.mov','out.mp4','ultra-small',{frameRate:120}).join(' ')).toContain('min(20,source_fps)'); });
-  it('applies the Quality CRF override', () => { const a=buildFfmpegArgs('in.mov','out.mp4','quality',{crf:18}); const i=a.indexOf('-crf'); expect(a[i+1]).toBe('18'); expect(a).not.toContain('-b:v'); });
-  it('uses target bitrate instead of CRF when set on Quality', () => { const a=buildFfmpegArgs('in.mov','out.mp4','quality',{crf:18,videoBitrateKbps:4000}); expect(a).not.toContain('-crf'); const i=a.indexOf('-b:v'); expect(a[i+1]).toBe('4000k'); expect(a.join(' ')).toContain('-maxrate 4000k'); });
-  it('downscales Quality only when keep-resolution is off', () => { expect(buildFfmpegArgs('in.mov','out.mp4','quality',{keepResolution:true}).join(' ')).not.toContain('scale='); expect(buildFfmpegArgs('in.mov','out.mp4','quality',{keepResolution:false}).join(' ')).toContain('min(1920'); });
-  it('uses a custom longest side when keep-resolution is off', () => { expect(buildFfmpegArgs('in.mov','out.mp4','quality',{keepResolution:false,resolutionLimit:1280}).join(' ')).toContain('min(1280'); expect(buildFfmpegArgs('in.mov','out.mp4','quality',{keepResolution:true,resolutionLimit:1280}).join(' ')).not.toContain('scale='); });
-  it('ignores the manual controls on Balanced and Ultra Small', () => { const a=buildFfmpegArgs('in.mov','out.mp4','balanced',{crf:14,videoBitrateKbps:9000,keepResolution:true}); const i=a.indexOf('-crf'); expect(a[i+1]).toBe('26'); expect(a).not.toContain('-b:v'); expect(a.join(' ')).toContain('min(720'); });
+import { expectedDimensions } from '../packages/shared/src/types.js';
+import {
+  buildEstimateArgs,
+  buildFfmpegArgs,
+  videoArgs
+} from '../apps/agent/src/ffmpeg/presets.js';
+import { customEncoding, optimalEncoding } from './helpers.js';
+
+describe('FFmpeg compression arguments', () => {
+  it('uses CRF 26, H.264, compatible pixels and MP4 faststart in Optimal mode', () => {
+    const args = buildFfmpegArgs('in.mov', 'out.mp4', optimalEncoding);
+    expect(argumentAfter(args, '-crf')).toBe('26');
+    expect(argumentAfter(args, '-c:v')).toBe('libx264');
+    expect(argumentAfter(args, '-pix_fmt')).toBe('yuv420p');
+    expect(argumentAfter(args, '-movflags')).toBe('+faststart');
+    expect(argumentAfter(args, '-c:a')).toBe('copy');
+  });
+
+  it('preserves original frame rate and resolution in Optimal mode', () => {
+    const args = buildFfmpegArgs('in.mov', 'out.mp4', optimalEncoding);
+    expect(args).not.toContain('-vf');
+    expect(args.join(' ')).not.toContain('fps=');
+    expect(args.join(' ')).not.toContain('scale=');
+  });
+
+  it('applies a custom frame rate only when requested', () => {
+    const args = buildFfmpegArgs('in.mov', 'out.mp4', {
+      ...customEncoding,
+      frameRate: 50,
+      resolutionLimit: null
+    });
+    expect(argumentAfter(args, '-vf')).toBe('fps=50');
+  });
+
+  it('downscales the longest side, preserves aspect ratio and produces even dimensions', () => {
+    const dimensions = expectedDimensions(1920, 1080, 721);
+    expect(dimensions).toEqual({ width: 720, height: 406 });
+    const args = buildFfmpegArgs('in.mov', 'out.mp4', {
+      ...customEncoding,
+      frameRate: null,
+      resolutionLimit: 721
+    });
+    expect(argumentAfter(args, '-vf')).toContain('min(720,iw)');
+    expect(argumentAfter(args, '-vf')).toContain('-2');
+  });
+
+  it('never upscales a source that is already below the requested limit', () => {
+    expect(expectedDimensions(640, 360, 1080)).toEqual({ width: 640, height: 360 });
+    expect(expectedDimensions(360, 640, 1080)).toEqual({ width: 360, height: 640 });
+  });
+
+  it('uses CRF without target bitrate in constant-quality mode', () => {
+    const args = buildFfmpegArgs('in.mov', 'out.mp4', {
+      ...customEncoding,
+      crf: 18,
+      rateControl: 'crf',
+      videoBitrateKbps: null
+    });
+    expect(argumentAfter(args, '-crf')).toBe('18');
+    expect(args).not.toContain('-b:v');
+  });
+
+  it('uses target bitrate without CRF in bitrate mode', () => {
+    const args = buildFfmpegArgs('in.mov', 'out.mp4', {
+      ...customEncoding,
+      rateControl: 'bitrate',
+      crf: 18,
+      videoBitrateKbps: 4000
+    });
+    expect(args).not.toContain('-crf');
+    expect(argumentAfter(args, '-b:v')).toBe('4000k');
+    expect(argumentAfter(args, '-maxrate')).toBe('4000k');
+    expect(argumentAfter(args, '-bufsize')).toBe('8000k');
+  });
+
+  it('uses the same video parameters for estimation and the final encode', () => {
+    const settings = {
+      ...customEncoding,
+      frameRate: 25,
+      resolutionLimit: 720,
+      rateControl: 'bitrate' as const,
+      videoBitrateKbps: 1800
+    };
+    const video = videoArgs(settings);
+    const estimate = buildEstimateArgs('in.mov', 'sample.h264', 1, 3, settings);
+    const final = buildFfmpegArgs('in.mov', 'out.mp4', settings);
+    expect(containsSequence(estimate, video)).toBe(true);
+    expect(containsSequence(final, video)).toBe(true);
+  });
+
+  it('keeps paths intact and never overwrites an existing output', () => {
+    const args = buildFfmpegArgs('/tmp/Моє відео.mov', '/tmp/out file.mp4', optimalEncoding);
+    expect(args).toContain('/tmp/Моє відео.mov');
+    expect(args).toContain('/tmp/out file.mp4');
+    expect(args).toContain('-n');
+  });
 });
+
+function argumentAfter(args: string[], name: string) {
+  return args[args.indexOf(name) + 1];
+}
+
+function containsSequence(values: string[], sequence: string[]) {
+  return values.some((_, index) => sequence.every((value, offset) => values[index + offset] === value));
+}

@@ -14,11 +14,18 @@ export async function commandExists(command: string): Promise<boolean> {
   });
 }
 
-export interface MediaInfo { duration: number | null; width: number | null; height: number | null; frameRate: number | null; bitrate: number | null }
+export interface MediaInfo {
+  duration: number | null;
+  width: number | null;
+  height: number | null;
+  frameRate: number | null;
+  bitrate: number | null;
+  codec: string | null;
+}
 export async function probeMedia(inputPath: string): Promise<MediaInfo> {
-  const empty: MediaInfo = { duration: null, width: null, height: null, frameRate: null, bitrate: null };
+  const empty: MediaInfo = { duration: null, width: null, height: null, frameRate: null, bitrate: null, codec: null };
   return new Promise(resolve => {
-    const child = spawn(ffprobePath, ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height,avg_frame_rate,bit_rate:format=duration,bit_rate', '-of', 'json', inputPath], { shell: false });
+    const child = spawn(ffprobePath, ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height,avg_frame_rate,bit_rate,codec_name:format=duration,bit_rate', '-of', 'json', inputPath], { shell: false });
     let out = '';
     child.stdout.on('data', d => { out += d; });
     child.on('error', () => resolve(empty));
@@ -31,7 +38,8 @@ export async function probeMedia(inputPath: string): Promise<MediaInfo> {
         const streamBitrate = Number(stream.bit_rate), formatBitrate = Number(data.format?.bit_rate);
         const bitrate = Number.isFinite(streamBitrate) && streamBitrate > 0 ? streamBitrate : Number.isFinite(formatBitrate) && formatBitrate > 0 ? formatBitrate : null;
         const width = Number(stream.width) > 0 ? Number(stream.width) : null, height = Number(stream.height) > 0 ? Number(stream.height) : null;
-        resolve({ duration, width, height, frameRate, bitrate });
+        const codec = typeof stream.codec_name === 'string' && stream.codec_name ? stream.codec_name : null;
+        resolve({ duration, width, height, frameRate, bitrate, codec });
       } catch { resolve(empty); }
     });
   });

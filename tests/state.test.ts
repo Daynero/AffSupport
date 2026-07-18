@@ -1,5 +1,54 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtemp, rm } from 'node:fs/promises'; import os from 'node:os'; import path from 'node:path';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { loadState, saveState } from '../apps/agent/src/queue/store.js';
-let dir=''; afterEach(async()=>{if(dir)await rm(dir,{recursive:true,force:true})});
-describe('persistent agent state',()=>{it('restores jobs and changes processing to interrupted',async()=>{dir=await mkdtemp(path.join(os.tmpdir(),'lvc-state-'));const file=path.join(dir,'state.json');await saveState({settings:{preset:'quality',outputMode:'next-to-originals',outputFolder:null},jobs:[{id:'1',inputPath:'/a',outputPath:'/b',fileName:'a',durationSeconds:1,originalSize:2,finalSize:null,progress:33,status:'processing',error:null,preset:'quality'}]},file);const restored=await loadState(file);expect(restored.settings.preset).toBe('quality');expect(restored.jobs[0].status).toBe('interrupted');expect(restored.jobs[0].error).toContain('interrupted')})});
+import { makeJob, optimalSettings } from './helpers.js';
+
+let directory = '';
+afterEach(async () => {
+  if (directory) await rm(directory, { recursive: true, force: true });
+  directory = '';
+});
+
+describe('persistent agent state', () => {
+  it('restores settings and marks an interrupted encode without treating it as active', async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), 'compressor-state-'));
+    const source = path.join(directory, 'source.mov');
+    const stateFile = path.join(directory, 'state.json');
+    await writeFile(source, 'source');
+    const job = makeJob('processing', 'processing', {
+      inputPath: source,
+      outputPath: path.join(directory, 'output.mp4'),
+      startedAt: Date.now() - 1000,
+      batchId: 'batch'
+    });
+    await saveState(
+      {
+        settings: { ...optimalSettings, mode: 'custom', frameRate: 25, resolutionLimit: 720 },
+        jobs: [job],
+        batch: { id: 'batch', jobIds: [job.id], startedAt: Date.now() - 1000, finishedAt: null }
+      },
+      stateFile
+    );
+    const restored = await loadState(stateFile);
+    expect(restored.settings).toMatchObject({ mode: 'custom', frameRate: 25, resolutionLimit: 720 });
+    expect(restored.jobs[0].status).toBe('interrupted');
+    expect(restored.jobs[0].error).toContain('interrupted');
+    expect(restored.batch?.finishedAt).toBeTypeOf('number');
+  });
+
+  it('does not restore an inaccessible old source as an active file', async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), 'compressor-state-missing-'));
+    const stateFile = path.join(directory, 'state.json');
+    await saveState(
+      {
+        settings: { ...optimalSettings },
+        jobs: [makeJob('missing', 'ready', { inputPath: path.join(directory, 'missing.mov') })],
+        batch: null
+      },
+      stateFile
+    );
+    expect((await loadState(stateFile)).jobs).toEqual([]);
+  });
+});

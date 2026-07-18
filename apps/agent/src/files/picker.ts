@@ -11,7 +11,7 @@ export async function selectVideos(): Promise<string[]> {
     child.on('close', code => {
       if (code === 0) resolve(stdout.split('\n').map(s => s.trim()).filter(Boolean));
       else if (stderr.includes('User canceled')) resolve([]);
-      else reject(new Error('Could not open the macOS file picker.'));
+      else reject(new Error('Could not open the native file picker.'));
     });
   });
 }

@@ -1,7 +1,81 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'; import path from 'node:path'; import os from 'node:os'; import type { PresetId } from '@video-compressor/shared';
-export const ESTIMATE_ALGORITHM_VERSION='8';
-export interface CachedEstimate { estimatedOutputBytes:number; estimatedSavingPercent:number; estimateRangeMinBytes:number; estimateRangeMaxBytes:number; createdAt:number }
-interface CacheFile { entries:Record<string,CachedEstimate> }
-export function defaultCachePath(){return path.join(os.homedir(),'Library','Application Support','Local Video Compressor','estimate-cache.json')}
-export function estimateCacheKey(filePath:string,size:number,mtimeMs:number,preset:PresetId,options:{frameRate?:number;crf?:number;videoBitrateKbps?:number|null;keepResolution?:boolean;resolutionLimit?:number}={}){return JSON.stringify([path.resolve(filePath),size,Math.round(mtimeMs),preset,options.frameRate??null,options.crf??null,options.videoBitrateKbps??null,options.keepResolution??null,options.keepResolution===false?options.resolutionLimit??null:null,ESTIMATE_ALGORITHM_VERSION])}
-export class EstimateCache{private data:CacheFile={entries:{}};constructor(private file=defaultCachePath(),private maxEntries=300){}async load(){try{this.data=JSON.parse(await readFile(this.file,'utf8'))}catch{this.data={entries:{}}}this.prune()}get(key:string){return this.data.entries[key]}async set(key:string,value:CachedEstimate){this.data.entries[key]=value;this.prune();await mkdir(path.dirname(this.file),{recursive:true});const tmp=`${this.file}.tmp`;await writeFile(tmp,JSON.stringify(this.data),'utf8');await rename(tmp,this.file)}private prune(){const entries=Object.entries(this.data.entries).sort((a,b)=>b[1].createdAt-a[1].createdAt).slice(0,this.maxEntries);this.data={entries:Object.fromEntries(entries)}}}
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
+import { encodingKey, type EncodingSettings } from '@video-compressor/shared';
+
+export const ESTIMATE_ALGORITHM_VERSION = '9';
+export interface CachedEstimate {
+  estimatedOutputBytes: number;
+  estimatedSavingPercent: number;
+  estimateRangeMinBytes: number;
+  estimateRangeMaxBytes: number;
+  createdAt: number;
+}
+interface CacheFile {
+  entries: Record<string, CachedEstimate>;
+}
+
+export function defaultCachePath() {
+  return (
+    process.env.AGENT_CACHE_PATH ??
+    path.join(
+      os.homedir(),
+      'Library',
+      'Application Support',
+      'Local Video Compressor',
+      'estimate-cache.json'
+    )
+  );
+}
+
+export function estimateCacheKey(
+  filePath: string,
+  size: number,
+  mtimeMs: number,
+  settings: EncodingSettings
+) {
+  return JSON.stringify([
+    path.resolve(filePath),
+    size,
+    Math.round(mtimeMs),
+    encodingKey(settings),
+    ESTIMATE_ALGORITHM_VERSION
+  ]);
+}
+
+export class EstimateCache {
+  private data: CacheFile = { entries: {} };
+  constructor(
+    private file = defaultCachePath(),
+    private maxEntries = 300
+  ) {}
+
+  async load() {
+    try {
+      this.data = JSON.parse(await readFile(this.file, 'utf8'));
+    } catch {
+      this.data = { entries: {} };
+    }
+    this.prune();
+  }
+
+  get(key: string) {
+    return this.data.entries[key];
+  }
+
+  async set(key: string, value: CachedEstimate) {
+    this.data.entries[key] = value;
+    this.prune();
+    await mkdir(path.dirname(this.file), { recursive: true });
+    const temporary = `${this.file}.tmp`;
+    await writeFile(temporary, JSON.stringify(this.data), 'utf8');
+    await rename(temporary, this.file);
+  }
+
+  private prune() {
+    const entries = Object.entries(this.data.entries)
+      .sort((first, second) => second[1].createdAt - first[1].createdAt)
+      .slice(0, this.maxEntries);
+    this.data = { entries: Object.fromEntries(entries) };
+  }
+}

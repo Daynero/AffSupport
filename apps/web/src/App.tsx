@@ -1,41 +1,128 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { calculateQueueSummary, CRF_MAX, CRF_MIN, DEFAULT_CRF, DEFAULT_FRAME_RATE, DEFAULT_RESOLUTION_LIMIT, FRAME_RATE_MAX, FRAME_RATE_MIN, RESOLUTION_MAX, RESOLUTION_MIN, VIDEO_BITRATE_MAX_KBPS, VIDEO_BITRATE_MIN_KBPS, type AgentEvent, type CompressionJob, type PresetId, type QueueState, type SelectionResponse } from '@video-compressor/shared';
-import { agentUrl, connect, consumePairingToken, eventUrl, onPairingToken, pairWithAgent, request, requestBody } from './api/client';
+import {
+  DEFAULT_CRF,
+  DEFAULT_VIDEO_BITRATE_KBPS,
+  calculateQueueSummary,
+  type AgentEvent,
+  type AgentSettings,
+  type QueueState,
+  type SelectionResponse,
+  type SelectionWarning
+} from '@video-compressor/shared';
+import {
+  agentUrl,
+  connect,
+  consumePairingToken,
+  eventUrl,
+  onPairingToken,
+  pairWithAgent,
+  request,
+  requestBody,
+  uploadFile
+} from './api/client';
 import { failureState, type ConnectionState, versionState } from './connection';
-import { estimatePriorityAction } from './estimate-priority';
-import { type TranslationKey, useI18n } from './i18n';
+import { formatSize } from './format';
+import { selectedCountKey, type Language, type TranslationKey, useI18n } from './i18n';
+import {
+  batchMetrics,
+  readySelectedIds,
+  removableSelectedIds,
+  selectableJobIds,
+  toggleSelection
+} from './queue-ui';
+import { DropZone } from './components/DropZone';
+import { JobRow } from './components/JobRow';
+import { SettingsPanel } from './components/SettingsPanel';
+import { Button, ProgressBar, Spinner, type Translate } from './components/ui';
 
-const empty: QueueState = { jobs: [], running: false, tools: { ffmpeg: false, ffprobe: false }, settings: { preset: 'balanced', outputMode: 'next-to-originals', outputFolder: null }, warning: null };
+const defaultSettings: AgentSettings = {
+  mode: 'optimal',
+  outputMode: 'next-to-originals',
+  outputFolder: null,
+  frameRate: null,
+  resolutionLimit: null,
+  rateControl: 'crf',
+  crf: DEFAULT_CRF,
+  videoBitrateKbps: DEFAULT_VIDEO_BITRATE_KBPS
+};
+const empty: QueueState = {
+  jobs: [],
+  running: false,
+  tools: { ffmpeg: false, ffprobe: false },
+  settings: defaultSettings,
+  batch: null,
+  warning: null
+};
 const downloadUrl = import.meta.env.VITE_AGENT_DOWNLOAD_URL;
-const presets: { id: PresetId; title: TranslationKey; note: TranslationKey }[] = [{id:'quality',title:'quality',note:'qualityNote'},{id:'balanced',title:'balanced',note:'balancedNote'},{id:'ultra-small',title:'ultraSmall',note:'ultraSmallNote'}];
+
+interface ToastMessage {
+  id: number;
+  text: string;
+  tone: 'neutral' | 'success' | 'warning' | 'error';
+}
 
 export default function App() {
   const { language, setLanguage, t } = useI18n();
-  const [state, setState] = useState(empty), [connection, setConnection] = useState<ConnectionState>('checking'), [message, setMessage] = useState(''), [help, setHelp] = useState(false);
-  const events = useRef<EventSource | null>(null), connectedOnce = useRef(false), connecting = useRef(false);
+  const [state, setState] = useState<QueueState>(empty);
+  const [connection, setConnection] = useState<ConnectionState>('checking');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [help, setHelp] = useState(false);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const events = useRef<EventSource | null>(null);
+  const connectedOnce = useRef(false);
+  const connecting = useRef(false);
+  const toastId = useRef(0);
+  const settingsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSettings = useRef<Partial<AgentSettings>>({});
   const connected = connection === 'connected';
-  const [fps, setFps] = useState<number>(DEFAULT_FRAME_RATE), [crf, setCrf] = useState<number>(DEFAULT_CRF), [bitrate, setBitrate] = useState<string>(''), [resolution, setResolution] = useState<string>(String(DEFAULT_RESOLUTION_LIMIT));
-  const settleTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined), pending = useRef<Record<string, unknown>>({});
+
+  const addToast = (text: string, tone: ToastMessage['tone'] = 'neutral') => {
+    const id = ++toastId.current;
+    setToasts(current => [...current, { id, text, tone }]);
+    window.setTimeout(() => {
+      setToasts(current => current.filter(toast => toast.id !== id));
+    }, 3600);
+  };
 
   const establish = async (mode: 'checking' | 'connecting', retry = false) => {
-    if (connecting.current) return; connecting.current = true; setConnection(mode); events.current?.close(); events.current = null;
+    if (connecting.current) return;
+    connecting.current = true;
+    setConnection(mode);
+    events.current?.close();
+    events.current = null;
     const deadline = Date.now() + (retry ? 12_000 : 2_500);
     do {
-      const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 2200);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 2200);
       try {
-        const result = await connect(controller.signal); clearTimeout(timer);
-        const next = versionState(result.apiVersion); setConnection(next);
-        if (next !== 'connected') { connecting.current = false; return; }
-        setState(result.state); connectedOnce.current = true;
-        const source = new EventSource(eventUrl()); events.current = source;
-        source.onmessage = e => { const event = JSON.parse(e.data) as AgentEvent; setState(event.state); setConnection('connected'); };
+        const result = await connect(controller.signal);
+        clearTimeout(timer);
+        const next = versionState(result.apiVersion);
+        setConnection(next);
+        if (next !== 'connected') {
+          connecting.current = false;
+          return;
+        }
+        setState(result.state);
+        connectedOnce.current = true;
+        const source = new EventSource(eventUrl());
+        events.current = source;
+        source.onmessage = event => {
+          const update = JSON.parse(event.data) as AgentEvent;
+          setState(update.state);
+          setConnection('connected');
+        };
         source.onerror = () => {
-          source.close(); events.current = null; setConnection('disconnected'); connecting.current = false;
-          // Agent restarts invalidate its per-process token. Reconnect in the background;
-          // establish() will obtain a fresh token through the matching pairing endpoint.
+          source.close();
+          events.current = null;
+          setConnection('disconnected');
+          connecting.current = false;
           window.setTimeout(() => void establish('connecting', true), 500);
         };
-        connecting.current = false; return;
+        connecting.current = false;
+        return;
       } catch (error) {
         clearTimeout(timer);
         if (error instanceof Error && error.message === 'PAIRING_REQUIRED') {
@@ -47,49 +134,633 @@ export default function App() {
       if (!retry) break;
       await new Promise(resolve => setTimeout(resolve, 900));
     } while (Date.now() < deadline);
-    setConnection(connectedOnce.current ? 'disconnected' : await failureState()); connecting.current = false;
+    setConnection(connectedOnce.current ? 'disconnected' : await failureState());
+    connecting.current = false;
   };
 
-  useEffect(() => { consumePairingToken(); void establish('checking'); const remove = onPairingToken(() => void establish('connecting', true)); return () => { remove(); events.current?.close(); }; }, []);
-  const action = async (url: string, method = 'POST') => { try { setMessage(''); setState(await request<QueueState>(url, method)); } catch (e) { setMessage(localizedError(e,t)); setConnection('disconnected'); } };
-  const setting = async (body: object) => { try { setState(await requestBody<QueueState>('/api/settings', body)); } catch (e) { setMessage(localizedError(e,t)); } };
-  // Slider/field updates are local and immediate; the agent call (which recomputes the estimate) is
-  // debounced and batched so dragging or typing does not flood /api/settings. Server values are only
-  // re-synced into the local inputs while no local edit is pending.
-  useEffect(() => { if (!settleTimer.current) { setFps(state.settings.frameRate ?? DEFAULT_FRAME_RATE); setCrf(state.settings.crf ?? DEFAULT_CRF); setBitrate(state.settings.videoBitrateKbps ? String(state.settings.videoBitrateKbps) : ''); setResolution(String(state.settings.resolutionLimit ?? DEFAULT_RESOLUTION_LIMIT)); } }, [state.settings.frameRate, state.settings.crf, state.settings.videoBitrateKbps, state.settings.resolutionLimit]);
-  const queueSetting = (patch: Record<string, unknown>) => { Object.assign(pending.current, patch); if (settleTimer.current) clearTimeout(settleTimer.current); settleTimer.current = setTimeout(() => { const body = pending.current; pending.current = {}; settleTimer.current = undefined; void setting(body); }, 350); };
-  const changeFps = (value: number) => { setFps(value); queueSetting({ frameRate: value }); };
-  const changeCrf = (value: number) => { setCrf(value); queueSetting({ crf: value }); };
-  const changeBitrate = (value: string) => { setBitrate(value); queueSetting({ videoBitrateKbps: value.trim() === '' ? null : Number(value) }); };
-  const changeResolution = (value: string) => { setResolution(value); queueSetting({ resolutionLimit: value.trim() === '' ? DEFAULT_RESOLUTION_LIMIT : Number(value) }); };
-  const selectFiles = async () => { try { const result=await request<SelectionResponse>('/api/files/select','POST'); setState(result.state); if(result.warnings.length){const text=result.warnings.map(w=>`${w.fileName}: ${t(w.reason==='duplicate'?'duplicate':'alreadyCompressed')}`).join('\n');if(window.confirm(`${text}\n\n${t('addAnyway')}`))setState(await requestBody<QueueState>('/api/files/confirm',{ids:result.warnings.map(w=>w.id)}));} } catch(e){setMessage(localizedError(e,t));} };
-  const completed=state.jobs.filter(j=>j.status==='completed').length, overall=useMemo(()=>state.jobs.length?state.jobs.reduce((sum,j)=>sum+(j.status==='completed'?100:j.progress??0),0)/state.jobs.length:0,[state]), summary=useMemo(()=>calculateQueueSummary(state.jobs),[state.jobs]);
-  const copyDiagnostics=async()=>{try{await navigator.clipboard.writeText(JSON.stringify(await request('/api/diagnostics'),null,2));setMessage(t('diagnosticsCopied'));}catch(e){setMessage(localizedError(e,t));}};
-  const languageSwitch = <LanguageSwitch language={language} setLanguage={setLanguage} t={t}/>;
+  useEffect(() => {
+    consumePairingToken();
+    void establish('checking');
+    const removePairingListener = onPairingToken(() => void establish('connecting', true));
+    return () => {
+      removePairingListener();
+      events.current?.close();
+      if (settingsTimer.current) clearTimeout(settingsTimer.current);
+    };
+  }, []);
 
-  if (connection === 'checking') return <main><header><Brand t={t}/><div className="headerStatus">{languageSwitch}</div></header><section className="panel connectionCard"><span className="spinner"/><h2>{t('connectingAgent')}</h2></section></main>;
-  if (!connected && !connectedOnce.current) return <main><header><Brand t={t}/><div className="headerStatus">{languageSwitch}<ConnectionBadge state={connection} t={t}/></div></header><Onboarding state={connection} help={help} setHelp={setHelp} connect={()=>void establish('connecting',true)} t={t}/></main>;
+  const jobIdsKey = state.jobs.map(job => job.id).join('|');
+  useEffect(() => {
+    const existing = new Set(state.jobs.map(job => job.id));
+    setSelected(current => new Set([...current].filter(id => existing.has(id))));
+  }, [jobIdsKey]);
 
-  return <main><header><Brand t={t}/><div className="headerStatus">{languageSwitch}<ConnectionBadge state={connection} t={t}/>{connected&&<button className="link" onClick={copyDiagnostics}>{t('copyDiagnostics')}</button>}</div></header>
-    {!connected&&<section className="disconnectBar"><div><strong>{t('agentDisconnected')}</strong><span>{t('restoreQueue')}</span></div><button onClick={()=>void establish('connecting',true)}>{t('reconnect')}</button></section>}
-    <div className={!connected?'disabledArea':''}><section className="panel controls"><div className="controlBlock"><label>{t('compression')}</label><div className="segments">{presets.map(p=><button disabled={!connected} className={state.settings.preset===p.id?'selected':''} onClick={()=>setting({preset:p.id})} key={p.id}>{t(p.title)}</button>)}</div><small>{t(presets.find(p=>p.id===state.settings.preset)?.note??'balancedNote')}</small></div>{state.settings.preset==='quality'&&<><div className="controlBlock"><label>{t('frameRate')} <b>{fps} {t('fpsUnit')}</b></label><input className="fpsSlider" type="range" min={FRAME_RATE_MIN} max={FRAME_RATE_MAX} step={1} value={fps} disabled={!connected} onChange={e=>changeFps(Number(e.target.value))}/><small className="wrap">{t('frameRateNote')}</small></div><div className="controlBlock"><label>{t('qualityCrf')} <b>{crf}</b></label><input className="fpsSlider" type="range" min={CRF_MIN} max={CRF_MAX} step={1} value={crf} disabled={!connected||bitrate.trim()!==''} onChange={e=>changeCrf(Number(e.target.value))}/><small className="wrap">{bitrate.trim()!==''?t('crfOverridden'):t('qualityCrfNote')}</small></div><div className="controlBlock"><label>{t('bitrate')}</label><input className="bitrateInput" type="number" inputMode="numeric" min={VIDEO_BITRATE_MIN_KBPS} max={VIDEO_BITRATE_MAX_KBPS} placeholder={t('bitratePlaceholder')} value={bitrate} disabled={!connected} onChange={e=>changeBitrate(e.target.value)}/><small className="wrap">{t('bitrateNote')}</small></div><div className="controlBlock"><label className="checkboxRow"><input type="checkbox" checked={state.settings.keepResolution!==false} disabled={!connected} onChange={e=>void setting({keepResolution:e.target.checked})}/> {t('keepResolution')}</label>{state.settings.keepResolution===false&&<input className="bitrateInput resolutionInput" type="number" inputMode="numeric" min={RESOLUTION_MIN} max={RESOLUTION_MAX} placeholder={t('resolutionPlaceholder')} value={resolution} disabled={!connected} onChange={e=>changeResolution(e.target.value)}/>}<small className="wrap">{state.settings.keepResolution===false?t('resolutionNote'):t('keepResolutionNote')}</small></div></>}<div className="controlBlock"><label>{t('saveResults')}</label><div className="segments"><button disabled={!connected} className={state.settings.outputMode==='next-to-originals'?'selected':''} onClick={()=>setting({outputMode:'next-to-originals'})}>{t('nextToOriginals')}</button><button disabled={!connected} className={state.settings.outputMode==='chosen-folder'?'selected':''} onClick={()=>action('/api/output/select')}>{t('chooseFolder')}</button></div><small>{state.settings.outputMode==='chosen-folder'?state.settings.outputFolder??t('chooseAFolder'):t('besideSource')}</small></div></section>
-    <section className="panel actions"><div><button className="primary" disabled={!connected} onClick={selectFiles}>{t('selectVideos')}</button><button disabled={!connected||state.running||!state.jobs.some(j=>j.status==='queued')} onClick={()=>action('/api/queue/start')}>{t('startCompression')}</button></div><p>{t('filesStay')}</p></section></div>
-    {(!state.tools.ffmpeg||!state.tools.ffprobe)&&connected&&<div className="alert">{t('engineUnavailable')}</div>}{state.warning&&<div className="alert">{localizedAgentText(state.warning,t)}</div>}{message&&<div className="alert">{message}</div>}
-    <section className="summary"><div><strong>{completed} / {state.jobs.length}</strong><span>{t('filesCompleted')}</span></div><div className="overall"><span>{t('overallProgress')} <b>{Math.round(overall)}%</b></span><progress value={overall} max="100"/></div>{state.jobs.some(j=>['completed','failed','cancelled'].includes(j.status))&&<button disabled={!connected} className="link" onClick={()=>action('/api/jobs/completed','DELETE')}>{t('clearFinished')}</button>}</section>
-    <section className="queue">{state.jobs.length===0?<div className="empty"><h2>{t('queueEmpty')}</h2><p>{t('queueEmptyBody')}</p></div>:state.jobs.map(job=><Job key={job.id} job={job} action={action} disabled={!connected} compressionRunning={state.running} t={t}/>)}</section>
-    {state.jobs.length>0&&!state.running&&<section className="panel finalSummary"><div><p>{t('completed')}</p><strong>{summary.successful}</strong></div><div><p>{t('errors')}</p><strong>{summary.failed}</strong></div><div><p>{t('original')}</p><strong>{formatSize(summary.originalSize)}</strong></div><div><p>{t('result')}</p><strong>{formatSize(summary.finalSize)}</strong></div><div><p>{t('spaceSaved')}</p><strong>{formatSize(summary.savedBytes)} · {summary.savedPercent}%</strong></div>{summary.successful>0&&<button disabled={!connected} onClick={()=>action('/api/output/reveal')}>{t('showOutput')}</button>}</section>}
-  </main>;
+  const handleError = (error: unknown) => {
+    const text = localizedError(error, t);
+    addToast(text, 'error');
+    const code = error instanceof Error ? error.message : '';
+    if (['CONNECTION_FAILED', 'TIMEOUT', 'PAIRING_REQUIRED'].includes(code)) {
+      setConnection('disconnected');
+    }
+  };
+
+  const action = async (url: string, method = 'POST') => {
+    try {
+      setState(await request<QueueState>(url, method));
+    } catch (error) {
+      handleError(error);
+    }
+  };
+
+  const sendSettings = async (patch: Partial<AgentSettings>) => {
+    try {
+      setState(await requestBody<QueueState>('/api/settings', patch));
+    } catch (error) {
+      handleError(error);
+    }
+  };
+
+  const updateSettings = (patch: Partial<AgentSettings>, debounce = false) => {
+    if (!debounce) {
+      if (settingsTimer.current) clearTimeout(settingsTimer.current);
+      settingsTimer.current = null;
+      const body = { ...pendingSettings.current, ...patch };
+      pendingSettings.current = {};
+      void sendSettings(body);
+      return;
+    }
+    Object.assign(pendingSettings.current, patch);
+    if (settingsTimer.current) clearTimeout(settingsTimer.current);
+    settingsTimer.current = setTimeout(() => {
+      const body = pendingSettings.current;
+      pendingSettings.current = {};
+      settingsTimer.current = null;
+      void sendSettings(body);
+    }, 350);
+  };
+
+  const selectNativeFiles = async () => {
+    const before = new Set(state.jobs.map(job => job.id));
+    try {
+      const result = await request<SelectionResponse>('/api/files/select', 'POST');
+      setState(result.state);
+      selectNewJobs(before, result.state, setSelected);
+      await handleSelectionWarnings(result.warnings, result.state, t, addToast, setState, setSelected);
+    } catch (error) {
+      handleError(error);
+    }
+  };
+
+  const addDroppedFiles = async (files: File[]) => {
+    if (!files.length) return;
+    setImporting(true);
+    const known = new Set(state.jobs.map(job => job.id));
+    try {
+      for (const file of files) {
+        const result = await uploadFile(file);
+        setState(result.state);
+        selectNewJobs(known, result.state, setSelected);
+        for (const job of result.state.jobs) known.add(job.id);
+        showSelectionWarnings(result.warnings, t, addToast);
+      }
+    } catch (error) {
+      handleError(error);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const startSelected = async () => {
+    const ids = readySelectedIds(state.jobs, selected);
+    if (!ids.length) return;
+    try {
+      const next = await requestBody<QueueState>('/api/queue/start', { ids });
+      setState(next);
+      setSelected(current => {
+        const updated = new Set(current);
+        ids.forEach(id => updated.delete(id));
+        return updated;
+      });
+      setLastSelectedIndex(null);
+    } catch (error) {
+      handleError(error);
+    }
+  };
+
+  const removeSelected = async () => {
+    const removable = removableSelectedIds(state.jobs, selected);
+    if (!removable.length) return;
+    const activeSelected = [...selected].some(id =>
+      state.jobs.some(job => job.id === id && ['processing', 'queued'].includes(job.status))
+    );
+    try {
+      const next = await requestBody<QueueState>('/api/jobs/remove', { ids: [...selected] });
+      setState(next);
+      setSelected(current => {
+        const existing = new Set(next.jobs.map(job => job.id));
+        return new Set([...current].filter(id => existing.has(id)));
+      });
+      if (activeSelected) addToast(t('activeJobsNotRemoved'), 'warning');
+    } catch (error) {
+      handleError(error);
+    }
+  };
+
+  const copyDiagnostics = async () => {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(await request('/api/diagnostics'), null, 2));
+      addToast(t('diagnosticsCopied'), 'success');
+    } catch (error) {
+      handleError(error);
+    }
+  };
+
+  const selectableIds = useMemo(() => selectableJobIds(state.jobs), [state.jobs]);
+  const selectedReady = readySelectedIds(state.jobs, selected);
+  const selectedRemovable = removableSelectedIds(state.jobs, selected);
+  const metrics = useMemo(() => batchMetrics(state.jobs, state.batch), [state.jobs, state.batch]);
+  const summary = useMemo(() => calculateQueueSummary(state.jobs), [state.jobs]);
+  const selectedLabel = selected.size
+    ? t(selectedCountKey(language, selected.size), { count: selected.size })
+    : t('noSelection');
+
+  const header = (
+    <Header
+      language={language}
+      setLanguage={setLanguage}
+      connection={connection}
+      showProblemAction={!connected}
+      copyDiagnostics={() => void copyDiagnostics()}
+      t={t}
+    />
+  );
+
+  if (connection === 'checking') {
+    return (
+      <div className="app-shell">
+        {header}
+        <main className="workspace compact-state">
+          <Spinner />
+          <span>{t('connectingAgent')}</span>
+        </main>
+      </div>
+    );
+  }
+
+  if (!connected && !connectedOnce.current) {
+    return (
+      <div className="app-shell">
+        {header}
+        <main className="workspace">
+          <Onboarding
+            state={connection}
+            help={help}
+            setHelp={setHelp}
+            connect={() => void establish('connecting', true)}
+            t={t}
+          />
+        </main>
+        <ToastRegion toasts={toasts} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="app-shell">
+      {header}
+      <main className="workspace">
+        {!connected && (
+          <BlockingMessage
+            title={t('agentDisconnected')}
+            body={t('restoreQueue')}
+            action={<Button onClick={() => void establish('connecting', true)}>{t('reconnect')}</Button>}
+          />
+        )}
+        {connected && (!state.tools.ffmpeg || !state.tools.ffprobe) && (
+          <BlockingMessage title={t('engineUnavailable')} tone="error" />
+        )}
+        {state.warning && (
+          <BlockingMessage title={localizedAgentText(state.warning, t)} tone="warning" />
+        )}
+
+        <SettingsPanel
+          settings={state.settings}
+          disabled={!connected}
+          hasUploadedFiles={state.jobs.some(job => job.sourceKind === 'uploaded')}
+          updateSettings={updateSettings}
+          chooseOutputFolder={() => void action('/api/output/select')}
+          t={t}
+        />
+
+        <section className="add-files-section" aria-label={t('chooseFiles')}>
+          <DropZone
+            disabled={!connected || importing || !state.tools.ffprobe}
+            importing={importing}
+            chooseFiles={() => void selectNativeFiles()}
+            addDroppedFiles={files => void addDroppedFiles(files)}
+            t={t}
+          />
+          <p>{t('processedLocally')}</p>
+        </section>
+
+        {state.jobs.length > 0 && (
+          <>
+            <section className="batch-toolbar" aria-label={t('fileActions', { name: t('appName') })}>
+              <div className="selection-actions">
+                <Button
+                  variant="ghost"
+                  disabled={!connected || selectableIds.length === 0}
+                  onClick={() => setSelected(new Set(selectableIds))}
+                >
+                  {t('selectAll')}
+                </Button>
+                <Button
+                  variant="ghost"
+                  disabled={!connected || selected.size === 0}
+                  onClick={() => {
+                    setSelected(new Set());
+                    setLastSelectedIndex(null);
+                  }}
+                >
+                  {t('clearSelection')}
+                </Button>
+                <span className="selected-count" aria-live="polite">
+                  {selectedLabel}
+                </span>
+              </div>
+              <div className="primary-actions">
+                <Button
+                  variant="primary"
+                  disabled={!connected || state.running || selectedReady.length === 0}
+                  onClick={() => void startSelected()}
+                >
+                  {t('compressSelected')}
+                </Button>
+                <Button
+                  variant="danger"
+                  disabled={!connected || selectedRemovable.length === 0}
+                  onClick={() => void removeSelected()}
+                >
+                  {t('removeSelected')}
+                </Button>
+                {state.jobs.some(job =>
+                  ['completed', 'failed', 'cancelled', 'interrupted'].includes(job.status)
+                ) && (
+                  <Button
+                    variant="ghost"
+                    disabled={!connected}
+                    onClick={() => void action('/api/jobs/completed', 'DELETE')}
+                  >
+                    {t('clearFinished')}
+                  </Button>
+                )}
+              </div>
+            </section>
+
+            {state.batch && <BatchProgress metrics={metrics} t={t} />}
+          </>
+        )}
+
+        <section className="video-list" aria-live="polite">
+          {state.jobs.length === 0 ? (
+            <div className="empty-state">
+              <strong>{t('queueEmpty')}</strong>
+              <span>{t('queueEmptyBody')}</span>
+            </div>
+          ) : (
+            state.jobs.map((job, index) => (
+              <JobRow
+                key={job.id}
+                job={job}
+                selected={selected.has(job.id)}
+                disabled={!connected}
+                compressionRunning={state.running}
+                language={language}
+                onSelected={(checked, shiftKey) => {
+                  const update = toggleSelection(
+                    selected,
+                    job.id,
+                    checked,
+                    selectableIds,
+                    lastSelectedIndex,
+                    shiftKey
+                  );
+                  setSelected(update.selected);
+                  setLastSelectedIndex(update.lastIndex ?? index);
+                }}
+                action={(url, method) => void action(url, method)}
+                t={t}
+              />
+            ))
+          )}
+        </section>
+
+        {(summary.successful > 0 || summary.failed > 0) && (
+          <section className="result-summary" aria-labelledby="summary-title">
+            <h2 id="summary-title">{t('summaryTitle')}</h2>
+            <dl>
+              <div>
+                <dt>{t('summaryFiles')}</dt>
+                <dd>{summary.successful}</dd>
+              </div>
+              <div>
+                <dt>{t('summaryOriginal')}</dt>
+                <dd>{formatSize(summary.originalSize, language)}</dd>
+              </div>
+              <div>
+                <dt>{t('summaryResult')}</dt>
+                <dd>{formatSize(summary.finalSize, language)}</dd>
+              </div>
+              <div>
+                <dt>{t('summarySaved')}</dt>
+                <dd>
+                  {formatSize(summary.savedBytes, language)} · {summary.savedPercent}%
+                </dd>
+              </div>
+            </dl>
+            {summary.successful > 0 && (
+              <Button variant="ghost" disabled={!connected} onClick={() => void action('/api/output/reveal')}>
+                {t('showOutput')}
+              </Button>
+            )}
+          </section>
+        )}
+      </main>
+      <ToastRegion toasts={toasts} />
+    </div>
+  );
 }
 
-type T = (key: TranslationKey) => string;
-function Brand({t}:{t:T}){return <div><p className="eyebrow">{t('privateLocalSimple')}</p><h1>{t('title')}</h1><p className="sub">{t('subtitle')}</p></div>}
-function LanguageSwitch({language,setLanguage,t}:{language:'en'|'uk';setLanguage:(value:'en'|'uk')=>void;t:T}){return <div className="languageSwitch" aria-label={t('language')}><button className={language==='en'?'active':''} onClick={()=>setLanguage('en')}>EN</button><button className={language==='uk'?'active':''} onClick={()=>setLanguage('uk')}>UA</button></div>}
-function ConnectionBadge({state,t}:{state:ConnectionState;t:T}){const keys:Record<ConnectionState,TranslationKey>={checking:'connectingAgent',connecting:'lookingForAgent',connected:'agentConnected',not_installed_or_not_running:'agentNotRunning',incompatible_version:'agentUpdateRequired',connection_blocked:'connectionBlocked',disconnected:'agentDisconnected'};return <span className={`connection ${state==='connected'?'online':''}`}><i/>{t(keys[state])}</span>}
-function Onboarding({state,help,setHelp,connect,t}:{state:ConnectionState;help:boolean;setHelp:(v:boolean)=>void;connect:()=>void;t:T}){return <section className="panel onboarding"><div className="onboardingIcon">↓</div>{state==='connecting'?<><span className="spinner"/><h2>{t('lookingForAgent')}</h2><p>{t('keepAgentOpen')}</p></>:state==='incompatible_version'?<><h2>{t('updateTitle')}</h2><p>{t('updateBody')}</p><a className="button primary" href={downloadUrl}>{t('downloadLatest')}</a></>:state==='connection_blocked'?<><h2>{t('blockedTitle')}</h2><p>{t('blockedBody')}</p><div className="onboardingActions"><button className="primary" onClick={connect}>{t('tryAgain')}</button><a className="button" href={`${agentUrl}/local`} target="_blank">{t('openLocal')}</a></div></>:<><h2>{t('onboardingTitle')}</h2><p>{t('onboardingBody')}<br/><strong>{t('neverUploaded')}</strong></p><p className="platformNote">{t('appleSilicon')}</p><div className="onboardingActions"><a className="button primary" href={downloadUrl}>{t('downloadAgent')}</a><button onClick={connect}>{t('connectAgent')}</button></div><button className="helpLink" onClick={()=>setHelp(!help)}>{t('installationHelp')}</button>{help&&<div className="installHelp"><h3>{t('installTitle')}</h3><ol>{(['install1','install2','install3','install4','install5','install6','install7','install8','install9'] as TranslationKey[]).map(key=><li key={key}>{t(key)}</li>)}</ol><p>{t('installFallback')}</p><p>{t('notNotarized')}</p></div>}</>}</section>}
-function Job({job,action,disabled,compressionRunning,t}:{job:CompressionJob;action:(url:string,method?:string)=>void;disabled:boolean;compressionRunning:boolean;t:T}){const saving=job.finalSize===null||job.originalSize===0?null:Math.round((1-job.finalSize/job.originalSize)*100),statusKey=`status${job.status[0].toUpperCase()}${job.status.slice(1)}` as TranslationKey,media=[job.sourceWidth&&job.sourceHeight?`${job.sourceWidth}×${job.sourceHeight}`:null,job.sourceFrameRate?`${job.sourceFrameRate} ${t('fpsUnit')}`:null,job.sourceBitrate?formatBitrate(job.sourceBitrate):null].filter(Boolean).join(' · ');return <article className="job"><div className="jobtop"><div><h3 title={job.fileName}>{job.fileName}</h3><span className={`status ${job.status}`}>{t(statusKey)}</span></div><div>{job.status==='processing'&&<button disabled={disabled} className="danger" onClick={()=>action(`/api/jobs/${job.id}/cancel`)}>{t('cancel')}</button>}{job.status==='queued'&&<button disabled={disabled} className="link" onClick={()=>action(`/api/jobs/${job.id}`,'DELETE')}>{t('remove')}</button>}{['failed','interrupted','cancelled'].includes(job.status)&&<button disabled={disabled} onClick={()=>action(`/api/jobs/${job.id}/retry`)}>{t('retry')}</button>}{job.status==='completed'&&<button disabled={disabled} onClick={()=>action(`/api/jobs/${job.id}/reveal`)}>{t('showFinder')}</button>}</div></div>{media&&<div className="mediaInfo" title={t('sourceInfo')}>{media}</div>}<progress value={job.progress??undefined} max="100"/><div className="meta"><span>{formatSize(job.originalSize)} → {job.finalSize===null?'—':formatSize(job.finalSize)}</span><span>{job.progress===null&&job.status==='processing'?t('working'):`${Math.round(job.progress??0)}%`}{saving!==null?` · ${saving}% ${t('saved')}`:''}</span></div>{!['completed','processing'].includes(job.status)&&<Estimate job={job} action={action} disabled={disabled} compressionRunning={compressionRunning} t={t}/>} {job.error&&<p className="error">{localizedAgentText(job.error,t)}</p>}</article>}
-function Estimate({job,action,disabled,compressionRunning,t}:{job:CompressionJob;action:(url:string,method?:string)=>void;disabled:boolean;compressionRunning:boolean;t:T}){const status=job.estimateStatus??'waiting',priorityAction=estimatePriorityAction(job,compressionRunning),prioritized=priorityAction==='cancel';const priorityButton=priorityAction?<button type="button" className={`estimatePriorityButton ${prioritized?'active':''}`} disabled={disabled} aria-label={t(prioritized?'cancelPriorityEstimate':'prioritizeEstimate')} title={t(prioritized?'cancelPriorityEstimateHint':'prioritizeEstimateHint')} onClick={()=>action(`/api/jobs/${job.id}/estimate-priority`,prioritized?'DELETE':'POST')}>{prioritized?'×':'↑'}</button>:null;if(status==='estimating')return <div className="estimateLine"><i className="estimateSpinner"/><span className="estimateText">{t('estimating')} {job.estimateProgress?`${job.estimateProgress.completed}/${job.estimateProgress.total}`:''}</span>{priorityButton}</div>;if(status==='estimated'&&job.estimatedOutputBytes!=null){const saving=job.estimatedSavingPercent??0;return <div className="estimateLine estimated"><span className="estimateText">◇ {t('estimated')} ≈ {formatEstimate(job.estimatedOutputBytes)} · {saving>=0?`≈${saving}% ${t('smaller')}`:t('mayBeLarger')}</span></div>}if(status==='unavailable')return <div className="estimateLine unavailable"><span className="estimateText">{t('estimateUnavailable')}</span></div>;return <div className="estimateLine"><span className="estimateText">{prioritized?t('priorityEstimateQueued'):status==='cancelled'?t('estimatePaused'):t('waitingEstimate')}</span>{priorityButton}</div>}
-function localizedError(value:unknown,t:T){const raw=value instanceof Error?value.message:'';const map:Record<string,TranslationKey>={PAIRING_REQUIRED:'pairingRequired',CONNECTION_FAILED:'connectionFailed',TIMEOUT:'timeout','Invalid session token.':'invalidToken'};return t(map[raw]??'genericError')}
-function localizedAgentText(raw:string,t:T){if(/already in the queue/i.test(raw))return t('duplicate');if(/already compressed/i.test(raw))return t('alreadyCompressed');if(/bundled video engine|FFmpeg is not installed/i.test(raw))return t('engineUnavailable');if(/source file is no longer available/i.test(raw))return t('sourceUnavailable');if(/file could not be processed/i.test(raw))return t('fileProcessFailed');if(/compression was cancelled/i.test(raw))return t('compressionCancelled');if(/FFmpeg could not compress/i.test(raw))return t('compressionFailed');if(/free space may be insufficient/i.test(raw))return t('diskWarning');if(/could not check free space/i.test(raw))return t('diskCheckFailed');return t('genericError')}
-function formatSize(bytes:number){if(!bytes)return'0 B';if(bytes<1024**2)return`${(bytes/1024).toFixed(1)} KB`;if(bytes<1024**3)return`${(bytes/1024**2).toFixed(1)} MB`;return`${(bytes/1024**3).toFixed(2)} GB`}
-function formatEstimate(bytes:number){return `${Math.max(1,Math.round(bytes/1024**2))} MB`}
-function formatBitrate(bitsPerSecond:number){return bitsPerSecond>=1_000_000?`${(bitsPerSecond/1_000_000).toFixed(1)} Mbps`:`${Math.max(1,Math.round(bitsPerSecond/1000))} kbps`}
+function Header({
+  language,
+  setLanguage,
+  connection,
+  showProblemAction,
+  copyDiagnostics,
+  t
+}: {
+  language: Language;
+  setLanguage: (language: Language) => void;
+  connection: ConnectionState;
+  showProblemAction: boolean;
+  copyDiagnostics: () => void;
+  t: Translate;
+}) {
+  return (
+    <header className="topbar">
+      <h1>{t('appName')}</h1>
+      <div className="topbar-actions">
+        <div className="language-switch" aria-label={t('language')}>
+          <button className={language === 'en' ? 'is-active' : ''} onClick={() => setLanguage('en')}>
+            EN
+          </button>
+          <button className={language === 'uk' ? 'is-active' : ''} onClick={() => setLanguage('uk')}>
+            UA
+          </button>
+        </div>
+        <ConnectionBadge state={connection} t={t} />
+        <details className="header-menu">
+          <summary aria-label={t('menu')}>•••</summary>
+          <div>
+            <strong>{t('diagnostics')}</strong>
+            <button onClick={copyDiagnostics}>{t('copyDiagnostics')}</button>
+            {showProblemAction && (
+              <a href={`${agentUrl}/local`} target="_blank" rel="noreferrer">
+                {t('openLocal')}
+              </a>
+            )}
+          </div>
+        </details>
+      </div>
+    </header>
+  );
+}
+
+function ConnectionBadge({ state, t }: { state: ConnectionState; t: Translate }) {
+  const keys: Record<ConnectionState, TranslationKey> = {
+    checking: 'connectingAgent',
+    connecting: 'lookingForAgent',
+    connected: 'agentConnected',
+    not_installed_or_not_running: 'agentNotRunning',
+    incompatible_version: 'agentUpdateRequired',
+    connection_blocked: 'connectionBlocked',
+    disconnected: 'agentDisconnected'
+  };
+  return (
+    <span className={`connection-badge connection-${state}`}>
+      <i aria-hidden="true" />
+      {t(keys[state])}
+    </span>
+  );
+}
+
+function Onboarding({
+  state,
+  help,
+  setHelp,
+  connect,
+  t
+}: {
+  state: ConnectionState;
+  help: boolean;
+  setHelp: (value: boolean) => void;
+  connect: () => void;
+  t: Translate;
+}) {
+  if (state === 'connecting') {
+    return (
+      <BlockingMessage
+        title={t('lookingForAgent')}
+        body={t('keepAgentOpen')}
+        icon={<Spinner />}
+      />
+    );
+  }
+  if (state === 'incompatible_version') {
+    return (
+      <BlockingMessage
+        title={t('updateTitle')}
+        body={t('updateBody')}
+        action={
+          <a className="button button-primary" href={downloadUrl}>
+            {t('downloadLatest')}
+          </a>
+        }
+      />
+    );
+  }
+  if (state === 'connection_blocked') {
+    return (
+      <BlockingMessage
+        title={t('blockedTitle')}
+        body={t('blockedBody')}
+        action={
+          <div className="inline-actions">
+            <Button variant="primary" onClick={connect}>
+              {t('tryAgain')}
+            </Button>
+            <a className="button button-secondary" href={`${agentUrl}/local`} target="_blank" rel="noreferrer">
+              {t('openLocal')}
+            </a>
+          </div>
+        }
+      />
+    );
+  }
+  return (
+    <section className="onboarding-panel">
+      <h2>{t('onboardingTitle')}</h2>
+      <p>{t('onboardingBody')}</p>
+      <div className="inline-actions">
+        <a className="button button-primary" href={downloadUrl}>
+          {t('downloadAgent')}
+        </a>
+        <Button onClick={connect}>{t('connectAgent')}</Button>
+      </div>
+      <button className="text-button" onClick={() => setHelp(!help)} aria-expanded={help}>
+        {t('installationHelp')}
+      </button>
+      {help && (
+        <div className="installation-help">
+          <h3>{t('installTitle')}</h3>
+          <ol>
+            {(['install1', 'install2', 'install3', 'install4'] as TranslationKey[]).map(key => (
+              <li key={key}>{t(key)}</li>
+            ))}
+          </ol>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function BlockingMessage({
+  title,
+  body,
+  action,
+  icon,
+  tone = 'neutral'
+}: {
+  title: string;
+  body?: string;
+  action?: React.ReactNode;
+  icon?: React.ReactNode;
+  tone?: 'neutral' | 'warning' | 'error';
+}) {
+  return (
+    <section className={`blocking-message blocking-${tone}`} role="alert">
+      {icon}
+      <div>
+        <strong>{title}</strong>
+        {body && <span>{body}</span>}
+      </div>
+      {action}
+    </section>
+  );
+}
+
+function BatchProgress({ metrics, t }: { metrics: ReturnType<typeof batchMetrics>; t: Translate }) {
+  return (
+    <section className="batch-progress" aria-label={t('batchProgress')}>
+      <div className="batch-progress-heading">
+        <strong>{t('batchProgress')}</strong>
+        <span>{Math.round(metrics.progress)}%</span>
+      </div>
+      <ProgressBar value={metrics.progress} label={t('overallProgress')} />
+      <div className="batch-counts">
+        <span>{t('queuedCount', { count: metrics.queued })}</span>
+        <span>{t('processingCount', { count: metrics.processing })}</span>
+        <span>{t('completedCount', { count: metrics.completed })}</span>
+        <span>{t('failedCount', { count: metrics.failed })}</span>
+      </div>
+    </section>
+  );
+}
+
+function ToastRegion({ toasts }: { toasts: ToastMessage[] }) {
+  return (
+    <div className="toast-region" aria-live="polite" aria-atomic="false">
+      {toasts.map(toast => (
+        <div className={`toast toast-${toast.tone}`} key={toast.id}>
+          {toast.text}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+async function handleSelectionWarnings(
+  warnings: SelectionWarning[],
+  state: QueueState,
+  t: Translate,
+  addToast: (text: string, tone?: ToastMessage['tone']) => void,
+  setState: (state: QueueState) => void,
+  setSelected: React.Dispatch<React.SetStateAction<Set<string>>>
+) {
+  showSelectionWarnings(warnings, t, addToast);
+  const confirmable = warnings.filter(warning =>
+    ['duplicate', 'already-compressed'].includes(warning.reason)
+  );
+  if (!confirmable.length) return;
+  const prompt = confirmable
+    .map(warning => `${warning.fileName}: ${warningText(warning, t)}`)
+    .join('\n');
+  if (!window.confirm(`${prompt}\n\n${t('addAnyway')}`)) return;
+  const before = new Set(state.jobs.map(job => job.id));
+  const next = await requestBody<QueueState>('/api/files/confirm', {
+    ids: confirmable.map(warning => warning.id)
+  });
+  setState(next);
+  selectNewJobs(before, next, setSelected);
+}
+
+function showSelectionWarnings(
+  warnings: SelectionWarning[],
+  t: Translate,
+  addToast: (text: string, tone?: ToastMessage['tone']) => void
+) {
+  for (const warning of warnings) {
+    addToast(`${warning.fileName}: ${warningText(warning, t)}`, 'warning');
+  }
+}
+
+function warningText(warning: SelectionWarning, t: Translate) {
+  const keys: Record<SelectionWarning['reason'], TranslationKey> = {
+    duplicate: 'duplicate',
+    'already-compressed': 'alreadyCompressed',
+    'unsupported-format': 'unsupportedFormat',
+    inaccessible: 'inaccessibleFile'
+  };
+  return t(keys[warning.reason]);
+}
+
+function selectNewJobs(
+  before: ReadonlySet<string>,
+  next: QueueState,
+  setSelected: React.Dispatch<React.SetStateAction<Set<string>>>
+) {
+  const added = next.jobs.filter(job => !before.has(job.id) && job.status !== 'analyzing');
+  if (!added.length) return;
+  setSelected(current => {
+    const updated = new Set(current);
+    added.forEach(job => updated.add(job.id));
+    return updated;
+  });
+}
+
+function localizedError(value: unknown, t: Translate) {
+  const raw = value instanceof Error ? value.message : '';
+  const map: Record<string, TranslationKey> = {
+    PAIRING_REQUIRED: 'pairingRequired',
+    CONNECTION_FAILED: 'connectionFailed',
+    TIMEOUT: 'timeout',
+    'Invalid session token.': 'invalidToken'
+  };
+  return t(map[raw] ?? 'genericError');
+}
+
+function localizedAgentText(raw: string, t: Translate) {
+  if (/free space may be insufficient/i.test(raw)) return t('diskWarning');
+  if (/could not check free space/i.test(raw)) return t('diskCheckFailed');
+  return raw;
+}

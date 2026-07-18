@@ -16,7 +16,8 @@
     "verify:dmg": "zsh scripts/verify-dmg.sh",
     "verify:package": "zsh scripts/verify-package.sh",
     "start": "npm run start -w @video-compressor/agent",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:agent:e2e": "node scripts/real-agent-check.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",

@@ -1,4 +1,4 @@
-import type { QueueState } from '@video-compressor/shared';
+import type { QueueState, SelectionResponse } from '@video-compressor/shared';
 import { agentFetchOptions, pairingPath } from '../connection';
 
 const configured = import.meta.env.VITE_AGENT_URL || 'http://127.0.0.1:43120';
@@ -37,8 +37,25 @@ export async function request<T>(url: string, method = 'GET', signal?: AbortSign
   catch (error) { if (signal?.aborted) throw new Error('TIMEOUT'); throw new Error('CONNECTION_FAILED', { cause: error }); }
   return assertOk(response) as Promise<T>;
 }
-export async function requestBody<T>(url: string, body: unknown): Promise<T> {
-  const response = await fetch(agentUrl + url, { method: 'POST', headers: { 'x-session-token': token, 'content-type': 'application/json' }, body: JSON.stringify(body), ...privateNetworkInit });
+export async function requestBody<T>(url: string, body: unknown, method = 'POST'): Promise<T> {
+  const response = await fetch(agentUrl + url, { method, headers: { 'x-session-token': token, 'content-type': 'application/json' }, body: JSON.stringify(body), ...privateNetworkInit });
   return assertOk(response) as Promise<T>;
+}
+export async function uploadFile(file: File): Promise<SelectionResponse> {
+  const body = new FormData();
+  body.append('signature', `${file.name}:${file.size}:${file.lastModified}`);
+  body.append('file', file, file.name);
+  let response: Response;
+  try {
+    response = await fetch(agentUrl + '/api/files/upload', {
+      method: 'POST',
+      headers: { 'x-session-token': token },
+      body,
+      ...privateNetworkInit
+    });
+  } catch (error) {
+    throw new Error('CONNECTION_FAILED', { cause: error });
+  }
+  return assertOk(response) as Promise<SelectionResponse>;
 }
 async function assertOk(response: Response) { const body = await response.json(); if (!response.ok) throw new Error(response.status === 401 ? 'PAIRING_REQUIRED' : body.error || 'AGENT_ERROR'); return body; }

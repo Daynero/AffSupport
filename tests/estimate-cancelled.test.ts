@@ -1,3 +1,28 @@
-import { describe,expect,it } from 'vitest';import type { CompressionJob } from '../packages/shared/src/types.js';import { JobQueue } from '../apps/agent/src/queue/queue.js';
-const base=(status:CompressionJob['status']):CompressionJob=>({id:'cancelled-job',inputPath:'/tmp/input.mov',outputPath:'/tmp/output.mp4',fileName:'input.mov',durationSeconds:10,originalSize:1000,finalSize:null,progress:20,status,error:null,preset:'balanced',estimateStatus:'estimated',estimatedOutputBytes:500,estimatedSavingPercent:50,estimateRangeMinBytes:400,estimateRangeMaxBytes:600,estimateProgress:null,estimateError:null,estimatePreset:'balanced'});
-describe('estimation after compression cancellation',()=>{it('requeues the estimate when compression is cancelled',async()=>{const q=new JobQueue({ffmpeg:true,ffprobe:true},()=>{},[base('processing')],{preset:'balanced',outputMode:'next-to-originals',outputFolder:null});let scheduled=0;q.attachEstimator({schedule:()=>{scheduled++},resume:()=>{},invalidateForPreset:()=>{}});expect(await q.cancel('cancelled-job')).toBe(true);expect(q.state().jobs[0]).toMatchObject({status:'cancelled',estimateStatus:'waiting',estimatedOutputBytes:null,estimatePreset:'balanced'});expect(scheduled).toBe(1)});it('invalidates a cancelled job again when the compression preset changes',()=>{const q=new JobQueue({ffmpeg:true,ffprobe:true},()=>{},[base('cancelled')],{preset:'balanced',outputMode:'next-to-originals',outputFolder:null});q.attachEstimator({schedule:()=>{},resume:()=>{},invalidateForPreset:preset=>q.updateEstimate('cancelled-job',{estimateStatus:'waiting',estimatedOutputBytes:null,estimatePreset:preset},'estimate:queued')});q.updateSettings({preset:'ultra-small'});expect(q.state().jobs[0]).toMatchObject({status:'cancelled',preset:'ultra-small',estimateStatus:'waiting',estimatedOutputBytes:null,estimatePreset:'ultra-small'})})});
+import { describe, expect, it } from 'vitest';
+import { JobQueue } from '../apps/agent/src/queue/queue.js';
+import { makeJob, optimalSettings } from './helpers.js';
+
+describe('estimate state after cancellation and retry', () => {
+  it('clears stale estimate values when compression is cancelled', async () => {
+    const job = makeJob('cancelled-job', 'processing', {
+      startedAt: Date.now(),
+      estimateStatus: 'estimated',
+      estimatedOutputBytes: 500,
+      estimatedSavingPercent: 50,
+      estimateKey: 'old'
+    });
+    const queue = new JobQueue(
+      { ffmpeg: true, ffprobe: true },
+      () => {},
+      [job],
+      { ...optimalSettings }
+    );
+    expect(await queue.cancel(job.id)).toBe(true);
+    expect(queue.state().jobs[0]).toMatchObject({
+      status: 'cancelled',
+      estimateStatus: 'waiting',
+      estimatedOutputBytes: null,
+      estimateKey: null
+    });
+  });
+});

@@ -1,3 +1,61 @@
-import { describe,expect,it } from 'vitest';import type { CompressionJob } from '../packages/shared/src/types.js';import { JobQueue } from '../apps/agent/src/queue/queue.js';
-describe('preset estimate invalidation',()=>{it('marks queued estimates for recalculation through the estimator hook',()=>{const job:CompressionJob={id:'1',inputPath:'/a',outputPath:'/b',fileName:'a',durationSeconds:1,originalSize:100,finalSize:null,progress:0,status:'queued',error:null,preset:'balanced',estimateStatus:'estimated',estimatedOutputBytes:50,estimatePreset:'balanced'};const q=new JobQueue({ffmpeg:true,ffprobe:true},()=>{},[job],{preset:'balanced',outputMode:'next-to-originals',outputFolder:null});let invalidated='';q.attachEstimator({schedule:()=>{},resume:()=>{},invalidateForPreset:preset=>{invalidated=preset;q.updateEstimate('1',{estimateStatus:'waiting',estimatedOutputBytes:null,estimatePreset:preset},'estimate:queued')}});q.updateSettings({preset:'quality'});expect(invalidated).toBe('quality');expect(q.state().jobs[0]).toMatchObject({preset:'quality',estimatePreset:'quality',estimateStatus:'waiting',estimatedOutputBytes:null})});
-it('recalculates estimates and clamps out-of-range values when the frame rate changes',()=>{const job:CompressionJob={id:'1',inputPath:'/a',outputPath:'/b',fileName:'a',durationSeconds:1,originalSize:100,finalSize:null,progress:0,status:'queued',error:null,preset:'quality',estimateStatus:'estimated',estimatedOutputBytes:50,estimatePreset:'quality'};const q=new JobQueue({ffmpeg:true,ffprobe:true},()=>{},[job],{preset:'quality',outputMode:'next-to-originals',outputFolder:null,frameRate:120});let calls=0;q.attachEstimator({schedule:()=>{},resume:()=>{},invalidateForPreset:()=>{calls++;q.updateEstimate('1',{estimateStatus:'waiting',estimatedOutputBytes:null},'estimate:queued')}});q.updateSettings({frameRate:30});expect(calls).toBe(1);expect(q.state().settings.frameRate).toBe(30);expect(q.state().jobs[0]).toMatchObject({estimateStatus:'waiting',estimatedOutputBytes:null});q.updateSettings({frameRate:9999});expect(calls).toBe(2);expect(q.state().settings.frameRate).toBe(120);q.updateSettings({frameRate:24});expect(calls).toBe(3);expect(q.state().settings.frameRate).toBe(24)})});
+import { describe, expect, it } from 'vitest';
+import { encodingKey } from '../packages/shared/src/types.js';
+import { JobQueue } from '../apps/agent/src/queue/queue.js';
+import { makeJob, optimalSettings } from './helpers.js';
+
+describe('estimate invalidation when settings change', () => {
+  it('clears the old estimate and applies the same new snapshot to ready jobs', async () => {
+    const job = makeJob('ready', 'ready', {
+      estimateStatus: 'estimated',
+      estimatedOutputBytes: 5000,
+      estimatedSavingPercent: 50,
+      estimateKey: 'old'
+    });
+    const queue = new JobQueue(
+      { ffmpeg: true, ffprobe: true },
+      () => {},
+      [job],
+      { ...optimalSettings }
+    );
+    let invalidations = 0;
+    queue.attachEstimator({
+      schedule: () => {},
+      resume: () => {},
+      invalidate: () => {
+        invalidations++;
+      }
+    });
+    await queue.updateSettings({ mode: 'custom', frameRate: 25, resolutionLimit: 720, crf: 20 });
+    const updated = queue.state().jobs[0];
+    expect(invalidations).toBe(1);
+    expect(updated.encoding).toMatchObject({
+      mode: 'custom',
+      frameRate: 25,
+      resolutionLimit: 720,
+      rateControl: 'crf',
+      crf: 20,
+      videoBitrateKbps: null
+    });
+    expect(updated).toMatchObject({
+      estimateStatus: 'waiting',
+      estimatedOutputBytes: null,
+      estimatedSavingPercent: null,
+      estimateKey: null
+    });
+  });
+
+  it('does not mutate an already queued batch snapshot', async () => {
+    const job = makeJob('queued', 'queued', { batchId: 'batch' });
+    const originalKey = encodingKey(job.encoding);
+    const queue = new JobQueue(
+      { ffmpeg: true, ffprobe: true },
+      () => {},
+      [job],
+      { ...optimalSettings },
+      { id: 'batch', jobIds: [job.id], startedAt: Date.now(), finishedAt: null }
+    );
+    queue.attachEstimator({ schedule: () => {}, resume: () => {}, invalidate: () => {} });
+    await queue.updateSettings({ mode: 'custom', frameRate: 60, resolutionLimit: 550 });
+    expect(encodingKey(queue.state().jobs[0].encoding)).toBe(originalKey);
+  });
+});
