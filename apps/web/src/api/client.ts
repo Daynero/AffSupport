@@ -1,5 +1,5 @@
-import type { QueueState, SelectionResponse } from '@video-compressor/shared';
-import { agentFetchOptions, pairingPath } from '../connection';
+import type { HealthResponse, QueueState, SelectionResponse } from '@video-compressor/shared';
+import { agentFetchOptions, pairingPath, versionState } from '../connection';
 
 const configured = import.meta.env.VITE_AGENT_URL || 'http://127.0.0.1:43120';
 export const agentUrl = location.hostname === '127.0.0.1' && location.port === '43120' ? location.origin : configured;
@@ -24,16 +24,19 @@ export function consumePairingToken() {
 }
 export function hasPairingToken() { return Boolean(token); }
 export function pairWithAgent() { location.assign(`${agentUrl}${pairingPath(agentUrl, location.origin)}`); }
-export async function connect(signal?: AbortSignal): Promise<{ state: QueueState; version: string; apiVersion: number }> {
-  const health = await request<{ version: string; apiVersion?: number }>('/api/health', 'GET', signal);
-  const state = await request<QueueState>('/api/queue', 'GET', signal);
-  return { state, version: health.version, apiVersion: health.apiVersion ?? 0 };
+export async function connect(signal?: AbortSignal): Promise<{ state: QueueState | null; version: string; apiVersion: number }> {
+  const health = await request<Partial<HealthResponse> & { version: string }>('/api/health', 'GET', signal);
+  const apiVersion = health.apiVersion ?? 0;
+  const state = versionState(apiVersion) === 'connected'
+    ? await request<QueueState>('/api/queue', 'GET', signal)
+    : null;
+  return { state, version: health.version, apiVersion };
 }
 export function eventUrl() { return `${agentUrl}/api/events?token=${encodeURIComponent(token)}`; }
 export async function request<T>(url: string, method = 'GET', signal?: AbortSignal): Promise<T> {
   if (!token) throw new Error('PAIRING_REQUIRED');
   let response: Response;
-  try { response = await fetch(agentUrl + url, { method, signal, headers: { 'x-session-token': token }, ...privateNetworkInit }); }
+  try { response = await fetch(agentUrl + url, { method, signal, cache: 'no-store', headers: { 'x-session-token': token }, ...privateNetworkInit }); }
   catch (error) { if (signal?.aborted) throw new Error('TIMEOUT'); throw new Error('CONNECTION_FAILED', { cause: error }); }
   return assertOk(response) as Promise<T>;
 }

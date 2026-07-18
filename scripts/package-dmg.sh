@@ -1,8 +1,9 @@
 #!/bin/zsh
 set -euo pipefail
-root="$PWD/release"; app="$root/Local Video Compressor Agent.app"; dmg="$root/LocalVideoCompressor-v0.1.0-test-macOS-arm64.dmg"
+root="$PWD/release"; app="$root/Local Video Compressor Agent.app"; dmg_name=$(node scripts/release-meta.mjs artifact-name); dmg="$root/$dmg_name"
 [[ -d "$app" ]] || { print -u2 "Build the app first with npm run package:mac"; exit 1; }
-stage="$root/dmg-stage"; rw="$root/LocalVideoCompressor-rw.dmg"; rm -rf "$stage"; rm -f "$rw" "$dmg"; mkdir -p "$stage/.background"
+[[ ! -e "$dmg" ]] || { print -u2 "$dmg already exists. Published build identities are immutable; bump PRODUCT_VERSION and BUILD_NUMBER."; exit 1; }
+stage="$root/dmg-stage"; rw="$root/LocalVideoCompressor-rw.dmg"; rm -rf "$stage"; rm -f "$rw"; mkdir -p "$stage/.background"
 cp -R "$app" "$stage/"; ln -s /Applications "$stage/Applications"
 swiftc packaging/DmgBackground.swift -o "$root/DmgBackground" -framework AppKit; "$root/DmgBackground" "$stage/.background/background.png"
 hdiutil create -quiet -srcfolder "$stage" -volname "Local Video Compressor Agent" -fs HFS+ -format UDRW "$rw"

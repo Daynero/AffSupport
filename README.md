@@ -12,11 +12,11 @@ npm run build
 npm start
 ```
 
-The agent listens only on `http://127.0.0.1:43120` and opens the paired website automatically. Development mode is `npm run dev` with the fixed `http://127.0.0.1:5173` origin.
+The agent listens only on `http://127.0.0.1:43120` and opens its matching bundled interface automatically. Development mode is `npm run dev` with the fixed `http://127.0.0.1:5173` origin.
 
 ## Hosted closed test
 
-Cloudflare Pages needs no backend or Functions: videos are selected through the local agent and never enter the web build. The current `local-video-compressor-test` Pages project uses Direct Upload, so pushing GitHub does not deploy it. After `npx wrangler login`, publish a verified build with `npm run deploy:web`. The production values in `apps/web/.env.production` set the loopback Agent URL and release download URL; the included `_redirects` supplies SPA fallback. If another Pages project is used, update those values and build the Agent with that project's exact HTTPS origin.
+Cloudflare Pages needs no backend or Functions: videos are selected through the local agent and never enter the web build. The current `local-video-compressor-test` Pages project uses Direct Upload, so pushing GitHub does not deploy it. The production environment sets only the loopback Agent URL; the immutable, versioned download URL comes from `packages/shared/src/release.ts`. The included `_redirects` supplies SPA fallback and `_headers` prevents a stale HTML shell while keeping hashed assets immutable.
 
 Before packaging, obtain matching standalone Apple Silicon FFmpeg and FFprobe from a reviewed, reproducible distribution; record version, configure flags, license, source URL and checksums in `THIRD_PARTY_NOTICES.md`. Homebrew-linked binaries are rejected. Then run:
 
@@ -29,9 +29,24 @@ npm run package:mac
 npm run verify:package
 ```
 
-All five variables are required; `scripts/package-mac.sh` aborts if any is missing. This creates the ad-hoc-signed app and backup ZIP. Run `npm run package:dmg` to create `release/LocalVideoCompressor-v0.1.0-test-macOS-arm64.dmg` and its SHA-256 file. Do not commit `release/`. Attach the DMG, checksum, optional ZIP, `TESTER_GUIDE.md`, `RELEASE_NOTES.md`, and the completed third-party notice to release `v0.1.0-test`.
+All five variables are required; `scripts/package-mac.sh` aborts if any is missing. Release packaging also requires a clean committed worktree and refuses to overwrite an artifact with the same build identity. This creates the ad-hoc-signed app and a versioned backup ZIP. Run `npm run package:dmg` to create the versioned DMG and SHA-256 file shown by `npm run release:info`. Do not commit `release/`.
 
-This test build is **ad-hoc signed, not Apple-notarized**. macOS quarantines it after download and Gatekeeper will not launch it directly (there is no "Open Anyway" affordance for an ad-hoc signature). Testers must run `xattr -dr com.apple.quarantine "/Applications/Local Video Compressor Agent.app"` once after installing — see `TESTER_GUIDE.md`. A production release requires a Developer ID Application certificate, `--options runtime` hardened signing, and Apple notarization + stapling, after which no such step is needed. Intel/Universal support has not been verified and is not claimed.
+### Release and compatibility policy
+
+`packages/shared/src/release.ts` is the single release manifest. Use these rules for every published change:
+
+1. Increment `PRODUCT_VERSION` and the monotonically increasing numeric `BUILD_NUMBER` for every published Agent build. Keep the build number to at most three period-separated integer components as required by macOS. A GitHub tag or asset is never replaced in place.
+2. Increment `AGENT_API_VERSION` only for a breaking web/Agent contract change. Keep `MIN_SUPPORTED_AGENT_API_VERSION` and `MAX_SUPPORTED_AGENT_API_VERSION` at the actual range the web UI supports.
+3. Update all workspace package versions to `PRODUCT_VERSION`; `npm run release:check` verifies the identity, API range, tag, artifact URL, and manifests.
+4. From a clean commit, run `npm run package:mac`, `npm run verify:package`, `npm run package:dmg`, and `npm run verify:dmg`.
+5. Create the new tag on that exact commit and publish the uniquely named DMG and checksum. Packaging aborts if the tag is already present locally or on `origin`, so a published release cannot be rebuilt in place.
+6. Only after the Agent asset is reachable, run `npm run deploy:web`; deployment requires the tag at `HEAD` and aborts if that exact versioned Agent asset is unavailable.
+
+The packaged launcher opens the web UI bundled inside the same `.app`, so its UI and API contract are always atomic. The hosted page remains useful for onboarding and remote pairing. If it encounters an older Agent, it offers the bundled local interface immediately as a safe fallback; if it encounters a newer Agent, it asks to refresh the page instead of incorrectly requesting an Agent downgrade.
+
+Starting with `0.2.0-test.1`, the launcher also watches the installed release manifest. When a newer `.app` replaces the running copy, it performs a version-aware handoff after active compression completes. Migrating from the legacy `0.1.0-test` build requires one manual quit because that old launcher predates the handoff protocol.
+
+This test build is **ad-hoc signed, not Apple-notarized**. macOS quarantines it after download and Gatekeeper will not launch it directly (there is no "Open Anyway" affordance for an ad-hoc signature). Testers must run `xattr -dr com.apple.quarantine "/Applications/Local Video Compressor Agent.app"` after installing each downloaded build — see `TESTER_GUIDE.md`. A production release requires a Developer ID Application certificate, `--options runtime` hardened signing, and Apple notarization + stapling, after which no such step is needed. Intel/Universal support has not been verified and is not claimed.
 
 ## Daily use
 
@@ -76,7 +91,7 @@ Before starting, the agent conservatively compares free space in every relevant 
 
 ## Local API
 
-Every `/api/*` route requires a random per-process 256-bit token. The token is issued only through the `/pair` redirect (production origin) or `/local` (development), which place it in the page URL fragment; the unauthenticated `/health` route exists solely so the packaged launcher can detect readiness. CORS permits only the production page and fixed local development origin. Request bodies are structurally validated, encoding parameters are defined only in the agent, and every external process uses argument arrays with `shell: false`.
+Every `/api/*` route requires a random per-process 256-bit token. The token is issued only through the `/pair` redirect (production origin) or `/local` (bundled loopback UI), which place it in the page URL fragment. The unauthenticated `/health` route exposes only readiness, release/API identity, instance start time, and busy state so the packaged launcher can perform safe handoff. CORS permits only the production page and fixed local development origin. Request bodies are structurally validated, encoding parameters are defined only in the agent, and every external process uses argument arrays with `shell: false`.
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -103,7 +118,7 @@ Every `/api/*` route requires a random per-process 256-bit token. The token is i
 
 ## Current limitations
 
-- macOS Apple Silicon only. A packaged `.app` and drag-to-Applications DMG exist (`npm run package:dmg`), but the test build is ad-hoc signed, not notarized, so it needs the one-time quarantine step above. No automatic updates yet.
+- macOS Apple Silicon only. A packaged `.app` and drag-to-Applications DMG exist (`npm run package:dmg`), but the test build is ad-hoc signed, not notarized, so it needs the quarantine step after each downloaded build. Updating still requires replacing the app manually; restart/handoff after replacement is automatic from `0.2.0-test.1` onward.
 - One local agent and one FFmpeg encoding process at a time.
 - Retry restarts a file from the beginning; there is no partial resume.
 - State is local JSON, not a multi-user database. Source files moved after selection will fail clearly.

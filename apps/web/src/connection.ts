@@ -1,8 +1,25 @@
-import { AGENT_API_VERSION } from '@video-compressor/shared';
+import {
+  MAX_SUPPORTED_AGENT_API_VERSION,
+  MIN_SUPPORTED_AGENT_API_VERSION
+} from '@video-compressor/shared';
 
-export type ConnectionState = 'checking' | 'not_installed_or_not_running' | 'connecting' | 'connected' | 'incompatible_version' | 'connection_blocked' | 'disconnected';
-export const SUPPORTED_API_VERSION = AGENT_API_VERSION;
-export function versionState(apiVersion: number): ConnectionState { return apiVersion === SUPPORTED_API_VERSION ? 'connected' : 'incompatible_version'; }
+export type ConnectionState =
+  | 'checking'
+  | 'not_installed_or_not_running'
+  | 'connecting'
+  | 'connected'
+  | 'agent_update_required'
+  | 'web_update_required'
+  | 'connection_blocked'
+  | 'disconnected';
+export const MIN_SUPPORTED_API_VERSION = MIN_SUPPORTED_AGENT_API_VERSION;
+export const MAX_SUPPORTED_API_VERSION = MAX_SUPPORTED_AGENT_API_VERSION;
+export function versionState(apiVersion: number): ConnectionState {
+  if (!Number.isInteger(apiVersion) || apiVersion < 0) return 'agent_update_required';
+  if (apiVersion < MIN_SUPPORTED_API_VERSION) return 'agent_update_required';
+  if (apiVersion > MAX_SUPPORTED_API_VERSION) return 'web_update_required';
+  return 'connected';
+}
 export function pairingPath(agentOrigin: string, pageOrigin: string) { return agentOrigin === pageOrigin ? '/local' : '/pair'; }
 
 export function agentFetchOptions(agentOrigin: string, pageOrigin: string): RequestInit {

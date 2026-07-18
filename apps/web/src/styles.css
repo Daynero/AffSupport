@@ -209,7 +209,8 @@ a {
 
 .connection-disconnected,
 .connection-not_installed_or_not_running,
-.connection-incompatible_version,
+.connection-agent_update_required,
+.connection-web_update_required,
 .connection-connection_blocked {
   color: var(--color-error);
   background: var(--color-error-soft);

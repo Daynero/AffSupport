@@ -14,7 +14,19 @@ export type OutputMode = 'next-to-originals' | 'chosen-folder';
 export type EstimateStatus = 'waiting' | 'estimating' | 'estimated' | 'unavailable' | 'cancelled';
 export type SourceKind = 'local' | 'uploaded';
 
-export const AGENT_API_VERSION = 3;
+export {
+  AGENT_API_VERSION,
+  BUILD_ID,
+  BUILD_NUMBER,
+  BUNDLE_VERSION,
+  MAX_SUPPORTED_AGENT_API_VERSION,
+  MIN_SUPPORTED_AGENT_API_VERSION,
+  PRODUCT_VERSION,
+  RELEASE_ARTIFACT_NAME,
+  RELEASE_CHANNEL,
+  RELEASE_DOWNLOAD_URL,
+  RELEASE_TAG
+} from './release.js';
 
 export const FRAME_RATE_MIN = 1;
 export const FRAME_RATE_MAX = 240;
@@ -202,6 +214,11 @@ export interface HealthResponse {
   ok: boolean;
   tools: QueueState['tools'];
   version: string;
+  buildNumber: string;
+  buildId: string;
+  apiVersion: number;
+  channel: string;
+  sourceRevision: string;
 }
 export interface SessionResponse {
   token: string;

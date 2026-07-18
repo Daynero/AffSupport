@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  BUILD_ID,
+  MAX_SUPPORTED_AGENT_API_VERSION,
+  MIN_SUPPORTED_AGENT_API_VERSION,
+  PRODUCT_VERSION,
+  RELEASE_DOWNLOAD_URL,
   DEFAULT_CRF,
   DEFAULT_VIDEO_BITRATE_KBPS,
   calculateQueueSummary,
@@ -53,7 +58,7 @@ const empty: QueueState = {
   batch: null,
   warning: null
 };
-const downloadUrl = import.meta.env.VITE_AGENT_DOWNLOAD_URL;
+const downloadUrl = RELEASE_DOWNLOAD_URL;
 
 interface ToastMessage {
   id: number;
@@ -105,6 +110,7 @@ export default function App() {
           connecting.current = false;
           return;
         }
+        if (!result.state) throw new Error('AGENT_STATE_MISSING');
         setState(result.state);
         connectedOnce.current = true;
         const source = new EventSource(eventUrl());
@@ -268,7 +274,25 @@ export default function App() {
 
   const copyDiagnostics = async () => {
     try {
-      await navigator.clipboard.writeText(JSON.stringify(await request('/api/diagnostics'), null, 2));
+      const agent = await request('/api/diagnostics');
+      await navigator.clipboard.writeText(
+        JSON.stringify(
+          {
+            web: {
+              version: PRODUCT_VERSION,
+              buildId: BUILD_ID,
+              supportedAgentApi: {
+                min: MIN_SUPPORTED_AGENT_API_VERSION,
+                max: MAX_SUPPORTED_AGENT_API_VERSION
+              },
+              origin: location.origin
+            },
+            agent
+          },
+          null,
+          2
+        )
+      );
       addToast(t('diagnosticsCopied'), 'success');
     } catch (error) {
       handleError(error);
@@ -542,7 +566,8 @@ function ConnectionBadge({ state, t }: { state: ConnectionState; t: Translate })
     connecting: 'lookingForAgent',
     connected: 'agentConnected',
     not_installed_or_not_running: 'agentNotRunning',
-    incompatible_version: 'agentUpdateRequired',
+    agent_update_required: 'agentUpdateRequired',
+    web_update_required: 'webUpdateRequired',
     connection_blocked: 'connectionBlocked',
     disconnected: 'agentDisconnected'
   };
@@ -576,15 +601,33 @@ function Onboarding({
       />
     );
   }
-  if (state === 'incompatible_version') {
+  if (state === 'agent_update_required') {
     return (
       <BlockingMessage
         title={t('updateTitle')}
         body={t('updateBody')}
         action={
-          <a className="button button-primary" href={downloadUrl}>
-            {t('downloadLatest')}
-          </a>
+          <div className="inline-actions">
+            <a className="button button-primary" href={`${agentUrl}/local`}>
+              {t('openInstalledVersion')}
+            </a>
+            <a className="button button-secondary" href={downloadUrl}>
+              {t('downloadLatest')}
+            </a>
+          </div>
+        }
+      />
+    );
+  }
+  if (state === 'web_update_required') {
+    return (
+      <BlockingMessage
+        title={t('webUpdateTitle')}
+        body={t('webUpdateBody')}
+        action={
+          <Button variant="primary" onClick={() => window.location.reload()}>
+            {t('reloadPage')}
+          </Button>
         }
       />
     );

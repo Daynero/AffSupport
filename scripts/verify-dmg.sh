@@ -1,9 +1,11 @@
 #!/bin/zsh
 set -euo pipefail
-dmg="$PWD/release/LocalVideoCompressor-v0.1.0-test-macOS-arm64.dmg"
+dmg="$PWD/release/$(node scripts/release-meta.mjs artifact-name)"
+build_id=$(node scripts/release-meta.mjs build-id); api_version=$(node scripts/release-meta.mjs api-version)
 [[ -f "$dmg" ]] || { print -u2 "DMG not found"; exit 1; }
+[[ -z "$(lsof -tiTCP:43120 -sTCP:LISTEN 2>/dev/null)" ]] || { print -u2 "Quit the currently running Local Video Compressor Agent before DMG verification."; exit 1; }
 work=$(mktemp -d /tmp/lvc-dmg-verify.XXXXXX); mount=''; agent_pid=''; listener_pid=''
-cleanup() { [[ -z "$agent_pid" ]] || kill -TERM "$agent_pid" 2>/dev/null || true; [[ -z "$listener_pid" ]] || kill -TERM "$listener_pid" 2>/dev/null || true; [[ -z "$mount" ]] || hdiutil detach -quiet "$mount" 2>/dev/null || true; }
+cleanup() { [[ -z "$agent_pid" ]] || kill -TERM "$agent_pid" 2>/dev/null || true; [[ -z "$listener_pid" ]] || kill -TERM "$listener_pid" 2>/dev/null || true; [[ -z "$mount" ]] || hdiutil detach -quiet "$mount" 2>/dev/null || true; rm -rf "$work"; }
 trap cleanup EXIT INT TERM
 attach=$(hdiutil attach -readonly -nobrowse "$dmg"); mount=$(print -r -- "$attach" | sed -n 's|^.*\t\(/Volumes/.*\)$|\1|p' | tail -1)
 [[ -d "$mount/Local Video Compressor Agent.app" && -L "$mount/Applications" && -f "$mount/.background/background.png" ]]
@@ -25,10 +27,10 @@ agent_pid=$(ps -o ppid= -p "$listener_pid" | tr -d ' '); [[ -n "$agent_pid" ]]
 [[ "$(ps -o command= -p "$listener_pid")" == *"$app/Contents/Resources/runtime/node"* ]]
 headers="$work/pair.headers"; /usr/bin/curl -sS -D "$headers" -o /dev/null --max-redirs 0 http://127.0.0.1:43120/pair
 token=$(sed -n 's/^[Ll]ocation: .*#agentToken=\([a-f0-9]*\).*/\1/p' "$headers" | tr -d '\r'); [[ ${#token} -eq 64 ]]
-origin='https://local-video-compressor-test.pages.dev'; health=$(/usr/bin/curl -fsS -H "Origin: $origin" -H "x-session-token: $token" http://127.0.0.1:43120/api/health); print -r -- "$health" | grep -q '"ok":true'
+origin='https://local-video-compressor-test.pages.dev'; health=$(/usr/bin/curl -fsS -H "Origin: $origin" -H "x-session-token: $token" http://127.0.0.1:43120/api/health); print -r -- "$health" | grep -q '"ok":true'; print -r -- "$health" | grep -q "\"buildId\":\"$build_id\""; print -r -- "$health" | grep -q "\"apiVersion\":$api_version"
 event_headers="$work/events.headers"; set +e; /usr/bin/curl -sS -D "$event_headers" -o /dev/null --max-time 1 -H "Origin: $origin" "http://127.0.0.1:43120/api/events?token=$token"; event_status=$?; set -e
 [[ $event_status -eq 0 || $event_status -eq 28 ]]; grep -qi "^access-control-allow-origin: $origin" "$event_headers"
-/usr/bin/curl -fsS -X POST -H "Origin: $origin" -H "x-session-token: $token" http://127.0.0.1:43120/api/queue/start >/dev/null
+/usr/bin/curl -fsS -X POST -H "Origin: $origin" -H "x-session-token: $token" -H 'content-type: application/json' --data '{"ids":["dmg-e2e"]}' http://127.0.0.1:43120/api/queue/start >/dev/null
 for i in {1..40}; do state=$(/usr/bin/curl -fsS -H "Origin: $origin" -H "x-session-token: $token" http://127.0.0.1:43120/api/queue); print -r -- "$state" | grep -q '"status":"completed"' && break; sleep .25; done
 print -r -- "$state" | grep -q '"status":"completed"'; probe_result=$("$ffprobe" -v error -show_entries format=duration,size -of json "$work/video/test output.mp4"); [[ "$probe_result" == *'"duration"'* ]]
 /usr/bin/open "$app"; sleep 1; [[ "$(lsof -tiTCP:43120 -sTCP:LISTEN | wc -l | tr -d ' ')" == 1 ]]

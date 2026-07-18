@@ -4,6 +4,12 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
+import {
+  AGENT_API_VERSION,
+  BUILD_ID,
+  BUILD_NUMBER,
+  PRODUCT_VERSION
+} from '../packages/shared/dist/release.js';
 
 const root = path.resolve(import.meta.dirname, '..');
 const temporary = await mkdtemp(path.join(os.tmpdir(), 'video-compressor-agent-e2e-'));
@@ -56,7 +62,14 @@ agent.stderr.on('data', data => {
 });
 
 try {
-  await waitFor(async () => (await fetch(`${origin}/health`)).ok, 15_000);
+  await waitFor(async () => (await fetch(`${origin}/health`, { cache: 'no-store' })).ok, 15_000);
+  const publicHealthResponse = await fetch(`${origin}/health`, { cache: 'no-store' });
+  const publicHealth = await publicHealthResponse.json();
+  assert(publicHealthResponse.headers.get('cache-control') === 'no-store', 'Public health was cacheable.');
+  assert(publicHealth.version === PRODUCT_VERSION, 'Public health has the wrong product version.');
+  assert(publicHealth.buildNumber === BUILD_NUMBER, 'Public health has the wrong build number.');
+  assert(publicHealth.buildId === BUILD_ID, 'Public health has the wrong build ID.');
+  assert(publicHealth.apiVersion === AGENT_API_VERSION, 'Public health has the wrong API version.');
   const pairing = await fetch(`${origin}/local`, { redirect: 'manual' });
   const location = pairing.headers.get('location');
   if (!location) throw new Error('Agent pairing redirect is missing.');
@@ -73,7 +86,13 @@ try {
   };
 
   const health = await api('/api/health');
-  if (health.apiVersion !== 3 || !health.tools.ffmpeg || !health.tools.ffprobe) {
+  if (
+    health.version !== PRODUCT_VERSION ||
+    health.buildId !== BUILD_ID ||
+    health.apiVersion !== AGENT_API_VERSION ||
+    !health.tools.ffmpeg ||
+    !health.tools.ffprobe
+  ) {
     throw new Error(`Agent health check failed: ${JSON.stringify(health)}`);
   }
 
@@ -118,6 +137,8 @@ try {
     JSON.stringify(
       {
         agent: 'connected',
+        version: health.version,
+        buildId: health.buildId,
         apiVersion: health.apiVersion,
         optimal: {
           status: optimalDone.status,

@@ -34,6 +34,8 @@ import { isSupportedVideoPath, JobQueue } from './queue/queue.js';
 import { loadState, saveState } from './queue/store.js';
 
 const token = randomBytes(32).toString('hex');
+const instanceId = randomBytes(12).toString('hex');
+const startedAt = new Date().toISOString();
 const app = Fastify({ logger: true, bodyLimit: 16_384 });
 const tools = {
   ffmpeg: await commandExists(ffmpegPath),
@@ -87,6 +89,9 @@ app.addHook('onRequest', async (request, reply) => {
   }
 });
 app.addHook('onSend', async (request, reply, payload) => {
+  if (request.url === '/health' || request.url === '/api/health') {
+    reply.header('Cache-Control', 'no-store');
+  }
   if (
     request.headers['access-control-request-private-network'] === 'true' &&
     request.headers.origin &&
@@ -106,14 +111,34 @@ app.get('/api/health', async () => ({
   ok: tools.ffmpeg && tools.ffprobe,
   tools,
   version: config.version,
-  apiVersion: AGENT_API_VERSION
+  buildNumber: config.buildNumber,
+  buildId: config.buildId,
+  apiVersion: AGENT_API_VERSION,
+  channel: config.channel,
+  sourceRevision: config.sourceRevision
 }));
 app.get('/health', async () => ({
   product: 'local-video-compressor-agent',
-  ready: tools.ffmpeg && tools.ffprobe
+  ready: tools.ffmpeg && tools.ffprobe,
+  version: config.version,
+  buildNumber: config.buildNumber,
+  buildId: config.buildId,
+  apiVersion: AGENT_API_VERSION,
+  channel: config.channel,
+  sourceRevision: config.sourceRevision,
+  instanceId,
+  startedAt,
+  busy: queue.compressionActive()
 }));
 app.get('/api/diagnostics', async () => ({
   version: config.version,
+  buildNumber: config.buildNumber,
+  buildId: config.buildId,
+  apiVersion: AGENT_API_VERSION,
+  channel: config.channel,
+  sourceRevision: config.sourceRevision,
+  instanceId,
+  startedAt,
   system: `${os.platform()} ${os.release()}`,
   architecture: os.arch(),
   ffmpeg: tools.ffmpeg && tools.ffprobe ? 'ready' : 'unavailable',
@@ -372,7 +397,18 @@ app.post('/api/output/reveal', async (_request, reply) => {
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const webRoot = path.resolve(here, '../../web/dist');
-await app.register(fastifyStatic, { root: webRoot, wildcard: false });
+await app.register(fastifyStatic, {
+  root: webRoot,
+  wildcard: false,
+  setHeaders: (response, filePath) => {
+    response.header(
+      'Cache-Control',
+      path.basename(filePath) === 'index.html'
+        ? 'no-cache, no-store, must-revalidate'
+        : 'public, max-age=31536000, immutable'
+    );
+  }
+});
 app.get('/pair', async (_request, reply) =>
   reply.redirect(`${config.publicOrigin ?? `http://${config.host}:${config.port}`}/#agentToken=${token}`)
 );
