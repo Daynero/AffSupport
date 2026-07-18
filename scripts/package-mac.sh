@@ -18,4 +18,4 @@ mkdir -p "$app/Contents/Resources/web" "$app/Contents/Resources/licenses/sources
 cp "$FFMPEG_SOURCE_ARCHIVE" "$app/Contents/Resources/licenses/sources/"; cp "$X264_SOURCE_ARCHIVE" "$app/Contents/Resources/licenses/sources/"
 cp packaging/Info.plist "$app/Contents/Info.plist"; cp THIRD_PARTY_NOTICES.md "$app/Contents/Resources/"
 zsh scripts/make-icns.sh assets/AppIcon.png "$app/Contents/Resources/AppIcon.icns"
-codesign --force --deep --sign - "$app"; archive="$root/LocalVideoCompressor-v0.1.0-test-macOS-arm64.zip"; ditto -c -k --keepParent "$app" "$archive"; shasum -a 256 "$archive" > "$archive.sha256"
+codesign --force --deep --sign - "$app"; archive="$root/LocalVideoCompressor-v0.1.0-test-macOS-arm64.zip"; ditto -c -k --keepParent "$app" "$archive"; (cd "$root"; shasum -a 256 "${archive:t}" > "${archive:t}.sha256")

@@ -29,4 +29,4 @@ tell application "Finder"
   end tell
 end tell
 APPLESCRIPT
-sync; hdiutil detach -quiet "$device"; hdiutil convert -quiet "$rw" -format UDZO -imagekey zlib-level=9 -o "$dmg"; shasum -a 256 "$dmg" > "$dmg.sha256"; rm -rf "$stage"; rm -f "$rw"
+sync; hdiutil detach -quiet "$device"; hdiutil convert -quiet "$rw" -format UDZO -imagekey zlib-level=9 -o "$dmg"; (cd "$root"; shasum -a 256 "${dmg:t}" > "${dmg:t}.sha256"); rm -rf "$stage"; rm -f "$rw"

@@ -39,6 +39,8 @@ export interface CompressionJob {
   estimateProgress?: { completed: number; total: number } | null;
   estimateError?: string | null;
   estimatePreset?: PresetId | null;
+  /** FIFO position for an estimate requested while the compression queue is running. */
+  estimatePriorityOrder?: number | null;
 }
 
 export interface QueueState {

@@ -46,7 +46,7 @@ The app warns before adding an `_compressed` file or a duplicate already represe
 
 New queued videos are estimated automatically, one at a time, by the local agent. The estimate uses short FFmpeg samples spread across the full timeline (including the beginning, 20/40/60/80%, and near the end), the selected preset, source audio information, and a small container allowance. Short videos may be sampled in full because that is both fast and more reliable.
 
-An estimate is explicitly marked with `Estimated` and `≈`; it is not a guarantee. The tooltip shows a likely range because CRF output depends on scene complexity. Starting real compression immediately stops the estimation process first, so the real encode never waits for all estimates and the two FFmpeg workloads do not run together. After compression, the factual before/after size replaces the forecast.
+An estimate is explicitly marked with `Estimated` and `≈`; it is not a guarantee. The tooltip shows a likely range because CRF output depends on scene complexity. Starting real compression immediately stops automatic estimation first, so the real encode never waits for all estimates and the two FFmpeg workloads do not run together. While compression is active, a queued file waiting for an estimate has a compact priority button. It pauses the current FFmpeg encode without discarding progress, runs prioritized estimates in click order, then resumes that same encode. A prioritized request can be cancelled before or during its estimate. After compression, the factual before/after size replaces the forecast.
 
 Each queued video shows its source resolution, frame rate, and bitrate. Changing the preset or any Quality control invalidates queued forecasts and schedules a debounced recalculation. Results are cached locally using absolute path, file size, modification time, preset, frame rate, quality, bitrate, resolution option, and algorithm version. The cache is capped at 300 recent entries. Temporary sample files are removed after success, failure, cancellation, and agent shutdown.
 
@@ -87,6 +87,7 @@ Every `/api/*` route requires a random per-process 256-bit token. The token is i
 | POST | `/api/files/select`, `/api/files/confirm` | Native selection and explicit warning confirmation |
 | POST | `/api/settings`, `/api/output/select` | Preset/output settings and native folder selection |
 | POST | `/api/queue/start` | Start or continue sequential work |
+| POST, DELETE | `/api/jobs/:id/estimate-priority` | Queue or cancel an immediate size estimate during compression |
 | POST | `/api/jobs/:id/cancel`, `/retry`, `/reveal` | Manage one job |
 | DELETE | `/api/jobs/:id`, `/api/jobs/completed` | Remove queued or clear finished jobs |
 | POST | `/api/output/reveal` | Open an available output folder |

@@ -1,4 +1,5 @@
 import type { QueueState } from '@video-compressor/shared';
+import { pairingPath } from '../connection';
 
 const configured = import.meta.env.VITE_AGENT_URL || 'http://127.0.0.1:43120';
 export const agentUrl = location.hostname === '127.0.0.1' && location.port === '43120' ? location.origin : configured;
@@ -25,6 +26,7 @@ export function consumePairingToken() {
   }
 }
 export function hasPairingToken() { return Boolean(token); }
+export function pairWithAgent() { location.assign(`${agentUrl}${pairingPath(agentUrl, location.origin)}`); }
 export async function connect(signal?: AbortSignal): Promise<{ state: QueueState; version: string; apiVersion: number }> {
   const health = await request<{ version: string; apiVersion?: number }>('/api/health', 'GET', signal);
   const state = await request<QueueState>('/api/queue', 'GET', signal);

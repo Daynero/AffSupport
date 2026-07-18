@@ -8,7 +8,7 @@ import { ffmpegPath, ffprobePath } from '../ffmpeg/tools.js';
 import { EstimateCache, estimateCacheKey } from './cache.js';
 import { createSamplePlan, estimateFromSamples } from './sampler.js';
 
-type EstimatePatch = Partial<Pick<CompressionJob, 'estimateStatus' | 'estimatedOutputBytes' | 'estimatedSavingPercent' | 'estimateRangeMinBytes' | 'estimateRangeMaxBytes' | 'estimateProgress' | 'estimateError' | 'estimatePreset'>>;
+type EstimatePatch = Partial<Pick<CompressionJob, 'estimateStatus' | 'estimatedOutputBytes' | 'estimatedSavingPercent' | 'estimateRangeMinBytes' | 'estimateRangeMaxBytes' | 'estimateProgress' | 'estimateError' | 'estimatePreset' | 'estimatePriorityOrder'>>;
 
 export class EstimationWorker {
   private child: ChildProcessWithoutNullStreams | null = null;
@@ -16,6 +16,9 @@ export class EstimationWorker {
   private pumping = false;
   private generation = 0;
   private currentDone: Promise<void> | null = null;
+  private currentJobId: string | null = null;
+  private priorityPumping = false;
+  private shuttingDown = false;
   private debounce: ReturnType<typeof setTimeout> | null = null;
   constructor(private jobs: () => CompressionJob[], private update: (id: string, patch: EstimatePatch, event: AgentEventType) => void, private compressionRunning: () => boolean, private cache = new EstimateCache(), private options: () => EncodeOptions = () => ({})) {}
   async init() { await this.cache.load(); this.schedule(); }
@@ -23,36 +26,65 @@ export class EstimationWorker {
   invalidateForPreset(preset: PresetId) { this.generation++; this.child?.kill('SIGTERM'); for (const job of this.jobs()) if (job.status !== 'completed') this.update(job.id, { estimateStatus: 'waiting', estimatedOutputBytes: null, estimatedSavingPercent: null, estimateRangeMinBytes: null, estimateRangeMaxBytes: null, estimateProgress: null, estimateError: null, estimatePreset: preset }, 'estimate:queued'); this.schedule(450); }
   async pause() { this.paused = true; this.generation++; const child = this.child; child?.kill('SIGTERM'); if (child) setTimeout(() => { if (this.child === child) child.kill('SIGKILL'); }, 2000).unref(); await this.currentDone; }
   resume() { this.paused = false; for (const job of this.jobs()) if (!['completed', 'processing'].includes(job.status) && job.estimateStatus === 'cancelled') this.update(job.id, { estimateStatus: 'waiting', estimateError: null }, 'estimate:queued'); this.schedule(); }
-  async shutdown() { this.paused = true; this.child?.kill('SIGTERM'); await this.currentDone; }
+  async runPrioritized() {
+    if (this.priorityPumping || this.shuttingDown || this.compressionRunning()) return false;
+    let processed = false;
+    this.priorityPumping = true;
+    try {
+      while (!this.shuttingDown && !this.compressionRunning()) {
+        const job = this.nextWaitingJob(true); if (!job) break;
+        processed = true;
+        const run = this.estimate(job, this.generation, true); this.currentDone = run; this.currentJobId = job.id;
+        await run; this.currentDone = null; this.currentJobId = null;
+      }
+    } finally { this.priorityPumping = false; this.currentDone = null; this.currentJobId = null; }
+    return processed;
+  }
+  cancelPrioritized(id: string) { if (this.currentJobId !== id) return; this.generation++; const child = this.child; child?.kill('SIGTERM'); if (child) setTimeout(() => { if (this.child === child) child.kill('SIGKILL'); }, 2000).unref(); }
+  async shutdown() { this.shuttingDown = true; this.paused = true; this.generation++; this.child?.kill('SIGTERM'); await this.currentDone; }
   private async pump() {
     if (this.pumping || this.paused || this.compressionRunning()) return;
     this.pumping = true;
-    try { while (!this.paused && !this.compressionRunning()) { const job = this.jobs().find(j => !['completed', 'processing'].includes(j.status) && j.estimateStatus === 'waiting'); if (!job) break; const run = this.estimate(job, this.generation); this.currentDone = run; await run; this.currentDone = null; } }
-    finally { this.pumping = false; }
+    try { while (!this.paused && !this.compressionRunning()) { const job = this.nextWaitingJob(false); if (!job) break; const run = this.estimate(job, this.generation, false); this.currentDone = run; this.currentJobId = job.id; await run; this.currentDone = null; this.currentJobId = null; } }
+    finally { this.pumping = false; this.currentDone = null; this.currentJobId = null; }
   }
-  private async estimate(job: CompressionJob, generation: number) {
+  private nextWaitingJob(prioritizedOnly: boolean) {
+    const waiting = this.jobs().filter(j => !['completed', 'processing'].includes(j.status) && j.estimateStatus === 'waiting');
+    const prioritized = waiting.filter(j => j.estimatePriorityOrder != null).sort((a, b) => a.estimatePriorityOrder! - b.estimatePriorityOrder!);
+    return prioritized[0] ?? (prioritizedOnly ? undefined : waiting.find(j => j.estimatePriorityOrder == null));
+  }
+  private cancelled(id: string, generation: number, prioritized: boolean) {
+    if (this.shuttingDown || generation !== this.generation || this.compressionRunning()) return true;
+    if (!prioritized) return this.paused;
+    return this.jobs().find(j => j.id === id)?.estimatePriorityOrder == null;
+  }
+  private async estimate(job: CompressionJob, generation: number, prioritized: boolean) {
     let temp = '';
     try {
       const options = this.options(); const source = await stat(job.inputPath); const key = estimateCacheKey(job.inputPath, source.size, source.mtimeMs, job.preset, options); const cached = this.cache.get(key);
-      if (cached) { this.update(job.id, { ...cached, estimateStatus: 'estimated', estimatePreset: job.preset, estimateProgress: null, estimateError: null }, 'estimate:completed'); return; }
+      if (this.cancelled(job.id, generation, prioritized)) throw new Cancelled();
+      if (cached) { this.update(job.id, { ...cached, estimateStatus: 'estimated', estimatePreset: job.preset, estimateProgress: null, estimateError: null, estimatePriorityOrder: null }, 'estimate:completed'); return; }
       const metadata = await probe(job.inputPath); const plan = createSamplePlan(metadata.duration); if (!plan.length) throw new Error('Duration is unavailable.');
+      if (this.cancelled(job.id, generation, prioritized)) throw new Cancelled();
       this.update(job.id, { estimateStatus: 'estimating', estimatePreset: job.preset, estimateProgress: { completed: 0, total: plan.length }, estimateError: null }, 'estimate:started');
       temp = await mkdtemp(path.join(os.tmpdir(), 'local-video-estimate-')); const sizes: number[] = [], durations: number[] = [];
       for (let i = 0; i < plan.length; i++) {
-        if (this.paused || generation !== this.generation || this.compressionRunning()) throw new Cancelled();
+        if (this.cancelled(job.id, generation, prioritized)) throw new Cancelled();
         const sample = plan[i], output = path.join(temp, `sample-${i}.h264`); const result = await this.runFfmpeg(buildEstimateArgs(job.inputPath, output, job.preset, sample.start, sample.duration, options));
-        if (this.paused || generation !== this.generation || this.compressionRunning()) throw new Cancelled();
+        if (this.cancelled(job.id, generation, prioritized)) throw new Cancelled();
         if (result === 0) { sizes.push((await stat(output)).size); durations.push(sample.duration); }
         this.update(job.id, { estimateProgress: { completed: i + 1, total: plan.length } }, 'estimate:progress');
       }
       if (sizes.length < Math.max(1, Math.ceil(plan.length * .5))) throw new Error('Too few representative samples could be read.');
       const audio = !metadata.hasAudio ? 0 : job.preset === 'ultra-small' ? 48_000 : job.preset === 'balanced' ? 96_000 : metadata.audioBitrate;
       const estimate = estimateFromSamples(sizes, durations, metadata.duration, audio, job.originalSize); if (!estimate) throw new Error('Not enough sample data.');
-      await this.cache.set(key, { ...estimate, createdAt: Date.now() }); this.update(job.id, { ...estimate, estimateStatus: 'estimated', estimatePreset: job.preset, estimateProgress: null, estimateError: null }, 'estimate:completed');
+      await this.cache.set(key, { ...estimate, createdAt: Date.now() });
+      if (this.cancelled(job.id, generation, prioritized)) throw new Cancelled();
+      this.update(job.id, { ...estimate, estimateStatus: 'estimated', estimatePreset: job.preset, estimateProgress: null, estimateError: null, estimatePriorityOrder: null }, 'estimate:completed');
     } catch (error) {
-      if (error instanceof Cancelled) this.update(job.id, { estimateStatus: this.paused ? 'cancelled' : 'waiting', estimateProgress: null, estimateError: null }, this.paused ? 'estimate:cancelled' : 'estimate:queued');
-      else this.update(job.id, { estimateStatus: 'unavailable', estimateProgress: null, estimateError: error instanceof Error ? error.message : 'Estimate unavailable.' }, 'estimate:failed');
-    } finally { this.child = null; if (temp) await rm(temp, { recursive: true, force: true }); }
+      if (error instanceof Cancelled) { const paused = this.paused && !prioritized; this.update(job.id, { estimateStatus: paused ? 'cancelled' : 'waiting', estimateProgress: null, estimateError: null }, paused ? 'estimate:cancelled' : 'estimate:queued'); }
+      else this.update(job.id, { estimateStatus: 'unavailable', estimateProgress: null, estimateError: error instanceof Error ? error.message : 'Estimate unavailable.', estimatePriorityOrder: null }, 'estimate:failed');
+    } finally { this.child = null; if (temp) await rm(temp, { recursive: true, force: true }).catch(() => {}); }
   }
   private runFfmpeg(args: string[]) { return new Promise<number | null>(resolve => { const child = spawn(ffmpegPath, args, { shell: false }); this.child = child; child.on('error', () => resolve(null)); child.on('close', resolve); }); }
 }

@@ -8,14 +8,29 @@ import { PRESETS } from '../ffmpeg/presets.js';
 import { probeMedia } from '../ffmpeg/tools.js';
 import { appearsCompressed, fileSize, nextOutputPath } from '../files/paths.js';
 
+type EstimatorHooks = {
+  schedule: () => void;
+  invalidateForPreset: (preset: CompressionJob['preset']) => void;
+  resume: () => void;
+  runPrioritized?: () => Promise<boolean>;
+  cancelPrioritized?: (id: string) => void;
+};
+
 export class JobQueue {
   private active: ChildProcessWithoutNullStreams | null = null;
   private started = false;
+  private compressionInFlight = false;
+  private compressionPausedForEstimates = false;
+  private prioritizingEstimates = false;
+  private nextEstimatePriorityOrder = 1;
   private warning: string | null = null;
-  private estimateHooks: { schedule: () => void; invalidateForPreset: (preset: CompressionJob['preset']) => void; resume:()=>void } | null = null;
-  constructor(private tools: QueueState['tools'], private notify: (event?: AgentEventType) => void, private jobs: CompressionJob[] = [], private settings: AgentSettings = { preset: 'balanced', outputMode: 'next-to-originals', outputFolder: null, frameRate: DEFAULT_FRAME_RATE, videoBitrateKbps: null, keepResolution: true, resolutionLimit: DEFAULT_RESOLUTION_LIMIT }) {}
-  attachEstimator(hooks: { schedule: () => void; invalidateForPreset: (preset: CompressionJob['preset']) => void; resume:()=>void }) { this.estimateHooks=hooks; }
-  state(): QueueState { return { jobs: this.jobs.map(j => ({ ...j })), running: Boolean(this.active) || (this.started && this.jobs.some(j => j.status === 'queued')), tools: this.tools, settings: { ...this.settings }, warning: this.warning }; }
+  private estimateHooks: EstimatorHooks | null = null;
+  constructor(private tools: QueueState['tools'], private notify: (event?: AgentEventType) => void, private jobs: CompressionJob[] = [], private settings: AgentSettings = { preset: 'balanced', outputMode: 'next-to-originals', outputFolder: null, frameRate: DEFAULT_FRAME_RATE, videoBitrateKbps: null, keepResolution: true, resolutionLimit: DEFAULT_RESOLUTION_LIMIT }) {
+    this.nextEstimatePriorityOrder = Math.max(0, ...jobs.map(job => job.estimatePriorityOrder ?? 0)) + 1;
+  }
+  attachEstimator(hooks: EstimatorHooks) { this.estimateHooks=hooks; }
+  state(): QueueState { return { jobs: this.jobs.map(j => ({ ...j })), running: this.compressionInFlight || this.prioritizingEstimates || (this.started && this.jobs.some(j => j.status === 'queued')), tools: this.tools, settings: { ...this.settings }, warning: this.warning }; }
+  compressionActive() { return this.compressionInFlight && !this.compressionPausedForEstimates; }
   persisted() { return { jobs: this.jobs.map(j => ({ ...j })), settings: { ...this.settings } }; }
   updateSettings(next: Partial<AgentSettings>) {
     if (next.preset && !(next.preset in PRESETS)) throw new Error('Unknown preset.');
@@ -47,12 +62,26 @@ export class JobQueue {
     this.notify('estimate:queued'); this.estimateHooks?.schedule(); return warnings;
   }
   async start() { this.warning = await this.diskWarning(); this.started = true; this.notify(); void this.pump(); }
-  async cancel(id: string) { const job = this.jobs.find(j => j.id === id); if (!job || job.status !== 'processing') return false; job.status = 'cancelled'; job.error = 'Compression was cancelled.'; job.estimateStatus='waiting';job.estimatedOutputBytes=null;job.estimatedSavingPercent=null;job.estimateRangeMinBytes=null;job.estimateRangeMaxBytes=null;job.estimateProgress=null;job.estimateError=null;job.estimatePreset=job.preset;this.active?.kill('SIGTERM'); this.notify('estimate:queued');this.estimateHooks?.schedule(); return true; }
-  remove(id: string) { const before = this.jobs.length; this.jobs = this.jobs.filter(j => !(j.id === id && j.status === 'queued')); this.notify(); return before !== this.jobs.length; }
+  async cancel(id: string) { const job = this.jobs.find(j => j.id === id); if (!job || job.status !== 'processing') return false; job.status = 'cancelled'; job.error = 'Compression was cancelled.'; job.estimateStatus='waiting';job.estimatedOutputBytes=null;job.estimatedSavingPercent=null;job.estimateRangeMinBytes=null;job.estimateRangeMaxBytes=null;job.estimateProgress=null;job.estimateError=null;job.estimatePreset=job.preset;if(this.compressionPausedForEstimates)this.active?.kill('SIGCONT');this.active?.kill('SIGTERM'); this.notify('estimate:queued');this.estimateHooks?.schedule(); return true; }
+  prioritizeEstimate(id: string) {
+    const job = this.jobs.find(j => j.id === id);
+    if (!this.started || !job || job.status !== 'queued' || !['waiting', 'cancelled'].includes(job.estimateStatus ?? 'waiting') || job.estimatePriorityOrder != null) return false;
+    job.estimatePriorityOrder = this.nextEstimatePriorityOrder++;
+    job.estimateStatus = 'waiting'; job.estimateProgress = null; job.estimateError = null;
+    this.notify('estimate:queued'); void this.runPrioritizedEstimates(); return true;
+  }
+  cancelPrioritizedEstimate(id: string) {
+    const job = this.jobs.find(j => j.id === id);
+    if (!job || job.estimatePriorityOrder == null) return false;
+    job.estimatePriorityOrder = null;
+    if (job.estimateStatus === 'estimating') { job.estimateStatus = 'waiting'; job.estimateProgress = null; job.estimateError = null; }
+    this.estimateHooks?.cancelPrioritized?.(id); this.notify('estimate:queued'); return true;
+  }
+  remove(id: string) { const removed = this.jobs.find(j => j.id === id && j.status === 'queued'); if (removed?.estimatePriorityOrder != null) this.estimateHooks?.cancelPrioritized?.(id); const before = this.jobs.length; this.jobs = this.jobs.filter(j => j !== removed); this.notify(); return before !== this.jobs.length; }
   retry(id: string) { const job = this.jobs.find(j => j.id === id); if (!job || !['failed', 'interrupted', 'cancelled'].includes(job.status)) return false; job.status = 'queued'; job.error = null; job.progress = job.durationSeconds ? 0 : null; job.finalSize = null; this.notify(); if (this.started) void this.pump(); return true; }
   clearCompleted() { this.jobs = this.jobs.filter(j => !['completed', 'failed', 'cancelled'].includes(j.status)); this.notify(); }
   outputFolder(): string | null { const done = this.jobs.find(j => j.status === 'completed'); return done ? path.dirname(done.outputPath) : this.settings.outputFolder; }
-  async shutdown(){const child=this.active;if(!child)return;child.kill('SIGTERM');await Promise.race([new Promise<void>(resolve=>child.once('close',()=>resolve())),new Promise<void>(resolve=>setTimeout(()=>{child.kill('SIGKILL');resolve()},2000))])}
+  async shutdown(){const child=this.active;if(!child)return;if(this.compressionPausedForEstimates)child.kill('SIGCONT');child.kill('SIGTERM');await Promise.race([new Promise<void>(resolve=>child.once('close',()=>resolve())),new Promise<void>(resolve=>setTimeout(()=>{child.kill('SIGKILL');resolve()},2000))])}
   updateEstimate(id:string,patch:Partial<CompressionJob>,event:AgentEventType){const job=this.jobs.find(j=>j.id===id);if(!job||job.status==='completed')return;Object.assign(job,patch);this.notify(event)}
   estimationJobs(){return this.jobs.map(j=>({...j,estimateProgress:j.estimateProgress?{...j.estimateProgress}:null}))}
   private async diskWarning() {
@@ -62,8 +91,8 @@ export class JobQueue {
     return null;
   }
   private async pump() {
-    if (this.active || !this.started) return; const job = this.jobs.find(j => j.status === 'queued'); if (!job) { this.started = false; this.notify(); this.estimateHooks?.resume(); return; }
-    job.status = 'processing'; job.error = null; this.notify();
+    if (this.compressionInFlight || this.prioritizingEstimates || !this.started) return; const job = this.jobs.find(j => j.status === 'queued'); if (!job) { this.started = false; this.notify(); this.estimateHooks?.resume(); return; }
+    this.compressionInFlight = true; job.status = 'processing'; job.error = null; job.estimatePriorityOrder = null; this.notify();
     try {
       await access(job.inputPath); let result = await this.run(job, false);
       if (!isCancelled(job) && result.code !== 0 && PRESETS[job.preset].audioCopyFirst && isAudioCopyFailure(result.stderr)) { await unlink(job.outputPath).catch(() => {}); job.progress = job.durationSeconds ? 0 : null; this.notify(); result = await this.run(job, true); }
@@ -71,9 +100,28 @@ export class JobQueue {
       else if (result.code === 0) { job.status = 'completed'; job.progress = 100; job.finalSize = await fileSize(job.outputPath); job.estimateStatus='cancelled'; job.estimateProgress=null; }
       else { job.status = 'failed'; job.error = friendlyError(result.stderr); await unlink(job.outputPath).catch(() => {}); }
     } catch (error) { job.status = 'failed'; job.error = error instanceof Error && 'code' in error && error.code === 'ENOENT' ? 'The source file is no longer available.' : 'The file could not be processed.'; }
-    finally { this.active = null; this.notify(); queueMicrotask(() => void this.pump()); }
+    finally {
+      this.active = null; this.compressionInFlight = false; this.compressionPausedForEstimates = false; this.notify();
+      await this.runPrioritizedEstimates(); queueMicrotask(() => void this.pump());
+    }
   }
-  private async run(job: CompressionJob, fallback: boolean) { const operation = encodeVideo(job.inputPath, job.outputPath, job.durationSeconds, job.preset, fallback, value => { job.progress = value; this.notify(); }, this.settings); this.active = operation.child; return operation.done; }
+  private hasPrioritizedEstimate() { return this.jobs.some(candidate => candidate.status === 'queued' && candidate.estimateStatus === 'waiting' && candidate.estimatePriorityOrder != null); }
+  private async runPrioritizedEstimates() {
+    const runPrioritized = this.estimateHooks?.runPrioritized;
+    if (!runPrioritized || this.prioritizingEstimates || !this.started || !this.hasPrioritizedEstimate()) return;
+    if (this.compressionInFlight && !this.active) return;
+    const pausedChild = this.active;
+    if (pausedChild) { try { if (!pausedChild.kill('SIGSTOP')) return; } catch { return; } this.compressionPausedForEstimates = true; }
+    this.prioritizingEstimates = true; this.notify();
+    try { let processed: boolean; do { processed = await runPrioritized(); } while (processed && this.hasPrioritizedEstimate() && !this.compressionActive()); }
+    catch { /* A failed handoff must never leave the compression process suspended. */ }
+    finally {
+      if (pausedChild && this.active === pausedChild) pausedChild.kill('SIGCONT');
+      this.compressionPausedForEstimates = false; this.prioritizingEstimates = false; this.notify();
+      if (!this.compressionInFlight) queueMicrotask(() => void this.pump());
+    }
+  }
+  private async run(job: CompressionJob, fallback: boolean) { const operation = encodeVideo(job.inputPath, job.outputPath, job.durationSeconds, job.preset, fallback, value => { job.progress = value; this.notify(); }, this.settings); this.active = operation.child; void this.runPrioritizedEstimates(); return operation.done; }
 }
 function friendlyError(stderr: string) { if (/no space left on device/i.test(stderr)) return 'There is not enough free disk space.'; if (/permission denied|read-only file system/i.test(stderr)) return 'The destination folder is not writable.'; if (/invalid data found|could not find codec parameters/i.test(stderr)) return 'This video format is not supported or the file is damaged.'; return 'FFmpeg could not compress this video. See the local agent log for details.'; }
 function isCancelled(job: CompressionJob) { return job.status === 'cancelled'; }

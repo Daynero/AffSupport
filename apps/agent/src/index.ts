@@ -36,8 +36,8 @@ function broadcast(type:AgentEventType='state') {
 const restored = await loadState();
 queue = new JobQueue(tools, broadcast, restored.jobs, restored.settings);
 await saveState(queue.persisted());
-estimator=new EstimationWorker(()=>queue.estimationJobs(),(id,patch,event)=>queue.updateEstimate(id,patch,event),()=>queue.state().running,undefined,()=>queue.state().settings);
-queue.attachEstimator({schedule:()=>estimator.schedule(),invalidateForPreset:preset=>estimator.invalidateForPreset(preset),resume:()=>estimator.resume()});
+estimator=new EstimationWorker(()=>queue.estimationJobs(),(id,patch,event)=>queue.updateEstimate(id,patch,event),()=>queue.compressionActive(),undefined,()=>queue.state().settings);
+queue.attachEstimator({schedule:()=>estimator.schedule(),invalidateForPreset:preset=>estimator.invalidateForPreset(preset),resume:()=>estimator.resume(),runPrioritized:()=>estimator.runPrioritized(),cancelPrioritized:id=>estimator.cancelPrioritized(id)});
 await estimator.init();
 
 await app.register(cors, {
@@ -58,7 +58,7 @@ app.addHook('preHandler', async (request, reply) => {
   const supplied = request.headers['x-session-token'] ?? (request.query as { token?: string }).token;
   if (supplied !== token) return reply.code(401).send({ error: 'Invalid session token.' });
 });
-app.get('/api/health', async () => ({ ok: tools.ffmpeg && tools.ffprobe, tools, version: config.version, apiVersion: 1 }));
+app.get('/api/health', async () => ({ ok: tools.ffmpeg && tools.ffprobe, tools, version: config.version, apiVersion: 2 }));
 app.get('/health', async () => ({ product: 'local-video-compressor-agent', ready: tools.ffmpeg && tools.ffprobe }));
 app.get('/api/diagnostics', async () => ({ version: config.version, macOS: os.release(), architecture: os.arch(), ffmpeg: tools.ffmpeg && tools.ffprobe ? 'ready' : 'unavailable', lastError: queue.state().warning ?? null }));
 app.get('/api/queue', async () => queue.state());
@@ -96,6 +96,8 @@ app.post('/api/queue/start', async (_request, reply) => {
   if (!tools.ffmpeg) return reply.code(503).send({ error: 'The bundled video engine is unavailable. Reinstall the Mac Agent.' });
   await estimator.pause(); await queue.start(); return queue.state();
 });
+app.post<{ Params: { id: string } }>('/api/jobs/:id/estimate-priority', async (request, reply) => queue.prioritizeEstimate(request.params.id) ? queue.state() : reply.code(409).send({ error: 'Only queued jobs waiting for an estimate can be prioritized during compression.' }));
+app.delete<{ Params: { id: string } }>('/api/jobs/:id/estimate-priority', async (request, reply) => queue.cancelPrioritizedEstimate(request.params.id) ? queue.state() : reply.code(409).send({ error: 'This estimate is not prioritized.' }));
 app.post<{ Params: { id: string } }>('/api/jobs/:id/cancel', async (request, reply) => (await queue.cancel(request.params.id)) ? queue.state() : reply.code(409).send({ error: 'Only the current job can be cancelled.' }));
 app.delete<{ Params: { id: string } }>('/api/jobs/:id', async (request, reply) => queue.remove(request.params.id) ? queue.state() : reply.code(409).send({ error: 'Only queued jobs can be removed.' }));
 app.delete('/api/jobs/completed', async () => { queue.clearCompleted(); return queue.state(); });
