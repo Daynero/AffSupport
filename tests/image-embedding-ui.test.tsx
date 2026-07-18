@@ -13,9 +13,9 @@ import {
 } from '../packages/shared/src/types.js';
 import {
   ImageDropArea,
-  formatTimeInput,
+  formatMinutesInput,
   isSupportedImageFile,
-  parseTimeInput
+  parseMinutesInput
 } from '../apps/web/src/components/ImageEmbeddingSection';
 import { SettingsPanel } from '../apps/web/src/components/SettingsPanel';
 import { JobRow } from '../apps/web/src/components/JobRow';
@@ -135,7 +135,7 @@ describe('image embedding settings UI', () => {
     expect(screen.getByText('Choose a PNG, JPG/JPEG or WebP image.')).toBeTruthy();
   });
 
-  it('supports every duration range, validates custom HH:MM:SS, and switches fit modes', async () => {
+  it('supports every duration range, validates custom minutes, and switches fit modes', async () => {
     const user = userEvent.setup();
     const validity = vi.fn();
     render(<SettingsHarness enabled endImage={asset('end.webp')} onValidity={validity} />);
@@ -145,12 +145,12 @@ describe('image embedding settings UI', () => {
       expect((duration as HTMLSelectElement).value).toBe(value);
     }
     await user.selectOptions(duration, 'custom');
-    const custom = screen.getByLabelText('Custom duration in HH:MM:SS format');
+    const custom = screen.getByLabelText('Custom duration in minutes');
     await user.clear(custom);
-    await user.type(custom, '00:00:00');
-    expect(screen.getByText(/valid time greater than 00:00:00/)).toBeTruthy();
+    await user.type(custom, '0');
+    expect(screen.getByText(/whole number of minutes greater than 0/)).toBeTruthy();
     await user.clear(custom);
-    await user.type(custom, '01:02:03');
+    await user.type(custom, '54');
     await waitFor(() => expect(validity).toHaveBeenLastCalledWith(true));
 
     const fit = screen.getByLabelText('Frame fit');
@@ -166,9 +166,9 @@ describe('image embedding settings UI', () => {
     const validity = vi.fn();
     render(<SettingsHarness enabled startImage={asset('opening.png')} onValidity={validity} />);
     await user.selectOptions(screen.getByLabelText('Final image duration'), 'custom');
-    const custom = screen.getByLabelText('Custom duration in HH:MM:SS format');
+    const custom = screen.getByLabelText('Custom duration in minutes');
     await user.clear(custom);
-    await user.type(custom, '00:00:00');
+    await user.type(custom, '0');
     await waitFor(() => expect(validity).toHaveBeenLastCalledWith(true));
   });
 
@@ -245,12 +245,13 @@ describe('image setting validation helpers', () => {
     expect(isSupportedImageFile({ name: 'photo.JPEG', type: 'image/jpeg' })).toBe(true);
     expect(isSupportedImageFile({ name: 'photo.webp', type: '' })).toBe(true);
     expect(isSupportedImageFile({ name: 'photo.png', type: 'image/gif' })).toBe(false);
-    expect(parseTimeInput('00:00:01')).toBe(1);
-    expect(parseTimeInput('01:02:03')).toBe(3723);
-    expect(parseTimeInput('99:59:59')).toBe(359_999);
-    expect(parseTimeInput('00:60:00')).toBeNull();
-    expect(parseTimeInput('00:00:00')).toBeNull();
-    expect(formatTimeInput(3723)).toBe('01:02:03');
+    expect(parseMinutesInput('1')).toBe(60);
+    expect(parseMinutesInput('54')).toBe(3240);
+    expect(parseMinutesInput('5999')).toBe(359_940);
+    expect(parseMinutesInput('6000')).toBeNull();
+    expect(parseMinutesInput('0')).toBeNull();
+    expect(parseMinutesInput('12:00')).toBeNull();
+    expect(formatMinutesInput(3240)).toBe('54');
   });
 });
 

@@ -39,12 +39,12 @@ export function ImageEmbeddingSection({
   t: Translate;
 }) {
   const [customTime, setCustomTime] = useState(() =>
-    formatTimeInput(settings.customFinalDurationSeconds)
+    formatMinutesInput(settings.customFinalDurationSeconds)
   );
   useEffect(() => {
-    setCustomTime(formatTimeInput(settings.customFinalDurationSeconds));
+    setCustomTime(formatMinutesInput(settings.customFinalDurationSeconds));
   }, [settings.customFinalDurationSeconds]);
-  const parsedCustomTime = parseTimeInput(customTime);
+  const parsedCustomTime = parseMinutesInput(customTime);
   const customTimeValid = parsedCustomTime !== null;
   useEffect(() => {
     onValidityChange(
@@ -126,7 +126,7 @@ export function ImageEmbeddingSection({
                       className={`time-input ${customTime && !customTimeValid ? 'is-invalid' : ''}`}
                       type="text"
                       inputMode="numeric"
-                      placeholder="HH:MM:SS"
+                      placeholder="54"
                       value={customTime}
                       disabled={disabled}
                       aria-label={t('customDurationInput')}
@@ -134,7 +134,7 @@ export function ImageEmbeddingSection({
                       onChange={event => {
                         const value = event.target.value;
                         setCustomTime(value);
-                        const seconds = parseTimeInput(value);
+                        const seconds = parseMinutesInput(value);
                         if (seconds !== null) update({ customFinalDurationSeconds: seconds }, true);
                       }}
                     />
@@ -365,26 +365,16 @@ export function isSupportedImageFile(file: Pick<File, 'name' | 'type'>) {
   return supportedExtensions.has(extension) && (!file.type || supportedMimeTypes.has(file.type));
 }
 
-export function parseTimeInput(value: string): number | null {
-  const match = /^(\d{1,2}):(\d{2}):(\d{2})$/.exec(value.trim());
-  if (!match) return null;
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  const seconds = Number(match[3]);
-  const total = hours * 3600 + minutes * 60 + seconds;
-  return minutes < 60 &&
-    seconds < 60 &&
-    total > 0 &&
-    total <= MAX_CUSTOM_FINAL_IMAGE_DURATION_SECONDS
-    ? total
-    : null;
+export function parseMinutesInput(value: string): number | null {
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  const minutes = Number(trimmed);
+  const total = minutes * 60;
+  return minutes > 0 && total <= MAX_CUSTOM_FINAL_IMAGE_DURATION_SECONDS ? total : null;
 }
 
-export function formatTimeInput(seconds: number) {
-  const value = Math.max(0, Math.floor(seconds));
-  return [Math.floor(value / 3600), Math.floor((value % 3600) / 60), value % 60]
-    .map(part => String(part).padStart(2, '0'))
-    .join(':');
+export function formatMinutesInput(seconds: number) {
+  return String(Math.max(1, Math.round(seconds / 60)));
 }
 
 function imageErrorKey(error: unknown): TranslationKey {
