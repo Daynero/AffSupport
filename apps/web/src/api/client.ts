@@ -1,12 +1,9 @@
 import type { QueueState } from '@video-compressor/shared';
-import { pairingPath } from '../connection';
+import { agentFetchOptions, pairingPath } from '../connection';
 
 const configured = import.meta.env.VITE_AGENT_URL || 'http://127.0.0.1:43120';
 export const agentUrl = location.hostname === '127.0.0.1' && location.port === '43120' ? location.origin : configured;
-// Private Network Access only applies when a page in a wider address space (the hosted HTTPS
-// site) reaches the loopback agent. When the UI is served by the agent itself the request is
-// plain same-origin, so the exotic (and browser-version-sensitive) option must be omitted.
-const privateNetworkInit: RequestInit = agentUrl === location.origin ? {} : ({ targetAddressSpace: 'local' } as RequestInit);
+const privateNetworkInit = agentFetchOptions(agentUrl, location.origin);
 const channel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('local-video-compressor-pairing');
 let token = localStorage.getItem('agentToken') ?? '';
 let tokenListener: (() => void) | null = null;
