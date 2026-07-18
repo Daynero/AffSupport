@@ -9,6 +9,7 @@ import {
   VIDEO_BITRATE_MAX_KBPS,
   VIDEO_BITRATE_MIN_KBPS,
   type AgentSettings,
+  type AgentSettingsPatch,
   type CompressionMode,
   type RateControl
 } from '@video-compressor/shared';
@@ -20,7 +21,7 @@ import { ImageEmbeddingSection } from './ImageEmbeddingSection';
 const FPS_OPTIONS = [24, 25, 30, 50, 60];
 const RESOLUTION_OPTIONS = [2160, 1440, 1080, 720, 550];
 
-type UpdateSettings = (patch: Partial<AgentSettings>, debounce?: boolean) => void;
+type UpdateSettings = (patch: AgentSettingsPatch, debounce?: boolean) => void;
 
 export function SettingsPanel({
   settings,
@@ -84,9 +85,7 @@ export function SettingsPanel({
       <ImageEmbeddingSection
         settings={settings.imageEmbedding}
         disabled={disabled}
-        update={(patch, debounce) =>
-          updateSettings({ imageEmbedding: { ...settings.imageEmbedding, ...patch } }, debounce)
-        }
+        update={(patch, debounce) => updateSettings({ imageEmbedding: patch }, debounce)}
         uploadImage={uploadImage}
         removeImage={removeImage}
         imageUrl={imageUrl}

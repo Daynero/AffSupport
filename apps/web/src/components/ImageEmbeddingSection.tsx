@@ -10,6 +10,7 @@ import {
   MAX_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
   type ImageAsset,
   type ImageEmbeddingSettings,
+  type ImageEmbeddingSettingsPatch,
   type ImageSlot
 } from '@video-compressor/shared';
 import type { TranslationKey } from '../i18n';
@@ -30,7 +31,7 @@ export function ImageEmbeddingSection({
 }: {
   settings: ImageEmbeddingSettings;
   disabled: boolean;
-  update: (patch: Partial<ImageEmbeddingSettings>, debounce?: boolean) => void;
+  update: (patch: ImageEmbeddingSettingsPatch, debounce?: boolean) => void;
   uploadImage: (slot: ImageSlot, file: File) => Promise<void>;
   removeImage: (slot: ImageSlot) => Promise<void>;
   imageUrl: (id: string) => string;

@@ -26,8 +26,8 @@ import {
   type AgentEvent,
   type AgentEventType,
   type AgentSettings,
+  type AgentSettingsPatch,
   type ImageAsset,
-  type ImageEmbeddingSettings,
   type ImageSlot
 } from '@video-compressor/shared';
 import { EstimationWorker } from './estimate/worker.js';
@@ -304,11 +304,7 @@ app.post('/api/output/select', async () => {
   return queue.state();
 });
 
-type SettingsPatch = Omit<Partial<AgentSettings>, 'imageEmbedding'> & {
-  imageEmbedding?: Partial<Omit<ImageEmbeddingSettings, 'startImage' | 'endImage'>>;
-};
-
-app.post<{ Body: SettingsPatch }>('/api/settings', async (request, reply) => {
+app.post<{ Body: AgentSettingsPatch }>('/api/settings', async (request, reply) => {
   const body = request.body;
   if (!body || typeof body !== 'object') {
     return reply.code(400).send({ error: 'Invalid settings.' });

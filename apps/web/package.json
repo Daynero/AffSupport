@@ -1,6 +1,6 @@
 {
   "name": "@video-compressor/web",
-  "version": "0.3.0-test.1",
+  "version": "0.3.0-test.2",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build"
   },
   "dependencies": {
-    "@video-compressor/shared": "0.3.0-test.1",
+    "@video-compressor/shared": "0.3.0-test.2",
     "@vitejs/plugin-react": "latest",
     "vite": "latest",
     "react": "latest",

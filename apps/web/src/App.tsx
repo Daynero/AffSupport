@@ -11,6 +11,7 @@ import {
   calculateQueueSummary,
   type AgentEvent,
   type AgentSettings,
+  type AgentSettingsPatch,
   type QueueState,
   type SelectionResponse,
   type SelectionWarning
@@ -31,6 +32,7 @@ import {
 import { failureState, type ConnectionState, versionState } from './connection';
 import { formatSize } from './format';
 import { selectedCountKey, type Language, type TranslationKey, useI18n } from './i18n';
+import { mergeSettingsPatches } from './settings-patch';
 import {
   batchMetrics,
   readySelectedIds,
@@ -85,7 +87,7 @@ export default function App() {
   const connecting = useRef(false);
   const toastId = useRef(0);
   const settingsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingSettings = useRef<Partial<AgentSettings>>({});
+  const pendingSettings = useRef<AgentSettingsPatch>({});
   const connected = connection === 'connected';
 
   const addToast = (text: string, tone: ToastMessage['tone'] = 'neutral') => {
@@ -184,7 +186,7 @@ export default function App() {
     }
   };
 
-  const sendSettings = async (patch: Partial<AgentSettings>) => {
+  const sendSettings = async (patch: AgentSettingsPatch) => {
     try {
       setState(await requestBody<QueueState>('/api/settings', patch));
     } catch (error) {
@@ -192,26 +194,16 @@ export default function App() {
     }
   };
 
-  const updateSettings = (patch: Partial<AgentSettings>, debounce = false) => {
-    const normalizedPatch: Partial<AgentSettings> = patch.imageEmbedding
-      ? {
-          ...patch,
-          imageEmbedding: {
-            ...state.settings.imageEmbedding,
-            ...pendingSettings.current.imageEmbedding,
-            ...patch.imageEmbedding
-          }
-        }
-      : patch;
+  const updateSettings = (patch: AgentSettingsPatch, debounce = false) => {
     if (!debounce) {
       if (settingsTimer.current) clearTimeout(settingsTimer.current);
       settingsTimer.current = null;
-      const body = { ...pendingSettings.current, ...normalizedPatch };
+      const body = mergeSettingsPatches(pendingSettings.current, patch);
       pendingSettings.current = {};
       void sendSettings(body);
       return;
     }
-    Object.assign(pendingSettings.current, normalizedPatch);
+    pendingSettings.current = mergeSettingsPatches(pendingSettings.current, patch);
     if (settingsTimer.current) clearTimeout(settingsTimer.current);
     settingsTimer.current = setTimeout(() => {
       const body = pendingSettings.current;

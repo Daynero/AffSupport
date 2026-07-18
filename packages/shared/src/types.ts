@@ -105,6 +105,17 @@ export interface AgentSettings {
   imageEmbedding: ImageEmbeddingSettings;
 }
 
+/**
+ * Browser-writable settings. Image assets are deliberately excluded because
+ * they can only be changed through the managed image upload/delete endpoints.
+ */
+export type ImageEmbeddingSettingsPatch = Partial<
+  Omit<ImageEmbeddingSettings, 'startImage' | 'endImage'>
+>;
+export type AgentSettingsPatch = Omit<Partial<AgentSettings>, 'imageEmbedding'> & {
+  imageEmbedding?: ImageEmbeddingSettingsPatch;
+};
+
 export function defaultImageEmbeddingSettings(): ImageEmbeddingSettings {
   return {
     enabled: false,

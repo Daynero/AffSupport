@@ -7,6 +7,7 @@ import userEvent from '@testing-library/user-event';
 import {
   defaultImageEmbeddingSettings,
   type AgentSettings,
+  type AgentSettingsPatch,
   type ImageAsset,
   type ImageSlot
 } from '../packages/shared/src/types.js';
@@ -21,6 +22,7 @@ import { JobRow } from '../apps/web/src/components/JobRow';
 import { translate, type Language } from '../apps/web/src/i18n';
 import type { Translate } from '../apps/web/src/components/ui';
 import { makeJob, optimalSettings } from './helpers.js';
+import { mergeSettingsPatches } from '../apps/web/src/settings-patch';
 
 const t =
   (language: Language): Translate =>
@@ -39,6 +41,46 @@ describe('image embedding settings UI', () => {
     expect(
       screen.getByText('Add at least one image or turn this option off before starting.')
     ).toBeTruthy();
+  });
+
+  it('sends only writable image settings when the switch is clicked', async () => {
+    const user = userEvent.setup();
+    const updateSettings = vi.fn();
+    render(
+      <SettingsPanel
+        settings={{
+          ...optimalSettings,
+          imageEmbedding: {
+            ...defaultImageEmbeddingSettings(),
+            startImage: asset('opening.png'),
+            endImage: asset('ending.webp', 'asset-2')
+          }
+        }}
+        disabled={false}
+        updateSettings={updateSettings}
+        chooseOutputFolder={() => {}}
+        t={t('en')}
+      />
+    );
+
+    await user.click(screen.getByText('Embed images into video'));
+
+    expect(updateSettings.mock.calls.at(-1)?.[0]).toEqual({
+      imageEmbedding: { enabled: true }
+    });
+    expect(updateSettings.mock.calls.at(-1)?.[0]).not.toHaveProperty('imageEmbedding.startImage');
+    expect(updateSettings.mock.calls.at(-1)?.[0]).not.toHaveProperty('imageEmbedding.endImage');
+  });
+
+  it('merges debounced writable image settings without adding asset metadata', () => {
+    expect(
+      mergeSettingsPatches(
+        { imageEmbedding: { customFinalDurationSeconds: 123 } },
+        { imageEmbedding: { fitMode: 'contain' } }
+      )
+    ).toEqual({
+      imageEmbedding: { customFinalDurationSeconds: 123, fitMode: 'contain' }
+    });
   });
 
   it('accepts file-picker and drag-and-drop images and shows preview metadata', async () => {
@@ -272,11 +314,14 @@ function ImageAreaHarness({
   );
 }
 
-function mergeSettings(current: AgentSettings, patch: Partial<AgentSettings>): AgentSettings {
+function mergeSettings(current: AgentSettings, patch: AgentSettingsPatch): AgentSettings {
   return {
     ...current,
     ...patch,
-    imageEmbedding: patch.imageEmbedding ?? current.imageEmbedding
+    imageEmbedding: {
+      ...current.imageEmbedding,
+      ...patch.imageEmbedding
+    }
   };
 }
 

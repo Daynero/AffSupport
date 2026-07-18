@@ -1,6 +1,8 @@
-# v0.3.0-test.1
+# v0.3.0-test.2
 
-This release adds real image embedding to the local FFmpeg pipeline.
+This patch release fixes the **Embed images into video** switch in the bundled and hosted interfaces. The web client now sends only writable image settings to the Agent; managed opening/final image metadata remains restricted to the dedicated image API. This prevents the `400 Bad Request` response that previously returned the switch to its off state.
+
+It includes the image-embedding pipeline introduced in `v0.3.0-test.1`:
 
 - Add an optional opening image for exactly one output frame, a silent final image of a custom or per-video random duration, or both.
 - Adapt PNG, JPG/JPEG and WebP images independently to every output using fill/crop, fit/pad or stretch.
@@ -10,7 +12,7 @@ This release adds real image embedding to the local FFmpeg pipeline.
 - Show image previews, concrete queued durations, expected total duration, real processing stages and localized diagnostics in English and Ukrainian.
 - Store uploaded image bytes under opaque local asset IDs. Browser requests remain structured, and FFmpeg still runs with argument arrays and `shell: false`.
 
-The Agent API is now version 4. The hosted page requires Agent `v0.3.0-test.1`; older Agents remain usable through their own bundled interface until they are replaced.
+The Agent API remains version 4. The hosted page is compatible with Agent `v0.3.0-test.1` and later; this download includes the corrected bundled interface as `v0.3.0-test.2`.
 
 ## Updating the test build
 
