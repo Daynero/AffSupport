@@ -32,7 +32,11 @@ event_headers="$work/events.headers"; set +e; /usr/bin/curl -sS -D "$event_heade
 [[ $event_status -eq 0 || $event_status -eq 28 ]]; grep -qi "^access-control-allow-origin: $origin" "$event_headers"
 /usr/bin/curl -fsS -X POST -H "Origin: $origin" -H "x-session-token: $token" -H 'content-type: application/json' --data '{"ids":["dmg-e2e"]}' http://127.0.0.1:43120/api/queue/start >/dev/null
 for i in {1..40}; do state=$(/usr/bin/curl -fsS -H "Origin: $origin" -H "x-session-token: $token" http://127.0.0.1:43120/api/queue); print -r -- "$state" | grep -q '"status":"completed"' && break; sleep .25; done
-print -r -- "$state" | grep -q '"status":"completed"'; probe_result=$("$ffprobe" -v error -show_entries format=duration,size -of json "$work/video/test output.mp4"); [[ "$probe_result" == *'"duration"'* ]]
+print -r -- "$state" | grep -q '"status":"completed"'
+# The agent derives a collision-safe output name itself, so read the real
+# path back from the queue state instead of assuming the seeded one.
+output_path=$(print -r -- "$state" | /usr/bin/python3 -c 'import json,sys; print(json.load(sys.stdin)["jobs"][0]["outputPath"])')
+probe_result=$("$ffprobe" -v error -show_entries format=duration,size -of json "$output_path"); [[ "$probe_result" == *'"duration"'* ]]
 /usr/bin/open "$app"; sleep 1; [[ "$(lsof -tiTCP:43120 -sTCP:LISTEN | wc -l | tr -d ' ')" == 1 ]]
 /usr/bin/osascript -e 'tell application id "local.video.compressor.test" to quit'; for i in {1..20}; do kill -0 "$listener_pid" 2>/dev/null || break; sleep .25; done; ! kill -0 "$listener_pid" 2>/dev/null
 agent_pid=''; listener_pid=''
