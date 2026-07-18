@@ -248,6 +248,10 @@ a {
   margin-inline: auto;
 }
 
+.launcher .onboarding-panel {
+  margin-top: 0;
+}
+
 .tool-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -354,26 +358,6 @@ a {
 @keyframes panel-attention {
   50% {
     transform: translateY(-3px);
-  }
-}
-
-@media (max-width: 680px) {
-  .launcher {
-    padding-top: 36px;
-  }
-  .tool-grid {
-    grid-template-columns: 1fr;
-  }
-  .tool-card {
-    min-height: 250px;
-  }
-  .connection-badge {
-    max-width: 28px;
-    padding-inline: 10px;
-    overflow: hidden;
-  }
-  .connection-badge i {
-    min-width: 7px;
   }
 }
 
@@ -2247,7 +2231,54 @@ input.is-invalid {
 
 @media (max-width: 760px) {
   .topbar {
+    min-height: 54px;
     padding: 0 12px;
+  }
+
+  .topbar-actions {
+    gap: 6px;
+  }
+
+  .launcher {
+    width: min(100% - 24px, 600px);
+    padding: 38px 0 48px;
+  }
+
+  .launcher-heading {
+    margin-bottom: 22px;
+    padding-inline: 8px;
+  }
+
+  .launcher-heading h2 {
+    font-size: clamp(23px, 7vw, 29px);
+  }
+
+  .launcher-heading p {
+    max-width: 440px;
+    margin-inline: auto;
+    font-size: 14px;
+  }
+
+  .agent-panel-slot {
+    margin-bottom: 18px;
+  }
+
+  .tool-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .tool-card {
+    min-height: 238px;
+    padding: 20px;
+  }
+
+  .tool-copy {
+    padding: 20px 0;
+  }
+
+  .tool-copy p {
+    max-width: 520px;
   }
 
   .workspace {
@@ -2334,14 +2365,107 @@ input.is-invalid {
     align-items: flex-start;
     flex-wrap: wrap;
   }
+
+  .launcher .blocking-message > .inline-actions,
+  .launcher .blocking-message > .button {
+    margin-left: 40px;
+  }
 }
 
 @media (max-width: 500px) {
+  .topbar {
+    padding-inline: 10px;
+  }
+
+  .wishly-logo {
+    gap: 7px;
+  }
+
+  .language-switch button {
+    min-width: 32px;
+    padding-inline: 6px;
+  }
+
   .connection-badge {
     width: 28px;
     padding: 0;
     justify-content: center;
     font-size: 0;
+  }
+
+  .launcher {
+    width: calc(100% - 20px);
+    padding-top: 30px;
+  }
+
+  .launcher-heading {
+    margin-bottom: 18px;
+  }
+
+  .launcher-heading p {
+    line-height: 1.5;
+  }
+
+  .agent-checking {
+    max-width: 100%;
+    text-align: center;
+  }
+
+  .launcher .onboarding-panel {
+    gap: 11px;
+    padding: 18px;
+  }
+
+  .launcher .onboarding-panel > .inline-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .launcher .onboarding-panel > .inline-actions .button,
+  .launcher .blocking-message .inline-actions,
+  .launcher .blocking-message .button {
+    width: 100%;
+  }
+
+  .launcher .blocking-message > .inline-actions,
+  .launcher .blocking-message > .button {
+    margin-left: 0;
+  }
+
+  .installation-help {
+    overflow-wrap: anywhere;
+  }
+
+  .installation-help ol {
+    padding-left: 18px;
+  }
+
+  .tool-card {
+    min-height: 224px;
+    padding: 18px;
+  }
+
+  .tool-icon {
+    width: 48px;
+    height: 48px;
+  }
+
+  .tool-copy {
+    padding: 18px 0;
+  }
+
+  .tool-copy h3 {
+    font-size: 17px;
+  }
+
+  .tool-action-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .tool-action-row .button {
+    min-height: 42px;
+    width: 100%;
   }
 
   .drop-zone {
@@ -2378,6 +2502,14 @@ input.is-invalid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
+  }
+}
+
+@media (hover: none) {
+  .tool-active:hover {
+    border-color: var(--color-border);
+    box-shadow: none;
+    transform: none;
   }
 }
 
