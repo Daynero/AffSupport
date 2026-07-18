@@ -135,11 +135,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }.resume()
   }
 
-  // Open the UI served by the agent itself (same http origin as the API) rather than the
-  // hosted HTTPS site. A cross-origin HTTPS page reaching http://127.0.0.1 is blocked outright
-  // by Safari (mixed content) and is fragile in Chrome (private-network access), so the packaged
-  // app always uses the loopback origin, where fetches to the API are plain same-origin requests.
-  @objc private func openPairing() { NSWorkspace.shared.open(agentBaseURL.appendingPathComponent("local")) }
+  // The Agent issues its short-lived session token through /pair and redirects immediately to
+  // the configured HTTPS site. The final browser UI must never remain on the loopback origin.
+  @objc private func openPairing() { NSWorkspace.shared.open(agentBaseURL.appendingPathComponent("pair")) }
   @objc private func quit() { NSApp.terminate(nil) }
 
   private func showFailure(_ message: String, details: String) {

@@ -17,6 +17,7 @@ import { EstimationWorker } from './estimate/worker.js';
 import { allowedOrigins, config } from './config.js';
 import os from 'node:os';
 import { ffmpegPath, ffprobePath } from './ffmpeg/tools.js';
+import { eventStreamHeaders } from './http.js';
 
 const token = randomBytes(32).toString('hex');
 const app = Fastify({ logger: true, bodyLimit: 16_384 });
@@ -64,7 +65,7 @@ app.get('/api/diagnostics', async () => ({ version: config.version, macOS: os.re
 app.get('/api/queue', async () => queue.state());
 app.get('/api/events', async (request, reply) => {
   reply.hijack();
-  reply.raw.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
+  reply.raw.writeHead(200, eventStreamHeaders(request.headers.origin, allowedOrigins));
   clients.add(reply.raw); reply.raw.write(`data: ${JSON.stringify({ type: 'state', state: queue.state() })}\n\n`);
   request.raw.on('close', () => clients.delete(reply.raw));
 });

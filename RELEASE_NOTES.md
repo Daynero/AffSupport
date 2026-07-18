@@ -2,7 +2,7 @@
 
 Private, non-notarized Apple Silicon test build. Install using the DMG by dragging the app to Applications. Video selection, estimation, queueing and compression happen locally; video data is never uploaded.
 
-This refresh adds cancellable priority size estimates during compression. Use the small arrow beside a queued file's estimate status to pause the current encode, estimate selected files in request order, and then resume compression from the same progress. It also fixes secure re-pairing from the hosted Cloudflare page after the Agent restarts.
+This refresh adds cancellable priority size estimates during compression. Use the small arrow beside a queued file's estimate status to pause the current encode, estimate selected files in request order, and then resume compression from the same progress. It also fixes secure re-pairing from the hosted Cloudflare page after the Agent restarts, always opens the hosted UI instead of the loopback copy, and keeps the hosted event connection alive with the required CORS response.
 
 Because this build is ad-hoc signed (not notarized), macOS quarantines it after download and will not launch it directly. After dragging the app to Applications, run once in Terminal:
 

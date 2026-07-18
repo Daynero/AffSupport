@@ -26,6 +26,8 @@ agent_pid=$(ps -o ppid= -p "$listener_pid" | tr -d ' '); [[ -n "$agent_pid" ]]
 headers="$work/pair.headers"; /usr/bin/curl -sS -D "$headers" -o /dev/null --max-redirs 0 http://127.0.0.1:43120/pair
 token=$(sed -n 's/^[Ll]ocation: .*#agentToken=\([a-f0-9]*\).*/\1/p' "$headers" | tr -d '\r'); [[ ${#token} -eq 64 ]]
 origin='https://local-video-compressor-test.pages.dev'; health=$(/usr/bin/curl -fsS -H "Origin: $origin" -H "x-session-token: $token" http://127.0.0.1:43120/api/health); print -r -- "$health" | grep -q '"ok":true'
+event_headers="$work/events.headers"; set +e; /usr/bin/curl -sS -D "$event_headers" -o /dev/null --max-time 1 -H "Origin: $origin" "http://127.0.0.1:43120/api/events?token=$token"; event_status=$?; set -e
+[[ $event_status -eq 0 || $event_status -eq 28 ]]; grep -qi "^access-control-allow-origin: $origin" "$event_headers"
 /usr/bin/curl -fsS -X POST -H "Origin: $origin" -H "x-session-token: $token" http://127.0.0.1:43120/api/queue/start >/dev/null
 for i in {1..40}; do state=$(/usr/bin/curl -fsS -H "Origin: $origin" -H "x-session-token: $token" http://127.0.0.1:43120/api/queue); print -r -- "$state" | grep -q '"status":"completed"' && break; sleep .25; done
 print -r -- "$state" | grep -q '"status":"completed"'; probe_result=$("$ffprobe" -v error -show_entries format=duration,size -of json "$work/video/test output.mp4"); [[ "$probe_result" == *'"duration"'* ]]
