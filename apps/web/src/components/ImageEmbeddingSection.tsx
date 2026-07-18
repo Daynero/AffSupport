@@ -298,6 +298,7 @@ export function ImageDropArea({
       setBusy(false);
     }
   };
+  const previewUrl = asset ? imageUrl(asset.id) : '';
 
   return (
     <div className="image-drop-wrapper">
@@ -324,7 +325,7 @@ export function ImageDropArea({
       >
         {asset ? (
           <div className="selected-image">
-            <img src={imageUrl(asset.id)} alt="" />
+            {previewUrl && <img src={previewUrl} alt="" />}
             <div className="selected-image-meta">
               <strong title={asset.fileName}>{asset.fileName}</strong>
               <span>

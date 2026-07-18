@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { analytics } from './analytics/service';
 
 export type Language = 'en' | 'uk';
 
@@ -256,7 +257,140 @@ const en = {
   activeJobsNotRemoved: 'Active jobs were left in the list.',
   filesAdded: 'Files added',
   uploadFailed: 'A dropped file could not be added.',
-  settingsSaved: 'Settings updated'
+  settingsSaved: 'Settings updated',
+  authChecking: 'Checking your Wishly session…',
+  authConfigTitle: 'Wishly needs Supabase configuration',
+  authConfigBody: 'Add the missing public environment values, then restart the development server.',
+  authConfigHint: 'Use .env.example as the template. Never add a service-role key here.',
+  loginHeading: 'Sign in to Wishly',
+  loginDescription: 'One account for all Wishly tools.',
+  continueGoogle: 'Continue with Google',
+  loginFooter: 'By continuing, you agree to the Terms of Use and Privacy Policy.',
+  loginFooterPrefix: 'By continuing, you agree to the ',
+  loginFooterJoin: ' and ',
+  termsLink: 'Terms of Use',
+  privacyLink: 'Privacy Policy',
+  termsAgreementLink: 'Terms of Use',
+  privacyAgreementLink: 'Privacy Policy',
+  oauthLoading: 'Opening Google…',
+  oauthError: 'Google sign-in could not be started. Please try again.',
+  oauthCancelled: 'Google sign-in was cancelled. You can try again when you are ready.',
+  callbackError: 'We could not finish signing you in. Please try again.',
+  callbackWorking: 'Finishing sign-in…',
+  authNetworkError: 'Wishly cannot reach Supabase. Check your connection and try again.',
+  profileError: 'Your session is active, but Wishly could not load your profile.',
+  sessionExpired: 'Your session has expired. Sign in again to start a new task.',
+  signOut: 'Sign out',
+  signOutError: 'Wishly could not sign you out. Check your connection and try again.',
+  account: 'Account',
+  adminPanel: 'Admin panel',
+  userMenu: 'Open user menu',
+  avatarAlt: 'User avatar',
+  blockedAccountTitle: 'This account is blocked',
+  blockedAccountBody:
+    'Wishly tools are unavailable for this account. Contact the product operator if you believe this is a mistake.',
+  deletedAccountTitle: 'This account is unavailable',
+  deletedAccountBody: 'Sign out to return to the login page.',
+  welcomeTitle: 'Welcome to Wishly',
+  welcomeBody: 'Choose your language. Product news are optional and can be changed later.',
+  chooseLanguage: 'Choose language',
+  marketingConsent: 'Receive news about new Wishly tools and updates.',
+  marketingOptional: 'Optional. Wishly works without marketing consent.',
+  continueWishly: 'Continue to Wishly',
+  saving: 'Saving…',
+  accountTitle: 'Your account',
+  accountSubtitle: 'Manage your profile, language and privacy choices.',
+  profileSection: 'Profile',
+  displayName: 'Display name',
+  email: 'Email',
+  provider: 'Sign-in provider',
+  google: 'Google',
+  accountCreated: 'Account created',
+  lastActive: 'Last activity',
+  plan: 'Plan',
+  accountStatus: 'Account status',
+  agentVersion: 'Wishly Agent version',
+  notAvailable: 'Not available',
+  saveChanges: 'Save changes',
+  changesSaved: 'Changes saved.',
+  dataManagement: 'Data management',
+  dataManagementBody:
+    'Deleting your account removes authentication and profile data. Product events are retained only in anonymized form.',
+  deleteAccount: 'Delete account',
+  deleteUnavailable:
+    'Account deletion becomes available after the secure Supabase function is deployed.',
+  deleteDialogTitle: 'Permanently delete this account?',
+  deleteDialogBody:
+    'You will lose access to this Wishly account and its profile settings. This action cannot be undone.',
+  deleteConfirmationLabel: 'Type DELETE to confirm',
+  deleteConfirmationPlaceholder: 'DELETE',
+  deletePermanently: 'Delete permanently',
+  deleteFailed: 'The account could not be deleted. Please try again.',
+  freePlan: 'Free',
+  proPlan: 'Pro',
+  teamPlan: 'Team',
+  activeStatus: 'Active',
+  blockedStatus: 'Blocked',
+  deletedStatus: 'Deleted',
+  never: 'Never',
+  adminTitle: 'Wishly analytics',
+  adminSubtitle: 'Privacy-minimized product health and user administration.',
+  adminForbiddenTitle: 'Administrator access required',
+  adminForbiddenBody: 'Your database role does not allow access to this page.',
+  dateRange: 'Date range',
+  range7: '7 days',
+  range30: '30 days',
+  range90: '90 days',
+  metricTotalUsers: 'Total users',
+  metricNew24h: 'New · 24h',
+  metricNew7d: 'New · 7 days',
+  metricNew30d: 'New · 30 days',
+  metricActive7d: 'Active · 7 days',
+  metricActive30d: 'Active · 30 days',
+  metricConsent: 'Marketing consent',
+  metricAgentConnections: 'Agent connections',
+  metricCompressorOpens: 'Compressor opens',
+  metricBatches: 'Compression batches',
+  metricSuccessful: 'Successful compressions',
+  metricFailed: 'Failed compressions',
+  metricVideos: 'Videos added',
+  metricInputSize: 'Total input size',
+  metricOutputSize: 'Total output size',
+  metricSavedSize: 'Total space saved',
+  metricAverageSaving: 'Average saving',
+  metricOptimal: 'Optimal batches',
+  metricCustom: 'Custom batches',
+  metricEmbedding: 'Image embedding batches',
+  dailyActivity: 'Activity by day',
+  activeUsers: 'Active users',
+  events: 'Events',
+  toolUsage: 'Usage breakdown',
+  agentVersions: 'Agent versions',
+  latestUsers: 'Users',
+  searchEmail: 'Search by email or name',
+  search: 'Search',
+  allConsent: 'All consent choices',
+  consented: 'Consented',
+  notConsented: 'Not consented',
+  allStatuses: 'All statuses',
+  previous: 'Previous',
+  next: 'Next',
+  pageOf: 'Page {page} of {pages}',
+  adminEmpty: 'No data matches these filters.',
+  adminError: 'The admin data could not be loaded or access was denied.',
+  exportConsent: 'Export consent CSV',
+  exporting: 'Exporting…',
+  joined: 'Joined',
+  consent: 'Consent',
+  actions: 'Actions',
+  blockUser: 'Block',
+  unblockUser: 'Unblock',
+  loading: 'Loading…',
+  backToWishly: 'Back to Wishly',
+  privacyTitle: 'Privacy Policy',
+  termsTitle: 'Terms of Use',
+  lastUpdated: 'Last updated: July 18, 2026',
+  legalPlaceholderWarning: 'Product operator and contact details must be completed before launch.'
 } as const;
 
 const uk: Record<keyof typeof en, string> = {
@@ -514,7 +648,140 @@ const uk: Record<keyof typeof en, string> = {
   activeJobsNotRemoved: 'Активні завдання залишилися у списку.',
   filesAdded: 'Файли додано',
   uploadFailed: 'Не вдалося додати перетягнутий файл.',
-  settingsSaved: 'Налаштування оновлено'
+  settingsSaved: 'Налаштування оновлено',
+  authChecking: 'Перевіряємо вашу сесію Wishly…',
+  authConfigTitle: 'Wishly потребує налаштування Supabase',
+  authConfigBody: 'Додайте відсутні публічні значення середовища та перезапустіть сервер розробки.',
+  authConfigHint: 'Використайте .env.example як шаблон. Ніколи не додавайте сюди service-role key.',
+  loginHeading: 'Увійдіть у Wishly',
+  loginDescription: 'Один акаунт для всіх інструментів Wishly.',
+  continueGoogle: 'Продовжити з Google',
+  loginFooter: 'Продовжуючи, ви погоджуєтеся з Умовами використання та Політикою конфіденційності.',
+  loginFooterPrefix: 'Продовжуючи, ви погоджуєтеся з ',
+  loginFooterJoin: ' та ',
+  termsLink: 'Умови використання',
+  privacyLink: 'Політика конфіденційності',
+  termsAgreementLink: 'Умовами використання',
+  privacyAgreementLink: 'Політикою конфіденційності',
+  oauthLoading: 'Відкриваємо Google…',
+  oauthError: 'Не вдалося почати вхід через Google. Спробуйте ще раз.',
+  oauthCancelled: 'Вхід через Google скасовано. Ви можете повторити спробу будь-коли.',
+  callbackError: 'Не вдалося завершити вхід. Спробуйте ще раз.',
+  callbackWorking: 'Завершуємо вхід…',
+  authNetworkError:
+    'Wishly не може підключитися до Supabase. Перевірте мережу та повторіть спробу.',
+  profileError: 'Сесія активна, але Wishly не вдалося завантажити ваш профіль.',
+  sessionExpired: 'Сесія завершилася. Увійдіть знову перед запуском нового завдання.',
+  signOut: 'Вийти',
+  signOutError: 'Wishly не зміг завершити вихід. Перевірте з’єднання та спробуйте ще раз.',
+  account: 'Акаунт',
+  adminPanel: 'Адмін-панель',
+  userMenu: 'Відкрити меню користувача',
+  avatarAlt: 'Аватар користувача',
+  blockedAccountTitle: 'Цей акаунт заблоковано',
+  blockedAccountBody:
+    'Інструменти Wishly недоступні для цього акаунта. Зверніться до оператора продукту, якщо вважаєте це помилкою.',
+  deletedAccountTitle: 'Цей акаунт недоступний',
+  deletedAccountBody: 'Вийдіть, щоб повернутися на сторінку входу.',
+  welcomeTitle: 'Вітаємо у Wishly',
+  welcomeBody: 'Оберіть мову. Новини продукту необов’язкові, вибір можна змінити пізніше.',
+  chooseLanguage: 'Оберіть мову',
+  marketingConsent: 'Отримувати новини про нові інструменти та оновлення Wishly.',
+  marketingOptional: 'Необов’язково. Wishly працює без маркетингової згоди.',
+  continueWishly: 'Продовжити у Wishly',
+  saving: 'Зберігаємо…',
+  accountTitle: 'Ваш акаунт',
+  accountSubtitle: 'Керуйте профілем, мовою та налаштуваннями приватності.',
+  profileSection: 'Профіль',
+  displayName: 'Ім’я для відображення',
+  email: 'Email',
+  provider: 'Провайдер входу',
+  google: 'Google',
+  accountCreated: 'Акаунт створено',
+  lastActive: 'Остання активність',
+  plan: 'План',
+  accountStatus: 'Статус акаунта',
+  agentVersion: 'Версія Wishly Agent',
+  notAvailable: 'Недоступно',
+  saveChanges: 'Зберегти зміни',
+  changesSaved: 'Зміни збережено.',
+  dataManagement: 'Керування даними',
+  dataManagementBody:
+    'Видалення акаунта прибирає авторизацію та дані профілю. Продуктові події залишаються лише в анонімізованому вигляді.',
+  deleteAccount: 'Видалити акаунт',
+  deleteUnavailable: 'Видалення стане доступним після розгортання захищеної функції Supabase.',
+  deleteDialogTitle: 'Назавжди видалити цей акаунт?',
+  deleteDialogBody:
+    'Ви втратите доступ до акаунта Wishly і його налаштувань. Цю дію неможливо скасувати.',
+  deleteConfirmationLabel: 'Введіть ВИДАЛИТИ для підтвердження',
+  deleteConfirmationPlaceholder: 'ВИДАЛИТИ',
+  deletePermanently: 'Видалити назавжди',
+  deleteFailed: 'Не вдалося видалити акаунт. Спробуйте ще раз.',
+  freePlan: 'Безкоштовний',
+  proPlan: 'Pro',
+  teamPlan: 'Team',
+  activeStatus: 'Активний',
+  blockedStatus: 'Заблокований',
+  deletedStatus: 'Видалений',
+  never: 'Ніколи',
+  adminTitle: 'Аналітика Wishly',
+  adminSubtitle: 'Мінімізована продуктова статистика та керування користувачами.',
+  adminForbiddenTitle: 'Потрібен доступ адміністратора',
+  adminForbiddenBody: 'Ваша роль у базі даних не дозволяє відкривати цю сторінку.',
+  dateRange: 'Період',
+  range7: '7 днів',
+  range30: '30 днів',
+  range90: '90 днів',
+  metricTotalUsers: 'Усього користувачів',
+  metricNew24h: 'Нові · 24 год',
+  metricNew7d: 'Нові · 7 днів',
+  metricNew30d: 'Нові · 30 днів',
+  metricActive7d: 'Активні · 7 днів',
+  metricActive30d: 'Активні · 30 днів',
+  metricConsent: 'Маркетингова згода',
+  metricAgentConnections: 'Підключення агента',
+  metricCompressorOpens: 'Відкриття компресора',
+  metricBatches: 'Пакети стиснення',
+  metricSuccessful: 'Успішні стиснення',
+  metricFailed: 'Невдалі стиснення',
+  metricVideos: 'Додано відео',
+  metricInputSize: 'Загальний вхідний розмір',
+  metricOutputSize: 'Загальний вихідний розмір',
+  metricSavedSize: 'Загалом зекономлено',
+  metricAverageSaving: 'Середня економія',
+  metricOptimal: 'Пакети Optimal',
+  metricCustom: 'Пакети Custom',
+  metricEmbedding: 'Пакети із зашиванням',
+  dailyActivity: 'Активність за днями',
+  activeUsers: 'Активні користувачі',
+  events: 'Події',
+  toolUsage: 'Розподіл використання',
+  agentVersions: 'Версії агента',
+  latestUsers: 'Користувачі',
+  searchEmail: 'Пошук за email або ім’ям',
+  search: 'Знайти',
+  allConsent: 'Усі варіанти згоди',
+  consented: 'Є згода',
+  notConsented: 'Без згоди',
+  allStatuses: 'Усі статуси',
+  previous: 'Назад',
+  next: 'Далі',
+  pageOf: 'Сторінка {page} з {pages}',
+  adminEmpty: 'За цими фільтрами даних немає.',
+  adminError: 'Не вдалося завантажити дані адмінки або доступ заборонено.',
+  exportConsent: 'Експорт згод у CSV',
+  exporting: 'Експортуємо…',
+  joined: 'Реєстрація',
+  consent: 'Згода',
+  actions: 'Дії',
+  blockUser: 'Заблокувати',
+  unblockUser: 'Розблокувати',
+  loading: 'Завантаження…',
+  backToWishly: 'Повернутися у Wishly',
+  privacyTitle: 'Політика конфіденційності',
+  termsTitle: 'Умови використання',
+  lastUpdated: 'Оновлено: 18 липня 2026 року',
+  legalPlaceholderWarning: 'Дані оператора продукту та контакт потрібно заповнити до запуску.'
 };
 
 export type TranslationKey = keyof typeof en;
@@ -547,21 +814,60 @@ export function selectedCountKey(language: Language, count: number): Translation
   return remainder10 === 1 && remainder100 !== 11 ? 'selectedOne' : 'selectedMany';
 }
 
+export function syncProfileLanguage(language: Language) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem('language', language);
+  document.documentElement.lang = language;
+  analytics.setLocale(language);
+  window.dispatchEvent(new CustomEvent('wishly-language-changed', { detail: language }));
+}
+
 export function useI18n() {
   const [language, update] = useState<Language>(() =>
     detectLanguage(
-      localStorage.getItem('language'),
-      navigator.languages?.length ? navigator.languages : [navigator.language]
+      typeof localStorage === 'undefined' ? null : localStorage.getItem('language'),
+      typeof navigator === 'undefined'
+        ? ['en']
+        : navigator.languages?.length
+          ? navigator.languages
+          : [navigator.language]
     )
   );
   useEffect(() => {
     localStorage.setItem('language', language);
     document.documentElement.lang = language;
   }, [language]);
+  useEffect(() => {
+    const sync = (event: Event) => {
+      const next =
+        event instanceof CustomEvent
+          ? event.detail
+          : event instanceof StorageEvent
+            ? event.newValue
+            : null;
+      if (next === 'en' || next === 'uk') update(next);
+    };
+    window.addEventListener('wishly-language-changed', sync);
+    window.addEventListener('storage', sync);
+    return () => {
+      window.removeEventListener('wishly-language-changed', sync);
+      window.removeEventListener('storage', sync);
+    };
+  }, []);
+  const setLanguage = useCallback((next: Language) => {
+    update(current => {
+      if (current === next) return current;
+      localStorage.setItem('language', next);
+      analytics.setLocale(next);
+      analytics.track('language_changed', { language: next });
+      window.dispatchEvent(new CustomEvent('wishly-language-changed', { detail: next }));
+      return next;
+    });
+  }, []);
   const t = useMemo(
     () => (key: TranslationKey, values?: Record<string, string | number>) =>
       translate(language, key, values),
     [language]
   );
-  return { language, setLanguage: update, t };
+  return { language, setLanguage, t };
 }

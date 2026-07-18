@@ -21,3 +21,11 @@ No FFmpeg or FFprobe binary from Homebrew is included.
 ## Node.js
 
 The application bundles an arm64 Node.js runtime. Node.js is distributed under the MIT license and includes components under compatible licenses. Source and license information: https://github.com/nodejs/node and https://raw.githubusercontent.com/nodejs/node/main/LICENSE.
+
+## Supabase JavaScript client
+
+The web application uses `@supabase/supabase-js`, distributed under the MIT license. Source and license information: https://github.com/supabase/supabase-js.
+
+## Google Sign-In asset
+
+The Google "G" asset used by the sign-in button is an unmodified current asset from Google's official Sign in with Google asset bundle and is displayed according to Google's identity branding guidance. Source: https://developers.google.com/identity/branding-guidelines.

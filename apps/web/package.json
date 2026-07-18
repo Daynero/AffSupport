@@ -8,11 +8,12 @@
     "build": "tsc -b && vite build"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.110.7",
     "@video-compressor/shared": "0.4.0-test.1",
     "@vitejs/plugin-react": "latest",
-    "vite": "latest",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "vite": "latest"
   },
   "devDependencies": {
     "@types/react": "latest",

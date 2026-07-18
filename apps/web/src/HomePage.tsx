@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Header, Onboarding } from './App';
 import { useAgent } from './AgentContext';
 import { useI18n, type TranslationKey } from './i18n';
+import { analytics } from './analytics/service';
 
 type Tool = {
   id: string;
@@ -43,10 +44,14 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
     document
       .querySelector('meta[name="description"]')
       ?.setAttribute('content', 'A collection of local Wishly tools for working with your files.');
+    analytics.track('home_viewed', {});
   }, []);
 
   const openTool = (tool: Tool) => {
-    if (tool.status !== 'active') return;
+    if (tool.status !== 'active') {
+      analytics.track('transcription_interest_clicked', { tool_identifier: 'transcription' });
+      return;
+    }
     if (connected && tool.route) navigate(tool.route);
     else {
       panel.current?.focus();
@@ -96,13 +101,13 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
                 className={`tool-card tool-${tool.status} ${available ? 'is-available' : ''}`}
                 onClick={() => openTool(tool)}
                 onKeyDown={event => {
-                  if ((event.key === 'Enter' || event.key === ' ') && tool.status === 'active') {
+                  if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
                     openTool(tool);
                   }
                 }}
-                role={tool.status === 'active' ? 'button' : undefined}
-                tabIndex={tool.status === 'active' ? 0 : undefined}
+                role="button"
+                tabIndex={0}
                 aria-disabled={tool.status === 'active' && !connected ? true : undefined}
               >
                 <div className="tool-card-top">

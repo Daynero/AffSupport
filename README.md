@@ -14,9 +14,13 @@ npm start
 
 The agent listens only on `http://127.0.0.1:43120` and opens its matching bundled interface automatically. Development mode is `npm run dev` with the fixed `http://127.0.0.1:5173` origin.
 
+Wishly now uses Supabase Auth with Google OAuth for the hosted product, PostgreSQL profiles, RLS-protected first-party product analytics, and database-confirmed admin access. Copy `.env.example` to `.env`, then follow the beginner-friendly [Supabase and Google setup guide](docs/SUPABASE_SETUP.md). Real credentials are never committed; a missing or invalid browser configuration renders an explicit setup screen instead of starting with `undefined` values.
+
+The Privacy Policy and Terms are baseline EN/UA drafts. The owner **must review them and set real `VITE_PRODUCT_OPERATOR` and `VITE_LEGAL_CONTACT_EMAIL` values before public launch**; the repository deliberately does not invent a company, address, or contact identity.
+
 ## Hosted closed test
 
-Cloudflare Pages needs no backend or Functions: videos are selected through the local agent and never enter the web build. The current `wishly-app` Pages project uses Direct Upload, so pushing GitHub does not deploy it; the production origin is `https://wishly-app.pages.dev`. `PRODUCTION_SITE_ORIGIN` in `packages/shared/src/release.ts` and `PUBLIC_SITE_ORIGIN` in `config/production.env` are kept in sync by `npm run release:check`; after purchasing a custom Wishly domain, only those two places (plus a new Pages custom domain) need changing. The production environment sets only the loopback Agent URL; the immutable, versioned download URL comes from `packages/shared/src/release.ts`. The included `_redirects` supplies SPA fallback and `_headers` prevents a stale HTML shell while keeping hashed assets immutable.
+Videos are still selected and processed exclusively through the local agent and never enter Cloudflare or Supabase. The hosted web app now uses Supabase only for authentication, profiles, consent, and privacy-filtered product analytics; the trusted `delete-account` Edge Function is the sole server-side account action. The current `wishly-app` Pages project uses Direct Upload, so pushing GitHub does not deploy it; the production origin is `https://wishly-app.pages.dev`. `PRODUCTION_SITE_ORIGIN` in `packages/shared/src/release.ts` and `PUBLIC_SITE_ORIGIN` in `config/production.env` are kept in sync by `npm run release:check`. The included `_redirects` supplies SPA fallback and `_headers` prevents a stale HTML shell while keeping hashed assets immutable. Environment and smoke-test steps are in [docs/PRODUCTION.md](docs/PRODUCTION.md).
 
 Before packaging, obtain matching standalone Apple Silicon FFmpeg and FFprobe from a reviewed, reproducible distribution; record version, configure flags, license, source URL and checksums in `THIRD_PARTY_NOTICES.md`. Homebrew-linked binaries are rejected. Then run:
 
@@ -102,6 +106,8 @@ Closing or reloading the browser does not stop processing. Restarting the agent 
 
 Before starting, the agent conservatively compares free space in every relevant output folder with the original sizes. An obvious shortage produces a warning but never changes the originals.
 
+Supabase sessions use the SDK's browser persistence and never enter the Agent. Product analytics accepts only named events and an explicit property allowlist; it excludes filenames, local paths, media, thumbnails, transcription text, raw FFmpeg commands, full logs, Google tokens, IP collection, and device fingerprints. Failed analytics delivery is non-blocking and uses a bounded session queue.
+
 ## Local API
 
 Every `/api/*` route requires a random per-process 256-bit token. The token is issued only through the `/pair` redirect (production origin) or `/local` (bundled loopback UI), which place it in the page URL fragment. The unauthenticated `/health` route exposes only readiness, release/API identity, instance start time, and busy state so the packaged launcher can perform safe handoff. CORS permits only the production page and fixed local development origin. Request bodies are structurally validated, encoding parameters are defined only in the agent, and every external process uses argument arrays with `shell: false`.
@@ -136,5 +142,5 @@ Every `/api/*` route requires a random per-process 256-bit token. The token is i
 - macOS Apple Silicon only. A packaged `.app` and drag-to-Applications DMG exist (`npm run package:dmg`), but the test build is ad-hoc signed, not notarized, so it needs the quarantine step after each downloaded build. Updating still requires replacing the app manually; restart/handoff after replacement is automatic from `0.2.0-test.1` onward.
 - One local agent and one FFmpeg encoding process at a time.
 - Retry restarts a file from the beginning; there is no partial resume.
-- State is local JSON, not a multi-user database. Source files moved after selection will fail clearly.
+- Compression queue, settings, source paths, images, and estimates remain local JSON/Agent state. Only auth profiles, consent, and sanitized product aggregates are multi-user Supabase data. Source files moved after selection will fail clearly.
 - “Show output folder” opens one relevant folder; jobs saved beside originals may span several folders, while each card can reveal its exact result.

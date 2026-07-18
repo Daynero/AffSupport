@@ -1,0 +1,8 @@
+project_id = "wishly"
+
+[auth]
+site_url = "http://127.0.0.1:5173"
+additional_redirect_urls = ["http://127.0.0.1:5173/auth/callback"]
+
+[functions.delete-account]
+verify_jwt = true

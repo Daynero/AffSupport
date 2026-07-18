@@ -1,48 +1,95 @@
-import { useEffect, useState, type MouseEvent } from 'react';
-import CompressorPage from './App';
-import { AgentProvider } from './AgentContext';
-import { useAgent } from './AgentContext';
-import HomePage from './HomePage';
-import { translate, detectLanguage } from './i18n';
+import { lazy, Suspense, useEffect } from 'react';
+import { AuthProvider, useAuth } from './auth/AuthContext';
+import {
+  AuthCallbackPage,
+  AuthLoadingScreen,
+  AuthRecoveryScreen,
+  BlockedAccountScreen,
+  ConfigErrorScreen,
+  LoginPage
+} from './auth/AuthScreens';
+import { loginUrl } from './lib/redirects';
+import { navigateTo, useBrowserRoute } from './lib/navigation';
+
+const ProtectedWishly = lazy(() => import('./ProtectedWishly'));
+const PrivacyPage = lazy(() =>
+  import('./pages/LegalPages').then(module => ({ default: module.PrivacyPage }))
+);
+const TermsPage = lazy(() =>
+  import('./pages/LegalPages').then(module => ({ default: module.TermsPage }))
+);
 
 export default function Root() {
   return (
-    <AgentProvider>
+    <AuthProvider>
       <Routes />
-    </AgentProvider>
+    </AuthProvider>
   );
 }
 
 function Routes() {
-  const [path, setPath] = useState(location.pathname);
-  const { state } = useAgent();
-  useEffect(() => {
-    const update = () => setPath(location.pathname);
-    addEventListener('popstate', update);
-    return () => removeEventListener('popstate', update);
-  }, []);
-  const navigate = (next: string) => {
-    if (next === location.pathname) return;
-    history.pushState(null, '', next);
-    setPath(next);
-  };
-  const goHome = (event: MouseEvent<HTMLDivElement>) => {
-    const anchor = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[href="/"]');
-    if (!anchor || path !== '/compressor') return;
-    event.preventDefault();
-    if (state.running) {
-      const language = detectLanguage(localStorage.getItem('language'), navigator.languages);
-      if (!confirm(translate(language, 'leaveCompressorConfirm'))) return;
-    }
-    navigate('/');
-  };
+  const route = useBrowserRoute();
+  const path = new URL(route, location.origin).pathname;
+  const auth = useAuth();
+
+  if (path === '/privacy')
+    return (
+      <Suspense fallback={<AuthLoadingScreen />}>
+        <PrivacyPage />
+      </Suspense>
+    );
+  if (path === '/terms')
+    return (
+      <Suspense fallback={<AuthLoadingScreen />}>
+        <TermsPage />
+      </Suspense>
+    );
+  if (path === '/auth/callback') return <AuthCallbackPage />;
+  if (path === '/login') return <LoginPage />;
+
+  const decision = protectedRouteDecision({
+    status: auth.status,
+    hasSession: Boolean(auth.session),
+    hasProfile: Boolean(auth.profile),
+    accountStatus: auth.profile?.account_status ?? null,
+    configurationError: auth.error === 'configuration'
+  });
+  if (decision === 'loading') return <AuthLoadingScreen />;
+  if (decision === 'configuration-error') return <ConfigErrorScreen />;
+  if (decision === 'recovery') return <AuthRecoveryScreen />;
+  if (decision === 'login') return <RedirectToLogin route={route} />;
+  if (decision === 'blocked') return <BlockedAccountScreen />;
+  if (decision === 'deleted') return <BlockedAccountScreen deleted />;
+
   return (
-    <div onClick={goHome}>
-      {path === '/compressor' ? <CompressorPage /> : <HomePage navigate={navigate} />}
-    </div>
+    <Suspense fallback={<AuthLoadingScreen />}>
+      <ProtectedWishly path={path} />
+    </Suspense>
   );
+}
+
+function RedirectToLogin({ route }: { route: string }) {
+  useEffect(() => navigateTo(loginUrl(route), true), [route]);
+  return <AuthLoadingScreen />;
 }
 
 export function routeKind(path: string): 'home' | 'compressor' {
   return path === '/compressor' ? 'compressor' : 'home';
+}
+
+export function protectedRouteDecision(input: {
+  status: ReturnType<typeof useAuth>['status'];
+  hasSession: boolean;
+  hasProfile: boolean;
+  accountStatus: 'active' | 'blocked' | 'deleted' | null;
+  configurationError: boolean;
+}): 'loading' | 'configuration-error' | 'recovery' | 'login' | 'blocked' | 'deleted' | 'allow' {
+  if (['initializing', 'authenticating', 'signing-out'].includes(input.status)) return 'loading';
+  if (input.configurationError) return 'configuration-error';
+  if (input.status === 'error' && input.hasSession) return 'recovery';
+  if (input.status !== 'authenticated' || !input.hasSession) return 'login';
+  if (!input.hasProfile) return 'recovery';
+  if (input.accountStatus === 'blocked') return 'blocked';
+  if (input.accountStatus === 'deleted') return 'deleted';
+  return 'allow';
 }

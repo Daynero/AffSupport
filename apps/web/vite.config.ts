@@ -26,6 +26,7 @@ function siteOriginPlugin(): Plugin {
 
 export default defineConfig({
   plugins: [react(), siteOriginPlugin()],
+  envDir: '../..',
   define: { 'import.meta.env.VITE_WEB_REVISION': JSON.stringify(currentRevision()) },
   server: { port: 5173, strictPort: true, proxy: { '/api': 'http://127.0.0.1:43117' } },
   build: { outDir: 'dist' }

@@ -7,6 +7,7 @@ import {
   RELEASE_DOWNLOAD_URL,
   calculateQueueSummary,
   type AgentSettingsPatch,
+  type CompressionJob,
   type QueueState,
   type SelectionResponse,
   type SelectionWarning
@@ -37,6 +38,15 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { Button, ProgressBar, Spinner, type Translate } from './components/ui';
 import { WishlyLogo, WishlyMark } from './components/WishlyLogo';
 import { useAgent } from './AgentContext';
+import { internalLink } from './lib/navigation';
+import { UserMenu } from './components/UserMenu';
+import { analytics } from './analytics/service';
+import {
+  compressionErrorCategory,
+  jobTransitionEventNames,
+  safeBatchProperties,
+  safeCompressionProperties
+} from './analytics/compression';
 
 const downloadUrl = RELEASE_DOWNLOAD_URL;
 
@@ -58,11 +68,50 @@ export default function CompressorPage() {
   const toastId = useRef(0);
   const settingsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSettings = useRef<AgentSettingsPatch>({});
+  const previousJobs = useRef<Map<string, CompressionJob> | null>(null);
+  const estimateStartedAt = useRef(new Map<string, number>());
   const connected = connection === 'connected';
 
   useEffect(() => {
     document.title = 'Video Compressor — Wishly';
+    analytics.track('tool_opened', { tool_identifier: 'compressor' });
   }, []);
+
+  useEffect(() => {
+    if (!previousJobs.current) {
+      previousJobs.current = new Map(state.jobs.map(job => [job.id, job]));
+      return;
+    }
+    const now = Date.now();
+    for (const job of state.jobs) {
+      const previous = previousJobs.current.get(job.id);
+      for (const event of jobTransitionEventNames(previous, job)) {
+        const properties = safeCompressionProperties(job);
+        if (event === 'estimate_started') {
+          estimateStartedAt.current.set(job.id, now);
+          analytics.track(event, properties);
+        } else if (event === 'estimate_completed') {
+          const started = estimateStartedAt.current.get(job.id);
+          analytics.track(event, {
+            ...properties,
+            ...(started ? { processing_duration_ms: now - started } : {})
+          });
+          estimateStartedAt.current.delete(job.id);
+        } else if (event === 'compression_failed') {
+          analytics.track(event, {
+            ...properties,
+            success: false,
+            error_category: compressionErrorCategory(job.error)
+          });
+        } else if (event === 'compression_completed') {
+          analytics.track(event, { ...properties, success: true });
+        } else {
+          analytics.track(event, properties);
+        }
+      }
+    }
+    previousJobs.current = new Map(state.jobs.map(job => [job.id, job]));
+  }, [state.jobs]);
 
   const addToast = (text: string, tone: ToastMessage['tone'] = 'neutral') => {
     const id = ++toastId.current;
@@ -111,6 +160,8 @@ export default function CompressorPage() {
   };
 
   const updateSettings = (patch: AgentSettingsPatch, debounce = false) => {
+    if (patch.imageEmbedding?.enabled === true && !state.settings.imageEmbedding.enabled)
+      analytics.track('image_embedding_enabled', { image_embedding: true });
     if (!debounce) {
       if (settingsTimer.current) clearTimeout(settingsTimer.current);
       settingsTimer.current = null;
@@ -135,6 +186,12 @@ export default function CompressorPage() {
       const result = await request<SelectionResponse>('/api/files/select', 'POST');
       setState(result.state);
       selectNewJobs(before, result.state, setSelected);
+      const added = result.state.jobs.filter(job => !before.has(job.id));
+      if (added.length)
+        analytics.track('videos_added', {
+          video_count: added.length,
+          total_input_bytes: added.reduce((total, job) => total + job.originalSize, 0)
+        });
       await handleSelectionWarnings(
         result.warnings,
         result.state,
@@ -153,13 +210,23 @@ export default function CompressorPage() {
     setImporting(true);
     const known = new Set(state.jobs.map(job => job.id));
     try {
+      let addedCount = 0;
+      let addedBytes = 0;
       for (const file of files) {
         const result = await uploadFile(file);
         setState(result.state);
         selectNewJobs(known, result.state, setSelected);
+        const added = result.state.jobs.filter(job => !known.has(job.id));
+        addedCount += added.length;
+        addedBytes += added.reduce((total, job) => total + job.originalSize, 0);
         for (const job of result.state.jobs) known.add(job.id);
         showSelectionWarnings(result.warnings, t, addToast);
       }
+      if (addedCount)
+        analytics.track('videos_added', {
+          video_count: addedCount,
+          total_input_bytes: addedBytes
+        });
     } catch (error) {
       handleError(error);
     } finally {
@@ -181,6 +248,13 @@ export default function CompressorPage() {
     try {
       const next = await requestBody<QueueState>('/api/queue/start', { ids });
       setState(next);
+      analytics.track(
+        'compression_batch_started',
+        safeBatchProperties(
+          state.settings,
+          state.jobs.filter(job => ids.includes(job.id))
+        )
+      );
       setSelected(current => {
         const updated = new Set(current);
         ids.forEach(id => updated.delete(id));
@@ -274,6 +348,13 @@ export default function CompressorPage() {
       connection={connection}
       showProblemAction={!connected}
       copyDiagnostics={() => void copyDiagnostics()}
+      onHome={event => {
+        if (state.running && !confirm(t('leaveCompressorConfirm'))) {
+          event.preventDefault();
+          return;
+        }
+        internalLink(event, '/');
+      }}
       t={t}
     />
   );
@@ -494,6 +575,7 @@ export function Header({
   showProblemAction,
   copyDiagnostics,
   onHome,
+  showDiagnostics = true,
   t
 }: {
   language: Language;
@@ -502,12 +584,18 @@ export function Header({
   showProblemAction: boolean;
   copyDiagnostics: () => void;
   onHome?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
+  showDiagnostics?: boolean;
   t: Translate;
 }) {
   return (
     <header className="topbar">
       <h1>
-        <a className="brand-link" href="/" onClick={onHome} aria-label={t('backToTools')}>
+        <a
+          className="brand-link"
+          href="/"
+          onClick={event => (onHome ? onHome(event) : internalLink(event, '/'))}
+          aria-label={t('backToTools')}
+        >
           <WishlyLogo name={t('appName')} />
         </a>
       </h1>
@@ -527,18 +615,21 @@ export function Header({
           </button>
         </div>
         <ConnectionBadge state={connection} t={t} />
-        <details className="header-menu">
-          <summary aria-label={t('menu')}>•••</summary>
-          <div>
-            <strong>{t('diagnostics')}</strong>
-            <button onClick={copyDiagnostics}>{t('copyDiagnostics')}</button>
-            {showProblemAction && (
-              <a href={`${agentUrl}/local`} target="_blank" rel="noreferrer">
-                {t('openLocal')}
-              </a>
-            )}
-          </div>
-        </details>
+        {showDiagnostics && (
+          <details className="header-menu">
+            <summary aria-label={t('menu')}>•••</summary>
+            <div>
+              <strong>{t('diagnostics')}</strong>
+              <button onClick={copyDiagnostics}>{t('copyDiagnostics')}</button>
+              {showProblemAction && (
+                <a href={`${agentUrl}/local`} target="_blank" rel="noreferrer">
+                  {t('openLocal')}
+                </a>
+              )}
+            </div>
+          </details>
+        )}
+        <UserMenu />
       </div>
     </header>
   );

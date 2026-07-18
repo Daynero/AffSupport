@@ -24,6 +24,7 @@ import {
   pairWithAgent
 } from './api/client';
 import { failureState, type ConnectionState, versionState } from './connection';
+import { analytics } from './analytics/service';
 
 const emptyState: QueueState = {
   jobs: [],
@@ -44,11 +45,13 @@ const emptyState: QueueState = {
   warning: null
 };
 
-interface AgentContextValue {
+export interface AgentContextValue {
   connection: ConnectionState;
   state: QueueState;
   setState: Dispatch<SetStateAction<QueueState>>;
   connectedOnce: boolean;
+  agentVersion: string | null;
+  platform: 'macos' | 'windows' | 'linux' | 'other';
   reconnect: () => void;
 }
 
@@ -58,6 +61,8 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   const [connection, setConnection] = useState<ConnectionState>('checking');
   const [state, setState] = useState<QueueState>(emptyState);
   const [connectedOnce, setConnectedOnce] = useState(false);
+  const [agentVersion, setAgentVersion] = useState<string | null>(null);
+  const platform = broadPlatform();
   const connectedOnceRef = useRef(false);
   const events = useRef<EventSource | null>(null);
   const connecting = useRef(false);
@@ -78,6 +83,8 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       window.clearTimeout(timer);
       if (!mounted.current) return;
       const next = versionState(result.apiVersion);
+      setAgentVersion(result.version || null);
+      analytics.setAgentContext(result.version || null, platform);
       setConnection(next);
       if (next !== 'connected') return;
       if (!result.state) throw new Error('AGENT_STATE_MISSING');
@@ -112,6 +119,18 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const previousConnection = useRef<ConnectionState>('checking');
+  useEffect(() => {
+    const previous = previousConnection.current;
+    if (connection === 'connected' && previous !== 'connected')
+      analytics.track('agent_connected', {});
+    if (connection === 'disconnected' && previous === 'connected')
+      analytics.track('agent_disconnected', { error_category: 'agent_disconnected' });
+    if (connection === 'agent_update_required' && previous !== 'agent_update_required')
+      analytics.track('agent_update_required', {});
+    previousConnection.current = connection;
+  }, [connection]);
+
   useEffect(() => {
     mounted.current = true;
     consumePairingToken();
@@ -132,6 +151,8 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         state,
         setState,
         connectedOnce,
+        agentVersion,
+        platform,
         reconnect: () => void establish('connecting')
       }}
     >
@@ -140,8 +161,27 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   );
 }
 
+export function broadPlatform(): 'macos' | 'windows' | 'linux' | 'other' {
+  if (typeof navigator === 'undefined') return 'other';
+  const value = `${navigator.platform} ${navigator.userAgent}`.toLowerCase();
+  if (value.includes('mac')) return 'macos';
+  if (value.includes('win')) return 'windows';
+  if (value.includes('linux')) return 'linux';
+  return 'other';
+}
+
 export function useAgent() {
   const value = useContext(AgentContext);
   if (!value) throw new Error('useAgent must be used inside AgentProvider');
   return value;
+}
+
+export function AgentContextOverride({
+  value,
+  children
+}: {
+  value: AgentContextValue;
+  children: ReactNode;
+}) {
+  return <AgentContext.Provider value={value}>{children}</AgentContext.Provider>;
 }

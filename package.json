@@ -10,7 +10,7 @@
     "dev": "concurrently -k -n agent,web \"npm run dev -w @video-compressor/agent\" \"npm run dev -w @video-compressor/web\"",
     "build": "npm run build:web && npm run build -w @video-compressor/agent",
     "build:web": "npm run build -w @video-compressor/shared && npm run build -w @video-compressor/web",
-    "deploy:web": "npm run build:web && node scripts/verify-release.mjs --deploy && node scripts/verify-published-release.mjs && npx --yes wrangler@4.112.0 pages deploy apps/web/dist --project-name wishly-app --branch main",
+    "deploy:web": "node scripts/verify-web-env.mjs && npm run build:web && node scripts/verify-release.mjs --deploy && node scripts/verify-published-release.mjs && npx --yes wrangler@4.112.0 pages deploy apps/web/dist --project-name wishly-app --branch main",
     "release:info": "npm run build -w @video-compressor/shared && node scripts/release-meta.mjs --json",
     "release:check": "npm run build && node scripts/verify-release.mjs",
     "package:mac": "npm run build && node scripts/verify-release.mjs --package && zsh scripts/package-mac.sh",
@@ -18,11 +18,13 @@
     "verify:dmg": "zsh scripts/verify-dmg.sh",
     "verify:package": "zsh scripts/verify-package.sh",
     "start": "npm run start -w @video-compressor/agent",
-    "format": "prettier --write apps packages tests scripts README.md TESTER_GUIDE.md RELEASE_NOTES.md package.json",
-    "format:check": "prettier --check apps packages tests scripts README.md TESTER_GUIDE.md RELEASE_NOTES.md package.json",
+    "format": "prettier --write apps packages tests scripts docs supabase/functions README.md TESTER_GUIDE.md RELEASE_NOTES.md THIRD_PARTY_NOTICES.md package.json",
+    "format:check": "prettier --check apps packages tests scripts docs supabase/functions README.md TESTER_GUIDE.md RELEASE_NOTES.md THIRD_PARTY_NOTICES.md package.json",
     "lint": "eslint apps packages tests scripts",
     "test": "npm run build -w @video-compressor/shared && vitest run",
-    "test:agent:e2e": "npm run build && node scripts/real-agent-check.mjs"
+    "test:agent:e2e": "npm run build && node scripts/real-agent-check.mjs",
+    "test:db": "npx supabase test db",
+    "types:supabase": "npx supabase gen types typescript --linked --schema public"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
