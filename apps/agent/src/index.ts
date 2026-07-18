@@ -32,6 +32,7 @@ import {
 } from '@video-compressor/shared';
 import { EstimationWorker } from './estimate/worker.js';
 import { selectOutputFolder, selectVideos } from './files/picker.js';
+import { applicationSupportRoot } from './files/support-dir.js';
 import { commandExists, ffmpegPath, ffprobePath } from './ffmpeg/tools.js';
 import { allowedOrigins, config } from './config.js';
 import { eventStreamHeaders } from './http.js';
@@ -209,8 +210,7 @@ app.post('/api/files/upload', async (request, reply) => {
   }
 
   const importRoot =
-    process.env.AGENT_IMPORT_PATH ??
-    path.join(os.homedir(), 'Library', 'Application Support', 'Local Video Compressor', 'Imports');
+    process.env.AGENT_IMPORT_PATH ?? path.join(applicationSupportRoot(), 'Imports');
   await mkdir(importRoot, { recursive: true });
   const directory = await mkdtemp(path.join(importRoot, 'import-'));
   const inputPath = path.join(directory, fileName);
@@ -554,7 +554,7 @@ async function shutdown(code = 0) {
 
 try {
   await app.listen({ host: config.host, port: config.port });
-  app.log.info(`Video Compressor: http://${config.host}:${config.port}`);
+  app.log.info(`Wishly Agent: http://${config.host}:${config.port}`);
   if (process.env.NODE_ENV !== 'test' && process.env.NO_OPEN !== '1') {
     await open(`http://${config.host}:${config.port}/pair`);
   }

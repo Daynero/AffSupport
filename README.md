@@ -1,6 +1,6 @@
-# Local Video Compressor — macOS
+# Wishly — macOS local video compression
 
-A private local video compressor controlled from a browser. Videos are selected with native macOS dialogs, processed by the Mac's system FFmpeg, and never uploaded.
+Wishly is a private local video compressor controlled from a browser. Videos are selected with native macOS dialogs, processed locally by FFmpeg through the Wishly Agent, and never uploaded.
 
 ## Run
 
@@ -16,7 +16,7 @@ The agent listens only on `http://127.0.0.1:43120` and opens its matching bundle
 
 ## Hosted closed test
 
-Cloudflare Pages needs no backend or Functions: videos are selected through the local agent and never enter the web build. The current `local-video-compressor-test` Pages project uses Direct Upload, so pushing GitHub does not deploy it. The production environment sets only the loopback Agent URL; the immutable, versioned download URL comes from `packages/shared/src/release.ts`. The included `_redirects` supplies SPA fallback and `_headers` prevents a stale HTML shell while keeping hashed assets immutable.
+Cloudflare Pages needs no backend or Functions: videos are selected through the local agent and never enter the web build. The current `wishly-app` Pages project uses Direct Upload, so pushing GitHub does not deploy it; the production origin is `https://wishly-app.pages.dev`. `PRODUCTION_SITE_ORIGIN` in `packages/shared/src/release.ts` and `PUBLIC_SITE_ORIGIN` in `config/production.env` are kept in sync by `npm run release:check`; after purchasing a custom Wishly domain, only those two places (plus a new Pages custom domain) need changing. The production environment sets only the loopback Agent URL; the immutable, versioned download URL comes from `packages/shared/src/release.ts`. The included `_redirects` supplies SPA fallback and `_headers` prevents a stale HTML shell while keeping hashed assets immutable.
 
 Before packaging, obtain matching standalone Apple Silicon FFmpeg and FFprobe from a reviewed, reproducible distribution; record version, configure flags, license, source URL and checksums in `THIRD_PARTY_NOTICES.md`. Homebrew-linked binaries are rejected. Then run:
 
@@ -48,7 +48,7 @@ The packaged launcher opens the web UI bundled inside the same `.app`, so its UI
 
 Starting with `0.2.0-test.1`, the launcher also watches the installed release manifest. When a newer `.app` replaces the running copy, it performs a version-aware handoff after active compression completes. Migrating from the legacy `0.1.0-test` build requires one manual quit because that old launcher predates the handoff protocol.
 
-This test build is **ad-hoc signed, not Apple-notarized**. macOS quarantines it after download and Gatekeeper will not launch it directly (there is no "Open Anyway" affordance for an ad-hoc signature). Testers must run `xattr -dr com.apple.quarantine "/Applications/Local Video Compressor Agent.app"` after installing each downloaded build — see `TESTER_GUIDE.md`. A production release requires a Developer ID Application certificate, `--options runtime` hardened signing, and Apple notarization + stapling, after which no such step is needed. Intel/Universal support has not been verified and is not claimed.
+This test build is **ad-hoc signed, not Apple-notarized**. macOS quarantines it after download and Gatekeeper will not launch it directly (there is no "Open Anyway" affordance for an ad-hoc signature). Testers must run `xattr -dr com.apple.quarantine "/Applications/Wishly Agent.app"` after installing each downloaded build — see `TESTER_GUIDE.md`. A production release requires a Developer ID Application certificate, `--options runtime` hardened signing, and Apple notarization + stapling, after which no such step is needed. Intel/Universal support has not been verified and is not claimed.
 
 ## Daily use
 
@@ -91,12 +91,12 @@ Results use `name_compressed.mp4`, then `_compressed_2`, `_compressed_3`, and so
 Settings and queue metadata are stored locally at:
 
 ```text
-~/Library/Application Support/Local Video Compressor/state.json
+~/Library/Application Support/Wishly/state.json
 ```
 
-Estimate cache: `~/Library/Application Support/Local Video Compressor/estimate-cache.json`.
+Estimate cache: `~/Library/Application Support/Wishly/estimate-cache.json`.
 
-Managed image assets: `~/Library/Application Support/Local Video Compressor/Images/`. Persisted image selections are revalidated when the Agent starts; missing or damaged assets are cleared and must be selected again. Disabling image embedding makes all stored selections inert.
+Managed image assets: `~/Library/Application Support/Wishly/Images/`. A pre-rebrand `~/Library/Application Support/Local Video Compressor` directory is migrated automatically on the first launch of Wishly Agent. Persisted image selections are revalidated when the Agent starts; missing or damaged assets are cleared and must be selected again. Disabling image embedding makes all stored selections inert.
 
 Closing or reloading the browser does not stop processing. Restarting the agent restores the queue; a job that was processing becomes **interrupted** and can be retried from the beginning. Partial output from an abrupt OS/process termination may remain on disk and is never overwritten; retry chooses the next safe filename.
 

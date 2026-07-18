@@ -1,23 +1,50 @@
+/* ============================================================
+   Wishly design tokens
+   Purple leads attention; most surfaces stay neutral.
+   ============================================================ */
 :root {
   color-scheme: light;
-  --color-bg: #f4f6f8;
+
+  /* Brand primary scale */
+  --purple-50: #f7f5ff;
+  --purple-100: #eeeafe;
+  --purple-200: #ddd5fc;
+  --purple-300: #c4b5fa;
+  --purple-400: #8b6df6;
+  --purple-500: #7557e8;
+  --purple-600: #6242d0;
+  --purple-700: #4c32a8;
+  --purple-900: #241b3a;
+
+  /* Neutral cool greys */
+  --color-bg: #f6f5fa;
   --color-surface: #ffffff;
-  --color-surface-subtle: #f8fafc;
-  --color-surface-muted: #eef2f6;
-  --color-text: #182230;
-  --color-text-muted: #667085;
-  --color-border: #d9e0e8;
-  --color-border-strong: #b8c3d0;
-  --color-accent: #3559c7;
-  --color-accent-hover: #2949ad;
-  --color-accent-soft: #edf2ff;
+  --color-surface-subtle: #faf9fd;
+  --color-surface-muted: #f0eef6;
+  --color-text: #241b3a;
+  --color-text-muted: #6f687d;
+  --color-border: #e4e1ec;
+  --color-border-strong: #c9c4d8;
+
+  /* Brand roles */
+  --color-accent: var(--purple-500);
+  --color-accent-hover: var(--purple-600);
+  --color-accent-active: var(--purple-700);
+  --color-accent-soft: var(--purple-100);
+  --color-accent-softer: var(--purple-50);
+  --color-focus: var(--purple-400);
+  --gradient-brand: linear-gradient(90deg, #7557e8 0%, #9b6ff3 50%, #c06fef 100%);
+  --gradient-progress: linear-gradient(90deg, #7557e8 0%, #9b6ff3 60%, #8b6df6 100%);
+
+  /* Semantic colors stay non-purple */
   --color-success: #18794e;
   --color-success-soft: #eaf7f0;
   --color-warning: #9a6700;
   --color-warning-soft: #fff7db;
   --color-error: #b42318;
   --color-error-soft: #fff0ee;
-  --color-focus: #6f8ee8;
+
+  /* Spacing, radius, shadows */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -27,13 +54,22 @@
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
-  --shadow-menu: 0 12px 32px rgba(16, 24, 40, 0.14);
+  --shadow-menu: 0 12px 32px rgba(36, 27, 58, 0.14);
+  --shadow-raise: 0 2px 6px rgba(36, 27, 58, 0.12);
+
+  /* Motion system */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0, 0, 0.2, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --dur-micro: 130ms;
+  --dur-control: 180ms;
+  --dur-pop: 160ms;
+  --dur-section: 260ms;
+  --dur-layout: 300ms;
+  --dur-complete: 450ms;
+
   font-family:
-    Inter,
-    ui-sans-serif,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
     sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -81,10 +117,11 @@ summary,
 }
 
 :focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--color-focus) 40%, transparent);
+  outline: 3px solid color-mix(in srgb, var(--color-focus) 45%, transparent);
   outline-offset: 2px;
 }
 
+/* Typography scale */
 h1,
 h2,
 h3,
@@ -121,10 +158,17 @@ a {
   color: var(--color-accent);
 }
 
+.numeric {
+  font-variant-numeric: tabular-nums;
+}
+
 .app-shell {
   min-height: 100vh;
 }
 
+/* ============================================================
+   Topbar & brand
+   ============================================================ */
 .topbar {
   position: sticky;
   z-index: 40;
@@ -137,6 +181,21 @@ a {
   border-bottom: 1px solid var(--color-border);
   background: color-mix(in srgb, var(--color-surface) 94%, transparent);
   backdrop-filter: blur(12px);
+}
+
+.wishly-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.wishly-mark {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.wishly-wordmark {
+  letter-spacing: -0.01em;
 }
 
 .topbar-actions,
@@ -154,6 +213,7 @@ a {
 }
 
 .language-switch {
+  position: relative;
   display: inline-flex;
   padding: 2px;
   border: 1px solid var(--color-border);
@@ -172,6 +232,7 @@ a {
   cursor: pointer;
   font-size: 11px;
   font-weight: 750;
+  transition: color var(--dur-micro) var(--ease-standard);
 }
 
 .language-switch button:hover {
@@ -179,23 +240,28 @@ a {
 }
 
 .language-switch button.is-active {
-  color: var(--color-text);
+  color: var(--color-accent-hover);
   background: var(--color-surface);
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+  box-shadow: 0 1px 2px rgba(36, 27, 58, 0.08);
 }
 
+/* Connection badge: green means connected, purple means working,
+   semantic colors are reserved for their real meanings. */
 .connection-badge {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   min-height: 28px;
-  padding: 0 9px;
+  padding: 0 10px;
   border-radius: 999px;
   color: var(--color-text-muted);
   background: var(--color-surface-muted);
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
+  transition:
+    color var(--dur-control) var(--ease-standard),
+    background var(--dur-control) var(--ease-standard);
 }
 
 .connection-badge i,
@@ -205,6 +271,7 @@ a {
   flex: 0 0 auto;
   border-radius: 50%;
   background: currentColor;
+  transition: background var(--dur-control) var(--ease-standard);
 }
 
 .connection-connected {
@@ -212,15 +279,26 @@ a {
   background: var(--color-success-soft);
 }
 
-.connection-pairing_required {
-  color: var(--color-accent);
+/* One short pulse when the connection is established, then rest. */
+.connection-connected i {
+  animation: connect-pulse 900ms var(--ease-enter) 1;
+}
+
+.connection-pairing_required,
+.connection-checking,
+.connection-connecting {
+  color: var(--color-accent-hover);
   background: var(--color-accent-soft);
+}
+
+.connection-agent_update_required,
+.connection-web_update_required {
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
 }
 
 .connection-disconnected,
 .connection-not_installed_or_not_running,
-.connection-agent_update_required,
-.connection-web_update_required,
 .connection-connection_blocked {
   color: var(--color-error);
   background: var(--color-error-soft);
@@ -240,6 +318,7 @@ a {
   font-weight: 800;
   letter-spacing: 1px;
   list-style: none;
+  transition: background var(--dur-micro) var(--ease-standard);
 }
 
 .header-menu summary::-webkit-details-marker {
@@ -262,6 +341,8 @@ a {
   border-radius: var(--radius-md);
   background: var(--color-surface);
   box-shadow: var(--shadow-menu);
+  transform-origin: top right;
+  animation: pop-in var(--dur-pop) var(--ease-enter);
 }
 
 .header-menu strong {
@@ -282,11 +363,12 @@ a {
   cursor: pointer;
   text-align: left;
   text-decoration: none;
+  transition: background var(--dur-micro) var(--ease-standard);
 }
 
 .header-menu button:hover,
 .header-menu a:hover {
-  background: var(--color-surface-muted);
+  background: var(--color-accent-softer);
 }
 
 .workspace {
@@ -304,7 +386,11 @@ a {
   color: var(--color-text-muted);
 }
 
+/* ============================================================
+   Buttons
+   ============================================================ */
 .button {
+  position: relative;
   display: inline-flex;
   min-height: 34px;
   align-items: center;
@@ -319,14 +405,15 @@ a {
   text-decoration: none;
   white-space: nowrap;
   transition:
-    background 120ms ease,
-    border-color 120ms ease,
-    color 120ms ease,
-    transform 120ms ease;
+    background var(--dur-micro) var(--ease-standard),
+    border-color var(--dur-micro) var(--ease-standard),
+    color var(--dur-micro) var(--ease-standard),
+    box-shadow var(--dur-micro) var(--ease-standard),
+    transform var(--dur-micro) var(--ease-standard);
 }
 
 .button:active:not(:disabled) {
-  transform: translateY(1px);
+  transform: scale(0.98);
 }
 
 .button:disabled {
@@ -335,12 +422,25 @@ a {
 }
 
 .button-primary {
+  border-color: color-mix(in srgb, var(--color-accent-hover) 70%, transparent);
   color: #fff;
-  background: var(--color-accent);
+  background: linear-gradient(180deg, var(--color-accent) 0%, var(--color-accent-hover) 100%);
 }
 
 .button-primary:hover:not(:disabled) {
-  background: var(--color-accent-hover);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-accent) 88%, #fff) 0%,
+    var(--color-accent-hover) 100%
+  );
+  box-shadow: var(--shadow-raise);
+  transform: translateY(-1px);
+}
+
+.button-primary:active:not(:disabled) {
+  background: var(--color-accent-active);
+  box-shadow: none;
+  transform: scale(0.98);
 }
 
 .button-secondary {
@@ -371,14 +471,44 @@ a {
   background: color-mix(in srgb, var(--color-error-soft) 78%, var(--color-error) 8%);
 }
 
+/* Loading keeps the button width stable: the label turns transparent
+   while a centered spinner overlays it. */
+.button.is-loading {
+  color: transparent;
+}
+
+.button.is-loading .button-spinner {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: currentColor;
+}
+
+.button-primary.is-loading .button-spinner {
+  color: #fff;
+}
+
+.button-secondary.is-loading .button-spinner,
+.button-ghost.is-loading .button-spinner {
+  color: var(--color-text-muted);
+}
+
 .text-button {
   padding: 0;
   border: 0;
-  color: var(--color-accent);
+  color: var(--color-accent-hover);
   background: transparent;
   cursor: pointer;
 }
 
+.text-button:hover {
+  color: var(--color-accent-active);
+}
+
+/* ============================================================
+   Panels
+   ============================================================ */
 .settings-panel,
 .batch-toolbar,
 .batch-progress,
@@ -408,6 +538,11 @@ a {
 
 .mode-row > .field-label {
   align-self: center;
+}
+
+.mode-detail {
+  display: grid;
+  grid-column: 1 / -1;
 }
 
 .optimal-summary {
@@ -446,7 +581,6 @@ a {
 
 .custom-settings {
   display: grid;
-  grid-column: 1 / -1;
   grid-template-columns: repeat(4, minmax(180px, 1fr));
   gap: var(--space-3);
   padding-top: var(--space-2);
@@ -455,6 +589,51 @@ a {
 
 .rate-control-field {
   grid-column: span 2;
+}
+
+.rate-value-field {
+  min-width: 0;
+}
+
+/* Smooth expand/collapse without layout jumps. Content stays mounted:
+   the row track animates between 0fr and 1fr, and visibility keeps the
+   hidden content out of the focus order. */
+.collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-section) var(--ease-standard);
+}
+
+.collapse > * {
+  overflow: hidden;
+  min-height: 0;
+  visibility: hidden;
+  transition: visibility 0s linear var(--dur-section);
+}
+
+.collapse.is-open {
+  grid-template-rows: 1fr;
+}
+
+.collapse.is-open > * {
+  visibility: visible;
+  transition: none;
+}
+
+.collapse-fast {
+  transition-duration: var(--dur-control);
+}
+
+.collapse-fast > * {
+  transition-delay: var(--dur-control);
+}
+
+.collapse-body {
+  display: grid;
+}
+
+.mode-detail .collapse.is-open > .collapse-body {
+  padding-top: var(--space-1);
 }
 
 .output-settings {
@@ -478,37 +657,55 @@ a {
   gap: var(--space-2);
 }
 
+/* ============================================================
+   Switch (feature toggle)
+   ============================================================ */
 .feature-switch {
   min-height: 28px;
 }
 
 .feature-switch .checkbox-mark {
-  width: 34px;
-  height: 19px;
+  width: 36px;
+  height: 20px;
   border-radius: 999px;
-  background: var(--color-surface-muted);
-  transition: background 140ms ease;
+  border: 0;
+  background: var(--color-border-strong);
+  transition: background var(--dur-control) var(--ease-standard);
+}
+
+.checkbox.feature-switch input:checked + .checkbox-mark {
+  border: 0;
+  background: var(--color-accent);
 }
 
 .checkbox.feature-switch .checkbox-mark::after {
   position: absolute;
-  left: 2px;
-  width: 13px;
-  height: 13px;
+  top: 50%;
+  left: 2.5px;
+  width: 15px;
+  height: 15px;
   border: 0;
   border-radius: 50%;
-  background: var(--color-surface);
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.22);
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(36, 27, 58, 0.25);
   content: '';
-  transform: none;
-  transition: transform 140ms ease;
+  transform: translateY(-50%);
+  transition: transform var(--dur-control) var(--ease-standard);
 }
 
 .checkbox.feature-switch input:checked + .checkbox-mark::after {
-  width: 13px;
-  height: 13px;
+  width: 15px;
+  height: 15px;
   border: 0;
-  transform: translateX(15px);
+  transform: translateY(-50%) translateX(16px);
+}
+
+.checkbox.feature-switch:active .checkbox-mark::after {
+  transform: translateY(-50%) scale(0.94);
+}
+
+.checkbox.feature-switch:active input:checked + .checkbox-mark::after {
+  transform: translateY(-50%) translateX(16px) scale(0.94);
 }
 
 .image-embedding-panel {
@@ -518,7 +715,6 @@ a {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface-subtle);
-  animation: reveal-section 160ms ease-out;
 }
 
 .image-columns {
@@ -549,6 +745,9 @@ a {
   gap: 5px;
 }
 
+/* ============================================================
+   Drop zones — one system for videos and images
+   ============================================================ */
 .image-drop-zone {
   display: grid;
   min-height: 118px;
@@ -559,14 +758,19 @@ a {
   background: var(--color-surface);
   cursor: pointer;
   transition:
-    border-color 140ms ease,
-    background 140ms ease;
+    border-color var(--dur-control) var(--ease-standard),
+    background var(--dur-control) var(--ease-standard),
+    box-shadow var(--dur-control) var(--ease-standard);
 }
 
-.image-drop-zone:hover,
+.image-drop-zone:hover:not(.is-disabled):not(.has-image),
 .image-drop-zone.is-dragging {
   border-color: var(--color-accent);
-  background: var(--color-accent-soft);
+  background: var(--color-accent-softer);
+}
+
+.image-drop-zone.is-dragging {
+  box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent);
 }
 
 .image-drop-zone.has-image {
@@ -592,15 +796,25 @@ a {
   font-size: 11px;
 }
 
-.image-drop-icon {
+.image-drop-icon,
+.drop-icon {
   display: grid;
-  width: 30px;
-  height: 30px;
   place-items: center;
   border-radius: 50%;
   color: var(--color-accent);
   background: var(--color-accent-soft);
+  transition: transform var(--dur-control) var(--ease-standard);
+}
+
+.image-drop-icon {
+  width: 30px;
+  height: 30px;
   font-size: 18px;
+}
+
+.image-drop-zone.is-dragging .image-drop-icon,
+.drop-zone.is-dragging .drop-icon {
+  transform: translateY(-2px) scale(1.06);
 }
 
 .selected-image {
@@ -608,13 +822,14 @@ a {
   grid-template-columns: 84px minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-3);
+  animation: fade-rise var(--dur-control) var(--ease-enter);
 }
 
 .selected-image img {
   width: 84px;
   height: 72px;
   border-radius: var(--radius-sm);
-  background: #111827;
+  background: var(--purple-900);
   object-fit: contain;
 }
 
@@ -633,6 +848,7 @@ a {
 .selected-image-meta > span {
   color: var(--color-text-muted);
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 
 .selected-image-actions {
@@ -694,6 +910,9 @@ a {
   font-weight: 700;
 }
 
+/* ============================================================
+   Inputs
+   ============================================================ */
 select,
 input[type='number'] {
   width: 100%;
@@ -704,11 +923,27 @@ input[type='number'] {
   border-radius: var(--radius-sm);
   color: var(--color-text);
   background: var(--color-surface);
+  transition:
+    border-color var(--dur-micro) var(--ease-standard),
+    background var(--dur-micro) var(--ease-standard);
+}
+
+input[type='number'] {
+  font-variant-numeric: tabular-nums;
 }
 
 select:hover:not(:disabled),
-input[type='number']:hover:not(:disabled) {
-  border-color: #8f9baa;
+input[type='number']:hover:not(:disabled),
+.time-input:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-border-strong));
+}
+
+select:focus-visible,
+input[type='number']:focus-visible,
+.time-input:focus-visible {
+  border-color: var(--color-accent);
+  outline: 3px solid color-mix(in srgb, var(--color-focus) 35%, transparent);
+  outline-offset: 0;
 }
 
 select:disabled,
@@ -777,7 +1012,11 @@ input.is-invalid {
   white-space: nowrap;
 }
 
+/* ============================================================
+   Segmented control with a sliding indicator
+   ============================================================ */
 .segmented {
+  position: relative;
   display: inline-flex;
   width: fit-content;
   max-width: 100%;
@@ -785,9 +1024,27 @@ input.is-invalid {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   background: var(--color-surface-muted);
+  isolation: isolate;
+}
+
+.segmented-indicator {
+  position: absolute;
+  z-index: 0;
+  top: 3px;
+  left: 0;
+  height: calc(100% - 6px);
+  border-radius: 6px;
+  background: var(--color-surface);
+  box-shadow: 0 1px 3px rgba(36, 27, 58, 0.12);
+  transition:
+    transform var(--dur-control) var(--ease-standard),
+    width var(--dur-control) var(--ease-standard);
+  pointer-events: none;
 }
 
 .segmented button {
+  position: relative;
+  z-index: 1;
   min-height: 30px;
   padding: 0 11px;
   border: 0;
@@ -798,6 +1055,7 @@ input.is-invalid {
   font-size: 12px;
   font-weight: 650;
   white-space: nowrap;
+  transition: color var(--dur-control) var(--ease-standard);
 }
 
 .segmented button:hover:not(:disabled) {
@@ -805,15 +1063,21 @@ input.is-invalid {
 }
 
 .segmented button.is-active {
-  color: var(--color-text);
-  background: var(--color-surface);
-  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.1);
+  color: var(--color-accent-hover);
 }
 
 .segmented button:disabled {
   cursor: not-allowed;
 }
 
+.segmented.no-indicator button.is-active {
+  background: var(--color-surface);
+  box-shadow: 0 1px 3px rgba(36, 27, 58, 0.1);
+}
+
+/* ============================================================
+   Tooltips
+   ============================================================ */
 .tooltip-anchor {
   display: inline-flex;
 }
@@ -832,12 +1096,15 @@ input.is-invalid {
   font-size: 11px;
   font-weight: 800;
   line-height: 1;
+  transition:
+    color var(--dur-micro) var(--ease-standard),
+    border-color var(--dur-micro) var(--ease-standard);
 }
 
 .tooltip-button:hover,
 .tooltip-button[aria-expanded='true'] {
   border-color: var(--color-accent);
-  color: var(--color-accent);
+  color: var(--color-accent-hover);
 }
 
 .tooltip-popover {
@@ -845,13 +1112,31 @@ input.is-invalid {
   z-index: 1000;
   width: min(280px, calc(100vw - 24px));
   padding: 9px 11px;
-  border: 1px solid #344054;
   border-radius: var(--radius-sm);
   color: #fff;
-  background: #1d2939;
+  background: var(--purple-900);
   box-shadow: var(--shadow-menu);
   font-size: 12px;
   line-height: 1.4;
+  animation: tooltip-in var(--dur-pop) var(--ease-enter);
+}
+
+.tooltip-popover::before {
+  position: absolute;
+  left: var(--tooltip-arrow-x, 50%);
+  width: 8px;
+  height: 8px;
+  background: var(--purple-900);
+  content: '';
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.tooltip-popover[data-side='bottom']::before {
+  top: -4px;
+}
+
+.tooltip-popover[data-side='top']::before {
+  bottom: -4px;
 }
 
 .add-files-section {
@@ -876,14 +1161,19 @@ input.is-invalid {
   background: var(--color-surface);
   cursor: pointer;
   transition:
-    border-color 140ms ease,
-    background 140ms ease;
+    border-color var(--dur-control) var(--ease-standard),
+    background var(--dur-control) var(--ease-standard),
+    box-shadow var(--dur-control) var(--ease-standard);
 }
 
-.drop-zone:hover,
+.drop-zone:hover:not(.is-disabled),
 .drop-zone.is-dragging {
   border-color: var(--color-accent);
-  background: var(--color-accent-soft);
+  background: var(--color-accent-softer);
+}
+
+.drop-zone.is-dragging {
+  box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent);
 }
 
 .drop-zone.is-disabled {
@@ -906,17 +1196,15 @@ input.is-invalid {
 }
 
 .drop-icon {
-  display: grid;
   width: 34px;
   height: 34px;
   flex: 0 0 auto;
-  place-items: center;
-  border-radius: 50%;
-  color: var(--color-accent);
-  background: var(--color-accent-soft);
   font-size: 20px;
 }
 
+/* ============================================================
+   Batch toolbar and overall progress
+   ============================================================ */
 .batch-toolbar {
   position: sticky;
   z-index: 30;
@@ -927,7 +1215,7 @@ input.is-invalid {
   justify-content: space-between;
   gap: var(--space-2);
   padding: 9px 10px;
-  box-shadow: 0 5px 18px rgba(16, 24, 40, 0.06);
+  box-shadow: 0 5px 18px rgba(36, 27, 58, 0.06);
 }
 
 .selection-actions,
@@ -939,6 +1227,7 @@ input.is-invalid {
   padding: 0 6px;
   color: var(--color-text-muted);
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -953,28 +1242,44 @@ input.is-invalid {
   font-size: 12px;
 }
 
+.batch-progress-heading > span {
+  min-width: 40px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
 .batch-counts {
   display: flex;
   flex-wrap: wrap;
   gap: 6px var(--space-4);
   color: var(--color-text-muted);
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 
+/* ============================================================
+   Progress bars — brand gradient, calm motion while active
+   ============================================================ */
 .progress-track {
   position: relative;
   height: 6px;
   overflow: hidden;
   border-radius: 999px;
-  background: #e5eaf0;
+  background: var(--color-surface-muted);
 }
 
 .progress-track > span {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--color-accent);
-  transition: width 220ms ease;
+  background: var(--gradient-progress);
+  background-size: 200% 100%;
+  transition: width 240ms var(--ease-standard);
+}
+
+/* The gradient drifts only while work is really happening. */
+.progress-track.is-flowing > span {
+  animation: gradient-flow 3.2s linear infinite;
 }
 
 .progress-track.is-indeterminate > span {
@@ -982,6 +1287,9 @@ input.is-invalid {
   animation: indeterminate 1.2s ease-in-out infinite;
 }
 
+/* ============================================================
+   Video cards
+   ============================================================ */
 .video-list {
   display: grid;
   gap: var(--space-2);
@@ -991,13 +1299,18 @@ input.is-invalid {
   min-width: 0;
   padding: var(--space-3);
   transition:
-    border-color 120ms ease,
-    box-shadow 120ms ease;
+    border-color var(--dur-control) var(--ease-standard),
+    box-shadow var(--dur-control) var(--ease-standard);
 }
 
 .job-row.is-selected {
   border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-border));
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
+.job-row.is-processing {
+  border-color: color-mix(in srgb, var(--color-accent) 35%, var(--color-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 7%, transparent);
 }
 
 .job-header {
@@ -1024,6 +1337,7 @@ input.is-invalid {
   white-space: nowrap;
 }
 
+/* Status chips: color transitions keep state changes calm. */
 .status-badge {
   display: inline-flex;
   min-height: 23px;
@@ -1036,18 +1350,31 @@ input.is-invalid {
   background: var(--color-surface-muted);
   font-size: 11px;
   font-weight: 700;
+  transition:
+    color var(--dur-control) var(--ease-standard),
+    background var(--dur-control) var(--ease-standard);
 }
 
 .status-analyzing,
 .status-queued,
 .status-processing {
-  color: var(--color-accent);
+  color: var(--color-accent-hover);
   background: var(--color-accent-soft);
 }
 
 .status-completed {
   color: var(--color-success);
   background: var(--color-success-soft);
+}
+
+.status-check {
+  flex: 0 0 auto;
+}
+
+.status-check path {
+  stroke-dasharray: 12;
+  stroke-dashoffset: 0;
+  animation: check-draw var(--dur-complete) var(--ease-enter);
 }
 
 .status-failed,
@@ -1076,6 +1403,7 @@ input.is-invalid {
   min-height: 30px;
   padding: 0 9px;
   font-size: 12px;
+  animation: fade-in var(--dur-control) var(--ease-enter);
 }
 
 .job-progress {
@@ -1100,6 +1428,29 @@ input.is-invalid {
 
 .job-progress-meta strong {
   width: 38px;
+}
+
+/* Wishly conversion loader: three ribbons compress into one. */
+.wishly-loader {
+  display: inline-block;
+  flex: 0 0 auto;
+  color: var(--color-accent);
+}
+
+.wishly-loader rect {
+  transform-origin: center;
+}
+
+.wishly-loader .ribbon-top {
+  animation: ribbon-squeeze-top 1.8s var(--ease-standard) infinite;
+}
+
+.wishly-loader .ribbon-bottom {
+  animation: ribbon-squeeze-bottom 1.8s var(--ease-standard) infinite;
+}
+
+.wishly-loader .ribbon-center {
+  animation: ribbon-center 1.8s var(--ease-standard) infinite;
 }
 
 .job-comparison {
@@ -1131,6 +1482,7 @@ input.is-invalid {
 .result-panel {
   border: 1px solid color-mix(in srgb, var(--color-success) 24%, var(--color-border));
   background: var(--color-success-soft);
+  animation: success-in var(--dur-complete) var(--ease-enter);
 }
 
 .panel-title-with-help {
@@ -1149,6 +1501,7 @@ input.is-invalid {
 .estimate-size,
 .result-size {
   display: flex;
+  min-height: 28px;
   flex-wrap: wrap;
   align-items: baseline;
   gap: var(--space-2);
@@ -1166,10 +1519,12 @@ input.is-invalid {
   font-size: 11px;
 }
 
+/* Estimation state: dots + shimmer inside the reserved block, so the
+   card height does not change when numbers arrive. */
 .estimate-state,
 .panel-loading {
   display: flex;
-  min-height: 26px;
+  min-height: 28px;
   align-items: center;
   gap: var(--space-2);
   color: var(--color-text-muted);
@@ -1179,6 +1534,47 @@ input.is-invalid {
 .estimate-state small {
   margin-left: auto;
   font-variant-numeric: tabular-nums;
+}
+
+.wishly-dots {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 3px;
+}
+
+.wishly-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  animation: dot-pulse 1.4s var(--ease-standard) infinite;
+}
+
+.wishly-dots i:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.wishly-dots i:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+.skeleton {
+  display: inline-block;
+  border-radius: 5px;
+  background: linear-gradient(
+    100deg,
+    var(--color-surface-muted) 40%,
+    var(--purple-100) 50%,
+    var(--color-surface-muted) 60%
+  );
+  background-size: 220% 100%;
+  animation: shimmer 1.8s linear infinite;
+}
+
+.skeleton-size {
+  width: 84px;
+  height: 16px;
 }
 
 .inline-warning,
@@ -1263,6 +1659,7 @@ input.is-invalid {
   color: var(--color-error);
   background: var(--color-error-soft);
   font-size: 12px;
+  animation: fade-rise var(--dur-control) var(--ease-enter);
 }
 
 .job-error summary {
@@ -1283,6 +1680,9 @@ input.is-invalid {
   word-break: break-word;
 }
 
+/* ============================================================
+   Checkbox
+   ============================================================ */
 .checkbox {
   position: relative;
   display: inline-flex;
@@ -1310,6 +1710,9 @@ input.is-invalid {
   border: 1px solid var(--color-border-strong);
   border-radius: 5px;
   background: var(--color-surface);
+  transition:
+    border-color var(--dur-micro) var(--ease-standard),
+    background var(--dur-micro) var(--ease-standard);
 }
 
 .checkbox input:checked + .checkbox-mark {
@@ -1327,7 +1730,7 @@ input.is-invalid {
 }
 
 .checkbox input:focus-visible + .checkbox-mark {
-  outline: 3px solid color-mix(in srgb, var(--color-focus) 40%, transparent);
+  outline: 3px solid color-mix(in srgb, var(--color-focus) 45%, transparent);
   outline-offset: 2px;
 }
 
@@ -1421,6 +1824,10 @@ input.is-invalid {
   color: var(--color-text-muted);
 }
 
+.onboarding-panel .wishly-mark {
+  margin-bottom: var(--space-1);
+}
+
 .installation-help {
   padding-top: var(--space-3);
   border-top: 1px solid var(--color-border);
@@ -1455,7 +1862,7 @@ input.is-invalid {
   background: var(--color-surface);
   box-shadow: var(--shadow-menu);
   font-size: 12px;
-  animation: toast-in 160ms ease-out;
+  animation: fade-rise var(--dur-pop) var(--ease-enter);
 }
 
 .toast-success {
@@ -1499,6 +1906,9 @@ input.is-invalid {
   white-space: nowrap;
 }
 
+/* ============================================================
+   Keyframes
+   ============================================================ */
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -1514,20 +1924,133 @@ input.is-invalid {
   }
 }
 
-@keyframes toast-in {
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes fade-rise {
   from {
     opacity: 0;
     transform: translateY(6px);
   }
 }
 
-@keyframes reveal-section {
+@keyframes pop-in {
   from {
     opacity: 0;
-    transform: translateY(-4px);
+    transform: scale(0.96) translateY(-4px);
   }
 }
 
+@keyframes tooltip-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+
+@keyframes gradient-flow {
+  from {
+    background-position: 0% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+
+@keyframes dot-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  35% {
+    opacity: 1;
+    transform: translateY(-1px);
+  }
+}
+
+@keyframes connect-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 45%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 7px transparent;
+  }
+}
+
+@keyframes check-draw {
+  from {
+    stroke-dashoffset: 12;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes success-in {
+  0% {
+    opacity: 0.4;
+    transform: scale(0.99);
+  }
+  60% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-success) 12%, transparent);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@keyframes ribbon-squeeze-top {
+  0%,
+  100% {
+    transform: translateY(0) scaleX(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: translateY(5px) scaleX(0.55);
+    opacity: 0.3;
+  }
+}
+
+@keyframes ribbon-squeeze-bottom {
+  0%,
+  100% {
+    transform: translateY(0) scaleX(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: translateY(-5px) scaleX(0.55);
+    opacity: 0.3;
+  }
+}
+
+@keyframes ribbon-center {
+  0%,
+  100% {
+    transform: scaleX(0.7);
+  }
+  50% {
+    transform: scaleX(1);
+  }
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
 @media (max-width: 1040px) {
   .custom-settings {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1670,6 +2193,10 @@ input.is-invalid {
   }
 }
 
+/* ============================================================
+   Reduced motion: no decorative loops, instant transitions,
+   progress still updates accurately.
+   ============================================================ */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -1678,5 +2205,20 @@ input.is-invalid {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+  }
+
+  .progress-track.is-flowing > span,
+  .skeleton,
+  .wishly-loader .ribbon-top,
+  .wishly-loader .ribbon-bottom,
+  .wishly-loader .ribbon-center,
+  .wishly-dots i {
+    animation: none !important;
+  }
+
+  .progress-track.is-indeterminate > span {
+    width: 100%;
+    opacity: 0.35;
+    animation: none !important;
   }
 }

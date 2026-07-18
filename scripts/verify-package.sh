@@ -1,8 +1,8 @@
 #!/bin/zsh
 set -euo pipefail
-app="$PWD/release/Local Video Compressor Agent.app"
+app="$PWD/release/Wishly Agent.app"
 product_version=$(node scripts/release-meta.mjs product-version); bundle_version=$(node scripts/release-meta.mjs bundle-version); build_number=$(node scripts/release-meta.mjs build-number); build_id=$(node scripts/release-meta.mjs build-id); api_version=$(node scripts/release-meta.mjs api-version)
-[[ -d "$app" && -x "$app/Contents/MacOS/LocalVideoCompressor" && -x "$app/Contents/Resources/runtime/node" ]]
+[[ -d "$app" && -x "$app/Contents/MacOS/WishlyAgent" && -x "$app/Contents/Resources/runtime/node" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")" == "$bundle_version" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Contents/Info.plist")" == "$build_number" ]]
 grep -q "\"productVersion\": \"$product_version\"" "$app/Contents/Resources/release.json"

@@ -27,10 +27,14 @@ export function Button({
     <button
       {...props}
       disabled={disabled || loading}
-      className={`button button-${variant} ${className}`.trim()}
+      className={`button button-${variant} ${loading ? 'is-loading' : ''} ${className}`.trim()}
     >
-      {loading && <Spinner small />}
       {children}
+      {loading && (
+        <span className="button-spinner" aria-hidden="true">
+          <Spinner small />
+        </span>
+      )}
     </button>
   );
 }
@@ -65,8 +69,44 @@ export function SegmentedControl<T extends string>({
   label: string;
   disabled?: boolean;
 }) {
+  const container = useRef<HTMLDivElement>(null);
+  const [indicator, setIndicator] = useState<{ left: number; width: number } | null>(null);
+
+  // The active indicator slides between options instead of blinking
+  // in place. Measured from the DOM so option widths can differ per
+  // language without the container jumping.
+  useLayoutEffect(() => {
+    const element = container.current;
+    if (!element) return;
+    const measure = () => {
+      const active = element.querySelector<HTMLButtonElement>('button.is-active');
+      if (!active) {
+        setIndicator(null);
+        return;
+      }
+      setIndicator({ left: active.offsetLeft, width: active.offsetWidth });
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [value, options.map(option => option.label).join('|')]);
+
   return (
-    <div className="segmented" role="radiogroup" aria-label={label}>
+    <div
+      ref={container}
+      className={`segmented ${indicator ? '' : 'no-indicator'}`.trim()}
+      role="radiogroup"
+      aria-label={label}
+    >
+      {indicator && (
+        <span
+          className="segmented-indicator"
+          aria-hidden="true"
+          style={{ width: indicator.width, transform: `translateX(${indicator.left}px)` }}
+        />
+      )}
       {options.map(option => (
         <button
           type="button"
@@ -98,11 +138,22 @@ export function Checkbox({
   );
 }
 
-export function ProgressBar({ value, label }: { value: number | null; label: string }) {
+export function ProgressBar({
+  value,
+  label,
+  active = false
+}: {
+  value: number | null;
+  label: string;
+  active?: boolean;
+}) {
   const normalized = value === null ? null : Math.min(100, Math.max(0, value));
+  const flowing = active && normalized !== null && normalized < 100;
   return (
     <div
-      className={`progress-track ${normalized === null ? 'is-indeterminate' : ''}`}
+      className={`progress-track ${normalized === null ? 'is-indeterminate' : ''} ${
+        flowing ? 'is-flowing' : ''
+      }`.trim()}
       role="progressbar"
       aria-label={label}
       aria-valuemin={0}
@@ -118,6 +169,61 @@ export function Spinner({ small = false }: { small?: boolean }) {
   return <span className={`spinner ${small ? 'spinner-small' : ''}`} aria-hidden="true" />;
 }
 
+/** Wishly conversion loader: three ribbons calmly compress into one.
+ * Pure SVG + CSS transforms, sized for the status area. */
+export function WishlyLoader({ size = 18 }: { size?: number }) {
+  return (
+    <svg
+      className="wishly-loader"
+      width={size}
+      height={size}
+      viewBox="0 0 20 20"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <rect
+        className="ribbon-top"
+        x="3"
+        y="4"
+        width="14"
+        height="2.6"
+        rx="1.3"
+        fill="currentColor"
+      />
+      <rect
+        className="ribbon-center"
+        x="3"
+        y="8.7"
+        width="14"
+        height="2.6"
+        rx="1.3"
+        fill="currentColor"
+      />
+      <rect
+        className="ribbon-bottom"
+        x="3"
+        y="13.4"
+        width="14"
+        height="2.6"
+        rx="1.3"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+/** Calm staggered dots for the estimation state — intentionally lighter
+ * than the conversion loader. */
+export function WishlyDots() {
+  return (
+    <span className="wishly-dots" aria-hidden="true">
+      <i />
+      <i />
+      <i />
+    </span>
+  );
+}
+
 export function StatusBadge({ status, t }: { status: JobStatus; t: Translate }) {
   const keys: Record<JobStatus, TranslationKey> = {
     analyzing: 'statusAnalyzing',
@@ -131,7 +237,29 @@ export function StatusBadge({ status, t }: { status: JobStatus; t: Translate }) 
   };
   return (
     <span className={`status-badge status-${status}`}>
-      <i aria-hidden="true" />
+      {status === 'processing' ? (
+        <WishlyLoader size={13} />
+      ) : status === 'completed' ? (
+        <svg
+          className="status-check"
+          width="11"
+          height="11"
+          viewBox="0 0 12 12"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <path
+            d="M2.5 6.5 5 9 9.5 3.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      ) : (
+        <i aria-hidden="true" />
+      )}
       {t(keys[status])}
     </span>
   );
@@ -145,7 +273,7 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
     focused: false,
     pinned: false
   });
-  const [position, setPosition] = useState({ left: 0, top: 0 });
+  const [position, setPosition] = useState({ left: 0, top: 0, arrowX: 0, side: 'bottom' });
   const open = interaction.hovered || interaction.focused || interaction.pinned;
   const interact = (value: TooltipInteraction) =>
     setInteraction(current => tooltipInteraction(current, value));
@@ -160,11 +288,10 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
         Math.max(12, rect.left + rect.width / 2 - width / 2)
       );
       const estimatedHeight = 88;
-      const top =
-        rect.bottom + estimatedHeight + 8 > window.innerHeight
-          ? Math.max(12, rect.top - estimatedHeight - 8)
-          : rect.bottom + 8;
-      setPosition({ left, top });
+      const side = rect.bottom + estimatedHeight + 8 > window.innerHeight ? 'top' : 'bottom';
+      const top = side === 'top' ? Math.max(12, rect.top - estimatedHeight - 8) : rect.bottom + 8;
+      const arrowX = Math.min(width - 14, Math.max(14, rect.left + rect.width / 2 - left));
+      setPosition({ left, top, arrowX, side });
     };
     update();
     window.addEventListener('resize', update);
@@ -212,7 +339,19 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
       </button>
       {open &&
         createPortal(
-          <span id={id} role="tooltip" className="tooltip-popover" style={position}>
+          <span
+            id={id}
+            role="tooltip"
+            className="tooltip-popover"
+            data-side={position.side}
+            style={
+              {
+                left: position.left,
+                top: position.top,
+                '--tooltip-arrow-x': `${position.arrowX}px`
+              } as React.CSSProperties
+            }
+          >
             {children}
           </span>,
           document.body
@@ -240,4 +379,27 @@ export function tooltipInteraction(
   if (interaction === 'blur') return { ...state, focused: false };
   if (interaction === 'toggle') return { ...state, pinned: !state.pinned };
   return { hovered: false, focused: false, pinned: false };
+}
+
+/** Expand/collapse wrapper that keeps content mounted and animates the
+ * grid row track, so blocks appear without layout jumps. */
+export function Collapse({
+  open,
+  fast = false,
+  className = '',
+  children
+}: {
+  open: boolean;
+  fast?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={`collapse ${fast ? 'collapse-fast' : ''} ${open ? 'is-open' : ''} ${className}`.trim()}
+      aria-hidden={open ? undefined : true}
+    >
+      <div className="collapse-body">{children}</div>
+    </div>
+  );
 }

@@ -8,6 +8,7 @@ import {
   MAX_SUPPORTED_AGENT_API_VERSION,
   MIN_SUPPORTED_AGENT_API_VERSION,
   PRODUCT_VERSION,
+  PRODUCTION_SITE_ORIGIN,
   RELEASE_ARTIFACT_NAME,
   RELEASE_DOWNLOAD_URL,
   RELEASE_TAG
@@ -44,6 +45,15 @@ if (
 }
 if (!RELEASE_DOWNLOAD_URL.endsWith(`/${RELEASE_TAG}/${RELEASE_ARTIFACT_NAME}`)) {
   fail('download URL does not match the tag and artifact name');
+}
+
+const productionEnv = readFileSync('config/production.env', 'utf8');
+const configuredOrigin = productionEnv.match(/^PUBLIC_SITE_ORIGIN=(.+)$/m)?.[1]?.trim();
+if (configuredOrigin !== PRODUCTION_SITE_ORIGIN) {
+  fail(
+    `config/production.env PUBLIC_SITE_ORIGIN (${configuredOrigin}) does not match ` +
+      `PRODUCTION_SITE_ORIGIN (${PRODUCTION_SITE_ORIGIN}) in packages/shared/src/release.ts`
+  );
 }
 
 for (const file of [

@@ -15,7 +15,7 @@ import {
 } from '@video-compressor/shared';
 import { compactPath } from '../format';
 import { isValidIntegerInput } from '../queue-ui';
-import { Button, SegmentedControl, Tooltip, type Translate } from './ui';
+import { Button, Collapse, SegmentedControl, Tooltip, type Translate } from './ui';
 import { ImageEmbeddingSection } from './ImageEmbeddingSection';
 
 const FPS_OPTIONS = [24, 25, 30, 50, 60];
@@ -64,16 +64,19 @@ export function SettingsPanel({
           onChange={mode => updateSettings({ mode })}
         />
       </div>
-      {settings.mode === 'optimal' ? (
-        <OptimalSummary t={t} />
-      ) : (
-        <CustomSettings
-          settings={settings}
-          disabled={disabled}
-          updateSettings={updateSettings}
-          t={t}
-        />
-      )}
+      <div className="mode-detail">
+        <Collapse open={settings.mode === 'optimal'}>
+          <OptimalSummary t={t} />
+        </Collapse>
+        <Collapse open={settings.mode === 'custom'}>
+          <CustomSettings
+            settings={settings}
+            disabled={disabled || settings.mode !== 'custom'}
+            updateSettings={updateSettings}
+            t={t}
+          />
+        </Collapse>
+      </div>
       <OutputSettings
         settings={settings}
         disabled={disabled}
@@ -143,16 +146,24 @@ function CustomSettings({
           onChange={rateControl => updateSettings({ rateControl })}
         />
       </div>
-      {settings.rateControl === 'crf' ? (
-        <CrfControl settings={settings} disabled={disabled} updateSettings={updateSettings} t={t} />
-      ) : (
-        <BitrateControl
-          settings={settings}
-          disabled={disabled}
-          updateSettings={updateSettings}
-          t={t}
-        />
-      )}
+      <div className="rate-value-field">
+        <Collapse open={settings.rateControl === 'crf'}>
+          <CrfControl
+            settings={settings}
+            disabled={disabled || settings.rateControl !== 'crf'}
+            updateSettings={updateSettings}
+            t={t}
+          />
+        </Collapse>
+        <Collapse open={settings.rateControl === 'bitrate'}>
+          <BitrateControl
+            settings={settings}
+            disabled={disabled || settings.rateControl !== 'bitrate'}
+            updateSettings={updateSettings}
+            t={t}
+          />
+        </Collapse>
+      </div>
     </div>
   );
 }
@@ -225,11 +236,11 @@ function FpsControl({
           />
         )}
       </div>
-      {choice === 'custom' && !valid && (
+      <Collapse fast open={choice === 'custom' && !valid}>
         <span className="field-error">
           {t('invalidFrameRate', { min: FRAME_RATE_MIN, max: FRAME_RATE_MAX })}
         </span>
-      )}
+      </Collapse>
     </div>
   );
 }
@@ -306,11 +317,11 @@ function ResolutionControl({
         )}
       </div>
       <span className="field-hint">{t('longestSide')}</span>
-      {choice === 'custom' && !valid && (
+      <Collapse fast open={choice === 'custom' && !valid}>
         <span className="field-error">
           {t('invalidResolution', { min: RESOLUTION_MIN, max: RESOLUTION_MAX })}
         </span>
-      )}
+      </Collapse>
     </div>
   );
 }
@@ -367,9 +378,9 @@ function CrfControl({
           }}
         />
       </div>
-      {!valid && (
+      <Collapse fast open={!valid}>
         <span className="field-error">{t('invalidCrf', { min: CRF_MIN, max: CRF_MAX })}</span>
-      )}
+      </Collapse>
     </div>
   );
 }
@@ -412,14 +423,14 @@ function BitrateControl({
         />
         <span>{t('bitrateUnit')}</span>
       </div>
-      {!valid && (
+      <Collapse fast open={!valid}>
         <span className="field-error">
           {t('invalidBitrate', {
             min: VIDEO_BITRATE_MIN_KBPS,
             max: VIDEO_BITRATE_MAX_KBPS
           })}
         </span>
-      )}
+      </Collapse>
     </div>
   );
 }

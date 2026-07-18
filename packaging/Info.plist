@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
   <key>CFBundleExecutable</key>
-  <string>LocalVideoCompressor</string>
+  <string>WishlyAgent</string>
   <key>CFBundleIdentifier</key>
   <string>local.video.compressor.test</string>
   <key>CFBundleName</key>
-  <string>Local Video Compressor Agent</string>
+  <string>Wishly Agent</string>
   <key>CFBundleDisplayName</key>
-  <string>Local Video Compressor Agent</string>
+  <string>Wishly Agent</string>
   <key>CFBundleIconFile</key>
   <string>AppIcon</string>
   <key>CFBundleShortVersionString</key>

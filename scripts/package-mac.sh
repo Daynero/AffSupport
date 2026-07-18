@@ -7,7 +7,7 @@ set -euo pipefail
 : "${X264_SOURCE_ARCHIVE:?Set X264_SOURCE_ARCHIVE to the matching x264 source archive}"
 [[ "$PUBLIC_SITE_ORIGIN" == https://* ]] || { print -u2 "PUBLIC_SITE_ORIGIN must use HTTPS"; exit 1; }
 node_binary="${NODE_BINARY:-$(command -v node)}"; [[ -x "$node_binary" ]] || { print -u2 "No node binary found; set NODE_BINARY to a portable arm64 Node.js"; exit 1; }
-output_app="$PWD/release/Local Video Compressor Agent.app"
+output_app="$PWD/release/Wishly Agent.app"
 for input in "$node_binary" "$FFMPEG_BINARY" "$FFPROBE_BINARY" "$FFMPEG_SOURCE_ARCHIVE" "$X264_SOURCE_ARCHIVE"; do
   case "${input:A}" in
     "${output_app:A}"/*) print -u2 "Package input must not be inside the output app: $input"; exit 1 ;;
@@ -22,7 +22,7 @@ api_version=$(node scripts/release-meta.mjs api-version)
 release_channel=$(node scripts/release-meta.mjs release-channel)
 dmg_name=$(node scripts/release-meta.mjs artifact-name)
 source_revision=$(git rev-parse HEAD)
-root="$PWD/release"; app="$root/Local Video Compressor Agent.app"; archive="$root/${dmg_name%.dmg}.zip"
+root="$PWD/release"; app="$root/Wishly Agent.app"; archive="$root/${dmg_name%.dmg}.zip"
 mkdir -p "$root"
 [[ ! -e "$archive" ]] || { print -u2 "$archive already exists. Published build identities are immutable; bump PRODUCT_VERSION and BUILD_NUMBER."; exit 1; }
 rm -rf "$app"; mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/runtime/bin" "$app/Contents/Resources/agent"
@@ -34,7 +34,7 @@ node scripts/render-launcher.mjs packaging/Launcher.swift "$root/Launcher.genera
   "API_VERSION=$api_version" \
   "RELEASE_CHANNEL=$release_channel" \
   "SOURCE_REVISION=$source_revision"
-swiftc "$root/Launcher.generated.swift" -o "$app/Contents/MacOS/LocalVideoCompressor" -framework AppKit
+swiftc "$root/Launcher.generated.swift" -o "$app/Contents/MacOS/WishlyAgent" -framework AppKit
 cp "$node_binary" "$app/Contents/Resources/runtime/node"; cp "$FFMPEG_BINARY" "$app/Contents/Resources/runtime/bin/ffmpeg"; cp "$FFPROBE_BINARY" "$app/Contents/Resources/runtime/bin/ffprobe"
 cp -R apps/agent/dist apps/agent/package.json node_modules "$app/Contents/Resources/agent/"; rm -rf "$app/Contents/Resources/agent/node_modules/@video-compressor"; mkdir -p "$app/Contents/Resources/agent/node_modules/@video-compressor/shared"; cp -R packages/shared/dist packages/shared/package.json "$app/Contents/Resources/agent/node_modules/@video-compressor/shared/"
 rm -rf "$app/Contents/Resources/agent/node_modules/ffmpeg-static" "$app/Contents/Resources/agent/node_modules/@derhuerst/ffprobe-static"

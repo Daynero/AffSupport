@@ -34,8 +34,18 @@ describe('image embedding settings UI', () => {
   it('keeps the compact section hidden until the switch is enabled', async () => {
     const user = userEvent.setup({ applyAccept: false });
     render(<SettingsHarness />);
-    expect(screen.queryByText('Opening frame')).toBeNull();
+    // The panel stays mounted for a smooth expand animation but is hidden
+    // from assistive technology until the switch is enabled.
+    const hiddenPanel = screen.getByText('Opening frame').closest('.collapse');
+    expect(hiddenPanel?.getAttribute('aria-hidden')).toBe('true');
+    expect(hiddenPanel?.classList.contains('is-open')).toBe(false);
     await user.click(screen.getByText('Embed images into video'));
+    expect(
+      screen.getByText('Opening frame').closest('.collapse')?.getAttribute('aria-hidden')
+    ).toBe(null);
+    expect(
+      screen.getByText('Opening frame').closest('.collapse')?.classList.contains('is-open')
+    ).toBe(true);
     expect(screen.getByText('Opening frame')).toBeTruthy();
     expect(screen.getByText('Final image')).toBeTruthy();
     expect(

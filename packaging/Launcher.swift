@@ -86,11 +86,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     item.button?.image = NSImage(
       systemSymbolName: "film.stack",
-      accessibilityDescription: "Local Video Compressor Agent"
+      accessibilityDescription: "Wishly Agent"
     )
     let menu = NSMenu()
     let openItem = menu.addItem(
-      withTitle: "Open Local Video Compressor",
+      withTitle: "Open Wishly",
       action: #selector(openInterface),
       keyEquivalent: "o"
     )
@@ -103,7 +103,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     versionItem.isEnabled = false
     menu.addItem(.separator())
     let quitItem = menu.addItem(
-      withTitle: "Quit Local Video Compressor Agent",
+      withTitle: "Quit Wishly Agent",
       action: #selector(quit),
       keyEquivalent: "q"
     )
@@ -403,7 +403,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     NSApp.activate(ignoringOtherApps: true)
     let alert = NSAlert()
     alert.alertStyle = .critical
-    alert.messageText = "Local Video Compressor Agent could not start"
+    alert.messageText = "Wishly Agent could not start"
     alert.informativeText = details.isEmpty ? message : "\(message)\n\n\(details)"
     alert.addButton(withTitle: "Quit")
     alert.runModal()

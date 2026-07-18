@@ -19,7 +19,16 @@ import {
 } from '../format';
 import type { Language } from '../i18n';
 import { elapsedMilliseconds, timerState } from '../queue-ui';
-import { Button, Checkbox, ProgressBar, Spinner, StatusBadge, Tooltip, type Translate } from './ui';
+import {
+  Button,
+  Checkbox,
+  ProgressBar,
+  Spinner,
+  StatusBadge,
+  Tooltip,
+  WishlyDots,
+  type Translate
+} from './ui';
 
 export function JobRow({
   job,
@@ -42,7 +51,11 @@ export function JobRow({
 }) {
   const [copiedDetails, setCopiedDetails] = useState(false);
   return (
-    <article className={`job-row ${selected ? 'is-selected' : ''}`}>
+    <article
+      className={`job-row ${selected ? 'is-selected' : ''} ${
+        job.status === 'processing' ? 'is-processing' : ''
+      }`.trim()}
+    >
       <div className="job-header">
         <Checkbox
           checked={selected}
@@ -73,6 +86,7 @@ export function JobRow({
           <ProgressBar
             value={job.status === 'queued' ? 0 : job.progress}
             label={t('compressionProgress', { name: job.fileName })}
+            active={job.status === 'processing'}
           />
           <div className="job-progress-meta">
             {job.processingStage && <span>{processingStage(job, t)}</span>}
@@ -189,7 +203,11 @@ function EstimatePanel({
         </>
       ) : (
         <div className="estimate-state">
-          {(job.estimateStatus === 'estimating' || !current) && <Spinner small />}
+          {job.estimateStatus === 'estimating' || !current ? (
+            <WishlyDots />
+          ) : (
+            <span className="skeleton skeleton-size" aria-hidden="true" />
+          )}
           <span>{status}</span>
           {job.estimateProgress && (
             <small>

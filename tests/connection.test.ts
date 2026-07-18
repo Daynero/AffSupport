@@ -20,32 +20,19 @@ describe('agent compatibility', () => {
     expect(versionState(MAX_SUPPORTED_API_VERSION + 1)).toBe('web_update_required');
   });
   it('pairs hosted pages through the production redirect and local pages locally', () => {
-    expect(
-      pairingPath('http://127.0.0.1:43120', 'https://local-video-compressor-test.pages.dev')
-    ).toBe('/pair');
+    expect(pairingPath('http://127.0.0.1:43120', 'https://wishly-app.pages.dev')).toBe('/pair');
     expect(pairingPath('http://127.0.0.1:43120', 'http://127.0.0.1:43120')).toBe('/local');
   });
   it('lets browsers classify the loopback Agent instead of mislabeling it as local', () => {
-    expect(
-      agentFetchOptions('http://127.0.0.1:43120', 'https://local-video-compressor-test.pages.dev')
-    ).toEqual({});
-    expect(
-      agentFetchOptions('http://localhost:43120', 'https://local-video-compressor-test.pages.dev')
-    ).toEqual({});
-    expect(
-      agentFetchOptions('http://[::1]:43120', 'https://local-video-compressor-test.pages.dev')
-    ).toEqual({});
+    expect(agentFetchOptions('http://127.0.0.1:43120', 'https://wishly-app.pages.dev')).toEqual({});
+    expect(agentFetchOptions('http://localhost:43120', 'https://wishly-app.pages.dev')).toEqual({});
+    expect(agentFetchOptions('http://[::1]:43120', 'https://wishly-app.pages.dev')).toEqual({});
   });
 
   it('refuses to start pairing when the local Agent is unreachable', async () => {
     const fetcher = vi.fn().mockRejectedValue(new TypeError('Connection refused'));
     await expect(
-      probeAgent(
-        'http://127.0.0.1:43120',
-        'https://local-video-compressor-test.pages.dev',
-        undefined,
-        fetcher
-      )
+      probeAgent('http://127.0.0.1:43120', 'https://wishly-app.pages.dev', undefined, fetcher)
     ).rejects.toThrow('CONNECTION_FAILED');
   });
 
@@ -57,12 +44,7 @@ describe('agent compatibility', () => {
       })
     );
     await expect(
-      probeAgent(
-        'http://127.0.0.1:43120',
-        'https://local-video-compressor-test.pages.dev',
-        undefined,
-        fetcher
-      )
+      probeAgent('http://127.0.0.1:43120', 'https://wishly-app.pages.dev', undefined, fetcher)
     ).resolves.toBeUndefined();
     expect(fetcher).toHaveBeenCalledWith(
       'http://127.0.0.1:43120/health',
@@ -78,12 +60,7 @@ describe('agent compatibility', () => {
       })
     );
     await expect(
-      probeAgent(
-        'http://127.0.0.1:43120',
-        'https://local-video-compressor-test.pages.dev',
-        undefined,
-        fetcher
-      )
+      probeAgent('http://127.0.0.1:43120', 'https://wishly-app.pages.dev', undefined, fetcher)
     ).rejects.toThrow('CONNECTION_FAILED');
   });
 });

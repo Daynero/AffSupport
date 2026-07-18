@@ -840,7 +840,7 @@ function issue(
 
 function uploadedOutputFolder() {
   const videosFolder = process.platform === 'darwin' ? 'Movies' : 'Videos';
-  return path.join(os.homedir(), videosFolder, 'Video Compressor');
+  return path.join(os.homedir(), videosFolder, 'Wishly');
 }
 
 function friendlyError(stderr: string) {

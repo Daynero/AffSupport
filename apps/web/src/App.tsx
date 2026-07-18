@@ -44,6 +44,7 @@ import { DropZone } from './components/DropZone';
 import { JobRow } from './components/JobRow';
 import { SettingsPanel } from './components/SettingsPanel';
 import { Button, ProgressBar, Spinner, type Translate } from './components/ui';
+import { WishlyLogo, WishlyMark } from './components/WishlyLogo';
 
 const defaultSettings: AgentSettings = {
   mode: 'optimal',
@@ -595,7 +596,9 @@ function Header({
 }) {
   return (
     <header className="topbar">
-      <h1>{t('appName')}</h1>
+      <h1>
+        <WishlyLogo name={t('appName')} />
+      </h1>
       <div className="topbar-actions">
         <div className="language-switch" aria-label={t('language')}>
           <button
@@ -736,6 +739,7 @@ function Onboarding({
   }
   return (
     <section className="onboarding-panel">
+      <WishlyMark size={40} />
       <h2>{t('onboardingTitle')}</h2>
       <p>{t('onboardingBody')}</p>
       <div className="inline-actions">
@@ -793,7 +797,11 @@ function BatchProgress({ metrics, t }: { metrics: ReturnType<typeof batchMetrics
         <strong>{t('batchProgress')}</strong>
         <span>{Math.round(metrics.progress)}%</span>
       </div>
-      <ProgressBar value={metrics.progress} label={t('overallProgress')} />
+      <ProgressBar
+        value={metrics.progress}
+        label={t('overallProgress')}
+        active={metrics.processing > 0}
+      />
       <div className="batch-counts">
         <span>{t('queuedCount', { count: metrics.queued })}</span>
         <span>{t('processingCount', { count: metrics.processing })}</span>

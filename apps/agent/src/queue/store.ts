@@ -1,6 +1,6 @@
 import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import os from 'node:os';
+import { applicationSupportRoot } from '../files/support-dir.js';
 import {
   DEFAULT_CRF,
   DEFAULT_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
@@ -43,16 +43,7 @@ export const defaultSettings: AgentSettings = {
 };
 
 export function defaultStatePath() {
-  return (
-    process.env.AGENT_STATE_PATH ??
-    path.join(
-      os.homedir(),
-      'Library',
-      'Application Support',
-      'Local Video Compressor',
-      'state.json'
-    )
-  );
+  return process.env.AGENT_STATE_PATH ?? path.join(applicationSupportRoot(), 'state.json');
 }
 
 export async function loadState(file = defaultStatePath()): Promise<PersistedState> {

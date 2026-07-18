@@ -1,6 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import os from 'node:os';
+import { applicationSupportRoot } from '../files/support-dir.js';
 import {
   jobConfigurationKey,
   type EncodingSettings,
@@ -22,16 +22,7 @@ interface CacheFile {
 }
 
 export function defaultCachePath() {
-  return (
-    process.env.AGENT_CACHE_PATH ??
-    path.join(
-      os.homedir(),
-      'Library',
-      'Application Support',
-      'Local Video Compressor',
-      'estimate-cache.json'
-    )
-  );
+  return process.env.AGENT_CACHE_PATH ?? path.join(applicationSupportRoot(), 'estimate-cache.json');
 }
 
 export function estimateCacheKey(

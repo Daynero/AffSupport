@@ -14,7 +14,7 @@ import {
   type ImageSlot
 } from '@video-compressor/shared';
 import type { TranslationKey } from '../i18n';
-import { Button, Checkbox, Spinner, Tooltip, type Translate } from './ui';
+import { Button, Checkbox, Collapse, Spinner, Tooltip, type Translate } from './ui';
 
 const supportedExtensions = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 const supportedMimeTypes = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -74,7 +74,7 @@ export function ImageEmbeddingSection({
         <Tooltip label={t('embedImagesTooltip')}>{t('embedImagesTooltip')}</Tooltip>
       </div>
 
-      {settings.enabled && (
+      <Collapse open={settings.enabled}>
         <div className="image-embedding-panel">
           <div className="image-columns">
             <ImageColumn
@@ -138,9 +138,9 @@ export function ImageEmbeddingSection({
                         if (seconds !== null) update({ customFinalDurationSeconds: seconds }, true);
                       }}
                     />
-                    {!customTimeValid && (
+                    <Collapse fast open={!customTimeValid}>
                       <span className="field-error">{t('invalidCustomDuration')}</span>
-                    )}
+                    </Collapse>
                   </>
                 )}
               </div>
@@ -172,7 +172,7 @@ export function ImageEmbeddingSection({
             </p>
           )}
         </div>
-      )}
+      </Collapse>
     </div>
   );
 }

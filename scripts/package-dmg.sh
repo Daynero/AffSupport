@@ -1,17 +1,17 @@
 #!/bin/zsh
 set -euo pipefail
-root="$PWD/release"; app="$root/Local Video Compressor Agent.app"; dmg_name=$(node scripts/release-meta.mjs artifact-name); dmg="$root/$dmg_name"
+root="$PWD/release"; app="$root/Wishly Agent.app"; dmg_name=$(node scripts/release-meta.mjs artifact-name); dmg="$root/$dmg_name"
 [[ -d "$app" ]] || { print -u2 "Build the app first with npm run package:mac"; exit 1; }
 [[ ! -e "$dmg" ]] || { print -u2 "$dmg already exists. Published build identities are immutable; bump PRODUCT_VERSION and BUILD_NUMBER."; exit 1; }
-stage="$root/dmg-stage"; rw="$root/LocalVideoCompressor-rw.dmg"; rm -rf "$stage"; rm -f "$rw"; mkdir -p "$stage/.background"
+stage="$root/dmg-stage"; rw="$root/Wishly-rw.dmg"; rm -rf "$stage"; rm -f "$rw"; mkdir -p "$stage/.background"
 cp -R "$app" "$stage/"; ln -s /Applications "$stage/Applications"
 swiftc packaging/DmgBackground.swift -o "$root/DmgBackground" -framework AppKit; "$root/DmgBackground" "$stage/.background/background.png"
-hdiutil create -quiet -srcfolder "$stage" -volname "Local Video Compressor Agent" -fs HFS+ -format UDRW "$rw"
+hdiutil create -quiet -srcfolder "$stage" -volname "Wishly Agent" -fs HFS+ -format UDRW "$rw"
 device=$(hdiutil attach -readwrite -noverify -noautoopen "$rw" | awk '/Apple_HFS/{print $1; exit}')
-mount="/Volumes/Local Video Compressor Agent"
+mount="/Volumes/Wishly Agent"
 osascript <<APPLESCRIPT
 tell application "Finder"
-  tell disk "Local Video Compressor Agent"
+  tell disk "Wishly Agent"
     open
     set current view of container window to icon view
     set toolbar visible of container window to false
@@ -21,7 +21,7 @@ tell application "Finder"
     set arrangement of theViewOptions to not arranged
     set icon size of theViewOptions to 104
     set background picture of theViewOptions to file ".background:background.png"
-    set position of item "Local Video Compressor Agent.app" of container window to {175, 205}
+    set position of item "Wishly Agent.app" of container window to {175, 205}
     set position of item "Applications" of container window to {485, 205}
     close
     open

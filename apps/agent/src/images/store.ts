@@ -3,10 +3,10 @@ import { constants, createWriteStream } from 'node:fs';
 import { access, mkdir, stat, unlink } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
 import type { Readable } from 'node:stream';
-import os from 'node:os';
 import path from 'node:path';
 import type { ImageAsset, ImageMimeType } from '@video-compressor/shared';
 import { probeImage } from '../ffmpeg/tools.js';
+import { applicationSupportRoot } from '../files/support-dir.js';
 
 const formats = {
   '.png': { mimeType: 'image/png', codec: 'png' },
@@ -24,10 +24,7 @@ export class ImageAssetError extends Error {
 }
 
 export function defaultImageRoot() {
-  return (
-    process.env.AGENT_IMAGE_PATH ??
-    path.join(os.homedir(), 'Library', 'Application Support', 'Local Video Compressor', 'Images')
-  );
+  return process.env.AGENT_IMAGE_PATH ?? path.join(applicationSupportRoot(), 'Images');
 }
 
 export function isSupportedImageFile(fileName: string, mimeType?: string) {

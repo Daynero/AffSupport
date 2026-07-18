@@ -1,3 +1,23 @@
+# v0.4.0-test.1
+
+The product is now **Wishly**, and the macOS menu bar app is **Wishly Agent** (Agent API v5).
+
+- Full rebrand from Local Video Compressor to Wishly / Wishly Agent, including a new app icon and a new DMG appearance.
+- New purple design system and motion system in the web UI.
+- New hosted origin: <https://wishly-app.pages.dev>.
+- Local queue, settings, estimate cache and managed images are migrated automatically from the old `~/Library/Application Support/Local Video Compressor` directory on the first launch of Wishly Agent.
+- Uploaded (dropped) outputs are now saved to `~/Movies/Wishly`.
+
+## Updating the test build
+
+Because the app bundle was renamed, dragging Wishly Agent into Applications does **not** replace the old app. Quit **Local Video Compressor Agent** from its menu bar icon, delete it from Applications, then install **Wishly Agent** from the new DMG. Your local data is migrated automatically.
+
+This remains an ad-hoc-signed, non-notarized Apple Silicon test build. After copying it to Applications, run:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Wishly Agent.app"
+```
+
 # v0.3.0-test.2
 
 This patch release fixes the **Embed images into video** switch in the bundled and hosted interfaces. The web client now sends only writable image settings to the Agent; managed opening/final image metadata remains restricted to the dedicated image API. This prevents the `400 Bad Request` response that previously returned the switch to its off state.

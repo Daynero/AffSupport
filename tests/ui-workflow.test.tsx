@@ -44,8 +44,12 @@ describe('compression settings UI', () => {
     expect(markup).toContain('Original resolution');
     expect(markup).toContain('Original frame rate');
     expect(markup).toContain('CRF 26');
-    expect(markup).not.toContain('type="range"');
-    expect(markup).not.toContain('Target bitrate</button>');
+    // Custom settings stay mounted for smooth expand/collapse, but they are
+    // hidden from assistive tech and their controls are disabled.
+    expect(markup).toMatch(
+      /<div class="collapse" aria-hidden="true"><div class="collapse-body"><div class="custom-settings">/
+    );
+    expect(markup).toMatch(/type="range"[^>]*disabled=""|disabled=""[^>]*type="range"/);
   });
 
   it('shows consistent custom FPS, resolution and mutually exclusive rate controls', () => {
@@ -67,7 +71,9 @@ describe('compression settings UI', () => {
     expect(crfMarkup).toContain('25 FPS');
     expect(crfMarkup).toContain('720p');
     expect(crfMarkup).toContain('type="range"');
-    expect(crfMarkup).not.toContain('aria-label="Video bitrate"');
+    // The bitrate input exists for the sliding transition but is inert.
+    expect(crfMarkup).toContain('disabled="" aria-label="Video bitrate"');
+    expect(crfMarkup).not.toMatch(/type="range"[^/]*disabled/);
 
     const bitrateMarkup = renderToStaticMarkup(
       <SettingsPanel
@@ -79,7 +85,8 @@ describe('compression settings UI', () => {
       />
     );
     expect(bitrateMarkup).toContain('aria-label="Video bitrate"');
-    expect(bitrateMarkup).not.toContain('type="range"');
+    expect(bitrateMarkup).not.toContain('disabled="" aria-label="Video bitrate"');
+    expect(bitrateMarkup).toMatch(/type="range"[^>]*disabled=""|disabled=""[^>]*type="range"/);
   });
 
   it('renders both languages from the same settings object without changing values', () => {
