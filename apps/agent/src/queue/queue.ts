@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { access, statfs, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
-import { DEFAULT_FRAME_RATE, clampCrf, clampFrameRate, clampVideoBitrateKbps, type AgentEventType, type AgentSettings, type CompressionJob, type QueueState, type SelectionWarning } from '@video-compressor/shared';
+import { DEFAULT_FRAME_RATE, DEFAULT_RESOLUTION_LIMIT, clampCrf, clampFrameRate, clampResolutionLimit, clampVideoBitrateKbps, type AgentEventType, type AgentSettings, type CompressionJob, type QueueState, type SelectionWarning } from '@video-compressor/shared';
 import { encodeVideo, isAudioCopyFailure } from '../ffmpeg/encoder.js';
 import { PRESETS } from '../ffmpeg/presets.js';
 import { probeMedia } from '../ffmpeg/tools.js';
@@ -13,7 +13,7 @@ export class JobQueue {
   private started = false;
   private warning: string | null = null;
   private estimateHooks: { schedule: () => void; invalidateForPreset: (preset: CompressionJob['preset']) => void; resume:()=>void } | null = null;
-  constructor(private tools: QueueState['tools'], private notify: (event?: AgentEventType) => void, private jobs: CompressionJob[] = [], private settings: AgentSettings = { preset: 'balanced', outputMode: 'next-to-originals', outputFolder: null, frameRate: DEFAULT_FRAME_RATE, videoBitrateKbps: null, keepResolution: true }) {}
+  constructor(private tools: QueueState['tools'], private notify: (event?: AgentEventType) => void, private jobs: CompressionJob[] = [], private settings: AgentSettings = { preset: 'balanced', outputMode: 'next-to-originals', outputFolder: null, frameRate: DEFAULT_FRAME_RATE, videoBitrateKbps: null, keepResolution: true, resolutionLimit: DEFAULT_RESOLUTION_LIMIT }) {}
   attachEstimator(hooks: { schedule: () => void; invalidateForPreset: (preset: CompressionJob['preset']) => void; resume:()=>void }) { this.estimateHooks=hooks; }
   state(): QueueState { return { jobs: this.jobs.map(j => ({ ...j })), running: Boolean(this.active) || (this.started && this.jobs.some(j => j.status === 'queued')), tools: this.tools, settings: { ...this.settings }, warning: this.warning }; }
   persisted() { return { jobs: this.jobs.map(j => ({ ...j })), settings: { ...this.settings } }; }
@@ -23,8 +23,9 @@ export class JobQueue {
     if (next.frameRate !== undefined) next = { ...next, frameRate: clampFrameRate(next.frameRate) };
     if (next.crf !== undefined) next = { ...next, crf: clampCrf(next.crf) };
     if (next.videoBitrateKbps !== undefined) next = { ...next, videoBitrateKbps: clampVideoBitrateKbps(next.videoBitrateKbps) };
+    if (next.resolutionLimit !== undefined) next = { ...next, resolutionLimit: clampResolutionLimit(next.resolutionLimit) };
     const presetChanged = Boolean(next.preset && next.preset !== this.settings.preset);
-    const encodeKeys = ['frameRate', 'crf', 'videoBitrateKbps', 'keepResolution'] as const;
+    const encodeKeys = ['frameRate', 'crf', 'videoBitrateKbps', 'keepResolution', 'resolutionLimit'] as const;
     const encodeChanged = encodeKeys.some(key => next[key] !== undefined && next[key] !== this.settings[key]);
     this.settings = { ...this.settings, ...next };
     if (presetChanged) for (const job of this.jobs) if (['queued', 'failed', 'interrupted', 'cancelled'].includes(job.status)) job.preset = this.settings.preset;

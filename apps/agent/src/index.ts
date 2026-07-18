@@ -6,7 +6,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import open from 'open';
-import { CRF_MAX, CRF_MIN, FRAME_RATE_MAX, FRAME_RATE_MIN, VIDEO_BITRATE_MAX_KBPS, VIDEO_BITRATE_MIN_KBPS, type AgentEvent } from '@video-compressor/shared';
+import { CRF_MAX, CRF_MIN, FRAME_RATE_MAX, FRAME_RATE_MIN, RESOLUTION_MAX, RESOLUTION_MIN, VIDEO_BITRATE_MAX_KBPS, VIDEO_BITRATE_MIN_KBPS, type AgentEvent } from '@video-compressor/shared';
 import { commandExists } from './ffmpeg/tools.js';
 import { selectOutputFolder, selectVideos } from './files/picker.js';
 import { JobQueue } from './queue/queue.js';
@@ -89,6 +89,7 @@ app.post<{ Body: Partial<AgentSettings> }>('/api/settings', async (request, repl
   if (body.crf !== undefined) { const n = Number(body.crf); if (!Number.isInteger(n) || n < CRF_MIN || n > CRF_MAX) return reply.code(400).send({ error: 'Invalid quality.' }); allowed.crf = n; }
   if (body.videoBitrateKbps !== undefined) { if (body.videoBitrateKbps === null) allowed.videoBitrateKbps = null; else { const n = Number(body.videoBitrateKbps); if (!Number.isInteger(n) || n < VIDEO_BITRATE_MIN_KBPS || n > VIDEO_BITRATE_MAX_KBPS) return reply.code(400).send({ error: 'Invalid bitrate.' }); allowed.videoBitrateKbps = n; } }
   if (body.keepResolution !== undefined) { if (typeof body.keepResolution !== 'boolean') return reply.code(400).send({ error: 'Invalid resolution option.' }); allowed.keepResolution = body.keepResolution; }
+  if (body.resolutionLimit !== undefined) { const n = Number(body.resolutionLimit); if (!Number.isInteger(n) || n < RESOLUTION_MIN || n > RESOLUTION_MAX) return reply.code(400).send({ error: 'Invalid resolution.' }); allowed.resolutionLimit = n; }
   queue.updateSettings(allowed); return queue.state();
 });
 app.post('/api/queue/start', async (_request, reply) => {

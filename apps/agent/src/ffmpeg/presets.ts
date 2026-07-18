@@ -2,8 +2,8 @@ import type { PresetId } from '@video-compressor/shared';
 
 export interface PresetDefinition { id: PresetId; crf: string; ffPreset: string; scaleLimit: number | null; fpsCap: number | null; audioCopyFirst: boolean; audio: string[] }
 // Manual Quality controls. Ignored by Balanced/Ultra Small, which keep their fixed definitions.
-export interface EncodeOptions { frameRate?: number; crf?: number; videoBitrateKbps?: number | null; keepResolution?: boolean }
-// Longest side used when the Quality "keep resolution" option is turned off.
+export interface EncodeOptions { frameRate?: number; crf?: number; videoBitrateKbps?: number | null; keepResolution?: boolean; resolutionLimit?: number }
+// Longest side used when the Quality "keep resolution" option is off and no custom value is given.
 export const QUALITY_DOWNSCALE_LIMIT = 1920;
 const fit = (limit: number) => `scale='if(gte(iw,ih),min(${limit},iw),-2)':'if(gte(iw,ih),-2,min(${limit},ih))'`;
 export const PRESETS: Record<PresetId, PresetDefinition> = {
@@ -22,7 +22,7 @@ export function videoArgs(presetId: PresetId, options: EncodeOptions = {}): stri
   if (bitrate) args.push('-b:v', `${bitrate}k`, '-maxrate', `${bitrate}k`, '-bufsize', `${bitrate * 2}k`);
   else args.push('-crf', String(advanced && options.crf != null ? options.crf : preset.crf));
   const filters: string[] = [];
-  const scaleLimit = advanced ? (options.keepResolution === false ? QUALITY_DOWNSCALE_LIMIT : null) : preset.scaleLimit;
+  const scaleLimit = advanced ? (options.keepResolution === false ? (options.resolutionLimit ?? QUALITY_DOWNSCALE_LIMIT) : null) : preset.scaleLimit;
   if (scaleLimit) filters.push(fit(scaleLimit));
   const fpsCap = advanced ? (options.frameRate ?? null) : preset.fpsCap;
   if (fpsCap != null) filters.push(`fps='min(${fpsCap},source_fps)'`);

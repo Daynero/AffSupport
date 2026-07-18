@@ -52,7 +52,7 @@ Each queued video shows its source resolution, frame rate, and bitrate. Changing
 
 ### Presets
 
-- **Quality:** original dimensions, copied audio when compatible, controlled AAC 96k fallback. Manual controls (only on this preset): a frame-rate slider (24–120 fps, never above the source), a **quality (CRF)** slider (14–34, lower is better/larger), an optional **target bitrate** (kbps) that overrides CRF when set, and a **keep original resolution** checkbox (on by default; off downscales to 1080p). Balanced and Ultra Small keep their own fixed caps regardless of these controls.
+- **Quality:** original dimensions, copied audio when compatible, controlled AAC 96k fallback. Manual controls (only on this preset): a frame-rate slider (24–120 fps, never above the source), a **quality (CRF)** slider (14–34, lower is better/larger), an optional **target bitrate** (kbps) that overrides CRF when set, and a **keep original resolution** checkbox (on by default; off reveals a field to type the target longest side in pixels, default 1080p, aspect ratio preserved, never upscaled). Balanced and Ultra Small keep their own fixed caps regardless of these controls.
 - **Balanced** (default): H.264 CRF 26, longest side up to 720 px, at most 24 FPS, AAC 96k.
 - **Ultra Small:** H.264 CRF 30, longest side up to 550 px, at most 20 FPS, mono AAC 48k.
 
