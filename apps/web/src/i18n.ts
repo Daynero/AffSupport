@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { analytics } from './analytics/service';
 
 export type Language = 'en' | 'uk';
@@ -833,6 +833,8 @@ export function useI18n() {
           : [navigator.language]
     )
   );
+  const languageRef = useRef(language);
+  languageRef.current = language;
   useEffect(() => {
     localStorage.setItem('language', language);
     document.documentElement.lang = language;
@@ -855,14 +857,13 @@ export function useI18n() {
     };
   }, []);
   const setLanguage = useCallback((next: Language) => {
-    update(current => {
-      if (current === next) return current;
-      localStorage.setItem('language', next);
-      analytics.setLocale(next);
-      analytics.track('language_changed', { language: next });
-      window.dispatchEvent(new CustomEvent('wishly-language-changed', { detail: next }));
-      return next;
-    });
+    if (languageRef.current === next) return;
+    languageRef.current = next;
+    update(next);
+    localStorage.setItem('language', next);
+    analytics.setLocale(next);
+    analytics.track('language_changed', { language: next });
+    window.dispatchEvent(new CustomEvent('wishly-language-changed', { detail: next }));
   }, []);
   const t = useMemo(
     () => (key: TranslationKey, values?: Record<string, string | number>) =>

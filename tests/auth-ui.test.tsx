@@ -132,6 +132,7 @@ describe('Wishly login and OAuth callback', () => {
   });
 
   it('switches the complete login experience to Ukrainian without changing routes', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     render(
       <AuthContextOverride value={authValue()}>
         <LoginPage />
@@ -144,6 +145,7 @@ describe('Wishly login and OAuth callback', () => {
       'Продовжуючи, ви погоджуєтеся з Умовами використання та Політикою конфіденційності.'
     );
     expect(location.pathname).toBe('/login');
+    expect(consoleError).not.toHaveBeenCalled();
   });
 
   it('redirects an authenticated visitor away from /login', async () => {
