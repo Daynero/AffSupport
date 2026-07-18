@@ -16,7 +16,7 @@ The agent listens only on `http://127.0.0.1:43120` and opens the paired website 
 
 ## Hosted closed test
 
-Cloudflare Pages needs no backend or Functions: videos are selected through the local agent and never enter the web build. Create a GitHub repository, connect it in Pages, set build command `npm ci && npm run build:web`, output directory `apps/web/dist`, and variables `VITE_AGENT_URL=http://127.0.0.1:43120` plus `VITE_AGENT_DOWNLOAD_URL` from `.env.example`. Deploy, copy the exact HTTPS origin, then build the agent with that origin. The included `_redirects` supplies SPA fallback.
+Cloudflare Pages needs no backend or Functions: videos are selected through the local agent and never enter the web build. The current `local-video-compressor-test` Pages project uses Direct Upload, so pushing GitHub does not deploy it. After `npx wrangler login`, publish a verified build with `npm run deploy:web`. The production values in `apps/web/.env.production` set the loopback Agent URL and release download URL; the included `_redirects` supplies SPA fallback. If another Pages project is used, update those values and build the Agent with that project's exact HTTPS origin.
 
 Before packaging, obtain matching standalone Apple Silicon FFmpeg and FFprobe from a reviewed, reproducible distribution; record version, configure flags, license, source URL and checksums in `THIRD_PARTY_NOTICES.md`. Homebrew-linked binaries are rejected. Then run:
 

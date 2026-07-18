@@ -10,6 +10,7 @@
     "dev": "concurrently -k -n agent,web \"npm run dev -w @video-compressor/agent\" \"npm run dev -w @video-compressor/web\"",
     "build": "npm run build:web && npm run build -w @video-compressor/agent",
     "build:web": "npm run build -w @video-compressor/shared && npm run build -w @video-compressor/web",
+    "deploy:web": "npm run build:web && npx --yes wrangler@4.112.0 pages deploy apps/web/dist --project-name local-video-compressor-test --branch main",
     "package:mac": "npm run build && zsh scripts/package-mac.sh",
     "package:dmg": "zsh scripts/package-dmg.sh",
     "verify:dmg": "zsh scripts/verify-dmg.sh",
