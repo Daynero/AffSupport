@@ -2,10 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { access, statfs, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
-import { DEFAULT_FRAME_RATE, clampFrameRate, type AgentEventType, type AgentSettings, type CompressionJob, type QueueState, type SelectionWarning } from '@video-compressor/shared';
+import { DEFAULT_FRAME_RATE, clampCrf, clampFrameRate, clampVideoBitrateKbps, type AgentEventType, type AgentSettings, type CompressionJob, type QueueState, type SelectionWarning } from '@video-compressor/shared';
 import { encodeVideo, isAudioCopyFailure } from '../ffmpeg/encoder.js';
 import { PRESETS } from '../ffmpeg/presets.js';
-import { probeDuration } from '../ffmpeg/tools.js';
+import { probeMedia } from '../ffmpeg/tools.js';
 import { appearsCompressed, fileSize, nextOutputPath } from '../files/paths.js';
 
 export class JobQueue {
@@ -13,7 +13,7 @@ export class JobQueue {
   private started = false;
   private warning: string | null = null;
   private estimateHooks: { schedule: () => void; invalidateForPreset: (preset: CompressionJob['preset']) => void; resume:()=>void } | null = null;
-  constructor(private tools: QueueState['tools'], private notify: (event?: AgentEventType) => void, private jobs: CompressionJob[] = [], private settings: AgentSettings = { preset: 'balanced', outputMode: 'next-to-originals', outputFolder: null, frameRate: DEFAULT_FRAME_RATE }) {}
+  constructor(private tools: QueueState['tools'], private notify: (event?: AgentEventType) => void, private jobs: CompressionJob[] = [], private settings: AgentSettings = { preset: 'balanced', outputMode: 'next-to-originals', outputFolder: null, frameRate: DEFAULT_FRAME_RATE, videoBitrateKbps: null, keepResolution: true }) {}
   attachEstimator(hooks: { schedule: () => void; invalidateForPreset: (preset: CompressionJob['preset']) => void; resume:()=>void }) { this.estimateHooks=hooks; }
   state(): QueueState { return { jobs: this.jobs.map(j => ({ ...j })), running: Boolean(this.active) || (this.started && this.jobs.some(j => j.status === 'queued')), tools: this.tools, settings: { ...this.settings }, warning: this.warning }; }
   persisted() { return { jobs: this.jobs.map(j => ({ ...j })), settings: { ...this.settings } }; }
@@ -21,11 +21,14 @@ export class JobQueue {
     if (next.preset && !(next.preset in PRESETS)) throw new Error('Unknown preset.');
     if (next.outputMode && !['next-to-originals', 'chosen-folder'].includes(next.outputMode)) throw new Error('Unknown output mode.');
     if (next.frameRate !== undefined) next = { ...next, frameRate: clampFrameRate(next.frameRate) };
+    if (next.crf !== undefined) next = { ...next, crf: clampCrf(next.crf) };
+    if (next.videoBitrateKbps !== undefined) next = { ...next, videoBitrateKbps: clampVideoBitrateKbps(next.videoBitrateKbps) };
     const presetChanged = Boolean(next.preset && next.preset !== this.settings.preset);
-    const frameRateChanged = next.frameRate !== undefined && next.frameRate !== (this.settings.frameRate ?? DEFAULT_FRAME_RATE);
+    const encodeKeys = ['frameRate', 'crf', 'videoBitrateKbps', 'keepResolution'] as const;
+    const encodeChanged = encodeKeys.some(key => next[key] !== undefined && next[key] !== this.settings[key]);
     this.settings = { ...this.settings, ...next };
     if (presetChanged) for (const job of this.jobs) if (['queued', 'failed', 'interrupted', 'cancelled'].includes(job.status)) job.preset = this.settings.preset;
-    if (presetChanged || frameRateChanged) this.estimateHooks?.invalidateForPreset(this.settings.preset);
+    if (presetChanged || encodeChanged) this.estimateHooks?.invalidateForPreset(this.settings.preset);
     this.notify();
   }
   async add(paths: string[], allowWarnings = false): Promise<SelectionWarning[]> {
@@ -37,7 +40,7 @@ export class JobQueue {
       try {
         const size = await fileSize(canonical); const folder = this.settings.outputMode === 'chosen-folder' ? this.settings.outputFolder ?? undefined : undefined;
         if (this.settings.outputMode === 'chosen-folder' && !folder) throw new Error('Choose an output folder first.');
-        const outputPath = await nextOutputPath(canonical, folder); const job:CompressionJob={ id: randomUUID(), inputPath: canonical, outputPath, fileName: path.basename(canonical), durationSeconds: null, originalSize: size, finalSize: null, progress: null, status: 'queued', error: null, preset: this.settings.preset, estimateStatus:'waiting',estimatedOutputBytes:null,estimatedSavingPercent:null,estimateRangeMinBytes:null,estimateRangeMaxBytes:null,estimateProgress:null,estimateError:null,estimatePreset:this.settings.preset };this.jobs.push(job);this.notify('estimate:queued');this.estimateHooks?.schedule();if(this.tools.ffprobe){job.durationSeconds=await probeDuration(canonical);job.progress=job.durationSeconds?0:null;this.notify()}
+        const outputPath = await nextOutputPath(canonical, folder); const job:CompressionJob={ id: randomUUID(), inputPath: canonical, outputPath, fileName: path.basename(canonical), durationSeconds: null, originalSize: size, sourceWidth:null,sourceHeight:null,sourceFrameRate:null,sourceBitrate:null, finalSize: null, progress: null, status: 'queued', error: null, preset: this.settings.preset, estimateStatus:'waiting',estimatedOutputBytes:null,estimatedSavingPercent:null,estimateRangeMinBytes:null,estimateRangeMaxBytes:null,estimateProgress:null,estimateError:null,estimatePreset:this.settings.preset };this.jobs.push(job);this.notify('estimate:queued');this.estimateHooks?.schedule();if(this.tools.ffprobe){const media=await probeMedia(canonical);job.durationSeconds=media.duration;job.sourceWidth=media.width;job.sourceHeight=media.height;job.sourceFrameRate=media.frameRate;job.sourceBitrate=media.bitrate;job.progress=job.durationSeconds?0:null;this.notify()}
       } catch { /* disappeared or inaccessible selection */ }
     }
     this.notify('estimate:queued'); this.estimateHooks?.schedule(); return warnings;
@@ -69,7 +72,7 @@ export class JobQueue {
     } catch (error) { job.status = 'failed'; job.error = error instanceof Error && 'code' in error && error.code === 'ENOENT' ? 'The source file is no longer available.' : 'The file could not be processed.'; }
     finally { this.active = null; this.notify(); queueMicrotask(() => void this.pump()); }
   }
-  private async run(job: CompressionJob, fallback: boolean) { const operation = encodeVideo(job.inputPath, job.outputPath, job.durationSeconds, job.preset, fallback, value => { job.progress = value; this.notify(); }, this.settings.frameRate); this.active = operation.child; return operation.done; }
+  private async run(job: CompressionJob, fallback: boolean) { const operation = encodeVideo(job.inputPath, job.outputPath, job.durationSeconds, job.preset, fallback, value => { job.progress = value; this.notify(); }, this.settings); this.active = operation.child; return operation.done; }
 }
 function friendlyError(stderr: string) { if (/no space left on device/i.test(stderr)) return 'There is not enough free disk space.'; if (/permission denied|read-only file system/i.test(stderr)) return 'The destination folder is not writable.'; if (/invalid data found|could not find codec parameters/i.test(stderr)) return 'This video format is not supported or the file is damaged.'; return 'FFmpeg could not compress this video. See the local agent log for details.'; }
 function isCancelled(job: CompressionJob) { return job.status === 'cancelled'; }

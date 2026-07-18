@@ -48,11 +48,11 @@ New queued videos are estimated automatically, one at a time, by the local agent
 
 An estimate is explicitly marked with `Estimated` and `≈`; it is not a guarantee. The tooltip shows a likely range because CRF output depends on scene complexity. Starting real compression immediately stops the estimation process first, so the real encode never waits for all estimates and the two FFmpeg workloads do not run together. After compression, the factual before/after size replaces the forecast.
 
-Changing the preset or the Quality frame rate invalidates queued forecasts and schedules a debounced recalculation. Results are cached locally using absolute path, file size, modification time, preset, frame rate, and algorithm version. The cache is capped at 300 recent entries. Temporary sample files are removed after success, failure, cancellation, and agent shutdown.
+Each queued video shows its source resolution, frame rate, and bitrate. Changing the preset or any Quality control invalidates queued forecasts and schedules a debounced recalculation. Results are cached locally using absolute path, file size, modification time, preset, frame rate, quality, bitrate, resolution option, and algorithm version. The cache is capped at 300 recent entries. Temporary sample files are removed after success, failure, cancellation, and agent shutdown.
 
 ### Presets
 
-- **Quality:** original dimensions, H.264 CRF 24, copied audio when compatible, controlled AAC 96k fallback. A frame-rate slider (24–120 fps) caps the output rate; the source rate is never exceeded, and lowering it shrinks the file. Balanced and Ultra Small keep their own lower frame-rate caps regardless of the slider.
+- **Quality:** original dimensions, copied audio when compatible, controlled AAC 96k fallback. Manual controls (only on this preset): a frame-rate slider (24–120 fps, never above the source), a **quality (CRF)** slider (14–34, lower is better/larger), an optional **target bitrate** (kbps) that overrides CRF when set, and a **keep original resolution** checkbox (on by default; off downscales to 1080p). Balanced and Ultra Small keep their own fixed caps regardless of these controls.
 - **Balanced** (default): H.264 CRF 26, longest side up to 720 px, at most 24 FPS, AAC 96k.
 - **Ultra Small:** H.264 CRF 30, longest side up to 550 px, at most 20 FPS, mono AAC 48k.
 

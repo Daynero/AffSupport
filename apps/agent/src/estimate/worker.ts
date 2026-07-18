@@ -2,8 +2,8 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { mkdtemp, rm, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { DEFAULT_FRAME_RATE, type AgentEventType, type CompressionJob, type PresetId } from '@video-compressor/shared';
-import { buildEstimateArgs } from '../ffmpeg/presets.js';
+import { type AgentEventType, type CompressionJob, type PresetId } from '@video-compressor/shared';
+import { buildEstimateArgs, type EncodeOptions } from '../ffmpeg/presets.js';
 import { ffmpegPath, ffprobePath } from '../ffmpeg/tools.js';
 import { EstimateCache, estimateCacheKey } from './cache.js';
 import { createSamplePlan, estimateFromSamples } from './sampler.js';
@@ -17,7 +17,7 @@ export class EstimationWorker {
   private generation = 0;
   private currentDone: Promise<void> | null = null;
   private debounce: ReturnType<typeof setTimeout> | null = null;
-  constructor(private jobs: () => CompressionJob[], private update: (id: string, patch: EstimatePatch, event: AgentEventType) => void, private compressionRunning: () => boolean, private cache = new EstimateCache(), private frameRate: () => number = () => DEFAULT_FRAME_RATE) {}
+  constructor(private jobs: () => CompressionJob[], private update: (id: string, patch: EstimatePatch, event: AgentEventType) => void, private compressionRunning: () => boolean, private cache = new EstimateCache(), private options: () => EncodeOptions = () => ({})) {}
   async init() { await this.cache.load(); this.schedule(); }
   schedule(delay = 0) { if (this.debounce) clearTimeout(this.debounce); this.debounce = setTimeout(() => { this.debounce = null; void this.pump(); }, delay); }
   invalidateForPreset(preset: PresetId) { this.generation++; this.child?.kill('SIGTERM'); for (const job of this.jobs()) if (job.status !== 'completed') this.update(job.id, { estimateStatus: 'waiting', estimatedOutputBytes: null, estimatedSavingPercent: null, estimateRangeMinBytes: null, estimateRangeMaxBytes: null, estimateProgress: null, estimateError: null, estimatePreset: preset }, 'estimate:queued'); this.schedule(450); }
@@ -33,14 +33,14 @@ export class EstimationWorker {
   private async estimate(job: CompressionJob, generation: number) {
     let temp = '';
     try {
-      const frameRate = this.frameRate(); const source = await stat(job.inputPath); const key = estimateCacheKey(job.inputPath, source.size, source.mtimeMs, job.preset, frameRate); const cached = this.cache.get(key);
+      const options = this.options(); const source = await stat(job.inputPath); const key = estimateCacheKey(job.inputPath, source.size, source.mtimeMs, job.preset, options); const cached = this.cache.get(key);
       if (cached) { this.update(job.id, { ...cached, estimateStatus: 'estimated', estimatePreset: job.preset, estimateProgress: null, estimateError: null }, 'estimate:completed'); return; }
       const metadata = await probe(job.inputPath); const plan = createSamplePlan(metadata.duration); if (!plan.length) throw new Error('Duration is unavailable.');
       this.update(job.id, { estimateStatus: 'estimating', estimatePreset: job.preset, estimateProgress: { completed: 0, total: plan.length }, estimateError: null }, 'estimate:started');
       temp = await mkdtemp(path.join(os.tmpdir(), 'local-video-estimate-')); const sizes: number[] = [], durations: number[] = [];
       for (let i = 0; i < plan.length; i++) {
         if (this.paused || generation !== this.generation || this.compressionRunning()) throw new Cancelled();
-        const sample = plan[i], output = path.join(temp, `sample-${i}.h264`); const result = await this.runFfmpeg(buildEstimateArgs(job.inputPath, output, job.preset, sample.start, sample.duration, frameRate));
+        const sample = plan[i], output = path.join(temp, `sample-${i}.h264`); const result = await this.runFfmpeg(buildEstimateArgs(job.inputPath, output, job.preset, sample.start, sample.duration, options));
         if (this.paused || generation !== this.generation || this.compressionRunning()) throw new Cancelled();
         if (result === 0) { sizes.push((await stat(output)).size); durations.push(sample.duration); }
         this.update(job.id, { estimateProgress: { completed: i + 1, total: plan.length } }, 'estimate:progress');

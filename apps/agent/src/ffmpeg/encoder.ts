@@ -1,12 +1,12 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import type { PresetId } from '@video-compressor/shared';
-import { buildFfmpegArgs } from './presets.js';
+import { buildFfmpegArgs, type EncodeOptions } from './presets.js';
 import { ffmpegPath } from './tools.js';
 
 export interface EncodeResult { code: number | null; stderr: string; cancelled: boolean }
 
-export function encodeVideo(input: string, output: string, duration: number | null, preset: PresetId, transcodeAudio: boolean, onProgress: (value: number | null) => void, frameRate?: number): { child: ChildProcessWithoutNullStreams; done: Promise<EncodeResult> } {
-  const args = buildFfmpegArgs(input, output, preset, frameRate, transcodeAudio);
+export function encodeVideo(input: string, output: string, duration: number | null, preset: PresetId, transcodeAudio: boolean, onProgress: (value: number | null) => void, options: EncodeOptions = {}): { child: ChildProcessWithoutNullStreams; done: Promise<EncodeResult> } {
+  const args = buildFfmpegArgs(input, output, preset, options, transcodeAudio);
   const child = spawn(ffmpegPath, args, { shell: false });
   let stderr = '', buffer = '', cancelled = false;
   child.stdout.on('data', chunk => {
