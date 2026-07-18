@@ -6,5 +6,6 @@ describe('FFmpeg safeguards', () => {
     expect(isAudioCopyFailure('Could not find tag for codec pcm_s16le in stream #1')).toBe(true);
     expect(isAudioCopyFailure('No space left on device')).toBe(false);
   });
-  it('reports a missing tool', async () => expect(await commandExists('definitely-not-a-real-ffmpeg-command')).toBe(false));
+  it('reports a missing tool', async () =>
+    expect(await commandExists('definitely-not-a-real-ffmpeg-command')).toBe(false));
 });

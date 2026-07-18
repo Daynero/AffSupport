@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   CRF_MAX,
   CRF_MIN,
@@ -15,6 +15,7 @@ import {
 import { compactPath } from '../format';
 import { isValidIntegerInput } from '../queue-ui';
 import { Button, SegmentedControl, Tooltip, type Translate } from './ui';
+import { ImageEmbeddingSection } from './ImageEmbeddingSection';
 
 const FPS_OPTIONS = [24, 25, 30, 50, 60];
 const RESOLUTION_OPTIONS = [2160, 1440, 1080, 720, 550];
@@ -27,6 +28,10 @@ export function SettingsPanel({
   hasUploadedFiles,
   updateSettings,
   chooseOutputFolder,
+  uploadImage = async () => {},
+  removeImage = async () => {},
+  imageUrl = () => '',
+  onEmbeddingValidityChange = () => {},
   t
 }: {
   settings: AgentSettings;
@@ -34,6 +39,10 @@ export function SettingsPanel({
   hasUploadedFiles?: boolean;
   updateSettings: UpdateSettings;
   chooseOutputFolder: () => void;
+  uploadImage?: (slot: 'start' | 'end', file: File) => Promise<void>;
+  removeImage?: (slot: 'start' | 'end') => Promise<void>;
+  imageUrl?: (id: string) => string;
+  onEmbeddingValidityChange?: (valid: boolean) => void;
   t: Translate;
 }) {
   return (
@@ -70,6 +79,18 @@ export function SettingsPanel({
         hasUploadedFiles={hasUploadedFiles}
         updateSettings={updateSettings}
         chooseOutputFolder={chooseOutputFolder}
+        t={t}
+      />
+      <ImageEmbeddingSection
+        settings={settings.imageEmbedding}
+        disabled={disabled}
+        update={(patch, debounce) =>
+          updateSettings({ imageEmbedding: { ...settings.imageEmbedding, ...patch } }, debounce)
+        }
+        uploadImage={uploadImage}
+        removeImage={removeImage}
+        imageUrl={imageUrl}
+        onValidityChange={onEmbeddingValidityChange}
         t={t}
       />
     </section>

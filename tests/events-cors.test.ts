@@ -14,6 +14,8 @@ describe('event stream CORS', () => {
   });
 
   it('does not grant an untrusted origin access to events', () => {
-    expect(eventStreamHeaders('https://example.com', allowedOrigins)).not.toHaveProperty('Access-Control-Allow-Origin');
+    expect(eventStreamHeaders('https://example.com', allowedOrigins)).not.toHaveProperty(
+      'Access-Control-Allow-Origin'
+    );
   });
 });

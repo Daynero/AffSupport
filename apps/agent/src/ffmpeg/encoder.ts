@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import type { EncodingSettings } from '@video-compressor/shared';
-import { buildFfmpegArgs } from './presets.js';
+import type { EncodingSettings, JobImageEmbedding } from '@video-compressor/shared';
+import { buildEmbeddedFfmpegArgs, buildFfmpegArgs } from './presets.js';
 import { ffmpegPath } from './tools.js';
 
 export interface EncodeResult {
@@ -9,15 +9,34 @@ export interface EncodeResult {
   cancelled: boolean;
 }
 
+export interface EncodeEmbeddingOptions {
+  sourceDurationSeconds: number;
+  sourceHasAudio: boolean;
+  width: number;
+  height: number;
+  frameRate: number;
+  imageEmbedding: JobImageEmbedding;
+  startImagePath: string | null;
+  endImagePath: string | null;
+}
+
+export function calculateEncodeProgress(outTimeUs: number, durationSeconds: number | null) {
+  if (!durationSeconds || durationSeconds <= 0 || !Number.isFinite(outTimeUs)) return null;
+  return Math.min(99.9, Math.max(0, (outTimeUs / 1_000_000 / durationSeconds) * 100));
+}
+
 export function encodeVideo(
   input: string,
   output: string,
   duration: number | null,
   settings: EncodingSettings,
   transcodeAudio: boolean,
-  onProgress: (value: number | null) => void
+  onProgress: (value: number | null) => void,
+  embedding?: EncodeEmbeddingOptions
 ): { child: ChildProcessWithoutNullStreams; done: Promise<EncodeResult> } {
-  const args = buildFfmpegArgs(input, output, settings, transcodeAudio);
+  const args = embedding
+    ? buildEmbeddedFfmpegArgs({ input, output, settings, ...embedding })
+    : buildFfmpegArgs(input, output, settings, transcodeAudio);
   const child = spawn(ffmpegPath, args, { shell: false });
   let stderr = '';
   let buffer = '';
@@ -29,8 +48,9 @@ export function encodeVideo(
     buffer = lines.pop() ?? '';
     for (const line of lines) {
       const [key, raw] = line.trim().split('=', 2);
-      if (key === 'out_time_us' && duration) {
-        onProgress(Math.min(99.9, (Number(raw) / 1_000_000 / duration) * 100));
+      if (key === 'out_time_us') {
+        const progress = calculateEncodeProgress(Number(raw), duration);
+        if (progress !== null) onProgress(progress);
       }
       if (key === 'progress' && raw === 'end') onProgress(100);
     }

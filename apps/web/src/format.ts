@@ -20,6 +20,22 @@ export function formatDuration(seconds: number | null | undefined): string {
   return [hours, minutes, remaining].map(value => String(value).padStart(2, '0')).join(':');
 }
 
+export function formatDurationWords(
+  seconds: number | null | undefined,
+  locale: 'en' | 'uk' = 'en'
+) {
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return '—';
+  const total = Math.max(0, Math.round(seconds));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const remaining = total % 60;
+  const parts: string[] = [];
+  if (hours) parts.push(`${hours} ${locale === 'uk' ? 'год' : 'hr'}`);
+  if (minutes || hours) parts.push(`${minutes} ${locale === 'uk' ? 'хв' : 'min'}`);
+  if (remaining || !parts.length) parts.push(`${remaining} ${locale === 'uk' ? 'с' : 'sec'}`);
+  return parts.join(' ');
+}
+
 export function formatElapsed(milliseconds: number | null | undefined): string {
   if (milliseconds === null || milliseconds === undefined) return '00:00:00';
   return formatDuration(milliseconds / 1000);

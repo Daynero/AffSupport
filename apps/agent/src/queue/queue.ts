@@ -8,19 +8,31 @@ import {
   clampFrameRate,
   clampResolutionLimit,
   clampVideoBitrateKbps,
+  draftImageEmbedding,
   encodingFromSettings,
-  encodingKey,
+  imageEmbeddingKey,
+  jobConfigurationKey,
   type AgentEventType,
   type AgentSettings,
   type CompressionJob,
+  type ImageAsset,
+  type ImageSlot,
   type QueueBatch,
   type QueueState,
   type SelectionWarning,
   type SourceKind
 } from '@video-compressor/shared';
-import { encodeVideo, isAudioCopyFailure } from '../ffmpeg/encoder.js';
-import { probeMedia } from '../ffmpeg/tools.js';
+import { encodeVideo, isAudioCopyFailure, type EncodeEmbeddingOptions } from '../ffmpeg/encoder.js';
+import { probeMedia, type MediaInfo } from '../ffmpeg/tools.js';
 import { appearsCompressed, fileSize, nextOutputPath } from '../files/paths.js';
+import {
+  freezeImageEmbedding,
+  outputDimensions,
+  outputDurationSeconds,
+  outputFrameRate,
+  refreshEstimateFromBreakdown
+} from '../images/embedding.js';
+import { ImageAssetError, ImageAssetStore } from '../images/store.js';
 import { defaultSettings } from './store.js';
 
 type EstimatorHooks = {
@@ -68,9 +80,12 @@ export class JobQueue {
     private notify: (event?: AgentEventType) => void,
     private jobs: CompressionJob[] = [],
     private settings: AgentSettings = defaultSettings,
-    private batch: QueueBatch | null = null
+    private batch: QueueBatch | null = null,
+    private imageStore = new ImageAssetStore(),
+    private random = Math.random
   ) {
-    this.nextEstimatePriorityOrder = Math.max(0, ...jobs.map(job => job.estimatePriorityOrder ?? 0)) + 1;
+    this.nextEstimatePriorityOrder =
+      Math.max(0, ...jobs.map(job => job.estimatePriorityOrder ?? 0)) + 1;
   }
 
   attachEstimator(hooks: EstimatorHooks) {
@@ -81,12 +96,15 @@ export class JobQueue {
     const running =
       this.compressionInFlight ||
       this.prioritizingEstimates ||
-      Boolean(this.batch && this.jobs.some(job => job.batchId === this.batch!.id && job.status === 'queued'));
+      Boolean(
+        this.batch &&
+        this.jobs.some(job => job.batchId === this.batch!.id && job.status === 'queued')
+      );
     return {
       jobs: this.jobs.map(job => cloneJob(job)),
       running,
       tools: this.tools,
-      settings: { ...this.settings },
+      settings: cloneSettings(this.settings),
       batch: this.batch ? { ...this.batch, jobIds: [...this.batch.jobIds] } : null,
       warning: this.warning
     };
@@ -99,7 +117,7 @@ export class JobQueue {
   persisted() {
     return {
       jobs: this.jobs.map(job => cloneJob(job)),
-      settings: { ...this.settings },
+      settings: cloneSettings(this.settings),
       batch: this.batch ? { ...this.batch, jobIds: [...this.batch.jobIds] } : null
     };
   }
@@ -116,32 +134,103 @@ export class JobQueue {
     if (next.resolutionLimit !== undefined && next.resolutionLimit !== null) {
       normalized.resolutionLimit = clampResolutionLimit(next.resolutionLimit);
     }
+    if (next.imageEmbedding !== undefined) {
+      normalized.imageEmbedding = cloneImageEmbeddingSettings(next.imageEmbedding);
+    }
 
     const encodingChanged = (
       ['mode', 'frameRate', 'resolutionLimit', 'rateControl', 'crf', 'videoBitrateKbps'] as const
     ).some(key => normalized[key] !== undefined && normalized[key] !== this.settings[key]);
-    const outputChanged = (
-      ['outputMode', 'outputFolder'] as const
-    ).some(key => normalized[key] !== undefined && normalized[key] !== this.settings[key]);
-    this.settings = { ...this.settings, ...normalized };
+    const imageSettingsChanged =
+      normalized.imageEmbedding !== undefined &&
+      imageEmbeddingSettingsKey(normalized.imageEmbedding) !==
+        imageEmbeddingSettingsKey(this.settings.imageEmbedding);
+    const previousEffectiveEmbedding = imageEmbeddingKey(
+      draftImageEmbedding(this.settings.imageEmbedding)
+    );
+    const outputChanged = (['outputMode', 'outputFolder'] as const).some(
+      key => normalized[key] !== undefined && normalized[key] !== this.settings[key]
+    );
+    this.settings = {
+      ...this.settings,
+      ...normalized,
+      imageEmbedding: normalized.imageEmbedding ?? this.settings.imageEmbedding
+    };
+    const imageEmbeddingChanged =
+      imageSettingsChanged &&
+      previousEffectiveEmbedding !==
+        imageEmbeddingKey(draftImageEmbedding(this.settings.imageEmbedding));
 
-    if (encodingChanged) {
+    if (encodingChanged || imageEmbeddingChanged) {
       const encoding = encodingFromSettings(this.settings);
+      const imageEmbedding = draftImageEmbedding(this.settings.imageEmbedding);
       for (const job of this.jobs) {
-        if (!['analyzing', 'ready', 'failed', 'cancelled', 'interrupted'].includes(job.status)) continue;
-        job.encoding = { ...encoding };
+        if (!['analyzing', 'ready', 'failed', 'cancelled', 'interrupted'].includes(job.status))
+          continue;
+        if (encodingChanged) job.encoding = { ...encoding };
+        if (imageEmbeddingChanged) job.imageEmbedding = cloneJobImageEmbedding(imageEmbedding);
         resetEstimate(job);
       }
       this.estimateHooks?.invalidate();
     }
 
-    if (outputChanged) {
+    if (outputChanged || imageEmbeddingChanged) {
       for (const job of this.jobs) {
-        if (!['analyzing', 'ready', 'failed', 'cancelled', 'interrupted'].includes(job.status)) continue;
+        if (!['analyzing', 'ready', 'failed', 'cancelled', 'interrupted'].includes(job.status))
+          continue;
         job.outputPath = await this.outputPathFor(job.inputPath, job.sourceKind ?? 'local', job);
       }
     }
     this.notify();
+  }
+
+  async setImage(slot: ImageSlot, asset: ImageAsset | null) {
+    const imageEmbedding = cloneImageEmbeddingSettings(this.settings.imageEmbedding);
+    if (slot === 'start') imageEmbedding.startImage = asset ? { ...asset } : null;
+    else imageEmbedding.endImage = asset ? { ...asset } : null;
+    await this.updateSettings({ imageEmbedding });
+  }
+
+  imageAsset(id: string) {
+    const settingsAssets = [
+      this.settings.imageEmbedding.startImage,
+      this.settings.imageEmbedding.endImage
+    ];
+    const jobAssets = this.jobs.flatMap(job => [
+      job.imageEmbedding?.startImage ?? null,
+      job.imageEmbedding?.endImage ?? null
+    ]);
+    return [...settingsAssets, ...jobAssets].find(asset => asset?.id === id) ?? null;
+  }
+
+  async releaseImageIfUnused(asset: ImageAsset | null) {
+    if (asset && !this.imageAsset(asset.id)) await this.imageStore.remove(asset);
+  }
+
+  async revalidateSettingsImages() {
+    const imageEmbedding = cloneImageEmbeddingSettings(this.settings.imageEmbedding);
+    let changed = false;
+    for (const slot of ['startImage', 'endImage'] as const) {
+      const asset = imageEmbedding[slot];
+      if (asset) {
+        try {
+          await this.imageStore.validate(asset);
+        } catch {
+          imageEmbedding[slot] = null;
+          changed = true;
+        }
+      }
+    }
+    if (changed) await this.updateSettings({ imageEmbedding });
+    return changed;
+  }
+
+  embeddingConfigurationError() {
+    const embedding = this.settings.imageEmbedding;
+    if (embedding.enabled && !embedding.startImage && !embedding.endImage) {
+      return 'EMBED_IMAGES_REQUIRED';
+    }
+    return null;
   }
 
   async add(paths: string[], allowWarnings = false): Promise<SelectionWarning[]> {
@@ -167,7 +256,7 @@ export class JobQueue {
   }
 
   async start(ids: string[]) {
-    if (this.state().running) return false;
+    if (this.state().running || this.embeddingConfigurationError()) return false;
     const requested = new Set(ids);
     const jobs = this.jobs.filter(job => requested.has(job.id) && job.status === 'ready');
     if (!jobs.length) return false;
@@ -181,11 +270,21 @@ export class JobQueue {
     this.batch = batch;
     this.warning = await this.diskWarning(jobs);
     for (const job of jobs) {
+      const draftKey = jobConfigurationKey(job.encoding, job.imageEmbedding);
+      job.imageEmbedding = freezeImageEmbedding(this.settings.imageEmbedding, this.random);
+      job.outputPath = await this.outputPathFor(job.inputPath, job.sourceKind ?? 'local', job);
+      if (
+        draftKey !== jobConfigurationKey(job.encoding, job.imageEmbedding) &&
+        !refreshEstimateFromBreakdown(job)
+      ) {
+        resetEstimate(job);
+      }
       job.status = 'queued';
       job.batchId = batch.id;
       job.error = null;
       job.errorDetails = null;
-      job.progress = job.durationSeconds ? 0 : null;
+      job.progress = outputDurationSeconds(job) ? 0 : null;
+      job.processingStage = null;
       job.startedAt = null;
       job.finishedAt = null;
     }
@@ -200,6 +299,7 @@ export class JobQueue {
     job.status = 'cancelled';
     job.error = 'Compression was cancelled.';
     job.finishedAt = finishTimestamp(job);
+    job.processingStage = null;
     resetEstimate(job);
     if (this.compressionPausedForEstimates) this.active?.kill('SIGCONT');
     this.active?.kill('SIGTERM');
@@ -245,8 +345,10 @@ export class JobQueue {
     const job = this.jobs.find(candidate => candidate.id === id);
     if (!job || ['processing', 'queued'].includes(job.status)) return false;
     if (job.estimatePriorityOrder !== null) this.estimateHooks?.cancelPrioritized?.(id);
+    const images = jobImages(job);
     this.jobs = this.jobs.filter(candidate => candidate !== job);
     void cleanupImportedSource(job);
+    for (const image of images) void this.releaseImageIfUnused(image);
     this.notify();
     return true;
   }
@@ -261,8 +363,10 @@ export class JobQueue {
       if (job.estimatePriorityOrder !== null) this.estimateHooks?.cancelPrioritized?.(job.id);
     }
     const removed = new Set(removable.map(job => job.id));
+    const images = removable.flatMap(jobImages);
     this.jobs = this.jobs.filter(job => !removed.has(job.id));
     for (const job of removable) void cleanupImportedSource(job);
+    for (const image of images) void this.releaseImageIfUnused(image);
     this.notify();
     return removable.length;
   }
@@ -270,10 +374,12 @@ export class JobQueue {
   async retry(id: string) {
     const job = this.jobs.find(candidate => candidate.id === id);
     if (!job || !['failed', 'interrupted', 'cancelled'].includes(job.status)) return false;
+    const previousImages = jobImages(job);
     job.status = 'ready';
     job.error = null;
     job.errorDetails = null;
     job.progress = job.durationSeconds ? 0 : null;
+    job.processingStage = null;
     job.finalSize = null;
     job.finalWidth = null;
     job.finalHeight = null;
@@ -285,8 +391,10 @@ export class JobQueue {
     job.finishedAt = null;
     job.batchId = null;
     job.encoding = encodingFromSettings(this.settings);
+    job.imageEmbedding = draftImageEmbedding(this.settings.imageEmbedding);
     job.outputPath = await this.outputPathFor(job.inputPath, job.sourceKind ?? 'local', job);
     resetEstimate(job);
+    for (const image of previousImages) void this.releaseImageIfUnused(image);
     this.notify('estimate:queued');
     this.estimateHooks?.schedule();
     return true;
@@ -296,8 +404,10 @@ export class JobQueue {
     const removed = this.jobs.filter(job =>
       ['completed', 'failed', 'cancelled', 'interrupted'].includes(job.status)
     );
+    const images = removed.flatMap(jobImages);
     this.jobs = this.jobs.filter(job => !removed.includes(job));
     for (const job of removed) void cleanupImportedSource(job);
+    for (const image of images) void this.releaseImageIfUnused(image);
     this.notify();
   }
 
@@ -349,7 +459,11 @@ export class JobQueue {
         ? job.sourceKey === options.sourceKey
         : path.resolve(job.inputPath) === canonical
     );
-    const reason = duplicate ? 'duplicate' : appearsCompressed(fileName) ? 'already-compressed' : null;
+    const reason = duplicate
+      ? 'duplicate'
+      : appearsCompressed(fileName)
+        ? 'already-compressed'
+        : null;
     if (reason && !allowWarnings) {
       return issue(
         fileName,
@@ -377,6 +491,11 @@ export class JobQueue {
         sourceFrameRate: null,
         sourceBitrate: null,
         sourceCodec: null,
+        sourceHasAudio: false,
+        sourceAudioBitrate: null,
+        sourceAudioSampleRate: null,
+        sourceAudioChannels: null,
+        sourceAudioLayout: null,
         finalSize: null,
         finalWidth: null,
         finalHeight: null,
@@ -385,10 +504,12 @@ export class JobQueue {
         finalDurationSeconds: null,
         finalCodec: null,
         progress: null,
+        processingStage: null,
         status: 'analyzing',
         error: null,
         errorDetails: null,
         encoding: encodingFromSettings(this.settings),
+        imageEmbedding: draftImageEmbedding(this.settings.imageEmbedding),
         batchId: null,
         startedAt: null,
         finishedAt: null,
@@ -400,7 +521,8 @@ export class JobQueue {
         estimateProgress: null,
         estimateError: null,
         estimateKey: null,
-        estimatePriorityOrder: null
+        estimatePriorityOrder: null,
+        estimateBreakdown: null
       };
       job.outputPath = await this.outputPathFor(canonical, sourceKind, job);
       this.jobs.push(job);
@@ -425,6 +547,11 @@ export class JobQueue {
       job.sourceFrameRate = media.frameRate;
       job.sourceBitrate = media.bitrate;
       job.sourceCodec = media.codec;
+      job.sourceHasAudio = media.hasAudio;
+      job.sourceAudioBitrate = media.audioBitrate;
+      job.sourceAudioSampleRate = media.audioSampleRate;
+      job.sourceAudioChannels = media.audioChannels;
+      job.sourceAudioLayout = media.audioLayout;
       job.progress = 0;
       job.status = 'ready';
       this.notify('estimate:queued');
@@ -448,7 +575,12 @@ export class JobQueue {
       .filter(job => job !== current)
       .map(job => job.outputPath)
       .filter(Boolean);
-    return nextOutputPath(inputPath, folder, reserved);
+    return nextOutputPath(
+      inputPath,
+      folder,
+      reserved,
+      Boolean(draftImageEmbedding(this.settings.imageEmbedding))
+    );
   }
 
   private async diskWarning(jobs: CompressionJob[]) {
@@ -456,7 +588,8 @@ export class JobQueue {
     const byFolder = new Map<string, number>();
     for (const job of jobs) {
       const folder = path.dirname(job.outputPath);
-      byFolder.set(folder, (byFolder.get(folder) ?? 0) + job.originalSize);
+      const expected = Math.max(job.originalSize, job.estimatedOutputBytes ?? 0);
+      byFolder.set(folder, (byFolder.get(folder) ?? 0) + expected);
     }
     for (const [folder, required] of byFolder) {
       try {
@@ -489,8 +622,9 @@ export class JobQueue {
     job.error = null;
     job.errorDetails = null;
     job.estimatePriorityOrder = null;
-    job.startedAt = null;
+    job.startedAt = Date.now();
     job.finishedAt = null;
+    job.processingStage = job.imageEmbedding ? 'preparing-images' : 'compressing';
     this.notify();
     try {
       await access(job.inputPath);
@@ -498,19 +632,31 @@ export class JobQueue {
         await unlink(job.outputPath).catch(() => {});
         return;
       }
-      let result = await this.run(job, false);
-      if (!isCancelled(job) && result.code !== 0 && isAudioCopyFailure(result.stderr)) {
+      const embedding = await this.embeddingOptions(job);
+      job.processingStage = 'compressing';
+      this.notify();
+      let result = await this.run(job, false, embedding);
+      if (
+        !embedding &&
+        !isCancelled(job) &&
+        result.code !== 0 &&
+        isAudioCopyFailure(result.stderr)
+      ) {
         await unlink(job.outputPath).catch(() => {});
         job.progress = job.durationSeconds ? 0 : null;
         this.notify();
-        result = await this.run(job, true);
+        result = await this.run(job, true, embedding);
       }
       if (isCancelled(job)) {
         await unlink(job.outputPath).catch(() => {});
       } else if (result.code === 0) {
+        job.processingStage = 'finalizing';
+        this.notify();
         const media = await probeMedia(job.outputPath);
+        if (job.imageEmbedding) validateEmbeddedOutput(job, media);
         job.status = 'completed';
         job.progress = 100;
+        job.processingStage = null;
         job.finalSize = await fileSize(job.outputPath);
         job.finalWidth = media.width;
         job.finalHeight = media.height;
@@ -526,17 +672,17 @@ export class JobQueue {
         job.status = 'failed';
         job.error = friendlyError(result.stderr);
         job.errorDetails = result.stderr || null;
+        job.processingStage = null;
         job.finishedAt = finishTimestamp(job);
         await unlink(job.outputPath).catch(() => {});
       }
     } catch (error) {
       job.status = 'failed';
-      job.error =
-        error instanceof Error && 'code' in error && error.code === 'ENOENT'
-          ? 'The source file is no longer available.'
-          : 'The file could not be processed.';
+      job.error = processingError(error);
       job.errorDetails = error instanceof Error ? error.message : null;
+      job.processingStage = null;
       job.finishedAt = finishTimestamp(job);
+      await unlink(job.outputPath).catch(() => {});
     } finally {
       this.active = null;
       this.compressionInFlight = false;
@@ -545,6 +691,40 @@ export class JobQueue {
       await this.runPrioritizedEstimates();
       queueMicrotask(() => void this.pump());
     }
+  }
+
+  private async embeddingOptions(job: CompressionJob) {
+    if (!job.imageEmbedding) return undefined;
+    const dimensions = outputDimensions(job);
+    if (!dimensions || !job.durationSeconds) {
+      throw new Error('IMAGE_FILTER_GRAPH_INVALID: output dimensions or duration are unavailable.');
+    }
+    if (job.encoding.frameRate === null && !job.sourceFrameRate) {
+      throw new Error('IMAGE_FILTER_GRAPH_INVALID: original frame rate is unavailable.');
+    }
+    const frameRate = outputFrameRate(job);
+    if (!Number.isFinite(frameRate) || frameRate <= 0) {
+      throw new Error('IMAGE_FILTER_GRAPH_INVALID: output frame rate is unavailable.');
+    }
+    const startImagePath = job.imageEmbedding.startImage
+      ? await this.imageStore.validate(job.imageEmbedding.startImage)
+      : null;
+    const endImagePath = job.imageEmbedding.endImage
+      ? await this.imageStore.validate(job.imageEmbedding.endImage)
+      : null;
+    if (job.imageEmbedding.endImage && !job.imageEmbedding.finalDurationSeconds) {
+      throw new Error('IMAGE_FILTER_GRAPH_INVALID: final image duration is invalid.');
+    }
+    return {
+      sourceDurationSeconds: job.durationSeconds,
+      sourceHasAudio: job.sourceHasAudio,
+      width: dimensions.width,
+      height: dimensions.height,
+      frameRate,
+      imageEmbedding: cloneJobImageEmbedding(job.imageEmbedding)!,
+      startImagePath,
+      endImagePath
+    };
   }
 
   private hasPrioritizedEstimate() {
@@ -558,7 +738,12 @@ export class JobQueue {
 
   private async runPrioritizedEstimates() {
     const runPrioritized = this.estimateHooks?.runPrioritized;
-    if (!runPrioritized || this.prioritizingEstimates || !this.batch || !this.hasPrioritizedEstimate()) {
+    if (
+      !runPrioritized ||
+      this.prioritizingEstimates ||
+      !this.batch ||
+      !this.hasPrioritizedEstimate()
+    ) {
       return;
     }
     if (this.compressionInFlight && !this.active) return;
@@ -589,7 +774,11 @@ export class JobQueue {
     }
   }
 
-  private run(job: CompressionJob, fallback: boolean) {
+  private run(
+    job: CompressionJob,
+    fallback: boolean,
+    embedding: EncodeEmbeddingOptions | undefined
+  ) {
     if (job.startedAt === null) {
       job.startedAt = Date.now();
       this.notify();
@@ -597,13 +786,14 @@ export class JobQueue {
     const operation = encodeVideo(
       job.inputPath,
       job.outputPath,
-      job.durationSeconds,
+      outputDurationSeconds(job),
       job.encoding,
       fallback,
       value => {
         job.progress = value;
         this.notify();
-      }
+      },
+      embedding
     );
     this.active = operation.child;
     void this.runPrioritizedEstimates();
@@ -615,8 +805,16 @@ function cloneJob(job: CompressionJob): CompressionJob {
   return {
     ...job,
     encoding: { ...job.encoding },
-    estimateProgress: job.estimateProgress ? { ...job.estimateProgress } : null
+    imageEmbedding: cloneJobImageEmbedding(job.imageEmbedding),
+    estimateProgress: job.estimateProgress ? { ...job.estimateProgress } : null,
+    estimateBreakdown: job.estimateBreakdown ? { ...job.estimateBreakdown } : null
   };
+}
+
+function jobImages(job: CompressionJob) {
+  return [job.imageEmbedding?.startImage ?? null, job.imageEmbedding?.endImage ?? null].filter(
+    (image): image is ImageAsset => Boolean(image)
+  );
 }
 
 function resetEstimate(job: CompressionJob) {
@@ -629,6 +827,7 @@ function resetEstimate(job: CompressionJob) {
   job.estimateError = null;
   job.estimateKey = null;
   job.estimatePriorityOrder = null;
+  job.estimateBreakdown = null;
 }
 
 function issue(
@@ -652,7 +851,71 @@ function friendlyError(stderr: string) {
   if (/invalid data found|could not find codec parameters/i.test(stderr)) {
     return 'This video format is not supported or the file is damaged.';
   }
+  if (
+    /concat input.*parameters do not match|failed to configure output pad|pixel format/i.test(
+      stderr
+    )
+  ) {
+    return 'The images could not be adapted to this video.';
+  }
+  if (/error initializing complex filters|invalid argument/i.test(stderr)) {
+    return 'The image filter graph could not be created.';
+  }
   return 'FFmpeg could not compress this video.';
+}
+
+function processingError(error: unknown) {
+  if (error instanceof ImageAssetError) {
+    return error.code === 'IMAGE_DAMAGED'
+      ? 'An image is damaged or could not be decoded.'
+      : 'An image is no longer available to the local agent.';
+  }
+  if (error instanceof OutputValidationError) {
+    return 'The completed file did not pass FFprobe validation.';
+  }
+  if (error instanceof Error && /IMAGE_FILTER_GRAPH_INVALID/.test(error.message)) {
+    return 'The image filter graph could not be created.';
+  }
+  if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+    return 'The source file is no longer available.';
+  }
+  return 'The file could not be processed.';
+}
+
+class OutputValidationError extends Error {}
+
+function validateEmbeddedOutput(job: CompressionJob, media: MediaInfo) {
+  const dimensions = outputDimensions(job);
+  const frameRate = outputFrameRate(job);
+  const duration = outputDurationSeconds(job);
+  const errors: string[] = [];
+  if (!media.formatName || !/(?:^|,)mp4(?:,|$)|(?:^|,)mov(?:,|$)/.test(media.formatName)) {
+    errors.push(`format=${media.formatName ?? 'missing'}`);
+  }
+  if (!dimensions || media.width !== dimensions.width || media.height !== dimensions.height) {
+    errors.push(
+      `dimensions=${media.width ?? 'missing'}x${media.height ?? 'missing'}, expected=${dimensions?.width ?? 'missing'}x${dimensions?.height ?? 'missing'}`
+    );
+  }
+  if (
+    !media.frameRate ||
+    Math.abs(media.frameRate - frameRate) > Math.max(0.03, frameRate * 0.001)
+  ) {
+    errors.push(`fps=${media.frameRate ?? 'missing'}, expected=${frameRate}`);
+  }
+  const durationTolerance = Math.max(0.2, 2 / frameRate);
+  if (!media.duration || Math.abs(media.duration - duration) > durationTolerance) {
+    errors.push(`duration=${media.duration ?? 'missing'}, expected=${duration}`);
+  }
+  if (!media.hasAudio) errors.push('audio=missing');
+  if (
+    media.audioDuration &&
+    media.videoDuration &&
+    Math.abs(media.audioDuration - media.videoDuration) > durationTolerance
+  ) {
+    errors.push(`audio/video duration mismatch=${media.audioDuration}/${media.videoDuration}`);
+  }
+  if (errors.length) throw new OutputValidationError(errors.join('; '));
 }
 
 function isCancelled(job: CompressionJob) {
@@ -669,5 +932,41 @@ async function cleanupImportedSource(job: CompressionJob) {
 }
 
 export function jobEstimateIsCurrent(job: CompressionJob) {
-  return job.estimateStatus === 'estimated' && job.estimateKey === encodingKey(job.encoding);
+  return (
+    job.estimateStatus === 'estimated' &&
+    job.estimateKey === jobConfigurationKey(job.encoding, job.imageEmbedding)
+  );
+}
+
+function cloneSettings(settings: AgentSettings): AgentSettings {
+  return { ...settings, imageEmbedding: cloneImageEmbeddingSettings(settings.imageEmbedding) };
+}
+
+function cloneImageEmbeddingSettings(settings: AgentSettings['imageEmbedding']) {
+  return {
+    ...settings,
+    startImage: settings.startImage ? { ...settings.startImage } : null,
+    endImage: settings.endImage ? { ...settings.endImage } : null
+  };
+}
+
+function cloneJobImageEmbedding(settings: CompressionJob['imageEmbedding']) {
+  return settings
+    ? {
+        ...settings,
+        startImage: settings.startImage ? { ...settings.startImage } : null,
+        endImage: settings.endImage ? { ...settings.endImage } : null
+      }
+    : null;
+}
+
+function imageEmbeddingSettingsKey(settings: AgentSettings['imageEmbedding']) {
+  return JSON.stringify([
+    settings.enabled,
+    settings.startImage?.id ?? null,
+    settings.endImage?.id ?? null,
+    settings.finalDurationMode,
+    settings.customFinalDurationSeconds,
+    settings.fitMode
+  ]);
 }

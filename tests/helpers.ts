@@ -1,6 +1,7 @@
 import {
   DEFAULT_CRF,
   DEFAULT_VIDEO_BITRATE_KBPS,
+  defaultImageEmbeddingSettings,
   type AgentSettings,
   type CompressionJob,
   type EncodingSettings,
@@ -33,7 +34,8 @@ export const optimalSettings: AgentSettings = {
   resolutionLimit: null,
   rateControl: 'crf',
   crf: DEFAULT_CRF,
-  videoBitrateKbps: DEFAULT_VIDEO_BITRATE_KBPS
+  videoBitrateKbps: DEFAULT_VIDEO_BITRATE_KBPS,
+  imageEmbedding: defaultImageEmbeddingSettings()
 };
 
 export function makeJob(
@@ -55,6 +57,11 @@ export function makeJob(
     sourceFrameRate: 29.97,
     sourceBitrate: 4_000_000,
     sourceCodec: 'h264',
+    sourceHasAudio: true,
+    sourceAudioBitrate: 128_000,
+    sourceAudioSampleRate: 48_000,
+    sourceAudioChannels: 2,
+    sourceAudioLayout: 'stereo',
     finalSize: null,
     finalWidth: null,
     finalHeight: null,
@@ -63,10 +70,12 @@ export function makeJob(
     finalDurationSeconds: null,
     finalCodec: null,
     progress: status === 'completed' ? 100 : 0,
+    processingStage: null,
     status,
     error: null,
     errorDetails: null,
     encoding: { ...optimalEncoding },
+    imageEmbedding: null,
     batchId: null,
     startedAt: null,
     finishedAt: null,
@@ -79,6 +88,7 @@ export function makeJob(
     estimateError: null,
     estimateKey: null,
     estimatePriorityOrder: null,
+    estimateBreakdown: null,
     ...patch
   };
 }

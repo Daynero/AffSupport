@@ -37,7 +37,11 @@ describe('estimate planning and cache', () => {
     expect(estimateCacheKey('/a', 10, 21, optimalEncoding)).not.toBe(base);
     expect(estimateCacheKey('/a', 10, 20, customEncoding)).not.toBe(base);
     expect(
-      estimateCacheKey('/a', 10, 20, { ...customEncoding, rateControl: 'bitrate', videoBitrateKbps: 2000 })
+      estimateCacheKey('/a', 10, 20, {
+        ...customEncoding,
+        rateControl: 'bitrate',
+        videoBitrateKbps: 2000
+      })
     ).not.toBe(estimateCacheKey('/a', 10, 20, customEncoding));
   });
 
@@ -66,21 +70,28 @@ describe('sequential estimation worker', () => {
     const worker = new EstimationWorker(
       () => jobs,
       (id, patch, event) => {
-        Object.assign(jobs.find(job => job.id === id)!, patch);
+        Object.assign(
+          jobs.find(job => job.id === id)!,
+          patch
+        );
         if (event === 'estimate:started') {
           active++;
           maxActive = Math.max(maxActive, active);
           order.push(id);
           expect(jobs.find(job => job.id === id)!.estimateStatus).toBe('estimating');
         }
-        if (['estimate:completed', 'estimate:failed', 'estimate:cancelled'].includes(event)) active--;
+        if (['estimate:completed', 'estimate:failed', 'estimate:cancelled'].includes(event))
+          active--;
       },
       () => false,
       new EstimateCache(path.join(directory, 'cache.json'))
     );
     await worker.init();
     try {
-      await until(() => jobs.every(job => ['estimated', 'unavailable'].includes(job.estimateStatus)), 60_000);
+      await until(
+        () => jobs.every(job => ['estimated', 'unavailable'].includes(job.estimateStatus)),
+        60_000
+      );
       expect(maxActive).toBe(1);
       expect(order).toEqual(Array.from({ length: 10 }, (_, index) => String(index)));
     } finally {
@@ -95,7 +106,11 @@ describe('sequential estimation worker', () => {
     const jobs = [makeEstimationJob('pause', source)];
     const worker = new EstimationWorker(
       () => jobs,
-      (id, patch) => Object.assign(jobs.find(job => job.id === id)!, patch),
+      (id, patch) =>
+        Object.assign(
+          jobs.find(job => job.id === id)!,
+          patch
+        ),
       () => false,
       new EstimateCache(path.join(directory, 'cache.json'))
     );
@@ -126,7 +141,10 @@ describe('prioritized estimation', () => {
     const worker = new EstimationWorker(
       () => jobs,
       (id, patch, event) => {
-        Object.assign(jobs.find(job => job.id === id)!, patch);
+        Object.assign(
+          jobs.find(job => job.id === id)!,
+          patch
+        );
         if (event === 'estimate:started') order.push(id);
       },
       () => false,

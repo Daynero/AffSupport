@@ -9,8 +9,15 @@ describe('estimate priority control', () => {
     expect(estimatePriorityAction(queuedWaiting, true)).toBe('prioritize');
   });
   it('switches the same control to cancel after prioritization', () => {
-    expect(estimatePriorityAction({ ...queuedWaiting, estimatePriorityOrder: 1 }, true)).toBe('cancel');
-    expect(estimatePriorityAction({ ...queuedWaiting, estimateStatus: 'estimating', estimatePriorityOrder: 1 }, true)).toBe('cancel');
+    expect(estimatePriorityAction({ ...queuedWaiting, estimatePriorityOrder: 1 }, true)).toBe(
+      'cancel'
+    );
+    expect(
+      estimatePriorityAction(
+        { ...queuedWaiting, estimateStatus: 'estimating', estimatePriorityOrder: 1 },
+        true
+      )
+    ).toBe('cancel');
   });
   it('does not show prioritize outside an active compression queue', () => {
     expect(estimatePriorityAction(queuedWaiting, false)).toBeNull();

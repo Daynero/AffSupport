@@ -60,7 +60,9 @@ export function DropZone({
         {importing ? <Spinner /> : '＋'}
       </span>
       <div>
-        <strong>{importing ? t('importingFiles') : dragging ? t('dropActive') : t('dropTitle')}</strong>
+        <strong>
+          {importing ? t('importingFiles') : dragging ? t('dropActive') : t('dropTitle')}
+        </strong>
         <span>{t('dropFormats')}</span>
       </div>
     </div>

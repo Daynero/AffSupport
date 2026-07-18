@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import {
-  encodingKey,
+  estimatedFinalImageDurationSeconds,
   expectedDimensions,
   expectedFrameRate,
+  jobConfigurationKey,
   type CompressionJob
 } from '@video-compressor/shared';
 import { estimatePriorityAction } from '../estimate-priority';
@@ -11,6 +12,7 @@ import {
   formatBitrate,
   formatCodec,
   formatDuration,
+  formatDurationWords,
   formatElapsed,
   formatFps,
   formatSize
@@ -38,6 +40,7 @@ export function JobRow({
   action: (url: string, method?: string) => void;
   t: Translate;
 }) {
+  const [copiedDetails, setCopiedDetails] = useState(false);
   return (
     <article className={`job-row ${selected ? 'is-selected' : ''}`}>
       <div className="job-header">
@@ -71,7 +74,10 @@ export function JobRow({
             value={job.status === 'queued' ? 0 : job.progress}
             label={t('compressionProgress', { name: job.fileName })}
           />
-          <span>{job.status === 'queued' ? '0%' : `${Math.round(job.progress ?? 0)}%`}</span>
+          <div className="job-progress-meta">
+            {job.processingStage && <span>{processingStage(job, t)}</span>}
+            <strong>{job.status === 'queued' ? '0%' : `${Math.round(job.progress ?? 0)}%`}</strong>
+          </div>
         </div>
       )}
 
@@ -80,9 +86,7 @@ export function JobRow({
         {job.status !== 'completed' &&
           job.status !== 'analyzing' &&
           job.sourceWidth !== null &&
-          job.sourceHeight !== null && (
-          <EstimatePanel job={job} language={language} t={t} />
-        )}
+          job.sourceHeight !== null && <EstimatePanel job={job} language={language} t={t} />}
         {job.status === 'completed' && <ResultPanel job={job} language={language} t={t} />}
       </div>
 
@@ -93,6 +97,15 @@ export function JobRow({
             <details>
               <summary>{t('showDetails')}</summary>
               <pre>{job.errorDetails}</pre>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  void navigator.clipboard.writeText(job.errorDetails ?? '');
+                  setCopiedDetails(true);
+                }}
+              >
+                {copiedDetails ? t('detailsCopied') : t('copyDetails')}
+              </Button>
             </details>
           )}
         </div>
@@ -101,7 +114,15 @@ export function JobRow({
   );
 }
 
-function OriginalPanel({ job, language, t }: { job: CompressionJob; language: Language; t: Translate }) {
+function OriginalPanel({
+  job,
+  language,
+  t
+}: {
+  job: CompressionJob;
+  language: Language;
+  t: Translate;
+}) {
   return (
     <section className="media-panel original-panel" aria-label={t('originalVideoInfo')}>
       <h4>{t('original')}</h4>
@@ -125,16 +146,32 @@ function OriginalPanel({ job, language, t }: { job: CompressionJob; language: La
   );
 }
 
-function EstimatePanel({ job, language, t }: { job: CompressionJob; language: Language; t: Translate }) {
-  const output = expectedDimensions(job.sourceWidth, job.sourceHeight, job.encoding.resolutionLimit);
+function EstimatePanel({
+  job,
+  language,
+  t
+}: {
+  job: CompressionJob;
+  language: Language;
+  t: Translate;
+}) {
+  const output = expectedDimensions(
+    job.sourceWidth,
+    job.sourceHeight,
+    job.encoding.resolutionLimit
+  );
   const fps = expectedFrameRate(job.sourceFrameRate, job.encoding.frameRate);
-  const current = job.estimateKey === encodingKey(job.encoding);
-  const estimated = job.estimateStatus === 'estimated' && current && job.estimatedOutputBytes !== null;
+  const current = job.estimateKey === jobConfigurationKey(job.encoding, job.imageEmbedding);
+  const estimated =
+    job.estimateStatus === 'estimated' && current && job.estimatedOutputBytes !== null;
   const saving = job.estimatedSavingPercent;
   const status = estimateStatus(job, current, t);
 
   return (
-    <section className={`media-panel estimate-panel ${saving !== null && saving < 0 ? 'has-warning' : ''}`} aria-label={t('expectedVideoInfo')}>
+    <section
+      className={`media-panel estimate-panel ${saving !== null && saving < 0 ? 'has-warning' : ''}`}
+      aria-label={t('expectedVideoInfo')}
+    >
       <div className="panel-title-with-help">
         <h4>{t('expectedResult')}</h4>
         <span className="estimate-tag">≈ {t('estimateLabel')}</span>
@@ -144,11 +181,11 @@ function EstimatePanel({ job, language, t }: { job: CompressionJob; language: La
         <>
           <div className="estimate-size">
             <strong>≈ {formatSize(job.estimatedOutputBytes, language)}</strong>
-            {saving !== null && saving >= 0 && <span>{t('estimatedSaving', { value: saving })}</span>}
+            {saving !== null && saving >= 0 && (
+              <span>{t('estimatedSaving', { value: saving })}</span>
+            )}
           </div>
-          {saving !== null && saving < 0 && (
-            <p className="inline-warning">{t('largerEstimate')}</p>
-          )}
+          {saving !== null && saving < 0 && <p className="inline-warning">{t('largerEstimate')}</p>}
         </>
       ) : (
         <div className="estimate-state">
@@ -167,15 +204,29 @@ function EstimatePanel({ job, language, t }: { job: CompressionJob; language: La
           [t('videoFps'), `${formatFps(fps, language)} FPS`],
           [t('qualityMode'), qualityMode(job, t)],
           ...(job.encoding.rateControl === 'bitrate' && job.encoding.videoBitrateKbps
-            ? [[t('videoBitrate'), `${job.encoding.videoBitrateKbps} ${t('bitrateUnit')}`] as [string, string]]
+            ? [
+                [t('videoBitrate'), `${job.encoding.videoBitrateKbps} ${t('bitrateUnit')}`] as [
+                  string,
+                  string
+                ]
+              ]
             : [])
         ]}
       />
+      <EmbeddingDetails job={job} language={language} t={t} />
     </section>
   );
 }
 
-function ResultPanel({ job, language, t }: { job: CompressionJob; language: Language; t: Translate }) {
+function ResultPanel({
+  job,
+  language,
+  t
+}: {
+  job: CompressionJob;
+  language: Language;
+  t: Translate;
+}) {
   const saving =
     job.finalSize === null || !job.originalSize
       ? null
@@ -186,7 +237,9 @@ function ResultPanel({ job, language, t }: { job: CompressionJob; language: Lang
       <div className="result-size">
         <strong>{formatSize(job.finalSize, language)}</strong>
         {saving !== null && saving >= 0 && <span>{t('actualSaving', { value: saving })}</span>}
-        {saving !== null && saving < 0 && <span className="warning-text">{t('largerActual', { value: Math.abs(saving) })}</span>}
+        {saving !== null && saving < 0 && (
+          <span className="warning-text">{t('largerActual', { value: Math.abs(saving) })}</span>
+        )}
       </div>
       <MediaGrid
         items={[
@@ -197,6 +250,7 @@ function ResultPanel({ job, language, t }: { job: CompressionJob; language: Lang
           [t('codec'), formatCodec(job.finalCodec)]
         ]}
       />
+      <EmbeddingDetails job={job} language={language} t={t} />
       <div className="output-path" title={job.outputPath}>
         <span>{t('outputPath')}</span>
         <strong>{compactPath(job.outputPath)}</strong>
@@ -235,7 +289,11 @@ function JobActions({
   return (
     <div className="job-actions" aria-label={t('fileActions', { name: job.fileName })}>
       {job.status === 'processing' && (
-        <Button variant="danger" disabled={disabled} onClick={() => action(`/api/jobs/${job.id}/cancel`)}>
+        <Button
+          variant="danger"
+          disabled={disabled}
+          onClick={() => action(`/api/jobs/${job.id}/cancel`)}
+        >
           {t('cancel')}
         </Button>
       )}
@@ -261,16 +319,28 @@ function JobActions({
       )}
       {job.status === 'completed' && (
         <>
-          <Button variant="ghost" disabled={disabled} onClick={() => action(`/api/jobs/${job.id}/reveal`)}>
+          <Button
+            variant="ghost"
+            disabled={disabled}
+            onClick={() => action(`/api/jobs/${job.id}/reveal`)}
+          >
             {t('showInFolder')}
           </Button>
-          <Button variant="ghost" disabled={disabled} onClick={() => action(`/api/jobs/${job.id}/open`)}>
+          <Button
+            variant="ghost"
+            disabled={disabled}
+            onClick={() => action(`/api/jobs/${job.id}/open`)}
+          >
             {t('openFile')}
           </Button>
         </>
       )}
       {!['processing', 'queued', 'analyzing'].includes(job.status) && (
-        <Button variant="ghost" disabled={disabled} onClick={() => action(`/api/jobs/${job.id}`, 'DELETE')}>
+        <Button
+          variant="ghost"
+          disabled={disabled}
+          onClick={() => action(`/api/jobs/${job.id}`, 'DELETE')}
+        >
           {t('remove')}
         </Button>
       )}
@@ -319,12 +389,68 @@ function dimensions(width: number | null | undefined, height: number | null | un
   return width && height ? `${width}×${height}` : '—';
 }
 
+function EmbeddingDetails({
+  job,
+  language,
+  t
+}: {
+  job: CompressionJob;
+  language: Language;
+  t: Translate;
+}) {
+  const embedding = job.imageEmbedding;
+  if (!embedding) return null;
+  const fps = expectedFrameRate(job.sourceFrameRate, job.encoding.frameRate) ?? 30;
+  const endDuration = estimatedFinalImageDurationSeconds(embedding);
+  const totalDuration =
+    (job.durationSeconds ?? 0) + (embedding.startImage ? 1 / fps : 0) + endDuration;
+  const fitKeys = {
+    cover: 'fitCover',
+    contain: 'fitContain',
+    stretch: 'fitStretch'
+  } as const;
+  const endLabel =
+    embedding.finalDurationSeconds !== null
+      ? formatDurationWords(embedding.finalDurationSeconds, language)
+      : t(
+          embedding.finalDurationMode === 'random-30-40'
+            ? 'randomDuration30To40'
+            : embedding.finalDurationMode === 'random-50-60'
+              ? 'randomDuration50To60'
+              : 'randomDuration40To50'
+        );
+  return (
+    <div className="embedding-summary">
+      <strong>{t('embeddingLabel')}</strong>
+      <div>
+        {embedding.startImage && <span>{t('embeddingStartOneFrame')}</span>}
+        {embedding.endImage && <span>{t('embeddingFinalImage', { duration: endLabel })}</span>}
+        <span>{t('embeddingFitMode', { mode: t(fitKeys[embedding.fitMode]) })}</span>
+        <span>{t('expectedTotalDuration', { duration: formatDuration(totalDuration) })}</span>
+      </div>
+    </div>
+  );
+}
+
+function processingStage(job: CompressionJob, t: Translate) {
+  if (job.processingStage === 'preparing-images') return t('stagePreparingImages');
+  if (job.processingStage === 'finalizing') return t('stageFinalizing');
+  return t('stageCompressing');
+}
+
 function localizedJobError(raw: string, t: Translate) {
   if (/source file is no longer available/i.test(raw)) return t('sourceUnavailable');
   if (/file could not be processed/i.test(raw)) return t('fileProcessFailed');
   if (/compression was cancelled/i.test(raw)) return t('compressionCancelled');
   if (/format is not supported|file is damaged/i.test(raw)) return t('unsupportedOrDamaged');
   if (/ffmpeg could not compress/i.test(raw)) return t('compressionFailed');
+  if (/image is no longer available|can no longer read this image/i.test(raw)) {
+    return t('imageUnavailable');
+  }
+  if (/image is damaged|could not be decoded/i.test(raw)) return t('damagedImage');
+  if (/images could not be adapted/i.test(raw)) return t('imageAdaptationFailed');
+  if (/image filter graph|image processing pipeline/i.test(raw)) return t('imageFilterGraphFailed');
+  if (/did not pass ffprobe validation/i.test(raw)) return t('outputValidationFailed');
   if (/analysis engine is unavailable/i.test(raw)) return t('engineUnavailable');
   return raw;
 }

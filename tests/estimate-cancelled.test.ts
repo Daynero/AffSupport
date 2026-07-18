@@ -11,12 +11,9 @@ describe('estimate state after cancellation and retry', () => {
       estimatedSavingPercent: 50,
       estimateKey: 'old'
     });
-    const queue = new JobQueue(
-      { ffmpeg: true, ffprobe: true },
-      () => {},
-      [job],
-      { ...optimalSettings }
-    );
+    const queue = new JobQueue({ ffmpeg: true, ffprobe: true }, () => {}, [job], {
+      ...optimalSettings
+    });
     expect(await queue.cancel(job.id)).toBe(true);
     expect(queue.state().jobs[0]).toMatchObject({
       status: 'cancelled',

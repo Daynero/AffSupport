@@ -1,0 +1,6 @@
+**/dist
+node_modules
+release
+*.zip
+*.dmg
+package-lock.json

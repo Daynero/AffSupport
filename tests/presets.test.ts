@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { expectedDimensions } from '../packages/shared/src/types.js';
-import {
-  buildEstimateArgs,
-  buildFfmpegArgs,
-  videoArgs
-} from '../apps/agent/src/ffmpeg/presets.js';
+import { buildEstimateArgs, buildFfmpegArgs, videoArgs } from '../apps/agent/src/ffmpeg/presets.js';
 import { customEncoding, optimalEncoding } from './helpers.js';
 
 describe('FFmpeg compression arguments', () => {
@@ -102,5 +98,7 @@ function argumentAfter(args: string[], name: string) {
 }
 
 function containsSequence(values: string[], sequence: string[]) {
-  return values.some((_, index) => sequence.every((value, offset) => values[index + offset] === value));
+  return values.some((_, index) =>
+    sequence.every((value, offset) => values[index + offset] === value)
+  );
 }

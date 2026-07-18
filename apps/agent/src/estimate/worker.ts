@@ -2,11 +2,21 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { mkdtemp, rm, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { encodingKey, type AgentEventType, type CompressionJob } from '@video-compressor/shared';
-import { buildEstimateArgs } from '../ffmpeg/presets.js';
+import {
+  jobConfigurationKey,
+  type AgentEventType,
+  type CompressionJob
+} from '@video-compressor/shared';
+import { buildEstimateArgs, buildStaticEstimateArgs } from '../ffmpeg/presets.js';
 import { ffmpegPath, ffprobePath } from '../ffmpeg/tools.js';
+import {
+  outputDimensions,
+  outputFrameRate,
+  refreshEstimateFromBreakdown
+} from '../images/embedding.js';
+import { ImageAssetStore } from '../images/store.js';
 import { EstimateCache, estimateCacheKey } from './cache.js';
-import { createSamplePlan, estimateFromSamples } from './sampler.js';
+import { createSamplePlan, estimateBreakdownFromSamples } from './sampler.js';
 
 type EstimatePatch = Partial<
   Pick<
@@ -20,6 +30,7 @@ type EstimatePatch = Partial<
     | 'estimateError'
     | 'estimateKey'
     | 'estimatePriorityOrder'
+    | 'estimateBreakdown'
   >
 >;
 
@@ -38,7 +49,8 @@ export class EstimationWorker {
     private jobs: () => CompressionJob[],
     private update: (id: string, patch: EstimatePatch, event: AgentEventType) => void,
     private compressionRunning: () => boolean,
-    private cache = new EstimateCache()
+    private cache = new EstimateCache(),
+    private imageStore = new ImageAssetStore()
   ) {}
 
   async init() {
@@ -69,7 +81,8 @@ export class EstimationWorker {
           estimateRangeMaxBytes: null,
           estimateProgress: null,
           estimateError: null,
-          estimateKey: null
+          estimateKey: null,
+          estimateBreakdown: null
         },
         'estimate:queued'
       );
@@ -172,14 +185,17 @@ export class EstimationWorker {
     const prioritized = waiting
       .filter(job => job.estimatePriorityOrder !== null)
       .sort((first, second) => first.estimatePriorityOrder! - second.estimatePriorityOrder!);
-    return prioritized[0] ??
+    return (
+      prioritized[0] ??
       (prioritizedOnly
         ? undefined
-        : waiting.find(job => job.status === 'ready' && job.estimatePriorityOrder === null));
+        : waiting.find(job => job.status === 'ready' && job.estimatePriorityOrder === null))
+    );
   }
 
   private cancelled(id: string, generation: number, prioritized: boolean) {
-    if (this.shuttingDown || generation !== this.generation || this.compressionRunning()) return true;
+    if (this.shuttingDown || generation !== this.generation || this.compressionRunning())
+      return true;
     if (!prioritized) return this.paused;
     return this.jobs().find(job => job.id === id)?.estimatePriorityOrder === null;
   }
@@ -188,16 +204,27 @@ export class EstimationWorker {
     let temporaryDirectory = '';
     try {
       const source = await stat(job.inputPath);
-      const key = estimateCacheKey(job.inputPath, source.size, source.mtimeMs, job.encoding);
+      const configurationKey = jobConfigurationKey(job.encoding, job.imageEmbedding);
+      const key = estimateCacheKey(
+        job.inputPath,
+        source.size,
+        source.mtimeMs,
+        job.encoding,
+        job.imageEmbedding
+      );
       const cached = this.cache.get(key);
       if (this.cancelled(job.id, generation, prioritized)) throw new Cancelled();
       if (cached) {
         this.update(
           job.id,
           {
-            ...cached,
+            estimatedOutputBytes: cached.estimatedOutputBytes,
+            estimatedSavingPercent: cached.estimatedSavingPercent,
+            estimateRangeMinBytes: cached.estimateRangeMinBytes,
+            estimateRangeMaxBytes: cached.estimateRangeMaxBytes,
+            estimateBreakdown: cached.estimateBreakdown,
             estimateStatus: 'estimated',
-            estimateKey: encodingKey(job.encoding),
+            estimateKey: configurationKey,
             estimateProgress: null,
             estimateError: null,
             estimatePriorityOrder: null
@@ -210,14 +237,16 @@ export class EstimationWorker {
       const metadata = await probe(job.inputPath);
       const plan = createSamplePlan(metadata.duration);
       if (!plan.length) throw new Error('Duration is unavailable.');
+      const staticAsset = job.imageEmbedding?.endImage ?? job.imageEmbedding?.startImage ?? null;
+      const totalSteps = plan.length + (staticAsset ? 1 : 0);
       if (this.cancelled(job.id, generation, prioritized)) throw new Cancelled();
 
       this.update(
         job.id,
         {
           estimateStatus: 'estimating',
-          estimateKey: encodingKey(job.encoding),
-          estimateProgress: { completed: 0, total: plan.length },
+          estimateKey: configurationKey,
+          estimateProgress: { completed: 0, total: totalSteps },
           estimateError: null
         },
         'estimate:started'
@@ -239,7 +268,7 @@ export class EstimationWorker {
         }
         this.update(
           job.id,
-          { estimateProgress: { completed: index + 1, total: plan.length } },
+          { estimateProgress: { completed: index + 1, total: totalSteps } },
           'estimate:progress'
         );
       }
@@ -247,15 +276,57 @@ export class EstimationWorker {
       if (sizes.length < Math.max(1, Math.ceil(plan.length * 0.5))) {
         throw new Error('Too few representative samples could be read.');
       }
-      const audioBitrate = metadata.hasAudio ? metadata.audioBitrate : 0;
-      const estimate = estimateFromSamples(
+      let staticVideoBytesPerSecond = 0;
+      if (staticAsset && job.imageEmbedding) {
+        const dimensions = outputDimensions(job);
+        if (!dimensions)
+          throw new Error('Output dimensions are unavailable for the image estimate.');
+        const imagePath = await this.imageStore.validate(staticAsset);
+        const staticDuration = 6;
+        const output = path.join(temporaryDirectory, 'static-sample.h264');
+        const result = await this.runFfmpeg(
+          buildStaticEstimateArgs(
+            imagePath,
+            output,
+            staticDuration,
+            dimensions.width,
+            dimensions.height,
+            outputFrameRate(job),
+            job.imageEmbedding.fitMode,
+            job.encoding
+          )
+        );
+        if (this.cancelled(job.id, generation, prioritized)) throw new Cancelled();
+        if (result !== 0) throw new Error('The static image sample could not be encoded.');
+        staticVideoBytesPerSecond = (await stat(output)).size / staticDuration;
+        this.update(
+          job.id,
+          { estimateProgress: { completed: totalSteps, total: totalSteps } },
+          'estimate:progress'
+        );
+      }
+
+      const audioBytesPerSecond = job.imageEmbedding
+        ? 96_000 / 8
+        : metadata.hasAudio
+          ? metadata.audioBitrate / 8
+          : 0;
+      const estimateBreakdown = estimateBreakdownFromSamples(
         sizes,
         durations,
-        metadata.duration,
-        audioBitrate,
-        job.originalSize
+        audioBytesPerSecond,
+        staticVideoBytesPerSecond
       );
-      if (!estimate) throw new Error('Not enough sample data.');
+      if (!estimateBreakdown) throw new Error('Not enough sample data.');
+      const estimatedJob: CompressionJob = { ...job, estimateBreakdown };
+      if (!refreshEstimateFromBreakdown(estimatedJob)) throw new Error('Estimate unavailable.');
+      const estimate = {
+        estimatedOutputBytes: estimatedJob.estimatedOutputBytes!,
+        estimatedSavingPercent: estimatedJob.estimatedSavingPercent!,
+        estimateRangeMinBytes: estimatedJob.estimateRangeMinBytes!,
+        estimateRangeMaxBytes: estimatedJob.estimateRangeMaxBytes!,
+        estimateBreakdown
+      };
       await this.cache.set(key, { ...estimate, createdAt: Date.now() });
       if (this.cancelled(job.id, generation, prioritized)) throw new Cancelled();
       this.update(
@@ -263,7 +334,7 @@ export class EstimationWorker {
         {
           ...estimate,
           estimateStatus: 'estimated',
-          estimateKey: encodingKey(job.encoding),
+          estimateKey: configurationKey,
           estimateProgress: null,
           estimateError: null,
           estimatePriorityOrder: null
@@ -315,32 +386,44 @@ export class EstimationWorker {
 class Cancelled extends Error {}
 
 function probe(input: string) {
-  return new Promise<{ duration: number; audioBitrate: number; hasAudio: boolean }>((resolve, reject) => {
-    const process = spawn(
-      ffprobePath,
-      ['-v', 'error', '-show_entries', 'format=duration:stream=codec_type,bit_rate', '-of', 'json', input],
-      { shell: false }
-    );
-    let output = '';
-    process.stdout.on('data', data => {
-      output += data;
-    });
-    process.on('error', reject);
-    process.on('close', code => {
-      try {
-        if (code !== 0) throw new Error();
-        const value = JSON.parse(output);
-        const duration = Number(value.format?.duration);
-        if (!Number.isFinite(duration) || duration <= 0) throw new Error();
-        const audio = value.streams?.find((stream: { codec_type: string }) => stream.codec_type === 'audio');
-        resolve({
-          duration,
-          audioBitrate: Number(audio?.bit_rate) || 128_000,
-          hasAudio: Boolean(audio)
-        });
-      } catch {
-        reject(new Error('FFprobe could not determine duration.'));
-      }
-    });
-  });
+  return new Promise<{ duration: number; audioBitrate: number; hasAudio: boolean }>(
+    (resolve, reject) => {
+      const process = spawn(
+        ffprobePath,
+        [
+          '-v',
+          'error',
+          '-show_entries',
+          'format=duration:stream=codec_type,bit_rate',
+          '-of',
+          'json',
+          input
+        ],
+        { shell: false }
+      );
+      let output = '';
+      process.stdout.on('data', data => {
+        output += data;
+      });
+      process.on('error', reject);
+      process.on('close', code => {
+        try {
+          if (code !== 0) throw new Error();
+          const value = JSON.parse(output);
+          const duration = Number(value.format?.duration);
+          if (!Number.isFinite(duration) || duration <= 0) throw new Error();
+          const audio = value.streams?.find(
+            (stream: { codec_type: string }) => stream.codec_type === 'audio'
+          );
+          resolve({
+            duration,
+            audioBitrate: Number(audio?.bit_rate) || 128_000,
+            hasAudio: Boolean(audio)
+          });
+        } catch {
+          reject(new Error('FFprobe could not determine duration.'));
+        }
+      });
+    }
+  );
 }

@@ -4,7 +4,9 @@ let response;
 try {
   response = await fetch(RELEASE_DOWNLOAD_URL, { method: 'HEAD', redirect: 'follow' });
 } catch (error) {
-  process.stderr.write(`Could not verify the published Agent: ${error instanceof Error ? error.message : error}\n`);
+  process.stderr.write(
+    `Could not verify the published Agent: ${error instanceof Error ? error.message : error}\n`
+  );
   process.exit(1);
 }
 

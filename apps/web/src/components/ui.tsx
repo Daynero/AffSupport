@@ -41,7 +41,12 @@ export function IconButton({
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; children: ReactNode }) {
   return (
-    <button {...props} className={`icon-button ${props.className ?? ''}`.trim()} aria-label={label} title={label}>
+    <button
+      {...props}
+      className={`icon-button ${props.className ?? ''}`.trim()}
+      aria-label={label}
+      title={label}
+    >
       {children}
     </button>
   );
@@ -79,7 +84,11 @@ export function SegmentedControl<T extends string>({
   );
 }
 
-export function Checkbox({ label, className = '', ...props }: InputHTMLAttributes<HTMLInputElement> & { label: ReactNode }) {
+export function Checkbox({
+  label,
+  className = '',
+  ...props
+}: InputHTMLAttributes<HTMLInputElement> & { label: ReactNode }) {
   return (
     <label className={`checkbox ${className}`.trim()}>
       <input {...props} type="checkbox" />
@@ -146,7 +155,10 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
     const update = () => {
       const rect = button.current!.getBoundingClientRect();
       const width = Math.min(280, window.innerWidth - 24);
-      const left = Math.min(window.innerWidth - width - 12, Math.max(12, rect.left + rect.width / 2 - width / 2));
+      const left = Math.min(
+        window.innerWidth - width - 12,
+        Math.max(12, rect.left + rect.width / 2 - width / 2)
+      );
       const estimatedHeight = 88;
       const top =
         rect.bottom + estimatedHeight + 8 > window.innerHeight
@@ -216,13 +228,7 @@ export interface TooltipInteractionState {
 }
 
 export type TooltipInteraction =
-  | 'hover-in'
-  | 'hover-out'
-  | 'focus'
-  | 'blur'
-  | 'toggle'
-  | 'escape'
-  | 'outside';
+  'hover-in' | 'hover-out' | 'focus' | 'blur' | 'toggle' | 'escape' | 'outside';
 
 export function tooltipInteraction(
   state: TooltipInteractionState,

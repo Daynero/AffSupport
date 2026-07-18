@@ -53,16 +53,25 @@ This test build is **ad-hoc signed, not Apple-notarized**. macOS quarantines it 
 ## Daily use
 
 1. Keep the default **Optimal** mode, or open **Custom settings** for FPS, longest-side resolution, and CRF or target bitrate.
-2. Keep **Next to originals**, or use **Separate folder** for a native folder dialog.
-3. Add videos with the native picker or by dropping files onto the drop zone.
-4. Select rows with their checkboxes and choose **Compress selected**. New videos can be added while the queue runs.
-5. Use Cancel, Remove, Try again, Clear finished, Show in folder, Open, or Show output folder as needed.
+2. Optionally enable **Embed images into video**. Add an opening image, a final image, or both; choose the final duration and cover, contain, or stretch adaptation.
+3. Keep **Next to originals**, or use **Separate folder** for a native folder dialog.
+4. Add videos with the native picker or by dropping files onto the drop zone.
+5. Select rows with their checkboxes and choose **Compress selected**. New videos can be added while the queue runs.
+6. Use Cancel, Remove, Try again, Clear finished, Show in folder, Open, or Show output folder as needed.
 
 The app warns before adding an `_compressed` file or a duplicate already represented in the queue. The user can explicitly confirm either case.
 
+### Image embedding
+
+PNG, JPEG and WebP images are copied into Agent-managed local storage under opaque IDs; the UI never exposes their absolute paths. The opening image is exactly one frame at each job's final frame rate. The final image receives a frozen per-job random duration of 30–40, 40–50, or 50–60 minutes, or a validated custom duration. Either image can be used independently.
+
+Every image is adapted separately to the final dimensions of its video. **Fill and crop** preserves aspect ratio and center-crops, **Fit fully** adds a stable black background, and **Stretch** uses the exact frame dimensions. The source, optional image segments, normalized 48 kHz stereo audio or generated silence, and compression preset are assembled in one FFmpeg filter graph and one H.264/AAC encode. There is no uncompressed intermediate video.
+
+Starting a batch freezes its images, fit mode, encoding controls, and a separate random duration for every selected video. Later form changes cannot alter a queued or processing job. Embedded results use `_embedded_compressed.mp4` with the same collision-safe numbering as ordinary results. FFprobe validates the MP4, dimensions, frame rate, total duration, audio presence, and A/V duration before a job is marked complete.
+
 ### Size estimates
 
-New ready videos are estimated automatically, one at a time, by the local agent. The estimate uses short FFmpeg samples spread across the full timeline (including the beginning, 20/40/60/80%, and near the end), the exact per-job encoding snapshot, source audio information, and a small container allowance. Short videos may be sampled in full because that is both fast and more reliable.
+New ready videos are estimated automatically, one at a time, by the local agent. The estimate uses short FFmpeg samples spread across the full timeline (including the beginning, 20/40/60/80%, and near the end), the exact per-job encoding snapshot, source audio information, and a small container allowance. Short videos may be sampled in full because that is both fast and more reliable. For embedded output, one short static-image encode supplies a separate static-video rate; dynamic video, static video, and audio/silence are then modeled independently instead of applying the source bitrate to 30–60 static minutes.
 
 An estimate is explicitly marked with `Estimated` and `≈`; it is not a guarantee. The tooltip shows a likely range because CRF output depends on scene complexity. Starting real compression immediately stops automatic estimation first, so the real encode never waits for all estimates and the two FFmpeg workloads do not run together. While compression is active, a queued file waiting for an estimate has a compact priority button. It pauses the current FFmpeg encode without discarding progress, runs prioritized estimates in click order, then resumes that same encode. A prioritized request can be cancelled before or during its estimate. After compression, the factual before/after size replaces the forecast.
 
@@ -87,6 +96,8 @@ Settings and queue metadata are stored locally at:
 
 Estimate cache: `~/Library/Application Support/Local Video Compressor/estimate-cache.json`.
 
+Managed image assets: `~/Library/Application Support/Local Video Compressor/Images/`. Persisted image selections are revalidated when the Agent starts; missing or damaged assets are cleared and must be selected again. Disabling image embedding makes all stored selections inert.
+
 Closing or reloading the browser does not stop processing. Restarting the agent restores the queue; a job that was processing becomes **interrupted** and can be retried from the beginning. Partial output from an abrupt OS/process termination may remain on disk and is never overwritten; retry chooses the next safe filename.
 
 Before starting, the agent conservatively compares free space in every relevant output folder with the original sizes. An obvious shortage produces a warning but never changes the originals.
@@ -95,19 +106,21 @@ Before starting, the agent conservatively compares free space in every relevant 
 
 Every `/api/*` route requires a random per-process 256-bit token. The token is issued only through the `/pair` redirect (production origin) or `/local` (bundled loopback UI), which place it in the page URL fragment. The unauthenticated `/health` route exposes only readiness, release/API identity, instance start time, and busy state so the packaged launcher can perform safe handoff. CORS permits only the production page and fixed local development origin. Request bodies are structurally validated, encoding parameters are defined only in the agent, and every external process uses argument arrays with `shell: false`.
 
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/health` | Unauthenticated readiness probe used by the launcher |
-| GET | `/pair`, `/local` | Redirect to the site with a fresh session token |
-| GET | `/api/health`, `/api/queue`, `/api/diagnostics` | Obtain current state and diagnostics |
-| GET | `/api/events` | Live SSE queue snapshots |
-| POST | `/api/files/select`, `/api/files/confirm`, `/api/files/upload` | Native selection, drop upload, and explicit warning confirmation |
-| POST | `/api/settings`, `/api/output/select` | Compression/output settings and native folder selection |
-| POST | `/api/queue/start` | Start selected ready jobs as a sequential batch |
-| POST, DELETE | `/api/jobs/:id/estimate-priority` | Queue or cancel an immediate size estimate during compression |
-| POST | `/api/jobs/:id/cancel`, `/retry`, `/reveal`, `/open` | Manage one job |
-| POST, DELETE | `/api/jobs/remove`, `/api/jobs/:id`, `/api/jobs/completed` | Remove selected rows or clear finished rows without deleting outputs |
-| POST | `/api/output/reveal` | Open an available output folder |
+| Method       | Path                                                           | Purpose                                                              |
+| ------------ | -------------------------------------------------------------- | -------------------------------------------------------------------- |
+| GET          | `/health`                                                      | Unauthenticated readiness probe used by the launcher                 |
+| GET          | `/pair`, `/local`                                              | Redirect to the site with a fresh session token                      |
+| GET          | `/api/health`, `/api/queue`, `/api/diagnostics`                | Obtain current state and diagnostics                                 |
+| GET          | `/api/events`                                                  | Live SSE queue snapshots                                             |
+| POST         | `/api/files/select`, `/api/files/confirm`, `/api/files/upload` | Native selection, drop upload, and explicit warning confirmation     |
+| POST, DELETE | `/api/images/:slot`                                            | Upload or remove one managed opening/final image                     |
+| GET          | `/api/images/:id/content`                                      | Read an authenticated image preview by opaque asset ID               |
+| POST         | `/api/settings`, `/api/output/select`                          | Compression/output settings and native folder selection              |
+| POST         | `/api/queue/start`                                             | Start selected ready jobs as a sequential batch                      |
+| POST, DELETE | `/api/jobs/:id/estimate-priority`                              | Queue or cancel an immediate size estimate during compression        |
+| POST         | `/api/jobs/:id/cancel`, `/retry`, `/reveal`, `/open`           | Manage one job                                                       |
+| POST, DELETE | `/api/jobs/remove`, `/api/jobs/:id`, `/api/jobs/completed`     | Remove selected rows or clear finished rows without deleting outputs |
+| POST         | `/api/output/reveal`                                           | Open an available output folder                                      |
 
 ## Troubleshooting
 

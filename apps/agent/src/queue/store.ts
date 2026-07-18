@@ -3,15 +3,24 @@ import path from 'node:path';
 import os from 'node:os';
 import {
   DEFAULT_CRF,
+  DEFAULT_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
   DEFAULT_VIDEO_BITRATE_KBPS,
+  MAX_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
+  MIN_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
   clampCrf,
   clampFrameRate,
   clampResolutionLimit,
   clampVideoBitrateKbps,
   encodingFromSettings,
+  defaultImageEmbeddingSettings,
+  draftImageEmbedding,
   type AgentSettings,
   type CompressionJob,
   type EncodingSettings,
+  type EstimateBreakdown,
+  type ImageAsset,
+  type ImageEmbeddingSettings,
+  type JobImageEmbedding,
   type QueueBatch
 } from '@video-compressor/shared';
 
@@ -29,7 +38,8 @@ export const defaultSettings: AgentSettings = {
   resolutionLimit: null,
   rateControl: 'crf',
   crf: DEFAULT_CRF,
-  videoBitrateKbps: DEFAULT_VIDEO_BITRATE_KBPS
+  videoBitrateKbps: DEFAULT_VIDEO_BITRATE_KBPS,
+  imageEmbedding: defaultImageEmbeddingSettings()
 };
 
 export function defaultStatePath() {
@@ -80,7 +90,11 @@ export async function loadState(file = defaultStatePath()): Promise<PersistedSta
         : null;
     return { jobs, settings, batch };
   } catch {
-    return { jobs: [], settings: { ...defaultSettings }, batch: null };
+    return {
+      jobs: [],
+      settings: { ...defaultSettings, imageEmbedding: defaultImageEmbeddingSettings() },
+      batch: null
+    };
   }
 }
 
@@ -102,9 +116,7 @@ function migrateSettings(value: unknown): AgentSettings {
         : 'optimal';
   const outputMode = raw.outputMode === 'chosen-folder' ? 'chosen-folder' : 'next-to-originals';
   const frameRate =
-    raw.frameRate === null || raw.frameRate === undefined
-      ? null
-      : clampFrameRate(raw.frameRate);
+    raw.frameRate === null || raw.frameRate === undefined ? null : clampFrameRate(raw.frameRate);
   const legacyKeepResolution = raw.keepResolution;
   const resolutionLimit =
     raw.resolutionLimit === null ||
@@ -117,12 +129,14 @@ function migrateSettings(value: unknown): AgentSettings {
   return {
     mode,
     outputMode,
-    outputFolder: typeof raw.outputFolder === 'string' && raw.outputFolder ? raw.outputFolder : null,
+    outputFolder:
+      typeof raw.outputFolder === 'string' && raw.outputFolder ? raw.outputFolder : null,
     frameRate,
     resolutionLimit,
     rateControl,
     crf: raw.crf === undefined ? DEFAULT_CRF : clampCrf(raw.crf),
-    videoBitrateKbps: clampVideoBitrateKbps(raw.videoBitrateKbps)
+    videoBitrateKbps: clampVideoBitrateKbps(raw.videoBitrateKbps),
+    imageEmbedding: migrateImageEmbeddingSettings(raw.imageEmbedding)
   };
 }
 
@@ -173,6 +187,11 @@ function migrateJob(value: unknown, settings: AgentSettings): CompressionJob | n
     sourceFrameRate: numberOrNull(raw.sourceFrameRate),
     sourceBitrate: numberOrNull(raw.sourceBitrate),
     sourceCodec: typeof raw.sourceCodec === 'string' ? raw.sourceCodec : null,
+    sourceHasAudio: raw.sourceHasAudio === true,
+    sourceAudioBitrate: numberOrNull(raw.sourceAudioBitrate),
+    sourceAudioSampleRate: numberOrNull(raw.sourceAudioSampleRate),
+    sourceAudioChannels: numberOrNull(raw.sourceAudioChannels),
+    sourceAudioLayout: typeof raw.sourceAudioLayout === 'string' ? raw.sourceAudioLayout : null,
     finalSize: numberOrNull(raw.finalSize),
     finalWidth: numberOrNull(raw.finalWidth),
     finalHeight: numberOrNull(raw.finalHeight),
@@ -181,6 +200,7 @@ function migrateJob(value: unknown, settings: AgentSettings): CompressionJob | n
     finalDurationSeconds: numberOrNull(raw.finalDurationSeconds),
     finalCodec: typeof raw.finalCodec === 'string' ? raw.finalCodec : null,
     progress: numberOrNull(raw.progress),
+    processingStage: null,
     status,
     error:
       status === 'interrupted'
@@ -190,6 +210,11 @@ function migrateJob(value: unknown, settings: AgentSettings): CompressionJob | n
           : null,
     errorDetails: typeof raw.errorDetails === 'string' ? raw.errorDetails : null,
     encoding,
+    imageEmbedding:
+      migrateJobImageEmbedding(raw.imageEmbedding) ??
+      (status === 'ready' || status === 'analyzing'
+        ? draftImageEmbedding(settings.imageEmbedding)
+        : null),
     batchId: null,
     startedAt: numberOrNull(raw.startedAt),
     finishedAt: status === 'interrupted' ? Date.now() : numberOrNull(raw.finishedAt),
@@ -209,7 +234,115 @@ function migrateJob(value: unknown, settings: AgentSettings): CompressionJob | n
     estimateProgress: null,
     estimateError: typeof raw.estimateError === 'string' ? raw.estimateError : null,
     estimateKey: typeof raw.estimateKey === 'string' ? raw.estimateKey : null,
-    estimatePriorityOrder: null
+    estimatePriorityOrder: null,
+    estimateBreakdown: migrateEstimateBreakdown(raw.estimateBreakdown)
+  };
+}
+
+function migrateImageEmbeddingSettings(value: unknown): ImageEmbeddingSettings {
+  const defaults = defaultImageEmbeddingSettings();
+  if (!value || typeof value !== 'object') return defaults;
+  const raw = value as Record<string, unknown>;
+  const duration = Number(raw.customFinalDurationSeconds);
+  return {
+    enabled: raw.enabled === true,
+    startImage: migrateImageAsset(raw.startImage),
+    endImage: migrateImageAsset(raw.endImage),
+    finalDurationMode:
+      raw.finalDurationMode === 'random-30-40' ||
+      raw.finalDurationMode === 'random-40-50' ||
+      raw.finalDurationMode === 'random-50-60' ||
+      raw.finalDurationMode === 'custom'
+        ? raw.finalDurationMode
+        : defaults.finalDurationMode,
+    customFinalDurationSeconds:
+      Number.isInteger(duration) &&
+      duration >= MIN_CUSTOM_FINAL_IMAGE_DURATION_SECONDS &&
+      duration <= MAX_CUSTOM_FINAL_IMAGE_DURATION_SECONDS
+        ? duration
+        : DEFAULT_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
+    fitMode:
+      raw.fitMode === 'contain' || raw.fitMode === 'stretch' || raw.fitMode === 'cover'
+        ? raw.fitMode
+        : defaults.fitMode
+  };
+}
+
+function migrateJobImageEmbedding(value: unknown): JobImageEmbedding | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Record<string, unknown>;
+  const startImage = migrateImageAsset(raw.startImage);
+  const endImage = migrateImageAsset(raw.endImage);
+  if (!startImage && !endImage) return null;
+  const settings = migrateImageEmbeddingSettings({ ...raw, enabled: true });
+  const rawDuration = Number(raw.finalDurationSeconds);
+  return {
+    startImage,
+    endImage,
+    finalDurationMode: settings.finalDurationMode,
+    finalDurationSeconds:
+      endImage && Number.isInteger(rawDuration) && rawDuration > 0
+        ? Math.min(MAX_CUSTOM_FINAL_IMAGE_DURATION_SECONDS, rawDuration)
+        : endImage && settings.finalDurationMode === 'custom'
+          ? settings.customFinalDurationSeconds
+          : null,
+    fitMode: settings.fitMode
+  };
+}
+
+function migrateImageAsset(value: unknown): ImageAsset | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Record<string, unknown>;
+  const width = Number(raw.width);
+  const height = Number(raw.height);
+  const size = Number(raw.size);
+  if (
+    typeof raw.id !== 'string' ||
+    typeof raw.fileName !== 'string' ||
+    !Number.isFinite(width) ||
+    width <= 0 ||
+    !Number.isFinite(height) ||
+    height <= 0 ||
+    !Number.isFinite(size) ||
+    size <= 0 ||
+    !['image/png', 'image/jpeg', 'image/webp'].includes(String(raw.mimeType)) ||
+    !['.png', '.jpg', '.webp'].includes(String(raw.extension))
+  ) {
+    return null;
+  }
+  return {
+    id: raw.id,
+    fileName: raw.fileName,
+    width,
+    height,
+    size,
+    mimeType: raw.mimeType as ImageAsset['mimeType'],
+    extension: raw.extension as ImageAsset['extension']
+  };
+}
+
+function migrateEstimateBreakdown(value: unknown): EstimateBreakdown | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Record<string, unknown>;
+  const dynamicVideoBytesPerSecond = Number(raw.dynamicVideoBytesPerSecond);
+  const staticVideoBytesPerSecond = Number(raw.staticVideoBytesPerSecond);
+  const audioBytesPerSecond = Number(raw.audioBytesPerSecond);
+  const uncertainty = Number(raw.uncertainty);
+  if (
+    ![
+      dynamicVideoBytesPerSecond,
+      staticVideoBytesPerSecond,
+      audioBytesPerSecond,
+      uncertainty
+    ].every(Number.isFinite)
+  ) {
+    return null;
+  }
+  return {
+    dynamicVideoBytesPerSecond,
+    staticVideoBytesPerSecond,
+    audioBytesPerSecond,
+    uncertainty
   };
 }
 

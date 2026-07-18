@@ -41,14 +41,20 @@ describe('real FFmpeg end to end', () => {
         input
       ])
     ).toBe(0);
-    const before = createHash('sha256').update(await readFile(input)).digest('hex');
+    const before = createHash('sha256')
+      .update(await readFile(input))
+      .digest('hex');
     const duration = await probeDuration(input);
     const operation = encodeVideo(input, output, duration, optimalEncoding, false, () => {});
     expect((await operation.done).code).toBe(0);
     const media = await probeMedia(output);
     expect(media).toMatchObject({ width: 320, height: 180, frameRate: 24, codec: 'h264' });
     expect(media.duration).toBeGreaterThan(0);
-    expect(createHash('sha256').update(await readFile(input)).digest('hex')).toBe(before);
+    expect(
+      createHash('sha256')
+        .update(await readFile(input))
+        .digest('hex')
+    ).toBe(before);
   }, 20_000);
 
   it('runs Custom mode with real FPS and resolution filters without changing the original', async () => {
@@ -73,7 +79,9 @@ describe('real FFmpeg end to end', () => {
         input
       ])
     ).toBe(0);
-    const before = createHash('sha256').update(await readFile(input)).digest('hex');
+    const before = createHash('sha256')
+      .update(await readFile(input))
+      .digest('hex');
     const duration = await probeDuration(input);
     const operation = encodeVideo(
       input,
@@ -89,7 +97,11 @@ describe('real FFmpeg end to end', () => {
     expect(media.width).toBe(180);
     expect(media.frameRate).toBe(12);
     expect(media.codec).toBe('h264');
-    expect(createHash('sha256').update(await readFile(input)).digest('hex')).toBe(before);
+    expect(
+      createHash('sha256')
+        .update(await readFile(input))
+        .digest('hex')
+    ).toBe(before);
   }, 20_000);
 });
 

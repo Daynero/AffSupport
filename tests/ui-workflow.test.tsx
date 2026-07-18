@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { encodingKey } from '../packages/shared/src/types.js';
+import { jobConfigurationKey } from '../packages/shared/src/types.js';
 import { droppedFiles, DropZone } from '../apps/web/src/components/DropZone';
 import { JobRow } from '../apps/web/src/components/JobRow';
 import { SettingsPanel } from '../apps/web/src/components/SettingsPanel';
@@ -25,7 +25,10 @@ import {
 import { translate, type Language } from '../apps/web/src/i18n';
 import { customEncoding, makeJob, optimalSettings } from './helpers.js';
 
-const translator = (language: Language): Translate => (key, values) => translate(language, key, values);
+const translator =
+  (language: Language): Translate =>
+  (key, values) =>
+    translate(language, key, values);
 
 describe('compression settings UI', () => {
   it('shows only the compact summary in Optimal mode', () => {
@@ -156,7 +159,7 @@ describe('estimates, results, timers and batch progress', () => {
       estimateStatus: 'estimated',
       estimatedOutputBytes: 6000,
       estimatedSavingPercent: 40,
-      estimateKey: encodingKey(customEncoding)
+      estimateKey: jobConfigurationKey(customEncoding, null)
     });
     const estimateMarkup = renderToStaticMarkup(
       <JobRow
@@ -198,7 +201,7 @@ describe('estimates, results, timers and batch progress', () => {
       />
     );
     expect(resultMarkup).toContain('Ready file');
-    expect(resultMarkup).toContain('Compressed in 00:00:05');
+    expect(resultMarkup).toContain('Completed in 00:00:05');
     expect(resultMarkup).not.toContain('Expected result');
   });
 
@@ -221,7 +224,12 @@ describe('estimates, results, timers and batch progress', () => {
       makeJob('two', 'processing', { progress: 50, batchId: 'batch' }),
       makeJob('not-started', 'ready', { progress: 0 })
     ];
-    expect(batchMetrics(jobs, batch)).toMatchObject({ total: 2, completed: 1, processing: 1, progress: 75 });
+    expect(batchMetrics(jobs, batch)).toMatchObject({
+      total: 2,
+      completed: 1,
+      processing: 1,
+      progress: 75
+    });
   });
 });
 
@@ -231,8 +239,12 @@ describe('tooltip accessibility and responsive layout', () => {
     expect(tooltipInteraction(empty, 'hover-in').hovered).toBe(true);
     expect(tooltipInteraction(empty, 'focus').focused).toBe(true);
     expect(tooltipInteraction(empty, 'toggle').pinned).toBe(true);
-    expect(tooltipInteraction({ hovered: true, focused: true, pinned: true }, 'escape')).toEqual(empty);
-    expect(tooltipInteraction({ hovered: true, focused: true, pinned: true }, 'outside')).toEqual(empty);
+    expect(tooltipInteraction({ hovered: true, focused: true, pinned: true }, 'escape')).toEqual(
+      empty
+    );
+    expect(tooltipInteraction({ hovered: true, focused: true, pinned: true }, 'outside')).toEqual(
+      empty
+    );
   });
 
   it('exposes a labeled tooltip button with expanded state', () => {

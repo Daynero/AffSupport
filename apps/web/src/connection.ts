@@ -21,7 +21,9 @@ export function versionState(apiVersion: number): ConnectionState {
   if (apiVersion > MAX_SUPPORTED_API_VERSION) return 'web_update_required';
   return 'connected';
 }
-export function pairingPath(agentOrigin: string, pageOrigin: string) { return agentOrigin === pageOrigin ? '/local' : '/pair'; }
+export function pairingPath(agentOrigin: string, pageOrigin: string) {
+  return agentOrigin === pageOrigin ? '/local' : '/pair';
+}
 
 export async function probeAgent(
   agentOrigin: string,
@@ -77,13 +79,17 @@ export function agentFetchOptions(agentOrigin: string, pageOrigin: string): Requ
 }
 
 export async function failureState(): Promise<ConnectionState> {
-  const permissions = navigator.permissions as Permissions & { query(descriptor: { name: string }): Promise<PermissionStatus> };
+  const permissions = navigator.permissions as Permissions & {
+    query(descriptor: { name: string }): Promise<PermissionStatus>;
+  };
   // Chrome 145 split the old permission. Keep the alias fallback for older versions.
   for (const name of ['loopback-network', 'local-network-access']) {
     try {
       const status = await permissions.query({ name });
       if (status.state === 'denied') return 'connection_blocked';
-    } catch { /* unsupported permission name/API */ }
+    } catch {
+      /* unsupported permission name/API */
+    }
   }
   return 'not_installed_or_not_running';
 }

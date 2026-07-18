@@ -46,12 +46,11 @@ describe('queue file handling', () => {
     const second = path.join(directory, 'second.mp4');
     expect(await makeVideo(first, 0.3, '160x90', 10)).toBe(0);
     await copyFile(first, second);
-    const queue = new JobQueue(
-      { ffmpeg: true, ffprobe: true },
-      () => {},
-      [],
-      { ...optimalSettings, outputMode: 'chosen-folder', outputFolder: directory }
-    );
+    const queue = new JobQueue({ ffmpeg: true, ffprobe: true }, () => {}, [], {
+      ...optimalSettings,
+      outputMode: 'chosen-folder',
+      outputFolder: directory
+    });
     expect(await queue.addUploaded(first, 'clip.mp4', 'clip.mp4:100:123')).toEqual([]);
     const warnings = await queue.addUploaded(second, 'clip.mp4', 'clip.mp4:100:123');
     expect(warnings[0].reason).toBe('duplicate');
@@ -125,19 +124,18 @@ describe('selected batch behavior', () => {
       outputPath: path.join(directory, 'bad-compressed.mp4'),
       durationSeconds: 1
     });
-    const queue = new JobQueue(
-      { ffmpeg: true, ffprobe: true },
-      () => {},
-      [badJob],
-      { ...optimalSettings }
-    );
+    const queue = new JobQueue({ ffmpeg: true, ffprobe: true }, () => {}, [badJob], {
+      ...optimalSettings
+    });
     await queue.add([good]);
     const goodId = queue.state().jobs[1].id;
     await queue.start([badJob.id, goodId]);
     await until(() => !queue.state().running);
     expect(queue.state().jobs[0].status).toBe('failed');
     expect(queue.state().jobs[0].startedAt).toBeTypeOf('number');
-    expect(queue.state().jobs[0].finishedAt).toBeGreaterThanOrEqual(queue.state().jobs[0].startedAt!);
+    expect(queue.state().jobs[0].finishedAt).toBeGreaterThanOrEqual(
+      queue.state().jobs[0].startedAt!
+    );
     expect(queue.state().jobs[1].status).toBe('completed');
     expect(await queue.retry(badJob.id)).toBe(true);
     expect(queue.state().jobs[0].status).toBe('ready');
@@ -152,12 +150,15 @@ describe('selected batch behavior', () => {
     const id = queue.state().jobs[0].id;
     await queue.start([id]);
     await until(
-      () => queue.state().jobs[0].status === 'processing' && queue.state().jobs[0].startedAt !== null
+      () =>
+        queue.state().jobs[0].status === 'processing' && queue.state().jobs[0].startedAt !== null
     );
     expect(await queue.cancel(id)).toBe(true);
     await until(() => !queue.state().running);
     expect(queue.state().jobs[0]).toMatchObject({ status: 'cancelled', finalSize: null });
-    expect(queue.state().jobs[0].finishedAt).toBeGreaterThanOrEqual(queue.state().jobs[0].startedAt!);
+    expect(queue.state().jobs[0].finishedAt).toBeGreaterThanOrEqual(
+      queue.state().jobs[0].startedAt!
+    );
   }, 20_000);
 });
 

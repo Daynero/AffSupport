@@ -1,14 +1,20 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import { encodingKey, type EncodingSettings } from '@video-compressor/shared';
+import {
+  jobConfigurationKey,
+  type EncodingSettings,
+  type EstimateBreakdown,
+  type JobImageEmbedding
+} from '@video-compressor/shared';
 
-export const ESTIMATE_ALGORITHM_VERSION = '9';
+export const ESTIMATE_ALGORITHM_VERSION = '10';
 export interface CachedEstimate {
   estimatedOutputBytes: number;
   estimatedSavingPercent: number;
   estimateRangeMinBytes: number;
   estimateRangeMaxBytes: number;
+  estimateBreakdown: EstimateBreakdown;
   createdAt: number;
 }
 interface CacheFile {
@@ -32,13 +38,14 @@ export function estimateCacheKey(
   filePath: string,
   size: number,
   mtimeMs: number,
-  settings: EncodingSettings
+  settings: EncodingSettings,
+  imageEmbedding: JobImageEmbedding | null = null
 ) {
   return JSON.stringify([
     path.resolve(filePath),
     size,
     Math.round(mtimeMs),
-    encodingKey(settings),
+    jobConfigurationKey(settings, imageEmbedding),
     ESTIMATE_ALGORITHM_VERSION
   ]);
 }

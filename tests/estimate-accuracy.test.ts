@@ -48,7 +48,14 @@ describe('estimate accuracy on representative synthetic videos', () => {
       await until(() => ['estimated', 'unavailable'].includes(job.estimateStatus));
       expect(job.estimateStatus).toBe('estimated');
       await worker.shutdown();
-      const operation = encodeVideo(input, job.outputPath, duration, optimalEncoding, false, () => {});
+      const operation = encodeVideo(
+        input,
+        job.outputPath,
+        duration,
+        optimalEncoding,
+        false,
+        () => {}
+      );
       expect((await operation.done).code).toBe(0);
       const actual = (await stat(job.outputPath)).size;
       const estimated = job.estimatedOutputBytes!;

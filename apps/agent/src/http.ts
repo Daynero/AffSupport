@@ -1,4 +1,7 @@
-export function eventStreamHeaders(origin: string | undefined, allowedOrigins: ReadonlySet<string>): Record<string, string> {
+export function eventStreamHeaders(
+  origin: string | undefined,
+  allowedOrigins: ReadonlySet<string>
+): Record<string, string> {
   const headers: Record<string, string> = {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',

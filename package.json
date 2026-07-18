@@ -1,7 +1,7 @@
 {
   "name": "local-video-compressor",
   "private": true,
-  "version": "0.2.0-test.1",
+  "version": "0.3.0-test.1",
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -18,12 +18,23 @@
     "verify:dmg": "zsh scripts/verify-dmg.sh",
     "verify:package": "zsh scripts/verify-package.sh",
     "start": "npm run start -w @video-compressor/agent",
-    "test": "vitest run",
-    "test:agent:e2e": "node scripts/real-agent-check.mjs"
+    "format": "prettier --write apps packages tests scripts README.md TESTER_GUIDE.md RELEASE_NOTES.md package.json",
+    "format:check": "prettier --check apps packages tests scripts README.md TESTER_GUIDE.md RELEASE_NOTES.md package.json",
+    "lint": "eslint apps packages tests scripts",
+    "test": "npm run build -w @video-compressor/shared && vitest run",
+    "test:agent:e2e": "npm run build && node scripts/real-agent-check.mjs"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "concurrently": "^9.2.1",
+    "eslint": "^10.7.0",
+    "globals": "^17.7.0",
+    "jsdom": "^29.1.1",
+    "prettier": "^3.9.5",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.64.0",
     "vitest": "^3.2.4"
   }
 }

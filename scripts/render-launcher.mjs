@@ -10,7 +10,10 @@ let source = readFileSync(templatePath, 'utf8');
 for (const pair of pairs) {
   const separator = pair.indexOf('=');
   const token = pair.slice(0, separator);
-  const value = pair.slice(separator + 1).replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+  const value = pair
+    .slice(separator + 1)
+    .replaceAll('\\', '\\\\')
+    .replaceAll('"', '\\"');
   const placeholder = `__${token}__`;
   if (!source.includes(placeholder)) {
     process.stderr.write(`Launcher template is missing ${placeholder}\n`);
@@ -21,7 +24,9 @@ for (const pair of pairs) {
 
 const unresolved = source.match(/__[A-Z0-9_]+__/g);
 if (unresolved) {
-  process.stderr.write(`Unresolved launcher placeholders: ${[...new Set(unresolved)].join(', ')}\n`);
+  process.stderr.write(
+    `Unresolved launcher placeholders: ${[...new Set(unresolved)].join(', ')}\n`
+  );
   process.exit(1);
 }
 writeFileSync(outputPath, source);

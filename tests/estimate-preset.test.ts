@@ -11,12 +11,9 @@ describe('estimate invalidation when settings change', () => {
       estimatedSavingPercent: 50,
       estimateKey: 'old'
     });
-    const queue = new JobQueue(
-      { ffmpeg: true, ffprobe: true },
-      () => {},
-      [job],
-      { ...optimalSettings }
-    );
+    const queue = new JobQueue({ ffmpeg: true, ffprobe: true }, () => {}, [job], {
+      ...optimalSettings
+    });
     let invalidations = 0;
     queue.attachEstimator({
       schedule: () => {},

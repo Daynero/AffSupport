@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  detectLanguage,
-  selectedCountKey,
-  translate,
-  translationKeys
-} from '../apps/web/src/i18n';
+import { detectLanguage, selectedCountKey, translate, translationKeys } from '../apps/web/src/i18n';
 
 describe('language selection and dictionaries', () => {
   it('uses a saved choice before browser languages', () => {

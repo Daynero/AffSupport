@@ -20,13 +20,21 @@ describe('agent compatibility', () => {
     expect(versionState(MAX_SUPPORTED_API_VERSION + 1)).toBe('web_update_required');
   });
   it('pairs hosted pages through the production redirect and local pages locally', () => {
-    expect(pairingPath('http://127.0.0.1:43120', 'https://local-video-compressor-test.pages.dev')).toBe('/pair');
+    expect(
+      pairingPath('http://127.0.0.1:43120', 'https://local-video-compressor-test.pages.dev')
+    ).toBe('/pair');
     expect(pairingPath('http://127.0.0.1:43120', 'http://127.0.0.1:43120')).toBe('/local');
   });
   it('lets browsers classify the loopback Agent instead of mislabeling it as local', () => {
-    expect(agentFetchOptions('http://127.0.0.1:43120', 'https://local-video-compressor-test.pages.dev')).toEqual({});
-    expect(agentFetchOptions('http://localhost:43120', 'https://local-video-compressor-test.pages.dev')).toEqual({});
-    expect(agentFetchOptions('http://[::1]:43120', 'https://local-video-compressor-test.pages.dev')).toEqual({});
+    expect(
+      agentFetchOptions('http://127.0.0.1:43120', 'https://local-video-compressor-test.pages.dev')
+    ).toEqual({});
+    expect(
+      agentFetchOptions('http://localhost:43120', 'https://local-video-compressor-test.pages.dev')
+    ).toEqual({});
+    expect(
+      agentFetchOptions('http://[::1]:43120', 'https://local-video-compressor-test.pages.dev')
+    ).toEqual({});
   });
 
   it('refuses to start pairing when the local Agent is unreachable', async () => {

@@ -7,6 +7,7 @@ import {
   RELEASE_DOWNLOAD_URL,
   DEFAULT_CRF,
   DEFAULT_VIDEO_BITRATE_KBPS,
+  defaultImageEmbeddingSettings,
   calculateQueueSummary,
   type AgentEvent,
   type AgentSettings,
@@ -19,10 +20,12 @@ import {
   connect,
   consumePairingToken,
   eventUrl,
+  imageContentUrl,
   onPairingToken,
   pairWithAgent,
   request,
   requestBody,
+  uploadImage as uploadImageAsset,
   uploadFile
 } from './api/client';
 import { failureState, type ConnectionState, versionState } from './connection';
@@ -48,7 +51,8 @@ const defaultSettings: AgentSettings = {
   resolutionLimit: null,
   rateControl: 'crf',
   crf: DEFAULT_CRF,
-  videoBitrateKbps: DEFAULT_VIDEO_BITRATE_KBPS
+  videoBitrateKbps: DEFAULT_VIDEO_BITRATE_KBPS,
+  imageEmbedding: defaultImageEmbeddingSettings()
 };
 const empty: QueueState = {
   jobs: [],
@@ -74,6 +78,7 @@ export default function App() {
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
   const [importing, setImporting] = useState(false);
   const [help, setHelp] = useState(false);
+  const [embeddingFormValid, setEmbeddingFormValid] = useState(true);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const events = useRef<EventSource | null>(null);
   const connectedOnce = useRef(false);
@@ -188,15 +193,25 @@ export default function App() {
   };
 
   const updateSettings = (patch: Partial<AgentSettings>, debounce = false) => {
+    const normalizedPatch: Partial<AgentSettings> = patch.imageEmbedding
+      ? {
+          ...patch,
+          imageEmbedding: {
+            ...state.settings.imageEmbedding,
+            ...pendingSettings.current.imageEmbedding,
+            ...patch.imageEmbedding
+          }
+        }
+      : patch;
     if (!debounce) {
       if (settingsTimer.current) clearTimeout(settingsTimer.current);
       settingsTimer.current = null;
-      const body = { ...pendingSettings.current, ...patch };
+      const body = { ...pendingSettings.current, ...normalizedPatch };
       pendingSettings.current = {};
       void sendSettings(body);
       return;
     }
-    Object.assign(pendingSettings.current, patch);
+    Object.assign(pendingSettings.current, normalizedPatch);
     if (settingsTimer.current) clearTimeout(settingsTimer.current);
     settingsTimer.current = setTimeout(() => {
       const body = pendingSettings.current;
@@ -212,7 +227,14 @@ export default function App() {
       const result = await request<SelectionResponse>('/api/files/select', 'POST');
       setState(result.state);
       selectNewJobs(before, result.state, setSelected);
-      await handleSelectionWarnings(result.warnings, result.state, t, addToast, setState, setSelected);
+      await handleSelectionWarnings(
+        result.warnings,
+        result.state,
+        t,
+        addToast,
+        setState,
+        setSelected
+      );
     } catch (error) {
       handleError(error);
     }
@@ -239,7 +261,15 @@ export default function App() {
 
   const startSelected = async () => {
     const ids = readySelectedIds(state.jobs, selected);
-    if (!ids.length) return;
+    if (
+      !ids.length ||
+      !embeddingFormValid ||
+      (state.settings.imageEmbedding.enabled &&
+        !state.settings.imageEmbedding.startImage &&
+        !state.settings.imageEmbedding.endImage)
+    ) {
+      return;
+    }
     try {
       const next = await requestBody<QueueState>('/api/queue/start', { ids });
       setState(next);
@@ -251,6 +281,24 @@ export default function App() {
       setLastSelectedIndex(null);
     } catch (error) {
       handleError(error);
+    }
+  };
+
+  const setImage = async (slot: 'start' | 'end', file: File) => {
+    try {
+      setState(await uploadImageAsset(slot, file));
+    } catch (error) {
+      handleError(error);
+      throw error;
+    }
+  };
+
+  const removeImage = async (slot: 'start' | 'end') => {
+    try {
+      setState(await request<QueueState>(`/api/images/${slot}`, 'DELETE'));
+    } catch (error) {
+      handleError(error);
+      throw error;
     }
   };
 
@@ -359,7 +407,9 @@ export default function App() {
           <BlockingMessage
             title={t('agentDisconnected')}
             body={t('restoreQueue')}
-            action={<Button onClick={() => void establish('connecting', true)}>{t('reconnect')}</Button>}
+            action={
+              <Button onClick={() => void establish('connecting', true)}>{t('reconnect')}</Button>
+            }
           />
         )}
         {connected && (!state.tools.ffmpeg || !state.tools.ffprobe) && (
@@ -375,6 +425,10 @@ export default function App() {
           hasUploadedFiles={state.jobs.some(job => job.sourceKind === 'uploaded')}
           updateSettings={updateSettings}
           chooseOutputFolder={() => void action('/api/output/select')}
+          uploadImage={setImage}
+          removeImage={removeImage}
+          imageUrl={imageContentUrl}
+          onEmbeddingValidityChange={setEmbeddingFormValid}
           t={t}
         />
 
@@ -391,7 +445,10 @@ export default function App() {
 
         {state.jobs.length > 0 && (
           <>
-            <section className="batch-toolbar" aria-label={t('fileActions', { name: t('appName') })}>
+            <section
+              className="batch-toolbar"
+              aria-label={t('fileActions', { name: t('appName') })}
+            >
               <div className="selection-actions">
                 <Button
                   variant="ghost"
@@ -417,7 +474,15 @@ export default function App() {
               <div className="primary-actions">
                 <Button
                   variant="primary"
-                  disabled={!connected || state.running || selectedReady.length === 0}
+                  disabled={
+                    !connected ||
+                    state.running ||
+                    selectedReady.length === 0 ||
+                    !embeddingFormValid ||
+                    (state.settings.imageEmbedding.enabled &&
+                      !state.settings.imageEmbedding.startImage &&
+                      !state.settings.imageEmbedding.endImage)
+                  }
                   onClick={() => void startSelected()}
                 >
                   {t('compressSelected')}
@@ -505,7 +570,11 @@ export default function App() {
               </div>
             </dl>
             {summary.successful > 0 && (
-              <Button variant="ghost" disabled={!connected} onClick={() => void action('/api/output/reveal')}>
+              <Button
+                variant="ghost"
+                disabled={!connected}
+                onClick={() => void action('/api/output/reveal')}
+              >
                 {t('showOutput')}
               </Button>
             )}
@@ -537,10 +606,16 @@ function Header({
       <h1>{t('appName')}</h1>
       <div className="topbar-actions">
         <div className="language-switch" aria-label={t('language')}>
-          <button className={language === 'en' ? 'is-active' : ''} onClick={() => setLanguage('en')}>
+          <button
+            className={language === 'en' ? 'is-active' : ''}
+            onClick={() => setLanguage('en')}
+          >
             EN
           </button>
-          <button className={language === 'uk' ? 'is-active' : ''} onClick={() => setLanguage('uk')}>
+          <button
+            className={language === 'uk' ? 'is-active' : ''}
+            onClick={() => setLanguage('uk')}
+          >
             UA
           </button>
         </div>
@@ -597,11 +672,7 @@ function Onboarding({
 }) {
   if (state === 'connecting') {
     return (
-      <BlockingMessage
-        title={t('lookingForAgent')}
-        body={t('keepAgentOpen')}
-        icon={<Spinner />}
-      />
+      <BlockingMessage title={t('lookingForAgent')} body={t('keepAgentOpen')} icon={<Spinner />} />
     );
   }
   if (state === 'pairing_required') {
@@ -658,7 +729,12 @@ function Onboarding({
             <Button variant="primary" onClick={connect}>
               {t('tryAgain')}
             </Button>
-            <a className="button button-secondary" href={`${agentUrl}/local`} target="_blank" rel="noreferrer">
+            <a
+              className="button button-secondary"
+              href={`${agentUrl}/local`}
+              target="_blank"
+              rel="noreferrer"
+            >
               {t('openLocal')}
             </a>
           </div>
@@ -813,7 +889,14 @@ function localizedError(value: unknown, t: Translate) {
     PAIRING_REQUIRED: 'pairingRequired',
     CONNECTION_FAILED: 'connectionFailed',
     TIMEOUT: 'timeout',
-    'Invalid session token.': 'invalidToken'
+    'Invalid session token.': 'invalidToken',
+    EMBED_IMAGES_REQUIRED: 'embeddingNeedsImage',
+    INVALID_CUSTOM_IMAGE_DURATION: 'invalidCustomDuration',
+    IMAGE_UNSUPPORTED_FORMAT: 'unsupportedImageFormat',
+    IMAGE_DAMAGED: 'damagedImage',
+    IMAGE_TOO_LARGE: 'imageTooLarge',
+    IMAGE_UNAVAILABLE: 'imageUnavailable',
+    IMAGE_IMPORT_FAILED: 'imageUploadFailed'
   };
   return t(map[raw] ?? 'genericError');
 }

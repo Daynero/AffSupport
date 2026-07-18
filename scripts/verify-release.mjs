@@ -28,14 +28,18 @@ if (BUNDLE_VERSION !== PRODUCT_VERSION.split('-')[0]) {
 if (!/^[1-9]\d*(?:\.\d+){0,2}$/.test(BUILD_NUMBER)) {
   fail(`build number ${BUILD_NUMBER} must be one to three positive numeric components`);
 }
-if (BUILD_ID !== `${PRODUCT_VERSION}+${BUILD_NUMBER}`) fail('build ID is not derived from version and build number');
+if (BUILD_ID !== `${PRODUCT_VERSION}+${BUILD_NUMBER}`)
+  fail('build ID is not derived from version and build number');
 if (
   AGENT_API_VERSION < MIN_SUPPORTED_AGENT_API_VERSION ||
   AGENT_API_VERSION > MAX_SUPPORTED_AGENT_API_VERSION
 ) {
   fail('current agent API is outside the declared web compatibility range');
 }
-if (RELEASE_TAG !== `v${PRODUCT_VERSION}` || !RELEASE_ARTIFACT_NAME.includes(`v${PRODUCT_VERSION}`)) {
+if (
+  RELEASE_TAG !== `v${PRODUCT_VERSION}` ||
+  !RELEASE_ARTIFACT_NAME.includes(`v${PRODUCT_VERSION}`)
+) {
   fail('tag or artifact name does not contain the product version');
 }
 if (!RELEASE_DOWNLOAD_URL.endsWith(`/${RELEASE_TAG}/${RELEASE_ARTIFACT_NAME}`)) {
@@ -66,8 +70,11 @@ if (packageMode || deployMode) {
   }).trim();
   if (status) fail('publishing requires a clean, committed worktree');
 
-  const existingTag = execFileSync('git', ['tag', '--list', RELEASE_TAG], { encoding: 'utf8' }).trim();
-  if (packageMode && existingTag) fail(`${RELEASE_TAG} already exists locally and cannot be rebuilt`);
+  const existingTag = execFileSync('git', ['tag', '--list', RELEASE_TAG], {
+    encoding: 'utf8'
+  }).trim();
+  if (packageMode && existingTag)
+    fail(`${RELEASE_TAG} already exists locally and cannot be rebuilt`);
   if (packageMode) {
     try {
       const remoteTag = execFileSync(
@@ -85,7 +92,9 @@ if (packageMode || deployMode) {
   if (deployMode) {
     if (!existingTag) fail(`${RELEASE_TAG} must exist locally before web deployment`);
     const head = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
-    const tagged = execFileSync('git', ['rev-list', '-n', '1', RELEASE_TAG], { encoding: 'utf8' }).trim();
+    const tagged = execFileSync('git', ['rev-list', '-n', '1', RELEASE_TAG], {
+      encoding: 'utf8'
+    }).trim();
     let remoteRefs;
     try {
       remoteRefs = execFileSync(

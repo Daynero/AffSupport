@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { createWriteStream } from 'node:fs';
+import { createReadStream, createWriteStream } from 'node:fs';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
 import { spawn } from 'node:child_process';
@@ -17,13 +17,18 @@ import {
   CRF_MIN,
   FRAME_RATE_MAX,
   FRAME_RATE_MIN,
+  MAX_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
+  MIN_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
   RESOLUTION_MAX,
   RESOLUTION_MIN,
   VIDEO_BITRATE_MAX_KBPS,
   VIDEO_BITRATE_MIN_KBPS,
   type AgentEvent,
   type AgentEventType,
-  type AgentSettings
+  type AgentSettings,
+  type ImageAsset,
+  type ImageEmbeddingSettings,
+  type ImageSlot
 } from '@video-compressor/shared';
 import { EstimationWorker } from './estimate/worker.js';
 import { selectOutputFolder, selectVideos } from './files/picker.js';
@@ -32,6 +37,7 @@ import { allowedOrigins, config } from './config.js';
 import { eventStreamHeaders } from './http.js';
 import { isSupportedVideoPath, JobQueue } from './queue/queue.js';
 import { loadState, saveState } from './queue/store.js';
+import { ImageAssetError, ImageAssetStore, MAX_IMAGE_BYTES } from './images/store.js';
 
 const token = randomBytes(32).toString('hex');
 const instanceId = randomBytes(12).toString('hex');
@@ -42,8 +48,7 @@ const tools = {
   ffprobe: await commandExists(ffprobePath)
 };
 const clients = new Set<NodeJS.WritableStream>();
-let queue: JobQueue;
-let estimator: EstimationWorker;
+const imageStore = new ImageAssetStore();
 const pendingSelections = new Map<string, string>();
 let saveChain = Promise.resolve();
 
@@ -57,12 +62,22 @@ function broadcast(type: AgentEventType = 'state') {
 }
 
 const restored = await loadState();
-queue = new JobQueue(tools, broadcast, restored.jobs, restored.settings, restored.batch);
+const queue = new JobQueue(
+  tools,
+  broadcast,
+  restored.jobs,
+  restored.settings,
+  restored.batch,
+  imageStore
+);
+await queue.revalidateSettingsImages();
 await saveState(queue.persisted());
-estimator = new EstimationWorker(
+const estimator = new EstimationWorker(
   () => queue.estimationJobs(),
   (id, patch, event) => queue.updateEstimate(id, patch, event),
-  () => queue.compressionActive()
+  () => queue.compressionActive(),
+  undefined,
+  imageStore
 );
 queue.attachEstimator({
   schedule: () => estimator.schedule(),
@@ -103,7 +118,8 @@ app.addHook('onSend', async (request, reply, payload) => {
 });
 app.addHook('preHandler', async (request, reply) => {
   if (!request.url.startsWith('/api/')) return;
-  const supplied = request.headers['x-session-token'] ?? (request.query as { token?: string }).token;
+  const supplied =
+    request.headers['x-session-token'] ?? (request.query as { token?: string }).token;
   if (supplied !== token) return reply.code(401).send({ error: 'Invalid session token.' });
 });
 
@@ -194,13 +210,7 @@ app.post('/api/files/upload', async (request, reply) => {
 
   const importRoot =
     process.env.AGENT_IMPORT_PATH ??
-    path.join(
-      os.homedir(),
-      'Library',
-      'Application Support',
-      'Local Video Compressor',
-      'Imports'
-    );
+    path.join(os.homedir(), 'Library', 'Application Support', 'Local Video Compressor', 'Imports');
   await mkdir(importRoot, { recursive: true });
   const directory = await mkdtemp(path.join(importRoot, 'import-'));
   const inputPath = path.join(directory, fileName);
@@ -215,6 +225,58 @@ app.post('/api/files/upload', async (request, reply) => {
     return reply.code(400).send({
       error: error instanceof Error ? error.message : 'The file could not be imported.'
     });
+  }
+});
+
+app.post<{ Params: { slot: string } }>('/api/images/:slot', async (request, reply) => {
+  const slot = imageSlot(request.params.slot);
+  if (!slot) return reply.code(400).send({ error: 'IMAGE_SLOT_INVALID' });
+  const part = await request.file({ limits: { fileSize: MAX_IMAGE_BYTES } });
+  if (!part) return reply.code(400).send({ error: 'IMAGE_MISSING' });
+  const previous =
+    slot === 'start'
+      ? queue.state().settings.imageEmbedding.startImage
+      : queue.state().settings.imageEmbedding.endImage;
+  let asset: ImageAsset | null = null;
+  try {
+    asset = await imageStore.import(
+      part.file,
+      part.filename || 'image',
+      part.mimetype || 'application/octet-stream'
+    );
+    await queue.setImage(slot, asset);
+    await queue.releaseImageIfUnused(previous);
+    return queue.state();
+  } catch (error) {
+    if (asset) await queue.releaseImageIfUnused(asset);
+    const code = error instanceof ImageAssetError ? error.code : 'IMAGE_IMPORT_FAILED';
+    return reply.code(code === 'IMAGE_TOO_LARGE' ? 413 : 400).send({ error: code });
+  }
+});
+
+app.delete<{ Params: { slot: string } }>('/api/images/:slot', async (request, reply) => {
+  const slot = imageSlot(request.params.slot);
+  if (!slot) return reply.code(400).send({ error: 'IMAGE_SLOT_INVALID' });
+  const previous =
+    slot === 'start'
+      ? queue.state().settings.imageEmbedding.startImage
+      : queue.state().settings.imageEmbedding.endImage;
+  await queue.setImage(slot, null);
+  await queue.releaseImageIfUnused(previous);
+  return queue.state();
+});
+
+app.get<{ Params: { id: string } }>('/api/images/:id/content', async (request, reply) => {
+  const asset = queue.imageAsset(request.params.id);
+  if (!asset) return reply.code(404).send({ error: 'IMAGE_UNAVAILABLE' });
+  try {
+    const filePath = await imageStore.validate(asset);
+    return reply
+      .header('Cache-Control', 'private, no-store')
+      .type(asset.mimeType)
+      .send(createReadStream(filePath));
+  } catch {
+    return reply.code(404).send({ error: 'IMAGE_UNAVAILABLE' });
   }
 });
 
@@ -242,7 +304,11 @@ app.post('/api/output/select', async () => {
   return queue.state();
 });
 
-app.post<{ Body: Partial<AgentSettings> }>('/api/settings', async (request, reply) => {
+type SettingsPatch = Omit<Partial<AgentSettings>, 'imageEmbedding'> & {
+  imageEmbedding?: Partial<Omit<ImageEmbeddingSettings, 'startImage' | 'endImage'>>;
+};
+
+app.post<{ Body: SettingsPatch }>('/api/settings', async (request, reply) => {
   const body = request.body;
   if (!body || typeof body !== 'object') {
     return reply.code(400).send({ error: 'Invalid settings.' });
@@ -304,6 +370,51 @@ app.post<{ Body: Partial<AgentSettings> }>('/api/settings', async (request, repl
     }
     allowed.videoBitrateKbps = value;
   }
+  if (body.imageEmbedding !== undefined) {
+    if (!body.imageEmbedding || typeof body.imageEmbedding !== 'object') {
+      return reply.code(400).send({ error: 'Invalid image embedding settings.' });
+    }
+    if ('startImage' in body.imageEmbedding || 'endImage' in body.imageEmbedding) {
+      return reply
+        .code(400)
+        .send({ error: 'Image assets must be selected through the image API.' });
+    }
+    const imageEmbedding = { ...queue.state().settings.imageEmbedding };
+    if (body.imageEmbedding.enabled !== undefined) {
+      if (typeof body.imageEmbedding.enabled !== 'boolean') {
+        return reply.code(400).send({ error: 'Invalid image embedding mode.' });
+      }
+      imageEmbedding.enabled = body.imageEmbedding.enabled;
+    }
+    if (body.imageEmbedding.finalDurationMode !== undefined) {
+      if (
+        !['random-30-40', 'random-40-50', 'random-50-60', 'custom'].includes(
+          body.imageEmbedding.finalDurationMode
+        )
+      ) {
+        return reply.code(400).send({ error: 'Invalid final image duration mode.' });
+      }
+      imageEmbedding.finalDurationMode = body.imageEmbedding.finalDurationMode;
+    }
+    if (body.imageEmbedding.customFinalDurationSeconds !== undefined) {
+      const value = Number(body.imageEmbedding.customFinalDurationSeconds);
+      if (
+        !Number.isInteger(value) ||
+        value < MIN_CUSTOM_FINAL_IMAGE_DURATION_SECONDS ||
+        value > MAX_CUSTOM_FINAL_IMAGE_DURATION_SECONDS
+      ) {
+        return reply.code(400).send({ error: 'INVALID_CUSTOM_IMAGE_DURATION' });
+      }
+      imageEmbedding.customFinalDurationSeconds = value;
+    }
+    if (body.imageEmbedding.fitMode !== undefined) {
+      if (!['cover', 'contain', 'stretch'].includes(body.imageEmbedding.fitMode)) {
+        return reply.code(400).send({ error: 'Invalid image fit mode.' });
+      }
+      imageEmbedding.fitMode = body.imageEmbedding.fitMode;
+    }
+    allowed.imageEmbedding = imageEmbedding;
+  }
   await queue.updateSettings(allowed);
   return queue.state();
 });
@@ -319,6 +430,10 @@ app.post<{ Body: { ids?: unknown } }>('/api/queue/start', async (request, reply)
   ) {
     return reply.code(400).send({ error: 'Choose one or more ready videos.' });
   }
+  const invalidImageWasCleared = await queue.revalidateSettingsImages();
+  if (invalidImageWasCleared) return reply.code(400).send({ error: 'IMAGE_UNAVAILABLE' });
+  const embeddingError = queue.embeddingConfigurationError();
+  if (embeddingError) return reply.code(400).send({ error: embeddingError });
   await estimator.pause();
   const started = await queue.start(request.body.ids);
   if (!started) {
@@ -369,9 +484,9 @@ app.post<{ Params: { id: string } }>('/api/jobs/:id/retry', async (request, repl
     : reply.code(409).send({ error: 'This job cannot be retried.' })
 );
 app.post<{ Params: { id: string } }>('/api/jobs/:id/reveal', async (request, reply) => {
-  const job = queue.state().jobs.find(
-    candidate => candidate.id === request.params.id && candidate.status === 'completed'
-  );
+  const job = queue
+    .state()
+    .jobs.find(candidate => candidate.id === request.params.id && candidate.status === 'completed');
   if (!job) return reply.code(404).send({ error: 'Completed file not found.' });
   spawn('/usr/bin/open', ['-R', job.outputPath], {
     shell: false,
@@ -381,11 +496,15 @@ app.post<{ Params: { id: string } }>('/api/jobs/:id/reveal', async (request, rep
   return queue.state();
 });
 app.post<{ Params: { id: string } }>('/api/jobs/:id/open', async (request, reply) => {
-  const job = queue.state().jobs.find(
-    candidate => candidate.id === request.params.id && candidate.status === 'completed'
-  );
+  const job = queue
+    .state()
+    .jobs.find(candidate => candidate.id === request.params.id && candidate.status === 'completed');
   if (!job) return reply.code(404).send({ error: 'Completed file not found.' });
-  spawn('/usr/bin/open', [job.outputPath], { shell: false, detached: true, stdio: 'ignore' }).unref();
+  spawn('/usr/bin/open', [job.outputPath], {
+    shell: false,
+    detached: true,
+    stdio: 'ignore'
+  }).unref();
   return queue.state();
 });
 app.post('/api/output/reveal', async (_request, reply) => {
@@ -410,7 +529,9 @@ await app.register(fastifyStatic, {
   }
 });
 app.get('/pair', async (_request, reply) =>
-  reply.redirect(`${config.publicOrigin ?? `http://${config.host}:${config.port}`}/#agentToken=${token}`)
+  reply.redirect(
+    `${config.publicOrigin ?? `http://${config.host}:${config.port}`}/#agentToken=${token}`
+  )
 );
 app.get('/local', async (_request, reply) =>
   reply.redirect(`http://${config.host}:${config.port}/#agentToken=${token}`)
@@ -459,4 +580,8 @@ if (process.env.PACKAGED_APP === '1') {
     }
   }, 1000);
   watchdog.unref();
+}
+
+function imageSlot(value: string): ImageSlot | null {
+  return value === 'start' || value === 'end' ? value : null;
 }

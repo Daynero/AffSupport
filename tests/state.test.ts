@@ -32,7 +32,11 @@ describe('persistent agent state', () => {
       stateFile
     );
     const restored = await loadState(stateFile);
-    expect(restored.settings).toMatchObject({ mode: 'custom', frameRate: 25, resolutionLimit: 720 });
+    expect(restored.settings).toMatchObject({
+      mode: 'custom',
+      frameRate: 25,
+      resolutionLimit: 720
+    });
     expect(restored.jobs[0].status).toBe('interrupted');
     expect(restored.jobs[0].error).toContain('interrupted');
     expect(restored.batch?.finishedAt).toBeTypeOf('number');
