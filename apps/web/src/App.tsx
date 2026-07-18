@@ -5,12 +5,7 @@ import {
   MIN_SUPPORTED_AGENT_API_VERSION,
   PRODUCT_VERSION,
   RELEASE_DOWNLOAD_URL,
-  DEFAULT_CRF,
-  DEFAULT_VIDEO_BITRATE_KBPS,
-  defaultImageEmbeddingSettings,
   calculateQueueSummary,
-  type AgentEvent,
-  type AgentSettings,
   type AgentSettingsPatch,
   type QueueState,
   type SelectionResponse,
@@ -18,18 +13,13 @@ import {
 } from '@video-compressor/shared';
 import {
   agentUrl,
-  connect,
-  consumePairingToken,
-  eventUrl,
   imageContentUrl,
-  onPairingToken,
-  pairWithAgent,
   request,
   requestBody,
   uploadImage as uploadImageAsset,
   uploadFile
 } from './api/client';
-import { failureState, type ConnectionState, versionState } from './connection';
+import { type ConnectionState } from './connection';
 import { formatSize } from './format';
 import { selectedCountKey, type Language, type TranslationKey, useI18n } from './i18n';
 import { mergeSettingsPatches } from './settings-patch';
@@ -46,26 +36,8 @@ import { JobRow } from './components/JobRow';
 import { SettingsPanel } from './components/SettingsPanel';
 import { Button, ProgressBar, Spinner, type Translate } from './components/ui';
 import { WishlyLogo, WishlyMark } from './components/WishlyLogo';
+import { useAgent } from './AgentContext';
 
-const defaultSettings: AgentSettings = {
-  mode: 'optimal',
-  outputMode: 'next-to-originals',
-  outputFolder: null,
-  frameRate: null,
-  resolutionLimit: null,
-  rateControl: 'crf',
-  crf: DEFAULT_CRF,
-  videoBitrateKbps: DEFAULT_VIDEO_BITRATE_KBPS,
-  imageEmbedding: defaultImageEmbeddingSettings()
-};
-const empty: QueueState = {
-  jobs: [],
-  running: false,
-  tools: { ffmpeg: false, ffprobe: false },
-  settings: defaultSettings,
-  batch: null,
-  warning: null
-};
 const downloadUrl = RELEASE_DOWNLOAD_URL;
 
 interface ToastMessage {
@@ -74,23 +46,23 @@ interface ToastMessage {
   tone: 'neutral' | 'success' | 'warning' | 'error';
 }
 
-export default function App() {
+export default function CompressorPage() {
   const { language, setLanguage, t } = useI18n();
-  const [state, setState] = useState<QueueState>(empty);
-  const [connection, setConnection] = useState<ConnectionState>('checking');
+  const { state, setState, connection, connectedOnce, reconnect } = useAgent();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
   const [importing, setImporting] = useState(false);
   const [help, setHelp] = useState(false);
   const [embeddingFormValid, setEmbeddingFormValid] = useState(true);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const events = useRef<EventSource | null>(null);
-  const connectedOnce = useRef(false);
-  const connecting = useRef(false);
   const toastId = useRef(0);
   const settingsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSettings = useRef<AgentSettingsPatch>({});
   const connected = connection === 'connected';
+
+  useEffect(() => {
+    document.title = 'Video Compressor — Wishly';
+  }, []);
 
   const addToast = (text: string, tone: ToastMessage['tone'] = 'neutral') => {
     const id = ++toastId.current;
@@ -100,70 +72,12 @@ export default function App() {
     }, 3600);
   };
 
-  const establish = async (mode: 'checking' | 'connecting', retry = false) => {
-    if (connecting.current) return;
-    connecting.current = true;
-    setConnection(mode);
-    events.current?.close();
-    events.current = null;
-    const deadline = Date.now() + (retry ? 12_000 : 2_500);
-    do {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 2200);
-      try {
-        const result = await connect(controller.signal);
-        clearTimeout(timer);
-        const next = versionState(result.apiVersion);
-        setConnection(next);
-        if (next !== 'connected') {
-          connecting.current = false;
-          return;
-        }
-        if (!result.state) throw new Error('AGENT_STATE_MISSING');
-        setState(result.state);
-        connectedOnce.current = true;
-        const source = new EventSource(eventUrl());
-        events.current = source;
-        source.onmessage = event => {
-          const update = JSON.parse(event.data) as AgentEvent;
-          setState(update.state);
-          setConnection('connected');
-        };
-        source.onerror = () => {
-          source.close();
-          events.current = null;
-          setConnection('disconnected');
-          connecting.current = false;
-          window.setTimeout(() => void establish('connecting', true), 500);
-        };
-        connecting.current = false;
-        return;
-      } catch (error) {
-        clearTimeout(timer);
-        if (error instanceof Error && error.message === 'PAIRING_REQUIRED') {
-          connecting.current = false;
-          if (mode === 'checking') setConnection('pairing_required');
-          else pairWithAgent();
-          return;
-        }
-      }
-      if (!retry) break;
-      await new Promise(resolve => setTimeout(resolve, 900));
-    } while (Date.now() < deadline);
-    setConnection(connectedOnce.current ? 'disconnected' : await failureState());
-    connecting.current = false;
-  };
-
-  useEffect(() => {
-    consumePairingToken();
-    void establish('checking');
-    const removePairingListener = onPairingToken(() => void establish('connecting', true));
-    return () => {
-      removePairingListener();
-      events.current?.close();
+  useEffect(
+    () => () => {
       if (settingsTimer.current) clearTimeout(settingsTimer.current);
-    };
-  }, []);
+    },
+    []
+  );
 
   const jobIdsKey = state.jobs.map(job => job.id).join('|');
   useEffect(() => {
@@ -176,7 +90,7 @@ export default function App() {
     addToast(text, 'error');
     const code = error instanceof Error ? error.message : '';
     if (['CONNECTION_FAILED', 'TIMEOUT', 'PAIRING_REQUIRED'].includes(code)) {
-      setConnection('disconnected');
+      reconnect();
     }
   };
 
@@ -376,18 +290,12 @@ export default function App() {
     );
   }
 
-  if (!connected && !connectedOnce.current) {
+  if (!connected && !connectedOnce) {
     return (
       <div className="app-shell">
         {header}
         <main className="workspace">
-          <Onboarding
-            state={connection}
-            help={help}
-            setHelp={setHelp}
-            connect={() => void establish('connecting', true)}
-            t={t}
-          />
+          <Onboarding state={connection} help={help} setHelp={setHelp} connect={reconnect} t={t} />
         </main>
         <ToastRegion toasts={toasts} />
       </div>
@@ -402,9 +310,7 @@ export default function App() {
           <BlockingMessage
             title={t('agentDisconnected')}
             body={t('restoreQueue')}
-            action={
-              <Button onClick={() => void establish('connecting', true)}>{t('reconnect')}</Button>
-            }
+            action={<Button onClick={reconnect}>{t('reconnect')}</Button>}
           />
         )}
         {connected && (!state.tools.ffmpeg || !state.tools.ffprobe) && (
@@ -581,12 +487,13 @@ export default function App() {
   );
 }
 
-function Header({
+export function Header({
   language,
   setLanguage,
   connection,
   showProblemAction,
   copyDiagnostics,
+  onHome,
   t
 }: {
   language: Language;
@@ -594,12 +501,15 @@ function Header({
   connection: ConnectionState;
   showProblemAction: boolean;
   copyDiagnostics: () => void;
+  onHome?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
   t: Translate;
 }) {
   return (
     <header className="topbar">
       <h1>
-        <WishlyLogo name={t('appName')} />
+        <a className="brand-link" href="/" onClick={onHome} aria-label={t('backToTools')}>
+          <WishlyLogo name={t('appName')} />
+        </a>
       </h1>
       <div className="topbar-actions">
         <div className="language-switch" aria-label={t('language')}>
@@ -634,7 +544,7 @@ function Header({
   );
 }
 
-function ConnectionBadge({ state, t }: { state: ConnectionState; t: Translate }) {
+export function ConnectionBadge({ state, t }: { state: ConnectionState; t: Translate }) {
   const keys: Record<ConnectionState, TranslationKey> = {
     checking: 'connectingAgent',
     connecting: 'lookingForAgent',
@@ -654,7 +564,7 @@ function ConnectionBadge({ state, t }: { state: ConnectionState; t: Translate })
   );
 }
 
-function Onboarding({
+export function Onboarding({
   state,
   help,
   setHelp,
@@ -761,6 +671,7 @@ function Onboarding({
               <li key={key}>{t(key)}</li>
             ))}
           </ol>
+          <p>{t('gatekeeperHelp')}</p>
         </div>
       )}
     </section>

@@ -9,7 +9,7 @@ import {
 } from '../packages/shared/src/release';
 import { translate, translationKeys } from '../apps/web/src/i18n';
 
-const OLD_BRAND = /Local Video Compressor|Video Compressor|Відеокомпресор|відеокомпресор/;
+const OLD_BRAND = /Local Video Compressor/;
 
 describe('Wishly brand identity', () => {
   it('names the product Wishly and the agent Wishly Agent', () => {
@@ -48,11 +48,11 @@ describe('Wishly brand identity', () => {
 
   it('brands the web document metadata', () => {
     const html = readFileSync('apps/web/index.html', 'utf8');
-    expect(html).toContain('<title>Wishly</title>');
+    expect(html).toContain('<title>Wishly — Tools</title>');
     expect(html).toContain('href="/favicon.svg"');
     expect(html).toContain('rel="apple-touch-icon"');
     expect(html).toContain('rel="manifest"');
-    expect(html).toMatch(/property="og:title" content="Wishly"/);
+    expect(html).toMatch(/property="og:title" content="Wishly — Tools"/);
     expect(html).toMatch(/name="theme-color" content="#7557e8"/);
     // The production origin is injected at build time from shared config.
     expect(html).toContain('%SITE_ORIGIN%');
