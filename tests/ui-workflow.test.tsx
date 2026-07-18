@@ -17,6 +17,7 @@ import {
   batchMetrics,
   elapsedMilliseconds,
   isValidIntegerInput,
+  newestJobsFirst,
   readySelectedIds,
   removableSelectedIds,
   timerState,
@@ -122,6 +123,13 @@ describe('compression settings UI', () => {
 });
 
 describe('drop zone and list selection', () => {
+  it('shows newly added jobs at the top without changing the queue order', () => {
+    const jobs = [makeJob('first'), makeJob('latest')];
+
+    expect(newestJobsFirst(jobs).map(job => job.id)).toEqual(['latest', 'first']);
+    expect(jobs.map(job => job.id)).toEqual(['first', 'latest']);
+  });
+
   it('accepts one or many dropped File-like values in order', () => {
     const one = { name: 'one.mp4' } as File;
     const two = { name: 'two.mov' } as File;

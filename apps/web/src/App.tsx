@@ -35,6 +35,7 @@ import { selectedCountKey, type Language, type TranslationKey, useI18n } from '.
 import { mergeSettingsPatches } from './settings-patch';
 import {
   batchMetrics,
+  newestJobsFirst,
   readySelectedIds,
   removableSelectedIds,
   selectableJobIds,
@@ -342,7 +343,8 @@ export default function App() {
     }
   };
 
-  const selectableIds = useMemo(() => selectableJobIds(state.jobs), [state.jobs]);
+  const visibleJobs = useMemo(() => newestJobsFirst(state.jobs), [state.jobs]);
+  const selectableIds = useMemo(() => selectableJobIds(visibleJobs), [visibleJobs]);
   const selectedReady = readySelectedIds(state.jobs, selected);
   const selectedRemovable = removableSelectedIds(state.jobs, selected);
   const metrics = useMemo(() => batchMetrics(state.jobs, state.batch), [state.jobs, state.batch]);
@@ -512,7 +514,7 @@ export default function App() {
               <span>{t('queueEmptyBody')}</span>
             </div>
           ) : (
-            state.jobs.map((job, index) => (
+            visibleJobs.map((job, index) => (
               <JobRow
                 key={job.id}
                 job={job}

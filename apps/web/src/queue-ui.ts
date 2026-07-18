@@ -34,6 +34,10 @@ export function selectableJobIds(jobs: CompressionJob[]) {
   return jobs.filter(job => job.status !== 'analyzing').map(job => job.id);
 }
 
+export function newestJobsFirst(jobs: CompressionJob[]) {
+  return [...jobs].reverse();
+}
+
 export function readySelectedIds(jobs: CompressionJob[], selected: ReadonlySet<string>) {
   return jobs.filter(job => selected.has(job.id) && job.status === 'ready').map(job => job.id);
 }
