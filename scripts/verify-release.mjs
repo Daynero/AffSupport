@@ -86,7 +86,57 @@ if (packageMode || deployMode) {
     if (!existingTag) fail(`${RELEASE_TAG} must exist locally before web deployment`);
     const head = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
     const tagged = execFileSync('git', ['rev-list', '-n', '1', RELEASE_TAG], { encoding: 'utf8' }).trim();
-    if (head !== tagged) fail(`${RELEASE_TAG} already belongs to another commit`);
+    let remoteRefs;
+    try {
+      remoteRefs = execFileSync(
+        'git',
+        [
+          'ls-remote',
+          '--tags',
+          'origin',
+          `refs/tags/${RELEASE_TAG}`,
+          `refs/tags/${RELEASE_TAG}^{}`
+        ],
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
+      ).trim();
+    } catch {
+      fail(`could not verify ${RELEASE_TAG} on origin`);
+    }
+    const remoteLines = remoteRefs.split('\n').filter(Boolean);
+    const peeled = remoteLines.find(line => line.endsWith(`refs/tags/${RELEASE_TAG}^{}`));
+    const direct = remoteLines.find(line => line.endsWith(`refs/tags/${RELEASE_TAG}`));
+    const remoteCommit = (peeled ?? direct)?.split(/\s+/)[0];
+    if (!remoteCommit || remoteCommit !== tagged) {
+      fail(`${RELEASE_TAG} on origin does not identify the local release commit`);
+    }
+
+    if (head !== tagged) {
+      try {
+        execFileSync('git', ['merge-base', '--is-ancestor', tagged, head], { stdio: 'ignore' });
+      } catch {
+        fail(`${RELEASE_TAG} is not an ancestor of the web deployment commit`);
+      }
+      const agentReleaseInputs = [
+        'apps/agent',
+        'packaging',
+        'packages/shared/src',
+        'packages/shared/package.json',
+        'config/production.env'
+      ];
+      const unreleasedAgentChanges = execFileSync(
+        'git',
+        ['diff', '--name-only', `${tagged}..${head}`, '--', ...agentReleaseInputs],
+        { encoding: 'utf8' }
+      ).trim();
+      if (unreleasedAgentChanges) {
+        fail(
+          `web deployment includes Agent/shared changes not present in ${RELEASE_TAG}:\n${unreleasedAgentChanges}`
+        );
+      }
+      process.stdout.write(
+        `Web-only commit ${head.slice(0, 12)} is compatible with Agent release ${RELEASE_TAG}.\n`
+      );
+    }
   }
 }
 

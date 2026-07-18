@@ -33,16 +33,18 @@ All five variables are required; `scripts/package-mac.sh` aborts if any is missi
 
 ### Release and compatibility policy
 
-`packages/shared/src/release.ts` is the single release manifest. Use these rules for every published change:
+`packages/shared/src/release.ts` is the single Agent release manifest. The installable Agent and the hosted web UI have separate identities: every Agent binary gets a new immutable `PRODUCT_VERSION`/tag/artifact, while every Cloudflare Pages deployment is identified by its Git revision. A web-only hotfix can therefore be deployed without forcing testers to reinstall an unchanged Agent.
+
+Use these rules for every published change:
 
 1. Increment `PRODUCT_VERSION` and the monotonically increasing numeric `BUILD_NUMBER` for every published Agent build. Keep the build number to at most three period-separated integer components as required by macOS. A GitHub tag or asset is never replaced in place.
 2. Increment `AGENT_API_VERSION` only for a breaking web/Agent contract change. Keep `MIN_SUPPORTED_AGENT_API_VERSION` and `MAX_SUPPORTED_AGENT_API_VERSION` at the actual range the web UI supports.
 3. Update all workspace package versions to `PRODUCT_VERSION`; `npm run release:check` verifies the identity, API range, tag, artifact URL, and manifests.
 4. From a clean commit, run `npm run package:mac`, `npm run verify:package`, `npm run package:dmg`, and `npm run verify:dmg`.
 5. Create the new tag on that exact commit and publish the uniquely named DMG and checksum. Packaging aborts if the tag is already present locally or on `origin`, so a published release cannot be rebuilt in place.
-6. Only after the Agent asset is reachable, run `npm run deploy:web`; deployment requires the tag at `HEAD` and aborts if that exact versioned Agent asset is unavailable.
+6. Only after the Agent asset is reachable, run `npm run deploy:web`. Deployment accepts the exact tagged commit or a descendant containing web-only changes. It aborts if the release tag is not on `origin`, the exact versioned Agent asset is unavailable, or Agent/shared release inputs changed after the tag.
 
-The packaged launcher opens the web UI bundled inside the same `.app`, so its UI and API contract are always atomic. The hosted page remains useful for onboarding and remote pairing. If it encounters an older Agent, it offers the bundled local interface immediately as a safe fallback; if it encounters a newer Agent, it asks to refresh the page instead of incorrectly requesting an Agent downgrade.
+The packaged launcher opens the web UI bundled inside the same `.app`, so its UI and API contract are always atomic. The hosted page remains useful for onboarding and remote pairing. Before navigating to the loopback pairing endpoint, it must receive a valid unauthenticated Agent health response; an unavailable Agent leaves the hosted onboarding page visible instead of replacing it with a dead `127.0.0.1` URL. If it encounters an older Agent, it offers the bundled local interface immediately as a safe fallback; if it encounters a newer Agent, it asks to refresh the page instead of incorrectly requesting an Agent downgrade.
 
 Starting with `0.2.0-test.1`, the launcher also watches the installed release manifest. When a newer `.app` replaces the running copy, it performs a version-aware handoff after active compression completes. Migrating from the legacy `0.1.0-test` build requires one manual quit because that old launcher predates the handoff protocol.
 

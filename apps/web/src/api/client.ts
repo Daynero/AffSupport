@@ -1,5 +1,5 @@
 import type { HealthResponse, QueueState, SelectionResponse } from '@video-compressor/shared';
-import { agentFetchOptions, pairingPath, versionState } from '../connection';
+import { agentFetchOptions, pairingPath, probeAgent, versionState } from '../connection';
 
 const configured = import.meta.env.VITE_AGENT_URL || 'http://127.0.0.1:43120';
 export const agentUrl = location.hostname === '127.0.0.1' && location.port === '43120' ? location.origin : configured;
@@ -25,6 +25,10 @@ export function consumePairingToken() {
 export function hasPairingToken() { return Boolean(token); }
 export function pairWithAgent() { location.assign(`${agentUrl}${pairingPath(agentUrl, location.origin)}`); }
 export async function connect(signal?: AbortSignal): Promise<{ state: QueueState | null; version: string; apiVersion: number }> {
+  if (!token) {
+    await probeAgent(agentUrl, location.origin, signal);
+    throw new Error('PAIRING_REQUIRED');
+  }
   const health = await request<Partial<HealthResponse> & { version: string }>('/api/health', 'GET', signal);
   const apiVersion = health.apiVersion ?? 0;
   const state = versionState(apiVersion) === 'connected'

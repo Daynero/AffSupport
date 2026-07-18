@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   agentFetchOptions,
   MAX_SUPPORTED_API_VERSION,
   MIN_SUPPORTED_API_VERSION,
   pairingPath,
+  probeAgent,
   versionState
 } from '../apps/web/src/connection';
 
@@ -26,5 +27,55 @@ describe('agent compatibility', () => {
     expect(agentFetchOptions('http://127.0.0.1:43120', 'https://local-video-compressor-test.pages.dev')).toEqual({});
     expect(agentFetchOptions('http://localhost:43120', 'https://local-video-compressor-test.pages.dev')).toEqual({});
     expect(agentFetchOptions('http://[::1]:43120', 'https://local-video-compressor-test.pages.dev')).toEqual({});
+  });
+
+  it('refuses to start pairing when the local Agent is unreachable', async () => {
+    const fetcher = vi.fn().mockRejectedValue(new TypeError('Connection refused'));
+    await expect(
+      probeAgent(
+        'http://127.0.0.1:43120',
+        'https://local-video-compressor-test.pages.dev',
+        undefined,
+        fetcher
+      )
+    ).rejects.toThrow('CONNECTION_FAILED');
+  });
+
+  it('allows pairing only after the Agent health endpoint answers', async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ product: 'local-video-compressor-agent', ready: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      })
+    );
+    await expect(
+      probeAgent(
+        'http://127.0.0.1:43120',
+        'https://local-video-compressor-test.pages.dev',
+        undefined,
+        fetcher
+      )
+    ).resolves.toBeUndefined();
+    expect(fetcher).toHaveBeenCalledWith(
+      'http://127.0.0.1:43120/health',
+      expect.objectContaining({ method: 'GET', cache: 'no-store' })
+    );
+  });
+
+  it('does not trust an unrelated service on the Agent port', async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      })
+    );
+    await expect(
+      probeAgent(
+        'http://127.0.0.1:43120',
+        'https://local-video-compressor-test.pages.dev',
+        undefined,
+        fetcher
+      )
+    ).rejects.toThrow('CONNECTION_FAILED');
   });
 });

@@ -207,6 +207,11 @@ a {
   background: var(--color-success-soft);
 }
 
+.connection-pairing_required {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
 .connection-disconnected,
 .connection-not_installed_or_not_running,
 .connection-agent_update_required,

@@ -133,7 +133,8 @@ export default function App() {
         clearTimeout(timer);
         if (error instanceof Error && error.message === 'PAIRING_REQUIRED') {
           connecting.current = false;
-          pairWithAgent();
+          if (mode === 'checking') setConnection('pairing_required');
+          else pairWithAgent();
           return;
         }
       }
@@ -281,6 +282,7 @@ export default function App() {
             web: {
               version: PRODUCT_VERSION,
               buildId: BUILD_ID,
+              revision: import.meta.env.VITE_WEB_REVISION ?? 'development',
               supportedAgentApi: {
                 min: MIN_SUPPORTED_AGENT_API_VERSION,
                 max: MAX_SUPPORTED_AGENT_API_VERSION
@@ -566,6 +568,7 @@ function ConnectionBadge({ state, t }: { state: ConnectionState; t: Translate })
     connecting: 'lookingForAgent',
     connected: 'agentConnected',
     not_installed_or_not_running: 'agentNotRunning',
+    pairing_required: 'agentReady',
     agent_update_required: 'agentUpdateRequired',
     web_update_required: 'webUpdateRequired',
     connection_blocked: 'connectionBlocked',
@@ -598,6 +601,19 @@ function Onboarding({
         title={t('lookingForAgent')}
         body={t('keepAgentOpen')}
         icon={<Spinner />}
+      />
+    );
+  }
+  if (state === 'pairing_required') {
+    return (
+      <BlockingMessage
+        title={t('pairingTitle')}
+        body={t('pairingBody')}
+        action={
+          <Button variant="primary" onClick={connect}>
+            {t('connectAgent')}
+          </Button>
+        }
       />
     );
   }

@@ -6,6 +6,7 @@ import {
 export type ConnectionState =
   | 'checking'
   | 'not_installed_or_not_running'
+  | 'pairing_required'
   | 'connecting'
   | 'connected'
   | 'agent_update_required'
@@ -21,6 +22,49 @@ export function versionState(apiVersion: number): ConnectionState {
   return 'connected';
 }
 export function pairingPath(agentOrigin: string, pageOrigin: string) { return agentOrigin === pageOrigin ? '/local' : '/pair'; }
+
+export async function probeAgent(
+  agentOrigin: string,
+  pageOrigin: string,
+  signal?: AbortSignal,
+  fetcher: typeof fetch = fetch
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetcher(`${agentOrigin}/health`, {
+      method: 'GET',
+      signal,
+      cache: 'no-store',
+      ...agentFetchOptions(agentOrigin, pageOrigin)
+    });
+  } catch (error) {
+    if (signal?.aborted) throw new Error('TIMEOUT', { cause: error });
+    throw new Error('CONNECTION_FAILED', { cause: error });
+  }
+
+  if (!response.ok) {
+    throw new Error('CONNECTION_FAILED', {
+      cause: new Error(`Agent health check returned ${response.status}`)
+    });
+  }
+
+  let health: unknown;
+  try {
+    health = await response.json();
+  } catch (error) {
+    throw new Error('CONNECTION_FAILED', { cause: error });
+  }
+  if (
+    !health ||
+    typeof health !== 'object' ||
+    !('product' in health) ||
+    health.product !== 'local-video-compressor-agent'
+  ) {
+    throw new Error('CONNECTION_FAILED', {
+      cause: new Error('Unexpected service answered on the Agent port')
+    });
+  }
+}
 
 export function agentFetchOptions(agentOrigin: string, pageOrigin: string): RequestInit {
   if (agentOrigin === pageOrigin) return {};
