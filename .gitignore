@@ -10,4 +10,5 @@ release/
 !apps/web/.env.production
 coverage/
 .idea/
+supabase/.temp/
 packaging/icon-source/
