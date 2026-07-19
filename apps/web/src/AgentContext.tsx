@@ -69,55 +69,61 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mounted = useRef(true);
 
-  const establish = useCallback(async (mode: 'checking' | 'connecting' = 'connecting') => {
-    if (connecting.current) return;
-    if (retryTimer.current) clearTimeout(retryTimer.current);
-    connecting.current = true;
-    setConnection(mode);
-    events.current?.close();
-    events.current = null;
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => controller.abort(), 2200);
-    try {
-      const result = await connect(controller.signal);
-      window.clearTimeout(timer);
-      if (!mounted.current) return;
-      const next = versionState(result.apiVersion);
-      setAgentVersion(result.version || null);
-      analytics.setAgentContext(result.version || null, platform);
-      setConnection(next);
-      if (next !== 'connected') return;
-      if (!result.state) throw new Error('AGENT_STATE_MISSING');
-      setState(result.state);
-      setConnectedOnce(true);
-      connectedOnceRef.current = true;
-      const source = new EventSource(eventUrl());
-      events.current = source;
-      source.onmessage = event => {
-        const update = JSON.parse(event.data) as AgentEvent;
-        setState(update.state);
-        setConnection('connected');
-      };
-      source.onerror = () => {
-        source.close();
-        events.current = null;
-        setConnection('disconnected');
-        retryTimer.current = setTimeout(() => void establish('connecting'), 4000);
-      };
-    } catch (error) {
-      window.clearTimeout(timer);
-      if (!mounted.current) return;
-      if (error instanceof Error && error.message === 'PAIRING_REQUIRED') {
-        setConnection(mode === 'checking' ? 'pairing_required' : 'connecting');
-        if (mode !== 'checking') pairWithAgent();
-      } else {
-        setConnection(connectedOnceRef.current ? 'disconnected' : await failureState());
-        retryTimer.current = setTimeout(() => void establish('connecting'), 4000);
+  const establish = useCallback(
+    async (mode: 'checking' | 'connecting' | 'retry' = 'connecting') => {
+      if (connecting.current) return;
+      if (retryTimer.current) clearTimeout(retryTimer.current);
+      connecting.current = true;
+      // A background retry keeps the current panel and only pulses a small inline
+      // indicator. Flipping to the full "connecting" state on every 4s attempt made
+      // the home page blink between the spinner and the onboarding panel.
+      if (mode !== 'retry') setConnection(mode);
+      events.current?.close();
+      events.current = null;
+      const controller = new AbortController();
+      const timer = window.setTimeout(() => controller.abort(), 2200);
+      try {
+        const result = await connect(controller.signal);
+        window.clearTimeout(timer);
+        if (!mounted.current) return;
+        const next = versionState(result.apiVersion);
+        setAgentVersion(result.version || null);
+        analytics.setAgentContext(result.version || null, platform);
+        setConnection(next);
+        if (next !== 'connected') return;
+        if (!result.state) throw new Error('AGENT_STATE_MISSING');
+        setState(result.state);
+        setConnectedOnce(true);
+        connectedOnceRef.current = true;
+        const source = new EventSource(eventUrl());
+        events.current = source;
+        source.onmessage = event => {
+          const update = JSON.parse(event.data) as AgentEvent;
+          setState(update.state);
+          setConnection('connected');
+        };
+        source.onerror = () => {
+          source.close();
+          events.current = null;
+          setConnection('disconnected');
+          retryTimer.current = setTimeout(() => void establish('retry'), 4000);
+        };
+      } catch (error) {
+        window.clearTimeout(timer);
+        if (!mounted.current) return;
+        if (error instanceof Error && error.message === 'PAIRING_REQUIRED') {
+          setConnection(mode === 'connecting' ? 'connecting' : 'pairing_required');
+          if (mode === 'connecting') pairWithAgent();
+        } else {
+          setConnection(connectedOnceRef.current ? 'disconnected' : await failureState());
+          retryTimer.current = setTimeout(() => void establish('retry'), 4000);
+        }
+      } finally {
+        connecting.current = false;
       }
-    } finally {
-      connecting.current = false;
-    }
-  }, []);
+    },
+    []
+  );
 
   const previousConnection = useRef<ConnectionState>('checking');
   useEffect(() => {

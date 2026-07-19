@@ -2045,6 +2045,26 @@ input.is-invalid {
   margin-bottom: var(--space-1);
 }
 
+/* Quiet "still looking" indicator so background reconnect attempts pulse gently
+   instead of swapping the whole panel. */
+.agent-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.agent-search-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  color: var(--color-accent);
+  background: currentColor;
+  animation: connect-pulse 1.6s var(--ease-standard) infinite;
+}
+
 .installation-help {
   padding-top: var(--space-3);
   border-top: 1px solid var(--color-border);

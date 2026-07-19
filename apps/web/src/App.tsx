@@ -755,6 +755,10 @@ export function Onboarding({
         </a>
         <Button onClick={connect}>{t('connectAgent')}</Button>
       </div>
+      <p className="agent-search" role="status">
+        <span className="agent-search-dot" aria-hidden="true" />
+        {t('lookingForAgent')}
+      </p>
       <button className="text-button" onClick={() => setHelp(!help)} aria-expanded={help}>
         {t('installationHelp')}
       </button>
