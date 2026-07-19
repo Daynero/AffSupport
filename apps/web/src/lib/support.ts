@@ -17,7 +17,7 @@ export const supportConfig = {
   email: 'wishly.app.support@gmail.com',
 
   // Monobank jar link, e.g. https://send.monobank.ua/jar/XXXXXXXX
-  monobankUrl: '',
+  monobankUrl: 'https://send.monobank.ua/jar/9XWBE8MQYg',
 
   // Crypto wallets on different networks. Each configured wallet shows a
   // copy button and a QR code generated from its address.

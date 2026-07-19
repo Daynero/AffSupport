@@ -2,8 +2,8 @@ import { useEffect } from 'react';
 import { LanguageSwitch } from '../components/LanguageSwitch';
 import { WishlyLogo } from '../components/WishlyLogo';
 import { useI18n, type Language } from '../i18n';
-import { publicConfig } from '../lib/config';
 import { internalLink } from '../lib/navigation';
+import { supportEmail } from '../lib/support';
 
 type LegalSection = { heading: string; paragraphs: string[]; bullets?: string[] };
 
@@ -19,7 +19,7 @@ const privacy: Record<Language, LegalSection[]> = {
     {
       heading: 'Local media processing',
       paragraphs: [
-        'Videos and selected images are processed on your computer by Wishly Agent. Media files, thumbnails and image contents are not uploaded to Supabase.',
+        'Videos and selected images are processed on your computer by Wishly Agent. Media files, thumbnails and image contents are not uploaded to the server.',
         'Wishly product analytics do not include filenames, local paths, FFmpeg commands with paths, transcription text or media contents.'
       ]
     },
@@ -44,9 +44,9 @@ const privacy: Record<Language, LegalSection[]> = {
       ]
     },
     {
-      heading: 'Operator and contact',
+      heading: 'Contact',
       paragraphs: [
-        'The product operator and privacy contact are shown below. These placeholders must be completed and reviewed by the owner before a public launch.'
+        'For any privacy questions, contact Wishly support at the email below.'
       ]
     }
   ],
@@ -61,7 +61,7 @@ const privacy: Record<Language, LegalSection[]> = {
     {
       heading: 'Локальна обробка медіа',
       paragraphs: [
-        'Відео й вибрані зображення обробляються на вашому комп’ютері через Wishly Agent. Медіафайли, thumbnails і вміст зображень не завантажуються в Supabase.',
+        'Відео й вибрані зображення обробляються на вашому комп’ютері через Wishly Agent. Медіафайли, thumbnails і вміст зображень не завантажуються на сервер.',
         'Продуктова аналітика Wishly не містить назв файлів, локальних шляхів, FFmpeg-команд зі шляхами, тексту транскрипцій або вмісту медіа.'
       ]
     },
@@ -86,9 +86,9 @@ const privacy: Record<Language, LegalSection[]> = {
       ]
     },
     {
-      heading: 'Оператор і контакт',
+      heading: 'Контакт',
       paragraphs: [
-        'Оператор продукту та контакт із питань приватності наведені нижче. Власник має заповнити й перевірити ці placeholders до публічного запуску.'
+        'З будь-яких питань щодо приватності звертайтеся до підтримки Wishly на пошту, вказану нижче.'
       ]
     }
   ]
@@ -111,7 +111,7 @@ const terms: Record<Language, LegalSection[]> = {
     {
       heading: 'Local processing and results',
       paragraphs: [
-        'Wishly Agent processes videos and images locally on your computer. Wishly does not upload those media files to Supabase.',
+        'Wishly Agent processes videos and images locally on your computer. Wishly does not upload those media files to the server.',
         'Compression output depends on the source files, codecs, system environment and settings you select. Estimates are not guarantees. Review completed output before relying on it and keep your originals until you are satisfied.'
       ]
     },
@@ -122,9 +122,9 @@ const terms: Record<Language, LegalSection[]> = {
       ]
     },
     {
-      heading: 'Operator and contact',
+      heading: 'Contact',
       paragraphs: [
-        'The product operator and contact are shown below. The owner must replace the placeholders and obtain an appropriate legal review before public launch.'
+        'For any questions about these terms, contact Wishly support at the email below.'
       ]
     }
   ],
@@ -144,7 +144,7 @@ const terms: Record<Language, LegalSection[]> = {
     {
       heading: 'Локальна обробка та результати',
       paragraphs: [
-        'Wishly Agent обробляє відео й зображення локально на вашому комп’ютері. Wishly не завантажує ці медіафайли в Supabase.',
+        'Wishly Agent обробляє відео й зображення локально на вашому комп’ютері. Wishly не завантажує ці медіафайли на сервер.',
         'Результат стиснення залежить від вихідних файлів, кодеків, системного середовища й вибраних налаштувань. Оцінки не є гарантією. Перевіряйте готовий результат і зберігайте оригінали, доки не переконаєтеся в його якості.'
       ]
     },
@@ -155,9 +155,9 @@ const terms: Record<Language, LegalSection[]> = {
       ]
     },
     {
-      heading: 'Оператор і контакт',
+      heading: 'Контакт',
       paragraphs: [
-        'Оператор продукту та контакт наведені нижче. Власник має замінити placeholders і провести належну юридичну перевірку до публічного запуску.'
+        'З будь-яких питань щодо цих умов звертайтеся до підтримки Wishly на пошту, вказану нижче.'
       ]
     }
   ]
@@ -175,8 +175,6 @@ function LegalPage({ kind }: { kind: 'privacy' | 'terms' }) {
   const { language, t } = useI18n();
   const title = t(kind === 'privacy' ? 'privacyTitle' : 'termsTitle');
   const sections = (kind === 'privacy' ? privacy : terms)[language];
-  const operator = publicConfig.ok ? publicConfig.value.productOperator : null;
-  const email = publicConfig.ok ? publicConfig.value.legalContactEmail : null;
 
   useEffect(() => {
     document.title = `${title} — Wishly`;
@@ -206,21 +204,12 @@ function LegalPage({ kind }: { kind: 'privacy' | 'terms' }) {
         <section className="legal-contact">
           <dl>
             <div>
-              <dt>{language === 'uk' ? 'Оператор продукту' : 'Product operator'}</dt>
-              <dd>{operator || '[VITE_PRODUCT_OPERATOR — required before launch]'}</dd>
-            </div>
-            <div>
               <dt>{language === 'uk' ? 'Контакт' : 'Contact'}</dt>
               <dd>
-                {email ? (
-                  <a href={`mailto:${email}`}>{email}</a>
-                ) : (
-                  '[VITE_LEGAL_CONTACT_EMAIL — required before launch]'
-                )}
+                <a href={`mailto:${supportEmail}`}>{supportEmail}</a>
               </dd>
             </div>
           </dl>
-          {(!operator || !email) && <p className="legal-warning">{t('legalPlaceholderWarning')}</p>}
         </section>
         <nav className="legal-nav" aria-label="Legal">
           <a href="/privacy" onClick={event => internalLink(event, '/privacy')}>
