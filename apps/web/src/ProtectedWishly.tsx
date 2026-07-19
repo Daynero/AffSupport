@@ -28,9 +28,6 @@ function ProtectedApplication({ path }: { path: string }) {
           language={language}
           setLanguage={setLanguage}
           connection={connection}
-          showProblemAction={false}
-          showDiagnostics={false}
-          copyDiagnostics={() => {}}
           t={t}
         />
         {path === '/account' ? <AccountPage /> : <AdminPage />}

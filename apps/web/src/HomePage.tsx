@@ -1,13 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import {
-  BUILD_ID,
-  MAX_SUPPORTED_AGENT_API_VERSION,
-  MIN_SUPPORTED_AGENT_API_VERSION,
-  PRODUCT_VERSION
-} from '@video-compressor/shared';
 import { Header, Onboarding } from './App';
 import { useAgent } from './AgentContext';
-import { request } from './api/client';
 import { useI18n, type TranslationKey } from './i18n';
 import { analytics } from './analytics/service';
 
@@ -61,34 +54,6 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
     return () => clearTimeout(timer);
   }, [notice]);
 
-  const copyDiagnostics = async () => {
-    try {
-      const agent = await request('/api/diagnostics');
-      await navigator.clipboard.writeText(
-        JSON.stringify(
-          {
-            web: {
-              version: PRODUCT_VERSION,
-              buildId: BUILD_ID,
-              revision: import.meta.env.VITE_WEB_REVISION ?? 'development',
-              supportedAgentApi: {
-                min: MIN_SUPPORTED_AGENT_API_VERSION,
-                max: MAX_SUPPORTED_AGENT_API_VERSION
-              },
-              origin: location.origin
-            },
-            agent
-          },
-          null,
-          2
-        )
-      );
-      setNotice(t('diagnosticsCopied'));
-    } catch {
-      setNotice(t('genericError'));
-    }
-  };
-
   const openTool = (tool: Tool) => {
     if (tool.status !== 'active') {
       analytics.track('transcription_interest_clicked', { tool_identifier: 'transcription' });
@@ -108,8 +73,6 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
         language={language}
         setLanguage={setLanguage}
         connection={connection}
-        showProblemAction={!connected}
-        copyDiagnostics={() => void copyDiagnostics()}
         t={t}
       />
       <main className="launcher">

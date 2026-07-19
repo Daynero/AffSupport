@@ -189,6 +189,20 @@ a {
   gap: 9px;
 }
 
+/* Make the home / brand button read a touch larger than the Support pill. */
+.topbar-lead .brand-link .wishly-logo {
+  gap: 10px;
+}
+
+.topbar-lead .brand-link .wishly-wordmark {
+  font-size: 21px;
+}
+
+.topbar-lead .brand-link .wishly-mark {
+  width: 30px;
+  height: 30px;
+}
+
 .brand-link {
   display: inline-flex;
   border-radius: var(--radius-sm);
@@ -519,73 +533,6 @@ a {
 .connection-connection_blocked {
   color: var(--color-error);
   background: var(--color-error-soft);
-}
-
-.header-menu {
-  position: relative;
-}
-
-.header-menu summary {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  place-items: center;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-weight: 800;
-  letter-spacing: 1px;
-  list-style: none;
-  transition: background var(--dur-micro) var(--ease-standard);
-}
-
-.header-menu summary::-webkit-details-marker {
-  display: none;
-}
-
-.header-menu summary:hover {
-  background: var(--color-surface-muted);
-}
-
-.header-menu > div {
-  position: absolute;
-  top: 38px;
-  right: 0;
-  display: grid;
-  width: 210px;
-  gap: 3px;
-  padding: 8px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-menu);
-  transform-origin: top right;
-  animation: pop-in var(--dur-pop) var(--ease-enter);
-}
-
-.header-menu strong {
-  padding: 6px 8px 4px;
-  color: var(--color-text-muted);
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.header-menu button,
-.header-menu a {
-  padding: 8px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  color: var(--color-text);
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
-  text-decoration: none;
-  transition: background var(--dur-micro) var(--ease-standard);
-}
-
-.header-menu button:hover,
-.header-menu a:hover {
-  background: var(--color-accent-softer);
 }
 
 .workspace {

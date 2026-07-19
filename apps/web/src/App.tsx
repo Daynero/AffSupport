@@ -1,9 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  BUILD_ID,
-  MAX_SUPPORTED_AGENT_API_VERSION,
-  MIN_SUPPORTED_AGENT_API_VERSION,
-  PRODUCT_VERSION,
   RELEASE_DOWNLOAD_URL,
   calculateQueueSummary,
   type AgentSettingsPatch,
@@ -304,34 +300,6 @@ export default function CompressorPage() {
     }
   };
 
-  const copyDiagnostics = async () => {
-    try {
-      const agent = await request('/api/diagnostics');
-      await navigator.clipboard.writeText(
-        JSON.stringify(
-          {
-            web: {
-              version: PRODUCT_VERSION,
-              buildId: BUILD_ID,
-              revision: import.meta.env.VITE_WEB_REVISION ?? 'development',
-              supportedAgentApi: {
-                min: MIN_SUPPORTED_AGENT_API_VERSION,
-                max: MAX_SUPPORTED_AGENT_API_VERSION
-              },
-              origin: location.origin
-            },
-            agent
-          },
-          null,
-          2
-        )
-      );
-      addToast(t('diagnosticsCopied'), 'success');
-    } catch (error) {
-      handleError(error);
-    }
-  };
-
   const visibleJobs = useMemo(() => newestJobsFirst(state.jobs), [state.jobs]);
   const selectableIds = useMemo(() => selectableJobIds(visibleJobs), [visibleJobs]);
   const selectedReady = readySelectedIds(state.jobs, selected);
@@ -347,8 +315,6 @@ export default function CompressorPage() {
       language={language}
       setLanguage={setLanguage}
       connection={connection}
-      showProblemAction={!connected}
-      copyDiagnostics={() => void copyDiagnostics()}
       onHome={event => {
         if (state.running && !confirm(t('leaveCompressorConfirm'))) {
           event.preventDefault();
@@ -573,19 +539,13 @@ export function Header({
   language,
   setLanguage,
   connection,
-  showProblemAction,
-  copyDiagnostics,
   onHome,
-  showDiagnostics = true,
   t
 }: {
   language: Language;
   setLanguage: (language: Language) => void;
   connection: ConnectionState;
-  showProblemAction: boolean;
-  copyDiagnostics: () => void;
   onHome?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
-  showDiagnostics?: boolean;
   t: Translate;
 }) {
   return (
@@ -619,20 +579,6 @@ export function Header({
           </button>
         </div>
         <ConnectionBadge state={connection} t={t} />
-        {showDiagnostics && (
-          <details className="header-menu">
-            <summary aria-label={t('menu')}>•••</summary>
-            <div>
-              <strong>{t('diagnostics')}</strong>
-              <button onClick={copyDiagnostics}>{t('copyDiagnostics')}</button>
-              {showProblemAction && (
-                <a href={`${agentUrl}/local`} target="_blank" rel="noreferrer">
-                  {t('openLocal')}
-                </a>
-              )}
-            </div>
-          </details>
-        )}
         <UserMenu />
       </div>
     </header>
