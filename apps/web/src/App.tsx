@@ -358,7 +358,11 @@ export default function CompressorPage() {
           <BlockingMessage
             title={t('agentDisconnected')}
             body={t('restoreQueue')}
-            action={<Button onClick={reconnect}>{t('reconnect')}</Button>}
+            action={
+              <Button onClick={reconnect} loading={connection === 'connecting'}>
+                {t('reconnect')}
+              </Button>
+            }
           />
         )}
         {connected && (!state.tools.ffmpeg || !state.tools.ffprobe) && (
@@ -618,18 +622,17 @@ export function Onboarding({
   connect: () => void;
   t: Translate;
 }) {
-  if (state === 'connecting') {
-    return (
-      <BlockingMessage title={t('lookingForAgent')} body={t('keepAgentOpen')} icon={<Spinner />} />
-    );
-  }
+  // A manual connect flips the connection to "connecting" for a moment. Rather
+  // than swapping the whole panel for a spinner (which read as a flicker), we
+  // keep the panel mounted and let the button animate the search in place.
+  const busy = state === 'connecting';
   if (state === 'pairing_required') {
     return (
       <BlockingMessage
         title={t('pairingTitle')}
         body={t('pairingBody')}
         action={
-          <Button variant="primary" onClick={connect}>
+          <Button variant="primary" onClick={connect} loading={busy}>
             {t('connectAgent')}
           </Button>
         }
@@ -699,9 +702,11 @@ export function Onboarding({
         <a className="button button-primary" href={downloadUrl}>
           {t('downloadAgent')}
         </a>
-        <Button onClick={connect}>{t('connectAgent')}</Button>
+        <Button onClick={connect} loading={busy}>
+          {t('connectAgent')}
+        </Button>
       </div>
-      <p className="agent-search" role="status">
+      <p className={`agent-search ${busy ? 'is-active' : ''}`.trim()} role="status">
         <span className="agent-search-dot" aria-hidden="true" />
         {t('lookingForAgent')}
       </p>
@@ -727,18 +732,15 @@ function BlockingMessage({
   title,
   body,
   action,
-  icon,
   tone = 'neutral'
 }: {
   title: string;
   body?: string;
   action?: React.ReactNode;
-  icon?: React.ReactNode;
   tone?: 'neutral' | 'warning' | 'error';
 }) {
   return (
     <section className={`blocking-message blocking-${tone}`} role="alert">
-      {icon}
       <div>
         <strong>{title}</strong>
         {body && <span>{body}</span>}

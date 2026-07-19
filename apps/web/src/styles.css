@@ -307,6 +307,12 @@ a {
   margin-inline: auto;
 }
 
+/* When a panel genuinely changes (connected, pairing, update), ease it in
+   instead of popping — the common "checking" case no longer swaps at all. */
+.agent-panel-slot > * {
+  animation: fade-rise var(--dur-section) var(--ease-enter);
+}
+
 .launcher .onboarding-panel {
   margin-top: 0;
 }
@@ -636,9 +642,36 @@ a {
 }
 
 /* Loading keeps the button width stable: the label turns transparent
-   while a centered spinner overlays it. */
+   while a centered spinner overlays it and a soft sheen sweeps across —
+   a restrained "working" signal that never shifts the layout. */
 .button.is-loading {
   color: transparent;
+  overflow: hidden;
+  --button-sheen: rgba(255, 255, 255, 0.24);
+}
+
+.button.is-loading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    var(--button-sheen) 50%,
+    transparent 70%
+  );
+  background-size: 220% 100%;
+  animation: shimmer 1.25s var(--ease-standard) infinite;
+  pointer-events: none;
+}
+
+.button-secondary.is-loading,
+.button-ghost.is-loading {
+  --button-sheen: color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+.button-danger.is-loading {
+  --button-sheen: color-mix(in srgb, var(--color-error) 20%, transparent);
 }
 
 .button.is-loading .button-spinner {
@@ -2000,6 +2033,13 @@ input.is-invalid {
   gap: 8px;
   color: var(--color-text-muted);
   font-size: 13px;
+  transition: color var(--dur-control) var(--ease-standard);
+}
+
+/* A manual "check" tightens the pulse and warms the copy so the search reads
+   as active — without any layout change. */
+.agent-search.is-active {
+  color: var(--color-accent);
 }
 
 .agent-search-dot {
@@ -2010,6 +2050,10 @@ input.is-invalid {
   color: var(--color-accent);
   background: currentColor;
   animation: connect-pulse 1.6s var(--ease-standard) infinite;
+}
+
+.agent-search.is-active .agent-search-dot {
+  animation-duration: 0.9s;
 }
 
 .installation-help {
