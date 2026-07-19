@@ -40,6 +40,7 @@ import { WishlyLogo, WishlyMark } from './components/WishlyLogo';
 import { useAgent } from './AgentContext';
 import { internalLink } from './lib/navigation';
 import { UserMenu } from './components/UserMenu';
+import { SupportButton } from './components/SupportDialog';
 import { analytics } from './analytics/service';
 import {
   compressionErrorCategory,
@@ -589,16 +590,19 @@ export function Header({
 }) {
   return (
     <header className="topbar">
-      <h1>
-        <a
-          className="brand-link"
-          href="/"
-          onClick={event => (onHome ? onHome(event) : internalLink(event, '/'))}
-          aria-label={t('backToTools')}
-        >
-          <WishlyLogo name={t('appName')} />
-        </a>
-      </h1>
+      <div className="topbar-lead">
+        <h1>
+          <a
+            className="brand-link"
+            href="/"
+            onClick={event => (onHome ? onHome(event) : internalLink(event, '/'))}
+            aria-label={t('backToTools')}
+          >
+            <WishlyLogo name={t('appName')} />
+          </a>
+        </h1>
+        <SupportButton />
+      </div>
       <div className="topbar-actions">
         <div className="language-switch" aria-label={t('language')}>
           <button

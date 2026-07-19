@@ -92,6 +92,7 @@ export function LoginPage() {
           <h1 id="login-heading">{t('loginHeading')}</h1>
           <p>{t('loginDescription')}</p>
         </div>
+        <p className="login-pitch">{t('loginSupportPitch')}</p>
         {message && (
           <div className="inline-alert inline-alert-error" role="alert">
             {message}

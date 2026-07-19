@@ -18,7 +18,9 @@ export const analyticsEventNames = [
   'image_embedding_enabled',
   'transcription_interest_clicked',
   'language_changed',
-  'marketing_consent_changed'
+  'marketing_consent_changed',
+  'support_opened',
+  'support_feedback_started'
 ] as const;
 
 export type AnalyticsEventName = (typeof analyticsEventNames)[number];
@@ -61,6 +63,8 @@ export type AnalyticsEventProperties = {
   transcription_interest_clicked: { tool_identifier: 'transcription' };
   language_changed: { language: 'en' | 'uk' };
   marketing_consent_changed: { marketing_consent: boolean };
+  support_opened: Record<string, never>;
+  support_feedback_started: Record<string, never>;
 };
 
 const allowedPropertyKeys = new Set([
