@@ -4,6 +4,7 @@ These migrations create the complete Wishly account and analytics foundation. Pr
 
 For an empty development project, roll back in reverse order:
 
+0. From `20260719130000_analytics_readonly.sql`: drop policy `analytics_readonly_select` on `public.analytics_events`, `revoke` the grants and `drop role wishly_analytics_ro` (reassign/drop owned objects first if any), then `drop view public.analytics_users`. This role/view are read-only and safe to recreate by re-running the migration.
 1. Drop the seven `admin_*` functions from `20260718212000_admin_functions.sql`.
 2. Drop `public.analytics_events`, then `public.analytics_properties_are_safe(jsonb)`.
 3. Drop the `on_auth_user_created` trigger on `auth.users`.
