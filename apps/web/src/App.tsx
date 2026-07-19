@@ -30,6 +30,7 @@ import {
 } from './queue-ui';
 import { DropZone } from './components/DropZone';
 import { JobRow } from './components/JobRow';
+import { Mascot } from './components/Mascot';
 import { SettingsPanel } from './components/SettingsPanel';
 import { Button, ProgressBar, Spinner, type Translate } from './components/ui';
 import { WishlyLogo, WishlyMark } from './components/WishlyLogo';
@@ -427,6 +428,7 @@ export default function CompressorPage() {
               <div className="primary-actions">
                 <Button
                   variant="primary"
+                  data-mascot-anchor="start"
                   disabled={
                     !connected ||
                     state.running ||
@@ -534,6 +536,7 @@ export default function CompressorPage() {
           </section>
         )}
       </main>
+      {connected && <Mascot t={t} />}
       <ToastRegion toasts={toasts} />
     </div>
   );

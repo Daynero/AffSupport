@@ -52,6 +52,7 @@ export function JobRow({
   const [copiedDetails, setCopiedDetails] = useState(false);
   return (
     <article
+      data-job-id={job.id}
       className={`job-row ${selected ? 'is-selected' : ''} ${
         job.status === 'processing' ? 'is-processing' : ''
       }`.trim()}
