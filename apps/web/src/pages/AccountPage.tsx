@@ -107,16 +107,17 @@ export default function AccountPage() {
             <dt>{t('agentVersion')}</dt>
             <dd>
               {agentVersion ?? t('notAvailable')}
-              {agentVersion &&
-                (agentVersion === PRODUCT_VERSION ? (
-                  <span className="agent-version-note"> ({t('latestVersion')})</span>
-                ) : (
-                  <span className="agent-version-note">
-                    {' ('}
-                    <a href={RELEASE_DOWNLOAD_URL}>{t('updateAgent')}</a>
-                    {')'}
-                  </span>
-                ))}
+              {agentVersion === PRODUCT_VERSION ? (
+                <span className="agent-version-note"> ({t('latestVersion')})</span>
+              ) : (
+                <span className="agent-version-note">
+                  {' ('}
+                  <a href={RELEASE_DOWNLOAD_URL}>
+                    {agentVersion ? t('updateAgent') : t('downloadShort')}
+                  </a>
+                  {')'}
+                </span>
+              )}
             </dd>
           </div>
         </dl>
