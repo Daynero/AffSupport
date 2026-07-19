@@ -524,10 +524,15 @@ await app.register(fastifyStatic, {
     );
   }
 });
+// Without PUBLIC_SITE_ORIGIN a source run must pair against the Vite dev
+// site: the bundled web/dist is a production build that refuses dev env.
+const pairOrigin =
+  config.publicOrigin ??
+  (config.sourceRevision === 'development'
+    ? config.devOrigin
+    : `http://${config.host}:${config.port}`);
 app.get('/pair', async (_request, reply) =>
-  reply.redirect(
-    `${config.publicOrigin ?? `http://${config.host}:${config.port}`}/#agentToken=${token}`
-  )
+  reply.redirect(`${pairOrigin}/#agentToken=${token}`)
 );
 app.get('/local', async (_request, reply) =>
   reply.redirect(`http://${config.host}:${config.port}/#agentToken=${token}`)
