@@ -3432,6 +3432,20 @@ input.is-invalid {
   justify-self: start;
 }
 
+.agent-version-note {
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.agent-version-note a {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.agent-version-note a:hover {
+  color: var(--color-accent-hover);
+}
+
 .danger-card {
   border-color: color-mix(in srgb, var(--color-error) 20%, var(--color-border));
 }

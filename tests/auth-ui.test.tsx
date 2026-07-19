@@ -15,8 +15,7 @@ vi.mock('../apps/web/src/lib/config', () => ({
       siteUrl: 'http://127.0.0.1:5173',
       adminEmailHint: null,
       legalContactEmail: null,
-      productOperator: null,
-      deleteAccountEnabled: false
+      productOperator: null
     }
   }
 }));
@@ -83,7 +82,7 @@ const agentValue: AgentContextValue = {
   state: emptyQueueState,
   setState: vi.fn(),
   connectedOnce: true,
-  agentVersion: '0.4.0-test.1',
+  agentVersion: '0.4.0',
   platform: 'macos',
   reconnect: vi.fn()
 };
@@ -209,7 +208,7 @@ describe('profile onboarding, account and blocked state', () => {
     });
   });
 
-  it('updates only editable account fields and leaves deletion disabled until backend deploy', async () => {
+  it('updates editable account fields and shows only email and agent version', async () => {
     const updateProfile = vi.fn().mockResolvedValue(profile);
     render(
       <AuthContextOverride
@@ -230,11 +229,12 @@ describe('profile onboarding, account and blocked state', () => {
       language: 'en',
       marketing_consent: true
     });
-    expect(
-      (screen.getByRole('button', { name: 'Delete account' }) as HTMLButtonElement).disabled
-    ).toBe(true);
-    expect(screen.getByText('Google')).toBeTruthy();
-    expect(screen.getByText('0.4.0-test.1')).toBeTruthy();
+    // Account deletion was removed from the UI entirely.
+    expect(screen.queryByRole('button', { name: 'Delete account' })).toBeNull();
+    expect(screen.queryByText('Google')).toBeNull();
+    // The connected agent matches the shipped release, so it reads as the latest version.
+    expect(screen.getByText('0.4.0')).toBeTruthy();
+    expect(screen.getByText('(latest version)')).toBeTruthy();
   });
 
   it('keeps sign-out available on a blocked account', async () => {

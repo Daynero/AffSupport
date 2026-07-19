@@ -25,8 +25,7 @@ vi.mock('../apps/web/src/lib/config', () => ({
       siteUrl: 'http://127.0.0.1:5173',
       adminEmailHint: null,
       legalContactEmail: null,
-      productOperator: null,
-      deleteAccountEnabled: false
+      productOperator: null
     }
   }
 }));

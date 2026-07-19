@@ -6,10 +6,10 @@
  * contract is incompatible, while the supported range lets a web release keep
  * working with older compatible agents.
  */
-export const PRODUCT_VERSION = '0.4.0-test.1';
+export const PRODUCT_VERSION = '0.4.0';
 export const BUNDLE_VERSION = '0.4.0';
-export const BUILD_NUMBER = '4';
-export const RELEASE_CHANNEL = 'test';
+export const BUILD_NUMBER = '5';
+export const RELEASE_CHANNEL = 'stable';
 
 /**
  * The Wishly rebrand renamed the installed bundle from

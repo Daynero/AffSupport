@@ -39,7 +39,7 @@ const privacy: Record<Language, LegalSection[]> = {
     {
       heading: 'Your choices and deletion',
       paragraphs: [
-        'You can change your name, language and marketing choice on the Account page. You can also request permanent account deletion there once the secure deletion function is enabled.',
+        'You can change your name, language and marketing choice on the Account page. To permanently delete your account, contact Wishly support at the email below.',
         'Deleting the account removes the Auth user and profile. Product events may be retained only after their user ID is removed, so they can no longer be tied to the deleted account.'
       ]
     },
@@ -81,7 +81,7 @@ const privacy: Record<Language, LegalSection[]> = {
     {
       heading: 'Ваш вибір і видалення',
       paragraphs: [
-        'На сторінці Акаунт можна змінити ім’я, мову та маркетинговий вибір. Там само можна назавжди видалити акаунт після ввімкнення захищеної функції видалення.',
+        'На сторінці Акаунт можна змінити ім’я, мову та маркетинговий вибір. Щоб назавжди видалити акаунт, напишіть у підтримку Wishly на пошту, вказану нижче.',
         'Видалення прибирає Auth user і профіль. Продуктові події можуть залишатися лише після видалення user ID, тому їх більше не можна пов’язати з видаленим акаунтом.'
       ]
     },
@@ -99,7 +99,7 @@ const terms: Record<Language, LegalSection[]> = {
     {
       heading: 'The product',
       paragraphs: [
-        'Wishly is provided as a tool for local media workflows. The current release is a test/MVP product and may change, be interrupted or contain defects.'
+        'Wishly is provided as a tool for local media workflows. The current release is an MVP product and may change, be interrupted or contain defects.'
       ]
     },
     {
@@ -118,7 +118,7 @@ const terms: Record<Language, LegalSection[]> = {
     {
       heading: 'Availability and responsibility',
       paragraphs: [
-        'The test/MVP product is provided without a promise of uninterrupted availability or fitness for a specific purpose to the extent permitted by applicable law. Nothing in these terms excludes rights that cannot legally be excluded.'
+        'The MVP product is provided without a promise of uninterrupted availability or fitness for a specific purpose to the extent permitted by applicable law. Nothing in these terms excludes rights that cannot legally be excluded.'
       ]
     },
     {
@@ -132,7 +132,7 @@ const terms: Record<Language, LegalSection[]> = {
     {
       heading: 'Продукт',
       paragraphs: [
-        'Wishly надається як інструмент для локальної роботи з медіа. Поточна версія має статус test/MVP і може змінюватися, тимчасово не працювати або містити помилки.'
+        'Wishly надається як інструмент для локальної роботи з медіа. Поточна версія має статус MVP і може змінюватися, тимчасово не працювати або містити помилки.'
       ]
     },
     {
@@ -151,7 +151,7 @@ const terms: Record<Language, LegalSection[]> = {
     {
       heading: 'Доступність і відповідальність',
       paragraphs: [
-        'Test/MVP продукт надається без обіцянки безперервної доступності чи придатності для конкретної мети в межах, дозволених законом. Ці умови не обмежують права, які не можуть бути законно обмежені.'
+        'MVP-продукт надається без обіцянки безперервної доступності чи придатності для конкретної мети в межах, дозволених законом. Ці умови не обмежують права, які не можуть бути законно обмежені.'
       ]
     },
     {

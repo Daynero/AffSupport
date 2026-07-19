@@ -5,7 +5,6 @@ export type PublicConfig = {
   adminEmailHint: string | null;
   legalContactEmail: string | null;
   productOperator: string | null;
-  deleteAccountEnabled: boolean;
 };
 
 export type ConfigResult =
@@ -80,8 +79,7 @@ export function validatePublicConfig(env: Env): ConfigResult {
       siteUrl: siteUrl.replace(/\/$/, ''),
       adminEmailHint: value(env, 'VITE_ADMIN_EMAIL') || null,
       legalContactEmail: value(env, 'VITE_LEGAL_CONTACT_EMAIL') || null,
-      productOperator: value(env, 'VITE_PRODUCT_OPERATOR') || null,
-      deleteAccountEnabled: value(env, 'VITE_DELETE_ACCOUNT_ENABLED') === 'true'
+      productOperator: value(env, 'VITE_PRODUCT_OPERATOR') || null
     }
   };
 }
