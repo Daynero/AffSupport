@@ -76,7 +76,10 @@ const overview = {
   average_saving_percent: 40,
   optimal_batches: 4,
   custom_batches: 1,
-  image_embedding_batches: 2
+  image_embedding_batches: 2,
+  videos_optimal: 11,
+  videos_custom: 2,
+  videos_with_image: 3
 };
 
 beforeEach(() => {

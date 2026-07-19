@@ -27,6 +27,9 @@ type AdminOverview = {
   optimal_batches: number;
   custom_batches: number;
   image_embedding_batches: number;
+  videos_optimal: number;
+  videos_custom: number;
+  videos_with_image: number;
 };
 
 type DailyActivity = { activity_date: string; active_users: number; event_count: number };
@@ -53,7 +56,10 @@ const overviewKeys: (keyof AdminOverview)[] = [
   'average_saving_percent',
   'optimal_batches',
   'custom_batches',
-  'image_embedding_batches'
+  'image_embedding_batches',
+  'videos_optimal',
+  'videos_custom',
+  'videos_with_image'
 ];
 
 export function parseAdminOverview(value: Json): AdminOverview | null {
@@ -89,7 +95,10 @@ const metricLabels: Record<keyof AdminOverview, TranslationKey> = {
   average_saving_percent: 'metricAverageSaving',
   optimal_batches: 'metricOptimal',
   custom_batches: 'metricCustom',
-  image_embedding_batches: 'metricEmbedding'
+  image_embedding_batches: 'metricEmbedding',
+  videos_optimal: 'metricVideosOptimal',
+  videos_custom: 'metricVideosCustom',
+  videos_with_image: 'metricVideosWithImage'
 };
 
 const sizeMetrics = new Set<keyof AdminOverview>([
