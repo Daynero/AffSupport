@@ -276,6 +276,17 @@ a {
   font-size: 12px;
 }
 
+.launcher-notice {
+  width: max-content;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 8px 14px;
+  border-radius: 999px;
+  color: var(--color-text-muted);
+  background: var(--color-surface-muted);
+  font-size: 12px;
+}
+
 .launcher .onboarding-panel,
 .launcher .blocking-message {
   max-width: 680px;

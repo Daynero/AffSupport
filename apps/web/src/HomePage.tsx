@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  BUILD_ID,
+  MAX_SUPPORTED_AGENT_API_VERSION,
+  MIN_SUPPORTED_AGENT_API_VERSION,
+  PRODUCT_VERSION
+} from '@video-compressor/shared';
 import { Header, Onboarding } from './App';
 import { useAgent } from './AgentContext';
+import { request } from './api/client';
 import { useI18n, type TranslationKey } from './i18n';
 import { analytics } from './analytics/service';
 
@@ -36,6 +43,7 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
   const { language, setLanguage, t } = useI18n();
   const { connection, reconnect } = useAgent();
   const [help, setHelp] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const panel = useRef<HTMLDivElement>(null);
   const connected = connection === 'connected';
 
@@ -46,6 +54,40 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
       ?.setAttribute('content', 'A collection of local Wishly tools for working with your files.');
     analytics.track('home_viewed', {});
   }, []);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 4000);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  const copyDiagnostics = async () => {
+    try {
+      const agent = await request('/api/diagnostics');
+      await navigator.clipboard.writeText(
+        JSON.stringify(
+          {
+            web: {
+              version: PRODUCT_VERSION,
+              buildId: BUILD_ID,
+              revision: import.meta.env.VITE_WEB_REVISION ?? 'development',
+              supportedAgentApi: {
+                min: MIN_SUPPORTED_AGENT_API_VERSION,
+                max: MAX_SUPPORTED_AGENT_API_VERSION
+              },
+              origin: location.origin
+            },
+            agent
+          },
+          null,
+          2
+        )
+      );
+      setNotice(t('diagnosticsCopied'));
+    } catch {
+      setNotice(t('genericError'));
+    }
+  };
 
   const openTool = (tool: Tool) => {
     if (tool.status !== 'active') {
@@ -67,7 +109,7 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
         setLanguage={setLanguage}
         connection={connection}
         showProblemAction={!connected}
-        copyDiagnostics={() => {}}
+        copyDiagnostics={() => void copyDiagnostics()}
         t={t}
       />
       <main className="launcher">
@@ -75,6 +117,12 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
           <h2>{t('toolsTitle')}</h2>
           <p>{t('toolsSubtitle')}</p>
         </div>
+
+        {notice && (
+          <div className="launcher-notice" role="status">
+            {notice}
+          </div>
+        )}
 
         <div className="agent-panel-slot" ref={panel} tabIndex={-1}>
           {connection === 'checking' ? (
