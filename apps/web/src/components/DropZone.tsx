@@ -7,12 +7,23 @@ export function DropZone({
   importing,
   chooseFiles,
   addDroppedFiles,
+  onDropData,
+  title,
+  formats,
+  activeLabel,
+  importingLabel,
   t
 }: {
   disabled: boolean;
   importing: boolean;
   chooseFiles: () => void;
   addDroppedFiles: (files: File[]) => void;
+  /** When provided, the raw transfer is handed over (e.g. to read folders). */
+  onDropData?: (data: DataTransfer) => void;
+  title?: string;
+  formats?: string;
+  activeLabel?: string;
+  importingLabel?: string;
   t: Translate;
 }) {
   const depth = useRef(0);
@@ -34,6 +45,10 @@ export function DropZone({
     depth.current = 0;
     setDragging(false);
     if (disabled) return;
+    if (onDropData) {
+      onDropData(event.dataTransfer);
+      return;
+    }
     const files = droppedFiles(event.dataTransfer.files);
     if (files.length) addDroppedFiles(files);
   };
@@ -49,7 +64,7 @@ export function DropZone({
       role="button"
       tabIndex={disabled ? -1 : 0}
       aria-disabled={disabled}
-      aria-label={t('dropTitle')}
+      aria-label={title ?? t('dropTitle')}
       onClick={() => !disabled && chooseFiles()}
       onKeyDown={onKeyDown}
       onDragEnter={onDragEnter}
@@ -62,9 +77,13 @@ export function DropZone({
       </span>
       <div>
         <strong>
-          {importing ? t('importingFiles') : dragging ? t('dropActive') : t('dropTitle')}
+          {importing
+            ? (importingLabel ?? t('importingFiles'))
+            : dragging
+              ? (activeLabel ?? t('dropActive'))
+              : (title ?? t('dropTitle'))}
         </strong>
-        <span>{t('dropFormats')}</span>
+        <span>{formats ?? t('dropFormats')}</span>
       </div>
     </div>
   );

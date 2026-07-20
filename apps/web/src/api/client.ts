@@ -1,6 +1,7 @@
 import type {
   HealthResponse,
   ImageSlot,
+  LandingState,
   QueueState,
   SelectionResponse
 } from '@video-compressor/shared';
@@ -129,6 +130,40 @@ export async function uploadImage(slot: ImageSlot, file: File): Promise<QueueSta
 }
 export function imageContentUrl(id: string) {
   return `${agentUrl}/api/images/${encodeURIComponent(id)}/content?token=${encodeURIComponent(token)}`;
+}
+export function landingEventUrl() {
+  return `${agentUrl}/api/landing/events?token=${encodeURIComponent(token)}`;
+}
+async function uploadForm<T>(url: string, body: FormData): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(agentUrl + url, {
+      method: 'POST',
+      headers: { 'x-session-token': token },
+      body,
+      ...privateNetworkInit
+    });
+  } catch (error) {
+    throw new Error('CONNECTION_FAILED', { cause: error });
+  }
+  return assertOk(response) as Promise<T>;
+}
+export async function uploadLandingZip(file: File): Promise<LandingState> {
+  const body = new FormData();
+  body.append('file', file, file.name);
+  return uploadForm<LandingState>('/api/landing/upload/zip', body);
+}
+export async function landingFolderBegin(name: string): Promise<LandingState> {
+  return requestBody<LandingState>('/api/landing/upload/folder/begin', { name });
+}
+export async function landingFolderFile(relPath: string, file: File): Promise<{ ok: boolean }> {
+  const body = new FormData();
+  body.append('relPath', relPath);
+  body.append('file', file, file.name);
+  return uploadForm<{ ok: boolean }>('/api/landing/upload/folder/file', body);
+}
+export async function landingFolderFinish(): Promise<LandingState> {
+  return request<LandingState>('/api/landing/upload/folder/finish', 'POST');
 }
 async function assertOk(response: Response) {
   const body = await response.json();

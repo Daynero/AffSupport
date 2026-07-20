@@ -405,3 +405,137 @@ export function calculateQueueSummary(jobs: CompressionJob[]): QueueSummary {
     savedPercent: originalSize ? Math.max(0, Math.round((savedBytes / originalSize) * 100)) : 0
   };
 }
+
+/* -------------------------------------------------------------------------- */
+/* Landing Optimizer                                                          */
+/*                                                                            */
+/* A separate tool that optimizes a whole landing page (a ZIP or a folder):   */
+/* it converts raster images to WebP, re-encodes videos with the proven video */
+/* pipeline, rewrites every local asset reference, and returns a fully working */
+/* optimized copy. It shares the local agent, pairing, and design system with  */
+/* the Video Compressor but keeps its own state so the two never interfere.   */
+/* -------------------------------------------------------------------------- */
+
+export type LandingImageQuality = 'optimal' | 'high';
+export type LandingVideoQuality = 'optimal' | 'high';
+export type LandingSourceKind = 'zip' | 'folder';
+export type LandingAssetType = 'image' | 'video';
+export type LandingAssetStatus = 'pending' | 'processing' | 'optimized' | 'skipped' | 'failed';
+export type LandingJobStatus = 'preparing' | 'ready' | 'processing' | 'completed' | 'failed';
+
+/** High Quality re-encode: keep resolution and frame rate, compress gently. */
+export const LANDING_HIGH_QUALITY_CRF = 20;
+
+export interface LandingSettings {
+  imageQuality: LandingImageQuality;
+  videoQuality: LandingVideoQuality;
+  /** When true the result is a `<name>-optimized.zip`, otherwise a folder. */
+  archive: boolean;
+}
+
+export interface LandingAsset {
+  id: string;
+  /** POSIX path of the asset relative to the landing root. */
+  relPath: string;
+  fileName: string;
+  type: LandingAssetType;
+  status: LandingAssetStatus;
+  originalSize: number;
+  optimizedSize: number | null;
+  savedBytes: number | null;
+  savedPercent: number | null;
+  /** 0–100 while a video is being re-encoded, otherwise null. */
+  progress: number | null;
+  /** New relative path when the extension changed (e.g. `.jpg` → `.webp`). */
+  newRelPath: string | null;
+  /** A short, localizable reason a file was skipped or failed. */
+  note: string | null;
+}
+
+export interface LandingJob {
+  id: string;
+  name: string;
+  sourceKind: LandingSourceKind;
+  status: LandingJobStatus;
+  settings: LandingSettings;
+  assets: LandingAsset[];
+  imagesOptimized: number;
+  videosOptimized: number;
+  filesSkipped: number;
+  filesFailed: number;
+  referencesUpdated: number;
+  originalMediaSize: number;
+  optimizedMediaSize: number;
+  savedBytes: number;
+  savedPercent: number;
+  outputPath: string | null;
+  outputIsArchive: boolean;
+  error: string | null;
+  warnings: string[];
+  createdAt: number;
+  startedAt: number | null;
+  finishedAt: number | null;
+}
+
+export interface LandingState {
+  job: LandingJob | null;
+  settings: LandingSettings;
+  tools: { ffmpeg: boolean; ffprobe: boolean };
+  running: boolean;
+}
+
+export type LandingEventType = 'landing:state' | 'landing:progress';
+export interface LandingEvent {
+  type: LandingEventType;
+  state: LandingState;
+}
+
+export function defaultLandingSettings(): LandingSettings {
+  return { imageQuality: 'optimal', videoQuality: 'optimal', archive: false };
+}
+
+export interface LandingSummary {
+  imagesOptimized: number;
+  videosOptimized: number;
+  filesSkipped: number;
+  filesFailed: number;
+  originalMediaSize: number;
+  optimizedMediaSize: number;
+  savedBytes: number;
+  savedPercent: number;
+}
+
+export function calculateLandingSummary(assets: LandingAsset[]): LandingSummary {
+  let imagesOptimized = 0;
+  let videosOptimized = 0;
+  let filesSkipped = 0;
+  let filesFailed = 0;
+  let originalMediaSize = 0;
+  let optimizedMediaSize = 0;
+  for (const asset of assets) {
+    originalMediaSize += asset.originalSize;
+    if (asset.status === 'optimized') {
+      if (asset.type === 'image') imagesOptimized += 1;
+      else videosOptimized += 1;
+      optimizedMediaSize += asset.optimizedSize ?? asset.originalSize;
+    } else {
+      if (asset.status === 'skipped') filesSkipped += 1;
+      else if (asset.status === 'failed') filesFailed += 1;
+      // A skipped or failed asset keeps its original bytes in the output.
+      optimizedMediaSize += asset.originalSize;
+    }
+  }
+  const savedBytes = Math.max(0, originalMediaSize - optimizedMediaSize);
+  return {
+    imagesOptimized,
+    videosOptimized,
+    filesSkipped,
+    filesFailed,
+    originalMediaSize,
+    optimizedMediaSize,
+    savedBytes,
+    savedPercent: originalMediaSize
+      ? Math.max(0, Math.round((savedBytes / originalMediaSize) * 100))
+      : 0
+  };
+}

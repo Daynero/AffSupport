@@ -28,7 +28,9 @@ import {
   type AgentSettings,
   type AgentSettingsPatch,
   type ImageAsset,
-  type ImageSlot
+  type ImageSlot,
+  type LandingEvent,
+  type LandingEventType
 } from '@video-compressor/shared';
 import { EstimationWorker } from './estimate/worker.js';
 import { selectOutputFolder, selectVideos } from './files/picker.js';
@@ -39,6 +41,8 @@ import { eventStreamHeaders } from './http.js';
 import { isSupportedVideoPath, JobQueue } from './queue/queue.js';
 import { loadState, saveState } from './queue/store.js';
 import { ImageAssetError, ImageAssetStore, MAX_IMAGE_BYTES } from './images/store.js';
+import { LandingOptimizer } from './landing/optimizer.js';
+import { registerLandingRoutes } from './landing/routes.js';
 
 const token = randomBytes(32).toString('hex');
 const instanceId = randomBytes(12).toString('hex');
@@ -49,9 +53,16 @@ const tools = {
   ffprobe: await commandExists(ffprobePath)
 };
 const clients = new Set<NodeJS.WritableStream>();
+const landingClients = new Set<NodeJS.WritableStream>();
 const imageStore = new ImageAssetStore();
 const pendingSelections = new Map<string, string>();
 let saveChain = Promise.resolve();
+
+const landingOptimizer = new LandingOptimizer(tools, (type: LandingEventType = 'landing:state') => {
+  const event: LandingEvent = { type, state: landingOptimizer.state() };
+  const payload = `data: ${JSON.stringify(event)}\n\n`;
+  for (const client of landingClients) client.write(payload);
+});
 
 function broadcast(type: AgentEventType = 'state') {
   const event: AgentEvent = { type, state: queue.state() };
@@ -510,6 +521,12 @@ app.post('/api/output/reveal', async (_request, reply) => {
   return queue.state();
 });
 
+registerLandingRoutes(app, {
+  optimizer: landingOptimizer,
+  clients: landingClients,
+  allowedOrigins
+});
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const webRoot = path.resolve(here, '../../web/dist');
 await app.register(fastifyStatic, {
@@ -550,6 +567,7 @@ async function shutdown(code = 0) {
   try {
     await estimator.shutdown();
     await queue.shutdown();
+    await landingOptimizer.shutdown();
     await app.close();
   } catch (error) {
     app.log.error(error, 'Shutdown failed');

@@ -28,6 +28,39 @@ export async function selectVideos(): Promise<string[]> {
   });
 }
 
+export async function selectLandingZip(): Promise<string | null> {
+  const script =
+    'set chosenFile to choose file with prompt "Select a landing ZIP archive" of type {"zip", "public.zip-archive"}\nreturn POSIX path of chosenFile';
+  return runFolderScript(script, 'Could not open the archive picker.');
+}
+
+export async function selectLandingFolder(): Promise<string | null> {
+  const script = 'POSIX path of (choose folder with prompt "Choose a landing folder")';
+  return runFolderScript(script, 'Could not open the folder picker.');
+}
+
+function runFolderScript(script: string, failure: string): Promise<string | null> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('/usr/bin/osascript', ['-e', script], { shell: false });
+    let out = '',
+      err = '';
+    child.stdout.on('data', d => {
+      out += d;
+    });
+    child.stderr.on('data', d => {
+      err += d;
+    });
+    child.on('error', reject);
+    child.on('close', code =>
+      code === 0
+        ? resolve(out.trim().replace(/\/$/, ''))
+        : err.includes('User canceled')
+          ? resolve(null)
+          : reject(new Error(failure))
+    );
+  });
+}
+
 export async function selectOutputFolder(): Promise<string | null> {
   const script = 'POSIX path of (choose folder with prompt "Choose output folder")';
   return new Promise((resolve, reject) => {

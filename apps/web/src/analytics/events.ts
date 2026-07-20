@@ -17,6 +17,8 @@ export const analyticsEventNames = [
   'compression_failed',
   'image_embedding_enabled',
   'transcription_interest_clicked',
+  'landing_loaded',
+  'landing_optimization_started',
   'language_changed',
   'marketing_consent_changed',
   'support_opened',
@@ -41,14 +43,14 @@ type CompressionProperties = {
   image_embedding?: boolean;
   success?: boolean;
   error_category?: string;
-  tool_identifier?: 'compressor';
+  tool_identifier?: 'compressor' | 'landing-optimizer';
 };
 
 export type AnalyticsEventProperties = {
   user_signed_in: Record<string, never>;
   user_signed_out: Record<string, never>;
   home_viewed: Record<string, never>;
-  tool_opened: { tool_identifier: 'compressor' };
+  tool_opened: { tool_identifier: 'compressor' | 'landing-optimizer' };
   agent_connected: Record<string, never>;
   agent_disconnected: { error_category?: string };
   agent_update_required: Record<string, never>;
@@ -61,6 +63,8 @@ export type AnalyticsEventProperties = {
   compression_failed: CompressionProperties;
   image_embedding_enabled: { image_embedding: true };
   transcription_interest_clicked: { tool_identifier: 'transcription' };
+  landing_loaded: { tool_identifier: 'landing-optimizer' };
+  landing_optimization_started: { tool_identifier: 'landing-optimizer' };
   language_changed: { language: 'en' | 'uk' };
   marketing_consent_changed: { marketing_consent: boolean };
   support_opened: Record<string, never>;
@@ -135,7 +139,10 @@ export function sanitizeAnalyticsProperties(input: unknown): Record<string, Json
     )
       output[key] = raw;
     if (key === 'language' && (raw === 'en' || raw === 'uk')) output[key] = raw;
-    if (key === 'tool_identifier' && (raw === 'compressor' || raw === 'transcription'))
+    if (
+      key === 'tool_identifier' &&
+      (raw === 'compressor' || raw === 'transcription' || raw === 'landing-optimizer')
+    )
       output[key] = raw;
     if (key === 'error_category' && typeof raw === 'string' && safeErrorCategories.has(raw))
       output[key] = raw;
@@ -150,6 +157,7 @@ export function analyticsTool(
 ): string | null {
   if (name === 'tool_opened' || name === 'transcription_interest_clicked')
     return typeof properties.tool_identifier === 'string' ? properties.tool_identifier : null;
+  if (name.startsWith('landing')) return 'landing-optimizer';
   if (name.startsWith('compression') || name.startsWith('estimate') || name === 'videos_added')
     return 'compressor';
   return null;

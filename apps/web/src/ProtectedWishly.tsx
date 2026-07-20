@@ -1,5 +1,6 @@
 import { AgentProvider, useAgent } from './AgentContext';
 import CompressorPage, { Header } from './App';
+import LandingOptimizerPage from './landing/LandingOptimizerPage';
 import { ProfileOnboarding } from './auth/AuthScreens';
 import HomePage from './HomePage';
 import { useI18n } from './i18n';
@@ -21,6 +22,7 @@ function ProtectedApplication({ path }: { path: string }) {
   const { connection } = useAgent();
 
   if (path === '/compressor') return <CompressorPage />;
+  if (path === '/landing-optimizer') return <LandingOptimizerPage />;
   if (path === '/account' || path === '/admin') {
     return (
       <div className="app-shell">
