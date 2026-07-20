@@ -10,6 +10,7 @@ import {
 
 export const optimalEncoding: EncodingSettings = {
   mode: 'optimal',
+  stripMetadata: true,
   frameRate: null,
   resolutionLimit: null,
   rateControl: 'crf',
@@ -19,6 +20,7 @@ export const optimalEncoding: EncodingSettings = {
 
 export const customEncoding: EncodingSettings = {
   mode: 'custom',
+  stripMetadata: true,
   frameRate: 30,
   resolutionLimit: 1080,
   rateControl: 'crf',
@@ -30,6 +32,7 @@ export const optimalSettings: AgentSettings = {
   mode: 'optimal',
   outputMode: 'next-to-originals',
   outputFolder: null,
+  stripMetadata: true,
   frameRate: null,
   resolutionLimit: null,
   rateControl: 'crf',

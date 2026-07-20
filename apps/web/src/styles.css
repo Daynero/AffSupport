@@ -746,7 +746,7 @@ a {
 .settings-primary-row {
   display: grid;
   grid-column: 1 / -1;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-4);
 }
 
@@ -944,13 +944,15 @@ a {
 
 .image-column {
   display: grid;
+  grid-template-columns: 136px minmax(0, 1fr);
   min-width: 0;
-  align-content: start;
+  align-items: start;
   gap: var(--space-3);
 }
 
 .image-column-heading {
   display: grid;
+  grid-column: 1 / -1;
   gap: 3px;
 }
 
@@ -969,7 +971,8 @@ a {
    ============================================================ */
 .image-drop-zone {
   display: grid;
-  min-height: 118px;
+  aspect-ratio: 1;
+  min-height: 0;
   place-items: center;
   padding: var(--space-3);
   border: 1.5px dashed var(--color-border-strong);
@@ -992,8 +995,16 @@ a {
   box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent);
 }
 
+.image-drop-zone.has-error {
+  border-color: color-mix(in srgb, var(--color-danger, #d64545) 58%, var(--color-border));
+  background: color-mix(in srgb, var(--color-danger, #d64545) 6%, var(--color-surface));
+}
+
 .image-drop-zone.has-image {
+  position: relative;
   place-items: stretch;
+  overflow: hidden;
+  padding: 0;
   border-style: solid;
   cursor: default;
 }
@@ -1004,13 +1015,52 @@ a {
 }
 
 .empty-image-drop {
-  display: grid;
-  justify-items: center;
-  gap: 4px;
+  position: relative;
+  width: 100%;
+  height: 100%;
   text-align: center;
 }
 
-.empty-image-drop > span:not(.image-drop-icon) {
+.image-drop-message {
+  display: grid;
+  position: absolute;
+  inset: 0;
+  align-content: center;
+  justify-items: center;
+  gap: 4px;
+  transition:
+    opacity 480ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 480ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 480ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform, filter;
+}
+
+.image-drop-default.is-hidden {
+  opacity: 0;
+  filter: blur(1px);
+  transform: translateY(-2px) scale(0.99);
+}
+
+.image-drop-inline-error {
+  padding: 8px;
+  opacity: 0;
+  filter: blur(1px);
+  transform: translateY(2px) scale(0.99);
+  pointer-events: none;
+}
+
+.image-drop-inline-error.is-visible {
+  opacity: 1;
+  filter: blur(0);
+  transform: translateY(0) scale(1);
+}
+
+.image-drop-inline-error .field-error {
+  line-height: 1.35;
+  text-align: center;
+}
+
+.image-drop-message > span:not(.image-drop-icon) {
   color: var(--color-text-muted);
   font-size: 11px;
 }
@@ -1037,55 +1087,86 @@ a {
 }
 
 .selected-image {
-  display: grid;
-  grid-template-columns: 84px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--space-3);
+  position: relative;
+  width: 100%;
+  height: 100%;
   animation: fade-rise var(--dur-control) var(--ease-enter);
 }
 
 .selected-image img {
-  width: 84px;
-  height: 72px;
-  border-radius: var(--radius-sm);
+  width: 100%;
+  height: 100%;
   background: var(--purple-900);
-  object-fit: contain;
-}
-
-.selected-image-meta {
-  display: grid;
-  min-width: 0;
-  gap: 3px;
-}
-
-.selected-image-meta > strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.selected-image-meta > span {
-  color: var(--color-text-muted);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
+  object-fit: cover;
 }
 
 .selected-image-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-  margin-top: 3px;
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  gap: 3px;
+  padding: 2px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: 0 1px 4px rgba(36, 27, 58, 0.14);
+  backdrop-filter: blur(5px);
 }
 
-.selected-image-actions .button {
-  min-height: 28px;
-  padding: 0 8px;
+.selected-image-action {
+  display: grid;
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+  flex: 0 0 20px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  color: var(--color-text);
+  background: transparent;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.selected-image-action-icon {
+  display: block;
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.25;
+}
+
+.selected-image-action:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.selected-image-action.is-delete:hover:not(:disabled) {
+  color: var(--color-danger, #d64545);
+}
+
+.selected-image-size {
+  color: var(--color-text-muted);
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 
 .final-duration-field {
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--color-border);
+  min-width: 0;
+}
+
+.custom-duration-input {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: 12px;
 }
 
 .time-input {
@@ -1099,10 +1180,18 @@ a {
   font-variant-numeric: tabular-nums;
 }
 
+.custom-duration-input .time-input {
+  flex: 0 1 180px;
+}
+
+.custom-duration-input > span {
+  display: flex;
+  align-items: center;
+  height: 36px;
+}
+
 .embedding-fit-row {
-  max-width: 360px;
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--color-border);
+  min-width: 0;
 }
 
 .embedding-empty-warning {
@@ -1240,6 +1329,17 @@ input.is-invalid {
 
 .output-control-row {
   flex-wrap: wrap;
+}
+
+.metadata-control {
+  display: flex;
+  width: fit-content;
+  min-height: 38px;
+  align-items: center;
+  padding: 3px 11px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface-muted);
 }
 
 .selected-folder {
@@ -2411,6 +2511,19 @@ input.is-invalid {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .image-column {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .image-column-heading {
+    grid-column: auto;
+  }
+
+  .image-drop-zone {
+    aspect-ratio: auto;
+    min-height: 180px;
+  }
+
   .rate-control-field {
     grid-column: auto;
   }
@@ -2424,6 +2537,17 @@ input.is-invalid {
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .settings-primary-row .segmented {
+    width: 100%;
+  }
+
+  .settings-primary-row .segmented button {
+    flex: 1 1 auto;
+    padding-inline: 8px;
+    overflow: visible;
+    text-overflow: clip;
   }
 
   .batch-toolbar {

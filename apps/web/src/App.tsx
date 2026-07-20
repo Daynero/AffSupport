@@ -423,7 +423,6 @@ export default function CompressorPage() {
             }
             t={t}
           />
-          <p>{t('processedLocally')}</p>
         </section>
 
         {state.jobs.length > 0 && (

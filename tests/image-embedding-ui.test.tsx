@@ -107,7 +107,7 @@ describe('image embedding settings UI', () => {
     const first = new File(['png'], 'opening image.png', { type: 'image/png' });
     await user.upload(input, first);
     expect(uploaded).toHaveLength(1);
-    expect(screen.getByText('opening image.png')).toBeTruthy();
+    expect(screen.getByAltText('opening image.png')).toBeTruthy();
     expect(screen.getByText('640×360')).toBeTruthy();
     expect(document.querySelector('img')?.getAttribute('src')).toContain('asset-1');
 
@@ -115,7 +115,7 @@ describe('image embedding settings UI', () => {
     fireEvent.drop(screen.getByRole('group'), { dataTransfer: { files: [second] } });
     await waitFor(() => expect(uploaded).toHaveLength(2));
     expect(uploaded[1]).toMatchObject({ slot: 'start', file: second });
-    expect(screen.getByText('replacement.webp')).toBeTruthy();
+    expect(screen.getByAltText('replacement.webp')).toBeTruthy();
   });
 
   it('supports obvious replacement and removal actions', async () => {
@@ -127,10 +127,10 @@ describe('image embedding settings UI', () => {
       screen.getByLabelText('Choose opening-frame image'),
       new File(['jpeg'], 'new photo.jpg', { type: 'image/jpeg' })
     );
-    expect(screen.getByText('new photo.jpg')).toBeTruthy();
+    expect(screen.getByAltText('new photo.jpg')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Delete' }));
     expect(onRemove).toHaveBeenCalledWith('start');
-    expect(screen.getByText('Drag an image here or choose a file')).toBeTruthy();
+    expect(screen.getByText('Add image')).toBeTruthy();
   });
 
   it('rejects unsupported files before upload with a localized error', async () => {
@@ -156,6 +156,7 @@ describe('image embedding settings UI', () => {
     }
     await user.selectOptions(duration, 'custom');
     const custom = screen.getByLabelText('Custom duration in minutes');
+    expect(screen.getByText('minutes')).toBeTruthy();
     await user.clear(custom);
     await user.type(custom, '0');
     expect(screen.getByText(/whole number of minutes greater than 0/)).toBeTruthy();
@@ -202,7 +203,7 @@ describe('image embedding settings UI', () => {
         t={t('en')}
       />
     );
-    expect(screen.getByText('opening.png')).toBeTruthy();
+    expect(screen.getByAltText('opening.png')).toBeTruthy();
     view.rerender(
       <SettingsPanel
         settings={settings}
@@ -213,7 +214,7 @@ describe('image embedding settings UI', () => {
         t={t('uk')}
       />
     );
-    expect(screen.getByText('opening.png')).toBeTruthy();
+    expect(screen.getByAltText('opening.png')).toBeTruthy();
     expect(screen.getByText('Вмістити повністю')).toBeTruthy();
     expect(settings.imageEmbedding.startImage?.id).toBe('asset-1');
   });

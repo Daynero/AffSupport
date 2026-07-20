@@ -63,7 +63,7 @@ describe('release identity', () => {
         manifest: JSON.parse(
           readFileSync('apps/web/public/.well-known/wishly/stable.json', 'utf8')
         ),
-        installedVersion: '0.5.5',
+        installedVersion: '0.5.6',
         installedChannel: 'stable',
         compatible: true
       })
@@ -71,7 +71,8 @@ describe('release identity', () => {
   });
 
   it('gates each tool by its own contract', () => {
-    expect(toolContractCompatible('compressor', { compressor: 1 })).toBe(true);
+    expect(toolContractCompatible('compressor', { compressor: 1 })).toBe(false);
+    expect(toolContractCompatible('compressor', { compressor: 2 })).toBe(true);
     expect(toolContractCompatible('landingOptimizer', { compressor: 1 })).toBe(false);
   });
 

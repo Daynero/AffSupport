@@ -14,7 +14,7 @@ import {
   type ImageSlot
 } from '@video-compressor/shared';
 import type { TranslationKey } from '../i18n';
-import { Button, Checkbox, Collapse, Spinner, Tooltip, type Translate } from './ui';
+import { Checkbox, Collapse, IconButton, Spinner, Tooltip, type Translate } from './ui';
 
 const supportedExtensions = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 const supportedMimeTypes = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -87,7 +87,26 @@ export function ImageEmbeddingSection({
               removeImage={removeImage}
               imageUrl={imageUrl}
               t={t}
-            />
+            >
+              <div className="field-group embedding-fit-row">
+                <FieldLabel label={t('frameFit')} tooltip={t('frameFitTooltip')} />
+                <select
+                  value={settings.fitMode}
+                  disabled={disabled}
+                  aria-label={t('frameFit')}
+                  onChange={event =>
+                    update({ fitMode: event.target.value as ImageEmbeddingSettings['fitMode'] })
+                  }
+                >
+                  <option value="cover">{t('fitCover')}</option>
+                  <option value="contain">{t('fitContain')}</option>
+                  <option value="stretch">{t('fitStretch')}</option>
+                </select>
+                {settings.fitMode === 'stretch' && (
+                  <span className="field-hint">{t('fitStretchWarning')}</span>
+                )}
+              </div>
+            </ImageColumn>
             <ImageColumn
               slot="end"
               title={t('endImageTitle')}
@@ -122,22 +141,26 @@ export function ImageEmbeddingSection({
                 </select>
                 {settings.finalDurationMode === 'custom' && (
                   <>
-                    <input
-                      className={`time-input ${customTime && !customTimeValid ? 'is-invalid' : ''}`}
-                      type="text"
-                      inputMode="numeric"
-                      placeholder="54"
-                      value={customTime}
-                      disabled={disabled}
-                      aria-label={t('customDurationInput')}
-                      aria-invalid={!customTimeValid}
-                      onChange={event => {
-                        const value = event.target.value;
-                        setCustomTime(value);
-                        const seconds = parseMinutesInput(value);
-                        if (seconds !== null) update({ customFinalDurationSeconds: seconds }, true);
-                      }}
-                    />
+                    <div className="custom-duration-input">
+                      <input
+                        className={`time-input ${customTime && !customTimeValid ? 'is-invalid' : ''}`}
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="54"
+                        value={customTime}
+                        disabled={disabled}
+                        aria-label={t('customDurationInput')}
+                        aria-invalid={!customTimeValid}
+                        onChange={event => {
+                          const value = event.target.value;
+                          setCustomTime(value);
+                          const seconds = parseMinutesInput(value);
+                          if (seconds !== null)
+                            update({ customFinalDurationSeconds: seconds }, true);
+                        }}
+                      />
+                      <span>{t('minutesUnit')}</span>
+                    </div>
                     <Collapse fast open={!customTimeValid}>
                       <span className="field-error">{t('invalidCustomDuration')}</span>
                     </Collapse>
@@ -145,25 +168,6 @@ export function ImageEmbeddingSection({
                 )}
               </div>
             </ImageColumn>
-          </div>
-
-          <div className="embedding-fit-row field-group">
-            <FieldLabel label={t('frameFit')} tooltip={t('frameFitTooltip')} />
-            <select
-              value={settings.fitMode}
-              disabled={disabled}
-              aria-label={t('frameFit')}
-              onChange={event =>
-                update({ fitMode: event.target.value as ImageEmbeddingSettings['fitMode'] })
-              }
-            >
-              <option value="cover">{t('fitCover')}</option>
-              <option value="contain">{t('fitContain')}</option>
-              <option value="stretch">{t('fitStretch')}</option>
-            </select>
-            {settings.fitMode === 'stretch' && (
-              <span className="field-hint">{t('fitStretchWarning')}</span>
-            )}
           </div>
 
           {!settings.startImage && !settings.endImage && (
@@ -242,6 +246,11 @@ export function ImageDropArea({
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const [errorKey, setErrorKey] = useState<TranslationKey | null>(null);
+  useEffect(() => {
+    if (!errorKey) return;
+    const timeout = window.setTimeout(() => setErrorKey(null), 2000);
+    return () => window.clearTimeout(timeout);
+  }, [errorKey]);
 
   const choose = () => {
     if (disabled || busy) return;
@@ -312,8 +321,9 @@ export function ImageDropArea({
         onChange={(event: ChangeEvent<HTMLInputElement>) => void accept(event.target.files?.[0])}
       />
       <div
-        className={`image-drop-zone ${dragging ? 'is-dragging' : ''} ${disabled ? 'is-disabled' : ''} ${asset ? 'has-image' : ''}`}
+        className={`image-drop-zone ${dragging ? 'is-dragging' : ''} ${disabled ? 'is-disabled' : ''} ${asset ? 'has-image' : ''} ${errorKey ? 'has-error' : ''}`}
         role={asset ? 'group' : 'button'}
+        title={!asset ? t('dropImage') : undefined}
         tabIndex={!asset && !disabled ? 0 : -1}
         aria-disabled={disabled}
         onClick={() => !asset && choose()}
@@ -325,36 +335,61 @@ export function ImageDropArea({
       >
         {asset ? (
           <div className="selected-image">
-            {previewUrl && <img src={previewUrl} alt="" />}
-            <div className="selected-image-meta">
-              <strong title={asset.fileName}>{asset.fileName}</strong>
-              <span>
-                {asset.width}×{asset.height}
-              </span>
-              <div className="selected-image-actions">
-                <Button variant="ghost" disabled={disabled || busy} onClick={choose}>
-                  {t('replaceImage')}
-                </Button>
-                <Button variant="ghost" disabled={disabled || busy} onClick={() => void remove()}>
-                  {t('deleteImage')}
-                </Button>
-              </div>
+            {previewUrl && <img src={previewUrl} alt={asset.fileName} />}
+            <div className="selected-image-actions">
+              <IconButton
+                className="selected-image-action"
+                label={t('replaceImage')}
+                disabled={disabled || busy}
+                onClick={choose}
+              >
+                <svg className="selected-image-action-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                  <path d="M21 3v6h-6" />
+                </svg>
+              </IconButton>
+              <IconButton
+                className="selected-image-action is-delete"
+                label={t('deleteImage')}
+                disabled={disabled || busy}
+                onClick={() => void remove()}
+              >
+                <svg className="selected-image-action-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m6 6 12 12M18 6 6 18" />
+                </svg>
+              </IconButton>
             </div>
             {busy && <Spinner small />}
           </div>
         ) : (
           <div className="empty-image-drop">
-            {busy ? <Spinner /> : <span className="image-drop-icon">＋</span>}
-            <strong>
-              {busy ? t('uploadingImage') : dragging ? t('dropImageActive') : t('dropImage')}
-            </strong>
-            <span>{t('imageFormats')}</span>
+            <div
+              className={`image-drop-message image-drop-default ${errorKey ? 'is-hidden' : ''}`}
+              aria-hidden={Boolean(errorKey)}
+            >
+              {busy ? <Spinner /> : <span className="image-drop-icon">＋</span>}
+              <strong>
+                {busy ? t('uploadingImage') : dragging ? t('dropImageActive') : t('addImage')}
+              </strong>
+              <span>{t('imageFormats')}</span>
+            </div>
+            <div
+              className={`image-drop-message image-drop-inline-error ${errorKey ? 'is-visible' : ''}`}
+              aria-hidden={!errorKey}
+              aria-live="polite"
+            >
+              {errorKey && (
+                <strong className="field-error" role="alert">
+                  {t(errorKey)}
+                </strong>
+              )}
+            </div>
           </div>
         )}
       </div>
-      {errorKey && (
-        <span className="field-error" role="alert">
-          {t(errorKey)}
+      {asset && (
+        <span className="selected-image-size">
+          {asset.width}×{asset.height}
         </span>
       )}
     </div>

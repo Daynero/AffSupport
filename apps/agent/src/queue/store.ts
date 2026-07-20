@@ -34,6 +34,7 @@ export const defaultSettings: AgentSettings = {
   mode: 'optimal',
   outputMode: 'next-to-originals',
   outputFolder: null,
+  stripMetadata: true,
   frameRate: null,
   resolutionLimit: null,
   rateControl: 'crf',
@@ -122,6 +123,7 @@ function migrateSettings(value: unknown): AgentSettings {
     outputMode,
     outputFolder:
       typeof raw.outputFolder === 'string' && raw.outputFolder ? raw.outputFolder : null,
+    stripMetadata: raw.stripMetadata !== false,
     frameRate,
     resolutionLimit,
     rateControl,
@@ -350,6 +352,7 @@ function normalizeEncoding(value: EncodingSettings): EncodingSettings {
   if (value.mode === 'optimal') return encodingFromSettings({ ...defaultSettings });
   return {
     mode: 'custom',
+    stripMetadata: value.stripMetadata !== false,
     frameRate: value.frameRate === null ? null : clampFrameRate(value.frameRate),
     resolutionLimit:
       value.resolutionLimit === null ? null : clampResolutionLimit(value.resolutionLimit),

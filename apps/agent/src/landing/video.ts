@@ -19,6 +19,7 @@ export function landingVideoEncoding(quality: LandingVideoQuality): EncodingSett
   if (quality === 'high') {
     return {
       mode: 'custom',
+      stripMetadata: true,
       frameRate: null,
       resolutionLimit: null,
       rateControl: 'crf',
@@ -28,6 +29,7 @@ export function landingVideoEncoding(quality: LandingVideoQuality): EncodingSett
   }
   return {
     mode: 'optimal',
+    stripMetadata: true,
     frameRate: null,
     resolutionLimit: null,
     rateControl: 'crf',

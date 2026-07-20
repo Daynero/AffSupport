@@ -107,6 +107,7 @@ export interface EstimateBreakdown {
 
 export interface EncodingSettings {
   mode: CompressionMode;
+  stripMetadata: boolean;
   frameRate: number | null;
   resolutionLimit: number | null;
   rateControl: RateControl;
@@ -118,6 +119,7 @@ export interface AgentSettings {
   mode: CompressionMode;
   outputMode: OutputMode;
   outputFolder: string | null;
+  stripMetadata: boolean;
   frameRate: number | null;
   resolutionLimit: number | null;
   rateControl: RateControl;
@@ -178,6 +180,7 @@ export function encodingFromSettings(settings: AgentSettings): EncodingSettings 
   if (settings.mode === 'optimal') {
     return {
       mode: 'optimal',
+      stripMetadata: settings.stripMetadata,
       frameRate: null,
       resolutionLimit: null,
       rateControl: 'crf',
@@ -188,6 +191,7 @@ export function encodingFromSettings(settings: AgentSettings): EncodingSettings 
 
   return {
     mode: 'custom',
+    stripMetadata: settings.stripMetadata,
     frameRate: settings.frameRate,
     resolutionLimit: settings.resolutionLimit,
     rateControl: settings.rateControl,
@@ -199,6 +203,7 @@ export function encodingFromSettings(settings: AgentSettings): EncodingSettings 
 export function encodingKey(settings: EncodingSettings): string {
   return JSON.stringify([
     settings.mode,
+    settings.stripMetadata,
     settings.frameRate,
     settings.resolutionLimit,
     settings.rateControl,

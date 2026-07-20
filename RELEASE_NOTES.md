@@ -1,3 +1,9 @@
+# v0.5.5
+
+- Redesign image embedding controls with compact square previews, responsive settings, inline validation transitions and accessible image actions.
+- Add metadata removal for every compressor output, enabled by default and configurable per queued job.
+- Improve compression settings alignment and remove redundant local-processing copy from the editor.
+
 # v0.5.4
 
 - Improve the compressor settings layout and native select styling.

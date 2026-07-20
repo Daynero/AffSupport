@@ -11,6 +11,19 @@ describe('FFmpeg compression arguments', () => {
     expect(argumentAfter(args, '-pix_fmt')).toBe('yuv420p');
     expect(argumentAfter(args, '-movflags')).toBe('+faststart');
     expect(argumentAfter(args, '-c:a')).toBe('copy');
+    expect(argumentAfter(args, '-map_metadata')).toBe('-1');
+    expect(argumentAfter(args, '-map_metadata:s')).toBe('-1');
+    expect(argumentAfter(args, '-map_chapters')).toBe('-1');
+  });
+
+  it('preserves metadata only when removal is explicitly disabled', () => {
+    const args = buildFfmpegArgs('in.mov', 'out.mp4', {
+      ...optimalEncoding,
+      stripMetadata: false
+    });
+    expect(args).not.toContain('-map_metadata');
+    expect(args).not.toContain('-map_metadata:s');
+    expect(args).not.toContain('-map_chapters');
   });
 
   it('preserves original frame rate and resolution in Optimal mode', () => {

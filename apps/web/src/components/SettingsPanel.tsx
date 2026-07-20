@@ -15,7 +15,7 @@ import {
 } from '@video-compressor/shared';
 import { compactPath } from '../format';
 import { isValidIntegerInput } from '../queue-ui';
-import { Button, Collapse, SegmentedControl, Tooltip, type Translate } from './ui';
+import { Button, Checkbox, Collapse, SegmentedControl, Tooltip, type Translate } from './ui';
 import { ImageEmbeddingSection } from './ImageEmbeddingSection';
 
 const FPS_OPTIONS = [24, 25, 30, 50, 60];
@@ -73,6 +73,18 @@ export function SettingsPanel({
           chooseOutputFolder={chooseOutputFolder}
           t={t}
         />
+        <div className="field-group metadata-settings">
+          <FieldLabel label={t('metadata')} tooltip={t('stripMetadataTooltip')} />
+          <div className="metadata-control">
+            <Checkbox
+              className="feature-switch"
+              checked={settings.stripMetadata}
+              disabled={disabled}
+              onChange={event => updateSettings({ stripMetadata: event.target.checked })}
+              label={<strong>{t('stripMetadata')}</strong>}
+            />
+          </div>
+        </div>
       </div>
       <div className="mode-detail">
         <Collapse open={settings.mode === 'custom'}>

@@ -160,7 +160,15 @@ export class JobQueue {
     }
 
     const encodingChanged = (
-      ['mode', 'frameRate', 'resolutionLimit', 'rateControl', 'crf', 'videoBitrateKbps'] as const
+      [
+        'mode',
+        'stripMetadata',
+        'frameRate',
+        'resolutionLimit',
+        'rateControl',
+        'crf',
+        'videoBitrateKbps'
+      ] as const
     ).some(key => normalized[key] !== undefined && normalized[key] !== this.settings[key]);
     const imageSettingsChanged =
       normalized.imageEmbedding !== undefined &&

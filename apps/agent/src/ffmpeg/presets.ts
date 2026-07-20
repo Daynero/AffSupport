@@ -6,6 +6,11 @@ const fitLongestSide = (limit: number) => {
   return `scale='if(gte(iw,ih),min(${value},iw),-2)':'if(gte(iw,ih),-2,min(${value},ih))'`;
 };
 
+const metadataArgs = (settings: EncodingSettings) =>
+  settings.stripMetadata
+    ? ['-map_metadata', '-1', '-map_metadata:s', '-1', '-map_chapters', '-1']
+    : [];
+
 /** Build the shared H.264 codec arguments used by estimates and final encodes. */
 export function videoCodecArgs(settings: EncodingSettings): string[] {
   const args = ['-c:v', 'libx264', '-preset', 'slow', '-pix_fmt', 'yuv420p'];
@@ -44,6 +49,7 @@ export function buildFfmpegArgs(
     input,
     ...videoArgs(settings),
     ...audio,
+    ...metadataArgs(settings),
     '-movflags',
     '+faststart',
     '-progress',
@@ -141,6 +147,7 @@ export function buildEmbeddedFfmpegArgs(options: EmbeddedFfmpegOptions): string[
     '2',
     '-fps_mode',
     'cfr',
+    ...metadataArgs(options.settings),
     '-movflags',
     '+faststart',
     '-progress',

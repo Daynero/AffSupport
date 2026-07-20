@@ -202,6 +202,9 @@ describe('embedded output model and FFmpeg graph', () => {
     expect(args.join(' ')).toContain('anullsrc=r=48000:cl=stereo');
     expect(args).toContain('[vout]');
     expect(args).toContain('[aout]');
+    expect(args).toContain('-map_metadata');
+    expect(args).toContain('-map_metadata:s');
+    expect(args).toContain('-map_chapters');
   });
 });
 

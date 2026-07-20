@@ -380,6 +380,12 @@ app.post<{ Body: AgentSettingsPatch }>('/api/settings', async (request, reply) =
     }
     allowed.outputMode = body.outputMode;
   }
+  if (body.stripMetadata !== undefined) {
+    if (typeof body.stripMetadata !== 'boolean') {
+      return reply.code(400).send({ error: 'Invalid metadata setting.' });
+    }
+    allowed.stripMetadata = body.stripMetadata;
+  }
   if (body.frameRate !== undefined) {
     if (body.frameRate === null) allowed.frameRate = null;
     else {
