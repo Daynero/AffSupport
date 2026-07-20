@@ -14,7 +14,7 @@ type FeatureFlag = { protected: boolean };
 
 export const featureFlags: Record<FeatureId, FeatureFlag> = {
   videoCompressor: { protected: false },
-  landingOptimizer: { protected: true }
+  landingOptimizer: { protected: false }
 };
 
 // The pass that unlocks protected features. Overridable per build via

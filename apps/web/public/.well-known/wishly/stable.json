@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.5.5",
-  "buildNumber": "11",
-  "buildId": "0.5.5+11",
+  "version": "0.6.0",
+  "buildNumber": "12",
+  "buildId": "0.6.0+12",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-07-20T00:00:00.000Z",
+  "publishedAt": "2026-07-20T21:39:04.000Z",
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.5.5/Wishly-Agent-v0.5.5-macOS-arm64.dmg",
-      "sha256": "d581b62d0918fbdbe1c50d12aa5fc2c8b7e99d8ff2d92e22a3093f57ca99f4d1"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.6.0/Wishly-Agent-v0.6.0-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
     "compressor": { "compressor": 2 },
-    "landingOptimizer": { "landingOptimizer": 1 }
+    "landingOptimizer": { "landingOptimizer": 2 }
   }
 }

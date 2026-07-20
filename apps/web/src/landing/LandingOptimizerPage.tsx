@@ -1,10 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import type {
-  LandingAsset,
-  LandingEvent,
-  LandingSettings,
-  LandingState
-} from '@video-compressor/shared';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { LandingEvent, LandingSettings, LandingState } from '@video-compressor/shared';
 import {
   landingEventUrl,
   landingFolderBegin,
@@ -20,15 +15,15 @@ import { DropZone } from '../components/DropZone';
 import {
   Button,
   Checkbox,
-  ProgressBar,
   SegmentedControl,
   Spinner,
+  Tooltip,
   type Translate
 } from '../components/ui';
-import { formatSize } from '../format';
-import { useI18n, type Language, type TranslationKey } from '../i18n';
+import { useI18n } from '../i18n';
 import { internalLink } from '../lib/navigation';
 import { analytics } from '../analytics/service';
+import { LandingJobCard } from './LandingJobCard';
 
 interface ToastMessage {
   id: number;
@@ -88,14 +83,16 @@ export default function LandingOptimizerPage() {
     addToast(message && message.length < 120 ? message : t('landingResultFailedTitle'), 'error');
   };
 
-  const job = state?.job ?? null;
+  const jobs = state?.jobs ?? (state?.job ? [state.job] : []);
+  const visibleJobs = useMemo(() => [...jobs].sort((a, b) => b.createdAt - a.createdAt), [jobs]);
   const settings = state?.settings ?? {
     imageQuality: 'optimal',
     videoQuality: 'optimal',
     archive: false
   };
   const running = state?.running ?? false;
-  const busy = importing || job?.status === 'preparing' || running;
+  const readyJobs = jobs.filter(job => job.status === 'ready');
+  const finishedJobs = jobs.filter(job => job.status === 'completed' || job.status === 'failed');
 
   const updateSettings = async (patch: Partial<LandingSettings>) => {
     try {
@@ -106,48 +103,46 @@ export default function LandingOptimizerPage() {
   };
 
   const onDropData = async (data: DataTransfer) => {
-    if (busy) return;
-    const payload = await collectDropped(data);
-    if (payload.kind === 'unsupported') {
+    if (importing) return;
+    const payloads = await collectDropped(data);
+    if (!payloads.length) {
       addToast(t('landingUnsupportedDrop'), 'warning');
       return;
     }
-    if (payload.kind === 'zip') await importZip(payload.file);
-    else await importFolder(payload.name, payload.files);
+    await importLandings(payloads);
   };
 
-  const importZip = async (file: File) => {
+  const importLandings = async (payloads: DroppedPayload[]) => {
     setImporting(true);
+    let loaded = 0;
     try {
-      setState(await uploadLandingZip(file));
-      analytics.track('landing_loaded', { tool_identifier: 'landing-optimizer' });
-    } catch (error) {
-      handleError(error);
+      for (const payload of payloads) {
+        try {
+          if (payload.kind === 'zip') {
+            setState(await uploadLandingZip(payload.file));
+            loaded += 1;
+          } else if (payload.files.length) {
+            await landingFolderBegin(payload.name);
+            for (const item of payload.files) {
+              await landingFolderFile(item.relPath, item.file);
+            }
+            setState(await landingFolderFinish());
+            loaded += 1;
+          }
+        } catch (error) {
+          handleError(error);
+        }
+      }
     } finally {
       setImporting(false);
     }
-  };
-
-  const importFolder = async (name: string, files: UploadFile[]) => {
-    if (!files.length) {
-      addToast(t('landingUnsupportedDrop'), 'warning');
-      return;
-    }
-    setImporting(true);
-    try {
-      await landingFolderBegin(name);
-      for (const item of files) await landingFolderFile(item.relPath, item.file);
-      setState(await landingFolderFinish());
+    if (loaded > 0) {
       analytics.track('landing_loaded', { tool_identifier: 'landing-optimizer' });
-    } catch (error) {
-      handleError(error);
-    } finally {
-      setImporting(false);
     }
   };
 
   const pick = async (endpoint: string) => {
-    if (busy) return;
+    if (importing) return;
     setImporting(true);
     try {
       setState(await request<LandingState>(endpoint, 'POST'));
@@ -158,18 +153,46 @@ export default function LandingOptimizerPage() {
     }
   };
 
-  const start = async () => {
+  const start = async (jobId: string) => {
     try {
-      setState(await request<LandingState>('/api/landing/start', 'POST'));
+      setState(
+        await request<LandingState>(`/api/landing/jobs/${encodeURIComponent(jobId)}/start`, 'POST')
+      );
       analytics.track('landing_optimization_started', { tool_identifier: 'landing-optimizer' });
     } catch (error) {
       handleError(error);
     }
   };
 
-  const reset = async () => {
+  const startAll = async () => {
     try {
-      setState(await request<LandingState>('/api/landing/reset', 'POST'));
+      setState(
+        await requestBody<LandingState>('/api/landing/start', {
+          ids: readyJobs.map(job => job.id)
+        })
+      );
+      analytics.track('landing_optimization_started', {
+        tool_identifier: 'landing-optimizer',
+        file_count: readyJobs.length
+      });
+    } catch (error) {
+      handleError(error);
+    }
+  };
+
+  const remove = async (jobId: string) => {
+    try {
+      setState(
+        await request<LandingState>(`/api/landing/jobs/${encodeURIComponent(jobId)}`, 'DELETE')
+      );
+    } catch (error) {
+      handleError(error);
+    }
+  };
+
+  const clearFinished = async () => {
+    try {
+      setState(await request<LandingState>('/api/landing/completed', 'DELETE'));
     } catch (error) {
       handleError(error);
     }
@@ -229,15 +252,15 @@ export default function LandingOptimizerPage() {
 
         <LandingSettingsPanel
           settings={settings}
-          disabled={!connected || busy}
+          disabled={!connected || importing}
           update={updateSettings}
           t={t}
         />
 
         <section className="add-files-section" aria-label={t('landingDropTitle')}>
           <DropZone
-            disabled={!connected || busy || !state?.tools.ffmpeg}
-            importing={importing || job?.status === 'preparing'}
+            disabled={!connected || importing || !state?.tools.ffmpeg}
+            importing={importing}
             chooseFiles={() => void pick('/api/landing/select/zip')}
             addDroppedFiles={() => {}}
             onDropData={data => void onDropData(data)}
@@ -250,14 +273,14 @@ export default function LandingOptimizerPage() {
           <div className="inline-actions landing-pick-actions">
             <Button
               variant="ghost"
-              disabled={!connected || busy}
+              disabled={!connected || importing}
               onClick={() => void pick('/api/landing/select/zip')}
             >
               {t('landingChooseZip')}
             </Button>
             <Button
               variant="ghost"
-              disabled={!connected || busy}
+              disabled={!connected || importing}
               onClick={() => void pick('/api/landing/select/folder')}
             >
               {t('landingChooseFolder')}
@@ -266,17 +289,52 @@ export default function LandingOptimizerPage() {
           <p>{t('landingProcessedLocally')}</p>
         </section>
 
-        {job ? (
-          <LandingJobView
-            job={job}
-            connected={connected}
-            running={running}
-            language={language}
-            onStart={() => void start()}
-            onReset={() => void reset()}
-            onReveal={endpoint => void request(endpoint, 'POST').catch(handleError)}
-            t={t}
-          />
+        {jobs.length > 0 && (
+          <section className="landing-queue-toolbar" aria-label={t('landingQueueTitle')}>
+            <div>
+              <strong>{t('landingQueueTitle')}</strong>
+              <span>{t('landingQueueCount', { count: jobs.length })}</span>
+            </div>
+            <div>
+              <Button
+                variant="primary"
+                disabled={!connected || readyJobs.length === 0}
+                onClick={() => void startAll()}
+              >
+                {t('landingOptimizeAll')}
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={!connected || finishedJobs.length === 0}
+                onClick={() => void clearFinished()}
+              >
+                {t('landingClearFinished')}
+              </Button>
+            </div>
+          </section>
+        )}
+
+        {jobs.length > 0 ? (
+          <section className="landing-jobs-list" aria-live="polite">
+            {visibleJobs.map(job => (
+              <LandingJobCard
+                key={job.id}
+                job={job}
+                connected={connected}
+                running={job.status === 'processing'}
+                language={language}
+                onStart={() => void start(job.id)}
+                onReset={() => void remove(job.id)}
+                onReveal={action =>
+                  void request(
+                    `/api/landing/jobs/${encodeURIComponent(job.id)}/output/${action}`,
+                    'POST'
+                  ).catch(handleError)
+                }
+                t={t}
+              />
+            ))}
+          </section>
         ) : (
           <section className="video-list">
             <div className="empty-state">
@@ -291,7 +349,7 @@ export default function LandingOptimizerPage() {
   );
 }
 
-function LandingSettingsPanel({
+export function LandingSettingsPanel({
   settings,
   disabled,
   update,
@@ -303,281 +361,73 @@ function LandingSettingsPanel({
   t: Translate;
 }) {
   return (
-    <section className="settings-panel" aria-labelledby="landing-settings-title">
+    <section
+      className="settings-panel landing-settings-panel"
+      aria-labelledby="landing-settings-title"
+    >
       <div className="section-heading compact-heading">
         <h2 id="landing-settings-title">{t('landingQualityTitle')}</h2>
       </div>
-      <div className="settings-row mode-row">
-        <div className="field-label">
-          <span>{t('landingImageQuality')}</span>
-        </div>
-        <SegmentedControl<'optimal' | 'high'>
-          label={t('landingImageQuality')}
-          value={settings.imageQuality}
-          disabled={disabled}
-          options={[
-            { value: 'optimal', label: t('optimal') },
-            { value: 'high', label: t('highQuality') }
-          ]}
-          onChange={imageQuality => update({ imageQuality })}
-        />
-      </div>
-      <p className="field-hint landing-hint">
-        {t(settings.imageQuality === 'high' ? 'landingImageHighHint' : 'landingImageOptimalHint')}
-      </p>
-      <div className="settings-row mode-row">
-        <div className="field-label">
-          <span>{t('landingVideoQuality')}</span>
-        </div>
-        <SegmentedControl<'optimal' | 'high'>
-          label={t('landingVideoQuality')}
-          value={settings.videoQuality}
-          disabled={disabled}
-          options={[
-            { value: 'optimal', label: t('optimal') },
-            { value: 'high', label: t('highQuality') }
-          ]}
-          onChange={videoQuality => update({ videoQuality })}
-        />
-      </div>
-      <p className="field-hint landing-hint">
-        {t(settings.videoQuality === 'high' ? 'landingVideoHighHint' : 'landingVideoOptimalHint')}
-      </p>
-      <div className="output-settings">
-        <Checkbox
-          checked={settings.archive}
-          disabled={disabled}
-          label={t('landingArchive')}
-          onChange={event => update({ archive: event.target.checked })}
-        />
-        <span className="field-hint">{t('landingArchiveHint')}</span>
-      </div>
-    </section>
-  );
-}
-
-function LandingJobView({
-  job,
-  connected,
-  running,
-  language,
-  onStart,
-  onReset,
-  onReveal,
-  t
-}: {
-  job: NonNullable<LandingState['job']>;
-  connected: boolean;
-  running: boolean;
-  language: Language;
-  onStart: () => void;
-  onReset: () => void;
-  onReveal: (endpoint: string) => void;
-  t: Translate;
-}) {
-  const progress = overallProgress(job.assets);
-  const completed = job.status === 'completed';
-  const failed = job.status === 'failed';
-
-  return (
-    <>
-      <section className="batch-toolbar" aria-label={t('landingAssetsTitle')}>
-        <div className="selection-actions">
-          <strong className="landing-name">{job.name}</strong>
-          <span className="selected-count">
-            {job.status === 'ready'
-              ? t('landingReadyStatus')
-              : job.status === 'preparing'
-                ? t('landingPreparing')
-                : running
-                  ? t('landingProcessingStatus')
-                  : completed
-                    ? t('landingResultTitle')
-                    : t('landingResultFailedTitle')}
-          </span>
-        </div>
-        <div className="primary-actions">
-          {job.status === 'ready' && (
-            <Button
-              variant="primary"
-              disabled={!connected || job.assets.every(asset => asset.status !== 'pending')}
-              onClick={onStart}
-            >
-              {t('landingOptimizeButton')}
-            </Button>
-          )}
-          {(completed || failed) && (
-            <Button variant="ghost" disabled={!connected} onClick={onReset}>
-              {t('landingOptimizeAnother')}
-            </Button>
-          )}
-          {job.status === 'ready' && (
-            <Button variant="danger" disabled={!connected} onClick={onReset}>
-              {t('landingReset')}
-            </Button>
-          )}
-        </div>
-      </section>
-
-      {running && (
-        <section className="batch-progress" aria-label={t('landingOverallProgress')}>
-          <div className="batch-progress-heading">
-            <strong>{t('landingOverallProgress')}</strong>
-            <span>{Math.round(progress)}%</span>
-          </div>
-          <ProgressBar value={progress} label={t('landingOverallProgress')} active />
-        </section>
-      )}
-
-      <section className="video-list" aria-live="polite">
-        {job.assets.length === 0 ? (
-          <div className="empty-state">
-            <strong>{t('landingNoAssets')}</strong>
-          </div>
-        ) : (
-          job.assets.map(asset => (
-            <LandingAssetRow key={asset.id} asset={asset} language={language} t={t} />
-          ))
-        )}
-      </section>
-
-      {(completed || failed) && (
-        <LandingSummary
-          job={job}
-          connected={connected}
-          language={language}
-          onReveal={onReveal}
-          t={t}
-        />
-      )}
-    </>
-  );
-}
-
-function LandingAssetRow({
-  asset,
-  language,
-  t
-}: {
-  asset: LandingAsset;
-  language: Language;
-  t: Translate;
-}) {
-  const displayPath = asset.newRelPath ?? asset.relPath;
-  return (
-    <article className={`job-row landing-asset-row is-${asset.status}`}>
-      <div className="job-header">
-        <div className="job-title-block">
-          <div className="job-title-line">
-            <h3 title={displayPath}>{displayPath}</h3>
-            <span className={`status-badge ${landingStatusClass(asset.status)}`}>
-              {t(landingStatusKey(asset.status))}
-            </span>
-            <span className="landing-type-tag">
-              {t(asset.type === 'video' ? 'landingTypeVideo' : 'landingTypeImage')}
-            </span>
-          </div>
-          <div className="landing-asset-sizes">
-            <span>{formatSize(asset.originalSize, language)}</span>
-            {asset.status === 'optimized' && asset.optimizedSize !== null && (
-              <>
-                <span aria-hidden="true">→</span>
-                <strong>{formatSize(asset.optimizedSize, language)}</strong>
-                {asset.savedPercent !== null && asset.savedPercent > 0 && (
-                  <span className="landing-saved">
-                    {t('landingSaved', { value: asset.savedPercent })}
-                  </span>
-                )}
-              </>
+      <div className="settings-primary-row landing-settings-primary-row">
+        <div className="field-group landing-settings-field">
+          <LandingFieldLabel
+            label={t('landingImageQuality')}
+            tooltip={t(
+              settings.imageQuality === 'high' ? 'landingImageHighHint' : 'landingImageOptimalHint'
             )}
-            {asset.note && <span className="landing-note">{localizedNote(asset.note, t)}</span>}
+          />
+          <SegmentedControl<'optimal' | 'high'>
+            label={t('landingImageQuality')}
+            value={settings.imageQuality}
+            disabled={disabled}
+            options={[
+              { value: 'optimal', label: t('optimal') },
+              { value: 'high', label: t('highQuality') }
+            ]}
+            onChange={imageQuality => update({ imageQuality })}
+          />
+        </div>
+        <div className="field-group landing-settings-field">
+          <LandingFieldLabel
+            label={t('landingVideoQuality')}
+            tooltip={t(
+              settings.videoQuality === 'high' ? 'landingVideoHighHint' : 'landingVideoOptimalHint'
+            )}
+          />
+          <SegmentedControl<'optimal' | 'high'>
+            label={t('landingVideoQuality')}
+            value={settings.videoQuality}
+            disabled={disabled}
+            options={[
+              { value: 'optimal', label: t('optimal') },
+              { value: 'high', label: t('highQuality') }
+            ]}
+            onChange={videoQuality => update({ videoQuality })}
+          />
+        </div>
+        <div className="field-group landing-settings-field landing-archive-settings">
+          <LandingFieldLabel label={t('landingOutput')} tooltip={t('landingArchiveHint')} />
+          <div className="metadata-control landing-archive-control">
+            <Checkbox
+              className="feature-switch"
+              checked={settings.archive}
+              disabled={disabled}
+              label={<strong>{t('landingArchive')}</strong>}
+              onChange={event => update({ archive: event.target.checked })}
+            />
           </div>
         </div>
       </div>
-      {asset.status === 'processing' && (
-        <div className="job-progress">
-          <ProgressBar value={asset.progress} label={t('landingStatusProcessing')} active />
-        </div>
-      )}
-    </article>
+    </section>
   );
 }
 
-function LandingSummary({
-  job,
-  connected,
-  language,
-  onReveal,
-  t
-}: {
-  job: NonNullable<LandingState['job']>;
-  connected: boolean;
-  language: Language;
-  onReveal: (endpoint: string) => void;
-  t: Translate;
-}) {
-  if (job.status === 'failed') {
-    return (
-      <section className="result-summary" aria-live="polite">
-        <h2>{t('landingResultFailedTitle')}</h2>
-        {job.error && <p className="warning-text">{job.error}</p>}
-      </section>
-    );
-  }
+function LandingFieldLabel({ label, tooltip }: { label: string; tooltip: string }) {
   return (
-    <section className="result-summary" aria-labelledby="landing-summary-title">
-      <h2 id="landing-summary-title">{t('landingResultTitle')}</h2>
-      <dl>
-        <div>
-          <dt>{t('landingImagesOptimized')}</dt>
-          <dd>{job.imagesOptimized}</dd>
-        </div>
-        <div>
-          <dt>{t('landingVideosOptimized')}</dt>
-          <dd>{job.videosOptimized}</dd>
-        </div>
-        <div>
-          <dt>{t('landingFilesSkipped')}</dt>
-          <dd>{job.filesSkipped}</dd>
-        </div>
-        <div>
-          <dt>{t('landingReferencesUpdated')}</dt>
-          <dd>{job.referencesUpdated}</dd>
-        </div>
-        <div>
-          <dt>{t('landingOriginalMedia')}</dt>
-          <dd>{formatSize(job.originalMediaSize, language)}</dd>
-        </div>
-        <div>
-          <dt>{t('landingOptimizedMedia')}</dt>
-          <dd>{formatSize(job.optimizedMediaSize, language)}</dd>
-        </div>
-        <div>
-          <dt>{t('landingSavedTotal')}</dt>
-          <dd>
-            {formatSize(job.savedBytes, language)} · {job.savedPercent}%
-          </dd>
-        </div>
-      </dl>
-      {job.outputPath && (
-        <div className="inline-actions">
-          <Button
-            variant="primary"
-            disabled={!connected}
-            onClick={() => onReveal('/api/landing/output/open')}
-          >
-            {t('landingOpenResult')}
-          </Button>
-          <Button
-            variant="ghost"
-            disabled={!connected}
-            onClick={() => onReveal('/api/landing/output/reveal')}
-          >
-            {t('landingShowResult')}
-          </Button>
-        </div>
-      )}
-    </section>
+    <div className="field-label">
+      <span>{label}</span>
+      <Tooltip label={tooltip}>{tooltip}</Tooltip>
+    </div>
   );
 }
 
@@ -593,73 +443,37 @@ function ToastRegion({ toasts }: { toasts: ToastMessage[] }) {
   );
 }
 
-function overallProgress(assets: LandingAsset[]): number {
-  if (!assets.length) return 0;
-  const done = assets.filter(asset =>
-    ['optimized', 'skipped', 'failed'].includes(asset.status)
-  ).length;
-  const active = assets.find(asset => asset.status === 'processing');
-  const fraction = active?.progress ? active.progress / 100 : 0;
-  return Math.min(100, ((done + fraction) / assets.length) * 100);
-}
-
-function landingStatusKey(status: LandingAsset['status']): TranslationKey {
-  const map: Record<LandingAsset['status'], TranslationKey> = {
-    pending: 'landingStatusPending',
-    processing: 'landingStatusProcessing',
-    optimized: 'landingStatusOptimized',
-    skipped: 'landingStatusSkipped',
-    failed: 'landingStatusFailed'
-  };
-  return map[status];
-}
-
-function landingStatusClass(status: LandingAsset['status']): string {
-  const map: Record<LandingAsset['status'], string> = {
-    pending: 'status-queued',
-    processing: 'status-processing',
-    optimized: 'status-completed',
-    skipped: 'status-cancelled',
-    failed: 'status-failed'
-  };
-  return map[status];
-}
-
-function localizedNote(note: string, t: Translate): string {
-  const map: Record<string, TranslationKey> = {
-    'already-optimized': 'noteAlreadyOptimized',
-    'no-gain': 'noteNoGain',
-    'name-collision': 'noteNameCollision',
-    'animated-safe': 'noteAnimatedSafe',
-    'vector-safe': 'noteVectorSafe'
-  };
-  const key = map[note];
-  return key ? t(key) : t('noteFailedGeneric');
-}
-
 /* ---------------------------- drop handling ---------------------------- */
 
-type DroppedPayload =
-  | { kind: 'zip'; file: File }
-  | { kind: 'folder'; name: string; files: UploadFile[] }
-  | { kind: 'unsupported' };
+export type DroppedPayload =
+  { kind: 'zip'; file: File } | { kind: 'folder'; name: string; files: UploadFile[] };
 
-async function collectDropped(data: DataTransfer): Promise<DroppedPayload> {
+export async function collectDroppedLandings(data: DataTransfer): Promise<DroppedPayload[]> {
   const items = data.items ? Array.from(data.items) : [];
   const entries = items
     .map(item => (item.webkitGetAsEntry ? item.webkitGetAsEntry() : null))
     .filter((entry): entry is FileSystemEntry => Boolean(entry));
-  const directory = entries.find(entry => entry.isDirectory) as
-    FileSystemDirectoryEntry | undefined;
-  if (directory) {
-    const files: UploadFile[] = [];
-    await readDirectory(directory, directory.name, files);
-    return { kind: 'folder', name: directory.name, files };
+  if (entries.length) {
+    const payloads: DroppedPayload[] = [];
+    for (const entry of entries) {
+      if (entry.isDirectory) {
+        const directory = entry as FileSystemDirectoryEntry;
+        const files: UploadFile[] = [];
+        await readDirectory(directory, directory.name, files);
+        if (files.length) payloads.push({ kind: 'folder', name: directory.name, files });
+      } else if (entry.isFile && /\.zip$/i.test(entry.name)) {
+        const file = await entryFile(entry as FileSystemFileEntry);
+        if (file) payloads.push({ kind: 'zip', file });
+      }
+    }
+    return payloads;
   }
-  const file = data.files?.[0];
-  if (file && /\.zip$/i.test(file.name)) return { kind: 'zip', file };
-  return { kind: 'unsupported' };
+  return Array.from(data.files ?? [])
+    .filter(file => /\.zip$/i.test(file.name))
+    .map(file => ({ kind: 'zip' as const, file }));
 }
+
+const collectDropped = collectDroppedLandings;
 
 async function readDirectory(
   directory: FileSystemDirectoryEntry,

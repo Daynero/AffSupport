@@ -1,3 +1,11 @@
+# v0.6.0
+
+- Redesign Landing Optimizer around compact, expandable landing cards with end-to-end progress and clearer completion summaries.
+- Add multi-landing ZIP and folder imports with a sequential optimization queue and independent per-landing actions.
+- Add large image previews, including draggable before/after comparisons and single previews when the original image is kept.
+- Recompress WebP images when it reduces file size, while always retaining the original when an optimized result would be larger.
+- Open Landing Optimizer to every Wishly user without the developer-pass gate.
+
 # v0.5.5
 
 - Redesign image embedding controls with compact square previews, responsive settings, inline validation transitions and accessible image actions.

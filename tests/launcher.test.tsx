@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { toolsForCapabilities, wishlyTools } from '../apps/web/src/HomePage';
 import { routeKind } from '../apps/web/src/Root';
 import { translate } from '../apps/web/src/i18n';
+import { isProtected } from '../apps/web/src/lib/feature-flags';
 
 describe('Wishly product launcher', () => {
   it('maps the root and direct compressor URL to separate product screens', () => {
@@ -25,6 +26,10 @@ describe('Wishly product launcher', () => {
       'landing-optimizer',
       'transcription'
     ]);
+  });
+
+  it('opens the landing optimizer to every Wishly user without a developer pass', () => {
+    expect(isProtected('landingOptimizer')).toBe(false);
   });
 
   it('localizes launcher content in EN and UA', () => {

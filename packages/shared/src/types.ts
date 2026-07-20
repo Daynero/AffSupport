@@ -455,7 +455,17 @@ export type LandingVideoQuality = 'optimal' | 'high';
 export type LandingSourceKind = 'zip' | 'folder';
 export type LandingAssetType = 'image' | 'video';
 export type LandingAssetStatus = 'pending' | 'processing' | 'optimized' | 'skipped' | 'failed';
-export type LandingJobStatus = 'preparing' | 'ready' | 'processing' | 'completed' | 'failed';
+export type LandingJobStatus =
+  'preparing' | 'ready' | 'queued' | 'processing' | 'completed' | 'failed';
+export type LandingJobPhase =
+  | 'preparing'
+  | 'ready'
+  | 'queued'
+  | 'optimizing'
+  | 'rewriting'
+  | 'packaging'
+  | 'completed'
+  | 'failed';
 
 /** High Quality re-encode: keep resolution and frame rate, compress gently. */
 export const LANDING_HIGH_QUALITY_CRF = 20;
@@ -484,6 +494,14 @@ export interface LandingAsset {
   newRelPath: string | null;
   /** A short, localizable reason a file was skipped or failed. */
   note: string | null;
+  /** Local-only before/after content is available through the paired agent. */
+  preview: {
+    available: boolean;
+    /** False when the original was kept and only a single preview is available. */
+    comparison: boolean;
+    width: number | null;
+    height: number | null;
+  } | null;
 }
 
 export interface LandingJob {
@@ -491,6 +509,13 @@ export interface LandingJob {
   name: string;
   sourceKind: LandingSourceKind;
   status: LandingJobStatus;
+  /** The current end-to-end phase, including work after media encoding. */
+  phase: LandingJobPhase;
+  /** Authoritative, monotonic job progress. Null while preparation is indeterminate. */
+  progress: number | null;
+  completedAssets: number;
+  totalAssets: number;
+  currentAssetId: string | null;
   settings: LandingSettings;
   assets: LandingAsset[];
   imagesOptimized: number;
@@ -512,6 +537,9 @@ export interface LandingJob {
 }
 
 export interface LandingState {
+  /** Every landing currently prepared, queued, processing, or completed. */
+  jobs: LandingJob[];
+  /** Most recently added landing, retained for compatibility with older clients. */
   job: LandingJob | null;
   settings: LandingSettings;
   tools: { ffmpeg: boolean; ffprobe: boolean };

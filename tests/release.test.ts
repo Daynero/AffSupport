@@ -63,7 +63,7 @@ describe('release identity', () => {
         manifest: JSON.parse(
           readFileSync('apps/web/public/.well-known/wishly/stable.json', 'utf8')
         ),
-        installedVersion: '0.5.6',
+        installedVersion: '0.6.1',
         installedChannel: 'stable',
         compatible: true
       })
@@ -74,6 +74,8 @@ describe('release identity', () => {
     expect(toolContractCompatible('compressor', { compressor: 1 })).toBe(false);
     expect(toolContractCompatible('compressor', { compressor: 2 })).toBe(true);
     expect(toolContractCompatible('landingOptimizer', { compressor: 1 })).toBe(false);
+    expect(toolContractCompatible('landingOptimizer', { landingOptimizer: 1 })).toBe(false);
+    expect(toolContractCompatible('landingOptimizer', { landingOptimizer: 2 })).toBe(true);
   });
 
   it('keeps installable dev builds isolated from production identities and services', () => {

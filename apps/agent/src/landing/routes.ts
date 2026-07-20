@@ -1,4 +1,4 @@
-import { createWriteStream } from 'node:fs';
+import { createReadStream, createWriteStream } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
@@ -6,7 +6,7 @@ import { pipeline } from 'node:stream/promises';
 import type { FastifyInstance } from 'fastify';
 import type { LandingSettings } from '@video-compressor/shared';
 import { eventStreamHeaders } from '../http.js';
-import { selectLandingFolder, selectLandingZip } from '../files/picker.js';
+import { selectLandingFolders, selectLandingZips } from '../files/picker.js';
 import type { LandingOptimizer } from './optimizer.js';
 import { sanitizeRelPath } from './workspace.js';
 
@@ -30,6 +30,31 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
       `data: ${JSON.stringify({ type: 'landing:state', state: optimizer.state() })}\n\n`
     );
     request.raw.on('close', () => clients.delete(reply.raw));
+  });
+
+  app.get<{
+    Params: { jobId: string; assetId: string; side: string };
+    Querystring: { variant?: string };
+  }>('/api/landing/jobs/:jobId/assets/:assetId/preview/:side', async (request, reply) => {
+    const side = request.params.side;
+    const variant = request.query.variant ?? 'full';
+    if (side !== 'before' && side !== 'after') {
+      return reply.code(400).send({ error: 'Invalid preview side.' });
+    }
+    if (variant !== 'full' && variant !== 'thumbnail') {
+      return reply.code(400).send({ error: 'Invalid preview variant.' });
+    }
+    const content = await optimizer.previewContent(
+      request.params.jobId,
+      request.params.assetId,
+      side,
+      variant
+    );
+    if (!content) return reply.code(404).send({ error: 'Preview is unavailable.' });
+    return reply
+      .header('Cache-Control', 'private, no-store')
+      .type(content.mimeType)
+      .send(createReadStream(content.filePath));
   });
 
   app.post<{ Body: Partial<LandingSettings> }>('/api/landing/settings', async (request, reply) => {
@@ -65,9 +90,8 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
       return reply.code(501).send({ error: 'The native picker is unavailable on this system.' });
     }
     try {
-      const zipPath = await selectLandingZip();
-      if (!zipPath) return optimizer.state();
-      await optimizer.prepareFromZipPath(zipPath);
+      const zipPaths = await selectLandingZips();
+      for (const zipPath of zipPaths) await optimizer.prepareFromZipPath(zipPath);
       return optimizer.state();
     } catch (error) {
       return failPreparation(reply, optimizer, error);
@@ -79,9 +103,8 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
       return reply.code(501).send({ error: 'The native picker is unavailable on this system.' });
     }
     try {
-      const folderPath = await selectLandingFolder();
-      if (!folderPath) return optimizer.state();
-      await optimizer.prepareFromFolderPath(folderPath);
+      const folderPaths = await selectLandingFolders();
+      for (const folderPath of folderPaths) await optimizer.prepareFromFolderPath(folderPath);
       return optimizer.state();
     } catch (error) {
       return failPreparation(reply, optimizer, error);
@@ -159,14 +182,46 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
     }
   });
 
-  app.post('/api/landing/start', async (_request, reply) => {
+  app.post<{ Body?: { ids?: unknown } }>('/api/landing/start', async (request, reply) => {
     if (!acceptingNewTasks()) {
       return reply.code(409).send({ error: 'UPDATE_PENDING' });
     }
-    const started = await optimizer.start();
+    const rawIds = request.body?.ids;
+    if (
+      rawIds !== undefined &&
+      (!Array.isArray(rawIds) || rawIds.some(id => typeof id !== 'string'))
+    ) {
+      return reply.code(400).send({ error: 'Invalid landing ids.' });
+    }
+    const started = await optimizer.start(rawIds as string[] | undefined);
     return started
       ? optimizer.state()
-      : reply.code(409).send({ error: 'The landing is not ready to optimize.' });
+      : reply.code(409).send({ error: 'No landing is ready to optimize.' });
+  });
+
+  app.post<{ Params: { jobId: string } }>(
+    '/api/landing/jobs/:jobId/start',
+    async (request, reply) => {
+      if (!acceptingNewTasks()) {
+        return reply.code(409).send({ error: 'UPDATE_PENDING' });
+      }
+      const started = await optimizer.start([request.params.jobId]);
+      return started
+        ? optimizer.state()
+        : reply.code(409).send({ error: 'The landing is not ready to optimize.' });
+    }
+  );
+
+  app.delete<{ Params: { jobId: string } }>('/api/landing/jobs/:jobId', async (request, reply) => {
+    const removed = await optimizer.remove(request.params.jobId);
+    return removed
+      ? optimizer.state()
+      : reply.code(409).send({ error: 'An active landing cannot be removed.' });
+  });
+
+  app.delete('/api/landing/completed', async () => {
+    await optimizer.clearFinished();
+    return optimizer.state();
   });
 
   app.post('/api/landing/reset', async () => {
@@ -180,17 +235,25 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
   app.post('/api/landing/output/open', async (_request, reply) =>
     revealOutput(reply, optimizer, null)
   );
+  app.post<{ Params: { jobId: string } }>(
+    '/api/landing/jobs/:jobId/output/reveal',
+    async (request, reply) => revealOutput(reply, optimizer, '-R', request.params.jobId)
+  );
+  app.post<{ Params: { jobId: string } }>(
+    '/api/landing/jobs/:jobId/output/open',
+    async (request, reply) => revealOutput(reply, optimizer, null, request.params.jobId)
+  );
 }
 
 async function failPreparation(reply: any, optimizer: LandingOptimizer, error: unknown) {
-  await optimizer.reset().catch(() => {});
+  await optimizer.abortUpload().catch(() => {});
   return reply
     .code(400)
     .send({ error: error instanceof Error ? error.message : 'The landing could not be prepared.' });
 }
 
-function revealOutput(reply: any, optimizer: LandingOptimizer, flag: '-R' | null) {
-  const output = optimizer.state().job?.outputPath;
+function revealOutput(reply: any, optimizer: LandingOptimizer, flag: '-R' | null, jobId?: string) {
+  const output = jobId ? optimizer.outputPath(jobId) : optimizer.state().job?.outputPath;
   if (!output) return reply.code(404).send({ error: 'No result is available yet.' });
   const args = flag ? [flag, output] : [output];
   spawn('/usr/bin/open', args, { shell: false, detached: true, stdio: 'ignore' }).unref();

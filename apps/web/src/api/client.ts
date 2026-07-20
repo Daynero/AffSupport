@@ -182,6 +182,17 @@ export function imageContentUrl(id: string) {
 export function landingEventUrl() {
   return `${agentUrl}/api/landing/events?token=${encodeURIComponent(token)}`;
 }
+export function landingPreviewUrl(
+  jobId: string,
+  assetId: string,
+  side: 'before' | 'after',
+  variant: 'full' | 'thumbnail' = 'full'
+) {
+  const path = `/api/landing/jobs/${encodeURIComponent(jobId)}/assets/${encodeURIComponent(
+    assetId
+  )}/preview/${side}`;
+  return `${agentUrl}${path}?variant=${variant}&token=${encodeURIComponent(token)}`;
+}
 async function uploadForm<T>(url: string, body: FormData): Promise<T> {
   let response: Response;
   try {
