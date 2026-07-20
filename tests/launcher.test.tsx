@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { readFile } from 'node:fs/promises';
-import { wishlyTools } from '../apps/web/src/HomePage';
+import { toolsForCapabilities, wishlyTools } from '../apps/web/src/HomePage';
 import { routeKind } from '../apps/web/src/Root';
 import { translate } from '../apps/web/src/i18n';
 
@@ -19,11 +19,21 @@ describe('Wishly product launcher', () => {
     ]);
   });
 
+  it('shows the landing optimizer before the local app reports capabilities', () => {
+    expect(toolsForCapabilities([]).map(tool => tool.id)).toEqual([
+      'compressor',
+      'landing-optimizer',
+      'transcription'
+    ]);
+  });
+
   it('localizes launcher content in EN and UA', () => {
     expect(translate('en', 'toolsTitle')).toBe('Wishly Tools');
     expect(translate('uk', 'toolsTitle')).toBe('Інструменти Wishly');
     expect(translate('en', 'comingSoon')).toBe('Coming soon');
     expect(translate('uk', 'comingSoon')).toBe('Незабаром');
+    expect(translate('en', 'inDevelopment')).toBe('In development');
+    expect(translate('uk', 'inDevelopment')).toBe('В розробці');
   });
 
   it('keeps keyboard focus, responsive layout, reduced motion and hosting fallback', async () => {

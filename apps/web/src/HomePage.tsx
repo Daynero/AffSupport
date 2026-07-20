@@ -5,7 +5,7 @@ import { useI18n, type TranslationKey } from './i18n';
 import { analytics } from './analytics/service';
 import type { AnalyticsTool } from './analytics/events';
 import FeatureLockDialog from './components/FeatureLockDialog';
-import { isLocked, type FeatureId } from './lib/feature-flags';
+import { isLocked, isProtected, type FeatureId } from './lib/feature-flags';
 import type { WishlyToolId } from '@video-compressor/shared';
 import LocalAppDialog from './components/LocalAppDialog';
 
@@ -41,9 +41,8 @@ export const wishlyTools: Tool[] = [
   }
 ];
 
-// The Landing Optimizer needs a matching agent (the /api/landing routes), so it
-// is only offered when the connected agent advertises the `landing` capability.
-// This lets the web ship ahead of the agent without exposing a dead tool.
+// The Landing Optimizer remains visible in the catalogue before the local app
+// is installed. Agent capabilities only determine whether it can be opened.
 export const landingTool: Tool = {
   id: 'landing-optimizer',
   title: 'landingOptimizer',
@@ -56,7 +55,7 @@ export const landingTool: Tool = {
 };
 
 export function toolsForCapabilities(capabilities: readonly string[]): Tool[] {
-  if (!capabilities.includes('landing')) return wishlyTools;
+  void capabilities;
   return [wishlyTools[0], landingTool, ...wishlyTools.slice(1)];
 }
 
@@ -175,6 +174,9 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
                   </span>
                   {tool.status === 'coming-soon' && (
                     <span className="soon-badge">{t('comingSoon')}</span>
+                  )}
+                  {tool.feature && isProtected(tool.feature) && (
+                    <span className="soon-badge">{t('inDevelopment')}</span>
                   )}
                 </div>
                 <div className="tool-copy">
