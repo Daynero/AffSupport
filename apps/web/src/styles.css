@@ -367,6 +367,10 @@ a {
   justify-content: space-between;
   gap: 12px;
 }
+
+.tool-action-row:has(> .button:only-child) {
+  justify-content: flex-end;
+}
 .tool-icon {
   display: grid;
   width: 52px;
@@ -746,16 +750,9 @@ a {
   gap: var(--space-4);
 }
 
-.control-with-help {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.control-with-help .segmented {
-  min-width: 0;
-  flex: 1;
+.settings-primary-row .segmented {
+  width: fit-content;
+  max-width: 100%;
 }
 
 .mode-detail {
@@ -791,6 +788,28 @@ a {
   border-top: 1px solid var(--color-border);
   border-radius: 0 0 var(--radius-md) var(--radius-md);
   background: var(--color-surface-subtle);
+}
+
+.custom-column-primary {
+  width: min(100%, 302px);
+}
+
+.custom-column-secondary {
+  width: min(100%, 302px);
+}
+
+.custom-column-primary > .segmented,
+.custom-column-secondary > .segmented,
+.custom-column-primary .compound-control,
+.custom-column-secondary .compound-control,
+.custom-column-secondary .range-number-control,
+.custom-column-secondary .bitrate-control {
+  width: 100%;
+  max-width: none;
+}
+
+.custom-column-primary > .segmented {
+  justify-content: space-between;
 }
 
 .rate-value-field {
@@ -1128,6 +1147,15 @@ input[type='number'] {
     background var(--dur-micro) var(--ease-standard);
 }
 
+select {
+  appearance: none;
+  padding-right: 36px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='m1 1.5 5 5 5-5' fill='none' stroke='%23756e83' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 12px 8px;
+}
+
 input[type='number'] {
   font-variant-numeric: tabular-nums;
 }
@@ -1149,7 +1177,7 @@ input[type='number']:focus-visible,
 select:disabled,
 input:disabled {
   color: var(--color-text-muted);
-  background: var(--color-surface-muted);
+  background-color: var(--color-surface-muted);
   cursor: not-allowed;
 }
 
@@ -1168,6 +1196,15 @@ input.is-invalid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(84px, 0.45fr);
   gap: var(--space-2);
+}
+
+.custom-settings .compound-control:not(.has-custom-input) {
+  max-width: 360px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.custom-settings .compound-control.has-custom-input {
+  max-width: 480px;
 }
 
 .range-number-control {

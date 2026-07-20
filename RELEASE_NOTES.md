@@ -1,3 +1,8 @@
+# v0.5.4
+
+- Improve the compressor settings layout and native select styling.
+- Mark protected tools as in development without showing a misleading Agent readiness status.
+
 # v0.4.0-test.1
 
 The product is now **Wishly**, and the macOS menu bar app is **Wishly Agent** (Agent API v5).

@@ -1,7 +1,7 @@
 {
   "name": "local-video-compressor",
   "private": true,
-  "version": "0.5.3",
+  "version": "0.5.4",
   "workspaces": [
     "apps/*",
     "packages/*"

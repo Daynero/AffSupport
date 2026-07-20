@@ -149,6 +149,7 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
 
         <section className="tool-grid" aria-label={t('toolsTitle')}>
           {tools.map(tool => {
+            const underDevelopment = Boolean(tool.feature && isProtected(tool.feature));
             const available =
               tool.status === 'active' &&
               connected &&
@@ -175,9 +176,7 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
                   {tool.status === 'coming-soon' && (
                     <span className="soon-badge">{t('comingSoon')}</span>
                   )}
-                  {tool.feature && isProtected(tool.feature) && (
-                    <span className="soon-badge">{t('inDevelopment')}</span>
-                  )}
+                  {underDevelopment && <span className="soon-badge">{t('inDevelopment')}</span>}
                 </div>
                 <div className="tool-copy">
                   <h3>{t(tool.title)}</h3>
@@ -185,9 +184,11 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
                 </div>
                 {tool.status === 'active' && (
                   <div className="tool-action-row">
-                    <span className={`tool-readiness ${connected ? 'ready' : ''}`}>
-                      {t(connected ? 'readyToWork' : 'agentRequired')}
-                    </span>
+                    {!underDevelopment && (
+                      <span className={`tool-readiness ${connected ? 'ready' : ''}`}>
+                        {t(connected ? 'readyToWork' : 'agentRequired')}
+                      </span>
+                    )}
                     <span className={`button button-primary ${available ? '' : 'is-disabled'}`}>
                       {t('openTool')}
                     </span>

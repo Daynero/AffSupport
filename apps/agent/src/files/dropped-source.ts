@@ -39,7 +39,8 @@ async function matchesFile(
     return (
       details.isFile() &&
       details.size === expectedSize &&
-      (!Number.isFinite(expectedModifiedAt) || Math.abs(details.mtimeMs - expectedModifiedAt) < 2000)
+      (!Number.isFinite(expectedModifiedAt) ||
+        Math.abs(details.mtimeMs - expectedModifiedAt) < 2000)
     );
   } catch {
     return false;

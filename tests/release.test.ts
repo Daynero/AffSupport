@@ -63,7 +63,7 @@ describe('release identity', () => {
         manifest: JSON.parse(
           readFileSync('apps/web/public/.well-known/wishly/stable.json', 'utf8')
         ),
-        installedVersion: '0.5.4',
+        installedVersion: '0.5.5',
         installedChannel: 'stable',
         compatible: true
       })

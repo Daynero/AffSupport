@@ -51,22 +51,20 @@ export function SettingsPanel({
       </div>
       <div className="settings-primary-row">
         <div className="field-group">
-          <FieldLabel label={t('compressionMode')} />
-          <div className="control-with-help">
-            <SegmentedControl<CompressionMode>
-              label={t('compressionMode')}
-              value={settings.mode}
-              disabled={disabled}
-              options={[
-                { value: 'optimal', label: t('optimal') },
-                { value: 'custom', label: t('custom') }
-              ]}
-              onChange={mode => updateSettings({ mode })}
-            />
-            {settings.mode === 'optimal' && (
-              <Tooltip label={t('optimalTooltip')}>{t('optimalTooltip')}</Tooltip>
-            )}
-          </div>
+          <FieldLabel
+            label={t('compressionMode')}
+            tooltip={settings.mode === 'optimal' ? t('optimalTooltip') : undefined}
+          />
+          <SegmentedControl<CompressionMode>
+            label={t('compressionMode')}
+            value={settings.mode}
+            disabled={disabled}
+            options={[
+              { value: 'optimal', label: t('optimal') },
+              { value: 'custom', label: t('custom') }
+            ]}
+            onChange={mode => updateSettings({ mode })}
+          />
         </div>
         <OutputSettings
           settings={settings}
@@ -120,7 +118,7 @@ function CustomSettings({
         updateSettings={updateSettings}
         t={t}
       />
-      <div className="field-group rate-control-field">
+      <div className="field-group rate-control-field custom-column-primary">
         <FieldLabel label={t('rateControl')} tooltip={t('rateControlTooltip')} />
         <SegmentedControl<RateControl>
           label={t('rateControl')}
@@ -133,7 +131,7 @@ function CustomSettings({
           onChange={rateControl => updateSettings({ rateControl })}
         />
       </div>
-      <div className="rate-value-field">
+      <div className="rate-value-field custom-column-secondary">
         <Collapse open={settings.rateControl === 'crf'}>
           <CrfControl
             settings={settings}
@@ -179,9 +177,9 @@ function FpsControl({
   const valid = isValidIntegerInput(custom, FRAME_RATE_MIN, FRAME_RATE_MAX);
 
   return (
-    <div className="field-group">
+    <div className="field-group custom-column-primary">
       <FieldLabel label={t('frameRate')} tooltip={t('frameRateTooltip')} />
-      <div className="compound-control">
+      <div className={`compound-control ${choice === 'custom' ? 'has-custom-input' : ''}`}>
         <select
           value={choice}
           disabled={disabled}
@@ -256,9 +254,9 @@ function ResolutionControl({
   const valid = isValidIntegerInput(custom, RESOLUTION_MIN, RESOLUTION_MAX);
 
   return (
-    <div className="field-group">
+    <div className="field-group custom-column-secondary">
       <FieldLabel label={t('resolution')} tooltip={t('resolutionTooltip')} />
-      <div className="compound-control">
+      <div className={`compound-control ${choice === 'custom' ? 'has-custom-input' : ''}`}>
         <select
           value={choice}
           disabled={disabled}
