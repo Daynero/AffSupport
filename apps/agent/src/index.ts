@@ -13,6 +13,7 @@ import fastifyStatic from '@fastify/static';
 import open from 'open';
 import {
   AGENT_API_VERSION,
+  AGENT_CAPABILITIES,
   CRF_MAX,
   CRF_MIN,
   FRAME_RATE_MAX,
@@ -143,7 +144,8 @@ app.get('/api/health', async () => ({
   buildId: config.buildId,
   apiVersion: AGENT_API_VERSION,
   channel: config.channel,
-  sourceRevision: config.sourceRevision
+  sourceRevision: config.sourceRevision,
+  capabilities: [...AGENT_CAPABILITIES]
 }));
 app.get('/health', async () => ({
   product: 'local-video-compressor-agent',
@@ -154,6 +156,7 @@ app.get('/health', async () => ({
   apiVersion: AGENT_API_VERSION,
   channel: config.channel,
   sourceRevision: config.sourceRevision,
+  capabilities: [...AGENT_CAPABILITIES],
   instanceId,
   startedAt,
   busy: queue.compressionActive()
@@ -548,9 +551,7 @@ const pairOrigin =
   (config.sourceRevision === 'development'
     ? config.devOrigin
     : `http://${config.host}:${config.port}`);
-app.get('/pair', async (_request, reply) =>
-  reply.redirect(`${pairOrigin}/#agentToken=${token}`)
-);
+app.get('/pair', async (_request, reply) => reply.redirect(`${pairOrigin}/#agentToken=${token}`));
 app.get('/local', async (_request, reply) =>
   reply.redirect(`http://${config.host}:${config.port}/#agentToken=${token}`)
 );

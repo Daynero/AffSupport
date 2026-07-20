@@ -47,9 +47,12 @@ export function hasPairingToken() {
 export function pairWithAgent() {
   location.assign(`${agentUrl}${pairingPath(agentUrl, location.origin)}`);
 }
-export async function connect(
-  signal?: AbortSignal
-): Promise<{ state: QueueState | null; version: string; apiVersion: number }> {
+export async function connect(signal?: AbortSignal): Promise<{
+  state: QueueState | null;
+  version: string;
+  apiVersion: number;
+  capabilities: string[];
+}> {
   if (!token) {
     await probeAgent(agentUrl, location.origin, signal);
     throw new Error('PAIRING_REQUIRED');
@@ -60,11 +63,12 @@ export async function connect(
     signal
   );
   const apiVersion = health.apiVersion ?? 0;
+  const capabilities = Array.isArray(health.capabilities) ? health.capabilities : [];
   const state =
     versionState(apiVersion) === 'connected'
       ? await request<QueueState>('/api/queue', 'GET', signal)
       : null;
-  return { state, version: health.version, apiVersion };
+  return { state, version: health.version, apiVersion, capabilities };
 }
 export function eventUrl() {
   return `${agentUrl}/api/events?token=${encodeURIComponent(token)}`;

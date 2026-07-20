@@ -362,7 +362,12 @@ export interface HealthResponse {
   apiVersion: number;
   channel: string;
   sourceRevision: string;
+  /** Optional tool capabilities the agent supports, e.g. ['landing']. Absent on older agents. */
+  capabilities?: string[];
 }
+
+/** Capabilities advertised by an agent that includes the Landing Optimizer. */
+export const AGENT_CAPABILITIES = ['landing'] as const;
 export interface SessionResponse {
   token: string;
 }

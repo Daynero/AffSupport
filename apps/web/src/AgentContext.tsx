@@ -51,6 +51,7 @@ export interface AgentContextValue {
   setState: Dispatch<SetStateAction<QueueState>>;
   connectedOnce: boolean;
   agentVersion: string | null;
+  capabilities: string[];
   platform: 'macos' | 'windows' | 'linux' | 'other';
   reconnect: () => void;
 }
@@ -62,6 +63,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<QueueState>(emptyState);
   const [connectedOnce, setConnectedOnce] = useState(false);
   const [agentVersion, setAgentVersion] = useState<string | null>(null);
+  const [capabilities, setCapabilities] = useState<string[]>([]);
   const platform = broadPlatform();
   const connectedOnceRef = useRef(false);
   const events = useRef<EventSource | null>(null);
@@ -88,6 +90,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         if (!mounted.current) return;
         const next = versionState(result.apiVersion);
         setAgentVersion(result.version || null);
+        setCapabilities(result.capabilities);
         analytics.setAgentContext(result.version || null, platform);
         setConnection(next);
         if (next !== 'connected') return;
@@ -158,6 +161,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         setState,
         connectedOnce,
         agentVersion,
+        capabilities,
         platform,
         reconnect: () => void establish('connecting')
       }}

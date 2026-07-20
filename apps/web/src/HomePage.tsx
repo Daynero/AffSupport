@@ -23,14 +23,6 @@ export const wishlyTools: Tool[] = [
     status: 'active'
   },
   {
-    id: 'landing-optimizer',
-    title: 'landingOptimizer',
-    description: 'landingOptimizerDescription',
-    icon: <LandingIcon />,
-    route: '/landing-optimizer',
-    status: 'active'
-  },
-  {
     id: 'transcription',
     title: 'transcription',
     description: 'transcriptionDescription',
@@ -40,13 +32,31 @@ export const wishlyTools: Tool[] = [
   }
 ];
 
+// The Landing Optimizer needs a matching agent (the /api/landing routes), so it
+// is only offered when the connected agent advertises the `landing` capability.
+// This lets the web ship ahead of the agent without exposing a dead tool.
+export const landingTool: Tool = {
+  id: 'landing-optimizer',
+  title: 'landingOptimizer',
+  description: 'landingOptimizerDescription',
+  icon: <LandingIcon />,
+  route: '/landing-optimizer',
+  status: 'active'
+};
+
+export function toolsForCapabilities(capabilities: readonly string[]): Tool[] {
+  if (!capabilities.includes('landing')) return wishlyTools;
+  return [wishlyTools[0], landingTool, ...wishlyTools.slice(1)];
+}
+
 export default function HomePage({ navigate }: { navigate: (path: string) => void }) {
   const { language, setLanguage, t } = useI18n();
-  const { connection, reconnect } = useAgent();
+  const { connection, reconnect, capabilities } = useAgent();
   const [help, setHelp] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const panel = useRef<HTMLDivElement>(null);
   const connected = connection === 'connected';
+  const tools = toolsForCapabilities(capabilities);
 
   useEffect(() => {
     document.title = 'Wishly — Tools';
@@ -77,12 +87,7 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
 
   return (
     <div className="app-shell">
-      <Header
-        language={language}
-        setLanguage={setLanguage}
-        connection={connection}
-        t={t}
-      />
+      <Header language={language} setLanguage={setLanguage} connection={connection} t={t} />
       <main className="launcher">
         <div className="launcher-heading">
           <h2>{t('toolsTitle')}</h2>
@@ -112,7 +117,7 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
         </div>
 
         <section className="tool-grid" aria-label={t('toolsTitle')}>
-          {wishlyTools.map(tool => {
+          {tools.map(tool => {
             const available = tool.status === 'active' && connected;
             return (
               <article
