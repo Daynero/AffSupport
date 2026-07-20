@@ -32,7 +32,7 @@ const translator =
     translate(language, key, values);
 
 describe('compression settings UI', () => {
-  it('shows only the compact summary in Optimal mode', () => {
+  it('moves the Optimal preset details into a tooltip', () => {
     const markup = renderToStaticMarkup(
       <SettingsPanel
         settings={optimalSettings}
@@ -42,9 +42,11 @@ describe('compression settings UI', () => {
         t={translator('en')}
       />
     );
-    expect(markup).toContain('Original resolution');
-    expect(markup).toContain('Original frame rate');
-    expect(markup).toContain('CRF 26');
+    expect(markup).toContain('settings-primary-row');
+    expect(markup).toContain(
+      'aria-label="Uses the original resolution and frame rate, CRF 26, and H.264 in an MP4 container'
+    );
+    expect(markup).not.toContain('optimal-summary');
     // Custom settings stay mounted for smooth expand/collapse, but they are
     // hidden from assistive tech and their controls are disabled.
     expect(markup).toMatch(

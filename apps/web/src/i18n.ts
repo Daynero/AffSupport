@@ -116,6 +116,8 @@ const en = {
   optimal: 'Optimal',
   custom: 'Custom settings',
   optimalDescription: 'Preserves the original resolution and motion while reducing file size.',
+  optimalTooltip:
+    'Uses the original resolution and frame rate, CRF 26, and H.264 in an MP4 container — a balanced default for quality and file size.',
   originalResolution: 'Original resolution',
   originalFrameRate: 'Original frame rate',
   crfSummary: 'CRF 26',
@@ -124,7 +126,8 @@ const en = {
   frameRateTooltip:
     'Frames shown each second. A lower value reduces size, but motion may look less smooth.',
   resolution: 'Resolution',
-  resolutionTooltip: 'Video dimensions in pixels. A lower resolution noticeably reduces file size.',
+  resolutionTooltip:
+    'Sets the longest side of the video. Aspect ratio is preserved and the other side is made even. A lower value noticeably reduces file size.',
   longestSide:
     'Applies to the longest side. Aspect ratio is preserved and the other side is made even.',
   asOriginal: 'As original',
@@ -134,6 +137,8 @@ const en = {
   invalidFrameRate: 'Enter a whole number from {min} to {max}.',
   invalidResolution: 'Enter a whole number from {min} to {max} px.',
   rateControl: 'Quality / size control',
+  rateControlTooltip:
+    'Constant quality adapts the bitrate to the video. Target bitrate gives more predictable file size.',
   constantQuality: 'Constant quality (CRF)',
   targetBitrate: 'Target bitrate',
   crf: 'CRF',
@@ -604,6 +609,8 @@ const uk: Record<keyof typeof en, string> = {
   optimal: 'Оптимальний',
   custom: 'Власні налаштування',
   optimalDescription: 'Зберігає роздільну здатність і плавність оригіналу та зменшує розмір файлу.',
+  optimalTooltip:
+    'Оригінальна роздільна здатність і частота кадрів, CRF 26, H.264 у контейнері MP4 — збалансовані налаштування якості та розміру файлу.',
   originalResolution: 'Оригінальна роздільна здатність',
   originalFrameRate: 'Оригінальна частота кадрів',
   crfSummary: 'CRF 26',
@@ -612,7 +619,8 @@ const uk: Record<keyof typeof en, string> = {
   frameRateTooltip:
     'Кількість кадрів за секунду. Менше значення зменшує файл, але рух може стати менш плавним.',
   resolution: 'Роздільна здатність',
-  resolutionTooltip: 'Розмір відео в пікселях. Менша роздільна здатність помітно зменшує файл.',
+  resolutionTooltip:
+    'Значення задає довшу сторону відео. Пропорції зберігаються, друга сторона буде парною. Менше значення помітно зменшує файл.',
   longestSide:
     'Значення застосовується до довшої сторони. Пропорції зберігаються, друга сторона буде парною.',
   asOriginal: 'Як в оригіналі',
@@ -622,6 +630,8 @@ const uk: Record<keyof typeof en, string> = {
   invalidFrameRate: 'Введіть ціле число від {min} до {max}.',
   invalidResolution: 'Введіть ціле число від {min} до {max} px.',
   rateControl: 'Контроль якості / розміру',
+  rateControlTooltip:
+    'Постійна якість адаптує бітрейт до відео. Цільовий бітрейт дає передбачуваніший розмір файлу.',
   constantQuality: 'Постійна якість (CRF)',
   targetBitrate: 'Цільовий бітрейт',
   crf: 'CRF',

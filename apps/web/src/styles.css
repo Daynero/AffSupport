@@ -739,8 +739,23 @@ a {
   display: contents;
 }
 
-.mode-row > .field-label {
-  align-self: center;
+.settings-primary-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.control-with-help {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.control-with-help .segmented {
+  min-width: 0;
+  flex: 1;
 }
 
 .mode-detail {
@@ -748,19 +763,6 @@ a {
   grid-column: 1 / -1;
 }
 
-.optimal-summary {
-  display: grid;
-  min-width: 0;
-  gap: var(--space-2);
-}
-
-.summary-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.summary-chips span,
 .estimate-tag {
   display: inline-flex;
   min-height: 25px;
@@ -774,7 +776,6 @@ a {
   font-weight: 650;
 }
 
-.optimal-summary p,
 .add-files-section > p,
 .field-hint,
 .selected-folder {
@@ -784,14 +785,12 @@ a {
 
 .custom-settings {
   display: grid;
-  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
-  padding-top: var(--space-2);
+  padding: var(--space-3);
   border-top: 1px solid var(--color-border);
-}
-
-.rate-control-field {
-  grid-column: span 2;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  background: var(--color-surface-subtle);
 }
 
 .rate-value-field {
@@ -841,9 +840,7 @@ a {
 
 .output-settings {
   display: grid;
-  grid-column: 1 / -1;
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--color-border);
+  min-width: 0;
 }
 
 .image-embedding-settings {
@@ -2358,6 +2355,10 @@ input.is-invalid {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-3);
+  }
+
+  .settings-primary-row {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .settings-row {

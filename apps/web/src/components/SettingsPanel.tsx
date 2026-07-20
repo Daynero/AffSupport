@@ -49,23 +49,34 @@ export function SettingsPanel({
       <div className="section-heading compact-heading">
         <h2 id="settings-title">{t('compressionSettings')}</h2>
       </div>
-      <div className="settings-row mode-row">
-        <FieldLabel label={t('compressionMode')} />
-        <SegmentedControl<CompressionMode>
-          label={t('compressionMode')}
-          value={settings.mode}
+      <div className="settings-primary-row">
+        <div className="field-group">
+          <FieldLabel label={t('compressionMode')} />
+          <div className="control-with-help">
+            <SegmentedControl<CompressionMode>
+              label={t('compressionMode')}
+              value={settings.mode}
+              disabled={disabled}
+              options={[
+                { value: 'optimal', label: t('optimal') },
+                { value: 'custom', label: t('custom') }
+              ]}
+              onChange={mode => updateSettings({ mode })}
+            />
+            {settings.mode === 'optimal' && (
+              <Tooltip label={t('optimalTooltip')}>{t('optimalTooltip')}</Tooltip>
+            )}
+          </div>
+        </div>
+        <OutputSettings
+          settings={settings}
           disabled={disabled}
-          options={[
-            { value: 'optimal', label: t('optimal') },
-            { value: 'custom', label: t('custom') }
-          ]}
-          onChange={mode => updateSettings({ mode })}
+          updateSettings={updateSettings}
+          chooseOutputFolder={chooseOutputFolder}
+          t={t}
         />
       </div>
       <div className="mode-detail">
-        <Collapse open={settings.mode === 'optimal'}>
-          <OptimalSummary t={t} />
-        </Collapse>
         <Collapse open={settings.mode === 'custom'}>
           <CustomSettings
             settings={settings}
@@ -75,13 +86,6 @@ export function SettingsPanel({
           />
         </Collapse>
       </div>
-      <OutputSettings
-        settings={settings}
-        disabled={disabled}
-        updateSettings={updateSettings}
-        chooseOutputFolder={chooseOutputFolder}
-        t={t}
-      />
       <ImageEmbeddingSection
         settings={settings.imageEmbedding}
         disabled={disabled}
@@ -93,20 +97,6 @@ export function SettingsPanel({
         t={t}
       />
     </section>
-  );
-}
-
-function OptimalSummary({ t }: { t: Translate }) {
-  return (
-    <div className="optimal-summary">
-      <div className="summary-chips" aria-label={t('optimal')}>
-        <span>{t('originalResolution')}</span>
-        <span>{t('originalFrameRate')}</span>
-        <span>{t('crfSummary')}</span>
-        <span>{t('codecSummary')}</span>
-      </div>
-      <p>{t('optimalDescription')}</p>
-    </div>
   );
 }
 
@@ -131,7 +121,7 @@ function CustomSettings({
         t={t}
       />
       <div className="field-group rate-control-field">
-        <FieldLabel label={t('rateControl')} />
+        <FieldLabel label={t('rateControl')} tooltip={t('rateControlTooltip')} />
         <SegmentedControl<RateControl>
           label={t('rateControl')}
           value={settings.rateControl}
@@ -313,7 +303,6 @@ function ResolutionControl({
           </div>
         )}
       </div>
-      <span className="field-hint">{t('longestSide')}</span>
       <Collapse fast open={choice === 'custom' && !valid}>
         <span className="field-error">
           {t('invalidResolution', { min: RESOLUTION_MIN, max: RESOLUTION_MAX })}
