@@ -10,7 +10,7 @@
   "artifacts": {
     "macos-arm64": {
       "url": "https://github.com/Daynero/AffSupport/releases/download/v0.5.5/Wishly-Agent-v0.5.5-macOS-arm64.dmg",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      "sha256": "d581b62d0918fbdbe1c50d12aa5fc2c8b7e99d8ff2d92e22a3093f57ca99f4d1"
     }
   },
   "toolRequirements": {
