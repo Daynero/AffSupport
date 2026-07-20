@@ -72,7 +72,10 @@ for (const [platform, artifact] of Object.entries(stableManifest.artifacts ?? {}
   if (!['macos-arm64', 'macos-x64', 'windows-x64'].includes(platform)) {
     fail(`stable release manifest contains unsupported platform ${platform}`);
   }
-  if (!artifact?.url?.startsWith('https://') || !(`sha256` in artifact)) {
+  if (
+    !artifact?.url?.startsWith('https://') ||
+    !/^[a-f0-9]{64}$/.test(artifact?.sha256 ?? '')
+  ) {
     fail(`stable release manifest artifact ${platform} is incomplete`);
   }
 }
