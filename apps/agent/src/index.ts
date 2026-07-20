@@ -563,10 +563,15 @@ const pairOrigin =
   (config.sourceRevision === 'development'
     ? config.devOrigin
     : `http://${config.host}:${config.port}`);
-app.get('/pair', async (_request, reply) => reply.redirect(`${pairOrigin}/#agentToken=${token}`));
-app.get('/local', async (_request, reply) =>
-  reply.redirect(`http://${config.host}:${config.port}/#agentToken=${token}`)
-);
+let browserClaimedAgent = false;
+app.get('/pair', async (_request, reply) => {
+  browserClaimedAgent = true;
+  return reply.redirect(`${pairOrigin}/#agentToken=${token}`);
+});
+app.get('/local', async (_request, reply) => {
+  browserClaimedAgent = true;
+  return reply.redirect(`http://${config.host}:${config.port}/#agentToken=${token}`);
+});
 app.setNotFoundHandler((request, reply) =>
   request.url.startsWith('/api/')
     ? reply.code(404).send({ error: 'API action not found.' })
@@ -606,7 +611,15 @@ try {
   await app.listen({ host: config.host, port: config.port });
   app.log.info(`Wishly Agent: http://${config.host}:${config.port}`);
   if (process.env.NODE_ENV !== 'test' && process.env.NO_OPEN !== '1') {
-    await open(`http://${config.host}:${config.port}/pair`);
+    // Let the browser tab that initiated installation claim this process first.
+    // A direct launch still opens Wishly when no existing tab pairs in time.
+    setTimeout(() => {
+      if (!browserClaimedAgent && !shuttingDown) {
+        void open(`http://${config.host}:${config.port}/pair`).catch(error =>
+          app.log.warn(error, 'Could not open Wishly in the browser')
+        );
+      }
+    }, 8000);
   }
 } catch (error) {
   app.log.error(error);

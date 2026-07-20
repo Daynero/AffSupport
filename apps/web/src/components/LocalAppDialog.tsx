@@ -2,7 +2,7 @@ import { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { RELEASE_DOWNLOAD_URL, type WishlyToolId } from '@video-compressor/shared';
 import { useAgent } from '../AgentContext';
-import { agentUrl } from '../api/client';
+import { agentUrl, markAgentInstallStarted } from '../api/client';
 import type { ConnectionState } from '../connection';
 import { useI18n } from '../i18n';
 import { releaseArtifact } from '../release-manifest';
@@ -75,11 +75,12 @@ export default function LocalAppDialog({
             <a
               className="button button-primary"
               href={downloadUrl}
-              onClick={() =>
+              onClick={() => {
+                if (!needsUpdate) markAgentInstallStarted();
                 analytics.track(needsUpdate ? 'update_started' : 'install_download_clicked', {
                   tool_identifier: tool === 'landingOptimizer' ? 'landing-optimizer' : 'compressor'
-                })
-              }
+                });
+              }}
             >
               {t(needsUpdate ? 'updateWishly' : 'installWishly')}
             </a>

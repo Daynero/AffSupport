@@ -18,6 +18,8 @@ const channel =
     : new BroadcastChannel('local-video-compressor-pairing');
 let token = localStorage.getItem('agentToken') ?? '';
 let tokenListener: (() => void) | null = null;
+const INSTALL_STARTED_KEY = 'wishly.agent-install-started.v1';
+const INSTALL_PAIRING_WINDOW_MS = 15 * 60 * 1000;
 
 channel?.addEventListener('message', event => {
   if (typeof event.data === 'string' && /^[a-f0-9]{64}$/.test(event.data)) {
@@ -38,9 +40,21 @@ export function consumePairingToken() {
   if (value && /^[a-f0-9]{64}$/.test(value)) {
     token = value;
     localStorage.setItem('agentToken', value);
+    sessionStorage.removeItem(INSTALL_STARTED_KEY);
     channel?.postMessage(value);
     history.replaceState(null, '', location.pathname + location.search);
   }
+}
+export function markAgentInstallStarted() {
+  sessionStorage.setItem(INSTALL_STARTED_KEY, String(Date.now()));
+}
+export function agentInstallAwaitingPairing() {
+  const started = Number(sessionStorage.getItem(INSTALL_STARTED_KEY));
+  if (!Number.isFinite(started) || Date.now() - started > INSTALL_PAIRING_WINDOW_MS) {
+    sessionStorage.removeItem(INSTALL_STARTED_KEY);
+    return false;
+  }
+  return true;
 }
 export function hasPairingToken() {
   return Boolean(token);

@@ -20,6 +20,7 @@ import {
   type WishlyToolId
 } from '@video-compressor/shared';
 import {
+  agentInstallAwaitingPairing,
   connect,
   consumePairingToken,
   eventUrl,
@@ -145,7 +146,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         if (!mounted.current) return;
         if (error instanceof Error && error.message === 'PAIRING_REQUIRED') {
           setConnection(mode === 'connecting' ? 'connecting' : 'pairing_required');
-          if (mode === 'connecting') pairWithAgent();
+          if (mode === 'connecting' || agentInstallAwaitingPairing()) pairWithAgent();
         } else {
           setConnection(connectedOnceRef.current ? 'disconnected' : await failureState());
           retryTimer.current = setTimeout(() => void establish('retry'), 4000);

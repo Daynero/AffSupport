@@ -11,6 +11,7 @@ import {
 import {
   agentUrl,
   imageContentUrl,
+  markAgentInstallStarted,
   request,
   requestBody,
   uploadImage as uploadImageAsset,
@@ -699,7 +700,7 @@ export function Onboarding({
       <h2>{t('onboardingTitle')}</h2>
       <p>{t('onboardingBody')}</p>
       <div className="inline-actions">
-        <a className="button button-primary" href={downloadUrl}>
+        <a className="button button-primary" href={downloadUrl} onClick={markAgentInstallStarted}>
           {t('downloadAgent')}
         </a>
         <Button onClick={connect} loading={busy}>
