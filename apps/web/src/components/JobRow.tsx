@@ -338,14 +338,14 @@ function JobActions({
       {job.status === 'completed' && (
         <>
           <Button
-            variant="ghost"
+            variant="success"
             disabled={disabled}
             onClick={() => action(`/api/jobs/${job.id}/reveal`)}
           >
             {t('showInFolder')}
           </Button>
           <Button
-            variant="ghost"
+            variant="secondary"
             disabled={disabled}
             onClick={() => action(`/api/jobs/${job.id}/open`)}
           >
@@ -355,7 +355,7 @@ function JobActions({
       )}
       {!['processing', 'queued', 'analyzing'].includes(job.status) && (
         <Button
-          variant="ghost"
+          variant="danger"
           disabled={disabled}
           onClick={() => action(`/api/jobs/${job.id}`, 'DELETE')}
         >

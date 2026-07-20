@@ -14,7 +14,7 @@ import type { TranslationKey } from '../i18n';
 
 export type Translate = (key: TranslationKey, values?: Record<string, string | number>) => string;
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'success';
 export function Button({
   variant = 'secondary',
   loading = false,

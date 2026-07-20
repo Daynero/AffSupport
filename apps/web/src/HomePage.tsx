@@ -3,6 +3,8 @@ import { Header, Onboarding } from './App';
 import { useAgent } from './AgentContext';
 import { useI18n, type TranslationKey } from './i18n';
 import { analytics } from './analytics/service';
+import FeatureLockDialog from './components/FeatureLockDialog';
+import { isLocked, type FeatureId } from './lib/feature-flags';
 
 type Tool = {
   id: string;
@@ -11,6 +13,7 @@ type Tool = {
   icon: ReactNode;
   route: string | null;
   status: 'active' | 'coming-soon';
+  feature?: FeatureId;
 };
 
 export const wishlyTools: Tool[] = [
@@ -20,7 +23,8 @@ export const wishlyTools: Tool[] = [
     description: 'videoCompressorDescription',
     icon: <CompressorIcon />,
     route: '/compressor',
-    status: 'active'
+    status: 'active',
+    feature: 'videoCompressor'
   },
   {
     id: 'transcription',
@@ -41,7 +45,8 @@ export const landingTool: Tool = {
   description: 'landingOptimizerDescription',
   icon: <LandingIcon />,
   route: '/landing-optimizer',
-  status: 'active'
+  status: 'active',
+  feature: 'landingOptimizer'
 };
 
 export function toolsForCapabilities(capabilities: readonly string[]): Tool[] {
@@ -54,6 +59,7 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
   const { connection, reconnect, capabilities } = useAgent();
   const [help, setHelp] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [lockedTool, setLockedTool] = useState<Tool | null>(null);
   const panel = useRef<HTMLDivElement>(null);
   const connected = connection === 'connected';
   const tools = toolsForCapabilities(capabilities);
@@ -75,6 +81,12 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
   const openTool = (tool: Tool) => {
     if (tool.status !== 'active') {
       analytics.track('transcription_interest_clicked', { tool_identifier: 'transcription' });
+      return;
+    }
+    // Web-only access gate: a protected, not-yet-unlocked tool shows the
+    // developer-pass modal instead of opening.
+    if (tool.feature && isLocked(tool.feature)) {
+      setLockedTool(tool);
       return;
     }
     if (connected && tool.route) navigate(tool.route);
@@ -161,6 +173,18 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
           })}
         </section>
       </main>
+
+      {lockedTool?.feature && (
+        <FeatureLockDialog
+          feature={lockedTool.feature}
+          onClose={() => setLockedTool(null)}
+          onUnlocked={() => {
+            const tool = lockedTool;
+            setLockedTool(null);
+            if (connected && tool.route) navigate(tool.route);
+          }}
+        />
+      )}
     </div>
   );
 }

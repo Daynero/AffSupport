@@ -26,7 +26,6 @@ type UpdateSettings = (patch: AgentSettingsPatch, debounce?: boolean) => void;
 export function SettingsPanel({
   settings,
   disabled,
-  hasUploadedFiles,
   updateSettings,
   chooseOutputFolder,
   uploadImage = async () => {},
@@ -37,7 +36,6 @@ export function SettingsPanel({
 }: {
   settings: AgentSettings;
   disabled: boolean;
-  hasUploadedFiles?: boolean;
   updateSettings: UpdateSettings;
   chooseOutputFolder: () => void;
   uploadImage?: (slot: 'start' | 'end', file: File) => Promise<void>;
@@ -80,7 +78,6 @@ export function SettingsPanel({
       <OutputSettings
         settings={settings}
         disabled={disabled}
-        hasUploadedFiles={hasUploadedFiles}
         updateSettings={updateSettings}
         chooseOutputFolder={chooseOutputFolder}
         t={t}
@@ -438,14 +435,12 @@ function BitrateControl({
 function OutputSettings({
   settings,
   disabled,
-  hasUploadedFiles,
   updateSettings,
   chooseOutputFolder,
   t
 }: {
   settings: AgentSettings;
   disabled: boolean;
-  hasUploadedFiles?: boolean;
   updateSettings: UpdateSettings;
   chooseOutputFolder: () => void;
   t: Translate;
@@ -478,9 +473,6 @@ function OutputSettings({
           <span className="selected-folder" title={settings.outputFolder ?? t('noFolderSelected')}>
             {settings.outputFolder ? compactPath(settings.outputFolder) : t('noFolderSelected')}
           </span>
-        )}
-        {settings.outputMode === 'next-to-originals' && hasUploadedFiles && (
-          <span className="field-hint">{t('uploadedOutputNote')}</span>
         )}
       </div>
     </div>

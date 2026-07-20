@@ -375,7 +375,6 @@ export default function CompressorPage() {
         <SettingsPanel
           settings={state.settings}
           disabled={!connected}
-          hasUploadedFiles={state.jobs.some(job => job.sourceKind === 'uploaded')}
           updateSettings={updateSettings}
           chooseOutputFolder={() => void action('/api/output/select')}
           uploadImage={setImage}

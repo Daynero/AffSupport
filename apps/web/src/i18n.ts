@@ -131,7 +131,6 @@ const en = {
   chooseFolder: 'Separate folder',
   selectFolder: 'Choose folder',
   noFolderSelected: 'No folder selected',
-  uploadedOutputNote: 'Dropped files are saved in the Wishly folder.',
   embedImages: 'Embed images into video',
   embedImagesTooltip:
     'Adds an image for one frame before the video and a static image with silence after it.',
@@ -460,7 +459,15 @@ const en = {
   noteNameCollision: 'A file with the target name already exists — original kept',
   noteAnimatedSafe: 'Animation preserved',
   noteVectorSafe: 'Vector image preserved',
-  noteFailedGeneric: 'Could not optimize — original kept'
+  noteFailedGeneric: 'Could not optimize — original kept',
+  featureLockTitle: 'Still under construction',
+  featureLockBody1: "Sorry, this tool isn't ready for everyone yet.",
+  featureLockBody2: 'For now, access is available only with a developer pass.',
+  featureLockSoon: "It'll be open for everyone soon.",
+  featureLockPassLabel: 'Developer pass',
+  featureLockPassPlaceholder: 'Enter pass',
+  featureLockUnlock: 'Unlock',
+  featureLockError: 'That pass is incorrect. Please try again.'
 } as const;
 
 const uk: Record<keyof typeof en, string> = {
@@ -592,7 +599,6 @@ const uk: Record<keyof typeof en, string> = {
   chooseFolder: 'Окрема папка',
   selectFolder: 'Вибрати папку',
   noFolderSelected: 'Папку не вибрано',
-  uploadedOutputNote: 'Перетягнуті файли зберігаються в папці Wishly.',
   embedImages: 'Зашити зображення у відео',
   embedImagesTooltip:
     'Додає зображення на один кадр перед відео та статичне зображення із тишею після нього.',
@@ -923,7 +929,15 @@ const uk: Record<keyof typeof en, string> = {
   noteNameCollision: 'Файл із такою назвою вже існує — залишено оригінал',
   noteAnimatedSafe: 'Анімацію збережено',
   noteVectorSafe: 'Векторне зображення збережено',
-  noteFailedGeneric: 'Не вдалося оптимізувати — залишено оригінал'
+  noteFailedGeneric: 'Не вдалося оптимізувати — залишено оригінал',
+  featureLockTitle: 'Ще в розробці',
+  featureLockBody1: 'Вибачте, цей інструмент ще не готовий для всіх.',
+  featureLockBody2: 'Наразі доступ можливий лише з паролем розробника.',
+  featureLockSoon: 'Незабаром він стане доступним для всіх.',
+  featureLockPassLabel: 'Пароль розробника',
+  featureLockPassPlaceholder: 'Введіть пароль',
+  featureLockUnlock: 'Розблокувати',
+  featureLockError: 'Пароль невірний. Спробуйте ще раз.'
 };
 
 export type TranslationKey = keyof typeof en;
