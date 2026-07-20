@@ -13,8 +13,11 @@ import {
   DEFAULT_CRF,
   DEFAULT_VIDEO_BITRATE_KBPS,
   defaultImageEmbeddingSettings,
+  toolContractCompatible,
   type AgentEvent,
-  type QueueState
+  type QueueState,
+  type ToolContracts,
+  type WishlyToolId
 } from '@video-compressor/shared';
 import {
   connect,
@@ -25,6 +28,7 @@ import {
 } from './api/client';
 import { failureState, type ConnectionState, versionState } from './connection';
 import { analytics } from './analytics/service';
+import { loadStableReleaseManifest, type ReleaseManifestState } from './release-manifest';
 
 const emptyState: QueueState = {
   jobs: [],
@@ -51,8 +55,14 @@ export interface AgentContextValue {
   setState: Dispatch<SetStateAction<QueueState>>;
   connectedOnce: boolean;
   agentVersion: string | null;
+  agentBuildId: string | null;
+  agentChannel: string | null;
+  agentApiVersion: number | null;
   capabilities: string[];
+  toolContracts: ToolContracts;
+  releaseManifest: ReleaseManifestState;
   platform: 'macos' | 'windows' | 'linux' | 'other';
+  toolAvailable: (tool: WishlyToolId) => boolean;
   reconnect: () => void;
 }
 
@@ -63,7 +73,15 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<QueueState>(emptyState);
   const [connectedOnce, setConnectedOnce] = useState(false);
   const [agentVersion, setAgentVersion] = useState<string | null>(null);
+  const [agentBuildId, setAgentBuildId] = useState<string | null>(null);
+  const [agentChannel, setAgentChannel] = useState<string | null>(null);
+  const [agentApiVersion, setAgentApiVersion] = useState<number | null>(null);
   const [capabilities, setCapabilities] = useState<string[]>([]);
+  const [toolContracts, setToolContracts] = useState<ToolContracts>({});
+  const [releaseManifest, setReleaseManifest] = useState<ReleaseManifestState>({
+    status: 'checking',
+    manifest: null
+  });
   const platform = broadPlatform();
   const connectedOnceRef = useRef(false);
   const events = useRef<EventSource | null>(null);
@@ -90,8 +108,19 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         if (!mounted.current) return;
         const next = versionState(result.apiVersion);
         setAgentVersion(result.version || null);
+        setAgentBuildId(result.buildId || null);
+        setAgentChannel(result.channel || null);
+        setAgentApiVersion(result.apiVersion);
         setCapabilities(result.capabilities);
-        analytics.setAgentContext(result.version || null, platform);
+        setToolContracts(result.toolContracts);
+        analytics.setAgentContext({
+          version: result.version || null,
+          buildId: result.buildId || null,
+          channel: result.channel || null,
+          apiVersion: result.apiVersion,
+          toolContracts: result.toolContracts,
+          platform
+        });
         setConnection(next);
         if (next !== 'connected') return;
         if (!result.state) throw new Error('AGENT_STATE_MISSING');
@@ -153,6 +182,20 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     };
   }, [establish]);
 
+  useEffect(() => {
+    let active = true;
+    void loadStableReleaseManifest()
+      .then(manifest => {
+        if (active) setReleaseManifest({ status: 'ready', manifest });
+      })
+      .catch(() => {
+        if (active) setReleaseManifest({ status: 'unavailable', manifest: null });
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <AgentContext.Provider
       value={{
@@ -161,8 +204,14 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         setState,
         connectedOnce,
         agentVersion,
+        agentBuildId,
+        agentChannel,
+        agentApiVersion,
         capabilities,
+        toolContracts,
+        releaseManifest,
         platform,
+        toolAvailable: tool => toolContractCompatible(tool, toolContracts),
         reconnect: () => void establish('connecting')
       }}
     >

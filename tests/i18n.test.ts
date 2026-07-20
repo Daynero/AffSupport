@@ -25,8 +25,10 @@ describe('language selection and dictionaries', () => {
       .flatMap(key => [translate('en', key), translate('uk', key)])
       .join(' ');
     expect(visibleText).not.toMatch(/\bMac\b|macOS|Apple Silicon/i);
-    expect(translate('en', 'processedLocally')).toBe('Videos are processed on your computer.');
-    expect(translate('uk', 'processedLocally')).toBe('Відео обробляються на вашому комп’ютері.');
+    expect(translate('en', 'processedLocally')).toBe('Wishly works locally on your computer.');
+    expect(translate('uk', 'processedLocally')).toBe(
+      'Wishly працює локально на вашому комп’ютері.'
+    );
   });
 
   it('formats timer/status/tooltip text in both languages', () => {

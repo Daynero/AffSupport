@@ -45,9 +45,7 @@ const privacy: Record<Language, LegalSection[]> = {
     },
     {
       heading: 'Contact',
-      paragraphs: [
-        'For any privacy questions, contact Wishly support at the email below.'
-      ]
+      paragraphs: ['For any privacy questions, contact Wishly support at the email below.']
     }
   ],
   uk: [

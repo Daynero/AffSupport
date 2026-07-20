@@ -24,8 +24,8 @@ describe('Wishly brand identity', () => {
     expect(translate('uk', 'agentConnected')).toBe('Wishly Agent підключено');
     expect(translate('uk', 'agentNotRunning')).toBe('Wishly Agent не запущено');
     expect(translate('uk', 'agentUpdateRequired')).toBe('Потрібне оновлення Wishly Agent');
-    expect(translate('uk', 'downloadAgent')).toBe('Завантажити Wishly Agent');
-    expect(translate('en', 'downloadAgent')).toBe('Download Wishly Agent');
+    expect(translate('uk', 'downloadAgent')).toBe('Встановити Wishly');
+    expect(translate('en', 'downloadAgent')).toBe('Install Wishly');
   });
 
   it('leaves no old brand names in either dictionary', () => {

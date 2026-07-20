@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
 import { spawn } from 'node:child_process';
 import os from 'node:os';
@@ -12,6 +12,8 @@ import fastifyMultipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import open from 'open';
 import {
+  AGENT_TOOL_CONTRACTS,
+  CORE_CONTRACT_VERSION,
   AGENT_API_VERSION,
   AGENT_CAPABILITIES,
   CRF_MAX,
@@ -145,7 +147,10 @@ app.get('/api/health', async () => ({
   apiVersion: AGENT_API_VERSION,
   channel: config.channel,
   sourceRevision: config.sourceRevision,
-  capabilities: [...AGENT_CAPABILITIES]
+  capabilities: [...AGENT_CAPABILITIES],
+  coreContractVersion: CORE_CONTRACT_VERSION,
+  toolContracts: { ...AGENT_TOOL_CONTRACTS },
+  update: queue.state().update
 }));
 app.get('/health', async () => ({
   product: 'local-video-compressor-agent',
@@ -157,9 +162,12 @@ app.get('/health', async () => ({
   channel: config.channel,
   sourceRevision: config.sourceRevision,
   capabilities: [...AGENT_CAPABILITIES],
+  coreContractVersion: CORE_CONTRACT_VERSION,
+  toolContracts: { ...AGENT_TOOL_CONTRACTS },
+  update: queue.state().update,
   instanceId,
   startedAt,
-  busy: queue.compressionActive()
+  busy: queue.workActive() || landingOptimizer.state().running
 }));
 app.get('/api/diagnostics', async () => ({
   version: config.version,
@@ -430,6 +438,9 @@ app.post<{ Body: AgentSettingsPatch }>('/api/settings', async (request, reply) =
 });
 
 app.post<{ Body: { ids?: unknown } }>('/api/queue/start', async (request, reply) => {
+  if (!queue.acceptingNewTasks()) {
+    return reply.code(409).send({ error: 'UPDATE_PENDING' });
+  }
   if (!tools.ffmpeg) {
     return reply.code(503).send({ error: 'The bundled video engine is unavailable.' });
   }
@@ -527,7 +538,8 @@ app.post('/api/output/reveal', async (_request, reply) => {
 registerLandingRoutes(app, {
   optimizer: landingOptimizer,
   clients: landingClients,
-  allowedOrigins
+  allowedOrigins,
+  acceptingNewTasks: () => queue.acceptingNewTasks()
 });
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -562,9 +574,23 @@ app.setNotFoundHandler((request, reply) =>
 );
 
 let shuttingDown = false;
+let installedReleaseTimer: ReturnType<typeof setInterval> | null = null;
+if (config.installedReleasePath) {
+  installedReleaseTimer = setInterval(() => {
+    void readFile(config.installedReleasePath as string, 'utf8')
+      .then(raw => JSON.parse(raw) as { buildId?: unknown })
+      .then(installed => {
+        if (typeof installed.buildId === 'string' && installed.buildId !== config.buildId) {
+          queue.requestUpdateDrain(installed.buildId);
+        }
+      })
+      .catch(() => undefined);
+  }, 3000);
+}
 async function shutdown(code = 0) {
   if (shuttingDown) return;
   shuttingDown = true;
+  if (installedReleaseTimer) clearInterval(installedReleaseTimer);
   try {
     await estimator.shutdown();
     await queue.shutdown();

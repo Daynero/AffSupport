@@ -74,6 +74,10 @@ export class JobQueue {
   private nextEstimatePriorityOrder = 1;
   private warning: string | null = null;
   private estimateHooks: EstimatorHooks | null = null;
+  private updateState: NonNullable<QueueState['update']> = {
+    state: 'none',
+    targetBuildId: null
+  };
 
   constructor(
     private tools: QueueState['tools'],
@@ -106,12 +110,30 @@ export class JobQueue {
       tools: this.tools,
       settings: cloneSettings(this.settings),
       batch: this.batch ? { ...this.batch, jobIds: [...this.batch.jobIds] } : null,
-      warning: this.warning
+      warning: this.warning,
+      update: { ...this.updateState }
     };
   }
 
   compressionActive() {
     return this.compressionInFlight && !this.compressionPausedForEstimates;
+  }
+
+  workActive() {
+    return this.state().running;
+  }
+
+  acceptingNewTasks() {
+    return this.updateState.state === 'none';
+  }
+
+  requestUpdateDrain(targetBuildId: string) {
+    if (!targetBuildId || targetBuildId === this.updateState.targetBuildId) return;
+    this.updateState = {
+      state: this.workActive() ? 'draining' : 'pending',
+      targetBuildId
+    };
+    this.notify();
   }
 
   persisted() {
@@ -256,7 +278,8 @@ export class JobQueue {
   }
 
   async start(ids: string[]) {
-    if (this.state().running || this.embeddingConfigurationError()) return false;
+    if (!this.acceptingNewTasks() || this.state().running || this.embeddingConfigurationError())
+      return false;
     const requested = new Set(ids);
     const jobs = this.jobs.filter(job => requested.has(job.id) && job.status === 'ready');
     if (!jobs.length) return false;
@@ -603,6 +626,7 @@ export class JobQueue {
     );
     if (!job) {
       if (!this.batch.finishedAt) this.batch.finishedAt = Date.now();
+      if (this.updateState.state === 'draining') this.updateState.state = 'pending';
       this.notify();
       this.estimateHooks?.resume();
       return;

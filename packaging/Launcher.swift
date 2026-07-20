@@ -272,7 +272,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       "AGENT_BUILD_NUMBER": expectedBuildNumber,
       "AGENT_BUILD_ID": expectedBuildID,
       "AGENT_RELEASE_CHANNEL": releaseChannel,
-      "AGENT_SOURCE_REVISION": sourceRevision
+      "AGENT_SOURCE_REVISION": sourceRevision,
+      "AGENT_INSTALLED_RELEASE_PATH": resources.appendingPathComponent("release.json").path
     ]) { _, packaged in packaged }
     output.fileHandleForReading.readabilityHandler = { [weak self] handle in
       guard let text = String(data: handle.availableData, encoding: .utf8), !text.isEmpty else { return }

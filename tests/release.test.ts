@@ -10,8 +10,11 @@ import {
   PRODUCT_VERSION,
   RELEASE_ARTIFACT_NAME,
   RELEASE_DOWNLOAD_URL,
-  RELEASE_TAG
+  RELEASE_TAG,
+  compareProductVersions,
+  toolContractCompatible
 } from '../packages/shared/src/release';
+import { installedReleaseStatus } from '../apps/web/src/release-manifest';
 
 describe('release identity', () => {
   it('uses valid, monotonically sortable release identifiers', () => {
@@ -49,5 +52,26 @@ describe('release identity', () => {
         expect(manifest.dependencies['@video-compressor/shared'], file).toBe(PRODUCT_VERSION);
       }
     }
+  });
+
+  it('compares semantic versions without treating a newer build as an update target', () => {
+    expect(compareProductVersions('0.5.2', '0.5.1')).toBe(1);
+    expect(compareProductVersions('0.5.1', '0.5.2')).toBe(-1);
+    expect(compareProductVersions('development', '0.5.2')).toBeNull();
+    expect(
+      installedReleaseStatus({
+        manifest: JSON.parse(
+          readFileSync('apps/web/public/.well-known/wishly/stable.json', 'utf8')
+        ),
+        installedVersion: '0.5.3',
+        installedChannel: 'stable',
+        compatible: true
+      })
+    ).toBe('newer');
+  });
+
+  it('gates each tool by its own contract', () => {
+    expect(toolContractCompatible('compressor', { compressor: 1 })).toBe(true);
+    expect(toolContractCompatible('landingOptimizer', { compressor: 1 })).toBe(false);
   });
 });

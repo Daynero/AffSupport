@@ -2,8 +2,15 @@ import type {
   CompressorData,
   EventRow,
   FunnelStage,
+  CohortMetric,
+  ErrorCluster,
+  FeatureMetric,
+  FrictionSignal,
+  JourneyEvent,
   OverviewData,
   ResolvedPeriod,
+  RetentionMetric,
+  StageMetric,
   ToolRow,
   TopListItem,
   TopUsersData,
@@ -204,5 +211,105 @@ export function formatFunnel(stages: FunnelStage[], period: ResolvedPeriod): str
   return [
     header('Compressor funnel', period),
     table(['Stage', 'Users', 'From previous', 'From start'], body)
+  ].join('\n');
+}
+
+export function formatStages(title: string, rows: StageMetric[], period: ResolvedPeriod): string {
+  return [
+    header(title, period),
+    table(
+      ['Stage', 'Events', 'Users'],
+      rows.map(r => [r.stage, num(r.events), num(r.users)])
+    )
+  ].join('\n');
+}
+
+export function formatErrors(rows: ErrorCluster[], period: ResolvedPeriod): string {
+  return [
+    header('Errors', period),
+    rows.length
+      ? table(
+          ['Code', 'Stage', 'Fingerprint', 'Tool', 'Local app', 'Count', 'Users', 'Recovered'],
+          rows.map(r => [
+            r.error_code,
+            r.error_stage,
+            r.error_fingerprint,
+            r.tool,
+            r.local_app_version,
+            num(r.occurrences),
+            num(r.users),
+            num(r.recovered)
+          ])
+        )
+      : '  —'
+  ].join('\n');
+}
+
+export function formatFriction(rows: FrictionSignal[], period: ResolvedPeriod): string {
+  return [
+    header('Friction', period),
+    rows.length
+      ? table(
+          ['Signal', 'Users', 'Sessions'],
+          rows.map(r => [r.signal, num(r.users), num(r.sessions)])
+        )
+      : '  —'
+  ].join('\n');
+}
+
+export function formatFeatures(rows: FeatureMetric[], period: ResolvedPeriod): string {
+  return [
+    header('Features', period),
+    rows.length
+      ? table(
+          ['Feature', 'Seen', 'Interactions', 'Successes', 'Users'],
+          rows.map(r => [
+            r.feature,
+            num(r.impressions),
+            num(r.interactions),
+            num(r.successful_operations),
+            num(r.unique_users)
+          ])
+        )
+      : '  —'
+  ].join('\n');
+}
+
+export function formatJourney(title: string, rows: JourneyEvent[]): string {
+  const body = rows.map(r => [
+    new Date(r.occurred_at).toISOString().replace('T', ' ').slice(0, 19),
+    r.event_name,
+    r.tool ?? '—',
+    r.local_app_version ?? '—',
+    r.run_id ?? '—',
+    JSON.stringify(r.properties)
+  ]);
+  return [
+    `\n${title}\n${'─'.repeat(32)}`,
+    body.length ? table(['When (UTC)', 'Event', 'Tool', 'App', 'Run', 'Properties'], body) : '  —'
+  ].join('\n');
+}
+
+export function formatCohorts(rows: CohortMetric[], period: ResolvedPeriod): string {
+  return [
+    header('Cohorts', period),
+    rows.length
+      ? table(
+          ['Cohort', 'Users', 'Events', 'Successes', 'Failures'],
+          rows.map(r => [r.cohort, num(r.users), num(r.events), num(r.successes), num(r.failures)])
+        )
+      : '  —'
+  ].join('\n');
+}
+
+export function formatRetention(data: RetentionMetric, period: ResolvedPeriod): string {
+  return [
+    header('Retention', period),
+    kv([
+      ['Registered users', num(data.registered_users)],
+      ['Active after 1 day', num(data.active_after_1d)],
+      ['Active after 7 days', num(data.active_after_7d)],
+      ['Active after 30 days', num(data.active_after_30d)]
+    ])
   ].join('\n');
 }

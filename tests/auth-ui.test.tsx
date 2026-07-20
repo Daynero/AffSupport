@@ -233,9 +233,9 @@ describe('profile onboarding, account and blocked state', () => {
     // Account deletion was removed from the UI entirely.
     expect(screen.queryByRole('button', { name: 'Delete account' })).toBeNull();
     expect(screen.queryByText('Google')).toBeNull();
-    // The connected agent matches the shipped release, so it reads as the latest version.
+    // Without a fetched release manifest the UI must not guess that a build is current.
     expect(screen.getByText('0.4.0')).toBeTruthy();
-    expect(screen.getByText('(latest version)')).toBeTruthy();
+    expect(screen.getByText('(could not check for updates)')).toBeTruthy();
   });
 
   it('keeps sign-out available on a blocked account', async () => {

@@ -29,6 +29,16 @@ npm run analytics -- user <email> [--json]
 npm run analytics -- tools      [--period ...] [--json]
 npm run analytics -- events     [--period ...] [--json]
 npm run analytics -- funnel     [--period ...] [--json]
+npm run analytics -- onboarding [--period ...] [--json]
+npm run analytics -- updates    [--period ...] [--json]
+npm run analytics -- errors     [--period ...] [--limit N] [--json]
+npm run analytics -- friction   [--period ...] [--json]
+npm run analytics -- features   [--period ...] [--json]
+npm run analytics -- journey <email> [--limit N] [--json]
+npm run analytics -- run <uuid> [--json]
+npm run analytics -- diagnose <error-fingerprint> [--json]
+npm run analytics -- cohorts [--cohort-by local-app-version|platform|web-build] [--json]
+npm run analytics -- retention  [--period ...] [--json]
 ```
 
 Default period is `7d`. `--days N` gives a rolling N-day window and overrides
@@ -51,6 +61,10 @@ Default period is `7d`. `--days N` gives a rolling N-day window and overrides
 | Event breakdown / counts by event_name?                  | `events`                                                                                   |
 | Conversion funnel of the compressor?                     | `funnel`                                                                                   |
 | General product health for a period?                     | `overview`                                                                                 |
+| Why could a user not complete a task?                    | `journey <email>`, then `run <uuid>` or `diagnose <fingerprint>`                           |
+| Are users stuck installing, pairing, or updating?        | `onboarding`, `updates`, and `friction`                                                    |
+| Is one build or platform less reliable?                  | `cohorts --cohort-by local-app-version|platform|web-build` and `errors`                    |
+| Which features are seen but not learned?                 | `features`                                                                                 |
 
 ### Examples
 

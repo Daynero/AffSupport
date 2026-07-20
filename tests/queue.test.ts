@@ -59,6 +59,27 @@ describe('queue file handling', () => {
 });
 
 describe('selected batch behavior', () => {
+  it('drains active work before an update and refuses new batches', () => {
+    const processing = makeJob('processing', 'queued', { batchId: 'batch' });
+    const queue = new JobQueue(
+      { ffmpeg: false, ffprobe: false },
+      () => {},
+      [processing],
+      { ...optimalSettings },
+      { id: 'batch', jobIds: ['processing'], startedAt: Date.now(), finishedAt: null }
+    );
+    queue.requestUpdateDrain('0.5.3+9');
+    expect(queue.state().update).toEqual({ state: 'draining', targetBuildId: '0.5.3+9' });
+    expect(queue.acceptingNewTasks()).toBe(false);
+  });
+
+  it('marks an idle update as pending immediately', () => {
+    const queue = new JobQueue({ ffmpeg: false, ffprobe: false }, () => {});
+    queue.requestUpdateDrain('0.5.3+9');
+    expect(queue.state().update).toEqual({ state: 'pending', targetBuildId: '0.5.3+9' });
+    expect(queue.acceptingNewTasks()).toBe(false);
+  });
+
   it('starts only selected ready files and leaves other files ready', async () => {
     directory = await mkdtemp(path.join(os.tmpdir(), 'queue-selected-'));
     const first = path.join(directory, 'first.mp4');

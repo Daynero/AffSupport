@@ -10,6 +10,7 @@ import { useI18n } from './i18n';
 import { navigateTo } from './lib/navigation';
 import AccountPage from './pages/AccountPage';
 import AdminPage from './pages/AdminPage';
+import LocalAppDialog from './components/LocalAppDialog';
 
 export default function ProtectedWishly({ path }: { path: string }) {
   return (
@@ -22,15 +23,19 @@ export default function ProtectedWishly({ path }: { path: string }) {
 
 function ProtectedApplication({ path }: { path: string }) {
   const { language, setLanguage, t } = useI18n();
-  const { connection, capabilities } = useAgent();
+  const { connection, capabilities, toolAvailable } = useAgent();
   // Web-only access gate — the landing optimizer must show the lock even on a
   // direct URL visit until this browser has entered the developer pass.
   const landingLocked = useFeatureLock('landingOptimizer');
 
-  if (path === '/compressor') return <CompressorPage />;
+  if (path === '/compressor') {
+    if (connection === 'connected' && toolAvailable('compressor')) return <CompressorPage />;
+    return <ToolSetupScreen tool="compressor" connection={connection} />;
+  }
   if (path === '/landing-optimizer') {
     if (landingLocked) return <FeatureLockScreen feature="landingOptimizer" />;
-    if (capabilities.includes('landing')) return <LandingOptimizerPage />;
+    if (capabilities.includes('landing') && toolAvailable('landingOptimizer'))
+      return <LandingOptimizerPage />;
     // A connected agent without the capability cannot serve this tool — send the
     // user home. Before connecting, keep the page mounted so it can pair/onboard.
     if (connection === 'connected') return <RedirectHome />;
@@ -45,6 +50,23 @@ function ProtectedApplication({ path }: { path: string }) {
     );
   }
   return <HomePage navigate={navigateTo} />;
+}
+
+function ToolSetupScreen({
+  tool,
+  connection
+}: {
+  tool: 'compressor' | 'landingOptimizer';
+  connection: ReturnType<typeof useAgent>['connection'];
+}) {
+  const { language, setLanguage, t } = useI18n();
+  return (
+    <div className="app-shell">
+      <Header language={language} setLanguage={setLanguage} connection={connection} t={t} />
+      <main className="page-container" />
+      <LocalAppDialog tool={tool} connection={connection} />
+    </div>
+  );
 }
 
 function RedirectHome() {

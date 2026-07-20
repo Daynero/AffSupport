@@ -21,11 +21,13 @@ export type ProcessingStage = 'preparing-images' | 'compressing' | 'finalizing';
 
 export {
   AGENT_API_VERSION,
+  AGENT_TOOL_CONTRACTS,
   AGENT_PRODUCT_NAME,
   BUILD_ID,
   BUILD_NUMBER,
   BUNDLE_VERSION,
   HELP_URL,
+  CORE_CONTRACT_VERSION,
   MAX_SUPPORTED_AGENT_API_VERSION,
   MIN_SUPPORTED_AGENT_API_VERSION,
   PRODUCT_NAME,
@@ -35,6 +37,21 @@ export {
   RELEASE_CHANNEL,
   RELEASE_DOWNLOAD_URL,
   RELEASE_TAG
+} from './release.js';
+
+export {
+  compareProductVersions,
+  normalizeToolContracts,
+  toolContractCompatible,
+  WEB_TOOL_REQUIREMENTS
+} from './release.js';
+export type {
+  ReleaseArtifact,
+  ReleasePlatform,
+  StableReleaseManifest,
+  ToolContractName,
+  ToolContracts,
+  WishlyToolId
 } from './release.js';
 
 export const FRAME_RATE_MIN = 1;
@@ -342,6 +359,10 @@ export interface QueueState {
   settings: AgentSettings;
   batch: QueueBatch | null;
   warning: string | null;
+  update?: {
+    state: 'none' | 'pending' | 'draining';
+    targetBuildId: string | null;
+  };
 }
 
 export type AgentEventType =
@@ -364,6 +385,9 @@ export interface HealthResponse {
   sourceRevision: string;
   /** Optional tool capabilities the agent supports, e.g. ['landing']. Absent on older agents. */
   capabilities?: string[];
+  coreContractVersion?: number;
+  toolContracts?: import('./release.js').ToolContracts;
+  update?: QueueState['update'];
 }
 
 /** Capabilities advertised by an agent that includes the Landing Optimizer. */

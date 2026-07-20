@@ -64,6 +64,10 @@ export type Database = {
       analytics_events: {
         Row: {
           id: number;
+          event_id: string;
+          event_version: number;
+          occurred_at: string;
+          session_sequence: number | null;
           user_id: string | null;
           event_name: string;
           session_id: string | null;
@@ -74,6 +78,24 @@ export type Database = {
           locale: string | null;
           platform: string | null;
           created_at: string;
+          installation_id: string | null;
+          flow_id: string | null;
+          run_id: string | null;
+          event_source: string | null;
+          web_build_id: string | null;
+          local_app_version: string | null;
+          local_app_build: string | null;
+          release_channel: string | null;
+          architecture: string | null;
+          core_api_version: number | null;
+          tool_contracts: Json;
+          feature: string | null;
+          screen: string | null;
+          action: string | null;
+          outcome: string | null;
+          error_code: string | null;
+          error_stage: string | null;
+          error_fingerprint: string | null;
         };
         Insert: {
           id?: number;
@@ -96,6 +118,10 @@ export type Database = {
     Functions: {
       is_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
       touch_last_seen: { Args: Record<PropertyKey, never>; Returns: string | null };
+      ingest_analytics_events: {
+        Args: { p_events: Json };
+        Returns: { event_id: string; accepted: boolean; reason: string | null }[];
+      };
       admin_overview: {
         Args: { p_start_date: string; p_end_date: string };
         Returns: Json;

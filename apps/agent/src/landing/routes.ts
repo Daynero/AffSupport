@@ -14,10 +14,11 @@ interface LandingDeps {
   optimizer: LandingOptimizer;
   clients: Set<NodeJS.WritableStream>;
   allowedOrigins: ReadonlySet<string>;
+  acceptingNewTasks: () => boolean;
 }
 
 export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
-  const { optimizer, clients, allowedOrigins } = deps;
+  const { optimizer, clients, allowedOrigins, acceptingNewTasks } = deps;
 
   app.get('/api/landing/state', async () => optimizer.state());
 
@@ -159,6 +160,9 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
   });
 
   app.post('/api/landing/start', async (_request, reply) => {
+    if (!acceptingNewTasks()) {
+      return reply.code(409).send({ error: 'UPDATE_PENDING' });
+    }
     const started = await optimizer.start();
     return started
       ? optimizer.state()

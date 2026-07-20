@@ -3,17 +3,21 @@ import { Header, Onboarding } from './App';
 import { useAgent } from './AgentContext';
 import { useI18n, type TranslationKey } from './i18n';
 import { analytics } from './analytics/service';
+import type { AnalyticsTool } from './analytics/events';
 import FeatureLockDialog from './components/FeatureLockDialog';
 import { isLocked, type FeatureId } from './lib/feature-flags';
+import type { WishlyToolId } from '@video-compressor/shared';
+import LocalAppDialog from './components/LocalAppDialog';
 
 type Tool = {
-  id: string;
+  id: AnalyticsTool;
   title: TranslationKey;
   description: TranslationKey;
   icon: ReactNode;
   route: string | null;
   status: 'active' | 'coming-soon';
   feature?: FeatureId;
+  contract?: WishlyToolId;
 };
 
 export const wishlyTools: Tool[] = [
@@ -24,7 +28,8 @@ export const wishlyTools: Tool[] = [
     icon: <CompressorIcon />,
     route: '/compressor',
     status: 'active',
-    feature: 'videoCompressor'
+    feature: 'videoCompressor',
+    contract: 'compressor'
   },
   {
     id: 'transcription',
@@ -46,7 +51,8 @@ export const landingTool: Tool = {
   icon: <LandingIcon />,
   route: '/landing-optimizer',
   status: 'active',
-  feature: 'landingOptimizer'
+  feature: 'landingOptimizer',
+  contract: 'landingOptimizer'
 };
 
 export function toolsForCapabilities(capabilities: readonly string[]): Tool[] {
@@ -56,10 +62,11 @@ export function toolsForCapabilities(capabilities: readonly string[]): Tool[] {
 
 export default function HomePage({ navigate }: { navigate: (path: string) => void }) {
   const { language, setLanguage, t } = useI18n();
-  const { connection, reconnect, capabilities } = useAgent();
+  const { connection, reconnect, capabilities, toolAvailable } = useAgent();
   const [help, setHelp] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [lockedTool, setLockedTool] = useState<Tool | null>(null);
+  const [setupTool, setSetupTool] = useState<Tool | null>(null);
   const panel = useRef<HTMLDivElement>(null);
   const connected = connection === 'connected';
   const tools = toolsForCapabilities(capabilities);
@@ -70,6 +77,9 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
       .querySelector('meta[name="description"]')
       ?.setAttribute('content', 'A collection of local Wishly tools for working with your files.');
     analytics.track('home_viewed', {});
+    for (const tool of tools) {
+      analytics.track('tool_impression', { tool_identifier: tool.id });
+    }
   }, []);
 
   useEffect(() => {
@@ -79,6 +89,7 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
   }, [notice]);
 
   const openTool = (tool: Tool) => {
+    analytics.track('tool_open_clicked', { tool_identifier: tool.id });
     if (tool.status !== 'active') {
       analytics.track('transcription_interest_clicked', { tool_identifier: 'transcription' });
       return;
@@ -89,8 +100,17 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
       setLockedTool(tool);
       return;
     }
-    if (connected && tool.route) navigate(tool.route);
-    else {
+    if (connected && tool.route && (!tool.contract || toolAvailable(tool.contract))) {
+      navigate(tool.route);
+    } else {
+      if (tool.contract) {
+        analytics.track(connected ? 'tool_blocked_incompatible' : 'blocked_action_attempted', {
+          tool_identifier: tool.id,
+          action_identifier: 'open_tool',
+          outcome: 'blocked'
+        });
+        setSetupTool(tool);
+      }
       panel.current?.focus();
       panel.current?.classList.remove('attention');
       requestAnimationFrame(() => panel.current?.classList.add('attention'));
@@ -130,7 +150,10 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
 
         <section className="tool-grid" aria-label={t('toolsTitle')}>
           {tools.map(tool => {
-            const available = tool.status === 'active' && connected;
+            const available =
+              tool.status === 'active' &&
+              connected &&
+              (!tool.contract || toolAvailable(tool.contract));
             return (
               <article
                 key={tool.id}
@@ -183,6 +206,13 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
             setLockedTool(null);
             if (connected && tool.route) navigate(tool.route);
           }}
+        />
+      )}
+      {setupTool?.contract && (
+        <LocalAppDialog
+          tool={setupTool.contract}
+          connection={connection}
+          onClose={() => setSetupTool(null)}
         />
       )}
     </div>

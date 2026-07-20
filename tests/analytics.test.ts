@@ -145,7 +145,7 @@ describe('privacy-minimized analytics', () => {
     const saved = storage.getItem('wishly.analytics.queue.v1') ?? '';
     expect(saved).not.toContain('file_name');
     expect(saved).not.toContain('private.mov');
-    expect(service.pendingCount()).toBe(1);
+    expect(service.pendingCount()).toBe(0);
   });
 
   it('never delivers a queued event under a different signed-in identity', () => {

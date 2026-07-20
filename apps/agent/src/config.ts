@@ -31,7 +31,8 @@ export const config = {
   buildNumber: releaseValue('AGENT_BUILD_NUMBER', BUILD_NUMBER),
   buildId: releaseValue('AGENT_BUILD_ID', BUILD_ID),
   channel: releaseValue('AGENT_RELEASE_CHANNEL', RELEASE_CHANNEL),
-  sourceRevision: releaseValue('AGENT_SOURCE_REVISION', 'development')
+  sourceRevision: releaseValue('AGENT_SOURCE_REVISION', 'development'),
+  installedReleasePath: process.env.AGENT_INSTALLED_RELEASE_PATH?.trim() || null
 };
 if (!Number.isInteger(config.port) || config.port < 1024 || config.port > 65535)
   throw new Error('AGENT_PORT must be a port from 1024 to 65535.');

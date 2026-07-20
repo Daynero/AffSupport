@@ -1,6 +1,6 @@
-# Wishly — macOS local video compression
+# Wishly — local tools for your files
 
-Wishly is a private local video compressor controlled from a browser. Videos are selected with native macOS dialogs, processed locally by FFmpeg through the Wishly Agent, and never uploaded.
+Wishly is a set of browser-controlled tools whose file processing happens in a local Wishly application. The browser provides the interface; supported files stay on the user’s computer. Release artifacts are platform-specific, so macOS today and Windows later use the same compatibility and update protocol.
 
 ## Run
 
@@ -37,7 +37,9 @@ All five variables are required; `scripts/package-mac.sh` aborts if any is missi
 
 ### Release and compatibility policy
 
-`packages/shared/src/release.ts` is the single Agent release manifest. The installable Agent and the hosted web UI have separate identities: every Agent binary gets a new immutable `PRODUCT_VERSION`/tag/artifact, while every Cloudflare Pages deployment is identified by its Git revision. A web-only hotfix can therefore be deployed without forcing testers to reinstall an unchanged Agent.
+`packages/shared/src/release.ts` defines product and tool contracts, while `apps/web/public/.well-known/wishly/stable.json` is the platform-aware stable release manifest. The installable local app and hosted UI have separate build identities. Compatibility is checked per tool, not inferred from a connection or a matching marketing version, and a newer development build is never offered a stable downgrade.
+
+When a new local build replaces the installed one, the running build enters update draining: it finishes the active batch, refuses new work, reports the pending target build, and only then restarts. An idle build can restart immediately. A web deployment may raise a tool’s minimum contract; incompatible tools are blocked before opening and explain installation or updating in a user-facing modal.
 
 Use these rules for every published change:
 

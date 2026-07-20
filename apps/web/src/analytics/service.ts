@@ -1,6 +1,6 @@
-import { PRODUCT_VERSION } from '@video-compressor/shared';
-import type { Json } from '../lib/database.types';
+import { PRODUCT_VERSION, type ToolContracts } from '@video-compressor/shared';
 import { getSupabaseClient } from '../lib/supabase';
+import type { Json } from '../lib/database.types';
 import {
   analyticsTool,
   isAnalyticsEventName,
@@ -10,25 +10,58 @@ import {
 } from './events';
 import { productSessionId } from './session';
 
-const QUEUE_KEY = 'wishly.analytics.queue.v1';
+const QUEUE_KEY = 'wishly.analytics.queue.v2';
+const LEGACY_QUEUE_KEY = 'wishly.analytics.queue.v1';
+const INSTALLATION_KEY = 'wishly.analytics.installation.v1';
 const MAX_QUEUE_SIZE = 40;
-const BATCH_SIZE = 8;
+const BATCH_SIZE = 25;
 const MAX_ATTEMPTS = 3;
+const WEB_BUILD_ID = import.meta.env.VITE_WEB_BUILD_ID || PRODUCT_VERSION;
 
 export type PendingAnalyticsEvent = {
+  event_id: string;
   event_name: AnalyticsEventName;
+  event_version: number;
+  occurred_at: string;
+  session_sequence: number;
   user_id: string;
   session_id: string;
+  installation_id: string;
   tool: string | null;
   properties: Record<string, Json>;
-  app_version: string;
-  agent_version: string | null;
+  web_build_id: string;
+  local_app_version: string | null;
+  local_app_build: string | null;
+  release_channel: string | null;
+  core_api_version: number | null;
+  tool_contracts: ToolContracts;
   locale: string | null;
   platform: string | null;
+  architecture: string | null;
+  event_source: 'web';
+  flow_id: string | null;
+  run_id: string | null;
+  feature: string | null;
+  screen: string | null;
+  action: string | null;
+  outcome: string | null;
+  error_code: string | null;
+  error_stage: string | null;
+  error_fingerprint: string | null;
   attempts: number;
 };
 
 type AnalyticsSender = (events: PendingAnalyticsEvent[]) => Promise<boolean>;
+
+function uuid() {
+  return (
+    globalThis.crypto?.randomUUID?.() ??
+    'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, character => {
+      const value = Math.floor(Math.random() * 16);
+      return (character === 'x' ? value : (value & 0x3) | 0x8).toString(16);
+    })
+  );
+}
 
 function readQueue(storage: Storage): PendingAnalyticsEvent[] {
   try {
@@ -37,36 +70,14 @@ function readQueue(storage: Storage): PendingAnalyticsEvent[] {
     return parsed
       .filter((event): event is PendingAnalyticsEvent => {
         if (!event || typeof event !== 'object') return false;
-        const candidate = event as PendingAnalyticsEvent;
+        const value = event as PendingAnalyticsEvent;
         return (
-          isAnalyticsEventName(candidate.event_name) &&
-          typeof candidate.user_id === 'string' &&
-          /^[0-9a-f-]{36}$/i.test(candidate.user_id) &&
-          typeof candidate.session_id === 'string' &&
-          /^[0-9a-f-]{36}$/i.test(candidate.session_id)
+          isAnalyticsEventName(value.event_name) &&
+          typeof value.event_id === 'string' &&
+          typeof value.user_id === 'string'
         );
       })
-      .map(event => {
-        const properties = sanitizeAnalyticsProperties(event.properties);
-        return {
-          event_name: event.event_name,
-          user_id: event.user_id,
-          session_id: event.session_id,
-          tool: analyticsTool(event.event_name, properties),
-          properties,
-          app_version: PRODUCT_VERSION,
-          agent_version:
-            typeof event.agent_version === 'string' ? event.agent_version.slice(0, 64) : null,
-          locale: event.locale === 'en' || event.locale === 'uk' ? event.locale : null,
-          platform: ['macos', 'windows', 'linux', 'other'].includes(event.platform ?? '')
-            ? event.platform
-            : null,
-          attempts:
-            Number.isInteger(event.attempts) && event.attempts >= 0
-              ? Math.min(event.attempts, MAX_ATTEMPTS)
-              : 0
-        };
-      })
+      .map(event => ({ ...event, properties: sanitizeAnalyticsProperties(event.properties) }))
       .slice(-MAX_QUEUE_SIZE);
   } catch {
     return [];
@@ -74,41 +85,69 @@ function readQueue(storage: Storage): PendingAnalyticsEvent[] {
 }
 
 function defaultStorage(): Storage | null {
-  return typeof window === 'undefined' ? null : window.sessionStorage;
+  return typeof window === 'undefined' ? null : window.localStorage;
+}
+
+function installationId(storage: Storage | null) {
+  const existing = storage?.getItem(INSTALLATION_KEY);
+  if (existing && /^[0-9a-f-]{36}$/i.test(existing)) return existing;
+  const created = uuid();
+  storage?.setItem(INSTALLATION_KEY, created);
+  return created;
 }
 
 async function sendWithSupabase(events: PendingAnalyticsEvent[]) {
   const supabase = getSupabaseClient();
   if (!supabase) return false;
-  const { error } = await supabase
-    .from('analytics_events')
-    .insert(events.map(({ attempts: _attempts, ...event }) => event));
+  const payload = events.map(({ attempts: _attempts, ...event }) => event);
+  const { data, error } = await supabase.rpc('ingest_analytics_events', {
+    p_events: payload as unknown as Json
+  });
   if (error) {
     console.warn('Wishly analytics delivery failed.');
     return false;
   }
-  return true;
+  return Array.isArray(data) && data.some(result => result.accepted === true);
 }
+
+type AgentAnalyticsContext = {
+  version: string | null;
+  buildId: string | null;
+  channel: string | null;
+  apiVersion: number | null;
+  toolContracts: ToolContracts;
+  platform: string | null;
+};
 
 export class ProductAnalytics {
   private userId: string | null = null;
   private locale: string | null = null;
-  private agentVersion: string | null = null;
-  private platform: string | null = null;
+  private context: AgentAnalyticsContext = {
+    version: null,
+    buildId: null,
+    channel: null,
+    apiVersion: null,
+    toolContracts: {},
+    platform: null
+  };
   private queue: PendingAnalyticsEvent[] = [];
   private timer: ReturnType<typeof setTimeout> | null = null;
   private flushing = false;
+  private sequence = 0;
   private readonly storage: Storage | null;
+  private readonly installationId: string;
 
   constructor(
     private readonly sender: AnalyticsSender = sendWithSupabase,
     storage: Storage | null = defaultStorage()
   ) {
     this.storage = storage;
-    if (storage) {
-      this.queue = readQueue(storage);
-      this.persist();
-    }
+    this.installationId = installationId(storage);
+    if (storage) this.queue = readQueue(storage);
+    // Old queue records do not contain the v2 identity envelope. Do not retry
+    // them, but remove the legacy copy so unsafe/tampered properties cannot
+    // linger indefinitely in browser storage.
+    storage?.removeItem(LEGACY_QUEUE_KEY);
   }
 
   setUser(userId: string | null) {
@@ -122,26 +161,51 @@ export class ProductAnalytics {
     this.locale = locale === 'en' || locale === 'uk' ? locale : null;
   }
 
-  setAgentContext(version: string | null, platform: string | null) {
-    this.agentVersion = version?.slice(0, 64) || null;
-    this.platform = ['macos', 'windows', 'linux', 'other'].includes(platform ?? '')
-      ? platform
-      : null;
+  setAgentContext(context: AgentAnalyticsContext) {
+    this.context = {
+      ...context,
+      version: context.version?.slice(0, 64) || null,
+      buildId: context.buildId?.slice(0, 96) || null,
+      channel: context.channel?.slice(0, 32) || null,
+      platform: ['macos', 'windows', 'linux', 'other'].includes(context.platform ?? '')
+        ? context.platform
+        : null
+    };
   }
 
   track<E extends AnalyticsEventName>(name: E, properties: AnalyticsEventProperties[E]) {
     if (!this.userId || typeof window === 'undefined') return;
     const sanitized = sanitizeAnalyticsProperties(properties);
     const event: PendingAnalyticsEvent = {
+      event_id: uuid(),
       event_name: name,
+      event_version: 1,
+      occurred_at: new Date().toISOString(),
+      session_sequence: ++this.sequence,
       user_id: this.userId,
       session_id: productSessionId(),
+      installation_id: this.installationId,
       tool: analyticsTool(name, sanitized),
       properties: sanitized,
-      app_version: PRODUCT_VERSION,
-      agent_version: this.agentVersion,
+      web_build_id: WEB_BUILD_ID,
+      local_app_version: this.context.version,
+      local_app_build: this.context.buildId,
+      release_channel: this.context.channel,
+      core_api_version: this.context.apiVersion,
+      tool_contracts: this.context.toolContracts,
       locale: this.locale,
-      platform: this.platform,
+      platform: this.context.platform,
+      architecture: broadArchitecture(),
+      event_source: 'web',
+      flow_id: safeUuid(sanitized.flow_id),
+      run_id: safeUuid(sanitized.run_id),
+      feature: safeString(sanitized.feature_identifier),
+      screen: safeString(sanitized.screen_identifier),
+      action: safeString(sanitized.action_identifier),
+      outcome: safeString(sanitized.outcome),
+      error_code: safeString(sanitized.error_code ?? sanitized.error_category),
+      error_stage: safeString(sanitized.error_stage),
+      error_fingerprint: safeString(sanitized.error_fingerprint),
       attempts: 0
     };
     this.queue = [...this.queue, event].slice(-MAX_QUEUE_SIZE);
@@ -160,20 +224,10 @@ export class ProductAnalytics {
     try {
       const delivered = batch.length > 0 && (await this.sender(batch));
       if (delivered) this.queue.splice(0, batch.length);
-      else {
-        const attempted = new Set(batch);
-        this.queue = this.queue
-          .map(event => (attempted.has(event) ? { ...event, attempts: event.attempts + 1 } : event))
-          .filter(event => event.attempts < MAX_ATTEMPTS);
-      }
+      else this.retry(batch);
       this.persist();
     } catch {
-      console.warn('Wishly analytics delivery failed.');
-      this.queue = this.queue
-        .map((event, index) =>
-          index < batch.length ? { ...event, attempts: event.attempts + 1 } : event
-        )
-        .filter(event => event.attempts < MAX_ATTEMPTS);
+      this.retry(batch);
       this.persist();
     } finally {
       this.flushing = false;
@@ -184,9 +238,17 @@ export class ProductAnalytics {
     return this.queue.length;
   }
 
+  private retry(batch: PendingAnalyticsEvent[]) {
+    const attempted = new Set(batch.map(event => event.event_id));
+    this.queue = this.queue
+      .map(event =>
+        attempted.has(event.event_id) ? { ...event, attempts: event.attempts + 1 } : event
+      )
+      .filter(event => event.attempts < MAX_ATTEMPTS);
+  }
+
   private scheduleFlush() {
-    if (this.timer) return;
-    this.timer = setTimeout(() => void this.flush(), 1200);
+    if (!this.timer) this.timer = setTimeout(() => void this.flush(), 1200);
   }
 
   private persist() {
@@ -194,8 +256,27 @@ export class ProductAnalytics {
   }
 }
 
-export const analytics = new ProductAnalytics();
+function broadArchitecture() {
+  if (typeof navigator === 'undefined') return null;
+  return /arm64|aarch64/i.test(navigator.userAgent)
+    ? 'arm64'
+    : /x86_64|win64|x64/i.test(navigator.userAgent)
+      ? 'x64'
+      : 'unknown';
+}
 
+function safeString(value: Json | undefined): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+function safeUuid(value: Json | undefined): string | null {
+  return typeof value === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+    ? value
+    : null;
+}
+
+export const analytics = new ProductAnalytics();
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => void analytics.flush());
   document.addEventListener('visibilitychange', () => {

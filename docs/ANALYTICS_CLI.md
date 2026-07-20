@@ -30,27 +30,38 @@ for the built-in reference.
 
 ## Commands
 
-| Command        | What it returns                                                                                                                                                                                                  |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `overview`     | Users (total/new/active), sessions, events, tool opens, batches, videos, and top locales/platforms/app & agent versions.                                                                                         |
-| `compressor`   | Compressor funnel + sizes: unique users, opens, videos added, started/completed/failed, started-without-completion, batches, total/average sizes, saved bytes, success rate, average saving %, average duration. |
-| `users`        | Total/new/active users and the most recently active users.                                                                                                                                                       |
-| `top-users`    | Ranking of users, `--by compressions` (default) or `--by activity`.                                                                                                                                              |
-| `user <email>` | Full all-time detail for one user: ids, registration, last login/activity, sessions, tool usage, compression count, and a recent-events timeline.                                                                |
-| `tools`        | Per-tool opens, unique users, starts, completions.                                                                                                                                                               |
-| `events`       | Breakdown by `event_name`: count and unique users.                                                                                                                                                               |
-| `funnel`       | Compressor conversion funnel by unique users: tool_opened → videos_added → compression_started → compression_completed, with conversion rates.                                                                   |
+| Command                  | What it returns                                                                                                                                                                                                  |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `overview`               | Users (total/new/active), sessions, events, tool opens, batches, videos, and top locales/platforms/app & agent versions.                                                                                         |
+| `compressor`             | Compressor funnel + sizes: unique users, opens, videos added, started/completed/failed, started-without-completion, batches, total/average sizes, saved bytes, success rate, average saving %, average duration. |
+| `users`                  | Total/new/active users and the most recently active users.                                                                                                                                                       |
+| `top-users`              | Ranking of users, `--by compressions` (default) or `--by activity`.                                                                                                                                              |
+| `user <email>`           | Full all-time detail for one user: ids, registration, last login/activity, sessions, tool usage, compression count, and a recent-events timeline.                                                                |
+| `tools`                  | Per-tool opens, unique users, starts, completions.                                                                                                                                                               |
+| `events`                 | Breakdown by `event_name`: count and unique users.                                                                                                                                                               |
+| `funnel`                 | Compressor conversion funnel by unique users: tool_opened → videos_added → compression_started → compression_completed, with conversion rates.                                                                   |
+| `onboarding`             | First-run, install, pairing, and first-tool funnel.                                                                                                                                                              |
+| `updates`                | Update prompt, download, draining, restart, completion, and failure stages.                                                                                                                                      |
+| `errors`                 | Error clusters by code, stage, fingerprint, tool, and local-app version.                                                                                                                                         |
+| `friction`               | Sessions that opened without input, never started, never reached an outcome, or failed without recovery.                                                                                                         |
+| `features`               | Feature impressions, interactions, successful operations, and unique users.                                                                                                                                      |
+| `journey <email>`        | Ordered per-user diagnostic timeline with builds, installation, session, run, and sanitized properties.                                                                                                          |
+| `run <uuid>`             | Complete ordered timeline for one operation.                                                                                                                                                                     |
+| `diagnose <fingerprint>` | All matching occurrences of one normalized error.                                                                                                                                                                |
+| `cohorts`                | Success/failure comparison by local-app version, platform, or web build (`--cohort-by`).                                                                                                                         |
+| `retention`              | Registered users active again after 1, 7, and 30 days.                                                                                                                                                           |
 
 ### Options
 
-| Option         | Meaning                                                               |
-| -------------- | --------------------------------------------------------------------- |
-| `--period <t>` | `today`, `7d`, `30d`, `90d`, or `all`. Default `7d`.                  |
-| `--days <n>`   | Rolling window of N days. Overrides `--period`.                       |
-| `--by <field>` | `top-users` only: `compressions` (default) or `activity`.             |
-| `--limit <n>`  | Row limit for list commands (default 10; `user` timeline default 20). |
-| `--json`       | Emit only stable JSON. Without it, a human-readable table is printed. |
-| `-h`, `--help` | Show usage.                                                           |
+| Option            | Meaning                                                               |
+| ----------------- | --------------------------------------------------------------------- |
+| `--period <t>`    | `today`, `7d`, `30d`, `90d`, or `all`. Default `7d`.                  |
+| `--days <n>`      | Rolling window of N days. Overrides `--period`.                       |
+| `--by <field>`    | `top-users` only: `compressions` (default) or `activity`.             |
+| `--limit <n>`     | Row limit for list commands (default 10; `user` timeline default 20). |
+| `--cohort-by <v>` | `local-app-version` (default), `platform`, or `web-build`.            |
+| `--json`          | Emit only stable JSON. Without it, a human-readable table is printed. |
+| `-h`, `--help`    | Show usage.                                                           |
 
 Period windows: `today` starts at UTC midnight; `7d/30d/90d` and `--days N` are
 rolling windows ending "now"; `all` has no lower bound. The end bound is
@@ -85,9 +96,11 @@ source of truth for the JSON contract.
 The CLI reads two objects in the production `public` schema:
 
 - **`analytics_events`** — the first-party, allowlisted product event stream
-  (`event_name`, `session_id`, `tool`, `properties` jsonb, `app_version`,
-  `agent_version`, `locale`, `platform`, `created_at`). Defined in
-  `supabase/migrations/20260718211000_analytics.sql`.
+  Event v2 adds idempotent event IDs, occurrence time and ordering, installation,
+  flow/run IDs, web and local-app build identities, platform/architecture,
+  per-tool contracts, and normalized errors. Raw files, paths, content, and logs
+  remain excluded. Defined by the original analytics migration and
+  `20260720130000_analytics_v2.sql`.
 - **`analytics_users`** — a privacy-scoped view over `profiles` (+ `auth.users`
   for last-login only) created by
   `supabase/migrations/20260719130000_analytics_readonly.sql`. Exposes id, email,

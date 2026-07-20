@@ -11,7 +11,8 @@ import {
   PRODUCTION_SITE_ORIGIN,
   RELEASE_ARTIFACT_NAME,
   RELEASE_DOWNLOAD_URL,
-  RELEASE_TAG
+  RELEASE_TAG,
+  WEB_TOOL_REQUIREMENTS
 } from '../packages/shared/dist/release.js';
 
 function fail(message) {
@@ -45,6 +46,35 @@ if (
 }
 if (!RELEASE_DOWNLOAD_URL.endsWith(`/${RELEASE_TAG}/${RELEASE_ARTIFACT_NAME}`)) {
   fail('download URL does not match the tag and artifact name');
+}
+
+const stableManifest = JSON.parse(
+  readFileSync('apps/web/public/.well-known/wishly/stable.json', 'utf8')
+);
+if (
+  stableManifest.schemaVersion !== 1 ||
+  stableManifest.channel !== 'stable' ||
+  stableManifest.version !== PRODUCT_VERSION ||
+  stableManifest.buildNumber !== BUILD_NUMBER ||
+  stableManifest.buildId !== BUILD_ID ||
+  stableManifest.apiVersion !== AGENT_API_VERSION
+) {
+  fail('stable release manifest does not identify the build being verified');
+}
+if (JSON.stringify(stableManifest.toolRequirements) !== JSON.stringify(WEB_TOOL_REQUIREMENTS)) {
+  fail('stable release manifest tool requirements differ from the web contract');
+}
+const primaryArtifact = stableManifest.artifacts?.['macos-arm64'];
+if (!primaryArtifact || primaryArtifact.url !== RELEASE_DOWNLOAD_URL) {
+  fail('stable release manifest does not point at the immutable primary artifact');
+}
+for (const [platform, artifact] of Object.entries(stableManifest.artifacts ?? {})) {
+  if (!['macos-arm64', 'macos-x64', 'windows-x64'].includes(platform)) {
+    fail(`stable release manifest contains unsupported platform ${platform}`);
+  }
+  if (!artifact?.url?.startsWith('https://') || !(`sha256` in artifact)) {
+    fail(`stable release manifest artifact ${platform} is incomplete`);
+  }
 }
 
 const productionEnv = readFileSync('config/production.env', 'utf8');

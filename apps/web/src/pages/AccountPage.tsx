@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react';
-import { PRODUCT_VERSION, RELEASE_DOWNLOAD_URL } from '@video-compressor/shared';
 import { useAuth } from '../auth/AuthContext';
 import { analytics } from '../analytics/service';
 import { useAgent } from '../AgentContext';
 import { Button, Checkbox } from '../components/ui';
 import { UserAvatar } from '../components/UserAvatar';
 import { useI18n, type Language } from '../i18n';
+import { installedReleaseStatus, releaseArtifact } from '../release-manifest';
 
 export default function AccountPage() {
   const { profile, user, updateProfile, signOut } = useAuth();
-  const { agentVersion } = useAgent();
+  const { agentVersion, agentChannel, platform, releaseManifest, toolAvailable } = useAgent();
   const { language: currentLanguage, setLanguage, t } = useI18n();
   const [displayName, setDisplayName] = useState(profile?.display_name ?? '');
   const [language, setFormLanguage] = useState<Language>(profile?.language ?? currentLanguage);
@@ -23,6 +23,26 @@ export default function AccountPage() {
   }, [t]);
 
   if (!profile || !user) return null;
+
+  const releaseStatus = installedReleaseStatus({
+    manifest: releaseManifest?.manifest ?? null,
+    installedVersion: agentVersion,
+    installedChannel: agentChannel,
+    compatible: toolAvailable?.('compressor') ?? true
+  });
+  const artifact = releaseArtifact(releaseManifest?.manifest ?? null, platform);
+  const releaseNote =
+    releaseStatus === 'latest'
+      ? t('latestVersion')
+      : releaseStatus === 'update_available'
+        ? t('updateAvailable')
+        : releaseStatus === 'update_required'
+          ? t('agentUpdateRequired')
+          : releaseStatus === 'development'
+            ? t('developmentVersion')
+            : releaseStatus === 'newer'
+              ? t('newerVersion')
+              : t('versionCheckUnavailable');
 
   const save = async () => {
     setSaving(true);
@@ -104,18 +124,14 @@ export default function AccountPage() {
         <dl className="account-details">
           <Detail label={t('email')} value={profile.email ?? t('notAvailable')} />
           <div>
-            <dt>{t('agentVersion')}</dt>
+            <dt>{t('localAppVersion')}</dt>
             <dd>
               {agentVersion ?? t('notAvailable')}
-              {agentVersion === PRODUCT_VERSION ? (
-                <span className="agent-version-note"> ({t('latestVersion')})</span>
-              ) : (
+              <span className="agent-version-note"> ({releaseNote})</span>
+              {artifact && ['update_available', 'update_required'].includes(releaseStatus) && (
                 <span className="agent-version-note">
-                  {' ('}
-                  <a href={RELEASE_DOWNLOAD_URL}>
-                    {agentVersion ? t('updateAgent') : t('downloadShort')}
-                  </a>
-                  {')'}
+                  {' · '}
+                  <a href={artifact.url}>{t('updateWishly')}</a>
                 </span>
               )}
             </dd>

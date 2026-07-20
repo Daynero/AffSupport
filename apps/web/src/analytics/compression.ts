@@ -34,6 +34,7 @@ export function safeCompressionProperties(job: CompressionJob) {
       ? undefined
       : ((job.originalSize - job.finalSize) / job.originalSize) * 100;
   return {
+    run_id: job.id,
     video_count: 1,
     total_input_bytes: Math.max(0, job.originalSize),
     ...(job.finalSize === null ? {} : { total_output_bytes: Math.max(0, job.finalSize) }),
@@ -51,8 +52,13 @@ export function safeCompressionProperties(job: CompressionJob) {
   };
 }
 
-export function safeBatchProperties(settings: AgentSettings, jobs: CompressionJob[]) {
+export function safeBatchProperties(
+  settings: AgentSettings,
+  jobs: CompressionJob[],
+  runId?: string
+) {
   return {
+    ...(runId ? { run_id: runId } : {}),
     video_count: jobs.length,
     total_input_bytes: jobs.reduce((total, job) => total + Math.max(0, job.originalSize), 0),
     mode: settings.mode,

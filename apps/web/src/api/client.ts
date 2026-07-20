@@ -3,7 +3,8 @@ import type {
   ImageSlot,
   LandingState,
   QueueState,
-  SelectionResponse
+  SelectionResponse,
+  ToolContracts
 } from '@video-compressor/shared';
 import { agentFetchOptions, pairingPath, probeAgent, versionState } from '../connection';
 
@@ -50,8 +51,11 @@ export function pairWithAgent() {
 export async function connect(signal?: AbortSignal): Promise<{
   state: QueueState | null;
   version: string;
+  buildId: string;
+  channel: string;
   apiVersion: number;
   capabilities: string[];
+  toolContracts: ToolContracts;
 }> {
   if (!token) {
     await probeAgent(agentUrl, location.origin, signal);
@@ -64,11 +68,21 @@ export async function connect(signal?: AbortSignal): Promise<{
   );
   const apiVersion = health.apiVersion ?? 0;
   const capabilities = Array.isArray(health.capabilities) ? health.capabilities : [];
+  const { normalizeToolContracts } = await import('@video-compressor/shared');
+  const toolContracts = normalizeToolContracts(health.toolContracts, capabilities, apiVersion);
   const state =
     versionState(apiVersion) === 'connected'
       ? await request<QueueState>('/api/queue', 'GET', signal)
       : null;
-  return { state, version: health.version, apiVersion, capabilities };
+  return {
+    state,
+    version: health.version,
+    buildId: health.buildId ?? '',
+    channel: health.channel ?? 'unknown',
+    apiVersion,
+    capabilities,
+    toolContracts
+  };
 }
 export function eventUrl() {
   return `${agentUrl}/api/events?token=${encodeURIComponent(token)}`;

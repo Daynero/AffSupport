@@ -31,6 +31,13 @@ import {
   formatCompressor,
   formatEvents,
   formatFunnel,
+  formatCohorts,
+  formatErrors,
+  formatFeatures,
+  formatFriction,
+  formatJourney,
+  formatRetention,
+  formatStages,
   formatOverview,
   formatTools,
   formatTopUsers,
@@ -42,6 +49,16 @@ import {
   getCompressor,
   getEvents,
   getFunnel,
+  getCohorts,
+  getErrors,
+  getFeatures,
+  getFriction,
+  getJourney,
+  getOnboarding,
+  getRetention,
+  getRun,
+  getUpdates,
+  diagnoseFingerprint,
   getOverview,
   getTools,
   getTopUsers,
@@ -57,6 +74,7 @@ interface ParsedArgs {
   days?: number;
   by?: string;
   limit?: number;
+  cohortBy?: string;
   json: boolean;
   help: boolean;
 }
@@ -74,12 +92,23 @@ Commands:
   tools               Per-tool usage
   events              Event-name breakdown
   funnel              Compressor conversion funnel
+  onboarding          First-run and pairing funnel
+  updates             Update discovery and completion funnel
+  errors              Error clusters by stage/build/fingerprint
+  friction            Sessions where users became stuck
+  features            Feature discovery and use
+  journey <email>     Ordered diagnostic timeline for one user
+  run <uuid>          Timeline for one operation
+  diagnose <id>       Events matching an error fingerprint
+  cohorts             Compare versions/platforms/builds
+  retention           Return activity after registration
 
 Options:
   --period <t>   today | 7d | 30d | 90d | all  (default 7d)
   --days <n>     rolling N-day window (overrides --period)
   --by <field>   top-users: activity | compressions (default compressions)
   --limit <n>    row limit (default 10)
+  --cohort-by <v> local-app-version | platform | web-build
   --json         machine-readable JSON only
   -h, --help     this help
 
@@ -113,6 +142,9 @@ function parseArgs(argv: string[]): ParsedArgs {
         break;
       case '--limit':
         parsed.limit = Number(rest.shift());
+        break;
+      case '--cohort-by':
+        parsed.cohortBy = rest.shift();
         break;
       default:
         if (token.startsWith('--')) throw new Error(`Unknown option: ${token}`);
@@ -208,6 +240,66 @@ async function run(args: ParsedArgs): Promise<void> {
     case 'funnel': {
       const data = await getFunnel(period);
       emit(args, command, period, data, formatFunnel(data, period));
+      break;
+    }
+    case 'onboarding': {
+      const data = await getOnboarding(period);
+      emit(args, command, period, data, formatStages('Onboarding', data, period));
+      break;
+    }
+    case 'updates': {
+      const data = await getUpdates(period);
+      emit(args, command, period, data, formatStages('Updates', data, period));
+      break;
+    }
+    case 'errors': {
+      const data = await getErrors(period, args.limit ?? 50);
+      emit(args, command, period, data, formatErrors(data, period));
+      break;
+    }
+    case 'friction': {
+      const data = await getFriction(period);
+      emit(args, command, period, data, formatFriction(data, period));
+      break;
+    }
+    case 'features': {
+      const data = await getFeatures(period);
+      emit(args, command, period, data, formatFeatures(data, period));
+      break;
+    }
+    case 'journey': {
+      const email = args.positional[0];
+      if (!email) fail(args, command, 'Missing email. Usage: journey <email>');
+      const data = await getJourney(email, args.limit ?? 200);
+      emit(args, command, period, data, formatJourney(`Journey · ${email}`, data));
+      break;
+    }
+    case 'run': {
+      const runId = args.positional[0];
+      if (!runId) fail(args, command, 'Missing run id. Usage: run <uuid>');
+      const data = await getRun(runId, args.limit ?? 500);
+      emit(args, command, period, data, formatJourney(`Run · ${runId}`, data));
+      break;
+    }
+    case 'diagnose': {
+      const fingerprint = args.positional[0];
+      if (!fingerprint) fail(args, command, 'Missing fingerprint. Usage: diagnose <fingerprint>');
+      const data = await diagnoseFingerprint(fingerprint, args.limit ?? 200);
+      emit(args, command, period, data, formatJourney(`Error · ${fingerprint}`, data));
+      break;
+    }
+    case 'cohorts': {
+      const cohortBy =
+        args.cohortBy === 'platform' || args.cohortBy === 'web-build'
+          ? args.cohortBy
+          : 'local-app-version';
+      const data = await getCohorts(period, cohortBy);
+      emit(args, command, period, data, formatCohorts(data, period));
+      break;
+    }
+    case 'retention': {
+      const data = await getRetention(period);
+      emit(args, command, period, data, formatRetention(data, period));
       break;
     }
     default:

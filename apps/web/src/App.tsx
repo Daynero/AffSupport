@@ -249,7 +249,8 @@ export default function CompressorPage() {
         'compression_batch_started',
         safeBatchProperties(
           state.settings,
-          state.jobs.filter(job => ids.includes(job.id))
+          state.jobs.filter(job => ids.includes(job.id)),
+          next.batch?.id
         )
       );
       setSelected(current => {

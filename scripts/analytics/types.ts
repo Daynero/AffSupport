@@ -139,3 +139,67 @@ export interface FunnelStage {
   conversion_from_previous: number | null;
   conversion_from_start: number | null;
 }
+
+export interface StageMetric {
+  stage: string;
+  events: number;
+  users: number;
+}
+
+export interface ErrorCluster {
+  error_code: string;
+  error_stage: string;
+  error_fingerprint: string;
+  tool: string;
+  local_app_version: string;
+  occurrences: number;
+  users: number;
+  recovered: number;
+  last_seen_at: string;
+}
+
+export interface FrictionSignal {
+  signal: string;
+  users: number;
+  sessions: number;
+}
+
+export interface FeatureMetric {
+  feature: string;
+  impressions: number;
+  interactions: number;
+  successful_operations: number;
+  unique_users: number;
+}
+
+export interface JourneyEvent {
+  event_id: string;
+  occurred_at: string;
+  session_sequence: number | null;
+  session_id: string | null;
+  installation_id: string | null;
+  run_id: string | null;
+  event_name: string;
+  tool: string | null;
+  local_app_version: string | null;
+  local_app_build: string | null;
+  web_build_id: string | null;
+  platform: string | null;
+  architecture: string | null;
+  properties: Record<string, unknown>;
+}
+
+export interface CohortMetric {
+  cohort: string;
+  users: number;
+  events: number;
+  successes: number;
+  failures: number;
+}
+
+export interface RetentionMetric {
+  registered_users: number;
+  active_after_1d: number;
+  active_after_7d: number;
+  active_after_30d: number;
+}

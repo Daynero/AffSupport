@@ -52,7 +52,9 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
       if (event.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', onKeyDown);
-    requestAnimationFrame(() => dialog.current?.querySelector<HTMLElement>('textarea, a, button')?.focus());
+    requestAnimationFrame(() =>
+      dialog.current?.querySelector<HTMLElement>('textarea, a, button')?.focus()
+    );
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [onClose]);
 
@@ -83,7 +85,12 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
         aria-modal="true"
         aria-labelledby={titleId}
       >
-        <button type="button" className="support-close" aria-label={t('supportClose')} onClick={onClose}>
+        <button
+          type="button"
+          className="support-close"
+          aria-label={t('supportClose')}
+          onClick={onClose}
+        >
           ✕
         </button>
 
@@ -113,7 +120,11 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
                 <div className="support-crypto">
                   <p className="support-note">{t('supportCryptoNote')}</p>
                   {activeCryptoWallets.map(wallet => (
-                    <CryptoRow key={wallet.network} network={wallet.network} address={wallet.address} />
+                    <CryptoRow
+                      key={wallet.network}
+                      network={wallet.network}
+                      address={wallet.address}
+                    />
                   ))}
                 </div>
               )}
@@ -175,9 +186,12 @@ function CryptoRow({ network, address }: { network: string; address: string }) {
     };
   }, [address]);
 
-  useEffect(() => () => {
-    if (timer.current) clearTimeout(timer.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    []
+  );
 
   const copy = async () => {
     try {
