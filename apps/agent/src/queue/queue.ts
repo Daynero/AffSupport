@@ -24,7 +24,7 @@ import {
 } from '@video-compressor/shared';
 import { encodeVideo, isAudioCopyFailure, type EncodeEmbeddingOptions } from '../ffmpeg/encoder.js';
 import { probeMedia, type MediaInfo } from '../ffmpeg/tools.js';
-import { appearsCompressed, fileSize, nextOutputPath } from '../files/paths.js';
+import { fileSize, nextOutputPath } from '../files/paths.js';
 import {
   freezeImageEmbedding,
   outputDimensions,
@@ -454,24 +454,15 @@ export class JobQueue {
       return issue(fileName, 'unsupported-format', 'This file format is not supported.');
     }
 
+    // Re-adding a file that is already in the list is still rejected, but a
+    // video that merely looks already-compressed can be re-compressed freely.
     const duplicate = this.jobs.some(job =>
       options.sourceKey
         ? job.sourceKey === options.sourceKey
         : path.resolve(job.inputPath) === canonical
     );
-    const reason = duplicate
-      ? 'duplicate'
-      : appearsCompressed(fileName)
-        ? 'already-compressed'
-        : null;
-    if (reason && !allowWarnings) {
-      return issue(
-        fileName,
-        reason,
-        reason === 'duplicate'
-          ? 'This video is already in the list.'
-          : 'This video appears to be already compressed.'
-      );
+    if (duplicate && !allowWarnings) {
+      return issue(fileName, 'duplicate', 'This video is already in the list.');
     }
 
     try {
