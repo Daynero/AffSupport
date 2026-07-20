@@ -390,8 +390,8 @@ export interface HealthResponse {
   update?: QueueState['update'];
 }
 
-/** Capabilities advertised by an agent that includes the Landing Optimizer. */
-export const AGENT_CAPABILITIES = ['landing'] as const;
+/** Optional capabilities advertised by the local agent. */
+export const AGENT_CAPABILITIES = ['landing', 'local-file-paths'] as const;
 export interface SessionResponse {
   token: string;
 }

@@ -38,6 +38,7 @@ import {
 import { EstimationWorker } from './estimate/worker.js';
 import { selectOutputFolder, selectVideos } from './files/picker.js';
 import { applicationSupportRoot } from './files/support-dir.js';
+import { findDroppedSource } from './files/dropped-source.js';
 import { commandExists, ffmpegPath, ffprobePath } from './ffmpeg/tools.js';
 import { allowedOrigins, config } from './config.js';
 import { eventStreamHeaders } from './http.js';
@@ -207,6 +208,22 @@ app.post('/api/files/select', async (_request, reply) => {
   return { state: queue.state(), warnings };
 });
 
+// Finder drops can include a file:// URL. Retain that source path rather than
+// importing a copy, so "next to originals" really means next to the original.
+app.post<{ Body: { paths?: unknown } }>('/api/files/add', async (request, reply) => {
+  const paths = request.body?.paths;
+  if (!Array.isArray(paths) || paths.some(value => typeof value !== 'string')) {
+    return reply.code(400).send({ error: 'Invalid file paths.' });
+  }
+  const localPaths = paths
+    .filter(value => path.isAbsolute(value))
+    .map(value => path.resolve(value));
+  if (!localPaths.length)
+    return reply.code(400).send({ error: 'No local file paths were provided.' });
+  const warnings = await queue.add(localPaths);
+  return { state: queue.state(), warnings };
+});
+
 app.post('/api/files/upload', async (request, reply) => {
   const part = await request.file();
   if (!part) return reply.code(400).send({ error: 'No file was provided.' });
@@ -216,6 +233,18 @@ app.post('/api/files/upload', async (request, reply) => {
     signatureField && 'value' in signatureField && typeof signatureField.value === 'string'
       ? signatureField.value
       : `${fileName}:${Date.now()}`;
+  const sizeField = part.fields.size;
+  const modifiedField = part.fields.lastModified;
+  const sourceSize = Number(
+    sizeField && 'value' in sizeField && typeof sizeField.value === 'string'
+      ? sizeField.value
+      : Number.NaN
+  );
+  const sourceModifiedAt = Number(
+    modifiedField && 'value' in modifiedField && typeof modifiedField.value === 'string'
+      ? modifiedField.value
+      : Number.NaN
+  );
   if (!isSupportedVideoPath(fileName)) {
     part.file.resume();
     return {
@@ -229,6 +258,13 @@ app.post('/api/files/upload', async (request, reply) => {
         }
       ]
     };
+  }
+
+  const droppedSource = await findDroppedSource(fileName, sourceSize, sourceModifiedAt);
+  if (droppedSource) {
+    part.file.resume();
+    const warnings = await queue.add([droppedSource]);
+    return { state: queue.state(), warnings };
   }
 
   const importRoot =

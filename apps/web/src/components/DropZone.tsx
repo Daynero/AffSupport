@@ -7,6 +7,7 @@ export function DropZone({
   importing,
   chooseFiles,
   addDroppedFiles,
+  addDroppedFilePaths,
   onDropData,
   title,
   formats,
@@ -18,6 +19,7 @@ export function DropZone({
   importing: boolean;
   chooseFiles: () => void;
   addDroppedFiles: (files: File[]) => void;
+  addDroppedFilePaths?: (paths: string[]) => void;
   /** When provided, the raw transfer is handed over (e.g. to read folders). */
   onDropData?: (data: DataTransfer) => void;
   title?: string;
@@ -47,6 +49,11 @@ export function DropZone({
     if (disabled) return;
     if (onDropData) {
       onDropData(event.dataTransfer);
+      return;
+    }
+    const paths = droppedFilePaths(event.dataTransfer);
+    if (paths.length && addDroppedFilePaths) {
+      addDroppedFilePaths(paths);
       return;
     }
     const files = droppedFiles(event.dataTransfer.files);
@@ -91,4 +98,26 @@ export function DropZone({
 
 export function droppedFiles(files: ArrayLike<File>): File[] {
   return Array.from(files);
+}
+
+/** Extract Finder's source paths when the browser exposes the file URI list. */
+export function droppedFilePaths(data: DataTransfer): string[] {
+  let uriList: string;
+  try {
+    uriList = data.getData('text/uri-list');
+  } catch {
+    return [];
+  }
+  return uriList
+    .split(/\r?\n/)
+    .filter(value => value && !value.startsWith('#'))
+    .flatMap(value => {
+      try {
+        const url = new URL(value);
+        if (url.protocol !== 'file:' || (url.hostname && url.hostname !== 'localhost')) return [];
+        return [decodeURIComponent(url.pathname)];
+      } catch {
+        return [];
+      }
+    });
 }

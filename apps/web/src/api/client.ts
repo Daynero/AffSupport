@@ -118,11 +118,17 @@ export async function request<T>(url: string, method = 'GET', signal?: AbortSign
   }
   return assertOk(response) as Promise<T>;
 }
-export async function requestBody<T>(url: string, body: unknown, method = 'POST'): Promise<T> {
+export async function requestBody<T>(
+  url: string,
+  body: unknown,
+  method = 'POST',
+  signal?: AbortSignal
+): Promise<T> {
   const response = await fetch(agentUrl + url, {
     method,
     headers: { 'x-session-token': token, 'content-type': 'application/json' },
     body: JSON.stringify(body),
+    signal,
     ...privateNetworkInit
   });
   return assertOk(response) as Promise<T>;
@@ -130,6 +136,8 @@ export async function requestBody<T>(url: string, body: unknown, method = 'POST'
 export async function uploadFile(file: File): Promise<SelectionResponse> {
   const body = new FormData();
   body.append('signature', `${file.name}:${file.size}:${file.lastModified}`);
+  body.append('size', String(file.size));
+  body.append('lastModified', String(file.lastModified));
   body.append('file', file, file.name);
   let response: Response;
   try {
@@ -143,6 +151,14 @@ export async function uploadFile(file: File): Promise<SelectionResponse> {
     throw new Error('CONNECTION_FAILED', { cause: error });
   }
   return assertOk(response) as Promise<SelectionResponse>;
+}
+export function addLocalFiles(paths: string[]): Promise<SelectionResponse> {
+  return requestBody<SelectionResponse>(
+    '/api/files/add',
+    { paths },
+    'POST',
+    AbortSignal.timeout(10_000)
+  );
 }
 export async function uploadImage(slot: ImageSlot, file: File): Promise<QueueState> {
   const body = new FormData();

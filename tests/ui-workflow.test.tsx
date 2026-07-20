@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { jobConfigurationKey } from '../packages/shared/src/types.js';
-import { droppedFiles, DropZone } from '../apps/web/src/components/DropZone';
+import { droppedFilePaths, droppedFiles, DropZone } from '../apps/web/src/components/DropZone';
 import { JobRow } from '../apps/web/src/components/JobRow';
 import { SettingsPanel } from '../apps/web/src/components/SettingsPanel';
 import {
@@ -139,6 +139,23 @@ describe('drop zone and list selection', () => {
     expect(droppedFiles({ 0: one, 1: two, length: 2 })).toEqual([one, two]);
     expect(isSupportedVideoPath(one.name)).toBe(true);
     expect(isSupportedVideoPath('notes.txt')).toBe(false);
+  });
+
+  it('retains local Finder paths from a file URI drop', () => {
+    const data = {
+      getData: () =>
+        'file:///Users/daynero/Downloads/HR17%2Be_compressed.mp4\nhttps://example.com/video.mp4'
+    } as DataTransfer;
+    expect(droppedFilePaths(data)).toEqual(['/Users/daynero/Downloads/HR17+e_compressed.mp4']);
+  });
+
+  it('falls back to uploaded files when the browser blocks URI access', () => {
+    const data = {
+      getData: () => {
+        throw new DOMException('Blocked');
+      }
+    } as unknown as DataTransfer;
+    expect(droppedFilePaths(data)).toEqual([]);
   });
 
   it('renders a keyboard-focusable multiple-file drop target', () => {

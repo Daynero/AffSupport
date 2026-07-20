@@ -14,6 +14,7 @@ import {
   markAgentInstallStarted,
   request,
   requestBody,
+  addLocalFiles,
   uploadImage as uploadImageAsset,
   uploadFile
 } from './api/client';
@@ -56,7 +57,7 @@ interface ToastMessage {
 
 export default function CompressorPage() {
   const { language, setLanguage, t } = useI18n();
-  const { state, setState, connection, connectedOnce, reconnect } = useAgent();
+  const { state, setState, connection, connectedOnce, reconnect, capabilities } = useAgent();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
   const [importing, setImporting] = useState(false);
@@ -232,6 +233,29 @@ export default function CompressorPage() {
     }
   };
 
+  const addDroppedFilePaths = async (paths: string[]) => {
+    if (!paths.length) return;
+    setImporting(true);
+    const known = new Set(state.jobs.map(job => job.id));
+    try {
+      const result = await addLocalFiles(paths);
+      setState(result.state);
+      selectNewJobs(known, result.state, setSelected);
+      const added = result.state.jobs.filter(job => !known.has(job.id));
+      if (added.length) {
+        analytics.track('videos_added', {
+          video_count: added.length,
+          total_input_bytes: added.reduce((total, job) => total + job.originalSize, 0)
+        });
+      }
+      showSelectionWarnings(result.warnings, t, addToast);
+    } catch (error) {
+      handleError(error);
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const startSelected = async () => {
     const ids = readySelectedIds(state.jobs, selected);
     if (
@@ -392,6 +416,11 @@ export default function CompressorPage() {
             importing={importing}
             chooseFiles={() => void selectNativeFiles()}
             addDroppedFiles={files => void addDroppedFiles(files)}
+            addDroppedFilePaths={
+              capabilities.includes('local-file-paths')
+                ? paths => void addDroppedFilePaths(paths)
+                : undefined
+            }
             t={t}
           />
           <p>{t('processedLocally')}</p>
