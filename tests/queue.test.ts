@@ -56,6 +56,20 @@ describe('queue file handling', () => {
     expect(warnings[0].reason).toBe('duplicate');
     expect(queue.state().jobs).toHaveLength(1);
   });
+
+  it('keeps dropped files next to their imported original when that output mode is selected', async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), 'queue-uploaded-output-'));
+    const video = path.join(directory, 'clip.mp4');
+    await writeFile(video, 'not a real video');
+    const queue = new JobQueue({ ffmpeg: false, ffprobe: false }, () => {}, [], {
+      ...optimalSettings,
+      outputMode: 'next-to-originals',
+      outputFolder: null
+    });
+
+    expect(await queue.addUploaded(video, 'clip.mp4', 'clip.mp4:100:123')).toEqual([]);
+    expect(path.dirname(queue.state().jobs[0].outputPath)).toBe(directory);
+  });
 });
 
 describe('selected batch behavior', () => {

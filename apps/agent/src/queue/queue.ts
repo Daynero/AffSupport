@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { access, mkdir, statfs, unlink } from 'node:fs/promises';
 import path from 'node:path';
-import os from 'node:os';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import {
   clampCrf,
@@ -200,7 +199,7 @@ export class JobQueue {
       for (const job of this.jobs) {
         if (!['analyzing', 'ready', 'failed', 'cancelled', 'interrupted'].includes(job.status))
           continue;
-        job.outputPath = await this.outputPathFor(job.inputPath, job.sourceKind ?? 'local', job);
+        job.outputPath = await this.outputPathFor(job.inputPath, job);
       }
     }
     this.notify();
@@ -295,7 +294,7 @@ export class JobQueue {
     for (const job of jobs) {
       const draftKey = jobConfigurationKey(job.encoding, job.imageEmbedding);
       job.imageEmbedding = freezeImageEmbedding(this.settings.imageEmbedding, this.random);
-      job.outputPath = await this.outputPathFor(job.inputPath, job.sourceKind ?? 'local', job);
+      job.outputPath = await this.outputPathFor(job.inputPath, job);
       if (
         draftKey !== jobConfigurationKey(job.encoding, job.imageEmbedding) &&
         !refreshEstimateFromBreakdown(job)
@@ -415,7 +414,7 @@ export class JobQueue {
     job.batchId = null;
     job.encoding = encodingFromSettings(this.settings);
     job.imageEmbedding = draftImageEmbedding(this.settings.imageEmbedding);
-    job.outputPath = await this.outputPathFor(job.inputPath, job.sourceKind ?? 'local', job);
+    job.outputPath = await this.outputPathFor(job.inputPath, job);
     resetEstimate(job);
     for (const image of previousImages) void this.releaseImageIfUnused(image);
     this.notify('estimate:queued');
@@ -538,7 +537,7 @@ export class JobQueue {
         estimatePriorityOrder: null,
         estimateBreakdown: null
       };
-      job.outputPath = await this.outputPathFor(canonical, sourceKind, job);
+      job.outputPath = await this.outputPathFor(canonical, job);
       this.jobs.push(job);
       this.notify();
 
@@ -576,13 +575,11 @@ export class JobQueue {
     }
   }
 
-  private async outputPathFor(inputPath: string, sourceKind: SourceKind, current?: CompressionJob) {
+  private async outputPathFor(inputPath: string, current?: CompressionJob) {
     let folder: string | undefined;
     if (this.settings.outputMode === 'chosen-folder') {
       folder = this.settings.outputFolder ?? undefined;
       if (!folder) throw new Error('Choose an output folder first.');
-    } else if (sourceKind === 'uploaded') {
-      folder = uploadedOutputFolder();
     }
     if (folder) await mkdir(folder, { recursive: true });
     const reserved = this.jobs
@@ -851,11 +848,6 @@ function issue(
   message: string
 ): SelectionWarning {
   return { id: randomUUID(), fileName, reason, message };
-}
-
-function uploadedOutputFolder() {
-  const videosFolder = process.platform === 'darwin' ? 'Movies' : 'Videos';
-  return path.join(os.homedir(), videosFolder, 'Wishly');
 }
 
 function friendlyError(stderr: string) {

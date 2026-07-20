@@ -18,7 +18,7 @@ This command is required after each newly downloaded test build because the app 
 
 ## Connect and compress
 
-The Agent has **no Dock icon** — it runs from the menu bar (the film icon at the top-right). On first launch it opens the matching interface bundled inside the installed app and connects automatically. Add videos with the drop zone or native picker, select their checkboxes, then choose **Compress selected**. Results are saved beside each natively selected original unless you choose another folder; dropped copies use the Wishly output folder (`~/Movies/Wishly`). Videos never leave your computer.
+The Agent has **no Dock icon** — it runs from the menu bar (the film icon at the top-right). On first launch it opens the matching interface bundled inside the installed app and connects automatically. Add videos with the drop zone or native picker, select their checkboxes, then choose **Compress selected**. The selected output setting is respected for both natively selected and dropped videos; Wishly no longer forces dropped results into `~/Movies/Wishly`. Videos never leave your computer.
 
 To add images, enable **Embed images into video** below the compression settings. You can choose only an opening image, only a final image, or both. The opening image lasts exactly one output frame. For a final image, select a random range or enter `HH:MM:SS`, then choose fill/crop, fit, or stretch. A random duration is chosen separately for each selected video and is shown in that video's card after the batch starts. PNG, JPEG, and WebP are supported.
 
