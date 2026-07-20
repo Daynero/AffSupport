@@ -79,3 +79,18 @@ If the CLI reports `ANALYTICS_DATABASE_URL is not set`, tell the user to follow
 the one-time setup in `docs/ANALYTICS_CLI.md`; do not fall back to manual Supabase.
 
 Do not change production data during analytics queries.
+
+## Wishly development builds
+
+When the user asks for a dev build, test build, or installable build without
+touching production, run:
+
+```bash
+npm run package:dev:dmg
+```
+
+Do not edit the production version or stable manifest, create Git tags or GitHub
+Releases, push Supabase migrations, or deploy Cloudflare. Return the generated
+path under `release/dev/`. The build is isolated as Wishly Dev on port 43130
+with local dev auth and analytics disabled. If packaging reports that Wishly Dev
+is busy, do not kill it; tell the user to finish the active work first.

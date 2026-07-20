@@ -27,6 +27,10 @@ mkdir -p "$root"
 [[ ! -e "$archive" ]] || { print -u2 "$archive already exists. Published build identities are immutable; bump PRODUCT_VERSION and BUILD_NUMBER."; exit 1; }
 rm -rf "$app"; mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/runtime/bin" "$app/Contents/Resources/agent"
 node scripts/render-launcher.mjs packaging/Launcher.swift "$root/Launcher.generated.swift" \
+  "AGENT_PORT=43120" \
+  "APP_NAME=Wishly Agent" \
+  "INSTANCE_LOCK_NAME=local-video-compressor-agent.lock" \
+  "SUPPORT_DIRECTORY_NAME=Wishly" \
   "PUBLIC_SITE_ORIGIN=$PUBLIC_SITE_ORIGIN" \
   "APP_VERSION=$product_version" \
   "BUILD_NUMBER=$build_number" \

@@ -59,6 +59,46 @@ const initialSnapshot: AuthSnapshot = {
   error: null
 };
 
+const LOCAL_DEV_AUTH = import.meta.env.VITE_LOCAL_DEV_AUTH === 'true';
+const localDevUser = {
+  id: '00000000-0000-4000-8000-000000000001',
+  email: 'dev@wishly.local',
+  user_metadata: { full_name: 'Wishly Developer' },
+  app_metadata: {},
+  aud: 'authenticated',
+  created_at: new Date(0).toISOString()
+} as User;
+const localDevSession = {
+  access_token: 'local-dev-session',
+  refresh_token: 'local-dev-session',
+  expires_in: Number.MAX_SAFE_INTEGER,
+  token_type: 'bearer',
+  user: localDevUser
+} as Session;
+const localDevProfile: Profile = {
+  id: localDevUser.id,
+  email: localDevUser.email ?? null,
+  display_name: 'Wishly Developer',
+  avatar_url: null,
+  language: 'uk',
+  plan: 'pro',
+  account_status: 'active',
+  marketing_consent: false,
+  marketing_consent_at: null,
+  created_at: new Date(0).toISOString(),
+  updated_at: new Date(0).toISOString(),
+  last_seen_at: null,
+  onboarding_completed: true
+};
+const localDevSnapshot: AuthSnapshot = {
+  status: 'authenticated',
+  user: localDevUser,
+  session: localDevSession,
+  profile: localDevProfile,
+  isAdmin: false,
+  error: null
+};
+
 const AuthContext = createContext<AuthContextValue | null>(null);
 let initialSessionPromise: ReturnType<
   NonNullable<ReturnType<typeof getSupabaseClient>>['auth']['getSession']
@@ -111,7 +151,9 @@ function shouldUpdateLastSeen(profile: Profile) {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [snapshot, setSnapshot] = useState<AuthSnapshot>(initialSnapshot);
+  const [snapshot, setSnapshot] = useState<AuthSnapshot>(
+    LOCAL_DEV_AUTH ? localDevSnapshot : initialSnapshot
+  );
   const snapshotRef = useRef(snapshot);
   const loadSequence = useRef(0);
   snapshotRef.current = snapshot;
@@ -167,6 +209,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (LOCAL_DEV_AUTH) return;
     const supabase = getSupabaseClient();
     if (!publicConfig.ok || !supabase) {
       setSnapshot({ ...initialSnapshot, status: 'error', error: 'configuration' });
@@ -218,6 +261,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [establishIdentity]);
 
   const signInWithGoogle = useCallback(async (returnPath?: string | null) => {
+    if (LOCAL_DEV_AUTH) return;
     const supabase = getSupabaseClient();
     if (!supabase || !publicConfig.ok) {
       setSnapshot(current => ({ ...current, status: 'error', error: 'configuration' }));
@@ -244,6 +288,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const completeOAuthCallback = useCallback(async (code: string) => {
+    if (LOCAL_DEV_AUTH) return;
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error('SUPABASE_CONFIGURATION_MISSING');
     setSnapshot(current => ({ ...current, status: 'initializing', error: null }));
@@ -255,6 +300,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    if (LOCAL_DEV_AUTH) return;
     const supabase = getSupabaseClient();
     if (!supabase) return;
     setSnapshot(current => ({ ...current, status: 'signing-out', error: null }));
@@ -278,6 +324,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const updateProfile = useCallback(async (patch: EditableProfilePatch) => {
     const current = snapshotRef.current;
+    if (LOCAL_DEV_AUTH) {
+      const profile = {
+        ...localDevProfile,
+        ...current.profile,
+        ...patch,
+        updated_at: new Date().toISOString()
+      };
+      setSnapshot(value => ({ ...value, profile, error: null }));
+      return profile;
+    }
     const supabase = getSupabaseClient();
     if (!supabase || !current.user) throw new Error('AUTH_REQUIRED');
     const safePatch: Database['public']['Tables']['profiles']['Update'] = {};
@@ -305,6 +361,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshProfile = useCallback(async () => {
+    if (LOCAL_DEV_AUTH) return;
     const current = snapshotRef.current;
     if (!current.session) {
       setSnapshot({ ...initialSnapshot, status: 'unauthenticated' });

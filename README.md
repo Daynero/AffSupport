@@ -14,6 +14,28 @@ npm start
 
 The agent listens only on `http://127.0.0.1:43120` and opens its matching bundled interface automatically. Development mode is `npm run dev` with the fixed `http://127.0.0.1:5173` origin.
 
+### Isolated installable development build
+
+Use one command when a feature must be tested through the real launcher or DMG:
+
+```bash
+npm run package:dev:dmg
+```
+
+The command creates `release/dev/Wishly Dev.app` and a timestamped DMG. It does
+not change the product version, stable manifest, Git tags, GitHub Releases,
+Supabase migrations, or Cloudflare deployment. Wishly Dev uses bundle ID
+`com.wishly.dev`, port `43130`, its own instance lock and
+`~/Library/Application Support/Wishly Dev`. Packaged development builds use a
+local synthetic profile and compile analytics out, so they do not authenticate
+against or write to production Supabase. They may run beside Wishly Agent.
+
+The verified Node, FFmpeg, FFprobe, and corresponding source archives are reused
+from `release/Wishly Agent.app`. Override that source with
+`DEV_RUNTIME_SOURCE_APP=/path/to/verified/Wishly Agent.app` when necessary. If
+Wishly Dev is already running, packaging quits it only when health reports
+`busy:false`; active work is never interrupted.
+
 Wishly now uses Supabase Auth with Google OAuth for the hosted product, PostgreSQL profiles, RLS-protected first-party product analytics, and database-confirmed admin access. Copy `.env.example` to `.env`, then follow the beginner-friendly [Supabase and Google setup guide](docs/SUPABASE_SETUP.md). Real credentials are never committed; a missing or invalid browser configuration renders an explicit setup screen instead of starting with `undefined` values.
 
 The Privacy Policy and Terms are baseline EN/UA drafts. The owner **must review them and set real `VITE_PRODUCT_OPERATOR` and `VITE_LEGAL_CONTACT_EMAIL` values before public launch**; the repository deliberately does not invent a company, address, or contact identity.

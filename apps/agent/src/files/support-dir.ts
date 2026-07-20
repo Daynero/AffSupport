@@ -15,7 +15,9 @@ const LEGACY_DIR_NAME = 'Local Video Compressor';
  */
 export function applicationSupportRoot() {
   const base = path.join(os.homedir(), 'Library', 'Application Support');
-  const current = path.join(base, CURRENT_DIR_NAME);
+  const configured = process.env.AGENT_SUPPORT_DIRECTORY_NAME?.trim();
+  const current = path.join(base, configured || CURRENT_DIR_NAME);
+  if (configured && configured !== CURRENT_DIR_NAME) return current;
   const legacy = path.join(base, LEGACY_DIR_NAME);
   if (!existsSync(current) && existsSync(legacy)) {
     try {

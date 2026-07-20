@@ -2,7 +2,11 @@ import AppKit
 import Darwin
 import Foundation
 
-private let agentBaseURL = URL(string: "http://127.0.0.1:43120")!
+private let agentPort = __AGENT_PORT__
+private let agentBaseURL = URL(string: "http://127.0.0.1:\(agentPort)")!
+private let applicationName = "__APP_NAME__"
+private let instanceLockName = "__INSTANCE_LOCK_NAME__"
+private let supportDirectoryName = "__SUPPORT_DIRECTORY_NAME__"
 private let expectedVersion = "__APP_VERSION__"
 private let expectedBuildNumber = "__BUILD_NUMBER__"
 private let expectedBuildID = "__BUILD_ID__"
@@ -71,7 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private func acquireInstanceLock() -> Bool {
     if lockFD >= 0 { return true }
     let lockURL = FileManager.default.temporaryDirectory
-      .appendingPathComponent("local-video-compressor-agent.lock")
+      .appendingPathComponent(instanceLockName)
     let candidate = Darwin.open(lockURL.path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
     guard candidate >= 0 else { return false }
     guard flock(candidate, LOCK_EX | LOCK_NB) == 0 else {
@@ -86,7 +90,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     item.button?.image = NSImage(
       systemSymbolName: "film.stack",
-      accessibilityDescription: "Wishly Agent"
+      accessibilityDescription: applicationName
     )
     let menu = NSMenu()
     let openItem = menu.addItem(
@@ -103,7 +107,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     versionItem.isEnabled = false
     menu.addItem(.separator())
     let quitItem = menu.addItem(
-      withTitle: "Quit Wishly Agent",
+      withTitle: "Quit \(applicationName)",
       action: #selector(quit),
       keyEquivalent: "q"
     )
@@ -267,6 +271,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     child.environment = ProcessInfo.processInfo.environment.merging([
       "PACKAGED_APP": "1",
       "NO_OPEN": "1",
+      "AGENT_PORT": String(agentPort),
+      "AGENT_SUPPORT_DIRECTORY_NAME": supportDirectoryName,
       "PUBLIC_SITE_ORIGIN": "__PUBLIC_SITE_ORIGIN__",
       "AGENT_VERSION": expectedVersion,
       "AGENT_BUILD_NUMBER": expectedBuildNumber,
@@ -404,7 +410,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     NSApp.activate(ignoringOtherApps: true)
     let alert = NSAlert()
     alert.alertStyle = .critical
-    alert.messageText = "Wishly Agent could not start"
+    alert.messageText = "\(applicationName) could not start"
     alert.informativeText = details.isEmpty ? message : "\(message)\n\n\(details)"
     alert.addButton(withTitle: "Quit")
     alert.runModal()

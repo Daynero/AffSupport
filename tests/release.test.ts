@@ -63,7 +63,7 @@ describe('release identity', () => {
         manifest: JSON.parse(
           readFileSync('apps/web/public/.well-known/wishly/stable.json', 'utf8')
         ),
-        installedVersion: '0.5.3',
+        installedVersion: '0.5.4',
         installedChannel: 'stable',
         compatible: true
       })
@@ -73,5 +73,18 @@ describe('release identity', () => {
   it('gates each tool by its own contract', () => {
     expect(toolContractCompatible('compressor', { compressor: 1 })).toBe(true);
     expect(toolContractCompatible('landingOptimizer', { compressor: 1 })).toBe(false);
+  });
+
+  it('keeps installable dev builds isolated from production identities and services', () => {
+    const packageScript = readFileSync('scripts/package-dev-mac.sh', 'utf8');
+    const launcher = readFileSync('packaging/Launcher.swift', 'utf8');
+    expect(packageScript).toContain('VITE_ANALYTICS_ENABLED=false');
+    expect(packageScript).toContain('VITE_LOCAL_DEV_AUTH=true');
+    expect(packageScript).toContain('AGENT_PORT=$port');
+    expect(packageScript).toContain('SUPPORT_DIRECTORY_NAME=Wishly Dev');
+    expect(packageScript).toContain('INSTANCE_LOCK_NAME=wishly-dev-agent.lock');
+    expect(packageScript).not.toMatch(/git (tag|push)|supabase|wrangler/);
+    expect(launcher).toContain('__AGENT_PORT__');
+    expect(launcher).toContain('__SUPPORT_DIRECTORY_NAME__');
   });
 });

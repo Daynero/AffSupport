@@ -70,7 +70,8 @@ describe('Wishly brand identity', () => {
     expect(plist).not.toContain('Local Video Compressor');
 
     const launcher = readFileSync('packaging/Launcher.swift', 'utf8');
-    expect(launcher).toContain('Wishly Agent');
+    expect(launcher).toContain('__APP_NAME__');
+    expect(readFileSync('scripts/package-mac.sh', 'utf8')).toContain('APP_NAME=Wishly Agent');
     // The health handshake identifier is a compatibility constant, not a brand.
     expect(launcher).toContain('local-video-compressor-agent');
     expect(launcher).not.toMatch(/"[^"]*Local Video Compressor[^"]*"/);

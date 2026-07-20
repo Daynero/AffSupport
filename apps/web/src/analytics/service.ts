@@ -17,6 +17,7 @@ const MAX_QUEUE_SIZE = 40;
 const BATCH_SIZE = 25;
 const MAX_ATTEMPTS = 3;
 const WEB_BUILD_ID = import.meta.env.VITE_WEB_BUILD_ID || PRODUCT_VERSION;
+const ANALYTICS_ENABLED = import.meta.env.VITE_ANALYTICS_ENABLED !== 'false';
 
 export type PendingAnalyticsEvent = {
   event_id: string;
@@ -174,7 +175,7 @@ export class ProductAnalytics {
   }
 
   track<E extends AnalyticsEventName>(name: E, properties: AnalyticsEventProperties[E]) {
-    if (!this.userId || typeof window === 'undefined') return;
+    if (!ANALYTICS_ENABLED || !this.userId || typeof window === 'undefined') return;
     const sanitized = sanitizeAnalyticsProperties(properties);
     const event: PendingAnalyticsEvent = {
       event_id: uuid(),
