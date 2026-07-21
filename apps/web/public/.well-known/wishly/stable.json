@@ -6,7 +6,7 @@
   "buildId": "0.6.2+14",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-07-21T11:06:11.000Z",
+  "publishedAt": "2026-07-21T11:13:39.000Z",
   "summary": {
     "en": "Fixed some issues.",
     "uk": "Виправлено деякі помилки."
@@ -14,7 +14,7 @@
   "artifacts": {
     "macos-arm64": {
       "url": "https://github.com/Daynero/AffSupport/releases/download/v0.6.2/Wishly-Agent-v0.6.2-macOS-arm64.dmg",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      "sha256": "a977ce13e4108b96a588187a5f189aa9f04da0a778678b6718437bff893e1765"
     }
   },
   "toolRequirements": {
