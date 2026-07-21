@@ -6,11 +6,11 @@
   "buildId": "0.6.1+13",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-07-21T06:29:44.000Z",
+  "publishedAt": "2026-07-21T06:38:28.000Z",
   "artifacts": {
     "macos-arm64": {
       "url": "https://github.com/Daynero/AffSupport/releases/download/v0.6.1/Wishly-Agent-v0.6.1-macOS-arm64.dmg",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      "sha256": "a9dece3aee6b57b7730ac928b606f920e612c51521dc48e27ca2aab44d9d0d28"
     }
   },
   "toolRequirements": {
