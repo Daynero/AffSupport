@@ -469,6 +469,8 @@ function localizedJobError(raw: string, t: Translate) {
   if (/images could not be adapted/i.test(raw)) return t('imageAdaptationFailed');
   if (/image filter graph|image processing pipeline/i.test(raw)) return t('imageFilterGraphFailed');
   if (/did not pass ffprobe validation/i.test(raw)) return t('outputValidationFailed');
-  if (/analysis engine is unavailable/i.test(raw)) return t('engineUnavailable');
+  if (/analysis engine is unavailable|media tools became unavailable/i.test(raw)) {
+    return t('engineUnavailable');
+  }
   return raw;
 }

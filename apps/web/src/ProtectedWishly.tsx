@@ -11,11 +11,13 @@ import { navigateTo } from './lib/navigation';
 import AccountPage from './pages/AccountPage';
 import AdminPage from './pages/AdminPage';
 import LocalAppDialog from './components/LocalAppDialog';
+import ReleaseUpdateNotice from './components/ReleaseUpdateNotice';
 
 export default function ProtectedWishly({ path }: { path: string }) {
   return (
     <AgentProvider>
       <ProtectedApplication path={path} />
+      <ReleaseUpdateNotice />
       <ProfileOnboarding />
     </AgentProvider>
   );

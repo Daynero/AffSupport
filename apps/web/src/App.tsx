@@ -895,5 +895,6 @@ function localizedError(value: unknown, t: Translate) {
 function localizedAgentText(raw: string, t: Translate) {
   if (/free space may be insufficient/i.test(raw)) return t('diskWarning');
   if (/could not check free space/i.test(raw)) return t('diskCheckFailed');
+  if (/media tools became unavailable/i.test(raw)) return t('engineUnavailable');
   return raw;
 }

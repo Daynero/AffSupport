@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
+import { readFile } from 'node:fs/promises';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { analyticsEventNames, sanitizeAnalyticsProperties } from '../apps/web/src/analytics/events';
-import { ProductAnalytics } from '../apps/web/src/analytics/service';
+import { ProductAnalytics, type PendingAnalyticsEvent } from '../apps/web/src/analytics/service';
 import { PRODUCT_SESSION_IDLE_MS, productSessionId } from '../apps/web/src/analytics/session';
 import {
   jobTransitionEventNames,
@@ -115,6 +116,45 @@ describe('privacy-minimized analytics', () => {
     expect(service.pendingCount()).toBe(0);
   });
 
+  it('removes accepted events without losing rejected siblings', async () => {
+    const storage = new MemoryStorage();
+    const sender = vi.fn(async (events: PendingAnalyticsEvent[]) => ({
+      acceptedEventIds: [events[0].event_id]
+    }));
+    const service = new ProductAnalytics(sender, storage);
+    service.setUser('11111111-1111-4111-8111-111111111111');
+    service.track('home_viewed', {});
+    service.track('tool_opened', { tool_identifier: 'compressor' });
+
+    await service.flush();
+
+    expect(service.pendingCount()).toBe(1);
+    const queued = JSON.parse(storage.getItem('wishly.analytics.queue.v2') ?? '[]');
+    expect(queued).toMatchObject([{ event_name: 'tool_opened', attempts: 1 }]);
+  });
+
+  it('routes flow and run UUIDs in the event envelope instead of properties', async () => {
+    const runId = '33333333-3333-4333-8333-333333333333';
+    const flowId = '44444444-4444-4444-8444-444444444444';
+    const sender = vi.fn(async (events: PendingAnalyticsEvent[]) => ({
+      acceptedEventIds: events.map(event => event.event_id)
+    }));
+    const service = new ProductAnalytics(sender, new MemoryStorage());
+    service.setUser('11111111-1111-4111-8111-111111111111');
+    service.track('compression_started', {
+      run_id: runId,
+      flow_id: flowId,
+      tool_identifier: 'compressor',
+      video_count: 1
+    });
+
+    await service.flush();
+
+    const delivered = sender.mock.calls[0][0][0];
+    expect(delivered).toMatchObject({ run_id: runId, flow_id: flowId });
+    expect(delivered.properties).toEqual({ tool_identifier: 'compressor', video_count: 1 });
+  });
+
   it('bounds the offline queue instead of storing unlimited events', () => {
     const service = new ProductAnalytics(vi.fn().mockResolvedValue(true), new MemoryStorage());
     service.setUser('11111111-1111-4111-8111-111111111111');
@@ -170,5 +210,18 @@ describe('privacy-minimized analytics', () => {
     const service = new ProductAnalytics(vi.fn().mockResolvedValue(true), storage);
     service.setUser('33333333-3333-4333-8333-333333333333');
     expect(service.pendingCount()).toBe(0);
+  });
+
+  it('keeps the corrective ingestion migration free of the OUT-parameter conflict', async () => {
+    const migration = await readFile(
+      'supabase/migrations/20260721113000_fix_analytics_ingestion.sql',
+      'utf8'
+    );
+    const executableSql = migration.replace(/--.*$/gm, '');
+    expect(migration).toContain("v_properties := v_properties - 'flow_id' - 'run_id'");
+    expect(executableSql).toMatch(/alter column event_id set default gen_random_uuid\(\)/i);
+    expect(executableSql).toMatch(/alter column occurred_at set default now\(\)/i);
+    expect(executableSql).toMatch(/on conflict do nothing/i);
+    expect(executableSql).not.toMatch(/on conflict\s*\(\s*event_id\s*\)/i);
   });
 });

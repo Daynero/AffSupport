@@ -7,6 +7,7 @@ export interface EncodeResult {
   code: number | null;
   stderr: string;
   cancelled: boolean;
+  spawnErrorCode: string | null;
 }
 
 export interface EncodeEmbeddingOptions {
@@ -41,6 +42,7 @@ export function encodeVideo(
   let stderr = '';
   let buffer = '';
   let cancelled = false;
+  let spawnErrorCode: string | null = null;
 
   child.stdout.on('data', chunk => {
     buffer += chunk.toString();
@@ -59,13 +61,14 @@ export function encodeVideo(
     stderr = (stderr + data.toString()).slice(-12_000);
   });
   child.once('error', error => {
+    spawnErrorCode = 'code' in error && typeof error.code === 'string' ? error.code : null;
     stderr += error.message;
   });
   child.once('spawn', () => {
     cancelled = false;
   });
   const done = new Promise<EncodeResult>(resolve =>
-    child.once('close', code => resolve({ code, stderr, cancelled }))
+    child.once('close', code => resolve({ code, stderr, cancelled, spawnErrorCode }))
   );
   return { child, done };
 }

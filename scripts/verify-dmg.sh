@@ -19,7 +19,7 @@ size=$(stat -f '%z' "$work/video/test input.mp4")
 cat > "$work/home/Library/Application Support/Wishly/state.json" <<JSON
 {"jobs":[{"id":"dmg-e2e","inputPath":"$work/video/test input.mp4","outputPath":"$work/video/test output.mp4","fileName":"test input.mp4","durationSeconds":3,"originalSize":$size,"finalSize":null,"progress":0,"status":"queued","error":null,"preset":"balanced","estimateStatus":"waiting","estimatePreset":"balanced"}],"settings":{"preset":"balanced","outputMode":"next-to-originals","outputFolder":null}}
 JSON
-env -i PATH=/usr/bin:/bin /usr/bin/open -n --env NO_OPEN=1 --env TMPDIR=/tmp --env HOME="$work/home" --stdout "$work/agent.log" --stderr "$work/agent.log" "$app"
+env -i PATH=/usr/bin:/bin /usr/bin/open -n --env NO_OPEN=1 --env WISHLY_ALLOW_UNINSTALLED_AGENT=1 --env TMPDIR=/tmp --env HOME="$work/home" --stdout "$work/agent.log" --stderr "$work/agent.log" "$app"
 for i in {1..40}; do /usr/bin/curl -fsS --max-time 1 http://127.0.0.1:43120/health -o /dev/null 2>/dev/null && break; sleep .25; done
 listener_pid=$(lsof -tiTCP:43120 -sTCP:LISTEN); [[ -n "$listener_pid" ]]
 agent_pid=$(ps -o ppid= -p "$listener_pid" | tr -d ' '); [[ -n "$agent_pid" ]]

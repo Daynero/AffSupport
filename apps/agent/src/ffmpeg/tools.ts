@@ -13,6 +13,24 @@ export const ffprobePath =
   process.env.FFPROBE_PATH ??
   (process.env.PACKAGED_APP === '1' ? path.join(bundledRoot, 'ffprobe') : 'ffprobe');
 
+export type MediaToolName = 'ffmpeg' | 'ffprobe';
+
+export class MediaToolUnavailableError extends Error {
+  readonly code = 'MEDIA_TOOL_UNAVAILABLE';
+
+  constructor(
+    readonly tool: MediaToolName,
+    readonly causeCode: string | null = null
+  ) {
+    super(`${tool.toUpperCase()}_UNAVAILABLE${causeCode ? ` (${causeCode})` : ''}`);
+    this.name = 'MediaToolUnavailableError';
+  }
+}
+
+export function isMediaToolUnavailableError(error: unknown): error is MediaToolUnavailableError {
+  return error instanceof MediaToolUnavailableError;
+}
+
 export async function commandExists(command: string): Promise<boolean> {
   return new Promise(resolve => {
     const child = spawn(command, ['-version'], { shell: false, stdio: 'ignore' });
@@ -55,16 +73,19 @@ const emptyMedia: MediaInfo = {
   audioLayout: null
 };
 
-export async function probeMedia(inputPath: string): Promise<MediaInfo> {
-  const data = await probeJson([
-    '-v',
-    'error',
-    '-show_entries',
-    'stream=codec_type,width,height,avg_frame_rate,r_frame_rate,bit_rate,codec_name,duration,sample_rate,channels,channel_layout:stream_tags=rotate:stream_side_data=rotation:format=duration,bit_rate,format_name',
-    '-of',
-    'json',
-    inputPath
-  ]);
+export async function probeMedia(inputPath: string, command = ffprobePath): Promise<MediaInfo> {
+  const data = await probeJson(
+    [
+      '-v',
+      'error',
+      '-show_entries',
+      'stream=codec_type,width,height,avg_frame_rate,r_frame_rate,bit_rate,codec_name,duration,sample_rate,channels,channel_layout:stream_tags=rotate:stream_side_data=rotation:format=duration,bit_rate,format_name',
+      '-of',
+      'json',
+      inputPath
+    ],
+    command
+  );
   if (!data) return { ...emptyMedia };
 
   const streams = Array.isArray(data.streams) ? data.streams : [];
@@ -106,18 +127,24 @@ export interface ImageInfo {
   codec: string;
 }
 
-export async function probeImage(inputPath: string): Promise<ImageInfo | null> {
-  const data = await probeJson([
-    '-v',
-    'error',
-    '-select_streams',
-    'v:0',
-    '-show_entries',
-    'stream=width,height,codec_name',
-    '-of',
-    'json',
-    inputPath
-  ]);
+export async function probeImage(
+  inputPath: string,
+  command = ffprobePath
+): Promise<ImageInfo | null> {
+  const data = await probeJson(
+    [
+      '-v',
+      'error',
+      '-select_streams',
+      'v:0',
+      '-show_entries',
+      'stream=width,height,codec_name',
+      '-of',
+      'json',
+      inputPath
+    ],
+    command
+  );
   const stream = Array.isArray(data?.streams) ? data.streams[0] : null;
   const width = positiveNumber(stream?.width);
   const height = positiveNumber(stream?.height);
@@ -152,9 +179,24 @@ export async function probeDuration(inputPath: string): Promise<number | null> {
   });
 }
 
-function probeJson(args: string[]): Promise<Record<string, any> | null> {
-  return new Promise(resolve => {
-    const child = spawn(ffprobePath, args, { shell: false });
+async function probeJson(
+  args: string[],
+  command = ffprobePath
+): Promise<Record<string, any> | null> {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return await runProbeJson(command, args);
+    } catch (error) {
+      if (!isMediaToolUnavailableError(error) || attempt === 1) throw error;
+      await new Promise(resolve => setTimeout(resolve, 150));
+    }
+  }
+  return null;
+}
+
+function runProbeJson(command: string, args: string[]): Promise<Record<string, any> | null> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { shell: false });
     let output = '';
     let settled = false;
     const finish = (value: Record<string, any> | null) => {
@@ -165,7 +207,12 @@ function probeJson(args: string[]): Promise<Record<string, any> | null> {
     child.stdout.on('data', data => {
       output += data;
     });
-    child.on('error', () => finish(null));
+    child.on('error', error => {
+      if (settled) return;
+      settled = true;
+      const causeCode = 'code' in error && typeof error.code === 'string' ? error.code : null;
+      reject(new MediaToolUnavailableError('ffprobe', causeCode));
+    });
     child.on('close', code => {
       if (code !== 0) return finish(null);
       try {

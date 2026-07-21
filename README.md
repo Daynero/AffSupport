@@ -59,7 +59,7 @@ All five variables are required; `scripts/package-mac.sh` aborts if any is missi
 
 ### Release and compatibility policy
 
-`packages/shared/src/release.ts` defines product and tool contracts, while `apps/web/public/.well-known/wishly/stable.json` is the platform-aware stable release manifest. The installable local app and hosted UI have separate build identities. Compatibility is checked per tool, not inferred from a connection or a matching marketing version, and a newer development build is never offered a stable downgrade.
+`packages/shared/src/release.ts` defines product and tool contracts, while `apps/web/public/.well-known/wishly/stable.json` is the platform-aware stable release manifest. Its optional localized `summary.en` and `summary.uk` fields provide the short text in the in-app release notice; omit `summary` for the generic maintenance message. The installable local app and hosted UI have separate build identities. Compatibility is checked per tool, not inferred from a connection or a matching marketing version, and a newer development build is never offered a stable downgrade.
 
 When a new local build replaces the installed one, the running build enters update draining: it finishes the active batch, refuses new work, reports the pending target build, and only then restarts. An idle build can restart immediately. A web deployment may raise a tool’s minimum contract; incompatible tools are blocked before opening and explain installation or updating in a user-facing modal.
 
@@ -67,7 +67,7 @@ Use these rules for every published change:
 
 1. Increment `PRODUCT_VERSION` and the monotonically increasing numeric `BUILD_NUMBER` for every published Agent build. Keep the build number to at most three period-separated integer components as required by macOS. A GitHub tag or asset is never replaced in place.
 2. Increment `AGENT_API_VERSION` only for a breaking web/Agent contract change. Keep `MIN_SUPPORTED_AGENT_API_VERSION` and `MAX_SUPPORTED_AGENT_API_VERSION` at the actual range the web UI supports.
-3. Update all workspace package versions to `PRODUCT_VERSION`; `npm run release:check` verifies the identity, API range, tag, artifact URL, and manifests.
+3. Update all workspace package versions to `PRODUCT_VERSION` and add a short localized release `summary` when the release introduces a user-visible feature. For maintenance releases, omit it to show the generic “Fixed some issues” message. `npm run release:check` verifies the identity, API range, tag, artifact URL, and manifests.
 4. From a clean commit, run `npm run package:mac`, `npm run verify:package`, `npm run package:dmg`, and `npm run verify:dmg`.
 5. Create the new tag on that exact commit and publish the uniquely named DMG and checksum. Packaging aborts if the tag is already present locally or on `origin`, so a published release cannot be rebuilt in place.
 6. Only after the Agent asset is reachable, run `npm run deploy:web`. Deployment accepts the exact tagged commit or a descendant containing web-only changes. It aborts if the release tag is not on `origin`, the exact versioned Agent asset is unavailable, or Agent/shared release inputs changed after the tag.

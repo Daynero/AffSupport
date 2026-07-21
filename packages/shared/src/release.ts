@@ -6,9 +6,9 @@
  * contract is incompatible, while the supported range lets a web release keep
  * working with older compatible agents.
  */
-export const PRODUCT_VERSION = '0.6.1';
-export const BUNDLE_VERSION = '0.6.1';
-export const BUILD_NUMBER = '13';
+export const PRODUCT_VERSION = '0.6.2';
+export const BUNDLE_VERSION = '0.6.2';
+export const BUILD_NUMBER = '14';
 export const RELEASE_CHANNEL = 'stable';
 
 /**
@@ -63,6 +63,7 @@ export type ToolContractName = keyof typeof AGENT_TOOL_CONTRACTS;
 export type ToolContracts = Partial<Record<ToolContractName, number>>;
 export type WishlyToolId = keyof typeof WEB_TOOL_REQUIREMENTS;
 export type ReleasePlatform = 'macos-arm64' | 'macos-x64' | 'windows-x64';
+export type ReleaseSummaryLanguage = 'en' | 'uk';
 
 export interface ReleaseArtifact {
   url: string;
@@ -78,6 +79,8 @@ export interface StableReleaseManifest {
   apiVersion: number;
   minimumSupportedVersion: string;
   publishedAt: string;
+  /** Short user-facing release copy. Omit it to use the generic maintenance text. */
+  summary?: Partial<Record<ReleaseSummaryLanguage, string>>;
   artifacts: Partial<Record<ReleasePlatform, ReleaseArtifact>>;
   toolRequirements: Record<WishlyToolId, ToolContracts>;
 }

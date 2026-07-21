@@ -1,9 +1,10 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { spawn } from 'node:child_process';
 import { access, copyFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { JobQueue } from '../apps/agent/src/queue/queue.js';
+import { MediaToolUnavailableError, probeMedia } from '../apps/agent/src/ffmpeg/tools.js';
 import { makeJob, optimalSettings } from './helpers.js';
 
 let directory = '';
@@ -146,6 +147,54 @@ describe('selected batch behavior', () => {
     await access(completed.outputPath);
     expect(queue.remove(id)).toBe(true);
     await expect(access(completed.outputPath)).resolves.toBeUndefined();
+  }, 15_000);
+
+  it('preserves a completed encode and validates it after FFprobe runtime recovery', async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), 'queue-runtime-recovery-'));
+    const input = path.join(directory, 'source.mp4');
+    expect(await makeVideo(input, 0.5, '160x90', 10)).toBe(0);
+    let ffprobeAvailable = true;
+    const recovery = vi.fn();
+    const queue = new JobQueue(
+      { ffmpeg: true, ffprobe: true },
+      () => {},
+      [],
+      { ...optimalSettings },
+      null,
+      undefined,
+      Math.random,
+      {
+        probeMedia: mediaPath =>
+          ffprobeAvailable
+            ? probeMedia(mediaPath)
+            : Promise.reject(new MediaToolUnavailableError('ffprobe', 'ENOENT'))
+      }
+    );
+    queue.attachRuntimeRecovery(recovery);
+    await queue.add([input]);
+    const id = queue.state().jobs[0].id;
+    ffprobeAvailable = false;
+
+    expect(await queue.start([id])).toBe(true);
+    await until(() => !queue.state().running);
+
+    const interrupted = queue.state().jobs[0];
+    expect(interrupted.status).toBe('interrupted');
+    expect(interrupted.error).toMatch(/recover after restart/i);
+    expect(interrupted.errorDetails).toContain('MEDIA_TOOL_UNAVAILABLE');
+    expect(queue.state().tools.ffprobe).toBe(false);
+    expect(recovery).toHaveBeenCalledOnce();
+    await expect(access(interrupted.outputPath)).resolves.toBeUndefined();
+
+    ffprobeAvailable = true;
+    queue.setToolAvailability({ ffmpeg: true, ffprobe: true });
+    expect(await queue.recoverRuntimeInterruptedJobs()).toBe(true);
+    expect(queue.state().jobs[0]).toMatchObject({
+      status: 'completed',
+      finalWidth: 160,
+      finalHeight: 90,
+      finalCodec: 'h264'
+    });
   }, 15_000);
 
   it('records a failure duration and allows a retry without stopping another selected job', async () => {

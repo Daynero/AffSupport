@@ -2,6 +2,7 @@ import {
   PRODUCTION_SITE_ORIGIN,
   RELEASE_DOWNLOAD_URL,
   compareProductVersions,
+  type ReleaseSummaryLanguage,
   type StableReleaseManifest
 } from '@video-compressor/shared';
 
@@ -49,6 +50,14 @@ export function macAppleSiliconDownloadUrl(manifest: StableReleaseManifest | nul
   return manifest?.artifacts['macos-arm64']?.url ?? RELEASE_DOWNLOAD_URL;
 }
 
+export function localizedReleaseSummary(
+  manifest: StableReleaseManifest | null,
+  language: ReleaseSummaryLanguage
+): string | null {
+  const summary = manifest?.summary?.[language]?.trim();
+  return summary && summary.length <= 240 ? summary : null;
+}
+
 function validManifest(value: unknown): value is StableReleaseManifest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const source = value as Partial<StableReleaseManifest>;
@@ -61,7 +70,20 @@ function validManifest(value: unknown): value is StableReleaseManifest {
     Number.isInteger(source.apiVersion) &&
     typeof source.minimumSupportedVersion === 'string' &&
     typeof source.publishedAt === 'string' &&
+    validSummary(source.summary) &&
     Boolean(source.artifacts && typeof source.artifacts === 'object') &&
     Boolean(source.toolRequirements && typeof source.toolRequirements === 'object')
+  );
+}
+
+function validSummary(value: StableReleaseManifest['summary'] | undefined) {
+  if (value === undefined) return true;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  return Object.entries(value).every(
+    ([language, summary]) =>
+      (language === 'en' || language === 'uk') &&
+      typeof summary === 'string' &&
+      summary.trim().length > 0 &&
+      summary.trim().length <= 240
   );
 }

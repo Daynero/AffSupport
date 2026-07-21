@@ -39,7 +39,12 @@ import { EstimationWorker } from './estimate/worker.js';
 import { selectOutputFolder, selectVideos } from './files/picker.js';
 import { applicationSupportRoot } from './files/support-dir.js';
 import { findDroppedSource } from './files/dropped-source.js';
-import { commandExists, ffmpegPath, ffprobePath } from './ffmpeg/tools.js';
+import {
+  commandExists,
+  ffmpegPath,
+  ffprobePath,
+  MediaToolUnavailableError
+} from './ffmpeg/tools.js';
 import { allowedOrigins, config } from './config.js';
 import { eventStreamHeaders } from './http.js';
 import { isSupportedVideoPath, JobQueue } from './queue/queue.js';
@@ -61,6 +66,11 @@ const landingClients = new Set<NodeJS.WritableStream>();
 const imageStore = new ImageAssetStore();
 const pendingSelections = new Map<string, string>();
 let saveChain = Promise.resolve();
+let shuttingDown = false;
+let runtimeRestartRequested = false;
+let mediaToolsCheckInFlight = false;
+let mediaToolsTimer: ReturnType<typeof setInterval> | null = null;
+let installedReleaseTimer: ReturnType<typeof setInterval> | null = null;
 
 const landingOptimizer = new LandingOptimizer(tools, (type: LandingEventType = 'landing:state') => {
   const event: LandingEvent = { type, state: landingOptimizer.state() };
@@ -72,9 +82,46 @@ function broadcast(type: AgentEventType = 'state') {
   const event: AgentEvent = { type, state: queue.state() };
   const payload = `data: ${JSON.stringify(event)}\n\n`;
   for (const client of clients) client.write(payload);
+  void persistQueueState();
+}
+
+function persistQueueState() {
   saveChain = saveChain
     .then(() => saveState(queue.persisted()))
     .catch(error => app.log.error(error, 'Could not save local state'));
+  return saveChain;
+}
+
+function requestRuntimeRestart(error: MediaToolUnavailableError) {
+  app.log.error(
+    { tool: error.tool, causeCode: error.causeCode },
+    'Bundled media runtime became unavailable'
+  );
+  if (process.env.PACKAGED_APP !== '1' || runtimeRestartRequested || shuttingDown) return;
+  runtimeRestartRequested = true;
+  const timer = setTimeout(() => {
+    void saveChain.finally(() => shutdown(75));
+  }, 250);
+  timer.unref();
+}
+
+async function refreshMediaTools() {
+  if (mediaToolsCheckInFlight || shuttingDown) return;
+  mediaToolsCheckInFlight = true;
+  try {
+    const [ffmpeg, ffprobe] = await Promise.all([
+      commandExists(ffmpegPath),
+      commandExists(ffprobePath)
+    ]);
+    queue.setToolAvailability({ ffmpeg, ffprobe });
+    if ((!ffmpeg || !ffprobe) && !queue.workActive()) {
+      requestRuntimeRestart(
+        new MediaToolUnavailableError(ffmpeg ? 'ffprobe' : 'ffmpeg', 'HEALTH_CHECK')
+      );
+    }
+  } finally {
+    mediaToolsCheckInFlight = false;
+  }
 }
 
 const restored = await loadState();
@@ -87,7 +134,6 @@ const queue = new JobQueue(
   imageStore
 );
 await queue.revalidateSettingsImages();
-await saveState(queue.persisted());
 const estimator = new EstimationWorker(
   () => queue.estimationJobs(),
   (id, patch, event) => queue.updateEstimate(id, patch, event),
@@ -102,6 +148,9 @@ queue.attachEstimator({
   runPrioritized: () => estimator.runPrioritized(),
   cancelPrioritized: id => estimator.cancelPrioritized(id)
 });
+queue.attachRuntimeRecovery(requestRuntimeRestart);
+await queue.recoverRuntimeInterruptedJobs();
+await persistQueueState();
 await estimator.init();
 
 await app.register(cors, {
@@ -620,8 +669,10 @@ app.setNotFoundHandler((request, reply) =>
     : reply.sendFile('index.html')
 );
 
-let shuttingDown = false;
-let installedReleaseTimer: ReturnType<typeof setInterval> | null = null;
+if (process.env.PACKAGED_APP === '1') {
+  mediaToolsTimer = setInterval(() => void refreshMediaTools(), 10_000);
+  mediaToolsTimer.unref();
+}
 if (config.installedReleasePath) {
   installedReleaseTimer = setInterval(() => {
     void readFile(config.installedReleasePath as string, 'utf8')
@@ -637,8 +688,10 @@ if (config.installedReleasePath) {
 async function shutdown(code = 0) {
   if (shuttingDown) return;
   shuttingDown = true;
+  if (mediaToolsTimer) clearInterval(mediaToolsTimer);
   if (installedReleaseTimer) clearInterval(installedReleaseTimer);
   try {
+    await saveChain;
     await estimator.shutdown();
     await queue.shutdown();
     await landingOptimizer.shutdown();

@@ -22,7 +22,13 @@ import {
   type SourceKind
 } from '@video-compressor/shared';
 import { encodeVideo, isAudioCopyFailure, type EncodeEmbeddingOptions } from '../ffmpeg/encoder.js';
-import { probeMedia, type MediaInfo } from '../ffmpeg/tools.js';
+import {
+  isMediaToolUnavailableError,
+  MediaToolUnavailableError,
+  probeMedia,
+  type MediaInfo,
+  type MediaToolName
+} from '../ffmpeg/tools.js';
 import { fileSize, nextOutputPath } from '../files/paths.js';
 import {
   freezeImageEmbedding,
@@ -41,6 +47,14 @@ type EstimatorHooks = {
   runPrioritized?: () => Promise<boolean>;
   cancelPrioritized?: (id: string) => void;
 };
+
+type RuntimeRecoveryPhase = 'input-analysis' | 'encoding' | 'output-validation';
+export type QueueMediaRuntime = { probeMedia: typeof probeMedia };
+
+const defaultMediaRuntime: QueueMediaRuntime = { probeMedia };
+const RUNTIME_WARNING = 'Wishly media tools became unavailable. The agent is restarting safely.';
+const RUNTIME_JOB_ERROR =
+  'Wishly media tools became unavailable. This task will recover after restart.';
 
 export interface AddSourceOptions {
   sourceKind?: SourceKind;
@@ -73,6 +87,7 @@ export class JobQueue {
   private nextEstimatePriorityOrder = 1;
   private warning: string | null = null;
   private estimateHooks: EstimatorHooks | null = null;
+  private runtimeRecovery: ((error: MediaToolUnavailableError) => void) | null = null;
   private updateState: NonNullable<QueueState['update']> = {
     state: 'none',
     targetBuildId: null
@@ -85,7 +100,8 @@ export class JobQueue {
     private settings: AgentSettings = defaultSettings,
     private batch: QueueBatch | null = null,
     private imageStore = new ImageAssetStore(),
-    private random = Math.random
+    private random = Math.random,
+    private mediaRuntime: QueueMediaRuntime = defaultMediaRuntime
   ) {
     this.nextEstimatePriorityOrder =
       Math.max(0, ...jobs.map(job => job.estimatePriorityOrder ?? 0)) + 1;
@@ -93,6 +109,18 @@ export class JobQueue {
 
   attachEstimator(hooks: EstimatorHooks) {
     this.estimateHooks = hooks;
+  }
+
+  attachRuntimeRecovery(handler: (error: MediaToolUnavailableError) => void) {
+    this.runtimeRecovery = handler;
+  }
+
+  setToolAvailability(next: QueueState['tools']) {
+    const changed = this.tools.ffmpeg !== next.ffmpeg || this.tools.ffprobe !== next.ffprobe;
+    this.tools.ffmpeg = next.ffmpeg;
+    this.tools.ffprobe = next.ffprobe;
+    if (next.ffmpeg && next.ffprobe && this.warning === RUNTIME_WARNING) this.warning = null;
+    if (changed) this.notify();
   }
 
   state(): QueueState {
@@ -254,6 +282,57 @@ export class JobQueue {
     return changed;
   }
 
+  async recoverRuntimeInterruptedJobs() {
+    for (const job of this.jobs) {
+      const recovery = parseRuntimeRecovery(job.errorDetails);
+      if (!recovery) continue;
+      try {
+        if (recovery.phase === 'input-analysis') {
+          const media = await this.mediaRuntime.probeMedia(job.inputPath);
+          if (!validSourceMedia(media)) {
+            job.status = 'failed';
+            job.error = 'This video format is not supported or the file is damaged.';
+            job.errorDetails = null;
+            job.finishedAt = finishTimestamp(job);
+            continue;
+          }
+          applySourceMedia(job, media);
+          job.status = 'ready';
+          job.error = null;
+          job.errorDetails = null;
+          job.finishedAt = null;
+          this.estimateHooks?.schedule();
+          continue;
+        }
+
+        if (recovery.phase === 'output-validation') {
+          await access(job.outputPath);
+          const media = await this.mediaRuntime.probeMedia(job.outputPath);
+          await this.completeJob(job, media);
+          continue;
+        }
+
+        job.status = 'interrupted';
+        job.error = 'Compression was interrupted when the media engine stopped.';
+        job.errorDetails = null;
+        job.processingStage = null;
+        job.finishedAt = finishTimestamp(job);
+      } catch (error) {
+        if (isMediaToolUnavailableError(error)) {
+          await this.pauseForRuntimeFailure(job, error, recovery.phase);
+          return false;
+        }
+        job.status = 'failed';
+        job.error = processingError(error);
+        job.errorDetails = error instanceof Error ? error.message : null;
+        job.processingStage = null;
+        job.finishedAt = finishTimestamp(job);
+      }
+    }
+    this.notify();
+    return true;
+  }
+
   embeddingConfigurationError() {
     const embedding = this.settings.imageEmbedding;
     if (embedding.enabled && !embedding.startImage && !embedding.endImage) {
@@ -285,7 +364,13 @@ export class JobQueue {
   }
 
   async start(ids: string[]) {
-    if (!this.acceptingNewTasks() || this.state().running || this.embeddingConfigurationError())
+    if (
+      !this.tools.ffmpeg ||
+      !this.tools.ffprobe ||
+      !this.acceptingNewTasks() ||
+      this.state().running ||
+      this.embeddingConfigurationError()
+    )
       return false;
     const requested = new Set(ids);
     const jobs = this.jobs.filter(job => requested.has(job.id) && job.status === 'ready');
@@ -550,29 +635,30 @@ export class JobQueue {
       this.notify();
 
       if (!this.tools.ffprobe) {
-        job.status = 'failed';
-        job.error = 'The video analysis engine is unavailable.';
-        this.notify();
+        await this.pauseForRuntimeFailure(
+          job,
+          new MediaToolUnavailableError('ffprobe'),
+          'input-analysis'
+        );
         return null;
       }
-      const media = await probeMedia(canonical);
-      if (!media.width || !media.height || !media.duration) {
+      let media: MediaInfo;
+      try {
+        media = await this.mediaRuntime.probeMedia(canonical);
+      } catch (error) {
+        if (isMediaToolUnavailableError(error)) {
+          await this.pauseForRuntimeFailure(job, error, 'input-analysis');
+          return null;
+        }
+        throw error;
+      }
+      if (!validSourceMedia(media)) {
         job.status = 'failed';
         job.error = 'This video format is not supported or the file is damaged.';
         this.notify();
         return null;
       }
-      job.durationSeconds = media.duration;
-      job.sourceWidth = media.width;
-      job.sourceHeight = media.height;
-      job.sourceFrameRate = media.frameRate;
-      job.sourceBitrate = media.bitrate;
-      job.sourceCodec = media.codec;
-      job.sourceHasAudio = media.hasAudio;
-      job.sourceAudioBitrate = media.audioBitrate;
-      job.sourceAudioSampleRate = media.audioSampleRate;
-      job.sourceAudioChannels = media.audioChannels;
-      job.sourceAudioLayout = media.audioLayout;
+      applySourceMedia(job, media);
       job.progress = 0;
       job.status = 'ready';
       this.notify('estimate:queued');
@@ -625,7 +711,14 @@ export class JobQueue {
   }
 
   private async pump() {
-    if (this.compressionInFlight || this.prioritizingEstimates || !this.batch) return;
+    if (
+      this.compressionInFlight ||
+      this.prioritizingEstimates ||
+      !this.batch ||
+      !this.tools.ffmpeg ||
+      !this.tools.ffprobe
+    )
+      return;
     const job = this.jobs.find(
       candidate => candidate.batchId === this.batch!.id && candidate.status === 'queued'
     );
@@ -656,6 +749,9 @@ export class JobQueue {
       job.processingStage = 'compressing';
       this.notify();
       let result = await this.run(job, false, embedding);
+      if (result.spawnErrorCode) {
+        throw new MediaToolUnavailableError('ffmpeg', result.spawnErrorCode);
+      }
       if (
         !embedding &&
         !isCancelled(job) &&
@@ -666,28 +762,17 @@ export class JobQueue {
         job.progress = job.durationSeconds ? 0 : null;
         this.notify();
         result = await this.run(job, true, embedding);
+        if (result.spawnErrorCode) {
+          throw new MediaToolUnavailableError('ffmpeg', result.spawnErrorCode);
+        }
       }
       if (isCancelled(job)) {
         await unlink(job.outputPath).catch(() => {});
       } else if (result.code === 0) {
         job.processingStage = 'finalizing';
         this.notify();
-        const media = await probeMedia(job.outputPath);
-        if (job.imageEmbedding) validateEmbeddedOutput(job, media);
-        job.status = 'completed';
-        job.progress = 100;
-        job.processingStage = null;
-        job.finalSize = await fileSize(job.outputPath);
-        job.finalWidth = media.width;
-        job.finalHeight = media.height;
-        job.finalFrameRate = media.frameRate;
-        job.finalBitrate = media.bitrate;
-        job.finalDurationSeconds = media.duration;
-        job.finalCodec = media.codec;
-        job.estimateStatus = 'cancelled';
-        job.estimateProgress = null;
-        job.finishedAt = finishTimestamp(job);
-        await cleanupImportedSource(job);
+        const media = await this.mediaRuntime.probeMedia(job.outputPath);
+        await this.completeJob(job, media);
       } else {
         job.status = 'failed';
         job.error = friendlyError(result.stderr);
@@ -697,6 +782,11 @@ export class JobQueue {
         await unlink(job.outputPath).catch(() => {});
       }
     } catch (error) {
+      if (isMediaToolUnavailableError(error)) {
+        const phase = job.processingStage === 'finalizing' ? 'output-validation' : 'encoding';
+        await this.pauseForRuntimeFailure(job, error, phase);
+        return;
+      }
       job.status = 'failed';
       job.error = processingError(error);
       job.errorDetails = error instanceof Error ? error.message : null;
@@ -710,6 +800,63 @@ export class JobQueue {
       this.notify();
       await this.runPrioritizedEstimates();
       queueMicrotask(() => void this.pump());
+    }
+  }
+
+  private async completeJob(job: CompressionJob, media: MediaInfo) {
+    validateCompletedOutput(job, media);
+    job.status = 'completed';
+    job.progress = 100;
+    job.processingStage = null;
+    job.finalSize = await fileSize(job.outputPath);
+    job.finalWidth = media.width;
+    job.finalHeight = media.height;
+    job.finalFrameRate = media.frameRate;
+    job.finalBitrate = media.bitrate;
+    job.finalDurationSeconds = media.duration;
+    job.finalCodec = media.codec;
+    job.error = null;
+    job.errorDetails = null;
+    job.estimateStatus = 'cancelled';
+    job.estimateProgress = null;
+    job.finishedAt = finishTimestamp(job);
+    await cleanupImportedSource(job);
+  }
+
+  private async pauseForRuntimeFailure(
+    job: CompressionJob,
+    error: MediaToolUnavailableError,
+    phase: RuntimeRecoveryPhase
+  ) {
+    this.tools[error.tool] = false;
+    this.warning = RUNTIME_WARNING;
+    job.status = phase === 'input-analysis' ? 'analyzing' : 'interrupted';
+    job.error = RUNTIME_JOB_ERROR;
+    job.errorDetails = runtimeRecoveryDetails(error, phase);
+    job.processingStage = null;
+    job.finishedAt = phase === 'input-analysis' ? null : finishTimestamp(job);
+    if (phase === 'output-validation') {
+      job.progress = 100;
+      job.finalSize = await fileSize(job.outputPath).catch(() => null);
+    } else if (phase === 'encoding') {
+      await unlink(job.outputPath).catch(() => {});
+    }
+
+    if (this.batch) {
+      for (const queued of this.jobs) {
+        if (queued.batchId !== this.batch.id || queued.status !== 'queued') continue;
+        queued.status = 'ready';
+        queued.batchId = null;
+        queued.processingStage = null;
+        queued.estimatePriorityOrder = null;
+      }
+      this.batch.finishedAt ??= Date.now();
+    }
+    this.notify();
+    try {
+      this.runtimeRecovery?.(error);
+    } catch {
+      // The persisted recovery marker is sufficient for a later manual launch.
     }
   }
 
@@ -879,6 +1026,56 @@ function friendlyError(stderr: string) {
   return 'FFmpeg could not compress this video.';
 }
 
+function validSourceMedia(media: MediaInfo) {
+  return Boolean(media.width && media.height && media.duration);
+}
+
+function applySourceMedia(job: CompressionJob, media: MediaInfo) {
+  job.durationSeconds = media.duration;
+  job.sourceWidth = media.width;
+  job.sourceHeight = media.height;
+  job.sourceFrameRate = media.frameRate;
+  job.sourceBitrate = media.bitrate;
+  job.sourceCodec = media.codec;
+  job.sourceHasAudio = media.hasAudio;
+  job.sourceAudioBitrate = media.audioBitrate;
+  job.sourceAudioSampleRate = media.audioSampleRate;
+  job.sourceAudioChannels = media.audioChannels;
+  job.sourceAudioLayout = media.audioLayout;
+  job.progress = 0;
+}
+
+function runtimeRecoveryDetails(error: MediaToolUnavailableError, phase: RuntimeRecoveryPhase) {
+  return JSON.stringify({
+    code: error.code,
+    phase,
+    tool: error.tool,
+    causeCode: error.causeCode
+  });
+}
+
+function parseRuntimeRecovery(value: string | null): {
+  phase: RuntimeRecoveryPhase;
+  tool: MediaToolName;
+} | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    const phase = parsed.phase;
+    const tool = parsed.tool;
+    if (
+      parsed.code === 'MEDIA_TOOL_UNAVAILABLE' &&
+      (phase === 'input-analysis' || phase === 'encoding' || phase === 'output-validation') &&
+      (tool === 'ffmpeg' || tool === 'ffprobe')
+    ) {
+      return { phase, tool };
+    }
+  } catch {
+    // Older free-text errors are not automatic recovery markers.
+  }
+  return null;
+}
+
 function processingError(error: unknown) {
   if (error instanceof ImageAssetError) {
     return error.code === 'IMAGE_DAMAGED'
@@ -898,6 +1095,18 @@ function processingError(error: unknown) {
 }
 
 class OutputValidationError extends Error {}
+
+function validateCompletedOutput(job: CompressionJob, media: MediaInfo) {
+  const errors: string[] = [];
+  if (!media.formatName || !/(?:^|,)mp4(?:,|$)|(?:^|,)mov(?:,|$)/.test(media.formatName)) {
+    errors.push(`format=${media.formatName ?? 'missing'}`);
+  }
+  if (!media.width || !media.height) errors.push('dimensions=missing');
+  if (!media.duration) errors.push('duration=missing');
+  if (!media.codec) errors.push('codec=missing');
+  if (errors.length) throw new OutputValidationError(errors.join('; '));
+  if (job.imageEmbedding) validateEmbeddedOutput(job, media);
+}
 
 function validateEmbeddedOutput(job: CompressionJob, media: MediaInfo) {
   const dimensions = outputDimensions(job);

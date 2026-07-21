@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { loadState, saveState } from '../apps/agent/src/queue/store.js';
@@ -54,5 +54,31 @@ describe('persistent agent state', () => {
       stateFile
     );
     expect((await loadState(stateFile)).jobs).toEqual([]);
+  });
+
+  it('keeps the state file atomic when saves overlap', async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), 'compressor-state-overlap-'));
+    const stateFile = path.join(directory, 'state.json');
+    const crfValues = Array.from({ length: 20 }, (_, index) => 18 + index);
+
+    await expect(
+      Promise.all(
+        crfValues.map(crf =>
+          saveState(
+            {
+              settings: { ...optimalSettings, crf },
+              jobs: [],
+              batch: null
+            },
+            stateFile
+          )
+        )
+      )
+    ).resolves.toHaveLength(crfValues.length);
+
+    const saved = JSON.parse(await readFile(stateFile, 'utf8')) as {
+      settings: { crf: number };
+    };
+    expect(crfValues).toContain(saved.settings.crf);
   });
 });

@@ -45,8 +45,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var isTerminating = false
   private var restartingIntoInstalledBuild = false
   private var warnedInstalledBuildID: String?
+  private var runtimeRestartAttempts = 0
 
   func applicationDidFinishLaunching(_ notification: Notification) {
+    guard installedLocationAllowed() else {
+      showFailure(
+        "Move Wishly Agent to Applications before opening it.",
+        details: "Running directly from a DMG or Downloads can make the bundled media tools disappear while a video is being processed. Drag Wishly Agent to Applications, then open that installed copy."
+      )
+      return
+    }
     installMenuBarItem()
     beginInstalledBuildMonitoring()
     if acquireInstanceLock() {
@@ -70,6 +78,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       process.waitUntilExit()
     }
     return .terminateNow
+  }
+
+  private func installedLocationAllowed() -> Bool {
+    if releaseChannel != "stable" ||
+        ProcessInfo.processInfo.environment["WISHLY_ALLOW_UNINSTALLED_AGENT"] == "1" {
+      return true
+    }
+    let path = Bundle.main.bundleURL.resolvingSymlinksInPath().standardizedFileURL.path
+    let roots = ["/Applications", FileManager.default.homeDirectoryForCurrentUser
+      .appendingPathComponent("Applications").path]
+    return roots.contains { path.hasPrefix($0 + "/") }
   }
 
   private func acquireInstanceLock() -> Bool {
@@ -259,8 +278,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private func spawnAgent() {
     let resources = Bundle.main.resourceURL!
     let executable = resources.appendingPathComponent("runtime/node")
+    let ffmpeg = resources.appendingPathComponent("runtime/bin/ffmpeg")
+    let ffprobe = resources.appendingPathComponent("runtime/bin/ffprobe")
     let agentDirectory = resources.appendingPathComponent("agent")
     let entry = agentDirectory.appendingPathComponent("dist/index.js")
+    guard [executable, ffmpeg, ffprobe].allSatisfy({
+      FileManager.default.isExecutableFile(atPath: $0.path)
+    }) else {
+      showFailure(
+        "The bundled media runtime is unavailable.",
+        details: "Reinstall Wishly Agent in Applications. Your local queue and original files are safe."
+      )
+      return
+    }
     let child = Process()
     let output = Pipe()
     child.executableURL = executable
@@ -291,6 +321,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       DispatchQueue.main.async {
         guard let self, !self.isTerminating else { return }
         self.readinessTimer?.invalidate()
+        if finished.terminationStatus == 75 && self.runtimeRestartAttempts < 2 {
+          self.runtimeRestartAttempts += 1
+          self.process = nil
+          self.portWaitAttempts = 0
+          DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
+            guard !self.isTerminating else { return }
+            self.startAgentWhenPortIsFree()
+          }
+          return
+        }
         self.showFailure(
           "The local agent exited with status \(finished.terminationStatus).",
           details: self.stderrText

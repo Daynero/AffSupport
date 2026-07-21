@@ -48,6 +48,7 @@ export {
 export type {
   ReleaseArtifact,
   ReleasePlatform,
+  ReleaseSummaryLanguage,
   StableReleaseManifest,
   ToolContractName,
   ToolContracts,

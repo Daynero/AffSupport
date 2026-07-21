@@ -64,6 +64,23 @@ if (
 if (JSON.stringify(stableManifest.toolRequirements) !== JSON.stringify(WEB_TOOL_REQUIREMENTS)) {
   fail('stable release manifest tool requirements differ from the web contract');
 }
+if (stableManifest.summary !== undefined) {
+  if (
+    !stableManifest.summary ||
+    typeof stableManifest.summary !== 'object' ||
+    Array.isArray(stableManifest.summary)
+  ) {
+    fail('stable release manifest summary must be a localized object');
+  }
+  for (const [language, summary] of Object.entries(stableManifest.summary)) {
+    if (!['en', 'uk'].includes(language)) {
+      fail(`stable release manifest summary contains unsupported language ${language}`);
+    }
+    if (typeof summary !== 'string' || !summary.trim() || summary.trim().length > 240) {
+      fail(`stable release manifest summary for ${language} must contain 1-240 characters`);
+    }
+  }
+}
 const primaryArtifact = stableManifest.artifacts?.['macos-arm64'];
 if (!primaryArtifact || primaryArtifact.url !== RELEASE_DOWNLOAD_URL) {
   fail('stable release manifest does not point at the immutable primary artifact');

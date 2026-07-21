@@ -1,4 +1,5 @@
-import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { access, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { applicationSupportRoot } from '../files/support-dir.js';
 import {
@@ -92,9 +93,13 @@ export async function loadState(file = defaultStatePath()): Promise<PersistedSta
 
 export async function saveState(state: PersistedState, file = defaultStatePath()) {
   await mkdir(path.dirname(file), { recursive: true });
-  const temporary = `${file}.tmp`;
-  await writeFile(temporary, JSON.stringify(state, null, 2), 'utf8');
-  await rename(temporary, file);
+  const temporary = `${file}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temporary, JSON.stringify(state, null, 2), 'utf8');
+    await rename(temporary, file);
+  } finally {
+    await unlink(temporary).catch(() => {});
+  }
 }
 
 function migrateSettings(value: unknown): AgentSettings {

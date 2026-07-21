@@ -52,7 +52,13 @@ export type PendingAnalyticsEvent = {
   attempts: number;
 };
 
-type AnalyticsSender = (events: PendingAnalyticsEvent[]) => Promise<boolean>;
+export type AnalyticsDeliveryResult =
+  | boolean
+  | {
+      acceptedEventIds: string[];
+    };
+
+type AnalyticsSender = (events: PendingAnalyticsEvent[]) => Promise<AnalyticsDeliveryResult>;
 
 function uuid() {
   return (
@@ -105,10 +111,26 @@ async function sendWithSupabase(events: PendingAnalyticsEvent[]) {
     p_events: payload as unknown as Json
   });
   if (error) {
-    console.warn('Wishly analytics delivery failed.');
+    console.warn('Wishly analytics delivery failed.', {
+      code: error.code,
+      message: error.message
+    });
     return false;
   }
-  return Array.isArray(data) && data.some(result => result.accepted === true);
+  if (!Array.isArray(data)) return false;
+
+  const batchIds = new Set(events.map(event => event.event_id));
+  const acceptedEventIds = data
+    .filter(result => result.accepted === true && batchIds.has(result.event_id))
+    .map(result => result.event_id);
+  const rejected = data.filter(result => result.accepted !== true && batchIds.has(result.event_id));
+  if (rejected.length) {
+    console.warn(
+      'Wishly analytics rejected events.',
+      rejected.map(result => ({ event_id: result.event_id, reason: result.reason }))
+    );
+  }
+  return { acceptedEventIds };
 }
 
 type AgentAnalyticsContext = {
@@ -172,6 +194,9 @@ export class ProductAnalytics {
   track<E extends AnalyticsEventName>(name: E, properties: AnalyticsEventProperties[E]) {
     if (!ANALYTICS_ENABLED || !this.userId || typeof window === 'undefined') return;
     const sanitized = sanitizeAnalyticsProperties(properties);
+    const eventProperties = { ...sanitized };
+    delete eventProperties.flow_id;
+    delete eventProperties.run_id;
     const event: PendingAnalyticsEvent = {
       event_id: uuid(),
       event_name: name,
@@ -182,7 +207,7 @@ export class ProductAnalytics {
       session_id: productSessionId(),
       installation_id: this.installationId,
       tool: analyticsTool(name, sanitized),
-      properties: sanitized,
+      properties: eventProperties,
       web_build_id: WEB_BUILD_ID,
       local_app_version: this.context.version,
       local_app_build: this.context.buildId,
@@ -218,9 +243,16 @@ export class ProductAnalytics {
     this.timer = null;
     const batch = this.queue.slice(0, BATCH_SIZE).filter(event => event.user_id === this.userId);
     try {
-      const delivered = batch.length > 0 && (await this.sender(batch));
-      if (delivered) this.queue.splice(0, batch.length);
-      else this.retry(batch);
+      const result = batch.length > 0 ? await this.sender(batch) : false;
+      if (result === true) {
+        this.remove(batch);
+      } else if (result === false) {
+        this.retry(batch);
+      } else {
+        const accepted = new Set(result.acceptedEventIds);
+        this.remove(batch.filter(event => accepted.has(event.event_id)));
+        this.retry(batch.filter(event => !accepted.has(event.event_id)));
+      }
       this.persist();
     } catch {
       this.retry(batch);
@@ -241,6 +273,11 @@ export class ProductAnalytics {
         attempted.has(event.event_id) ? { ...event, attempts: event.attempts + 1 } : event
       )
       .filter(event => event.attempts < MAX_ATTEMPTS);
+  }
+
+  private remove(batch: PendingAnalyticsEvent[]) {
+    const delivered = new Set(batch.map(event => event.event_id));
+    this.queue = this.queue.filter(event => !delivered.has(event.event_id));
   }
 
   private scheduleFlush() {

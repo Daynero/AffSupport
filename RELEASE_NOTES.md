@@ -1,3 +1,10 @@
+# v0.6.2
+
+- Recover safely when the bundled FFmpeg or FFprobe runtime becomes unavailable, preserving completed output validation and queued work across an automatic Agent restart.
+- Require stable builds to run from Applications so ejecting a DMG cannot interrupt the media runtime during compression.
+- Add a localized in-app update notice with short release summaries and a direct immutable download.
+- Restore analytics ingestion for released 0.6.1 clients and retain partially acknowledged offline batches correctly.
+
 # v0.6.1
 
 - Add a persistent light/dark theme switch across the main app, authentication and legal pages, with system-theme detection.

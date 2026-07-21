@@ -183,15 +183,35 @@ export function AgentProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    void loadStableReleaseManifest()
-      .then(manifest => {
+    let loading = false;
+    const refresh = async () => {
+      if (loading) return;
+      loading = true;
+      try {
+        const manifest = await loadStableReleaseManifest();
         if (active) setReleaseManifest({ status: 'ready', manifest });
-      })
-      .catch(() => {
-        if (active) setReleaseManifest({ status: 'unavailable', manifest: null });
-      });
+      } catch {
+        if (active) {
+          setReleaseManifest(current =>
+            current.status === 'ready' ? current : { status: 'unavailable', manifest: null }
+          );
+        }
+      } finally {
+        loading = false;
+      }
+    };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+    void refresh();
+    const interval = window.setInterval(() => void refresh(), 15 * 60_000);
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
     return () => {
       active = false;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
   }, []);
 

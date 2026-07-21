@@ -16,6 +16,7 @@ import {
 } from '../packages/shared/src/release';
 import {
   installedReleaseStatus,
+  localizedReleaseSummary,
   macAppleSiliconDownloadUrl
 } from '../apps/web/src/release-manifest';
 
@@ -45,6 +46,15 @@ describe('release identity', () => {
     );
     expect(macAppleSiliconDownloadUrl(manifest)).toBe(manifest.artifacts['macos-arm64'].url);
     expect(macAppleSiliconDownloadUrl(null)).toBe(RELEASE_DOWNLOAD_URL);
+  });
+
+  it('reads localized release copy from the stable manifest', () => {
+    const manifest = JSON.parse(
+      readFileSync('apps/web/public/.well-known/wishly/stable.json', 'utf8')
+    );
+    expect(localizedReleaseSummary(manifest, 'en')).toBe('Fixed some issues.');
+    expect(localizedReleaseSummary(manifest, 'uk')).toBe('Виправлено деякі помилки.');
+    expect(localizedReleaseSummary({ ...manifest, summary: undefined }, 'uk')).toBeNull();
   });
 
   it('keeps every workspace package on the product version', () => {
@@ -103,5 +113,10 @@ describe('release identity', () => {
     expect(packageScript).not.toMatch(/git (tag|push)|supabase|wrangler/);
     expect(launcher).toContain('__AGENT_PORT__');
     expect(launcher).toContain('__SUPPORT_DIRECTORY_NAME__');
+    expect(launcher).toContain('installedLocationAllowed()');
+    expect(launcher).toContain('finished.terminationStatus == 75');
+    expect(readFileSync('scripts/verify-dmg.sh', 'utf8')).toContain(
+      'WISHLY_ALLOW_UNINSTALLED_AGENT=1'
+    );
   });
 });
