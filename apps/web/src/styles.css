@@ -4232,7 +4232,10 @@ input.is-invalid {
   .login-accent,
   .user-menu-popover,
   .modal-backdrop,
-  .onboarding-modal {
+  .onboarding-modal,
+  .theme-toggle__stars circle,
+  ::view-transition-old(theme-toggle),
+  ::view-transition-new(theme-toggle) {
     animation: none !important;
   }
 
@@ -4241,7 +4244,13 @@ input.is-invalid {
   }
 
   .activity-bar,
-  .google-sign-in {
+  .google-sign-in,
+  .theme-toggle,
+  .theme-toggle__halo,
+  .theme-toggle__core,
+  .theme-toggle__cutter,
+  .theme-toggle__rays,
+  .theme-toggle__stars circle {
     transition: none !important;
   }
 }
@@ -5289,5 +5298,266 @@ input.is-invalid {
 
   .landing-compare-footer {
     gap: var(--space-2);
+  }
+}
+
+/* ============================================================
+   Dark theme
+   Semantic tokens flip; the purple brand brightens so accents
+   keep contrast against deep indigo surfaces.
+   ============================================================ */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-bg: #100c1c;
+  --color-surface: #1b1630;
+  --color-surface-subtle: #16112a;
+  --color-surface-muted: #241d3c;
+  --color-text: #eeebf7;
+  --color-text-muted: #a7a0bd;
+  --color-border: #2e2748;
+  --color-border-strong: #453b64;
+
+  --color-accent: #967bf9;
+  --color-accent-hover: #a98ffb;
+  --color-accent-active: #bda6fc;
+  --color-accent-soft: color-mix(in srgb, #967bf9 20%, transparent);
+  --color-accent-softer: color-mix(in srgb, #967bf9 11%, transparent);
+  --color-focus: #b49bfb;
+  --gradient-brand: linear-gradient(90deg, #8b6df6 0%, #a983f7 50%, #cd8bf3 100%);
+  --gradient-progress: linear-gradient(90deg, #8b6df6 0%, #a983f7 60%, #9b7bf6 100%);
+
+  --color-success: #56d597;
+  --color-success-soft: color-mix(in srgb, #56d597 15%, transparent);
+  --color-warning: #f2c14e;
+  --color-warning-soft: color-mix(in srgb, #f2c14e 15%, transparent);
+  --color-error: #f4776a;
+  --color-error-soft: color-mix(in srgb, #f4776a 15%, transparent);
+
+  --shadow-menu: 0 16px 40px rgba(0, 0, 0, 0.55);
+  --shadow-raise: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+/* Hardcoded light surfaces that tokens don't reach */
+:root[data-theme='dark'] .selected-image-actions {
+  background: rgba(27, 22, 48, 0.72);
+}
+:root[data-theme='dark'] .selected-image-action:hover:not(:disabled) {
+  background: rgba(40, 32, 66, 0.9);
+}
+:root[data-theme='dark'] .selected-image-size {
+  background: rgba(27, 22, 48, 0.7);
+}
+:root[data-theme='dark'] .login-page {
+  background:
+    radial-gradient(circle at 50% 45%, rgba(120, 92, 220, 0.28) 0 22%, transparent 55%),
+    linear-gradient(145deg, #14102a 0%, #0e0a1c 48%, #16112c 100%);
+}
+:root[data-theme='dark'] .accent-one {
+  background: radial-gradient(
+    circle at 38% 42%,
+    rgba(139, 109, 246, 0.4) 0%,
+    rgba(98, 66, 208, 0.18) 52%,
+    transparent 73%
+  );
+}
+:root[data-theme='dark'] .accent-two {
+  background: radial-gradient(
+    circle at 54% 38%,
+    rgba(170, 128, 245, 0.32) 0%,
+    rgba(76, 50, 168, 0.16) 48%,
+    transparent 72%
+  );
+}
+:root[data-theme='dark'] .login-card {
+  border-color: rgba(139, 109, 246, 0.22);
+  background: rgba(27, 22, 48, 0.86);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+}
+:root[data-theme='dark'] .login-mark {
+  border-color: rgba(139, 109, 246, 0.28);
+  background: linear-gradient(145deg, #241d3c, #1a1430);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 8px 24px rgba(0, 0, 0, 0.4);
+}
+:root[data-theme='dark'] .legal-topbar {
+  border-bottom-color: rgba(46, 39, 72, 0.8);
+  background: rgba(22, 17, 42, 0.86);
+}
+/* Google keeps its brand-mandated dark variant */
+:root[data-theme='dark'] .google-sign-in {
+  border-color: #8e918f;
+  color: #e3e3e3;
+  background: #131314;
+}
+:root[data-theme='dark'] .google-sign-in:hover:not(:disabled) {
+  background: #1e1f20;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+/* QR must stay on a light plate to remain scannable */
+:root[data-theme='dark'] .support-qr {
+  background: #f5f3fb;
+}
+
+/* ============================================================
+   Cosmic reveal — the incoming theme wipes in as a growing
+   circle from the toggle. Driven by the View Transitions API.
+   ============================================================ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+/* The incoming theme always grows on top, both directions. */
+::view-transition-new(root) {
+  z-index: 9999;
+}
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+/* ============================================================
+   Theme toggle — sun ⇄ moon morph that rides above the reveal
+   and spins into place. Nobody forgets clicking it.
+   ============================================================ */
+.topbar-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.theme-toggle {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  color: #f2a93c;
+  background: var(--color-surface-muted);
+  cursor: pointer;
+  overflow: visible;
+  isolation: isolate;
+  view-transition-name: theme-toggle;
+  transition:
+    color var(--dur-control) var(--ease-standard),
+    background var(--dur-control) var(--ease-standard),
+    border-color var(--dur-control) var(--ease-standard),
+    transform var(--dur-pop) var(--ease-standard);
+}
+:root[data-theme='dark'] .theme-toggle {
+  color: #d3c4ff;
+  background: color-mix(in srgb, var(--color-accent) 16%, var(--color-surface-muted));
+  border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
+}
+.theme-toggle:hover {
+  transform: translateY(-1px);
+}
+.theme-toggle:active {
+  transform: scale(0.88);
+}
+
+.theme-toggle__halo {
+  position: absolute;
+  inset: -5px;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(242, 169, 60, 0.55), transparent 68%);
+  opacity: 0;
+  transform: scale(0.5);
+  pointer-events: none;
+  transition:
+    opacity var(--dur-control) var(--ease-standard),
+    transform var(--dur-control) var(--ease-standard);
+}
+.theme-toggle:hover .theme-toggle__halo {
+  opacity: 0.95;
+  transform: scale(1);
+}
+:root[data-theme='dark'] .theme-toggle__halo {
+  background: radial-gradient(circle, rgba(150, 123, 249, 0.6), transparent 68%);
+}
+
+.theme-toggle__icon {
+  overflow: visible;
+}
+
+.theme-toggle__core {
+  transform-box: view-box;
+  transition: transform var(--dur-section) var(--ease-standard);
+}
+
+.theme-toggle__cutter {
+  transform-box: view-box;
+  transform: translate(3px, -3px);
+  transition: transform var(--dur-section) var(--ease-standard);
+}
+:root[data-theme='dark'] .theme-toggle__cutter {
+  transform: translate(-7px, 4px);
+}
+
+/* Retract the whole ray cluster as a group — scaling individual <line>s
+   fights their SVG rotate() attribute and mangles the sun. */
+.theme-toggle__rays {
+  transform-box: view-box;
+  transform-origin: 12px 12px;
+  transition:
+    transform var(--dur-section) var(--ease-standard),
+    opacity var(--dur-control) var(--ease-standard);
+}
+:root[data-theme='dark'] .theme-toggle__rays {
+  opacity: 0;
+  transform: scale(0.3);
+}
+
+.theme-toggle__stars circle {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  transform: scale(0);
+  transition:
+    opacity var(--dur-control) var(--ease-standard),
+    transform var(--dur-control) var(--ease-standard);
+}
+:root[data-theme='dark'] .theme-toggle__stars circle {
+  opacity: 1;
+  transform: scale(1);
+  transition-delay: var(--star-delay);
+  animation: theme-twinkle 3s ease-in-out infinite;
+  animation-delay: var(--star-delay);
+}
+@keyframes theme-twinkle {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Lift the toggle above the reveal and spin the icons past each other */
+::view-transition-group(theme-toggle) {
+  z-index: 10001;
+}
+::view-transition-old(theme-toggle) {
+  animation: theme-toggle-out 0.5s var(--ease-standard) both;
+}
+::view-transition-new(theme-toggle) {
+  animation: theme-toggle-in 0.5s var(--ease-standard) both;
+}
+@keyframes theme-toggle-out {
+  to {
+    transform: rotate(180deg) scale(0.4);
+    opacity: 0;
+  }
+}
+@keyframes theme-toggle-in {
+  from {
+    transform: rotate(-180deg) scale(0.4);
+    opacity: 0;
   }
 }

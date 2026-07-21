@@ -6,6 +6,8 @@ export type Language = 'en' | 'uk';
 const en = {
   appName: 'Wishly',
   language: 'Language',
+  themeToDark: 'Switch to dark mode',
+  themeToLight: 'Switch to light mode',
   english: 'English',
   ukrainian: 'Українська',
   menu: 'Menu',
@@ -537,6 +539,8 @@ const en = {
 const uk: Record<keyof typeof en, string> = {
   appName: 'Wishly',
   language: 'Мова',
+  themeToDark: 'Темна тема',
+  themeToLight: 'Світла тема',
   english: 'English',
   ukrainian: 'Українська',
   menu: 'Меню',

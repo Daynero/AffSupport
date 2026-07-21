@@ -7,6 +7,7 @@ import { useI18n } from '../i18n';
 import { Button, Checkbox, WishlyLoader } from '../components/ui';
 import { WishlyLogo, WishlyMark } from '../components/WishlyLogo';
 import { LanguageSwitch } from '../components/LanguageSwitch';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { analytics } from '../analytics/service';
 
 export function AuthLoadingScreen({ callback = false }: { callback?: boolean }) {
@@ -82,7 +83,10 @@ export function LoginPage() {
       <div className="login-accent accent-two" aria-hidden="true" />
       <header className="login-topbar">
         <WishlyLogo name="Wishly" />
-        <LanguageSwitch />
+        <div className="topbar-cluster">
+          <ThemeToggle />
+          <LanguageSwitch />
+        </div>
       </header>
       <section className="login-card" aria-labelledby="login-heading">
         <span className="login-mark" aria-hidden="true">

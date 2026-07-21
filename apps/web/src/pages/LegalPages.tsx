@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { LanguageSwitch } from '../components/LanguageSwitch';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { WishlyLogo } from '../components/WishlyLogo';
 import { useI18n, type Language } from '../i18n';
 import { internalLink } from '../lib/navigation';
@@ -184,7 +185,10 @@ function LegalPage({ kind }: { kind: 'privacy' | 'terms' }) {
         <a href="/" onClick={event => internalLink(event, '/')} aria-label={t('backToWishly')}>
           <WishlyLogo name="Wishly" />
         </a>
-        <LanguageSwitch />
+        <div className="topbar-cluster">
+          <ThemeToggle />
+          <LanguageSwitch />
+        </div>
       </header>
       <main className="legal-content">
         <header>

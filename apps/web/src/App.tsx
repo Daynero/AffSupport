@@ -35,6 +35,7 @@ import { JobRow } from './components/JobRow';
 import { SettingsPanel } from './components/SettingsPanel';
 import { Button, ProgressBar, Spinner, type Translate } from './components/ui';
 import { WishlyLogo, WishlyMark } from './components/WishlyLogo';
+import { ThemeToggle } from './components/ThemeToggle';
 import { useAgent } from './AgentContext';
 import { internalLink } from './lib/navigation';
 import { UserMenu } from './components/UserMenu';
@@ -597,6 +598,7 @@ export function Header({
         <SupportButton />
       </div>
       <div className="topbar-actions">
+        <ThemeToggle />
         <div className="language-switch" aria-label={t('language')}>
           <button
             className={language === 'en' ? 'is-active' : ''}

@@ -55,6 +55,9 @@ describe('release identity', () => {
   });
 
   it('compares semantic versions without treating a newer build as an update target', () => {
+    const [major, minor, patch] = PRODUCT_VERSION.split('-')[0].split('.').map(Number);
+    const newerVersion = `${major}.${minor}.${patch + 1}`;
+
     expect(compareProductVersions('0.5.2', '0.5.1')).toBe(1);
     expect(compareProductVersions('0.5.1', '0.5.2')).toBe(-1);
     expect(compareProductVersions('development', '0.5.2')).toBeNull();
@@ -63,7 +66,7 @@ describe('release identity', () => {
         manifest: JSON.parse(
           readFileSync('apps/web/public/.well-known/wishly/stable.json', 'utf8')
         ),
-        installedVersion: '0.6.1',
+        installedVersion: newerVersion,
         installedChannel: 'stable',
         compatible: true
       })

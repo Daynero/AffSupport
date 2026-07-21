@@ -1,3 +1,8 @@
+# v0.6.1
+
+- Add a persistent light/dark theme switch across the main app, authentication and legal pages, with system-theme detection.
+- Add an animated circular theme reveal with accessible reduced-motion and browser fallback behavior.
+
 # v0.6.0
 
 - Redesign Landing Optimizer around compact, expandable landing cards with end-to-end progress and clearer completion summaries.
