@@ -14,7 +14,10 @@ import {
   compareProductVersions,
   toolContractCompatible
 } from '../packages/shared/src/release';
-import { installedReleaseStatus } from '../apps/web/src/release-manifest';
+import {
+  installedReleaseStatus,
+  macAppleSiliconDownloadUrl
+} from '../apps/web/src/release-manifest';
 
 describe('release identity', () => {
   it('uses valid, monotonically sortable release identifiers', () => {
@@ -34,6 +37,14 @@ describe('release identity', () => {
     expect(RELEASE_TAG).toBe(`v${PRODUCT_VERSION}`);
     expect(RELEASE_ARTIFACT_NAME).toContain(`v${PRODUCT_VERSION}`);
     expect(RELEASE_DOWNLOAD_URL).toContain(`/${RELEASE_TAG}/${RELEASE_ARTIFACT_NAME}`);
+  });
+
+  it('selects the Apple Silicon artifact without browser platform detection', () => {
+    const manifest = JSON.parse(
+      readFileSync('apps/web/public/.well-known/wishly/stable.json', 'utf8')
+    );
+    expect(macAppleSiliconDownloadUrl(manifest)).toBe(manifest.artifacts['macos-arm64'].url);
+    expect(macAppleSiliconDownloadUrl(null)).toBe(RELEASE_DOWNLOAD_URL);
   });
 
   it('keeps every workspace package on the product version', () => {

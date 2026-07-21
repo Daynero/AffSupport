@@ -3162,6 +3162,10 @@ input.is-invalid {
   animation: fade-in var(--dur-section) var(--ease-enter);
 }
 
+.modal-backdrop-nested {
+  z-index: 110;
+}
+
 .onboarding-modal {
   display: grid;
   gap: var(--space-5);
@@ -3489,6 +3493,20 @@ input.is-invalid {
 .local-app-modal p,
 .local-app-modal small {
   color: var(--color-text-muted);
+}
+
+.platform-download-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.platform-download-actions .button {
+  width: 100%;
+}
+
+.windows-coming-soon-modal {
+  width: min(440px, calc(100vw - 32px));
 }
 
 .local-app-mark {
@@ -4186,6 +4204,10 @@ input.is-invalid {
 
   .onboarding-modal {
     padding: var(--space-5);
+  }
+
+  .platform-download-actions {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .account-card,

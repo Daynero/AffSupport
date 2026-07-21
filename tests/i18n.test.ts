@@ -20,11 +20,11 @@ describe('language selection and dictionaries', () => {
     }
   });
 
-  it('uses platform-neutral text in the web interface', () => {
-    const visibleText = translationKeys
-      .flatMap(key => [translate('en', key), translate('uk', key)])
-      .join(' ');
-    expect(visibleText).not.toMatch(/\bMac\b|macOS|Apple Silicon/i);
+  it('offers explicit Mac and Windows installation choices', () => {
+    expect(translate('en', 'macAppleSilicon')).toBe('Mac (Apple Silicon)');
+    expect(translate('uk', 'macAppleSilicon')).toBe('Mac (Apple Silicon)');
+    expect(translate('en', 'windows')).toBe('Windows');
+    expect(translate('uk', 'windowsComingSoonBody')).toContain('ще в розробці');
   });
 
   it('formats timer/status/tooltip text in both languages', () => {

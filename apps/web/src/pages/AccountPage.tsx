@@ -5,11 +5,11 @@ import { useAgent } from '../AgentContext';
 import { Button, Checkbox } from '../components/ui';
 import { UserAvatar } from '../components/UserAvatar';
 import { useI18n, type Language } from '../i18n';
-import { installedReleaseStatus, releaseArtifact } from '../release-manifest';
+import { installedReleaseStatus, macAppleSiliconDownloadUrl } from '../release-manifest';
 
 export default function AccountPage() {
   const { profile, user, updateProfile, signOut } = useAuth();
-  const { agentVersion, agentChannel, platform, releaseManifest, toolAvailable } = useAgent();
+  const { agentVersion, agentChannel, releaseManifest, toolAvailable } = useAgent();
   const { language: currentLanguage, setLanguage, t } = useI18n();
   const [displayName, setDisplayName] = useState(profile?.display_name ?? '');
   const [language, setFormLanguage] = useState<Language>(profile?.language ?? currentLanguage);
@@ -30,7 +30,7 @@ export default function AccountPage() {
     installedChannel: agentChannel,
     compatible: toolAvailable?.('compressor') ?? true
   });
-  const artifact = releaseArtifact(releaseManifest?.manifest ?? null, platform);
+  const downloadUrl = macAppleSiliconDownloadUrl(releaseManifest?.manifest ?? null);
   const releaseNote =
     releaseStatus === 'latest'
       ? t('latestVersion')
@@ -128,10 +128,10 @@ export default function AccountPage() {
             <dd>
               {agentVersion ?? t('notAvailable')}
               <span className="agent-version-note"> ({releaseNote})</span>
-              {artifact && ['update_available', 'update_required'].includes(releaseStatus) && (
+              {['update_available', 'update_required'].includes(releaseStatus) && (
                 <span className="agent-version-note">
                   {' · '}
-                  <a href={artifact.url}>{t('updateWishly')}</a>
+                  <a href={downloadUrl}>{t('updateWishly')}</a>
                 </span>
               )}
             </dd>

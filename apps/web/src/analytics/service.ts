@@ -117,7 +117,6 @@ type AgentAnalyticsContext = {
   channel: string | null;
   apiVersion: number | null;
   toolContracts: ToolContracts;
-  platform: string | null;
 };
 
 export class ProductAnalytics {
@@ -128,8 +127,7 @@ export class ProductAnalytics {
     buildId: null,
     channel: null,
     apiVersion: null,
-    toolContracts: {},
-    platform: null
+    toolContracts: {}
   };
   private queue: PendingAnalyticsEvent[] = [];
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -167,10 +165,7 @@ export class ProductAnalytics {
       ...context,
       version: context.version?.slice(0, 64) || null,
       buildId: context.buildId?.slice(0, 96) || null,
-      channel: context.channel?.slice(0, 32) || null,
-      platform: ['macos', 'windows', 'linux', 'other'].includes(context.platform ?? '')
-        ? context.platform
-        : null
+      channel: context.channel?.slice(0, 32) || null
     };
   }
 
@@ -195,7 +190,7 @@ export class ProductAnalytics {
       core_api_version: this.context.apiVersion,
       tool_contracts: this.context.toolContracts,
       locale: this.locale,
-      platform: this.context.platform,
+      platform: analyticsPlatform(),
       architecture: broadArchitecture(),
       event_source: 'web',
       flow_id: safeUuid(sanitized.flow_id),
@@ -255,6 +250,17 @@ export class ProductAnalytics {
   private persist() {
     this.storage?.setItem(QUEUE_KEY, JSON.stringify(this.queue.slice(-MAX_QUEUE_SIZE)));
   }
+}
+
+// Analytics may keep a coarse platform cohort, but this value must never gate
+// which installer choices the interface shows.
+function analyticsPlatform() {
+  if (typeof navigator === 'undefined') return null;
+  const value = `${navigator.platform} ${navigator.userAgent}`.toLowerCase();
+  if (value.includes('mac')) return 'macos';
+  if (value.includes('win')) return 'windows';
+  if (value.includes('linux')) return 'linux';
+  return 'other';
 }
 
 function broadArchitecture() {

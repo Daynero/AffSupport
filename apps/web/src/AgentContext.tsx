@@ -63,7 +63,6 @@ export interface AgentContextValue {
   capabilities: string[];
   toolContracts: ToolContracts;
   releaseManifest: ReleaseManifestState;
-  platform: 'macos' | 'windows' | 'linux' | 'other';
   toolAvailable: (tool: WishlyToolId) => boolean;
   reconnect: () => void;
 }
@@ -84,7 +83,6 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     status: 'checking',
     manifest: null
   });
-  const platform = broadPlatform();
   const connectedOnceRef = useRef(false);
   const events = useRef<EventSource | null>(null);
   const connecting = useRef(false);
@@ -120,8 +118,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           buildId: result.buildId || null,
           channel: result.channel || null,
           apiVersion: result.apiVersion,
-          toolContracts: result.toolContracts,
-          platform
+          toolContracts: result.toolContracts
         });
         setConnection(next);
         if (next !== 'connected') return;
@@ -212,7 +209,6 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         capabilities,
         toolContracts,
         releaseManifest,
-        platform,
         toolAvailable: tool => toolContractCompatible(tool, toolContracts),
         reconnect: () => void establish('connecting')
       }}
@@ -220,15 +216,6 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       {children}
     </AgentContext.Provider>
   );
-}
-
-export function broadPlatform(): 'macos' | 'windows' | 'linux' | 'other' {
-  if (typeof navigator === 'undefined') return 'other';
-  const value = `${navigator.platform} ${navigator.userAgent}`.toLowerCase();
-  if (value.includes('mac')) return 'macos';
-  if (value.includes('win')) return 'windows';
-  if (value.includes('linux')) return 'linux';
-  return 'other';
 }
 
 export function useAgent() {

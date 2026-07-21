@@ -84,7 +84,6 @@ const agentValue: AgentContextValue = {
   connectedOnce: true,
   agentVersion: '0.4.0',
   capabilities: ['landing'],
-  platform: 'macos',
   reconnect: vi.fn()
 };
 

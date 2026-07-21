@@ -1,8 +1,7 @@
 import {
   PRODUCTION_SITE_ORIGIN,
+  RELEASE_DOWNLOAD_URL,
   compareProductVersions,
-  type ReleaseArtifact,
-  type ReleasePlatform,
   type StableReleaseManifest
 } from '@video-compressor/shared';
 
@@ -46,26 +45,8 @@ export function installedReleaseStatus(input: {
   return minimum !== null && minimum < 0 ? 'update_required' : 'update_available';
 }
 
-export function releaseArtifact(
-  manifest: StableReleaseManifest | null,
-  platform: 'macos' | 'windows' | 'linux' | 'other',
-  architecture = browserArchitecture()
-): ReleaseArtifact | null {
-  if (!manifest) return null;
-  const key: ReleasePlatform | null =
-    platform === 'macos'
-      ? architecture === 'x64'
-        ? 'macos-x64'
-        : 'macos-arm64'
-      : platform === 'windows'
-        ? 'windows-x64'
-        : null;
-  return key ? (manifest.artifacts[key] ?? null) : null;
-}
-
-function browserArchitecture(): 'arm64' | 'x64' {
-  const source = typeof navigator === 'undefined' ? '' : navigator.userAgent.toLowerCase();
-  return /arm64|aarch64/.test(source) ? 'arm64' : 'x64';
+export function macAppleSiliconDownloadUrl(manifest: StableReleaseManifest | null): string {
+  return manifest?.artifacts['macos-arm64']?.url ?? RELEASE_DOWNLOAD_URL;
 }
 
 function validManifest(value: unknown): value is StableReleaseManifest {
