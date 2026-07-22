@@ -52,8 +52,12 @@ describe('release identity', () => {
     const manifest = JSON.parse(
       readFileSync('apps/web/public/.well-known/wishly/stable.json', 'utf8')
     );
-    expect(localizedReleaseSummary(manifest, 'en')).toBe('Fixed some issues.');
-    expect(localizedReleaseSummary(manifest, 'uk')).toBe('Виправлено деякі помилки.');
+    expect(localizedReleaseSummary(manifest, 'en')).toBe(
+      'Fix incomplete and repeated local transcriptions.'
+    );
+    expect(localizedReleaseSummary(manifest, 'uk')).toBe(
+      'Виправлено неповні локальні транскрипції та повторення тексту.'
+    );
     expect(localizedReleaseSummary({ ...manifest, summary: undefined }, 'uk')).toBeNull();
   });
 

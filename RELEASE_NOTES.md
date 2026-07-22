@@ -1,3 +1,7 @@
+# v0.6.4
+
+- Fix incomplete local transcriptions and repeated phrases by preserving Whisper's timestamp tokens during long-form decoding.
+
 # v0.6.3
 
 - Add a local Transcription tool that turns audio and video into plain text fully on-device via whisper.cpp, with automatic language detection across 99 languages, a multi-file queue, and a large text preview with one-tap copy.

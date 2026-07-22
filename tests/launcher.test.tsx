@@ -7,16 +7,16 @@ import { translate } from '../apps/web/src/i18n';
 import { isProtected } from '../apps/web/src/lib/feature-flags';
 
 describe('Wishly product launcher', () => {
-  it('maps the root and direct compressor URL to separate product screens', () => {
+  it('maps the root and direct tool URLs to separate product screens', () => {
     expect(routeKind('/')).toBe('home');
     expect(routeKind('/compressor')).toBe('compressor');
-    expect(routeKind('/transcription')).toBe('home');
+    expect(routeKind('/transcription')).toBe('transcription');
   });
 
   it('defines tools through one extensible configuration list', () => {
     expect(wishlyTools.map(({ id, route, status }) => ({ id, route, status }))).toEqual([
       { id: 'compressor', route: '/compressor', status: 'active' },
-      { id: 'transcription', route: null, status: 'coming-soon' }
+      { id: 'transcription', route: '/transcription', status: 'active' }
     ]);
   });
 

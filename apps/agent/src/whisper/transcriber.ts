@@ -170,38 +170,7 @@ function runWhisper(
   detectedLanguage: string | null;
   spawnErrorCode: string | null;
 }> {
-  const threads = Math.max(4, os.cpus().length - 2);
-  const useVad = existsSync(whisperVadModelPath);
-  const args = [
-    '-m',
-    currentModelPath(),
-    '-f',
-    params.wavPath,
-    '-l',
-    params.language || 'auto',
-    '-otxt',
-    '-of',
-    params.outputBase,
-    '-nt',
-    '-pp',
-    // Accuracy: beam search + best-of temperature fallback recover far more of
-    // the audio than greedy decoding, especially on noisy or accented speech.
-    '-bs',
-    '5',
-    '-bo',
-    '5',
-    // Suppress non-speech tokens (harmless to real words) to trim noise symbols.
-    '-sns',
-    '-t',
-    String(threads),
-    // Gentle VAD: only skip genuine silence so the tail can't be hallucinated,
-    // but keep quiet/soft speech. A low threshold + generous padding + a longer
-    // required silence gap prevent VAD from clipping real sentences. Context is
-    // left intact (no -mc 0) because VAD + dedup already contain repetition.
-    ...(useVad
-      ? ['--vad', '-vm', whisperVadModelPath, '-vt', '0.30', '-vp', '250', '-vsd', '400']
-      : [])
-  ];
+  const args = buildWhisperArgs(params);
   return new Promise(resolve => {
     const child = spawn(whisperPath, args, { shell: false });
     onChild(child);
@@ -227,6 +196,52 @@ function runWhisper(
     });
     child.once('close', code => resolve({ code, stderr, detectedLanguage, spawnErrorCode }));
   });
+}
+
+export function buildWhisperArgs(
+  params: { wavPath: string; outputBase: string; language: string },
+  options: { threads?: number; vadModelPath?: string | null } = {}
+): string[] {
+  const threads = options.threads ?? Math.max(4, os.cpus().length - 2);
+  const vadModelPath =
+    options.vadModelPath === undefined
+      ? existsSync(whisperVadModelPath)
+        ? whisperVadModelPath
+        : null
+      : options.vadModelPath;
+  const args = [
+    '-m',
+    currentModelPath(),
+    '-f',
+    params.wavPath,
+    '-l',
+    params.language || 'auto',
+    '-otxt',
+    '-of',
+    params.outputBase,
+    '-pp',
+    // Keep timestamp tokens enabled internally for reliable long-form
+    // segmentation. `-otxt` still writes plain text without timecodes, while
+    // whisper.cpp's `-nt` mode can skip speech and loop on earlier phrases.
+    // Accuracy: beam search + best-of temperature fallback recover far more of
+    // the audio than greedy decoding, especially on noisy or accented speech.
+    '-bs',
+    '5',
+    '-bo',
+    '5',
+    // Suppress non-speech tokens (harmless to real words) to trim noise symbols.
+    '-sns',
+    '-t',
+    String(threads),
+    // Gentle VAD: only skip genuine silence so the tail can't be hallucinated,
+    // but keep quiet/soft speech. A low threshold + generous padding + a longer
+    // required silence gap prevent VAD from clipping real sentences. Context is
+    // left intact (no -mc 0) because VAD + dedup already contain repetition.
+    ...(vadModelPath
+      ? ['--vad', '-vm', vadModelPath, '-vt', '0.30', '-vp', '250', '-vsd', '400']
+      : [])
+  ];
+  return args;
 }
 
 async function readTranscript(transcriptPath: string): Promise<string> {
