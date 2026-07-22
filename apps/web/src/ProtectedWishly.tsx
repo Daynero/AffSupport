@@ -2,10 +2,12 @@ import { useEffect } from 'react';
 import { AgentProvider, useAgent } from './AgentContext';
 import CompressorPage, { Header } from './App';
 import LandingOptimizerPage from './landing/LandingOptimizerPage';
+import TranscriptionPage from './transcription/TranscriptionPage';
 import { ProfileOnboarding } from './auth/AuthScreens';
 import HomePage from './HomePage';
 import FeatureLockDialog from './components/FeatureLockDialog';
 import { useFeatureLock, type FeatureId } from './lib/feature-flags';
+import type { WishlyToolId } from '@video-compressor/shared';
 import { useI18n } from './i18n';
 import { navigateTo } from './lib/navigation';
 import AccountPage from './pages/AccountPage';
@@ -29,6 +31,7 @@ function ProtectedApplication({ path }: { path: string }) {
   // Web-only access gate — the landing optimizer must show the lock even on a
   // direct URL visit until this browser has entered the developer pass.
   const landingLocked = useFeatureLock('landingOptimizer');
+  const transcriptionLocked = useFeatureLock('transcription');
 
   if (path === '/compressor') {
     if (connection === 'connected' && toolAvailable('compressor')) return <CompressorPage />;
@@ -42,6 +45,11 @@ function ProtectedApplication({ path }: { path: string }) {
     // user home. Before connecting, keep the page mounted so it can pair/onboard.
     if (connection === 'connected') return <RedirectHome />;
     return <LandingOptimizerPage />;
+  }
+  if (path === '/transcription') {
+    if (transcriptionLocked) return <FeatureLockScreen feature="transcription" />;
+    if (connection === 'connected' && toolAvailable('transcription')) return <TranscriptionPage />;
+    return <ToolSetupScreen tool="transcription" connection={connection} />;
   }
   if (path === '/account' || path === '/admin') {
     return (
@@ -58,7 +66,7 @@ function ToolSetupScreen({
   tool,
   connection
 }: {
-  tool: 'compressor' | 'landingOptimizer';
+  tool: WishlyToolId;
   connection: ReturnType<typeof useAgent>['connection'];
 }) {
   const { language, setLanguage, t } = useI18n();

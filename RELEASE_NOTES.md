@@ -1,3 +1,9 @@
+# v0.6.3
+
+- Add a local Transcription tool that turns audio and video into plain text fully on-device via whisper.cpp, with automatic language detection across 99 languages, a multi-file queue, and a large text preview with one-tap copy.
+- Keep the installer small by fetching the speech model once on first use (with confirmation and progress) into Application Support, verified by checksum; skip silence with VAD and use beam-search decoding for accuracy.
+- Gate the Transcription tool behind the developer pass while it is finalized.
+
 # v0.6.2
 
 - Recover safely when the bundled FFmpeg or FFprobe runtime becomes unavailable, preserving completed output validation and queued work across an automatic Agent restart.

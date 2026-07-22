@@ -12,3 +12,6 @@ coverage/
 .idea/
 supabase/.temp/
 packaging/icon-source/
+
+# Whisper models & bundled binaries (large; fetched/built locally)
+apps/agent/runtime/

@@ -33,7 +33,9 @@ import {
   type ImageAsset,
   type ImageSlot,
   type LandingEvent,
-  type LandingEventType
+  type LandingEventType,
+  type TranscriptionEvent,
+  type TranscriptionEventType
 } from '@video-compressor/shared';
 import { EstimationWorker } from './estimate/worker.js';
 import { selectOutputFolder, selectVideos } from './files/picker.js';
@@ -52,6 +54,9 @@ import { loadState, saveState } from './queue/store.js';
 import { ImageAssetError, ImageAssetStore, MAX_IMAGE_BYTES } from './images/store.js';
 import { LandingOptimizer } from './landing/optimizer.js';
 import { registerLandingRoutes } from './landing/routes.js';
+import { TranscriptionQueue } from './queue/transcription-queue.js';
+import { registerTranscriptionRoutes } from './transcription/routes.js';
+import { whisperAvailable } from './whisper/tools.js';
 
 const token = randomBytes(32).toString('hex');
 const instanceId = randomBytes(12).toString('hex');
@@ -61,8 +66,15 @@ const tools = {
   ffmpeg: await commandExists(ffmpegPath),
   ffprobe: await commandExists(ffprobePath)
 };
+// The whisper binary is static, so it is probed once at boot; ffmpeg is
+// re-checked live and the model presence is computed on demand by the queue.
+const transcriptionTools = {
+  ffmpeg: tools.ffmpeg,
+  whisper: await whisperAvailable()
+};
 const clients = new Set<NodeJS.WritableStream>();
 const landingClients = new Set<NodeJS.WritableStream>();
+const transcriptionClients = new Set<NodeJS.WritableStream>();
 const imageStore = new ImageAssetStore();
 const pendingSelections = new Map<string, string>();
 let saveChain = Promise.resolve();
@@ -77,6 +89,15 @@ const landingOptimizer = new LandingOptimizer(tools, (type: LandingEventType = '
   const payload = `data: ${JSON.stringify(event)}\n\n`;
   for (const client of landingClients) client.write(payload);
 });
+
+const transcriptionQueue = new TranscriptionQueue(
+  transcriptionTools,
+  (type: TranscriptionEventType = 'transcription:state') => {
+    const event: TranscriptionEvent = { type, state: transcriptionQueue.state() };
+    const payload = `data: ${JSON.stringify(event)}\n\n`;
+    for (const client of transcriptionClients) client.write(payload);
+  }
+);
 
 function broadcast(type: AgentEventType = 'state') {
   const event: AgentEvent = { type, state: queue.state() };
@@ -114,6 +135,10 @@ async function refreshMediaTools() {
       commandExists(ffprobePath)
     ]);
     queue.setToolAvailability({ ffmpeg, ffprobe });
+    transcriptionQueue.setToolAvailability({
+      ffmpeg,
+      whisper: transcriptionTools.whisper
+    });
     if ((!ffmpeg || !ffprobe) && !queue.workActive()) {
       requestRuntimeRestart(
         new MediaToolUnavailableError(ffmpeg ? 'ffprobe' : 'ffmpeg', 'HEALTH_CHECK')
@@ -217,7 +242,7 @@ app.get('/health', async () => ({
   update: queue.state().update,
   instanceId,
   startedAt,
-  busy: queue.workActive() || landingOptimizer.state().running
+  busy: queue.workActive() || landingOptimizer.state().running || transcriptionQueue.workActive()
 }));
 app.get('/api/diagnostics', async () => ({
   version: config.version,
@@ -633,6 +658,13 @@ registerLandingRoutes(app, {
   acceptingNewTasks: () => queue.acceptingNewTasks()
 });
 
+registerTranscriptionRoutes(app, {
+  queue: transcriptionQueue,
+  clients: transcriptionClients,
+  allowedOrigins,
+  acceptingNewTasks: () => queue.acceptingNewTasks()
+});
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const webRoot = path.resolve(here, '../../web/dist');
 await app.register(fastifyStatic, {
@@ -695,6 +727,7 @@ async function shutdown(code = 0) {
     await estimator.shutdown();
     await queue.shutdown();
     await landingOptimizer.shutdown();
+    await transcriptionQueue.shutdown();
     await app.close();
   } catch (error) {
     app.log.error(error, 'Shutdown failed');

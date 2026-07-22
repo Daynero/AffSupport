@@ -28,6 +28,12 @@ export async function selectVideos(): Promise<string[]> {
   });
 }
 
+export async function selectTranscribeMedia(): Promise<string[]> {
+  const script =
+    'set chosenFiles to choose file with prompt "Select audio or video to transcribe" with multiple selections allowed\nset out to ""\nrepeat with f in chosenFiles\nset out to out & POSIX path of f & linefeed\nend repeat\nreturn out';
+  return runMultiplePicker(script, 'Could not open the native file picker.');
+}
+
 export async function selectLandingZips(): Promise<string[]> {
   const script =
     'set chosenFiles to choose file with prompt "Select landing ZIP archives" of type {"zip", "public.zip-archive"} with multiple selections allowed\nset out to ""\nrepeat with f in chosenFiles\nset out to out & POSIX path of f & linefeed\nend repeat\nreturn out';

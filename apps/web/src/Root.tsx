@@ -73,9 +73,12 @@ function RedirectToLogin({ route }: { route: string }) {
   return <AuthLoadingScreen />;
 }
 
-export function routeKind(path: string): 'home' | 'compressor' | 'landing-optimizer' {
+export function routeKind(
+  path: string
+): 'home' | 'compressor' | 'landing-optimizer' | 'transcription' {
   if (path === '/compressor') return 'compressor';
   if (path === '/landing-optimizer') return 'landing-optimizer';
+  if (path === '/transcription') return 'transcription';
   return 'home';
 }
 

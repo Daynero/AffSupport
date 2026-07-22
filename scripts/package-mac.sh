@@ -5,15 +5,21 @@ set -euo pipefail
 : "${FFPROBE_BINARY:?Set FFPROBE_BINARY to its matching FFprobe binary}"
 : "${FFMPEG_SOURCE_ARCHIVE:?Set FFMPEG_SOURCE_ARCHIVE to the matching FFmpeg source archive}"
 : "${X264_SOURCE_ARCHIVE:?Set X264_SOURCE_ARCHIVE to the matching x264 source archive}"
+: "${WHISPER_BINARY:?Set WHISPER_BINARY to an approved portable (statically linked) arm64 whisper-cli}"
+# WHISPER_MODEL is OPTIONAL: leave it unset to ship a small installer and let the
+# app download large-v3 on first use (into Application Support). Set it to a local
+# ggml-large-v3.bin to bundle the model for a fully offline DMG.
+WHISPER_MODEL="${WHISPER_MODEL:-}"
+: "${WHISPER_VAD_MODEL:?Set WHISPER_VAD_MODEL to the silero VAD ggml model (ggml-silero-v5.1.2.bin) — required to skip silence and avoid hallucinated text}"
 [[ "$PUBLIC_SITE_ORIGIN" == https://* ]] || { print -u2 "PUBLIC_SITE_ORIGIN must use HTTPS"; exit 1; }
 node_binary="${NODE_BINARY:-$(command -v node)}"; [[ -x "$node_binary" ]] || { print -u2 "No node binary found; set NODE_BINARY to a portable arm64 Node.js"; exit 1; }
 output_app="$PWD/release/Wishly Agent.app"
-for input in "$node_binary" "$FFMPEG_BINARY" "$FFPROBE_BINARY" "$FFMPEG_SOURCE_ARCHIVE" "$X264_SOURCE_ARCHIVE"; do
+for input in "$node_binary" "$FFMPEG_BINARY" "$FFPROBE_BINARY" "$FFMPEG_SOURCE_ARCHIVE" "$X264_SOURCE_ARCHIVE" "$WHISPER_BINARY" "$WHISPER_VAD_MODEL" ${WHISPER_MODEL:+"$WHISPER_MODEL"}; do
   case "${input:A}" in
     "${output_app:A}"/*) print -u2 "Package input must not be inside the output app: $input"; exit 1 ;;
   esac
 done
-for binary in "$node_binary" "$FFMPEG_BINARY" "$FFPROBE_BINARY"; do file "$binary" | grep -q 'arm64' || { print -u2 "$binary is not arm64"; exit 1; }; otool -L "$binary" | tail -n +2 | grep -Ev '^\s+(/usr/lib|/System/Library)' && { print -u2 "$binary has non-system dynamic dependencies (Homebrew node is not portable; use an official Node.js build via NODE_BINARY)"; exit 1; } || true; done
+for binary in "$node_binary" "$FFMPEG_BINARY" "$FFPROBE_BINARY" "$WHISPER_BINARY"; do file "$binary" | grep -q 'arm64' || { print -u2 "$binary is not arm64"; exit 1; }; otool -L "$binary" | tail -n +2 | grep -Ev '^\s+(/usr/lib|/System/Library)' && { print -u2 "$binary has non-system dynamic dependencies (Homebrew builds are not portable; use a statically linked arm64 build)"; exit 1; } || true; done
 product_version=$(node scripts/release-meta.mjs product-version)
 bundle_version=$(node scripts/release-meta.mjs bundle-version)
 build_number=$(node scripts/release-meta.mjs build-number)
@@ -25,7 +31,7 @@ source_revision=$(git rev-parse HEAD)
 root="$PWD/release"; app="$root/Wishly Agent.app"; archive="$root/${dmg_name%.dmg}.zip"
 mkdir -p "$root"
 [[ ! -e "$archive" ]] || { print -u2 "$archive already exists. Published build identities are immutable; bump PRODUCT_VERSION and BUILD_NUMBER."; exit 1; }
-rm -rf "$app"; mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/runtime/bin" "$app/Contents/Resources/agent"
+rm -rf "$app"; mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/runtime/bin" "$app/Contents/Resources/runtime/models" "$app/Contents/Resources/agent"
 node scripts/render-launcher.mjs packaging/Launcher.swift "$root/Launcher.generated.swift" \
   "AGENT_PORT=43120" \
   "APP_NAME=Wishly Agent" \
@@ -40,6 +46,8 @@ node scripts/render-launcher.mjs packaging/Launcher.swift "$root/Launcher.genera
   "SOURCE_REVISION=$source_revision"
 swiftc "$root/Launcher.generated.swift" -o "$app/Contents/MacOS/WishlyAgent" -framework AppKit
 cp "$node_binary" "$app/Contents/Resources/runtime/node"; cp "$FFMPEG_BINARY" "$app/Contents/Resources/runtime/bin/ffmpeg"; cp "$FFPROBE_BINARY" "$app/Contents/Resources/runtime/bin/ffprobe"
+cp "$WHISPER_BINARY" "$app/Contents/Resources/runtime/bin/whisper-cli"; chmod +x "$app/Contents/Resources/runtime/bin/whisper-cli"; cp "$WHISPER_VAD_MODEL" "$app/Contents/Resources/runtime/models/ggml-silero-v5.1.2.bin"
+[[ -n "$WHISPER_MODEL" ]] && cp "$WHISPER_MODEL" "$app/Contents/Resources/runtime/models/ggml-large-v3.bin" || print "WHISPER_MODEL not set — large-v3 will be downloaded on first use"
 cp -R apps/agent/dist apps/agent/package.json node_modules "$app/Contents/Resources/agent/"; rm -rf "$app/Contents/Resources/agent/node_modules/@video-compressor"; mkdir -p "$app/Contents/Resources/agent/node_modules/@video-compressor/shared"; cp -R packages/shared/dist packages/shared/package.json "$app/Contents/Resources/agent/node_modules/@video-compressor/shared/"
 rm -rf "$app/Contents/Resources/agent/node_modules/ffmpeg-static" "$app/Contents/Resources/agent/node_modules/@derhuerst/ffprobe-static"
 mkdir -p "$app/Contents/Resources/web" "$app/Contents/Resources/licenses/sources"; cp -R apps/web/dist "$app/Contents/Resources/web/dist"

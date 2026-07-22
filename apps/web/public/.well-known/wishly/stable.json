@@ -1,24 +1,31 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.6.2",
-  "buildNumber": "14",
-  "buildId": "0.6.2+14",
+  "version": "0.6.3",
+  "buildNumber": "15",
+  "buildId": "0.6.3+15",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-07-21T11:13:39.000Z",
+  "publishedAt": "2026-07-22T19:08:27.000Z",
   "summary": {
-    "en": "Fixed some issues.",
-    "uk": "Виправлено деякі помилки."
+    "en": "Improvements and fixes.",
+    "uk": "Покращення та виправлення."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.6.2/Wishly-Agent-v0.6.2-macOS-arm64.dmg",
-      "sha256": "a977ce13e4108b96a588187a5f189aa9f04da0a778678b6718437bff893e1765"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.6.3/Wishly-Agent-v0.6.3-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
-    "compressor": { "compressor": 2 },
-    "landingOptimizer": { "landingOptimizer": 2 }
+    "compressor": {
+      "compressor": 2
+    },
+    "landingOptimizer": {
+      "landingOptimizer": 2
+    },
+    "transcription": {
+      "transcription": 1
+    }
   }
 }

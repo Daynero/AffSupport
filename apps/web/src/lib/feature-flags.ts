@@ -8,13 +8,14 @@ import { useEffect, useState } from 'react';
 //
 // To open a feature to everyone, flip its `protected` flag to false.
 
-export type FeatureId = 'videoCompressor' | 'landingOptimizer';
+export type FeatureId = 'videoCompressor' | 'landingOptimizer' | 'transcription';
 
 type FeatureFlag = { protected: boolean };
 
 export const featureFlags: Record<FeatureId, FeatureFlag> = {
   videoCompressor: { protected: false },
-  landingOptimizer: { protected: false }
+  landingOptimizer: { protected: false },
+  transcription: { protected: true }
 };
 
 // The pass that unlocks protected features. Overridable per build via

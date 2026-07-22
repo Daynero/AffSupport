@@ -397,7 +397,7 @@ export interface HealthResponse {
 }
 
 /** Optional capabilities advertised by the local agent. */
-export const AGENT_CAPABILITIES = ['landing', 'local-file-paths'] as const;
+export const AGENT_CAPABILITIES = ['landing', 'local-file-paths', 'transcription'] as const;
 export interface SessionResponse {
   token: string;
 }
@@ -601,4 +601,167 @@ export function calculateLandingSummary(assets: LandingAsset[]): LandingSummary 
       ? Math.max(0, Math.round((savedBytes / originalMediaSize) * 100))
       : 0
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Transcription                                                              */
+/*                                                                            */
+/* A separate local tool that turns speech in audio/video files into plain   */
+/* text. It runs whisper.cpp with a bundled multilingual model, detects the  */
+/* spoken language automatically (99 languages), and never leaves the         */
+/* machine. Like the Landing Optimizer it shares the agent, pairing, and      */
+/* design system with the Video Compressor but keeps its own state.           */
+/* -------------------------------------------------------------------------- */
+
+export type TranscriptionJobStatus =
+  'analyzing' | 'ready' | 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
+
+/** File extensions the transcriber accepts (audio + video containers). */
+export const TRANSCRIBE_EXTENSIONS = [
+  '.mp4',
+  '.mov',
+  '.m4v',
+  '.mkv',
+  '.webm',
+  '.avi',
+  '.wmv',
+  '.flv',
+  '.mpg',
+  '.mpeg',
+  '.mp3',
+  '.m4a',
+  '.aac',
+  '.wav',
+  '.flac',
+  '.ogg',
+  '.oga',
+  '.opus',
+  '.wma',
+  '.aiff',
+  '.aif'
+] as const;
+
+export function isTranscribableFileName(fileName: string): boolean {
+  const lower = fileName.toLowerCase();
+  return TRANSCRIBE_EXTENSIONS.some(ext => lower.endsWith(ext));
+}
+
+/**
+ * Curated language override list for the UI. `auto` is the default and covers
+ * every language the model supports through automatic detection — the rest are
+ * common explicit choices for when a file is misdetected.
+ */
+export const TRANSCRIPTION_LANGUAGE_CODES = [
+  'auto',
+  'uk',
+  'en',
+  'ru',
+  'pl',
+  'de',
+  'fr',
+  'es',
+  'it',
+  'pt',
+  'nl',
+  'tr',
+  'cs',
+  'ro',
+  'sk',
+  'bg',
+  'sv',
+  'da',
+  'no',
+  'fi',
+  'el',
+  'he',
+  'ar',
+  'fa',
+  'hi',
+  'ja',
+  'ko',
+  'zh',
+  'vi',
+  'id',
+  'th'
+] as const;
+
+export type TranscriptionLanguageCode = (typeof TRANSCRIPTION_LANGUAGE_CODES)[number];
+
+export interface TranscriptionSettings {
+  /** `auto` detects the spoken language; otherwise an ISO 639-1 code. */
+  language: string;
+}
+
+export interface TranscriptionJob {
+  id: string;
+  inputPath: string;
+  fileName: string;
+  sourceKind: SourceKind;
+  sourceKey: string | null;
+  durationSeconds: number | null;
+  status: TranscriptionJobStatus;
+  /** 0–100 while transcribing, null when indeterminate. */
+  progress: number | null;
+  /** Language requested when the job started (`auto` or an ISO code). */
+  requestedLanguage: string;
+  /** Language Whisper actually used, once known. */
+  detectedLanguage: string | null;
+  /** Full plain-text transcript once completed. */
+  text: string | null;
+  /** Transcript length in characters, for quick UI hints. */
+  characters: number | null;
+  /** Path of the `.txt` transcript written next to the source. */
+  transcriptPath: string | null;
+  error: string | null;
+  errorDetails: string | null;
+  batchId: string | null;
+  createdAt: number;
+  startedAt: number | null;
+  finishedAt: number | null;
+}
+
+export interface TranscriptionTools {
+  /** ffmpeg is required to extract a normalized audio track. */
+  ffmpeg: boolean;
+  /** The bundled whisper.cpp binary is present and runnable. */
+  whisper: boolean;
+  /** The speech model file is present (bundled or downloaded). */
+  model: boolean;
+}
+
+/** First-run download state for the local speech model. */
+export interface TranscriptionModelInfo {
+  /** The model file exists and is ready to use. */
+  present: boolean;
+  /** A download is currently in progress. */
+  downloading: boolean;
+  /** 0–100 while downloading, null otherwise. */
+  progress: number | null;
+  /** Total download size in bytes (for the confirmation prompt). */
+  sizeBytes: number;
+  /** Bytes fetched so far in the current download. */
+  downloadedBytes: number;
+  /** Human-facing model label, e.g. "large-v3". */
+  label: string;
+  /** Last download error, cleared when a new download starts. */
+  error: string | null;
+}
+
+export interface TranscriptionState {
+  jobs: TranscriptionJob[];
+  running: boolean;
+  tools: TranscriptionTools;
+  model: TranscriptionModelInfo;
+  settings: TranscriptionSettings;
+}
+
+export type TranscriptionEventType = 'transcription:state' | 'transcription:progress';
+
+export interface TranscriptionEvent {
+  type: TranscriptionEventType;
+  state: TranscriptionState;
+}
+
+export function defaultTranscriptionSettings(): TranscriptionSettings {
+  return { language: 'auto' };
 }

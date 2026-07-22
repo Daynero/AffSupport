@@ -36,8 +36,10 @@ export const wishlyTools: Tool[] = [
     title: 'transcription',
     description: 'transcriptionDescription',
     icon: <TranscriptionIcon />,
-    route: null,
-    status: 'coming-soon'
+    route: '/transcription',
+    status: 'active',
+    feature: 'transcription',
+    contract: 'transcription'
   }
 ];
 

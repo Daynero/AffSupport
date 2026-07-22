@@ -4,7 +4,10 @@ import type {
   LandingState,
   QueueState,
   SelectionResponse,
-  ToolContracts
+  SelectionWarning,
+  ToolContracts,
+  TranscriptionSettings,
+  TranscriptionState
 } from '@video-compressor/shared';
 import { agentFetchOptions, pairingPath, probeAgent, versionState } from '../connection';
 
@@ -223,6 +226,74 @@ export async function landingFolderFile(relPath: string, file: File): Promise<{ 
 }
 export async function landingFolderFinish(): Promise<LandingState> {
   return request<LandingState>('/api/landing/upload/folder/finish', 'POST');
+}
+
+export interface TranscriptionSelectionResponse {
+  state: TranscriptionState;
+  warnings: SelectionWarning[];
+}
+export function transcriptionEventUrl() {
+  return `${agentUrl}/api/transcription/events?token=${encodeURIComponent(token)}`;
+}
+export function transcriptionSettings(
+  patch: Partial<TranscriptionSettings>
+): Promise<TranscriptionState> {
+  return requestBody<TranscriptionState>('/api/transcription/settings', patch);
+}
+export function transcriptionSelect(): Promise<TranscriptionSelectionResponse> {
+  return request<TranscriptionSelectionResponse>('/api/transcription/select', 'POST');
+}
+export function transcriptionAddLocalFiles(
+  paths: string[]
+): Promise<TranscriptionSelectionResponse> {
+  return requestBody<TranscriptionSelectionResponse>(
+    '/api/transcription/files/add',
+    { paths },
+    'POST',
+    AbortSignal.timeout(10_000)
+  );
+}
+export async function transcriptionUpload(file: File): Promise<TranscriptionSelectionResponse> {
+  const body = new FormData();
+  body.append('signature', `${file.name}:${file.size}:${file.lastModified}`);
+  body.append('file', file, file.name);
+  return uploadForm<TranscriptionSelectionResponse>('/api/transcription/files/upload', body);
+}
+export function transcriptionStart(ids: string[]): Promise<TranscriptionState> {
+  return requestBody<TranscriptionState>('/api/transcription/start', { ids });
+}
+export function transcriptionModelDownload(): Promise<TranscriptionState> {
+  return request<TranscriptionState>('/api/transcription/model/download', 'POST');
+}
+export function transcriptionModelCancel(): Promise<TranscriptionState> {
+  return request<TranscriptionState>('/api/transcription/model/cancel', 'POST');
+}
+export function transcriptionCancel(id: string): Promise<TranscriptionState> {
+  return request<TranscriptionState>(
+    `/api/transcription/jobs/${encodeURIComponent(id)}/cancel`,
+    'POST'
+  );
+}
+export function transcriptionRetry(id: string): Promise<TranscriptionState> {
+  return request<TranscriptionState>(
+    `/api/transcription/jobs/${encodeURIComponent(id)}/retry`,
+    'POST'
+  );
+}
+export function transcriptionRemove(id: string): Promise<TranscriptionState> {
+  return request<TranscriptionState>(`/api/transcription/jobs/${encodeURIComponent(id)}`, 'DELETE');
+}
+export function transcriptionRemoveMany(ids: string[]): Promise<TranscriptionState> {
+  return requestBody<TranscriptionState>('/api/transcription/jobs/remove', { ids });
+}
+export function transcriptionClearFinished(): Promise<TranscriptionState> {
+  return request<TranscriptionState>('/api/transcription/completed', 'DELETE');
+}
+export function transcriptionReveal(id: string): Promise<TranscriptionState> {
+  return request<TranscriptionState>(
+    `/api/transcription/jobs/${encodeURIComponent(id)}/reveal`,
+    'POST'
+  );
 }
 async function assertOk(response: Response) {
   const body = await response.json();
