@@ -251,27 +251,69 @@ async function readTranscript(transcriptPath: string): Promise<string> {
       .split(/\r?\n/)
       .map(line => line.trim())
       .filter(Boolean);
-    return collapseRepeats(lines).join('\n').trim();
+    return collapseTranscriptArtifacts(lines).join('\n').trim();
   } catch {
     return '';
   }
 }
 
 /**
- * Safety net for residual hallucination loops: collapse runs of consecutive
- * lines that carry the same set of words (e.g. "Trivia." / "Trivia trivia.")
- * down to their first occurrence. Distinct real sentences have distinct word
- * sets, so normal transcripts are untouched.
+ * Removes two decoder artifacts without rewriting normal speech:
+ * - residual hallucination loops with the same set of words;
+ * - a line cut in the middle of its final word immediately before Whisper
+ *   emits the corrected, longer segment (for example `resul` / `result ...`).
+ *
+ * Requiring a strict continuation of the final word avoids collapsing real
+ * sentences that merely begin with the same complete phrase.
  */
-function collapseRepeats(lines: string[]): string[] {
+export function collapseTranscriptArtifacts(lines: string[]): string[] {
   const out: string[] = [];
-  let previousKey = '';
   for (const line of lines) {
-    const words = line.toLowerCase().match(/\p{L}+|\p{N}+/gu) ?? [];
-    const key = Array.from(new Set(words)).sort().join(' ');
-    if (key && key === previousKey) continue;
-    previousKey = key;
+    const previous = out.at(-1);
+    if (!previous) {
+      out.push(line);
+      continue;
+    }
+
+    const key = wordSetKey(line);
+    if (key && key === wordSetKey(previous)) continue;
+    if (isTruncatedPrefix(previous, line)) {
+      out[out.length - 1] = line;
+      continue;
+    }
+    if (isTruncatedPrefix(line, previous)) continue;
     out.push(line);
   }
   return out;
+}
+
+function wordSetKey(line: string): string {
+  return Array.from(new Set(words(line)))
+    .sort()
+    .join(' ');
+}
+
+function isTruncatedPrefix(shorter: string, longer: string): boolean {
+  if (/[.!?…।॥؟。！？]$/u.test(shorter.trim())) return false;
+  const shortWords = words(shorter);
+  const longWords = words(longer);
+  if (shortWords.length < 3 || longWords.length <= shortWords.length) return false;
+
+  const last = shortWords.length - 1;
+  for (let index = 0; index < last; index += 1) {
+    if (shortWords[index] !== longWords[index]) return false;
+  }
+
+  return (
+    longWords[last].length > shortWords[last].length && longWords[last].startsWith(shortWords[last])
+  );
+}
+
+function words(line: string): string[] {
+  return (
+    line
+      .normalize('NFKC')
+      .toLocaleLowerCase()
+      .match(/[\p{L}\p{M}\p{N}]+/gu) ?? []
+  );
 }

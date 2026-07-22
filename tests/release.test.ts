@@ -53,10 +53,10 @@ describe('release identity', () => {
       readFileSync('apps/web/public/.well-known/wishly/stable.json', 'utf8')
     );
     expect(localizedReleaseSummary(manifest, 'en')).toBe(
-      'Fix incomplete and repeated local transcriptions.'
+      'Remove incomplete duplicate lines from local transcriptions.'
     );
     expect(localizedReleaseSummary(manifest, 'uk')).toBe(
-      'Виправлено неповні локальні транскрипції та повторення тексту.'
+      'Прибрано недописані дублікати рядків із локальних транскрипцій.'
     );
     expect(localizedReleaseSummary({ ...manifest, summary: undefined }, 'uk')).toBeNull();
   });

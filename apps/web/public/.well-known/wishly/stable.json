@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.6.4",
-  "buildNumber": "16",
-  "buildId": "0.6.4+16",
+  "version": "0.6.5",
+  "buildNumber": "17",
+  "buildId": "0.6.5+17",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-07-22T19:48:24.000Z",
+  "publishedAt": "2026-07-22T20:10:15.000Z",
   "summary": {
-    "en": "Fix incomplete and repeated local transcriptions.",
-    "uk": "Виправлено неповні локальні транскрипції та повторення тексту."
+    "en": "Remove incomplete duplicate lines from local transcriptions.",
+    "uk": "Прибрано недописані дублікати рядків із локальних транскрипцій."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.6.4/Wishly-Agent-v0.6.4-macOS-arm64.dmg",
-      "sha256": "6e0ca354fe0d9498276903d55e7b47426466d39f123f44511e1093372922f4b1"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.6.5/Wishly-Agent-v0.6.5-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {

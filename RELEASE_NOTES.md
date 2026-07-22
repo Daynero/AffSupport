@@ -1,3 +1,7 @@
+# v0.6.5
+
+- Remove incomplete duplicate lines when Whisper emits a corrected continuation after a mid-word decoder fragment.
+
 # v0.6.4
 
 - Fix incomplete local transcriptions and repeated phrases by preserving Whisper's timestamp tokens during long-form decoding.
