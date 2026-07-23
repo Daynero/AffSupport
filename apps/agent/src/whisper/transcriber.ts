@@ -234,7 +234,8 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
           const bridgeRun = await runChunkWhisper(
             {
               wavPaths: bridgePaths,
-              language: detectedLanguage ?? language
+              language: detectedLanguage ?? language,
+              preserveTimestamps: true
             },
             child => {
               activeChild = child;
@@ -478,7 +479,7 @@ function runVadDetection(
 }
 
 function runChunkWhisper(
-  params: { wavPaths: string[]; language: string },
+  params: { wavPaths: string[]; language: string; preserveTimestamps?: boolean },
   onChild: (child: ChildProcessWithoutNullStreams) => void,
   onChunkComplete: (completed: number) => void
 ): Promise<{
@@ -486,7 +487,9 @@ function runChunkWhisper(
   stderr: string;
   spawnErrorCode: string | null;
 }> {
-  const args = buildChunkWhisperArgs(params);
+  const args = buildChunkWhisperArgs(params, {
+    preserveTimestamps: params.preserveTimestamps
+  });
   return new Promise(resolve => {
     const child = spawn(whisperPath, args, { shell: false });
     onChild(child);
@@ -626,7 +629,7 @@ export function buildVadDetectionArgs(
 
 export function buildChunkWhisperArgs(
   params: { wavPaths: string[]; language: string },
-  options: { threads?: number } = {}
+  options: { threads?: number; preserveTimestamps?: boolean } = {}
 ): string[] {
   const threads = options.threads ?? Math.max(4, os.cpus().length - 2);
   return [
@@ -635,9 +638,11 @@ export function buildChunkWhisperArgs(
     '-l',
     params.language || 'auto',
     '-otxt',
-    // No-timestamp decoding is reliable inside these bounded windows and
-    // prevents a bad timestamp token from jumping over the rest of the speech.
-    '-nt',
+    // The primary bounded pass uses no-timestamp decoding for speed and stable
+    // phrasing. A recovery pass deliberately keeps timestamp tokens enabled:
+    // this gives a failing boundary a genuinely different decoder path, while
+    // `-otxt` still writes the same plain text without timecodes.
+    ...(options.preserveTimestamps ? [] : ['-nt']),
     // Temperature retries can replace a complete beam result with a shorter
     // one. Deterministic beam search proved both fuller and much faster.
     '-nf',
@@ -737,7 +742,7 @@ export function buildSpeechChunks(
 export function buildBridgeChunks(
   ranges: SpeechRange[],
   transcripts: string[],
-  chunkMs = SPEECH_CHUNK_MS
+  contextMs = SPEECH_CONTEXT_CHUNK_MS
 ): BridgeChunk[] {
   const bridges: BridgeChunk[] = [];
   for (let index = 1; index < Math.min(ranges.length, transcripts.length); index += 1) {
@@ -754,13 +759,30 @@ export function buildBridgeChunks(
       continue;
     }
 
-    // Shift half a stride past the newer window. This changes the decoder's
-    // boundary context and fills the exact region both neighbouring attempts
-    // failed to share.
-    const startMs = rightRange.startMs + Math.max(1000, Math.round(stepMs / 2));
+    // Re-decode the union of both disagreeing windows so the model sees
+    // context before and after the failed seam. Normal 12-second windows with
+    // 50% overlap produce an 18-second union. If callers provide wider ranges,
+    // keep the retry bounded and center it on their shared audio.
+    const unionStart = leftRange.startMs;
+    const unionEnd = rightRange.endMs;
+    const unionDuration = unionEnd - unionStart;
+    let startMs = unionStart;
+    let endMs = unionEnd;
+    if (unionDuration > contextMs) {
+      const overlapCenter = Math.round(
+        (Math.max(leftRange.startMs, rightRange.startMs) +
+          Math.min(leftRange.endMs, rightRange.endMs)) /
+          2
+      );
+      startMs = Math.max(
+        unionStart,
+        Math.min(unionEnd - contextMs, Math.round(overlapCenter - contextMs / 2))
+      );
+      endMs = startMs + contextMs;
+    }
     bridges.push({
       beforeIndex: index,
-      range: { startMs, endMs: startMs + chunkMs }
+      range: { startMs, endMs }
     });
   }
   return bridges;

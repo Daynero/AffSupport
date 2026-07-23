@@ -39,6 +39,13 @@ describe('Whisper transcription safeguards', () => {
       },
       { threads: 4 }
     );
+    const recovery = buildChunkWhisperArgs(
+      {
+        wavPaths: ['/tmp/recovery.wav'],
+        language: 'hi'
+      },
+      { threads: 4, preserveTimestamps: true }
+    );
 
     expect(detection).toEqual(
       expect.arrayContaining(['-f', '/tmp/input.wav', '-dl', '--vad', '-vm', '/tmp/silero.bin'])
@@ -47,6 +54,9 @@ describe('Whisper transcription safeguards', () => {
       expect.arrayContaining(['-l', 'hi', '-nt', '-nf', '/tmp/chunk-0.wav', '/tmp/chunk-1.wav'])
     );
     expect(chunks).not.toContain('-of');
+    expect(recovery).toContain('-otxt');
+    expect(recovery).not.toContain('-nt');
+    expect(recovery).not.toContain('--no-timestamps');
   });
 
   it('parses, joins, and bounds VAD speech ranges with overlap', () => {
@@ -86,9 +96,27 @@ describe('Whisper transcription safeguards', () => {
     expect(bridges).toEqual([
       {
         beforeIndex: 1,
-        range: { startMs: 105_000, endMs: 117_000 }
+        range: { startMs: 96_000, endMs: 114_000 }
       }
     ]);
+  });
+
+  it('recovers a missing clause at any unstable boundary using both sides as context', () => {
+    const left =
+      'Şimdi erkek olarak haklarını talep etme zamanı. Aşağıdaki linke hemen tıkla. ' +
+      'Bu stoğu daha cesur olanlar kapmadan şimdi al. Dünyaya kan';
+    const recovery =
+      'Şimdi erkek olarak haklarını talep etme zamanı. Aşağıdaki linke hemen tıkla. ' +
+      'Bu stoğu daha cesur olanlar kapmadan şimdi al. Dünyaya kanıtla. ' +
+      'Ve en önemlisi karına kanıtla. Yatakta gerçek kral kim?';
+    const right = 'Yatakta gerçek kral kim?';
+
+    const merged = mergeTranscriptChunks([left, recovery, right]);
+
+    expect(merged).toContain('Dünyaya kanıtla.');
+    expect(merged).toContain('Ve en önemlisi karına kanıtla.');
+    expect(merged.match(/Yatakta gerçek kral kim\?/gu)).toHaveLength(1);
+    expect(merged).not.toContain('Dünyaya kan\n');
   });
 
   it('merges overlapping short windows and replaces a hallucinated tail', () => {
