@@ -1,3 +1,7 @@
+# v0.6.6
+
+- Improve local transcription accuracy by using overlapping speech windows and recovering phrases that fall on recognition boundaries.
+
 # v0.6.5
 
 - Remove incomplete duplicate lines when Whisper emits a corrected continuation after a mid-word decoder fragment.

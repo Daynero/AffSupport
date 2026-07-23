@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.6.5",
-  "buildNumber": "17",
-  "buildId": "0.6.5+17",
+  "version": "0.6.6",
+  "buildNumber": "18",
+  "buildId": "0.6.6+18",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-07-22T20:10:15.000Z",
+  "publishedAt": "2026-07-23T07:06:00.000Z",
   "summary": {
-    "en": "Remove incomplete duplicate lines from local transcriptions.",
-    "uk": "Прибрано недописані дублікати рядків із локальних транскрипцій."
+    "en": "Improve local transcription accuracy and recover phrases missed between recognition windows.",
+    "uk": "Підвищено точність локальної транскрипції та відновлення фраз, пропущених між вікнами розпізнавання."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.6.5/Wishly-Agent-v0.6.5-macOS-arm64.dmg",
-      "sha256": "a7517abc831d4becfa75cfc7652295ba56275677c0665d156197851243c0cec9"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.6.6/Wishly-Agent-v0.6.6-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
