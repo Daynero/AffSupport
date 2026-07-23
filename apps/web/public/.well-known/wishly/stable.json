@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.6.6",
-  "buildNumber": "18",
-  "buildId": "0.6.6+18",
+  "version": "0.6.7",
+  "buildNumber": "19",
+  "buildId": "0.6.7+19",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-07-23T07:06:00.000Z",
+  "publishedAt": "2026-07-23T07:57:04.000Z",
   "summary": {
-    "en": "Improve local transcription accuracy and recover phrases missed between recognition windows.",
-    "uk": "Підвищено точність локальної транскрипції та відновлення фраз, пропущених між вікнами розпізнавання."
+    "en": "Recover speech skipped at unstable local transcription window boundaries.",
+    "uk": "Відновлено мовлення, пропущене на нестабільних стиках вікон локальної транскрипції."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.6.6/Wishly-Agent-v0.6.6-macOS-arm64.dmg",
-      "sha256": "17de82f99df90493bb8613d587ba6e438f63f59565d6bb3f6446b7ac02f91d31"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.6.7/Wishly-Agent-v0.6.7-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {

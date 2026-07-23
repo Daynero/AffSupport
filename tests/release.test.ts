@@ -53,10 +53,10 @@ describe('release identity', () => {
       readFileSync('apps/web/public/.well-known/wishly/stable.json', 'utf8')
     );
     expect(localizedReleaseSummary(manifest, 'en')).toBe(
-      'Improve local transcription accuracy and recover phrases missed between recognition windows.'
+      'Recover speech skipped at unstable local transcription window boundaries.'
     );
     expect(localizedReleaseSummary(manifest, 'uk')).toBe(
-      'Підвищено точність локальної транскрипції та відновлення фраз, пропущених між вікнами розпізнавання.'
+      'Відновлено мовлення, пропущене на нестабільних стиках вікон локальної транскрипції.'
     );
     expect(localizedReleaseSummary({ ...manifest, summary: undefined }, 'uk')).toBeNull();
   });

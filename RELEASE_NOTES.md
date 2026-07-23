@@ -1,3 +1,7 @@
+# v0.6.7
+
+- Recover speech skipped at any unstable transcription-window boundary by retrying the combined context with an independent timestamp-aware decoder path.
+
 # v0.6.6
 
 - Improve local transcription accuracy by using overlapping speech windows and recovering phrases that fall on recognition boundaries.
