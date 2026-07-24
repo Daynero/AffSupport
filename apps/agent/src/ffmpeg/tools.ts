@@ -49,6 +49,7 @@ export interface MediaInfo {
   codec: string | null;
   formatName: string | null;
   hasAudio: boolean;
+  audioCodec: string | null;
   audioDuration: number | null;
   audioBitrate: number | null;
   audioSampleRate: number | null;
@@ -66,6 +67,7 @@ const emptyMedia: MediaInfo = {
   codec: null,
   formatName: null,
   hasAudio: false,
+  audioCodec: null,
   audioDuration: null,
   audioBitrate: null,
   audioSampleRate: null,
@@ -113,6 +115,7 @@ export async function probeMedia(inputPath: string, command = ffprobePath): Prom
     codec: nonEmptyString(video.codec_name),
     formatName: nonEmptyString(data.format?.format_name),
     hasAudio: Boolean(audio),
+    audioCodec: audio ? nonEmptyString(audio.codec_name) : null,
     audioDuration: audio ? (positiveNumber(audio.duration) ?? duration) : null,
     audioBitrate: audio ? positiveNumber(audio.bit_rate) : null,
     audioSampleRate: audio ? positiveNumber(audio.sample_rate) : null,

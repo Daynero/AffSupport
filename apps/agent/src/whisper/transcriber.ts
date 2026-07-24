@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { ffmpegPath } from '../ffmpeg/tools.js';
 import { currentModelPath, whisperPath, whisperVadModelPath } from './tools.js';
+import { mergeChunkWords, parseWhisperFullJson, type WhisperWord } from './words.js';
 
 export interface TranscribeOptions {
   inputPath: string;
@@ -23,6 +24,12 @@ export interface TranscribeResult {
   stderr: string;
   failedStage: 'extract' | 'transcribe' | null;
   spawnErrorCode: string | null;
+  /**
+   * Merged, monotonic word timestamps for the structured document. Empty on the
+   * compatibility fallback path or when whisper produced no parseable JSON — the
+   * plain-text transcript is unaffected either way.
+   */
+  words: WhisperWord[];
 }
 
 export interface TranscribeHandle {
@@ -234,8 +241,7 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
           const bridgeRun = await runChunkWhisper(
             {
               wavPaths: bridgePaths,
-              language: detectedLanguage ?? language,
-              preserveTimestamps: true
+              language: detectedLanguage ?? language
             },
             child => {
               activeChild = child;
@@ -288,8 +294,25 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
         }
         const text = mergeTranscriptChunks(refinedChunks);
         await writeFile(transcriptPath, text ? `${text}\n` : '', 'utf8');
+
+        // Collect word timestamps from the same passes (no extra inference) and
+        // merge them into one monotonic sequence. Purely additive: any failure
+        // here leaves `words` empty and the text transcript intact.
+        const chunkWordLists = await Promise.all(
+          chunkPaths.map((chunkPath, index) => readChunkWords(chunkPath, ranges[index].startMs))
+        );
+        const bridgeWordLists = await Promise.all(
+          bridges.map((bridge, index) =>
+            readChunkWords(
+              path.join(tmpDir, `bridge-${String(index).padStart(4, '0')}.wav`),
+              bridge.range.startMs
+            )
+          )
+        );
+        const words = mergeChunkWords([...chunkWordLists, ...bridgeWordLists]);
+
         onProgress(100);
-        return result(0, false, text, detectedLanguage, diagnostics, null, null);
+        return result(0, false, text, detectedLanguage, diagnostics, null, null, words);
       }
 
       // Compatibility fallback for source builds that do not have the bundled
@@ -321,8 +344,9 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
 
       const text = await readTranscript(`${outputBase}.txt`);
       await writeFile(transcriptPath, text ? `${text}\n` : '', 'utf8');
+      const words = await readChunkWords(outputBase, 0);
       onProgress(100);
-      return result(0, false, text, run.detectedLanguage, run.stderr, null, null);
+      return result(0, false, text, run.detectedLanguage, run.stderr, null, null, words);
     } finally {
       cleanup();
     }
@@ -337,7 +361,8 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
     detectedLanguage: string | null,
     stderr: string,
     failedStage: 'extract' | 'transcribe' | null,
-    spawnErrorCode: string | null
+    spawnErrorCode: string | null,
+    words: WhisperWord[] = []
   ): TranscribeResult {
     return {
       code,
@@ -346,7 +371,8 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
       detectedLanguage,
       stderr,
       failedStage,
-      spawnErrorCode
+      spawnErrorCode,
+      words
     };
   }
 }
@@ -479,7 +505,7 @@ function runVadDetection(
 }
 
 function runChunkWhisper(
-  params: { wavPaths: string[]; language: string; preserveTimestamps?: boolean },
+  params: { wavPaths: string[]; language: string },
   onChild: (child: ChildProcessWithoutNullStreams) => void,
   onChunkComplete: (completed: number) => void
 ): Promise<{
@@ -487,9 +513,7 @@ function runChunkWhisper(
   stderr: string;
   spawnErrorCode: string | null;
 }> {
-  const args = buildChunkWhisperArgs(params, {
-    preserveTimestamps: params.preserveTimestamps
-  });
+  const args = buildChunkWhisperArgs(params);
   return new Promise(resolve => {
     const child = spawn(whisperPath, args, { shell: false });
     onChild(child);
@@ -572,6 +596,9 @@ export function buildWhisperArgs(
     '-l',
     params.language || 'auto',
     '-otxt',
+    '-oj',
+    '-ojf',
+    '-sow',
     '-of',
     params.outputBase,
     '-pp',
@@ -629,7 +656,7 @@ export function buildVadDetectionArgs(
 
 export function buildChunkWhisperArgs(
   params: { wavPaths: string[]; language: string },
-  options: { threads?: number; preserveTimestamps?: boolean } = {}
+  options: { threads?: number } = {}
 ): string[] {
   const threads = options.threads ?? Math.max(4, os.cpus().length - 2);
   return [
@@ -638,11 +665,17 @@ export function buildChunkWhisperArgs(
     '-l',
     params.language || 'auto',
     '-otxt',
-    // The primary bounded pass uses no-timestamp decoding for speed and stable
-    // phrasing. A recovery pass deliberately keeps timestamp tokens enabled:
-    // this gives a failing boundary a genuinely different decoder path, while
-    // `-otxt` still writes the same plain text without timecodes.
-    ...(options.preserveTimestamps ? [] : ['-nt']),
+    // Additionally emit full JSON (per-token millisecond offsets) so the
+    // structured document can carry word timestamps for karaoke playback. This
+    // is written to `<wav>.json` and does not affect the `-otxt` transcript.
+    '-oj',
+    '-ojf',
+    // `-nt` must never be used for the structured pass. whisper.cpp still
+    // emits token offsets in full JSON with `-nt`, but most later tokens then
+    // collapse onto the segment end; karaoke visibly trails the speech and
+    // catches up by jumping several words. Keep timestamp decoding enabled and
+    // split on word boundaries for stable per-word ranges.
+    '-sow',
     // Temperature retries can replace a complete beam result with a shorter
     // one. Deterministic beam search proved both fuller and much faster.
     '-nf',
@@ -806,6 +839,19 @@ async function readRawTranscript(wavPath: string): Promise<string> {
     return await readFile(`${wavPath}.txt`, 'utf8');
   } catch {
     return '';
+  }
+}
+
+/**
+ * Reads the full-JSON word timestamps whisper wrote next to a chunk wav and
+ * shifts them to absolute time. A missing/unreadable JSON simply yields no
+ * words, so the text transcript keeps working on older whisper builds.
+ */
+async function readChunkWords(wavPath: string, offsetMs: number): Promise<WhisperWord[]> {
+  try {
+    return parseWhisperFullJson(await readFile(`${wavPath}.json`, 'utf8'), offsetMs);
+  } catch {
+    return [];
   }
 }
 

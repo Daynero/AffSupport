@@ -30,11 +30,23 @@ Supabase migrations, or Cloudflare deployment. Wishly Dev uses bundle ID
 local synthetic profile and compile analytics out, so they do not authenticate
 against or write to production Supabase. They may run beside Wishly Agent.
 
-The verified Node, FFmpeg, FFprobe, and corresponding source archives are reused
-from `release/Wishly Agent.app`. Override that source with
-`DEV_RUNTIME_SOURCE_APP=/path/to/verified/Wishly Agent.app` when necessary. If
+The verified Node, FFmpeg, FFprobe, whisper.cpp, Silero VAD, and corresponding
+source archives are reused from `release/Wishly Agent.app`. The pinned
+llama.cpp b10092 runtime is reused from that app or from its verified local
+install under Application Support. Override those sources with
+`DEV_RUNTIME_SOURCE_APP=/path/to/verified/Wishly Agent.app` and
+`DEV_LLAMA_RUNTIME_DIR=/path/to/llama-b10092` when necessary. If
 Wishly Dev is already running, packaging quits it only when health reports
 `busy:false`; active work is never interrupted.
+
+For local model development, the Agent accepts explicit absolute paths without
+requiring Homebrew or system Python:
+
+```bash
+TRANSLATION_RUNTIME_PATH=/path/to/llama-server
+TRANSLATION_MODEL_PATH=/path/to/translategemma-4b-it-Q4_K_M.gguf
+ALIGNMENT_MODEL_PATH=/path/to/multilingual-e5-small-Q4_K_M.gguf
+```
 
 Wishly now uses Supabase Auth with Google OAuth for the hosted product, PostgreSQL profiles, RLS-protected first-party product analytics, and database-confirmed admin access. Copy `.env.example` to `.env`, then follow the beginner-friendly [Supabase and Google setup guide](docs/SUPABASE_SETUP.md). Real credentials are never committed; a missing or invalid browser configuration renders an explicit setup screen instead of starting with `undefined` values.
 
@@ -151,6 +163,11 @@ Every `/api/*` route requires a random per-process 256-bit token. The token is i
 | POST         | `/api/jobs/:id/cancel`, `/retry`, `/reveal`, `/open`           | Manage one job                                                       |
 | POST, DELETE | `/api/jobs/remove`, `/api/jobs/:id`, `/api/jobs/completed`     | Remove selected rows or clear finished rows without deleting outputs |
 | POST         | `/api/output/reveal`                                           | Open an available output folder                                      |
+| GET          | `/api/transcription/state`, `/events`                          | Read compact transcription queue state and SSE status                |
+| GET          | `/api/transcription/jobs/:id/document`                         | Fetch the local structured transcript sidecar on demand              |
+| POST, GET    | `/api/transcription/jobs/:id/translations[/:language]`         | Queue or read a cached fully local translation                       |
+| POST, GET    | `/api/transcription/jobs/:id/media/prepare`, `/status`         | Prepare or inspect a local browser-compatible preview                |
+| GET          | `/api/transcription/jobs/:id/media`                            | Token-gated source/proxy streaming with HTTP Range                   |
 
 ## Troubleshooting
 

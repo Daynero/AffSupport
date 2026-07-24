@@ -53,10 +53,10 @@ describe('release identity', () => {
       readFileSync('apps/web/public/.well-known/wishly/stable.json', 'utf8')
     );
     expect(localizedReleaseSummary(manifest, 'en')).toBe(
-      'Recover speech skipped at unstable local transcription window boundaries.'
+      'Add fully local bilingual transcripts with on-device translation, word-synced media playback, model installation, and secure media previews.'
     );
     expect(localizedReleaseSummary(manifest, 'uk')).toBe(
-      'Відновлено мовлення, пропущене на нестабільних стиках вікон локальної транскрипції.'
+      'Додано повністю локальні двомовні транскрипти з перекладом на пристрої, синхронним із словами відтворенням, інсталяцією моделей і безпечним медіапереглядом.'
     );
     expect(localizedReleaseSummary({ ...manifest, summary: undefined }, 'uk')).toBeNull();
   });
@@ -104,6 +104,8 @@ describe('release identity', () => {
     expect(toolContractCompatible('landingOptimizer', { compressor: 1 })).toBe(false);
     expect(toolContractCompatible('landingOptimizer', { landingOptimizer: 1 })).toBe(false);
     expect(toolContractCompatible('landingOptimizer', { landingOptimizer: 2 })).toBe(true);
+    expect(toolContractCompatible('transcription', { transcription: 1 })).toBe(false);
+    expect(toolContractCompatible('transcription', { transcription: 2 })).toBe(true);
   });
 
   it('keeps installable dev builds isolated from production identities and services', () => {

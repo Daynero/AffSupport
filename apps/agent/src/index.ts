@@ -56,6 +56,8 @@ import { LandingOptimizer } from './landing/optimizer.js';
 import { registerLandingRoutes } from './landing/routes.js';
 import { TranscriptionQueue } from './queue/transcription-queue.js';
 import { registerTranscriptionRoutes } from './transcription/routes.js';
+import { createTranslator } from './translation/translator.js';
+import { createAligner } from './translation/aligner.js';
 import { whisperAvailable } from './whisper/tools.js';
 
 const token = randomBytes(32).toString('hex');
@@ -98,6 +100,8 @@ const transcriptionQueue = new TranscriptionQueue(
     for (const client of transcriptionClients) client.write(payload);
   }
 );
+transcriptionQueue.setTranslator(createTranslator());
+transcriptionQueue.setAligner(createAligner());
 
 function broadcast(type: AgentEventType = 'state') {
   const event: AgentEvent = { type, state: queue.state() };

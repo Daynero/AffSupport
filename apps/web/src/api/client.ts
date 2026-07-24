@@ -6,8 +6,11 @@ import type {
   SelectionResponse,
   SelectionWarning,
   ToolContracts,
+  TranscriptionDocument,
+  TranscriptionMediaPreview,
   TranscriptionSettings,
-  TranscriptionState
+  TranscriptionState,
+  TranslationDocument
 } from '@video-compressor/shared';
 import { agentFetchOptions, pairingPath, probeAgent, versionState } from '../connection';
 
@@ -268,6 +271,12 @@ export function transcriptionModelDownload(): Promise<TranscriptionState> {
 export function transcriptionModelCancel(): Promise<TranscriptionState> {
   return request<TranscriptionState>('/api/transcription/model/cancel', 'POST');
 }
+export function transcriptionTranslatorDownload(): Promise<TranscriptionState> {
+  return request<TranscriptionState>('/api/transcription/translator/download', 'POST');
+}
+export function transcriptionTranslatorCancel(): Promise<TranscriptionState> {
+  return request<TranscriptionState>('/api/transcription/translator/cancel', 'POST');
+}
 export function transcriptionCancel(id: string): Promise<TranscriptionState> {
   return request<TranscriptionState>(
     `/api/transcription/jobs/${encodeURIComponent(id)}/cancel`,
@@ -294,6 +303,63 @@ export function transcriptionReveal(id: string): Promise<TranscriptionState> {
     `/api/transcription/jobs/${encodeURIComponent(id)}/reveal`,
     'POST'
   );
+}
+export function transcriptionDocument(
+  id: string,
+  signal?: AbortSignal
+): Promise<TranscriptionDocument> {
+  return request<TranscriptionDocument>(
+    `/api/transcription/jobs/${encodeURIComponent(id)}/document`,
+    'GET',
+    signal
+  );
+}
+export function transcriptionTranslate(
+  id: string,
+  targetLanguage: string,
+  requestId?: string
+): Promise<TranslationDocument> {
+  return requestBody<TranslationDocument>(
+    `/api/transcription/jobs/${encodeURIComponent(id)}/translations`,
+    { targetLanguage, requestId }
+  );
+}
+export function transcriptionTranslation(
+  id: string,
+  language: string,
+  signal?: AbortSignal
+): Promise<TranslationDocument> {
+  return request<TranslationDocument>(
+    `/api/transcription/jobs/${encodeURIComponent(id)}/translations/${encodeURIComponent(language)}`,
+    'GET',
+    signal
+  );
+}
+export function transcriptionMediaStatus(
+  id: string,
+  signal?: AbortSignal
+): Promise<TranscriptionMediaPreview> {
+  return request<TranscriptionMediaPreview>(
+    `/api/transcription/jobs/${encodeURIComponent(id)}/media/status`,
+    'GET',
+    signal
+  );
+}
+export function transcriptionMediaPrepare(id: string): Promise<TranscriptionMediaPreview> {
+  return request<TranscriptionMediaPreview>(
+    `/api/transcription/jobs/${encodeURIComponent(id)}/media/prepare`,
+    'POST'
+  );
+}
+export function transcriptionMediaCancel(id: string): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(
+    `/api/transcription/jobs/${encodeURIComponent(id)}/media/cancel`,
+    'POST'
+  );
+}
+/** URL for the local, token-gated, range-capable source media (for the player). */
+export function transcriptionMediaUrl(id: string): string {
+  return `${agentUrl}/api/transcription/jobs/${encodeURIComponent(id)}/media?token=${encodeURIComponent(token)}`;
 }
 async function assertOk(response: Response) {
   const body = await response.json();

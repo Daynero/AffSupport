@@ -687,6 +687,67 @@ export const TRANSCRIPTION_LANGUAGE_CODES = [
 
 export type TranscriptionLanguageCode = (typeof TRANSCRIPTION_LANGUAGE_CODES)[number];
 
+/**
+ * Target languages covered by TranslateGemma's published WMT24++ evaluation.
+ * Base BCP-47 tags are used in the UI; the model's embedded chat template also
+ * accepts regional variants. English is included because it is the pivot/source
+ * language for the published benchmark and a required fallback target.
+ */
+export const TRANSLATEGEMMA_LANGUAGE_CODES = [
+  'en',
+  'ar',
+  'bg',
+  'bn',
+  'ca',
+  'cs',
+  'da',
+  'de',
+  'el',
+  'es',
+  'et',
+  'fa',
+  'fi',
+  'fil',
+  'fr',
+  'gu',
+  'he',
+  'hi',
+  'hr',
+  'hu',
+  'id',
+  'is',
+  'it',
+  'ja',
+  'kn',
+  'ko',
+  'lt',
+  'lv',
+  'ml',
+  'mr',
+  'nl',
+  'no',
+  'pa',
+  'pl',
+  'pt',
+  'ro',
+  'ru',
+  'sk',
+  'sl',
+  'sr',
+  'sv',
+  'sw',
+  'ta',
+  'te',
+  'th',
+  'tr',
+  'uk',
+  'ur',
+  'vi',
+  'zh',
+  'zh-TW',
+  'zu'
+] as const;
+
 export interface TranscriptionSettings {
   /** `auto` detects the spoken language; otherwise an ISO 639-1 code. */
   language: string;
@@ -741,6 +802,13 @@ export interface TranscriptionModelInfo {
   sizeBytes: number;
   /** Bytes fetched so far in the current download. */
   downloadedBytes: number;
+  /**
+   * Opaque id shared by every artifact started from the same confirmation.
+   * It lets clients keep completed bytes in the weighted aggregate while a
+   * slower sibling artifact is still downloading, without counting models
+   * that were already installed before the confirmation.
+   */
+  downloadBatchId?: string | null;
   /** Human-facing model label, e.g. "large-v3". */
   label: string;
   /** Last download error, cleared when a new download starts. */
@@ -752,6 +820,12 @@ export interface TranscriptionState {
   running: boolean;
   tools: TranscriptionTools;
   model: TranscriptionModelInfo;
+  /** First-run download state for the local translation model (TranslateGemma). */
+  translatorModel: TranscriptionModelInfo;
+  /** Raw pinned llama.cpp runtime state, exposed for install diagnostics. */
+  translatorRuntime: TranscriptionModelInfo;
+  /** Multilingual E5 model used for local semantic phrase alignment. */
+  alignmentModel: TranscriptionModelInfo;
   settings: TranscriptionSettings;
 }
 
@@ -764,4 +838,129 @@ export interface TranscriptionEvent {
 
 export function defaultTranscriptionSettings(): TranscriptionSettings {
   return { language: 'auto' };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Structured transcription document                                          */
+/*                                                                            */
+/* The flat `TranscriptionJob.text` stays the authoritative quick transcript  */
+/* (and the `.txt` written next to the source). Everything below is a richer  */
+/* sidecar used only by the split-screen viewer: per-word timestamps for      */
+/* karaoke playback and per-segment translations with source↔target           */
+/* character alignments for the mirrored highlight. It is fetched on demand    */
+/* through dedicated endpoints, never streamed inside `transcription:progress` */
+/* SSE events, so the live queue state stays small.                           */
+/* -------------------------------------------------------------------------- */
+
+/** A single decoded word, timestamped and anchored to its segment text. */
+export interface TranscriptWord {
+  /** Stable id, unique within the document (e.g. `<segmentId>-<index>`). */
+  id: string;
+  /** The word exactly as it appears in the segment's `sourceText`. */
+  text: string;
+  /** Absolute start/end in milliseconds from the beginning of the media. */
+  startMs: number;
+  endMs: number;
+  /** Model confidence 0–1 when Whisper provides it, otherwise null. */
+  confidence: number | null;
+  /** Character offsets `[sourceStart, sourceEnd)` into `segment.sourceText`. */
+  sourceStart: number;
+  sourceEnd: number;
+}
+
+/** One sentence-ish segment of source speech with its words. */
+export interface TranscriptSegment {
+  id: string;
+  /** Absolute start/end in milliseconds from the beginning of the media. */
+  startMs: number;
+  endMs: number;
+  /** The segment text; word `sourceStart`/`sourceEnd` index into this. */
+  sourceText: string;
+  words: TranscriptWord[];
+}
+
+/** A source↔target character-span link inside one translated segment. */
+export interface AlignmentLink {
+  /** Char offsets into the source segment's `sourceText`. */
+  sourceStart: number;
+  sourceEnd: number;
+  /** Char offsets into this segment's `translatedText`. */
+  targetStart: number;
+  targetEnd: number;
+  /** Alignment confidence 0–1 (never a fabricated value — see the aligner). */
+  confidence: number;
+}
+
+export interface TranslatedSegment {
+  /** Ties back to `TranscriptSegment.id`. */
+  sourceSegmentId: string;
+  translatedText: string;
+  alignments: AlignmentLink[];
+}
+
+export type TranslationStatus = 'queued' | 'processing' | 'completed' | 'failed';
+
+/** All translations of a document into one target language. */
+export interface TranslationDocument {
+  /** Client generation id for correlating an in-flight language switch. */
+  requestId?: string;
+  /** BCP-47 / ISO code of the target language. */
+  targetLanguage: string;
+  /** Translator model version this was produced with (part of the cache key). */
+  modelVersion: string;
+  /** Exact source/language/model cache key; optional only for legacy sidecars. */
+  cacheKey?: string;
+  /** Alignment engine revision and whether phrase-level links were produced. */
+  alignmentModelVersion?: string;
+  alignmentStatus?: 'completed' | 'fallback';
+  status: TranslationStatus;
+  segments: TranslatedSegment[];
+  /** Set when `status === 'failed'`; the last good translation is kept in the UI. */
+  error: string | null;
+}
+
+/** The full structured sidecar for one transcription job. */
+export interface TranscriptionDocument {
+  jobId: string;
+  /** Language of the source speech (detected or requested). */
+  sourceLanguage: string;
+  /** Transcriber (whisper) model version that produced the segments. */
+  modelVersion: string;
+  segments: TranscriptSegment[];
+  /** Keyed by target-language code. */
+  translations: Record<string, TranslationDocument>;
+}
+
+export type TranscriptionMediaPreviewState = 'checking' | 'preparing' | 'ready' | 'failed';
+
+/** Lightweight state for the local browser-compatible playback asset. */
+export interface TranscriptionMediaPreview {
+  state: TranscriptionMediaPreviewState;
+  /** `original` streams the source; `proxy` streams a cached local MP4. */
+  variant: 'original' | 'proxy' | null;
+  progress: number | null;
+  hasVideo: boolean | null;
+  mimeType: string | null;
+  error: string | null;
+}
+
+/**
+ * Deterministic cache key for a translation. Two requests with the same source
+ * content, source language, target language, and translator model version must
+ * resolve to the same cached result — re-selecting an already-translated
+ * language then resolves instantly. Order and separator are fixed so the key is
+ * stable across processes.
+ */
+export function translationCacheKey(parts: {
+  sourceContentHash: string;
+  sourceLanguage: string;
+  targetLanguage: string;
+  translatorModelVersion: string;
+}): string {
+  return [
+    parts.sourceContentHash,
+    parts.sourceLanguage,
+    parts.targetLanguage,
+    parts.translatorModelVersion
+  ].join('\0');
 }

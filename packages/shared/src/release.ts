@@ -6,9 +6,9 @@
  * contract is incompatible, while the supported range lets a web release keep
  * working with older compatible agents.
  */
-export const PRODUCT_VERSION = '0.6.7';
-export const BUNDLE_VERSION = '0.6.7';
-export const BUILD_NUMBER = '19';
+export const PRODUCT_VERSION = '0.7.0';
+export const BUNDLE_VERSION = '0.7.0';
+export const BUILD_NUMBER = '20';
 export const RELEASE_CHANNEL = 'stable';
 
 /**
@@ -52,13 +52,13 @@ export const AGENT_TOOL_CONTRACTS = {
   compressor: 2,
   imageEmbedding: 1,
   landingOptimizer: 2,
-  transcription: 1
+  transcription: 2
 } as const;
 
 export const WEB_TOOL_REQUIREMENTS = {
   compressor: { compressor: 2 },
   landingOptimizer: { landingOptimizer: 2 },
-  transcription: { transcription: 1 }
+  transcription: { transcription: 2 }
 } as const;
 
 export type ToolContractName = keyof typeof AGENT_TOOL_CONTRACTS;

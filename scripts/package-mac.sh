@@ -6,6 +6,7 @@ set -euo pipefail
 : "${FFMPEG_SOURCE_ARCHIVE:?Set FFMPEG_SOURCE_ARCHIVE to the matching FFmpeg source archive}"
 : "${X264_SOURCE_ARCHIVE:?Set X264_SOURCE_ARCHIVE to the matching x264 source archive}"
 : "${WHISPER_BINARY:?Set WHISPER_BINARY to an approved portable (statically linked) arm64 whisper-cli}"
+: "${LLAMA_RUNTIME_ARCHIVE:?Set LLAMA_RUNTIME_ARCHIVE to the official llama.cpp b10092 macOS arm64 release archive}"
 # WHISPER_MODEL is OPTIONAL: leave it unset to ship a small installer and let the
 # app download large-v3 on first use (into Application Support). Set it to a local
 # ggml-large-v3.bin to bundle the model for a fully offline DMG.
@@ -14,11 +15,17 @@ WHISPER_MODEL="${WHISPER_MODEL:-}"
 [[ "$PUBLIC_SITE_ORIGIN" == https://* ]] || { print -u2 "PUBLIC_SITE_ORIGIN must use HTTPS"; exit 1; }
 node_binary="${NODE_BINARY:-$(command -v node)}"; [[ -x "$node_binary" ]] || { print -u2 "No node binary found; set NODE_BINARY to a portable arm64 Node.js"; exit 1; }
 output_app="$PWD/release/Wishly Agent.app"
-for input in "$node_binary" "$FFMPEG_BINARY" "$FFPROBE_BINARY" "$FFMPEG_SOURCE_ARCHIVE" "$X264_SOURCE_ARCHIVE" "$WHISPER_BINARY" "$WHISPER_VAD_MODEL" ${WHISPER_MODEL:+"$WHISPER_MODEL"}; do
+for input in "$node_binary" "$FFMPEG_BINARY" "$FFPROBE_BINARY" "$FFMPEG_SOURCE_ARCHIVE" "$X264_SOURCE_ARCHIVE" "$WHISPER_BINARY" "$WHISPER_VAD_MODEL" "$LLAMA_RUNTIME_ARCHIVE" ${WHISPER_MODEL:+"$WHISPER_MODEL"}; do
   case "${input:A}" in
     "${output_app:A}"/*) print -u2 "Package input must not be inside the output app: $input"; exit 1 ;;
   esac
 done
+expected_llama_archive_sha="f3ec2351e06322478e3f38f23f5339cd834cca5e3740f334ce2bdc5de95f90e0"
+actual_llama_archive_sha=$(shasum -a 256 "$LLAMA_RUNTIME_ARCHIVE" | awk '{print $1}')
+[[ "$actual_llama_archive_sha" == "$expected_llama_archive_sha" ]] || {
+  print -u2 "LLAMA_RUNTIME_ARCHIVE is not the pinned official llama.cpp b10092 arm64 archive"
+  exit 1
+}
 for binary in "$node_binary" "$FFMPEG_BINARY" "$FFPROBE_BINARY" "$WHISPER_BINARY"; do file "$binary" | grep -q 'arm64' || { print -u2 "$binary is not arm64"; exit 1; }; otool -L "$binary" | tail -n +2 | grep -Ev '^\s+(/usr/lib|/System/Library)' && { print -u2 "$binary has non-system dynamic dependencies (Homebrew builds are not portable; use a statically linked arm64 build)"; exit 1; } || true; done
 product_version=$(node scripts/release-meta.mjs product-version)
 bundle_version=$(node scripts/release-meta.mjs bundle-version)
@@ -31,7 +38,7 @@ source_revision=$(git rev-parse HEAD)
 root="$PWD/release"; app="$root/Wishly Agent.app"; archive="$root/${dmg_name%.dmg}.zip"
 mkdir -p "$root"
 [[ ! -e "$archive" ]] || { print -u2 "$archive already exists. Published build identities are immutable; bump PRODUCT_VERSION and BUILD_NUMBER."; exit 1; }
-rm -rf "$app"; mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/runtime/bin" "$app/Contents/Resources/runtime/models" "$app/Contents/Resources/agent"
+rm -rf "$app"; mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/runtime/bin" "$app/Contents/Resources/runtime/models" "$app/Contents/Resources/runtime/llama" "$app/Contents/Resources/agent"
 node scripts/render-launcher.mjs packaging/Launcher.swift "$root/Launcher.generated.swift" \
   "AGENT_PORT=43120" \
   "APP_NAME=Wishly Agent" \
@@ -47,11 +54,33 @@ node scripts/render-launcher.mjs packaging/Launcher.swift "$root/Launcher.genera
 swiftc "$root/Launcher.generated.swift" -o "$app/Contents/MacOS/WishlyAgent" -framework AppKit
 cp "$node_binary" "$app/Contents/Resources/runtime/node"; cp "$FFMPEG_BINARY" "$app/Contents/Resources/runtime/bin/ffmpeg"; cp "$FFPROBE_BINARY" "$app/Contents/Resources/runtime/bin/ffprobe"
 cp "$WHISPER_BINARY" "$app/Contents/Resources/runtime/bin/whisper-cli"; chmod +x "$app/Contents/Resources/runtime/bin/whisper-cli"; cp "$WHISPER_VAD_MODEL" "$app/Contents/Resources/runtime/models/ggml-silero-v5.1.2.bin"
+llama_stage=$(mktemp -d)
+trap 'rm -rf "$llama_stage"' EXIT
+/usr/bin/tar -xzf "$LLAMA_RUNTIME_ARCHIVE" -C "$llama_stage"
+[[ -x "$llama_stage/llama-b10092/llama-server" ]] || {
+  print -u2 "Pinned llama.cpp archive does not contain llama-server"
+  exit 1
+}
+file "$llama_stage/llama-b10092/llama-server" | grep -q 'arm64' || {
+  print -u2 "Pinned llama.cpp server is not arm64"
+  exit 1
+}
+otool -L "$llama_stage/llama-b10092/llama-server" | tail -n +2 | grep -Ev '^\s+(@rpath|/usr/lib|/System/Library)' && {
+  print -u2 "llama-server has an unexpected absolute dynamic dependency"
+  exit 1
+} || true
+cp -R "$llama_stage/llama-b10092/." "$app/Contents/Resources/runtime/llama/"
+chmod +x "$app/Contents/Resources/runtime/llama/llama-server"
 [[ -n "$WHISPER_MODEL" ]] && cp "$WHISPER_MODEL" "$app/Contents/Resources/runtime/models/ggml-large-v3.bin" || print "WHISPER_MODEL not set — large-v3 will be downloaded on first use"
 cp -R apps/agent/dist apps/agent/package.json node_modules "$app/Contents/Resources/agent/"; rm -rf "$app/Contents/Resources/agent/node_modules/@video-compressor"; mkdir -p "$app/Contents/Resources/agent/node_modules/@video-compressor/shared"; cp -R packages/shared/dist packages/shared/package.json "$app/Contents/Resources/agent/node_modules/@video-compressor/shared/"
 rm -rf "$app/Contents/Resources/agent/node_modules/ffmpeg-static" "$app/Contents/Resources/agent/node_modules/@derhuerst/ffprobe-static"
 mkdir -p "$app/Contents/Resources/web" "$app/Contents/Resources/licenses/sources"; cp -R apps/web/dist "$app/Contents/Resources/web/dist"
 cp "$FFMPEG_SOURCE_ARCHIVE" "$app/Contents/Resources/licenses/sources/"; cp "$X264_SOURCE_ARCHIVE" "$app/Contents/Resources/licenses/sources/"
+cp "$app/Contents/Resources/runtime/llama/LICENSE" "$app/Contents/Resources/licenses/llama.cpp-LICENSE"
+cp packaging/licenses/GEMMA_TERMS.md "$app/Contents/Resources/licenses/"
+cp packaging/licenses/GEMMA_PROHIBITED_USE_POLICY.md "$app/Contents/Resources/licenses/"
+cp packaging/licenses/NOTICE-Gemma.txt "$app/Contents/Resources/licenses/"
+cp packaging/licenses/multilingual-e5-small-MIT.txt "$app/Contents/Resources/licenses/"
 cp packaging/Info.plist "$app/Contents/Info.plist"; cp THIRD_PARTY_NOTICES.md "$app/Contents/Resources/"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $bundle_version" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $build_number" "$app/Contents/Info.plist"

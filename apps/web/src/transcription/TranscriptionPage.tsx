@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { TranscriptionJob, TranscriptionState } from '@video-compressor/shared';
 import { TRANSCRIPTION_LANGUAGE_CODES } from '@video-compressor/shared';
 import { createPortal } from 'react-dom';
@@ -7,9 +7,12 @@ import {
   transcriptionAddLocalFiles,
   transcriptionCancel,
   transcriptionClearFinished,
+  transcriptionDocument,
   transcriptionEventUrl,
   transcriptionModelCancel,
   transcriptionModelDownload,
+  transcriptionTranslatorCancel,
+  transcriptionTranslatorDownload,
   transcriptionRemove,
   transcriptionRetry,
   transcriptionReveal,
@@ -38,6 +41,42 @@ import { languageDisplayName } from './language';
 import { TranscriptTextModal } from './TranscriptTextModal';
 
 type TranscriptionModelInfo = NonNullable<TranscriptionState['model']>;
+
+function combineModelInfo(
+  label: string,
+  parts: readonly TranscriptionModelInfo[]
+): TranscriptionModelInfo {
+  const activeBatchId =
+    parts.find(part => part.downloading && part.downloadBatchId)?.downloadBatchId ?? null;
+  const participants = activeBatchId
+    ? parts.filter(part => part.downloadBatchId === activeBatchId)
+    : parts.filter(part => !part.present);
+  const sizeBytes = participants.reduce((sum, part) => sum + Math.max(0, part.sizeBytes), 0);
+  const downloadedBytes = participants.reduce(
+    (sum, part) =>
+      sum +
+      (part.present
+        ? Math.max(0, part.sizeBytes)
+        : Math.min(Math.max(0, part.downloadedBytes), Math.max(0, part.sizeBytes))),
+    0
+  );
+  const present = parts.every(part => part.present);
+  const downloading = parts.some(part => part.downloading);
+  return {
+    present,
+    downloading,
+    progress: present
+      ? 100
+      : downloading && sizeBytes > 0
+        ? Math.min(99, Math.floor((downloadedBytes / sizeBytes) * 100))
+        : null,
+    sizeBytes,
+    downloadedBytes,
+    downloadBatchId: activeBatchId,
+    label,
+    error: parts.map(part => part.error).find((error): error is string => Boolean(error)) ?? null
+  };
+}
 
 interface ToastMessage {
   id: number;
@@ -111,7 +150,7 @@ export default function TranscriptionPage() {
   const visibleJobs = useMemo(() => [...jobs].sort((a, b) => b.createdAt - a.createdAt), [jobs]);
   const settings = state?.settings ?? { language: 'auto' };
   const tools = state?.tools ?? { ffmpeg: false, whisper: false, model: false };
-  const model: TranscriptionModelInfo = state?.model ?? {
+  const emptyModelInfo: TranscriptionModelInfo = {
     present: false,
     downloading: false,
     progress: null,
@@ -120,6 +159,18 @@ export default function TranscriptionPage() {
     label: '',
     error: null
   };
+  const model: TranscriptionModelInfo = state?.model ?? emptyModelInfo;
+  const translatorModel: TranscriptionModelInfo = state?.translatorModel ?? emptyModelInfo;
+  const alignmentModel: TranscriptionModelInfo = state?.alignmentModel ?? emptyModelInfo;
+  const localModelBundle = combineModelInfo(t('transcriptionLocalModels'), [
+    model,
+    translatorModel,
+    alignmentModel
+  ]);
+  const translationBundle = combineModelInfo(t('transcriptionTranslationModels'), [
+    translatorModel,
+    alignmentModel
+  ]);
   // The whisper binary + ffmpeg are what make the tool operable; the model is a
   // separate, on-demand download handled by its own gate.
   const binaryReady = tools.ffmpeg && tools.whisper;
@@ -189,7 +240,7 @@ export default function TranscriptionPage() {
   // remembers what to start once it finishes.
   const requestStart = (ids: string[]) => {
     if (!ids.length) return;
-    if (!model.present) {
+    if (!localModelBundle.present) {
       pendingStart.current = ids;
       setConfirmingDownload(true);
       return;
@@ -201,9 +252,29 @@ export default function TranscriptionPage() {
     setConfirmingDownload(false);
     try {
       setState(await transcriptionModelDownload());
+      // If Whisper was already installed, translation/alignment can continue
+      // downloading in the background while the shared resource queue starts
+      // transcription immediately.
+      if (model.present && pendingStart.current) {
+        const ids = pendingStart.current;
+        pendingStart.current = null;
+        await startNow(ids);
+      }
     } catch (error) {
       handleError(error);
     }
+  };
+
+  const continueWithoutTranslation = () => {
+    const ids = pendingStart.current;
+    pendingStart.current = null;
+    setConfirmingDownload(false);
+    if (model.present && ids) void startNow(ids);
+  };
+
+  const cancelDownloadConfirmation = () => {
+    pendingStart.current = null;
+    setConfirmingDownload(false);
   };
 
   const cancelDownload = async () => {
@@ -231,8 +302,10 @@ export default function TranscriptionPage() {
     }
   };
 
-  const copyText = async (text: string) => {
+  const copyTranscript = async (jobId: string) => {
     try {
+      const document = await transcriptionDocument(jobId);
+      const text = document.segments.map(segment => segment.sourceText).join('\n');
       await navigator.clipboard.writeText(text);
       return true;
     } catch {
@@ -295,9 +368,10 @@ export default function TranscriptionPage() {
 
         {connected && binaryReady && !modelReady && (
           <ModelGate
-            model={model}
+            model={localModelBundle}
+            parts={[model, translatorModel, alignmentModel]}
             language={language}
-            onDownload={confirmDownload}
+            onDownload={() => setConfirmingDownload(true)}
             onCancel={cancelDownload}
             t={t}
           />
@@ -396,7 +470,7 @@ export default function TranscriptionPage() {
                 onRemove={() => void run(() => transcriptionRemove(job.id))}
                 onReveal={() => void run(() => transcriptionReveal(job.id))}
                 onView={trigger => setPreview({ jobId: job.id, trigger })}
-                onCopy={copyText}
+                onCopy={copyTranscript}
                 t={t}
               />
             ))
@@ -409,18 +483,27 @@ export default function TranscriptionPage() {
           job={previewJob}
           language={language}
           returnFocus={preview?.trigger ?? null}
+          translatorModel={translationBundle}
+          onInstallTranslator={() => void run(transcriptionTranslatorDownload)}
+          onCancelTranslator={() => void run(transcriptionTranslatorCancel)}
           onClose={() => setPreview(null)}
           t={t}
         />
       )}
       {confirmingDownload && (
         <ConfirmDownloadModal
-          sizeLabel={formatSize(model.sizeBytes, language)}
+          sizeLabel={formatSize(
+            [model, translatorModel, alignmentModel].reduce(
+              (sum, part) => sum + (part.present ? 0 : part.sizeBytes),
+              0
+            ),
+            language
+          )}
+          canContinueWithoutTranslation={model.present}
+          requiresGemmaConsent={!translatorModel.present}
           onConfirm={() => void confirmDownload()}
-          onClose={() => {
-            pendingStart.current = null;
-            setConfirmingDownload(false);
-          }}
+          onContinueWithoutTranslation={continueWithoutTranslation}
+          onClose={cancelDownloadConfirmation}
           t={t}
         />
       )}
@@ -430,12 +513,14 @@ export default function TranscriptionPage() {
 
 function ModelGate({
   model,
+  parts,
   language,
   onDownload,
   onCancel,
   t
 }: {
   model: TranscriptionModelInfo;
+  parts: readonly TranscriptionModelInfo[];
   language: Language;
   onDownload: () => void;
   onCancel: () => void;
@@ -456,6 +541,22 @@ function ModelGate({
               })}
             </span>
             <ProgressBar value={model.progress} active label={t('transcriptionModelTitle')} />
+            <ul className="transcription-model-parts">
+              {parts.map(part => (
+                <li key={part.label}>
+                  <span>{part.label}</span>
+                  <span>
+                    {part.present
+                      ? t('transcriptionModelReady')
+                      : part.downloading
+                        ? `${part.progress ?? 0}%`
+                        : part.error
+                          ? t('statusFailed')
+                          : t('statusQueued')}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </>
         ) : model.error ? (
           <span className="transcription-model-error">
@@ -484,21 +585,55 @@ function ModelGate({
 
 function ConfirmDownloadModal({
   sizeLabel,
+  canContinueWithoutTranslation,
+  requiresGemmaConsent,
   onConfirm,
+  onContinueWithoutTranslation,
   onClose,
   t
 }: {
   sizeLabel: string;
+  canContinueWithoutTranslation: boolean;
+  requiresGemmaConsent: boolean;
   onConfirm: () => void;
+  onContinueWithoutTranslation: () => void;
   onClose: () => void;
   t: Translate;
 }) {
+  const [accepted, setAccepted] = useState(!requiresGemmaConsent);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
   useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    requestAnimationFrame(() => {
+      modalRef.current
+        ?.querySelector<HTMLElement>('input, button:not([disabled]), a[href]')
+        ?.focus();
+    });
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
+      if (event.key !== 'Tab' || !modalRef.current) return;
+      const focusable = Array.from(
+        modalRef.current.querySelectorAll<HTMLElement>(
+          'input, button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+        )
+      );
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      previous?.focus();
+    };
   }, [onClose]);
 
   return createPortal(
@@ -508,14 +643,50 @@ function ConfirmDownloadModal({
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div className="lock-modal transcription-confirm-modal" role="dialog" aria-modal="true">
-        <h2>{t('transcriptionConfirmTitle')}</h2>
+      <div
+        ref={modalRef}
+        className="lock-modal transcription-confirm-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+      >
+        <h2 id={titleId}>{t('transcriptionConfirmTitle')}</h2>
         <p>{t('transcriptionConfirmBody', { size: sizeLabel })}</p>
+        {requiresGemmaConsent && (
+          <label className="transcription-gemma-consent">
+            <input
+              type="checkbox"
+              checked={accepted}
+              onChange={event => setAccepted(event.target.checked)}
+            />
+            <span>
+              {t('transcriptionGemmaConsent')}{' '}
+              <a href="https://ai.google.dev/gemma/terms" target="_blank" rel="noreferrer">
+                {t('transcriptionGemmaTerms')}
+              </a>{' '}
+              {t('transcriptionGemmaAnd')}{' '}
+              <a
+                href="https://ai.google.dev/gemma/prohibited_use_policy"
+                target="_blank"
+                rel="noreferrer"
+              >
+                {t('transcriptionGemmaPolicy')}
+              </a>
+              .
+            </span>
+          </label>
+        )}
         <div className="inline-actions">
-          <Button variant="ghost" onClick={onClose}>
-            {t('transcriptionConfirmCancel')}
-          </Button>
-          <Button variant="primary" onClick={onConfirm}>
+          {canContinueWithoutTranslation ? (
+            <Button variant="ghost" onClick={onContinueWithoutTranslation}>
+              {t('transcriptionContinueWithoutTranslation')}
+            </Button>
+          ) : (
+            <Button variant="ghost" onClick={onClose}>
+              {t('transcriptionConfirmCancel')}
+            </Button>
+          )}
+          <Button variant="primary" disabled={!accepted} onClick={onConfirm}>
             {t('transcriptionConfirmDownload')}
           </Button>
         </div>
@@ -547,7 +718,7 @@ function TranscriptionRow({
   onRemove: () => void;
   onReveal: () => void;
   onView: (trigger: HTMLElement | null) => void;
-  onCopy: (text: string) => Promise<boolean>;
+  onCopy: (jobId: string) => Promise<boolean>;
   t: Translate;
 }) {
   const [copied, setCopied] = useState(false);
@@ -561,8 +732,7 @@ function TranscriptionRow({
   const done = job.status === 'completed';
 
   const copy = async () => {
-    if (!job.text) return;
-    if (await onCopy(job.text)) {
+    if (await onCopy(job.id)) {
       setCopied(true);
       if (copyTimer.current) clearTimeout(copyTimer.current);
       copyTimer.current = setTimeout(() => setCopied(false), 1800);
@@ -585,7 +755,7 @@ function TranscriptionRow({
               >
                 {t('transcriptionView')}
               </Button>
-              <Button variant="ghost" disabled={!job.text} onClick={() => void copy()}>
+              <Button variant="ghost" onClick={() => void copy()}>
                 {copied ? t('transcriptionCopied') : t('transcriptionCopy')}
               </Button>
               <Button variant="ghost" onClick={onReveal}>

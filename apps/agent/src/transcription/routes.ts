@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
-import { createWriteStream } from 'node:fs';
-import { mkdir, mkdtemp } from 'node:fs/promises';
+import { createReadStream, createWriteStream } from 'node:fs';
+import { mkdir, mkdtemp, stat } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
@@ -9,6 +9,7 @@ import { isTranscribableFileName, type TranscriptionSettings } from '@video-comp
 import { eventStreamHeaders } from '../http.js';
 import { selectTranscribeMedia } from '../files/picker.js';
 import { applicationSupportRoot } from '../files/support-dir.js';
+import { resolveByteRange } from './media.js';
 import type { TranscriptionQueue } from '../queue/transcription-queue.js';
 
 interface TranscriptionDeps {
@@ -130,6 +131,17 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
     return queue.state();
   });
 
+  // One-time install of the local translation model (TranslateGemma).
+  app.post('/api/transcription/translator/download', async () => {
+    queue.startTranslatorModelDownload();
+    return queue.state();
+  });
+
+  app.post('/api/transcription/translator/cancel', async () => {
+    queue.cancelTranslatorModelDownload();
+    return queue.state();
+  });
+
   app.post<{ Body?: { ids?: unknown } }>('/api/transcription/start', async (request, reply) => {
     if (!acceptingNewTasks()) return reply.code(409).send({ error: 'UPDATE_PENDING' });
     const state = queue.state();
@@ -204,6 +216,130 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
         stdio: 'ignore'
       }).unref();
       return queue.state();
+    }
+  );
+
+  // The structured document (segments, words, cached translations) is large and
+  // fetched on demand — deliberately never carried in `transcription:progress`.
+  app.get<{ Params: { id: string } }>(
+    '/api/transcription/jobs/:id/document',
+    async (request, reply) => {
+      const document = await queue.document(request.params.id);
+      if (!document) return reply.code(404).send({ error: 'No transcript document is available.' });
+      return reply.header('Cache-Control', 'private, no-store').send(document);
+    }
+  );
+
+  // Kick off (or return a cached) translation into a target language.
+  app.post<{
+    Params: { id: string };
+    Body: { targetLanguage?: unknown; requestId?: unknown };
+  }>('/api/transcription/jobs/:id/translations', async (request, reply) => {
+    const targetLanguage = request.body?.targetLanguage;
+    if (typeof targetLanguage !== 'string' || !targetLanguage.trim()) {
+      return reply.code(400).send({ error: 'A target language is required.' });
+    }
+    const requestId =
+      typeof request.body?.requestId === 'string' && request.body.requestId.length <= 128
+        ? request.body.requestId
+        : undefined;
+    const result = await queue.requestTranslation(
+      request.params.id,
+      targetLanguage.trim(),
+      requestId
+    );
+    switch (result.outcome) {
+      case 'completed':
+      case 'queued':
+        return reply.header('Cache-Control', 'private, no-store').send(result.translation);
+      case 'invalid-language':
+        return reply.code(400).send({ error: 'That target language is not supported.' });
+      case 'unavailable':
+        return reply.code(503).send({ error: 'TRANSLATOR_UNAVAILABLE' });
+      case 'no-document':
+      default:
+        return reply.code(404).send({ error: 'No transcript document is available.' });
+    }
+  });
+
+  app.get<{ Params: { id: string; language: string } }>(
+    '/api/transcription/jobs/:id/translations/:language',
+    async (request, reply) => {
+      const translation = await queue.translation(request.params.id, request.params.language);
+      if (!translation) return reply.code(404).send({ error: 'No translation is available.' });
+      return reply.header('Cache-Control', 'private, no-store').send(translation);
+    }
+  );
+
+  app.get<{ Params: { id: string } }>(
+    '/api/transcription/jobs/:id/media/status',
+    async (request, reply) => {
+      const status = await queue.mediaPreviewStatus(request.params.id).catch(() => null);
+      return status
+        ? reply.header('Cache-Control', 'private, no-store').send(status)
+        : reply.code(404).send({ error: 'The media is unavailable.' });
+    }
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/api/transcription/jobs/:id/media/prepare',
+    async (request, reply) => {
+      const status = await queue.prepareMediaPreview(request.params.id).catch(() => null);
+      return status
+        ? reply.header('Cache-Control', 'private, no-store').send(status)
+        : reply.code(404).send({ error: 'The media is unavailable.' });
+    }
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/api/transcription/jobs/:id/media/cancel',
+    async (request, reply) =>
+      queue.cancelMediaPreview(request.params.id)
+        ? reply.send({ ok: true })
+        : reply.code(404).send({ error: 'The media is unavailable.' })
+  );
+
+  // Serves the original source media locally, with HTTP Range so the player can
+  // seek without re-downloading. Unsupported input is served from a cached,
+  // local browser-compatible proxy after `/media/prepare`. Token-gated by the
+  // global `/api/` preHandler.
+  app.get<{ Params: { id: string } }>(
+    '/api/transcription/jobs/:id/media',
+    async (request, reply) => {
+      const knownSource = await queue.mediaSource(request.params.id);
+      if (!knownSource) return reply.code(404).send({ error: 'The media is unavailable.' });
+      const source = await queue.playbackMediaSource(request.params.id);
+      if (!source) return reply.code(409).send({ error: 'PREVIEW_NOT_READY' });
+
+      let size: number;
+      try {
+        size = (await stat(source.path)).size;
+      } catch {
+        return reply.code(404).send({ error: 'The media is unavailable.' });
+      }
+
+      reply
+        .header('Accept-Ranges', 'bytes')
+        .header('Cache-Control', 'private, no-store')
+        .header(
+          'Content-Disposition',
+          `inline; filename*=UTF-8''${encodeURIComponent(source.fileName)}`
+        )
+        .type(source.mimeType);
+
+      const resolved = resolveByteRange(request.headers.range, size);
+      if (resolved.kind === 'unsatisfiable') {
+        return reply.code(416).header('Content-Range', `bytes */${size}`).send();
+      }
+      if (resolved.kind === 'full') {
+        return reply.header('Content-Length', String(size)).send(createReadStream(source.path));
+      }
+      const { start, end } = resolved.range;
+      return reply
+        .code(206)
+        .header('Content-Range', `bytes ${start}-${end}/${size}`)
+        .header('Content-Length', String(end - start + 1))
+        .send(createReadStream(source.path, { start, end }));
     }
   );
 }

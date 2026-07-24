@@ -1,3 +1,11 @@
+# v0.7.0
+
+- Turn the completed-transcript view into a fully local bilingual split-screen viewer with on-device TranslateGemma translation, race-safe language switching and cache reuse, independent RTL direction, mirrored source↔target selection, measured green→yellow alignment confidence, accessible Copy controls, and reduced-motion support.
+- Add one-confirmation, byte-weighted installation of Whisper large-v3, pinned llama.cpp/TranslateGemma, and Multilingual E5. Downloads resume verified `.part` files across CDN disconnects, validate exact size and SHA-256, install atomically, support cancel/retry, and never make a failed translator change a successful transcription into a failure.
+- Preserve full Whisper word timestamps in a private structured sidecar while leaving the neighboring plain `.txt` unchanged. Fix karaoke lag/catch-up jumps by keeping timestamp decoding enabled, retaining true chunk offsets during overlap deduplication, and scheduling video highlights from presented-frame media time.
+- Add an expandable local media player with custom controls and source-word seeking. Browser-safe originals stream through a token-gated HTTP Range endpoint; unsupported media is converted locally to a cached H.264/AAC MP4 preview without exposing file paths.
+- Add a long-lived, authenticated Unix-socket translation worker, a local Multilingual E5 phrase aligner, model/version-aware caches, stale-request cancellation, dedicated document/translation/media APIs, packaging notices, and deterministic plus opt-in real-model smoke coverage.
+
 # v0.6.7
 
 - Recover speech skipped at any unstable transcription-window boundary by retrying the combined context with an independent timestamp-aware decoder path.

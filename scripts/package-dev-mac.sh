@@ -5,10 +5,30 @@ root="$PWD/release/dev"
 app="$root/Wishly Dev.app"
 source_app="${DEV_RUNTIME_SOURCE_APP:-$PWD/release/Wishly Agent.app}"
 port="${DEV_AGENT_PORT:-43130}"
+llama_source="${DEV_LLAMA_RUNTIME_DIR:-$source_app/Contents/Resources/runtime/llama}"
+if [[ ! -x "$llama_source/llama-server" ]]; then
+  llama_source="$HOME/Library/Application Support/Wishly/runtime/llama-b10092"
+fi
 
 [[ "$port" == <1024-65535> ]] || { print -u2 "DEV_AGENT_PORT must be between 1024 and 65535."; exit 1; }
 [[ -x "$source_app/Contents/Resources/runtime/node" ]] || {
   print -u2 "No verified packaged runtime found at $source_app. Build production locally once or set DEV_RUNTIME_SOURCE_APP."
+  exit 1
+}
+[[ -x "$source_app/Contents/Resources/runtime/bin/whisper-cli" ]] || {
+  print -u2 "The verified source runtime does not include whisper-cli."
+  exit 1
+}
+[[ -s "$source_app/Contents/Resources/runtime/models/ggml-silero-v5.1.2.bin" ]] || {
+  print -u2 "The verified source runtime does not include the Silero VAD model."
+  exit 1
+}
+[[ -x "$llama_source/llama-server" ]] || {
+  print -u2 "No pinned llama.cpp b10092 runtime is available; set DEV_LLAMA_RUNTIME_DIR."
+  exit 1
+}
+"$llama_source/llama-server" --version 2>&1 | grep -q '10092' || {
+  print -u2 "The local translation runtime is not pinned llama.cpp b10092."
   exit 1
 }
 
@@ -45,7 +65,7 @@ npm run build -w @video-compressor/agent
 
 mkdir -p "$root"
 rm -rf "$app"
-mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/runtime/bin" "$app/Contents/Resources/agent"
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/runtime/bin" "$app/Contents/Resources/runtime/models" "$app/Contents/Resources/runtime/llama" "$app/Contents/Resources/agent"
 node scripts/render-launcher.mjs packaging/Launcher.swift "$root/Launcher.generated.swift" \
   "AGENT_PORT=$port" \
   "APP_NAME=Wishly Dev" \
@@ -63,6 +83,9 @@ swiftc "$root/Launcher.generated.swift" -o "$app/Contents/MacOS/WishlyAgent" -fr
 cp "$source_app/Contents/Resources/runtime/node" "$app/Contents/Resources/runtime/node"
 cp "$source_app/Contents/Resources/runtime/bin/ffmpeg" "$app/Contents/Resources/runtime/bin/ffmpeg"
 cp "$source_app/Contents/Resources/runtime/bin/ffprobe" "$app/Contents/Resources/runtime/bin/ffprobe"
+cp "$source_app/Contents/Resources/runtime/bin/whisper-cli" "$app/Contents/Resources/runtime/bin/whisper-cli"
+cp "$source_app/Contents/Resources/runtime/models/ggml-silero-v5.1.2.bin" "$app/Contents/Resources/runtime/models/"
+cp -R "$llama_source/." "$app/Contents/Resources/runtime/llama/"
 cp -R apps/agent/dist apps/agent/package.json node_modules "$app/Contents/Resources/agent/"
 rm -rf "$app/Contents/Resources/agent/node_modules/@video-compressor"
 mkdir -p "$app/Contents/Resources/agent/node_modules/@video-compressor/shared"
@@ -71,6 +94,11 @@ rm -rf "$app/Contents/Resources/agent/node_modules/ffmpeg-static" "$app/Contents
 mkdir -p "$app/Contents/Resources/web" "$app/Contents/Resources/licenses/sources"
 cp -R apps/web/dist "$app/Contents/Resources/web/dist"
 cp "$source_app/Contents/Resources/licenses/sources/"* "$app/Contents/Resources/licenses/sources/"
+cp "$llama_source/LICENSE" "$app/Contents/Resources/licenses/llama.cpp-LICENSE"
+cp packaging/licenses/GEMMA_TERMS.md "$app/Contents/Resources/licenses/"
+cp packaging/licenses/GEMMA_PROHIBITED_USE_POLICY.md "$app/Contents/Resources/licenses/"
+cp packaging/licenses/NOTICE-Gemma.txt "$app/Contents/Resources/licenses/"
+cp packaging/licenses/multilingual-e5-small-MIT.txt "$app/Contents/Resources/licenses/"
 cp packaging/Info.plist "$app/Contents/Info.plist"
 cp THIRD_PARTY_NOTICES.md "$app/Contents/Resources/"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.wishly.dev" "$app/Contents/Info.plist"

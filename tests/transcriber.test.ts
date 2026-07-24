@@ -27,7 +27,7 @@ describe('Whisper transcription safeguards', () => {
     expect(args).toEqual(expect.arrayContaining(['--vad', '-vm', '/tmp/silero.bin', '-l', 'hi']));
   });
 
-  it('detects speech ranges before loading bounded no-timestamp chunks', () => {
+  it('detects speech ranges before loading bounded timestamp-aware chunks', () => {
     const detection = buildVadDetectionArgs(
       { wavPath: '/tmp/input.wav' },
       { threads: 4, vadModelPath: '/tmp/silero.bin' }
@@ -44,15 +44,26 @@ describe('Whisper transcription safeguards', () => {
         wavPaths: ['/tmp/recovery.wav'],
         language: 'hi'
       },
-      { threads: 4, preserveTimestamps: true }
+      { threads: 4 }
     );
 
     expect(detection).toEqual(
       expect.arrayContaining(['-f', '/tmp/input.wav', '-dl', '--vad', '-vm', '/tmp/silero.bin'])
     );
     expect(chunks).toEqual(
-      expect.arrayContaining(['-l', 'hi', '-nt', '-nf', '/tmp/chunk-0.wav', '/tmp/chunk-1.wav'])
+      expect.arrayContaining([
+        '-l',
+        'hi',
+        '-oj',
+        '-ojf',
+        '-sow',
+        '-nf',
+        '/tmp/chunk-0.wav',
+        '/tmp/chunk-1.wav'
+      ])
     );
+    expect(chunks).not.toContain('-nt');
+    expect(chunks).not.toContain('--no-timestamps');
     expect(chunks).not.toContain('-of');
     expect(recovery).toContain('-otxt');
     expect(recovery).not.toContain('-nt');

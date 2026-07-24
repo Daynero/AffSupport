@@ -115,6 +115,13 @@ const terms: Record<Language, LegalSection[]> = {
       ]
     },
     {
+      heading: 'Local TranslateGemma model',
+      paragraphs: [
+        'If you install local translation, TranslateGemma is provided under and subject to the Gemma Terms of Use at ai.google.dev/gemma/terms and the Gemma Prohibited Use Policy at ai.google.dev/gemma/prohibited_use_policy. Those restrictions apply to your use of the model and its outputs.',
+        'Machine translations and semantic alignment confidence are estimates, not guarantees. Review important translations before relying on them.'
+      ]
+    },
+    {
       heading: 'Availability and responsibility',
       paragraphs: [
         'The MVP product is provided without a promise of uninterrupted availability or fitness for a specific purpose to the extent permitted by applicable law. Nothing in these terms excludes rights that cannot legally be excluded.'
@@ -145,6 +152,13 @@ const terms: Record<Language, LegalSection[]> = {
       paragraphs: [
         'Wishly Agent обробляє відео й зображення локально на вашому комп’ютері. Wishly не завантажує ці медіафайли на сервер.',
         'Результат стиснення залежить від вихідних файлів, кодеків, системного середовища й вибраних налаштувань. Оцінки не є гарантією. Перевіряйте готовий результат і зберігайте оригінали, доки не переконаєтеся в його якості.'
+      ]
+    },
+    {
+      heading: 'Локальна модель TranslateGemma',
+      paragraphs: [
+        'Якщо ви встановлюєте локальний переклад, TranslateGemma надається відповідно до Gemma Terms of Use за адресою ai.google.dev/gemma/terms та Gemma Prohibited Use Policy за адресою ai.google.dev/gemma/prohibited_use_policy. Ці обмеження поширюються на використання моделі та її результатів.',
+        'Машинний переклад і впевненість семантичного вирівнювання є оцінками, а не гарантіями. Перевіряйте важливі переклади перед використанням.'
       ]
     },
     {

@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.6.7",
-  "buildNumber": "19",
-  "buildId": "0.6.7+19",
+  "version": "0.7.0",
+  "buildNumber": "20",
+  "buildId": "0.7.0+20",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-07-23T07:57:04.000Z",
+  "publishedAt": "2026-07-24T16:45:46.000Z",
   "summary": {
-    "en": "Recover speech skipped at unstable local transcription window boundaries.",
-    "uk": "Відновлено мовлення, пропущене на нестабільних стиках вікон локальної транскрипції."
+    "en": "Add fully local bilingual transcripts with on-device translation, word-synced media playback, model installation, and secure media previews.",
+    "uk": "Додано повністю локальні двомовні транскрипти з перекладом на пристрої, синхронним із словами відтворенням, інсталяцією моделей і безпечним медіапереглядом."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.6.7/Wishly-Agent-v0.6.7-macOS-arm64.dmg",
-      "sha256": "58329dc0df2a4edf374837d09cf519b9fdaab269338ae58f76a80036e2f5eafa"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.7.0/Wishly-Agent-v0.7.0-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -25,7 +25,7 @@
       "landingOptimizer": 2
     },
     "transcription": {
-      "transcription": 1
+      "transcription": 2
     }
   }
 }
