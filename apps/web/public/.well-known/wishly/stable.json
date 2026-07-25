@@ -14,7 +14,7 @@
   "artifacts": {
     "macos-arm64": {
       "url": "https://github.com/Daynero/AffSupport/releases/download/v0.7.3/Wishly-Agent-v0.7.3-macOS-arm64.dmg",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      "sha256": "377b292a5b570d772cd46201b33add160649bbb2305d9351f2c2a18703db798e"
     }
   },
   "toolRequirements": {
