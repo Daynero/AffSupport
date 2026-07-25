@@ -326,6 +326,9 @@ export function TranscriptTextModal({
   // must not read as a manual scroll (which would pause following) nor bounce
   // back through the mirror sync. This timestamp marks that suppression window.
   const programmaticScrollUntil = useRef(0);
+  // True while the user is dragging out a text selection. Karaoke pauses its
+  // per-word DOM rebuild during a drag so it never collapses the live selection.
+  const pointerSelecting = useRef(false);
   const playerRef = useRef<HTMLDivElement>(null);
   const mediaRef = useRef<HTMLVideoElement>(null);
   const rafRef = useRef<number | null>(null);
@@ -339,6 +342,10 @@ export function TranscriptTextModal({
   const [translation, setTranslation] = useState<TranslationDocument | null>(null);
   const [translating, setTranslating] = useState(false);
   const [translationElapsedMs, setTranslationElapsedMs] = useState(0);
+  const [translationProgress, setTranslationProgress] = useState<{
+    completed: number;
+    total: number;
+  } | null>(null);
   const [translationError, setTranslationError] = useState<'failed' | 'unavailable' | null>(null);
   const [translatorTermsAccepted, setTranslatorTermsAccepted] = useState(false);
   const [copied, setCopied] = useState<{
@@ -436,15 +443,26 @@ export function TranscriptTextModal({
         : `${job.id}-${gen}-${Date.now()}`;
     let active = true;
     setTranslating(true);
+    setTranslationProgress(null);
     setTranslationError(null);
+    const captureProgress = (result: TranslationDocument) => {
+      if (typeof result.totalSegments === 'number' && result.totalSegments > 0) {
+        setTranslationProgress({
+          completed: result.completedSegments ?? 0,
+          total: result.totalSegments
+        });
+      }
+    };
     (async () => {
       try {
         let result = await transcriptionTranslate(job.id, target, requestId);
+        captureProgress(result);
         while (result.status === 'queued' || result.status === 'processing') {
           if (!active || generation.current !== gen) return;
           await sleep(500);
           if (!active || generation.current !== gen) return;
           result = await transcriptionTranslation(job.id, target);
+          captureProgress(result);
         }
         if (!active || generation.current !== gen) return;
         if (result.status === 'completed') {
@@ -684,18 +702,15 @@ export function TranscriptTextModal({
     });
   }, []);
 
-  // Keep the karaoke word roughly centered in both columns. Called on every
-  // word change, so following stays smooth even inside a long segment; the
-  // per-line offsetTop means it glides line-by-line rather than jittering.
+  // Keep the karaoke word vertically centered in both columns. Called on every
+  // word change so following stays smooth even inside a long segment. Position
+  // is measured with getBoundingClientRect relative to the scroller — offsetTop
+  // is relative to the offsetParent (neither scroller is positioned), so it does
+  // not map to scrollTop and produced the miscentered scroll.
   const centerActiveWord = useCallback(
     (segmentId: string, wordId: string) => {
-      const nativeSelection = window.getSelection();
-      if (
-        Date.now() < manualScrollUntil.current ||
-        (nativeSelection !== null && !nativeSelection.isCollapsed)
-      ) {
-        return;
-      }
+      // Never fight a scroll the user just made by hand.
+      if (Date.now() < manualScrollUntil.current) return;
       let scrolled = false;
       for (const scroller of [sourceScrollRef.current, targetScrollRef.current]) {
         if (!scroller) continue;
@@ -707,15 +722,17 @@ export function TranscriptTextModal({
             : null) ??
           scroller.querySelector<HTMLElement>(`[data-segment-id="${CSS.escape(segmentId)}"]`);
         if (!element) continue;
+        const scRect = scroller.getBoundingClientRect();
+        const elRect = element.getBoundingClientRect();
+        // Where the element sits in the scroller's own scroll coordinate space.
+        const elTopInContent = elRect.top - scRect.top + scroller.scrollTop;
+        const maxScroll = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
         const target = Math.max(
           0,
-          Math.min(
-            scroller.scrollHeight - scroller.clientHeight,
-            element.offsetTop - scroller.clientHeight / 2 + element.offsetHeight / 2
-          )
+          Math.min(maxScroll, elTopInContent - scroller.clientHeight / 2 + elRect.height / 2)
         );
-        // Words on the same visual line share offsetTop, so this is a no-op
-        // until the line changes — no redundant scrolling within a line.
+        // Words on the same visual line share a top, so this is a no-op until the
+        // line changes — the view glides line-by-line instead of jittering.
         if (Math.abs(target - scroller.scrollTop) < 4) continue;
         scroller.scrollTo({ top: target, behavior: reducedMotion ? 'auto' : 'smooth' });
         scrolled = true;
@@ -873,6 +890,20 @@ export function TranscriptTextModal({
     };
   }, [resolveNativeSelection]);
 
+  // A drag can end anywhere (even outside the column), so clear the selecting
+  // flag on a window-level pointer release rather than a per-column handler.
+  useEffect(() => {
+    const end = () => {
+      pointerSelecting.current = false;
+    };
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+    return () => {
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', end);
+    };
+  }, []);
+
   // Karaoke: follow the playhead with a binary search over the flat word list.
   const flatWords = useMemo(() => flattenWords(segments), [segments]);
   // Precompute the plain word array once so the animation frame doesn't
@@ -910,6 +941,9 @@ export function TranscriptTextModal({
       } else {
         const entry = flatWords[index];
         if (entry.word.id !== activeWordId.current) {
+          // While the user is dragging a selection, leave the DOM untouched so
+          // the live selection survives; pick up the current word next tick.
+          if (pointerSelecting.current) return;
           activeWordId.current = entry.word.id;
           setActiveWord({
             segmentId: entry.segmentId,
@@ -1121,6 +1155,20 @@ export function TranscriptTextModal({
           ? t('transcriptionMatchApprox')
           : '';
 
+  // Determinate progress + a rough ETA once the backend reports segment counts.
+  const translationPercent =
+    translationProgress && translationProgress.total > 0
+      ? Math.min(100, Math.round((100 * translationProgress.completed) / translationProgress.total))
+      : null;
+  const translationEtaMs =
+    translationProgress &&
+    translationProgress.completed > 0 &&
+    translationProgress.completed < translationProgress.total &&
+    translationElapsedMs > 0
+      ? (translationElapsedMs * (translationProgress.total - translationProgress.completed)) /
+        translationProgress.completed
+      : null;
+
   return createPortal(
     <div
       className="transcript-modal-backdrop"
@@ -1225,6 +1273,10 @@ export function TranscriptTextModal({
               ref={sourceScrollRef}
               className="transcript-column-scroll"
               onClick={onSourceClick}
+              onPointerDown={event => {
+                if ((event.target as Element).closest('.ts-segment'))
+                  pointerSelecting.current = true;
+              }}
               onScroll={event => {
                 const other = targetScrollRef.current;
                 if (other) synchronizeScroll(event.currentTarget, other);
@@ -1304,12 +1356,15 @@ export function TranscriptTextModal({
                     </span>
                     <div className="transcript-translation-progress-row">
                       <ProgressBar
-                        value={null}
+                        value={translationPercent}
                         active
                         label={t('transcriptionTranslating', { language: targetName })}
                       />
                       <span className="transcript-translation-elapsed">
+                        {translationPercent !== null && `${translationPercent}% · `}
                         {formatMediaTime(translationElapsedMs / 1000)}
+                        {translationEtaMs !== null &&
+                          ` · ~${formatMediaTime(translationEtaMs / 1000)}`}
                       </span>
                     </div>
                   </div>
@@ -1336,6 +1391,10 @@ export function TranscriptTextModal({
             <div
               ref={targetScrollRef}
               className="transcript-column-scroll"
+              onPointerDown={event => {
+                if ((event.target as Element).closest('.ts-segment'))
+                  pointerSelecting.current = true;
+              }}
               onScroll={event => {
                 const other = sourceScrollRef.current;
                 if (other) synchronizeScroll(event.currentTarget, other);

@@ -135,6 +135,8 @@ export class TranscriptionQueue {
     generation: number;
     controller: AbortController;
   } | null = null;
+  /** Last wall-clock a translation-progress counter was flushed to the sidecar. */
+  private lastProgressWrite = 0;
   /** Current user-confirmed byte accounting groups for composite downloads. */
   private translationDownloadBatchId: string | null = null;
   /**
@@ -313,6 +315,32 @@ export class TranscriptionQueue {
   }
 
   /**
+   * Flushes an in-flight translation's segment counter to the sidecar so the
+   * polling client can show a real progress bar + ETA. Throttled to at most one
+   * write every 300ms (the final segment always lands via the completed doc),
+   * and guarded by generation so a superseded task can't rewrite progress.
+   */
+  private async persistTranslationProgress(
+    task: TranslationTask,
+    key: string,
+    completed: number,
+    total: number
+  ): Promise<void> {
+    const now = Date.now();
+    if (completed < total && now - this.lastProgressWrite < 300) return;
+    this.lastProgressWrite = now;
+    const changed = await this.mutateDocument(task.jobId, fresh => {
+      if ((this.translationGenerations.get(key) ?? 0) !== task.generation) return false;
+      const doc = fresh.translations[task.language];
+      if (!doc || doc.status !== 'processing') return false;
+      doc.completedSegments = completed;
+      doc.totalSegments = total;
+      return true;
+    });
+    if (changed) this.notify('transcription:progress');
+  }
+
+  /**
    * Requests a translation into `language`. A cached completed translation from
    * the current model resolves instantly. Otherwise the request is queued with
    * a fresh generation number; a newer request for the same job+language
@@ -387,6 +415,8 @@ export class TranscriptionQueue {
       alignmentModelVersion: this.aligner?.modelVersion(),
       alignmentStatus: 'fallback',
       status: 'queued',
+      totalSegments: document.segments.length,
+      completedSegments: 0,
       segments: previousTranslation?.segments ?? [],
       error: null
     };
@@ -439,11 +469,47 @@ export class TranscriptionQueue {
         const processing = document.translations[task.language];
         if (!processing) return null;
         processing.status = 'processing';
+        processing.totalSegments = document.segments.length;
+        processing.completedSegments = 0;
         return { document, cacheKey: processing.cacheKey };
       });
       if (!preparation) return;
       const { document, cacheKey } = preparation;
       this.notify('transcription:progress');
+
+      const total = document.segments.length;
+      const sourceById = new Map(document.segments.map(segment => [segment.id, segment]));
+      const aligned: TranslationOutputSegment[] = new Array(total);
+      const alignPromises: Promise<void>[] = new Array(total);
+      let translatedCount = 0;
+
+      // Align a translated segment on the CPU E5 model. Runs concurrently with
+      // the remaining GPU translations (different process + device), so the
+      // alignment pass overlaps translation instead of following it. Never
+      // throws: an alignment failure falls back to the approximate whole-segment
+      // highlight, matching the original per-segment behavior.
+      const startAlign = (translated: TranslationOutputSegment, index: number): void => {
+        alignPromises[index] = (async () => {
+          const source = sourceById.get(translated.sourceSegmentId);
+          let alignments = translated.alignments;
+          if (source && this.aligner?.available()) {
+            try {
+              alignments = await this.aligner.align(
+                {
+                  source,
+                  translatedText: translated.translatedText,
+                  sourceLanguage: document.sourceLanguage,
+                  targetLanguage: task.language
+                },
+                controller.signal
+              );
+            } catch {
+              alignments = [];
+            }
+          }
+          aligned[index] = { ...translated, alignments };
+        })();
+      };
 
       const output = await translator.translate(
         {
@@ -452,35 +518,23 @@ export class TranscriptionQueue {
           segments: document.segments.map(segment => ({
             id: segment.id,
             text: segment.sourceText
-          }))
+          })),
+          onSegment: (translated, index) => {
+            startAlign(translated, index);
+            translatedCount += 1;
+            void this.persistTranslationProgress(task, key, translatedCount, total);
+          }
         },
         controller.signal
       );
-      const alignedOutput: TranslationOutputSegment[] = [];
-      for (const translated of output) {
-        if (controller.signal.aborted) throw new Error('aborted');
-        const source = document.segments.find(segment => segment.id === translated.sourceSegmentId);
-        let alignments = translated.alignments;
-        if (source && this.aligner?.available()) {
-          try {
-            alignments = await this.aligner.align(
-              {
-                source,
-                translatedText: translated.translatedText,
-                sourceLanguage: document.sourceLanguage,
-                targetLanguage: task.language
-              },
-              controller.signal
-            );
-          } catch {
-            if (controller.signal.aborted) throw new Error('aborted');
-            // Translation remains successful; the UI uses an explicitly
-            // approximate whole-segment fallback when alignment is unavailable.
-            alignments = [];
-          }
-        }
-        alignedOutput.push({ ...translated, alignments });
-      }
+      // Translators that don't emit onSegment (or any segment it missed) still
+      // get aligned here; already-started indices are left untouched.
+      output.forEach((translated, index) => {
+        if (!alignPromises[index]) startAlign(translated, index);
+      });
+      await Promise.all(alignPromises.filter(Boolean));
+      if (controller.signal.aborted) throw new Error('aborted');
+      const alignedOutput: TranslationOutputSegment[] = aligned.filter(Boolean);
       // Only persist if this is still the current generation. A stale result is
       // dropped (a newer request already superseded it).
       let completedForCache: TranslationDocument | null = null;
@@ -500,6 +554,8 @@ export class TranscriptionQueue {
               ? 'completed'
               : 'fallback',
           status: 'completed',
+          totalSegments: alignedOutput.length,
+          completedSegments: alignedOutput.length,
           segments: alignedOutput,
           error: null
         };

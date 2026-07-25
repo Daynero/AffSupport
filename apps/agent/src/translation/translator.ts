@@ -21,6 +21,13 @@ export interface TranslateRequest {
   sourceLanguage: string;
   targetLanguage: string;
   segments: TranslationInputSegment[];
+  /**
+   * Called as each segment finishes (in completion order, carrying its original
+   * index). Lets the caller pipeline downstream work — e.g. start CPU alignment
+   * on a segment while later segments are still translating on the GPU — and
+   * report real progress.
+   */
+  onSegment?: (segment: TranslationOutputSegment, index: number) => void;
 }
 
 export interface TranslationOutputSegment {
@@ -54,7 +61,14 @@ interface CompletionResponse {
 
 const START_TIMEOUT_MS = 120_000;
 const IDLE_EXIT_MS = 5 * 60_000;
-const MODEL_SLEEP_SECONDS = 180;
+// Keep the model resident for as long as the process lives; IDLE_EXIT_MS already
+// kills the whole process to free RAM. A short sleep-idle used to unload weights
+// mid-job (e.g. during a pause between segments), forcing a costly reload.
+const MODEL_SLEEP_SECONDS = 24 * 60 * 60;
+// Number of segments translated concurrently. Matches the server's slot count
+// so llama.cpp continuous-batches them in one forward pass instead of decoding
+// one segment at a time.
+const TRANSLATION_CONCURRENCY = 4;
 
 function normalizedLanguage(code: string): string {
   const parts = code.trim().replaceAll('_', '-').split('-').filter(Boolean);
@@ -112,18 +126,36 @@ export class LlamaTranslator implements Translator {
     return this.withInferenceLock(signal, async () => {
       await this.ensureServer(signal);
       this.clearIdleTimer();
-      const out: TranslationOutputSegment[] = [];
+      const segments = request.segments;
+      const out: TranslationOutputSegment[] = new Array(segments.length);
+      let nextIndex = 0;
       try {
-        for (const segment of request.segments) {
-          if (signal.aborted) throw abortError();
-          const translatedText = await this.runOne(
-            sourceLanguage,
-            targetLanguage,
-            segment.text,
-            signal
-          );
-          out.push({ sourceSegmentId: segment.id, translatedText, alignments: [] });
-        }
+        // A bounded pool: each worker pulls the next segment index and issues its
+        // own /completion request. The server batches the concurrent requests
+        // across its slots. Order is preserved by writing into out[index].
+        const worker = async (): Promise<void> => {
+          for (;;) {
+            const index = nextIndex++;
+            if (index >= segments.length) return;
+            if (signal.aborted) throw abortError();
+            const segment = segments[index];
+            const translatedText = await this.runOne(
+              sourceLanguage,
+              targetLanguage,
+              segment.text,
+              signal
+            );
+            const result: TranslationOutputSegment = {
+              sourceSegmentId: segment.id,
+              translatedText,
+              alignments: []
+            };
+            out[index] = result;
+            request.onSegment?.(result, index);
+          }
+        };
+        const pool = Math.min(TRANSLATION_CONCURRENCY, segments.length);
+        await Promise.all(Array.from({ length: pool }, () => worker()));
         return out;
       } finally {
         this.scheduleIdleExit();
@@ -204,10 +236,12 @@ export class LlamaTranslator implements Translator {
         socketPath,
         '--api-key',
         apiKey,
+        // Context is shared across slots, so scale it with the slot count to
+        // keep ~2048 tokens per concurrent segment.
         '--ctx-size',
-        '2048',
+        String(2048 * TRANSLATION_CONCURRENCY),
         '--parallel',
-        '1',
+        String(TRANSLATION_CONCURRENCY),
         '--n-gpu-layers',
         '99',
         // TranslateGemma's intentionally strict structured Jinja template
@@ -276,7 +310,10 @@ export class LlamaTranslator implements Translator {
       '/completion',
       {
         prompt: translationPrompt(sourceLanguage, targetLanguage, text),
-        n_predict: 512,
+        // A translation is roughly the length of its source; cap generation to a
+        // generous multiple of the input so a short segment can't spend the full
+        // 512-token budget over-generating. `temperature:0` keeps it deterministic.
+        n_predict: Math.min(512, Math.ceil(text.length * 1.5) + 48),
         temperature: 0,
         top_p: 1,
         stream: false,

@@ -1,3 +1,11 @@
+# v0.7.2
+
+- Translate transcript segments concurrently and overlap alignment with translation, roughly a 3× speedup on Apple Silicon; keep the model resident so a mid-job pause no longer forces a costly reload.
+- Replace the indeterminate translation spinner with a real progress bar that shows the completed percentage and an estimated time remaining.
+- Keep karaoke word highlighting from clearing a text selection the user made, and pause the highlight only while a drag is in progress so the selection survives.
+- Center the spoken karaoke word reliably in the middle of the viewport as playback advances, measured against the scroll container so it no longer drifts.
+- Make the light/dark theme reveal animation portable across browsers by driving the circular wipe from CSS instead of a Chromium-only Web Animations path.
+
 # v0.7.1
 
 - Fix the bilingual transcript viewer's mirrored scroll so the translation column reaches the very top and bottom instead of stopping short, and never overshoots past the last segment.

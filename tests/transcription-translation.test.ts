@@ -173,7 +173,11 @@ class GatedTranslator implements Translator {
     });
   }
   complete(index: number, translatedText: string, alignments: AlignmentLink[] = []) {
-    this.calls[index].resolve([{ sourceSegmentId: 's0', translatedText, alignments }]);
+    const segment = { sourceSegmentId: 's0', translatedText, alignments };
+    // Mirror the real translator: emit the segment through onSegment (drives
+    // pipelined alignment + progress) and then resolve with the full output.
+    this.calls[index].request.onSegment?.(segment, 0);
+    this.calls[index].resolve([segment]);
   }
 }
 

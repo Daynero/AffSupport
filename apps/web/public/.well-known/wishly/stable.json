@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.7.1",
-  "buildNumber": "21",
-  "buildId": "0.7.1+21",
+  "version": "0.7.2",
+  "buildNumber": "22",
+  "buildId": "0.7.2+22",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-07-25T07:43:28.000Z",
+  "publishedAt": "2026-07-25T08:54:20.000Z",
   "summary": {
-    "en": "Bilingual transcript fixes: mirror scroll now reaches the top and bottom, brighter karaoke highlighting, smooth word-centered auto-scroll, a translation progress bar with elapsed time, and full confidence for identical tokens.",
-    "uk": "Виправлення двомовних транскриптів: дзеркальна прокрутка доходить до країв, яскравіше караоке, плавний автоскрол із центруванням слова, прогрес перекладу з таймером і повна впевненість для однакових токенів."
+    "en": "Faster on-device translation with a real progress bar and ETA, karaoke that keeps your selection and centers the spoken word, and a smoother light/dark theme switch.",
+    "uk": "Швидший переклад на пристрої зі справжнім прогрес-баром і оцінкою часу, караоке зберігає ваше виділення й центрує озвучене слово, і плавніше перемикання світлої/темної теми."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.7.1/Wishly-Agent-v0.7.1-macOS-arm64.dmg",
-      "sha256": "eac992af253c7f49d5f580f3afa3372610e73ebbd8fd37f4099ae2e68fa8e4f2"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.7.2/Wishly-Agent-v0.7.2-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {

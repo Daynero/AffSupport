@@ -67,31 +67,24 @@ export function transitionTheme(next: Theme, origin: Origin) {
     Math.max(y, window.innerHeight - y)
   );
 
-  document.documentElement.classList.add('theme-transitioning');
+  // Drive the circular reveal from CSS keyframes that read these custom
+  // properties, rather than the Web Animations `pseudoElement` option. Animating
+  // a `::view-transition-*` pseudo through WAAPI is poorly supported outside
+  // Chromium (Safari ignored it, giving an instant/janky swap); the CSS path is
+  // the portable, standard approach.
+  const root = document.documentElement;
+  root.style.setProperty('--theme-reveal-x', `${x}px`);
+  root.style.setProperty('--theme-reveal-y', `${y}px`);
+  root.style.setProperty('--theme-reveal-r', `${endRadius}px`);
+  root.classList.add('theme-transitioning');
+
   const transition = document.startViewTransition(() => applyTheme(next));
 
-  transition.ready
-    .then(() => {
-      // Always grow the *incoming* theme as a circle from the click point,
-      // in both directions. The new layer ends at a full circle, which equals
-      // its natural (unclipped) state — so no `fill` is needed and there is no
-      // one-frame snap-back. Persisting animations (fill: forwards) would linger
-      // in getAnimations() and cause the next transition to be skipped.
-      document.documentElement.animate(
-        {
-          clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${endRadius}px at ${x}px ${y}px)`]
-        },
-        {
-          duration: 620,
-          easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
-          pseudoElement: '::view-transition-new(root)'
-        }
-      );
-    })
-    .catch(() => {});
-
   transition.finished.finally(() => {
-    document.documentElement.classList.remove('theme-transitioning');
+    root.classList.remove('theme-transitioning');
+    root.style.removeProperty('--theme-reveal-x');
+    root.style.removeProperty('--theme-reveal-y');
+    root.style.removeProperty('--theme-reveal-r');
   });
 }
 

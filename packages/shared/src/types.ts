@@ -914,6 +914,10 @@ export interface TranslationDocument {
   alignmentModelVersion?: string;
   alignmentStatus?: 'completed' | 'fallback';
   status: TranslationStatus;
+  /** Total segments to translate; set while a translation is in flight. */
+  totalSegments?: number;
+  /** Segments translated so far; drives the determinate progress bar + ETA. */
+  completedSegments?: number;
   segments: TranslatedSegment[];
   /** Set when `status === 'failed'`; the last good translation is kept in the UI. */
   error: string | null;
