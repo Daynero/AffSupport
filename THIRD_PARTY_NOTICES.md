@@ -65,7 +65,7 @@ The exact byte size and SHA-256 above are authoritative: Wishly downloads to `.p
 
 ## llama.cpp (local model runtime)
 
-Wishly packages or downloads the official Apple Silicon llama.cpp release archive:
+Wishly downloads and verifies the official Apple Silicon llama.cpp release archive on demand:
 
 - Project: https://github.com/ggml-org/llama.cpp
 - License: MIT (copied as `llama.cpp-LICENSE`)

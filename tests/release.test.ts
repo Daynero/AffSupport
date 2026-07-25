@@ -110,6 +110,8 @@ describe('release identity', () => {
 
   it('keeps installable dev builds isolated from production identities and services', () => {
     const packageScript = readFileSync('scripts/package-dev-mac.sh', 'utf8');
+    const devDmgScript = readFileSync('scripts/package-dev-dmg.sh', 'utf8');
+    const productionPackageScript = readFileSync('scripts/package-mac.sh', 'utf8');
     const launcher = readFileSync('packaging/Launcher.swift', 'utf8');
     expect(packageScript).toContain('VITE_ANALYTICS_ENABLED=false');
     expect(packageScript).toContain('VITE_LOCAL_DEV_AUTH=true');
@@ -117,6 +119,13 @@ describe('release identity', () => {
     expect(packageScript).toContain('SUPPORT_DIRECTORY_NAME=Wishly Dev');
     expect(packageScript).toContain('INSTANCE_LOCK_NAME=wishly-dev-agent.lock');
     expect(packageScript).not.toMatch(/git (tag|push)|supabase|wrangler/);
+    for (const script of [packageScript, productionPackageScript]) {
+      expect(script).toContain('scripts/stage-agent-runtime.mjs');
+      expect(script).toContain('/usr/bin/strip -x');
+      expect(script).not.toContain('cp -R apps/agent/dist apps/agent/package.json node_modules');
+      expect(script).not.toContain('LLAMA_RUNTIME_ARCHIVE');
+    }
+    expect(devDmgScript).toContain('zlib-level=9');
     expect(launcher).toContain('__AGENT_PORT__');
     expect(launcher).toContain('__SUPPORT_DIRECTORY_NAME__');
     expect(launcher).toContain('installedLocationAllowed()');

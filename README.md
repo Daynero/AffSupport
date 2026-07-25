@@ -31,13 +31,12 @@ local synthetic profile and compile analytics out, so they do not authenticate
 against or write to production Supabase. They may run beside Wishly Agent.
 
 The verified Node, FFmpeg, FFprobe, whisper.cpp, Silero VAD, and corresponding
-source archives are reused from `release/Wishly Agent.app`. The pinned
-llama.cpp b10092 runtime is reused from that app or from its verified local
-install under Application Support. Override those sources with
-`DEV_RUNTIME_SOURCE_APP=/path/to/verified/Wishly Agent.app` and
-`DEV_LLAMA_RUNTIME_DIR=/path/to/llama-b10092` when necessary. If
-Wishly Dev is already running, packaging quits it only when health reports
-`busy:false`; active work is never interrupted.
+source archives are reused from `release/Wishly Agent.app`. Override that
+source with `DEV_RUNTIME_SOURCE_APP=/path/to/verified/Wishly Agent.app` when
+necessary. The pinned llama.cpp runtime is downloaded and checksum-verified
+together with the local translation models instead of being duplicated in
+every installer. If Wishly Dev is already running, packaging quits it only
+when health reports `busy:false`; active work is never interrupted.
 
 For local model development, the Agent accepts explicit absolute paths without
 requiring Homebrew or system Python:
@@ -67,7 +66,7 @@ npm run package:mac
 npm run verify:package
 ```
 
-All five variables are required; `scripts/package-mac.sh` aborts if any is missing. Release packaging also requires a clean committed worktree and refuses to overwrite an artifact with the same build identity. This creates the ad-hoc-signed app and a versioned backup ZIP. Run `npm run package:dmg` to create the versioned DMG and SHA-256 file shown by `npm run release:info`. Do not commit `release/`.
+All five variables are required; `scripts/package-mac.sh` aborts if any is missing. The package contains only the Agent workspace's production dependency closure; build, test, root, and web dependencies are never copied into the app. The pinned llama.cpp runtime is fetched by the same verified first-use download as its model. Release packaging also requires a clean committed worktree and refuses to overwrite an artifact with the same build identity. This creates the ad-hoc-signed app and a versioned backup ZIP. Run `npm run package:dmg` to create the versioned DMG and SHA-256 file shown by `npm run release:info`. Do not commit `release/`.
 
 ### Release and compatibility policy
 

@@ -12,17 +12,19 @@ for name in ffmpeg ffprobe; do binary="$app/Contents/Resources/runtime/bin/$name
 whisper_cli="$app/Contents/Resources/runtime/bin/whisper-cli"
 [[ -x "$whisper_cli" && -s "$app/Contents/Resources/runtime/models/ggml-silero-v5.1.2.bin" ]]
 file "$whisper_cli" | grep -q arm64
-llama_server="$app/Contents/Resources/runtime/llama/llama-server"
-[[ -x "$llama_server" && -f "$app/Contents/Resources/licenses/llama.cpp-LICENSE" ]]
+[[ ! -e "$app/Contents/Resources/runtime/llama" ]]
+[[ -f "$app/Contents/Resources/licenses/llama.cpp-LICENSE" ]]
 for notice in GEMMA_TERMS.md GEMMA_PROHIBITED_USE_POLICY.md NOTICE-Gemma.txt multilingual-e5-small-MIT.txt; do
   [[ -s "$app/Contents/Resources/licenses/$notice" ]]
 done
-file "$llama_server" | grep -q arm64
-"$llama_server" --version 2>&1 | grep -q '10092'
 [[ -f apps/web/dist/index.html && -f "$app/Contents/Resources/agent/dist/index.js" ]]
 diff -qr apps/agent/dist "$app/Contents/Resources/agent/dist" >/dev/null
 diff -qr apps/web/dist "$app/Contents/Resources/web/dist" >/dev/null
 diff -qr packages/shared/dist "$app/Contents/Resources/agent/node_modules/@video-compressor/shared/dist" >/dev/null
+[[ -s "$app/Contents/Resources/agent/production-dependencies.json" ]]
+for unwanted in @electric-sql @testing-library eslint jsdom prettier react react-dom tsx typescript vite vitest; do
+  [[ ! -e "$app/Contents/Resources/agent/node_modules/$unwanted" ]]
+done
 grep -q 'appendingPathComponent("local")' "$PWD/release/Launcher.generated.swift"
 ! grep -q '__[A-Z0-9_]*__' "$PWD/release/Launcher.generated.swift"
 ! grep -rnE '127\.0\.0\.1:5173|localhost:5173' apps/web/dist
@@ -30,7 +32,12 @@ grep -q 'appendingPathComponent("local")' "$PWD/release/Launcher.generated.swift
 for name in ffmpeg ffprobe; do ! otool -L "$app/Contents/Resources/runtime/bin/$name" | tail -n +2 | grep -Ev '^\s+(/usr/lib|/System/Library)'; done
 ! otool -L "$whisper_cli" | tail -n +2 | grep -Ev '^\s+(/usr/lib|/System/Library)'
 ! otool -L "$app/Contents/Resources/runtime/node" | tail -n +2 | grep -Ev '^\s+(/usr/lib|/System/Library)'
-! otool -L "$llama_server" | tail -n +2 | grep -Ev '^\s+(@rpath|/usr/lib|/System/Library)'
+"$app/Contents/Resources/runtime/node" --version >/dev/null
+(
+  cd "$app/Contents/Resources/agent"
+  ../runtime/node --input-type=module -e \
+    "await import('fastify'); await import('@jsquash/webp/encode.js'); await import('@video-compressor/shared');"
+)
 [[ -n "$(find "$app/Contents/Resources/licenses/sources" -type f -maxdepth 1)" ]]
 codesign --verify --deep --strict "$app"
-print "Package structure, runtime, media tools, architecture, and production web build verified."
+print "Slim package dependencies, runtimes, architecture, and production web build verified."

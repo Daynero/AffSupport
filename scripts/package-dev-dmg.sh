@@ -11,6 +11,7 @@ trap 'rm -rf "$stage"' EXIT
 ditto "$app" "$stage/Wishly Dev.app"
 ln -s /Applications "$stage/Applications"
 rm -f "$root"/Wishly-Dev-*-macOS-arm64.dmg(N) "$root"/Wishly-Dev-*-macOS-arm64.dmg.sha256(N)
-hdiutil create -quiet -srcfolder "$stage" -volname "Wishly Dev" -fs HFS+ -format UDZO "$dmg"
+hdiutil create -quiet -srcfolder "$stage" -volname "Wishly Dev" -fs HFS+ -format UDZO \
+  -imagekey zlib-level=9 "$dmg"
 (cd "$root"; shasum -a 256 "${dmg:t}" > "${dmg:t}.sha256")
 print "Built $dmg"

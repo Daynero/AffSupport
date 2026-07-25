@@ -12,13 +12,23 @@ grep -q 'private let supportDirectoryName = "Wishly Dev"' "$PWD/release/dev/Laun
 grep -q 'VITE_ANALYTICS_ENABLED=false' scripts/package-dev-mac.sh
 grep -q 'VITE_LOCAL_DEV_AUTH=true' scripts/package-dev-mac.sh
 codesign --verify --deep --strict "$app"
-for binary in "$app/Contents/MacOS/WishlyAgent" "$app/Contents/Resources/runtime/node" "$app/Contents/Resources/runtime/bin/ffmpeg" "$app/Contents/Resources/runtime/bin/ffprobe" "$app/Contents/Resources/runtime/bin/whisper-cli" "$app/Contents/Resources/runtime/llama/llama-server"; do
+for binary in "$app/Contents/MacOS/WishlyAgent" "$app/Contents/Resources/runtime/node" "$app/Contents/Resources/runtime/bin/ffmpeg" "$app/Contents/Resources/runtime/bin/ffprobe" "$app/Contents/Resources/runtime/bin/whisper-cli"; do
   file "$binary" | grep -q arm64
 done
 [[ -s "$app/Contents/Resources/runtime/models/ggml-silero-v5.1.2.bin" ]]
-"$app/Contents/Resources/runtime/llama/llama-server" --version 2>&1 | grep -q '10092'
+[[ ! -e "$app/Contents/Resources/runtime/llama" ]]
 [[ -f "$app/Contents/Resources/licenses/llama.cpp-LICENSE" ]]
 for notice in GEMMA_TERMS.md GEMMA_PROHIBITED_USE_POLICY.md NOTICE-Gemma.txt multilingual-e5-small-MIT.txt; do
   [[ -s "$app/Contents/Resources/licenses/$notice" ]]
 done
-print "Wishly Dev identity, isolation, analytics disablement, signature, and runtimes verified."
+[[ -s "$app/Contents/Resources/agent/production-dependencies.json" ]]
+for unwanted in @electric-sql @testing-library eslint jsdom prettier react react-dom tsx typescript vite vitest; do
+  [[ ! -e "$app/Contents/Resources/agent/node_modules/$unwanted" ]]
+done
+"$app/Contents/Resources/runtime/node" --version >/dev/null
+(
+  cd "$app/Contents/Resources/agent"
+  ../runtime/node --input-type=module -e \
+    "await import('fastify'); await import('@jsquash/webp/encode.js'); await import('@video-compressor/shared');"
+)
+print "Wishly Dev identity, isolation, slim dependencies, signature, and runtimes verified."
