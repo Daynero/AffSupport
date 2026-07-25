@@ -6,11 +6,14 @@ import { translationCacheKey, type TranscriptionJob } from '@video-compressor/sh
 import { mediaMimeType, resolveByteRange } from '../apps/agent/src/transcription/media.js';
 import { browserCompatible } from '../apps/agent/src/transcription/media-preview.js';
 import {
+  buildTranscriptionDocument,
   buildTextTranscriptionDocument,
   segmentsFromText,
+  segmentsFromTextWithWords,
   sourceContentHash,
   TranscriptionDocumentStore
 } from '../apps/agent/src/transcription/document-store.js';
+import type { WhisperWord } from '../apps/agent/src/whisper/words.js';
 import { isValidTargetLanguage } from '../apps/agent/src/queue/transcription-queue.js';
 
 describe('media range + mime helpers', () => {
@@ -91,6 +94,98 @@ describe('structured document building', () => {
     expect(document.modelVersion).toBe('large-v3');
     expect(document.translations).toEqual({});
     expect(document.segments).toHaveLength(1);
+  });
+
+  it('keeps canonical text while filtering interleaved overlap candidates', () => {
+    const text =
+      'Maaaring hindi mo alam na ang produkto ay maaaring lumaki.\n' +
+      'Hindi ito nakadepende sa lahi, taas at sukat.';
+    const candidateText = [
+      'Maaaring',
+      'hindi',
+      'mo',
+      'alam',
+      'na',
+      'ang',
+      'produkto',
+      'ay',
+      'maaaring',
+      'lumaki.',
+      // Two overlapping decodings of the second sentence, interleaved by
+      // timestamp just like the reported Tagalog regression.
+      'Hindi',
+      'ito',
+      'Hindi',
+      'nakadepende',
+      'ito',
+      'sa',
+      'sa',
+      'lahi',
+      'sa',
+      'lahi,',
+      'taas',
+      'at',
+      'sukat.'
+    ];
+    const candidates: WhisperWord[] = candidateText.map((word, index) => ({
+      text: word,
+      leadingSpace: index > 0,
+      startMs: index * 200,
+      endMs: index * 200 + 180,
+      confidence: 0.9
+    }));
+    const job = {
+      id: 'overlap',
+      detectedLanguage: 'tl',
+      requestedLanguage: 'auto',
+      text
+    } as TranscriptionJob;
+
+    const document = buildTranscriptionDocument(job, 'large-v3', candidates);
+
+    expect(document.segments.map(segment => segment.sourceText).join('\n')).toBe(text);
+    expect(document.segments[1].sourceText).toBe('Hindi ito nakadepende sa lahi, taas at sukat.');
+    expect(document.segments[1].words.map(word => word.text)).toEqual([
+      'Hindi',
+      'ito',
+      'nakadepende',
+      'sa',
+      'lahi,',
+      'taas',
+      'at',
+      'sukat.'
+    ]);
+    expect(document.segments.flatMap(segment => segment.words)).toHaveLength(18);
+  });
+
+  it('splits punctuation compounds into monotonic timing units', () => {
+    const candidates: WhisperWord[] = [
+      {
+        text: ' 50,000',
+        leadingSpace: true,
+        startMs: 1_000,
+        endMs: 1_400,
+        confidence: 0.8
+      },
+      {
+        text: ' araw-araw.',
+        leadingSpace: true,
+        startMs: 1_400,
+        endMs: 2_000,
+        confidence: 0.9
+      }
+    ];
+
+    const [segment] = segmentsFromTextWithWords('compound', '50,000 araw-araw.', candidates);
+
+    expect(segment.sourceText).toBe('50,000 araw-araw.');
+    expect(segment.words.map(word => word.text)).toEqual(['50,', '000', 'araw-', 'araw.']);
+    expect(segment.words.map(word => [word.startMs, word.endMs])).toEqual([
+      [1_000, 1_200],
+      [1_200, 1_400],
+      [1_400, 1_700],
+      [1_700, 2_000]
+    ]);
   });
 });
 
