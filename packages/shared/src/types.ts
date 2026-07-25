@@ -771,8 +771,6 @@ export interface TranscriptionJob {
   text: string | null;
   /** Transcript length in characters, for quick UI hints. */
   characters: number | null;
-  /** Path of the `.txt` transcript written next to the source. */
-  transcriptPath: string | null;
   error: string | null;
   errorDetails: string | null;
   batchId: string | null;
@@ -843,13 +841,13 @@ export function defaultTranscriptionSettings(): TranscriptionSettings {
 /* -------------------------------------------------------------------------- */
 /* Structured transcription document                                          */
 /*                                                                            */
-/* The flat `TranscriptionJob.text` stays the authoritative quick transcript  */
-/* (and the `.txt` written next to the source). Everything below is a richer  */
-/* sidecar used only by the split-screen viewer: per-word timestamps for      */
-/* karaoke playback and per-segment translations with source↔target           */
-/* character alignments for the mirrored highlight. It is fetched on demand    */
-/* through dedicated endpoints, never streamed inside `transcription:progress` */
-/* SSE events, so the live queue state stays small.                           */
+/* The flat `TranscriptionJob.text` stays as an in-process fallback.           */
+/* Everything below is the richer private document used by the split-screen   */
+/* viewer: per-word timestamps for karaoke playback and per-segment            */
+/* translations with source↔target character alignments. No transcript file   */
+/* is written beside the source media.                                         */
+/* It is fetched on demand through dedicated endpoints, never streamed inside  */
+/* `transcription:progress` SSE events, so the live queue state stays small.    */
 /* -------------------------------------------------------------------------- */
 
 /** A single decoded word, timestamped and anchored to its segment text. */

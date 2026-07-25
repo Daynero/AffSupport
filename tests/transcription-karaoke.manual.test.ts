@@ -21,7 +21,6 @@ describe.runIf(runReal)('real local karaoke timestamp smoke', () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'wishly-karaoke-smoke-'));
     try {
       const inputPath = path.join(dir, 'fixture.aiff');
-      const transcriptPath = path.join(dir, 'fixture.txt');
       await execFileAsync('/usr/bin/say', [
         '-v',
         'Samantha',
@@ -35,7 +34,6 @@ describe.runIf(runReal)('real local karaoke timestamp smoke', () => {
       const media = await probeMedia(inputPath);
       const result = await transcribe({
         inputPath,
-        transcriptPath,
         language: 'en',
         onProgress: () => {}
       }).done;

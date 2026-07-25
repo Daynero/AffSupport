@@ -11,7 +11,7 @@ import {
 } from '../apps/agent/src/whisper/transcriber.js';
 
 describe('Whisper transcription safeguards', () => {
-  it('keeps timestamp tokens enabled while writing a plain-text transcript', () => {
+  it('keeps timestamp tokens enabled for the temporary Whisper output', () => {
     const args = buildWhisperArgs(
       {
         wavPath: '/tmp/input.wav',

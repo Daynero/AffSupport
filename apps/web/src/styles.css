@@ -1632,6 +1632,11 @@ input.is-invalid {
   gap: var(--space-2);
 }
 
+.transcription-list-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .job-row {
   min-width: 0;
   padding: var(--space-3);

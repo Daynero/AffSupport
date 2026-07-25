@@ -1,3 +1,10 @@
+# v0.7.3
+
+- Add a localized **Copy all** action below the transcription queue that copies every completed non-empty transcript in visible order with numbered headings.
+- Make **Show in Finder** reveal the original audio or video and stop creating a neighboring plain-text transcript file.
+- Use computer-neutral privacy and local-processing copy instead of Mac-specific wording.
+- Prevent duplicated words where overlapping transcription windows meet.
+
 # v0.7.2
 
 - Translate transcript segments concurrently and overlap alignment with translation, roughly a 3× speedup on Apple Silicon; keep the model resident so a mid-job pause no longer forces a costly reload.

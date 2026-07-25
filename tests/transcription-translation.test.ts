@@ -185,16 +185,17 @@ describe('translation coordination', () => {
   let dir: string;
   let queue: TranscriptionQueue;
   let jobId: string;
+  let mediaPath: string;
 
   beforeEach(async () => {
     dir = await mkdtemp(path.join(os.tmpdir(), 'wishly-tr-'));
     process.env.AGENT_TRANSCRIBE_DOCUMENTS_PATH = path.join(dir, 'docs');
     process.env.AGENT_TRANSLATION_CACHE_PATH = path.join(dir, 'cache');
     process.env.AGENT_TRANSCRIBE_PREVIEWS_PATH = path.join(dir, 'previews');
-    const media = path.join(dir, 'sample.mp3');
-    await writeFile(media, 'x');
+    mediaPath = path.join(dir, 'sample.mp3');
+    await writeFile(mediaPath, 'x');
     queue = new TranscriptionQueue({ ffmpeg: true, whisper: true }, () => {});
-    await queue.add([media]);
+    await queue.add([mediaPath]);
     jobId = queue.state().jobs[0].id;
     const document: TranscriptionDocument = {
       jobId,
@@ -223,6 +224,8 @@ describe('translation coordination', () => {
   });
 
   it('never resolves media or preview controls for an unknown opaque job id', async () => {
+    expect(queue.sourcePath(jobId)).toBe(mediaPath);
+    expect(queue.sourcePath('nope')).toBeNull();
     expect(await queue.mediaSource('nope')).toBeNull();
     expect(await queue.playbackMediaSource('nope')).toBeNull();
     expect(await queue.mediaPreviewStatus('nope')).toBeNull();

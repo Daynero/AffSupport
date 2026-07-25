@@ -18,7 +18,6 @@ import {
   type TranslationDocument
 } from '@video-compressor/shared';
 import { probeDuration } from '../ffmpeg/tools.js';
-import { nextTranscriptPath } from '../files/paths.js';
 import { applicationSupportRoot } from '../files/support-dir.js';
 import { transcribe, type TranscribeHandle } from '../whisper/transcriber.js';
 import { ModelDownloader } from '../whisper/downloader.js';
@@ -601,13 +600,12 @@ export class TranscriptionQueue {
     );
     return {
       // The browser operates exclusively on opaque job ids. Keep local source,
-      // transcript, and diagnostic paths inside the agent process instead of
-      // exposing them through state/SSE.
+      // and diagnostic paths inside the agent process instead of exposing them
+      // through state/SSE.
       jobs: this.jobs.map(job => ({
         ...job,
         inputPath: '',
         text: null,
-        transcriptPath: job.transcriptPath ? '' : null,
         errorDetails: null
       })),
       running: this.inFlight,
@@ -734,7 +732,6 @@ export class TranscriptionQueue {
       detectedLanguage: null,
       text: null,
       characters: null,
-      transcriptPath: null,
       error: null,
       errorDetails: null,
       batchId: null,
@@ -832,8 +829,8 @@ export class TranscriptionQueue {
     return this.start([id]);
   }
 
-  transcriptPath(id: string): string | null {
-    return this.jobs.find(job => job.id === id)?.transcriptPath ?? null;
+  sourcePath(id: string): string | null {
+    return this.jobs.find(job => job.id === id)?.inputPath ?? null;
   }
 
   async shutdown(): Promise<void> {
@@ -860,14 +857,8 @@ export class TranscriptionQueue {
     this.notify();
 
     try {
-      const transcriptPath = await nextTranscriptPath(
-        job.inputPath,
-        this.jobs.map(item => item.transcriptPath ?? '').filter(Boolean)
-      );
-      job.transcriptPath = transcriptPath;
       const handle = transcribe({
         inputPath: job.inputPath,
-        transcriptPath,
         language: job.requestedLanguage,
         onProgress: value => {
           if (job.status !== 'processing') return;
@@ -886,8 +877,6 @@ export class TranscriptionQueue {
       if (cancelledMidRun || result.cancelled) {
         job.status = 'cancelled';
         job.progress = null;
-        await unlink(transcriptPath).catch(() => {});
-        job.transcriptPath = null;
       } else if (result.code === 0) {
         job.status = 'completed';
         job.progress = 100;
@@ -895,8 +884,8 @@ export class TranscriptionQueue {
         job.characters = result.text.length;
         job.detectedLanguage = result.detectedLanguage;
         job.finishedAt = Date.now();
-        // Persist the structured sidecar (segments + word timestamps) separately
-        // from the plain `.txt`; failure here must not fail the job.
+        // Persist the private structured document (segments + word timestamps);
+        // failure here must not fail the job.
         await this.withDocumentLock(job.id, () =>
           this.documents.save(buildTranscriptionDocument(job, MODEL_DESCRIPTOR.label, result.words))
         ).catch(() => {});
@@ -909,8 +898,6 @@ export class TranscriptionQueue {
             : 'The transcription engine failed.';
         job.errorDetails = result.stderr.slice(-4_000) || result.spawnErrorCode;
         job.finishedAt = Date.now();
-        await unlink(transcriptPath).catch(() => {});
-        job.transcriptPath = null;
       }
     } catch (error) {
       this.active = null;

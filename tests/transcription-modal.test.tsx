@@ -38,7 +38,6 @@ const job: TranscriptionJob = {
   detectedLanguage: 'en',
   text: null,
   characters: 12,
-  transcriptPath: '',
   error: null,
   errorDetails: null,
   batchId: 'batch',

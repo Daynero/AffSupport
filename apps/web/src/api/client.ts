@@ -259,6 +259,8 @@ export function transcriptionAddLocalFiles(
 export async function transcriptionUpload(file: File): Promise<TranscriptionSelectionResponse> {
   const body = new FormData();
   body.append('signature', `${file.name}:${file.size}:${file.lastModified}`);
+  body.append('size', String(file.size));
+  body.append('lastModified', String(file.lastModified));
   body.append('file', file, file.name);
   return uploadForm<TranscriptionSelectionResponse>('/api/transcription/files/upload', body);
 }

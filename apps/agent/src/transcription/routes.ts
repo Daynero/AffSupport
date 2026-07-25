@@ -7,6 +7,7 @@ import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { isTranscribableFileName, type TranscriptionSettings } from '@video-compressor/shared';
 import { eventStreamHeaders } from '../http.js';
+import { findDroppedSource } from '../files/dropped-source.js';
 import { selectTranscribeMedia } from '../files/picker.js';
 import { applicationSupportRoot } from '../files/support-dir.js';
 import { resolveByteRange } from './media.js';
@@ -104,6 +105,24 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
       signatureField && 'value' in signatureField && typeof signatureField.value === 'string'
         ? signatureField.value
         : `${fileName}:${Date.now()}`;
+    const sizeField = part.fields.size;
+    const modifiedField = part.fields.lastModified;
+    const sourceSize = Number(
+      sizeField && 'value' in sizeField && typeof sizeField.value === 'string'
+        ? sizeField.value
+        : Number.NaN
+    );
+    const sourceModifiedAt = Number(
+      modifiedField && 'value' in modifiedField && typeof modifiedField.value === 'string'
+        ? modifiedField.value
+        : Number.NaN
+    );
+    const droppedSource = await findDroppedSource(fileName, sourceSize, sourceModifiedAt);
+    if (droppedSource) {
+      part.file.resume();
+      const warnings = await queue.add([droppedSource]);
+      return { state: queue.state(), warnings };
+    }
     await mkdir(importRoot, { recursive: true });
     const dir = await mkdtemp(path.join(importRoot, 'import-'));
     const target = path.join(dir, fileName);
@@ -208,9 +227,9 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
   app.post<{ Params: { id: string } }>(
     '/api/transcription/jobs/:id/reveal',
     async (request, reply) => {
-      const output = queue.transcriptPath(request.params.id);
-      if (!output) return reply.code(404).send({ error: 'No transcript is available yet.' });
-      spawn('/usr/bin/open', ['-R', output], {
+      const source = queue.sourcePath(request.params.id);
+      if (!source) return reply.code(404).send({ error: 'No source file is available.' });
+      spawn('/usr/bin/open', ['-R', source], {
         shell: false,
         detached: true,
         stdio: 'ignore'

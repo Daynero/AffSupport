@@ -54,7 +54,7 @@ const en = {
   transcriptionDropFormats: 'MP4, MOV, MKV, WebM, MP3, M4A, WAV, FLAC, OGG…',
   transcriptionImporting: 'Adding files…',
   transcriptionChooseFiles: 'Choose files',
-  transcriptionProcessedLocally: 'Files are transcribed on your Mac and never uploaded.',
+  transcriptionProcessedLocally: 'Files are transcribed on your computer and never uploaded.',
   transcriptionSettingsTitle: 'Language',
   transcriptionLanguage: 'Spoken language',
   transcriptionLanguageHint:
@@ -76,6 +76,9 @@ const en = {
   transcriptionView: 'View',
   transcriptionCopy: 'Copy',
   transcriptionCopied: 'Copied',
+  transcriptionCopyAllTranscripts: 'Copy all',
+  transcriptionBatchHeading: 'Transcription {number}:',
+  transcriptionCopiedTranscripts: 'All transcripts copied',
   transcriptionDetected: 'Detected: {language}',
   transcriptionCharacters: '{count} characters',
   transcriptionModalClose: 'Close',
@@ -89,7 +92,7 @@ const en = {
   transcriptionTranslationUnavailable: 'The local translator is not installed yet.',
   transcriptionTranslatorInstall: 'Install translation model',
   transcriptionTranslatorIntro:
-    'Translation runs fully on your Mac. A local model (~{size}) is downloaded once — it never leaves your device.',
+    'Translation runs fully on your computer. A local model (~{size}) is downloaded once — it never leaves your device.',
   transcriptionTranslatorInstalling: 'Installing translation model… {progress}%',
   transcriptionTranslatorNotConfigured: 'The translation model source is not configured yet.',
   transcriptionTranslationRetry: 'Retry',
@@ -121,7 +124,7 @@ const en = {
   transcriptionUnsupportedDrop: 'Those files are not supported audio or video.',
   transcriptionModelTitle: 'Local model required',
   transcriptionModelBody:
-    'Transcription runs a speech model fully on your Mac. It needs a one-time {size} download, stored locally and reused for every file afterwards.',
+    'Transcription runs a speech model fully on your computer. It needs a one-time {size} download, stored locally and reused for every file afterwards.',
   transcriptionModelDownloadBtn: 'Download model ({size})',
   transcriptionModelDownloading: 'Downloading model… {progress}% ({done} / {total})',
   transcriptionModelPreparing: 'Preparing…',
@@ -133,7 +136,7 @@ const en = {
   transcriptionTranslationModels: 'Local translation components',
   transcriptionConfirmTitle: 'Download local model?',
   transcriptionConfirmBody:
-    'Wishly needs a one-time {size} download for offline speech, translation, and semantic alignment. Missing components are stored locally and reused; your media and text never leave this Mac.',
+    'Wishly needs a one-time {size} download for offline speech, translation, and semantic alignment. Missing components are stored locally and reused; your media and text never leave your computer.',
   transcriptionConfirmDownload: 'Download & transcribe',
   transcriptionConfirmCancel: 'Not now',
   transcriptionContinueWithoutTranslation: 'Transcribe without translation',
@@ -689,7 +692,8 @@ const uk: Record<keyof typeof en, string> = {
   transcriptionDropFormats: 'MP4, MOV, MKV, WebM, MP3, M4A, WAV, FLAC, OGG…',
   transcriptionImporting: 'Додаємо файли…',
   transcriptionChooseFiles: 'Вибрати файли',
-  transcriptionProcessedLocally: 'Файли транскрибуються на вашому Mac і нікуди не завантажуються.',
+  transcriptionProcessedLocally:
+    'Файли транскрибуються на вашому комп’ютері й нікуди не завантажуються.',
   transcriptionSettingsTitle: 'Мова',
   transcriptionLanguage: 'Мова мовлення',
   transcriptionLanguageHint:
@@ -711,6 +715,9 @@ const uk: Record<keyof typeof en, string> = {
   transcriptionView: 'Переглянути',
   transcriptionCopy: 'Копіювати',
   transcriptionCopied: 'Скопійовано',
+  transcriptionCopyAllTranscripts: 'Копіювати всі',
+  transcriptionBatchHeading: 'Транскрибування {number}:',
+  transcriptionCopiedTranscripts: 'Усі транскрибовані тексти скопійовано',
   transcriptionDetected: 'Визначено: {language}',
   transcriptionCharacters: 'символів: {count}',
   transcriptionModalClose: 'Закрити',
@@ -724,7 +731,7 @@ const uk: Record<keyof typeof en, string> = {
   transcriptionTranslationUnavailable: 'Локальний перекладач ще не встановлено.',
   transcriptionTranslatorInstall: 'Встановити модель перекладу',
   transcriptionTranslatorIntro:
-    'Переклад працює повністю на вашому Mac. Локальна модель (~{size}) завантажується один раз і ніколи не залишає ваш пристрій.',
+    'Переклад працює повністю на вашому комп’ютері. Локальна модель (~{size}) завантажується один раз і ніколи не залишає ваш пристрій.',
   transcriptionTranslatorInstalling: 'Встановлюємо модель перекладу… {progress}%',
   transcriptionTranslatorNotConfigured: 'Джерело моделі перекладу ще не налаштоване.',
   transcriptionTranslationRetry: 'Повторити',
@@ -756,7 +763,7 @@ const uk: Record<keyof typeof en, string> = {
   transcriptionUnsupportedDrop: 'Ці файли не є підтримуваним аудіо чи відео.',
   transcriptionModelTitle: 'Потрібна локальна модель',
   transcriptionModelBody:
-    'Транскрибація працює повністю на вашому Mac. Потрібне одноразове завантаження {size} — модель зберігається локально й використовується для всіх наступних файлів.',
+    'Транскрибація працює повністю на вашому комп’ютері. Потрібне одноразове завантаження {size} — модель зберігається локально й використовується для всіх наступних файлів.',
   transcriptionModelDownloadBtn: 'Завантажити модель ({size})',
   transcriptionModelDownloading: 'Завантаження моделі… {progress}% ({done} / {total})',
   transcriptionModelPreparing: 'Підготовка…',
@@ -768,7 +775,7 @@ const uk: Record<keyof typeof en, string> = {
   transcriptionTranslationModels: 'Компоненти локального перекладу',
   transcriptionConfirmTitle: 'Завантажити локальну модель?',
   transcriptionConfirmBody:
-    'Wishly одноразово завантажить {size} для офлайн-розпізнавання, перекладу й семантичного вирівнювання. Відсутні компоненти зберігаються локально та використовуються повторно; медіа й текст не залишають цей Mac.',
+    'Wishly одноразово завантажить {size} для офлайн-розпізнавання, перекладу й семантичного вирівнювання. Відсутні компоненти зберігаються локально та використовуються повторно; медіа й текст не залишають ваш комп’ютер.',
   transcriptionConfirmDownload: 'Завантажити і транскрибувати',
   transcriptionConfirmCancel: 'Не зараз',
   transcriptionContinueWithoutTranslation: 'Транскрибувати без перекладу',

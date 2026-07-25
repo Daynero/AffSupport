@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.7.2",
-  "buildNumber": "22",
-  "buildId": "0.7.2+22",
+  "version": "0.7.3",
+  "buildNumber": "23",
+  "buildId": "0.7.3+23",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-07-25T08:54:20.000Z",
+  "publishedAt": "2026-07-25T22:17:44.000Z",
   "summary": {
-    "en": "Faster on-device translation with a real progress bar and ETA, karaoke that keeps your selection and centers the spoken word, and a smoother light/dark theme switch.",
-    "uk": "Швидший переклад на пристрої зі справжнім прогрес-баром і оцінкою часу, караоке зберігає ваше виділення й центрує озвучене слово, і плавніше перемикання світлої/темної теми."
+    "en": "Copy all completed transcripts with localized headings, reveal the original media in Finder without creating neighboring TXT files, and avoid duplicated words at transcription boundaries.",
+    "uk": "Копіюйте всі готові транскрибовані тексти з локалізованими заголовками, відкривайте оригінальне медіа у Finder без сусідніх TXT-файлів і уникайте дублів слів на межах транскрибування."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.7.2/Wishly-Agent-v0.7.2-macOS-arm64.dmg",
-      "sha256": "9279f3f5a95ff76e172e456cc3cab1d67a5b93012bd7bfba30dde1e67d18edf4"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.7.3/Wishly-Agent-v0.7.3-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -25,7 +25,7 @@
       "landingOptimizer": 2
     },
     "transcription": {
-      "transcription": 2
+      "transcription": 3
     }
   }
 }

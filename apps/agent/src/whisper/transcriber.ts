@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { ffmpegPath } from '../ffmpeg/tools.js';
@@ -9,8 +9,6 @@ import { mergeChunkWords, parseWhisperFullJson, type WhisperWord } from './words
 
 export interface TranscribeOptions {
   inputPath: string;
-  /** Final `.txt` path written next to the source. */
-  transcriptPath: string;
   /** `auto` or an ISO 639-1 code. */
   language: string;
   onProgress: (value: number | null) => void;
@@ -67,7 +65,7 @@ export interface BridgeChunk {
  * cancel the active child at any point.
  */
 export function transcribe(options: TranscribeOptions): TranscribeHandle {
-  const { inputPath, transcriptPath, language, onProgress } = options;
+  const { inputPath, language, onProgress } = options;
   let activeChild: ChildProcessWithoutNullStreams | null = null;
   let cancelled = false;
 
@@ -128,7 +126,6 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
         const ranges = buildSpeechChunks(detection.speechRanges);
         onProgress(DETECT_END);
         if (ranges.length === 0) {
-          await writeFile(transcriptPath, '', 'utf8');
           onProgress(100);
           return result(0, false, '', detectedLanguage, detection.stderr, null, null);
         }
@@ -293,7 +290,6 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
           refinedChunks.push(chunks[index]);
         }
         const text = mergeTranscriptChunks(refinedChunks);
-        await writeFile(transcriptPath, text ? `${text}\n` : '', 'utf8');
 
         // Collect word timestamps from the same passes (no extra inference) and
         // merge them into one monotonic sequence. Purely additive: any failure
@@ -343,7 +339,6 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
       }
 
       const text = await readTranscript(`${outputBase}.txt`);
-      await writeFile(transcriptPath, text ? `${text}\n` : '', 'utf8');
       const words = await readChunkWords(outputBase, 0);
       onProgress(100);
       return result(0, false, text, run.detectedLanguage, run.stderr, null, null, words);
@@ -821,9 +816,9 @@ export function buildBridgeChunks(
   return bridges;
 }
 
-async function readTranscript(transcriptPath: string): Promise<string> {
+async function readTranscript(temporaryOutputPath: string): Promise<string> {
   try {
-    const raw = await readFile(transcriptPath, 'utf8');
+    const raw = await readFile(temporaryOutputPath, 'utf8');
     const lines = raw
       .split(/\r?\n/)
       .map(line => line.trim())

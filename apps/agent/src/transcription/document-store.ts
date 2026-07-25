@@ -244,8 +244,7 @@ export function buildTextTranscriptionDocument(
 
 /**
  * Persists structured transcription documents as local JSON sidecars under
- * Application Support — deliberately separate from the plain `.txt` written
- * next to the source, which stays byte-for-byte unchanged. Documents are large
+ * Application Support, never beside the source media. Documents are large
  * (words + translations) so they are fetched on demand, never streamed in SSE.
  */
 export class TranscriptionDocumentStore {

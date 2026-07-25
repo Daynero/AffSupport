@@ -53,10 +53,10 @@ describe('release identity', () => {
       readFileSync('apps/web/public/.well-known/wishly/stable.json', 'utf8')
     );
     expect(localizedReleaseSummary(manifest, 'en')).toBe(
-      'Add fully local bilingual transcripts with on-device translation, word-synced media playback, model installation, and secure media previews.'
+      'Copy all completed transcripts with localized headings, reveal the original media in Finder without creating neighboring TXT files, and avoid duplicated words at transcription boundaries.'
     );
     expect(localizedReleaseSummary(manifest, 'uk')).toBe(
-      'Додано повністю локальні двомовні транскрипти з перекладом на пристрої, синхронним із словами відтворенням, інсталяцією моделей і безпечним медіапереглядом.'
+      'Копіюйте всі готові транскрибовані тексти з локалізованими заголовками, відкривайте оригінальне медіа у Finder без сусідніх TXT-файлів і уникайте дублів слів на межах транскрибування.'
     );
     expect(localizedReleaseSummary({ ...manifest, summary: undefined }, 'uk')).toBeNull();
   });
@@ -105,7 +105,8 @@ describe('release identity', () => {
     expect(toolContractCompatible('landingOptimizer', { landingOptimizer: 1 })).toBe(false);
     expect(toolContractCompatible('landingOptimizer', { landingOptimizer: 2 })).toBe(true);
     expect(toolContractCompatible('transcription', { transcription: 1 })).toBe(false);
-    expect(toolContractCompatible('transcription', { transcription: 2 })).toBe(true);
+    expect(toolContractCompatible('transcription', { transcription: 2 })).toBe(false);
+    expect(toolContractCompatible('transcription', { transcription: 3 })).toBe(true);
   });
 
   it('keeps installable dev builds isolated from production identities and services', () => {

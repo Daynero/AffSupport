@@ -39,6 +39,7 @@ import { internalLink } from '../lib/navigation';
 import { analytics } from '../analytics/service';
 import { languageDisplayName } from './language';
 import { TranscriptTextModal } from './TranscriptTextModal';
+import { formatTranscriptionBatch } from './copy';
 
 type TranscriptionModelInfo = NonNullable<TranscriptionState['model']>;
 
@@ -95,6 +96,7 @@ export default function TranscriptionPage() {
   );
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [confirmingDownload, setConfirmingDownload] = useState(false);
+  const [copyingAll, setCopyingAll] = useState(false);
   const toastId = useRef(0);
   // Job ids the user asked to transcribe before the model was present; started
   // automatically once the download completes.
@@ -178,6 +180,9 @@ export default function TranscriptionPage() {
   const readyJobs = jobs.filter(job => job.status === 'ready' || job.status === 'cancelled');
   const finishedJobs = jobs.filter(
     job => job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled'
+  );
+  const copyableJobs = visibleJobs.filter(
+    job => job.status === 'completed' && (job.characters ?? 0) > 0
   );
   const previewJob = preview ? jobs.find(job => job.id === preview.jobId) : null;
 
@@ -311,6 +316,24 @@ export default function TranscriptionPage() {
     } catch {
       addToast(t('transcriptionFailedTitle'), 'error');
       return false;
+    }
+  };
+
+  const copyAllTranscripts = async () => {
+    if (!copyableJobs.length || copyingAll) return;
+    setCopyingAll(true);
+    try {
+      const documents = await Promise.all(copyableJobs.map(job => transcriptionDocument(job.id)));
+      const text = formatTranscriptionBatch(
+        documents.map(document => document.segments.map(segment => segment.sourceText).join('\n')),
+        number => t('transcriptionBatchHeading', { number })
+      );
+      await navigator.clipboard.writeText(text);
+      addToast(t('transcriptionCopiedTranscripts'), 'success');
+    } catch {
+      addToast(t('transcriptionFailedTitle'), 'error');
+    } finally {
+      setCopyingAll(false);
     }
   };
 
@@ -476,6 +499,18 @@ export default function TranscriptionPage() {
             ))
           )}
         </section>
+        {jobs.length > 0 && (
+          <div className="transcription-list-actions">
+            <Button
+              variant="secondary"
+              loading={copyingAll}
+              disabled={!connected || copyableJobs.length === 0}
+              onClick={() => void copyAllTranscripts()}
+            >
+              {t('transcriptionCopyAllTranscripts')}
+            </Button>
+          </div>
+        )}
       </main>
       <ToastRegion toasts={toasts} />
       {previewJob && (

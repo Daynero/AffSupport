@@ -137,10 +137,9 @@ describe('environment and localization foundation', () => {
 
   it('disables new decorative auth motion for reduced-motion users', async () => {
     const css = await readFile('apps/web/src/styles.css', 'utf8');
-    const block = css.slice(css.lastIndexOf('@media (prefers-reduced-motion: reduce)'));
-    expect(block).toContain('.login-accent');
-    expect(block).toContain('.onboarding-modal');
-    expect(block).toContain('animation: none !important');
+    expect(css).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.login-accent,[\s\S]*?\.onboarding-modal[\s\S]*?animation: none !important/
+    );
   });
 });
 
