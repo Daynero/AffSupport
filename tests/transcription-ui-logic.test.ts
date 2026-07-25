@@ -94,6 +94,28 @@ describe('alignment ranges', () => {
     expect(incomplete.confidence).toBeLessThan(0.9);
   });
 
+  it('pins an identical surface form (e.g. "25" → "25") to full confidence', () => {
+    // The aligner scored the link at 0.9, but the selected and mirrored text are
+    // byte-identical, so the match is exact.
+    const links = [link(0, 2, 0, 2, 0.9)];
+    const noisy = resolveMirroredSelection({ start: 0, end: 2 }, links, 'source', 2);
+    const exact = resolveMirroredSelection({ start: 0, end: 2 }, links, 'source', 2, {
+      origin: '25 people',
+      opposite: '25 osib'
+    });
+    expect(noisy.confidence).toBeLessThan(1);
+    expect(exact.confidence).toBe(1);
+  });
+
+  it('does not fake confidence when the surface forms differ', () => {
+    const links = [link(0, 3, 0, 4, 0.9)];
+    const result = resolveMirroredSelection({ start: 0, end: 3 }, links, 'source', 4, {
+      origin: 'cat',
+      opposite: 'кіт'
+    });
+    expect(result.confidence).toBeLessThan(1);
+  });
+
   it('grades and colors on a green→yellow scale, never red', () => {
     expect(confidenceGrade(0.95)).toBe('exact');
     expect(confidenceGrade(0.7)).toBe('high');

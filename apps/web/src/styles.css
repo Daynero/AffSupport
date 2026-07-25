@@ -6167,6 +6167,27 @@ input.is-invalid {
 .transcript-translation-status.is-error {
   background: var(--color-warning-soft);
 }
+.transcript-translation-progress {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+}
+.transcript-translation-progress-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.transcript-translation-progress-row .progress-track {
+  flex: 1;
+  min-width: 0;
+}
+.transcript-translation-elapsed {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
 .transcript-translation-notice {
   display: flex;
   flex-direction: column;
@@ -6498,11 +6519,21 @@ input.is-invalid {
   border-radius: 2px;
 }
 .ts-active:not(.ts-selected) {
-  background: color-mix(in oklab, var(--color-accent) 16%, transparent);
+  background: color-mix(in oklab, var(--color-accent) 42%, transparent);
+  color: var(--color-text);
   border-radius: 2px;
 }
 .ts-active {
-  box-shadow: inset 0 -0.18em 0 color-mix(in oklab, var(--color-accent) 65%, transparent);
+  box-shadow: inset 0 -0.2em 0 color-mix(in oklab, var(--color-accent) 90%, transparent);
+}
+/* Dark surfaces swallow a translucent accent, so the karaoke word gets a
+   near-solid fill and a full-strength underline to stay clearly readable. */
+:root[data-theme='dark'] .ts-active:not(.ts-selected) {
+  background: color-mix(in oklab, var(--color-accent) 62%, transparent);
+  color: #fff;
+}
+:root[data-theme='dark'] .ts-active {
+  box-shadow: inset 0 -0.2em 0 var(--color-accent);
 }
 .transcript-preview-note {
   align-self: center;

@@ -322,7 +322,10 @@ export function TranscriptTextModal({
   const targetScrollRef = useRef<HTMLDivElement>(null);
   const syncingScroll = useRef(false);
   const manualScrollUntil = useRef(0);
-  const activeSegmentId = useRef('');
+  // While a karaoke auto-scroll animation is in flight, its own scroll events
+  // must not read as a manual scroll (which would pause following) nor bounce
+  // back through the mirror sync. This timestamp marks that suppression window.
+  const programmaticScrollUntil = useRef(0);
   const playerRef = useRef<HTMLDivElement>(null);
   const mediaRef = useRef<HTMLVideoElement>(null);
   const rafRef = useRef<number | null>(null);
@@ -335,6 +338,7 @@ export function TranscriptTextModal({
   );
   const [translation, setTranslation] = useState<TranslationDocument | null>(null);
   const [translating, setTranslating] = useState(false);
+  const [translationElapsedMs, setTranslationElapsedMs] = useState(0);
   const [translationError, setTranslationError] = useState<'failed' | 'unavailable' | null>(null);
   const [translatorTermsAccepted, setTranslatorTermsAccepted] = useState(false);
   const [copied, setCopied] = useState<{
@@ -460,6 +464,16 @@ export function TranscriptTextModal({
     };
   }, [document_, target, job.id, retryNonce]);
 
+  // Tick an elapsed-time counter while a translation runs so the user sees the
+  // process is alive and how long it is taking.
+  useEffect(() => {
+    if (!translating) return;
+    const start = Date.now();
+    setTranslationElapsedMs(0);
+    const id = window.setInterval(() => setTranslationElapsedMs(Date.now() - start), 200);
+    return () => window.clearInterval(id);
+  }, [translating]);
+
   useEffect(() => {
     if (!document_) return;
     const source = document_.sourceLanguage.split('-')[0].toLowerCase();
@@ -538,12 +552,18 @@ export function TranscriptTextModal({
       const parts = current.parts.map(part => {
         const translated = translatedBySegment.get(part.segmentId);
         if (!translated || !part.sourceRanges.length) return part;
+        const sourceText = document_?.segments.find(
+          segment => segment.id === part.segmentId
+        )?.sourceText;
         const mirrors = part.sourceRanges.map(range =>
           resolveMirroredSelection(
             range,
             translated.alignments,
             'source',
-            translated.translatedText.length
+            translated.translatedText.length,
+            sourceText !== undefined
+              ? { origin: sourceText, opposite: translated.translatedText }
+              : undefined
           )
         );
         return {
@@ -623,7 +643,29 @@ export function TranscriptTextModal({
 
   const synchronizeScroll = useCallback((from: HTMLDivElement, to: HTMLDivElement) => {
     if (syncingScroll.current) return;
+    // Ignore the echo of our own karaoke auto-scroll — otherwise it would both
+    // register as a manual scroll and fight the counterpart's own centering.
+    if (Date.now() < programmaticScrollUntil.current) return;
     manualScrollUntil.current = Date.now() + 2500;
+    // Snap to the boundaries so the mirror reaches the very top/bottom instead of
+    // stopping short — the 25%-line anchor below never resolves to the edges.
+    const maxScroll = Math.max(0, to.scrollHeight - to.clientHeight);
+    if (from.scrollTop <= 1) {
+      syncingScroll.current = true;
+      to.scrollTop = 0;
+      requestAnimationFrame(() => {
+        syncingScroll.current = false;
+      });
+      return;
+    }
+    if (from.scrollTop + from.clientHeight >= from.scrollHeight - 1) {
+      syncingScroll.current = true;
+      to.scrollTop = maxScroll;
+      requestAnimationFrame(() => {
+        syncingScroll.current = false;
+      });
+      return;
+    }
     const candidates = Array.from(from.querySelectorAll<HTMLElement>('[data-segment-id]'));
     const anchor =
       candidates.find(
@@ -636,37 +678,50 @@ export function TranscriptTextModal({
       : null;
     if (!counterpart) return;
     syncingScroll.current = true;
-    to.scrollTop = Math.max(0, counterpart.offsetTop - to.clientHeight * 0.25);
+    to.scrollTop = Math.min(maxScroll, Math.max(0, counterpart.offsetTop - to.clientHeight * 0.25));
     requestAnimationFrame(() => {
       syncingScroll.current = false;
     });
   }, []);
 
-  const centerActiveSegment = useCallback(
-    (segmentId: string) => {
+  // Keep the karaoke word roughly centered in both columns. Called on every
+  // word change, so following stays smooth even inside a long segment; the
+  // per-line offsetTop means it glides line-by-line rather than jittering.
+  const centerActiveWord = useCallback(
+    (segmentId: string, wordId: string) => {
       const nativeSelection = window.getSelection();
       if (
-        activeSegmentId.current === segmentId ||
         Date.now() < manualScrollUntil.current ||
         (nativeSelection !== null && !nativeSelection.isCollapsed)
       ) {
         return;
       }
-      activeSegmentId.current = segmentId;
+      let scrolled = false;
       for (const scroller of [sourceScrollRef.current, targetScrollRef.current]) {
-        const element = scroller?.querySelector<HTMLElement>(
-          `[data-segment-id="${CSS.escape(segmentId)}"]`
+        if (!scroller) continue;
+        // Center the exact word on the source side; the target has no matching
+        // word element, so fall back to keeping its mirrored segment centered.
+        const element =
+          (wordId
+            ? scroller.querySelector<HTMLElement>(`[data-word-id="${CSS.escape(wordId)}"]`)
+            : null) ??
+          scroller.querySelector<HTMLElement>(`[data-segment-id="${CSS.escape(segmentId)}"]`);
+        if (!element) continue;
+        const target = Math.max(
+          0,
+          Math.min(
+            scroller.scrollHeight - scroller.clientHeight,
+            element.offsetTop - scroller.clientHeight / 2 + element.offsetHeight / 2
+          )
         );
-        if (!scroller || !element) continue;
-        syncingScroll.current = true;
-        scroller.scrollTo({
-          top: Math.max(0, element.offsetTop - scroller.clientHeight / 2),
-          behavior: reducedMotion ? 'auto' : 'smooth'
-        });
+        // Words on the same visual line share offsetTop, so this is a no-op
+        // until the line changes — no redundant scrolling within a line.
+        if (Math.abs(target - scroller.scrollTop) < 4) continue;
+        scroller.scrollTo({ top: target, behavior: reducedMotion ? 'auto' : 'smooth' });
+        scrolled = true;
       }
-      requestAnimationFrame(() => {
-        syncingScroll.current = false;
-      });
+      // Cover the smooth animation so its scroll events don't read as manual.
+      if (scrolled) programmaticScrollUntil.current = Date.now() + (reducedMotion ? 60 : 650);
     },
     [reducedMotion]
   );
@@ -727,7 +782,10 @@ export function TranscriptTextModal({
         chosen,
         translated.alignments,
         origin,
-        origin === 'source' ? translated.translatedText.length : segment.sourceText.length
+        origin === 'source' ? translated.translatedText.length : segment.sourceText.length,
+        origin === 'source'
+          ? { origin: segment.sourceText, opposite: translated.translatedText }
+          : { origin: translated.translatedText, opposite: segment.sourceText }
       );
       parts.push({
         segmentId,
@@ -857,7 +915,7 @@ export function TranscriptTextModal({
             segmentId: entry.segmentId,
             range: { start: entry.word.sourceStart, end: entry.word.sourceEnd }
           });
-          centerActiveSegment(entry.segmentId);
+          centerActiveWord(entry.segmentId, entry.word.id);
         }
       }
     };
@@ -893,7 +951,7 @@ export function TranscriptTextModal({
       media.removeEventListener('ended', clear);
       clear();
     };
-  }, [previewOpen, hasWordTimings, flatWordList, mediaPreview?.state, centerActiveSegment]);
+  }, [previewOpen, hasWordTimings, flatWordList, mediaPreview?.state, centerActiveWord]);
 
   // Click a source word to seek the player to its start time.
   const onSourceClick = (event: ReactMouseEvent) => {
@@ -1237,12 +1295,24 @@ export function TranscriptTextModal({
                 role={translationError ? 'alert' : 'status'}
               >
                 {translating && (
-                  <span>
-                    {displayedLanguage !== target
-                      ? `${languageDisplayName(displayedLanguage, language)} → `
-                      : ''}
-                    {t('transcriptionTranslating', { language: targetName })}
-                  </span>
+                  <div className="transcript-translation-progress">
+                    <span>
+                      {displayedLanguage !== target
+                        ? `${languageDisplayName(displayedLanguage, language)} → `
+                        : ''}
+                      {t('transcriptionTranslating', { language: targetName })}
+                    </span>
+                    <div className="transcript-translation-progress-row">
+                      <ProgressBar
+                        value={null}
+                        active
+                        label={t('transcriptionTranslating', { language: targetName })}
+                      />
+                      <span className="transcript-translation-elapsed">
+                        {formatMediaTime(translationElapsedMs / 1000)}
+                      </span>
+                    </div>
+                  </div>
                 )}
                 {translationError === 'unavailable' && (
                   <span>

@@ -1,3 +1,11 @@
+# v0.7.1
+
+- Fix the bilingual transcript viewer's mirrored scroll so the translation column reaches the very top and bottom instead of stopping short, and never overshoots past the last segment.
+- Add a live translation progress bar and elapsed-time counter so a running on-device translation shows that it is working and how long it is taking.
+- Make the karaoke word highlight clearly readable — a brighter fill and stronger underline, with a dedicated stronger treatment in dark theme.
+- Follow the karaoke word smoothly, keeping the spoken word centered in the visible area line-by-line instead of only recentering per segment.
+- Report full confidence for a selection whose text is identical on both sides (for example numbers like "25"), instead of the aligner's noisy estimate.
+
 # v0.7.0
 
 - Turn the completed-transcript view into a fully local bilingual split-screen viewer with on-device TranslateGemma translation, race-safe language switching and cache reuse, independent RTL direction, mirrored source↔target selection, measured green→yellow alignment confidence, accessible Copy controls, and reduced-motion support.

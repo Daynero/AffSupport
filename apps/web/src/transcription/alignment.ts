@@ -18,6 +18,27 @@ function rangesOverlap(a: CharRange, b: CharRange): boolean {
   return a.start < b.end && b.start < a.end;
 }
 
+function normalizeSurface(text: string): string {
+  return text.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function rangesToText(text: string, ranges: readonly CharRange[]): string {
+  return mergeRanges(ranges.map(range => ({ ...range })))
+    .map(range => text.slice(range.start, range.end))
+    .join(' ');
+}
+
+/**
+ * Identical surface forms across the two columns — numbers like "25", codes,
+ * URLs or proper nouns that survive translation untouched — are exact matches
+ * no matter what score the aligner assigned. Callers use this to pin such a
+ * selection's confidence to 1 instead of the aligner's noisy estimate.
+ */
+export function isExactSurfaceMatch(selected: string, mirrored: string): boolean {
+  const left = normalizeSurface(selected);
+  return left.length > 0 && left === normalizeSurface(mirrored);
+}
+
 function overlapLength(a: CharRange, b: CharRange): number {
   return Math.max(0, Math.min(a.end, b.end) - Math.max(a.start, b.start));
 }
@@ -164,7 +185,8 @@ export function resolveMirroredSelection(
   selection: CharRange,
   links: AlignmentLink[],
   side: 'source' | 'target',
-  oppositeLength: number
+  oppositeLength: number,
+  texts?: { origin: string; opposite: string }
 ): MirroredSelection {
   const matching = links.filter(link =>
     rangesOverlap(
@@ -198,11 +220,23 @@ export function resolveMirroredSelection(
         : { start: link.targetStart, end: link.targetEnd }
     )
   );
+  let confidence = selectionConfidence(selection, matching, side, ranges, links);
+  // An identical surface form on both sides is an exact match regardless of the
+  // aligner's score — e.g. selecting "25" that maps to "25".
+  if (
+    texts &&
+    isExactSurfaceMatch(
+      texts.origin.slice(selection.start, selection.end),
+      rangesToText(texts.opposite, ranges)
+    )
+  ) {
+    confidence = 1;
+  }
   return {
     ranges,
     matched,
     usedFallback: false,
-    confidence: selectionConfidence(selection, matching, side, ranges, links)
+    confidence
   };
 }
 
