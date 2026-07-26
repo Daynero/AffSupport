@@ -1,3 +1,10 @@
+# v0.7.4
+
+- Automatically translate every completed transcript in the background using the Wishly interface language as the default target.
+- Show compact per-file translation status and real segment progress directly in the transcription queue.
+- Let users change the translation language from a completed file row, cancelling stale work and restarting progress safely.
+- Reuse model-versioned translations from the local cache, join repeated in-flight requests, and avoid duplicate inference across identical queued transcripts.
+
 # v0.7.3
 
 - Add a localized **Copy all** action below the transcription queue that copies every completed non-empty transcript in visible order with numbered headings.

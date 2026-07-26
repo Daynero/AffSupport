@@ -4,7 +4,8 @@ import path from 'node:path';
 import {
   defaultTranscriptionSettings,
   isTranscribableFileName,
-  TRANSLATEGEMMA_LANGUAGE_CODES,
+  isValidTargetLanguage,
+  normalizeTargetLanguage,
   translationCacheKey,
   type SelectionWarning,
   type SourceKind,
@@ -15,8 +16,10 @@ import {
   type TranscriptionMediaPreview,
   type TranscriptionSettings,
   type TranscriptionState,
+  type TranscriptionTranslationSummary,
   type TranslationDocument
 } from '@video-compressor/shared';
+export { isValidTargetLanguage, normalizeTargetLanguage } from '@video-compressor/shared';
 import { probeDuration } from '../ffmpeg/tools.js';
 import { applicationSupportRoot } from '../files/support-dir.js';
 import { transcribe, type TranscribeHandle } from '../whisper/transcriber.js';
@@ -70,25 +73,21 @@ export type TranslationRequestOutcome =
   | { outcome: 'invalid-language' }
   | { outcome: 'unavailable' };
 
-/** Permissive BCP-47-ish check for a translation target language code. */
-export function isValidTargetLanguage(code: unknown): code is string {
-  if (typeof code !== 'string' || !/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/u.test(code.trim())) {
-    return false;
-  }
-  const normalized = code.trim().replaceAll('_', '-');
-  const base = normalized.split('-')[0].toLowerCase();
-  return TRANSLATEGEMMA_LANGUAGE_CODES.some(
-    supported => supported.toLowerCase() === normalized.toLowerCase() || supported === base
-  );
-}
-
-export function normalizeTargetLanguage(code: string): string {
-  const normalized = code.trim().replaceAll('_', '-');
-  try {
-    return Intl.getCanonicalLocales(normalized)[0] ?? normalized;
-  } catch {
-    return normalized;
-  }
+/**
+ * Resolves the per-file automatic target from the preferred UI language.
+ * Translating into the detected source language is avoided by falling back to
+ * the other built-in Wishly language.
+ */
+export function automaticTranslationTarget(
+  sourceLanguage: string,
+  preferredLanguage: string
+): string | null {
+  const source = sourceLanguage.trim().replaceAll('_', '-').split('-')[0]?.toLowerCase();
+  if (!source || source === 'auto' || !isValidTargetLanguage(preferredLanguage)) return null;
+  const preferred = normalizeTargetLanguage(preferredLanguage);
+  if (preferred.split('-')[0]?.toLowerCase() !== source) return preferred;
+  const fallback = source === 'en' ? 'uk' : 'en';
+  return isValidTargetLanguage(fallback) ? normalizeTargetLanguage(fallback) : null;
 }
 
 type Notify = (event?: TranscriptionEventType) => void;
@@ -144,6 +143,8 @@ export class TranscriptionQueue {
    * snapshots from overwriting each other's language/generation updates.
    */
   private documentOperations = new Map<string, Promise<void>>();
+  /** Serializes target choices for one job so rapid UI changes preserve order. */
+  private translationRequestOperations = new Map<string, Promise<void>>();
 
   constructor(
     private tools: TranscriptionTooling,
@@ -163,7 +164,7 @@ export class TranscriptionQueue {
       () => this.notify(),
       // When the translator model finishes installing, resume any queued
       // translation automatically — the user just waits for the animation.
-      () => void this.pumpTranslations(),
+      () => this.translationToolingChanged(),
       finalizeTranslationModelArtifact
     );
     this.translatorRuntimeDownloader = new ModelDownloader(
@@ -171,7 +172,7 @@ export class TranscriptionQueue {
       translationRuntimeArchiveDownloadPath,
       translationRuntimePresent,
       () => this.notify(),
-      () => void this.pumpTranslations(),
+      () => this.translationToolingChanged(),
       installTranslationRuntimeArchive
     );
     this.alignmentDownloader = new ModelDownloader(
@@ -179,7 +180,7 @@ export class TranscriptionQueue {
       alignmentModelDownloadPath,
       alignmentModelPresent,
       () => this.notify(),
-      () => void this.pumpTranslations()
+      () => this.translationToolingChanged()
     );
     this.documents = new TranscriptionDocumentStore(
       process.env.AGENT_TRANSCRIBE_DOCUMENTS_PATH ??
@@ -262,6 +263,7 @@ export class TranscriptionQueue {
   /** Injects the local translation engine (see createTranslator). */
   setTranslator(translator: Translator | null): void {
     this.translator = translator;
+    this.translationToolingChanged();
   }
 
   setAligner(aligner: Aligner | null): void {
@@ -274,6 +276,82 @@ export class TranscriptionQueue {
 
   private translationModelVersion(): string | undefined {
     return this.translator?.modelVersion();
+  }
+
+  private translationToolingChanged(): void {
+    for (const job of this.jobs) {
+      const summary = job.translation;
+      if (job.status === 'completed' && summary?.status === 'unavailable') {
+        void this.requestTranslation(job.id, summary.targetLanguage);
+      }
+    }
+    void this.pumpTranslations();
+  }
+
+  private setTranslationSummary(
+    jobId: string,
+    translation: TranslationDocument
+  ): TranscriptionTranslationSummary | null {
+    const job = this.jobs.find(candidate => candidate.id === jobId);
+    if (!job) return null;
+    const total = Math.max(0, translation.totalSegments ?? translation.segments.length);
+    const completed =
+      translation.status === 'completed'
+        ? total
+        : Math.min(total, Math.max(0, translation.completedSegments ?? 0));
+    const progress =
+      translation.status === 'completed'
+        ? 100
+        : translation.status === 'processing' && total > 0
+          ? Math.min(99, Math.round((completed / total) * 100))
+          : null;
+    const summary: TranscriptionTranslationSummary = {
+      targetLanguage: translation.targetLanguage,
+      status: translation.status,
+      progress,
+      completedSegments: completed,
+      totalSegments: total,
+      error: translation.status === 'failed' ? 'TRANSLATION_FAILED' : null
+    };
+    job.translation = summary;
+    return summary;
+  }
+
+  private setTranslationUnavailable(jobId: string, targetLanguage: string): void {
+    const job = this.jobs.find(candidate => candidate.id === jobId);
+    if (!job) return;
+    job.translation = {
+      targetLanguage,
+      status: 'unavailable',
+      progress: null,
+      completedSegments: 0,
+      totalSegments: 0,
+      error: 'TRANSLATOR_UNAVAILABLE'
+    };
+  }
+
+  /**
+   * Cache entries can be shared by separate jobs whose transcript text is
+   * identical. Rebind their segment ids to the receiving document so the
+   * translated column and semantic selection still line up.
+   */
+  private bindCachedTranslation(
+    cached: TranslationDocument,
+    document: TranscriptionDocument,
+    requestId?: string
+  ): TranslationDocument | null {
+    if (cached.segments.length !== document.segments.length) return null;
+    return {
+      ...cached,
+      requestId,
+      totalSegments: document.segments.length,
+      completedSegments: document.segments.length,
+      segments: cached.segments.map((segment, index) => ({
+        ...segment,
+        sourceSegmentId: document.segments[index].id,
+        alignments: segment.alignments.map(link => ({ ...link }))
+      }))
+    };
   }
 
   private alignmentIsCurrent(translation: TranslationDocument): boolean {
@@ -313,6 +391,26 @@ export class TranscriptionQueue {
     });
   }
 
+  private async withTranslationRequestLock<T>(
+    jobId: string,
+    operation: () => Promise<T>
+  ): Promise<T> {
+    const previous = this.translationRequestOperations.get(jobId) ?? Promise.resolve();
+    const current = previous.catch(() => undefined).then(operation);
+    const tail = current.then(
+      () => undefined,
+      () => undefined
+    );
+    this.translationRequestOperations.set(jobId, tail);
+    try {
+      return await current;
+    } finally {
+      if (this.translationRequestOperations.get(jobId) === tail) {
+        this.translationRequestOperations.delete(jobId);
+      }
+    }
+  }
+
   /**
    * Flushes an in-flight translation's segment counter to the sidecar so the
    * polling client can show a real progress bar + ETA. Throttled to at most one
@@ -328,26 +426,39 @@ export class TranscriptionQueue {
     const now = Date.now();
     if (completed < total && now - this.lastProgressWrite < 300) return;
     this.lastProgressWrite = now;
-    const changed = await this.mutateDocument(task.jobId, fresh => {
-      if ((this.translationGenerations.get(key) ?? 0) !== task.generation) return false;
+    const updated = await this.mutateDocument(task.jobId, fresh => {
+      if ((this.translationGenerations.get(key) ?? 0) !== task.generation) return null;
       const doc = fresh.translations[task.language];
-      if (!doc || doc.status !== 'processing') return false;
+      if (!doc || doc.status !== 'processing') return null;
       doc.completedSegments = completed;
       doc.totalSegments = total;
-      return true;
+      return doc;
     });
-    if (changed) this.notify('transcription:progress');
+    if (updated) {
+      this.setTranslationSummary(task.jobId, updated);
+      this.notify('transcription:progress');
+    }
   }
 
   /**
    * Requests a translation into `language`. A cached completed translation from
    * the current model resolves instantly. Otherwise the request is queued with
-   * a fresh generation number; a newer request for the same job+language
-   * supersedes an older one (aborting it if already running) so a stale result
-   * can never overwrite a newer one. Requires an available translator; without
-   * one it reports `unavailable` and the transcript is untouched.
+   * a fresh generation number. Repeating the current in-flight target joins
+   * that work instead of restarting it; choosing another target supersedes the
+   * old task. Requires an available translator; without one it reports
+   * `unavailable` while retaining the requested target in lightweight state.
    */
   async requestTranslation(
+    id: string,
+    language: string,
+    requestId?: string
+  ): Promise<TranslationRequestOutcome> {
+    return this.withTranslationRequestLock(id, () =>
+      this.requestTranslationUnlocked(id, language, requestId)
+    );
+  }
+
+  private async requestTranslationUnlocked(
     id: string,
     language: string,
     requestId?: string
@@ -356,13 +467,6 @@ export class TranscriptionQueue {
     if (!document) return { outcome: 'no-document' };
     if (!isValidTargetLanguage(language)) return { outcome: 'invalid-language' };
     const lang = normalizeTargetLanguage(language);
-
-    // Every explicit target choice supersedes older work for this document,
-    // including when the new target can be served from cache. Otherwise a
-    // queued request for a language the user already left could still consume
-    // the shared inference queue after an instant cache switch.
-    this.cancelTranslationsForJob(id);
-
     const modelVersion = this.translationModelVersion();
     const translatorAvailable = this.translator?.available() === true;
     const cacheKey =
@@ -375,6 +479,32 @@ export class TranscriptionQueue {
             translatorModelVersion: modelVersion
           });
     const cached = document.translations[lang];
+    const key = this.translationKey(id, lang);
+    const currentGeneration = this.translationGenerations.get(key);
+    const taskIsCurrent =
+      currentGeneration !== undefined &&
+      ((this.activeTranslation?.key === key &&
+        this.activeTranslation.generation === currentGeneration) ||
+        this.translationTasks.some(
+          task =>
+            task.jobId === id && task.language === lang && task.generation === currentGeneration
+        ));
+
+    if (
+      cached &&
+      (cached.status === 'queued' || cached.status === 'processing') &&
+      cached.modelVersion === modelVersion &&
+      cached.cacheKey === cacheKey &&
+      taskIsCurrent
+    ) {
+      this.setTranslationSummary(id, cached);
+      return { outcome: 'queued', translation: cached };
+    }
+
+    // A new target (including one served from cache) supersedes all older work
+    // for this document so an obsolete task cannot consume the shared queue.
+    this.cancelTranslationsForJob(id);
+
     if (
       cached &&
       cached.status === 'completed' &&
@@ -383,6 +513,8 @@ export class TranscriptionQueue {
       cached.cacheKey === cacheKey &&
       (this.alignmentIsCurrent(cached) || !translatorAvailable)
     ) {
+      this.setTranslationSummary(id, cached);
+      this.notify();
       return { outcome: 'completed', translation: cached };
     }
 
@@ -390,19 +522,30 @@ export class TranscriptionQueue {
     if (cacheKey) {
       const sharedCached = await this.translationCache.load(cacheKey);
       if (sharedCached && (this.alignmentIsCurrent(sharedCached) || !translatorAvailable)) {
-        const saved = await this.mutateDocument(id, fresh => {
-          fresh.translations[lang] = sharedCached;
-          return true;
-        });
-        if (!saved) return { outcome: 'no-document' };
-        return { outcome: 'completed', translation: sharedCached };
+        const rebound = this.bindCachedTranslation(sharedCached, document, requestId);
+        if (!rebound) {
+          previousTranslation = cached;
+        } else {
+          const saved = await this.mutateDocument(id, fresh => {
+            fresh.translations[lang] = rebound;
+            return true;
+          });
+          if (!saved) return { outcome: 'no-document' };
+          this.setTranslationSummary(id, rebound);
+          this.notify();
+          return { outcome: 'completed', translation: rebound };
+        }
+      } else {
+        previousTranslation = cached;
       }
-      previousTranslation = sharedCached ?? previousTranslation;
     }
 
-    if (!translatorAvailable || !this.translator) return { outcome: 'unavailable' };
+    if (!translatorAvailable || !this.translator) {
+      this.setTranslationUnavailable(id, lang);
+      this.notify();
+      return { outcome: 'unavailable' };
+    }
 
-    const key = this.translationKey(id, lang);
     const generation = (this.translationGenerations.get(key) ?? 0) + 1;
     this.translationGenerations.set(key, generation);
 
@@ -431,6 +574,7 @@ export class TranscriptionQueue {
     }
 
     this.translationTasks.push({ jobId: id, language: lang, generation, requestId });
+    this.setTranslationSummary(id, pending);
     this.notify();
     void this.pumpTranslations();
     return { outcome: 'queued', translation: pending };
@@ -470,11 +614,31 @@ export class TranscriptionQueue {
         processing.status = 'processing';
         processing.totalSegments = document.segments.length;
         processing.completedSegments = 0;
-        return { document, cacheKey: processing.cacheKey };
+        return { document, cacheKey: processing.cacheKey, processing };
       });
       if (!preparation) return;
-      const { document, cacheKey } = preparation;
+      const { document, cacheKey, processing } = preparation;
+      this.setTranslationSummary(task.jobId, processing);
       this.notify('transcription:progress');
+
+      // Another identical document may have finished while this task waited in
+      // the single local inference queue. Re-check the shared cache at execution
+      // time so the same source/language/model tuple is never inferred twice.
+      if (cacheKey) {
+        const sharedCached = await this.translationCache.load(cacheKey);
+        if (sharedCached && this.alignmentIsCurrent(sharedCached)) {
+          const rebound = this.bindCachedTranslation(sharedCached, document, task.requestId);
+          if (rebound) {
+            const reused = await this.mutateDocument(task.jobId, fresh => {
+              if ((this.translationGenerations.get(key) ?? 0) !== task.generation) return false;
+              fresh.translations[task.language] = rebound;
+              return true;
+            });
+            if (reused) this.setTranslationSummary(task.jobId, rebound);
+            return;
+          }
+        }
+      }
 
       const total = document.segments.length;
       const sourceById = new Map(document.segments.map(segment => [segment.id, segment]));
@@ -562,14 +726,17 @@ export class TranscriptionQueue {
         completedForCache = completed;
         return true;
       });
-      if (completedForCache) await this.translationCache.save(completedForCache).catch(() => {});
+      if (completedForCache) {
+        this.setTranslationSummary(task.jobId, completedForCache);
+        await this.translationCache.save(completedForCache).catch(() => {});
+      }
     } catch (error) {
       const aborted = controller.signal.aborted;
       if (!aborted) {
-        await this.mutateDocument(task.jobId, fresh => {
-          if ((this.translationGenerations.get(key) ?? 0) !== task.generation) return false;
+        const failed = await this.mutateDocument(task.jobId, fresh => {
+          if ((this.translationGenerations.get(key) ?? 0) !== task.generation) return null;
           const previous = fresh.translations[task.language];
-          fresh.translations[task.language] = {
+          const failure: TranslationDocument = {
             requestId: task.requestId,
             targetLanguage: task.language,
             modelVersion: translator.modelVersion(),
@@ -580,8 +747,10 @@ export class TranscriptionQueue {
             segments: previous?.segments ?? [],
             error: error instanceof Error ? error.message : 'TRANSLATION_FAILED'
           };
-          return true;
+          fresh.translations[task.language] = failure;
+          return failure;
         });
+        if (failed) this.setTranslationSummary(task.jobId, failed);
       }
     } finally {
       this.translating = false;
@@ -608,7 +777,7 @@ export class TranscriptionQueue {
         text: null,
         errorDetails: null
       })),
-      running: this.inFlight,
+      running: this.inFlight || this.translating || this.translationTasks.length > 0,
       tools: { ...this.tools, model: modelPresent() },
       model: this.downloader.status(),
       translatorModel,
@@ -670,7 +839,40 @@ export class TranscriptionQueue {
     if (typeof patch.language === 'string' && patch.language) {
       this.settings.language = patch.language;
     }
+    let translationLanguageChanged = false;
+    if (
+      typeof patch.translationLanguage === 'string' &&
+      isValidTargetLanguage(patch.translationLanguage)
+    ) {
+      const next = normalizeTargetLanguage(patch.translationLanguage);
+      translationLanguageChanged = next !== this.settings.translationLanguage;
+      this.settings.translationLanguage = next;
+    }
     this.notify();
+    if (translationLanguageChanged) this.resumeAutomaticTranslations();
+  }
+
+  private resumeAutomaticTranslations(): void {
+    for (const job of this.jobs) {
+      if (
+        job.status === 'completed' &&
+        (job.characters ?? 0) > 0 &&
+        (!job.translation || job.translation.status === 'unavailable')
+      ) {
+        void this.requestAutomaticTranslation(job.id);
+      }
+    }
+  }
+
+  private async requestAutomaticTranslation(jobId: string): Promise<void> {
+    const document = await this.document(jobId);
+    if (!document?.segments.length) return;
+    const target = automaticTranslationTarget(
+      document.sourceLanguage,
+      this.settings.translationLanguage
+    );
+    if (!target) return;
+    await this.requestTranslation(jobId, target);
   }
 
   async add(paths: string[]): Promise<SelectionWarning[]> {
@@ -732,6 +934,7 @@ export class TranscriptionQueue {
       detectedLanguage: null,
       text: null,
       characters: null,
+      translation: null,
       error: null,
       errorDetails: null,
       batchId: null,
@@ -764,6 +967,7 @@ export class TranscriptionQueue {
       job.errorDetails = null;
       job.text = null;
       job.characters = null;
+      job.translation = null;
       job.detectedLanguage = null;
       job.finishedAt = null;
       job.requestedLanguage = this.settings.language;
@@ -889,6 +1093,10 @@ export class TranscriptionQueue {
         await this.withDocumentLock(job.id, () =>
           this.documents.save(buildTranscriptionDocument(job, MODEL_DESCRIPTOR.label, result.words))
         ).catch(() => {});
+        // Queue the preferred local translation as soon as the private
+        // transcript sidecar exists. Inference starts after the shared Whisper
+        // lock is released below and is served instantly when already cached.
+        await this.requestAutomaticTranslation(job.id).catch(() => {});
       } else {
         job.status = 'failed';
         job.progress = null;
@@ -909,9 +1117,10 @@ export class TranscriptionQueue {
     } finally {
       this.inFlight = false;
       this.notify();
-      queueMicrotask(() => void this.pump());
-      // A translation may have been queued while whisper held the lock.
+      // Give the just-completed file's translation first access to the shared
+      // local model resource; remaining transcriptions continue afterwards.
       queueMicrotask(() => void this.pumpTranslations());
+      queueMicrotask(() => void this.pump());
     }
   }
 

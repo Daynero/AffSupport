@@ -5,7 +5,11 @@ import { pipeline } from 'node:stream/promises';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
-import { isTranscribableFileName, type TranscriptionSettings } from '@video-compressor/shared';
+import {
+  isTranscribableFileName,
+  isValidTargetLanguage,
+  type TranscriptionSettings
+} from '@video-compressor/shared';
 import { eventStreamHeaders } from '../http.js';
 import { findDroppedSource } from '../files/dropped-source.js';
 import { selectTranscribeMedia } from '../files/picker.js';
@@ -47,6 +51,12 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
       }
       if (body.language !== undefined && typeof body.language !== 'string') {
         return reply.code(400).send({ error: 'Invalid language.' });
+      }
+      if (
+        body.translationLanguage !== undefined &&
+        !isValidTargetLanguage(body.translationLanguage)
+      ) {
+        return reply.code(400).send({ error: 'Invalid translation language.' });
       }
       queue.updateSettings(body);
       return queue.state();

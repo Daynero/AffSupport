@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.7.3",
-  "buildNumber": "23",
-  "buildId": "0.7.3+23",
+  "version": "0.7.4",
+  "buildNumber": "24",
+  "buildId": "0.7.4+24",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-07-25T22:17:44.000Z",
+  "publishedAt": "2026-07-26T12:00:13.000Z",
   "summary": {
-    "en": "Copy all completed transcripts with localized headings, reveal the original media in Finder without creating neighboring TXT files, and avoid duplicated words at transcription boundaries.",
-    "uk": "Копіюйте всі готові транскрибовані тексти з локалізованими заголовками, відкривайте оригінальне медіа у Finder без сусідніх TXT-файлів і уникайте дублів слів на межах транскрибування."
+    "en": "Automatically translate completed transcripts in the background, show compact per-file progress, switch the target language from the queue, and reuse cached translations without duplicate work.",
+    "uk": "Автоматично перекладайте готові транскрипти у фоні, стежте за компактним прогресом для кожного файлу, змінюйте мову в черзі та повторно використовуйте кеш без дублювання роботи."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.7.3/Wishly-Agent-v0.7.3-macOS-arm64.dmg",
-      "sha256": "377b292a5b570d772cd46201b33add160649bbb2305d9351f2c2a18703db798e"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.7.4/Wishly-Agent-v0.7.4-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -25,7 +25,7 @@
       "landingOptimizer": 2
     },
     "transcription": {
-      "transcription": 3
+      "transcription": 4
     }
   }
 }

@@ -125,7 +125,7 @@ const state: TranscriptionState = {
   translatorModel: installedModel,
   translatorRuntime: installedModel,
   alignmentModel: installedModel,
-  settings: { language: 'uk' }
+  settings: { language: 'uk', translationLanguage: 'uk' }
 };
 
 class EventSourceStub {
@@ -142,6 +142,16 @@ beforeEach(() => {
     .mockImplementation((id: string) =>
       Promise.resolve(transcript(id, id === 'newer' ? 'Новіший текст.' : 'Старіший текст.'))
     );
+  api.transcriptionSettings.mockReset().mockResolvedValue(state);
+  api.transcriptionTranslate.mockReset().mockResolvedValue({
+    targetLanguage: 'en',
+    modelVersion: 'test',
+    status: 'queued',
+    totalSegments: 1,
+    completedSegments: 0,
+    segments: [],
+    error: null
+  });
   Object.defineProperty(navigator, 'clipboard', {
     configurable: true,
     value: { writeText: vi.fn().mockResolvedValue(undefined) }
@@ -173,5 +183,40 @@ describe('transcription page batch copy', () => {
     expect(api.transcriptionDocument).toHaveBeenCalledTimes(2);
     expect(api.transcriptionDocument).not.toHaveBeenCalledWith('waiting');
     expect(api.transcriptionDocument).not.toHaveBeenCalledWith('silent');
+  });
+
+  it('shows subtle translation progress and restarts it when the row language changes', async () => {
+    const translatingJob: TranscriptionJob = {
+      ...job('translated', 5, 'completed'),
+      requestedLanguage: 'auto',
+      detectedLanguage: 'en',
+      translation: {
+        targetLanguage: 'uk',
+        status: 'processing',
+        progress: 25,
+        completedSegments: 1,
+        totalSegments: 4,
+        error: null
+      }
+    };
+    api.request.mockResolvedValue({ ...state, jobs: [translatingJob] });
+
+    render(<TranscriptionPage />);
+
+    expect(await screen.findByText('Перекладаємо')).toBeTruthy();
+    const select = screen.getByRole('combobox', { name: 'Перекласти на' }) as HTMLSelectElement;
+    expect(select.value).toBe('uk');
+    expect(
+      screen
+        .getByRole('progressbar', { name: 'Переклад файлу translated.mp4' })
+        .getAttribute('aria-valuenow')
+    ).toBe('25');
+
+    fireEvent.change(select, { target: { value: 'de' } });
+
+    expect(select.value).toBe('de');
+    await waitFor(() =>
+      expect(api.transcriptionTranslate).toHaveBeenCalledWith('translated', 'de')
+    );
   });
 });

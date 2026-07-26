@@ -1,6 +1,9 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { TranscriptionJob, TranscriptionState } from '@video-compressor/shared';
-import { TRANSCRIPTION_LANGUAGE_CODES } from '@video-compressor/shared';
+import {
+  TRANSCRIPTION_LANGUAGE_CODES,
+  TRANSLATEGEMMA_LANGUAGE_CODES
+} from '@video-compressor/shared';
 import { createPortal } from 'react-dom';
 import {
   request,
@@ -19,6 +22,7 @@ import {
   transcriptionSelect,
   transcriptionSettings,
   transcriptionStart,
+  transcriptionTranslate,
   transcriptionUpload,
   type TranscriptionSelectionResponse
 } from '../api/client';
@@ -102,6 +106,7 @@ export default function TranscriptionPage() {
   // automatically once the download completes.
   const pendingStart = useRef<string[] | null>(null);
   const connected = connection === 'connected';
+  const stateReady = state !== null;
   const canUseLocalPaths = capabilities.includes('local-file-paths');
 
   useEffect(() => {
@@ -150,7 +155,7 @@ export default function TranscriptionPage() {
 
   const jobs = state?.jobs ?? [];
   const visibleJobs = useMemo(() => [...jobs].sort((a, b) => b.createdAt - a.createdAt), [jobs]);
-  const settings = state?.settings ?? { language: 'auto' };
+  const settings = state?.settings ?? { language: 'auto', translationLanguage: language };
   const tools = state?.tools ?? { ffmpeg: false, whisper: false, model: false };
   const emptyModelInfo: TranscriptionModelInfo = {
     present: false,
@@ -194,6 +199,22 @@ export default function TranscriptionPage() {
     }
   };
 
+  // The interface language is the default translation target. Keep that small
+  // preference in the local agent so translation starts even before the viewer
+  // is opened and continues if this page is closed.
+  useEffect(() => {
+    if (!connected || !stateReady || settings.translationLanguage === language) return;
+    let active = true;
+    transcriptionSettings({ translationLanguage: language })
+      .then(next => {
+        if (active) setState(next);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [connected, language, settings.translationLanguage, stateReady]);
+
   const chooseFiles = async () => {
     if (importing || !connected) return;
     setImporting(true);
@@ -235,6 +256,9 @@ export default function TranscriptionPage() {
   const startNow = async (ids: string[]) => {
     if (!ids.length) return;
     try {
+      if (settings.translationLanguage !== language) {
+        setState(await transcriptionSettings({ translationLanguage: language }));
+      }
       setState(await transcriptionStart(ids));
     } catch (error) {
       handleError(error);
@@ -316,6 +340,15 @@ export default function TranscriptionPage() {
     } catch {
       addToast(t('transcriptionFailedTitle'), 'error');
       return false;
+    }
+  };
+
+  const translateJob = async (jobId: string, targetLanguage: string) => {
+    try {
+      await transcriptionTranslate(jobId, targetLanguage);
+    } catch (error) {
+      handleError(error);
+      throw error;
     }
   };
 
@@ -494,6 +527,7 @@ export default function TranscriptionPage() {
                 onReveal={() => void run(() => transcriptionReveal(job.id))}
                 onView={trigger => setPreview({ jobId: job.id, trigger })}
                 onCopy={copyTranscript}
+                onTranslate={target => translateJob(job.id, target)}
                 t={t}
               />
             ))
@@ -742,6 +776,7 @@ function TranscriptionRow({
   onReveal,
   onView,
   onCopy,
+  onTranslate,
   t
 }: {
   job: TranscriptionJob;
@@ -754,17 +789,60 @@ function TranscriptionRow({
   onReveal: () => void;
   onView: (trigger: HTMLElement | null) => void;
   onCopy: (jobId: string) => Promise<boolean>;
+  onTranslate: (targetLanguage: string) => Promise<void>;
   t: Translate;
 }) {
   const [copied, setCopied] = useState(false);
+  const [requestedTranslationLanguage, setRequestedTranslationLanguage] = useState<string | null>(
+    null
+  );
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const translationRequest = useRef(0);
   useEffect(() => () => void (copyTimer.current && clearTimeout(copyTimer.current)), []);
+
+  useEffect(() => {
+    if (
+      requestedTranslationLanguage &&
+      job.translation?.targetLanguage === requestedTranslationLanguage
+    ) {
+      setRequestedTranslationLanguage(null);
+    }
+  }, [
+    job.translation?.progress,
+    job.translation?.status,
+    job.translation?.targetLanguage,
+    requestedTranslationLanguage
+  ]);
 
   const detected = job.detectedLanguage
     ? languageDisplayName(job.detectedLanguage, language)
     : null;
   const active = job.status === 'processing' || job.status === 'queued';
   const done = job.status === 'completed';
+  const translation = requestedTranslationLanguage
+    ? {
+        targetLanguage: requestedTranslationLanguage,
+        status: 'queued' as const,
+        progress: null,
+        completedSegments: 0,
+        totalSegments: job.translation?.totalSegments ?? 0,
+        error: null
+      }
+    : (job.translation ?? null);
+  const sourceLanguage = (job.detectedLanguage ?? job.requestedLanguage)
+    .replaceAll('_', '-')
+    .split('-')[0]
+    .toLowerCase();
+  const translationLanguages = useMemo(
+    () =>
+      TRANSLATEGEMMA_LANGUAGE_CODES.filter(
+        code =>
+          code === translation?.targetLanguage ||
+          code.split('-')[0].toLowerCase() !== sourceLanguage
+      ).map(code => ({ code, name: languageDisplayName(code, language) })),
+    [language, sourceLanguage, translation?.targetLanguage]
+  );
+  const translating = translation?.status === 'queued' || translation?.status === 'processing';
 
   const copy = async () => {
     if (await onCopy(job.id)) {
@@ -773,6 +851,25 @@ function TranscriptionRow({
       copyTimer.current = setTimeout(() => setCopied(false), 1800);
     }
   };
+
+  const changeTranslationLanguage = (targetLanguage: string) => {
+    const requestNumber = ++translationRequest.current;
+    setRequestedTranslationLanguage(targetLanguage);
+    void onTranslate(targetLanguage).catch(() => {
+      if (translationRequest.current === requestNumber) {
+        setRequestedTranslationLanguage(null);
+      }
+    });
+  };
+
+  const translationStatusLabel =
+    translation?.status === 'completed'
+      ? t('transcriptionRowTranslated')
+      : translation?.status === 'failed'
+        ? t('transcriptionRowTranslationFailed')
+        : translation?.status === 'unavailable'
+          ? t('transcriptionRowTranslationUnavailable')
+          : t('transcriptionRowTranslating');
 
   return (
     <article className={`job-row ${job.status === 'processing' ? 'is-processing' : ''}`.trim()}>
@@ -839,6 +936,42 @@ function TranscriptionRow({
           {detected && <span>{t('transcriptionDetected', { language: detected })}</span>}
           {job.characters !== null && (
             <span>{t('transcriptionCharacters', { count: job.characters })}</span>
+          )}
+        </div>
+      )}
+
+      {done && translation && (
+        <div
+          className={`transcription-row-translation is-${translation.status}`}
+          aria-live="polite"
+        >
+          <div className="transcription-row-translation-line">
+            <span>{translationStatusLabel}</span>
+            <span aria-hidden="true">→</span>
+            <select
+              aria-label={t('transcriptionTranslateTo')}
+              value={translation.targetLanguage}
+              disabled={!connected}
+              onChange={event => changeTranslationLanguage(event.target.value)}
+            >
+              {translationLanguages.map(option => (
+                <option key={option.code} value={option.code}>
+                  {option.name}
+                </option>
+              ))}
+            </select>
+            {translation.status === 'processing' && translation.progress !== null && (
+              <span className="transcription-row-translation-percent">
+                {Math.round(translation.progress)}%
+              </span>
+            )}
+          </div>
+          {translating && (
+            <ProgressBar
+              value={translation.status === 'queued' ? null : translation.progress}
+              active
+              label={t('transcriptionRowTranslationProgress', { file: job.fileName })}
+            />
           )}
         </div>
       )}

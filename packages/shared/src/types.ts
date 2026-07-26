@@ -748,9 +748,48 @@ export const TRANSLATEGEMMA_LANGUAGE_CODES = [
   'zu'
 ] as const;
 
+/** Permissive BCP-47-ish validation against TranslateGemma's target languages. */
+export function isValidTargetLanguage(code: unknown): code is string {
+  if (typeof code !== 'string' || !/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/u.test(code.trim())) {
+    return false;
+  }
+  const normalized = code.trim().replaceAll('_', '-');
+  const base = normalized.split('-')[0].toLowerCase();
+  return TRANSLATEGEMMA_LANGUAGE_CODES.some(
+    supported => supported.toLowerCase() === normalized.toLowerCase() || supported === base
+  );
+}
+
+export function normalizeTargetLanguage(code: string): string {
+  const normalized = code.trim().replaceAll('_', '-');
+  try {
+    return Intl.getCanonicalLocales(normalized)[0] ?? normalized;
+  } catch {
+    return normalized;
+  }
+}
+
 export interface TranscriptionSettings {
   /** `auto` detects the spoken language; otherwise an ISO 639-1 code. */
   language: string;
+  /** Preferred automatic translation target (normally the Wishly UI language). */
+  translationLanguage: string;
+}
+
+/**
+ * Lightweight translation state carried in the live queue. The translated
+ * text stays in the private sidecar and is fetched only on demand.
+ */
+export interface TranscriptionTranslationSummary {
+  /** Currently selected target language for this job. */
+  targetLanguage: string;
+  status: TranslationStatus | 'unavailable';
+  /** 0–100 for determinate work, null while a queued task has not started. */
+  progress: number | null;
+  completedSegments: number;
+  totalSegments: number;
+  /** Stable UI-safe error code; never raw transcript or runtime diagnostics. */
+  error: 'TRANSLATION_FAILED' | 'TRANSLATOR_UNAVAILABLE' | null;
 }
 
 export interface TranscriptionJob {
@@ -771,6 +810,11 @@ export interface TranscriptionJob {
   text: string | null;
   /** Transcript length in characters, for quick UI hints. */
   characters: number | null;
+  /**
+   * Small status for the selected/automatic translation. Optional keeps the
+   * web client compatible with queue snapshots produced before this field.
+   */
+  translation?: TranscriptionTranslationSummary | null;
   error: string | null;
   errorDetails: string | null;
   batchId: string | null;
@@ -835,7 +879,7 @@ export interface TranscriptionEvent {
 }
 
 export function defaultTranscriptionSettings(): TranscriptionSettings {
-  return { language: 'auto' };
+  return { language: 'auto', translationLanguage: 'uk' };
 }
 
 /* -------------------------------------------------------------------------- */

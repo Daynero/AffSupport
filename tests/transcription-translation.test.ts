@@ -16,6 +16,7 @@ import type {
 import { translationPrompt } from '../apps/agent/src/translation/translator.js';
 import { TranscriptionDocumentStore } from '../apps/agent/src/transcription/document-store.js';
 import {
+  automaticTranslationTarget,
   combinedModelStatus,
   TranscriptionQueue
 } from '../apps/agent/src/queue/transcription-queue.js';
@@ -149,6 +150,15 @@ describe('TranslateGemma prompt rendering', () => {
   });
 });
 
+describe('automatic translation target', () => {
+  it('uses the preferred UI language and avoids translating into the source language', () => {
+    expect(automaticTranslationTarget('en', 'uk')).toBe('uk');
+    expect(automaticTranslationTarget('en', 'en')).toBe('uk');
+    expect(automaticTranslationTarget('uk-UA', 'uk')).toBe('en');
+    expect(automaticTranslationTarget('auto', 'uk')).toBeNull();
+  });
+});
+
 /** A translator whose every call is a manually-resolved promise, for races. */
 class GatedTranslator implements Translator {
   availableFlag = true;
@@ -221,6 +231,11 @@ describe('translation coordination', () => {
     expect(await queue.requestTranslation(jobId, '../x')).toEqual({ outcome: 'invalid-language' });
     expect(await queue.requestTranslation(jobId, 'xx')).toEqual({ outcome: 'invalid-language' });
     expect(await queue.requestTranslation(jobId, 'uk')).toEqual({ outcome: 'unavailable' });
+    expect(queue.state().jobs[0].translation).toMatchObject({
+      targetLanguage: 'uk',
+      status: 'unavailable',
+      progress: null
+    });
   });
 
   it('never resolves media or preview controls for an unknown opaque job id', async () => {
@@ -254,6 +269,11 @@ describe('translation coordination', () => {
 
     const first = await queue.requestTranslation(jobId, 'uk');
     expect(first.outcome).toBe('queued');
+    expect(queue.state().jobs[0].translation).toMatchObject({
+      targetLanguage: 'uk',
+      status: 'queued',
+      progress: null
+    });
     await waitFor(() => translator.calls.length === 1);
     translator.complete(0, 'Привіт світ.');
     await waitFor(
@@ -277,20 +297,58 @@ describe('translation coordination', () => {
     await waitFor(() => translator.calls.length === 2);
   });
 
-  it('supersedes an in-flight request and never lets a stale result win', async () => {
+  it('coalesces identical queued documents through the shared cache and rebinds segment ids', async () => {
+    const secondMediaPath = path.join(dir, 'sample-2.mp3');
+    await writeFile(secondMediaPath, 'x');
+    await queue.add([secondMediaPath]);
+    const secondJobId = queue.state().jobs.find(job => job.id !== jobId)?.id;
+    expect(secondJobId).toBeTruthy();
+    await new TranscriptionDocumentStore(path.join(dir, 'docs')).save({
+      jobId: secondJobId!,
+      sourceLanguage: 'en',
+      modelVersion: 'large-v3',
+      segments: [
+        {
+          id: `${secondJobId}-s0`,
+          startMs: 0,
+          endMs: 0,
+          sourceText: 'Hello world.',
+          words: []
+        }
+      ],
+      translations: {}
+    });
+
+    const translator = new GatedTranslator();
+    queue.setTranslator(translator);
+    await queue.requestTranslation(jobId, 'uk');
+    await waitFor(() => translator.calls.length === 1);
+    await queue.requestTranslation(secondJobId!, 'uk');
+
+    translator.complete(0, 'Привіт світ.');
+    await waitFor(
+      async () => (await queue.document(secondJobId!))?.translations.uk?.status === 'completed'
+    );
+
+    expect(translator.calls).toHaveLength(1);
+    expect((await queue.document(secondJobId!))?.translations.uk.segments[0].sourceSegmentId).toBe(
+      `${secondJobId}-s0`
+    );
+  });
+
+  it('joins a repeated in-flight target instead of translating it twice', async () => {
     const translator = new GatedTranslator();
     queue.setTranslator(translator);
 
-    await queue.requestTranslation(jobId, 'uk'); // generation 1
+    await queue.requestTranslation(jobId, 'uk');
     await waitFor(() => translator.calls.length === 1);
 
-    await queue.requestTranslation(jobId, 'uk'); // generation 2 supersedes
-    await waitFor(() => translator.calls[0].signal.aborted); // gen 1 aborted
-    await waitFor(() => translator.calls.length === 2); // gen 2 started after gen 1 unwound
+    const repeated = await queue.requestTranslation(jobId, 'uk');
+    expect(repeated.outcome).toBe('queued');
+    expect(translator.calls[0].signal.aborted).toBe(false);
+    expect(translator.calls).toHaveLength(1);
 
-    // A late resolve of the aborted gen-1 promise is a no-op (already rejected).
-    translator.complete(0, 'STALE');
-    translator.complete(1, 'Привіт світ.'); // gen 2 wins
+    translator.complete(0, 'Привіт світ.');
     await waitFor(
       async () => (await queue.document(jobId))?.translations.uk?.status === 'completed'
     );
@@ -304,9 +362,12 @@ describe('translation coordination', () => {
     const translator = new GatedTranslator();
     queue.setTranslator(translator);
 
-    await queue.requestTranslation(jobId, 'uk');
-    await waitFor(() => translator.calls.length === 1);
-    await queue.requestTranslation(jobId, 'ar');
+    // Fire both choices without awaiting the first HTTP-equivalent request.
+    // Per-job request serialization must still preserve the user's last choice.
+    const ukrainian = queue.requestTranslation(jobId, 'uk');
+    const arabic = queue.requestTranslation(jobId, 'ar');
+    expect((await ukrainian).outcome).toBe('queued');
+    expect((await arabic).outcome).toBe('queued');
     await waitFor(() => translator.calls[0].signal.aborted);
     await waitFor(() => translator.calls.length === 2);
     expect(translator.calls[1].request.targetLanguage).toBe('ar');

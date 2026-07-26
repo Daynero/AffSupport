@@ -336,9 +336,15 @@ export function TranscriptTextModal({
   const activeWordId = useRef<string>('');
 
   const [document_, setDocument] = useState<TranscriptionDocument | null>(null);
-  const [target, setTarget] = useState<string>(() =>
-    defaultTranslationTarget(job.detectedLanguage ?? job.requestedLanguage ?? 'auto', language)
-  );
+  const [target, setTarget] = useState<string>(() => {
+    const sourceLanguage = job.detectedLanguage ?? job.requestedLanguage ?? 'auto';
+    const sourceBase = sourceLanguage.replaceAll('_', '-').split('-')[0].toLowerCase();
+    const selected = job.translation?.targetLanguage;
+    if (selected && selected.replaceAll('_', '-').split('-')[0].toLowerCase() !== sourceBase) {
+      return selected;
+    }
+    return defaultTranslationTarget(sourceLanguage, language);
+  });
   const [translation, setTranslation] = useState<TranslationDocument | null>(null);
   const [translating, setTranslating] = useState(false);
   const [translationElapsedMs, setTranslationElapsedMs] = useState(0);
