@@ -19,7 +19,13 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
     <button
       type="button"
       className={`theme-toggle ${compact ? 'theme-toggle-compact' : ''}`}
-      onClick={event => toggleTheme({ x: event.clientX, y: event.clientY })}
+      onClick={event => {
+        const bounds = event.currentTarget.getBoundingClientRect();
+        toggleTheme({
+          x: bounds.left + bounds.width / 2,
+          y: bounds.top + bounds.height / 2
+        });
+      }}
       aria-label={isDark ? t('themeToLight') : t('themeToDark')}
       aria-pressed={isDark}
       title={isDark ? t('themeToLight') : t('themeToDark')}

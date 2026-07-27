@@ -5583,28 +5583,9 @@ input.is-invalid {
 ::view-transition-old(root) {
   z-index: 1;
 }
-/* Circular "cosmic reveal": clip the incoming theme from a zero-radius circle
-   at the toggle to one covering the viewport. Center + radius come from custom
-   properties set in transitionTheme(). Scoped to the class so it only runs for
-   theme switches, not any future view transition. */
-:root.theme-transitioning::view-transition-new(root) {
-  animation: theme-cosmic-reveal 620ms cubic-bezier(0.4, 0, 0.2, 1) both;
-}
-@keyframes theme-cosmic-reveal {
-  from {
-    clip-path: circle(0 at var(--theme-reveal-x, 50%) var(--theme-reveal-y, 0));
-  }
-  to {
-    clip-path: circle(
-      var(--theme-reveal-r, 150vmax) at var(--theme-reveal-x, 50%) var(--theme-reveal-y, 0)
-    );
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  :root.theme-transitioning::view-transition-new(root) {
-    animation: none;
-  }
-}
+/* transitionTheme() adds a short-lived keyframe with the measured toggle
+   coordinates. Keeping the values in that rule avoids cross-browser custom
+   property inheritance differences in the view-transition pseudo tree. */
 
 /* ============================================================
    Theme toggle — sun ⇄ moon morph that rides above the reveal

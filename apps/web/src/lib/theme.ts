@@ -46,10 +46,31 @@ function prefersReducedMotion(): boolean {
 }
 
 type Origin = { x: number; y: number } | null;
+let revealAnimationId = 0;
+
+function createRevealStyle(x: number, y: number, endRadius: number) {
+  const animationName = `theme-cosmic-reveal-${++revealAnimationId}`;
+  const style = document.createElement('style');
+  style.dataset.themeReveal = 'active';
+  style.textContent = `
+:root.theme-transitioning::view-transition-new(root) {
+  animation: ${animationName} 620ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+@keyframes ${animationName} {
+  from {
+    clip-path: circle(0 at ${x}px ${y}px);
+  }
+  to {
+    clip-path: circle(${endRadius}px at ${x}px ${y}px);
+  }
+}`;
+  document.head.append(style);
+  return style;
+}
 
 /**
  * Circular "cosmic reveal": the incoming theme wipes in as a growing circle
- * from the click point using the View Transitions API. Falls back to an
+ * from the toggle using the View Transitions API. Falls back to an
  * instant swap when the API is unavailable or motion is reduced.
  */
 export function transitionTheme(next: Theme, origin: Origin) {
@@ -62,29 +83,29 @@ export function transitionTheme(next: Theme, origin: Origin) {
   }
 
   const { x, y } = origin;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    applyTheme(next);
+    return;
+  }
+
   const endRadius = Math.hypot(
     Math.max(x, window.innerWidth - x),
     Math.max(y, window.innerHeight - y)
   );
 
-  // Drive the circular reveal from CSS keyframes that read these custom
-  // properties, rather than the Web Animations `pseudoElement` option. Animating
-  // a `::view-transition-*` pseudo through WAAPI is poorly supported outside
-  // Chromium (Safari ignored it, giving an instant/janky swap); the CSS path is
-  // the portable, standard approach.
+  // View-transition pseudo-elements do not reliably inherit custom properties
+  // from <html> across browsers. Put the measured coordinates directly into a
+  // short-lived CSS animation so its circle cannot fall back to the viewport
+  // centre.
   const root = document.documentElement;
-  root.style.setProperty('--theme-reveal-x', `${x}px`);
-  root.style.setProperty('--theme-reveal-y', `${y}px`);
-  root.style.setProperty('--theme-reveal-r', `${endRadius}px`);
+  const revealStyle = createRevealStyle(x, y, endRadius);
   root.classList.add('theme-transitioning');
 
   const transition = document.startViewTransition(() => applyTheme(next));
 
   transition.finished.finally(() => {
     root.classList.remove('theme-transitioning');
-    root.style.removeProperty('--theme-reveal-x');
-    root.style.removeProperty('--theme-reveal-y');
-    root.style.removeProperty('--theme-reveal-r');
+    revealStyle.remove();
   });
 }
 
