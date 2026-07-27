@@ -28,7 +28,7 @@ if ((await readdir(destination)).length > 0) {
 
 const dependencyOutput = execFileSync(
   'npm',
-  ['ls', '--workspace', '@video-compressor/agent', '--omit=dev', '--all', '--parseable'],
+  ['ls', '--workspace', '@video-compressor/agent', '--omit=dev', '--all', '--json', '--long'],
   {
     cwd: repositoryRoot,
     encoding: 'utf8',
@@ -36,8 +36,32 @@ const dependencyOutput = execFileSync(
   }
 );
 
-const productionPackages = [...new Set(dependencyOutput.split(/\r?\n/u).filter(Boolean))]
-  .filter(source => source.startsWith(`${rootNodeModules}${path.sep}`))
+const dependencyTree = JSON.parse(dependencyOutput);
+const agentTree = dependencyTree.dependencies?.['@video-compressor/agent'];
+if (!agentTree) {
+  throw new Error('npm did not report the Agent workspace dependency tree.');
+}
+
+// npm 11 can include unrelated, extraneous root packages in the parseable
+// output even with --workspace and --omit=dev. Walk only the Agent subtree so a
+// developer installation can never leak root test/build dependencies into the
+// packaged runtime.
+const productionSources = new Set();
+function collectProductionSources(node) {
+  for (const dependency of Object.values(node.dependencies ?? {})) {
+    if (!dependency || typeof dependency !== 'object') continue;
+    if (
+      typeof dependency.path === 'string' &&
+      dependency.path.startsWith(`${rootNodeModules}${path.sep}`)
+    ) {
+      productionSources.add(dependency.path);
+    }
+    collectProductionSources(dependency);
+  }
+}
+collectProductionSources(agentTree);
+
+const productionPackages = [...productionSources]
   .map(source => ({
     source,
     relativePath: path.relative(rootNodeModules, source)
