@@ -50,12 +50,16 @@ afterEach(() => {
   document.querySelectorAll('style[data-theme-reveal]').forEach(style => style.remove());
   Reflect.deleteProperty(document, 'startViewTransition');
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe('theme reveal', () => {
-  it('starts the circular wipe at the centre of the theme button', async () => {
+  it('starts the circular wipe at the centre of the theme button at Retina scale', async () => {
     document.documentElement.dataset.theme = 'light';
     const { finish, startViewTransition } = installViewTransitionStub();
+    vi.stubGlobal('devicePixelRatio', 2);
+    vi.stubGlobal('innerWidth', 1024);
+    vi.stubGlobal('innerHeight', 768);
     render(<ThemeToggle />);
 
     const button = screen.getByRole('button', { name: 'Switch to dark mode' });
@@ -75,8 +79,9 @@ describe('theme reveal', () => {
 
     expect(startViewTransition).toHaveBeenCalledOnce();
     const revealStyle = document.querySelector<HTMLStyleElement>('style[data-theme-reveal]');
-    expect(revealStyle?.textContent).toContain('circle(0 at 916px 40px)');
-    expect(revealStyle?.textContent).not.toContain('400px 300px');
+    expect(revealStyle?.textContent).toContain('circle(0 at 89.45313% 5.20833%)');
+    expect(revealStyle?.textContent).not.toContain('916px');
+    expect(revealStyle?.textContent).not.toContain('400px');
 
     finish();
     await Promise.resolve();

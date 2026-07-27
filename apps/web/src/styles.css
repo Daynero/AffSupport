@@ -5584,8 +5584,8 @@ input.is-invalid {
   z-index: 1;
 }
 /* transitionTheme() adds a short-lived keyframe with the measured toggle
-   coordinates. Keeping the values in that rule avoids cross-browser custom
-   property inheritance differences in the view-transition pseudo tree. */
+   position as percentages. That keeps the origin aligned when a browser uses
+   device-pixel dimensions for the view-transition snapshot. */
 
 /* ============================================================
    Theme toggle — sun ⇄ moon morph that rides above the reveal

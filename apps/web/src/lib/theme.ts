@@ -48,7 +48,17 @@ function prefersReducedMotion(): boolean {
 type Origin = { x: number; y: number } | null;
 let revealAnimationId = 0;
 
+function cssPercentage(value: number) {
+  return `${Math.round(value * 100_000) / 100_000}%`;
+}
+
 function createRevealStyle(x: number, y: number, endRadius: number) {
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const normalizedDiagonal = Math.hypot(viewportWidth, viewportHeight) / Math.SQRT2;
+  const originX = cssPercentage((x / viewportWidth) * 100);
+  const originY = cssPercentage((y / viewportHeight) * 100);
+  const radius = cssPercentage((endRadius / normalizedDiagonal) * 100);
   const animationName = `theme-cosmic-reveal-${++revealAnimationId}`;
   const style = document.createElement('style');
   style.dataset.themeReveal = 'active';
@@ -58,10 +68,10 @@ function createRevealStyle(x: number, y: number, endRadius: number) {
 }
 @keyframes ${animationName} {
   from {
-    clip-path: circle(0 at ${x}px ${y}px);
+    clip-path: circle(0 at ${originX} ${originY});
   }
   to {
-    clip-path: circle(${endRadius}px at ${x}px ${y}px);
+    clip-path: circle(${radius} at ${originX} ${originY});
   }
 }`;
   document.head.append(style);
@@ -83,7 +93,12 @@ export function transitionTheme(next: Theme, origin: Origin) {
   }
 
   const { x, y } = origin;
-  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+  if (
+    !Number.isFinite(x) ||
+    !Number.isFinite(y) ||
+    window.innerWidth <= 0 ||
+    window.innerHeight <= 0
+  ) {
     applyTheme(next);
     return;
   }
@@ -93,10 +108,10 @@ export function transitionTheme(next: Theme, origin: Origin) {
     Math.max(y, window.innerHeight - y)
   );
 
-  // View-transition pseudo-elements do not reliably inherit custom properties
-  // from <html> across browsers. Put the measured coordinates directly into a
-  // short-lived CSS animation so its circle cannot fall back to the viewport
-  // centre.
+  // Put scale-independent percentages directly into a short-lived CSS
+  // animation. Chromium can size the root snapshot in device pixels on Retina
+  // displays, so raw layout-viewport pixels make the origin appear divided by
+  // devicePixelRatio.
   const root = document.documentElement;
   const revealStyle = createRevealStyle(x, y, endRadius);
   root.classList.add('theme-transitioning');
