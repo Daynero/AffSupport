@@ -22,5 +22,48 @@
   <string>13.0</string>
   <key>LSUIElement</key>
   <true/>
+  <key>NSDesktopFolderUsageDescription</key>
+  <string>Wishly creates converted or compressed files next to the originals you select.</string>
+  <key>NSDocumentsFolderUsageDescription</key>
+  <string>Wishly creates converted or compressed files next to the originals you select.</string>
+  <key>NSDownloadsFolderUsageDescription</key>
+  <string>Wishly creates converted or compressed files next to the originals you select.</string>
+  <key>NSNetworkVolumesUsageDescription</key>
+  <string>Wishly creates converted or compressed files next to the originals you select.</string>
+  <key>NSRemovableVolumesUsageDescription</key>
+  <string>Wishly creates converted or compressed files next to the originals you select.</string>
+  <key>NSServices</key>
+  <array>
+    <dict>
+      <key>NSMenuItem</key>
+      <dict>
+        <key>default</key>
+        <string>Wishly Finder Action</string>
+      </dict>
+      <key>NSMessage</key>
+      <string>performFinderAction</string>
+      <key>NSPortName</key>
+      <string>Wishly Agent</string>
+      <key>NSSendTypes</key>
+      <array>
+        <string>com.wishly.finder-action</string>
+      </array>
+      <key>NSTimeout</key>
+      <string>10000</string>
+    </dict>
+  </array>
+  <key>UTExportedTypeDeclarations</key>
+  <array>
+    <dict>
+      <key>UTTypeConformsTo</key>
+      <array>
+        <string>public.data</string>
+      </array>
+      <key>UTTypeDescription</key>
+      <string>Wishly Finder Action</string>
+      <key>UTTypeIdentifier</key>
+      <string>com.wishly.finder-action</string>
+    </dict>
+  </array>
 </dict>
 </plist>

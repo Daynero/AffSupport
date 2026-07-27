@@ -6,6 +6,7 @@ import { init as initPngDecode, default as decodePngModule } from '@jsquash/png/
 import type { LandingImageQuality } from '@video-compressor/shared';
 
 const require = createRequire(import.meta.url);
+export type WebpQualityProfile = LandingImageQuality | 'conversion';
 
 export interface RawImage {
   data: Uint8ClampedArray;
@@ -20,10 +21,12 @@ export interface RawImage {
  * High Quality compresses far more carefully so the result is virtually
  * indistinguishable from the original.
  */
-function webpOptions(quality: LandingImageQuality) {
+function webpOptions(quality: WebpQualityProfile) {
   return quality === 'high'
     ? { quality: 90, method: 6, alpha_quality: 100 }
-    : { quality: 80, method: 5, alpha_quality: 100 };
+    : quality === 'conversion'
+      ? { quality: 85, method: 6, alpha_quality: 100 }
+      : { quality: 80, method: 5, alpha_quality: 100 };
 }
 
 let codecs: Promise<void> | null = null;
@@ -58,7 +61,7 @@ export async function decodePng(buffer: Buffer): Promise<RawImage> {
 }
 
 /** Encodes raw RGBA pixels into a WebP buffer at the requested quality. */
-export async function encodeWebp(image: RawImage, quality: LandingImageQuality): Promise<Buffer> {
+export async function encodeWebp(image: RawImage, quality: WebpQualityProfile): Promise<Buffer> {
   await initImageCodecs();
   const encoded = await encodeWebpModule(image as unknown as ImageData, webpOptions(quality));
   return Buffer.from(encoded);

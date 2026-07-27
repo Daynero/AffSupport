@@ -91,6 +91,20 @@ This test build is **ad-hoc signed, not Apple-notarized**. macOS quarantines it 
 
 ## Daily use
 
+### Finder image conversion
+
+The packaged app embeds a Finder Sync extension. After enabling **Wishly
+Finder** once in macOS System Settings, right-click selected still images and
+choose **Convert to** → **PNG**, **JPEG**, or **WebP**. Conversion runs in the
+existing local Agent, produces collision-safe siblings beside the sources, and
+does not open the browser interface. HEIC/HEIF can be decoded as input when the
+bundled engine supports it, but is deliberately not an output target.
+
+Wishly Dev has a separate extension identity, service name, and a **Wishly Dev**
+suffix in Finder so it can be tested beside the stable extension. The internal
+design and future video-action extension point are documented in
+[`docs/FINDER_MEDIA_ACTIONS.md`](docs/FINDER_MEDIA_ACTIONS.md).
+
 1. Keep the default **Optimal** mode, or open **Custom settings** for FPS, longest-side resolution, and CRF or target bitrate.
 2. Optionally enable **Embed images into video**. Add an opening image, a final image, or both; choose the final duration and cover, contain, or stretch adaptation.
 3. Keep **Next to originals**, or use **Separate folder** for a native folder dialog.
@@ -146,6 +160,10 @@ Supabase sessions use the SDK's browser persistence and never enter the Agent. P
 ## Local API
 
 Every `/api/*` route requires a random per-process 256-bit token. The token is issued only through the `/pair` redirect (production origin) or `/local` (bundled loopback UI), which place it in the page URL fragment. The unauthenticated `/health` route exposes only readiness, release/API identity, instance start time, and busy state so the packaged launcher can perform safe handoff. CORS permits only the production page and fixed local development origin. Request bodies are structurally validated, encoding parameters are defined only in the agent, and every external process uses argument arrays with `shell: false`.
+
+Finder actions use a separate `/native/media-actions/*` surface protected by a
+different random token passed only from the native launcher to its child Agent.
+These routes are not part of the browser contract.
 
 | Method       | Path                                                           | Purpose                                                              |
 | ------------ | -------------------------------------------------------------- | -------------------------------------------------------------------- |

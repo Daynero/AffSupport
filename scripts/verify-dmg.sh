@@ -11,6 +11,11 @@ attach=$(hdiutil attach -readonly -nobrowse "$dmg"); mount=$(print -r -- "$attac
 [[ -d "$mount/Wishly Agent.app" && -L "$mount/Applications" && -f "$mount/.background/background.png" ]]
 ditto "$mount/Wishly Agent.app" "$work/Wishly Agent.app"
 app="$work/Wishly Agent.app"; [[ -f "$app/Contents/Resources/AppIcon.icns" ]]
+finder_extension="$app/Contents/PlugIns/WishlyFinderExtension.appex"
+finder_binary="$finder_extension/Contents/MacOS/WishlyFinderExtension"
+[[ -x "$finder_binary" ]]
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionPointIdentifier' "$finder_extension/Contents/Info.plist")" == "com.apple.FinderSync" ]]
+codesign --verify --strict "$finder_extension"
 for binary in "$app/Contents/Resources/runtime/bin/ffmpeg" "$app/Contents/Resources/runtime/bin/ffprobe" "$app/Contents/Resources/runtime/node"; do [[ "$(file "$binary")" == *arm64* ]]; done
 mkdir -p "$work/home/Library/Application Support/Wishly" "$work/video"
 ffmpeg="$app/Contents/Resources/runtime/bin/ffmpeg"; ffprobe="$app/Contents/Resources/runtime/bin/ffprobe"
@@ -40,4 +45,4 @@ probe_result=$("$ffprobe" -v error -show_entries format=duration,size -of json "
 /usr/bin/open "$app"; sleep 1; [[ "$(lsof -tiTCP:43120 -sTCP:LISTEN | wc -l | tr -d ' ')" == 1 ]]
 /usr/bin/osascript -e 'tell application id "local.video.compressor.test" to quit'; for i in {1..20}; do kill -0 "$listener_pid" 2>/dev/null || break; sleep .25; done; ! kill -0 "$listener_pid" 2>/dev/null
 agent_pid=''; listener_pid=''
-print "DMG Finder/open launch, single instance, clean quit, bundled runtimes, secure production pairing, health, compression, and bundled FFprobe verified."
+print "DMG Finder extension, open launch, single instance, clean quit, bundled runtimes, secure production pairing, health, compression, and bundled FFprobe verified."

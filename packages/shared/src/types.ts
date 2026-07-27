@@ -397,7 +397,12 @@ export interface HealthResponse {
 }
 
 /** Optional capabilities advertised by the local agent. */
-export const AGENT_CAPABILITIES = ['landing', 'local-file-paths', 'transcription'] as const;
+export const AGENT_CAPABILITIES = [
+  'finder-image-conversion',
+  'landing',
+  'local-file-paths',
+  'transcription'
+] as const;
 export interface SessionResponse {
   token: string;
 }

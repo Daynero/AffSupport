@@ -66,7 +66,11 @@ node scripts/render-launcher.mjs packaging/Launcher.swift "$root/Launcher.genera
   "API_VERSION=$api_version" \
   "RELEASE_CHANNEL=development" \
   "SOURCE_REVISION=$source_revision"
-swiftc "$root/Launcher.generated.swift" -o "$app/Contents/MacOS/WishlyAgent" -framework AppKit
+swiftc "$root/Launcher.generated.swift" \
+  -o "$app/Contents/MacOS/WishlyAgent" \
+  -target arm64-apple-macos13.0 \
+  -framework AppKit \
+  -framework FinderSync
 
 cp "$source_app/Contents/Resources/runtime/node" "$app/Contents/Resources/runtime/node"
 codesign --remove-signature "$app/Contents/Resources/runtime/node" 2>/dev/null || true
@@ -90,12 +94,23 @@ cp THIRD_PARTY_NOTICES.md "$app/Contents/Resources/"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.wishly.dev" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleName Wishly Dev" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Wishly Dev" "$app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :NSServices:0:NSMenuItem:default Wishly Dev Finder Action" "$app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :NSServices:0:NSPortName Wishly Dev" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $bundle_version" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $build_number" "$app/Contents/Info.plist"
+zsh scripts/build-finder-extension.sh \
+  "$app" \
+  "com.wishly.dev.finder-extension" \
+  "Wishly Dev Finder" \
+  "Wishly Dev Finder Action" \
+  "$bundle_version" \
+  "$build_number" \
+  "$root/FinderSync.generated.swift" \
+  " — Wishly Dev"
 node scripts/dev-release-meta.mjs "$version" "$bundle_version" "$build_number" "$build_id" "$api_version" "$source_revision" "$archive_name" > "$app/Contents/Resources/release.json"
 zsh scripts/make-icns.sh assets/AppIcon.png "$app/Contents/Resources/AppIcon.icns"
 xattr -cr "$app"
-codesign --force --deep --sign - "$app"
+codesign --force --deep --preserve-metadata=entitlements --sign - "$app"
 archive="$root/$archive_name"
 rm -f "$root"/Wishly-Dev-*-macOS-arm64.zip(N) "$root"/Wishly-Dev-*-macOS-arm64.zip.sha256(N)
 ditto -c -k --keepParent "$app" "$archive"

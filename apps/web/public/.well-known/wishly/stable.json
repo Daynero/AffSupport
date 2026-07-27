@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.7.4",
-  "buildNumber": "24",
-  "buildId": "0.7.4+24",
+  "version": "0.8.0",
+  "buildNumber": "25",
+  "buildId": "0.8.0+25",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-07-26T12:00:13.000Z",
+  "publishedAt": "2026-07-27T20:28:22.000Z",
   "summary": {
-    "en": "Automatically translate completed transcripts in the background, show compact per-file progress, switch the target language from the queue, and reuse cached translations without duplicate work.",
-    "uk": "Автоматично перекладайте готові транскрипти у фоні, стежте за компактним прогресом для кожного файлу, змінюйте мову в черзі та повторно використовуйте кеш без дублювання роботи."
+    "en": "Convert selected still images directly from Finder to PNG, JPEG, or WebP. Wishly processes them privately in the background and saves collision-safe copies beside the originals.",
+    "uk": "Конвертуйте вибрані зображення безпосередньо з Finder у PNG, JPEG або WebP. Wishly приватно обробляє їх у фоні й зберігає копії з безпечними іменами поруч з оригіналами."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.7.4/Wishly-Agent-v0.7.4-macOS-arm64.dmg",
-      "sha256": "ca895e2f34836adaa08bd5a354a48e72534e2eb2228fe6ff3233d05c1ac8ae6e"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.8.0/Wishly-Agent-v0.8.0-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {

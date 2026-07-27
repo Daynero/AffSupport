@@ -53,10 +53,10 @@ describe('release identity', () => {
       readFileSync('apps/web/public/.well-known/wishly/stable.json', 'utf8')
     );
     expect(localizedReleaseSummary(manifest, 'en')).toBe(
-      'Automatically translate completed transcripts in the background, show compact per-file progress, switch the target language from the queue, and reuse cached translations without duplicate work.'
+      'Convert selected still images directly from Finder to PNG, JPEG, or WebP. Wishly processes them privately in the background and saves collision-safe copies beside the originals.'
     );
     expect(localizedReleaseSummary(manifest, 'uk')).toBe(
-      'Автоматично перекладайте готові транскрипти у фоні, стежте за компактним прогресом для кожного файлу, змінюйте мову в черзі та повторно використовуйте кеш без дублювання роботи.'
+      'Конвертуйте вибрані зображення безпосередньо з Finder у PNG, JPEG або WebP. Wishly приватно обробляє їх у фоні й зберігає копії з безпечними іменами поруч з оригіналами.'
     );
     expect(localizedReleaseSummary({ ...manifest, summary: undefined }, 'uk')).toBeNull();
   });

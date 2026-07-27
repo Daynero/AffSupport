@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
@@ -59,8 +59,14 @@ import { registerTranscriptionRoutes } from './transcription/routes.js';
 import { createTranslator } from './translation/translator.js';
 import { createAligner } from './translation/aligner.js';
 import { whisperAvailable } from './whisper/tools.js';
+import {
+  isImageConversionFormat,
+  type ImageConversionFormat
+} from './media-actions/image-converter.js';
+import { MediaActionQueue } from './media-actions/queue.js';
 
 const token = randomBytes(32).toString('hex');
+const nativeToken = process.env.AGENT_NATIVE_TOKEN?.trim() || null;
 const instanceId = randomBytes(12).toString('hex');
 const startedAt = new Date().toISOString();
 const app = Fastify({ logger: true, bodyLimit: 16_384 });
@@ -79,6 +85,7 @@ const landingClients = new Set<NodeJS.WritableStream>();
 const transcriptionClients = new Set<NodeJS.WritableStream>();
 const imageStore = new ImageAssetStore();
 const pendingSelections = new Map<string, string>();
+const mediaActions = new MediaActionQueue();
 let saveChain = Promise.resolve();
 let shuttingDown = false;
 let runtimeRestartRequested = false;
@@ -143,7 +150,7 @@ async function refreshMediaTools() {
       ffmpeg,
       whisper: transcriptionTools.whisper
     });
-    if ((!ffmpeg || !ffprobe) && !queue.workActive()) {
+    if ((!ffmpeg || !ffprobe) && !queue.workActive() && !mediaActions.workActive()) {
       requestRuntimeRestart(
         new MediaToolUnavailableError(ffmpeg ? 'ffprobe' : 'ffmpeg', 'HEALTH_CHECK')
       );
@@ -211,6 +218,13 @@ app.addHook('onSend', async (request, reply, payload) => {
   return payload;
 });
 app.addHook('preHandler', async (request, reply) => {
+  if (request.url.startsWith('/native/')) {
+    const supplied = request.headers['x-wishly-native-token'];
+    if (!nativeToken || typeof supplied !== 'string' || !tokensMatch(nativeToken, supplied)) {
+      return reply.code(401).send({ error: 'Invalid native session token.' });
+    }
+    return;
+  }
   if (!request.url.startsWith('/api/')) return;
   const supplied =
     request.headers['x-session-token'] ?? (request.query as { token?: string }).token;
@@ -246,7 +260,11 @@ app.get('/health', async () => ({
   update: queue.state().update,
   instanceId,
   startedAt,
-  busy: queue.workActive() || landingOptimizer.state().running || transcriptionQueue.workActive()
+  busy:
+    queue.workActive() ||
+    mediaActions.workActive() ||
+    landingOptimizer.state().running ||
+    transcriptionQueue.workActive()
 }));
 app.get('/api/diagnostics', async () => ({
   version: config.version,
@@ -655,6 +673,63 @@ app.post('/api/output/reveal', async (_request, reply) => {
   return queue.state();
 });
 
+app.post<{
+  Body: { paths?: unknown; format?: unknown };
+}>('/native/media-actions/images/convert', { bodyLimit: 512 * 1024 }, async (request, reply) => {
+  if (process.platform !== 'darwin') {
+    return reply.code(501).send({ error: 'Finder image conversion is available only on macOS.' });
+  }
+  if (!queue.acceptingNewTasks()) {
+    return reply.code(409).send({ error: 'Wishly is preparing to install an update.' });
+  }
+  const paths = request.body?.paths;
+  const format = request.body?.format;
+  if (
+    !Array.isArray(paths) ||
+    paths.length === 0 ||
+    paths.length > 100 ||
+    !paths.every(
+      value =>
+        typeof value === 'string' &&
+        value.length > 0 &&
+        value.length <= 4_096 &&
+        !value.includes('\0') &&
+        path.isAbsolute(value)
+    ) ||
+    !isImageConversionFormat(format)
+  ) {
+    return reply.code(400).send({ error: 'Invalid Finder image conversion request.' });
+  }
+  const uniquePaths = [...new Set(paths.map(value => path.resolve(value as string)))];
+  const jobs = await mediaActions.addImageConversions(uniquePaths, format as ImageConversionFormat);
+  return reply.code(202).send({
+    accepted: jobs.length,
+    jobs: jobs.map(job => ({ id: job.id, status: job.status }))
+  });
+});
+app.get('/native/media-actions', async () => ({
+  jobs: mediaActions.state().jobs.map(job => ({
+    id: job.id,
+    status: job.status,
+    outputPath: job.status === 'completed' ? job.outputPath : null,
+    errorCode: job.errorCode,
+    error: job.error
+  }))
+}));
+app.get<{ Params: { id: string } }>('/native/media-actions/:id', async (request, reply) => {
+  const job = mediaActions.state().jobs.find(candidate => candidate.id === request.params.id);
+  if (!job) return reply.code(404).send({ error: 'Media action not found.' });
+  return {
+    job: {
+      id: job.id,
+      status: job.status,
+      outputPath: job.status === 'completed' ? job.outputPath : null,
+      errorCode: job.errorCode,
+      error: job.error
+    }
+  };
+});
+
 registerLandingRoutes(app, {
   optimizer: landingOptimizer,
   clients: landingClients,
@@ -730,6 +805,7 @@ async function shutdown(code = 0) {
     await saveChain;
     await estimator.shutdown();
     await queue.shutdown();
+    await mediaActions.shutdown();
     await landingOptimizer.shutdown();
     await transcriptionQueue.shutdown();
     await app.close();
@@ -775,4 +851,10 @@ if (process.env.PACKAGED_APP === '1') {
 
 function imageSlot(value: string): ImageSlot | null {
   return value === 'start' || value === 'end' ? value : null;
+}
+
+function tokensMatch(expected: string, supplied: string) {
+  const left = Buffer.from(expected);
+  const right = Buffer.from(supplied);
+  return left.byteLength === right.byteLength && timingSafeEqual(left, right);
 }

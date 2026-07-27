@@ -1,10 +1,24 @@
 #!/bin/zsh
 set -euo pipefail
 app="$PWD/release/Wishly Agent.app"
+finder_extension="$app/Contents/PlugIns/WishlyFinderExtension.appex"
+finder_binary="$finder_extension/Contents/MacOS/WishlyFinderExtension"
 product_version=$(node scripts/release-meta.mjs product-version); bundle_version=$(node scripts/release-meta.mjs bundle-version); build_number=$(node scripts/release-meta.mjs build-number); build_id=$(node scripts/release-meta.mjs build-id); api_version=$(node scripts/release-meta.mjs api-version)
 [[ -d "$app" && -x "$app/Contents/MacOS/WishlyAgent" && -x "$app/Contents/Resources/runtime/node" ]]
+[[ -d "$finder_extension" && -x "$finder_binary" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")" == "$bundle_version" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Contents/Info.plist")" == "$build_number" ]]
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :NSServices:0:NSMenuItem:default' "$app/Contents/Info.plist")" == "Wishly Finder Action" ]]
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$finder_extension/Contents/Info.plist")" == "local.video.compressor.test.finder-extension" ]]
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionPointIdentifier' "$finder_extension/Contents/Info.plist")" == "com.apple.FinderSync" ]]
+file "$finder_binary" | grep -q arm64
+for binary in "$app/Contents/MacOS/WishlyAgent" "$finder_binary"; do
+  vtool -show-build "$binary" | grep -q 'minos 13.0'
+done
+grep -q 'private let finderServiceName = "Wishly Finder Action"' "$PWD/release/FinderSync.generated.swift"
+grep -q 'private let finderMenuSuffix = ""' "$PWD/release/FinderSync.generated.swift"
+! grep -q '__[A-Z0-9_]*__' "$PWD/release/FinderSync.generated.swift"
+! grep -qiE 'case heic|case heif|\"heic\"|\"heif\"' "$PWD/release/FinderSync.generated.swift"
 grep -q "\"productVersion\": \"$product_version\"" "$app/Contents/Resources/release.json"
 grep -q "\"buildId\": \"$build_id\"" "$app/Contents/Resources/release.json"
 grep -q "\"apiVersion\": $api_version" "$app/Contents/Resources/release.json"
@@ -36,8 +50,12 @@ for name in ffmpeg ffprobe; do ! otool -L "$app/Contents/Resources/runtime/bin/$
 (
   cd "$app/Contents/Resources/agent"
   ../runtime/node --input-type=module -e \
-    "await import('fastify'); await import('@jsquash/webp/encode.js'); await import('@video-compressor/shared');"
+    "await import('fastify'); await import('@jsquash/webp/encode.js'); await import('@video-compressor/shared'); await import('./dist/media-actions/image-converter.js');"
 )
 [[ -n "$(find "$app/Contents/Resources/licenses/sources" -type f -maxdepth 1)" ]]
 codesign --verify --deep --strict "$app"
+codesign --verify --strict "$finder_extension"
+finder_entitlements=$(codesign -d --entitlements - "$finder_extension" 2>/dev/null)
+print -r -- "$finder_entitlements" | grep -q 'com.apple.security.app-sandbox'
+print -r -- "$finder_entitlements" | grep -q 'com.apple.security.files.user-selected.read-only'
 print "Slim package dependencies, runtimes, architecture, and production web build verified."

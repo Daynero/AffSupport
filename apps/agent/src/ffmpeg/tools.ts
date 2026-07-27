@@ -128,6 +128,7 @@ export interface ImageInfo {
   width: number;
   height: number;
   codec: string;
+  frames: number | null;
 }
 
 export async function probeImage(
@@ -141,7 +142,7 @@ export async function probeImage(
       '-select_streams',
       'v:0',
       '-show_entries',
-      'stream=width,height,codec_name',
+      'stream=width,height,codec_name,nb_frames:stream_tags=rotate:stream_side_data=rotation',
       '-of',
       'json',
       inputPath
@@ -152,7 +153,20 @@ export async function probeImage(
   const width = positiveNumber(stream?.width);
   const height = positiveNumber(stream?.height);
   const codec = nonEmptyString(stream?.codec_name);
-  return width && height && codec ? { width, height, codec } : null;
+  const frames = positiveNumber(stream?.nb_frames);
+  const rotation = normalizedRotation(
+    stream?.side_data_list?.find((entry: Record<string, unknown>) => entry.rotation !== undefined)
+      ?.rotation ?? stream?.tags?.rotate
+  );
+  const rotated = rotation === 90 || rotation === 270;
+  return width && height && codec
+    ? {
+        width: rotated ? height : width,
+        height: rotated ? width : height,
+        codec,
+        frames
+      }
+    : null;
 }
 
 export async function probeDuration(inputPath: string): Promise<number | null> {

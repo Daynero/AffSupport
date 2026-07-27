@@ -44,7 +44,11 @@ node scripts/render-launcher.mjs packaging/Launcher.swift "$root/Launcher.genera
   "API_VERSION=$api_version" \
   "RELEASE_CHANNEL=$release_channel" \
   "SOURCE_REVISION=$source_revision"
-swiftc "$root/Launcher.generated.swift" -o "$app/Contents/MacOS/WishlyAgent" -framework AppKit
+swiftc "$root/Launcher.generated.swift" \
+  -o "$app/Contents/MacOS/WishlyAgent" \
+  -target arm64-apple-macos13.0 \
+  -framework AppKit \
+  -framework FinderSync
 cp "$node_binary" "$app/Contents/Resources/runtime/node"
 codesign --remove-signature "$app/Contents/Resources/runtime/node" 2>/dev/null || true
 /usr/bin/strip -x "$app/Contents/Resources/runtime/node"
@@ -63,6 +67,15 @@ cp packaging/licenses/multilingual-e5-small-MIT.txt "$app/Contents/Resources/lic
 cp packaging/Info.plist "$app/Contents/Info.plist"; cp THIRD_PARTY_NOTICES.md "$app/Contents/Resources/"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $bundle_version" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $build_number" "$app/Contents/Info.plist"
+zsh scripts/build-finder-extension.sh \
+  "$app" \
+  "local.video.compressor.test.finder-extension" \
+  "Wishly Finder" \
+  "Wishly Finder Action" \
+  "$bundle_version" \
+  "$build_number" \
+  "$root/FinderSync.generated.swift" \
+  ""
 node scripts/release-meta.mjs --json "$source_revision" > "$app/Contents/Resources/release.json"
 zsh scripts/make-icns.sh assets/AppIcon.png "$app/Contents/Resources/AppIcon.icns"
-codesign --force --deep --sign - "$app"; ditto -c -k --keepParent "$app" "$archive"; (cd "$root"; shasum -a 256 "${archive:t}" > "${archive:t}.sha256")
+codesign --force --deep --preserve-metadata=entitlements --sign - "$app"; ditto -c -k --keepParent "$app" "$archive"; (cd "$root"; shasum -a 256 "${archive:t}" > "${archive:t}.sha256")

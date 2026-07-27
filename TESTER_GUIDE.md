@@ -24,6 +24,22 @@ To add images, enable **Embed images into video** below the compression settings
 
 The original video is never overwritten. Embedded results use names such as `video_embedded_compressed.mp4`; an existing result receives a numeric suffix. If an image is moved, deleted, or damaged in the Agent's local storage, the affected card shows an error while the remaining queue continues.
 
+## Convert images from Finder
+
+On the first launch, choose **Open Settings** in Wishly's Finder conversion
+prompt and enable **Wishly Finder** once. You can reopen the same macOS screen
+later from the menu-bar icon → **Enable Finder Conversion…**.
+
+In Finder, right-click one or more still images and choose **Convert to** →
+**PNG**, **JPEG**, or **WebP**. Wishly launches silently if necessary and places
+each result beside its original. Existing files are preserved: for example, an
+occupied `photo.jpg` produces `photo_2.jpg`. A source already in the selected
+format is skipped, and animated images are not flattened silently.
+
+Successful conversions need no extra window—the new files appear in Finder. If
+one fails, the Wishly menu-bar icon changes to a warning; open its **Finder
+conversion failed — Details…** item for the reason.
+
 ## Quit and report a problem
 
 Quit the app from its **menu bar icon** → **Quit Wishly Agent** (there is no Dock icon). In the interface open the compact header menu, choose **Copy diagnostics**, and send that text with a short description. The report includes separate web/Agent versions, build IDs, API compatibility and instance start time; it excludes videos and full private paths.

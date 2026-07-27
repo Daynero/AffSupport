@@ -1,3 +1,10 @@
+# v0.8.0
+
+- Convert one or many selected still images directly from Finder through a native **Convert to** submenu.
+- Export PNG, JPEG, or WebP beside each original with collision-safe names; HEIC/HEIF remains available as an input when macOS can decode it, but is not offered as an output.
+- Keep conversion private and unobtrusive: Wishly queues the work in the local Agent without opening the browser UI and reports completion through macOS.
+- Ship the Finder action inside both production and development app bundles, with localized English and Ukrainian labels and a reusable media-action queue for future video workflows.
+
 # v0.7.4
 
 - Automatically translate every completed transcript in the background using the Wishly interface language as the default target.

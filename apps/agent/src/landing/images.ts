@@ -1,7 +1,6 @@
 import { spawn } from 'node:child_process';
-import type { LandingImageQuality } from '@video-compressor/shared';
 import { ffmpegPath } from '../ffmpeg/tools.js';
-import { decodePng, encodeWebp } from './webp.js';
+import { decodePng, encodeWebp, type WebpQualityProfile } from './webp.js';
 
 /**
  * Decodes any supported raster image to an 8-bit RGBA PNG using the bundled
@@ -55,7 +54,7 @@ export interface OptimizedImage {
 /** Converts a single image to WebP at the requested quality. */
 export async function encodeImageToWebp(
   inputPath: string,
-  quality: LandingImageQuality
+  quality: WebpQualityProfile
 ): Promise<OptimizedImage> {
   const png = await decodeToPng(inputPath);
   const image = await decodePng(png);
