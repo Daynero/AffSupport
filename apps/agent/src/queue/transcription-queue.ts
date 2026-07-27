@@ -132,6 +132,7 @@ export class TranscriptionQueue {
     key: string;
     generation: number;
     controller: AbortController;
+    preemptedByTranscription: boolean;
   } | null = null;
   /** Last wall-clock a translation-progress counter was flushed to the sidecar. */
   private lastProgressWrite = 0;
@@ -580,14 +581,55 @@ export class TranscriptionQueue {
     return { outcome: 'queued', translation: pending };
   }
 
+  private transcriptionWorkPending(): boolean {
+    return (
+      this.inFlight || this.jobs.some(job => job.status === 'queued' || job.status === 'processing')
+    );
+  }
+
   /**
-   * Processes queued translations one at a time, never concurrently with a
-   * whisper job (shared local resource). Stale tasks (a newer generation was
-   * requested) are skipped; a result whose generation is no longer current is
-   * discarded rather than written, so it cannot clobber a newer translation.
+   * Whisper always owns the shared resource. A translation that was already
+   * running when a new transcription batch starts is aborted and requeued by
+   * `pumpTranslations`, preserving its generation and FIFO position.
+   */
+  private preemptTranslationForTranscription(): void {
+    const active = this.activeTranslation;
+    if (!active || active.preemptedByTranscription) return;
+    active.preemptedByTranscription = true;
+    active.controller.abort();
+  }
+
+  private async requeuePreemptedTranslation(task: TranslationTask, key: string): Promise<void> {
+    const queued = await this.mutateDocument(task.jobId, document => {
+      if ((this.translationGenerations.get(key) ?? 0) !== task.generation) return null;
+      const translation = document.translations[task.language];
+      if (!translation || translation.status === 'completed') return null;
+      translation.status = 'queued';
+      translation.completedSegments = 0;
+      translation.totalSegments = document.segments.length;
+      translation.error = null;
+      return translation;
+    });
+    if (!queued) return;
+
+    const alreadyQueued = this.translationTasks.some(
+      candidate =>
+        candidate.jobId === task.jobId &&
+        candidate.language === task.language &&
+        candidate.generation === task.generation
+    );
+    if (!alreadyQueued) this.translationTasks.unshift(task);
+    this.setTranslationSummary(task.jobId, queued);
+  }
+
+  /**
+   * Processes queued translations one at a time only after every queued
+   * transcription has finished. Stale tasks (a newer generation was requested)
+   * are skipped; a result whose generation is no longer current is discarded
+   * rather than written, so it cannot clobber a newer translation.
    */
   private async pumpTranslations(): Promise<void> {
-    if (this.translating || this.inFlight) return;
+    if (this.translating || this.transcriptionWorkPending()) return;
     const translator = this.translator;
     if (!translator?.available()) return;
 
@@ -604,7 +646,12 @@ export class TranscriptionQueue {
     // start a multi-gigabyte model concurrently with TranslateGemma.
     this.translating = true;
     const controller = new AbortController();
-    this.activeTranslation = { key, generation: task.generation, controller };
+    this.activeTranslation = {
+      key,
+      generation: task.generation,
+      controller,
+      preemptedByTranscription: false
+    };
 
     try {
       const preparation = await this.mutateDocument(task.jobId, document => {
@@ -617,6 +664,7 @@ export class TranscriptionQueue {
         return { document, cacheKey: processing.cacheKey, processing };
       });
       if (!preparation) return;
+      if (controller.signal.aborted) throw new Error('aborted');
       const { document, cacheKey, processing } = preparation;
       this.setTranslationSummary(task.jobId, processing);
       this.notify('transcription:progress');
@@ -626,6 +674,7 @@ export class TranscriptionQueue {
       // time so the same source/language/model tuple is never inferred twice.
       if (cacheKey) {
         const sharedCached = await this.translationCache.load(cacheKey);
+        if (controller.signal.aborted) throw new Error('aborted');
         if (sharedCached && this.alignmentIsCurrent(sharedCached)) {
           const rebound = this.bindCachedTranslation(sharedCached, document, task.requestId);
           if (rebound) {
@@ -732,7 +781,14 @@ export class TranscriptionQueue {
       }
     } catch (error) {
       const aborted = controller.signal.aborted;
-      if (!aborted) {
+      const preempted =
+        aborted &&
+        this.activeTranslation?.key === key &&
+        this.activeTranslation.generation === task.generation &&
+        this.activeTranslation.preemptedByTranscription;
+      if (preempted && (this.translationGenerations.get(key) ?? 0) === task.generation) {
+        await this.requeuePreemptedTranslation(task, key);
+      } else if (!aborted) {
         const failed = await this.mutateDocument(task.jobId, fresh => {
           if ((this.translationGenerations.get(key) ?? 0) !== task.generation) return null;
           const previous = fresh.translations[task.language];
@@ -756,8 +812,8 @@ export class TranscriptionQueue {
       this.translating = false;
       this.activeTranslation = null;
       this.notify();
-      queueMicrotask(() => void this.pumpTranslations());
       queueMicrotask(() => void this.pump());
+      queueMicrotask(() => void this.pumpTranslations());
     }
   }
 
@@ -972,6 +1028,7 @@ export class TranscriptionQueue {
       job.finishedAt = null;
       job.requestedLanguage = this.settings.language;
     }
+    this.preemptTranslationForTranscription();
     this.notify();
     void this.pump();
     return true;
@@ -983,6 +1040,7 @@ export class TranscriptionQueue {
     if (job.status === 'queued') {
       job.status = 'cancelled';
       this.notify();
+      queueMicrotask(() => void this.pumpTranslations());
       return true;
     }
     if (job.status === 'processing') {
@@ -1002,6 +1060,7 @@ export class TranscriptionQueue {
     this.jobs = this.jobs.filter(item => item.id !== id);
     await this.cleanupSource(job);
     this.notify();
+    queueMicrotask(() => void this.pumpTranslations());
     return true;
   }
 
@@ -1013,6 +1072,7 @@ export class TranscriptionQueue {
     this.jobs = this.jobs.filter(job => !removableIds.has(job.id));
     for (const job of removable) await this.cleanupSource(job);
     this.notify();
+    queueMicrotask(() => void this.pumpTranslations());
   }
 
   async clearCompleted(): Promise<void> {
@@ -1093,10 +1153,10 @@ export class TranscriptionQueue {
         await this.withDocumentLock(job.id, () =>
           this.documents.save(buildTranscriptionDocument(job, MODEL_DESCRIPTOR.label, result.words))
         ).catch(() => {});
-        // Queue the preferred local translation as soon as the private
-        // transcript sidecar exists. Inference starts after the shared Whisper
-        // lock is released below and is served instantly when already cached.
-        await this.requestAutomaticTranslation(job.id).catch(() => {});
+        // Queue the preferred local translation without delaying the next
+        // Whisper job. Inference remains blocked until the transcription queue
+        // is empty and is served instantly when already cached.
+        void this.requestAutomaticTranslation(job.id).catch(() => {});
       } else {
         job.status = 'failed';
         job.progress = null;
@@ -1117,10 +1177,9 @@ export class TranscriptionQueue {
     } finally {
       this.inFlight = false;
       this.notify();
-      // Give the just-completed file's translation first access to the shared
-      // local model resource; remaining transcriptions continue afterwards.
-      queueMicrotask(() => void this.pumpTranslations());
+      // Drain every queued Whisper job before allowing background translation.
       queueMicrotask(() => void this.pump());
+      queueMicrotask(() => void this.pumpTranslations());
     }
   }
 
