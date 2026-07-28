@@ -41,6 +41,7 @@ for notice in GEMMA_TERMS.md GEMMA_PROHIBITED_USE_POLICY.md NOTICE-Gemma.txt mul
   [[ -s "$app/Contents/Resources/licenses/$notice" ]]
 done
 [[ -s "$app/Contents/Resources/agent/production-dependencies.json" ]]
+node scripts/verify-staged-dependencies.mjs "$app/Contents/Resources/agent"
 for unwanted in @electric-sql @testing-library eslint jsdom prettier react react-dom tsx typescript vite vitest; do
   [[ ! -e "$app/Contents/Resources/agent/node_modules/$unwanted" ]]
 done

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { cp, mkdir, readdir, stat, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -78,6 +78,25 @@ const productionPackages = [...productionSources]
 
 if (productionPackages.length === 0) {
   throw new Error('npm did not report any production dependencies for the Agent workspace.');
+}
+
+// npm can report the lockfile's desired versions even when a developer's
+// physical node_modules tree is stale. Packaging from those stale directories
+// would silently reintroduce already-patched dependencies, so compare every
+// source directory with the exact lockfile entry before copying anything.
+const packageLock = JSON.parse(
+  await readFile(path.join(repositoryRoot, 'package-lock.json'), 'utf8')
+);
+for (const { source, relativePath } of productionPackages) {
+  const lockfilePath = path.relative(repositoryRoot, source).split(path.sep).join('/');
+  const lockedVersion = packageLock.packages?.[lockfilePath]?.version;
+  const installedManifest = JSON.parse(await readFile(path.join(source, 'package.json'), 'utf8'));
+  if (!lockedVersion || installedManifest.version !== lockedVersion) {
+    throw new Error(
+      `Installed dependency ${relativePath}@${installedManifest.version ?? 'unknown'} ` +
+        `does not match package-lock.json (${lockedVersion ?? 'missing'}). Run npm ci before packaging.`
+    );
+  }
 }
 
 await cp(path.join(repositoryRoot, 'apps/agent/dist'), path.join(destination, 'dist'), {

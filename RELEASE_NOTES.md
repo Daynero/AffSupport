@@ -1,3 +1,8 @@
+# v0.8.3
+
+- Update the local Agent's HTTP routing and static-file dependency chain to patched releases after new production advisories were detected.
+- Supersede v0.8.2 without changing its compression, image-pool, re-embedding, repeat, or launch behavior.
+
 # v0.8.2
 
 - Keep Wishly idle after launch instead of opening a page automatically; open the interface manually when needed.

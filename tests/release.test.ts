@@ -53,10 +53,10 @@ describe('release identity', () => {
       readFileSync('apps/web/public/.well-known/wishly/stable.json', 'utf8')
     );
     expect(localizedReleaseSummary(manifest, 'en')).toBe(
-      'Keep Wishly idle until you open it, use the documented 30 FPS / CRF 26 / 720p optimal preset, rotate through image pools, replace existing static edges, and repeat completed compressions.'
+      "Security hotfix: update the local Agent's HTTP routing and static-file dependencies to patched versions. All compression and image-pool improvements from 0.8.2 remain included."
     );
     expect(localizedReleaseSummary(manifest, 'uk')).toBe(
-      'Wishly більше не відкриває сторінку самостійно. Оптимальний режим — 30 FPS / CRF 26 / 720p; додано набори зображень, перезашивання статичних країв і повторне стиснення завершених відео.'
+      'Оновлення безпеки: локальний Agent тепер використовує виправлені залежності HTTP-маршрутизації та статичних файлів. Усі покращення стиснення й наборів зображень з 0.8.2 збережено.'
     );
     expect(localizedReleaseSummary({ ...manifest, summary: undefined }, 'uk')).toBeNull();
   });
@@ -115,6 +115,9 @@ describe('release identity', () => {
     const packageScript = readFileSync('scripts/package-dev-mac.sh', 'utf8');
     const devDmgScript = readFileSync('scripts/package-dev-dmg.sh', 'utf8');
     const productionPackageScript = readFileSync('scripts/package-mac.sh', 'utf8');
+    const stageRuntimeScript = readFileSync('scripts/stage-agent-runtime.mjs', 'utf8');
+    const productionVerifyScript = readFileSync('scripts/verify-package.sh', 'utf8');
+    const developmentVerifyScript = readFileSync('scripts/verify-dev-package.sh', 'utf8');
     const launcher = readFileSync('packaging/Launcher.swift', 'utf8');
     expect(packageScript).toContain('VITE_ANALYTICS_ENABLED=false');
     expect(packageScript).toContain('VITE_LOCAL_DEV_AUTH=true');
@@ -127,6 +130,10 @@ describe('release identity', () => {
       expect(script).toContain('/usr/bin/strip -x');
       expect(script).not.toContain('cp -R apps/agent/dist apps/agent/package.json node_modules');
       expect(script).not.toContain('LLAMA_RUNTIME_ARCHIVE');
+    }
+    expect(stageRuntimeScript).toContain('does not match package-lock.json');
+    for (const script of [productionVerifyScript, developmentVerifyScript]) {
+      expect(script).toContain('scripts/verify-staged-dependencies.mjs');
     }
     expect(devDmgScript).toContain('zlib-level=9');
     expect(launcher).toContain('__AGENT_PORT__');

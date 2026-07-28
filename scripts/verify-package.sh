@@ -36,6 +36,7 @@ diff -qr apps/agent/dist "$app/Contents/Resources/agent/dist" >/dev/null
 diff -qr apps/web/dist "$app/Contents/Resources/web/dist" >/dev/null
 diff -qr packages/shared/dist "$app/Contents/Resources/agent/node_modules/@video-compressor/shared/dist" >/dev/null
 [[ -s "$app/Contents/Resources/agent/production-dependencies.json" ]]
+node scripts/verify-staged-dependencies.mjs "$app/Contents/Resources/agent"
 for unwanted in @electric-sql @testing-library eslint jsdom prettier react react-dom tsx typescript vite vitest; do
   [[ ! -e "$app/Contents/Resources/agent/node_modules/$unwanted" ]]
 done
