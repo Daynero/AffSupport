@@ -56,6 +56,16 @@ describe('Wishly UI components', () => {
     expect(processing).toContain('wishly-loader');
   });
 
+  it('uses a speech waveform and transcription copy in transcription status badges', () => {
+    const processing = renderToStaticMarkup(
+      <StatusBadge status="processing" t={t} context="transcription" />
+    );
+    expect(processing).toContain('transcription-loader');
+    expect(processing).toContain('Transcribing');
+    expect(processing).not.toContain('wishly-loader');
+    expect(processing).not.toContain('Compressing');
+  });
+
   it('lets the progress gradient flow only while actively processing', () => {
     expect(renderToStaticMarkup(<ProgressBar value={40} label="p" active />)).toContain(
       'is-flowing'

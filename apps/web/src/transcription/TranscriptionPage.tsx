@@ -877,7 +877,7 @@ function TranscriptionRow({
         <span className="job-row-name" title={job.fileName}>
           {job.fileName}
         </span>
-        <StatusBadge status={job.status} t={t} />
+        <StatusBadge status={job.status} t={t} context="transcription" />
         <div className="job-row-actions">
           {done && (
             <>
@@ -926,7 +926,7 @@ function TranscriptionRow({
             label={job.fileName}
           />
           <div className="job-progress-meta">
-            {job.progress !== null ? `${Math.round(job.progress)}%` : t('statusProcessing')}
+            {job.progress !== null ? `${Math.round(job.progress)}%` : t('transcriptionProcessing')}
           </div>
         </div>
       )}

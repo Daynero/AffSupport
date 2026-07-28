@@ -212,6 +212,25 @@ export function WishlyLoader({ size = 18 }: { size?: number }) {
   );
 }
 
+/** Compact speech waveform for active transcription states. */
+export function TranscriptionLoader({ size = 14 }: { size?: number }) {
+  return (
+    <svg
+      className="transcription-loader"
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <rect className="wave-bar" x="1" y="5" width="2" height="6" rx="1" fill="currentColor" />
+      <rect className="wave-bar" x="5" y="2" width="2" height="12" rx="1" fill="currentColor" />
+      <rect className="wave-bar" x="9" y="4" width="2" height="8" rx="1" fill="currentColor" />
+      <rect className="wave-bar" x="13" y="6" width="2" height="4" rx="1" fill="currentColor" />
+    </svg>
+  );
+}
+
 /** Calm staggered dots for the estimation state — intentionally lighter
  * than the conversion loader. */
 export function WishlyDots() {
@@ -224,12 +243,20 @@ export function WishlyDots() {
   );
 }
 
-export function StatusBadge({ status, t }: { status: JobStatus; t: Translate }) {
+export function StatusBadge({
+  status,
+  t,
+  context = 'compression'
+}: {
+  status: JobStatus;
+  t: Translate;
+  context?: 'compression' | 'transcription';
+}) {
   const keys: Record<JobStatus, TranslationKey> = {
     analyzing: 'statusAnalyzing',
     ready: 'statusReady',
     queued: 'statusQueued',
-    processing: 'statusProcessing',
+    processing: context === 'transcription' ? 'transcriptionProcessing' : 'statusProcessing',
     completed: 'statusCompleted',
     failed: 'statusFailed',
     cancelled: 'statusCancelled',
@@ -238,7 +265,11 @@ export function StatusBadge({ status, t }: { status: JobStatus; t: Translate }) 
   return (
     <span className={`status-badge status-${status}`}>
       {status === 'processing' ? (
-        <WishlyLoader size={13} />
+        context === 'transcription' ? (
+          <TranscriptionLoader size={13} />
+        ) : (
+          <WishlyLoader size={13} />
+        )
       ) : status === 'completed' ? (
         <svg
           className="status-check"
