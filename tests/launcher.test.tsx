@@ -52,4 +52,20 @@ describe('Wishly product launcher', () => {
     expect(styles).toContain('@media (prefers-reduced-motion: reduce)');
     expect(redirects).toContain('/* /index.html 200');
   });
+
+  it('starts the Agent quietly and leaves opening Wishly to the user', async () => {
+    const [launcher, agent] = await Promise.all([
+      readFile('packaging/Launcher.swift', 'utf8'),
+      readFile('apps/agent/src/index.ts', 'utf8')
+    ]);
+    expect(launcher).not.toContain('scheduleAutomaticInterfaceOpen');
+    expect(launcher).toContain('action: #selector(openInterface)');
+    const existingInstance = launcher.slice(
+      launcher.indexOf('private func handleExistingInstance'),
+      launcher.indexOf('private func offerRunningVersionRestart')
+    );
+    expect(existingInstance).not.toContain('openInterface()');
+    expect(agent).not.toContain("import open from 'open'");
+    expect(agent).not.toContain('Could not open Wishly in the browser');
+  });
 });

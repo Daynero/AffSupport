@@ -61,6 +61,8 @@ export const DEFAULT_CUSTOM_FRAME_RATE = 30;
 export const CRF_MIN = 16;
 export const CRF_MAX = 35;
 export const DEFAULT_CRF = 26;
+export const OPTIMAL_FRAME_RATE = 30;
+export const OPTIMAL_RESOLUTION_LIMIT = 720;
 export const VIDEO_BITRATE_MIN_KBPS = 100;
 export const VIDEO_BITRATE_MAX_KBPS = 100_000;
 export const DEFAULT_VIDEO_BITRATE_KBPS = 2_500;
@@ -83,8 +85,9 @@ export interface ImageAsset {
 
 export interface ImageEmbeddingSettings {
   enabled: boolean;
-  startImage: ImageAsset | null;
-  endImage: ImageAsset | null;
+  startImages: ImageAsset[];
+  endImages: ImageAsset[];
+  replaceExisting: boolean;
   finalDurationMode: FinalImageDurationMode;
   customFinalDurationSeconds: number;
   fitMode: ImageFitMode;
@@ -97,6 +100,10 @@ export interface JobImageEmbedding {
   /** A random duration is null while a ready job is only being estimated, then frozen at queue start. */
   finalDurationSeconds: number | null;
   fitMode: ImageFitMode;
+  replaceExisting: boolean;
+  /** Seconds removed from the source edges before the new images are embedded. */
+  sourceTrimStartSeconds: number;
+  sourceTrimEndSeconds: number;
 }
 
 export interface EstimateBreakdown {
@@ -134,7 +141,7 @@ export interface AgentSettings {
  * they can only be changed through the managed image upload/delete endpoints.
  */
 export type ImageEmbeddingSettingsPatch = Partial<
-  Omit<ImageEmbeddingSettings, 'startImage' | 'endImage'>
+  Omit<ImageEmbeddingSettings, 'startImages' | 'endImages'>
 >;
 export type AgentSettingsPatch = Omit<Partial<AgentSettings>, 'imageEmbedding'> & {
   imageEmbedding?: ImageEmbeddingSettingsPatch;
@@ -143,8 +150,9 @@ export type AgentSettingsPatch = Omit<Partial<AgentSettings>, 'imageEmbedding'> 
 export function defaultImageEmbeddingSettings(): ImageEmbeddingSettings {
   return {
     enabled: false,
-    startImage: null,
-    endImage: null,
+    startImages: [],
+    endImages: [],
+    replaceExisting: false,
     finalDurationMode: 'random-40-50',
     customFinalDurationSeconds: DEFAULT_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
     fitMode: 'cover'
@@ -182,8 +190,8 @@ export function encodingFromSettings(settings: AgentSettings): EncodingSettings 
     return {
       mode: 'optimal',
       stripMetadata: settings.stripMetadata,
-      frameRate: null,
-      resolutionLimit: null,
+      frameRate: OPTIMAL_FRAME_RATE,
+      resolutionLimit: OPTIMAL_RESOLUTION_LIMIT,
       rateControl: 'crf',
       crf: DEFAULT_CRF,
       videoBitrateKbps: null
@@ -220,7 +228,10 @@ export function imageEmbeddingKey(settings: JobImageEmbedding | null): string {
     settings.endImage?.id ?? null,
     settings.finalDurationMode,
     settings.finalDurationSeconds,
-    settings.fitMode
+    settings.fitMode,
+    settings.replaceExisting,
+    settings.sourceTrimStartSeconds,
+    settings.sourceTrimEndSeconds
   ]);
 }
 
@@ -232,16 +243,21 @@ export function jobConfigurationKey(
 }
 
 export function draftImageEmbedding(settings: ImageEmbeddingSettings): JobImageEmbedding | null {
-  if (!settings.enabled || (!settings.startImage && !settings.endImage)) return null;
+  const startImage = settings.startImages[0] ?? null;
+  const endImage = settings.endImages[0] ?? null;
+  if (!settings.enabled || (!startImage && !endImage)) return null;
   return {
-    startImage: settings.startImage ? { ...settings.startImage } : null,
-    endImage: settings.endImage ? { ...settings.endImage } : null,
+    startImage: startImage ? { ...startImage } : null,
+    endImage: endImage ? { ...endImage } : null,
     finalDurationMode: settings.finalDurationMode,
     finalDurationSeconds:
-      settings.endImage && settings.finalDurationMode === 'custom'
+      endImage && settings.finalDurationMode === 'custom'
         ? settings.customFinalDurationSeconds
         : null,
-    fitMode: settings.fitMode
+    fitMode: settings.fitMode,
+    replaceExisting: settings.replaceExisting,
+    sourceTrimStartSeconds: 0,
+    sourceTrimEndSeconds: 0
   };
 }
 

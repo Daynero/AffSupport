@@ -35,9 +35,11 @@ import {
   outputDimensions,
   outputDurationSeconds,
   outputFrameRate,
-  refreshEstimateFromBreakdown
+  refreshEstimateFromBreakdown,
+  sourceDurationSeconds
 } from '../images/embedding.js';
 import { ImageAssetError, ImageAssetStore } from '../images/store.js';
+import { detectStaticEdgeTrims } from '../images/static-edges.js';
 import { defaultSettings } from './store.js';
 
 type EstimatorHooks = {
@@ -91,6 +93,11 @@ export class JobQueue {
   private updateState: NonNullable<QueueState['update']> = {
     state: 'none',
     targetBuildId: null
+  };
+  private imagePool: Record<ImageSlot, string[]> = { start: [], end: [] };
+  private knownPoolImages: Record<ImageSlot, Set<string>> = {
+    start: new Set(),
+    end: new Set()
   };
 
   constructor(
@@ -243,15 +250,34 @@ export class JobQueue {
 
   async setImage(slot: ImageSlot, asset: ImageAsset | null) {
     const imageEmbedding = cloneImageEmbeddingSettings(this.settings.imageEmbedding);
-    if (slot === 'start') imageEmbedding.startImage = asset ? { ...asset } : null;
-    else imageEmbedding.endImage = asset ? { ...asset } : null;
+    const key = slot === 'start' ? 'startImages' : 'endImages';
+    imageEmbedding[key] = asset ? [{ ...asset }] : [];
     await this.updateSettings({ imageEmbedding });
+  }
+
+  async addImage(slot: ImageSlot, asset: ImageAsset) {
+    const imageEmbedding = cloneImageEmbeddingSettings(this.settings.imageEmbedding);
+    const key = slot === 'start' ? 'startImages' : 'endImages';
+    if (!imageEmbedding[key].some(candidate => candidate.id === asset.id)) {
+      imageEmbedding[key].push({ ...asset });
+    }
+    await this.updateSettings({ imageEmbedding });
+  }
+
+  async removeImage(slot: ImageSlot, id: string) {
+    const imageEmbedding = cloneImageEmbeddingSettings(this.settings.imageEmbedding);
+    const key = slot === 'start' ? 'startImages' : 'endImages';
+    const previous = imageEmbedding[key].find(asset => asset.id === id) ?? null;
+    if (!previous) return null;
+    imageEmbedding[key] = imageEmbedding[key].filter(asset => asset.id !== id);
+    await this.updateSettings({ imageEmbedding });
+    return previous;
   }
 
   imageAsset(id: string) {
     const settingsAssets = [
-      this.settings.imageEmbedding.startImage,
-      this.settings.imageEmbedding.endImage
+      ...this.settings.imageEmbedding.startImages,
+      ...this.settings.imageEmbedding.endImages
     ];
     const jobAssets = this.jobs.flatMap(job => [
       job.imageEmbedding?.startImage ?? null,
@@ -267,18 +293,24 @@ export class JobQueue {
   async revalidateSettingsImages() {
     const imageEmbedding = cloneImageEmbeddingSettings(this.settings.imageEmbedding);
     let changed = false;
-    for (const slot of ['startImage', 'endImage'] as const) {
-      const asset = imageEmbedding[slot];
-      if (asset) {
+    const invalidAssets: ImageAsset[] = [];
+    for (const slot of ['startImages', 'endImages'] as const) {
+      const valid: ImageAsset[] = [];
+      for (const asset of imageEmbedding[slot]) {
         try {
           await this.imageStore.validate(asset);
+          valid.push(asset);
         } catch {
-          imageEmbedding[slot] = null;
           changed = true;
+          invalidAssets.push(asset);
         }
       }
+      imageEmbedding[slot] = valid;
     }
-    if (changed) await this.updateSettings({ imageEmbedding });
+    if (changed) {
+      await this.updateSettings({ imageEmbedding });
+      for (const asset of invalidAssets) void this.releaseImageIfUnused(asset);
+    }
     return changed;
   }
 
@@ -335,7 +367,7 @@ export class JobQueue {
 
   embeddingConfigurationError() {
     const embedding = this.settings.imageEmbedding;
-    if (embedding.enabled && !embedding.startImage && !embedding.endImage) {
+    if (embedding.enabled && !embedding.startImages.length && !embedding.endImages.length) {
       return 'EMBED_IMAGES_REQUIRED';
     }
     return null;
@@ -373,6 +405,12 @@ export class JobQueue {
     )
       return false;
     const requested = new Set(ids);
+    const rerunnable = this.jobs.filter(
+      job =>
+        requested.has(job.id) &&
+        ['completed', 'failed', 'cancelled', 'interrupted'].includes(job.status)
+    );
+    for (const job of rerunnable) await this.resetForRerun(job);
     const jobs = this.jobs.filter(job => requested.has(job.id) && job.status === 'ready');
     if (!jobs.length) return false;
 
@@ -386,7 +424,17 @@ export class JobQueue {
     this.warning = await this.diskWarning(jobs);
     for (const job of jobs) {
       const draftKey = jobConfigurationKey(job.encoding, job.imageEmbedding);
-      job.imageEmbedding = freezeImageEmbedding(this.settings.imageEmbedding, this.random);
+      const selectedImages = this.settings.imageEmbedding.enabled
+        ? {
+            startImage: this.drawImage('start', this.settings.imageEmbedding.startImages),
+            endImage: this.drawImage('end', this.settings.imageEmbedding.endImages)
+          }
+        : { startImage: null, endImage: null };
+      job.imageEmbedding = freezeImageEmbedding(
+        this.settings.imageEmbedding,
+        this.random,
+        selectedImages
+      );
       job.outputPath = await this.outputPathFor(job.inputPath, job);
       if (
         draftKey !== jobConfigurationKey(job.encoding, job.imageEmbedding) &&
@@ -489,30 +537,16 @@ export class JobQueue {
   async retry(id: string) {
     const job = this.jobs.find(candidate => candidate.id === id);
     if (!job || !['failed', 'interrupted', 'cancelled'].includes(job.status)) return false;
-    const previousImages = jobImages(job);
-    job.status = 'ready';
-    job.error = null;
-    job.errorDetails = null;
-    job.progress = job.durationSeconds ? 0 : null;
-    job.processingStage = null;
-    job.finalSize = null;
-    job.finalWidth = null;
-    job.finalHeight = null;
-    job.finalFrameRate = null;
-    job.finalBitrate = null;
-    job.finalDurationSeconds = null;
-    job.finalCodec = null;
-    job.startedAt = null;
-    job.finishedAt = null;
-    job.batchId = null;
-    job.encoding = encodingFromSettings(this.settings);
-    job.imageEmbedding = draftImageEmbedding(this.settings.imageEmbedding);
-    job.outputPath = await this.outputPathFor(job.inputPath, job);
-    resetEstimate(job);
-    for (const image of previousImages) void this.releaseImageIfUnused(image);
+    await this.resetForRerun(job);
     this.notify('estimate:queued');
     this.estimateHooks?.schedule();
     return true;
+  }
+
+  async repeat(id: string) {
+    const job = this.jobs.find(candidate => candidate.id === id);
+    if (!job || job.status !== 'completed') return false;
+    return this.start([id]);
   }
 
   clearCompleted() {
@@ -669,6 +703,56 @@ export class JobQueue {
     }
   }
 
+  private async resetForRerun(job: CompressionJob) {
+    const previousImages = jobImages(job);
+    job.status = 'ready';
+    job.error = null;
+    job.errorDetails = null;
+    job.progress = job.durationSeconds ? 0 : null;
+    job.processingStage = null;
+    job.finalSize = null;
+    job.finalWidth = null;
+    job.finalHeight = null;
+    job.finalFrameRate = null;
+    job.finalBitrate = null;
+    job.finalDurationSeconds = null;
+    job.finalCodec = null;
+    job.startedAt = null;
+    job.finishedAt = null;
+    job.batchId = null;
+    job.encoding = encodingFromSettings(this.settings);
+    job.imageEmbedding = draftImageEmbedding(this.settings.imageEmbedding);
+    job.outputPath = await this.outputPathFor(job.inputPath, job);
+    resetEstimate(job);
+    for (const image of previousImages) void this.releaseImageIfUnused(image);
+  }
+
+  private drawImage(slot: ImageSlot, assets: ImageAsset[]) {
+    if (!assets.length) {
+      this.imagePool[slot] = [];
+      this.knownPoolImages[slot].clear();
+      return null;
+    }
+    const currentIds = new Set(assets.map(asset => asset.id));
+    this.imagePool[slot] = this.imagePool[slot].filter(id => currentIds.has(id));
+    for (const asset of assets) {
+      if (!this.knownPoolImages[slot].has(asset.id)) this.imagePool[slot].push(asset.id);
+    }
+    this.knownPoolImages[slot] = currentIds;
+    if (!this.imagePool[slot].length) {
+      this.imagePool[slot] = assets.map(asset => asset.id);
+    }
+    const index =
+      this.imagePool[slot].length === 1
+        ? 0
+        : Math.floor(
+            Math.min(0.999999999, Math.max(0, this.random())) * this.imagePool[slot].length
+          );
+    const [id] = this.imagePool[slot].splice(index, 1);
+    const selected = assets.find(asset => asset.id === id) ?? assets[0];
+    return { ...selected };
+  }
+
   private async outputPathFor(inputPath: string, current?: CompressionJob) {
     let folder: string | undefined;
     if (this.settings.outputMode === 'chosen-folder') {
@@ -746,6 +830,10 @@ export class JobQueue {
         return;
       }
       const embedding = await this.embeddingOptions(job);
+      if (isCancelled(job)) {
+        await unlink(job.outputPath).catch(() => {});
+        return;
+      }
       job.processingStage = 'compressing';
       this.notify();
       let result = await this.run(job, false, embedding);
@@ -820,7 +908,6 @@ export class JobQueue {
     job.estimateStatus = 'cancelled';
     job.estimateProgress = null;
     job.finishedAt = finishTimestamp(job);
-    await cleanupImportedSource(job);
   }
 
   private async pauseForRuntimeFailure(
@@ -873,6 +960,21 @@ export class JobQueue {
     if (!Number.isFinite(frameRate) || frameRate <= 0) {
       throw new Error('IMAGE_FILTER_GRAPH_INVALID: output frame rate is unavailable.');
     }
+    if (job.imageEmbedding.replaceExisting) {
+      const trims = await detectStaticEdgeTrims(
+        job.inputPath,
+        job.durationSeconds,
+        job.sourceFrameRate ?? frameRate
+      );
+      job.imageEmbedding.sourceTrimStartSeconds = trims.startSeconds;
+      job.imageEmbedding.sourceTrimEndSeconds = trims.endSeconds;
+      if (!refreshEstimateFromBreakdown(job)) resetEstimate(job);
+      this.notify();
+    }
+    const sourceDuration = sourceDurationSeconds(job);
+    if (sourceDuration <= 0) {
+      throw new Error('IMAGE_FILTER_GRAPH_INVALID: no moving source frames remain.');
+    }
     const startImagePath = job.imageEmbedding.startImage
       ? await this.imageStore.validate(job.imageEmbedding.startImage)
       : null;
@@ -883,7 +985,8 @@ export class JobQueue {
       throw new Error('IMAGE_FILTER_GRAPH_INVALID: final image duration is invalid.');
     }
     return {
-      sourceDurationSeconds: job.durationSeconds,
+      sourceStartSeconds: job.imageEmbedding.sourceTrimStartSeconds,
+      sourceDurationSeconds: sourceDuration,
       sourceHasAudio: job.sourceHasAudio,
       width: dimensions.width,
       height: dimensions.height,
@@ -1169,8 +1272,8 @@ function cloneSettings(settings: AgentSettings): AgentSettings {
 function cloneImageEmbeddingSettings(settings: AgentSettings['imageEmbedding']) {
   return {
     ...settings,
-    startImage: settings.startImage ? { ...settings.startImage } : null,
-    endImage: settings.endImage ? { ...settings.endImage } : null
+    startImages: settings.startImages.map(asset => ({ ...asset })),
+    endImages: settings.endImages.map(asset => ({ ...asset }))
   };
 }
 
@@ -1187,8 +1290,9 @@ function cloneJobImageEmbedding(settings: CompressionJob['imageEmbedding']) {
 function imageEmbeddingSettingsKey(settings: AgentSettings['imageEmbedding']) {
   return JSON.stringify([
     settings.enabled,
-    settings.startImage?.id ?? null,
-    settings.endImage?.id ?? null,
+    settings.startImages.map(asset => asset.id),
+    settings.endImages.map(asset => asset.id),
+    settings.replaceExisting,
     settings.finalDurationMode,
     settings.customFinalDurationSeconds,
     settings.fitMode

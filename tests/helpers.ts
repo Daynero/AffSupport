@@ -1,6 +1,8 @@
 import {
   DEFAULT_CRF,
   DEFAULT_VIDEO_BITRATE_KBPS,
+  OPTIMAL_FRAME_RATE,
+  OPTIMAL_RESOLUTION_LIMIT,
   defaultImageEmbeddingSettings,
   type AgentSettings,
   type CompressionJob,
@@ -11,8 +13,8 @@ import {
 export const optimalEncoding: EncodingSettings = {
   mode: 'optimal',
   stripMetadata: true,
-  frameRate: null,
-  resolutionLimit: null,
+  frameRate: OPTIMAL_FRAME_RATE,
+  resolutionLimit: OPTIMAL_RESOLUTION_LIMIT,
   rateControl: 'crf',
   crf: DEFAULT_CRF,
   videoBitrateKbps: null

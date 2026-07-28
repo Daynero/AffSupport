@@ -74,7 +74,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var readinessAttempts = 0
   private var handoffAttempts = 0
   private var portWaitAttempts = 0
-  private var openedInterface = false
   private var statusItem: NSStatusItem?
   private var lockFD: Int32 = -1
   private var isTerminating = false
@@ -83,8 +82,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var runtimeRestartAttempts = 0
   private var pendingFinderActions: [FinderActionPayload] = []
   private var agentReady = false
-  private var receivedFinderAction = false
-  private var automaticOpen: DispatchWorkItem?
   private var pendingFinderJobIDs = Set<String>()
   private var finderPollScheduled = false
   private var finderPollInFlight = false
@@ -129,7 +126,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     readinessTimer?.invalidate()
     handoffTimer?.invalidate()
     updateMonitorTimer?.invalidate()
-    automaticOpen?.cancel()
     NSApp.servicesProvider = nil
     if let process, process.isRunning {
       process.terminate()
@@ -231,7 +227,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       }
       if self.matchesExpectedBuild(health) {
         if health.ready {
-          self.openInterface()
           NSApp.terminate(nil)
         } else if attempt < 20 {
           DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
@@ -454,7 +449,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.readinessTimer?.invalidate()
         self.agentReady = true
         self.flushFinderActions()
-        self.scheduleAutomaticInterfaceOpen()
         self.scheduleFinderIntegrationOffer()
       } else if let health, !self.matchesExpectedBuild(health) {
         self.readinessTimer?.invalidate()
@@ -537,24 +531,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   // The packaged web interface and Agent are built from the same contract. Opening the
   // loopback copy makes UI/Agent updates atomic and also avoids browser private-network rules.
   @objc private func openInterface() {
-    openedInterface = true
-    automaticOpen?.cancel()
     NSWorkspace.shared.open(agentBaseURL.appendingPathComponent("local"))
-  }
-
-  private func scheduleAutomaticInterfaceOpen() {
-    guard
-      !openedInterface,
-      !receivedFinderAction,
-      ProcessInfo.processInfo.environment["NO_OPEN"] != "1"
-    else { return }
-    automaticOpen?.cancel()
-    let work = DispatchWorkItem { [weak self] in
-      guard let self, !self.receivedFinderAction, !self.openedInterface else { return }
-      self.openInterface()
-    }
-    automaticOpen = work
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.8, execute: work)
   }
 
   @objc func performFinderAction(
@@ -563,8 +540,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     error: AutoreleasingUnsafeMutablePointer<NSString?>
   ) {
     launcherLogger.notice("Received Finder action service request")
-    receivedFinderAction = true
-    automaticOpen?.cancel()
     guard
       let raw = pasteboard.string(forType: finderActionPasteboardType),
       let data = raw.data(using: .utf8),

@@ -244,8 +244,9 @@ function migrateImageEmbeddingSettings(value: unknown): ImageEmbeddingSettings {
   const duration = Number(raw.customFinalDurationSeconds);
   return {
     enabled: raw.enabled === true,
-    startImage: migrateImageAsset(raw.startImage),
-    endImage: migrateImageAsset(raw.endImage),
+    startImages: migrateImageAssets(raw.startImages, raw.startImage),
+    endImages: migrateImageAssets(raw.endImages, raw.endImage),
+    replaceExisting: raw.replaceExisting === true,
     finalDurationMode:
       raw.finalDurationMode === 'random-30-40' ||
       raw.finalDurationMode === 'random-40-50' ||
@@ -284,8 +285,21 @@ function migrateJobImageEmbedding(value: unknown): JobImageEmbedding | null {
         : endImage && settings.finalDurationMode === 'custom'
           ? settings.customFinalDurationSeconds
           : null,
-    fitMode: settings.fitMode
+    fitMode: settings.fitMode,
+    replaceExisting: raw.replaceExisting === true,
+    sourceTrimStartSeconds: nonNegativeNumber(raw.sourceTrimStartSeconds),
+    sourceTrimEndSeconds: nonNegativeNumber(raw.sourceTrimEndSeconds)
   };
+}
+
+function migrateImageAssets(value: unknown, legacy: unknown): ImageAsset[] {
+  const values = Array.isArray(value) ? value : [legacy];
+  const seen = new Set<string>();
+  return values.map(migrateImageAsset).filter((asset): asset is ImageAsset => {
+    if (!asset || seen.has(asset.id)) return false;
+    seen.add(asset.id);
+    return true;
+  });
 }
 
 function migrateImageAsset(value: unknown): ImageAsset | null {
@@ -317,6 +331,11 @@ function migrateImageAsset(value: unknown): ImageAsset | null {
     mimeType: raw.mimeType as ImageAsset['mimeType'],
     extension: raw.extension as ImageAsset['extension']
   };
+}
+
+function nonNegativeNumber(value: unknown) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : 0;
 }
 
 function migrateEstimateBreakdown(value: unknown): EstimateBreakdown | null {

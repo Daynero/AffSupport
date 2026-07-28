@@ -6,15 +6,25 @@ import {
   jobConfigurationKey,
   randomFinalImageDurationSeconds,
   type CompressionJob,
+  type ImageAsset,
   type ImageEmbeddingSettings,
   type JobImageEmbedding
 } from '@video-compressor/shared';
 
 export function freezeImageEmbedding(
   settings: ImageEmbeddingSettings,
-  random = Math.random
+  random = Math.random,
+  selectedImages?: { startImage: ImageAsset | null; endImage: ImageAsset | null }
 ): JobImageEmbedding | null {
-  const draft = draftImageEmbedding(settings);
+  const draft = draftImageEmbedding(
+    selectedImages
+      ? {
+          ...settings,
+          startImages: selectedImages.startImage ? [selectedImages.startImage] : [],
+          endImages: selectedImages.endImage ? [selectedImages.endImage] : []
+        }
+      : settings
+  );
   if (!draft) return null;
   if (!draft.endImage) return draft;
   return {
@@ -35,16 +45,25 @@ export function outputDimensions(job: CompressionJob) {
 }
 
 export function outputDurationSeconds(job: CompressionJob) {
-  const source = job.durationSeconds ?? 0;
+  const source = sourceDurationSeconds(job);
   if (!job.imageEmbedding) return source;
   const start = job.imageEmbedding.startImage ? 1 / outputFrameRate(job) : 0;
   const end = estimatedFinalImageDurationSeconds(job.imageEmbedding);
   return source + start + end;
 }
 
+export function sourceDurationSeconds(job: CompressionJob) {
+  const source = job.durationSeconds ?? 0;
+  if (!job.imageEmbedding?.replaceExisting) return source;
+  return Math.max(
+    0,
+    source - job.imageEmbedding.sourceTrimStartSeconds - job.imageEmbedding.sourceTrimEndSeconds
+  );
+}
+
 export function refreshEstimateFromBreakdown(job: CompressionJob) {
   const breakdown = job.estimateBreakdown;
-  const sourceDuration = job.durationSeconds;
+  const sourceDuration = sourceDurationSeconds(job);
   if (!breakdown || !sourceDuration) return false;
   const staticDuration = job.imageEmbedding
     ? (job.imageEmbedding.startImage ? 1 / outputFrameRate(job) : 0) +

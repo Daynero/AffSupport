@@ -1,3 +1,11 @@
+# v0.8.2
+
+- Keep Wishly idle after launch instead of opening a page automatically; open the interface manually when needed.
+- Make **Optimal** explicitly use 30 FPS, CRF 26, and a 720p longest side, with the values visible under the preset button.
+- Add scrollable opening and ending image pools, choosing images randomly without repeats until every image in the pool has been used.
+- Add **Replace existing** to remove static opening and ending runs before embedding new images and compressing the video.
+- Let completed videos run again from their original source with current settings through **Repeat** or **Compress selected**.
+
 # v0.8.1
 
 - Make Finder image conversion reliably use the files selected when the submenu opens, so PNG, JPEG, and WebP actions work even after Finder clears its transient selection.

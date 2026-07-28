@@ -20,6 +20,7 @@ import {
   newestJobsFirst,
   readySelectedIds,
   removableSelectedIds,
+  startableSelectedIds,
   timerState,
   toggleSelection
 } from '../apps/web/src/queue-ui';
@@ -32,7 +33,7 @@ const translator =
     translate(language, key, values);
 
 describe('compression settings UI', () => {
-  it('moves the Optimal preset details into a tooltip', () => {
+  it('shows the Optimal preset details directly below the control', () => {
     const markup = renderToStaticMarkup(
       <SettingsPanel
         settings={optimalSettings}
@@ -44,9 +45,9 @@ describe('compression settings UI', () => {
     );
     expect(markup).toContain('settings-primary-row');
     expect(markup).toContain(
-      'aria-label="Uses the original resolution and frame rate, CRF 26, and H.264 in an MP4 container'
+      'aria-label="Uses 30 FPS, CRF 26, a 720p longest-side limit, and H.264 in an MP4 container.'
     );
-    expect(markup).not.toContain('optimal-summary');
+    expect(markup).toContain('<span class="optimal-summary">30 FPS · CRF 26 · 720p</span>');
     // Custom settings stay mounted for smooth expand/collapse, but they are
     // hidden from assistive tech and their controls are disabled.
     expect(markup).toMatch(
@@ -182,6 +183,7 @@ describe('drop zone and list selection', () => {
     expect([...update.selected]).toEqual(['one', 'two', 'three']);
     const jobs = [makeJob('one'), makeJob('two', 'processing'), makeJob('three', 'completed')];
     expect(readySelectedIds(jobs, all)).toEqual(['one']);
+    expect(startableSelectedIds(jobs, all)).toEqual(['one', 'three']);
     expect(removableSelectedIds(jobs, all)).toEqual(['one', 'three']);
   });
 });
@@ -235,6 +237,7 @@ describe('estimates, results, timers and batch progress', () => {
       />
     );
     expect(resultMarkup).toContain('Ready file');
+    expect(resultMarkup).toContain('Repeat');
     expect(resultMarkup).toContain('Completed in 00:00:05');
     expect(resultMarkup).not.toContain('Expected result');
   });

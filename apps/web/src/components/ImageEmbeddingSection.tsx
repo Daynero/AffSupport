@@ -23,7 +23,7 @@ export function ImageEmbeddingSection({
   settings,
   disabled,
   update,
-  uploadImage,
+  uploadImages,
   removeImage,
   imageUrl,
   onValidityChange,
@@ -32,8 +32,8 @@ export function ImageEmbeddingSection({
   settings: ImageEmbeddingSettings;
   disabled: boolean;
   update: (patch: ImageEmbeddingSettingsPatch, debounce?: boolean) => void;
-  uploadImage: (slot: ImageSlot, file: File) => Promise<void>;
-  removeImage: (slot: ImageSlot) => Promise<void>;
+  uploadImages: (slot: ImageSlot, files: File[]) => Promise<void>;
+  removeImage: (slot: ImageSlot, id: string) => Promise<void>;
   imageUrl: (id: string) => string;
   onValidityChange: (valid: boolean) => void;
   t: Translate;
@@ -49,13 +49,13 @@ export function ImageEmbeddingSection({
   useEffect(() => {
     onValidityChange(
       !settings.enabled ||
-        !settings.endImage ||
+        !settings.endImages.length ||
         settings.finalDurationMode !== 'custom' ||
         customTimeValid
     );
   }, [
     settings.enabled,
-    settings.endImage,
+    settings.endImages.length,
     settings.finalDurationMode,
     customTimeValid,
     onValidityChange
@@ -76,14 +76,23 @@ export function ImageEmbeddingSection({
 
       <Collapse open={settings.enabled}>
         <div className="image-embedding-panel">
+          <div className="replace-existing-setting">
+            <Checkbox
+              checked={settings.replaceExisting}
+              disabled={disabled}
+              onChange={event => update({ replaceExisting: event.target.checked })}
+              label={<strong>{t('replaceExistingImages')}</strong>}
+            />
+            <span>{t('replaceExistingImagesHint')}</span>
+          </div>
           <div className="image-columns">
             <ImageColumn
               slot="start"
               title={t('startImageTitle')}
               description={t('startImageDescription')}
-              asset={settings.startImage}
+              assets={settings.startImages}
               disabled={disabled}
-              uploadImage={uploadImage}
+              uploadImages={uploadImages}
               removeImage={removeImage}
               imageUrl={imageUrl}
               t={t}
@@ -111,9 +120,9 @@ export function ImageEmbeddingSection({
               slot="end"
               title={t('endImageTitle')}
               description={t('endImageDescription')}
-              asset={settings.endImage}
+              assets={settings.endImages}
               disabled={disabled}
-              uploadImage={uploadImage}
+              uploadImages={uploadImages}
               removeImage={removeImage}
               imageUrl={imageUrl}
               t={t}
@@ -170,7 +179,7 @@ export function ImageEmbeddingSection({
             </ImageColumn>
           </div>
 
-          {!settings.startImage && !settings.endImage && (
+          {!settings.startImages.length && !settings.endImages.length && (
             <p className="embedding-empty-warning" role="alert">
               {t('embeddingNeedsImage')}
             </p>
@@ -185,9 +194,9 @@ function ImageColumn({
   slot,
   title,
   description,
-  asset,
+  assets,
   disabled,
-  uploadImage,
+  uploadImages,
   removeImage,
   imageUrl,
   children,
@@ -196,10 +205,10 @@ function ImageColumn({
   slot: ImageSlot;
   title: string;
   description: string;
-  asset: ImageAsset | null;
+  assets: ImageAsset[];
   disabled: boolean;
-  uploadImage: (slot: ImageSlot, file: File) => Promise<void>;
-  removeImage: (slot: ImageSlot) => Promise<void>;
+  uploadImages: (slot: ImageSlot, files: File[]) => Promise<void>;
+  removeImage: (slot: ImageSlot, id: string) => Promise<void>;
   imageUrl: (id: string) => string;
   children?: React.ReactNode;
   t: Translate;
@@ -212,9 +221,9 @@ function ImageColumn({
       </div>
       <ImageDropArea
         slot={slot}
-        asset={asset}
+        assets={assets}
         disabled={disabled}
-        uploadImage={uploadImage}
+        uploadImages={uploadImages}
         removeImage={removeImage}
         imageUrl={imageUrl}
         t={t}
@@ -226,18 +235,18 @@ function ImageColumn({
 
 export function ImageDropArea({
   slot,
-  asset,
+  assets,
   disabled,
-  uploadImage,
+  uploadImages,
   removeImage,
   imageUrl,
   t
 }: {
   slot: ImageSlot;
-  asset: ImageAsset | null;
+  assets: ImageAsset[];
   disabled: boolean;
-  uploadImage: (slot: ImageSlot, file: File) => Promise<void>;
-  removeImage: (slot: ImageSlot) => Promise<void>;
+  uploadImages: (slot: ImageSlot, files: File[]) => Promise<void>;
+  removeImage: (slot: ImageSlot, id: string) => Promise<void>;
   imageUrl: (id: string) => string;
   t: Translate;
 }) {
@@ -257,16 +266,16 @@ export function ImageDropArea({
     if (input.current) input.current.value = '';
     input.current?.click();
   };
-  const accept = async (file: File | undefined) => {
-    if (!file || disabled || busy) return;
-    if (!isSupportedImageFile(file)) {
+  const accept = async (files: File[]) => {
+    if (!files.length || disabled || busy) return;
+    if (files.some(file => !isSupportedImageFile(file))) {
       setErrorKey('unsupportedImageFormat');
       return;
     }
     setBusy(true);
     setErrorKey(null);
     try {
-      await uploadImage(slot, file);
+      await uploadImages(slot, files);
     } catch (error) {
       setErrorKey(imageErrorKey(error));
     } finally {
@@ -288,110 +297,95 @@ export function ImageDropArea({
     event.preventDefault();
     dragDepth.current = 0;
     setDragging(false);
-    void accept(event.dataTransfer.files[0]);
+    void accept(Array.from(event.dataTransfer.files));
   };
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (!['Enter', ' '].includes(event.key)) return;
     event.preventDefault();
     choose();
   };
-  const remove = async () => {
+  const remove = async (id: string) => {
     if (disabled || busy) return;
     setBusy(true);
     setErrorKey(null);
     try {
-      await removeImage(slot);
+      await removeImage(slot, id);
     } catch (error) {
       setErrorKey(imageErrorKey(error));
     } finally {
       setBusy(false);
     }
   };
-  const previewUrl = asset ? imageUrl(asset.id) : '';
-
   return (
-    <div className="image-drop-wrapper">
+    <div
+      className={`image-drop-wrapper ${dragging ? 'is-dragging' : ''}`}
+      onDragEnter={onDragEnter}
+      onDragOver={event => event.preventDefault()}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
       <input
         ref={input}
         className="sr-only"
         type="file"
+        multiple
         accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
         disabled={disabled || busy}
         aria-label={slot === 'start' ? t('chooseStartImage') : t('chooseEndImage')}
-        onChange={(event: ChangeEvent<HTMLInputElement>) => void accept(event.target.files?.[0])}
+        onChange={(event: ChangeEvent<HTMLInputElement>) =>
+          void accept(Array.from(event.target.files ?? []))
+        }
       />
-      <div
-        className={`image-drop-zone ${dragging ? 'is-dragging' : ''} ${disabled ? 'is-disabled' : ''} ${asset ? 'has-image' : ''} ${errorKey ? 'has-error' : ''}`}
-        role={asset ? 'group' : 'button'}
-        title={!asset ? t('dropImage') : undefined}
-        tabIndex={!asset && !disabled ? 0 : -1}
-        aria-disabled={disabled}
-        onClick={() => !asset && choose()}
-        onKeyDown={!asset ? onKeyDown : undefined}
-        onDragEnter={onDragEnter}
-        onDragOver={event => event.preventDefault()}
-        onDragLeave={onDragLeave}
-        onDrop={onDrop}
-      >
-        {asset ? (
-          <div className="selected-image">
-            {previewUrl && <img src={previewUrl} alt={asset.fileName} />}
-            <div className="selected-image-actions">
-              <IconButton
-                className="selected-image-action"
-                label={t('replaceImage')}
-                disabled={disabled || busy}
-                onClick={choose}
-              >
-                <svg className="selected-image-action-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M21 12a9 9 0 1 1-2.64-6.36" />
-                  <path d="M21 3v6h-6" />
-                </svg>
-              </IconButton>
+      <div className="image-grid-scroll">
+        <div
+          className={`image-grid ${dragging ? 'is-dragging' : ''} ${errorKey ? 'has-error' : ''}`}
+          role="group"
+          aria-label={slot === 'start' ? t('startImageTitle') : t('endImageTitle')}
+        >
+          {assets.map(asset => (
+            <div className="selected-image-tile" key={asset.id} title={asset.fileName}>
+              {imageUrl(asset.id) && <img src={imageUrl(asset.id)} alt={asset.fileName} />}
               <IconButton
                 className="selected-image-action is-delete"
                 label={t('deleteImage')}
                 disabled={disabled || busy}
-                onClick={() => void remove()}
+                onClick={() => void remove(asset.id)}
               >
                 <svg className="selected-image-action-icon" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="m6 6 12 12M18 6 6 18" />
                 </svg>
               </IconButton>
+              <span>
+                {asset.width}×{asset.height}
+              </span>
             </div>
-            {busy && <Spinner small />}
-          </div>
-        ) : (
-          <div className="empty-image-drop">
-            <div
-              className={`image-drop-message image-drop-default ${errorKey ? 'is-hidden' : ''}`}
-              aria-hidden={Boolean(errorKey)}
-            >
+          ))}
+          <div
+            className={`image-drop-zone image-add-tile ${disabled ? 'is-disabled' : ''}`}
+            role="button"
+            title={t('dropImage')}
+            tabIndex={!disabled ? 0 : -1}
+            aria-disabled={disabled}
+            onClick={choose}
+            onKeyDown={onKeyDown}
+          >
+            <div className="image-drop-message">
               {busy ? <Spinner /> : <span className="image-drop-icon">＋</span>}
               <strong>
                 {busy ? t('uploadingImage') : dragging ? t('dropImageActive') : t('addImage')}
               </strong>
               <span>{t('imageFormats')}</span>
             </div>
-            <div
-              className={`image-drop-message image-drop-inline-error ${errorKey ? 'is-visible' : ''}`}
-              aria-hidden={!errorKey}
-              aria-live="polite"
-            >
-              {errorKey && (
-                <strong className="field-error" role="alert">
-                  {t(errorKey)}
-                </strong>
-              )}
-            </div>
           </div>
+        </div>
+      </div>
+      <div className="image-grid-error" aria-live="polite">
+        {errorKey && (
+          <strong className="field-error" role="alert">
+            {t(errorKey)}
+          </strong>
         )}
       </div>
-      {asset && (
-        <span className="selected-image-size">
-          {asset.width}×{asset.height}
-        </span>
-      )}
     </div>
   );
 }

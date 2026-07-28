@@ -44,7 +44,7 @@ describe('final image duration configuration', () => {
     const endOnly = {
       ...defaultImageEmbeddingSettings(),
       enabled: true,
-      endImage: asset('end'),
+      endImages: [asset('end')],
       finalDurationMode: 'random-40-50' as const
     };
     expect(freezeImageEmbedding(endOnly, () => 0.25)?.finalDurationSeconds).toBe(2550);
@@ -55,7 +55,7 @@ describe('final image duration configuration', () => {
       )?.finalDurationSeconds
     ).toBe(3723);
     expect(
-      freezeImageEmbedding({ ...endOnly, endImage: null, startImage: asset('start') })
+      freezeImageEmbedding({ ...endOnly, endImages: [], startImages: [asset('start')] })
     ).toMatchObject({ startImage: { id: asset('start').id }, endImage: null });
   });
 
@@ -69,7 +69,7 @@ describe('final image duration configuration', () => {
       imageEmbedding: {
         ...defaultImageEmbeddingSettings(),
         enabled: true,
-        endImage: asset('end'),
+        endImages: [asset('end')],
         finalDurationMode: 'random-40-50' as const
       }
     };
@@ -100,6 +100,38 @@ describe('final image duration configuration', () => {
     await until(() => !queue.state().running);
   });
 
+  it('draws each image once before refreshing the random pool', async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), 'embedding-image-pool-'));
+    const images = [poolAsset('3'), poolAsset('4'), poolAsset('5')];
+    const jobs = ['one', 'two', 'three', 'four'].map(id =>
+      makeJob(id, 'ready', { inputPath: path.join(directory, `missing-${id}.mp4`) })
+    );
+    const queue = new JobQueue(
+      { ffmpeg: true, ffprobe: true },
+      () => {},
+      jobs,
+      {
+        ...optimalSettings,
+        outputMode: 'chosen-folder',
+        outputFolder: directory,
+        imageEmbedding: {
+          ...defaultImageEmbeddingSettings(),
+          enabled: true,
+          startImages: images
+        }
+      },
+      null,
+      new ImageAssetStore(path.join(directory, 'images')),
+      () => 0.999999
+    );
+
+    expect(await queue.start(jobs.map(job => job.id))).toBe(true);
+    const selected = queue.state().jobs.map(job => job.imageEmbedding?.startImage?.id);
+    expect(new Set(selected.slice(0, 3))).toEqual(new Set(images.map(image => image.id)));
+    expect(selected[3]).toBe(selected[0]);
+    await until(() => !queue.state().running);
+  });
+
   it('clears a persisted image that is no longer available to the agent', async () => {
     directory = await mkdtemp(path.join(os.tmpdir(), 'embedding-missing-image-'));
     const queue = new JobQueue(
@@ -111,7 +143,7 @@ describe('final image duration configuration', () => {
         imageEmbedding: {
           ...defaultImageEmbeddingSettings(),
           enabled: true,
-          startImage: asset('start')
+          startImages: [asset('start')]
         }
       },
       null,
@@ -120,7 +152,7 @@ describe('final image duration configuration', () => {
     await queue.revalidateSettingsImages();
     expect(queue.state().settings.imageEmbedding).toMatchObject({
       enabled: true,
-      startImage: null
+      startImages: []
     });
     expect(queue.embeddingConfigurationError()).toBe('EMBED_IMAGES_REQUIRED');
   });
@@ -146,12 +178,12 @@ describe('embedded output model and FFmpeg graph', () => {
         uncertainty: 0.2
       }
     });
-    expect(outputDurationSeconds(job)).toBeCloseTo(110.04, 5);
+    expect(outputDurationSeconds(job)).toBeCloseTo(110 + 1 / 30, 5);
     expect(refreshEstimateFromBreakdown(job)).toBe(true);
     expect(job.estimatedOutputBytes).toBeLessThan(20_000);
     expect(job.estimatedOutputBytes).toBeGreaterThan(14_000);
     expect(calculateEncodeProgress(10_000_000, outputDurationSeconds(job))).toBeCloseTo(9.09, 1);
-    expect(calculateEncodeProgress(110_040_000, outputDurationSeconds(job))).toBe(99.9);
+    expect(calculateEncodeProgress(110_034_000, outputDurationSeconds(job))).toBe(99.9);
     expect(calculateEncodeProgress(Number.NaN, outputDurationSeconds(job))).toBeNull();
   });
 
@@ -178,6 +210,7 @@ describe('embedded output model and FFmpeg graph', () => {
     const args = buildEmbeddedFfmpegArgs({
       input: '/tmp/відео file.mp4',
       output: '/tmp/result embedded.mp4',
+      sourceStartSeconds: 0.25,
       sourceDurationSeconds: 2,
       sourceHasAudio: false,
       width: 640,
@@ -199,6 +232,7 @@ describe('embedded output model and FFmpeg graph', () => {
     expect(args.filter(value => value === '-filter_complex')).toHaveLength(1);
     expect(args.filter(value => value === '-c:v')).toHaveLength(1);
     expect(args.join(' ')).toContain('trim=duration=0.041666667');
+    expect(args.join(' ')).toContain('trim=start=0.25:duration=2');
     expect(args.join(' ')).toContain('anullsrc=r=48000:cl=stereo');
     expect(args).toContain('[vout]');
     expect(args).toContain('[aout]');
@@ -218,6 +252,14 @@ function asset(name: string): ImageAsset {
     size: 100,
     mimeType: 'image/png',
     extension: '.png'
+  };
+}
+
+function poolAsset(hex: string): ImageAsset {
+  return {
+    ...asset('start'),
+    id: `${hex.repeat(8)}-${hex.repeat(4)}-4${hex.repeat(3)}-8${hex.repeat(3)}-${hex.repeat(12)}`,
+    fileName: `${hex}.png`
   };
 }
 

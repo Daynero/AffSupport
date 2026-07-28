@@ -7,5 +7,7 @@ describe('responsive image embedding layout', () => {
     expect(css).toMatch(
       /@media \(max-width: 760px\)[\s\S]*?\.image-columns\s*\{\s*grid-template-columns:\s*minmax\(0, 1fr\)/
     );
+    expect(css).toMatch(/\.image-grid-scroll\s*\{[\s\S]*?max-height:\s*202px/);
+    expect(css).toMatch(/\.image-grid-scroll\s*\{[\s\S]*?overflow-y:\s*auto/);
   });
 });

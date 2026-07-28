@@ -28,7 +28,7 @@ export function SettingsPanel({
   disabled,
   updateSettings,
   chooseOutputFolder,
-  uploadImage = async () => {},
+  uploadImages = async () => {},
   removeImage = async () => {},
   imageUrl = () => '',
   onEmbeddingValidityChange = () => {},
@@ -38,8 +38,8 @@ export function SettingsPanel({
   disabled: boolean;
   updateSettings: UpdateSettings;
   chooseOutputFolder: () => void;
-  uploadImage?: (slot: 'start' | 'end', file: File) => Promise<void>;
-  removeImage?: (slot: 'start' | 'end') => Promise<void>;
+  uploadImages?: (slot: 'start' | 'end', files: File[]) => Promise<void>;
+  removeImage?: (slot: 'start' | 'end', id: string) => Promise<void>;
   imageUrl?: (id: string) => string;
   onEmbeddingValidityChange?: (valid: boolean) => void;
   t: Translate;
@@ -65,6 +65,9 @@ export function SettingsPanel({
             ]}
             onChange={mode => updateSettings({ mode })}
           />
+          {settings.mode === 'optimal' && (
+            <span className="optimal-summary">{t('optimalSummary')}</span>
+          )}
         </div>
         <OutputSettings
           settings={settings}
@@ -100,7 +103,7 @@ export function SettingsPanel({
         settings={settings.imageEmbedding}
         disabled={disabled}
         update={(patch, debounce) => updateSettings({ imageEmbedding: patch }, debounce)}
-        uploadImage={uploadImage}
+        uploadImages={uploadImages}
         removeImage={removeImage}
         imageUrl={imageUrl}
         onValidityChange={onEmbeddingValidityChange}

@@ -47,8 +47,8 @@ describe('sequential queue with embedded images', () => {
       imageEmbedding: {
         ...defaultImageEmbeddingSettings(),
         enabled: true,
-        startImage: start,
-        endImage: end,
+        startImages: [start],
+        endImages: [end],
         finalDurationMode: 'custom',
         customFinalDurationSeconds: 0.3,
         fitMode: 'cover'
@@ -105,7 +105,7 @@ describe('sequential queue with embedded images', () => {
         imageEmbedding: {
           ...defaultImageEmbeddingSettings(),
           enabled: true,
-          startImage: damaged
+          startImages: [damaged]
         }
       },
       null,

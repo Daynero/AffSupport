@@ -48,6 +48,7 @@ describe('image embedding settings UI', () => {
     ).toBe(true);
     expect(screen.getByText('Opening frame')).toBeTruthy();
     expect(screen.getByText('Final image')).toBeTruthy();
+    expect(screen.getByText('Replace existing')).toBeTruthy();
     expect(
       screen.getByText('Add at least one image or turn this option off before starting.')
     ).toBeTruthy();
@@ -62,8 +63,8 @@ describe('image embedding settings UI', () => {
           ...optimalSettings,
           imageEmbedding: {
             ...defaultImageEmbeddingSettings(),
-            startImage: asset('opening.png'),
-            endImage: asset('ending.webp', 'asset-2')
+            startImages: [asset('opening.png')],
+            endImages: [asset('ending.webp', 'asset-2')]
           }
         }}
         disabled={false}
@@ -78,8 +79,8 @@ describe('image embedding settings UI', () => {
     expect(updateSettings.mock.calls.at(-1)?.[0]).toEqual({
       imageEmbedding: { enabled: true }
     });
-    expect(updateSettings.mock.calls.at(-1)?.[0]).not.toHaveProperty('imageEmbedding.startImage');
-    expect(updateSettings.mock.calls.at(-1)?.[0]).not.toHaveProperty('imageEmbedding.endImage');
+    expect(updateSettings.mock.calls.at(-1)?.[0]).not.toHaveProperty('imageEmbedding.startImages');
+    expect(updateSettings.mock.calls.at(-1)?.[0]).not.toHaveProperty('imageEmbedding.endImages');
   });
 
   it('merges debounced writable image settings without adding asset metadata', () => {
@@ -90,6 +91,31 @@ describe('image embedding settings UI', () => {
       )
     ).toEqual({
       imageEmbedding: { customFinalDurationSeconds: 123, fitMode: 'contain' }
+    });
+  });
+
+  it('updates the replace-existing option independently of image assets', async () => {
+    const updateSettings = vi.fn();
+    render(
+      <SettingsPanel
+        settings={{
+          ...optimalSettings,
+          imageEmbedding: {
+            ...defaultImageEmbeddingSettings(),
+            enabled: true,
+            startImages: [asset('opening.png')]
+          }
+        }}
+        disabled={false}
+        updateSettings={updateSettings}
+        chooseOutputFolder={() => {}}
+        t={t('en')}
+      />
+    );
+
+    await userEvent.click(screen.getByText('Replace existing'));
+    expect(updateSettings.mock.calls.at(-1)?.[0]).toEqual({
+      imageEmbedding: { replaceExisting: true }
     });
   });
 
@@ -104,6 +130,7 @@ describe('image embedding settings UI', () => {
       />
     );
     const input = screen.getByLabelText('Choose opening-frame image');
+    expect(input.hasAttribute('multiple')).toBe(true);
     const first = new File(['png'], 'opening image.png', { type: 'image/png' });
     await user.upload(input, first);
     expect(uploaded).toHaveLength(1);
@@ -116,21 +143,24 @@ describe('image embedding settings UI', () => {
     await waitFor(() => expect(uploaded).toHaveLength(2));
     expect(uploaded[1]).toMatchObject({ slot: 'start', file: second });
     expect(screen.getByAltText('replacement.webp')).toBeTruthy();
+    expect(screen.getByAltText('opening image.png')).toBeTruthy();
   });
 
-  it('supports obvious replacement and removal actions', async () => {
+  it('keeps the add action available and removes individual images', async () => {
     const user = userEvent.setup({ applyAccept: false });
     const onRemove = vi.fn(async () => {});
     render(<ImageAreaHarness initial={asset('existing.png')} onRemove={onRemove} />);
-    await user.click(screen.getByRole('button', { name: 'Replace' }));
+    await user.click(screen.getByText('Add image'));
     await user.upload(
       screen.getByLabelText('Choose opening-frame image'),
       new File(['jpeg'], 'new photo.jpg', { type: 'image/jpeg' })
     );
+    expect(screen.getByAltText('existing.png')).toBeTruthy();
     expect(screen.getByAltText('new photo.jpg')).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Delete' }));
-    expect(onRemove).toHaveBeenCalledWith('start');
-    expect(screen.getByText('Add image')).toBeTruthy();
+    await user.click(screen.getAllByRole('button', { name: 'Delete' })[0]);
+    expect(onRemove).toHaveBeenCalledWith('start', 'asset-1');
+    expect(screen.queryByAltText('existing.png')).toBeNull();
+    expect(screen.getByAltText('new photo.jpg')).toBeTruthy();
   });
 
   it('rejects unsupported files before upload with a localized error', async () => {
@@ -189,7 +219,7 @@ describe('image embedding settings UI', () => {
       imageEmbedding: {
         ...defaultImageEmbeddingSettings(),
         enabled: true,
-        startImage: asset('opening.png'),
+        startImages: [asset('opening.png')],
         fitMode: 'contain' as const
       }
     };
@@ -216,7 +246,7 @@ describe('image embedding settings UI', () => {
     );
     expect(screen.getByAltText('opening.png')).toBeTruthy();
     expect(screen.getByText('Вмістити повністю')).toBeTruthy();
-    expect(settings.imageEmbedding.startImage?.id).toBe('asset-1');
+    expect(settings.imageEmbedding.startImages[0]?.id).toBe('asset-1');
   });
 
   it('shows the concrete frozen duration and expected total in each video card', () => {
@@ -228,7 +258,10 @@ describe('image embedding settings UI', () => {
         endImage: asset('ending.webp', 'asset-2'),
         finalDurationMode: 'random-40-50',
         finalDurationSeconds: 2778,
-        fitMode: 'cover'
+        fitMode: 'cover',
+        replaceExisting: false,
+        sourceTrimStartSeconds: 0,
+        sourceTrimEndSeconds: 0
       }
     });
     render(
@@ -279,7 +312,12 @@ function SettingsHarness({
 }) {
   const [settings, setSettings] = useState<AgentSettings>({
     ...optimalSettings,
-    imageEmbedding: { ...defaultImageEmbeddingSettings(), enabled, startImage, endImage }
+    imageEmbedding: {
+      ...defaultImageEmbeddingSettings(),
+      enabled,
+      startImages: startImage ? [startImage] : [],
+      endImages: endImage ? [endImage] : []
+    }
   });
   return (
     <SettingsPanel
@@ -287,7 +325,7 @@ function SettingsHarness({
       disabled={false}
       updateSettings={patch => setSettings(current => mergeSettings(current, patch))}
       chooseOutputFolder={() => {}}
-      uploadImage={async () => {}}
+      uploadImages={async () => {}}
       removeImage={async () => {}}
       imageUrl={id => `preview://${id}`}
       onEmbeddingValidityChange={onValidity}
@@ -303,22 +341,24 @@ function ImageAreaHarness({
 }: {
   initial?: ImageAsset | null;
   onUpload?: (slot: ImageSlot, file: File) => Promise<void>;
-  onRemove?: (slot: ImageSlot) => Promise<void>;
+  onRemove?: (slot: ImageSlot, id: string) => Promise<void>;
 }) {
-  const [selected, setSelected] = useState(initial);
-  let nextId = 1;
+  const [selected, setSelected] = useState<ImageAsset[]>(initial ? [initial] : []);
   return (
     <ImageDropArea
       slot="start"
-      asset={selected}
+      assets={selected}
       disabled={false}
-      uploadImage={async (slot, file) => {
-        await onUpload(slot, file);
-        setSelected(asset(file.name, `asset-${nextId++}`));
+      uploadImages={async (slot, files) => {
+        for (const file of files) await onUpload(slot, file);
+        setSelected(current => [
+          ...current,
+          ...files.map((file, index) => asset(file.name, `asset-${current.length + index + 1}`))
+        ]);
       }}
-      removeImage={async slot => {
-        await onRemove(slot);
-        setSelected(null);
+      removeImage={async (slot, id) => {
+        await onRemove(slot, id);
+        setSelected(current => current.filter(asset => asset.id !== id));
       }}
       imageUrl={id => `preview://${id}`}
       t={t('en')}

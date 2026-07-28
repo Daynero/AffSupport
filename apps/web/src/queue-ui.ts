@@ -42,6 +42,16 @@ export function readySelectedIds(jobs: CompressionJob[], selected: ReadonlySet<s
   return jobs.filter(job => selected.has(job.id) && job.status === 'ready').map(job => job.id);
 }
 
+export function startableSelectedIds(jobs: CompressionJob[], selected: ReadonlySet<string>) {
+  return jobs
+    .filter(
+      job =>
+        selected.has(job.id) &&
+        ['ready', 'completed', 'failed', 'cancelled', 'interrupted'].includes(job.status)
+    )
+    .map(job => job.id);
+}
+
 export function removableSelectedIds(jobs: CompressionJob[], selected: ReadonlySet<string>) {
   return jobs
     .filter(job => selected.has(job.id) && !['processing', 'queued'].includes(job.status))

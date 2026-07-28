@@ -6,9 +6,9 @@
  * contract is incompatible, while the supported range lets a web release keep
  * working with older compatible agents.
  */
-export const PRODUCT_VERSION = '0.8.1';
-export const BUNDLE_VERSION = '0.8.1';
-export const BUILD_NUMBER = '26';
+export const PRODUCT_VERSION = '0.8.2';
+export const BUNDLE_VERSION = '0.8.2';
+export const BUILD_NUMBER = '27';
 export const RELEASE_CHANNEL = 'stable';
 
 /**
@@ -49,14 +49,14 @@ export const RELEASE_DOWNLOAD_URL = `https://github.com/Daynero/AffSupport/relea
  */
 export const CORE_CONTRACT_VERSION = 1;
 export const AGENT_TOOL_CONTRACTS = {
-  compressor: 2,
-  imageEmbedding: 1,
+  compressor: 3,
+  imageEmbedding: 2,
   landingOptimizer: 2,
   transcription: 4
 } as const;
 
 export const WEB_TOOL_REQUIREMENTS = {
-  compressor: { compressor: 2 },
+  compressor: { compressor: 3, imageEmbedding: 2 },
   landingOptimizer: { landingOptimizer: 2 },
   transcription: { transcription: 4 }
 } as const;

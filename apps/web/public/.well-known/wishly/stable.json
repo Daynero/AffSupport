@@ -1,21 +1,26 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.8.1",
-  "buildNumber": "26",
-  "buildId": "0.8.1+26",
+  "version": "0.8.2",
+  "buildNumber": "27",
+  "buildId": "0.8.2+27",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-07-28T09:22:46.000Z",
+  "publishedAt": "2026-07-28T19:45:00.000Z",
+  "summary": {
+    "en": "Keep Wishly idle until you open it, use the documented 30 FPS / CRF 26 / 720p optimal preset, rotate through image pools, replace existing static edges, and repeat completed compressions.",
+    "uk": "Wishly більше не відкриває сторінку самостійно. Оптимальний режим — 30 FPS / CRF 26 / 720p; додано набори зображень, перезашивання статичних країв і повторне стиснення завершених відео."
+  },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.8.1/Wishly-Agent-v0.8.1-macOS-arm64.dmg",
-      "sha256": "68a0fadc2feceebda608562bb2a46f3808f64b301134ab2fbe26c27af4490708"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.8.2/Wishly-Agent-v0.8.2-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
     "compressor": {
-      "compressor": 2
+      "compressor": 3,
+      "imageEmbedding": 2
     },
     "landingOptimizer": {
       "landingOptimizer": 2

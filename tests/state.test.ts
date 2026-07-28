@@ -56,6 +56,43 @@ describe('persistent agent state', () => {
     expect((await loadState(stateFile)).jobs).toEqual([]);
   });
 
+  it('migrates the previous single-image settings into the new image grids', async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), 'compressor-state-images-'));
+    const stateFile = path.join(directory, 'state.json');
+    const legacyImage = {
+      id: '11111111-1111-4111-8111-111111111111',
+      fileName: 'opening.png',
+      width: 640,
+      height: 360,
+      size: 100,
+      mimeType: 'image/png',
+      extension: '.png'
+    };
+    await writeFile(
+      stateFile,
+      JSON.stringify({
+        settings: {
+          imageEmbedding: {
+            enabled: true,
+            startImage: legacyImage,
+            endImage: null,
+            finalDurationMode: 'random-40-50',
+            fitMode: 'cover'
+          }
+        },
+        jobs: [],
+        batch: null
+      })
+    );
+
+    expect((await loadState(stateFile)).settings.imageEmbedding).toMatchObject({
+      enabled: true,
+      startImages: [legacyImage],
+      endImages: [],
+      replaceExisting: false
+    });
+  });
+
   it('keeps the state file atomic when saves overlap', async () => {
     directory = await mkdtemp(path.join(os.tmpdir(), 'compressor-state-overlap-'));
     const stateFile = path.join(directory, 'state.json');

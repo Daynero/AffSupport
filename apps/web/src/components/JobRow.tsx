@@ -338,6 +338,13 @@ function JobActions({
       {job.status === 'completed' && (
         <>
           <Button
+            variant="primary"
+            disabled={disabled || compressionRunning}
+            onClick={() => action(`/api/jobs/${job.id}/repeat`)}
+          >
+            {t('repeatCompression')}
+          </Button>
+          <Button
             variant="success"
             disabled={disabled}
             onClick={() => action(`/api/jobs/${job.id}/reveal`)}
@@ -421,7 +428,14 @@ function EmbeddingDetails({
   const fps = expectedFrameRate(job.sourceFrameRate, job.encoding.frameRate) ?? 30;
   const endDuration = estimatedFinalImageDurationSeconds(embedding);
   const totalDuration =
-    (job.durationSeconds ?? 0) + (embedding.startImage ? 1 / fps : 0) + endDuration;
+    Math.max(
+      0,
+      (job.durationSeconds ?? 0) -
+        (embedding.sourceTrimStartSeconds ?? 0) -
+        (embedding.sourceTrimEndSeconds ?? 0)
+    ) +
+    (embedding.startImage ? 1 / fps : 0) +
+    endDuration;
   const fitKeys = {
     cover: 'fitCover',
     contain: 'fitContain',
@@ -443,6 +457,7 @@ function EmbeddingDetails({
       <div>
         {embedding.startImage && <span>{t('embeddingStartOneFrame')}</span>}
         {embedding.endImage && <span>{t('embeddingFinalImage', { duration: endLabel })}</span>}
+        {embedding.replaceExisting && <span>{t('replaceExistingImages')}</span>}
         <span>{t('embeddingFitMode', { mode: t(fitKeys[embedding.fitMode]) })}</span>
         <span>{t('expectedTotalDuration', { duration: formatDuration(totalDuration) })}</span>
       </div>

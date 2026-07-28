@@ -12,7 +12,7 @@ npm run build
 npm start
 ```
 
-The agent listens only on `http://127.0.0.1:43120` and opens its matching bundled interface automatically. Development mode is `npm run dev` with the fixed `http://127.0.0.1:5173` origin.
+The agent listens only on `http://127.0.0.1:43120`. Launching it does not open a page automatically; use **Open Wishly** from its menu when the interface is needed. Development mode is `npm run dev` with the fixed `http://127.0.0.1:5173` origin.
 
 ### Isolated installable development build
 
@@ -83,7 +83,7 @@ Use these rules for every published change:
 5. Create the new tag on that exact commit and publish the uniquely named DMG and checksum. Packaging aborts if the tag is already present locally or on `origin`, so a published release cannot be rebuilt in place.
 6. Only after the Agent asset is reachable, run `npm run deploy:web`. Deployment accepts the exact tagged commit or a descendant containing web-only changes. It aborts if the release tag is not on `origin`, the exact versioned Agent asset is unavailable, or Agent/shared release inputs changed after the tag.
 
-The packaged launcher opens the web UI bundled inside the same `.app`, so its UI and API contract are always atomic. The hosted page remains useful for onboarding and remote pairing. Before navigating to the loopback pairing endpoint, it must receive a valid unauthenticated Agent health response; an unavailable Agent leaves the hosted onboarding page visible instead of replacing it with a dead `127.0.0.1` URL. If it encounters an older Agent, it offers the bundled local interface immediately as a safe fallback; if it encounters a newer Agent, it asks to refresh the page instead of incorrectly requesting an Agent downgrade.
+The packaged launcher opens the web UI bundled inside the same `.app` only when the user chooses **Open Wishly**, so its UI and API contract are always atomic without interrupting app launch. The hosted page remains useful for onboarding and remote pairing. Before navigating to the loopback pairing endpoint, it must receive a valid unauthenticated Agent health response; an unavailable Agent leaves the hosted onboarding page visible instead of replacing it with a dead `127.0.0.1` URL. If it encounters an older Agent, it offers the bundled local interface immediately as a safe fallback; if it encounters a newer Agent, it asks to refresh the page instead of incorrectly requesting an Agent downgrade.
 
 Starting with `0.2.0-test.1`, the launcher also watches the installed release manifest. When a newer `.app` replaces the running copy, it performs a version-aware handoff after active compression completes. Migrating from the legacy `0.1.0-test` build requires one manual quit because that old launcher predates the handoff protocol.
 
@@ -105,20 +105,20 @@ suffix in Finder so it can be tested beside the stable extension. The internal
 design and future video-action extension point are documented in
 [`docs/FINDER_MEDIA_ACTIONS.md`](docs/FINDER_MEDIA_ACTIONS.md).
 
-1. Keep the default **Optimal** mode, or open **Custom settings** for FPS, longest-side resolution, and CRF or target bitrate.
-2. Optionally enable **Embed images into video**. Add an opening image, a final image, or both; choose the final duration and cover, contain, or stretch adaptation.
+1. Keep the default **Optimal** mode for 30 FPS, CRF 26, and a 720p longest side, or open **Custom settings** for FPS, longest-side resolution, and CRF or target bitrate.
+2. Optionally enable **Embed images into video**. Add one or more opening and final images, choose the final duration and cover, contain, or stretch adaptation, and enable **Replace existing** when prior static edges should be removed first.
 3. Keep **Next to originals**, or use **Separate folder** for a native folder dialog.
 4. Add videos with the native picker or by dropping files onto the drop zone.
-5. Select rows with their checkboxes and choose **Compress selected**. New videos can be added while the queue runs.
-6. Use Cancel, Remove, Try again, Clear finished, Show in folder, Open, or Show output folder as needed.
+5. Select rows with their checkboxes and choose **Compress selected**. Completed rows restart from their original source with the current settings. New videos can be added while the queue runs.
+6. Use Cancel, Remove, Try again, Repeat, Clear finished, Show in folder, Open, or Show output folder as needed.
 
 The app warns before adding an `_compressed` file or a duplicate already represented in the queue. The user can explicitly confirm either case.
 
 ### Image embedding
 
-PNG, JPEG and WebP images are copied into Agent-managed local storage under opaque IDs; the UI never exposes their absolute paths. The opening image is exactly one frame at each job's final frame rate. The final image receives a frozen per-job random duration of 30–40, 40–50, or 50–60 minutes, or a validated custom duration. Either image can be used independently.
+PNG, JPEG and WebP images are copied into Agent-managed local storage under opaque IDs; the UI never exposes their absolute paths. Opening and final pools appear in scrollable two-row grids. Every job draws one image from each configured pool without replacement; after all images are used, that pool refills. The opening image is exactly one frame at each job's final frame rate. The final image receives a frozen per-job random duration of 30–40, 40–50, or 50–60 minutes, or a validated custom duration. Either pool can be used independently.
 
-Every image is adapted separately to the final dimensions of its video. **Fill and crop** preserves aspect ratio and center-crops, **Fit fully** adds a stable black background, and **Stretch** uses the exact frame dimensions. The source, optional image segments, normalized 48 kHz stereo audio or generated silence, and compression preset are assembled in one FFmpeg filter graph and one H.264/AAC encode. There is no uncompressed intermediate video.
+Every image is adapted separately to the final dimensions of its video. **Fill and crop** preserves aspect ratio and center-crops, **Fit fully** adds a stable black background, and **Stretch** uses the exact frame dimensions. When **Replace existing** is enabled, Wishly detects and trims static frame runs at the beginning and end before adding the new image segments. The remaining source, optional image segments, normalized 48 kHz stereo audio or generated silence, and compression preset are assembled in one FFmpeg filter graph and one H.264/AAC encode. There is no uncompressed intermediate video.
 
 Starting a batch freezes its images, fit mode, encoding controls, and a separate random duration for every selected video. Later form changes cannot alter a queued or processing job. Embedded results use `_embedded_compressed.mp4` with the same collision-safe numbering as ordinary results. FFprobe validates the MP4, dimensions, frame rate, total duration, audio presence, and A/V duration before a job is marked complete.
 
@@ -132,7 +132,7 @@ Each video shows source size, resolution, frame rate, bitrate, duration, and cod
 
 ### Compression modes
 
-- **Optimal** (default): H.264 CRF 26, original resolution, original frame rate, copied audio when compatible, and controlled AAC 96k fallback.
+- **Optimal** (default): H.264 CRF 26, 30 FPS, a 720p longest side, copied audio when compatible, and controlled AAC 96k fallback.
 - **Custom settings:** original or explicit FPS, original or explicit longest-side resolution, and one active rate-control method: CRF 16–35 or target video bitrate. CRF and bitrate are never sent together.
 
 Scaling preserves aspect ratio for horizontal and vertical video, makes the calculated side even, and never upscales. Every mode produces an H.264 MP4 with yuv420p pixels and fast-start metadata.

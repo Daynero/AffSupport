@@ -99,7 +99,10 @@ describe('manual long static embedding verification', () => {
             endImage: imageAsset(),
             finalDurationMode: 'random-30-40',
             finalDurationSeconds: endDuration,
-            fitMode: 'cover'
+            fitMode: 'cover',
+            replaceExisting: false,
+            sourceTrimStartSeconds: 0,
+            sourceTrimEndSeconds: 0
           },
           startImagePath: null,
           endImagePath: image
@@ -181,7 +184,7 @@ describe('manual long static embedding verification', () => {
         imageEmbedding: {
           ...defaultImageEmbeddingSettings(),
           enabled: true,
-          endImage,
+          endImages: [endImage],
           finalDurationMode: 'random-40-50'
         }
       };

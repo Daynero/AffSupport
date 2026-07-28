@@ -14,7 +14,7 @@ afterAll(async () => {
 });
 
 describe('real FFmpeg end to end', () => {
-  it('runs Optimal mode, preserves the source, FPS and resolution, and produces H.264 MP4', async () => {
+  it('runs Optimal mode at 30 FPS and up to 720p without changing the source', async () => {
     if (!(await toolsAvailable())) return;
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'optimal відео '));
     const input = path.join(temporaryDirectory, 'коротке відео.mov');
@@ -48,7 +48,7 @@ describe('real FFmpeg end to end', () => {
     const operation = encodeVideo(input, output, duration, optimalEncoding, false, () => {});
     expect((await operation.done).code).toBe(0);
     const media = await probeMedia(output);
-    expect(media).toMatchObject({ width: 320, height: 180, frameRate: 24, codec: 'h264' });
+    expect(media).toMatchObject({ width: 320, height: 180, frameRate: 30, codec: 'h264' });
     expect(media.duration).toBeGreaterThan(0);
     expect(
       createHash('sha256')

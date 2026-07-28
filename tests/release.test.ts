@@ -48,20 +48,17 @@ describe('release identity', () => {
     expect(macAppleSiliconDownloadUrl(null)).toBe(RELEASE_DOWNLOAD_URL);
   });
 
-  it('reads optional localized release copy from the stable manifest', () => {
+  it('reads localized release copy from the stable manifest', () => {
     const manifest = JSON.parse(
       readFileSync('apps/web/public/.well-known/wishly/stable.json', 'utf8')
     );
-    const summarized = {
-      ...manifest,
-      summary: {
-        en: 'Maintenance update.',
-        uk: 'Технічне оновлення.'
-      }
-    };
-    expect(localizedReleaseSummary(summarized, 'en')).toBe('Maintenance update.');
-    expect(localizedReleaseSummary(summarized, 'uk')).toBe('Технічне оновлення.');
-    expect(localizedReleaseSummary(manifest, 'uk')).toBeNull();
+    expect(localizedReleaseSummary(manifest, 'en')).toBe(
+      'Keep Wishly idle until you open it, use the documented 30 FPS / CRF 26 / 720p optimal preset, rotate through image pools, replace existing static edges, and repeat completed compressions.'
+    );
+    expect(localizedReleaseSummary(manifest, 'uk')).toBe(
+      'Wishly більше не відкриває сторінку самостійно. Оптимальний режим — 30 FPS / CRF 26 / 720p; додано набори зображень, перезашивання статичних країв і повторне стиснення завершених відео.'
+    );
+    expect(localizedReleaseSummary({ ...manifest, summary: undefined }, 'uk')).toBeNull();
   });
 
   it('keeps every workspace package on the product version', () => {
@@ -103,7 +100,8 @@ describe('release identity', () => {
 
   it('gates each tool by its own contract', () => {
     expect(toolContractCompatible('compressor', { compressor: 1 })).toBe(false);
-    expect(toolContractCompatible('compressor', { compressor: 2 })).toBe(true);
+    expect(toolContractCompatible('compressor', { compressor: 2, imageEmbedding: 1 })).toBe(false);
+    expect(toolContractCompatible('compressor', { compressor: 3, imageEmbedding: 2 })).toBe(true);
     expect(toolContractCompatible('landingOptimizer', { compressor: 1 })).toBe(false);
     expect(toolContractCompatible('landingOptimizer', { landingOptimizer: 1 })).toBe(false);
     expect(toolContractCompatible('landingOptimizer', { landingOptimizer: 2 })).toBe(true);

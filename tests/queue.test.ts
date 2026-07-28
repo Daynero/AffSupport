@@ -149,6 +149,48 @@ describe('selected batch behavior', () => {
     await expect(access(completed.outputPath)).resolves.toBeUndefined();
   }, 15_000);
 
+  it('repeats completed jobs from the original with the currently selected settings', async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), 'queue-repeat-'));
+    const input = path.join(directory, 'source.mp4');
+    expect(await makeVideo(input, 0.4, '160x90', 24)).toBe(0);
+    const queue = new JobQueue({ ffmpeg: true, ffprobe: true }, () => {});
+    await queue.add([input]);
+    const id = queue.state().jobs[0].id;
+
+    expect(await queue.start([id])).toBe(true);
+    await until(() => !queue.state().running);
+    const firstOutput = queue.state().jobs[0].outputPath;
+
+    await queue.updateSettings({
+      mode: 'custom',
+      frameRate: 25,
+      resolutionLimit: null,
+      rateControl: 'crf',
+      crf: 24
+    });
+    expect(await queue.repeat(id)).toBe(true);
+    await until(() => !queue.state().running);
+    const repeated = queue.state().jobs[0];
+    expect(repeated).toMatchObject({
+      status: 'completed',
+      encoding: { mode: 'custom', frameRate: 25, resolutionLimit: null, crf: 24 },
+      finalFrameRate: 25
+    });
+    expect(repeated.outputPath).not.toBe(firstOutput);
+    const secondOutput = repeated.outputPath;
+
+    await queue.updateSettings({ frameRate: 30 });
+    expect(await queue.start([id])).toBe(true);
+    await until(() => !queue.state().running);
+    expect(queue.state().jobs[0]).toMatchObject({
+      status: 'completed',
+      encoding: { mode: 'custom', frameRate: 30 },
+      finalFrameRate: 30
+    });
+    expect(queue.state().jobs[0].outputPath).not.toBe(secondOutput);
+    await expect(access(input)).resolves.toBeUndefined();
+  }, 25_000);
+
   it('preserves a completed encode and validates it after FFprobe runtime recovery', async () => {
     directory = await mkdtemp(path.join(os.tmpdir(), 'queue-runtime-recovery-'));
     const input = path.join(directory, 'source.mp4');

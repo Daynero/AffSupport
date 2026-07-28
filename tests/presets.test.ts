@@ -26,11 +26,10 @@ describe('FFmpeg compression arguments', () => {
     expect(args).not.toContain('-map_chapters');
   });
 
-  it('preserves original frame rate and resolution in Optimal mode', () => {
+  it('applies 30 FPS and a 720p longest-side limit in Optimal mode', () => {
     const args = buildFfmpegArgs('in.mov', 'out.mp4', optimalEncoding);
-    expect(args).not.toContain('-vf');
-    expect(args.join(' ')).not.toContain('fps=');
-    expect(args.join(' ')).not.toContain('scale=');
+    expect(argumentAfter(args, '-vf')).toContain('min(720,iw)');
+    expect(argumentAfter(args, '-vf')).toContain('fps=30');
   });
 
   it('applies a custom frame rate only when requested', () => {

@@ -10,7 +10,6 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyMultipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
-import open from 'open';
 import {
   AGENT_TOOL_CONTRACTS,
   CORE_CONTRACT_VERSION,
@@ -387,10 +386,6 @@ app.post<{ Params: { slot: string } }>('/api/images/:slot', async (request, repl
   if (!slot) return reply.code(400).send({ error: 'IMAGE_SLOT_INVALID' });
   const part = await request.file({ limits: { fileSize: MAX_IMAGE_BYTES } });
   if (!part) return reply.code(400).send({ error: 'IMAGE_MISSING' });
-  const previous =
-    slot === 'start'
-      ? queue.state().settings.imageEmbedding.startImage
-      : queue.state().settings.imageEmbedding.endImage;
   let asset: ImageAsset | null = null;
   try {
     asset = await imageStore.import(
@@ -398,8 +393,7 @@ app.post<{ Params: { slot: string } }>('/api/images/:slot', async (request, repl
       part.filename || 'image',
       part.mimetype || 'application/octet-stream'
     );
-    await queue.setImage(slot, asset);
-    await queue.releaseImageIfUnused(previous);
+    await queue.addImage(slot, asset);
     return queue.state();
   } catch (error) {
     if (asset) await queue.releaseImageIfUnused(asset);
@@ -408,17 +402,17 @@ app.post<{ Params: { slot: string } }>('/api/images/:slot', async (request, repl
   }
 });
 
-app.delete<{ Params: { slot: string } }>('/api/images/:slot', async (request, reply) => {
-  const slot = imageSlot(request.params.slot);
-  if (!slot) return reply.code(400).send({ error: 'IMAGE_SLOT_INVALID' });
-  const previous =
-    slot === 'start'
-      ? queue.state().settings.imageEmbedding.startImage
-      : queue.state().settings.imageEmbedding.endImage;
-  await queue.setImage(slot, null);
-  await queue.releaseImageIfUnused(previous);
-  return queue.state();
-});
+app.delete<{ Params: { slot: string; id: string } }>(
+  '/api/images/:slot/:id',
+  async (request, reply) => {
+    const slot = imageSlot(request.params.slot);
+    if (!slot) return reply.code(400).send({ error: 'IMAGE_SLOT_INVALID' });
+    const previous = await queue.removeImage(slot, request.params.id);
+    if (!previous) return reply.code(404).send({ error: 'IMAGE_UNAVAILABLE' });
+    await queue.releaseImageIfUnused(previous);
+    return queue.state();
+  }
+);
 
 app.get<{ Params: { id: string } }>('/api/images/:id/content', async (request, reply) => {
   const asset = queue.imageAsset(request.params.id);
@@ -530,7 +524,12 @@ app.post<{ Body: AgentSettingsPatch }>('/api/settings', async (request, reply) =
     if (!body.imageEmbedding || typeof body.imageEmbedding !== 'object') {
       return reply.code(400).send({ error: 'Invalid image embedding settings.' });
     }
-    if ('startImage' in body.imageEmbedding || 'endImage' in body.imageEmbedding) {
+    if (
+      'startImage' in body.imageEmbedding ||
+      'endImage' in body.imageEmbedding ||
+      'startImages' in body.imageEmbedding ||
+      'endImages' in body.imageEmbedding
+    ) {
       return reply
         .code(400)
         .send({ error: 'Image assets must be selected through the image API.' });
@@ -541,6 +540,12 @@ app.post<{ Body: AgentSettingsPatch }>('/api/settings', async (request, reply) =
         return reply.code(400).send({ error: 'Invalid image embedding mode.' });
       }
       imageEmbedding.enabled = body.imageEmbedding.enabled;
+    }
+    if (body.imageEmbedding.replaceExisting !== undefined) {
+      if (typeof body.imageEmbedding.replaceExisting !== 'boolean') {
+        return reply.code(400).send({ error: 'Invalid replace-existing setting.' });
+      }
+      imageEmbedding.replaceExisting = body.imageEmbedding.replaceExisting;
     }
     if (body.imageEmbedding.finalDurationMode !== undefined) {
       if (
@@ -642,6 +647,17 @@ app.post<{ Params: { id: string } }>('/api/jobs/:id/retry', async (request, repl
     ? queue.state()
     : reply.code(409).send({ error: 'This job cannot be retried.' })
 );
+app.post<{ Params: { id: string } }>('/api/jobs/:id/repeat', async (request, reply) => {
+  if (await queue.revalidateSettingsImages()) {
+    return reply.code(400).send({ error: 'IMAGE_UNAVAILABLE' });
+  }
+  const embeddingError = queue.embeddingConfigurationError();
+  if (embeddingError) return reply.code(400).send({ error: embeddingError });
+  await estimator.pause();
+  if (await queue.repeat(request.params.id)) return queue.state();
+  estimator.resume();
+  return reply.code(409).send({ error: 'This completed job cannot be repeated right now.' });
+});
 app.post<{ Params: { id: string } }>('/api/jobs/:id/reveal', async (request, reply) => {
   const job = queue
     .state()
@@ -765,13 +781,10 @@ const pairOrigin =
   (config.sourceRevision === 'development'
     ? config.devOrigin
     : `http://${config.host}:${config.port}`);
-let browserClaimedAgent = false;
 app.get('/pair', async (_request, reply) => {
-  browserClaimedAgent = true;
   return reply.redirect(`${pairOrigin}/#agentToken=${token}`);
 });
 app.get('/local', async (_request, reply) => {
-  browserClaimedAgent = true;
   return reply.redirect(`http://${config.host}:${config.port}/#agentToken=${token}`);
 });
 app.setNotFoundHandler((request, reply) =>
@@ -818,17 +831,6 @@ async function shutdown(code = 0) {
 try {
   await app.listen({ host: config.host, port: config.port });
   app.log.info(`Wishly Agent: http://${config.host}:${config.port}`);
-  if (process.env.NODE_ENV !== 'test' && process.env.NO_OPEN !== '1') {
-    // Let the browser tab that initiated installation claim this process first.
-    // A direct launch still opens Wishly when no existing tab pairs in time.
-    setTimeout(() => {
-      if (!browserClaimedAgent && !shuttingDown) {
-        void open(`http://${config.host}:${config.port}/pair`).catch(error =>
-          app.log.warn(error, 'Could not open Wishly in the browser')
-        );
-      }
-    }, 8000);
-  }
 } catch (error) {
   app.log.error(error);
   process.exit(1);

@@ -11,6 +11,7 @@ export interface EncodeResult {
 }
 
 export interface EncodeEmbeddingOptions {
+  sourceStartSeconds: number;
   sourceDurationSeconds: number;
   sourceHasAudio: boolean;
   width: number;

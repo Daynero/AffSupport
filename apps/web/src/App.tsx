@@ -25,9 +25,9 @@ import { mergeSettingsPatches } from './settings-patch';
 import {
   batchMetrics,
   newestJobsFirst,
-  readySelectedIds,
   removableSelectedIds,
   selectableJobIds,
+  startableSelectedIds,
   toggleSelection
 } from './queue-ui';
 import { DropZone } from './components/DropZone';
@@ -258,13 +258,13 @@ export default function CompressorPage() {
   };
 
   const startSelected = async () => {
-    const ids = readySelectedIds(state.jobs, selected);
+    const ids = startableSelectedIds(state.jobs, selected);
     if (
       !ids.length ||
       !embeddingFormValid ||
       (state.settings.imageEmbedding.enabled &&
-        !state.settings.imageEmbedding.startImage &&
-        !state.settings.imageEmbedding.endImage)
+        !state.settings.imageEmbedding.startImages.length &&
+        !state.settings.imageEmbedding.endImages.length)
     ) {
       return;
     }
@@ -290,18 +290,22 @@ export default function CompressorPage() {
     }
   };
 
-  const setImage = async (slot: 'start' | 'end', file: File) => {
-    try {
-      setState(await uploadImageAsset(slot, file));
-    } catch (error) {
-      handleError(error);
-      throw error;
+  const setImages = async (slot: 'start' | 'end', files: File[]) => {
+    for (const file of files) {
+      try {
+        setState(await uploadImageAsset(slot, file));
+      } catch (error) {
+        handleError(error);
+        throw error;
+      }
     }
   };
 
-  const removeImage = async (slot: 'start' | 'end') => {
+  const removeImage = async (slot: 'start' | 'end', id: string) => {
     try {
-      setState(await request<QueueState>(`/api/images/${slot}`, 'DELETE'));
+      setState(
+        await request<QueueState>(`/api/images/${slot}/${encodeURIComponent(id)}`, 'DELETE')
+      );
     } catch (error) {
       handleError(error);
       throw error;
@@ -329,7 +333,7 @@ export default function CompressorPage() {
 
   const visibleJobs = useMemo(() => newestJobsFirst(state.jobs), [state.jobs]);
   const selectableIds = useMemo(() => selectableJobIds(visibleJobs), [visibleJobs]);
-  const selectedReady = readySelectedIds(state.jobs, selected);
+  const selectedStartable = startableSelectedIds(state.jobs, selected);
   const selectedRemovable = removableSelectedIds(state.jobs, selected);
   const metrics = useMemo(() => batchMetrics(state.jobs, state.batch), [state.jobs, state.batch]);
   const summary = useMemo(() => calculateQueueSummary(state.jobs), [state.jobs]);
@@ -404,7 +408,7 @@ export default function CompressorPage() {
           disabled={!connected}
           updateSettings={updateSettings}
           chooseOutputFolder={() => void action('/api/output/select')}
-          uploadImage={setImage}
+          uploadImages={setImages}
           removeImage={removeImage}
           imageUrl={imageContentUrl}
           onEmbeddingValidityChange={setEmbeddingFormValid}
@@ -460,11 +464,11 @@ export default function CompressorPage() {
                   disabled={
                     !connected ||
                     state.running ||
-                    selectedReady.length === 0 ||
+                    selectedStartable.length === 0 ||
                     !embeddingFormValid ||
                     (state.settings.imageEmbedding.enabled &&
-                      !state.settings.imageEmbedding.startImage &&
-                      !state.settings.imageEmbedding.endImage)
+                      !state.settings.imageEmbedding.startImages.length &&
+                      !state.settings.imageEmbedding.endImages.length)
                   }
                   onClick={() => void startSelected()}
                 >

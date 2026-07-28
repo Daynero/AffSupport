@@ -62,6 +62,7 @@ export function buildFfmpegArgs(
 export interface EmbeddedFfmpegOptions {
   input: string;
   output: string;
+  sourceStartSeconds?: number;
   sourceDurationSeconds: number;
   sourceHasAudio: boolean;
   width: number;
@@ -75,6 +76,7 @@ export interface EmbeddedFfmpegOptions {
 
 export function buildEmbeddedFfmpegArgs(options: EmbeddedFfmpegOptions): string[] {
   const fps = decimal(options.frameRate);
+  const sourceStart = decimal(options.sourceStartSeconds ?? 0);
   const sourceDuration = decimal(options.sourceDurationSeconds);
   const frameDuration = decimal(1 / options.frameRate, 9);
   const inputs = ['-i', options.input];
@@ -83,11 +85,11 @@ export function buildEmbeddedFfmpegArgs(options: EmbeddedFfmpegOptions): string[
   let inputIndex = 1;
 
   filters.push(
-    `[0:v]scale=${options.width}:${options.height}:flags=lanczos,setsar=1,fps=${fps},format=yuv420p,setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop_duration=${sourceDuration},trim=duration=${sourceDuration}[mainv]`
+    `[0:v]trim=start=${sourceStart}:duration=${sourceDuration},setpts=PTS-STARTPTS,scale=${options.width}:${options.height}:flags=lanczos,setsar=1,fps=${fps},format=yuv420p,tpad=stop_mode=clone:stop_duration=${sourceDuration},trim=duration=${sourceDuration}[mainv]`
   );
   if (options.sourceHasAudio) {
     filters.push(
-      `[0:a]aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,asetpts=PTS-STARTPTS,apad=whole_dur=${sourceDuration},atrim=duration=${sourceDuration}[maina]`
+      `[0:a]atrim=start=${sourceStart}:duration=${sourceDuration},asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,apad=whole_dur=${sourceDuration},atrim=duration=${sourceDuration}[maina]`
     );
   } else {
     filters.push(silenceFilter(sourceDuration, 'maina'));
