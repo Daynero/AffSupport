@@ -48,17 +48,20 @@ describe('release identity', () => {
     expect(macAppleSiliconDownloadUrl(null)).toBe(RELEASE_DOWNLOAD_URL);
   });
 
-  it('reads localized release copy from the stable manifest', () => {
+  it('reads optional localized release copy from the stable manifest', () => {
     const manifest = JSON.parse(
       readFileSync('apps/web/public/.well-known/wishly/stable.json', 'utf8')
     );
-    expect(localizedReleaseSummary(manifest, 'en')).toBe(
-      'Convert selected still images directly from Finder to PNG, JPEG, or WebP. Wishly processes them privately in the background and saves collision-safe copies beside the originals.'
-    );
-    expect(localizedReleaseSummary(manifest, 'uk')).toBe(
-      'Конвертуйте вибрані зображення безпосередньо з Finder у PNG, JPEG або WebP. Wishly приватно обробляє їх у фоні й зберігає копії з безпечними іменами поруч з оригіналами.'
-    );
-    expect(localizedReleaseSummary({ ...manifest, summary: undefined }, 'uk')).toBeNull();
+    const summarized = {
+      ...manifest,
+      summary: {
+        en: 'Maintenance update.',
+        uk: 'Технічне оновлення.'
+      }
+    };
+    expect(localizedReleaseSummary(summarized, 'en')).toBe('Maintenance update.');
+    expect(localizedReleaseSummary(summarized, 'uk')).toBe('Технічне оновлення.');
+    expect(localizedReleaseSummary(manifest, 'uk')).toBeNull();
   });
 
   it('keeps every workspace package on the product version', () => {

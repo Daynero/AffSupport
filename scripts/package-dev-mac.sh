@@ -67,7 +67,7 @@ node scripts/render-launcher.mjs packaging/Launcher.swift "$root/Launcher.genera
   "RELEASE_CHANNEL=development" \
   "SOURCE_REVISION=$source_revision"
 swiftc "$root/Launcher.generated.swift" \
-  -o "$app/Contents/MacOS/WishlyAgent" \
+  -o "$app/Contents/MacOS/WishlyDevAgent" \
   -target arm64-apple-macos13.0 \
   -framework AppKit \
   -framework FinderSync
@@ -92,6 +92,7 @@ cp packaging/licenses/multilingual-e5-small-MIT.txt "$app/Contents/Resources/lic
 cp packaging/Info.plist "$app/Contents/Info.plist"
 cp THIRD_PARTY_NOTICES.md "$app/Contents/Resources/"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.wishly.dev" "$app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleExecutable WishlyDevAgent" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleName Wishly Dev" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Wishly Dev" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :NSServices:0:NSMenuItem:default Wishly Dev Finder Action" "$app/Contents/Info.plist"

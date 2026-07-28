@@ -1,3 +1,8 @@
+# v0.8.1
+
+- Make Finder image conversion reliably use the files selected when the submenu opens, so PNG, JPEG, and WebP actions work even after Finder clears its transient selection.
+- Keep the stable and development Finder bridges isolated when both Wishly builds are installed, and add privacy-safe native diagnostics for failed handoffs.
+
 # v0.8.0
 
 - Convert one or many selected still images directly from Finder through a native **Convert to** submenu.

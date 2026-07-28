@@ -1,6 +1,7 @@
 import AppKit
 import FinderSync
 import Foundation
+import OSLog
 import UniformTypeIdentifiers
 
 private let finderServiceName = "__FINDER_SERVICE_NAME__"
@@ -9,6 +10,10 @@ private let finderActionPasteboardType = NSPasteboard.PasteboardType(
   "com.wishly.finder-action"
 )
 private let maximumSelectionCount = 100
+private let finderLogger = Logger(
+  subsystem: Bundle.main.bundleIdentifier ?? "WishlyFinderExtension",
+  category: "finder-actions"
+)
 
 private enum TargetFormat: String, CaseIterable {
   case png
@@ -21,6 +26,18 @@ private enum TargetFormat: String, CaseIterable {
     case .jpeg: "JPEG"
     case .webp: "WebP"
     }
+  }
+
+  var menuTag: Int {
+    switch self {
+    case .png: 1_001
+    case .jpeg: 1_002
+    case .webp: 1_003
+    }
+  }
+
+  static func from(_ menuItem: NSMenuItem) -> TargetFormat? {
+    allCases.first { $0.menuTag == menuItem.tag || $0.title == menuItem.title }
   }
 
   func matchesSource(_ url: URL) -> Bool {
@@ -43,6 +60,8 @@ private struct FinderActionPayload: Codable {
 
 @objc(WishlyFinderSync)
 final class WishlyFinderSync: FIFinderSync {
+  private var menuPathsByFormat: [TargetFormat: [String]] = [:]
+
   override init() {
     super.init()
     FIFinderSyncController.default().directoryURLs = [
@@ -60,17 +79,21 @@ final class WishlyFinderSync: FIFinderSync {
     let menuTitle = localized("convert_to") + finderMenuSuffix
     let targetMenu = NSMenu(title: menuTitle)
     targetMenu.autoenablesItems = false
+    var pathsByFormat: [TargetFormat: [String]] = [:]
     for format in TargetFormat.allCases {
+      let paths = selected.filter { !format.matchesSource($0) }.map(\.path)
+      pathsByFormat[format] = paths
       let item = NSMenuItem(
         title: format.title,
         action: #selector(convertSelectedImages(_:)),
         keyEquivalent: ""
       )
       item.target = self
-      item.representedObject = format.rawValue
-      item.isEnabled = selected.contains { !format.matchesSource($0) }
+      item.tag = format.menuTag
+      item.isEnabled = !paths.isEmpty
       targetMenu.addItem(item)
     }
+    menuPathsByFormat = pathsByFormat
 
     let rootItem = NSMenuItem(title: menuTitle, action: nil, keyEquivalent: "")
     rootItem.submenu = targetMenu
@@ -81,35 +104,47 @@ final class WishlyFinderSync: FIFinderSync {
 
   @objc private func convertSelectedImages(_ sender: NSMenuItem) {
     guard
-      let rawFormat = sender.representedObject as? String,
-      let format = TargetFormat(rawValue: rawFormat),
-      let selected = selectedImageURLs()
+      let format = TargetFormat.from(sender),
+      let paths = menuPathsByFormat[format],
+      !paths.isEmpty
     else {
+      finderLogger.error(
+        "Rejected Finder action before encoding: tag=\(sender.tag, privacy: .public), title=\(sender.title, privacy: .public)"
+      )
       NSSound.beep()
       return
     }
+    finderLogger.notice(
+      "Encoding Finder action: format=\(format.rawValue, privacy: .public), itemCount=\(paths.count, privacy: .public)"
+    )
 
-    let paths = selected.filter { !format.matchesSource($0) }.map(\.path)
     guard
-      !paths.isEmpty,
       let data = try? JSONEncoder().encode(
-        FinderActionPayload(kind: "image-conversion", format: format.rawValue, paths: paths)
+        FinderActionPayload(
+          kind: "image-conversion",
+          format: format.rawValue,
+          paths: paths
+        )
       ),
       let payload = String(data: data, encoding: .utf8)
     else {
+      finderLogger.error("Failed to encode Finder action")
       NSSound.beep()
       return
     }
 
     let pasteboard = NSPasteboard.withUniqueName()
     pasteboard.declareTypes([finderActionPasteboardType], owner: nil)
-    guard
-      pasteboard.setString(payload, forType: finderActionPasteboardType),
-      NSPerformService(finderServiceName, pasteboard)
-    else {
+    guard pasteboard.setString(payload, forType: finderActionPasteboardType) else {
+      finderLogger.error("Failed to write the Finder action pasteboard")
       NSSound.beep()
       return
     }
+    let serviceAccepted = NSPerformService(finderServiceName, pasteboard)
+    finderLogger.notice(
+      "Finder action service result: accepted=\(serviceAccepted, privacy: .public)"
+    )
+    guard serviceAccepted else { NSSound.beep(); return }
   }
 
   private func selectedImageURLs() -> [URL]? {

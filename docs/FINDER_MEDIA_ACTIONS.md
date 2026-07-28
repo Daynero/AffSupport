@@ -7,8 +7,10 @@ can decode it, but is not offered as an output.
 
 ## Runtime flow
 
-1. The Finder extension checks only inexpensive file metadata and builds the
-   contextual submenu. It never encodes media inside Finder.
+1. The Finder extension checks only inexpensive file metadata, snapshots the
+   selected paths while Finder builds the contextual submenu, and never
+   re-queries the transient selection from the click callback. It never encodes
+   media inside Finder.
 2. The selected format and absolute paths are sent through a private macOS
    Service pasteboard type to the containing Wishly app.
 3. The launcher forwards the request to the loopback Agent using a random
@@ -21,7 +23,9 @@ can decode it, but is not offered as an output.
 
 The extension must be enabled once in macOS System Settings. Wishly exposes the
 system management screen from its menu and offers it once after the feature is
-installed.
+installed. The isolated development build also uses its own executable name,
+Service name, bundle identifiers, port, and Agent lock so it can run beside the
+stable app without taking over the stable Finder bridge.
 
 ## Naming and safety
 

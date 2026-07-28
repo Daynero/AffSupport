@@ -2,6 +2,7 @@ import AppKit
 import Darwin
 import FinderSync
 import Foundation
+import OSLog
 
 private let agentPort = __AGENT_PORT__
 private let agentBaseURL = URL(string: "http://127.0.0.1:\(agentPort)")!
@@ -17,6 +18,10 @@ private let sourceRevision = "__SOURCE_REVISION__"
 private let nativeToken = [UUID(), UUID()].map(\.uuidString).joined()
 private let finderActionPasteboardType = NSPasteboard.PasteboardType("com.wishly.finder-action")
 private let finderIntegrationOfferKey = "didOfferFinderImageConversionV1"
+private let launcherLogger = Logger(
+  subsystem: Bundle.main.bundleIdentifier ?? "WishlyAgent",
+  category: "finder-actions"
+)
 
 private struct AgentHealth: Decodable {
   let product: String
@@ -98,6 +103,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       return
     }
     NSApp.servicesProvider = self
+    NSUpdateDynamicServices()
+    launcherLogger.notice(
+      "Registered Finder action service provider for \(applicationName, privacy: .public)"
+    )
     installMenuBarItem()
     beginInstalledBuildMonitoring()
     if acquireInstanceLock() {
@@ -553,6 +562,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     userData: String?,
     error: AutoreleasingUnsafeMutablePointer<NSString?>
   ) {
+    launcherLogger.notice("Received Finder action service request")
     receivedFinderAction = true
     automaticOpen?.cancel()
     guard
@@ -567,9 +577,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         path.utf8.count <= 4_096 && path.first == "/" && !path.contains("\0")
       })
     else {
+      launcherLogger.error("Rejected invalid Finder action service request")
       error.pointee = "Wishly received an invalid Finder conversion request."
       return
     }
+    launcherLogger.notice(
+      "Accepted Finder action payload: format=\(payload.format, privacy: .public), itemCount=\(payload.paths.count, privacy: .public)"
+    )
     clearFinderActionFailure()
     pendingFinderActions.append(payload)
     if agentReady { flushFinderActions() }
@@ -601,6 +615,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let accepted = try? JSONDecoder().decode(FinderActionResponse.self, from: data),
         !accepted.jobs.isEmpty
       else {
+        launcherLogger.error(
+          "Local media engine rejected Finder action: status=\(status ?? -1, privacy: .public), networkError=\(requestError != nil, privacy: .public)"
+        )
         DispatchQueue.main.async {
           self?.showFinderActionFailure(
             "Wishly could not hand the conversion request to its local media engine."
@@ -608,6 +625,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         return
       }
+      launcherLogger.notice(
+        "Local media engine accepted Finder action: jobs=\(accepted.jobs.count, privacy: .public)"
+      )
       DispatchQueue.main.async {
         guard let self else { return }
         for job in accepted.jobs {

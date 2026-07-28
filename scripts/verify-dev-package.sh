@@ -8,6 +8,7 @@ finder_binary="$finder_extension/Contents/MacOS/WishlyFinderExtension"
 [[ -d "$finder_extension" && -x "$finder_binary" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" == "com.wishly.dev" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$app/Contents/Info.plist")" == "Wishly Dev" ]]
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")" == "WishlyDevAgent" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :NSServices:0:NSMenuItem:default' "$app/Contents/Info.plist")" == "Wishly Dev Finder Action" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :NSServices:0:NSPortName' "$app/Contents/Info.plist")" == "Wishly Dev" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$finder_extension/Contents/Info.plist")" == "com.wishly.dev.finder-extension" ]]
@@ -27,10 +28,10 @@ codesign --verify --strict "$finder_extension"
 finder_entitlements=$(codesign -d --entitlements - "$finder_extension" 2>/dev/null)
 print -r -- "$finder_entitlements" | grep -q 'com.apple.security.app-sandbox'
 print -r -- "$finder_entitlements" | grep -q 'com.apple.security.files.user-selected.read-only'
-for binary in "$app/Contents/MacOS/WishlyAgent" "$finder_binary" "$app/Contents/Resources/runtime/node" "$app/Contents/Resources/runtime/bin/ffmpeg" "$app/Contents/Resources/runtime/bin/ffprobe" "$app/Contents/Resources/runtime/bin/whisper-cli"; do
+for binary in "$app/Contents/MacOS/WishlyDevAgent" "$finder_binary" "$app/Contents/Resources/runtime/node" "$app/Contents/Resources/runtime/bin/ffmpeg" "$app/Contents/Resources/runtime/bin/ffprobe" "$app/Contents/Resources/runtime/bin/whisper-cli"; do
   file "$binary" | grep -q arm64
 done
-for binary in "$app/Contents/MacOS/WishlyAgent" "$finder_binary"; do
+for binary in "$app/Contents/MacOS/WishlyDevAgent" "$finder_binary"; do
   vtool -show-build "$binary" | grep -q 'minos 13.0'
 done
 [[ -s "$app/Contents/Resources/runtime/models/ggml-silero-v5.1.2.bin" ]]

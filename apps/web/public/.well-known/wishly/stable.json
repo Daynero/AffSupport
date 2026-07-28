@@ -1,20 +1,16 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.8.0",
-  "buildNumber": "25",
-  "buildId": "0.8.0+25",
+  "version": "0.8.1",
+  "buildNumber": "26",
+  "buildId": "0.8.1+26",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-07-27T20:28:22.000Z",
-  "summary": {
-    "en": "Convert selected still images directly from Finder to PNG, JPEG, or WebP. Wishly processes them privately in the background and saves collision-safe copies beside the originals.",
-    "uk": "Конвертуйте вибрані зображення безпосередньо з Finder у PNG, JPEG або WebP. Wishly приватно обробляє їх у фоні й зберігає копії з безпечними іменами поруч з оригіналами."
-  },
+  "publishedAt": "2026-07-28T09:17:16.000Z",
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.8.0/Wishly-Agent-v0.8.0-macOS-arm64.dmg",
-      "sha256": "a0372114dfa695136f3fe03ce351186bea72b8d7b8408dfaba838f8053489ebd"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.8.1/Wishly-Agent-v0.8.1-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {

@@ -21,6 +21,14 @@ describe('Wishly Finder image conversion integration', () => {
     expect(extension).toContain('targetMenu.autoenablesItems = false');
     expect(extension).toContain('menuKind == .contextualMenuForItems');
     expect(extension).toContain('kind: "image-conversion"');
+    expect(extension).toContain('item.tag = format.menuTag');
+    expect(extension).toContain('menuPathsByFormat = pathsByFormat');
+    expect(extension).not.toContain('item.representedObject');
+    const actionHandler = extension.slice(
+      extension.indexOf('@objc private func convertSelectedImages'),
+      extension.indexOf('private func selectedImageURLs')
+    );
+    expect(actionHandler).not.toContain('selectedImageURLs()');
     expect(launcher).toContain('payload.kind == "image-conversion"');
     expect(
       readFileSync('packaging/FinderExtension/uk.lproj/Localizable.strings', 'utf8')
@@ -60,6 +68,7 @@ describe('Wishly Finder image conversion integration', () => {
     expect(development).toContain('com.wishly.dev.finder-extension');
     expect(development).toContain('Wishly Dev Finder Action');
     expect(development).toContain('— Wishly Dev');
+    expect(development).toContain('Contents/MacOS/WishlyDevAgent');
   });
 
   it('advertises the native capability for future media-action expansion', () => {
