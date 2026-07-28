@@ -40,8 +40,6 @@ const en = {
   supportClose: 'Close',
   supportMessageRequired: 'Write a short message first.',
   loginSupportPitch: 'Completely free — made by a media buyer for media buyers.',
-  leaveCompressorConfirm:
-    'Compression continues in Wishly Agent, but this page will close and your current selection will be cleared. Return to the tools?',
   toolsTitle: 'Wishly Tools',
   toolsSubtitle: 'Choose a tool to work with your files.',
   videoCompressor: 'Video Compressor',
@@ -632,8 +630,6 @@ const en = {
   landingPreviewClose: 'Close preview',
   landingPreviewLoading: 'Preparing preview…',
   landingPreviewUnavailable: 'This preview is no longer available.',
-  leaveLandingConfirm:
-    'Optimization continues in Wishly Agent, but this page will close. Return to the tools?',
   noteAlreadyOptimized: 'Already optimized',
   noteNoGain: 'No size gain — original kept',
   noteNameCollision: 'A file with the target name already exists — original kept',
@@ -687,8 +683,6 @@ const uk: Record<keyof typeof en, string> = {
   supportClose: 'Закрити',
   supportMessageRequired: 'Спершу напишіть коротке повідомлення.',
   loginSupportPitch: 'Повністю безкоштовно — зроблено баєром для баєрів.',
-  leaveCompressorConfirm:
-    'Стиснення продовжиться у Wishly Agent, але ця сторінка закриється, а поточне виділення буде скинуто. Повернутися до інструментів?',
   toolsTitle: 'Інструменти Wishly',
   toolsSubtitle: 'Оберіть інструмент для роботи з вашими файлами.',
   videoCompressor: 'Відеокомпресор',
@@ -1283,8 +1277,6 @@ const uk: Record<keyof typeof en, string> = {
   landingPreviewClose: 'Закрити прев’ю',
   landingPreviewLoading: 'Готуємо прев’ю…',
   landingPreviewUnavailable: 'Це прев’ю більше недоступне.',
-  leaveLandingConfirm:
-    'Оптимізація продовжиться у Wishly Agent, але ця сторінка закриється. Повернутися до інструментів?',
   noteAlreadyOptimized: 'Уже оптимізовано',
   noteNoGain: 'Без виграшу — залишено оригінал',
   noteNameCollision: 'Файл із такою назвою вже існує — залишено оригінал',

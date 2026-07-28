@@ -90,7 +90,6 @@ export default function LandingOptimizerPage() {
     videoQuality: 'optimal',
     archive: false
   };
-  const running = state?.running ?? false;
   const readyJobs = jobs.filter(job => job.status === 'ready');
   const finishedJobs = jobs.filter(job => job.status === 'completed' || job.status === 'failed');
 
@@ -204,10 +203,6 @@ export default function LandingOptimizerPage() {
       setLanguage={setLanguage}
       connection={connection}
       onHome={event => {
-        if (running && !confirm(t('leaveLandingConfirm'))) {
-          event.preventDefault();
-          return;
-        }
         internalLink(event, '/');
       }}
       t={t}

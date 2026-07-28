@@ -111,7 +111,6 @@ export default function AccountPage() {
           onChange={event => setMarketing(event.target.checked)}
           label={t('marketingConsent')}
         />
-        <small className="field-help">{t('marketingOptional')}</small>
         {formError && <div className="inline-alert inline-alert-error">{t('profileError')}</div>}
         {saved && <div className="inline-alert inline-alert-success">{t('changesSaved')}</div>}
         <Button variant="primary" loading={saving} onClick={() => void save()}>
@@ -123,7 +122,7 @@ export default function AccountPage() {
         <h3 id="account-details-heading">{t('account')}</h3>
         <dl className="account-details">
           <Detail label={t('email')} value={profile.email ?? t('notAvailable')} />
-          <div>
+          <div className="account-version-detail">
             <dt>{t('localAppVersion')}</dt>
             <dd>
               {agentVersion ?? t('notAvailable')}

@@ -8,7 +8,7 @@ import {
   type JobImageEmbedding
 } from '@video-compressor/shared';
 
-export const ESTIMATE_ALGORITHM_VERSION = '10';
+export const ESTIMATE_ALGORITHM_VERSION = '11';
 export interface CachedEstimate {
   estimatedOutputBytes: number;
   estimatedSavingPercent: number;

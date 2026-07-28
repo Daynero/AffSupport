@@ -83,7 +83,9 @@ export function ImageEmbeddingSection({
               onChange={event => update({ replaceExisting: event.target.checked })}
               label={<strong>{t('replaceExistingImages')}</strong>}
             />
-            <span>{t('replaceExistingImagesHint')}</span>
+            <Tooltip label={t('replaceExistingImagesHint')}>
+              {t('replaceExistingImagesHint')}
+            </Tooltip>
           </div>
           <div className="image-columns">
             <ImageColumn
@@ -217,7 +219,7 @@ function ImageColumn({
     <section className="image-column" aria-label={title}>
       <div className="image-column-heading">
         <h3>{title}</h3>
-        <p>{description}</p>
+        <Tooltip label={description}>{description}</Tooltip>
       </div>
       <ImageDropArea
         slot={slot}

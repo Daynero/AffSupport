@@ -1,20 +1,16 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.8.3",
-  "buildNumber": "28",
-  "buildId": "0.8.3+28",
+  "version": "0.8.4",
+  "buildNumber": "29",
+  "buildId": "0.8.4+29",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-07-28T20:04:36.000Z",
-  "summary": {
-    "en": "Security hotfix: update the local Agent's HTTP routing and static-file dependencies to patched versions. All compression and image-pool improvements from 0.8.2 remain included.",
-    "uk": "Оновлення безпеки: локальний Agent тепер використовує виправлені залежності HTTP-маршрутизації та статичних файлів. Усі покращення стиснення й наборів зображень з 0.8.2 збережено."
-  },
+  "publishedAt": "2026-07-28T20:31:00.000Z",
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.8.3/Wishly-Agent-v0.8.3-macOS-arm64.dmg",
-      "sha256": "5a1ff26ed7de4c6c7c6381d11bdb0c4142e9ca812ad801c288598360e5dc896d"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.8.4/Wishly-Agent-v0.8.4-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {

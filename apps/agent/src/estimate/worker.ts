@@ -15,6 +15,7 @@ import {
   refreshEstimateFromBreakdown
 } from '../images/embedding.js';
 import { ImageAssetStore } from '../images/store.js';
+import { detectStaticEdgeTrims, type StaticEdgeTrims } from '../images/static-edges.js';
 import { EstimateCache, estimateCacheKey } from './cache.js';
 import { createSamplePlan, estimateBreakdownFromSamples } from './sampler.js';
 
@@ -31,6 +32,7 @@ type EstimatePatch = Partial<
     | 'estimateKey'
     | 'estimatePriorityOrder'
     | 'estimateBreakdown'
+    | 'imageEmbedding'
   >
 >;
 
@@ -44,13 +46,15 @@ export class EstimationWorker {
   private priorityPumping = false;
   private shuttingDown = false;
   private debounce: ReturnType<typeof setTimeout> | null = null;
+  private replacementTrimCache = new Map<string, Promise<StaticEdgeTrims>>();
 
   constructor(
     private jobs: () => CompressionJob[],
     private update: (id: string, patch: EstimatePatch, event: AgentEventType) => void,
     private compressionRunning: () => boolean,
     private cache = new EstimateCache(),
-    private imageStore = new ImageAssetStore()
+    private imageStore = new ImageAssetStore(),
+    private detectStaticEdges: typeof detectStaticEdgeTrims = detectStaticEdgeTrims
   ) {}
 
   async init() {
@@ -204,6 +208,28 @@ export class EstimationWorker {
     let temporaryDirectory = '';
     try {
       const source = await stat(job.inputPath);
+      let metadata: Awaited<ReturnType<typeof probe>> | null = null;
+      if (job.imageEmbedding?.replaceExisting) {
+        metadata = await probe(job.inputPath);
+        const trims = await this.detectReplacementTrims(
+          job,
+          source.size,
+          source.mtimeMs,
+          metadata.duration
+        );
+        if (this.cancelled(job.id, generation, prioritized)) throw new Cancelled();
+        if (
+          trims.startSeconds !== job.imageEmbedding.sourceTrimStartSeconds ||
+          trims.endSeconds !== job.imageEmbedding.sourceTrimEndSeconds
+        ) {
+          job.imageEmbedding = {
+            ...job.imageEmbedding,
+            sourceTrimStartSeconds: trims.startSeconds,
+            sourceTrimEndSeconds: trims.endSeconds
+          };
+          this.update(job.id, { imageEmbedding: job.imageEmbedding }, 'state');
+        }
+      }
       const configurationKey = jobConfigurationKey(job.encoding, job.imageEmbedding);
       const key = estimateCacheKey(
         job.inputPath,
@@ -234,8 +260,18 @@ export class EstimationWorker {
         return;
       }
 
-      const metadata = await probe(job.inputPath);
-      const plan = createSamplePlan(metadata.duration);
+      metadata ??= await probe(job.inputPath);
+      const sourceStart = job.imageEmbedding?.replaceExisting
+        ? job.imageEmbedding.sourceTrimStartSeconds
+        : 0;
+      const sourceEnd = job.imageEmbedding?.replaceExisting
+        ? job.imageEmbedding.sourceTrimEndSeconds
+        : 0;
+      const retainedDuration = Math.max(0, metadata.duration - sourceStart - sourceEnd);
+      const plan = createSamplePlan(retainedDuration).map(sample => ({
+        ...sample,
+        start: sample.start + sourceStart
+      }));
       if (!plan.length) throw new Error('Duration is unavailable.');
       const staticAsset = job.imageEmbedding?.endImage ?? job.imageEmbedding?.startImage ?? null;
       const totalSteps = plan.length + (staticAsset ? 1 : 0);
@@ -380,6 +416,33 @@ export class EstimationWorker {
       child.on('error', () => resolve(null));
       child.on('close', resolve);
     });
+  }
+
+  private detectReplacementTrims(
+    job: CompressionJob,
+    size: number,
+    mtimeMs: number,
+    duration: number
+  ) {
+    const frameRate = job.sourceFrameRate ?? outputFrameRate(job);
+    const key = JSON.stringify([
+      path.resolve(job.inputPath),
+      size,
+      Math.round(mtimeMs),
+      duration,
+      frameRate
+    ]);
+    let pending = this.replacementTrimCache.get(key);
+    if (!pending) {
+      pending = this.detectStaticEdges(job.inputPath, duration, frameRate);
+      this.replacementTrimCache.set(key, pending);
+      void pending.catch(() => {
+        if (this.replacementTrimCache.get(key) === pending) {
+          this.replacementTrimCache.delete(key);
+        }
+      });
+    }
+    return pending;
   }
 }
 

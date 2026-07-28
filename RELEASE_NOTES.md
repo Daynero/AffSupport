@@ -1,3 +1,9 @@
+# v0.8.4
+
+- Detect and remove previously embedded static opening and ending sections before estimating a replacement, keeping predicted duration and output size accurate.
+- Preserve compressor selections while navigating within Wishly and remove stale leave-page prompts and redundant interface copy.
+- Refine image embedding controls and responsive layouts across the compressor, account, landing, and transcription interfaces.
+
 # v0.8.3
 
 - Update the local Agent's HTTP routing and static-file dependency chain to patched releases after new production advisories were detected.

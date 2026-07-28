@@ -48,16 +48,12 @@ describe('release identity', () => {
     expect(macAppleSiliconDownloadUrl(null)).toBe(RELEASE_DOWNLOAD_URL);
   });
 
-  it('reads localized release copy from the stable manifest', () => {
+  it('uses generic maintenance copy when the stable manifest has no summary', () => {
     const manifest = JSON.parse(
       readFileSync('apps/web/public/.well-known/wishly/stable.json', 'utf8')
     );
-    expect(localizedReleaseSummary(manifest, 'en')).toBe(
-      "Security hotfix: update the local Agent's HTTP routing and static-file dependencies to patched versions. All compression and image-pool improvements from 0.8.2 remain included."
-    );
-    expect(localizedReleaseSummary(manifest, 'uk')).toBe(
-      'Оновлення безпеки: локальний Agent тепер використовує виправлені залежності HTTP-маршрутизації та статичних файлів. Усі покращення стиснення й наборів зображень з 0.8.2 збережено.'
-    );
+    expect(localizedReleaseSummary(manifest, 'en')).toBeNull();
+    expect(localizedReleaseSummary(manifest, 'uk')).toBeNull();
     expect(localizedReleaseSummary({ ...manifest, summary: undefined }, 'uk')).toBeNull();
   });
 

@@ -100,6 +100,55 @@ describe('final image duration configuration', () => {
     await until(() => !queue.state().running);
   });
 
+  it('keeps estimated replacement trims when image choices are frozen for the queue', async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), 'embedding-replacement-trims-'));
+    const image = asset('end');
+    const settings = {
+      ...optimalSettings,
+      outputMode: 'chosen-folder' as const,
+      outputFolder: directory,
+      imageEmbedding: {
+        ...defaultImageEmbeddingSettings(),
+        enabled: true,
+        endImages: [image],
+        replaceExisting: true,
+        finalDurationMode: 'custom' as const,
+        customFinalDurationSeconds: 60
+      }
+    };
+    const job = makeJob('replacement-trims', 'ready', {
+      inputPath: path.join(directory, 'missing.mp4'),
+      durationSeconds: 100,
+      imageEmbedding: {
+        startImage: null,
+        endImage: image,
+        finalDurationMode: 'custom',
+        finalDurationSeconds: 60,
+        fitMode: 'cover',
+        replaceExisting: true,
+        sourceTrimStartSeconds: 10,
+        sourceTrimEndSeconds: 40
+      }
+    });
+    const queue = new JobQueue(
+      { ffmpeg: true, ffprobe: true },
+      () => {},
+      [job],
+      settings,
+      null,
+      new ImageAssetStore(path.join(directory, 'images'))
+    );
+
+    expect(await queue.start([job.id])).toBe(true);
+    const queued = queue.state().jobs[0];
+    expect(queued.imageEmbedding).toMatchObject({
+      sourceTrimStartSeconds: 10,
+      sourceTrimEndSeconds: 40
+    });
+    expect(outputDurationSeconds(queued)).toBe(110);
+    await until(() => !queue.state().running);
+  });
+
   it('draws each image once before refreshing the random pool', async () => {
     directory = await mkdtemp(path.join(os.tmpdir(), 'embedding-image-pool-'));
     const images = [poolAsset('3'), poolAsset('4'), poolAsset('5')];

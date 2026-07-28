@@ -376,9 +376,6 @@ export default function TranscriptionPage() {
       setLanguage={setLanguage}
       connection={connection}
       onHome={event => {
-        if (state?.running && !confirm(t('transcriptionProcessedLocally'))) {
-          // Transcription keeps running in the background; no destructive leave.
-        }
         internalLink(event, '/');
       }}
       t={t}

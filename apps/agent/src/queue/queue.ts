@@ -424,6 +424,7 @@ export class JobQueue {
     this.warning = await this.diskWarning(jobs);
     for (const job of jobs) {
       const draftKey = jobConfigurationKey(job.encoding, job.imageEmbedding);
+      const estimatedEmbedding = job.imageEmbedding;
       const selectedImages = this.settings.imageEmbedding.enabled
         ? {
             startImage: this.drawImage('start', this.settings.imageEmbedding.startImages),
@@ -435,6 +436,10 @@ export class JobQueue {
         this.random,
         selectedImages
       );
+      if (job.imageEmbedding?.replaceExisting && estimatedEmbedding?.replaceExisting) {
+        job.imageEmbedding.sourceTrimStartSeconds = estimatedEmbedding.sourceTrimStartSeconds;
+        job.imageEmbedding.sourceTrimEndSeconds = estimatedEmbedding.sourceTrimEndSeconds;
+      }
       job.outputPath = await this.outputPathFor(job.inputPath, job);
       if (
         draftKey !== jobConfigurationKey(job.encoding, job.imageEmbedding) &&

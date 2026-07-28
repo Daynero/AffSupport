@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { spawn } from 'node:child_process';
 import { mkdir, mkdtemp, rm, stat } from 'node:fs/promises';
 import os from 'node:os';
@@ -6,6 +6,7 @@ import path from 'node:path';
 import type { ImageAsset } from '../packages/shared/src/types.js';
 import { EstimateCache, estimateCacheKey } from '../apps/agent/src/estimate/cache.js';
 import { EstimationWorker } from '../apps/agent/src/estimate/worker.js';
+import { outputDurationSeconds } from '../apps/agent/src/images/embedding.js';
 import { ImageAssetStore } from '../apps/agent/src/images/store.js';
 import { makeJob, optimalEncoding } from './helpers.js';
 
@@ -94,6 +95,63 @@ describe('embedded static-section estimation', () => {
       })
     ).not.toBe(base);
   });
+
+  it('removes detected static edges from replacement duration and size estimates', async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), 'replacement estimate '));
+    const video = path.join(directory, 'previously-embedded.mp4');
+    const imageRoot = path.join(directory, 'images');
+    await mkdir(imageRoot, { recursive: true });
+    const asset = imageAsset();
+    expect(await createVideo(video)).toBe(0);
+    expect(await createImage(path.join(imageRoot, `${asset.id}.png`))).toBe(0);
+    const info = await stat(video);
+    const job = makeJob('replacement-estimate', 'ready', {
+      inputPath: video,
+      outputPath: path.join(directory, 'out.mp4'),
+      originalSize: info.size,
+      durationSeconds: 1,
+      sourceWidth: 320,
+      sourceHeight: 180,
+      sourceFrameRate: 24,
+      sourceHasAudio: false,
+      imageEmbedding: {
+        startImage: null,
+        endImage: asset,
+        finalDurationMode: 'custom',
+        finalDurationSeconds: 0.75,
+        fitMode: 'contain',
+        replaceExisting: true,
+        sourceTrimStartSeconds: 0,
+        sourceTrimEndSeconds: 0
+      }
+    });
+    const detect = vi.fn(async () => ({ startSeconds: 0, endSeconds: 0.75 }));
+    const worker = new EstimationWorker(
+      () => [job],
+      (_id, patch) => Object.assign(job, patch),
+      () => false,
+      new EstimateCache(path.join(directory, 'cache.json')),
+      new ImageAssetStore(imageRoot),
+      detect
+    );
+
+    await worker.init();
+    await until(() => ['estimated', 'unavailable'].includes(job.estimateStatus));
+    await worker.shutdown();
+
+    expect(job.estimateStatus, job.estimateError ?? '').toBe('estimated');
+    expect(detect).toHaveBeenCalledWith(video, 1, 24);
+    expect(job.imageEmbedding?.sourceTrimEndSeconds).toBe(0.75);
+    expect(outputDurationSeconds(job)).toBeCloseTo(1, 5);
+    const breakdown = job.estimateBreakdown!;
+    const untrimmedEstimate =
+      (breakdown.dynamicVideoBytesPerSecond * 1 +
+        breakdown.staticVideoBytesPerSecond * 0.75 +
+        breakdown.audioBytesPerSecond * 1.75) *
+        1.005 +
+      2048;
+    expect(job.estimatedOutputBytes).toBeLessThan(untrimmedEstimate * 0.85);
+  }, 20_000);
 });
 
 function imageAsset(): ImageAsset {

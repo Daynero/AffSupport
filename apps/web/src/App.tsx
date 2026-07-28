@@ -49,6 +49,18 @@ import {
 } from './analytics/compression';
 
 const downloadUrl = RELEASE_DOWNLOAD_URL;
+const COMPRESSOR_SELECTION_KEY = 'wishly.compressor.selection.v1';
+
+function storedCompressorSelection() {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(COMPRESSOR_SELECTION_KEY) ?? '[]');
+    return new Set<string>(
+      Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : []
+    );
+  } catch {
+    return new Set<string>();
+  }
+}
 
 interface ToastMessage {
   id: number;
@@ -59,7 +71,7 @@ interface ToastMessage {
 export default function CompressorPage() {
   const { language, setLanguage, t } = useI18n();
   const { state, setState, connection, connectedOnce, reconnect, capabilities } = useAgent();
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Set<string>>(storedCompressorSelection);
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
   const [importing, setImporting] = useState(false);
   const [help, setHelp] = useState(false);
@@ -130,9 +142,14 @@ export default function CompressorPage() {
 
   const jobIdsKey = state.jobs.map(job => job.id).join('|');
   useEffect(() => {
+    if (connection !== 'connected') return;
     const existing = new Set(state.jobs.map(job => job.id));
     setSelected(current => new Set([...current].filter(id => existing.has(id))));
-  }, [jobIdsKey]);
+  }, [connection, jobIdsKey]);
+
+  useEffect(() => {
+    sessionStorage.setItem(COMPRESSOR_SELECTION_KEY, JSON.stringify([...selected]));
+  }, [selected]);
 
   const handleError = (error: unknown) => {
     const text = localizedError(error, t);
@@ -347,10 +364,6 @@ export default function CompressorPage() {
       setLanguage={setLanguage}
       connection={connection}
       onHome={event => {
-        if (state.running && !confirm(t('leaveCompressorConfirm'))) {
-          event.preventDefault();
-          return;
-        }
         internalLink(event, '/');
       }}
       t={t}
