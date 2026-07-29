@@ -3,6 +3,7 @@ import type { LandingAsset, LandingJob, LandingState } from '@video-compressor/s
 import { landingPreviewUrl } from '../api/client';
 import { formatSize } from '../format';
 import type { Language, TranslationKey } from '../i18n';
+import { Card } from '../components/Card';
 import { Button, Collapse, ProgressBar, WishlyLoader, type Translate } from '../components/ui';
 import { ImageCompareModal } from './ImageCompareModal';
 
@@ -62,7 +63,7 @@ export function LandingJobCard({
   };
 
   return (
-    <section
+    <Card
       className={`landing-batch-card is-${job.status} ${expanded ? 'is-expanded' : ''}`}
       aria-labelledby={`${listId}-title`}
     >
@@ -206,7 +207,7 @@ export function LandingJobCard({
           t={t}
         />
       )}
-    </section>
+    </Card>
   );
 }
 

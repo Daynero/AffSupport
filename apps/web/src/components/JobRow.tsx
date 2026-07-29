@@ -8,6 +8,7 @@ import {
   type CompressionJob
 } from '@video-compressor/shared';
 import { estimatePriorityAction } from '../estimate-priority';
+import { prefersReducedMotion } from '../lib/navigation';
 import {
   compactPath,
   formatBitrate,
@@ -23,6 +24,7 @@ import { elapsedMilliseconds, timerState } from '../queue-ui';
 import {
   Button,
   Checkbox,
+  Collapse,
   ProgressBar,
   Spinner,
   StatusBadge,
@@ -30,6 +32,10 @@ import {
   WishlyDots,
   type Translate
 } from './ui';
+
+/** Keep in sync with --dur-complete in styles.css: the estimate → result
+ * morph (row-track transition + size count-up) runs on this clock. */
+const MORPH_DURATION_MS = 450;
 
 export function JobRow({
   job,
@@ -82,7 +88,10 @@ export function JobRow({
         />
       </div>
 
-      {(job.status === 'processing' || job.status === 'queued') && (
+      {/* The progress row stays mounted inside a Collapse, so reaching a
+          terminal state (completed/failed/cancelled) slides it away instead
+          of snapping the row height. */}
+      <Collapse open={job.status === 'processing' || job.status === 'queued'}>
         <div className="job-progress">
           <ProgressBar
             value={job.status === 'queued' ? 0 : job.progress}
@@ -94,39 +103,153 @@ export function JobRow({
             <strong>{job.status === 'queued' ? '0%' : `${Math.round(job.progress ?? 0)}%`}</strong>
           </div>
         </div>
-      )}
+      </Collapse>
 
       <div className={`job-comparison ${job.status === 'completed' ? 'has-result' : ''}`}>
         <OriginalPanel job={job} language={language} t={t} />
-        {job.status !== 'completed' &&
-          job.status !== 'analyzing' &&
-          job.sourceWidth !== null &&
-          job.sourceHeight !== null && <EstimatePanel job={job} language={language} t={t} />}
-        {job.status === 'completed' && <ResultPanel job={job} language={language} t={t} />}
+        <OutcomePanel job={job} language={language} t={t} />
       </div>
 
-      {job.error && (
-        <div className="job-error" role="alert">
-          <span>{localizedJobError(job.error, t)}</span>
-          {job.errorDetails && (
-            <details>
-              <summary>{t('showDetails')}</summary>
-              <pre>{job.errorDetails}</pre>
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  void navigator.clipboard.writeText(job.errorDetails ?? '');
-                  setCopiedDetails(true);
-                }}
-              >
-                {copiedDetails ? t('detailsCopied') : t('copyDetails')}
-              </Button>
-            </details>
-          )}
-        </div>
-      )}
+      {/* Errors expand softly (fade-rise inside an animated row track), so
+          failed/cancelled jobs never jump the layout. */}
+      <Collapse open={Boolean(job.error)}>
+        {job.error ? (
+          <div className="job-error" role="alert">
+            <span>{localizedJobError(job.error, t)}</span>
+            {job.errorDetails && (
+              <details>
+                <summary>{t('showDetails')}</summary>
+                <pre>{job.errorDetails}</pre>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(job.errorDetails ?? '');
+                    setCopiedDetails(true);
+                  }}
+                >
+                  {copiedDetails ? t('detailsCopied') : t('copyDetails')}
+                </Button>
+              </details>
+            )}
+          </div>
+        ) : null}
+      </Collapse>
     </article>
   );
+}
+
+/**
+ * The single slot to the right of the original panel that hosts either the
+ * estimate or the final result. When a job completes while mounted, both
+ * phases render for one --dur-complete beat: the row tracks morph
+ * (1fr 0fr → 0fr 1fr, the Collapse pattern) so the slot height flows from the
+ * estimate panel to the result panel, the contents crossfade, and the size
+ * figure counts from the ≈ estimate to the actual bytes. Static renders of a
+ * completed job (SSR, fresh mounts) skip straight to the result panel.
+ */
+function OutcomePanel({
+  job,
+  language,
+  t
+}: {
+  job: CompressionJob;
+  language: Language;
+  t: Translate;
+}) {
+  const completed = job.status === 'completed';
+  const hasEstimate =
+    job.status !== 'analyzing' && job.sourceWidth !== null && job.sourceHeight !== null;
+  const [wasCompleted, setWasCompleted] = useState(completed);
+  const [morph, setMorph] = useState<{ fromBytes: number | null } | null>(null);
+  const [running, setRunning] = useState(false);
+
+  // Derived-from-props state transition (no effect): the completed flag
+  // flipping on while the estimate is visible arms the morph.
+  if (completed !== wasCompleted) {
+    setWasCompleted(completed);
+    if (completed && hasEstimate) {
+      setMorph({
+        fromBytes: job.estimateStatus === 'estimated' ? job.estimatedOutputBytes : null
+      });
+      setRunning(false);
+    } else {
+      setMorph(null);
+    }
+  }
+
+  useEffect(() => {
+    if (!morph) return;
+    if (prefersReducedMotion()) {
+      setMorph(null);
+      return;
+    }
+    // Double rAF: let the two-phase layout commit first, then flip the row
+    // tracks so the grid-template-rows transition actually runs.
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => setRunning(true));
+    });
+    const timer = window.setTimeout(() => setMorph(null), MORPH_DURATION_MS + 80);
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+      window.clearTimeout(timer);
+    };
+  }, [morph]);
+
+  const showEstimate = (!completed || morph !== null) && hasEstimate;
+  const showResult = completed;
+  if (!showEstimate && !showResult) return null;
+
+  return (
+    <div
+      className={`outcome-slot ${morph ? 'is-morphing' : ''} ${running && morph ? 'is-run' : ''}`.trim()}
+    >
+      {showEstimate && (
+        <div
+          key="estimate"
+          className="outcome-phase outcome-phase-estimate"
+          aria-hidden={completed || undefined}
+        >
+          <EstimatePanel job={job} language={language} t={t} />
+        </div>
+      )}
+      {showResult && (
+        <div key="result" className="outcome-phase outcome-phase-result">
+          <ResultPanel
+            job={job}
+            language={language}
+            t={t}
+            morphFromBytes={morph?.fromBytes ?? null}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Counts the displayed byte figure from the last shown estimate to the
+ * actual output while the morph runs; renders the target directly otherwise
+ * (static mounts, no estimate, reduced motion). */
+function useMorphedBytes(target: number | null, from: number | null) {
+  const [display, setDisplay] = useState(from ?? target);
+  useEffect(() => {
+    if (from === null || target === null || from === target || prefersReducedMotion()) {
+      setDisplay(target);
+      return;
+    }
+    let frame = 0;
+    const start = performance.now();
+    const step = (now: number) => {
+      const progress = Math.min(1, (now - start) / MORPH_DURATION_MS);
+      const eased = 1 - Math.pow(1 - progress, 3); // matches --ease-enter's decelerate feel
+      setDisplay(Math.round(from + (target - from) * eased));
+      if (progress < 1) frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [target, from]);
+  return from === null ? target : display;
 }
 
 function OriginalPanel({
@@ -240,12 +363,16 @@ function EstimatePanel({
 function ResultPanel({
   job,
   language,
-  t
+  t,
+  morphFromBytes = null
 }: {
   job: CompressionJob;
   language: Language;
   t: Translate;
+  /** Estimate figure to count up from while the estimate → result morph runs. */
+  morphFromBytes?: number | null;
 }) {
+  const displayedSize = useMorphedBytes(job.finalSize, morphFromBytes);
   const saving =
     job.finalSize === null || !job.originalSize
       ? null
@@ -254,7 +381,7 @@ function ResultPanel({
     <section className="media-panel result-panel" aria-label={t('finalVideoInfo')}>
       <h4>{t('readyFile')}</h4>
       <div className="result-size">
-        <strong>{formatSize(job.finalSize, language)}</strong>
+        <strong>{formatSize(displayedSize, language)}</strong>
         {saving !== null && saving >= 0 && <span>{t('actualSaving', { value: saving })}</span>}
         {saving !== null && saving < 0 && (
           <span className="warning-text">{t('largerActual', { value: Math.abs(saving) })}</span>

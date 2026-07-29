@@ -21,8 +21,15 @@
   --color-surface: #ffffff;
   --color-surface-subtle: #faf9fd;
   --color-surface-muted: #f0eef6;
+  /* Tinted surface steps below subtle: gradient stops and washed panels
+     (the former #f8f6fc / #f4f1fd near-white family) */
+  --color-surface-2: #f8f6fc;
+  --color-surface-3: #f4f1fd;
   --color-text: #241b3a;
   --color-text-muted: #6f687d;
+  /* Text/icons sitting on accent fills and dark media overlays; stays white
+     in both themes (accent fills keep their contrast in dark mode) */
+  --color-on-accent: #ffffff;
   --color-border: #e4e1ec;
   --color-border-strong: #c9c4d8;
 
@@ -54,8 +61,21 @@
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
-  --shadow-menu: 0 12px 32px rgba(36, 27, 58, 0.14);
-  --shadow-raise: 0 2px 6px rgba(36, 27, 58, 0.12);
+  --radius-xl: 18px;
+
+  /* Ink tints (the rgba(36,27,58,α) family) and overlays */
+  --tint-soft: rgba(36, 27, 58, 0.06);
+  --tint-medium: rgba(36, 27, 58, 0.14);
+  --tint-strong: rgba(36, 27, 58, 0.24);
+  --overlay-backdrop: rgb(36 27 58 / 42%);
+
+  /* Shadow scale; menu/raise stay as aliases for existing call sites */
+  --shadow-sm: 0 1px 2px var(--tint-soft);
+  --shadow-md: 0 2px 6px rgba(36, 27, 58, 0.12);
+  --shadow-lg: 0 12px 32px var(--tint-medium);
+  --shadow-xl: 0 24px 80px var(--tint-strong);
+  --shadow-menu: var(--shadow-lg);
+  --shadow-raise: var(--shadow-md);
 
   /* Motion system */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
@@ -164,6 +184,23 @@ a {
 
 .app-shell {
   min-height: 100vh;
+}
+
+/* Route content swaps inside the persistent shell; the topbar stays mounted.
+   During a route view transition (navigation.ts adds .wishly-page-transition
+   to <html>) the viewport forms its own `wishly-page` group, so only the page
+   content crossfades — never the header. The class gate keeps the theme
+   "cosmic reveal" transition on a single root snapshot. */
+:root.wishly-page-transition .page-viewport {
+  view-transition-name: wishly-page;
+}
+
+/* Entrance for freshly mounted pages: first load, browsers without the View
+   Transitions API, and connection-state branch swaps (setup ↔ tool). Pages
+   mounted by a route view transition omit the class (usePageEntrance) so the
+   two mechanisms never double-animate. */
+.page-enter {
+  animation: fade-rise var(--dur-section) var(--ease-enter);
 }
 
 /* ============================================================
@@ -323,27 +360,36 @@ a {
   gap: 18px;
 }
 
-.tool-card {
-  display: flex;
-  min-height: 290px;
-  flex-direction: column;
-  padding: 24px;
+/* Shared card surface; per-card modifiers add their unique traits. */
+.card {
+  padding: var(--space-6);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
 }
 
-.tool-active {
+.card-interactive {
   cursor: pointer;
+  transition:
+    transform var(--dur-control) var(--ease-standard),
+    border-color var(--dur-control) var(--ease-standard),
+    box-shadow var(--dur-control) var(--ease-standard);
 }
-.tool-active:hover {
+.card-interactive:hover {
   border-color: var(--purple-300);
-  box-shadow: var(--shadow-raise);
+  box-shadow: var(--shadow-md);
   transform: translateY(-2px);
 }
-.tool-active:active {
+.card-interactive:active {
   transform: translateY(-1px) scale(0.992);
 }
+
+.tool-card {
+  display: flex;
+  min-height: 290px;
+  flex-direction: column;
+}
+
 .tool-coming-soon {
   background: var(--color-surface-subtle);
   cursor: pointer;
@@ -483,7 +529,7 @@ a {
 .language-switch button.is-active {
   color: var(--color-accent-hover);
   background: var(--color-surface);
-  box-shadow: 0 1px 2px rgba(36, 27, 58, 0.08);
+  box-shadow: 0 1px 2px var(--tint-soft);
 }
 
 /* Connection badge: green means connected, purple means working,
@@ -598,7 +644,7 @@ a {
 
 .button-primary {
   border-color: color-mix(in srgb, var(--color-accent-hover) 70%, transparent);
-  color: #fff;
+  color: var(--color-on-accent);
   background: linear-gradient(180deg, var(--color-accent) 0%, var(--color-accent-hover) 100%);
 }
 
@@ -694,7 +740,7 @@ a {
 }
 
 .button-primary.is-loading .button-spinner {
-  color: #fff;
+  color: var(--color-on-accent);
 }
 
 .button-secondary.is-loading .button-spinner,
@@ -908,7 +954,7 @@ a {
   border: 0;
   border-radius: 50%;
   background: #fff;
-  box-shadow: 0 1px 2px rgba(36, 27, 58, 0.25);
+  box-shadow: 0 1px 2px var(--tint-strong);
   content: '';
   transform: translateY(-50%);
   transition: transform var(--dur-control) var(--ease-standard);
@@ -1174,7 +1220,7 @@ a {
   overflow: hidden;
   padding: 2px 5px;
   border-radius: 5px;
-  color: #fff;
+  color: var(--color-on-accent);
   background: rgba(24, 17, 38, 0.66);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
@@ -1189,7 +1235,7 @@ a {
   right: 4px;
   color: #2d2638;
   background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 1px 4px rgba(36, 27, 58, 0.16);
+  box-shadow: 0 1px 4px var(--tint-medium);
   backdrop-filter: blur(5px);
 }
 
@@ -1214,7 +1260,7 @@ a {
   padding: 2px;
   border-radius: 7px;
   background: rgba(255, 255, 255, 0.68);
-  box-shadow: 0 1px 4px rgba(36, 27, 58, 0.14);
+  box-shadow: 0 1px 4px var(--tint-medium);
   backdrop-filter: blur(5px);
 }
 
@@ -1488,7 +1534,7 @@ input.is-invalid {
   height: calc(100% - 6px);
   border-radius: 6px;
   background: var(--color-surface);
-  box-shadow: 0 1px 3px rgba(36, 27, 58, 0.12);
+  box-shadow: 0 1px 3px var(--tint-medium);
   transition:
     transform var(--dur-control) var(--ease-standard),
     width var(--dur-control) var(--ease-standard);
@@ -1525,7 +1571,7 @@ input.is-invalid {
 
 .segmented.no-indicator button.is-active {
   background: var(--color-surface);
-  box-shadow: 0 1px 3px rgba(36, 27, 58, 0.1);
+  box-shadow: 0 1px 3px var(--tint-medium);
 }
 
 /* ============================================================
@@ -1566,7 +1612,7 @@ input.is-invalid {
   width: min(280px, calc(100vw - 24px));
   padding: 9px 11px;
   border-radius: var(--radius-sm);
-  color: #fff;
+  color: var(--color-on-accent);
   background: var(--purple-900);
   box-shadow: var(--shadow-menu);
   font-size: 12px;
@@ -1668,7 +1714,7 @@ input.is-invalid {
   justify-content: space-between;
   gap: var(--space-2);
   padding: 9px 10px;
-  box-shadow: 0 5px 18px rgba(36, 27, 58, 0.06);
+  box-shadow: 0 5px 18px var(--tint-soft);
 }
 
 .selection-actions,
@@ -1969,6 +2015,59 @@ input.is-invalid {
   animation: success-in var(--dur-complete) var(--ease-enter);
 }
 
+/* Estimate → result morph (JobRow OutcomePanel). At rest the slot holds one
+   panel in a single 1fr track. While a job completes, both phases mount and
+   the row tracks flow 1fr 0fr → 0fr 1fr (the Collapse pattern), so the slot
+   height eases from the estimate panel to the result panel while their
+   contents crossfade. Track-count changes (1 ↔ 2 rows) are not interpolable,
+   so mounting/unmounting the second phase never animates on its own. */
+.outcome-slot {
+  display: grid;
+  min-width: 0;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--dur-complete) var(--ease-standard);
+}
+
+.outcome-slot.is-morphing {
+  grid-template-rows: 1fr 0fr;
+}
+
+.outcome-slot.is-morphing.is-run {
+  grid-template-rows: 0fr 1fr;
+}
+
+.outcome-phase {
+  display: grid;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.outcome-slot.is-morphing .outcome-phase-estimate {
+  opacity: 1;
+  transition: opacity calc(var(--dur-complete) / 2) var(--ease-exit);
+}
+
+.outcome-slot.is-morphing.is-run .outcome-phase-estimate {
+  opacity: 0;
+}
+
+.outcome-slot.is-morphing .outcome-phase-result {
+  opacity: 0;
+  transition: opacity var(--dur-complete) var(--ease-enter);
+}
+
+.outcome-slot.is-morphing.is-run .outcome-phase-result {
+  opacity: 1;
+}
+
+/* Match the estimate panel's title-row height (h4 + ≈ tag + help button), so
+   the size figure sits at the same offset in both phases of the morph. */
+.result-panel > h4 {
+  display: flex;
+  min-height: 21px;
+  align-items: center;
+}
+
 .panel-title-with-help {
   flex-wrap: wrap;
 }
@@ -2059,6 +2158,115 @@ input.is-invalid {
 .skeleton-size {
   width: 84px;
   height: 16px;
+}
+
+/* Loading placeholders for the account/admin pages. They copy the loaded
+   layout's geometry (cards, fields, chart, table rows), so data replaces
+   them without layout shift; .content-appear crossfades the swap. Under
+   reduced motion the shimmer freezes (global .skeleton override) and the
+   placeholders simply stay static. */
+.skeleton-line {
+  display: inline-block;
+  width: 120px;
+  max-width: 100%;
+  height: 12px;
+}
+
+.skeleton-line-sm {
+  width: 72px;
+}
+
+.skeleton-line-lg {
+  width: 160px;
+  height: 16px;
+}
+
+.skeleton-line-wide {
+  width: 60%;
+}
+
+.skeleton-avatar {
+  flex: 0 0 auto;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+}
+
+.skeleton-field {
+  display: block;
+  width: 100%;
+  height: 40px;
+  border-radius: var(--radius-sm);
+}
+
+.skeleton-field-block {
+  gap: 7px;
+}
+
+.skeleton-button {
+  display: inline-block;
+  width: 132px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+}
+
+.skeleton-metric {
+  display: inline-block;
+  width: 64px;
+  height: 21px;
+}
+
+.skeleton-chart {
+  display: block;
+  width: 100%;
+  height: 226px;
+  border-radius: var(--radius-sm);
+}
+
+.skeleton-list {
+  display: grid;
+}
+
+.skeleton-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.skeleton-list-row:last-child {
+  border-bottom: 0;
+}
+
+.skeleton-table {
+  display: grid;
+}
+
+.skeleton-table-row {
+  display: grid;
+  grid-template-columns: 2fr 1.4fr 1fr;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 14px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.skeleton-table-row:last-child {
+  border-bottom: 0;
+}
+
+.account-skeleton,
+.account-loaded,
+.admin-skeleton,
+.admin-loaded {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.content-appear {
+  animation: fade-in var(--dur-section) var(--ease-enter);
 }
 
 .inline-warning,
@@ -2207,8 +2415,8 @@ input.is-invalid {
 .checkbox input:checked + .checkbox-mark::after {
   width: 8px;
   height: 4px;
-  border-bottom: 2px solid #fff;
-  border-left: 2px solid #fff;
+  border-bottom: 2px solid var(--color-on-accent);
+  border-left: 2px solid var(--color-on-accent);
   content: '';
   transform: translateY(-1px) rotate(-45deg);
 }
@@ -2371,7 +2579,7 @@ input.is-invalid {
   border: 1px solid color-mix(in srgb, var(--color-accent) 28%, var(--color-border));
   border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--color-surface) 94%, var(--color-accent-soft));
-  box-shadow: 0 18px 54px rgba(36, 27, 58, 0.2);
+  box-shadow: 0 18px 54px var(--tint-strong);
   animation: fade-rise var(--dur-section) var(--ease-enter);
 }
 
@@ -2390,7 +2598,7 @@ input.is-invalid {
   width: 34px;
   height: 34px;
   border-radius: 11px;
-  color: #fff;
+  color: var(--color-on-accent);
   background: var(--gradient-brand);
   box-shadow: 0 6px 16px color-mix(in srgb, var(--color-accent) 28%, transparent);
   font-size: 14px;
@@ -3012,7 +3220,7 @@ input.is-invalid {
 }
 
 @media (hover: none) {
-  .tool-active:hover {
+  .card-interactive:hover {
     border-color: var(--color-border);
     box-shadow: none;
     transform: none;
@@ -3104,7 +3312,12 @@ input.is-invalid {
   overflow: hidden;
   background:
     radial-gradient(circle at 50% 50%, rgb(255 255 255 / 88%) 0 23%, transparent 55%),
-    linear-gradient(145deg, #faf9ff 0%, #f4f1fd 48%, #f8f6fc 100%);
+    linear-gradient(
+      145deg,
+      var(--color-surface-subtle) 0%,
+      var(--color-surface-3) 48%,
+      var(--color-surface-2) 100%
+    );
 }
 
 .login-topbar,
@@ -3140,7 +3353,12 @@ input.is-invalid {
   right: -120px;
   width: 470px;
   height: 470px;
-  background: radial-gradient(circle at 38% 42%, #ddd5fc 0%, #eeeafe 52%, transparent 73%);
+  background: radial-gradient(
+    circle at 38% 42%,
+    var(--purple-200) 0%,
+    var(--purple-100) 52%,
+    transparent 73%
+  );
 }
 
 .accent-two {
@@ -3148,7 +3366,12 @@ input.is-invalid {
   left: -170px;
   width: 560px;
   height: 560px;
-  background: radial-gradient(circle at 54% 38%, #e9ddfb 0%, #f4eefa 48%, transparent 72%);
+  background: radial-gradient(
+    circle at 54% 38%,
+    var(--purple-100) 0%,
+    var(--purple-50) 48%,
+    transparent 72%
+  );
   animation-delay: -6s;
 }
 
@@ -3440,7 +3663,7 @@ input.is-invalid {
   display: grid;
   place-items: center;
   padding: var(--space-4);
-  background: rgb(36 27 58 / 42%);
+  background: var(--overlay-backdrop);
   backdrop-filter: blur(5px);
   animation: fade-in var(--dur-section) var(--ease-enter);
 }
@@ -3449,16 +3672,28 @@ input.is-invalid {
   z-index: 110;
 }
 
-.onboarding-modal {
+/* Shared dialog surface for the Modal primitive. */
+.modal {
+  position: relative;
   display: grid;
   gap: var(--space-5);
   width: min(480px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
   padding: 30px;
   border: 1px solid var(--color-border);
-  border-radius: 18px;
+  border-radius: var(--radius-xl);
   background: var(--color-surface);
-  box-shadow: 0 24px 80px rgb(36 27 58 / 24%);
+  box-shadow: var(--shadow-xl);
   animation: modal-rise var(--dur-layout) var(--ease-enter);
+}
+
+.modal-sm {
+  width: min(460px, 100%);
+}
+
+.modal-lg {
+  width: min(520px, 100%);
 }
 
 .onboarding-modal > div:first-of-type {
@@ -3535,22 +3770,7 @@ input.is-invalid {
 }
 
 /* Support the project dialog */
-.support-modal {
-  position: relative;
-  display: grid;
-  gap: var(--space-5);
-  width: min(520px, 100%);
-  max-height: calc(100vh - 48px);
-  overflow-y: auto;
-  padding: 30px;
-  border: 1px solid var(--color-border);
-  border-radius: 18px;
-  background: var(--color-surface);
-  box-shadow: 0 24px 80px rgb(36 27 58 / 24%);
-  animation: modal-rise var(--dur-layout) var(--ease-enter);
-}
-
-.support-close {
+.modal-close {
   position: absolute;
   top: 14px;
   right: 14px;
@@ -3566,7 +3786,7 @@ input.is-invalid {
   cursor: pointer;
 }
 
-.support-close:hover {
+.modal-close:hover {
   color: var(--color-text);
 }
 
@@ -3653,7 +3873,7 @@ input.is-invalid {
   padding: 8px;
   border-radius: var(--radius-sm);
   background: #fff;
-  box-shadow: 0 1px 4px rgb(36 27 58 / 12%);
+  box-shadow: 0 1px 4px var(--tint-medium);
 }
 
 .support-qr figcaption {
@@ -3744,33 +3964,9 @@ input.is-invalid {
   font-size: 12px;
 }
 
-/* Feature access gate ("still under construction") dialog */
-.lock-modal {
-  position: relative;
-  display: grid;
-  gap: var(--space-5);
-  width: min(460px, 100%);
-  max-height: calc(100vh - 48px);
-  overflow-y: auto;
-  padding: 30px;
-  border: 1px solid var(--color-border);
-  border-radius: 18px;
-  background: var(--color-surface);
-  box-shadow: 0 24px 80px rgb(36 27 58 / 24%);
-  animation: modal-rise var(--dur-layout) var(--ease-enter);
-}
-
 .local-app-modal {
-  position: relative;
-  display: grid;
-  width: min(520px, calc(100vw - 32px));
   gap: var(--space-4);
   padding: var(--space-6);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-xl);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-xl);
-  animation: modal-rise var(--dur-layout) var(--ease-enter);
 }
 
 .local-app-modal p,
@@ -3789,7 +3985,7 @@ input.is-invalid {
 }
 
 .windows-coming-soon-modal {
-  width: min(440px, calc(100vw - 32px));
+  width: min(440px, 100%);
 }
 
 .local-app-mark {
@@ -3886,11 +4082,7 @@ input.is-invalid {
 .admin-card {
   display: grid;
   gap: var(--space-5);
-  padding: var(--space-6);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  box-shadow: 0 1px 2px rgb(36 27 58 / 4%);
+  box-shadow: var(--shadow-sm);
 }
 
 .profile-summary {
@@ -4006,24 +4198,6 @@ input.is-invalid {
   color: var(--color-accent-hover);
 }
 
-.danger-card {
-  border-color: color-mix(in srgb, var(--color-error) 20%, var(--color-border));
-}
-
-.danger-card > div {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.danger-card p,
-.danger-card small {
-  color: var(--color-text-muted);
-}
-
-.danger-card > .button-danger {
-  justify-self: start;
-}
-
 .confirm-dialog {
   width: min(480px, calc(100% - 32px));
   padding: 0;
@@ -4031,11 +4205,11 @@ input.is-invalid {
   border-radius: var(--radius-lg);
   color: var(--color-text);
   background: var(--color-surface);
-  box-shadow: 0 24px 80px rgb(36 27 58 / 28%);
+  box-shadow: var(--shadow-xl);
 }
 
 .confirm-dialog::backdrop {
-  background: rgb(36 27 58 / 45%);
+  background: var(--overlay-backdrop);
   backdrop-filter: blur(4px);
 }
 
@@ -4117,9 +4291,7 @@ input.is-invalid {
   gap: var(--space-3);
   min-height: 104px;
   padding: var(--space-4);
-  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: var(--color-surface);
 }
 
 .metric-card span {
@@ -4540,10 +4712,14 @@ input.is-invalid {
   .user-menu-popover,
   .release-update-notice,
   .modal-backdrop,
+  .modal,
   .onboarding-modal,
   .theme-toggle__stars circle,
   ::view-transition-old(theme-toggle),
-  ::view-transition-new(theme-toggle) {
+  ::view-transition-new(theme-toggle),
+  ::view-transition-old(wishly-page),
+  ::view-transition-new(wishly-page),
+  .page-enter {
     animation: none !important;
   }
 
@@ -4625,10 +4801,8 @@ input.is-invalid {
 .landing-batch-card {
   position: relative;
   overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  box-shadow: 0 5px 22px rgb(36 27 58 / 5%);
+  padding: 0;
+  box-shadow: 0 5px 22px var(--tint-soft);
   animation: landing-card-in var(--dur-layout) var(--ease-enter);
   transition:
     border-color var(--dur-control) var(--ease-standard),
@@ -5003,7 +5177,7 @@ input.is-invalid {
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
   background: var(--color-surface-muted);
-  box-shadow: 0 2px 8px rgb(36 27 58 / 9%);
+  box-shadow: 0 2px 8px var(--tint-soft);
   cursor: zoom-in;
   transition:
     border-color var(--dur-control) var(--ease-standard),
@@ -5045,7 +5219,7 @@ input.is-invalid {
   left: 50%;
   width: 2px;
   background: rgb(255 255 255 / 92%);
-  box-shadow: 0 0 0 1px rgb(36 27 58 / 22%);
+  box-shadow: 0 0 0 1px var(--tint-strong);
   transform: translateX(-1px);
 }
 
@@ -5055,10 +5229,10 @@ input.is-invalid {
   left: 50%;
   width: 9px;
   height: 16px;
-  border: 1px solid rgb(36 27 58 / 24%);
+  border: 1px solid var(--tint-strong);
   border-radius: 6px;
   background: #fff;
-  box-shadow: 0 2px 5px rgb(36 27 58 / 18%);
+  box-shadow: 0 2px 5px var(--tint-medium);
   content: '';
   transform: translate(-50%, -50%);
 }
@@ -5293,7 +5467,7 @@ input.is-invalid {
   padding: 5px 9px;
   border: 1px solid rgb(255 255 255 / 22%);
   border-radius: 999px;
-  color: #fff;
+  color: var(--color-on-accent);
   background: rgb(24 18 39 / 62%);
   box-shadow: 0 2px 8px rgb(0 0 0 / 18%);
   font-size: 11px;
@@ -5378,7 +5552,7 @@ input.is-invalid {
 .landing-preview-loading.is-error {
   max-width: 360px;
   padding: var(--space-4);
-  color: #fff;
+  color: var(--color-on-accent);
   text-align: center;
 }
 
@@ -5634,6 +5808,8 @@ input.is-invalid {
   --color-surface: #1b1630;
   --color-surface-subtle: #16112a;
   --color-surface-muted: #241d3c;
+  --color-surface-2: #16112c;
+  --color-surface-3: #14102a;
   --color-text: #eeebf7;
   --color-text-muted: #a7a0bd;
   --color-border: #2e2748;
@@ -5655,8 +5831,11 @@ input.is-invalid {
   --color-error: #f4776a;
   --color-error-soft: color-mix(in srgb, #f4776a 15%, transparent);
 
-  --shadow-menu: 0 16px 40px rgba(0, 0, 0, 0.55);
-  --shadow-raise: 0 2px 8px rgba(0, 0, 0, 0.45);
+  /* Shadow scale flips to black; menu/raise aliases resolve through it */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.55);
+  --shadow-xl: 0 24px 80px rgba(0, 0, 0, 0.6);
 }
 
 /* Hardcoded light surfaces that tokens don't reach */
@@ -5678,7 +5857,12 @@ input.is-invalid {
 :root[data-theme='dark'] .login-page {
   background:
     radial-gradient(circle at 50% 45%, rgba(120, 92, 220, 0.28) 0 22%, transparent 55%),
-    linear-gradient(145deg, #14102a 0%, #0e0a1c 48%, #16112c 100%);
+    linear-gradient(
+      145deg,
+      var(--color-surface-3) 0%,
+      var(--color-bg) 48%,
+      var(--color-surface-2) 100%
+    );
 }
 :root[data-theme='dark'] .accent-one {
   background: radial-gradient(
@@ -5722,9 +5906,10 @@ input.is-invalid {
   background: #1e1f20;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
 }
-/* QR must stay on a light plate to remain scannable */
+/* QR must stay on a light plate to remain scannable (the purple scale is
+   not theme-flipped, so this stays light in dark mode) */
 :root[data-theme='dark'] .support-qr {
-  background: #f5f3fb;
+  background: var(--purple-50);
 }
 
 /* ============================================================
@@ -5747,6 +5932,29 @@ input.is-invalid {
 /* transitionTheme() adds a short-lived keyframe with the measured toggle
    position as percentages. That keeps the origin aligned when a browser uses
    device-pixel dimensions for the view-transition snapshot. */
+
+/* ============================================================
+   Route transitions — a short crossfade of the page content
+   only. The root group keeps `animation: none` (above), so the
+   persistent topbar swaps instantly and never shimmers.
+   ============================================================ */
+::view-transition-old(wishly-page) {
+  animation: wishly-page-out var(--dur-section) var(--ease-standard) both;
+}
+::view-transition-new(wishly-page) {
+  animation: wishly-page-in var(--dur-section) var(--ease-standard) both;
+}
+@keyframes wishly-page-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes wishly-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
 
 /* ============================================================
    Theme toggle — sun ⇄ moon morph that rides above the reveal
@@ -5870,14 +6078,16 @@ input.is-invalid {
   }
 }
 
-/* Lift the toggle above the reveal and spin the icons past each other */
+/* Lift the toggle above the reveal and spin the icons past each other.
+   Scoped to the theme transition: route view transitions also snapshot the
+   named toggle, and an unscoped rule would spin it on every navigation. */
 ::view-transition-group(theme-toggle) {
   z-index: 10001;
 }
-::view-transition-old(theme-toggle) {
+:root.theme-transitioning::view-transition-old(theme-toggle) {
   animation: theme-toggle-out 0.5s var(--ease-standard) both;
 }
-::view-transition-new(theme-toggle) {
+:root.theme-transitioning::view-transition-new(theme-toggle) {
   animation: theme-toggle-in 0.5s var(--ease-standard) both;
 }
 @keyframes theme-toggle-out {
@@ -6754,7 +6964,7 @@ input.is-invalid {
    near-solid fill and a full-strength underline to stay clearly readable. */
 :root[data-theme='dark'] .ts-active:not(.ts-selected) {
   background: color-mix(in oklab, var(--color-accent) 62%, transparent);
-  color: #fff;
+  color: var(--color-on-accent);
 }
 :root[data-theme='dark'] .ts-active {
   box-shadow: inset 0 -0.2em 0 var(--color-accent);

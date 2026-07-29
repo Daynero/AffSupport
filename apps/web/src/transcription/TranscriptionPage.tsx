@@ -4,7 +4,6 @@ import {
   TRANSCRIPTION_LANGUAGE_CODES,
   TRANSLATEGEMMA_LANGUAGE_CODES
 } from '@video-compressor/shared';
-import { createPortal } from 'react-dom';
 import {
   request,
   transcriptionAddLocalFiles,
@@ -26,9 +25,10 @@ import {
   transcriptionUpload,
   type TranscriptionSelectionResponse
 } from '../api/client';
-import { Header, Onboarding } from '../App';
+import { Onboarding } from '../App';
 import { useAgent } from '../AgentContext';
 import { DropZone } from '../components/DropZone';
+import { Modal } from '../components/Modal';
 import {
   Button,
   ProgressBar,
@@ -39,7 +39,7 @@ import {
 } from '../components/ui';
 import { formatSize } from '../format';
 import { useI18n, type Language } from '../i18n';
-import { internalLink } from '../lib/navigation';
+import { usePageEntrance } from '../lib/navigation';
 import { analytics } from '../analytics/service';
 import { languageDisplayName } from './language';
 import { TranscriptTextModal } from './TranscriptTextModal';
@@ -90,8 +90,9 @@ interface ToastMessage {
 }
 
 export default function TranscriptionPage() {
-  const { language, setLanguage, t } = useI18n();
+  const { language, t } = useI18n();
   const { connection, connectedOnce, reconnect, capabilities } = useAgent();
+  const entering = usePageEntrance();
   const [state, setState] = useState<TranscriptionState | null>(null);
   const [help, setHelp] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -370,46 +371,29 @@ export default function TranscriptionPage() {
     }
   };
 
-  const header = (
-    <Header
-      language={language}
-      setLanguage={setLanguage}
-      connection={connection}
-      onHome={event => {
-        internalLink(event, '/');
-      }}
-      t={t}
-    />
-  );
-
   if (connection === 'checking') {
     return (
-      <div className="app-shell">
-        {header}
-        <main className="workspace compact-state">
-          <Spinner />
-          <span>{t('connectingAgent')}</span>
-        </main>
-      </div>
+      <main className={`workspace compact-state${entering ? ' page-enter' : ''}`}>
+        <Spinner />
+        <span>{t('connectingAgent')}</span>
+      </main>
     );
   }
 
   if (!connected && !connectedOnce) {
     return (
-      <div className="app-shell">
-        {header}
-        <main className="workspace">
+      <>
+        <main className={`workspace${entering ? ' page-enter' : ''}`}>
           <Onboarding state={connection} help={help} setHelp={setHelp} connect={reconnect} t={t} />
         </main>
         <ToastRegion toasts={toasts} />
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="app-shell">
-      {header}
-      <main className="workspace">
+    <>
+      <main className={`workspace${entering ? ' page-enter' : ''}`}>
         {connected && state && !binaryReady && (
           <section className="blocking-message blocking-error" role="alert">
             <div>
@@ -573,7 +557,7 @@ export default function TranscriptionPage() {
           t={t}
         />
       )}
-    </div>
+    </>
   );
 }
 
@@ -667,98 +651,51 @@ function ConfirmDownloadModal({
   t: Translate;
 }) {
   const [accepted, setAccepted] = useState(!requiresGemmaConsent);
-  const modalRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    requestAnimationFrame(() => {
-      modalRef.current
-        ?.querySelector<HTMLElement>('input, button:not([disabled]), a[href]')
-        ?.focus();
-    });
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-      if (event.key !== 'Tab' || !modalRef.current) return;
-      const focusable = Array.from(
-        modalRef.current.querySelectorAll<HTMLElement>(
-          'input, button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
-        )
-      );
-      if (!focusable.length) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      previous?.focus();
-    };
-  }, [onClose]);
 
-  return createPortal(
-    <div
-      className="modal-backdrop"
-      onPointerDown={event => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <div
-        ref={modalRef}
-        className="lock-modal transcription-confirm-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-      >
-        <h2 id={titleId}>{t('transcriptionConfirmTitle')}</h2>
-        <p>{t('transcriptionConfirmBody', { size: sizeLabel })}</p>
-        {requiresGemmaConsent && (
-          <label className="transcription-gemma-consent">
-            <input
-              type="checkbox"
-              checked={accepted}
-              onChange={event => setAccepted(event.target.checked)}
-            />
-            <span>
-              {t('transcriptionGemmaConsent')}{' '}
-              <a href="https://ai.google.dev/gemma/terms" target="_blank" rel="noreferrer">
-                {t('transcriptionGemmaTerms')}
-              </a>{' '}
-              {t('transcriptionGemmaAnd')}{' '}
-              <a
-                href="https://ai.google.dev/gemma/prohibited_use_policy"
-                target="_blank"
-                rel="noreferrer"
-              >
-                {t('transcriptionGemmaPolicy')}
-              </a>
-              .
-            </span>
-          </label>
-        )}
-        <div className="inline-actions">
-          {canContinueWithoutTranslation ? (
-            <Button variant="ghost" onClick={onContinueWithoutTranslation}>
-              {t('transcriptionContinueWithoutTranslation')}
-            </Button>
-          ) : (
-            <Button variant="ghost" onClick={onClose}>
-              {t('transcriptionConfirmCancel')}
-            </Button>
-          )}
-          <Button variant="primary" disabled={!accepted} onClick={onConfirm}>
-            {t('transcriptionConfirmDownload')}
+  return (
+    <Modal size="sm" className="transcription-confirm-modal" labelledBy={titleId} onClose={onClose}>
+      <h2 id={titleId}>{t('transcriptionConfirmTitle')}</h2>
+      <p>{t('transcriptionConfirmBody', { size: sizeLabel })}</p>
+      {requiresGemmaConsent && (
+        <label className="transcription-gemma-consent">
+          <input
+            type="checkbox"
+            checked={accepted}
+            onChange={event => setAccepted(event.target.checked)}
+          />
+          <span>
+            {t('transcriptionGemmaConsent')}{' '}
+            <a href="https://ai.google.dev/gemma/terms" target="_blank" rel="noreferrer">
+              {t('transcriptionGemmaTerms')}
+            </a>{' '}
+            {t('transcriptionGemmaAnd')}{' '}
+            <a
+              href="https://ai.google.dev/gemma/prohibited_use_policy"
+              target="_blank"
+              rel="noreferrer"
+            >
+              {t('transcriptionGemmaPolicy')}
+            </a>
+            .
+          </span>
+        </label>
+      )}
+      <div className="inline-actions">
+        {canContinueWithoutTranslation ? (
+          <Button variant="ghost" onClick={onContinueWithoutTranslation}>
+            {t('transcriptionContinueWithoutTranslation')}
           </Button>
-        </div>
+        ) : (
+          <Button variant="ghost" onClick={onClose}>
+            {t('transcriptionConfirmCancel')}
+          </Button>
+        )}
+        <Button variant="primary" disabled={!accepted} onClick={onConfirm}>
+          {t('transcriptionConfirmDownload')}
+        </Button>
       </div>
-    </div>,
-    document.body
+    </Modal>
   );
 }
 

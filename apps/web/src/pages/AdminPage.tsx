@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
-import { Button } from '../components/ui';
+import { Card } from '../components/Card';
+import { Button, type Translate } from '../components/ui';
 import { formatSize } from '../format';
 import { useI18n, type TranslationKey } from '../i18n';
 import type { AdminUserRow, Json, MarketingExportRow } from '../lib/database.types';
+import { usePageEntrance } from '../lib/navigation';
 import { requireSupabaseClient } from '../lib/supabase';
 
 type AdminOverview = {
@@ -127,6 +129,7 @@ export function marketingCsv(rows: MarketingExportRow[]) {
 export default function AdminPage() {
   const { isAdmin, user } = useAuth();
   const { language, t } = useI18n();
+  const entering = usePageEntrance();
   const [range, setRange] = useState<7 | 30 | 90>(30);
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [daily, setDaily] = useState<DailyActivity[]>([]);
@@ -141,6 +144,10 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [exporting, setExporting] = useState(false);
+  // Remembers that this mount showed the loading skeleton, so the data
+  // crossfades in (content-appear) instead of popping.
+  const sawSkeleton = useRef(false);
+  if (loading && !overview) sawSkeleton.current = true;
   const pageSize = 20;
 
   useEffect(() => {
@@ -196,7 +203,7 @@ export default function AdminPage() {
 
   if (!isAdmin) {
     return (
-      <main className="admin-forbidden page-container">
+      <main className={`admin-forbidden page-container${entering ? ' page-enter' : ''}`}>
         <h2>{t('adminForbiddenTitle')}</h2>
         <p>{t('adminForbiddenBody')}</p>
       </main>
@@ -245,7 +252,7 @@ export default function AdminPage() {
   };
 
   return (
-    <main className="admin-page page-container">
+    <main className={`admin-page page-container${entering ? ' page-enter' : ''}`}>
       <header className="page-heading admin-heading">
         <div>
           <h2>{t('adminTitle')}</h2>
@@ -276,21 +283,19 @@ export default function AdminPage() {
       )}
 
       {loading && !overview ? (
-        <div className="admin-loading" role="status">
-          {t('loading')}
-        </div>
+        <AdminPageSkeleton t={t} />
       ) : overview ? (
-        <>
+        <div className={`admin-loaded${sawSkeleton.current ? ' content-appear' : ''}`}>
           <section className="metric-grid" aria-label={t('adminTitle')}>
             {overviewKeys.map(key => (
-              <article className="metric-card" key={key}>
+              <Card as="article" className="metric-card" key={key}>
                 <span>{t(metricLabels[key])}</span>
                 <strong>{metricValue(key, overview[key])}</strong>
-              </article>
+              </Card>
             ))}
           </section>
 
-          <section className="admin-card activity-card" aria-labelledby="activity-heading">
+          <Card className="admin-card activity-card" aria-labelledby="activity-heading">
             <div className="admin-card-heading">
               <h3 id="activity-heading">{t('dailyActivity')}</h3>
               <div className="chart-legend">
@@ -305,7 +310,7 @@ export default function AdminPage() {
               </div>
             </div>
             <ActivityChart data={daily} />
-          </section>
+          </Card>
 
           <div className="admin-split-grid">
             <Breakdown
@@ -323,7 +328,7 @@ export default function AdminPage() {
             />
           </div>
 
-          <section className="admin-card users-card" aria-labelledby="users-heading">
+          <Card className="admin-card users-card" aria-labelledby="users-heading">
             <div className="admin-card-heading users-heading">
               <h3 id="users-heading">{t('latestUsers')}</h3>
               <Button loading={exporting} onClick={() => void exportConsent()}>
@@ -440,10 +445,74 @@ export default function AdminPage() {
                 {t('next')}
               </Button>
             </div>
-          </section>
-        </>
+          </Card>
+        </div>
       ) : null}
     </main>
+  );
+}
+
+/** Loading placeholders that mirror the loaded dashboard geometry — the
+ * metric grid, activity chart card, the two breakdown lists and the users
+ * table — so real data crossfades in without layout shift. */
+function AdminPageSkeleton({ t }: { t: Translate }) {
+  return (
+    <div className="admin-skeleton" role="status" aria-label={t('loading')}>
+      <section className="metric-grid" aria-hidden="true">
+        {overviewKeys.map(key => (
+          <Card as="div" className="metric-card" key={key}>
+            <span className="skeleton skeleton-line skeleton-line-sm" />
+            <span className="skeleton skeleton-metric" />
+          </Card>
+        ))}
+      </section>
+      <Card as="div" className="admin-card activity-card" aria-hidden="true">
+        <div className="admin-card-heading">
+          <span className="skeleton skeleton-line skeleton-line-lg" />
+          <span className="skeleton skeleton-line" />
+        </div>
+        <span className="skeleton skeleton-chart" />
+      </Card>
+      <div className="admin-split-grid" aria-hidden="true">
+        {['usage', 'versions'].map(section => (
+          <Card as="div" className="admin-card breakdown-card" key={section}>
+            <span className="skeleton skeleton-line skeleton-line-lg" />
+            <div className="skeleton-list">
+              {[0, 1, 2, 3].map(row => (
+                <div className="skeleton-list-row" key={row}>
+                  <span className="skeleton skeleton-line skeleton-line-wide" />
+                  <span className="skeleton skeleton-line skeleton-line-sm" />
+                </div>
+              ))}
+            </div>
+          </Card>
+        ))}
+      </div>
+      <Card as="div" className="admin-card users-card" aria-hidden="true">
+        <div className="admin-card-heading users-heading">
+          <span className="skeleton skeleton-line skeleton-line-lg" />
+          <span className="skeleton skeleton-button" />
+        </div>
+        <div className="admin-filters">
+          {['search', 'consent', 'status'].map(field => (
+            <div className="field skeleton-field-block" key={field}>
+              <span className="skeleton skeleton-line skeleton-line-sm" />
+              <span className="skeleton skeleton-field" />
+            </div>
+          ))}
+          <span className="skeleton skeleton-button" />
+        </div>
+        <div className="admin-table-wrap skeleton-table">
+          {[0, 1, 2, 3, 4].map(row => (
+            <div className="skeleton-table-row" key={row}>
+              <span className="skeleton skeleton-line skeleton-line-wide" />
+              <span className="skeleton skeleton-line" />
+              <span className="skeleton skeleton-line skeleton-line-sm" />
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
   );
 }
 
@@ -490,7 +559,7 @@ function Breakdown({
   empty: string;
 }) {
   return (
-    <section className="admin-card breakdown-card">
+    <Card className="admin-card breakdown-card">
       <h3>{title}</h3>
       {rows.length ? (
         <ul>
@@ -504,6 +573,6 @@ function Breakdown({
       ) : (
         <p>{empty}</p>
       )}
-    </section>
+    </Card>
   );
 }

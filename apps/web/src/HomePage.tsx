@@ -1,16 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
-import { Header, Onboarding } from './App';
+import { Onboarding } from './App';
 import { useAgent } from './AgentContext';
 import { useI18n } from './i18n';
 import { analytics } from './analytics/service';
+import { Card } from './components/Card';
 import FeatureLockDialog from './components/FeatureLockDialog';
 import { isLocked } from './lib/feature-flags';
+import { usePageEntrance } from './lib/navigation';
 import LocalAppDialog from './components/LocalAppDialog';
 import { webTools, type WebTool } from './lib/tool-registry';
 
 export default function HomePage({ navigate }: { navigate: (path: string) => void }) {
-  const { language, setLanguage, t } = useI18n();
+  const { t } = useI18n();
   const { connection, reconnect, toolAvailable } = useAgent();
+  const entering = usePageEntrance();
   const [help, setHelp] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [lockedTool, setLockedTool] = useState<WebTool | null>(null);
@@ -63,9 +66,8 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
   };
 
   return (
-    <div className="app-shell">
-      <Header language={language} setLanguage={setLanguage} connection={connection} t={t} />
-      <main className="launcher">
+    <>
+      <main className={entering ? 'launcher page-enter' : 'launcher'}>
         <div className="launcher-heading">
           <h2>{t('toolsTitle')}</h2>
           <p>{t('toolsSubtitle')}</p>
@@ -99,9 +101,11 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
             const underDevelopment = tool.status === 'in-development';
             const available = openable && connected && toolAvailable(tool.id);
             return (
-              <article
+              <Card
+                as="article"
                 key={tool.id}
-                className={`tool-card tool-${openable ? 'active' : 'coming-soon'} ${available ? 'is-available' : ''}`}
+                interactive={openable}
+                className={`tool-card ${openable ? '' : 'tool-coming-soon'} ${available ? 'is-available' : ''}`}
                 onClick={() => openTool(tool)}
                 onKeyDown={event => {
                   if (event.key === 'Enter' || event.key === ' ') {
@@ -138,7 +142,7 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
                     </span>
                   </div>
                 )}
-              </article>
+              </Card>
             );
           })}
         </section>
@@ -162,6 +166,6 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
           onClose={() => setSetupTool(null)}
         />
       )}
-    </div>
+    </>
   );
 }

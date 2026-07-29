@@ -1,9 +1,9 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import QRCode from 'qrcode';
 import { useI18n } from '../i18n';
 import { analytics } from '../analytics/service';
 import { activeCryptoWallets, hasDonationOptions, monobankUrl, supportEmail } from '../lib/support';
+import { Modal } from './Modal';
 import { Button } from './ui';
 
 /** Header trigger that opens the "Support the project" dialog. */
@@ -43,20 +43,8 @@ export function SupportButton() {
 function SupportDialog({ onClose }: { onClose: () => void }) {
   const { t } = useI18n();
   const titleId = useId();
-  const dialog = useRef<HTMLDivElement>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState(false);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    requestAnimationFrame(() =>
-      dialog.current?.querySelector<HTMLElement>('textarea, a, button')?.focus()
-    );
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
 
   const send = () => {
     if (!message.trim()) {
@@ -71,98 +59,75 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
     onClose();
   };
 
-  return createPortal(
-    <div
-      className="modal-backdrop"
-      onClick={event => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <div
-        ref={dialog}
-        className="support-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-      >
-        <button
-          type="button"
-          className="support-close"
-          aria-label={t('supportClose')}
-          onClick={onClose}
-        >
-          ✕
-        </button>
+  return (
+    <Modal size="lg" labelledBy={titleId} onClose={onClose} closeLabel={t('supportClose')}>
+      <header className="support-head">
+        <span className="support-badge" aria-hidden="true">
+          <HeartIcon />
+        </span>
+        <h2 id={titleId}>{t('supportTitle')}</h2>
+        <p>{t('supportIntro')}</p>
+      </header>
 
-        <header className="support-head">
-          <span className="support-badge" aria-hidden="true">
-            <HeartIcon />
-          </span>
-          <h2 id={titleId}>{t('supportTitle')}</h2>
-          <p>{t('supportIntro')}</p>
-        </header>
+      <section className="support-section">
+        <h3>{t('supportDonateTitle')}</h3>
+        {hasDonationOptions ? (
+          <div className="support-donate">
+            {monobankUrl && (
+              <a
+                className="button button-primary support-monobank"
+                href={monobankUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {t('supportMonobank')} · {t('supportMonobankOpen')}
+              </a>
+            )}
+            {activeCryptoWallets.length > 0 && (
+              <div className="support-crypto">
+                <p className="support-note">{t('supportCryptoNote')}</p>
+                {activeCryptoWallets.map(wallet => (
+                  <CryptoRow
+                    key={wallet.network}
+                    network={wallet.network}
+                    address={wallet.address}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="support-note">{t('supportDonateSoon')}</p>
+        )}
+      </section>
 
-        <section className="support-section">
-          <h3>{t('supportDonateTitle')}</h3>
-          {hasDonationOptions ? (
-            <div className="support-donate">
-              {monobankUrl && (
-                <a
-                  className="button button-primary support-monobank"
-                  href={monobankUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {t('supportMonobank')} · {t('supportMonobankOpen')}
-                </a>
-              )}
-              {activeCryptoWallets.length > 0 && (
-                <div className="support-crypto">
-                  <p className="support-note">{t('supportCryptoNote')}</p>
-                  {activeCryptoWallets.map(wallet => (
-                    <CryptoRow
-                      key={wallet.network}
-                      network={wallet.network}
-                      address={wallet.address}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            <p className="support-note">{t('supportDonateSoon')}</p>
-          )}
-        </section>
-
-        <section className="support-section">
-          <h3>{t('supportFeedbackTitle')}</h3>
-          <p className="support-note">{t('supportFeedbackHint')}</p>
-          {supportEmail ? (
-            <div className="support-form">
-              <label className="support-field">
-                <span>{t('supportMessageLabel')}</span>
-                <textarea
-                  value={message}
-                  rows={4}
-                  placeholder={t('supportMessagePlaceholder')}
-                  onChange={event => {
-                    setMessage(event.target.value);
-                    if (error) setError(false);
-                  }}
-                />
-              </label>
-              {error && <span className="support-error">{t('supportMessageRequired')}</span>}
-              <Button variant="primary" onClick={send}>
-                {t('supportSend')}
-              </Button>
-            </div>
-          ) : (
-            <p className="support-note">{t('supportFeedbackSoon')}</p>
-          )}
-        </section>
-      </div>
-    </div>,
-    document.body
+      <section className="support-section">
+        <h3>{t('supportFeedbackTitle')}</h3>
+        <p className="support-note">{t('supportFeedbackHint')}</p>
+        {supportEmail ? (
+          <div className="support-form">
+            <label className="support-field">
+              <span>{t('supportMessageLabel')}</span>
+              <textarea
+                value={message}
+                rows={4}
+                placeholder={t('supportMessagePlaceholder')}
+                onChange={event => {
+                  setMessage(event.target.value);
+                  if (error) setError(false);
+                }}
+              />
+            </label>
+            {error && <span className="support-error">{t('supportMessageRequired')}</span>}
+            <Button variant="primary" onClick={send}>
+              {t('supportSend')}
+            </Button>
+          </div>
+        ) : (
+          <p className="support-note">{t('supportFeedbackSoon')}</p>
+        )}
+      </section>
+    </Modal>
   );
 }
 

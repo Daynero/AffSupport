@@ -4,6 +4,8 @@ import { publicConfig } from '../lib/config';
 import { clearReturnPath, safeReturnPath, takeReturnPath } from '../lib/redirects';
 import { internalLink, navigateTo } from '../lib/navigation';
 import { useI18n } from '../i18n';
+import { Card } from '../components/Card';
+import { Modal } from '../components/Modal';
 import { Button, Checkbox, WishlyLoader } from '../components/ui';
 import { WishlyLogo, WishlyMark } from '../components/WishlyLogo';
 import { LanguageSwitch } from '../components/LanguageSwitch';
@@ -88,7 +90,7 @@ export function LoginPage() {
           <LanguageSwitch />
         </div>
       </header>
-      <section className="login-card" aria-labelledby="login-heading">
+      <Card className="login-card" aria-labelledby="login-heading">
         <span className="login-mark" aria-hidden="true">
           <WishlyMark size={44} />
         </span>
@@ -129,7 +131,7 @@ export function LoginPage() {
           </a>
           .
         </p>
-      </section>
+      </Card>
     </main>
   );
 }
@@ -222,9 +224,7 @@ export function ProfileOnboarding() {
   const [saving, setSaving] = useState(false);
   const [failed, setFailed] = useState(false);
   const titleId = useId();
-  const dialog = useRef<HTMLElement>(null);
 
-  useEffect(() => dialog.current?.querySelector<HTMLButtonElement>('.button-primary')?.focus(), []);
   if (!profile || profile.onboarding_completed) return null;
 
   const save = async () => {
@@ -247,53 +247,45 @@ export function ProfileOnboarding() {
   };
 
   return (
-    <div className="modal-backdrop">
-      <section
-        ref={dialog}
-        className="onboarding-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-      >
-        <WishlyMark size={40} />
-        <div>
-          <h2 id={titleId}>{t('welcomeTitle')}</h2>
-          <p>{t('welcomeBody')}</p>
+    <Modal className="onboarding-modal" labelledBy={titleId} initialFocus=".button-primary">
+      <WishlyMark size={40} />
+      <div>
+        <h2 id={titleId}>{t('welcomeTitle')}</h2>
+        <p>{t('welcomeBody')}</p>
+      </div>
+      <fieldset>
+        <legend>{t('chooseLanguage')}</legend>
+        <div className="onboarding-language-options">
+          <button
+            type="button"
+            className={language === 'uk' ? 'is-active' : ''}
+            onClick={() => setLanguage('uk')}
+            aria-pressed={language === 'uk'}
+          >
+            Українська
+          </button>
+          <button
+            type="button"
+            className={language === 'en' ? 'is-active' : ''}
+            onClick={() => setLanguage('en')}
+            aria-pressed={language === 'en'}
+          >
+            English
+          </button>
         </div>
-        <fieldset>
-          <legend>{t('chooseLanguage')}</legend>
-          <div className="onboarding-language-options">
-            <button
-              type="button"
-              className={language === 'uk' ? 'is-active' : ''}
-              onClick={() => setLanguage('uk')}
-              aria-pressed={language === 'uk'}
-            >
-              Українська
-            </button>
-            <button
-              type="button"
-              className={language === 'en' ? 'is-active' : ''}
-              onClick={() => setLanguage('en')}
-              aria-pressed={language === 'en'}
-            >
-              English
-            </button>
-          </div>
-        </fieldset>
-        <div className="onboarding-consent">
-          <Checkbox
-            checked={marketing}
-            onChange={event => setMarketing(event.target.checked)}
-            label={t('marketingConsent')}
-          />
-          <small>{t('marketingOptional')}</small>
-        </div>
-        {failed && <div className="inline-alert inline-alert-error">{t('profileError')}</div>}
-        <Button variant="primary" loading={saving} onClick={() => void save()}>
-          {saving ? t('saving') : t('continueWishly')}
-        </Button>
-      </section>
-    </div>
+      </fieldset>
+      <div className="onboarding-consent">
+        <Checkbox
+          checked={marketing}
+          onChange={event => setMarketing(event.target.checked)}
+          label={t('marketingConsent')}
+        />
+        <small>{t('marketingOptional')}</small>
+      </div>
+      {failed && <div className="inline-alert inline-alert-error">{t('profileError')}</div>}
+      <Button variant="primary" loading={saving} onClick={() => void save()}>
+        {saving ? t('saving') : t('continueWishly')}
+      </Button>
+    </Modal>
   );
 }

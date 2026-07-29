@@ -8,7 +8,7 @@ import { useFeatureLock, type FeatureId } from './lib/feature-flags';
 import { toolByPath, type WebTool } from './lib/tool-registry';
 import type { WishlyToolId } from '@video-compressor/shared';
 import { useI18n } from './i18n';
-import { navigateTo } from './lib/navigation';
+import { navigateTo, usePageEntrance } from './lib/navigation';
 import AccountPage from './pages/AccountPage';
 import AdminPage from './pages/AdminPage';
 import LocalAppDialog from './components/LocalAppDialog';
@@ -17,26 +17,38 @@ import ReleaseUpdateNotice from './components/ReleaseUpdateNotice';
 export default function ProtectedWishly({ path }: { path: string }) {
   return (
     <AgentProvider>
-      <ProtectedApplication path={path} />
+      <ApplicationShell path={path} />
       <ReleaseUpdateNotice />
       <ProfileOnboarding />
     </AgentProvider>
   );
 }
 
-function ProtectedApplication({ path }: { path: string }) {
+/**
+ * Persistent shell: the topbar (and the .app-shell frame) mounts once and
+ * stays mounted across every in-app route change — only the content inside
+ * .page-viewport swaps. The viewport also forms the `wishly-page`
+ * view-transition group while a route transition runs (navigation.ts +
+ * styles.css), so the header never crossfades with the page content.
+ */
+function ApplicationShell({ path }: { path: string }) {
   const { language, setLanguage, t } = useI18n();
   const { connection } = useAgent();
+  return (
+    <div className="app-shell">
+      <Header language={language} setLanguage={setLanguage} connection={connection} t={t} />
+      <div className="page-viewport">
+        <ProtectedApplication path={path} />
+      </div>
+    </div>
+  );
+}
+
+function ProtectedApplication({ path }: { path: string }) {
   const tool = toolByPath(path);
   if (tool) return <ToolRoute tool={tool} />;
-  if (path === '/account' || path === '/admin') {
-    return (
-      <div className="app-shell">
-        <Header language={language} setLanguage={setLanguage} connection={connection} t={t} />
-        {path === '/account' ? <AccountPage /> : <AdminPage />}
-      </div>
-    );
-  }
+  if (path === '/account') return <AccountPage />;
+  if (path === '/admin') return <AdminPage />;
   return <HomePage navigate={navigateTo} />;
 }
 
@@ -73,13 +85,15 @@ function ToolSetupScreen({
   tool: WishlyToolId;
   connection: ReturnType<typeof useAgent>['connection'];
 }) {
-  const { language, setLanguage, t } = useI18n();
+  // Setup ↔ tool swaps remount this branch; the entrance animation makes the
+  // "not connected → connected" switch fade instead of popping. Retry ticks
+  // (AgentContext keeps its state during background retries) never remount.
+  const entering = usePageEntrance();
   return (
-    <div className="app-shell">
-      <Header language={language} setLanguage={setLanguage} connection={connection} t={t} />
-      <main className="page-container" />
+    <>
+      <main className={entering ? 'page-container page-enter' : 'page-container'} />
       <LocalAppDialog tool={tool} connection={connection} />
-    </div>
+    </>
   );
 }
 
@@ -94,11 +108,9 @@ function RedirectHome() {
  * parent re-renders the real tool, and closing returns to the tools home.
  */
 function FeatureLockScreen({ feature }: { feature: FeatureId }) {
-  const { language, setLanguage, t } = useI18n();
-  const { connection } = useAgent();
   return (
-    <div className="app-shell">
-      <Header language={language} setLanguage={setLanguage} connection={connection} t={t} />
+    <>
+      <main className="page-container" />
       <FeatureLockDialog
         feature={feature}
         onUnlocked={() => {
@@ -106,6 +118,6 @@ function FeatureLockScreen({ feature }: { feature: FeatureId }) {
         }}
         onClose={() => navigateTo('/', true)}
       />
-    </div>
+    </>
   );
 }

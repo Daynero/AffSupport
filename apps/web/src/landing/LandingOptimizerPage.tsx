@@ -9,7 +9,7 @@ import {
   requestBody,
   uploadLandingZip
 } from '../api/client';
-import { Header, Onboarding } from '../App';
+import { Onboarding } from '../App';
 import { useAgent } from '../AgentContext';
 import { DropZone } from '../components/DropZone';
 import {
@@ -21,7 +21,7 @@ import {
   type Translate
 } from '../components/ui';
 import { useI18n } from '../i18n';
-import { internalLink } from '../lib/navigation';
+import { usePageEntrance } from '../lib/navigation';
 import { analytics } from '../analytics/service';
 import { LandingJobCard } from './LandingJobCard';
 
@@ -37,8 +37,9 @@ interface UploadFile {
 }
 
 export default function LandingOptimizerPage() {
-  const { language, setLanguage, t } = useI18n();
+  const { language, t } = useI18n();
   const { connection, connectedOnce, reconnect } = useAgent();
+  const entering = usePageEntrance();
   const [state, setState] = useState<LandingState | null>(null);
   const [help, setHelp] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -197,46 +198,29 @@ export default function LandingOptimizerPage() {
     }
   };
 
-  const header = (
-    <Header
-      language={language}
-      setLanguage={setLanguage}
-      connection={connection}
-      onHome={event => {
-        internalLink(event, '/');
-      }}
-      t={t}
-    />
-  );
-
   if (connection === 'checking') {
     return (
-      <div className="app-shell">
-        {header}
-        <main className="workspace compact-state">
-          <Spinner />
-          <span>{t('connectingAgent')}</span>
-        </main>
-      </div>
+      <main className={`workspace compact-state${entering ? ' page-enter' : ''}`}>
+        <Spinner />
+        <span>{t('connectingAgent')}</span>
+      </main>
     );
   }
 
   if (!connected && !connectedOnce) {
     return (
-      <div className="app-shell">
-        {header}
-        <main className="workspace">
+      <>
+        <main className={`workspace${entering ? ' page-enter' : ''}`}>
           <Onboarding state={connection} help={help} setHelp={setHelp} connect={reconnect} t={t} />
         </main>
         <ToastRegion toasts={toasts} />
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="app-shell">
-      {header}
-      <main className="workspace">
+    <>
+      <main className={`workspace${entering ? ' page-enter' : ''}`}>
         {connected && state && (!state.tools.ffmpeg || !state.tools.ffprobe) && (
           <section className="blocking-message blocking-error" role="alert">
             <div>
@@ -340,7 +324,7 @@ export default function LandingOptimizerPage() {
         )}
       </main>
       <ToastRegion toasts={toasts} />
-    </div>
+    </>
   );
 }
 

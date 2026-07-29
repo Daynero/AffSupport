@@ -5,7 +5,6 @@ import type {
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent
 } from 'react';
-import { createPortal } from 'react-dom';
 import type {
   TranscriptionDocument,
   TranscriptionJob,
@@ -17,6 +16,7 @@ import type {
   TranslationDocument
 } from '@video-compressor/shared';
 import { TRANSLATEGEMMA_LANGUAGE_CODES } from '@video-compressor/shared';
+import { Modal } from '../components/Modal';
 import { Button, ProgressBar, type Translate } from '../components/ui';
 import { formatSize } from '../format';
 import {
@@ -611,49 +611,22 @@ export function TranscriptTextModal({
 
   const clearSelection = useCallback(() => setSelection(null), []);
 
-  useEffect(() => {
-    const previousOverflow = window.document.body.style.overflow;
-    window.document.body.style.overflow = 'hidden';
-    const focusTimer = window.requestAnimationFrame(() => {
-      dialog.current?.querySelector<HTMLButtonElement>('.transcript-modal-close')?.focus();
-    });
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        // Escape clears a semantic selection first, then closes the modal.
-        if (selectionRef.current) {
-          clearSelection();
-          return;
-        }
-        onCloseRef.current();
-        return;
-      }
-      if (event.key !== 'Tab' || !dialog.current) return;
-      const focusable = Array.from(
-        dialog.current.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), select, [href], input, [tabindex]:not([tabindex="-1"])'
-        )
-      ).filter(element => element.offsetParent !== null);
-      if (!focusable.length) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && window.document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && window.document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    window.document.addEventListener('keydown', onKeyDown);
-    return () => {
-      window.cancelAnimationFrame(focusTimer);
-      window.document.removeEventListener('keydown', onKeyDown);
-      window.document.body.style.overflow = previousOverflow;
+  // Escape/backdrop clear a semantic selection first, then close the modal.
+  // The Modal primitive owns scroll lock, focus trap and focus restore.
+  const dismiss = useCallback(() => {
+    if (selectionRef.current) {
+      clearSelection();
+      return;
+    }
+    onCloseRef.current();
+  }, [clearSelection]);
+
+  useEffect(
+    () => () => {
       if (copyTimer.current) clearTimeout(copyTimer.current);
-      returnFocus?.focus();
-    };
-  }, [returnFocus, clearSelection]);
+    },
+    []
+  );
 
   const sourceLanguage = document_?.sourceLanguage ?? job.detectedLanguage ?? 'auto';
   const segments = document_?.segments ?? [];
@@ -1175,517 +1148,499 @@ export function TranscriptTextModal({
         translationProgress.completed
       : null;
 
-  return createPortal(
-    <div
-      className="transcript-modal-backdrop"
-      onPointerDown={event => {
-        if (event.target !== event.currentTarget) return;
-        if (selection) clearSelection();
-        else onClose();
-      }}
+  return (
+    <Modal
+      bare
+      backdropClassName="transcript-modal-backdrop"
+      className={`transcript-modal transcript-split${previewOpen ? ' preview-open' : ''}`}
+      labelledBy={titleId}
+      onClose={dismiss}
+      initialFocus=".transcript-modal-close"
+      returnFocus={returnFocus}
+      dialogRef={dialog}
+      style={
+        {
+          '--ts-selection-color': selection
+            ? confidenceColor(selection.confidence)
+            : 'var(--color-success)'
+        } as CSSProperties
+      }
     >
-      <div
-        ref={dialog}
-        className={`transcript-modal transcript-split${previewOpen ? ' preview-open' : ''}`}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        style={
-          {
-            '--ts-selection-color': selection
-              ? confidenceColor(selection.confidence)
-              : 'var(--color-success)'
-          } as CSSProperties
-        }
-      >
-        <header className="transcript-modal-header">
-          <div>
-            <h2 id={titleId}>{job.fileName}</h2>
-            <p>
-              <span>
-                {t('transcriptionDetected', {
-                  language: languageDisplayName(sourceLanguage, language)
-                })}
-              </span>
-              {job.characters !== null && (
-                <span>{t('transcriptionCharacters', { count: job.characters })}</span>
-              )}
-            </p>
-          </div>
-          {/* Confidence meter */}
-          <div
-            className={`transcript-match${showMatch ? '' : ' is-empty'}`}
-            role="group"
-            aria-label={t('transcriptionMatchLabel')}
-          >
-            <span className="transcript-match-label">{t('transcriptionMatchLabel')}</span>
-            <div className="transcript-match-bar" aria-hidden="true">
-              {showMatch && (
-                <span
-                  className="transcript-match-pointer"
-                  style={{ left: `${Math.round((1 - selection!.confidence) * 100)}%` }}
-                />
-              )}
-            </div>
-            <span className="transcript-match-value">
-              {showMatch
-                ? `${gradeLabel} · ${Math.round(selection!.confidence * 100)}%`
-                : t('transcriptionMatchEmpty')}
+      <header className="transcript-modal-header">
+        <div>
+          <h2 id={titleId}>{job.fileName}</h2>
+          <p>
+            <span>
+              {t('transcriptionDetected', {
+                language: languageDisplayName(sourceLanguage, language)
+              })}
             </span>
-            <button
-              type="button"
-              className="transcript-match-help"
-              aria-label={t('transcriptionMatchHint')}
-              aria-describedby={matchHintId}
-            >
-              ?
-            </button>
-            <span id={matchHintId} className="transcript-match-tooltip" role="tooltip">
-              {t('transcriptionMatchHint')}
-            </span>
+            {job.characters !== null && (
+              <span>{t('transcriptionCharacters', { count: job.characters })}</span>
+            )}
+          </p>
+        </div>
+        {/* Confidence meter */}
+        <div
+          className={`transcript-match${showMatch ? '' : ' is-empty'}`}
+          role="group"
+          aria-label={t('transcriptionMatchLabel')}
+        >
+          <span className="transcript-match-label">{t('transcriptionMatchLabel')}</span>
+          <div className="transcript-match-bar" aria-hidden="true">
+            {showMatch && (
+              <span
+                className="transcript-match-pointer"
+                style={{ left: `${Math.round((1 - selection!.confidence) * 100)}%` }}
+              />
+            )}
           </div>
+          <span className="transcript-match-value">
+            {showMatch
+              ? `${gradeLabel} · ${Math.round(selection!.confidence * 100)}%`
+              : t('transcriptionMatchEmpty')}
+          </span>
           <button
             type="button"
-            className="transcript-modal-close"
-            aria-label={t('transcriptionModalClose')}
-            onClick={onClose}
+            className="transcript-match-help"
+            aria-label={t('transcriptionMatchHint')}
+            aria-describedby={matchHintId}
           >
-            <span aria-hidden="true">×</span>
+            ?
           </button>
-        </header>
+          <span id={matchHintId} className="transcript-match-tooltip" role="tooltip">
+            {t('transcriptionMatchHint')}
+          </span>
+        </div>
+        <button
+          type="button"
+          className="transcript-modal-close"
+          aria-label={t('transcriptionModalClose')}
+          onClick={onClose}
+        >
+          <span aria-hidden="true">×</span>
+        </button>
+      </header>
 
-        <div className="transcript-split-body" ref={bodyRef} onPointerUp={onSelectionEnd}>
-          <section
-            className="transcript-column"
-            data-side="source"
-            aria-label={t('transcriptionSourceColumn')}
-            dir={isRtlLanguage(sourceLanguage) ? 'rtl' : 'ltr'}
+      <div className="transcript-split-body" ref={bodyRef} onPointerUp={onSelectionEnd}>
+        <section
+          className="transcript-column"
+          data-side="source"
+          aria-label={t('transcriptionSourceColumn')}
+          dir={isRtlLanguage(sourceLanguage) ? 'rtl' : 'ltr'}
+        >
+          <div className="transcript-column-head">
+            <span className="transcript-column-title">
+              {languageDisplayName(sourceLanguage, language)}
+            </span>
+            <Button variant="ghost" onClick={() => void copyColumn('source')}>
+              {copied?.side === 'source'
+                ? copied.scope === 'selection'
+                  ? t('transcriptionCopiedSelection')
+                  : t('transcriptionCopiedAll')
+                : hasSourceSelection
+                  ? t('transcriptionCopySelection')
+                  : t('transcriptionCopyAll')}
+            </Button>
+          </div>
+          <div
+            ref={sourceScrollRef}
+            className="transcript-column-scroll"
+            onClick={onSourceClick}
+            onPointerDown={event => {
+              if ((event.target as Element).closest('.ts-segment')) pointerSelecting.current = true;
+            }}
+            onScroll={event => {
+              const other = targetScrollRef.current;
+              if (other) synchronizeScroll(event.currentTarget, other);
+            }}
           >
-            <div className="transcript-column-head">
-              <span className="transcript-column-title">
-                {languageDisplayName(sourceLanguage, language)}
-              </span>
-              <Button variant="ghost" onClick={() => void copyColumn('source')}>
-                {copied?.side === 'source'
+            {segments.length ? (
+              segments.map(segment => (
+                <SegmentText
+                  key={segment.id}
+                  text={segment.sourceText}
+                  segmentId={segment.id}
+                  words={segment.words}
+                  selectedRanges={selectedPart(selection, segment.id)?.sourceRanges ?? NO_RANGES}
+                  activeRanges={
+                    activeWord?.segmentId === segment.id ? [activeWord.range] : NO_RANGES
+                  }
+                />
+              ))
+            ) : (
+              <div className="transcript-modal-empty">{t('transcriptionModalEmpty')}</div>
+            )}
+          </div>
+        </section>
+
+        <section
+          className="transcript-column"
+          data-side="target"
+          aria-label={t('transcriptionTranslationColumn')}
+          dir={isRtlLanguage(displayedLanguage) ? 'rtl' : 'ltr'}
+          aria-busy={translating}
+        >
+          <div className="transcript-column-head">
+            <span className="transcript-column-title">
+              {languageDisplayName(displayedLanguage, language)}
+            </span>
+            <div className="transcript-column-actions">
+              <LanguageCombobox
+                value={target}
+                codes={targetLanguageOptions}
+                language={language}
+                label={t('transcriptionLanguageSearch')}
+                onChange={code => {
+                  lastDistinctTarget.current = code;
+                  const cached = validatedTranslations.current.get(code);
+                  if (cached) {
+                    setTranslation(cached);
+                    setTranslating(false);
+                    setTranslationError(null);
+                  }
+                  setTarget(code);
+                }}
+              />
+              <Button variant="ghost" onClick={() => void copyColumn('target')}>
+                {copied?.side === 'target'
                   ? copied.scope === 'selection'
                     ? t('transcriptionCopiedSelection')
                     : t('transcriptionCopiedAll')
-                  : hasSourceSelection
+                  : hasTargetSelection
                     ? t('transcriptionCopySelection')
                     : t('transcriptionCopyAll')}
               </Button>
             </div>
+          </div>
+
+          {(translating || translationError) && (
             <div
-              ref={sourceScrollRef}
-              className="transcript-column-scroll"
-              onClick={onSourceClick}
-              onPointerDown={event => {
-                if ((event.target as Element).closest('.ts-segment'))
-                  pointerSelecting.current = true;
-              }}
-              onScroll={event => {
-                const other = targetScrollRef.current;
-                if (other) synchronizeScroll(event.currentTarget, other);
-              }}
+              className={`transcript-translation-status${translationError ? ' is-error' : ''}`}
+              role={translationError ? 'alert' : 'status'}
             >
-              {segments.length ? (
-                segments.map(segment => (
-                  <SegmentText
-                    key={segment.id}
-                    text={segment.sourceText}
-                    segmentId={segment.id}
-                    words={segment.words}
-                    selectedRanges={selectedPart(selection, segment.id)?.sourceRanges ?? NO_RANGES}
-                    activeRanges={
-                      activeWord?.segmentId === segment.id ? [activeWord.range] : NO_RANGES
-                    }
-                  />
-                ))
-              ) : (
-                <div className="transcript-modal-empty">{t('transcriptionModalEmpty')}</div>
-              )}
-            </div>
-          </section>
-
-          <section
-            className="transcript-column"
-            data-side="target"
-            aria-label={t('transcriptionTranslationColumn')}
-            dir={isRtlLanguage(displayedLanguage) ? 'rtl' : 'ltr'}
-            aria-busy={translating}
-          >
-            <div className="transcript-column-head">
-              <span className="transcript-column-title">
-                {languageDisplayName(displayedLanguage, language)}
-              </span>
-              <div className="transcript-column-actions">
-                <LanguageCombobox
-                  value={target}
-                  codes={targetLanguageOptions}
-                  language={language}
-                  label={t('transcriptionLanguageSearch')}
-                  onChange={code => {
-                    lastDistinctTarget.current = code;
-                    const cached = validatedTranslations.current.get(code);
-                    if (cached) {
-                      setTranslation(cached);
-                      setTranslating(false);
-                      setTranslationError(null);
-                    }
-                    setTarget(code);
-                  }}
-                />
-                <Button variant="ghost" onClick={() => void copyColumn('target')}>
-                  {copied?.side === 'target'
-                    ? copied.scope === 'selection'
-                      ? t('transcriptionCopiedSelection')
-                      : t('transcriptionCopiedAll')
-                    : hasTargetSelection
-                      ? t('transcriptionCopySelection')
-                      : t('transcriptionCopyAll')}
-                </Button>
-              </div>
-            </div>
-
-            {(translating || translationError) && (
-              <div
-                className={`transcript-translation-status${translationError ? ' is-error' : ''}`}
-                role={translationError ? 'alert' : 'status'}
-              >
-                {translating && (
-                  <div className="transcript-translation-progress">
-                    <span>
-                      {displayedLanguage !== target
-                        ? `${languageDisplayName(displayedLanguage, language)} → `
-                        : ''}
-                      {t('transcriptionTranslating', { language: targetName })}
+              {translating && (
+                <div className="transcript-translation-progress">
+                  <span>
+                    {displayedLanguage !== target
+                      ? `${languageDisplayName(displayedLanguage, language)} → `
+                      : ''}
+                    {t('transcriptionTranslating', { language: targetName })}
+                  </span>
+                  <div className="transcript-translation-progress-row">
+                    <ProgressBar
+                      value={translationPercent}
+                      active
+                      label={t('transcriptionTranslating', { language: targetName })}
+                    />
+                    <span className="transcript-translation-elapsed">
+                      {translationPercent !== null && `${translationPercent}% · `}
+                      {formatMediaTime(translationElapsedMs / 1000)}
+                      {translationEtaMs !== null &&
+                        ` · ~${formatMediaTime(translationEtaMs / 1000)}`}
                     </span>
-                    <div className="transcript-translation-progress-row">
-                      <ProgressBar
-                        value={translationPercent}
-                        active
-                        label={t('transcriptionTranslating', { language: targetName })}
-                      />
-                      <span className="transcript-translation-elapsed">
-                        {translationPercent !== null && `${translationPercent}% · `}
-                        {formatMediaTime(translationElapsedMs / 1000)}
-                        {translationEtaMs !== null &&
-                          ` · ~${formatMediaTime(translationEtaMs / 1000)}`}
-                      </span>
-                    </div>
                   </div>
-                )}
-                {translationError === 'unavailable' && (
-                  <span>
-                    {displayedLanguage !== target
-                      ? `${languageDisplayName(displayedLanguage, language)} → ${targetName}: `
-                      : ''}
-                    {t('transcriptionTranslationUnavailable')}
-                  </span>
-                )}
-                {translationError === 'failed' && (
-                  <span>
-                    {displayedLanguage !== target
-                      ? `${languageDisplayName(displayedLanguage, language)} → ${targetName}: `
-                      : ''}
-                    {t('transcriptionTranslationFailed')}
-                  </span>
-                )}
-              </div>
-            )}
-
-            <div
-              ref={targetScrollRef}
-              className="transcript-column-scroll"
-              onPointerDown={event => {
-                if ((event.target as Element).closest('.ts-segment'))
-                  pointerSelecting.current = true;
-              }}
-              onScroll={event => {
-                const other = sourceScrollRef.current;
-                if (other) synchronizeScroll(event.currentTarget, other);
-              }}
-            >
-              {translationError === 'unavailable' && (
-                <div className="transcript-translation-notice">
-                  {translatorModel.downloading ? (
-                    <>
-                      <span>
-                        {t('transcriptionTranslatorInstalling', {
-                          progress: translatorModel.progress ?? 0
-                        })}
-                      </span>
-                      <ProgressBar
-                        value={translatorModel.progress}
-                        active
-                        label={t('transcriptionTranslatorInstall')}
-                      />
-                      <Button variant="ghost" onClick={onCancelTranslator}>
-                        {t('transcriptionModelCancelBtn')}
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <span>
-                        {t('transcriptionTranslatorIntro', {
-                          size: formatSize(translatorModel.sizeBytes || 2_500_000_000, language)
-                        })}
-                      </span>
-                      <label className="transcription-gemma-consent">
-                        <input
-                          type="checkbox"
-                          checked={translatorTermsAccepted}
-                          onChange={event => setTranslatorTermsAccepted(event.target.checked)}
-                        />
-                        <span>
-                          {t('transcriptionGemmaConsent')}{' '}
-                          <a
-                            href="https://ai.google.dev/gemma/terms"
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            {t('transcriptionGemmaTerms')}
-                          </a>{' '}
-                          {t('transcriptionGemmaAnd')}{' '}
-                          <a
-                            href="https://ai.google.dev/gemma/prohibited_use_policy"
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            {t('transcriptionGemmaPolicy')}
-                          </a>
-                          .
-                        </span>
-                      </label>
-                      {translatorModel.error && (
-                        <span className="transcription-model-error">
-                          {translatorModel.error === 'MODEL_SOURCE_NOT_CONFIGURED'
-                            ? t('transcriptionTranslatorNotConfigured')
-                            : t('transcriptionTranslationFailed')}
-                        </span>
-                      )}
-                      <Button
-                        variant="primary"
-                        disabled={!translatorTermsAccepted}
-                        onClick={onInstallTranslator}
-                      >
-                        {t('transcriptionTranslatorInstall')}
-                      </Button>
-                    </>
-                  )}
                 </div>
+              )}
+              {translationError === 'unavailable' && (
+                <span>
+                  {displayedLanguage !== target
+                    ? `${languageDisplayName(displayedLanguage, language)} → ${targetName}: `
+                    : ''}
+                  {t('transcriptionTranslationUnavailable')}
+                </span>
               )}
               {translationError === 'failed' && (
-                <div className="transcript-translation-notice" role="alert">
-                  <Button variant="secondary" onClick={() => setRetryNonce(nonce => nonce + 1)}>
-                    {t('transcriptionTranslationRetry')}
-                  </Button>
-                </div>
-              )}
-              {hasTargetText ? (
-                <div
-                  className={`transcript-translation-content${
-                    translating
-                      ? reducedMotion
-                        ? ' is-translating-static'
-                        : ' is-translating'
-                      : ''
-                  }`}
-                >
-                  {segments.map(segment => {
-                    const translated = translatedBySegment.get(segment.id);
-                    if (!translated) return null;
-                    const activeRanges =
-                      activeWord?.segmentId === segment.id
-                        ? resolveMirroredSelection(
-                            activeWord.range,
-                            translated.alignments,
-                            'source',
-                            translated.translatedText.length
-                          ).ranges
-                        : NO_RANGES;
-                    return (
-                      <SegmentText
-                        key={segment.id}
-                        text={translated.translatedText}
-                        segmentId={segment.id}
-                        selectedRanges={
-                          selectedPart(selection, segment.id)?.targetRanges ?? NO_RANGES
-                        }
-                        activeRanges={activeRanges}
-                      />
-                    );
-                  })}
-                </div>
-              ) : !translationError ? (
-                <div className="transcript-modal-empty">{t('transcriptionTranslationEmpty')}</div>
-              ) : null}
-            </div>
-
-            <p className="visually-hidden" role="status" aria-live="polite">
-              {translating ? t('transcriptionTranslating', { language: targetName }) : ''}
-            </p>
-          </section>
-        </div>
-
-        <div id={previewId} className={`transcript-preview${previewOpen ? ' open' : ''}`}>
-          {previewActivated && (
-            <div
-              className="transcript-preview-panel"
-              aria-hidden={!previewOpen}
-              {...(!previewOpen ? { inert: true } : {})}
-            >
-              {mediaPreview?.state === 'ready' ? (
-                <div
-                  ref={playerRef}
-                  className={`transcript-player${audioOnly ? ' audio-only' : ''}`}
-                >
-                  <video
-                    ref={mediaRef}
-                    className="transcript-preview-media"
-                    src={transcriptionMediaUrl(job.id)}
-                    playsInline
-                    preload="metadata"
-                    onLoadedMetadata={syncPlayback}
-                    onDurationChange={syncPlayback}
-                    onTimeUpdate={syncPlayback}
-                    onPlay={syncPlayback}
-                    onPause={syncPlayback}
-                    onEnded={syncPlayback}
-                    onVolumeChange={syncPlayback}
-                    onRateChange={syncPlayback}
-                  />
-                  {audioOnly && (
-                    <div className="transcript-audio-poster" aria-hidden="true">
-                      <span className="transcript-audio-mark">W</span>
-                      <span className="transcript-audio-bars">
-                        <i />
-                        <i />
-                        <i />
-                        <i />
-                        <i />
-                      </span>
-                    </div>
-                  )}
-                  <div className="transcript-player-controls">
-                    <button
-                      type="button"
-                      className="transcript-player-icon"
-                      onClick={togglePlayback}
-                      aria-label={
-                        playback.playing
-                          ? t('transcriptionPlayerPause')
-                          : t('transcriptionPlayerPlay')
-                      }
-                    >
-                      <span aria-hidden="true">{playback.playing ? 'Ⅱ' : '▶'}</span>
-                    </button>
-                    <span className="transcript-player-time">
-                      {formatMediaTime(playback.currentTime)} / {formatMediaTime(playback.duration)}
-                    </span>
-                    <input
-                      className="transcript-player-seek"
-                      type="range"
-                      min="0"
-                      max={Math.max(0, playback.duration)}
-                      step="0.01"
-                      value={Math.min(playback.currentTime, playback.duration || 0)}
-                      onChange={seekPlayback}
-                      aria-label={t('transcriptionPlayerSeek')}
-                    />
-                    <label className="transcript-player-volume">
-                      <span aria-hidden="true">◕</span>
-                      <span className="visually-hidden">{t('transcriptionPlayerVolume')}</span>
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.05"
-                        value={playback.volume}
-                        onChange={changeVolume}
-                      />
-                    </label>
-                    <label className="transcript-player-rate">
-                      <span className="visually-hidden">{t('transcriptionPlayerSpeed')}</span>
-                      <select value={playback.rate} onChange={changeRate}>
-                        {[0.75, 1, 1.25, 1.5, 2].map(rate => (
-                          <option key={rate} value={rate}>
-                            {rate}×
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <button
-                      type="button"
-                      className="transcript-player-icon"
-                      onClick={enterFullscreen}
-                      aria-label={t('transcriptionPlayerFullscreen')}
-                    >
-                      <span aria-hidden="true">⛶</span>
-                    </button>
-                  </div>
-                  {!hasWordTimings && (
-                    <p className="transcript-preview-note">
-                      {t('transcriptionKaraokeUnavailable')}
-                    </p>
-                  )}
-                </div>
-              ) : mediaPreview?.state === 'failed' ? (
-                <div className="transcript-preview-status" role="alert">
-                  <span>{t('transcriptionPreviewUnavailable')}</span>
-                  <Button variant="secondary" onClick={() => void preparePreview()}>
-                    {t('transcriptionTranslationRetry')}
-                  </Button>
-                </div>
-              ) : (
-                <div className="transcript-preview-status" role="status">
-                  <span>
-                    {t('transcriptionPreviewPreparing')}
-                    {mediaPreview?.progress !== null && mediaPreview?.progress !== undefined
-                      ? ` ${Math.round(mediaPreview.progress)}%`
-                      : ''}
-                  </span>
-                  <ProgressBar
-                    value={mediaPreview?.progress ?? null}
-                    active
-                    label={t('transcriptionPreviewPreparing')}
-                  />
-                  <Button variant="ghost" onClick={() => void cancelPreviewPreparation()}>
-                    {t('transcriptionCancel')}
-                  </Button>
-                </div>
+                <span>
+                  {displayedLanguage !== target
+                    ? `${languageDisplayName(displayedLanguage, language)} → ${targetName}: `
+                    : ''}
+                  {t('transcriptionTranslationFailed')}
+                </span>
               )}
             </div>
           )}
-        </div>
 
-        <footer className="transcript-modal-footer">
-          <Button
-            variant="secondary"
-            onClick={() => void togglePreview()}
-            aria-expanded={previewOpen}
-            aria-controls={previewId}
+          <div
+            ref={targetScrollRef}
+            className="transcript-column-scroll"
+            onPointerDown={event => {
+              if ((event.target as Element).closest('.ts-segment')) pointerSelecting.current = true;
+            }}
+            onScroll={event => {
+              const other = sourceScrollRef.current;
+              if (other) synchronizeScroll(event.currentTarget, other);
+            }}
           >
-            <span aria-hidden="true">{previewOpen ? '⌄' : '▶'}</span>
-            {previewOpen ? t('transcriptionPreviewCollapse') : t('transcriptionPreview')}
-          </Button>
-          <Button variant="ghost" onClick={onClose}>
-            {t('transcriptionModalClose')}
-          </Button>
-        </footer>
-        <div
-          className={`transcript-copy-toast${copied ? ' is-visible' : ''}`}
-          role="status"
-          aria-live="polite"
-        >
-          {copied
-            ? copied.scope === 'selection'
-              ? t('transcriptionCopiedSelection')
-              : t('transcriptionCopiedAll')
-            : ''}
-        </div>
+            {translationError === 'unavailable' && (
+              <div className="transcript-translation-notice">
+                {translatorModel.downloading ? (
+                  <>
+                    <span>
+                      {t('transcriptionTranslatorInstalling', {
+                        progress: translatorModel.progress ?? 0
+                      })}
+                    </span>
+                    <ProgressBar
+                      value={translatorModel.progress}
+                      active
+                      label={t('transcriptionTranslatorInstall')}
+                    />
+                    <Button variant="ghost" onClick={onCancelTranslator}>
+                      {t('transcriptionModelCancelBtn')}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <span>
+                      {t('transcriptionTranslatorIntro', {
+                        size: formatSize(translatorModel.sizeBytes || 2_500_000_000, language)
+                      })}
+                    </span>
+                    <label className="transcription-gemma-consent">
+                      <input
+                        type="checkbox"
+                        checked={translatorTermsAccepted}
+                        onChange={event => setTranslatorTermsAccepted(event.target.checked)}
+                      />
+                      <span>
+                        {t('transcriptionGemmaConsent')}{' '}
+                        <a
+                          href="https://ai.google.dev/gemma/terms"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {t('transcriptionGemmaTerms')}
+                        </a>{' '}
+                        {t('transcriptionGemmaAnd')}{' '}
+                        <a
+                          href="https://ai.google.dev/gemma/prohibited_use_policy"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {t('transcriptionGemmaPolicy')}
+                        </a>
+                        .
+                      </span>
+                    </label>
+                    {translatorModel.error && (
+                      <span className="transcription-model-error">
+                        {translatorModel.error === 'MODEL_SOURCE_NOT_CONFIGURED'
+                          ? t('transcriptionTranslatorNotConfigured')
+                          : t('transcriptionTranslationFailed')}
+                      </span>
+                    )}
+                    <Button
+                      variant="primary"
+                      disabled={!translatorTermsAccepted}
+                      onClick={onInstallTranslator}
+                    >
+                      {t('transcriptionTranslatorInstall')}
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
+            {translationError === 'failed' && (
+              <div className="transcript-translation-notice" role="alert">
+                <Button variant="secondary" onClick={() => setRetryNonce(nonce => nonce + 1)}>
+                  {t('transcriptionTranslationRetry')}
+                </Button>
+              </div>
+            )}
+            {hasTargetText ? (
+              <div
+                className={`transcript-translation-content${
+                  translating ? (reducedMotion ? ' is-translating-static' : ' is-translating') : ''
+                }`}
+              >
+                {segments.map(segment => {
+                  const translated = translatedBySegment.get(segment.id);
+                  if (!translated) return null;
+                  const activeRanges =
+                    activeWord?.segmentId === segment.id
+                      ? resolveMirroredSelection(
+                          activeWord.range,
+                          translated.alignments,
+                          'source',
+                          translated.translatedText.length
+                        ).ranges
+                      : NO_RANGES;
+                  return (
+                    <SegmentText
+                      key={segment.id}
+                      text={translated.translatedText}
+                      segmentId={segment.id}
+                      selectedRanges={
+                        selectedPart(selection, segment.id)?.targetRanges ?? NO_RANGES
+                      }
+                      activeRanges={activeRanges}
+                    />
+                  );
+                })}
+              </div>
+            ) : !translationError ? (
+              <div className="transcript-modal-empty">{t('transcriptionTranslationEmpty')}</div>
+            ) : null}
+          </div>
+
+          <p className="visually-hidden" role="status" aria-live="polite">
+            {translating ? t('transcriptionTranslating', { language: targetName }) : ''}
+          </p>
+        </section>
       </div>
-    </div>,
-    window.document.body
+
+      <div id={previewId} className={`transcript-preview${previewOpen ? ' open' : ''}`}>
+        {previewActivated && (
+          <div
+            className="transcript-preview-panel"
+            aria-hidden={!previewOpen}
+            {...(!previewOpen ? { inert: true } : {})}
+          >
+            {mediaPreview?.state === 'ready' ? (
+              <div ref={playerRef} className={`transcript-player${audioOnly ? ' audio-only' : ''}`}>
+                <video
+                  ref={mediaRef}
+                  className="transcript-preview-media"
+                  src={transcriptionMediaUrl(job.id)}
+                  playsInline
+                  preload="metadata"
+                  onLoadedMetadata={syncPlayback}
+                  onDurationChange={syncPlayback}
+                  onTimeUpdate={syncPlayback}
+                  onPlay={syncPlayback}
+                  onPause={syncPlayback}
+                  onEnded={syncPlayback}
+                  onVolumeChange={syncPlayback}
+                  onRateChange={syncPlayback}
+                />
+                {audioOnly && (
+                  <div className="transcript-audio-poster" aria-hidden="true">
+                    <span className="transcript-audio-mark">W</span>
+                    <span className="transcript-audio-bars">
+                      <i />
+                      <i />
+                      <i />
+                      <i />
+                      <i />
+                    </span>
+                  </div>
+                )}
+                <div className="transcript-player-controls">
+                  <button
+                    type="button"
+                    className="transcript-player-icon"
+                    onClick={togglePlayback}
+                    aria-label={
+                      playback.playing
+                        ? t('transcriptionPlayerPause')
+                        : t('transcriptionPlayerPlay')
+                    }
+                  >
+                    <span aria-hidden="true">{playback.playing ? 'Ⅱ' : '▶'}</span>
+                  </button>
+                  <span className="transcript-player-time">
+                    {formatMediaTime(playback.currentTime)} / {formatMediaTime(playback.duration)}
+                  </span>
+                  <input
+                    className="transcript-player-seek"
+                    type="range"
+                    min="0"
+                    max={Math.max(0, playback.duration)}
+                    step="0.01"
+                    value={Math.min(playback.currentTime, playback.duration || 0)}
+                    onChange={seekPlayback}
+                    aria-label={t('transcriptionPlayerSeek')}
+                  />
+                  <label className="transcript-player-volume">
+                    <span aria-hidden="true">◕</span>
+                    <span className="visually-hidden">{t('transcriptionPlayerVolume')}</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={playback.volume}
+                      onChange={changeVolume}
+                    />
+                  </label>
+                  <label className="transcript-player-rate">
+                    <span className="visually-hidden">{t('transcriptionPlayerSpeed')}</span>
+                    <select value={playback.rate} onChange={changeRate}>
+                      {[0.75, 1, 1.25, 1.5, 2].map(rate => (
+                        <option key={rate} value={rate}>
+                          {rate}×
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    className="transcript-player-icon"
+                    onClick={enterFullscreen}
+                    aria-label={t('transcriptionPlayerFullscreen')}
+                  >
+                    <span aria-hidden="true">⛶</span>
+                  </button>
+                </div>
+                {!hasWordTimings && (
+                  <p className="transcript-preview-note">{t('transcriptionKaraokeUnavailable')}</p>
+                )}
+              </div>
+            ) : mediaPreview?.state === 'failed' ? (
+              <div className="transcript-preview-status" role="alert">
+                <span>{t('transcriptionPreviewUnavailable')}</span>
+                <Button variant="secondary" onClick={() => void preparePreview()}>
+                  {t('transcriptionTranslationRetry')}
+                </Button>
+              </div>
+            ) : (
+              <div className="transcript-preview-status" role="status">
+                <span>
+                  {t('transcriptionPreviewPreparing')}
+                  {mediaPreview?.progress !== null && mediaPreview?.progress !== undefined
+                    ? ` ${Math.round(mediaPreview.progress)}%`
+                    : ''}
+                </span>
+                <ProgressBar
+                  value={mediaPreview?.progress ?? null}
+                  active
+                  label={t('transcriptionPreviewPreparing')}
+                />
+                <Button variant="ghost" onClick={() => void cancelPreviewPreparation()}>
+                  {t('transcriptionCancel')}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <footer className="transcript-modal-footer">
+        <Button
+          variant="secondary"
+          onClick={() => void togglePreview()}
+          aria-expanded={previewOpen}
+          aria-controls={previewId}
+        >
+          <span aria-hidden="true">{previewOpen ? '⌄' : '▶'}</span>
+          {previewOpen ? t('transcriptionPreviewCollapse') : t('transcriptionPreview')}
+        </Button>
+        <Button variant="ghost" onClick={onClose}>
+          {t('transcriptionModalClose')}
+        </Button>
+      </footer>
+      <div
+        className={`transcript-copy-toast${copied ? ' is-visible' : ''}`}
+        role="status"
+        aria-live="polite"
+      >
+        {copied
+          ? copied.scope === 'selection'
+            ? t('transcriptionCopiedSelection')
+            : t('transcriptionCopiedAll')
+          : ''}
+      </div>
+    </Modal>
   );
 }

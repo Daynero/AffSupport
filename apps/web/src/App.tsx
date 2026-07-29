@@ -37,7 +37,7 @@ import { Button, ProgressBar, Spinner, type Translate } from './components/ui';
 import { WishlyLogo, WishlyMark } from './components/WishlyLogo';
 import { ThemeToggle } from './components/ThemeToggle';
 import { useAgent } from './AgentContext';
-import { internalLink } from './lib/navigation';
+import { internalLink, usePageEntrance } from './lib/navigation';
 import { UserMenu } from './components/UserMenu';
 import { SupportButton } from './components/SupportDialog';
 import { analytics } from './analytics/service';
@@ -69,8 +69,9 @@ interface ToastMessage {
 }
 
 export default function CompressorPage() {
-  const { language, setLanguage, t } = useI18n();
+  const { language, t } = useI18n();
   const { state, setState, connection, connectedOnce, reconnect, capabilities } = useAgent();
+  const entering = usePageEntrance();
   const [selected, setSelected] = useState<Set<string>>(storedCompressorSelection);
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
   const [importing, setImporting] = useState(false);
@@ -358,46 +359,29 @@ export default function CompressorPage() {
     ? t(selectedCountKey(language, selected.size), { count: selected.size })
     : t('noSelection');
 
-  const header = (
-    <Header
-      language={language}
-      setLanguage={setLanguage}
-      connection={connection}
-      onHome={event => {
-        internalLink(event, '/');
-      }}
-      t={t}
-    />
-  );
-
   if (connection === 'checking') {
     return (
-      <div className="app-shell">
-        {header}
-        <main className="workspace compact-state">
-          <Spinner />
-          <span>{t('connectingAgent')}</span>
-        </main>
-      </div>
+      <main className={`workspace compact-state${entering ? ' page-enter' : ''}`}>
+        <Spinner />
+        <span>{t('connectingAgent')}</span>
+      </main>
     );
   }
 
   if (!connected && !connectedOnce) {
     return (
-      <div className="app-shell">
-        {header}
-        <main className="workspace">
+      <>
+        <main className={`workspace${entering ? ' page-enter' : ''}`}>
           <Onboarding state={connection} help={help} setHelp={setHelp} connect={reconnect} t={t} />
         </main>
         <ToastRegion toasts={toasts} />
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="app-shell">
-      {header}
-      <main className="workspace">
+    <>
+      <main className={`workspace${entering ? ' page-enter' : ''}`}>
         {!connected && (
           <BlockingMessage
             title={t('agentDisconnected')}
@@ -582,7 +566,7 @@ export default function CompressorPage() {
         )}
       </main>
       <ToastRegion toasts={toasts} />
-    </div>
+    </>
   );
 }
 
@@ -590,13 +574,11 @@ export function Header({
   language,
   setLanguage,
   connection,
-  onHome,
   t
 }: {
   language: Language;
   setLanguage: (language: Language) => void;
   connection: ConnectionState;
-  onHome?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
   t: Translate;
 }) {
   return (
@@ -606,7 +588,7 @@ export function Header({
           <a
             className="brand-link"
             href="/"
-            onClick={event => (onHome ? onHome(event) : internalLink(event, '/'))}
+            onClick={event => internalLink(event, '/')}
             aria-label={t('backToTools')}
           >
             <WishlyLogo name={t('appName')} />
