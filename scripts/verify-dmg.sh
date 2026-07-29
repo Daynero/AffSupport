@@ -33,6 +33,21 @@ agent_pid=$(ps -o ppid= -p "$listener_pid" | tr -d ' '); [[ -n "$agent_pid" ]]
 headers="$work/pair.headers"; /usr/bin/curl -sS -D "$headers" -o /dev/null --max-redirs 0 http://127.0.0.1:43120/pair
 token=$(sed -n 's/^[Ll]ocation: .*#agentToken=\([a-f0-9]*\).*/\1/p' "$headers" | tr -d '\r'); [[ ${#token} -eq 64 ]]
 origin='https://wishly-app.pages.dev'; health=$(/usr/bin/curl -fsS -H "Origin: $origin" -H "x-session-token: $token" http://127.0.0.1:43120/api/health); print -r -- "$health" | grep -q '"ok":true'; print -r -- "$health" | grep -q "\"buildId\":\"$build_id\""; print -r -- "$health" | grep -q "\"apiVersion\":$api_version"
+# The packaged agent gates tool routes behind a server-issued entitlement token.
+# Mint one with the release private key and submit it: this both unlocks the
+# smoke test below and proves the public key embedded in the build actually
+# matches the signing key (otherwise the whole entitlement path is broken).
+print -r -- "$health" | grep -q '"entitlement":{"enforced":true'
+entitlement_token=$(node -e '
+const { readFileSync } = require("fs");
+const { createPrivateKey, sign } = require("crypto");
+const key = createPrivateKey(readFileSync("config/keys/agent-entitlement.private.pem"));
+const now = Math.floor(Date.now() / 1000);
+const payload = Buffer.from(JSON.stringify({ v: 1, sub: "dmg-e2e", plan: "pro", iat: now, exp: now + 3600 })).toString("base64url");
+const sig = sign("sha256", Buffer.from("wat1." + payload), { key, dsaEncoding: "ieee-p1363" }).toString("base64url");
+process.stdout.write("wat1." + payload + "." + sig);
+')
+entitlement=$(/usr/bin/curl -fsS -X POST -H "Origin: $origin" -H "x-session-token: $token" -H 'content-type: application/json' --data "{\"token\":\"$entitlement_token\"}" http://127.0.0.1:43120/api/entitlement); print -r -- "$entitlement" | grep -q '"entitled":true'
 event_headers="$work/events.headers"; set +e; /usr/bin/curl -sS -D "$event_headers" -o /dev/null --max-time 1 -H "Origin: $origin" "http://127.0.0.1:43120/api/events?token=$token"; event_status=$?; set -e
 [[ $event_status -eq 0 || $event_status -eq 28 ]]; grep -qi "^access-control-allow-origin: $origin" "$event_headers"
 /usr/bin/curl -fsS -X POST -H "Origin: $origin" -H "x-session-token: $token" -H 'content-type: application/json' --data '{"ids":["dmg-e2e"]}' http://127.0.0.1:43120/api/queue/start >/dev/null
