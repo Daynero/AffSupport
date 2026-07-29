@@ -73,14 +73,9 @@ function RedirectToLogin({ route }: { route: string }) {
   return <AuthLoadingScreen />;
 }
 
-export function routeKind(
-  path: string
-): 'home' | 'compressor' | 'landing-optimizer' | 'transcription' {
-  if (path === '/compressor') return 'compressor';
-  if (path === '/landing-optimizer') return 'landing-optimizer';
-  if (path === '/transcription') return 'transcription';
-  return 'home';
-}
+// Tool-path classification (routeKind) lives in lib/tool-registry.ts. Root must
+// not import the registry: it would pull every tool page into the eager entry
+// chunk, defeating the lazy ProtectedWishly split above.
 
 export function protectedRouteDecision(input: {
   status: ReturnType<typeof useAuth>['status'];

@@ -8,7 +8,24 @@ import type {
   TranscriptWord,
   TranslationDocument
 } from '@video-compressor/shared';
+import { applicationSupportRoot } from '../files/support-dir.js';
 import { buildSegmentsFromWords, type WhisperWord } from '../whisper/words.js';
+
+/** Canonical sidecar directory, shared by the queue and the persisted-state loader. */
+export function transcriptionDocumentsRoot(): string {
+  return (
+    process.env.AGENT_TRANSCRIBE_DOCUMENTS_PATH ??
+    path.join(applicationSupportRoot(), 'TranscriptionDocuments')
+  );
+}
+
+/** The JSON sidecar file for one job id inside `dir`. */
+export function transcriptionDocumentFile(dir: string, jobId: string): string {
+  // jobIds are server-generated UUIDs; guard anyway so a stray value can
+  // never escape the documents directory.
+  const safe = jobId.replace(/[^A-Za-z0-9._-]/g, '');
+  return path.join(dir, `${safe}.json`);
+}
 
 const LEXICAL_UNIT = /[\p{L}\p{M}\p{N}]+/gu;
 const NO_SPACE_SCRIPT =
@@ -251,10 +268,7 @@ export class TranscriptionDocumentStore {
   constructor(private readonly dir: string) {}
 
   private file(jobId: string): string {
-    // jobIds are server-generated UUIDs; guard anyway so a stray value can
-    // never escape the documents directory.
-    const safe = jobId.replace(/[^A-Za-z0-9._-]/g, '');
-    return path.join(this.dir, `${safe}.json`);
+    return transcriptionDocumentFile(this.dir, jobId);
   }
 
   async save(document: TranscriptionDocument): Promise<void> {

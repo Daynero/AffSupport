@@ -5,7 +5,12 @@ import { AGENT_CAPABILITIES } from '../packages/shared/src/types.js';
 describe('Wishly Finder image conversion integration', () => {
   const extension = readFileSync('packaging/FinderExtension/FinderSync.swift', 'utf8');
   const launcher = readFileSync('packaging/Launcher.swift', 'utf8');
-  const agent = readFileSync('apps/agent/src/index.ts', 'utf8');
+  // The native bridge is split between the server factory (auth preHandler)
+  // and the media-actions route module.
+  const agent = [
+    readFileSync('apps/agent/src/server/app.ts', 'utf8'),
+    readFileSync('apps/agent/src/media-actions/routes.ts', 'utf8')
+  ].join('\n');
   const plist = readFileSync('packaging/Info.plist', 'utf8');
 
   it('offers a focused three-format submenu without a HEIC output', () => {

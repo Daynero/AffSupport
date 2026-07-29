@@ -1,71 +1,38 @@
-import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
-import { pipeline } from 'node:stream/promises';
-import os from 'node:os';
+import { randomBytes } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import Fastify from 'fastify';
-import cors from '@fastify/cors';
-import fastifyMultipart from '@fastify/multipart';
-import fastifyStatic from '@fastify/static';
-import {
-  AGENT_TOOL_CONTRACTS,
-  CORE_CONTRACT_VERSION,
-  AGENT_API_VERSION,
-  AGENT_CAPABILITIES,
-  CRF_MAX,
-  CRF_MIN,
-  FRAME_RATE_MAX,
-  FRAME_RATE_MIN,
-  MAX_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
-  MAX_CUSTOM_START_IMAGE_DURATION_MS,
-  MIN_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
-  MIN_CUSTOM_START_IMAGE_DURATION_MS,
-  RESOLUTION_MAX,
-  RESOLUTION_MIN,
-  VIDEO_BITRATE_MAX_KBPS,
-  VIDEO_BITRATE_MIN_KBPS,
-  type AgentEvent,
-  type AgentEventType,
-  type AgentSettings,
-  type AgentSettingsPatch,
-  type ImageAsset,
-  type ImageSlot,
-  type LandingEvent,
-  type LandingEventType,
-  type TranscriptionEvent,
-  type TranscriptionEventType
+import type {
+  AgentEvent,
+  AgentEventType,
+  LandingEvent,
+  LandingEventType,
+  TranscriptionEvent,
+  TranscriptionEventType
 } from '@video-compressor/shared';
-import { EstimationWorker } from './estimate/worker.js';
+import { allowedOrigins, config } from './config.js';
 import { EntitlementGate } from './entitlement/entitlement.js';
-import { selectOutputFolder, selectVideos } from './files/picker.js';
+import { EstimationWorker } from './estimate/worker.js';
 import { applicationSupportRoot } from './files/support-dir.js';
-import { findDroppedSource } from './files/dropped-source.js';
-import { openPath, revealInFileManager } from './platform/platform.js';
 import {
   commandExists,
   ffmpegPath,
   ffprobePath,
   MediaToolUnavailableError
 } from './ffmpeg/tools.js';
-import { allowedOrigins, config } from './config.js';
-import { eventStreamHeaders } from './http.js';
-import { isSupportedVideoPath, JobQueue } from './queue/queue.js';
-import { loadState, saveState } from './queue/store.js';
-import { ImageAssetError, ImageAssetStore, MAX_IMAGE_BYTES } from './images/store.js';
+import { ImageAssetStore } from './images/store.js';
 import { LandingOptimizer } from './landing/optimizer.js';
-import { registerLandingRoutes } from './landing/routes.js';
-import { TranscriptionQueue } from './queue/transcription-queue.js';
-import { registerTranscriptionRoutes } from './transcription/routes.js';
-import { createTranslator } from './translation/translator.js';
-import { createAligner } from './translation/aligner.js';
-import { whisperAvailable } from './whisper/tools.js';
-import {
-  isImageConversionFormat,
-  type ImageConversionFormat
-} from './media-actions/image-converter.js';
 import { MediaActionQueue } from './media-actions/queue.js';
+import { JobQueue } from './queue/queue.js';
+import { loadState, saveState } from './queue/store.js';
+import { loadTranscriptionState, saveTranscriptionState } from './queue/transcription-store.js';
+import { TranscriptionQueue } from './queue/transcription-queue.js';
+import { buildServer } from './server/app.js';
+import { EventChannel } from './server/sse.js';
+import { createToolModules } from './server/tools.js';
+import { createAligner } from './translation/aligner.js';
+import { createTranslator } from './translation/translator.js';
+import { whisperAvailable } from './whisper/tools.js';
 
 const token = randomBytes(32).toString('hex');
 const nativeToken = process.env.AGENT_NATIVE_TOKEN?.trim() || null;
@@ -78,7 +45,6 @@ const entitlementGate = new EntitlementGate({
 await entitlementGate.load();
 const instanceId = randomBytes(12).toString('hex');
 const startedAt = new Date().toISOString();
-const app = Fastify({ logger: true, bodyLimit: 16_384 });
 const tools = {
   ffmpeg: await commandExists(ffmpegPath),
   ffprobe: await commandExists(ffprobePath)
@@ -89,11 +55,7 @@ const transcriptionTools = {
   ffmpeg: tools.ffmpeg,
   whisper: await whisperAvailable()
 };
-const clients = new Set<NodeJS.WritableStream>();
-const landingClients = new Set<NodeJS.WritableStream>();
-const transcriptionClients = new Set<NodeJS.WritableStream>();
 const imageStore = new ImageAssetStore();
-const pendingSelections = new Map<string, string>();
 const mediaActions = new MediaActionQueue();
 let saveChain = Promise.resolve();
 let shuttingDown = false;
@@ -102,39 +64,67 @@ let mediaToolsCheckInFlight = false;
 let mediaToolsTimer: ReturnType<typeof setInterval> | null = null;
 let installedReleaseTimer: ReturnType<typeof setInterval> | null = null;
 
-const landingOptimizer = new LandingOptimizer(tools, (type: LandingEventType = 'landing:state') => {
-  const event: LandingEvent = { type, state: landingOptimizer.state() };
-  const payload = `data: ${JSON.stringify(event)}\n\n`;
-  for (const client of landingClients) client.write(payload);
-});
+const landingEvents = new EventChannel<LandingEvent>(allowedOrigins, () => ({
+  type: 'landing:state',
+  state: landingOptimizer.state()
+}));
+const landingOptimizer = new LandingOptimizer(tools, (type: LandingEventType = 'landing:state') =>
+  landingEvents.broadcast({ type, state: landingOptimizer.state() })
+);
 
+const transcriptionEvents = new EventChannel<TranscriptionEvent>(allowedOrigins, () => ({
+  type: 'transcription:state',
+  state: transcriptionQueue.state()
+}));
+const restoredTranscription = await loadTranscriptionState();
 const transcriptionQueue = new TranscriptionQueue(
   transcriptionTools,
   (type: TranscriptionEventType = 'transcription:state') => {
-    const event: TranscriptionEvent = { type, state: transcriptionQueue.state() };
-    const payload = `data: ${JSON.stringify(event)}\n\n`;
-    for (const client of transcriptionClients) client.write(payload);
-  }
+    transcriptionEvents.broadcast({ type, state: transcriptionQueue.state() });
+    // Progress ticks arrive many times a second and change nothing the
+    // persisted list needs (job membership, statuses, settings) — skip them.
+    if (type !== 'transcription:progress') void persistTranscriptionState();
+  },
+  restoredTranscription.jobs,
+  restoredTranscription.settings
 );
 transcriptionQueue.setTranslator(createTranslator());
 transcriptionQueue.setAligner(createAligner());
 
+const agentEvents = new EventChannel<AgentEvent>(allowedOrigins, () => ({
+  type: 'state',
+  state: queue.state()
+}));
+
 function broadcast(type: AgentEventType = 'state') {
-  const event: AgentEvent = { type, state: queue.state() };
-  const payload = `data: ${JSON.stringify(event)}\n\n`;
-  for (const client of clients) client.write(payload);
+  agentEvents.broadcast({ type, state: queue.state() });
   void persistQueueState();
 }
 
 function persistQueueState() {
   saveChain = saveChain
     .then(() => saveState(queue.persisted()))
-    .catch(error => app.log.error(error, 'Could not save local state'));
+    .catch(error => logError(error, 'Could not save local state'));
   return saveChain;
 }
 
+// The transcription list persists through its own serialized chain so a slow
+// compressor save can never delay (or be delayed by) a transcription save.
+let transcriptionSaveChain = Promise.resolve();
+function persistTranscriptionState() {
+  transcriptionSaveChain = transcriptionSaveChain
+    .then(() => saveTranscriptionState(transcriptionQueue.persisted()))
+    .catch(error => logError(error, 'Could not save transcription state'));
+  return transcriptionSaveChain;
+}
+
+// The server logger only exists after buildServer(); anything logged before
+// that (an early failed state save, for example) falls back to the console.
+let logError: (error: unknown, message: string) => void = (error, message) =>
+  console.error(message, error);
+
 function requestRuntimeRestart(error: MediaToolUnavailableError) {
-  app.log.error(
+  logError(
     { tool: error.tool, causeCode: error.causeCode },
     'Bundled media runtime became unavailable'
   );
@@ -196,649 +186,33 @@ queue.attachEstimator({
 queue.attachRuntimeRecovery(requestRuntimeRestart);
 await queue.recoverRuntimeInterruptedJobs();
 await persistQueueState();
+// Write the migrated transcription list back immediately so interrupted-job
+// markers and dropped stale entries survive even a crash right after boot.
+await persistTranscriptionState();
 await estimator.init();
 
-await app.register(cors, {
-  origin: (origin, callback) => callback(null, !origin || allowedOrigins.has(origin)),
-  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['content-type', 'x-session-token']
-});
-await app.register(fastifyMultipart, {
-  limits: { files: 1, fields: 4, fileSize: 100 * 1024 * 1024 * 1024 }
-});
-
-app.addHook('onRequest', async (request, reply) => {
-  const origin = request.headers.origin;
-  if (request.url.startsWith('/api/') && origin && !allowedOrigins.has(origin)) {
-    return reply.code(403).send({ error: 'Origin is not allowed.' });
-  }
-});
-app.addHook('onSend', async (request, reply, payload) => {
-  if (request.url === '/health' || request.url === '/api/health') {
-    reply.header('Cache-Control', 'no-store');
-  }
-  if (
-    request.headers['access-control-request-private-network'] === 'true' &&
-    request.headers.origin &&
-    allowedOrigins.has(request.headers.origin)
-  ) {
-    reply.header('Access-Control-Allow-Private-Network', 'true');
-  }
-  return payload;
-});
-app.addHook('preHandler', async (request, reply) => {
-  if (request.url.startsWith('/native/')) {
-    const supplied = request.headers['x-wishly-native-token'];
-    if (!nativeToken || typeof supplied !== 'string' || !tokensMatch(nativeToken, supplied)) {
-      return reply.code(401).send({ error: 'Invalid native session token.' });
-    }
-    return;
-  }
-  if (!request.url.startsWith('/api/')) return;
-  const supplied =
-    request.headers['x-session-token'] ?? (request.query as { token?: string }).token;
-  if (supplied !== token) return reply.code(401).send({ error: 'Invalid session token.' });
-  // Account entitlement gates every tool route; health stays reachable so the
-  // web can read the entitlement state, and /api/entitlement accepts tokens.
-  const route = request.url.split('?')[0];
-  if (
-    !ENTITLEMENT_EXEMPT_ROUTES.has(route) &&
-    entitlementGate.enforced &&
-    !entitlementGate.status().entitled
-  ) {
-    return reply.code(403).send({ error: 'ENTITLEMENT_REQUIRED' });
-  }
-});
-const ENTITLEMENT_EXEMPT_ROUTES = new Set(['/api/health', '/api/diagnostics', '/api/entitlement']);
-
-app.post('/api/entitlement', async (request, reply) => {
-  const entitlementToken = (request.body as { token?: unknown } | null)?.token;
-  if (typeof entitlementToken !== 'string') {
-    return reply.code(400).send({ error: 'ENTITLEMENT_TOKEN_INVALID' });
-  }
-  try {
-    return await entitlementGate.acceptToken(entitlementToken);
-  } catch {
-    return reply.code(403).send({ error: 'ENTITLEMENT_TOKEN_INVALID' });
-  }
-});
-
-app.get('/api/health', async () => ({
-  ok: tools.ffmpeg && tools.ffprobe,
-  tools,
-  version: config.version,
-  buildNumber: config.buildNumber,
-  buildId: config.buildId,
-  apiVersion: AGENT_API_VERSION,
-  channel: config.channel,
-  sourceRevision: config.sourceRevision,
-  capabilities: [...AGENT_CAPABILITIES],
-  coreContractVersion: CORE_CONTRACT_VERSION,
-  toolContracts: { ...AGENT_TOOL_CONTRACTS },
-  update: queue.state().update,
-  entitlement: entitlementGate.status()
-}));
-app.get('/health', async () => ({
-  product: 'local-video-compressor-agent',
-  ready: tools.ffmpeg && tools.ffprobe,
-  version: config.version,
-  buildNumber: config.buildNumber,
-  buildId: config.buildId,
-  apiVersion: AGENT_API_VERSION,
-  channel: config.channel,
-  sourceRevision: config.sourceRevision,
-  capabilities: [...AGENT_CAPABILITIES],
-  coreContractVersion: CORE_CONTRACT_VERSION,
-  toolContracts: { ...AGENT_TOOL_CONTRACTS },
-  update: queue.state().update,
-  instanceId,
-  startedAt,
-  busy:
-    queue.workActive() ||
-    mediaActions.workActive() ||
-    landingOptimizer.state().running ||
-    transcriptionQueue.workActive()
-}));
-app.get('/api/diagnostics', async () => ({
-  version: config.version,
-  buildNumber: config.buildNumber,
-  buildId: config.buildId,
-  apiVersion: AGENT_API_VERSION,
-  channel: config.channel,
-  sourceRevision: config.sourceRevision,
-  instanceId,
-  startedAt,
-  system: `${os.platform()} ${os.release()}`,
-  architecture: os.arch(),
-  ffmpeg: tools.ffmpeg && tools.ffprobe ? 'ready' : 'unavailable',
-  lastError: queue.state().warning ?? null
-}));
-app.get('/api/queue', async () => queue.state());
-app.get('/api/events', async (request, reply) => {
-  reply.hijack();
-  reply.raw.writeHead(200, eventStreamHeaders(request.headers.origin, allowedOrigins));
-  clients.add(reply.raw);
-  reply.raw.write(`data: ${JSON.stringify({ type: 'state', state: queue.state() })}\n\n`);
-  request.raw.on('close', () => clients.delete(reply.raw));
-});
-
-app.post('/api/files/select', async (_request, reply) => {
-  if (process.platform !== 'darwin') {
-    return reply.code(501).send({ error: 'The native file picker is unavailable on this system.' });
-  }
-  const paths = await selectVideos();
-  const warnings = await queue.add(paths);
-  for (const warning of warnings) {
-    const selected = paths.find(value => path.basename(value) === warning.fileName);
-    if (selected && warning.reason !== 'unsupported-format' && warning.reason !== 'inaccessible') {
-      pendingSelections.set(warning.id, selected);
-    }
-  }
-  return { state: queue.state(), warnings };
-});
-
-// Finder drops can include a file:// URL. Retain that source path rather than
-// importing a copy, so "next to originals" really means next to the original.
-app.post<{ Body: { paths?: unknown } }>('/api/files/add', async (request, reply) => {
-  const paths = request.body?.paths;
-  if (!Array.isArray(paths) || paths.some(value => typeof value !== 'string')) {
-    return reply.code(400).send({ error: 'Invalid file paths.' });
-  }
-  const localPaths = paths
-    .filter(value => path.isAbsolute(value))
-    .map(value => path.resolve(value));
-  if (!localPaths.length)
-    return reply.code(400).send({ error: 'No local file paths were provided.' });
-  const warnings = await queue.add(localPaths);
-  return { state: queue.state(), warnings };
-});
-
-app.post('/api/files/upload', async (request, reply) => {
-  const part = await request.file();
-  if (!part) return reply.code(400).send({ error: 'No file was provided.' });
-  const fileName = path.basename(part.filename || 'video');
-  const signatureField = part.fields.signature;
-  const signature =
-    signatureField && 'value' in signatureField && typeof signatureField.value === 'string'
-      ? signatureField.value
-      : `${fileName}:${Date.now()}`;
-  const sizeField = part.fields.size;
-  const modifiedField = part.fields.lastModified;
-  const sourceSize = Number(
-    sizeField && 'value' in sizeField && typeof sizeField.value === 'string'
-      ? sizeField.value
-      : Number.NaN
-  );
-  const sourceModifiedAt = Number(
-    modifiedField && 'value' in modifiedField && typeof modifiedField.value === 'string'
-      ? modifiedField.value
-      : Number.NaN
-  );
-  if (!isSupportedVideoPath(fileName)) {
-    part.file.resume();
-    return {
-      state: queue.state(),
-      warnings: [
-        {
-          id: randomBytes(16).toString('hex'),
-          fileName,
-          reason: 'unsupported-format',
-          message: 'This file format is not supported.'
-        }
-      ]
-    };
-  }
-
-  const droppedSource = await findDroppedSource(fileName, sourceSize, sourceModifiedAt);
-  if (droppedSource) {
-    part.file.resume();
-    const warnings = await queue.add([droppedSource]);
-    return { state: queue.state(), warnings };
-  }
-
-  const importRoot =
-    process.env.AGENT_IMPORT_PATH ?? path.join(applicationSupportRoot(), 'Imports');
-  await mkdir(importRoot, { recursive: true });
-  const directory = await mkdtemp(path.join(importRoot, 'import-'));
-  const inputPath = path.join(directory, fileName);
-  try {
-    await pipeline(part.file, createWriteStream(inputPath, { flags: 'wx' }));
-    if (part.file.truncated) throw new Error('The file is too large.');
-    const warnings = await queue.addUploaded(inputPath, fileName, signature);
-    if (warnings.length) await rm(directory, { recursive: true, force: true });
-    return { state: queue.state(), warnings };
-  } catch (error) {
-    await rm(directory, { recursive: true, force: true });
-    return reply.code(400).send({
-      error: error instanceof Error ? error.message : 'The file could not be imported.'
-    });
-  }
-});
-
-app.post<{ Params: { slot: string } }>('/api/images/:slot', async (request, reply) => {
-  const slot = imageSlot(request.params.slot);
-  if (!slot) return reply.code(400).send({ error: 'IMAGE_SLOT_INVALID' });
-  const part = await request.file({ limits: { fileSize: MAX_IMAGE_BYTES } });
-  if (!part) return reply.code(400).send({ error: 'IMAGE_MISSING' });
-  let asset: ImageAsset | null = null;
-  try {
-    asset = await imageStore.import(
-      part.file,
-      part.filename || 'image',
-      part.mimetype || 'application/octet-stream'
-    );
-    await queue.addImage(slot, asset);
-    return queue.state();
-  } catch (error) {
-    if (asset) await queue.releaseImageIfUnused(asset);
-    const code = error instanceof ImageAssetError ? error.code : 'IMAGE_IMPORT_FAILED';
-    return reply.code(code === 'IMAGE_TOO_LARGE' ? 413 : 400).send({ error: code });
-  }
-});
-
-app.delete<{ Params: { slot: string; id: string } }>(
-  '/api/images/:slot/:id',
-  async (request, reply) => {
-    const slot = imageSlot(request.params.slot);
-    if (!slot) return reply.code(400).send({ error: 'IMAGE_SLOT_INVALID' });
-    const previous = await queue.removeImage(slot, request.params.id);
-    if (!previous) return reply.code(404).send({ error: 'IMAGE_UNAVAILABLE' });
-    await queue.releaseImageIfUnused(previous);
-    return queue.state();
-  }
-);
-
-app.get<{ Params: { id: string } }>('/api/images/:id/content', async (request, reply) => {
-  const asset = queue.imageAsset(request.params.id);
-  if (!asset) return reply.code(404).send({ error: 'IMAGE_UNAVAILABLE' });
-  try {
-    const filePath = await imageStore.validate(asset);
-    return reply
-      .header('Cache-Control', 'private, no-store')
-      .type(asset.mimeType)
-      .send(createReadStream(filePath));
-  } catch {
-    return reply.code(404).send({ error: 'IMAGE_UNAVAILABLE' });
-  }
-});
-
-app.post<{ Body: { ids?: unknown } }>('/api/files/confirm', async (request, reply) => {
-  if (
-    !request.body ||
-    !Array.isArray(request.body.ids) ||
-    !request.body.ids.every(id => typeof id === 'string')
-  ) {
-    return reply.code(400).send({ error: 'Invalid confirmation.' });
-  }
-  const paths = request.body.ids
-    .map(id => pendingSelections.get(id))
-    .filter((value): value is string => Boolean(value));
-  request.body.ids.forEach(id => pendingSelections.delete(id));
-  await queue.add(paths, true);
-  return queue.state();
-});
-
-app.post('/api/output/select', async () => {
-  const folder = await selectOutputFolder();
-  if (folder) {
-    await queue.updateSettings({ outputMode: 'chosen-folder', outputFolder: folder });
-  }
-  return queue.state();
-});
-
-app.post<{ Body: AgentSettingsPatch }>('/api/settings', async (request, reply) => {
-  const body = request.body;
-  if (!body || typeof body !== 'object') {
-    return reply.code(400).send({ error: 'Invalid settings.' });
-  }
-  const allowed: Partial<AgentSettings> = {};
-  if (body.mode !== undefined) {
-    if (!['optimal', 'custom'].includes(body.mode)) {
-      return reply.code(400).send({ error: 'Invalid compression mode.' });
-    }
-    allowed.mode = body.mode;
-  }
-  if (body.outputMode !== undefined) {
-    if (!['next-to-originals', 'chosen-folder'].includes(body.outputMode)) {
-      return reply.code(400).send({ error: 'Invalid output mode.' });
-    }
-    allowed.outputMode = body.outputMode;
-  }
-  if (body.stripMetadata !== undefined) {
-    if (typeof body.stripMetadata !== 'boolean') {
-      return reply.code(400).send({ error: 'Invalid metadata setting.' });
-    }
-    allowed.stripMetadata = body.stripMetadata;
-  }
-  if (body.frameRate !== undefined) {
-    if (body.frameRate === null) allowed.frameRate = null;
-    else {
-      const value = Number(body.frameRate);
-      if (!Number.isInteger(value) || value < FRAME_RATE_MIN || value > FRAME_RATE_MAX) {
-        return reply.code(400).send({ error: 'Invalid frame rate.' });
-      }
-      allowed.frameRate = value;
-    }
-  }
-  if (body.resolutionLimit !== undefined) {
-    if (body.resolutionLimit === null) allowed.resolutionLimit = null;
-    else {
-      const value = Number(body.resolutionLimit);
-      if (!Number.isInteger(value) || value < RESOLUTION_MIN || value > RESOLUTION_MAX) {
-        return reply.code(400).send({ error: 'Invalid resolution.' });
-      }
-      allowed.resolutionLimit = value;
-    }
-  }
-  if (body.rateControl !== undefined) {
-    if (!['crf', 'bitrate'].includes(body.rateControl)) {
-      return reply.code(400).send({ error: 'Invalid rate control.' });
-    }
-    allowed.rateControl = body.rateControl;
-  }
-  if (body.crf !== undefined) {
-    const value = Number(body.crf);
-    if (!Number.isInteger(value) || value < CRF_MIN || value > CRF_MAX) {
-      return reply.code(400).send({ error: 'Invalid quality.' });
-    }
-    allowed.crf = value;
-  }
-  if (body.videoBitrateKbps !== undefined) {
-    const value = Number(body.videoBitrateKbps);
-    if (
-      !Number.isInteger(value) ||
-      value < VIDEO_BITRATE_MIN_KBPS ||
-      value > VIDEO_BITRATE_MAX_KBPS
-    ) {
-      return reply.code(400).send({ error: 'Invalid bitrate.' });
-    }
-    allowed.videoBitrateKbps = value;
-  }
-  if (body.imageEmbedding !== undefined) {
-    if (!body.imageEmbedding || typeof body.imageEmbedding !== 'object') {
-      return reply.code(400).send({ error: 'Invalid image embedding settings.' });
-    }
-    if (
-      'startImage' in body.imageEmbedding ||
-      'endImage' in body.imageEmbedding ||
-      'startImages' in body.imageEmbedding ||
-      'endImages' in body.imageEmbedding
-    ) {
-      return reply
-        .code(400)
-        .send({ error: 'Image assets must be selected through the image API.' });
-    }
-    const imageEmbedding = { ...queue.state().settings.imageEmbedding };
-    if (body.imageEmbedding.enabled !== undefined) {
-      if (typeof body.imageEmbedding.enabled !== 'boolean') {
-        return reply.code(400).send({ error: 'Invalid image embedding mode.' });
-      }
-      imageEmbedding.enabled = body.imageEmbedding.enabled;
-    }
-    if (body.imageEmbedding.replaceExisting !== undefined) {
-      if (typeof body.imageEmbedding.replaceExisting !== 'boolean') {
-        return reply.code(400).send({ error: 'Invalid replace-existing setting.' });
-      }
-      imageEmbedding.replaceExisting = body.imageEmbedding.replaceExisting;
-    }
-    if (body.imageEmbedding.finalDurationMode !== undefined) {
-      if (
-        !['random-30-40', 'random-40-50', 'random-50-60', 'custom'].includes(
-          body.imageEmbedding.finalDurationMode
-        )
-      ) {
-        return reply.code(400).send({ error: 'Invalid final image duration mode.' });
-      }
-      imageEmbedding.finalDurationMode = body.imageEmbedding.finalDurationMode;
-    }
-    if (body.imageEmbedding.customFinalDurationSeconds !== undefined) {
-      const value = Number(body.imageEmbedding.customFinalDurationSeconds);
-      if (
-        !Number.isInteger(value) ||
-        value < MIN_CUSTOM_FINAL_IMAGE_DURATION_SECONDS ||
-        value > MAX_CUSTOM_FINAL_IMAGE_DURATION_SECONDS
-      ) {
-        return reply.code(400).send({ error: 'INVALID_CUSTOM_IMAGE_DURATION' });
-      }
-      imageEmbedding.customFinalDurationSeconds = value;
-    }
-    if (body.imageEmbedding.startDurationMode !== undefined) {
-      if (
-        !['one-frame', 'ms-2', 'ms-5', 'ms-10', 'custom'].includes(
-          body.imageEmbedding.startDurationMode
-        )
-      ) {
-        return reply.code(400).send({ error: 'Invalid start image duration mode.' });
-      }
-      imageEmbedding.startDurationMode = body.imageEmbedding.startDurationMode;
-    }
-    if (body.imageEmbedding.customStartDurationMs !== undefined) {
-      const value = Number(body.imageEmbedding.customStartDurationMs);
-      if (
-        !Number.isInteger(value) ||
-        value < MIN_CUSTOM_START_IMAGE_DURATION_MS ||
-        value > MAX_CUSTOM_START_IMAGE_DURATION_MS
-      ) {
-        return reply.code(400).send({ error: 'INVALID_CUSTOM_START_IMAGE_DURATION' });
-      }
-      imageEmbedding.customStartDurationMs = value;
-    }
-    if (body.imageEmbedding.fitMode !== undefined) {
-      if (!['cover', 'contain', 'stretch'].includes(body.imageEmbedding.fitMode)) {
-        return reply.code(400).send({ error: 'Invalid image fit mode.' });
-      }
-      imageEmbedding.fitMode = body.imageEmbedding.fitMode;
-    }
-    allowed.imageEmbedding = imageEmbedding;
-  }
-  await queue.updateSettings(allowed);
-  return queue.state();
-});
-
-app.post<{ Body: { ids?: unknown } }>('/api/queue/start', async (request, reply) => {
-  if (!queue.acceptingNewTasks()) {
-    return reply.code(409).send({ error: 'UPDATE_PENDING' });
-  }
-  if (!tools.ffmpeg) {
-    return reply.code(503).send({ error: 'The bundled video engine is unavailable.' });
-  }
-  if (
-    !request.body ||
-    !Array.isArray(request.body.ids) ||
-    !request.body.ids.every(id => typeof id === 'string')
-  ) {
-    return reply.code(400).send({ error: 'Choose one or more ready videos.' });
-  }
-  const invalidImageWasCleared = await queue.revalidateSettingsImages();
-  if (invalidImageWasCleared) return reply.code(400).send({ error: 'IMAGE_UNAVAILABLE' });
-  const embeddingError = queue.embeddingConfigurationError();
-  if (embeddingError) return reply.code(400).send({ error: embeddingError });
-  await estimator.pause();
-  const started = await queue.start(request.body.ids);
-  if (!started) {
-    estimator.resume();
-    return reply.code(409).send({ error: 'No selected videos are ready to start.' });
-  }
-  return queue.state();
-});
-
-app.post<{ Params: { id: string } }>('/api/jobs/:id/estimate-priority', async (request, reply) =>
-  queue.prioritizeEstimate(request.params.id)
-    ? queue.state()
-    : reply.code(409).send({ error: 'This estimate cannot be prioritized.' })
-);
-app.delete<{ Params: { id: string } }>('/api/jobs/:id/estimate-priority', async (request, reply) =>
-  queue.cancelPrioritizedEstimate(request.params.id)
-    ? queue.state()
-    : reply.code(409).send({ error: 'This estimate is not prioritized.' })
-);
-app.post<{ Params: { id: string } }>('/api/jobs/:id/cancel', async (request, reply) =>
-  (await queue.cancel(request.params.id))
-    ? queue.state()
-    : reply.code(409).send({ error: 'Only the current job can be cancelled.' })
-);
-app.delete<{ Params: { id: string } }>('/api/jobs/:id', async (request, reply) =>
-  queue.remove(request.params.id)
-    ? queue.state()
-    : reply.code(409).send({ error: 'An active job cannot be removed.' })
-);
-app.post<{ Body: { ids?: unknown } }>('/api/jobs/remove', async (request, reply) => {
-  if (
-    !request.body ||
-    !Array.isArray(request.body.ids) ||
-    !request.body.ids.every(id => typeof id === 'string')
-  ) {
-    return reply.code(400).send({ error: 'Invalid selection.' });
-  }
-  queue.removeMany(request.body.ids);
-  return queue.state();
-});
-app.delete('/api/jobs/completed', async () => {
-  queue.clearCompleted();
-  return queue.state();
-});
-app.post<{ Params: { id: string } }>('/api/jobs/:id/retry', async (request, reply) =>
-  (await queue.retry(request.params.id))
-    ? queue.state()
-    : reply.code(409).send({ error: 'This job cannot be retried.' })
-);
-app.post<{ Params: { id: string } }>('/api/jobs/:id/repeat', async (request, reply) => {
-  if (await queue.revalidateSettingsImages()) {
-    return reply.code(400).send({ error: 'IMAGE_UNAVAILABLE' });
-  }
-  const embeddingError = queue.embeddingConfigurationError();
-  if (embeddingError) return reply.code(400).send({ error: embeddingError });
-  await estimator.pause();
-  if (await queue.repeat(request.params.id)) return queue.state();
-  estimator.resume();
-  return reply.code(409).send({ error: 'This completed job cannot be repeated right now.' });
-});
-app.post<{ Params: { id: string } }>('/api/jobs/:id/reveal', async (request, reply) => {
-  const job = queue
-    .state()
-    .jobs.find(candidate => candidate.id === request.params.id && candidate.status === 'completed');
-  if (!job) return reply.code(404).send({ error: 'Completed file not found.' });
-  revealInFileManager(job.outputPath);
-  return queue.state();
-});
-app.post<{ Params: { id: string } }>('/api/jobs/:id/open', async (request, reply) => {
-  const job = queue
-    .state()
-    .jobs.find(candidate => candidate.id === request.params.id && candidate.status === 'completed');
-  if (!job) return reply.code(404).send({ error: 'Completed file not found.' });
-  openPath(job.outputPath);
-  return queue.state();
-});
-app.post('/api/output/reveal', async (_request, reply) => {
-  const folder = queue.outputFolder();
-  if (!folder) return reply.code(404).send({ error: 'No output folder is available yet.' });
-  openPath(folder);
-  return queue.state();
-});
-
-app.post<{
-  Body: { paths?: unknown; format?: unknown };
-}>('/native/media-actions/images/convert', { bodyLimit: 512 * 1024 }, async (request, reply) => {
-  if (process.platform !== 'darwin') {
-    return reply.code(501).send({ error: 'Finder image conversion is available only on macOS.' });
-  }
-  if (!queue.acceptingNewTasks()) {
-    return reply.code(409).send({ error: 'Wishly is preparing to install an update.' });
-  }
-  const paths = request.body?.paths;
-  const format = request.body?.format;
-  if (
-    !Array.isArray(paths) ||
-    paths.length === 0 ||
-    paths.length > 100 ||
-    !paths.every(
-      value =>
-        typeof value === 'string' &&
-        value.length > 0 &&
-        value.length <= 4_096 &&
-        !value.includes('\0') &&
-        path.isAbsolute(value)
-    ) ||
-    !isImageConversionFormat(format)
-  ) {
-    return reply.code(400).send({ error: 'Invalid Finder image conversion request.' });
-  }
-  const uniquePaths = [...new Set(paths.map(value => path.resolve(value as string)))];
-  const jobs = await mediaActions.addImageConversions(uniquePaths, format as ImageConversionFormat);
-  return reply.code(202).send({
-    accepted: jobs.length,
-    jobs: jobs.map(job => ({ id: job.id, status: job.status }))
-  });
-});
-app.get('/native/media-actions', async () => ({
-  jobs: mediaActions.state().jobs.map(job => ({
-    id: job.id,
-    status: job.status,
-    outputPath: job.status === 'completed' ? job.outputPath : null,
-    errorCode: job.errorCode,
-    error: job.error
-  }))
-}));
-app.get<{ Params: { id: string } }>('/native/media-actions/:id', async (request, reply) => {
-  const job = mediaActions.state().jobs.find(candidate => candidate.id === request.params.id);
-  if (!job) return reply.code(404).send({ error: 'Media action not found.' });
-  return {
-    job: {
-      id: job.id,
-      status: job.status,
-      outputPath: job.status === 'completed' ? job.outputPath : null,
-      errorCode: job.errorCode,
-      error: job.error
-    }
-  };
-});
-
-registerLandingRoutes(app, {
-  optimizer: landingOptimizer,
-  clients: landingClients,
-  allowedOrigins,
-  acceptingNewTasks: () => queue.acceptingNewTasks()
-});
-
-registerTranscriptionRoutes(app, {
-  queue: transcriptionQueue,
-  clients: transcriptionClients,
-  allowedOrigins,
-  acceptingNewTasks: () => queue.acceptingNewTasks()
+const modules = createToolModules({
+  compressor: { queue, estimator, imageStore, events: agentEvents, tools },
+  mediaActions,
+  landing: { optimizer: landingOptimizer, events: landingEvents },
+  transcription: { queue: transcriptionQueue, events: transcriptionEvents }
 });
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const webRoot = path.resolve(here, '../../web/dist');
-await app.register(fastifyStatic, {
-  root: webRoot,
-  wildcard: false,
-  setHeaders: (response, filePath) => {
-    response.header(
-      'Cache-Control',
-      path.basename(filePath) === 'index.html'
-        ? 'no-cache, no-store, must-revalidate'
-        : 'public, max-age=31536000, immutable'
-    );
-  }
+const app = await buildServer({
+  token,
+  nativeToken,
+  allowedOrigins,
+  entitlementGate,
+  config,
+  instanceId,
+  startedAt,
+  tools,
+  queue,
+  modules,
+  webRoot: path.resolve(here, '../../web/dist')
 });
-// Without PUBLIC_SITE_ORIGIN a source run must pair against the Vite dev
-// site: the bundled web/dist is a production build that refuses dev env.
-const pairOrigin =
-  config.publicOrigin ??
-  (config.sourceRevision === 'development'
-    ? config.devOrigin
-    : `http://${config.host}:${config.port}`);
-app.get('/pair', async (_request, reply) => {
-  return reply.redirect(`${pairOrigin}/#agentToken=${token}`);
-});
-app.get('/local', async (_request, reply) => {
-  return reply.redirect(`http://${config.host}:${config.port}/#agentToken=${token}`);
-});
-app.setNotFoundHandler((request, reply) =>
-  request.url.startsWith('/api/')
-    ? reply.code(404).send({ error: 'API action not found.' })
-    : reply.sendFile('index.html')
-);
+logError = (error, message) => app.log.error(error, message);
 
 if (process.env.PACKAGED_APP === '1') {
   mediaToolsTimer = setInterval(() => void refreshMediaTools(), 10_000);
@@ -856,6 +230,7 @@ if (config.installedReleasePath) {
       .catch(() => undefined);
   }, 3000);
 }
+
 async function shutdown(code = 0) {
   if (shuttingDown) return;
   shuttingDown = true;
@@ -863,14 +238,11 @@ async function shutdown(code = 0) {
   if (installedReleaseTimer) clearInterval(installedReleaseTimer);
   try {
     await saveChain;
-    await estimator.shutdown();
-    await queue.shutdown();
-    await mediaActions.shutdown();
-    await landingOptimizer.shutdown();
-    await transcriptionQueue.shutdown();
+    await transcriptionSaveChain;
+    for (const module of modules) await module.shutdown();
     await app.close();
   } catch (error) {
-    app.log.error(error, 'Shutdown failed');
+    logError(error, 'Shutdown failed');
   }
   process.exit(code);
 }
@@ -896,14 +268,4 @@ if (process.env.PACKAGED_APP === '1') {
     }
   }, 1000);
   watchdog.unref();
-}
-
-function imageSlot(value: string): ImageSlot | null {
-  return value === 'start' || value === 'end' ? value : null;
-}
-
-function tokensMatch(expected: string, supplied: string) {
-  const left = Buffer.from(expected);
-  const right = Buffer.from(supplied);
-  return left.byteLength === right.byteLength && timingSafeEqual(left, right);
 }

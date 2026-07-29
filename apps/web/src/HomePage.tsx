@@ -1,76 +1,22 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Header, Onboarding } from './App';
 import { useAgent } from './AgentContext';
-import { useI18n, type TranslationKey } from './i18n';
+import { useI18n } from './i18n';
 import { analytics } from './analytics/service';
-import type { AnalyticsTool } from './analytics/events';
 import FeatureLockDialog from './components/FeatureLockDialog';
-import { isLocked, isProtected, type FeatureId } from './lib/feature-flags';
-import type { WishlyToolId } from '@video-compressor/shared';
+import { isLocked } from './lib/feature-flags';
 import LocalAppDialog from './components/LocalAppDialog';
-
-type Tool = {
-  id: AnalyticsTool;
-  title: TranslationKey;
-  description: TranslationKey;
-  icon: ReactNode;
-  route: string | null;
-  status: 'active' | 'coming-soon';
-  feature?: FeatureId;
-  contract?: WishlyToolId;
-};
-
-export const wishlyTools: Tool[] = [
-  {
-    id: 'compressor',
-    title: 'videoCompressor',
-    description: 'videoCompressorDescription',
-    icon: <CompressorIcon />,
-    route: '/compressor',
-    status: 'active',
-    feature: 'videoCompressor',
-    contract: 'compressor'
-  },
-  {
-    id: 'transcription',
-    title: 'transcription',
-    description: 'transcriptionDescription',
-    icon: <TranscriptionIcon />,
-    route: '/transcription',
-    status: 'active',
-    feature: 'transcription',
-    contract: 'transcription'
-  }
-];
-
-// The Landing Optimizer remains visible in the catalogue before the local app
-// is installed. Agent capabilities only determine whether it can be opened.
-export const landingTool: Tool = {
-  id: 'landing-optimizer',
-  title: 'landingOptimizer',
-  description: 'landingOptimizerDescription',
-  icon: <LandingIcon />,
-  route: '/landing-optimizer',
-  status: 'active',
-  feature: 'landingOptimizer',
-  contract: 'landingOptimizer'
-};
-
-export function toolsForCapabilities(capabilities: readonly string[]): Tool[] {
-  void capabilities;
-  return [wishlyTools[0], landingTool, ...wishlyTools.slice(1)];
-}
+import { webTools, type WebTool } from './lib/tool-registry';
 
 export default function HomePage({ navigate }: { navigate: (path: string) => void }) {
   const { language, setLanguage, t } = useI18n();
-  const { connection, reconnect, capabilities, toolAvailable } = useAgent();
+  const { connection, reconnect, toolAvailable } = useAgent();
   const [help, setHelp] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [lockedTool, setLockedTool] = useState<Tool | null>(null);
-  const [setupTool, setSetupTool] = useState<Tool | null>(null);
+  const [lockedTool, setLockedTool] = useState<WebTool | null>(null);
+  const [setupTool, setSetupTool] = useState<WebTool | null>(null);
   const panel = useRef<HTMLDivElement>(null);
   const connected = connection === 'connected';
-  const tools = toolsForCapabilities(capabilities);
 
   useEffect(() => {
     document.title = 'Wishly — Tools';
@@ -78,8 +24,8 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
       .querySelector('meta[name="description"]')
       ?.setAttribute('content', 'A collection of local Wishly tools for working with your files.');
     analytics.track('home_viewed', {});
-    for (const tool of tools) {
-      analytics.track('tool_impression', { tool_identifier: tool.id });
+    for (const tool of webTools) {
+      analytics.track('tool_impression', { tool_identifier: tool.analyticsId });
     }
   }, []);
 
@@ -89,29 +35,27 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
     return () => clearTimeout(timer);
   }, [notice]);
 
-  const openTool = (tool: Tool) => {
-    analytics.track('tool_open_clicked', { tool_identifier: tool.id });
-    if (tool.status !== 'active') {
+  const openTool = (tool: WebTool) => {
+    analytics.track('tool_open_clicked', { tool_identifier: tool.analyticsId });
+    if (tool.status === 'coming-soon') {
       analytics.track('transcription_interest_clicked', { tool_identifier: 'transcription' });
       return;
     }
     // Web-only access gate: a protected, not-yet-unlocked tool shows the
     // developer-pass modal instead of opening.
-    if (tool.feature && isLocked(tool.feature)) {
+    if (tool.featureFlag && isLocked(tool.featureFlag)) {
       setLockedTool(tool);
       return;
     }
-    if (connected && tool.route && (!tool.contract || toolAvailable(tool.contract))) {
-      navigate(tool.route);
+    if (connected && toolAvailable(tool.id)) {
+      navigate(tool.path);
     } else {
-      if (tool.contract) {
-        analytics.track(connected ? 'tool_blocked_incompatible' : 'blocked_action_attempted', {
-          tool_identifier: tool.id,
-          action_identifier: 'open_tool',
-          outcome: 'blocked'
-        });
-        setSetupTool(tool);
-      }
+      analytics.track(connected ? 'tool_blocked_incompatible' : 'blocked_action_attempted', {
+        tool_identifier: tool.analyticsId,
+        action_identifier: 'open_tool',
+        outcome: 'blocked'
+      });
+      setSetupTool(tool);
       panel.current?.focus();
       panel.current?.classList.remove('attention');
       requestAnimationFrame(() => panel.current?.classList.add('attention'));
@@ -150,16 +94,14 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
         </div>
 
         <section className="tool-grid" aria-label={t('toolsTitle')}>
-          {tools.map(tool => {
-            const underDevelopment = Boolean(tool.feature && isProtected(tool.feature));
-            const available =
-              tool.status === 'active' &&
-              connected &&
-              (!tool.contract || toolAvailable(tool.contract));
+          {webTools.map(tool => {
+            const openable = tool.status !== 'coming-soon';
+            const underDevelopment = tool.status === 'in-development';
+            const available = openable && connected && toolAvailable(tool.id);
             return (
               <article
                 key={tool.id}
-                className={`tool-card tool-${tool.status} ${available ? 'is-available' : ''}`}
+                className={`tool-card tool-${openable ? 'active' : 'coming-soon'} ${available ? 'is-available' : ''}`}
                 onClick={() => openTool(tool)}
                 onKeyDown={event => {
                   if (event.key === 'Enter' || event.key === ' ') {
@@ -169,11 +111,11 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
                 }}
                 role="button"
                 tabIndex={0}
-                aria-disabled={tool.status === 'active' && !connected ? true : undefined}
+                aria-disabled={openable && !connected ? true : undefined}
               >
                 <div className="tool-card-top">
                   <span className="tool-icon" aria-hidden="true">
-                    {tool.icon}
+                    <tool.icon />
                   </span>
                   {tool.status === 'coming-soon' && (
                     <span className="soon-badge">{t('comingSoon')}</span>
@@ -181,10 +123,10 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
                   {underDevelopment && <span className="soon-badge">{t('inDevelopment')}</span>}
                 </div>
                 <div className="tool-copy">
-                  <h3>{t(tool.title)}</h3>
-                  <p>{t(tool.description)}</p>
+                  <h3>{t(tool.labelKey)}</h3>
+                  <p>{t(tool.descriptionKey)}</p>
                 </div>
-                {tool.status === 'active' && (
+                {openable && (
                   <div className="tool-action-row">
                     {!underDevelopment && (
                       <span className={`tool-readiness ${connected ? 'ready' : ''}`}>
@@ -202,49 +144,24 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
         </section>
       </main>
 
-      {lockedTool?.feature && (
+      {lockedTool?.featureFlag && (
         <FeatureLockDialog
-          feature={lockedTool.feature}
+          feature={lockedTool.featureFlag}
           onClose={() => setLockedTool(null)}
           onUnlocked={() => {
             const tool = lockedTool;
             setLockedTool(null);
-            if (connected && tool.route) navigate(tool.route);
+            if (connected) navigate(tool.path);
           }}
         />
       )}
-      {setupTool?.contract && (
+      {setupTool && (
         <LocalAppDialog
-          tool={setupTool.contract}
+          tool={setupTool.id}
           connection={connection}
           onClose={() => setSetupTool(null)}
         />
       )}
     </div>
-  );
-}
-
-function CompressorIcon() {
-  return (
-    <svg viewBox="0 0 32 32">
-      <rect x="5" y="7" width="22" height="18" rx="4" />
-      <path d="m12 12 4 4-4 4m8-8-4 4 4 4" />
-    </svg>
-  );
-}
-function LandingIcon() {
-  return (
-    <svg viewBox="0 0 32 32">
-      <rect x="5" y="6" width="22" height="20" rx="3" />
-      <path d="M5 11h22M9 16h9m-9 4h6" />
-      <path d="m21 20 2.5 2.5L27 18" />
-    </svg>
-  );
-}
-function TranscriptionIcon() {
-  return (
-    <svg viewBox="0 0 32 32">
-      <path d="M8 12v8m4-12v16m4-12v8m4-14v20m4-14v8" />
-    </svg>
   );
 }

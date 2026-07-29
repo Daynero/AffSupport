@@ -3,7 +3,9 @@ import os from 'node:os';
 import path from 'node:path';
 import Fastify from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { TranscriptionState } from '../packages/shared/src/types.js';
 import type { TranscriptionQueue } from '../apps/agent/src/queue/transcription-queue.js';
+import { EventChannel } from '../apps/agent/src/server/sse.js';
 import { registerTranscriptionRoutes } from '../apps/agent/src/transcription/routes.js';
 
 describe('token-gated transcription media Range endpoint', () => {
@@ -35,8 +37,10 @@ describe('token-gated transcription media Range endpoint', () => {
     } as unknown as TranscriptionQueue;
     registerTranscriptionRoutes(app, {
       queue,
-      clients: new Set(),
-      allowedOrigins: new Set(),
+      events: new EventChannel(new Set(), () => ({
+        type: 'transcription:state' as const,
+        state: {} as TranscriptionState
+      })),
       acceptingNewTasks: () => true
     });
     await app.ready();

@@ -11,6 +11,7 @@ vi.mock('node:child_process', () => ({
   spawn: processMock.spawn
 }));
 
+import { EventChannel } from '../apps/agent/src/server/sse.js';
 import { registerTranscriptionRoutes } from '../apps/agent/src/transcription/routes.js';
 
 describe('revealing a completed transcription source', () => {
@@ -27,8 +28,10 @@ describe('revealing a completed transcription source', () => {
     } as unknown as TranscriptionQueue;
     registerTranscriptionRoutes(app, {
       queue,
-      clients: new Set(),
-      allowedOrigins: new Set(),
+      events: new EventChannel(new Set(), () => ({
+        type: 'transcription:state' as const,
+        state: queue.state()
+      })),
       acceptingNewTasks: () => true
     });
     await app.ready();

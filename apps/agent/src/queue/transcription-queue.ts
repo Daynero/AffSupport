@@ -43,9 +43,11 @@ import {
   buildTranscriptionDocument,
   buildTextTranscriptionDocument,
   sourceContentHash,
+  transcriptionDocumentsRoot,
   TranscriptionDocumentStore,
   TranslationCacheStore
 } from '../transcription/document-store.js';
+import type { PersistedTranscriptionState } from './transcription-store.js';
 import { mediaMimeType } from '../transcription/media.js';
 import { MediaPreviewManager, type PreviewSource } from '../transcription/media-preview.js';
 import type { TranslationOutputSegment, Translator } from '../translation/translator.js';
@@ -104,8 +106,6 @@ export interface TranscriptionTooling {
  * process ever competes for CPU/GPU. State is broadcast through `notify`.
  */
 export class TranscriptionQueue {
-  private jobs: TranscriptionJob[] = [];
-  private settings: TranscriptionSettings = defaultTranscriptionSettings();
   private active: TranscribeHandle | null = null;
   private inFlight = false;
   /** Uploaded temp files to unlink once their job leaves the queue. */
@@ -150,7 +150,11 @@ export class TranscriptionQueue {
 
   constructor(
     private tools: TranscriptionTooling,
-    private notify: Notify
+    private notify: Notify,
+    // Jobs/settings restored from the persisted transcription state (see
+    // queue/transcription-store.ts), mirroring how JobQueue receives them.
+    private jobs: TranscriptionJob[] = [],
+    private settings: TranscriptionSettings = defaultTranscriptionSettings()
   ) {
     this.downloader = new ModelDownloader(
       MODEL_DESCRIPTOR,
@@ -184,10 +188,7 @@ export class TranscriptionQueue {
       () => this.notify(),
       () => this.translationToolingChanged()
     );
-    this.documents = new TranscriptionDocumentStore(
-      process.env.AGENT_TRANSCRIBE_DOCUMENTS_PATH ??
-        path.join(applicationSupportRoot(), 'TranscriptionDocuments')
-    );
+    this.documents = new TranscriptionDocumentStore(transcriptionDocumentsRoot());
     this.translationCache = new TranslationCacheStore(
       process.env.AGENT_TRANSLATION_CACHE_PATH ??
         path.join(applicationSupportRoot(), 'TranslationCache')
@@ -196,6 +197,11 @@ export class TranscriptionQueue {
       process.env.AGENT_TRANSCRIBE_PREVIEWS_PATH ??
         path.join(applicationSupportRoot(), 'TranscriptionPreviews')
     );
+    // Uploaded imports live under Application Support and survive restarts;
+    // re-track them so removing a restored job still deletes its import copy.
+    for (const job of this.jobs) {
+      if (job.sourceKind === 'uploaded') this.importedSources.add(path.resolve(job.inputPath));
+    }
   }
 
   /** The structured document for a known job, or null if none is stored yet. */
@@ -844,6 +850,22 @@ export class TranscriptionQueue {
     };
   }
 
+  /**
+   * The restart-safe snapshot written to transcription-state.json. Transcripts
+   * (`text`) and raw diagnostics stay out of it: the structured documents and
+   * translations are already cached on disk by job id and re-attach on load.
+   */
+  persisted(): PersistedTranscriptionState {
+    return {
+      jobs: this.jobs.map(job => ({
+        ...job,
+        text: null,
+        translation: job.translation ? { ...job.translation } : (job.translation ?? null)
+      })),
+      settings: { ...this.settings }
+    };
+  }
+
   startTranslatorModelDownload(downloadBatchId = randomUUID()): void {
     this.translationDownloadBatchId = downloadBatchId;
     void this.translatorDownloader.start(downloadBatchId);
@@ -1011,8 +1033,12 @@ export class TranscriptionQueue {
   }
 
   async start(ids: string[]): Promise<boolean> {
+    // 'failed' is startable so retry() actually restarts a failed job —
+    // including one restored as failed/INTERRUPTED after an agent restart.
     const startable = this.jobs.filter(
-      job => ids.includes(job.id) && (job.status === 'ready' || job.status === 'cancelled')
+      job =>
+        ids.includes(job.id) &&
+        (job.status === 'ready' || job.status === 'cancelled' || job.status === 'failed')
     );
     if (!startable.length) return false;
     const batchId = randomUUID();

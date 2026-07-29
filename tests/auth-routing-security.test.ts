@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { validatePublicConfig } from '../apps/web/src/lib/config';
 import { loginUrl, safeReturnPath } from '../apps/web/src/lib/redirects';
-import { protectedRouteDecision, routeKind } from '../apps/web/src/Root';
+import { protectedRouteDecision } from '../apps/web/src/Root';
+import { routeKind } from '../apps/web/src/lib/tool-registry';
 import { translate } from '../apps/web/src/i18n';
 
 describe('protected routing and safe OAuth returns', () => {
@@ -71,7 +72,7 @@ describe('protected routing and safe OAuth returns', () => {
     expect(root).toContain("lazy(() => import('./ProtectedWishly'))");
     expect(root).not.toContain('<AgentProvider>');
     expect(protectedApplication).toContain('<AgentProvider>');
-    expect(protectedApplication).toContain("path === '/compressor'");
+    expect(protectedApplication).toContain('toolByPath(path)');
   });
 });
 
@@ -178,7 +179,17 @@ describe('static database and credential security checks', () => {
   });
 
   it('keeps Supabase credentials and JWTs out of the local Agent', async () => {
-    const files = ['apps/agent/src/index.ts', 'apps/agent/src/http.ts', 'apps/agent/src/config.ts'];
+    const files = [
+      'apps/agent/src/index.ts',
+      'apps/agent/src/server/app.ts',
+      'apps/agent/src/server/sse.ts',
+      'apps/agent/src/server/tools.ts',
+      'apps/agent/src/compressor/routes.ts',
+      'apps/agent/src/compressor/settings-validation.ts',
+      'apps/agent/src/media-actions/routes.ts',
+      'apps/agent/src/http.ts',
+      'apps/agent/src/config.ts'
+    ];
     const source = (await Promise.all(files.map(file => readFile(file, 'utf8')))).join('\n');
     expect(source).not.toMatch(/supabase|google.*token|service.role|bearer.*jwt/i);
   });

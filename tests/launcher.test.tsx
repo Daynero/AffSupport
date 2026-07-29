@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { readFile } from 'node:fs/promises';
-import { toolsForCapabilities, wishlyTools } from '../apps/web/src/HomePage';
-import { routeKind } from '../apps/web/src/Root';
+import { routeKind, webTools } from '../apps/web/src/lib/tool-registry';
 import { translate } from '../apps/web/src/i18n';
 import { isProtected } from '../apps/web/src/lib/feature-flags';
 
@@ -13,19 +12,22 @@ describe('Wishly product launcher', () => {
     expect(routeKind('/transcription')).toBe('transcription');
   });
 
-  it('defines tools through one extensible configuration list', () => {
-    expect(wishlyTools.map(({ id, route, status }) => ({ id, route, status }))).toEqual([
-      { id: 'compressor', route: '/compressor', status: 'active' },
-      { id: 'transcription', route: '/transcription', status: 'active' }
+  it('defines tools through one extensible registry', () => {
+    expect(webTools.map(({ id, path, status }) => ({ id, path, status }))).toEqual([
+      { id: 'compressor', path: '/compressor', status: 'available' },
+      { id: 'landingOptimizer', path: '/landing-optimizer', status: 'available' },
+      { id: 'transcription', path: '/transcription', status: 'in-development' }
     ]);
   });
 
   it('shows the landing optimizer before the local app reports capabilities', () => {
-    expect(toolsForCapabilities([]).map(tool => tool.id)).toEqual([
+    // The catalogue is static — agent capabilities only gate opening the tool.
+    expect(webTools.map(tool => tool.analyticsId)).toEqual([
       'compressor',
       'landing-optimizer',
       'transcription'
     ]);
+    expect(webTools.find(tool => tool.id === 'landingOptimizer')?.capability).toBe('landing');
   });
 
   it('opens the landing optimizer to every Wishly user without a developer pass', () => {
@@ -54,10 +56,12 @@ describe('Wishly product launcher', () => {
   });
 
   it('starts the Agent quietly and leaves opening Wishly to the user', async () => {
-    const [launcher, agent] = await Promise.all([
+    const [launcher, entrypoint, serverFactory] = await Promise.all([
       readFile('packaging/Launcher.swift', 'utf8'),
-      readFile('apps/agent/src/index.ts', 'utf8')
+      readFile('apps/agent/src/index.ts', 'utf8'),
+      readFile('apps/agent/src/server/app.ts', 'utf8')
     ]);
+    const agent = `${entrypoint}\n${serverFactory}`;
     expect(launcher).not.toContain('scheduleAutomaticInterfaceOpen');
     expect(launcher).toContain('action: #selector(openInterface)');
     const existingInstance = launcher.slice(
