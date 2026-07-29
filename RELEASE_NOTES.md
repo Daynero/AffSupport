@@ -1,3 +1,12 @@
+# v0.8.5
+
+- Require a signed-in Wishly account to use the local tools; the app confirms the account with the server occasionally and keeps working offline for several days between checks.
+- Verify the update manifest's signature before offering any download, so the installer a browser is pointed at cannot be redirected by anyone who does not hold the release key.
+- Make navigation flow: the header stays in place across pages, tools and settings transition instead of snapping, and a finished compression morphs from its size estimate into the real result.
+- Preserve the transcription queue across restarts, showing interrupted work as retryable instead of silently dropping it.
+- Replace the developer password for in-development tools with a clear "still in development, open at your own risk" confirmation.
+- Add the groundwork for a future Windows build without changing macOS behavior.
+
 # v0.8.4
 
 - Detect and remove previously embedded static opening and ending sections before estimating a replacement, keeping predicted duration and output size accurate.
