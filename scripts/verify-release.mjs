@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { createPublicKey, verify as cryptoVerify } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import {
   AGENT_API_VERSION,
@@ -11,8 +12,10 @@ import {
   PRODUCTION_SITE_ORIGIN,
   RELEASE_ARTIFACT_NAME,
   RELEASE_DOWNLOAD_URL,
+  RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64,
   RELEASE_TAG,
-  WEB_TOOL_REQUIREMENTS
+  WEB_TOOL_REQUIREMENTS,
+  releaseManifestSigningPayload
 } from '../packages/shared/dist/release.js';
 
 function fail(message) {
@@ -92,6 +95,31 @@ for (const [platform, artifact] of Object.entries(stableManifest.artifacts ?? {}
   if (!artifact?.url?.startsWith('https://') || !/^[a-f0-9]{64}$/.test(artifact?.sha256 ?? '')) {
     fail(`stable release manifest artifact ${platform} is incomplete`);
   }
+}
+
+// The web client refuses unsigned manifests, so a release must ship stable.json
+// signed by the key matching RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64
+// (scripts/sign-release-manifest.mjs).
+if (typeof stableManifest.signature !== 'string' || stableManifest.signature.length === 0) {
+  fail('stable release manifest is not signed; run scripts/sign-release-manifest.mjs');
+}
+const manifestSignatureValid = cryptoVerify(
+  'sha256',
+  Buffer.from(releaseManifestSigningPayload(stableManifest), 'utf8'),
+  {
+    key: createPublicKey({
+      key: Buffer.from(RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64, 'base64'),
+      format: 'der',
+      type: 'spki'
+    }),
+    dsaEncoding: 'ieee-p1363'
+  },
+  Buffer.from(stableManifest.signature, 'base64url')
+);
+if (!manifestSignatureValid) {
+  fail(
+    'stable release manifest signature does not verify; re-run scripts/sign-release-manifest.mjs'
+  );
 }
 
 const productionEnv = readFileSync('config/production.env', 'utf8');

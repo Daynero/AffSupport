@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applicationSupportRoot } from '../files/support-dir.js';
+import { executableName } from '../platform/platform.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // When packaged the compiled JS and the bundled runtime sit at the same
@@ -15,8 +16,8 @@ const localRuntime = path.resolve(here, '../../runtime');
 export const whisperPath =
   process.env.WHISPER_PATH ??
   (process.env.PACKAGED_APP === '1'
-    ? path.join(packagedRuntime, 'bin', 'whisper-cli')
-    : 'whisper-cli');
+    ? path.join(packagedRuntime, 'bin', executableName('whisper-cli'))
+    : executableName('whisper-cli'));
 
 /** Models shipped inside the app bundle / repo runtime (VAD lives here). */
 const bundledModelsDir = path.join(

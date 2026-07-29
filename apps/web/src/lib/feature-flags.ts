@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 
-// A lightweight, web-only access gate for features that are still being
-// finished but need to ship to production for testing. It is deliberately NOT
-// security: it only hides UI behind a shared developer pass so casual users do
-// not stumble into an unfinished tool. It does not touch the local agent, its
-// API, its endpoints, or any of its logic.
+// A lightweight, web-only acknowledgment gate for features that are still
+// being finished but need to ship to production for testing. It is
+// deliberately NOT security: it only asks the user to confirm they understand
+// the feature is a work in progress before opening it, so casual users do not
+// stumble into an unfinished tool unaware. It does not touch the local agent,
+// its API, its endpoints, or any of its logic.
 //
-// To open a feature to everyone, flip its `protected` flag to false.
+// To open a feature to everyone without the warning, flip its `protected`
+// flag to false.
 
 export type FeatureId = 'videoCompressor' | 'landingOptimizer' | 'transcription';
 
@@ -17,11 +19,6 @@ export const featureFlags: Record<FeatureId, FeatureFlag> = {
   landingOptimizer: { protected: false },
   transcription: { protected: true }
 };
-
-// The pass that unlocks protected features. Overridable per build via
-// VITE_DEVELOPER_PASS; falls back to a shared default for local development.
-export const developerPass =
-  (import.meta.env.VITE_DEVELOPER_PASS as string | undefined)?.trim() || 'Test111';
 
 const STORAGE_PREFIX = 'wishly.feature-unlock.';
 const UNLOCK_EVENT = 'wishly-feature-unlock';
@@ -46,18 +43,16 @@ export function isLocked(feature: FeatureId): boolean {
 }
 
 /**
- * Validate the pass and, if it matches, persist the unlock for this browser and
- * notify listeners. Returns whether the pass was correct.
+ * Persist the user's "I understand this is a work in progress" acknowledgment
+ * for this browser and notify listeners so locked UI opens up.
  */
-export function unlockFeature(feature: FeatureId, pass: string): boolean {
-  if (pass.trim() !== developerPass) return false;
+export function unlockFeature(feature: FeatureId): void {
   try {
     localStorage.setItem(STORAGE_PREFIX + feature, 'true');
   } catch {
     // Storage unavailable — the unlock still applies for this tab via the event.
   }
   window.dispatchEvent(new Event(UNLOCK_EVENT));
-  return true;
 }
 
 /** Reactively track whether a feature is currently locked for this browser. */

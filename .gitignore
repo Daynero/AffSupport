@@ -15,3 +15,6 @@ packaging/icon-source/
 
 # Whisper models & bundled binaries (large; fetched/built locally)
 apps/agent/runtime/
+
+# Local signing keys — never commit private keys.
+config/keys/

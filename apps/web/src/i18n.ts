@@ -175,6 +175,10 @@ const en = {
   reloadPage: 'Reload page',
   blockedTitle: 'The browser blocked the local connection',
   blockedBody: 'Allow local network access for this page, then try again.',
+  entitlementBlocked: 'Account check required',
+  entitlementBlockedTitle: 'Wishly could not confirm your account',
+  entitlementBlockedBody:
+    'The local app needs an occasional online account check. Make sure you are signed in and online, then try again. If your account was blocked, contact support.',
   tryAgain: 'Try again',
   openLocal: 'Open local interface',
   pairingTitle: 'Wishly Agent is ready',
@@ -648,13 +652,12 @@ const en = {
   noteVectorSafe: 'Vector image preserved',
   noteFailedGeneric: 'Could not optimize — original kept',
   featureLockTitle: 'Still under construction',
-  featureLockBody1: "Sorry, this tool isn't ready for everyone yet.",
-  featureLockBody2: 'For now, access is available only with a developer pass.',
-  featureLockSoon: "It'll be open for everyone soon.",
-  featureLockPassLabel: 'Developer pass',
-  featureLockPassPlaceholder: 'Enter pass',
-  featureLockUnlock: 'Unlock',
-  featureLockError: 'That pass is incorrect. Please try again.'
+  featureLockBody1:
+    'This tool is still in active development — some things may not work yet or may behave unpredictably.',
+  featureLockBody2: "You're welcome to try it, but you open it at your own risk.",
+  featureLockLocal: 'As always, your data is processed locally on your device.',
+  featureLockConfirm: 'Got it, open the tool',
+  featureLockCancel: 'Not now'
 } as const;
 
 const uk: Record<keyof typeof en, string> = {
@@ -831,6 +834,10 @@ const uk: Record<keyof typeof en, string> = {
   reloadPage: 'Оновити сторінку',
   blockedTitle: 'Браузер заблокував локальне підключення',
   blockedBody: 'Дозвольте цій сторінці доступ до локальної мережі та повторіть спробу.',
+  entitlementBlocked: 'Потрібна перевірка акаунта',
+  entitlementBlockedTitle: 'Wishly не зміг підтвердити ваш акаунт',
+  entitlementBlockedBody:
+    'Локальному додатку періодично потрібна онлайн-перевірка акаунта. Переконайтеся, що ви увійшли та маєте інтернет, і спробуйте ще раз. Якщо ваш акаунт заблоковано, зверніться в підтримку.',
   tryAgain: 'Спробувати знову',
   openLocal: 'Відкрити локальний інтерфейс',
   pairingTitle: 'Wishly Agent готовий',
@@ -1306,13 +1313,12 @@ const uk: Record<keyof typeof en, string> = {
   noteVectorSafe: 'Векторне зображення збережено',
   noteFailedGeneric: 'Не вдалося оптимізувати — залишено оригінал',
   featureLockTitle: 'Ще в розробці',
-  featureLockBody1: 'Вибачте, цей інструмент ще не готовий для всіх.',
-  featureLockBody2: 'Наразі доступ можливий лише з паролем розробника.',
-  featureLockSoon: 'Незабаром він стане доступним для всіх.',
-  featureLockPassLabel: 'Пароль розробника',
-  featureLockPassPlaceholder: 'Введіть пароль',
-  featureLockUnlock: 'Розблокувати',
-  featureLockError: 'Пароль невірний. Спробуйте ще раз.'
+  featureLockBody1:
+    'Цей інструмент ще активно розробляється — щось може не працювати або працювати нестабільно.',
+  featureLockBody2: 'Можете спробувати, але відкриваєте його на власний страх і ризик.',
+  featureLockLocal: 'Як і завжди, ваші дані обробляються локально на вашому пристрої.',
+  featureLockConfirm: 'Зрозуміло, відкрити',
+  featureLockCancel: 'Не зараз'
 };
 
 export type TranslationKey = keyof typeof en;

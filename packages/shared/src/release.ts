@@ -72,6 +72,39 @@ export interface ReleaseArtifact {
   sha256: string | null;
 }
 
+/**
+ * Public half of the release-manifest signing keypair (ECDSA P-256, SPKI DER,
+ * base64). The private key lives only on the release machine
+ * (config/keys/release-manifest.private.pem, gitignored); the web client
+ * verifies stable.json against this key before trusting any download URL, so
+ * whoever controls the hosting alone cannot redirect updates.
+ */
+export const RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64 =
+  'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE0GBtAFmq7/ChYlC7tqBrlK/ayW+FGymCs+HRrl0Dn8JqcBIKyfe0R5C8xmoayssCad94Qm+z4JI0lv4gqiusqQ==';
+
+/**
+ * Canonical bytes covered by the manifest signature: the manifest without its
+ * `signature` field, serialized with deterministically sorted keys so signer
+ * and verifier agree regardless of property order.
+ */
+export function releaseManifestSigningPayload(manifest: object): string {
+  const unsigned = { ...(manifest as Record<string, unknown>) };
+  delete unsigned.signature;
+  return JSON.stringify(sortKeysDeep(unsigned));
+}
+
+function sortKeysDeep(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeysDeep);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([key, entry]) => [key, sortKeysDeep(entry)])
+    );
+  }
+  return value;
+}
+
 export interface StableReleaseManifest {
   schemaVersion: 1;
   channel: 'stable';
@@ -85,6 +118,8 @@ export interface StableReleaseManifest {
   summary?: Partial<Record<ReleaseSummaryLanguage, string>>;
   artifacts: Partial<Record<ReleasePlatform, ReleaseArtifact>>;
   toolRequirements: Record<WishlyToolId, ToolContracts>;
+  /** Base64url ECDSA P-256 (IEEE P1363) signature over releaseManifestSigningPayload(). */
+  signature?: string;
 }
 
 export function normalizeToolContracts(

@@ -1,4 +1,5 @@
 import type {
+  AgentEntitlementStatus,
   HealthResponse,
   ImageSlot,
   LandingState,
@@ -76,6 +77,7 @@ export async function connect(signal?: AbortSignal): Promise<{
   apiVersion: number;
   capabilities: string[];
   toolContracts: ToolContracts;
+  entitlement: AgentEntitlementStatus | null;
 }> {
   if (!token) {
     await probeAgent(agentUrl, location.origin, signal);
@@ -90,8 +92,11 @@ export async function connect(signal?: AbortSignal): Promise<{
   const capabilities = Array.isArray(health.capabilities) ? health.capabilities : [];
   const { normalizeToolContracts } = await import('@video-compressor/shared');
   const toolContracts = normalizeToolContracts(health.toolContracts, capabilities, apiVersion);
+  const entitlement = health.entitlement ?? null;
+  // An enforced agent without a valid token rejects every tool route, so the
+  // caller must submit an entitlement token first and reconnect.
   const state =
-    versionState(apiVersion) === 'connected'
+    versionState(apiVersion) === 'connected' && !(entitlement?.enforced && !entitlement.entitled)
       ? await request<QueueState>('/api/queue', 'GET', signal)
       : null;
   return {
@@ -101,8 +106,12 @@ export async function connect(signal?: AbortSignal): Promise<{
     channel: health.channel ?? 'unknown',
     apiVersion,
     capabilities,
-    toolContracts
+    toolContracts,
+    entitlement
   };
+}
+export function submitEntitlementToken(entitlementToken: string): Promise<AgentEntitlementStatus> {
+  return requestBody<AgentEntitlementStatus>('/api/entitlement', { token: entitlementToken });
 }
 export function eventUrl() {
   return `${agentUrl}/api/events?token=${encodeURIComponent(token)}`;

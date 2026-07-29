@@ -1,6 +1,5 @@
 import { randomBytes } from 'node:crypto';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { unlink } from 'node:fs/promises';
 import type { AlignmentLink, TranscriptSegment, TranscriptWord } from '@video-compressor/shared';
 import {
   ALIGNMENT_MODEL_DESCRIPTOR,
@@ -9,7 +8,7 @@ import {
   translationRuntimePath,
   translationRuntimePresent
 } from './tools.js';
-import { localLlamaHttpRequest } from './translator.js';
+import { localLlamaHttpRequest, reserveLoopbackPort } from './translator.js';
 
 export interface AlignmentInputSegment {
   source: TranscriptSegment;
@@ -47,7 +46,7 @@ const ALIGNER_IDLE_MS = 60_000;
  */
 export class E5Aligner implements Aligner {
   private child: ChildProcess | null = null;
-  private socketPath: string | null = null;
+  private port: number | null = null;
   private apiKey = '';
   private starting: Promise<void> | null = null;
   private idleTimer: NodeJS.Timeout | null = null;
@@ -94,8 +93,7 @@ export class E5Aligner implements Aligner {
     this.clearIdleTimer();
     const child = this.child;
     this.child = null;
-    const socketPath = this.socketPath;
-    this.socketPath = null;
+    this.port = null;
     if (child?.exitCode === null) {
       await new Promise<void>(resolve => {
         const force = setTimeout(() => child.kill('SIGKILL'), 2_000);
@@ -107,11 +105,10 @@ export class E5Aligner implements Aligner {
         child.kill('SIGTERM');
       });
     }
-    if (socketPath) await unlink(socketPath).catch(() => {});
   }
 
   private async ensureServer(signal: AbortSignal): Promise<void> {
-    if (this.child?.exitCode === null && this.socketPath) return;
+    if (this.child?.exitCode === null && this.port) return;
     if (!this.starting) {
       this.starting = this.startServer().finally(() => {
         this.starting = null;
@@ -137,8 +134,7 @@ export class E5Aligner implements Aligner {
 
   private async startServer(): Promise<void> {
     await this.close();
-    const suffix = randomBytes(8).toString('hex');
-    const socketPath = `/tmp/wishly-align-${process.pid}-${suffix}.sock`;
+    const port = await reserveLoopbackPort();
     const apiKey = randomBytes(32).toString('hex');
     const child = spawn(
       translationRuntimePath(),
@@ -146,7 +142,9 @@ export class E5Aligner implements Aligner {
         '--model',
         alignmentModelPath(),
         '--host',
-        socketPath,
+        '127.0.0.1',
+        '--port',
+        String(port),
         '--api-key',
         apiKey,
         '--embedding',
@@ -170,19 +168,16 @@ export class E5Aligner implements Aligner {
       { shell: false, stdio: ['ignore', 'ignore', 'ignore'] }
     );
     this.child = child;
-    this.socketPath = socketPath;
+    this.port = port;
     this.apiKey = apiKey;
     child.once('exit', () => {
       if (this.child === child) this.child = null;
-      void unlink(socketPath).catch(() => {});
     });
 
     const deadline = Date.now() + 45_000;
     while (Date.now() < deadline) {
       if (child.exitCode !== null) throw new Error('The local alignment engine could not start.');
-      const health = await localLlamaHttpRequest(socketPath, apiKey, 'GET', '/health').catch(
-        () => null
-      );
+      const health = await localLlamaHttpRequest(port, apiKey, 'GET', '/health').catch(() => null);
       if (health?.statusCode === 200) return;
       await delay(100);
     }
@@ -191,9 +186,9 @@ export class E5Aligner implements Aligner {
   }
 
   private async embed(input: string[], signal: AbortSignal): Promise<number[][]> {
-    if (!this.socketPath) return [];
+    if (!this.port) return [];
     const response = await localLlamaHttpRequest(
-      this.socketPath,
+      this.port,
       this.apiKey,
       'POST',
       '/v1/embeddings',

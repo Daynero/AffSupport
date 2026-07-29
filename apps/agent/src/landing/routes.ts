@@ -1,36 +1,27 @@
 import { createReadStream, createWriteStream } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
-import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import type { FastifyInstance } from 'fastify';
-import type { LandingSettings } from '@video-compressor/shared';
-import { eventStreamHeaders } from '../http.js';
+import type { LandingEvent, LandingSettings } from '@video-compressor/shared';
 import { selectLandingFolders, selectLandingZips } from '../files/picker.js';
+import { capabilities, openPath, revealInFileManager } from '../platform/platform.js';
+import type { EventChannel } from '../server/sse.js';
 import type { LandingOptimizer } from './optimizer.js';
 import { sanitizeRelPath } from './workspace.js';
 
 interface LandingDeps {
   optimizer: LandingOptimizer;
-  clients: Set<NodeJS.WritableStream>;
-  allowedOrigins: ReadonlySet<string>;
+  events: EventChannel<LandingEvent>;
   acceptingNewTasks: () => boolean;
 }
 
 export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
-  const { optimizer, clients, allowedOrigins, acceptingNewTasks } = deps;
+  const { optimizer, events, acceptingNewTasks } = deps;
 
   app.get('/api/landing/state', async () => optimizer.state());
 
-  app.get('/api/landing/events', async (request, reply) => {
-    reply.hijack();
-    reply.raw.writeHead(200, eventStreamHeaders(request.headers.origin, allowedOrigins));
-    clients.add(reply.raw);
-    reply.raw.write(
-      `data: ${JSON.stringify({ type: 'landing:state', state: optimizer.state() })}\n\n`
-    );
-    request.raw.on('close', () => clients.delete(reply.raw));
-  });
+  app.get('/api/landing/events', events.handler);
 
   app.get<{
     Params: { jobId: string; assetId: string; side: string };
@@ -86,7 +77,7 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
   });
 
   app.post('/api/landing/select/zip', async (_request, reply) => {
-    if (process.platform !== 'darwin') {
+    if (!capabilities().nativeFilePicker) {
       return reply.code(501).send({ error: 'The native picker is unavailable on this system.' });
     }
     try {
@@ -99,7 +90,7 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
   });
 
   app.post('/api/landing/select/folder', async (_request, reply) => {
-    if (process.platform !== 'darwin') {
+    if (!capabilities().nativeFilePicker) {
       return reply.code(501).send({ error: 'The native picker is unavailable on this system.' });
     }
     try {
@@ -255,7 +246,7 @@ async function failPreparation(reply: any, optimizer: LandingOptimizer, error: u
 function revealOutput(reply: any, optimizer: LandingOptimizer, flag: '-R' | null, jobId?: string) {
   const output = jobId ? optimizer.outputPath(jobId) : optimizer.state().job?.outputPath;
   if (!output) return reply.code(404).send({ error: 'No result is available yet.' });
-  const args = flag ? [flag, output] : [output];
-  spawn('/usr/bin/open', args, { shell: false, detached: true, stdio: 'ignore' }).unref();
+  if (flag === '-R') revealInFileManager(output);
+  else openPath(output);
   return optimizer.state();
 }

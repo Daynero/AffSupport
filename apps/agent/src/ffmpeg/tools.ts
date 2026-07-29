@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { executableName } from '../platform/platform.js';
 
 const bundledRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -8,10 +9,14 @@ const bundledRoot = path.resolve(
 );
 export const ffmpegPath =
   process.env.FFMPEG_PATH ??
-  (process.env.PACKAGED_APP === '1' ? path.join(bundledRoot, 'ffmpeg') : 'ffmpeg');
+  (process.env.PACKAGED_APP === '1'
+    ? path.join(bundledRoot, executableName('ffmpeg'))
+    : executableName('ffmpeg'));
 export const ffprobePath =
   process.env.FFPROBE_PATH ??
-  (process.env.PACKAGED_APP === '1' ? path.join(bundledRoot, 'ffprobe') : 'ffprobe');
+  (process.env.PACKAGED_APP === '1'
+    ? path.join(bundledRoot, executableName('ffprobe'))
+    : executableName('ffprobe'));
 
 export type MediaToolName = 'ffmpeg' | 'ffprobe';
 

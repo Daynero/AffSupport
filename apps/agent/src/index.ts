@@ -2,7 +2,6 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
-import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -39,9 +38,11 @@ import {
   type TranscriptionEventType
 } from '@video-compressor/shared';
 import { EstimationWorker } from './estimate/worker.js';
+import { EntitlementGate } from './entitlement/entitlement.js';
 import { selectOutputFolder, selectVideos } from './files/picker.js';
 import { applicationSupportRoot } from './files/support-dir.js';
 import { findDroppedSource } from './files/dropped-source.js';
+import { openPath, revealInFileManager } from './platform/platform.js';
 import {
   commandExists,
   ffmpegPath,
@@ -68,6 +69,13 @@ import { MediaActionQueue } from './media-actions/queue.js';
 
 const token = randomBytes(32).toString('hex');
 const nativeToken = process.env.AGENT_NATIVE_TOKEN?.trim() || null;
+// Server-issued account entitlement. Packaged production builds embed the
+// public key via the launcher; without it (development) nothing is enforced.
+const entitlementGate = new EntitlementGate({
+  publicKeyBase64: process.env.AGENT_ENTITLEMENT_PUBLIC_KEY,
+  stateFile: path.join(applicationSupportRoot(), 'entitlement.json')
+});
+await entitlementGate.load();
 const instanceId = randomBytes(12).toString('hex');
 const startedAt = new Date().toISOString();
 const app = Fastify({ logger: true, bodyLimit: 16_384 });
@@ -230,6 +238,29 @@ app.addHook('preHandler', async (request, reply) => {
   const supplied =
     request.headers['x-session-token'] ?? (request.query as { token?: string }).token;
   if (supplied !== token) return reply.code(401).send({ error: 'Invalid session token.' });
+  // Account entitlement gates every tool route; health stays reachable so the
+  // web can read the entitlement state, and /api/entitlement accepts tokens.
+  const route = request.url.split('?')[0];
+  if (
+    !ENTITLEMENT_EXEMPT_ROUTES.has(route) &&
+    entitlementGate.enforced &&
+    !entitlementGate.status().entitled
+  ) {
+    return reply.code(403).send({ error: 'ENTITLEMENT_REQUIRED' });
+  }
+});
+const ENTITLEMENT_EXEMPT_ROUTES = new Set(['/api/health', '/api/diagnostics', '/api/entitlement']);
+
+app.post('/api/entitlement', async (request, reply) => {
+  const entitlementToken = (request.body as { token?: unknown } | null)?.token;
+  if (typeof entitlementToken !== 'string') {
+    return reply.code(400).send({ error: 'ENTITLEMENT_TOKEN_INVALID' });
+  }
+  try {
+    return await entitlementGate.acceptToken(entitlementToken);
+  } catch {
+    return reply.code(403).send({ error: 'ENTITLEMENT_TOKEN_INVALID' });
+  }
 });
 
 app.get('/api/health', async () => ({
@@ -244,7 +275,8 @@ app.get('/api/health', async () => ({
   capabilities: [...AGENT_CAPABILITIES],
   coreContractVersion: CORE_CONTRACT_VERSION,
   toolContracts: { ...AGENT_TOOL_CONTRACTS },
-  update: queue.state().update
+  update: queue.state().update,
+  entitlement: entitlementGate.status()
 }));
 app.get('/health', async () => ({
   product: 'local-video-compressor-agent',
@@ -686,11 +718,7 @@ app.post<{ Params: { id: string } }>('/api/jobs/:id/reveal', async (request, rep
     .state()
     .jobs.find(candidate => candidate.id === request.params.id && candidate.status === 'completed');
   if (!job) return reply.code(404).send({ error: 'Completed file not found.' });
-  spawn('/usr/bin/open', ['-R', job.outputPath], {
-    shell: false,
-    detached: true,
-    stdio: 'ignore'
-  }).unref();
+  revealInFileManager(job.outputPath);
   return queue.state();
 });
 app.post<{ Params: { id: string } }>('/api/jobs/:id/open', async (request, reply) => {
@@ -698,17 +726,13 @@ app.post<{ Params: { id: string } }>('/api/jobs/:id/open', async (request, reply
     .state()
     .jobs.find(candidate => candidate.id === request.params.id && candidate.status === 'completed');
   if (!job) return reply.code(404).send({ error: 'Completed file not found.' });
-  spawn('/usr/bin/open', [job.outputPath], {
-    shell: false,
-    detached: true,
-    stdio: 'ignore'
-  }).unref();
+  openPath(job.outputPath);
   return queue.state();
 });
 app.post('/api/output/reveal', async (_request, reply) => {
   const folder = queue.outputFolder();
   if (!folder) return reply.code(404).send({ error: 'No output folder is available yet.' });
-  spawn('/usr/bin/open', [folder], { shell: false, detached: true, stdio: 'ignore' }).unref();
+  openPath(folder);
   return queue.state();
 });
 

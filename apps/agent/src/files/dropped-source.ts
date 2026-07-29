@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { capabilities } from '../platform/platform.js';
 
 const COMMON_SOURCE_FOLDERS = ['Downloads', 'Desktop', 'Movies', 'Documents'];
 
@@ -10,7 +11,7 @@ export async function findDroppedSource(
   expectedSize: number,
   expectedModifiedAt: number
 ): Promise<string | null> {
-  if (process.platform !== 'darwin' || !Number.isFinite(expectedSize)) return null;
+  if (!capabilities().spotlightSearch || !Number.isFinite(expectedSize)) return null;
 
   const home = os.homedir();
   const common = COMMON_SOURCE_FOLDERS.map(folder => path.join(home, folder, fileName));

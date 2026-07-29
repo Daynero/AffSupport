@@ -2,45 +2,38 @@ import { randomBytes } from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { mkdir, mkdtemp, stat } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
-import { spawn } from 'node:child_process';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import {
   isTranscribableFileName,
   isValidTargetLanguage,
+  type TranscriptionEvent,
   type TranscriptionSettings
 } from '@video-compressor/shared';
-import { eventStreamHeaders } from '../http.js';
 import { findDroppedSource } from '../files/dropped-source.js';
 import { selectTranscribeMedia } from '../files/picker.js';
 import { applicationSupportRoot } from '../files/support-dir.js';
+import { uploadIntakeMeta } from '../files/upload-intake.js';
+import { capabilities, revealInFileManager } from '../platform/platform.js';
+import type { EventChannel } from '../server/sse.js';
 import { resolveByteRange } from './media.js';
 import type { TranscriptionQueue } from '../queue/transcription-queue.js';
 
 interface TranscriptionDeps {
   queue: TranscriptionQueue;
-  clients: Set<NodeJS.WritableStream>;
-  allowedOrigins: ReadonlySet<string>;
+  events: EventChannel<TranscriptionEvent>;
   acceptingNewTasks: () => boolean;
 }
 
 export function registerTranscriptionRoutes(app: FastifyInstance, deps: TranscriptionDeps) {
-  const { queue, clients, allowedOrigins, acceptingNewTasks } = deps;
+  const { queue, events, acceptingNewTasks } = deps;
   const importRoot =
     process.env.AGENT_TRANSCRIBE_IMPORT_PATH ??
     path.join(applicationSupportRoot(), 'TranscribeImports');
 
   app.get('/api/transcription/state', async () => queue.state());
 
-  app.get('/api/transcription/events', async (request, reply) => {
-    reply.hijack();
-    reply.raw.writeHead(200, eventStreamHeaders(request.headers.origin, allowedOrigins));
-    clients.add(reply.raw);
-    reply.raw.write(
-      `data: ${JSON.stringify({ type: 'transcription:state', state: queue.state() })}\n\n`
-    );
-    request.raw.on('close', () => clients.delete(reply.raw));
-  });
+  app.get('/api/transcription/events', events.handler);
 
   app.post<{ Body: Partial<TranscriptionSettings> }>(
     '/api/transcription/settings',
@@ -64,7 +57,7 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
   );
 
   app.post('/api/transcription/select', async (_request, reply) => {
-    if (process.platform !== 'darwin') {
+    if (!capabilities().nativeFilePicker) {
       return reply
         .code(501)
         .send({ error: 'The native file picker is unavailable on this system.' });
@@ -95,7 +88,7 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
   app.post('/api/transcription/files/upload', async (request, reply) => {
     const part = await request.file();
     if (!part) return reply.code(400).send({ error: 'No file was provided.' });
-    const fileName = path.basename(part.filename || 'audio');
+    const { fileName, signature, sourceSize, sourceModifiedAt } = uploadIntakeMeta(part, 'audio');
     if (!isTranscribableFileName(fileName)) {
       part.file.resume();
       return {
@@ -110,23 +103,6 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
         ]
       };
     }
-    const signatureField = part.fields.signature;
-    const signature =
-      signatureField && 'value' in signatureField && typeof signatureField.value === 'string'
-        ? signatureField.value
-        : `${fileName}:${Date.now()}`;
-    const sizeField = part.fields.size;
-    const modifiedField = part.fields.lastModified;
-    const sourceSize = Number(
-      sizeField && 'value' in sizeField && typeof sizeField.value === 'string'
-        ? sizeField.value
-        : Number.NaN
-    );
-    const sourceModifiedAt = Number(
-      modifiedField && 'value' in modifiedField && typeof modifiedField.value === 'string'
-        ? modifiedField.value
-        : Number.NaN
-    );
     const droppedSource = await findDroppedSource(fileName, sourceSize, sourceModifiedAt);
     if (droppedSource) {
       part.file.resume();
@@ -239,11 +215,7 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
     async (request, reply) => {
       const source = queue.sourcePath(request.params.id);
       if (!source) return reply.code(404).send({ error: 'No source file is available.' });
-      spawn('/usr/bin/open', ['-R', source], {
-        shell: false,
-        detached: true,
-        stdio: 'ignore'
-      }).unref();
+      revealInFileManager(source);
       return queue.state();
     }
   );

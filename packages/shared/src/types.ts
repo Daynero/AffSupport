@@ -44,7 +44,9 @@ export {
 export {
   compareProductVersions,
   normalizeToolContracts,
+  releaseManifestSigningPayload,
   toolContractCompatible,
+  RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64,
   WEB_TOOL_REQUIREMENTS
 } from './release.js';
 export type {
@@ -442,6 +444,19 @@ export type AgentEventType =
   | 'estimate:failed'
   | 'estimate:cancelled';
 export type AgentEvent = { type: AgentEventType; state: QueueState };
+
+/**
+ * Server-issued entitlement state reported by the agent. `enforced` is false
+ * for development/unpackaged agents; when true, tool routes require a signed
+ * entitlement token (with an offline grace window after the last accepted one).
+ */
+export interface AgentEntitlementStatus {
+  enforced: boolean;
+  entitled: boolean;
+  reason: 'not-enforced' | 'active' | 'grace' | 'missing' | 'expired';
+  graceUntil: string | null;
+}
+
 export interface HealthResponse {
   ok: boolean;
   tools: QueueState['tools'];
@@ -456,6 +471,8 @@ export interface HealthResponse {
   coreContractVersion?: number;
   toolContracts?: import('./release.js').ToolContracts;
   update?: QueueState['update'];
+  /** Absent on agents older than the entitlement rollout. */
+  entitlement?: AgentEntitlementStatus;
 }
 
 /** Optional capabilities advertised by the local agent. */

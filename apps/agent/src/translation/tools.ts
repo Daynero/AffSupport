@@ -1,13 +1,11 @@
 import { accessSync, constants, existsSync } from 'node:fs';
 import { access, chmod, mkdir, open, rename, rm, writeFile } from 'node:fs/promises';
-import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
 import { applicationSupportRoot } from '../files/support-dir.js';
+import { executableName, extractTarGz, listTarGzEntries } from '../platform/platform.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const execFileAsync = promisify(execFile);
 // Same packaged/source offset the ffmpeg + whisper tools use.
 const packagedRuntime = path.resolve(here, '../../../runtime');
 const localRuntime = path.resolve(here, '../../runtime');
@@ -15,8 +13,8 @@ const supportRoot = applicationSupportRoot();
 
 /**
  * llama.cpp is pinned independently from the model. The official arm64 release
- * contains `llama-server` plus its adjacent dylibs; Wishly runs it on a private
- * Unix-domain socket, never on a TCP port.
+ * contains `llama-server` plus its adjacent dylibs; Wishly runs it bound to
+ * the loopback interface only, authenticated with a per-launch API key.
  */
 export const TRANSLATION_RUNTIME_DESCRIPTOR = {
   label: 'llama.cpp b10092 (Apple Silicon)',
@@ -100,8 +98,11 @@ export const ALIGNMENT_MODEL_DESCRIPTOR = {
 export function translationRuntimePath(): string {
   if (process.env.TRANSLATION_RUNTIME_PATH) return process.env.TRANSLATION_RUNTIME_PATH;
   const candidates = [
-    path.join(downloadedRuntimeDir, TRANSLATION_RUNTIME_DESCRIPTOR.executableName),
-    path.join(bundledTranslationRuntimeDir, TRANSLATION_RUNTIME_DESCRIPTOR.executableName)
+    path.join(downloadedRuntimeDir, executableName(TRANSLATION_RUNTIME_DESCRIPTOR.executableName)),
+    path.join(
+      bundledTranslationRuntimeDir,
+      executableName(TRANSLATION_RUNTIME_DESCRIPTOR.executableName)
+    )
   ];
   for (const candidate of candidates) if (existsSync(candidate)) return candidate;
   return candidates[0];
@@ -186,11 +187,8 @@ export async function installTranslationRuntimeArchive(archivePath: string): Pro
   await mkdir(parent, { recursive: true });
   await rm(staging, { recursive: true, force: true });
 
-  const { stdout } = await execFileAsync('/usr/bin/tar', ['-tzf', archivePath], {
-    maxBuffer: 4 * 1024 * 1024
-  });
   const expectedRoot = `${TRANSLATION_RUNTIME_DESCRIPTOR.extractedDirectory}/`;
-  const entries = stdout.split(/\r?\n/u).filter(Boolean);
+  const entries = await listTarGzEntries(archivePath);
   if (
     entries.length === 0 ||
     entries.some(
@@ -206,9 +204,12 @@ export async function installTranslationRuntimeArchive(archivePath: string): Pro
 
   await mkdir(staging, { recursive: true });
   try {
-    await execFileAsync('/usr/bin/tar', ['-xzf', archivePath, '-C', staging]);
+    await extractTarGz(archivePath, staging);
     const extracted = path.join(staging, TRANSLATION_RUNTIME_DESCRIPTOR.extractedDirectory);
-    const executable = path.join(extracted, TRANSLATION_RUNTIME_DESCRIPTOR.executableName);
+    const executable = path.join(
+      extracted,
+      executableName(TRANSLATION_RUNTIME_DESCRIPTOR.executableName)
+    );
     await access(executable, constants.R_OK);
     await chmod(executable, 0o755);
     await rm(downloadedRuntimeDir, { recursive: true, force: true });

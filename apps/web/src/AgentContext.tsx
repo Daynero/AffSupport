@@ -14,6 +14,7 @@ import {
   DEFAULT_VIDEO_BITRATE_KBPS,
   defaultImageEmbeddingSettings,
   toolContractCompatible,
+  type AgentEntitlementStatus,
   type AgentEvent,
   type QueueState,
   type ToolContracts,
@@ -27,6 +28,7 @@ import {
   onPairingToken,
   pairWithAgent
 } from './api/client';
+import { ensureAgentEntitlement } from './api/entitlement';
 import { failureState, type ConnectionState, versionState } from './connection';
 import { analytics } from './analytics/service';
 import { loadStableReleaseManifest, type ReleaseManifestState } from './release-manifest';
@@ -83,6 +85,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     status: 'checking',
     manifest: null
   });
+  const [entitlement, setEntitlement] = useState<AgentEntitlementStatus | null>(null);
   const connectedOnceRef = useRef(false);
   const events = useRef<EventSource | null>(null);
   const connecting = useRef(false);
@@ -103,9 +106,26 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       const controller = new AbortController();
       const timer = window.setTimeout(() => controller.abort(), 2200);
       try {
-        const result = await connect(controller.signal);
+        let result = await connect(controller.signal);
         window.clearTimeout(timer);
+        // An enforced agent without a fresh token refuses tool routes: exchange
+        // the Supabase session for a signed entitlement token, then reconnect.
+        if (
+          versionState(result.apiVersion) === 'connected' &&
+          result.entitlement?.enforced &&
+          !result.entitlement.entitled
+        ) {
+          await ensureAgentEntitlement();
+          const retryController = new AbortController();
+          const retryTimer = window.setTimeout(() => retryController.abort(), 2200);
+          try {
+            result = await connect(retryController.signal);
+          } finally {
+            window.clearTimeout(retryTimer);
+          }
+        }
         if (!mounted.current) return;
+        setEntitlement(result.entitlement);
         const next = versionState(result.apiVersion);
         setAgentVersion(result.version || null);
         setAgentBuildId(result.buildId || null);
@@ -145,6 +165,10 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         if (error instanceof Error && error.message === 'PAIRING_REQUIRED') {
           setConnection(mode === 'connecting' ? 'connecting' : 'pairing_required');
           if (mode === 'connecting' || agentInstallAwaitingPairing()) pairWithAgent();
+        } else if (error instanceof Error && error.message.startsWith('ENTITLEMENT')) {
+          // No automatic retry: the fix is user-side (sign in / go online) and
+          // hammering the Edge Function every few seconds helps nobody.
+          setConnection('entitlement_blocked');
         } else {
           setConnection(connectedOnceRef.current ? 'disconnected' : await failureState());
           retryTimer.current = setTimeout(() => void establish('retry'), 4000);
@@ -155,6 +179,20 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     },
     []
   );
+
+  // The signed token lives 12h and the agent adds a 7-day offline grace, so a
+  // long-running session only needs an occasional silent top-up. Failures are
+  // ignored: the grace window keeps the agent entitled until the next success.
+  useEffect(() => {
+    if (connection !== 'connected' || !entitlement?.enforced) return;
+    const topUp = () =>
+      void ensureAgentEntitlement()
+        .then(setEntitlement)
+        .catch(() => {});
+    if (entitlement.reason === 'grace') topUp();
+    const interval = window.setInterval(topUp, 6 * 60 * 60_000);
+    return () => window.clearInterval(interval);
+  }, [connection, entitlement?.enforced, entitlement?.reason]);
 
   const previousConnection = useRef<ConnectionState>('checking');
   useEffect(() => {

@@ -3,6 +3,7 @@ import { access, cp, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { applicationSupportRoot } from '../files/support-dir.js';
+import { sanitizeFileName, unzipArchive, zipDirectory } from '../platform/platform.js';
 
 export interface CommandResult {
   code: number | null;
@@ -43,13 +44,10 @@ export async function removeWorkspace(workspace: string): Promise<void> {
   await rm(workspace, { recursive: true, force: true }).catch(() => {});
 }
 
-/** Extracts a ZIP archive into a destination directory (macOS `ditto`). */
+/** Extracts a ZIP archive into a destination directory. */
 export async function unzip(zipPath: string, destination: string): Promise<void> {
   await mkdir(destination, { recursive: true });
-  const result = await runCommand('/usr/bin/ditto', ['-x', '-k', zipPath, destination]);
-  if (result.code !== 0) {
-    throw new Error(`Could not unpack the archive: ${result.stderr.trim() || 'unknown error'}`);
-  }
+  await unzipArchive(zipPath, destination);
 }
 
 /** Copies a directory tree into a destination (originals are never touched). */
@@ -112,10 +110,10 @@ export async function writeZipOutput(
   const staging = path.join(workspace, 'archive', `${name}-optimized`);
   await copyDir(processedRoot, staging);
   const output = await uniquePath(path.join(destinationDir, `${name}-optimized.zip`));
-  const result = await runCommand('/usr/bin/ditto', ['-c', '-k', '--keepParent', staging, output]);
-  await rm(path.dirname(staging), { recursive: true, force: true }).catch(() => {});
-  if (result.code !== 0) {
-    throw new Error(`Could not create the archive: ${result.stderr.trim() || 'unknown error'}`);
+  try {
+    await zipDirectory(staging, output);
+  } finally {
+    await rm(path.dirname(staging), { recursive: true, force: true }).catch(() => {});
   }
   return output;
 }
@@ -135,10 +133,11 @@ export function sanitizeRelPath(relPath: string): string | null {
 
 /**
  * Turns a source file/folder name into a clean landing name: drops a trailing
- * archive extension, strips path separators, and trims noise.
+ * archive extension, then makes the rest safe as a cross-platform file name
+ * (separators and Windows-forbidden characters, reserved device names, trailing
+ * dots/spaces).
  */
 export function landingNameFromSource(sourceName: string): string {
   const base = path.basename(sourceName).replace(/\.zip$/i, '');
-  const cleaned = base.replace(/[\\/]+/g, '-').trim();
-  return cleaned || 'landing';
+  return sanitizeFileName(base) || 'landing';
 }

@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { unlink } from 'node:fs/promises';
 import http from 'node:http';
+import net from 'node:net';
 import type { AlignmentLink } from '@video-compressor/shared';
 import {
   TRANSLATION_MODEL_DESCRIPTOR,
@@ -84,14 +84,15 @@ function normalizedLanguage(code: string): string {
 }
 
 /**
- * TranslateGemma runs in a long-lived official llama.cpp server bound only to a
- * private Unix-domain socket. The server is authenticated as defence in depth,
- * logs are disabled so transcript contents never enter diagnostics, and an
- * idle timer terminates it to release RAM.
+ * TranslateGemma runs in a long-lived official llama.cpp server bound only to
+ * the loopback interface on a dynamically reserved port. Every request must
+ * present a per-launch random API key so other local processes cannot use the
+ * model, logs are disabled so transcript contents never enter diagnostics, and
+ * an idle timer terminates it to release RAM.
  */
 export class LlamaTranslator implements Translator {
   private child: ChildProcess | null = null;
-  private socketPath: string | null = null;
+  private port: number | null = null;
   private apiKey = '';
   private starting: Promise<void> | null = null;
   private idleTimer: NodeJS.Timeout | null = null;
@@ -167,8 +168,7 @@ export class LlamaTranslator implements Translator {
     this.clearIdleTimer();
     const child = this.child;
     this.child = null;
-    const socketPath = this.socketPath;
-    this.socketPath = null;
+    this.port = null;
     if (child && child.exitCode === null) {
       await new Promise<void>(resolve => {
         const force = setTimeout(() => child.kill('SIGKILL'), 3_000);
@@ -180,13 +180,12 @@ export class LlamaTranslator implements Translator {
         child.kill('SIGTERM');
       });
     }
-    if (socketPath) await unlink(socketPath).catch(() => {});
   }
 
   private async ensureServer(signal: AbortSignal): Promise<void> {
-    if (this.child?.exitCode === null && this.socketPath) {
+    if (this.child?.exitCode === null && this.port) {
       const health = await localLlamaHttpRequest(
-        this.socketPath,
+        this.port,
         this.apiKey,
         'GET',
         '/health',
@@ -223,9 +222,7 @@ export class LlamaTranslator implements Translator {
 
   private async startServer(): Promise<void> {
     await this.close();
-    const suffix = randomBytes(8).toString('hex');
-    // Keep below macOS' Unix socket path limit even when TMPDIR is long.
-    const socketPath = `/tmp/wishly-translate-${process.pid}-${suffix}.sock`;
+    const port = await reserveLoopbackPort();
     const apiKey = randomBytes(32).toString('hex');
     const child = spawn(
       translationRuntimePath(),
@@ -233,7 +230,9 @@ export class LlamaTranslator implements Translator {
         '--model',
         translationModelPath(),
         '--host',
-        socketPath,
+        '127.0.0.1',
+        '--port',
+        String(port),
         '--api-key',
         apiKey,
         // Context is shared across slots, so scale it with the slot count to
@@ -264,7 +263,7 @@ export class LlamaTranslator implements Translator {
       }
     );
     this.child = child;
-    this.socketPath = socketPath;
+    this.port = port;
     this.apiKey = apiKey;
 
     let spawnError: Error | null = null;
@@ -273,7 +272,6 @@ export class LlamaTranslator implements Translator {
     });
     child.once('exit', () => {
       if (this.child === child) this.child = null;
-      void unlink(socketPath).catch(() => {});
     });
 
     const deadline = Date.now() + START_TIMEOUT_MS;
@@ -282,13 +280,9 @@ export class LlamaTranslator implements Translator {
       if (child.exitCode !== null) {
         throw new Error('The local translation runtime exited during startup.');
       }
-      const health = await localLlamaHttpRequest(
-        socketPath,
-        apiKey,
-        'GET',
-        '/health',
-        undefined
-      ).catch(() => null);
+      const health = await localLlamaHttpRequest(port, apiKey, 'GET', '/health', undefined).catch(
+        () => null
+      );
       if (health?.statusCode === 200) return;
       await delay(100);
     }
@@ -302,9 +296,9 @@ export class LlamaTranslator implements Translator {
     text: string,
     signal: AbortSignal
   ): Promise<string> {
-    if (!this.socketPath) throw new Error('TRANSLATOR_UNAVAILABLE');
+    if (!this.port) throw new Error('TRANSLATOR_UNAVAILABLE');
     const result = await localLlamaHttpRequest(
-      this.socketPath,
+      this.port,
       this.apiKey,
       'POST',
       '/completion',
@@ -389,8 +383,29 @@ function englishLanguageName(code: string): string {
   return base.toUpperCase();
 }
 
+/**
+ * Reserves a free TCP port on the loopback interface for a llama.cpp server.
+ * The port is bound and released again; the tiny window before llama-server
+ * rebinds it is covered by the startup health check, which fails the launch if
+ * the server could not take the port.
+ */
+export function reserveLoopbackPort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.unref();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      const port = typeof address === 'object' && address ? address.port : 0;
+      server.close(() =>
+        port ? resolve(port) : reject(new Error('No loopback port could be reserved.'))
+      );
+    });
+  });
+}
+
 export function localLlamaHttpRequest(
-  socketPath: string,
+  port: number,
   apiKey: string,
   method: 'GET' | 'POST',
   requestPath: string,
@@ -402,7 +417,8 @@ export function localLlamaHttpRequest(
   return new Promise((resolve, reject) => {
     const request = http.request(
       {
-        socketPath,
+        host: '127.0.0.1',
+        port,
         path: requestPath,
         method,
         headers: {

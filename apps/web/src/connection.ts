@@ -12,6 +12,7 @@ export type ConnectionState =
   | 'agent_update_required'
   | 'web_update_required'
   | 'connection_blocked'
+  | 'entitlement_blocked'
   | 'disconnected';
 export const MIN_SUPPORTED_API_VERSION = MIN_SUPPORTED_AGENT_API_VERSION;
 export const MAX_SUPPORTED_API_VERSION = MAX_SUPPORTED_AGENT_API_VERSION;

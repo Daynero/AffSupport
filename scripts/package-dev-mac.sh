@@ -65,7 +65,8 @@ node scripts/render-launcher.mjs packaging/Launcher.swift "$root/Launcher.genera
   "BUILD_ID=$build_id" \
   "API_VERSION=$api_version" \
   "RELEASE_CHANNEL=development" \
-  "SOURCE_REVISION=$source_revision"
+  "SOURCE_REVISION=$source_revision" \
+  "AGENT_ENTITLEMENT_PUBLIC_KEY="
 swiftc "$root/Launcher.generated.swift" \
   -o "$app/Contents/MacOS/WishlyDevAgent" \
   -target arm64-apple-macos13.0 \

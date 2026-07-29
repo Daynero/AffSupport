@@ -540,7 +540,8 @@ a {
 
 .connection-disconnected,
 .connection-not_installed_or_not_running,
-.connection-connection_blocked {
+.connection-connection_blocked,
+.connection-entitlement_blocked {
   color: var(--color-error);
   background: var(--color-error-soft);
 }
@@ -3822,17 +3823,14 @@ input.is-invalid {
   color: var(--color-text-muted);
 }
 
-.lock-soon {
+.lock-note {
   font-weight: 600;
 }
 
-.lock-form {
-  display: grid;
-  gap: var(--space-3);
-}
-
-.lock-form .button-primary {
-  justify-self: start;
+.lock-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 .login-pitch {

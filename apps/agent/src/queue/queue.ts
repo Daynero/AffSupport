@@ -40,6 +40,8 @@ import {
 } from '../images/embedding.js';
 import { ImageAssetError, ImageAssetStore } from '../images/store.js';
 import { detectStaticEdgeTrims } from '../images/static-edges.js';
+import { pauseProcess, processPauseSupported, resumeProcess } from '../platform/platform.js';
+import { selectionWarning } from './shared.js';
 import { defaultSettings } from './store.js';
 
 type EstimatorHooks = {
@@ -469,7 +471,7 @@ export class JobQueue {
     job.finishedAt = finishTimestamp(job);
     job.processingStage = null;
     resetEstimate(job);
-    if (this.compressionPausedForEstimates) this.active?.kill('SIGCONT');
+    if (this.compressionPausedForEstimates && this.active) resumeProcess(this.active);
     this.active?.kill('SIGTERM');
     this.notify('estimate:queued');
     return true;
@@ -573,7 +575,7 @@ export class JobQueue {
   async shutdown() {
     const child = this.active;
     if (!child) return;
-    if (this.compressionPausedForEstimates) child.kill('SIGCONT');
+    if (this.compressionPausedForEstimates) resumeProcess(child);
     child.kill('SIGTERM');
     await Promise.race([
       new Promise<void>(resolve => child.once('close', () => resolve())),
@@ -605,7 +607,7 @@ export class JobQueue {
     const canonical = path.resolve(inputPath);
     const fileName = options.fileName ?? path.basename(canonical);
     if (!isSupportedVideoPath(fileName)) {
-      return issue(fileName, 'unsupported-format', 'This file format is not supported.');
+      return selectionWarning(fileName, 'unsupported-format', 'This file format is not supported.');
     }
 
     // Re-adding a file that is already in the list is still rejected, but a
@@ -616,7 +618,7 @@ export class JobQueue {
         : path.resolve(job.inputPath) === canonical
     );
     if (duplicate && !allowWarnings) {
-      return issue(fileName, 'duplicate', 'This video is already in the list.');
+      return selectionWarning(fileName, 'duplicate', 'This video is already in the list.');
     }
 
     try {
@@ -704,7 +706,7 @@ export class JobQueue {
       this.estimateHooks?.schedule();
       return null;
     } catch {
-      return issue(fileName, 'inaccessible', 'The file is no longer accessible.');
+      return selectionWarning(fileName, 'inaccessible', 'The file is no longer accessible.');
     }
   }
 
@@ -1024,12 +1026,15 @@ export class JobQueue {
     if (this.compressionInFlight && !this.active) return;
     const pausedChild = this.active;
     if (pausedChild) {
-      try {
-        if (!pausedChild.kill('SIGSTOP')) return;
-      } catch {
+      if (pauseProcess(pausedChild)) {
+        this.compressionPausedForEstimates = true;
+      } else if (processPauseSupported()) {
+        // The pause signal could not be delivered (the process is likely
+        // already gone); leave the handoff to the next scheduling pass.
         return;
       }
-      this.compressionPausedForEstimates = true;
+      // Platforms without pause support (Windows) fall through: prioritized
+      // estimates simply run alongside the active compression.
     }
     this.prioritizingEstimates = true;
     this.notify();
@@ -1037,11 +1042,15 @@ export class JobQueue {
       let processed: boolean;
       do {
         processed = await runPrioritized();
-      } while (processed && this.hasPrioritizedEstimate() && !this.compressionActive());
+      } while (
+        processed &&
+        this.hasPrioritizedEstimate() &&
+        (!this.compressionActive() || !processPauseSupported())
+      );
     } catch {
       // A failed handoff must never leave the compression process suspended.
     } finally {
-      if (pausedChild && this.active === pausedChild) pausedChild.kill('SIGCONT');
+      if (pausedChild && this.active === pausedChild) resumeProcess(pausedChild);
       this.compressionPausedForEstimates = false;
       this.prioritizingEstimates = false;
       this.notify();
@@ -1103,14 +1112,6 @@ function resetEstimate(job: CompressionJob) {
   job.estimateKey = null;
   job.estimatePriorityOrder = null;
   job.estimateBreakdown = null;
-}
-
-function issue(
-  fileName: string,
-  reason: SelectionWarning['reason'],
-  message: string
-): SelectionWarning {
-  return { id: randomUUID(), fileName, reason, message };
 }
 
 function friendlyError(stderr: string) {

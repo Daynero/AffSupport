@@ -647,6 +647,7 @@ export function ConnectionBadge({ state, t }: { state: ConnectionState; t: Trans
     agent_update_required: 'agentUpdateRequired',
     web_update_required: 'webUpdateRequired',
     connection_blocked: 'connectionBlocked',
+    entitlement_blocked: 'entitlementBlocked',
     disconnected: 'agentDisconnected'
   };
   return (
@@ -713,6 +714,19 @@ export function Onboarding({
         action={
           <Button variant="primary" onClick={() => window.location.reload()}>
             {t('reloadPage')}
+          </Button>
+        }
+      />
+    );
+  }
+  if (state === 'entitlement_blocked') {
+    return (
+      <BlockingMessage
+        title={t('entitlementBlockedTitle')}
+        body={t('entitlementBlockedBody')}
+        action={
+          <Button variant="primary" onClick={connect}>
+            {t('tryAgain')}
           </Button>
         }
       />

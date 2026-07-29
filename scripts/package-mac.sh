@@ -12,6 +12,10 @@ set -euo pipefail
 WHISPER_MODEL="${WHISPER_MODEL:-}"
 : "${WHISPER_VAD_MODEL:?Set WHISPER_VAD_MODEL to the silero VAD ggml model (ggml-silero-v5.1.2.bin) — required to skip silence and avoid hallucinated text}"
 [[ "$PUBLIC_SITE_ORIGIN" == https://* ]] || { print -u2 "PUBLIC_SITE_ORIGIN must use HTTPS"; exit 1; }
+# Public half of the entitlement token keypair (config/keys, generate-signing-keys.mjs).
+# Packaged production agents refuse tool operations without a server-issued token.
+AGENT_ENTITLEMENT_PUBLIC_KEY="${AGENT_ENTITLEMENT_PUBLIC_KEY:-$(grep '^AGENT_ENTITLEMENT_PUBLIC_KEY=' config/production.env | cut -d= -f2-)}"
+[[ -n "$AGENT_ENTITLEMENT_PUBLIC_KEY" ]] || { print -u2 "AGENT_ENTITLEMENT_PUBLIC_KEY is missing; set it in config/production.env or the environment"; exit 1; }
 node_binary="${NODE_BINARY:-$(command -v node)}"; [[ -x "$node_binary" ]] || { print -u2 "No node binary found; set NODE_BINARY to a portable arm64 Node.js"; exit 1; }
 output_app="$PWD/release/Wishly Agent.app"
 for input in "$node_binary" "$FFMPEG_BINARY" "$FFPROBE_BINARY" "$FFMPEG_SOURCE_ARCHIVE" "$X264_SOURCE_ARCHIVE" "$WHISPER_BINARY" "$WHISPER_VAD_MODEL" ${WHISPER_MODEL:+"$WHISPER_MODEL"}; do
@@ -43,7 +47,8 @@ node scripts/render-launcher.mjs packaging/Launcher.swift "$root/Launcher.genera
   "BUILD_ID=$build_id" \
   "API_VERSION=$api_version" \
   "RELEASE_CHANNEL=$release_channel" \
-  "SOURCE_REVISION=$source_revision"
+  "SOURCE_REVISION=$source_revision" \
+  "AGENT_ENTITLEMENT_PUBLIC_KEY=$AGENT_ENTITLEMENT_PUBLIC_KEY"
 swiftc "$root/Launcher.generated.swift" \
   -o "$app/Contents/MacOS/WishlyAgent" \
   -target arm64-apple-macos13.0 \

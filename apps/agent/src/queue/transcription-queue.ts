@@ -22,6 +22,7 @@ import {
 export { isValidTargetLanguage, normalizeTargetLanguage } from '@video-compressor/shared';
 import { probeDuration } from '../ffmpeg/tools.js';
 import { applicationSupportRoot } from '../files/support-dir.js';
+import { selectionWarning } from './shared.js';
 import { transcribe, type TranscribeHandle } from '../whisper/transcriber.js';
 import { ModelDownloader } from '../whisper/downloader.js';
 import { downloadedModelPath, MODEL_DESCRIPTOR, modelPresent } from '../whisper/tools.js';
@@ -963,18 +964,18 @@ export class TranscriptionQueue {
   ): Promise<SelectionWarning | null> {
     const fileName = fileNameOverride ?? path.basename(inputPath);
     if (!isTranscribableFileName(fileName)) {
-      return warn(fileName, 'unsupported-format', 'This file format is not supported.');
+      return selectionWarning(fileName, 'unsupported-format', 'This file format is not supported.');
     }
     if (
       sourceKind === 'local' &&
       this.jobs.some(job => path.resolve(job.inputPath) === path.resolve(inputPath))
     ) {
-      return warn(fileName, 'duplicate', 'This file is already in the queue.');
+      return selectionWarning(fileName, 'duplicate', 'This file is already in the queue.');
     }
     try {
       await access(inputPath, constants.R_OK);
     } catch {
-      return warn(fileName, 'inaccessible', 'This file could not be read.');
+      return selectionWarning(fileName, 'inaccessible', 'This file could not be read.');
     }
 
     const job: TranscriptionJob = {
@@ -1205,14 +1206,6 @@ export class TranscriptionQueue {
       this.activeTranslation.controller.abort();
     }
   }
-}
-
-function warn(
-  fileName: string,
-  reason: SelectionWarning['reason'],
-  message: string
-): SelectionWarning {
-  return { id: randomUUID(), fileName, reason, message };
 }
 
 /**

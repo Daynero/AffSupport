@@ -392,6 +392,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       "AGENT_SOURCE_REVISION": sourceRevision,
       "AGENT_INSTALLED_RELEASE_PATH": resources.appendingPathComponent("release.json").path,
       "AGENT_NATIVE_TOKEN": nativeToken,
+      "AGENT_ENTITLEMENT_PUBLIC_KEY": "__AGENT_ENTITLEMENT_PUBLIC_KEY__",
     ]) { _, packaged in packaged }
     output.fileHandleForReading.readabilityHandler = { [weak self] handle in
       guard let text = String(data: handle.availableData, encoding: .utf8), !text.isEmpty else {
