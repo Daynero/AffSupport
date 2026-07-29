@@ -4,7 +4,8 @@ import { useAgent } from '../AgentContext';
 import { agentUrl, markAgentInstallStarted } from '../api/client';
 import type { ConnectionState } from '../connection';
 import { useI18n } from '../i18n';
-import { macAppleSiliconDownloadUrl } from '../release-manifest';
+import { downloadUrlForPlatform, macAppleSiliconDownloadUrl } from '../release-manifest';
+import { currentBrowserPlatform } from '../lib/platform';
 import { analytics } from '../analytics/service';
 import { Modal } from './Modal';
 import { Button } from './ui';
@@ -26,7 +27,9 @@ export default function LocalAppDialog({
   const incompatible = connection === 'connected' && !toolAvailable(tool);
   const updatePending = state.update?.state === 'pending' || state.update?.state === 'draining';
   const needsUpdate = incompatible || connection === 'agent_update_required';
-  const downloadUrl = macAppleSiliconDownloadUrl(releaseManifest.manifest);
+  const macDownloadUrl = macAppleSiliconDownloadUrl(releaseManifest.manifest);
+  const windowsDownload = downloadUrlForPlatform(releaseManifest.manifest, 'windows-x64');
+  const windowsFirst = windowsDownload.available && currentBrowserPlatform() === 'windows';
   const toolIdentifier = tool === 'landingOptimizer' ? 'landing-optimizer' : 'compressor';
   const title = updatePending
     ? t('localAppBusyUpdateTitle')
@@ -51,6 +54,48 @@ export default function LocalAppDialog({
     requestAnimationFrame(() => windowsButton.current?.focus());
   };
 
+  const trackDownload = () => {
+    if (!needsUpdate) markAgentInstallStarted();
+    analytics.track(needsUpdate ? 'update_started' : 'install_download_clicked', {
+      tool_identifier: toolIdentifier
+    });
+  };
+
+  const macAction = (
+    <a
+      className={`button ${windowsFirst ? 'button-secondary' : 'button-primary'}`}
+      href={macDownloadUrl}
+      onClick={trackDownload}
+    >
+      {t('macAppleSilicon')}
+    </a>
+  );
+  const windowsAction = windowsDownload.available ? (
+    <a
+      className={`button ${windowsFirst ? 'button-primary' : 'button-secondary'}`}
+      href={windowsDownload.url}
+      onClick={trackDownload}
+    >
+      {t('windows')}
+    </a>
+  ) : (
+    <button
+      ref={windowsButton}
+      className="button button-secondary"
+      type="button"
+      onClick={() => {
+        analytics.track('blocked_action_attempted', {
+          tool_identifier: toolIdentifier,
+          action_identifier: 'download_windows',
+          outcome: 'blocked'
+        });
+        setWindowsNoticeOpen(true);
+      }}
+    >
+      {t('windows')}
+    </button>
+  );
+
   return (
     <>
       <Modal
@@ -69,33 +114,17 @@ export default function LocalAppDialog({
         <h2 id={titleId}>{title}</h2>
         <p>{body}</p>
         <div className="platform-download-actions">
-          <a
-            className="button button-primary"
-            href={downloadUrl}
-            onClick={() => {
-              if (!needsUpdate) markAgentInstallStarted();
-              analytics.track(needsUpdate ? 'update_started' : 'install_download_clicked', {
-                tool_identifier: toolIdentifier
-              });
-            }}
-          >
-            {t('macAppleSilicon')}
-          </a>
-          <button
-            ref={windowsButton}
-            className="button button-secondary"
-            type="button"
-            onClick={() => {
-              analytics.track('blocked_action_attempted', {
-                tool_identifier: toolIdentifier,
-                action_identifier: 'download_windows',
-                outcome: 'blocked'
-              });
-              setWindowsNoticeOpen(true);
-            }}
-          >
-            {t('windows')}
-          </button>
+          {windowsFirst ? (
+            <>
+              {windowsAction}
+              {macAction}
+            </>
+          ) : (
+            <>
+              {macAction}
+              {windowsAction}
+            </>
+          )}
         </div>
         <div className="inline-actions">
           {connection === 'pairing_required' && (

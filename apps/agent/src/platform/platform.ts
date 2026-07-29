@@ -25,7 +25,8 @@ export function capabilities(): PlatformCapabilities {
     case 'darwin':
       return { nativeFilePicker: true, revealInFileManager: true, spotlightSearch: true };
     case 'win32':
-      return { nativeFilePicker: false, revealInFileManager: true, spotlightSearch: false };
+      // Pickers are PowerShell WinForms dialogs (files/picker.ts).
+      return { nativeFilePicker: true, revealInFileManager: true, spotlightSearch: false };
     default:
       return { nativeFilePicker: false, revealInFileManager: true, spotlightSearch: false };
   }
@@ -105,6 +106,18 @@ export async function listTarGzEntries(archivePath: string): Promise<string[]> {
 /** Extracts a gzipped tarball into an existing destination directory. */
 export async function extractTarGz(archivePath: string, destination: string): Promise<void> {
   await promisify(execFile)(tarExecutable(), ['-xzf', archivePath, '-C', destination]);
+}
+
+/**
+ * Lists the entry names of a ZIP archive (used for layout validation before
+ * unzipArchive). bsdtar reads zip natively, and both supported desktop
+ * platforms ship bsdtar: /usr/bin/tar on macOS, tar.exe on Windows 10 1803+.
+ */
+export async function listZipEntries(zipPath: string): Promise<string[]> {
+  const { stdout } = await promisify(execFile)(tarExecutable(), ['-tf', zipPath], {
+    maxBuffer: 4 * 1024 * 1024
+  });
+  return stdout.split(/\r?\n/u).filter(Boolean);
 }
 
 interface CommandResult {

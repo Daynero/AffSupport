@@ -3,7 +3,13 @@ import { access, chmod, mkdir, open, rename, rm, writeFile } from 'node:fs/promi
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applicationSupportRoot } from '../files/support-dir.js';
-import { executableName, extractTarGz, listTarGzEntries } from '../platform/platform.js';
+import {
+  executableName,
+  extractTarGz,
+  listTarGzEntries,
+  listZipEntries,
+  unzipArchive
+} from '../platform/platform.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // Same packaged/source offset the ffmpeg + whisper tools use.
@@ -11,24 +17,104 @@ const packagedRuntime = path.resolve(here, '../../../runtime');
 const localRuntime = path.resolve(here, '../../runtime');
 const supportRoot = applicationSupportRoot();
 
+/** One pinned llama.cpp release build for one supported OS/CPU pair. */
+export interface TranslationRuntimeDescriptor {
+  label: string;
+  tag: string;
+  revision: string;
+  archiveName: string;
+  /** `tar.gz` extracts through the tar path; `zip` through unzipArchive (bsdtar on Windows). */
+  archiveKind: 'tar.gz' | 'zip';
+  /** The archive's single top-level directory, or null when entries sit at the archive root. */
+  extractedDirectory: string | null;
+  /** Directory name the runtime is installed into under `<App Support>/runtime`. */
+  installDirectory: string;
+  executableName: string;
+  url: string;
+  /**
+   * null means the checksum has not been pinned on real bytes yet; the
+   * downloader refuses to fetch such a descriptor (see whisper/downloader.ts).
+   * docs/WINDOWS.md describes how to pin it.
+   */
+  sha256: string | null;
+  /** 0 = unknown until the checksum is pinned (disables the exact-size check). */
+  sizeBytes: number;
+}
+
+export type TranslationRuntimePlatform = 'darwin-arm64' | 'win32-x64';
+
 /**
- * llama.cpp is pinned independently from the model. The official arm64 release
- * contains `llama-server` plus its adjacent dylibs; Wishly runs it bound to
- * the loopback interface only, authenticated with a per-launch API key.
+ * llama.cpp is pinned independently from the model, one descriptor per
+ * supported platform. Each official release archive contains `llama-server`
+ * plus its adjacent shared libraries; Wishly runs it bound to the loopback
+ * interface only, authenticated with a per-launch API key.
  */
-export const TRANSLATION_RUNTIME_DESCRIPTOR = {
-  label: 'llama.cpp b10092 (Apple Silicon)',
-  tag: 'b10092',
-  revision: '3ce7da2c852c538c4c5f9806da27029cf8c9cc4a',
-  archiveName: 'llama-b10092-bin-macos-arm64.tar.gz',
-  extractedDirectory: 'llama-b10092',
-  executableName: 'llama-server',
-  url:
-    'https://github.com/ggml-org/llama.cpp/releases/download/b10092/' +
-    'llama-b10092-bin-macos-arm64.tar.gz',
-  sha256: 'f3ec2351e06322478e3f38f23f5339cd834cca5e3740f334ce2bdc5de95f90e0',
-  sizeBytes: 10_612_780
-} as const;
+export const TRANSLATION_RUNTIME_DESCRIPTORS: Record<
+  TranslationRuntimePlatform,
+  TranslationRuntimeDescriptor
+> = {
+  'darwin-arm64': {
+    label: 'llama.cpp b10092 (Apple Silicon)',
+    tag: 'b10092',
+    revision: '3ce7da2c852c538c4c5f9806da27029cf8c9cc4a',
+    archiveName: 'llama-b10092-bin-macos-arm64.tar.gz',
+    archiveKind: 'tar.gz',
+    extractedDirectory: 'llama-b10092',
+    installDirectory: 'llama-b10092',
+    executableName: 'llama-server',
+    url:
+      'https://github.com/ggml-org/llama.cpp/releases/download/b10092/' +
+      'llama-b10092-bin-macos-arm64.tar.gz',
+    sha256: 'f3ec2351e06322478e3f38f23f5339cd834cca5e3740f334ce2bdc5de95f90e0',
+    sizeBytes: 10_612_780
+  },
+  'win32-x64': {
+    label: 'llama.cpp b10092 (Windows x64, CPU)',
+    tag: 'b10092',
+    revision: '3ce7da2c852c538c4c5f9806da27029cf8c9cc4a',
+    // The CPU build works everywhere; GPU (vulkan/cuda) variants can be pinned
+    // later without touching the install flow. Windows release zips are flat:
+    // llama-server.exe and its DLLs sit at the archive root.
+    archiveName: 'llama-b10092-bin-win-cpu-x64.zip',
+    archiveKind: 'zip',
+    extractedDirectory: null,
+    installDirectory: 'llama-b10092-win-x64',
+    executableName: 'llama-server',
+    url:
+      'https://github.com/ggml-org/llama.cpp/releases/download/b10092/' +
+      'llama-b10092-bin-win-cpu-x64.zip',
+    // Not pinned yet — must be recorded from the real release asset on a
+    // Windows machine (docs/WINDOWS.md, "Pinning the llama.cpp checksum").
+    // A null hash makes ModelDownloader refuse the download outright.
+    sha256: null,
+    sizeBytes: 0
+  }
+};
+
+/**
+ * Picks the pinned llama.cpp build for a platform/arch pair, or null when the
+ * local translation runtime is not supported there. Pure so unit tests can
+ * exercise every branch without stubbing process.
+ */
+export function selectTranslationRuntimeDescriptor(
+  platform: NodeJS.Platform = process.platform,
+  arch: string = process.arch
+): TranslationRuntimeDescriptor | null {
+  const key = `${platform}-${arch}`;
+  return key in TRANSLATION_RUNTIME_DESCRIPTORS
+    ? TRANSLATION_RUNTIME_DESCRIPTORS[key as TranslationRuntimePlatform]
+    : null;
+}
+
+const activeRuntimeDescriptor = selectTranslationRuntimeDescriptor();
+
+/**
+ * Descriptor for the current process. On unsupported platforms this falls back
+ * to the macOS build so path/version helpers keep working; installation itself
+ * refuses (installTranslationRuntimeArchive checks the real support matrix).
+ */
+export const TRANSLATION_RUNTIME_DESCRIPTOR: TranslationRuntimeDescriptor =
+  activeRuntimeDescriptor ?? TRANSLATION_RUNTIME_DESCRIPTORS['darwin-arm64'];
 
 /** Writable location the on-demand model download writes to (shared with whisper). */
 const downloadModelsDir = path.join(supportRoot, 'models');
@@ -39,7 +125,7 @@ const bundledModelsDir = path.join(
 const downloadedRuntimeDir = path.join(
   supportRoot,
   'runtime',
-  TRANSLATION_RUNTIME_DESCRIPTOR.extractedDirectory
+  TRANSLATION_RUNTIME_DESCRIPTOR.installDirectory
 );
 const bundledTranslationRuntimeDir = path.join(
   process.env.PACKAGED_APP === '1' ? packagedRuntime : localRuntime,
@@ -176,26 +262,36 @@ export function translationRuntimeArchiveDownloadPath(): string {
 
 /**
  * Safely extracts the verified official llama.cpp archive, validates the
- * expected root and executable, then atomically installs its directory.
+ * expected layout and executable, then atomically installs its directory.
  */
 export async function installTranslationRuntimeArchive(archivePath: string): Promise<void> {
-  if (process.platform !== 'darwin' || process.arch !== 'arm64') {
-    throw new Error('The bundled translation runtime requires Apple Silicon.');
+  if (!activeRuntimeDescriptor) {
+    throw new Error(
+      `The local translation runtime is not available for ${process.platform}-${process.arch} yet.`
+    );
   }
+  const descriptor = activeRuntimeDescriptor;
   const parent = path.dirname(downloadedRuntimeDir);
   const staging = `${downloadedRuntimeDir}.installing`;
   await mkdir(parent, { recursive: true });
   await rm(staging, { recursive: true, force: true });
 
-  const expectedRoot = `${TRANSLATION_RUNTIME_DESCRIPTOR.extractedDirectory}/`;
-  const entries = await listTarGzEntries(archivePath);
+  const expectedRoot =
+    descriptor.extractedDirectory === null ? null : `${descriptor.extractedDirectory}/`;
+  const entries =
+    descriptor.archiveKind === 'zip'
+      ? await listZipEntries(archivePath)
+      : await listTarGzEntries(archivePath);
   if (
     entries.length === 0 ||
     entries.some(
       entry =>
         entry.startsWith('/') ||
+        /^[A-Za-z]:/u.test(entry) ||
         entry.includes('../') ||
-        (entry !== TRANSLATION_RUNTIME_DESCRIPTOR.extractedDirectory &&
+        entry.includes('..\\') ||
+        (expectedRoot !== null &&
+          entry !== descriptor.extractedDirectory &&
           !entry.startsWith(expectedRoot))
     )
   ) {
@@ -204,12 +300,15 @@ export async function installTranslationRuntimeArchive(archivePath: string): Pro
 
   await mkdir(staging, { recursive: true });
   try {
-    await extractTarGz(archivePath, staging);
-    const extracted = path.join(staging, TRANSLATION_RUNTIME_DESCRIPTOR.extractedDirectory);
-    const executable = path.join(
-      extracted,
-      executableName(TRANSLATION_RUNTIME_DESCRIPTOR.executableName)
-    );
+    if (descriptor.archiveKind === 'zip') await unzipArchive(archivePath, staging);
+    else await extractTarGz(archivePath, staging);
+    // Flat archives (the Windows zip) become the runtime directory themselves;
+    // rooted archives (the macOS tarball) contribute their top-level directory.
+    const extracted =
+      descriptor.extractedDirectory === null
+        ? staging
+        : path.join(staging, descriptor.extractedDirectory);
+    const executable = path.join(extracted, executableName(descriptor.executableName));
     await access(executable, constants.R_OK);
     await chmod(executable, 0o755);
     await rm(downloadedRuntimeDir, { recursive: true, force: true });

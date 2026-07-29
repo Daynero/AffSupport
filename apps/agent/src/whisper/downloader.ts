@@ -10,7 +10,12 @@ import type { TranscriptionModelInfo } from '@video-compressor/shared';
 export interface DownloadableModelDescriptor {
   label: string;
   url: string;
-  sha256: string;
+  /**
+   * null = the artifact exists upstream but its checksum has not been pinned
+   * on real bytes yet (e.g. the Windows llama.cpp build before the first
+   * Windows release pass). Downloads are refused until it is pinned.
+   */
+  sha256: string | null;
   sizeBytes: number;
 }
 
@@ -83,7 +88,7 @@ export class ModelDownloader {
   async start(downloadBatchId?: string): Promise<void> {
     if (this.downloading || this.isPresent()) return;
     this.downloadBatchId = downloadBatchId ?? null;
-    if (!this.descriptor.url || !this.descriptor.sha256) {
+    if (!this.descriptor.url) {
       // No pinned source yet (e.g. the translator model artifact is not
       // configured). Surface a clear, actionable error instead of failing an
       // HTTP request to an empty URL.
@@ -91,6 +96,15 @@ export class ModelDownloader {
       this.notify();
       return;
     }
+    if (!this.descriptor.sha256) {
+      // A known upstream artifact whose bytes were never verified must not be
+      // installed: without the hash, integrity cannot be proven. Pinning is a
+      // release-machine step (see docs/WINDOWS.md for the Windows runtime).
+      this.error = `The ${this.descriptor.label} checksum is not pinned for this platform yet.`;
+      this.notify();
+      return;
+    }
+    const pinnedSha256 = this.descriptor.sha256;
     this.downloading = true;
     this.error = null;
 
@@ -133,7 +147,7 @@ export class ModelDownloader {
         );
       }
       const digest = await sha256(partial);
-      if (digest !== this.descriptor.sha256.toLowerCase()) {
+      if (digest !== pinnedSha256.toLowerCase()) {
         throw new ArtifactValidationError('The downloaded model failed its integrity check.');
       }
       await rename(partial, target);

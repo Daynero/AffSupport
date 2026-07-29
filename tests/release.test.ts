@@ -10,11 +10,13 @@ import {
   PRODUCT_VERSION,
   RELEASE_ARTIFACT_NAME,
   RELEASE_DOWNLOAD_URL,
+  RELEASE_DOWNLOAD_URL_WINDOWS,
   RELEASE_TAG,
   compareProductVersions,
   toolContractCompatible
 } from '../packages/shared/src/release';
 import {
+  downloadUrlForPlatform,
   installedReleaseStatus,
   localizedReleaseSummary,
   macAppleSiliconDownloadUrl
@@ -46,6 +48,48 @@ describe('release identity', () => {
     );
     expect(macAppleSiliconDownloadUrl(manifest)).toBe(manifest.artifacts['macos-arm64'].url);
     expect(macAppleSiliconDownloadUrl(null)).toBe(RELEASE_DOWNLOAD_URL);
+  });
+
+  it('resolves per-platform downloads from the manifest with safe fallbacks', () => {
+    const manifest = JSON.parse(
+      readFileSync('apps/web/public/.well-known/wishly/stable.json', 'utf8')
+    );
+
+    // Artifact present in the manifest wins.
+    expect(downloadUrlForPlatform(manifest, 'macos-arm64')).toEqual({
+      url: manifest.artifacts['macos-arm64'].url,
+      available: true
+    });
+    const withWindows = {
+      ...manifest,
+      artifacts: {
+        ...manifest.artifacts,
+        'windows-x64': { url: 'https://example.com/Wishly-Agent-Windows-x64.exe', sha256: null }
+      }
+    };
+    expect(downloadUrlForPlatform(withWindows, 'windows-x64')).toEqual({
+      url: 'https://example.com/Wishly-Agent-Windows-x64.exe',
+      available: true
+    });
+
+    // The mac fallback stays downloadable; the Windows fallback is only a
+    // predicted URL, so the UI must keep its coming-soon treatment.
+    expect(downloadUrlForPlatform(null, 'macos-arm64')).toEqual({
+      url: RELEASE_DOWNLOAD_URL,
+      available: true
+    });
+    const withoutWindows = {
+      ...manifest,
+      artifacts: { 'macos-arm64': manifest.artifacts['macos-arm64'] }
+    };
+    expect(downloadUrlForPlatform(withoutWindows, 'windows-x64')).toEqual({
+      url: RELEASE_DOWNLOAD_URL_WINDOWS,
+      available: false
+    });
+    expect(downloadUrlForPlatform(null, 'windows-x64')).toEqual({
+      url: RELEASE_DOWNLOAD_URL_WINDOWS,
+      available: false
+    });
   });
 
   it('uses generic maintenance copy when the stable manifest has no summary', () => {
@@ -112,6 +156,8 @@ describe('release identity', () => {
     const devDmgScript = readFileSync('scripts/package-dev-dmg.sh', 'utf8');
     const productionPackageScript = readFileSync('scripts/package-mac.sh', 'utf8');
     const stageRuntimeScript = readFileSync('scripts/stage-agent-runtime.mjs', 'utf8');
+    const stagingLibrary = readFileSync('scripts/lib/agent-staging.mjs', 'utf8');
+    const stageWindowsScript = readFileSync('scripts/stage-windows-runtime.mjs', 'utf8');
     const productionVerifyScript = readFileSync('scripts/verify-package.sh', 'utf8');
     const developmentVerifyScript = readFileSync('scripts/verify-dev-package.sh', 'utf8');
     const launcher = readFileSync('packaging/Launcher.swift', 'utf8');
@@ -127,7 +173,11 @@ describe('release identity', () => {
       expect(script).not.toContain('cp -R apps/agent/dist apps/agent/package.json node_modules');
       expect(script).not.toContain('LLAMA_RUNTIME_ARCHIVE');
     }
-    expect(stageRuntimeScript).toContain('does not match package-lock.json');
+    // Both packaging pipelines (mac CLI wrapper and Windows staging) must go
+    // through the shared lockfile-exact dependency staging.
+    expect(stageRuntimeScript).toContain('./lib/agent-staging.mjs');
+    expect(stageWindowsScript).toContain('./lib/agent-staging.mjs');
+    expect(stagingLibrary).toContain('does not match package-lock.json');
     for (const script of [productionVerifyScript, developmentVerifyScript]) {
       expect(script).toContain('scripts/verify-staged-dependencies.mjs');
     }

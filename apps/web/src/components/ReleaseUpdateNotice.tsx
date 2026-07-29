@@ -6,7 +6,7 @@ import { useI18n } from '../i18n';
 import {
   installedReleaseStatus,
   localizedReleaseSummary,
-  macAppleSiliconDownloadUrl
+  preferredDownload
 } from '../release-manifest';
 
 const DISMISSED_RELEASE_KEY = 'wishly.release-notice.dismissed.v1';
@@ -80,7 +80,7 @@ export default function ReleaseUpdateNotice() {
       <div className="release-update-actions">
         <a
           className="button button-primary"
-          href={macAppleSiliconDownloadUrl(manifest)}
+          href={preferredDownload(manifest).url}
           onClick={() => {
             markAgentInstallStarted();
             analytics.track('update_started', {});

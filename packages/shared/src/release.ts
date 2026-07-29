@@ -40,6 +40,13 @@ export const BUILD_ID = `${PRODUCT_VERSION}+${BUILD_NUMBER}`;
 export const RELEASE_TAG = `v${PRODUCT_VERSION}`;
 export const RELEASE_ARTIFACT_NAME = `Wishly-Agent-v${PRODUCT_VERSION}-macOS-arm64.dmg`;
 export const RELEASE_DOWNLOAD_URL = `https://github.com/Daynero/AffSupport/releases/download/${RELEASE_TAG}/${RELEASE_ARTIFACT_NAME}`;
+/**
+ * Windows installer produced by packaging/windows-installer.iss. The macOS DMG
+ * remains the primary (release-gating) artifact; the Windows one is attached
+ * to the same immutable tag when a Windows build ships (docs/WINDOWS.md).
+ */
+export const RELEASE_ARTIFACT_NAME_WINDOWS = `Wishly-Agent-v${PRODUCT_VERSION}-Windows-x64.exe`;
+export const RELEASE_DOWNLOAD_URL_WINDOWS = `https://github.com/Daynero/AffSupport/releases/download/${RELEASE_TAG}/${RELEASE_ARTIFACT_NAME_WINDOWS}`;
 
 /**
  * Product versions identify immutable binaries. Contracts identify whether a

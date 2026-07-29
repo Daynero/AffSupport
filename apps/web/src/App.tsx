@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  RELEASE_DOWNLOAD_URL,
   calculateQueueSummary,
   type AgentSettingsPatch,
   type CompressionJob,
@@ -22,6 +21,7 @@ import { type ConnectionState } from './connection';
 import { formatSize } from './format';
 import { selectedCountKey, type Language, type TranslationKey, useI18n } from './i18n';
 import { mergeSettingsPatches } from './settings-patch';
+import { preferredDownload } from './release-manifest';
 import {
   batchMetrics,
   newestJobsFirst,
@@ -48,7 +48,6 @@ import {
   safeCompressionProperties
 } from './analytics/compression';
 
-const downloadUrl = RELEASE_DOWNLOAD_URL;
 const COMPRESSOR_SELECTION_KEY = 'wishly.compressor.selection.v1';
 
 function storedCompressorSelection() {
@@ -653,6 +652,8 @@ export function Onboarding({
   connect: () => void;
   t: Translate;
 }) {
+  const { releaseManifest } = useAgent();
+  const downloadUrl = preferredDownload(releaseManifest.manifest).url;
   // A manual connect flips the connection to "connecting" for a moment. Rather
   // than swapping the whole panel for a spinner (which read as a flicker), we
   // keep the panel mounted and let the button animate the search in place.

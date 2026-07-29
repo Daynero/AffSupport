@@ -1,12 +1,14 @@
 import {
   PRODUCTION_SITE_ORIGIN,
   RELEASE_DOWNLOAD_URL,
+  RELEASE_DOWNLOAD_URL_WINDOWS,
   RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64,
   compareProductVersions,
   releaseManifestSigningPayload,
   type ReleaseSummaryLanguage,
   type StableReleaseManifest
 } from '@video-compressor/shared';
+import { currentBrowserPlatform } from './lib/platform';
 
 export type ReleaseManifestState =
   | { status: 'checking'; manifest: null }
@@ -90,8 +92,43 @@ export function installedReleaseStatus(input: {
   return minimum !== null && minimum < 0 ? 'update_required' : 'update_available';
 }
 
+export type DownloadPlatform = 'macos-arm64' | 'windows-x64';
+
+/**
+ * Resolves the download for a platform from the signed manifest. When the
+ * manifest carries no artifact, macOS falls back to the pinned release URL
+ * (always downloadable), while the Windows fallback is only a predicted URL —
+ * `available: false` tells the UI to keep its coming-soon treatment.
+ */
+export function downloadUrlForPlatform(
+  manifest: StableReleaseManifest | null,
+  platform: DownloadPlatform
+): { url: string; available: boolean } {
+  const artifact = manifest?.artifacts[platform];
+  if (artifact?.url) return { url: artifact.url, available: true };
+  return platform === 'windows-x64'
+    ? { url: RELEASE_DOWNLOAD_URL_WINDOWS, available: false }
+    : { url: RELEASE_DOWNLOAD_URL, available: true };
+}
+
+/**
+ * The installer a visitor should be offered by default: the Windows build when
+ * the browser reports Windows and the manifest actually ships one, otherwise
+ * the Mac (Apple Silicon) build exactly as before.
+ */
+export function preferredDownload(manifest: StableReleaseManifest | null): {
+  url: string;
+  platform: DownloadPlatform;
+} {
+  if (currentBrowserPlatform() === 'windows') {
+    const windows = downloadUrlForPlatform(manifest, 'windows-x64');
+    if (windows.available) return { url: windows.url, platform: 'windows-x64' };
+  }
+  return { url: downloadUrlForPlatform(manifest, 'macos-arm64').url, platform: 'macos-arm64' };
+}
+
 export function macAppleSiliconDownloadUrl(manifest: StableReleaseManifest | null): string {
-  return manifest?.artifacts['macos-arm64']?.url ?? RELEASE_DOWNLOAD_URL;
+  return downloadUrlForPlatform(manifest, 'macos-arm64').url;
 }
 
 export function localizedReleaseSummary(

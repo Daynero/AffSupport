@@ -8,7 +8,7 @@ import { UserAvatar } from '../components/UserAvatar';
 import { useI18n, type Language } from '../i18n';
 import type { Profile } from '../lib/database.types';
 import { usePageEntrance } from '../lib/navigation';
-import { installedReleaseStatus, macAppleSiliconDownloadUrl } from '../release-manifest';
+import { installedReleaseStatus, preferredDownload } from '../release-manifest';
 
 export default function AccountPage() {
   const { profile, user } = useAuth();
@@ -119,7 +119,7 @@ function AccountContent({
     installedChannel: agentChannel,
     compatible: toolAvailable?.('compressor') ?? true
   });
-  const downloadUrl = macAppleSiliconDownloadUrl(releaseManifest?.manifest ?? null);
+  const downloadUrl = preferredDownload(releaseManifest?.manifest ?? null).url;
   const releaseNote =
     releaseStatus === 'latest'
       ? t('latestVersion')

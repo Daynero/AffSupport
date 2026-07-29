@@ -1,6 +1,7 @@
 import { PRODUCT_VERSION, type ToolContracts } from '@video-compressor/shared';
 import { getSupabaseClient } from '../lib/supabase';
 import type { Json } from '../lib/database.types';
+import { currentBrowserPlatform } from '../lib/platform';
 import {
   analyticsTool,
   isAnalyticsEventName,
@@ -215,7 +216,7 @@ export class ProductAnalytics {
       core_api_version: this.context.apiVersion,
       tool_contracts: this.context.toolContracts,
       locale: this.locale,
-      platform: analyticsPlatform(),
+      platform: currentBrowserPlatform(),
       architecture: broadArchitecture(),
       event_source: 'web',
       flow_id: safeUuid(sanitized.flow_id),
@@ -287,17 +288,6 @@ export class ProductAnalytics {
   private persist() {
     this.storage?.setItem(QUEUE_KEY, JSON.stringify(this.queue.slice(-MAX_QUEUE_SIZE)));
   }
-}
-
-// Analytics may keep a coarse platform cohort, but this value must never gate
-// which installer choices the interface shows.
-function analyticsPlatform() {
-  if (typeof navigator === 'undefined') return null;
-  const value = `${navigator.platform} ${navigator.userAgent}`.toLowerCase();
-  if (value.includes('mac')) return 'macos';
-  if (value.includes('win')) return 'windows';
-  if (value.includes('linux')) return 'linux';
-  return 'other';
 }
 
 function broadArchitecture() {
