@@ -16,6 +16,8 @@ export type SourceKind = 'local' | 'uploaded';
 export type ImageSlot = 'start' | 'end';
 export type ImageFitMode = 'cover' | 'contain' | 'stretch';
 export type FinalImageDurationMode = 'random-30-40' | 'random-40-50' | 'random-50-60' | 'custom';
+/** How long the embedded start image is held: one full frame, a fixed short preset, or a custom value. */
+export type StartImageDurationMode = 'one-frame' | 'ms-2' | 'ms-5' | 'ms-10' | 'custom';
 export type ImageMimeType = 'image/png' | 'image/jpeg' | 'image/webp';
 export type ProcessingStage = 'preparing-images' | 'compressing' | 'finalizing';
 
@@ -72,6 +74,16 @@ export const DEFAULT_CUSTOM_RESOLUTION = 1080;
 export const DEFAULT_CUSTOM_FINAL_IMAGE_DURATION_SECONDS = 45 * 60;
 export const MIN_CUSTOM_FINAL_IMAGE_DURATION_SECONDS = 1;
 export const MAX_CUSTOM_FINAL_IMAGE_DURATION_SECONDS = 99 * 60 * 60 + 59 * 60 + 59;
+export const DEFAULT_CUSTOM_START_IMAGE_DURATION_MS = 100;
+export const MIN_CUSTOM_START_IMAGE_DURATION_MS = 1;
+export const MAX_CUSTOM_START_IMAGE_DURATION_MS = 60_000;
+
+/** Fixed durations (ms) for the non-custom short presets of the start image. */
+const START_IMAGE_DURATION_PRESET_MS: Record<'ms-2' | 'ms-5' | 'ms-10', number> = {
+  'ms-2': 2,
+  'ms-5': 5,
+  'ms-10': 10
+};
 
 export interface ImageAsset {
   id: string;
@@ -90,12 +102,16 @@ export interface ImageEmbeddingSettings {
   replaceExisting: boolean;
   finalDurationMode: FinalImageDurationMode;
   customFinalDurationSeconds: number;
+  startDurationMode: StartImageDurationMode;
+  customStartDurationMs: number;
   fitMode: ImageFitMode;
 }
 
 export interface JobImageEmbedding {
   startImage: ImageAsset | null;
   endImage: ImageAsset | null;
+  startDurationMode: StartImageDurationMode;
+  customStartDurationMs: number;
   finalDurationMode: FinalImageDurationMode;
   /** A random duration is null while a ready job is only being estimated, then frozen at queue start. */
   finalDurationSeconds: number | null;
@@ -155,8 +171,34 @@ export function defaultImageEmbeddingSettings(): ImageEmbeddingSettings {
     replaceExisting: false,
     finalDurationMode: 'random-40-50',
     customFinalDurationSeconds: DEFAULT_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
+    startDurationMode: 'one-frame',
+    customStartDurationMs: DEFAULT_CUSTOM_START_IMAGE_DURATION_MS,
     fitMode: 'cover'
   };
+}
+
+export function clampCustomStartDurationMs(value: unknown): number {
+  const number = Math.round(Number(value));
+  return Number.isFinite(number)
+    ? Math.min(
+        MAX_CUSTOM_START_IMAGE_DURATION_MS,
+        Math.max(MIN_CUSTOM_START_IMAGE_DURATION_MS, number)
+      )
+    : DEFAULT_CUSTOM_START_IMAGE_DURATION_MS;
+}
+
+/** Resolves the embedded start image hold time (seconds) for the chosen mode and frame rate. */
+export function startImageDurationSeconds(
+  settings: Pick<JobImageEmbedding, 'startDurationMode' | 'customStartDurationMs'>,
+  frameRate: number
+): number {
+  if (settings.startDurationMode === 'custom') {
+    return clampCustomStartDurationMs(settings.customStartDurationMs) / 1000;
+  }
+  const preset =
+    START_IMAGE_DURATION_PRESET_MS[settings.startDurationMode as 'ms-2' | 'ms-5' | 'ms-10'];
+  // `one-frame` (and any legacy/absent mode) holds the image for exactly one video frame.
+  return preset !== undefined ? preset / 1000 : 1 / frameRate;
 }
 
 export function clampFrameRate(value: unknown): number {
@@ -226,6 +268,8 @@ export function imageEmbeddingKey(settings: JobImageEmbedding | null): string {
   return JSON.stringify([
     settings.startImage?.id ?? null,
     settings.endImage?.id ?? null,
+    settings.startDurationMode,
+    settings.customStartDurationMs,
     settings.finalDurationMode,
     settings.finalDurationSeconds,
     settings.fitMode,
@@ -249,6 +293,8 @@ export function draftImageEmbedding(settings: ImageEmbeddingSettings): JobImageE
   return {
     startImage: startImage ? { ...startImage } : null,
     endImage: endImage ? { ...endImage } : null,
+    startDurationMode: settings.startDurationMode,
+    customStartDurationMs: settings.customStartDurationMs,
     finalDurationMode: settings.finalDurationMode,
     finalDurationSeconds:
       endImage && settings.finalDurationMode === 'custom'

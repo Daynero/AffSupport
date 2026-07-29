@@ -9,6 +9,7 @@ import {
   MAX_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
   MIN_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
   clampCrf,
+  clampCustomStartDurationMs,
   clampFrameRate,
   clampResolutionLimit,
   clampVideoBitrateKbps,
@@ -260,6 +261,15 @@ function migrateImageEmbeddingSettings(value: unknown): ImageEmbeddingSettings {
       duration <= MAX_CUSTOM_FINAL_IMAGE_DURATION_SECONDS
         ? duration
         : DEFAULT_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
+    startDurationMode:
+      raw.startDurationMode === 'ms-2' ||
+      raw.startDurationMode === 'ms-5' ||
+      raw.startDurationMode === 'ms-10' ||
+      raw.startDurationMode === 'custom' ||
+      raw.startDurationMode === 'one-frame'
+        ? raw.startDurationMode
+        : defaults.startDurationMode,
+    customStartDurationMs: clampCustomStartDurationMs(raw.customStartDurationMs),
     fitMode:
       raw.fitMode === 'contain' || raw.fitMode === 'stretch' || raw.fitMode === 'cover'
         ? raw.fitMode
@@ -278,6 +288,8 @@ function migrateJobImageEmbedding(value: unknown): JobImageEmbedding | null {
   return {
     startImage,
     endImage,
+    startDurationMode: settings.startDurationMode,
+    customStartDurationMs: settings.customStartDurationMs,
     finalDurationMode: settings.finalDurationMode,
     finalDurationSeconds:
       endImage && Number.isInteger(rawDuration) && rawDuration > 0

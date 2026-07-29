@@ -3,7 +3,11 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import type { ImageAsset, JobImageEmbedding } from '../packages/shared/src/types.js';
+import type {
+  ImageAsset,
+  JobImageEmbedding,
+  StartImageDurationMode
+} from '../packages/shared/src/types.js';
 import { encodeVideo } from '../apps/agent/src/ffmpeg/encoder.js';
 import { commandExists, probeMedia } from '../apps/agent/src/ffmpeg/tools.js';
 import { optimalEncoding } from './helpers.js';
@@ -127,6 +131,55 @@ describe('real image embedding filter graph', () => {
     expect(hashes[0]).not.toBe(hashes[1]);
     expect(hashes[1]).toBe(hashes[2]);
   }, 20_000);
+
+  // A start duration below one frame period must not hang FFmpeg (trimming the looped image by a
+  // sub-frame duration stalls the encode); the requested offset still lands in the total duration.
+  for (const [mode, ms] of [
+    ['ms-2', 2],
+    ['ms-10', 10]
+  ] as [StartImageDurationMode, number][]) {
+    it(`embeds a sub-frame ${ms}ms opening at 30 FPS without hanging`, async () => {
+      if (!available) return;
+      const input = path.join(directory, `sub ${mode}.mp4`);
+      const output = path.join(directory, `sub ${mode} out.mp4`);
+      expect(await createVideo(input, 30, true)).toBe(0);
+      const source = await probeMedia(input);
+      const operation = encodeVideo(
+        input,
+        output,
+        source.duration! + ms / 1000,
+        optimalEncoding,
+        false,
+        () => {},
+        {
+          sourceDurationSeconds: source.duration!,
+          sourceHasAudio: true,
+          width: 160,
+          height: 90,
+          frameRate: 30,
+          imageEmbedding: {
+            startImage: imageAsset('22222222-2222-4222-8222-222222222222'),
+            endImage: null,
+            startDurationMode: mode,
+            customStartDurationMs: ms,
+            finalDurationMode: 'random-40-50',
+            finalDurationSeconds: null,
+            fitMode: 'cover',
+            replaceExisting: false,
+            sourceTrimStartSeconds: 0,
+            sourceTrimEndSeconds: 0
+          },
+          startImagePath,
+          endImagePath: null
+        }
+      );
+      const result = await operation.done;
+      expect(result.code, result.stderr).toBe(0);
+      const media = await probeMedia(output);
+      expect(media).toMatchObject({ width: 160, height: 90, hasAudio: true });
+      expect(media.duration).toBeCloseTo(source.duration! + ms / 1000, 2);
+    }, 20_000);
+  }
 
   it('creates full-length stereo silence for a source without audio and a final image', async () => {
     if (!available) return;

@@ -20,7 +20,9 @@ import {
   FRAME_RATE_MAX,
   FRAME_RATE_MIN,
   MAX_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
+  MAX_CUSTOM_START_IMAGE_DURATION_MS,
   MIN_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
+  MIN_CUSTOM_START_IMAGE_DURATION_MS,
   RESOLUTION_MAX,
   RESOLUTION_MIN,
   VIDEO_BITRATE_MAX_KBPS,
@@ -567,6 +569,27 @@ app.post<{ Body: AgentSettingsPatch }>('/api/settings', async (request, reply) =
         return reply.code(400).send({ error: 'INVALID_CUSTOM_IMAGE_DURATION' });
       }
       imageEmbedding.customFinalDurationSeconds = value;
+    }
+    if (body.imageEmbedding.startDurationMode !== undefined) {
+      if (
+        !['one-frame', 'ms-2', 'ms-5', 'ms-10', 'custom'].includes(
+          body.imageEmbedding.startDurationMode
+        )
+      ) {
+        return reply.code(400).send({ error: 'Invalid start image duration mode.' });
+      }
+      imageEmbedding.startDurationMode = body.imageEmbedding.startDurationMode;
+    }
+    if (body.imageEmbedding.customStartDurationMs !== undefined) {
+      const value = Number(body.imageEmbedding.customStartDurationMs);
+      if (
+        !Number.isInteger(value) ||
+        value < MIN_CUSTOM_START_IMAGE_DURATION_MS ||
+        value > MAX_CUSTOM_START_IMAGE_DURATION_MS
+      ) {
+        return reply.code(400).send({ error: 'INVALID_CUSTOM_START_IMAGE_DURATION' });
+      }
+      imageEmbedding.customStartDurationMs = value;
     }
     if (body.imageEmbedding.fitMode !== undefined) {
       if (!['cover', 'contain', 'stretch'].includes(body.imageEmbedding.fitMode)) {

@@ -4,6 +4,7 @@ import {
   expectedDimensions,
   expectedFrameRate,
   jobConfigurationKey,
+  startImageDurationSeconds,
   type CompressionJob
 } from '@video-compressor/shared';
 import { estimatePriorityAction } from '../estimate-priority';
@@ -427,6 +428,7 @@ function EmbeddingDetails({
   if (!embedding) return null;
   const fps = expectedFrameRate(job.sourceFrameRate, job.encoding.frameRate) ?? 30;
   const endDuration = estimatedFinalImageDurationSeconds(embedding);
+  const startDuration = embedding.startImage ? startImageDurationSeconds(embedding, fps) : 0;
   const totalDuration =
     Math.max(
       0,
@@ -434,13 +436,19 @@ function EmbeddingDetails({
         (embedding.sourceTrimStartSeconds ?? 0) -
         (embedding.sourceTrimEndSeconds ?? 0)
     ) +
-    (embedding.startImage ? 1 / fps : 0) +
+    startDuration +
     endDuration;
   const fitKeys = {
     cover: 'fitCover',
     contain: 'fitContain',
     stretch: 'fitStretch'
   } as const;
+  const startLabel =
+    embedding.startDurationMode && embedding.startDurationMode !== 'one-frame'
+      ? t('embeddingStartDuration', {
+          duration: `${Math.round(startDuration * 1000)} ${t('millisecondsUnit')}`
+        })
+      : t('embeddingStartOneFrame');
   const endLabel =
     embedding.finalDurationSeconds !== null
       ? formatDurationWords(embedding.finalDurationSeconds, language)
@@ -455,7 +463,7 @@ function EmbeddingDetails({
     <div className="embedding-summary">
       <strong>{t('embeddingLabel')}</strong>
       <div>
-        {embedding.startImage && <span>{t('embeddingStartOneFrame')}</span>}
+        {embedding.startImage && <span>{startLabel}</span>}
         {embedding.endImage && <span>{t('embeddingFinalImage', { duration: endLabel })}</span>}
         {embedding.replaceExisting && <span>{t('replaceExistingImages')}</span>}
         <span>{t('embeddingFitMode', { mode: t(fitKeys[embedding.fitMode]) })}</span>

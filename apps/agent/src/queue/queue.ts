@@ -1300,6 +1300,8 @@ function imageEmbeddingSettingsKey(settings: AgentSettings['imageEmbedding']) {
     settings.replaceExisting,
     settings.finalDurationMode,
     settings.customFinalDurationSeconds,
+    settings.startDurationMode,
+    settings.customStartDurationMs,
     settings.fitMode
   ]);
 }

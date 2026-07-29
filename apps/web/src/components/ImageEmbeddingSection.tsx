@@ -8,6 +8,8 @@ import {
 } from 'react';
 import {
   MAX_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
+  MAX_CUSTOM_START_IMAGE_DURATION_MS,
+  MIN_CUSTOM_START_IMAGE_DURATION_MS,
   type ImageAsset,
   type ImageEmbeddingSettings,
   type ImageEmbeddingSettingsPatch,
@@ -46,20 +48,19 @@ export function ImageEmbeddingSection({
   }, [settings.customFinalDurationSeconds]);
   const parsedCustomTime = parseMinutesInput(customTime);
   const customTimeValid = parsedCustomTime !== null;
+  const [customStartMs, setCustomStartMs] = useState(() => String(settings.customStartDurationMs));
   useEffect(() => {
-    onValidityChange(
-      !settings.enabled ||
-        !settings.endImages.length ||
-        settings.finalDurationMode !== 'custom' ||
-        customTimeValid
-    );
-  }, [
-    settings.enabled,
-    settings.endImages.length,
-    settings.finalDurationMode,
-    customTimeValid,
-    onValidityChange
-  ]);
+    setCustomStartMs(String(settings.customStartDurationMs));
+  }, [settings.customStartDurationMs]);
+  const parsedCustomStartMs = parseMillisecondsInput(customStartMs);
+  const customStartMsValid = parsedCustomStartMs !== null;
+  const finalDurationValid =
+    !settings.endImages.length || settings.finalDurationMode !== 'custom' || customTimeValid;
+  const startDurationValid =
+    !settings.startImages.length || settings.startDurationMode !== 'custom' || customStartMsValid;
+  useEffect(() => {
+    onValidityChange(!settings.enabled || (finalDurationValid && startDurationValid));
+  }, [settings.enabled, finalDurationValid, startDurationValid, onValidityChange]);
 
   return (
     <div className="image-embedding-settings">
@@ -99,23 +100,74 @@ export function ImageEmbeddingSection({
               imageUrl={imageUrl}
               t={t}
             >
-              <div className="field-group embedding-fit-row">
-                <FieldLabel label={t('frameFit')} tooltip={t('frameFitTooltip')} />
-                <select
-                  value={settings.fitMode}
-                  disabled={disabled}
-                  aria-label={t('frameFit')}
-                  onChange={event =>
-                    update({ fitMode: event.target.value as ImageEmbeddingSettings['fitMode'] })
-                  }
-                >
-                  <option value="cover">{t('fitCover')}</option>
-                  <option value="contain">{t('fitContain')}</option>
-                  <option value="stretch">{t('fitStretch')}</option>
-                </select>
-                {settings.fitMode === 'stretch' && (
-                  <span className="field-hint">{t('fitStretchWarning')}</span>
-                )}
+              <div className="embedding-column-fields">
+                <div className="field-group embedding-fit-row">
+                  <FieldLabel label={t('frameFit')} tooltip={t('frameFitTooltip')} />
+                  <select
+                    value={settings.fitMode}
+                    disabled={disabled}
+                    aria-label={t('frameFit')}
+                    onChange={event =>
+                      update({ fitMode: event.target.value as ImageEmbeddingSettings['fitMode'] })
+                    }
+                  >
+                    <option value="cover">{t('fitCover')}</option>
+                    <option value="contain">{t('fitContain')}</option>
+                    <option value="stretch">{t('fitStretch')}</option>
+                  </select>
+                  {settings.fitMode === 'stretch' && (
+                    <span className="field-hint">{t('fitStretchWarning')}</span>
+                  )}
+                </div>
+                <div className="field-group start-duration-field">
+                  <FieldLabel
+                    label={t('startImageDuration')}
+                    tooltip={t('startImageDurationTooltip')}
+                  />
+                  <select
+                    value={settings.startDurationMode}
+                    disabled={disabled}
+                    aria-label={t('startImageDuration')}
+                    onChange={event =>
+                      update({
+                        startDurationMode: event.target
+                          .value as ImageEmbeddingSettings['startDurationMode']
+                      })
+                    }
+                  >
+                    <option value="one-frame">{t('startDurationOneFrame')}</option>
+                    <option value="ms-2">{t('startDuration2ms')}</option>
+                    <option value="ms-5">{t('startDuration5ms')}</option>
+                    <option value="ms-10">{t('startDuration10ms')}</option>
+                    <option value="custom">{t('customDuration')}</option>
+                  </select>
+                  {settings.startDurationMode === 'custom' && (
+                    <>
+                      <div className="custom-duration-input">
+                        <input
+                          className={`time-input ${customStartMs && !customStartMsValid ? 'is-invalid' : ''}`}
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="100"
+                          value={customStartMs}
+                          disabled={disabled}
+                          aria-label={t('customStartDurationInput')}
+                          aria-invalid={!customStartMsValid}
+                          onChange={event => {
+                            const value = event.target.value;
+                            setCustomStartMs(value);
+                            const ms = parseMillisecondsInput(value);
+                            if (ms !== null) update({ customStartDurationMs: ms }, true);
+                          }}
+                        />
+                        <span>{t('millisecondsUnit')}</span>
+                      </div>
+                      <Collapse fast open={!customStartMsValid}>
+                        <span className="field-error">{t('invalidCustomStartDuration')}</span>
+                      </Collapse>
+                    </>
+                  )}
+                </div>
               </div>
             </ImageColumn>
             <ImageColumn
@@ -407,6 +459,16 @@ export function parseMinutesInput(value: string): number | null {
 
 export function formatMinutesInput(seconds: number) {
   return String(Math.max(1, Math.round(seconds / 60)));
+}
+
+export function parseMillisecondsInput(value: string): number | null {
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  const milliseconds = Number(trimmed);
+  return milliseconds >= MIN_CUSTOM_START_IMAGE_DURATION_MS &&
+    milliseconds <= MAX_CUSTOM_START_IMAGE_DURATION_MS
+    ? milliseconds
+    : null;
 }
 
 function imageErrorKey(error: unknown): TranslationKey {

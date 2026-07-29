@@ -15,6 +15,7 @@ import {
   ImageDropArea,
   formatMinutesInput,
   isSupportedImageFile,
+  parseMillisecondsInput,
   parseMinutesInput
 } from '../apps/web/src/components/ImageEmbeddingSection';
 import { SettingsPanel } from '../apps/web/src/components/SettingsPanel';
@@ -202,6 +203,27 @@ describe('image embedding settings UI', () => {
     expect(screen.getByText('Stretching can distort the image proportions.')).toBeTruthy();
   });
 
+  it('offers short start-frame presets and validates a custom millisecond duration', async () => {
+    const user = userEvent.setup();
+    const validity = vi.fn();
+    render(<SettingsHarness enabled startImage={asset('opening.png')} onValidity={validity} />);
+    const duration = screen.getByLabelText('First frame duration');
+    expect((duration as HTMLSelectElement).value).toBe('one-frame');
+    for (const value of ['ms-2', 'ms-5', 'ms-10']) {
+      await user.selectOptions(duration, value);
+      expect((duration as HTMLSelectElement).value).toBe(value);
+    }
+    await user.selectOptions(duration, 'custom');
+    const custom = screen.getByLabelText('Custom duration in milliseconds');
+    await user.clear(custom);
+    await user.type(custom, '0');
+    expect(screen.getByText(/whole number of milliseconds from 1 to 60000/)).toBeTruthy();
+    await waitFor(() => expect(validity).toHaveBeenLastCalledWith(false));
+    await user.clear(custom);
+    await user.type(custom, '250');
+    await waitFor(() => expect(validity).toHaveBeenLastCalledWith(true));
+  });
+
   it('does not require a final-image duration when only the opening frame is selected', async () => {
     const user = userEvent.setup();
     const validity = vi.fn();
@@ -296,6 +318,12 @@ describe('image setting validation helpers', () => {
     expect(parseMinutesInput('0')).toBeNull();
     expect(parseMinutesInput('12:00')).toBeNull();
     expect(formatMinutesInput(3240)).toBe('54');
+    expect(parseMillisecondsInput('1')).toBe(1);
+    expect(parseMillisecondsInput('250')).toBe(250);
+    expect(parseMillisecondsInput('60000')).toBe(60_000);
+    expect(parseMillisecondsInput('60001')).toBeNull();
+    expect(parseMillisecondsInput('0')).toBeNull();
+    expect(parseMillisecondsInput('5.5')).toBeNull();
   });
 });
 

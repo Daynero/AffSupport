@@ -1,4 +1,9 @@
-import type { EncodingSettings, ImageFitMode, JobImageEmbedding } from '@video-compressor/shared';
+import {
+  startImageDurationSeconds,
+  type EncodingSettings,
+  type ImageFitMode,
+  type JobImageEmbedding
+} from '@video-compressor/shared';
 
 const evenLimit = (value: number) => Math.max(2, Math.floor(value / 2) * 2);
 const fitLongestSide = (limit: number) => {
@@ -78,7 +83,6 @@ export function buildEmbeddedFfmpegArgs(options: EmbeddedFfmpegOptions): string[
   const fps = decimal(options.frameRate);
   const sourceStart = decimal(options.sourceStartSeconds ?? 0);
   const sourceDuration = decimal(options.sourceDurationSeconds);
-  const frameDuration = decimal(1 / options.frameRate, 9);
   const inputs = ['-i', options.input];
   const filters: string[] = [];
   const segments: { video: string; audio: string }[] = [];
@@ -96,11 +100,18 @@ export function buildEmbeddedFfmpegArgs(options: EmbeddedFfmpegOptions): string[
   }
 
   if (options.imageEmbedding.startImage && options.startImagePath) {
+    const startSeconds = startImageDurationSeconds(options.imageEmbedding, options.frameRate);
+    const startDuration = decimal(startSeconds, 9);
+    // A CFR stream cannot hold a frame for less than one frame period. Trimming the looped
+    // image by a sub-frame duration hangs FFmpeg, so below one frame we keep exactly one real
+    // frame and let the (precise) silence length carry the requested offset into the timeline.
+    const startVideoTrim =
+      startSeconds >= 1 / options.frameRate ? `trim=duration=${startDuration}` : 'trim=end_frame=1';
     inputs.push('-loop', '1', '-framerate', fps, '-i', options.startImagePath);
     filters.push(
-      `[${inputIndex}:v]${imageAdaptationFilter(options.width, options.height, options.imageEmbedding.fitMode)},fps=${fps},trim=duration=${frameDuration},setpts=PTS-STARTPTS[startv]`
+      `[${inputIndex}:v]${imageAdaptationFilter(options.width, options.height, options.imageEmbedding.fitMode)},fps=${fps},${startVideoTrim},setpts=PTS-STARTPTS[startv]`
     );
-    filters.push(silenceFilter(frameDuration, 'starta'));
+    filters.push(silenceFilter(startDuration, 'starta'));
     segments.push({ video: 'startv', audio: 'starta' });
     inputIndex++;
   }

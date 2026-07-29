@@ -1298,6 +1298,17 @@ a {
   min-width: 0;
 }
 
+.embedding-column-fields {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.start-duration-field {
+  min-width: 0;
+}
+
 .embedding-empty-warning {
   padding: 8px 10px;
   border-radius: var(--radius-sm);
