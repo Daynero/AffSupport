@@ -9,6 +9,7 @@ import type {
   TranslationDocument
 } from '@video-compressor/shared';
 import { applicationSupportRoot } from '../files/support-dir.js';
+import { splitTextForTranslation } from '../translation/segmentation.js';
 import { buildSegmentsFromWords, type WhisperWord } from '../whisper/words.js';
 
 /** Canonical sidecar directory, shared by the queue and the persisted-state loader. */
@@ -123,24 +124,21 @@ function timedLexicalUnits(words: WhisperWord[]): TimedLexicalUnit[] {
 }
 
 /**
- * Splits a merged plain-text transcript into structured segments. The
- * transcriber joins sentence-ish lines with `\n`, so one line becomes one
- * segment. Character offsets in each segment's words index into `sourceText`;
- * word-level timestamps are added by the whisper pipeline once available, so
- * `words` is empty here and `startMs`/`endMs` stay at 0 until then.
+ * Splits a merged plain-text transcript into bounded translation-sized
+ * segments. Whisper usually emits sentence-ish lines, but rapid speech can
+ * contain almost no sentence punctuation and previously produced 50–60 second
+ * segments. Those overwhelmed the small local translator and triggered
+ * hallucinated repetition. Long lines are now split at natural punctuation or
+ * lexical boundaries before word timings are attached.
  */
 export function segmentsFromText(jobId: string, text: string): TranscriptSegment[] {
-  return text
-    .split(/\r?\n/)
-    .map(line => line.trim())
-    .filter(Boolean)
-    .map((sourceText, index) => ({
-      id: `${jobId}-s${index}`,
-      startMs: 0,
-      endMs: 0,
-      sourceText,
-      words: []
-    }));
+  return splitTextForTranslation(text).map((sourceText, index) => ({
+    id: `${jobId}-s${index}`,
+    startMs: 0,
+    endMs: 0,
+    sourceText,
+    words: []
+  }));
 }
 
 /**
@@ -233,22 +231,185 @@ export function sourceContentHash(segments: TranscriptSegment[]): string {
 export function buildTranscriptionDocument(
   job: TranscriptionJob,
   modelVersion: string,
-  words: WhisperWord[] = []
+  words: WhisperWord[] = [],
+  englishText = '',
+  englishWords: WhisperWord[] = []
 ): TranscriptionDocument {
   const text = job.text ?? '';
+  const segments = text
+    ? segmentsFromTextWithWords(job.id, text, words)
+    : words.length
+      ? buildSegmentsFromWords(job.id, words)
+      : [];
+  const translationSourceSegments = buildTranslationSourceSegments(
+    segments,
+    englishText,
+    englishWords
+  );
   return {
     jobId: job.id,
     sourceLanguage: job.detectedLanguage ?? job.requestedLanguage ?? 'auto',
     modelVersion,
     // The merged text is the canonical transcript. Word JSON is an auxiliary
     // timing source and must never be allowed to reconstruct different text.
-    segments: text
-      ? segmentsFromTextWithWords(job.id, text, words)
-      : words.length
-        ? buildSegmentsFromWords(job.id, words)
-        : [],
+    segments,
+    ...(translationSourceSegments
+      ? {
+          translationSource: {
+            language: 'en',
+            modelVersion: `${modelVersion}:speech-to-en`,
+            segments: translationSourceSegments
+          }
+        }
+      : {}),
     translations: {}
   };
+}
+
+/**
+ * Re-buckets Whisper's sequential English speech translation onto the visible
+ * source segments. Both streams follow the same audio but may choose different
+ * sentence boundaries, so cumulative source word weight is more stable than
+ * trying to match misspelled cross-language words or fragile exact timestamps.
+ */
+export function buildTranslationSourceSegments(
+  sourceSegments: TranscriptSegment[],
+  englishText: string,
+  englishWords: WhisperWord[] = []
+): Array<{ sourceSegmentId: string; text: string }> | null {
+  const normalized = englishText.replace(/[^\S\r\n]+/gu, ' ').trim();
+  if (!sourceSegments.length || !normalized) return null;
+  const pivotUnits = lexicalUnits(normalized);
+  if (pivotUnits.length < sourceSegments.length) return null;
+
+  const weights = sourceSegments.map(segment =>
+    Math.max(1, lexicalUnits(segment.sourceText).length)
+  );
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  const averagePivotUnits = pivotUnits.length / sourceSegments.length;
+  const temporalEnds = translationSourceTemporalEnds(
+    sourceSegments,
+    normalized,
+    englishWords,
+    pivotUnits
+  );
+  const mapped: Array<{ sourceSegmentId: string; text: string }> = [];
+  let cumulativeWeight = 0;
+  let unitCursor = 0;
+  let charCursor = 0;
+
+  for (let index = 0; index < sourceSegments.length; index += 1) {
+    cumulativeWeight += weights[index];
+    const remainingSegments = sourceSegments.length - index - 1;
+    const proportionalEnd =
+      index === sourceSegments.length - 1
+        ? pivotUnits.length
+        : Math.round((cumulativeWeight / totalWeight) * pivotUnits.length);
+    const latestEnd = pivotUnits.length - remainingSegments;
+    const temporalEnd = temporalEnds.get(index);
+    const unitEnd =
+      index === sourceSegments.length - 1
+        ? pivotUnits.length
+        : temporalEnd !== undefined && temporalEnd > unitCursor && temporalEnd <= latestEnd
+          ? temporalEnd
+          : preferredTranslationSourceBoundary(
+              normalized,
+              pivotUnits,
+              unitCursor,
+              proportionalEnd,
+              latestEnd,
+              averagePivotUnits
+            );
+    const charEnd = pivotUnits[unitEnd]?.start ?? normalized.length;
+    const part = normalized.slice(charCursor, charEnd).replace(/\s+/gu, ' ').trim();
+    if (!part) return null;
+    mapped.push({ sourceSegmentId: sourceSegments[index].id, text: part });
+    unitCursor = unitEnd;
+    charCursor = charEnd;
+  }
+  return mapped;
+}
+
+function translationSourceTemporalEnds(
+  sourceSegments: TranscriptSegment[],
+  text: string,
+  words: WhisperWord[],
+  units: LexicalUnit[]
+): Map<number, number> {
+  const ends = new Map<number, number>();
+  if (!words.length || !sourceSegments.some(segment => segment.endMs > segment.startMs))
+    return ends;
+
+  const pivotSegments = segmentsFromTextWithWords('__translation-pivot__', text, words);
+  const anchors: Array<{ unitIndex: number; startMs: number; endMs: number }> = [];
+  let segmentSearchStart = 0;
+  let unitSearchStart = 0;
+  for (const segment of pivotSegments) {
+    const segmentStart = text.indexOf(segment.sourceText, segmentSearchStart);
+    if (segmentStart < 0) continue;
+    segmentSearchStart = segmentStart + segment.sourceText.length;
+    for (const word of segment.words) {
+      const globalStart = segmentStart + word.sourceStart;
+      while (unitSearchStart < units.length && units[unitSearchStart].start < globalStart) {
+        unitSearchStart += 1;
+      }
+      if (unitSearchStart >= units.length) break;
+      anchors.push({
+        unitIndex: unitSearchStart,
+        startMs: word.startMs,
+        endMs: word.endMs
+      });
+    }
+  }
+  if (anchors.length < sourceSegments.length) return ends;
+
+  for (let index = 0; index < sourceSegments.length - 1; index += 1) {
+    const segment = sourceSegments[index];
+    // Artificial 32-word cuts are better snapped to English punctuation by the
+    // proportional mapper. Exact audio timing is most valuable at a genuine
+    // source sentence boundary, especially for adjacent short slogans.
+    if (!/[.!?…।॥؟。！？]$/u.test(segment.sourceText.trim()) || segment.endMs <= 0) continue;
+    const nextStart = sourceSegments[index + 1].startMs;
+    const boundaryMs =
+      nextStart > 0 && nextStart >= segment.endMs ? (segment.endMs + nextStart) / 2 : segment.endMs;
+    const nextAnchor = anchors.find(anchor => (anchor.startMs + anchor.endMs) / 2 >= boundaryMs);
+    if (nextAnchor) ends.set(index, nextAnchor.unitIndex);
+  }
+  return ends;
+}
+
+function preferredTranslationSourceBoundary(
+  text: string,
+  units: LexicalUnit[],
+  unitCursor: number,
+  targetEnd: number,
+  latestEnd: number,
+  averageUnits: number
+): number {
+  const radius = Math.max(4, Math.min(16, Math.round(averageUnits / 2)));
+  const minEnd = Math.min(latestEnd, Math.max(unitCursor + 1, targetEnd - radius));
+  const maxEnd = Math.max(minEnd, Math.min(latestEnd, targetEnd + radius));
+  let bestEnd = Math.min(maxEnd, Math.max(minEnd, targetEnd));
+  let bestScore = Number.NEGATIVE_INFINITY;
+  for (let end = minEnd; end <= maxEnd; end += 1) {
+    const nextStart = units[end]?.start ?? text.length;
+    const between = text.slice(units[end - 1].end, nextStart);
+    const rank = /[.!?…।॥؟。！？]["'»”’)\]}]*\s*$/u.test(between)
+      ? 4
+      : /\r?\n/u.test(between)
+        ? 3
+        : /[,;:،؛]["'»”’)\]}]*\s*$/u.test(between)
+          ? 2
+          : /\s/u.test(between)
+            ? 1
+            : 0;
+    const score = rank * 100 - Math.abs(end - targetEnd);
+    if (score > bestScore) {
+      bestScore = score;
+      bestEnd = end;
+    }
+  }
+  return bestEnd;
 }
 
 /** Text-only document (no word timestamps). Kept for the fallback path. */

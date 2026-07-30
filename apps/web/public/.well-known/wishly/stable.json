@@ -1,15 +1,19 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.8.6",
-  "buildNumber": "31",
-  "buildId": "0.8.6+31",
+  "version": "0.8.7",
+  "buildNumber": "32",
+  "buildId": "0.8.7+32",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-07-30T09:41:26.000Z",
+  "publishedAt": "2026-07-30T19:50:56.000Z",
+  "summary": {
+    "en": "Cleaner transcripts and faithful translations without repeated copy-paste, with improved Hindi and Urdu handling.",
+    "uk": "Чистіші транскрипції та точні переклади без повторюваної копіпасти, з кращою обробкою гінді й урду."
+  },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.8.6/Wishly-Agent-v0.8.6-macOS-arm64.dmg",
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.8.7/Wishly-Agent-v0.8.7-macOS-arm64.dmg",
       "sha256": "d47e1918ffda559b45ea4090d182a4e7fd04151e2e3c36d47ba380a27840acc7"
     }
   },
@@ -25,5 +29,5 @@
       "transcription": 5
     }
   },
-  "signature": "hEaxTgskPuJRdp6Zoq5anwaE-FgbtEZ13Mk8PE4dv5rJq0YNfzgga2_sOtTs_4KmPib-q5qiyA4q_foKisPsYw"
+  "signature": "LE9MyIpT0kMT15DWYkeOWKv0JPuLMmFfyVYxHdp4w2SGEGfkk6psvLtNbJ8BLatdhaMAbpBazvSbRV0qk0MFDA"
 }

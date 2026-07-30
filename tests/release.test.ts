@@ -92,12 +92,12 @@ describe('release identity', () => {
     });
   });
 
-  it('uses generic maintenance copy when the stable manifest has no summary', () => {
+  it('uses localized release copy and falls back to maintenance copy when it is absent', () => {
     const manifest = JSON.parse(
       readFileSync('apps/web/public/.well-known/wishly/stable.json', 'utf8')
     );
-    expect(localizedReleaseSummary(manifest, 'en')).toBeNull();
-    expect(localizedReleaseSummary(manifest, 'uk')).toBeNull();
+    expect(localizedReleaseSummary(manifest, 'en')).toBe(manifest.summary.en);
+    expect(localizedReleaseSummary(manifest, 'uk')).toBe(manifest.summary.uk);
     expect(localizedReleaseSummary({ ...manifest, summary: undefined }, 'uk')).toBeNull();
   });
 
@@ -148,7 +148,8 @@ describe('release identity', () => {
     expect(toolContractCompatible('transcription', { transcription: 1 })).toBe(false);
     expect(toolContractCompatible('transcription', { transcription: 2 })).toBe(false);
     expect(toolContractCompatible('transcription', { transcription: 3 })).toBe(false);
-    expect(toolContractCompatible('transcription', { transcription: 4 })).toBe(true);
+    expect(toolContractCompatible('transcription', { transcription: 4 })).toBe(false);
+    expect(toolContractCompatible('transcription', { transcription: 5 })).toBe(true);
   });
 
   it('keeps installable dev builds isolated from production identities and services', () => {

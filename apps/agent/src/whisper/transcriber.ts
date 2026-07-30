@@ -11,6 +11,11 @@ export interface TranscribeOptions {
   inputPath: string;
   /** `auto` or an ISO 639-1 code. */
   language: string;
+  /**
+   * Also run Whisper's speech→English task for language families where that is
+   * a more reliable translation pivot than the noisy source transcript.
+   */
+  createEnglishPivot?: boolean;
   onProgress: (value: number | null) => void;
 }
 
@@ -28,6 +33,10 @@ export interface TranscribeResult {
    * plain-text transcript is unaffected either way.
    */
   words: WhisperWord[];
+  /** Speech-derived English pivot, empty when it was not requested/available. */
+  englishText: string;
+  /** Word timestamps for mapping the English pivot back onto source segments. */
+  englishWords: WhisperWord[];
 }
 
 export interface TranscribeHandle {
@@ -43,6 +52,10 @@ const CHUNK_PREP_END = 15;
 const PRIMARY_TRANSCRIBE_END = 88;
 const BRIDGE_PREP_END = 90;
 const INFERENCE_END = 99;
+const PIVOT_SOURCE_PRIMARY_END = 48;
+const PIVOT_SOURCE_BRIDGE_PREP_END = 50;
+const PIVOT_SOURCE_INFERENCE_END = 54;
+const PIVOT_INFERENCE_END = 99;
 const SPEECH_CHUNK_MS = 12_000;
 // 3s of shared audio is enough for the text merge to find the seam, while
 // halving how much speech is decoded twice (every double-decode is a chance
@@ -156,6 +169,17 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
         }
 
         const detectedLanguage = requestedOrDetectedLanguage(language, detection.detectedLanguage);
+        const createEnglishPivot = shouldCreateEnglishPivot(
+          detectedLanguage,
+          options.createEnglishPivot === true
+        );
+        const sourcePrimaryEnd = createEnglishPivot
+          ? PIVOT_SOURCE_PRIMARY_END
+          : PRIMARY_TRANSCRIBE_END;
+        const sourceBridgePrepEnd = createEnglishPivot
+          ? PIVOT_SOURCE_BRIDGE_PREP_END
+          : BRIDGE_PREP_END;
+        const sourceInferenceEnd = createEnglishPivot ? PIVOT_SOURCE_INFERENCE_END : INFERENCE_END;
         const ranges = buildSpeechChunks(detection.speechRanges);
         onProgress(DETECT_END);
         if (ranges.length === 0) {
@@ -202,8 +226,7 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
           },
           completed =>
             onProgress(
-              CHUNK_PREP_END +
-                (completed * (PRIMARY_TRANSCRIBE_END - CHUNK_PREP_END)) / chunkPaths.length
+              CHUNK_PREP_END + (completed * (sourcePrimaryEnd - CHUNK_PREP_END)) / chunkPaths.length
             )
         );
         diagnostics = appendDiagnostics(diagnostics, chunkRun.stderr);
@@ -236,8 +259,8 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
         const chunks = await Promise.all(chunkPaths.map(chunkPath => readRawTranscript(chunkPath)));
         const bridges = buildBridgeChunks(ranges, chunks);
         const bridgeTexts: string[] = [];
+        const bridgePaths: string[] = [];
         if (bridges.length > 0) {
-          const bridgePaths: string[] = [];
           for (let index = 0; index < bridges.length; index += 1) {
             const bridgePath = path.join(tmpDir, `bridge-${String(index).padStart(4, '0')}.wav`);
             const clip = await runExtractClip(wavPath, bridgePath, bridges[index].range, child => {
@@ -263,8 +286,8 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
             }
             bridgePaths.push(bridgePath);
             onProgress(
-              PRIMARY_TRANSCRIBE_END +
-                ((index + 1) * (BRIDGE_PREP_END - PRIMARY_TRANSCRIBE_END)) / bridges.length
+              sourcePrimaryEnd +
+                ((index + 1) * (sourceBridgePrepEnd - sourcePrimaryEnd)) / bridges.length
             );
           }
 
@@ -278,8 +301,8 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
             },
             completed =>
               onProgress(
-                BRIDGE_PREP_END +
-                  (completed * (INFERENCE_END - BRIDGE_PREP_END)) / bridgePaths.length
+                sourceBridgePrepEnd +
+                  (completed * (sourceInferenceEnd - sourceBridgePrepEnd)) / bridgePaths.length
               )
           );
           diagnostics = appendDiagnostics(diagnostics, bridgeRun.stderr);
@@ -313,15 +336,7 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
           );
         }
 
-        const refinedChunks: string[] = [];
-        for (let index = 0; index < chunks.length; index += 1) {
-          for (let bridgeIndex = 0; bridgeIndex < bridges.length; bridgeIndex += 1) {
-            if (bridges[bridgeIndex].beforeIndex === index) {
-              refinedChunks.push(bridgeTexts[bridgeIndex] ?? '');
-            }
-          }
-          refinedChunks.push(chunks[index]);
-        }
+        const refinedChunks = interleaveBridgeTexts(chunks, bridges, bridgeTexts);
         const text = mergeTranscriptChunks(refinedChunks);
 
         // Collect word timestamps from the same passes (no extra inference) and
@@ -340,8 +355,67 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
         );
         const words = mergeChunkWords([...chunkWordLists, ...bridgeWordLists]);
 
+        let englishText = '';
+        let englishWords: WhisperWord[] = [];
+        if (createEnglishPivot) {
+          const pivotPaths = [...chunkPaths, ...bridgePaths];
+          const pivotRun = await runChunkWhisper(
+            {
+              wavPaths: pivotPaths,
+              language: detectedLanguage ?? language,
+              translateToEnglish: true
+            },
+            child => {
+              activeChild = child;
+            },
+            completed =>
+              onProgress(
+                sourceInferenceEnd +
+                  (completed * (PIVOT_INFERENCE_END - sourceInferenceEnd)) / pivotPaths.length
+              )
+          );
+          diagnostics = appendDiagnostics(diagnostics, pivotRun.stderr);
+          if (cancelled) {
+            return result(null, true, '', detectedLanguage, diagnostics, null, null);
+          }
+          // The pivot is an additive quality path. A runtime that cannot perform
+          // speech translation must not discard an otherwise complete source
+          // transcript; the text translator will fall back to that transcript.
+          if (pivotRun.code === 0 && !pivotRun.spawnErrorCode) {
+            const pivotChunks = await Promise.all(
+              chunkPaths.map(chunkPath => readRawTranscript(chunkPath))
+            );
+            const pivotBridgeTexts = await Promise.all(
+              bridgePaths.map(bridgePath => readRawTranscript(bridgePath))
+            );
+            englishText = mergeTranscriptChunks(
+              interleaveBridgeTexts(pivotChunks, bridges, pivotBridgeTexts)
+            );
+            const pivotChunkWordLists = await Promise.all(
+              chunkPaths.map((chunkPath, index) => readChunkWords(chunkPath, ranges[index].startMs))
+            );
+            const pivotBridgeWordLists = await Promise.all(
+              bridges.map((bridge, index) =>
+                readChunkWords(bridgePaths[index], bridge.range.startMs)
+              )
+            );
+            englishWords = mergeChunkWords([...pivotChunkWordLists, ...pivotBridgeWordLists]);
+          }
+        }
+
         onProgress(100);
-        return result(0, false, text, detectedLanguage, diagnostics, null, null, words);
+        return result(
+          0,
+          false,
+          text,
+          detectedLanguage,
+          diagnostics,
+          null,
+          null,
+          words,
+          englishText,
+          englishWords
+        );
       }
 
       // Compatibility fallback for source builds that do not have the bundled
@@ -390,7 +464,9 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
     stderr: string,
     failedStage: 'extract' | 'transcribe' | null,
     spawnErrorCode: string | null,
-    words: WhisperWord[] = []
+    words: WhisperWord[] = [],
+    englishText = '',
+    englishWords: WhisperWord[] = []
   ): TranscribeResult {
     return {
       code,
@@ -400,7 +476,9 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
       stderr,
       failedStage,
       spawnErrorCode,
-      words
+      words,
+      englishText,
+      englishWords
     };
   }
 }
@@ -540,7 +618,7 @@ function runVadDetection(
 }
 
 function runChunkWhisper(
-  params: { wavPaths: string[]; language: string },
+  params: { wavPaths: string[]; language: string; translateToEnglish?: boolean },
   onChild: (child: ChildProcessWithoutNullStreams) => void,
   onChunkComplete: (completed: number) => void
 ): Promise<{
@@ -694,7 +772,7 @@ export function buildVadDetectionArgs(
 }
 
 export function buildChunkWhisperArgs(
-  params: { wavPaths: string[]; language: string },
+  params: { wavPaths: string[]; language: string; translateToEnglish?: boolean },
   options: { threads?: number } = {}
 ): string[] {
   const threads = options.threads ?? Math.max(4, os.cpus().length - 2);
@@ -703,6 +781,7 @@ export function buildChunkWhisperArgs(
     currentModelPath(),
     '-l',
     params.language || 'auto',
+    ...(params.translateToEnglish ? ['-tr'] : []),
     '-otxt',
     // Additionally emit full JSON (per-token millisecond offsets) so the
     // structured document can carry word timestamps for karaoke playback. This
@@ -865,6 +944,36 @@ export function buildBridgeChunks(
   return bridges;
 }
 
+function interleaveBridgeTexts(
+  chunks: string[],
+  bridges: BridgeChunk[],
+  bridgeTexts: string[]
+): string[] {
+  const refined: string[] = [];
+  for (let index = 0; index < chunks.length; index += 1) {
+    for (let bridgeIndex = 0; bridgeIndex < bridges.length; bridgeIndex += 1) {
+      if (bridges[bridgeIndex].beforeIndex === index) {
+        refined.push(bridgeTexts[bridgeIndex] ?? '');
+      }
+    }
+    refined.push(chunks[index]);
+  }
+  return refined;
+}
+
+/**
+ * Hindi/Urdu ad speech is frequently colloquial, profane, and code-switched.
+ * On measured samples, Whisper's native speech→English task retained that
+ * meaning while TranslateGemma could not reliably recover it from the noisy
+ * Devanagari transcript. Keep the extra pass targeted so languages with strong
+ * direct text translation do not pay a blanket 2× Whisper cost.
+ */
+export function shouldCreateEnglishPivot(language: string | null, requested: boolean): boolean {
+  if (!requested || !language) return false;
+  const base = language.trim().replaceAll('_', '-').split('-')[0].toLowerCase();
+  return base === 'hi' || base === 'ur';
+}
+
 async function readTranscript(temporaryOutputPath: string): Promise<string> {
   try {
     const raw = await readFile(temporaryOutputPath, 'utf8');
@@ -913,7 +1022,10 @@ export function stripNonSpeechArtifacts(text: string): string {
     .replace(/\[[^\]\n]*\]/gu, ' ')
     .replace(/\([^()\n]*\)/gu, ' ')
     .replace(/[\u266A\u266B\u266C]+/gu, ' ')
-    .replace(/(?<=^|[\s"'\u00AB\u201E\u201C([\u2014\u2013-])(?:\.{2,}|\u2026+)(?=[\s"'\u00BB\u201D)\]\u2014\u2013-]|$)/gu, ' ')
+    .replace(
+      /(?<=^|[\s"'\u00AB\u201E\u201C([\u2014\u2013-])(?:\.{2,}|\u2026+)(?=[\s"'\u00BB\u201D)\]\u2014\u2013-]|$)/gu,
+      ' '
+    )
     .replace(/(?:\.{3,}|\u2026+)\s*$/u, '')
     .replace(/[^\S\r\n]{2,}/gu, ' ');
 }

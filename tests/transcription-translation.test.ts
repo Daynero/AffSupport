@@ -13,12 +13,17 @@ import type {
   Translator,
   TranslationOutputSegment
 } from '../apps/agent/src/translation/translator.js';
-import { translationPrompt } from '../apps/agent/src/translation/translator.js';
+import {
+  translationCompletionBody,
+  translationNeedsRetry,
+  translationPrompt
+} from '../apps/agent/src/translation/translator.js';
 import { TranscriptionDocumentStore } from '../apps/agent/src/transcription/document-store.js';
 import {
   automaticTranslationTarget,
   combinedModelStatus,
-  TranscriptionQueue
+  TranscriptionQueue,
+  translationInputForDocument
 } from '../apps/agent/src/queue/transcription-queue.js';
 
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
@@ -142,11 +147,40 @@ describe('TranslateGemma prompt rendering', () => {
   it('uses the model translation turn format without duplicating the BOS token', () => {
     const prompt = translationPrompt('en', 'uk', '  Hello world.  ');
     expect(prompt).toContain('You are a professional English (en) to Ukrainian (uk) translator.');
+    expect(prompt).toContain('Do not censor, soften, summarize, omit, invent, or repeat wording');
     expect(prompt).toContain(
       'Please translate the following English text into Ukrainian:\n\n\nHello world.'
     );
     expect(prompt).toMatch(/<end_of_turn>\n<start_of_turn>model\n$/u);
     expect(prompt).not.toContain('<bos>');
+  });
+
+  it('uses deterministic anti-repetition sampling with a bounded output budget', () => {
+    expect(translationCompletionBody('hi', 'uk', 'नमस्ते दुनिया')).toMatchObject({
+      temperature: 0,
+      repeat_last_n: 256,
+      repeat_penalty: 1.1,
+      dry_multiplier: 0.8,
+      dry_allowed_length: 3,
+      stream: false,
+      stop: ['<end_of_turn>']
+    });
+    expect(translationCompletionBody('hi', 'uk', 'नमस्ते दुनिया', true)).toMatchObject({
+      repeat_penalty: 1.15,
+      dry_multiplier: 1
+    });
+  });
+
+  it('rejects decoder loops and token-limit truncation without flagging normal prose', () => {
+    const loop =
+      'Наша формула працює, і ви відчуєте різницю. '.repeat(12) + 'Натисніть кнопку зараз.';
+    expect(translationNeedsRetry(loop)).toBe(true);
+    expect(
+      translationNeedsRetry(
+        'Наша формула працює швидко. Вона зберігає тон оригіналу й усі важливі деталі.'
+      )
+    ).toBe(false);
+    expect(translationNeedsRetry('Цілком нормальний завершений переклад.', true)).toBe(true);
   });
 });
 
@@ -156,6 +190,37 @@ describe('automatic translation target', () => {
     expect(automaticTranslationTarget('en', 'en')).toBe('uk');
     expect(automaticTranslationTarget('uk-UA', 'uk')).toBe('en');
     expect(automaticTranslationTarget('auto', 'uk')).toBeNull();
+  });
+
+  it('uses a complete speech-derived pivot but rejects a partial one', () => {
+    const document: TranscriptionDocument = {
+      jobId: 'pivot',
+      sourceLanguage: 'hi',
+      modelVersion: 'large-v3',
+      segments: [
+        { id: 's0', startMs: 0, endMs: 1, sourceText: 'पहला', words: [] },
+        { id: 's1', startMs: 1, endMs: 2, sourceText: 'दूसरा', words: [] }
+      ],
+      translationSource: {
+        language: 'en',
+        modelVersion: 'large-v3:speech-to-en',
+        segments: [
+          { sourceSegmentId: 's0', text: 'The first part.' },
+          { sourceSegmentId: 's1', text: 'The second part.' }
+        ]
+      },
+      translations: {}
+    };
+    expect(translationInputForDocument(document, 'uk')).toEqual({
+      language: 'en',
+      segments: [
+        { id: 's0', text: 'The first part.' },
+        { id: 's1', text: 'The second part.' }
+      ]
+    });
+
+    document.translationSource?.segments.pop();
+    expect(translationInputForDocument(document, 'uk').language).toBe('hi');
   });
 });
 

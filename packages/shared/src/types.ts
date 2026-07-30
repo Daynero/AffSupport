@@ -1096,6 +1096,22 @@ export interface TranslationDocument {
   error: string | null;
 }
 
+/**
+ * Optional, speech-derived pivot used only as the input to the text translator.
+ * Whisper's direct speech→English task can preserve meaning better than asking
+ * a small text model to interpret a noisy transcript in a distant language.
+ * Entries stay keyed to the visible source segments so playback and alignment
+ * continue to use the original-language transcript.
+ */
+export interface TranscriptionTranslationSource {
+  language: string;
+  modelVersion: string;
+  segments: Array<{
+    sourceSegmentId: string;
+    text: string;
+  }>;
+}
+
 /** The full structured sidecar for one transcription job. */
 export interface TranscriptionDocument {
   jobId: string;
@@ -1104,6 +1120,8 @@ export interface TranscriptionDocument {
   /** Transcriber (whisper) model version that produced the segments. */
   modelVersion: string;
   segments: TranscriptSegment[];
+  /** Hidden speech-derived input for higher-quality translation when available. */
+  translationSource?: TranscriptionTranslationSource;
   /** Keyed by target-language code. */
   translations: Record<string, TranslationDocument>;
 }

@@ -11,6 +11,7 @@ import {
   translationRuntimePath,
   translationRuntimePresent
 } from './tools.js';
+import { splitTextForTranslation } from './segmentation.js';
 
 export interface TranslationInputSegment {
   id: string;
@@ -57,6 +58,7 @@ export interface LocalLlamaHttpResult {
 interface CompletionResponse {
   content?: unknown;
   error?: { message?: unknown };
+  stopped_limit?: unknown;
 }
 
 const START_TIMEOUT_MS = 120_000;
@@ -69,6 +71,11 @@ const IDLE_EXIT_MS = 30 * 60_000;
 // kills the whole process to free RAM. A short sleep-idle used to unload weights
 // mid-job (e.g. during a pause between segments), forcing a costly reload.
 const MODEL_SLEEP_SECONDS = 24 * 60 * 60;
+// Prompt, segmentation, decoding, and output validation are part of the
+// translation result just as much as the GGUF weights. Bump this whenever those
+// semantics change so an old low-quality translation is never served from the
+// shared cache after an app update.
+const TRANSLATION_PIPELINE_VERSION = 'faithful-segments-v2';
 // Number of segments translated concurrently. Matches the server's slot count
 // so llama.cpp continuous-batches them in one forward pass instead of decoding
 // one segment at a time. Transcript lines are short, so per-request overhead
@@ -110,7 +117,7 @@ export class LlamaTranslator implements Translator {
 
   modelVersion(): string {
     return [
-      'translategemma-4b-it-q4_k_m',
+      `translategemma-4b-it-q4_k_m-${TRANSLATION_PIPELINE_VERSION}`,
       TRANSLATION_MODEL_DESCRIPTOR.sha256.slice(0, 16),
       `llama.cpp-${TRANSLATION_RUNTIME_DESCRIPTOR.tag}`
     ].join('@');
@@ -128,6 +135,23 @@ export class LlamaTranslator implements Translator {
     }
     if (!targetLanguage || targetLanguage === 'auto') {
       throw new Error('TARGET_LANGUAGE_UNSUPPORTED');
+    }
+
+    // Whisper's speech-derived English pivot is already the requested output
+    // when the user selects English. Preserve it verbatim instead of asking the
+    // text model to paraphrase English into English.
+    if (sourceLanguage === targetLanguage) {
+      const out = request.segments.map((segment, index) => {
+        if (signal.aborted) throw abortError();
+        const translated: TranslationOutputSegment = {
+          sourceSegmentId: segment.id,
+          translatedText: segment.text.trim(),
+          alignments: []
+        };
+        request.onSegment?.(translated, index);
+        return translated;
+      });
+      return out;
     }
 
     return this.withInferenceLock(signal, async () => {
@@ -302,26 +326,67 @@ export class LlamaTranslator implements Translator {
     text: string,
     signal: AbortSignal
   ): Promise<string> {
+    // Documents created by current builds are already bounded, while this also
+    // protects restored/legacy sidecars that may contain a minute of speech in
+    // one segment. One logical source segment still returns one translated
+    // segment, so cache binding and source↔target alignment remain compatible.
+    const pieces = splitTextForTranslation(text);
+    const translated: string[] = [];
+    for (const piece of pieces) {
+      translated.push(await this.runPiece(sourceLanguage, targetLanguage, piece, signal, false));
+    }
+    return joinTranslatedPieces(translated);
+  }
+
+  private async runPiece(
+    sourceLanguage: string,
+    targetLanguage: string,
+    text: string,
+    signal: AbortSignal,
+    isRetry: boolean
+  ): Promise<string> {
+    const completion = await this.requestCompletion(
+      sourceLanguage,
+      targetLanguage,
+      text,
+      signal,
+      isRetry
+    );
+    if (!translationNeedsRetry(completion.text, completion.stoppedAtLimit)) {
+      return completion.text;
+    }
+
+    // A bounded retry is safer than accepting a loop or simply chopping its
+    // repeated tail. Translate smaller source units independently so every
+    // source word still has a chance to reach the output.
+    const retryPieces = splitTextForTranslation(text, { maxUnits: 16 });
+    if (!isRetry && retryPieces.length > 1) {
+      const translated: string[] = [];
+      for (const piece of retryPieces) {
+        translated.push(await this.runPiece(sourceLanguage, targetLanguage, piece, signal, true));
+      }
+      return joinTranslatedPieces(translated);
+    }
+    if (!isRetry) {
+      return this.runPiece(sourceLanguage, targetLanguage, text, signal, true);
+    }
+    throw new Error('The local translator produced an incomplete or repetitive translation.');
+  }
+
+  private async requestCompletion(
+    sourceLanguage: string,
+    targetLanguage: string,
+    text: string,
+    signal: AbortSignal,
+    isRetry: boolean
+  ): Promise<{ text: string; stoppedAtLimit: boolean }> {
     if (!this.port) throw new Error('TRANSLATOR_UNAVAILABLE');
     const result = await localLlamaHttpRequest(
       this.port,
       this.apiKey,
       'POST',
       '/completion',
-      {
-        prompt: translationPrompt(sourceLanguage, targetLanguage, text),
-        // A translation is roughly the length of its source; cap generation to a
-        // generous multiple of the input so a short segment can't spend the full
-        // budget over-generating. The 768 ceiling keeps genuinely long lines from
-        // being silently truncated mid-sentence while still fitting the ~2048
-        // tokens/slot context. `temperature:0` keeps it deterministic.
-        n_predict: Math.min(768, Math.ceil(text.length * 1.5) + 48),
-        temperature: 0,
-        top_p: 1,
-        stream: false,
-        cache_prompt: true,
-        stop: ['<end_of_turn>']
-      },
+      translationCompletionBody(sourceLanguage, targetLanguage, text, isRetry),
       signal
     );
     let parsed: CompletionResponse;
@@ -339,7 +404,10 @@ export class LlamaTranslator implements Translator {
     if (typeof content !== 'string' || !content.trim()) {
       throw new Error('The local translator returned an empty translation.');
     }
-    return content.trim();
+    return {
+      text: content.trim(),
+      stoppedAtLimit: parsed.stopped_limit === true
+    };
   }
 
   private scheduleIdleExit(): void {
@@ -372,12 +440,99 @@ export function translationPrompt(
   return (
     `<start_of_turn>user\n` +
     `You are a professional ${sourceName} (${sourceLanguage}) to ${targetName} (${targetLanguage}) translator. ` +
-    `Your goal is to accurately convey the meaning and nuances of the original ${sourceName} text while adhering ` +
-    `to ${targetName} grammar, vocabulary, and cultural sensitivities.\n` +
+    `Translate the complete text faithfully while using natural ${targetName} grammar and vocabulary. ` +
+    `Preserve every claim, detail, tone, profanity, slang, and explicit sexual or medical term. ` +
+    `Do not censor, soften, summarize, omit, invent, or repeat wording that is not repeated in the source.\n` +
     `Produce only the ${targetName} translation, without any additional explanations or commentary. ` +
     `Please translate the following ${sourceName} text into ${targetName}:\n\n\n` +
     `${text.trim()}\n<end_of_turn>\n<start_of_turn>model\n`
   );
+}
+
+export function translationCompletionBody(
+  sourceLanguage: string,
+  targetLanguage: string,
+  text: string,
+  isRetry = false
+): Record<string, unknown> {
+  return {
+    prompt: translationPrompt(sourceLanguage, targetLanguage, text),
+    // Translation output should be roughly source-sized. Pieces are bounded to
+    // 32 lexical units, so this is ample for language expansion without giving
+    // a decoder loop hundreds of unnecessary tokens.
+    n_predict: Math.min(512, Math.ceil(text.length * 1.35) + 64),
+    temperature: 0,
+    top_p: 1,
+    repeat_last_n: 256,
+    repeat_penalty: isRetry ? 1.15 : 1.1,
+    // DRY penalizes repeated token sequences while allowing ordinary repeated
+    // function words. The stronger retry setting is used only after validation
+    // rejected a first response.
+    dry_multiplier: isRetry ? 1.0 : 0.8,
+    dry_base: 1.75,
+    dry_allowed_length: 3,
+    dry_penalty_last_n: 256,
+    stream: false,
+    cache_prompt: true,
+    stop: ['<end_of_turn>']
+  };
+}
+
+/**
+ * Detects decoder failure rather than attempting to "clean" its text. Repeated
+ * six-word spans must cover a substantial part of the output and occur at least
+ * four non-overlapping times, keeping ordinary recurring terms untouched.
+ */
+export function translationNeedsRetry(text: string, stoppedAtLimit = false): boolean {
+  if (stoppedAtLimit) return true;
+  const tokens =
+    text
+      .normalize('NFKC')
+      .toLocaleLowerCase()
+      .match(/[\p{L}\p{M}\p{N}]+/gu) ?? [];
+  if (tokens.length < 24) return false;
+
+  const spanLength = Math.min(8, Math.max(6, Math.floor(tokens.length / 8)));
+  const occurrences = new Map<string, number[]>();
+  for (let index = 0; index + spanLength <= tokens.length; index += 1) {
+    const key = tokens.slice(index, index + spanLength).join('\u0000');
+    const positions = occurrences.get(key) ?? [];
+    positions.push(index);
+    occurrences.set(key, positions);
+  }
+
+  for (const positions of occurrences.values()) {
+    let nonOverlapping = 0;
+    let nextAllowed = 0;
+    for (const position of positions) {
+      if (position < nextAllowed) continue;
+      nonOverlapping += 1;
+      nextAllowed = position + spanLength;
+    }
+    if (nonOverlapping >= 4 && nonOverlapping * spanLength >= Math.ceil(tokens.length * 0.25)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function joinTranslatedPieces(parts: string[]): string {
+  let joined = '';
+  for (const part of parts.map(value => value.trim()).filter(Boolean)) {
+    if (!joined) {
+      joined = part;
+      continue;
+    }
+    const compactBoundary =
+      /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]$/u.test(
+        joined
+      ) &&
+      /^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]/u.test(
+        part
+      );
+    joined += compactBoundary || /^[,.;:!?…।॥؟。！？)\]}]/u.test(part) ? part : ` ${part}`;
+  }
+  return joined;
 }
 
 function englishLanguageName(code: string): string {

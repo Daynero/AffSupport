@@ -90,6 +90,42 @@ export function automaticTranslationTarget(
   return resolveTranslationTarget(sourceLanguage, preferredLanguage);
 }
 
+export function translationInputForDocument(
+  document: TranscriptionDocument,
+  targetLanguage: string
+): { language: string; segments: Array<{ id: string; text: string }> } {
+  const targetBase = normalizeTargetLanguage(targetLanguage).split('-')[0];
+  const sourceBase = document.sourceLanguage
+    .trim()
+    .replaceAll('_', '-')
+    .toLowerCase()
+    .split('-')[0];
+  const pivot = document.translationSource;
+  if (pivot && targetBase !== sourceBase) {
+    const pivotById = new Map(
+      pivot.segments
+        .filter(segment => segment.text.trim())
+        .map(segment => [segment.sourceSegmentId, segment.text.trim()])
+    );
+    if (
+      pivotById.size === document.segments.length &&
+      document.segments.every(segment => pivotById.has(segment.id))
+    ) {
+      return {
+        language: pivot.language,
+        segments: document.segments.map(segment => ({
+          id: segment.id,
+          text: pivotById.get(segment.id) ?? segment.sourceText
+        }))
+      };
+    }
+  }
+  return {
+    language: document.sourceLanguage,
+    segments: document.segments.map(segment => ({ id: segment.id, text: segment.sourceText }))
+  };
+}
+
 type Notify = (event?: TranscriptionEventType) => void;
 /** ffmpeg + whisper binary availability; the model is tracked separately. */
 export interface TranscriptionTooling {
@@ -502,12 +538,17 @@ export class TranscriptionQueue {
     const lang = normalizeTargetLanguage(language);
     const modelVersion = this.translationModelVersion();
     const translatorAvailable = this.translator?.available() === true;
+    const translationInput = translationInputForDocument(document, lang);
+    const cacheInputSegments = document.segments.map((segment, index) => ({
+      ...segment,
+      sourceText: translationInput.segments[index].text
+    }));
     const cacheKey =
       modelVersion === undefined
         ? undefined
         : translationCacheKey({
-            sourceContentHash: sourceContentHash(document.segments),
-            sourceLanguage: document.sourceLanguage,
+            sourceContentHash: sourceContentHash(cacheInputSegments),
+            sourceLanguage: translationInput.language,
             targetLanguage: lang,
             translatorModelVersion: modelVersion
           });
@@ -707,7 +748,10 @@ export class TranscriptionQueue {
     return {
       segments,
       characters,
-      totalCharacters: document.segments.reduce((sum, segment) => sum + segment.sourceText.length, 0)
+      totalCharacters: document.segments.reduce(
+        (sum, segment) => sum + segment.sourceText.length,
+        0
+      )
     };
   }
 
@@ -814,6 +858,10 @@ export class TranscriptionQueue {
 
       const total = document.segments.length;
       const sourceById = new Map(document.segments.map(segment => [segment.id, segment]));
+      const translationInput = translationInputForDocument(document, task.language);
+      const translationTextById = new Map(
+        translationInput.segments.map(segment => [segment.id, segment.text])
+      );
       const aligned: TranslationOutputSegment[] = new Array(total);
       const alignPromises: Promise<void>[] = new Array(total);
       /** Raw results in document order, snapshotted for incremental persistence. */
@@ -867,7 +915,11 @@ export class TranscriptionQueue {
           translatedCharacters += segment.sourceText.length;
           startAlign(resumed, index);
         } else {
-          missing.push({ id: segment.id, text: segment.sourceText, index });
+          missing.push({
+            id: segment.id,
+            text: translationTextById.get(segment.id) ?? segment.sourceText,
+            index
+          });
         }
       });
       const snapshotSegments = (): TranslationOutputSegment[] =>
@@ -876,7 +928,7 @@ export class TranscriptionQueue {
       const output = missing.length
         ? await translator.translate(
             {
-              sourceLanguage: document.sourceLanguage,
+              sourceLanguage: translationInput.language,
               targetLanguage: task.language,
               segments: missing.map(segment => ({ id: segment.id, text: segment.text })),
               onSegment: (translated, subsetIndex) => {
@@ -884,7 +936,10 @@ export class TranscriptionQueue {
                 partial[index] = translated;
                 startAlign(translated, index);
                 translatedCount += 1;
-                translatedCharacters += missing[subsetIndex].text.length;
+                // Progress is displayed against the visible source transcript.
+                // A speech-derived English pivot can have a different character
+                // count and must not make the bar jump ahead or reach 100% early.
+                translatedCharacters += document.segments[index].sourceText.length;
                 void this.persistTranslationProgress(
                   task,
                   key,
@@ -1368,6 +1423,7 @@ export class TranscriptionQueue {
       const handle = transcribe({
         inputPath: job.inputPath,
         language: job.requestedLanguage,
+        createEnglishPivot: true,
         onProgress: value => {
           if (job.status !== 'processing') return;
           job.progress = value;
@@ -1395,7 +1451,15 @@ export class TranscriptionQueue {
         // Persist the private structured document (segments + word timestamps);
         // failure here must not fail the job.
         await this.withDocumentLock(job.id, () =>
-          this.documents.save(buildTranscriptionDocument(job, MODEL_DESCRIPTOR.label, result.words))
+          this.documents.save(
+            buildTranscriptionDocument(
+              job,
+              MODEL_DESCRIPTOR.label,
+              result.words,
+              result.englishText,
+              result.englishWords
+            )
+          )
         ).catch(() => {});
         // Queue the preferred local translation without delaying the next
         // Whisper job. Inference remains blocked until the transcription queue

@@ -769,8 +769,7 @@ function TranscriptionRow({
     () =>
       TRANSLATEGEMMA_LANGUAGE_CODES.filter(
         code =>
-          code === displayedTargetLanguage ||
-          code.split('-')[0].toLowerCase() !== sourceLanguage
+          code === displayedTargetLanguage || code.split('-')[0].toLowerCase() !== sourceLanguage
       ).map(code => ({ code, name: languageDisplayName(code, language) })),
     [language, sourceLanguage, displayedTargetLanguage]
   );

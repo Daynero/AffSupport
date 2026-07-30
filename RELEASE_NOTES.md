@@ -1,3 +1,10 @@
+# v0.8.7
+
+- Split long, punctuation-poor transcripts into short natural segments before translation, preventing oversized model requests and making results easier to read.
+- Detect repetitive or truncated translator output and retry it in smaller pieces with anti-repetition decoding instead of preserving generated copy-paste.
+- Improve Hindi and Urdu translation by deriving a timestamp-mapped English meaning pass directly from the speech while keeping the original-language transcript visible.
+- Preserve slang, profanity, explicit terms, and source detail in the translation prompt instead of softening or summarizing them.
+
 # v0.8.6
 
 - Clean transcripts of decoder artifacts: stray "..." markers, `[BLANK_AUDIO]`/`(music)` annotations, and duplicated phrases at window seams no longer appear in results.

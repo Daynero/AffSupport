@@ -6,6 +6,7 @@ import { translationCacheKey, type TranscriptionJob } from '@video-compressor/sh
 import { mediaMimeType, resolveByteRange } from '../apps/agent/src/transcription/media.js';
 import { browserCompatible } from '../apps/agent/src/transcription/media-preview.js';
 import {
+  buildTranslationSourceSegments,
   buildTranscriptionDocument,
   buildTextTranscriptionDocument,
   segmentsFromText,
@@ -13,6 +14,10 @@ import {
   sourceContentHash,
   TranscriptionDocumentStore
 } from '../apps/agent/src/transcription/document-store.js';
+import {
+  MAX_TRANSLATION_SEGMENT_UNITS,
+  splitTextForTranslation
+} from '../apps/agent/src/translation/segmentation.js';
 import type { WhisperWord } from '../apps/agent/src/whisper/words.js';
 import { isValidTargetLanguage } from '../apps/agent/src/queue/transcription-queue.js';
 
@@ -66,11 +71,88 @@ describe('media range + mime helpers', () => {
 });
 
 describe('structured document building', () => {
-  it('splits a merged transcript into one segment per non-empty line', () => {
+  it('keeps ordinary transcript lines as individual segments', () => {
     const segments = segmentsFromText('job1', 'First sentence.\n\n  Second sentence.  \n');
     expect(segments).toEqual([
       { id: 'job1-s0', startMs: 0, endMs: 0, sourceText: 'First sentence.', words: [] },
       { id: 'job1-s1', startMs: 0, endMs: 0, sourceText: 'Second sentence.', words: [] }
+    ]);
+  });
+
+  it('bounds a punctuation-poor line before it reaches the translator', () => {
+    const text = Array.from({ length: 85 }, (_, index) => `शब्द${index}`).join(' ');
+    const segments = segmentsFromText('long', text);
+
+    expect(segments.length).toBeGreaterThan(1);
+    expect(
+      segments.every(
+        segment =>
+          (segment.sourceText.match(/[\p{L}\p{M}\p{N}]+/gu) ?? []).length <=
+          MAX_TRANSLATION_SEGMENT_UNITS
+      )
+    ).toBe(true);
+    expect(segments.map(segment => segment.sourceText).join(' ')).toBe(text);
+  });
+
+  it('bounds scripts without spaces by visible units', () => {
+    const text = '這是一段沒有空格而且非常長的逐字稿內容'.repeat(4);
+    const parts = splitTextForTranslation(text, { maxUnits: 12 });
+
+    expect(parts.length).toBeGreaterThan(1);
+    expect(parts.join('')).toBe(text);
+    expect(parts.every(part => Array.from(part).length <= 12)).toBe(true);
+  });
+
+  it('maps a speech-derived English pivot onto every visible source segment', () => {
+    const source = segmentsFromText('pivot', 'один два\nтри чотири');
+    const mapped = buildTranslationSourceSegments(
+      source,
+      'One two three four. Five six seven eight.'
+    );
+
+    expect(mapped).toEqual([
+      { sourceSegmentId: 'pivot-s0', text: 'One two three four.' },
+      { sourceSegmentId: 'pivot-s1', text: 'Five six seven eight.' }
+    ]);
+    expect(mapped?.map(segment => segment.text).join(' ')).toBe(
+      'One two three four. Five six seven eight.'
+    );
+  });
+
+  it('uses word timing to preserve adjacent short source sentences in the pivot', () => {
+    const source = segmentsFromText(
+      'timed-pivot',
+      'Перше речення.\nКороткий слоган.\nДругий слоган.\nЗавершення.'
+    );
+    source.forEach((segment, index) => {
+      segment.startMs = index * 1_000 + (index ? 100 : 0);
+      segment.endMs = (index + 1) * 1_000;
+    });
+    const english = 'First sentence. Tiny slogan one Tiny slogan two Next sentence.';
+    const pivotWords = [
+      ['First', 100, 400],
+      ['sentence.', 500, 900],
+      ['Tiny', 1_100, 1_300],
+      ['slogan', 1_350, 1_550],
+      ['one', 1_600, 1_900],
+      ['Tiny', 2_100, 2_300],
+      ['slogan', 2_350, 2_550],
+      ['two', 2_600, 2_900],
+      ['Next', 3_100, 3_400],
+      ['sentence.', 3_500, 3_900]
+    ].map(([text, startMs, endMs], index): WhisperWord => ({
+      text: String(text),
+      leadingSpace: index > 0,
+      startMs: Number(startMs),
+      endMs: Number(endMs),
+      confidence: 0.9
+    }));
+
+    expect(buildTranslationSourceSegments(source, english, pivotWords)).toEqual([
+      { sourceSegmentId: 'timed-pivot-s0', text: 'First sentence.' },
+      { sourceSegmentId: 'timed-pivot-s1', text: 'Tiny slogan one' },
+      { sourceSegmentId: 'timed-pivot-s2', text: 'Tiny slogan two' },
+      { sourceSegmentId: 'timed-pivot-s3', text: 'Next sentence.' }
     ]);
   });
 
@@ -156,6 +238,30 @@ describe('structured document building', () => {
       'sukat.'
     ]);
     expect(document.segments.flatMap(segment => segment.words)).toHaveLength(18);
+  });
+
+  it('stores a complete speech-derived translation source when supplied', () => {
+    const job = {
+      id: 'speech-pivot',
+      detectedLanguage: 'hi',
+      requestedLanguage: 'auto',
+      text: 'पहला भाग\nदूसरा भाग'
+    } as TranscriptionJob;
+    const document = buildTranscriptionDocument(
+      job,
+      'large-v3',
+      [],
+      'The first part. The second part.'
+    );
+
+    expect(document.translationSource).toMatchObject({
+      language: 'en',
+      modelVersion: 'large-v3:speech-to-en'
+    });
+    expect(document.translationSource?.segments).toHaveLength(2);
+    expect(document.translationSource?.segments.map(segment => segment.text).join(' ')).toBe(
+      'The first part. The second part.'
+    );
   });
 
   it('splits punctuation compounds into monotonic timing units', () => {

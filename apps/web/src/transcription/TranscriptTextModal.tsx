@@ -410,8 +410,7 @@ export function TranscriptTextModal({
     job.translation && job.translation.targetLanguage.toLowerCase() === target.toLowerCase()
       ? job.translation
       : null;
-  const summaryTranslating =
-    summary?.status === 'queued' || summary?.status === 'processing';
+  const summaryTranslating = summary?.status === 'queued' || summary?.status === 'processing';
   const translating = !translationError && (requesting || summaryTranslating);
 
   // Ensure/join backend work for the chosen target. Thanks to the shared
@@ -513,15 +512,7 @@ export function TranscriptTextModal({
       active = false;
       controller.abort();
     };
-  }, [
-    document_,
-    summaryStatus,
-    summaryCompletedSegments,
-    requesting,
-    target,
-    job.id,
-    translation
-  ]);
+  }, [document_, summaryStatus, summaryCompletedSegments, requesting, target, job.id, translation]);
 
   // Elapsed time is anchored to the backend's startedAt, so it is continuous
   // across the list, reopened modals, and preemption — never a fresh stopwatch.

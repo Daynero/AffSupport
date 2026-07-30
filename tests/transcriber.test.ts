@@ -8,6 +8,7 @@ import {
   collapseTranscriptArtifacts,
   mergeTranscriptChunks,
   parseVadSpeechRanges,
+  shouldCreateEnglishPivot,
   stripNonSpeechArtifacts
 } from '../apps/agent/src/whisper/transcriber.js';
 
@@ -47,6 +48,14 @@ describe('Whisper transcription safeguards', () => {
       },
       { threads: 4 }
     );
+    const translated = buildChunkWhisperArgs(
+      {
+        wavPaths: ['/tmp/chunk-0.wav'],
+        language: 'hi',
+        translateToEnglish: true
+      },
+      { threads: 4 }
+    );
 
     expect(detection).toEqual(
       expect.arrayContaining(['-f', '/tmp/input.wav', '-dl', '--vad', '-vm', '/tmp/silero.bin'])
@@ -71,6 +80,15 @@ describe('Whisper transcription safeguards', () => {
     expect(recovery).toContain('-otxt');
     expect(recovery).not.toContain('-nt');
     expect(recovery).not.toContain('--no-timestamps');
+    expect(translated).toEqual(expect.arrayContaining(['-l', 'hi', '-tr']));
+  });
+
+  it('limits the extra speech-to-English pass to measured weak source languages', () => {
+    expect(shouldCreateEnglishPivot('hi', true)).toBe(true);
+    expect(shouldCreateEnglishPivot('ur-PK', true)).toBe(true);
+    expect(shouldCreateEnglishPivot('tr', true)).toBe(false);
+    expect(shouldCreateEnglishPivot('hi', false)).toBe(false);
+    expect(shouldCreateEnglishPivot(null, true)).toBe(false);
   });
 
   it('parses, joins, and bounds VAD speech ranges with overlap', () => {
