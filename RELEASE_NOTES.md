@@ -1,3 +1,12 @@
+# v0.8.6
+
+- Clean transcripts of decoder artifacts: stray "..." markers, `[BLANK_AUDIO]`/`(music)` annotations, and duplicated phrases at window seams no longer appear in results.
+- Improve recognition of quiet or unevenly mixed speech by normalizing audio loudness before decoding, and recover from decoder repetition loops instead of keeping them.
+- Opening a transcript's detail view now joins the translation already in progress instead of restarting it, and interrupted translations resume from where they stopped.
+- Show translated text progressively as segments finish, with a character-weighted progress bar and a continuous elapsed/ETA shared between the list and the viewer.
+- Add a cancel control for a running translation, a retry control on the list row, and keep the translator warm for 30 minutes so pauses between files no longer pay a full model reload.
+- Add "Save with translation": packages the creative into a folder named after the source language and character count, next to the original file, together with a transcript-and-translation text file.
+
 # v0.8.5
 
 - Require a signed-in Wishly account to use the local tools; the app confirms the account with the server occasionally and keeps working offline for several days between checks.
