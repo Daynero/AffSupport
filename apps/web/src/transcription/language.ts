@@ -1,3 +1,4 @@
+import { resolveTranslationTarget } from '@video-compressor/shared';
 import type { Language } from '../i18n';
 
 const RTL_LANGUAGES = new Set(['ar', 'he', 'fa', 'ur', 'ps', 'sd', 'yi']);
@@ -12,21 +13,23 @@ export function isRtlLanguage(code: string): boolean {
 }
 
 /**
- * Picks the initial translation target. The Wishly UI language wins when it is
- * different from the source. If both match, a target chosen earlier in this
- * modal is retained; otherwise use the opposite built-in UI language so the
- * split view never attempts a same-language "translation".
+ * Picks the initial translation target through the shared resolver — the same
+ * one the agent uses for automatic translation — so opening the detail view
+ * requests the exact target the backend already chose instead of superseding
+ * it. Falls back locally only when the source is still unknown (`auto`).
  */
 export function defaultTranslationTarget(
   sourceLanguage: string,
   uiLanguage: Language,
   lastDistinctTarget: string | null = null
 ): string {
-  const source = baseLanguage(sourceLanguage);
-  const previous = lastDistinctTarget?.trim();
-  if (source !== uiLanguage) return uiLanguage;
-  if (previous && baseLanguage(previous) !== source) return previous;
-  return source === 'en' ? 'uk' : 'en';
+  const resolved = resolveTranslationTarget(sourceLanguage, uiLanguage, lastDistinctTarget);
+  if (resolved) return resolved;
+  return baseLanguage(sourceLanguage) === uiLanguage
+    ? uiLanguage === 'en'
+      ? 'uk'
+      : 'en'
+    : uiLanguage;
 }
 
 /**

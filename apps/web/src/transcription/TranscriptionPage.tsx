@@ -257,9 +257,8 @@ export default function TranscriptionPage() {
   const startNow = async (ids: string[]) => {
     if (!ids.length) return;
     try {
-      if (settings.translationLanguage !== language) {
-        setState(await transcriptionSettings({ translationLanguage: language }));
-      }
+      // The preferred translation target is synced by the mount/language effect
+      // above; starting a transcription must not rewrite global settings.
       setState(await transcriptionStart(ids));
     } catch (error) {
       handleError(error);
@@ -753,16 +752,15 @@ function TranscriptionRow({
     : null;
   const active = job.status === 'processing' || job.status === 'queued';
   const done = job.status === 'completed';
-  const translation = requestedTranslationLanguage
-    ? {
-        targetLanguage: requestedTranslationLanguage,
-        status: 'queued' as const,
-        progress: null,
-        completedSegments: 0,
-        totalSegments: job.translation?.totalSegments ?? 0,
-        error: null
-      }
-    : (job.translation ?? null);
+  // The real backend summary always drives status/progress — a synthetic
+  // "queued/0%" placeholder here made every language pick look like a restart.
+  // Only the <select> shows the requested language optimistically until the
+  // summary catches up over SSE.
+  const translation = job.translation ?? null;
+  const displayedTargetLanguage = requestedTranslationLanguage ?? translation?.targetLanguage;
+  const awaitingRequestedLanguage =
+    requestedTranslationLanguage !== null &&
+    requestedTranslationLanguage !== translation?.targetLanguage;
   const sourceLanguage = (job.detectedLanguage ?? job.requestedLanguage)
     .replaceAll('_', '-')
     .split('-')[0]
@@ -771,12 +769,15 @@ function TranscriptionRow({
     () =>
       TRANSLATEGEMMA_LANGUAGE_CODES.filter(
         code =>
-          code === translation?.targetLanguage ||
+          code === displayedTargetLanguage ||
           code.split('-')[0].toLowerCase() !== sourceLanguage
       ).map(code => ({ code, name: languageDisplayName(code, language) })),
-    [language, sourceLanguage, translation?.targetLanguage]
+    [language, sourceLanguage, displayedTargetLanguage]
   );
-  const translating = translation?.status === 'queued' || translation?.status === 'processing';
+  const translating =
+    awaitingRequestedLanguage ||
+    translation?.status === 'queued' ||
+    translation?.status === 'processing';
 
   const copy = async () => {
     if (await onCopy(job.id)) {
@@ -796,8 +797,9 @@ function TranscriptionRow({
     });
   };
 
-  const translationStatusLabel =
-    translation?.status === 'completed'
+  const translationStatusLabel = awaitingRequestedLanguage
+    ? t('transcriptionRowTranslating')
+    : translation?.status === 'completed'
       ? t('transcriptionRowTranslated')
       : translation?.status === 'failed'
         ? t('transcriptionRowTranslationFailed')
@@ -884,7 +886,7 @@ function TranscriptionRow({
             <span aria-hidden="true">→</span>
             <select
               aria-label={t('transcriptionTranslateTo')}
-              value={translation.targetLanguage}
+              value={displayedTargetLanguage ?? translation.targetLanguage}
               disabled={!connected}
               onChange={event => changeTranslationLanguage(event.target.value)}
             >
@@ -899,10 +901,19 @@ function TranscriptionRow({
                 {Math.round(translation.progress)}%
               </span>
             )}
+            {translation.status === 'failed' && !awaitingRequestedLanguage && (
+              <Button
+                variant="ghost"
+                disabled={!connected}
+                onClick={() => changeTranslationLanguage(translation.targetLanguage)}
+              >
+                {t('transcriptionTranslationRetry')}
+              </Button>
+            )}
           </div>
           {translating && (
             <ProgressBar
-              value={translation.status === 'queued' ? null : translation.progress}
+              value={translation.progress}
               active
               label={t('transcriptionRowTranslationProgress', { file: job.fileName })}
             />

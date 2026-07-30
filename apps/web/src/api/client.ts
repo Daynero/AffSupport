@@ -335,6 +335,21 @@ export function transcriptionTranslate(
     { targetLanguage, requestId }
   );
 }
+export function transcriptionSaveWithTranslation(
+  id: string,
+  options: { languageLabel: string; fileName: string }
+): Promise<TranscriptionState> {
+  return requestBody<TranscriptionState>(
+    `/api/transcription/jobs/${encodeURIComponent(id)}/save-with-translation`,
+    options
+  );
+}
+export function transcriptionTranslationCancel(id: string): Promise<TranscriptionState> {
+  return request<TranscriptionState>(
+    `/api/transcription/jobs/${encodeURIComponent(id)}/translations`,
+    'DELETE'
+  );
+}
 export function transcriptionTranslation(
   id: string,
   language: string,

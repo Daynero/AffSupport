@@ -44,10 +44,43 @@ const PRIMARY_TRANSCRIBE_END = 88;
 const BRIDGE_PREP_END = 90;
 const INFERENCE_END = 99;
 const SPEECH_CHUNK_MS = 12_000;
-const SPEECH_CHUNK_OVERLAP_MS = 6_000;
+// 3s of shared audio is enough for the text merge to find the seam, while
+// halving how much speech is decoded twice (every double-decode is a chance
+// for the two windows to disagree and leave a duplicated phrase behind).
+const SPEECH_CHUNK_OVERLAP_MS = 3_000;
 const SPEECH_CONTEXT_CHUNK_MS = 20_000;
 const MERGE_SPEECH_GAP_MS = 750;
 const SPEECH_EDGE_PADDING_MS = 250;
+
+// A whisper child that produces no output for this long is considered stuck —
+// without a watchdog it would block the single shared inference queue forever.
+const WHISPER_INACTIVITY_TIMEOUT_MS = 10 * 60_000;
+
+/**
+ * Inactivity watchdog: re-armed on every stdout/stderr chunk; on expiry the
+ * child gets SIGTERM, escalating to SIGKILL when it ignores that too.
+ */
+function attachInactivityWatchdog(child: ChildProcessWithoutNullStreams): {
+  reset: () => void;
+} {
+  let timer: NodeJS.Timeout | null = null;
+  const arm = () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      child.kill('SIGTERM');
+      const force = setTimeout(() => child.kill('SIGKILL'), 10_000);
+      force.unref();
+      child.once('close', () => clearTimeout(force));
+    }, WHISPER_INACTIVITY_TIMEOUT_MS);
+    timer.unref();
+  };
+  arm();
+  child.once('close', () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+  });
+  return { reset: arm };
+}
 
 export interface SpeechRange {
   startMs: number;
@@ -387,6 +420,11 @@ function runExtract(
     '1',
     '-ar',
     '16000',
+    // Rumble filter + dynamic loudness normalization: quiet or unevenly mixed
+    // speech (music beds, distant mics) reaches whisper at a stable level,
+    // which measurably reduces misheard words on soft passages.
+    '-af',
+    'highpass=f=80,dynaudnorm=f=250:g=15',
     '-c:a',
     'pcm_s16le',
     '-f',
@@ -469,11 +507,13 @@ function runVadDetection(
   return new Promise(resolve => {
     const child = spawn(whisperPath, args, { shell: false });
     onChild(child);
+    const watchdog = attachInactivityWatchdog(child);
     let output = '';
     let stderr = '';
     let detectedLanguage: string | null = null;
     let spawnErrorCode: string | null = null;
     const consume = (chunk: Buffer) => {
+      watchdog.reset();
       const value = chunk.toString();
       output += value;
       stderr = (stderr + value).slice(-12_000);
@@ -512,10 +552,12 @@ function runChunkWhisper(
   return new Promise(resolve => {
     const child = spawn(whisperPath, args, { shell: false });
     onChild(child);
+    const watchdog = attachInactivityWatchdog(child);
     let stderr = '';
     let completed = 0;
     let spawnErrorCode: string | null = null;
     const consume = (chunk: Buffer) => {
+      watchdog.reset();
       const value = chunk.toString();
       stderr = (stderr + value).slice(-12_000);
       const saved = value.match(/output_txt:\s+saving output to/gi)?.length ?? 0;
@@ -548,11 +590,13 @@ function runWhisper(
   return new Promise(resolve => {
     const child = spawn(whisperPath, args, { shell: false });
     onChild(child);
+    const watchdog = attachInactivityWatchdog(child);
     let stderr = '';
     let detectedLanguage: string | null =
       params.language && params.language !== 'auto' ? params.language : null;
     let spawnErrorCode: string | null = null;
     const consume = (chunk: Buffer) => {
+      watchdog.reset();
       const value = chunk.toString();
       stderr = (stderr + value).slice(-12_000);
       const progress = /progress\s*=\s*(\d+)\s*%/.exec(value);
@@ -671,9 +715,14 @@ export function buildChunkWhisperArgs(
     // catches up by jumping several words. Keep timestamp decoding enabled and
     // split on word boundaries for stable per-word ranges.
     '-sow',
-    // Temperature retries can replace a complete beam result with a shorter
-    // one. Deterministic beam search proved both fuller and much faster.
-    '-nf',
+    // A coarse temperature ladder (0 → 0.4 → 0.8) lets whisper escape the
+    // repetition/entropy failures large-v3 hits on short windows, while few
+    // enough steps that a retry cannot silently swap a complete beam result
+    // for a much shorter greedy one on every segment.
+    '-tp',
+    '0',
+    '-tpi',
+    '0.4',
     '-np',
     '-bs',
     '5',
@@ -821,7 +870,7 @@ async function readTranscript(temporaryOutputPath: string): Promise<string> {
     const raw = await readFile(temporaryOutputPath, 'utf8');
     const lines = raw
       .split(/\r?\n/)
-      .map(line => line.trim())
+      .map(line => stripNonSpeechArtifacts(line).trim())
       .filter(Boolean);
     return collapseTranscriptArtifacts(lines).join('\n').trim();
   } catch {
@@ -850,10 +899,29 @@ async function readChunkWords(wavPath: string, offsetMs: number): Promise<Whispe
   }
 }
 
+/**
+ * Strips decoder hallucination markers that large-v3 emits on near-silent or
+ * clipped windows: bracketed annotations (`[BLANK_AUDIO]`, `[Music]`),
+ * parenthesized sound descriptions (`(music)`), musical notes, and bare
+ * ellipsis tokens standing in for audio the decoder gave up on. Spoken
+ * language never produces these spellings, so removal is safe across scripts.
+ * Ellipses attached to a word are kept except at the very end of a chunk,
+ * where they mark truncation and would otherwise survive the overlap merge.
+ */
+export function stripNonSpeechArtifacts(text: string): string {
+  return text
+    .replace(/\[[^\]\n]*\]/gu, ' ')
+    .replace(/\([^()\n]*\)/gu, ' ')
+    .replace(/[\u266A\u266B\u266C]+/gu, ' ')
+    .replace(/(?<=^|[\s"'\u00AB\u201E\u201C([\u2014\u2013-])(?:\.{2,}|\u2026+)(?=[\s"'\u00BB\u201D)\]\u2014\u2013-]|$)/gu, ' ')
+    .replace(/(?:\.{3,}|\u2026+)\s*$/u, '')
+    .replace(/[^\S\r\n]{2,}/gu, ' ');
+}
+
 export function mergeTranscriptChunks(chunks: string[]): string {
   const clean = chunks
     .map(chunk =>
-      chunk
+      stripNonSpeechArtifacts(chunk)
         .replace(/\uFFFD+/gu, '')
         .replace(/\s+/gu, ' ')
         .trim()
@@ -1078,6 +1146,9 @@ function appendDiagnostics(left: string, right: string): string {
 export function collapseTranscriptArtifacts(lines: string[]): string[] {
   const out: string[] = [];
   for (const line of lines) {
+    // A line with no letter or digit (bare ellipses, dashes, note symbols) is
+    // always a decoder artifact, never speech.
+    if (!/[\p{L}\p{N}]/u.test(line)) continue;
     const previous = out.at(-1);
     if (!previous) {
       out.push(line);

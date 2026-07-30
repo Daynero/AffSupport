@@ -6,6 +6,7 @@ import {
   isTranscribableFileName,
   isValidTargetLanguage,
   normalizeTargetLanguage,
+  resolveTranslationTarget,
   translationCacheKey,
   type SelectionWarning,
   type SourceKind,
@@ -49,6 +50,7 @@ import {
 } from '../transcription/document-store.js';
 import type { PersistedTranscriptionState } from './transcription-store.js';
 import { mediaMimeType } from '../transcription/media.js';
+import { saveWithTranslation as exportWithTranslation } from '../transcription/export.js';
 import { MediaPreviewManager, type PreviewSource } from '../transcription/media-preview.js';
 import type { TranslationOutputSegment, Translator } from '../translation/translator.js';
 import type { Aligner } from '../translation/aligner.js';
@@ -77,20 +79,15 @@ export type TranslationRequestOutcome =
   | { outcome: 'unavailable' };
 
 /**
- * Resolves the per-file automatic target from the preferred UI language.
- * Translating into the detected source language is avoided by falling back to
- * the other built-in Wishly language.
+ * Resolves the per-file automatic target from the preferred UI language via
+ * the shared resolver, so the web viewer's default can never disagree with
+ * (and thereby supersede) the automatic translation.
  */
 export function automaticTranslationTarget(
   sourceLanguage: string,
   preferredLanguage: string
 ): string | null {
-  const source = sourceLanguage.trim().replaceAll('_', '-').split('-')[0]?.toLowerCase();
-  if (!source || source === 'auto' || !isValidTargetLanguage(preferredLanguage)) return null;
-  const preferred = normalizeTargetLanguage(preferredLanguage);
-  if (preferred.split('-')[0]?.toLowerCase() !== source) return preferred;
-  const fallback = source === 'en' ? 'uk' : 'en';
-  return isValidTargetLanguage(fallback) ? normalizeTargetLanguage(fallback) : null;
+  return resolveTranslationTarget(sourceLanguage, preferredLanguage);
 }
 
 type Notify = (event?: TranscriptionEventType) => void;
@@ -307,11 +304,26 @@ export class TranscriptionQueue {
       translation.status === 'completed'
         ? total
         : Math.min(total, Math.max(0, translation.completedSegments ?? 0));
+    // Progress is weighted by source characters when available — segment counts
+    // lie when segment lengths vary. Queued work that already carries resumed
+    // segments shows its real percentage instead of an indeterminate bar that
+    // reads as "restarted".
+    const totalCharacters = Math.max(0, translation.totalCharacters ?? 0);
+    const completedCharacters = Math.min(
+      totalCharacters,
+      Math.max(0, translation.completedCharacters ?? 0)
+    );
+    const ratio =
+      totalCharacters > 0
+        ? completedCharacters / totalCharacters
+        : total > 0
+          ? completed / total
+          : 0;
     const progress =
       translation.status === 'completed'
         ? 100
-        : translation.status === 'processing' && total > 0
-          ? Math.min(99, Math.round((completed / total) * 100))
+        : total > 0 && (translation.status === 'processing' || completed > 0)
+          ? Math.min(99, Math.round(ratio * 100))
           : null;
     const summary: TranscriptionTranslationSummary = {
       targetLanguage: translation.targetLanguage,
@@ -319,7 +331,13 @@ export class TranscriptionQueue {
       progress,
       completedSegments: completed,
       totalSegments: total,
-      error: translation.status === 'failed' ? 'TRANSLATION_FAILED' : null
+      startedAt: translation.startedAt ?? null,
+      error:
+        translation.status === 'failed'
+          ? translation.error === 'TRANSLATION_CANCELLED'
+            ? 'TRANSLATION_CANCELLED'
+            : 'TRANSLATION_FAILED'
+          : null
     };
     job.translation = summary;
     return summary;
@@ -429,7 +447,9 @@ export class TranscriptionQueue {
     task: TranslationTask,
     key: string,
     completed: number,
-    total: number
+    total: number,
+    segments?: TranslationOutputSegment[],
+    completedCharacters?: number
   ): Promise<void> {
     const now = Date.now();
     if (completed < total && now - this.lastProgressWrite < 300) return;
@@ -440,6 +460,11 @@ export class TranscriptionQueue {
       if (!doc || doc.status !== 'processing') return null;
       doc.completedSegments = completed;
       doc.totalSegments = total;
+      if (completedCharacters !== undefined) doc.completedCharacters = completedCharacters;
+      // Stream finished segments: the viewer renders them while the rest are
+      // still translating, and an interrupted run resumes from them instead of
+      // starting over from segment 0.
+      if (segments) doc.segments = segments;
       return doc;
     });
     if (updated) {
@@ -557,6 +582,22 @@ export class TranscriptionQueue {
     const generation = (this.translationGenerations.get(key) ?? 0) + 1;
     this.translationGenerations.set(key, generation);
 
+    // Partials persisted by an earlier interrupted run of this same request
+    // (matching cacheKey ⇒ identical source text, languages, and model) are
+    // carried over so the queue resumes instead of re-translating from
+    // segment 0. A different cacheKey means the transcript or model changed —
+    // those segments are neither displayable nor resumable.
+    const sourceCharactersById = new Map(
+      document.segments.map(segment => [segment.id, segment.sourceText.length])
+    );
+    const resumableSegments =
+      cacheKey !== undefined && previousTranslation?.cacheKey === cacheKey
+        ? previousTranslation.segments.filter(
+            segment =>
+              segment.translatedText.trim() && sourceCharactersById.has(segment.sourceSegmentId)
+          )
+        : [];
+
     const pending: TranslationDocument = {
       requestId,
       targetLanguage: lang,
@@ -566,8 +607,17 @@ export class TranscriptionQueue {
       alignmentStatus: 'fallback',
       status: 'queued',
       totalSegments: document.segments.length,
-      completedSegments: 0,
-      segments: previousTranslation?.segments ?? [],
+      completedSegments: resumableSegments.length,
+      totalCharacters: document.segments.reduce(
+        (sum, segment) => sum + segment.sourceText.length,
+        0
+      ),
+      completedCharacters: resumableSegments.reduce(
+        (sum, segment) => sum + (sourceCharactersById.get(segment.sourceSegmentId) ?? 0),
+        0
+      ),
+      startedAt: resumableSegments.length > 0 ? (previousTranslation?.startedAt ?? null) : null,
+      segments: resumableSegments,
       error: null
     };
     const saved = await this.mutateDocument(id, fresh => {
@@ -588,6 +638,34 @@ export class TranscriptionQueue {
     return { outcome: 'queued', translation: pending };
   }
 
+  /**
+   * User-initiated cancel of the job's current translation. Partials persisted
+   * so far are kept, so a later retry resumes instead of restarting.
+   */
+  async cancelTranslation(id: string): Promise<boolean> {
+    const job = this.jobs.find(candidate => candidate.id === id);
+    const lang = job?.translation?.targetLanguage;
+    if (!job || !lang) return false;
+    return this.withTranslationRequestLock(id, async () => {
+      this.cancelTranslationsForJob(id);
+      const cancelled = await this.mutateDocument(id, document => {
+        const translation = document.translations[lang];
+        if (
+          !translation ||
+          (translation.status !== 'queued' && translation.status !== 'processing')
+        ) {
+          return null;
+        }
+        translation.status = 'failed';
+        translation.error = 'TRANSLATION_CANCELLED';
+        return translation;
+      });
+      if (cancelled) this.setTranslationSummary(id, cancelled);
+      this.notify();
+      return cancelled !== null;
+    });
+  }
+
   private transcriptionWorkPending(): boolean {
     return (
       this.inFlight || this.jobs.some(job => job.status === 'queued' || job.status === 'processing')
@@ -606,14 +684,46 @@ export class TranscriptionQueue {
     active.controller.abort();
   }
 
+  /**
+   * Counts work already persisted on a translation doc (segments + weighted
+   * source characters) that a resumed run will adopt instead of re-translating.
+   */
+  private resumedProgress(
+    document: TranscriptionDocument,
+    translation: TranslationDocument
+  ): { segments: number; characters: number; totalCharacters: number } {
+    const charactersById = new Map(
+      document.segments.map(segment => [segment.id, segment.sourceText.length])
+    );
+    let segments = 0;
+    let characters = 0;
+    for (const segment of translation.segments) {
+      if (!segment.translatedText.trim()) continue;
+      const sourceCharacters = charactersById.get(segment.sourceSegmentId);
+      if (sourceCharacters === undefined) continue;
+      segments += 1;
+      characters += sourceCharacters;
+    }
+    return {
+      segments,
+      characters,
+      totalCharacters: document.segments.reduce((sum, segment) => sum + segment.sourceText.length, 0)
+    };
+  }
+
   private async requeuePreemptedTranslation(task: TranslationTask, key: string): Promise<void> {
     const queued = await this.mutateDocument(task.jobId, document => {
       if ((this.translationGenerations.get(key) ?? 0) !== task.generation) return null;
       const translation = document.translations[task.language];
       if (!translation || translation.status === 'completed') return null;
       translation.status = 'queued';
-      translation.completedSegments = 0;
+      // Segments persisted incrementally before the preemption stay counted;
+      // the resumed run skips them, so the bar must not fall back to zero.
+      const resumed = this.resumedProgress(document, translation);
+      translation.completedSegments = resumed.segments;
       translation.totalSegments = document.segments.length;
+      translation.completedCharacters = resumed.characters;
+      translation.totalCharacters = resumed.totalCharacters;
       translation.error = null;
       return translation;
     });
@@ -666,8 +776,14 @@ export class TranscriptionQueue {
         const processing = document.translations[task.language];
         if (!processing) return null;
         processing.status = 'processing';
+        // First inference start only; a resumed run keeps the original stamp so
+        // elapsed/ETA stay continuous across preemption and surfaces.
+        processing.startedAt = processing.startedAt ?? Date.now();
         processing.totalSegments = document.segments.length;
-        processing.completedSegments = 0;
+        const resumed = this.resumedProgress(document, processing);
+        processing.completedSegments = resumed.segments;
+        processing.completedCharacters = resumed.characters;
+        processing.totalCharacters = resumed.totalCharacters;
         return { document, cacheKey: processing.cacheKey, processing };
       });
       if (!preparation) return;
@@ -700,7 +816,10 @@ export class TranscriptionQueue {
       const sourceById = new Map(document.segments.map(segment => [segment.id, segment]));
       const aligned: TranslationOutputSegment[] = new Array(total);
       const alignPromises: Promise<void>[] = new Array(total);
+      /** Raw results in document order, snapshotted for incremental persistence. */
+      const partial: TranslationOutputSegment[] = new Array(total);
       let translatedCount = 0;
+      let translatedCharacters = 0;
 
       // Align a translated segment on the CPU E5 model. Runs concurrently with
       // the remaining GPU translations (different process + device), so the
@@ -730,26 +849,60 @@ export class TranscriptionQueue {
         })();
       };
 
-      const output = await translator.translate(
-        {
-          sourceLanguage: document.sourceLanguage,
-          targetLanguage: task.language,
-          segments: document.segments.map(segment => ({
-            id: segment.id,
-            text: segment.sourceText
-          })),
-          onSegment: (translated, index) => {
-            startAlign(translated, index);
-            translatedCount += 1;
-            void this.persistTranslationProgress(task, key, translatedCount, total);
-          }
-        },
-        controller.signal
+      // Adopt segments a previous interrupted run of this same request already
+      // translated (provenance is guaranteed by the cacheKey guard where
+      // `processing.segments` was populated). They re-align concurrently with
+      // the remaining GPU translations but are never re-translated.
+      const resumedBySourceId = new Map(
+        processing.segments
+          .filter(segment => segment.translatedText.trim())
+          .map(segment => [segment.sourceSegmentId, segment])
       );
+      const missing: { id: string; text: string; index: number }[] = [];
+      document.segments.forEach((segment, index) => {
+        const resumed = resumedBySourceId.get(segment.id);
+        if (resumed) {
+          partial[index] = resumed;
+          translatedCount += 1;
+          translatedCharacters += segment.sourceText.length;
+          startAlign(resumed, index);
+        } else {
+          missing.push({ id: segment.id, text: segment.sourceText, index });
+        }
+      });
+      const snapshotSegments = (): TranslationOutputSegment[] =>
+        document.segments.map((_, index) => aligned[index] ?? partial[index]).filter(Boolean);
+
+      const output = missing.length
+        ? await translator.translate(
+            {
+              sourceLanguage: document.sourceLanguage,
+              targetLanguage: task.language,
+              segments: missing.map(segment => ({ id: segment.id, text: segment.text })),
+              onSegment: (translated, subsetIndex) => {
+                const index = missing[subsetIndex].index;
+                partial[index] = translated;
+                startAlign(translated, index);
+                translatedCount += 1;
+                translatedCharacters += missing[subsetIndex].text.length;
+                void this.persistTranslationProgress(
+                  task,
+                  key,
+                  translatedCount,
+                  total,
+                  snapshotSegments(),
+                  translatedCharacters
+                );
+              }
+            },
+            controller.signal
+          )
+        : [];
       // Translators that don't emit onSegment (or any segment it missed) still
       // get aligned here; already-started indices are left untouched.
-      output.forEach((translated, index) => {
-        if (!alignPromises[index]) startAlign(translated, index);
+      output.forEach((translated, subsetIndex) => {
+        const index = missing[subsetIndex].index;
+        if (translated && !alignPromises[index]) startAlign(translated, index);
       });
       await Promise.all(alignPromises.filter(Boolean));
       if (controller.signal.aborted) throw new Error('aborted');
@@ -775,6 +928,9 @@ export class TranscriptionQueue {
           status: 'completed',
           totalSegments: alignedOutput.length,
           completedSegments: alignedOutput.length,
+          totalCharacters: processing.totalCharacters,
+          completedCharacters: processing.totalCharacters,
+          startedAt: processing.startedAt ?? null,
           segments: alignedOutput,
           error: null
         };
@@ -807,6 +963,13 @@ export class TranscriptionQueue {
             alignmentModelVersion: this.aligner?.modelVersion(),
             alignmentStatus: previous?.alignmentStatus ?? 'fallback',
             status: 'failed',
+            // Partials persisted before the failure are kept (and counted) so a
+            // retry resumes instead of restarting from segment 0.
+            totalSegments: previous?.totalSegments,
+            completedSegments: previous?.completedSegments,
+            totalCharacters: previous?.totalCharacters,
+            completedCharacters: previous?.completedCharacters,
+            startedAt: previous?.startedAt ?? null,
             segments: previous?.segments ?? [],
             error: error instanceof Error ? error.message : 'TRANSLATION_FAILED'
           };
@@ -1122,6 +1285,60 @@ export class TranscriptionQueue {
 
   sourcePath(id: string): string | null {
     return this.jobs.find(job => job.id === id)?.inputPath ?? null;
+  }
+
+  /**
+   * Packages a completed creative with its transcript + translation into a
+   * "<language label> <char count>" folder beside the source file, moving the
+   * creative inside. The job is re-pointed at the moved media so reveal and
+   * playback keep working. Only local files have a meaningful "next to the
+   * creative" location — uploaded temp imports are rejected.
+   */
+  async saveWithTranslation(
+    id: string,
+    languageLabel: string,
+    transcriptFileName: string
+  ): Promise<
+    | { outcome: 'saved'; folderPath: string }
+    | { outcome: 'not-found' }
+    | { outcome: 'not-local' }
+    | { outcome: 'no-translation' }
+    | { outcome: 'failed' }
+  > {
+    const job = this.jobs.find(candidate => candidate.id === id);
+    if (!job || job.status !== 'completed' || !job.inputPath) return { outcome: 'not-found' };
+    if (job.sourceKind !== 'local') return { outcome: 'not-local' };
+    const lang = job.translation?.status === 'completed' ? job.translation.targetLanguage : null;
+    if (!lang) return { outcome: 'no-translation' };
+    const document = await this.document(id);
+    const translation = document?.translations[lang];
+    if (!document || !translation || translation.status !== 'completed') {
+      return { outcome: 'no-translation' };
+    }
+
+    const translatedById = new Map(
+      translation.segments.map(segment => [segment.sourceSegmentId, segment.translatedText])
+    );
+    const transcriptText = document.segments.map(segment => segment.sourceText).join('\n');
+    const translationText = document.segments
+      .map(segment => translatedById.get(segment.id) ?? '')
+      .filter(Boolean)
+      .join('\n');
+
+    try {
+      const result = await exportWithTranslation({
+        sourcePath: job.inputPath,
+        languageLabel,
+        transcriptText,
+        translationText,
+        transcriptFileName
+      });
+      job.inputPath = result.movedMediaPath;
+      this.notify();
+      return { outcome: 'saved', folderPath: result.folderPath };
+    } catch {
+      return { outcome: 'failed' };
+    }
   }
 
   async shutdown(): Promise<void> {

@@ -60,15 +60,21 @@ interface CompletionResponse {
 }
 
 const START_TIMEOUT_MS = 120_000;
-const IDLE_EXIT_MS = 5 * 60_000;
+// Killing the server frees ~2.5 GB of RAM but makes the next translation pay a
+// full cold model load (up to two minutes). Five minutes proved far too eager —
+// a user pausing between creatives hit a cold start every time — so idle exit
+// waits half an hour.
+const IDLE_EXIT_MS = 30 * 60_000;
 // Keep the model resident for as long as the process lives; IDLE_EXIT_MS already
 // kills the whole process to free RAM. A short sleep-idle used to unload weights
 // mid-job (e.g. during a pause between segments), forcing a costly reload.
 const MODEL_SLEEP_SECONDS = 24 * 60 * 60;
 // Number of segments translated concurrently. Matches the server's slot count
 // so llama.cpp continuous-batches them in one forward pass instead of decoding
-// one segment at a time.
-const TRANSLATION_CONCURRENCY = 4;
+// one segment at a time. Transcript lines are short, so per-request overhead
+// dominates — six slots keep the GPU fed without exhausting the shared context
+// (which scales with the slot count below).
+const TRANSLATION_CONCURRENCY = 6;
 
 function normalizedLanguage(code: string): string {
   const parts = code.trim().replaceAll('_', '-').split('-').filter(Boolean);
@@ -306,8 +312,10 @@ export class LlamaTranslator implements Translator {
         prompt: translationPrompt(sourceLanguage, targetLanguage, text),
         // A translation is roughly the length of its source; cap generation to a
         // generous multiple of the input so a short segment can't spend the full
-        // 512-token budget over-generating. `temperature:0` keeps it deterministic.
-        n_predict: Math.min(512, Math.ceil(text.length * 1.5) + 48),
+        // budget over-generating. The 768 ceiling keeps genuinely long lines from
+        // being silently truncated mid-sentence while still fitting the ~2048
+        // tokens/slot context. `temperature:0` keeps it deterministic.
+        n_predict: Math.min(768, Math.ceil(text.length * 1.5) + 48),
         temperature: 0,
         top_p: 1,
         stream: false,

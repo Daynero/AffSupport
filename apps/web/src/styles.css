@@ -4746,7 +4746,6 @@ input.is-invalid {
     transition: none !important;
   }
 
-  .transcript-translation-content.is-translating,
   .transcript-audio-bars i {
     animation: none !important;
   }
@@ -6499,31 +6498,10 @@ input.is-invalid {
   padding: var(--space-3) var(--space-4);
   line-height: 1.7;
 }
+/* Translated segments stream in progressively and stay readable while the
+   remainder translates — no blur/pulse overlay. */
 .transcript-translation-content {
   min-height: 100%;
-  transition:
-    filter var(--dur-control) var(--ease-standard),
-    opacity var(--dur-control) var(--ease-standard);
-}
-.transcript-translation-content.is-translating {
-  filter: blur(4px);
-  opacity: 0.55;
-  animation: transcript-translating-pulse 1.4s ease-in-out infinite;
-}
-.transcript-translation-content.is-translating-static {
-  filter: blur(4px);
-  opacity: 0.6;
-}
-@keyframes transcript-translating-pulse {
-  0%,
-  100% {
-    filter: blur(3px);
-    opacity: 0.6;
-  }
-  50% {
-    filter: blur(5px);
-    opacity: 0.42;
-  }
 }
 .ts-segment {
   margin: 0 0 0.7em;

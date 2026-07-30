@@ -231,6 +231,35 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
     }
   );
 
+  // Packages the creative + transcript + translation into a folder next to the
+  // source file, then reveals it. The web client passes localized names.
+  app.post<{
+    Params: { id: string };
+    Body: { languageLabel?: unknown; fileName?: unknown };
+  }>('/api/transcription/jobs/:id/save-with-translation', async (request, reply) => {
+    const languageLabel =
+      typeof request.body?.languageLabel === 'string'
+        ? request.body.languageLabel.slice(0, 64)
+        : '';
+    const fileName =
+      typeof request.body?.fileName === 'string' ? request.body.fileName.slice(0, 128) : '';
+    const result = await queue.saveWithTranslation(request.params.id, languageLabel, fileName);
+    switch (result.outcome) {
+      case 'saved':
+        revealInFileManager(result.folderPath);
+        return queue.state();
+      case 'not-local':
+        return reply.code(409).send({ error: 'SOURCE_NOT_LOCAL' });
+      case 'no-translation':
+        return reply.code(409).send({ error: 'TRANSLATION_NOT_READY' });
+      case 'failed':
+        return reply.code(500).send({ error: 'SAVE_FAILED' });
+      case 'not-found':
+      default:
+        return reply.code(404).send({ error: 'No source file is available.' });
+    }
+  });
+
   // Kick off (or return a cached) translation into a target language.
   app.post<{
     Params: { id: string };
@@ -269,6 +298,17 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
       const translation = await queue.translation(request.params.id, request.params.language);
       if (!translation) return reply.code(404).send({ error: 'No translation is available.' });
       return reply.header('Cache-Control', 'private, no-store').send(translation);
+    }
+  );
+
+  // User-initiated cancel of the job's running/queued translation. Persisted
+  // partial segments are kept so a retry resumes where it stopped.
+  app.delete<{ Params: { id: string } }>(
+    '/api/transcription/jobs/:id/translations',
+    async (request, reply) => {
+      const cancelled = await queue.cancelTranslation(request.params.id);
+      if (!cancelled) return reply.code(404).send({ error: 'No running translation.' });
+      return queue.state();
     }
   );
 

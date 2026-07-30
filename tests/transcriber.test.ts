@@ -7,7 +7,8 @@ import {
   buildWhisperArgs,
   collapseTranscriptArtifacts,
   mergeTranscriptChunks,
-  parseVadSpeechRanges
+  parseVadSpeechRanges,
+  stripNonSpeechArtifacts
 } from '../apps/agent/src/whisper/transcriber.js';
 
 describe('Whisper transcription safeguards', () => {
@@ -57,11 +58,13 @@ describe('Whisper transcription safeguards', () => {
         '-oj',
         '-ojf',
         '-sow',
-        '-nf',
+        '-tpi',
+        '0.4',
         '/tmp/chunk-0.wav',
         '/tmp/chunk-1.wav'
       ])
     );
+    expect(chunks).not.toContain('-nf');
     expect(chunks).not.toContain('-nt');
     expect(chunks).not.toContain('--no-timestamps');
     expect(chunks).not.toContain('-of');
@@ -180,5 +183,37 @@ describe('Whisper transcription safeguards', () => {
   it('keeps real sentences that share a complete opening phrase', () => {
     const lines = ['We should leave now', 'We should leave now before dark'];
     expect(collapseTranscriptArtifacts(lines)).toEqual(lines);
+  });
+
+  it('strips hallucination markers and bare ellipses from merged chunks', () => {
+    const merged = mergeTranscriptChunks([
+      '[BLANK_AUDIO]',
+      'Це перевірений засіб ... який працює швидко...',
+      '(music)',
+      '♪ ♪',
+      'Замовляйте зараз і отримайте знижку.'
+    ]);
+
+    expect(merged).not.toContain('BLANK_AUDIO');
+    expect(merged).not.toContain('music');
+    expect(merged).not.toContain('♪');
+    expect(merged).not.toContain('...');
+    expect(merged).toContain('Це перевірений засіб який працює швидко');
+    expect(merged).toContain('Замовляйте зараз і отримайте знижку.');
+  });
+
+  it('keeps sentence-final ellipsis attached to a word mid-chunk', () => {
+    expect(stripNonSpeechArtifacts('Ну я не знаю... може бути.')).toBe(
+      'Ну я не знаю... може бути.'
+    );
+    expect(stripNonSpeechArtifacts('обірвана думка на межі вікна...')).toBe(
+      'обірвана думка на межі вікна'
+    );
+  });
+
+  it('drops artifact-only lines during artifact collapse', () => {
+    expect(collapseTranscriptArtifacts(['...', 'Справжній текст.', '—', '…'])).toEqual([
+      'Справжній текст.'
+    ]);
   });
 });

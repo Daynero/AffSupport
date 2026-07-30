@@ -855,6 +855,36 @@ export function normalizeTargetLanguage(code: string): string {
   }
 }
 
+/**
+ * Single source of truth for picking a translation target from a source
+ * language and the preferred (UI) language. Both the agent's automatic
+ * translation and the web viewer's default MUST resolve through this function
+ * — if they disagree, opening the detail view supersedes and restarts the
+ * translation the list already started.
+ *
+ * Returns null when the source is unknown (`auto`) or the preferred language
+ * is not a valid TranslateGemma target. Translating into the source language
+ * is avoided via `lastDistinctTarget` (an earlier explicit pick), then the
+ * opposite built-in Wishly language.
+ */
+export function resolveTranslationTarget(
+  sourceLanguage: string,
+  preferredLanguage: string,
+  lastDistinctTarget: string | null = null
+): string | null {
+  const source = sourceLanguage.trim().replaceAll('_', '-').split('-')[0]?.toLowerCase();
+  if (!source || source === 'auto' || !isValidTargetLanguage(preferredLanguage)) return null;
+  const preferred = normalizeTargetLanguage(preferredLanguage);
+  if (preferred.split('-')[0]?.toLowerCase() !== source) return preferred;
+  const previous = lastDistinctTarget?.trim();
+  if (previous && isValidTargetLanguage(previous)) {
+    const normalizedPrevious = normalizeTargetLanguage(previous);
+    if (normalizedPrevious.split('-')[0]?.toLowerCase() !== source) return normalizedPrevious;
+  }
+  const fallback = source === 'en' ? 'uk' : 'en';
+  return isValidTargetLanguage(fallback) ? normalizeTargetLanguage(fallback) : null;
+}
+
 export interface TranscriptionSettings {
   /** `auto` detects the spoken language; otherwise an ISO 639-1 code. */
   language: string;
@@ -874,8 +904,14 @@ export interface TranscriptionTranslationSummary {
   progress: number | null;
   completedSegments: number;
   totalSegments: number;
+  /**
+   * Wall-clock ms when inference first started, or null before that. Lets any
+   * surface (list or detail) compute the same continuous elapsed/ETA instead of
+   * restarting a local timer when it mounts.
+   */
+  startedAt?: number | null;
   /** Stable UI-safe error code; never raw transcript or runtime diagnostics. */
-  error: 'TRANSLATION_FAILED' | 'TRANSLATOR_UNAVAILABLE' | null;
+  error: 'TRANSLATION_FAILED' | 'TRANSLATION_CANCELLED' | 'TRANSLATOR_UNAVAILABLE' | null;
 }
 
 export interface TranscriptionJob {
@@ -1046,6 +1082,15 @@ export interface TranslationDocument {
   totalSegments?: number;
   /** Segments translated so far; drives the determinate progress bar + ETA. */
   completedSegments?: number;
+  /**
+   * Source characters total/translated-so-far. Segments vary wildly in length,
+   * so the progress bar and ETA are weighted by characters when available and
+   * only fall back to the segment count for legacy sidecars.
+   */
+  totalCharacters?: number;
+  completedCharacters?: number;
+  /** Wall-clock ms when inference first started; survives preemption/resume so the ETA is continuous. */
+  startedAt?: number | null;
   segments: TranslatedSegment[];
   /** Set when `status === 'failed'`; the last good translation is kept in the UI. */
   error: string | null;

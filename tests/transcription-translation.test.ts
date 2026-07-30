@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -379,6 +379,123 @@ describe('translation coordination', () => {
     const doc = await queue.document(jobId);
     expect(doc?.translations.ar.segments[0].translatedText).toBe('مرحبًا بالعالم.');
     expect(doc?.translations.uk?.status).not.toBe('completed');
+  });
+
+  it('saves the creative with its translation into a language-named folder', async () => {
+    const internal = queue as unknown as { jobs: TranscriptionJob[] };
+    Object.assign(internal.jobs[0], {
+      status: 'completed',
+      translation: {
+        targetLanguage: 'uk',
+        status: 'completed',
+        progress: 100,
+        completedSegments: 1,
+        totalSegments: 1,
+        error: null
+      }
+    });
+    await new TranscriptionDocumentStore(path.join(dir, 'docs')).save({
+      jobId,
+      sourceLanguage: 'en',
+      modelVersion: 'large-v3',
+      segments: [
+        { id: `${jobId}-s0`, startMs: 0, endMs: 0, sourceText: 'Hello world.', words: [] }
+      ],
+      translations: {
+        uk: {
+          targetLanguage: 'uk',
+          modelVersion: 'fake-1',
+          status: 'completed',
+          segments: [
+            { sourceSegmentId: `${jobId}-s0`, translatedText: 'Привіт світ.', alignments: [] }
+          ],
+          error: null
+        }
+      }
+    });
+
+    const result = await queue.saveWithTranslation(jobId, 'Англійська', 'Транскрипція.txt');
+    expect(result.outcome).toBe('saved');
+    const folderPath = (result as { folderPath: string }).folderPath;
+    expect(path.basename(folderPath)).toBe('Англійська 12');
+    const body = await readFile(path.join(folderPath, 'Транскрипція.txt'), 'utf8');
+    expect(body).toContain('Hello world.');
+    expect(body).toContain('Привіт світ.');
+
+    // The creative moved inside and the job follows it.
+    const movedPath = path.join(folderPath, 'sample.mp3');
+    await stat(movedPath);
+    expect(queue.sourcePath(jobId)).toBe(movedPath);
+
+    // A repeat export follows the moved creative (nested next to it) and never
+    // overwrites an existing folder.
+    const repeat = await queue.saveWithTranslation(jobId, 'Англійська', 'Транскрипція.txt');
+    expect(repeat.outcome).toBe('saved');
+    expect(path.dirname((repeat as { folderPath: string }).folderPath)).toBe(folderPath);
+    expect(path.basename((repeat as { folderPath: string }).folderPath)).toBe('Англійська 12');
+  });
+
+  it('resumes an interrupted translation from persisted partial segments', async () => {
+    const store = new TranscriptionDocumentStore(path.join(dir, 'docs'));
+    await store.save({
+      jobId,
+      sourceLanguage: 'en',
+      modelVersion: 'large-v3',
+      segments: [0, 1, 2].map(index => ({
+        id: `${jobId}-s${index}`,
+        startMs: 0,
+        endMs: 0,
+        sourceText: `Sentence ${index}.`,
+        words: []
+      })),
+      translations: {}
+    });
+
+    const translator = new GatedTranslator();
+    queue.setTranslator(translator);
+
+    await queue.requestTranslation(jobId, 'uk');
+    await waitFor(() => translator.calls.length === 1);
+    const first = translator.calls[0];
+    expect(first.request.segments).toHaveLength(3);
+
+    // One segment finishes and is flushed to the sidecar, then the run dies.
+    first.request.onSegment?.(
+      { sourceSegmentId: `${jobId}-s0`, translatedText: 'Речення 0.', alignments: [] },
+      0
+    );
+    await waitFor(
+      async () => ((await queue.document(jobId))?.translations.uk?.completedSegments ?? 0) === 1
+    );
+    first.reject(new Error('TRANSLATION_FAILED'));
+    await waitFor(async () => (await queue.document(jobId))?.translations.uk?.status === 'failed');
+
+    // The retry adopts the persisted segment and only sends the missing two.
+    await queue.requestTranslation(jobId, 'uk');
+    await waitFor(() => translator.calls.length === 2);
+    const second = translator.calls[1];
+    expect(second.request.segments.map(segment => segment.id)).toEqual([
+      `${jobId}-s1`,
+      `${jobId}-s2`
+    ]);
+    expect(queue.state().jobs[0].translation).toMatchObject({ completedSegments: 1 });
+
+    const remaining: TranslationOutputSegment[] = [
+      { sourceSegmentId: `${jobId}-s1`, translatedText: 'Речення 1.', alignments: [] },
+      { sourceSegmentId: `${jobId}-s2`, translatedText: 'Речення 2.', alignments: [] }
+    ];
+    remaining.forEach((segment, index) => second.request.onSegment?.(segment, index));
+    second.resolve(remaining);
+    await waitFor(
+      async () => (await queue.document(jobId))?.translations.uk?.status === 'completed'
+    );
+
+    const doc = await queue.document(jobId);
+    expect(doc?.translations.uk.segments.map(segment => segment.translatedText)).toEqual([
+      'Речення 0.',
+      'Речення 1.',
+      'Речення 2.'
+    ]);
   });
 
   it('cancels obsolete work even when the newly selected language is cached', async () => {

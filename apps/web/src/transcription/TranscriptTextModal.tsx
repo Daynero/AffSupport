@@ -25,8 +25,10 @@ import {
   transcriptionMediaPrepare,
   transcriptionMediaStatus,
   transcriptionMediaUrl,
+  transcriptionSaveWithTranslation,
   transcriptionTranslate,
-  transcriptionTranslation
+  transcriptionTranslation,
+  transcriptionTranslationCancel
 } from '../api/client';
 import { defaultTranslationTarget, isRtlLanguage, languageDisplayName } from './language';
 import type { Language } from '../i18n';
@@ -346,12 +348,9 @@ export function TranscriptTextModal({
     return defaultTranslationTarget(sourceLanguage, language);
   });
   const [translation, setTranslation] = useState<TranslationDocument | null>(null);
-  const [translating, setTranslating] = useState(false);
+  /** True only while the ensure/join POST is in flight (covers the SSE gap). */
+  const [requesting, setRequesting] = useState(false);
   const [translationElapsedMs, setTranslationElapsedMs] = useState(0);
-  const [translationProgress, setTranslationProgress] = useState<{
-    completed: number;
-    total: number;
-  } | null>(null);
   const [translationError, setTranslationError] = useState<'failed' | 'unavailable' | null>(null);
   const [translatorTermsAccepted, setTranslatorTermsAccepted] = useState(false);
   const [copied, setCopied] = useState<{
@@ -362,6 +361,8 @@ export function TranscriptTextModal({
   const [previewActivated, setPreviewActivated] = useState(false);
   const [mediaPreview, setMediaPreview] = useState<TranscriptionMediaPreview | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selection, setSelection] = useState<SemanticSelection | null>(null);
   const [activeWord, setActiveWord] = useState<ActiveWord | null>(null);
   const [playback, setPlayback] = useState({
@@ -402,101 +403,139 @@ export function TranscriptTextModal({
     };
   }, [job.id, job.text, job.detectedLanguage, job.requestedLanguage]);
 
+  // The `job` prop is live SSE state, so its translation summary is the single
+  // source of truth for status/progress/ETA whenever it matches the modal's
+  // target — the modal runs no polling loop of its own.
+  const summary =
+    job.translation && job.translation.targetLanguage.toLowerCase() === target.toLowerCase()
+      ? job.translation
+      : null;
+  const summaryTranslating =
+    summary?.status === 'queued' || summary?.status === 'processing';
+  const translating = !translationError && (requesting || summaryTranslating);
+
+  // Ensure/join backend work for the chosen target. Thanks to the shared
+  // target resolver this JOINS the automatic translation the list already
+  // started instead of superseding it — opening the modal never restarts a
+  // running translation, and a completed one resolves instantly.
   useEffect(() => {
     if (!document_) return;
     const source = document_.sourceLanguage.split('-')[0].toLowerCase();
     if (source === target.split('-')[0].toLowerCase()) {
       setTranslation(null);
-      setTranslating(false);
+      setRequesting(false);
       setTranslationError(null);
       return;
     }
-    // Only reuse responses validated by the backend in this modal session.
-    // A completed sidecar entry may belong to an older pinned model version;
-    // POST performs the authoritative cache/version check.
+    // A response validated by the backend in this modal session renders
+    // instantly; the POST below still revalidates model/cache versions.
     const validated = validatedTranslations.current.get(target);
     if (validated) {
-      const gen = ++generation.current;
-      const requestId =
-        typeof crypto !== 'undefined' && 'randomUUID' in crypto
-          ? crypto.randomUUID()
-          : `${job.id}-${gen}-${Date.now()}`;
-      let active = true;
       setTranslation(validated);
-      setTranslating(false);
       setTranslationError(null);
-      // Keep the visual switch instantaneous, but still notify the backend of
-      // the new generation so it can cancel obsolete queued/running work.
-      void transcriptionTranslate(job.id, target, requestId)
-        .then(result => {
-          if (!active || generation.current !== gen || result.status !== 'completed') return;
-          validatedTranslations.current.set(result.targetLanguage, result);
-          setTranslation(result);
-        })
-        .catch(() => {
-          // The already validated in-memory result remains usable. A fresh
-          // non-cached selection still surfaces backend failures normally.
-        });
-      return () => {
-        active = false;
-      };
     }
-
     const gen = ++generation.current;
     const requestId =
       typeof crypto !== 'undefined' && 'randomUUID' in crypto
         ? crypto.randomUUID()
         : `${job.id}-${gen}-${Date.now()}`;
     let active = true;
-    setTranslating(true);
-    setTranslationProgress(null);
+    setRequesting(!validated);
     setTranslationError(null);
-    const captureProgress = (result: TranslationDocument) => {
-      if (typeof result.totalSegments === 'number' && result.totalSegments > 0) {
-        setTranslationProgress({
-          completed: result.completedSegments ?? 0,
-          total: result.totalSegments
-        });
-      }
-    };
-    (async () => {
-      try {
-        let result = await transcriptionTranslate(job.id, target, requestId);
-        captureProgress(result);
-        while (result.status === 'queued' || result.status === 'processing') {
-          if (!active || generation.current !== gen) return;
-          await sleep(500);
-          if (!active || generation.current !== gen) return;
-          result = await transcriptionTranslation(job.id, target);
-          captureProgress(result);
-        }
+    void transcriptionTranslate(job.id, target, requestId)
+      .then(result => {
         if (!active || generation.current !== gen) return;
         if (result.status === 'completed') {
           validatedTranslations.current.set(result.targetLanguage, result);
           setTranslation(result);
-        } else setTranslationError('failed');
-      } catch (error) {
+        } else if (result.segments.length) {
+          // Partials persisted by a still-running translation render right away.
+          setTranslation(result);
+        }
+      })
+      .catch(error => {
         if (!active || generation.current !== gen) return;
         const message = error instanceof Error ? error.message : '';
         setTranslationError(message.includes('TRANSLATOR_UNAVAILABLE') ? 'unavailable' : 'failed');
-      } finally {
-        if (active && generation.current === gen) setTranslating(false);
-      }
-    })();
+      })
+      .finally(() => {
+        if (active && generation.current === gen) setRequesting(false);
+      });
     return () => {
       active = false;
     };
   }, [document_, target, job.id, retryNonce]);
 
-  // Tick an elapsed-time counter while a translation runs so the user sees the
-  // process is alive and how long it is taking.
+  // Follow the live summary: fetch newly streamed segments while the backend
+  // translates, the final document on completion, and surface failures.
+  const summaryStatus = summary?.status ?? null;
+  const summaryCompletedSegments = summary?.completedSegments ?? 0;
+  useEffect(() => {
+    if (!document_ || !summaryStatus) return;
+    if (summaryStatus === 'failed') {
+      // While the retry POST is in flight the summary may still say failed.
+      if (!requesting) setTranslationError('failed');
+      return;
+    }
+    if (summaryStatus === 'unavailable') {
+      setTranslationError('unavailable');
+      return;
+    }
+    const matching =
+      translation && translation.targetLanguage.toLowerCase() === target.toLowerCase()
+        ? translation
+        : null;
+    const wantsFinal = summaryStatus === 'completed' && matching?.status !== 'completed';
+    const wantsPartial =
+      summaryStatus === 'processing' &&
+      matching?.status !== 'completed' &&
+      summaryCompletedSegments > (matching?.segments.length ?? 0);
+    if (!wantsFinal && !wantsPartial) return;
+    const gen = generation.current;
+    let active = true;
+    const controller = new AbortController();
+    transcriptionTranslation(job.id, target, controller.signal)
+      .then(result => {
+        if (!active || generation.current !== gen) return;
+        if (result.targetLanguage.toLowerCase() !== target.toLowerCase()) return;
+        if (result.status === 'completed') {
+          validatedTranslations.current.set(result.targetLanguage, result);
+          setTranslation(result);
+          setTranslationError(null);
+        } else if (result.segments.length) {
+          setTranslation(result);
+        }
+      })
+      .catch(() => {
+        // Progress keeps flowing over SSE; the next change retries the fetch.
+      });
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [
+    document_,
+    summaryStatus,
+    summaryCompletedSegments,
+    requesting,
+    target,
+    job.id,
+    translation
+  ]);
+
+  // Elapsed time is anchored to the backend's startedAt, so it is continuous
+  // across the list, reopened modals, and preemption — never a fresh stopwatch.
+  const translationStartedAt = summary?.startedAt ?? null;
   useEffect(() => {
     if (!translating) return;
-    const start = Date.now();
-    setTranslationElapsedMs(0);
-    const id = window.setInterval(() => setTranslationElapsedMs(Date.now() - start), 200);
+    const compute = () =>
+      setTranslationElapsedMs(
+        translationStartedAt ? Math.max(0, Date.now() - translationStartedAt) : 0
+      );
+    compute();
+    const id = window.setInterval(compute, 500);
     return () => window.clearInterval(id);
-  }, [translating]);
+  }, [translating, translationStartedAt]);
 
   useEffect(() => {
     if (!document_) return;
@@ -980,6 +1019,38 @@ export function TranscriptTextModal({
     if (wasPlaying) void media.play().catch(() => {});
   };
 
+  const cancelTranslation = async () => {
+    try {
+      await transcriptionTranslationCancel(job.id);
+    } catch {
+      // Status keeps streaming over SSE; a failed cancel simply changes nothing.
+    }
+  };
+
+  // Packages the creative + transcript + translation into a folder next to the
+  // source file; the agent reveals the new folder in the file manager.
+  const saveWithTranslation = async () => {
+    if (saveState === 'saving') return;
+    setSaveState('saving');
+    try {
+      await transcriptionSaveWithTranslation(job.id, {
+        languageLabel: languageDisplayName(sourceLanguage, language),
+        fileName: `${t('transcriptionExportFileName')}.txt`
+      });
+      setSaveState('saved');
+    } catch {
+      setSaveState('failed');
+    }
+    if (savedTimer.current) clearTimeout(savedTimer.current);
+    savedTimer.current = setTimeout(() => setSaveState('idle'), 2500);
+  };
+  useEffect(
+    () => () => {
+      if (savedTimer.current) clearTimeout(savedTimer.current);
+    },
+    []
+  );
+
   const copyColumn = async (which: 'source' | 'target') => {
     let text: string;
     let full = true;
@@ -1134,19 +1205,17 @@ export function TranscriptTextModal({
           ? t('transcriptionMatchApprox')
           : '';
 
-  // Determinate progress + a rough ETA once the backend reports segment counts.
-  const translationPercent =
-    translationProgress && translationProgress.total > 0
-      ? Math.min(100, Math.round((100 * translationProgress.completed) / translationProgress.total))
-      : null;
+  // Determinate, character-weighted progress straight from the backend summary,
+  // and an ETA anchored to the backend's continuous startedAt.
+  const translationPercent = translating ? (summary?.progress ?? null) : null;
   const translationEtaMs =
-    translationProgress &&
-    translationProgress.completed > 0 &&
-    translationProgress.completed < translationProgress.total &&
+    translationPercent !== null &&
+    translationPercent > 0 &&
+    translationPercent < 100 &&
     translationElapsedMs > 0
-      ? (translationElapsedMs * (translationProgress.total - translationProgress.completed)) /
-        translationProgress.completed
+      ? (translationElapsedMs * (100 - translationPercent)) / translationPercent
       : null;
+  const translationQueued = summary?.status === 'queued' && !requesting;
 
   return (
     <Modal
@@ -1296,7 +1365,6 @@ export function TranscriptTextModal({
                   const cached = validatedTranslations.current.get(code);
                   if (cached) {
                     setTranslation(cached);
-                    setTranslating(false);
                     setTranslationError(null);
                   }
                   setTarget(code);
@@ -1316,8 +1384,10 @@ export function TranscriptTextModal({
 
           {(translating || translationError) && (
             <div
-              className={`transcript-translation-status${translationError ? ' is-error' : ''}`}
-              role={translationError ? 'alert' : 'status'}
+              className={`transcript-translation-status${
+                translationError === 'failed' ? ' is-error' : ''
+              }`}
+              role={translationError === 'failed' ? 'alert' : 'status'}
             >
               {translating && (
                 <div className="transcript-translation-progress">
@@ -1325,7 +1395,9 @@ export function TranscriptTextModal({
                     {displayedLanguage !== target
                       ? `${languageDisplayName(displayedLanguage, language)} → `
                       : ''}
-                    {t('transcriptionTranslating', { language: targetName })}
+                    {translationQueued
+                      ? t('statusQueued')
+                      : t('transcriptionTranslating', { language: targetName })}
                   </span>
                   <div className="transcript-translation-progress-row">
                     <ProgressBar
@@ -1335,10 +1407,14 @@ export function TranscriptTextModal({
                     />
                     <span className="transcript-translation-elapsed">
                       {translationPercent !== null && `${translationPercent}% · `}
-                      {formatMediaTime(translationElapsedMs / 1000)}
+                      {translationStartedAt !== null &&
+                        formatMediaTime(translationElapsedMs / 1000)}
                       {translationEtaMs !== null &&
                         ` · ~${formatMediaTime(translationEtaMs / 1000)}`}
                     </span>
+                    <Button variant="ghost" onClick={() => void cancelTranslation()}>
+                      {t('transcriptionCancel')}
+                    </Button>
                   </div>
                 </div>
               )}
@@ -1449,11 +1525,9 @@ export function TranscriptTextModal({
               </div>
             )}
             {hasTargetText ? (
-              <div
-                className={`transcript-translation-content${
-                  translating ? (reducedMotion ? ' is-translating-static' : ' is-translating') : ''
-                }`}
-              >
+              // Segments stream in progressively, so the content stays fully
+              // readable while the remainder translates — no blur overlay.
+              <div className="transcript-translation-content">
                 {segments.map(segment => {
                   const translated = translatedBySegment.get(segment.id);
                   if (!translated) return null;
@@ -1479,7 +1553,7 @@ export function TranscriptTextModal({
                   );
                 })}
               </div>
-            ) : !translationError ? (
+            ) : !translationError && !translating ? (
               <div className="transcript-modal-empty">{t('transcriptionTranslationEmpty')}</div>
             ) : null}
           </div>
@@ -1626,6 +1700,23 @@ export function TranscriptTextModal({
           <span aria-hidden="true">{previewOpen ? '⌄' : '▶'}</span>
           {previewOpen ? t('transcriptionPreviewCollapse') : t('transcriptionPreview')}
         </Button>
+        {job.sourceKind === 'local' && (
+          <Button
+            variant="secondary"
+            loading={saveState === 'saving'}
+            disabled={job.translation?.status !== 'completed' || saveState === 'saving'}
+            onClick={() => void saveWithTranslation()}
+          >
+            {saveState === 'saved'
+              ? t('transcriptionSavedWithTranslation')
+              : t('transcriptionSaveWithTranslation')}
+          </Button>
+        )}
+        {saveState === 'failed' && (
+          <span className="transcription-model-error" role="alert">
+            {t('transcriptionSaveWithTranslationFailed')}
+          </span>
+        )}
         <Button variant="ghost" onClick={onClose}>
           {t('transcriptionModalClose')}
         </Button>

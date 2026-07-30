@@ -295,11 +295,13 @@ describe('bilingual transcript modal integration', () => {
     fireEvent.change(combobox, { target: { value: 'араб' } });
     fireEvent.click(await within(target).findByRole('option', { name: /Арабська/u }));
     await waitFor(() => expect(target.getAttribute('aria-busy')).toBe('true'));
+    // The previous translation stays fully readable while the new target is
+    // translating — segments stream in progressively, no blur overlay.
     expect(
       target
         .querySelector('.transcript-translation-content')
         ?.classList.contains('is-translating-static')
-    ).toBe(true);
+    ).toBe(false);
     expect(target.textContent).toContain('Привіт, світе.');
 
     await act(async () => {
