@@ -1,5 +1,22 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
+export type SupportGoalStatus = 'draft' | 'active' | 'archived';
+
+export type SupportGoalRow = {
+  id: string;
+  slug: string;
+  currency: string;
+  target_cents: number;
+  raised_cents: number;
+  title_en: string;
+  title_uk: string;
+  description_en: string;
+  description_uk: string;
+  status: SupportGoalStatus;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Profile = Database['public']['Tables']['profiles']['Row'];
 export type AnalyticsEventRow = Database['public']['Tables']['analytics_events']['Row'];
 export type AdminUserRow = Database['public']['Functions']['admin_list_users']['Returns'][number];
@@ -59,6 +76,36 @@ export type Database = {
         Row: { user_id: string; created_at: string };
         Insert: { user_id: string; created_at?: string };
         Update: never;
+        Relationships: [];
+      };
+      support_goals: {
+        Row: SupportGoalRow;
+        Insert: {
+          id?: string;
+          slug: string;
+          currency?: string;
+          target_cents: number;
+          raised_cents?: number;
+          title_en: string;
+          title_uk: string;
+          description_en: string;
+          description_uk: string;
+          status?: SupportGoalStatus;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          slug?: string;
+          currency?: string;
+          target_cents?: number;
+          raised_cents?: number;
+          title_en?: string;
+          title_uk?: string;
+          description_en?: string;
+          description_uk?: string;
+          status?: SupportGoalStatus;
+          updated_at?: string;
+        };
         Relationships: [];
       };
       analytics_events: {
@@ -176,6 +223,14 @@ export type Database = {
       admin_set_account_status: {
         Args: { p_user_id: string; p_account_status: string };
         Returns: boolean;
+      };
+      admin_active_support_goal: {
+        Args: Record<PropertyKey, never>;
+        Returns: SupportGoalRow | null;
+      };
+      admin_update_support_goal_amount: {
+        Args: { p_goal_id: string; p_raised_cents: number };
+        Returns: SupportGoalRow;
       };
     };
     Enums: { [_ in never]: never };

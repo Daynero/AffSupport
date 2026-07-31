@@ -3,14 +3,32 @@ import QRCode from 'qrcode';
 import { useI18n } from '../i18n';
 import { analytics } from '../analytics/service';
 import { activeCryptoWallets, hasDonationOptions, monobankUrl, supportEmail } from '../lib/support';
+import { useSupportGoal } from '../support/SupportGoalContext';
+import {
+  formatSupportAmount,
+  supportGoalDescription,
+  supportGoalProgress,
+  supportGoalTitle
+} from '../support/goals';
 import { Modal } from './Modal';
 import { Button } from './ui';
 
 /** Header trigger that opens the "Support the project" dialog. */
 export function SupportButton() {
-  const { t } = useI18n();
+  const { language, t } = useI18n();
+  const { goal } = useSupportGoal();
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
+  const progress = goal ? supportGoalProgress(goal) : null;
+  const raised = goal ? formatSupportAmount(goal.raised_cents, goal.currency, language) : '';
+  const target = goal ? formatSupportAmount(goal.target_cents, goal.currency, language) : '';
+  const goalId = goal?.id;
+  const goalSlug = goal?.slug;
+
+  useEffect(() => {
+    if (!goalId || !goalSlug) return;
+    analytics.track('feature_impression', { feature_identifier: goalSlug });
+  }, [goalId, goalSlug]);
 
   const openDialog = () => {
     setOpen(true);
@@ -27,13 +45,27 @@ export function SupportButton() {
       <button
         ref={trigger}
         type="button"
-        className="support-trigger"
+        className={`support-trigger${goal ? ' has-goal' : ''}${progress?.complete ? ' is-complete' : ''}`}
         aria-haspopup="dialog"
-        aria-label={t('supportOpen')}
+        aria-label={goal ? t('supportGoalOpen', { raised, target }) : t('supportOpen')}
         onClick={openDialog}
       >
         <HeartIcon />
-        <span>{t('supportProject')}</span>
+        <span className="support-trigger-label">
+          {goal ? t('supportGoalShort') : t('supportProject')}
+        </span>
+        {goal && progress && (
+          <>
+            <strong className="support-trigger-amount" aria-hidden="true">
+              {raised}
+              <span>/</span>
+              {target}
+            </strong>
+            <span className="support-trigger-progress" aria-hidden="true">
+              <i style={{ width: `${progress.visualPercent}%` }} />
+            </span>
+          </>
+        )}
       </button>
       {open && <SupportDialog onClose={close} />}
     </>
@@ -42,6 +74,7 @@ export function SupportButton() {
 
 function SupportDialog({ onClose }: { onClose: () => void }) {
   const { t } = useI18n();
+  const { goal } = useSupportGoal();
   const titleId = useId();
   const [message, setMessage] = useState('');
   const [error, setError] = useState(false);
@@ -69,8 +102,10 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
         <p>{t('supportIntro')}</p>
       </header>
 
+      {goal && <SupportGoalCard />}
+
       <section className="support-section">
-        <h3>{t('supportDonateTitle')}</h3>
+        <h3>{goal ? t('supportGoalDonateTitle') : t('supportDonateTitle')}</h3>
         {hasDonationOptions ? (
           <div className="support-donate">
             {monobankUrl && (
@@ -79,8 +114,16 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
                 href={monobankUrl}
                 target="_blank"
                 rel="noreferrer"
+                onClick={() =>
+                  analytics.track('support_donation_clicked', {
+                    feature_identifier: goal?.slug ?? 'general-support',
+                    action_identifier: 'monobank'
+                  })
+                }
               >
-                {t('supportMonobank')} · {t('supportMonobankOpen')}
+                {goal
+                  ? `${t('supportGoalDonateCta')} · ${t('supportMonobank')}`
+                  : `${t('supportMonobank')} · ${t('supportMonobankOpen')}`}
               </a>
             )}
             {activeCryptoWallets.length > 0 && (
@@ -128,6 +171,59 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
         )}
       </section>
     </Modal>
+  );
+}
+
+function SupportGoalCard() {
+  const { language, t } = useI18n();
+  const { goal } = useSupportGoal();
+  if (!goal) return null;
+  const progress = supportGoalProgress(goal);
+  const raised = formatSupportAmount(goal.raised_cents, goal.currency, language);
+  const target = formatSupportAmount(goal.target_cents, goal.currency, language);
+  const remaining = formatSupportAmount(progress.remainingCents, goal.currency, language);
+  const progressText = t('supportGoalRaisedOf', { raised, target });
+
+  return (
+    <section className={`support-goal-card${progress.complete ? ' is-complete' : ''}`}>
+      <div className="support-goal-heading">
+        <span>{t('supportGoalEyebrow')}</span>
+        <strong>{t('supportGoalTarget', { amount: target })}</strong>
+      </div>
+      <h3>{supportGoalTitle(goal, language)}</h3>
+      <p>{supportGoalDescription(goal, language)}</p>
+      <div className="support-goal-funding">
+        <div className="support-goal-total">
+          <span>{t('supportGoalCollected')}</span>
+          <strong>
+            {raised}
+            <small>/ {target}</small>
+          </strong>
+        </div>
+        <div className="support-goal-percent">
+          <strong>{progress.displayPercent}%</strong>
+          <span>
+            {progress.complete
+              ? t('supportGoalComplete')
+              : t('supportGoalRemaining', { amount: remaining })}
+          </span>
+        </div>
+      </div>
+      <div
+        className="support-goal-progress"
+        role="progressbar"
+        aria-label={t('supportGoalProgressLabel')}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={progress.displayPercent}
+        aria-valuetext={progressText}
+      >
+        <span style={{ width: `${progress.visualPercent}%` }}>
+          <i />
+        </span>
+      </div>
+      <small className="support-goal-note">{t('supportGoalManualNote')}</small>
+    </section>
   );
 }
 

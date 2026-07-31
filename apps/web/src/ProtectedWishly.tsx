@@ -13,13 +13,16 @@ import AccountPage from './pages/AccountPage';
 import AdminPage from './pages/AdminPage';
 import LocalAppDialog from './components/LocalAppDialog';
 import ReleaseUpdateNotice from './components/ReleaseUpdateNotice';
+import { SupportGoalProvider } from './support/SupportGoalContext';
 
 export default function ProtectedWishly({ path }: { path: string }) {
   return (
     <AgentProvider>
-      <ApplicationShell path={path} />
-      <ReleaseUpdateNotice />
-      <ProfileOnboarding />
+      <SupportGoalProvider>
+        <ApplicationShell path={path} />
+        <ReleaseUpdateNotice />
+        <ProfileOnboarding />
+      </SupportGoalProvider>
     </AgentProvider>
   );
 }

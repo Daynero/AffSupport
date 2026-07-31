@@ -4,9 +4,18 @@ import { Card } from '../components/Card';
 import { Button, type Translate } from '../components/ui';
 import { formatSize } from '../format';
 import { useI18n, type TranslationKey } from '../i18n';
-import type { AdminUserRow, Json, MarketingExportRow } from '../lib/database.types';
+import type { AdminUserRow, Json, MarketingExportRow, SupportGoalRow } from '../lib/database.types';
 import { usePageEntrance } from '../lib/navigation';
 import { requireSupabaseClient } from '../lib/supabase';
+import { useSupportGoal } from '../support/SupportGoalContext';
+import {
+  formatSupportAmount,
+  parseSupportAmountInput,
+  parseSupportGoal,
+  supportAmountInputValue,
+  supportGoalProgress,
+  supportGoalTitle
+} from '../support/goals';
 
 type AdminOverview = {
   total_users: number;
@@ -129,6 +138,7 @@ export function marketingCsv(rows: MarketingExportRow[]) {
 export default function AdminPage() {
   const { isAdmin, user } = useAuth();
   const { language, t } = useI18n();
+  const { refresh: refreshSupportGoal } = useSupportGoal();
   const entering = usePageEntrance();
   const [range, setRange] = useState<7 | 30 | 90>(30);
   const [overview, setOverview] = useState<AdminOverview | null>(null);
@@ -144,6 +154,12 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [supportGoal, setSupportGoal] = useState<SupportGoalRow | null>(null);
+  const [supportAmount, setSupportAmount] = useState('');
+  const [supportGoalSaving, setSupportGoalSaving] = useState(false);
+  const [supportGoalState, setSupportGoalState] = useState<'idle' | 'saved' | 'invalid' | 'error'>(
+    'idle'
+  );
   // Remembers that this mount showed the loading skeleton, so the data
   // crossfades in (content-appear) instead of popping.
   const sawSkeleton = useRef(false);
@@ -164,23 +180,31 @@ export default function AdminPage() {
     if (!isAdmin) return;
     setLoading(true);
     setError(false);
+    setSupportGoalState('idle');
     const supabase = requireSupabaseClient();
     const args = { p_start_date: dates.start, p_end_date: dates.end };
     const consent = consentFilter === '' ? null : consentFilter === 'true';
-    const [overviewResult, dailyResult, usageResult, versionsResult, usersResult] =
-      await Promise.all([
-        supabase.rpc('admin_overview', args),
-        supabase.rpc('admin_daily_activity', args),
-        supabase.rpc('admin_tool_usage', args),
-        supabase.rpc('admin_agent_versions', args),
-        supabase.rpc('admin_list_users', {
-          p_search: search,
-          p_marketing_consent: consent,
-          p_account_status: statusFilter || null,
-          p_limit: pageSize,
-          p_offset: page * pageSize
-        })
-      ]);
+    const [
+      overviewResult,
+      dailyResult,
+      usageResult,
+      versionsResult,
+      usersResult,
+      supportGoalResult
+    ] = await Promise.all([
+      supabase.rpc('admin_overview', args),
+      supabase.rpc('admin_daily_activity', args),
+      supabase.rpc('admin_tool_usage', args),
+      supabase.rpc('admin_agent_versions', args),
+      supabase.rpc('admin_list_users', {
+        p_search: search,
+        p_marketing_consent: consent,
+        p_account_status: statusFilter || null,
+        p_limit: pageSize,
+        p_offset: page * pageSize
+      }),
+      supabase.rpc('admin_active_support_goal')
+    ]);
     const failed = [overviewResult, dailyResult, usageResult, versionsResult, usersResult].some(
       result => result.error
     );
@@ -193,6 +217,13 @@ export default function AdminPage() {
       setUsage(usageResult.data ?? []);
       setVersions(versionsResult.data ?? []);
       setUsers(usersResult.data ?? []);
+    }
+    if (supportGoalResult.error) {
+      setSupportGoalState('error');
+    } else {
+      const nextGoal = parseSupportGoal(supportGoalResult.data);
+      setSupportGoal(nextGoal);
+      setSupportAmount(nextGoal ? supportAmountInputValue(nextGoal.raised_cents) : '');
     }
     setLoading(false);
   }, [consentFilter, dates.end, dates.start, isAdmin, page, search, statusFilter]);
@@ -241,6 +272,34 @@ export default function AdminPage() {
     setExporting(false);
   };
 
+  const saveSupportGoal = async () => {
+    if (!supportGoal || supportGoalSaving) return;
+    const raisedCents = parseSupportAmountInput(supportAmount);
+    if (raisedCents === null) {
+      setSupportGoalState('invalid');
+      return;
+    }
+    setSupportGoalSaving(true);
+    setSupportGoalState('idle');
+    const { data, error: updateError } = await requireSupabaseClient().rpc(
+      'admin_update_support_goal_amount',
+      {
+        p_goal_id: supportGoal.id,
+        p_raised_cents: raisedCents
+      }
+    );
+    const updated = updateError ? null : parseSupportGoal(data);
+    if (!updated) {
+      setSupportGoalState('error');
+    } else {
+      setSupportGoal(updated);
+      setSupportAmount(supportAmountInputValue(updated.raised_cents));
+      setSupportGoalState('saved');
+      void refreshSupportGoal();
+    }
+    setSupportGoalSaving(false);
+  };
+
   const changeStatus = async (target: AdminUserRow) => {
     const nextStatus = target.account_status === 'blocked' ? 'active' : 'blocked';
     const { error: statusError } = await requireSupabaseClient().rpc('admin_set_account_status', {
@@ -286,6 +345,20 @@ export default function AdminPage() {
         <AdminPageSkeleton t={t} />
       ) : overview ? (
         <div className={`admin-loaded${sawSkeleton.current ? ' content-appear' : ''}`}>
+          <SupportGoalAdminCard
+            goal={supportGoal}
+            amount={supportAmount}
+            language={language}
+            state={supportGoalState}
+            saving={supportGoalSaving}
+            t={t}
+            onAmountChange={value => {
+              setSupportAmount(value);
+              setSupportGoalState('idle');
+            }}
+            onSave={() => void saveSupportGoal()}
+          />
+
           <section className="metric-grid" aria-label={t('adminTitle')}>
             {overviewKeys.map(key => (
               <Card as="article" className="metric-card" key={key}>
@@ -452,12 +525,132 @@ export default function AdminPage() {
   );
 }
 
+function SupportGoalAdminCard({
+  goal,
+  amount,
+  language,
+  state,
+  saving,
+  t,
+  onAmountChange,
+  onSave
+}: {
+  goal: SupportGoalRow | null;
+  amount: string;
+  language: 'en' | 'uk';
+  state: 'idle' | 'saved' | 'invalid' | 'error';
+  saving: boolean;
+  t: Translate;
+  onAmountChange: (value: string) => void;
+  onSave: () => void;
+}) {
+  const progress = goal ? supportGoalProgress(goal) : null;
+  const raised = goal ? formatSupportAmount(goal.raised_cents, goal.currency, language) : '';
+  const target = goal ? formatSupportAmount(goal.target_cents, goal.currency, language) : '';
+
+  return (
+    <Card className="admin-card support-goal-admin-card" aria-labelledby="support-goal-admin-title">
+      <div className="admin-card-heading support-goal-admin-heading">
+        <div>
+          <h3 id="support-goal-admin-title">{t('adminSupportGoalTitle')}</h3>
+          <p>{t('adminSupportGoalSubtitle')}</p>
+        </div>
+        {goal && <span className="account-status status-active">{t('activeStatus')}</span>}
+      </div>
+
+      {goal && progress ? (
+        <>
+          <div className="support-goal-admin-summary">
+            <div>
+              <span>{supportGoalTitle(goal, language)}</span>
+              <strong>{t('supportGoalRaisedOf', { raised, target })}</strong>
+            </div>
+            <b>{progress.displayPercent}%</b>
+          </div>
+          <div
+            className="support-goal-progress"
+            role="progressbar"
+            aria-label={t('supportGoalProgressLabel')}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={progress.displayPercent}
+            aria-valuetext={t('supportGoalRaisedOf', { raised, target })}
+          >
+            <span style={{ width: `${progress.visualPercent}%` }} />
+          </div>
+          <form
+            className="support-goal-admin-form"
+            onSubmit={event => {
+              event.preventDefault();
+              onSave();
+            }}
+          >
+            <label className="field">
+              <span>{t('adminSupportGoalCollected')}</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                value={amount}
+                onChange={event => onAmountChange(event.target.value)}
+                aria-describedby="support-goal-amount-hint"
+              />
+            </label>
+            <div className="support-goal-admin-actions">
+              <Button type="submit" variant="primary" loading={saving}>
+                {saving ? t('saving') : t('adminSupportGoalSave')}
+              </Button>
+              {state === 'saved' && (
+                <span className="support-goal-admin-success" role="status">
+                  {t('adminSupportGoalSaved')}
+                </span>
+              )}
+              {state === 'invalid' && (
+                <span className="support-error" role="alert">
+                  {t('adminSupportGoalInvalid')}
+                </span>
+              )}
+              {state === 'error' && (
+                <span className="support-error" role="alert">
+                  {t('adminSupportGoalError')}
+                </span>
+              )}
+            </div>
+          </form>
+          <div className="support-goal-admin-meta">
+            <span id="support-goal-amount-hint">{t('adminSupportGoalCollectedHint')}</span>
+            <time dateTime={goal.updated_at}>
+              {t('adminSupportGoalUpdated', {
+                date: new Date(goal.updated_at).toLocaleString(
+                  language === 'uk' ? 'uk-UA' : 'en-US'
+                )
+              })}
+            </time>
+          </div>
+        </>
+      ) : (
+        <p className="admin-empty">
+          {state === 'error' ? t('adminSupportGoalError') : t('adminSupportGoalUnavailable')}
+        </p>
+      )}
+    </Card>
+  );
+}
+
 /** Loading placeholders that mirror the loaded dashboard geometry — the
  * metric grid, activity chart card, the two breakdown lists and the users
  * table — so real data crossfades in without layout shift. */
 function AdminPageSkeleton({ t }: { t: Translate }) {
   return (
     <div className="admin-skeleton" role="status" aria-label={t('loading')}>
+      <Card as="div" className="admin-card support-goal-admin-card" aria-hidden="true">
+        <div className="admin-card-heading">
+          <span className="skeleton skeleton-line skeleton-line-lg" />
+          <span className="skeleton skeleton-line skeleton-line-sm" />
+        </div>
+        <span className="skeleton skeleton-field" />
+        <span className="skeleton skeleton-line skeleton-line-wide" />
+      </Card>
       <section className="metric-grid" aria-hidden="true">
         {overviewKeys.map(key => (
           <Card as="div" className="metric-card" key={key}>

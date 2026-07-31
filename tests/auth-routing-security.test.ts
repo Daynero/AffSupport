@@ -150,14 +150,33 @@ describe('static database and credential security checks', () => {
       await Promise.all([
         readFile('supabase/migrations/20260718210000_profiles_and_admin.sql', 'utf8'),
         readFile('supabase/migrations/20260718211000_analytics.sql', 'utf8'),
-        readFile('supabase/migrations/20260718212000_admin_functions.sql', 'utf8')
+        readFile('supabase/migrations/20260718212000_admin_functions.sql', 'utf8'),
+        readFile('supabase/migrations/20260731120000_support_goals.sql', 'utf8')
       ])
     ).join('\n');
-    expect(migrations.match(/enable row level security/g)?.length).toBe(3);
+    expect(migrations.match(/enable row level security/g)?.length).toBe(4);
     expect(migrations).not.toMatch(/using\s*\(\s*true\s*\)/i);
     expect(migrations).toContain('user_id = (select auth.uid())');
     expect(migrations).toContain('security definer');
     expect(migrations).toContain("set search_path = ''");
+  });
+
+  it('publishes only aggregate support progress and keeps amount updates admin-only', async () => {
+    const migration = await readFile(
+      'supabase/migrations/20260731120000_support_goals.sql',
+      'utf8'
+    );
+    expect(migration).toContain('alter table public.support_goals enable row level security');
+    expect(migration).toMatch(/for select\s+to authenticated\s+using \(status = 'active'\)/);
+    expect(migration).toContain('if not public.is_admin()');
+    expect(migration).toContain(
+      'revoke all on function public.admin_update_support_goal_amount(uuid, bigint) from public, anon'
+    );
+    expect(migration).not.toMatch(/grant (insert|update|delete) on table public\.support_goals/i);
+    expect(migration).toContain(
+      'alter publication supabase_realtime add table public.support_goals'
+    );
+    expect(migration).not.toMatch(/donor_email|wallet_address|payment_token/i);
   });
 
   it('keeps privileged deletion on the server and targets only the JWT user', async () => {

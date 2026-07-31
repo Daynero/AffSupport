@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { Session, User } from '@supabase/supabase-js';
 import type { Profile } from '../apps/web/src/lib/database.types';
 
@@ -82,6 +82,21 @@ const overview = {
   videos_with_image: 3
 };
 
+const supportGoal = {
+  id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  slug: 'mac-updates-apple-developer',
+  currency: 'USD',
+  target_cents: 9900,
+  raised_cents: 0,
+  title_en: 'Get rid of reinstalls',
+  title_uk: 'Позбутися перевстановлень',
+  description_en: 'English goal description.',
+  description_uk: 'Опис цілі українською.',
+  status: 'active',
+  created_at: '2026-07-31T00:00:00.000Z',
+  updated_at: '2026-07-31T00:00:00.000Z'
+} as const;
+
 beforeEach(() => {
   localStorage.setItem('language', 'en');
   rpc.mockReset();
@@ -96,6 +111,16 @@ beforeEach(() => {
       return { data: [{ category: 'mode', label: 'optimal', total: 4 }], error: null };
     if (name === 'admin_agent_versions')
       return { data: [{ agent_version: '0.4.0-test.1', total: 7 }], error: null };
+    if (name === 'admin_active_support_goal') return { data: supportGoal, error: null };
+    if (name === 'admin_update_support_goal_amount')
+      return {
+        data: {
+          ...supportGoal,
+          raised_cents: 4250,
+          updated_at: '2026-07-31T12:00:00.000Z'
+        },
+        error: null
+      };
     if (name === 'admin_list_users')
       return {
         data: [
@@ -157,6 +182,26 @@ describe('database-authorized admin UI', () => {
     expect(parseAdminOverview(overview)).toEqual(overview);
     expect(parseAdminOverview({ total_users: 1 })).toBeNull();
     expect(parseAdminOverview(['raw-event'])).toBeNull();
+  });
+
+  it('updates the manually confirmed donation total through the admin-only RPC', async () => {
+    render(
+      <AuthContextOverride value={context(true)}>
+        <AdminPage />
+      </AuthContextOverride>
+    );
+    const input = await screen.findByLabelText('Total raised, USD');
+    expect(input.getAttribute('value')).toBe('0');
+
+    fireEvent.change(input, { target: { value: '42.50' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Update amount' }));
+
+    await waitFor(() => expect(screen.getByText('Amount updated.')).toBeTruthy());
+    expect(rpc).toHaveBeenCalledWith('admin_update_support_goal_amount', {
+      p_goal_id: supportGoal.id,
+      p_raised_cents: 4250
+    });
+    expect(screen.getByText('$42.50 of $99')).toBeTruthy();
   });
 
   it('exports only the consent list and neutralizes spreadsheet formulas', () => {
