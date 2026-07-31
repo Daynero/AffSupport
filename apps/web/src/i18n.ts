@@ -655,6 +655,8 @@ const en = {
   landingGalleryExternalBlocked: '{count} external requests blocked for safety',
   landingGalleryPageErrorWarning: 'The landing reported a JavaScript error while rendering.',
   landingGalleryCroppedWarning: 'This unusually large page was cropped to a safe preview size.',
+  landingGalleryDownscaledWarning:
+    'This very large page was scaled down to keep the complete preview.',
   landingGalleryActionFailed: 'The action could not be completed.',
   landingDropTitle: 'Drop landing ZIPs or folders',
   landingDropActive: 'Release to add the landings',
@@ -1409,6 +1411,7 @@ const uk: Record<keyof typeof en, string> = {
   landingGalleryPageErrorWarning: 'Під час рендерингу JavaScript лендінга повідомив про помилку.',
   landingGalleryCroppedWarning:
     'Цю нетипово велику сторінку обрізано до безпечного розміру прев’ю.',
+  landingGalleryDownscaledWarning: 'Цю дуже велику сторінку зменшено, щоб зберегти повне прев’ю.',
   landingGalleryActionFailed: 'Не вдалося виконати дію.',
   landingDropTitle: 'Перетягніть ZIP-и або папки лендінгів',
   landingDropActive: 'Відпустіть, щоб додати лендінги',

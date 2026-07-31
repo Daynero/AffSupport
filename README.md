@@ -123,16 +123,19 @@ browser supplies its local `file://` URI; otherwise the UI asks the user to use
 the picker.
 
 Each landing is rendered in an isolated, bundled Chromium Headless Shell at a
-1440 × 900 desktop viewport and stored as a full-page WebP. External HTTP,
-WebSocket, service-worker, and non-proxied WebRTC traffic is blocked during the
-render, so a landing that depends on CDN-only assets can show a warning or an
-incomplete local preview. An unusually large page is cropped to a bounded safe
-size rather than exhausting memory.
+1440 × 900 desktop viewport and stored as one or more validated WebP slices
+that the viewer joins seamlessly. This preserves full resolution on long
+pages without silently accepting an empty or viewport-only screenshot.
+External HTTP, WebSocket, service-worker, and non-proxied WebRTC traffic is
+blocked during the render, so a landing that depends on CDN-only assets can
+show a warning or an incomplete local preview. Extreme dimensions are scaled
+or bounded before they can exhaust memory.
 
 The full-screen viewer provides a folder/ZIP tree, search, previous/next
 navigation, keyboard arrows, fit-width, fit-page, 100% and custom zoom,
 full-screen mode, and actions to open a folder source, reveal a ZIP, or open its
-managed extracted copy. **Refresh changed** fingerprints the catalogue and
+managed extracted copy. Viewer zoom, fit mode, and sidebar state persist while
+switching landings and reopening the tool. **Refresh changed** fingerprints the catalogue and
 reuses unchanged previews; **Refresh current** rebuilds one item; **Rebuild
 all** forces a complete pass. If a refresh fails, the last successful preview
 stays visible and is marked stale. **Clear cache** removes managed previews and

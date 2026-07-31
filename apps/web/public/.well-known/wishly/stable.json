@@ -1,19 +1,19 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.8.8",
-  "buildNumber": "33",
-  "buildId": "0.8.8+33",
+  "version": "0.8.9",
+  "buildNumber": "34",
+  "buildId": "0.8.9+34",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-07-31T12:38:04.000Z",
+  "publishedAt": "2026-07-31T13:26:12.000Z",
   "summary": {
-    "en": "Private full-page previews for landing folders and ZIP archives, with Google Drive support, local caching, navigation, zoom, and safe refresh controls.",
-    "uk": "Приватний перегляд лендінгів із папок і ZIP-архівів, підтримкою Google Drive, локальним кешем, навігацією, масштабом і безпечним оновленням."
+    "en": "Complete long landing previews without blank or viewport-only screenshots, plus persistent viewer controls and polished dark-theme styling.",
+    "uk": "Повні прев’ю довгих лендінгів без порожніх чи обрізаних скріншотів, зі збереженням налаштувань і виправленою темною темою."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.8.8/Wishly-Agent-v0.8.8-macOS-arm64.dmg",
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.8.9/Wishly-Agent-v0.8.9-macOS-arm64.dmg",
       "sha256": "ac70ceb47c9400e0e95bd02274aabcc1b1dcb72be46d30abdfcbb907d278fb6f"
     }
   },
@@ -32,5 +32,5 @@
       "transcription": 5
     }
   },
-  "signature": "vEqrwfkzKIfoxqS3CvzLEoNJRfF2w4zgOE5WCD3Yd1CcwMlrgX_ERh3mh_a4XY-ylyZS80jYWmnbfxfAsGxacA"
+  "signature": "PrerH3eMa0N9OGt7s-Y1MCB5nWTIG1Jg5a-FkZUh7fCoF9O9skeLlLI6gtGRkT3da77YHVc-leSFO6IGUyrttQ"
 }

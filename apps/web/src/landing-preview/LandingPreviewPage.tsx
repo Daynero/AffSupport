@@ -46,6 +46,7 @@ const emptyState: LandingPreviewState = {
 };
 
 type ZoomMode = 'fit-width' | 'fit-page' | 'custom';
+const VIEWER_PREFERENCES_KEY = 'wishly:landing-preview:viewer-preferences';
 
 export default function LandingPreviewPage() {
   const { t } = useI18n();
@@ -53,10 +54,10 @@ export default function LandingPreviewPage() {
   const [loaded, setLoaded] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => readViewerPreferences().sidebarOpen);
   const [search, setSearch] = useState('');
-  const [zoomMode, setZoomMode] = useState<ZoomMode>('fit-width');
-  const [customScale, setCustomScale] = useState(1);
+  const [zoomMode, setZoomMode] = useState<ZoomMode>(() => readViewerPreferences().zoomMode);
+  const [customScale, setCustomScale] = useState(() => readViewerPreferences().customScale);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const [dragging, setDragging] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
@@ -72,6 +73,11 @@ export default function LandingPreviewPage() {
       .then(next => {
         setState(next);
         setLoaded(true);
+        if (next.activeCatalogId && !next.running) {
+          void landingGalleryActivate(next.activeCatalogId)
+            .then(setState)
+            .catch(() => {});
+        }
       })
       .catch(() => {
         setMessage(t('landingGalleryActionFailed'));
@@ -85,6 +91,10 @@ export default function LandingPreviewPage() {
     };
     return () => source?.close();
   }, [t]);
+
+  useEffect(() => {
+    writeViewerPreferences({ sidebarOpen, zoomMode, customScale });
+  }, [customScale, sidebarOpen, zoomMode]);
 
   useEffect(() => {
     if (selectedId && state.landings.some(item => item.id === selectedId)) return;
@@ -118,7 +128,6 @@ export default function LandingPreviewPage() {
       if (!state.landings.length) return;
       const normalized = (index + state.landings.length) % state.landings.length;
       setSelectedId(state.landings[normalized].id);
-      setZoomMode('fit-width');
       requestAnimationFrame(() => canvas.current?.scrollTo?.({ top: 0, left: 0 }));
     },
     [state.landings]
@@ -240,7 +249,9 @@ export default function LandingPreviewPage() {
               ? t('landingGalleryPageErrorWarning')
               : code === 'PREVIEW_CROPPED'
                 ? t('landingGalleryCroppedWarning')
-                : code
+                : code === 'PREVIEW_DOWNSCALED'
+                  ? t('landingGalleryDownscaledWarning')
+                  : code
           )
       ].filter((note): note is string => Boolean(note))
     : [];
@@ -315,10 +326,20 @@ export default function LandingPreviewPage() {
               +
             </IconButton>
           </div>
-          <Button className="landing-gallery-label-action" onClick={() => setZoomMode('fit-width')}>
+          <Button
+            variant="ghost"
+            className="landing-gallery-label-action"
+            aria-pressed={zoomMode === 'fit-width'}
+            onClick={() => setZoomMode('fit-width')}
+          >
             {t('landingGalleryFitWidth')}
           </Button>
-          <Button className="landing-gallery-label-action" onClick={() => setZoomMode('fit-page')}>
+          <Button
+            variant="ghost"
+            className="landing-gallery-label-action"
+            aria-pressed={zoomMode === 'fit-page'}
+            onClick={() => setZoomMode('fit-page')}
+          >
             {t('landingGalleryFitPage')}
           </Button>
           <IconButton
@@ -393,7 +414,6 @@ export default function LandingPreviewPage() {
             search={search}
             onSelect={id => {
               setSelectedId(id);
-              setZoomMode('fit-width');
               requestAnimationFrame(() => canvas.current?.scrollTo?.({ top: 0, left: 0 }));
             }}
           />
@@ -422,13 +442,20 @@ export default function LandingPreviewPage() {
               minHeight: selected.previewHeight ? selected.previewHeight * scale : undefined
             }}
           >
-            <img
-              key={`${selected.id}-${selected.renderedAt}`}
-              src={landingGalleryImageUrl(selected.id, selected.renderedAt)}
-              alt={selected.name}
-              draggable={false}
-              style={{ width: selected.previewWidth ? selected.previewWidth * scale : undefined }}
-            />
+            <div className="landing-gallery-image-stack">
+              {Array.from({ length: Math.max(1, selected.previewSegments ?? 1) }, (_, index) => (
+                <img
+                  key={`${selected.id}-${selected.renderedAt}-${index}`}
+                  src={landingGalleryImageUrl(selected.id, selected.renderedAt, index)}
+                  alt={index === 0 ? selected.name : ''}
+                  aria-hidden={index > 0 ? true : undefined}
+                  draggable={false}
+                  style={{
+                    width: selected.previewWidth ? selected.previewWidth * scale : undefined
+                  }}
+                />
+              ))}
+            </div>
             {selected.stale && (
               <div className="landing-gallery-stale-note">{t('landingGalleryOldPreview')}</div>
             )}
@@ -824,6 +851,45 @@ function phaseKey(phase: LandingPreviewPhase): TranslationKey {
     failed: 'landingGalleryPhaseFailed'
   };
   return keys[phase];
+}
+
+function readViewerPreferences(): {
+  sidebarOpen: boolean;
+  zoomMode: ZoomMode;
+  customScale: number;
+} {
+  const fallback = { sidebarOpen: true, zoomMode: 'fit-width' as ZoomMode, customScale: 1 };
+  if (typeof localStorage === 'undefined') return fallback;
+  try {
+    const stored = JSON.parse(localStorage.getItem(VIEWER_PREFERENCES_KEY) ?? '{}') as Record<
+      string,
+      unknown
+    >;
+    return {
+      sidebarOpen: typeof stored.sidebarOpen === 'boolean' ? stored.sidebarOpen : true,
+      zoomMode: ['fit-width', 'fit-page', 'custom'].includes(String(stored.zoomMode))
+        ? (stored.zoomMode as ZoomMode)
+        : 'fit-width',
+      customScale:
+        typeof stored.customScale === 'number' && Number.isFinite(stored.customScale)
+          ? clamp(stored.customScale, 0.25, 3)
+          : 1
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function writeViewerPreferences(preferences: {
+  sidebarOpen: boolean;
+  zoomMode: ZoomMode;
+  customScale: number;
+}) {
+  try {
+    localStorage.setItem(VIEWER_PREFERENCES_KEY, JSON.stringify(preferences));
+  } catch {
+    // The viewer still works when browser storage is disabled.
+  }
 }
 
 function clamp(value: number, minimum: number, maximum: number) {

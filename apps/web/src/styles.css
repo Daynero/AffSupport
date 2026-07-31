@@ -3543,7 +3543,38 @@ input.is-invalid {
 }
 
 .landing-gallery-toolbar .icon-button {
+  display: grid;
+  width: 36px;
+  height: 36px;
   flex: 0 0 auto;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    color var(--dur-micro) var(--ease-standard),
+    border-color var(--dur-micro) var(--ease-standard),
+    background var(--dur-micro) var(--ease-standard),
+    transform var(--dur-micro) var(--ease-standard);
+}
+
+.landing-gallery-toolbar .icon-button:hover:not(:disabled),
+.landing-gallery-toolbar .icon-button[aria-pressed='true'] {
+  border-color: color-mix(in srgb, var(--color-accent) 24%, var(--color-border));
+  color: var(--color-accent-hover);
+  background: var(--color-accent-soft);
+}
+
+.landing-gallery-toolbar .icon-button:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.landing-gallery-toolbar .icon-button:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
 }
 
 .landing-gallery-identity {
@@ -3601,7 +3632,14 @@ input.is-invalid {
 .landing-gallery-label-action {
   min-height: 34px;
   padding: 6px 9px;
+  border-color: transparent;
   font-size: 12px;
+}
+
+.landing-gallery-label-action[aria-pressed='true'] {
+  border-color: color-mix(in srgb, var(--color-accent) 26%, var(--color-border));
+  color: var(--color-accent-hover);
+  background: var(--color-accent-soft);
 }
 
 .landing-gallery-more {
@@ -3890,11 +3928,16 @@ input.is-invalid {
   box-shadow: 0 16px 70px rgb(0 0 0 / 38%);
 }
 
-.landing-gallery-image-stage img {
+.landing-gallery-image-stack {
+  display: grid;
+  overflow: hidden;
+  border-radius: 3px;
+}
+
+.landing-gallery-image-stack img {
   display: block;
   max-width: none;
   height: auto;
-  border-radius: 3px;
   user-select: none;
 }
 
@@ -3925,8 +3968,8 @@ input.is-invalid {
   padding: 8px 11px;
   border: 1px solid color-mix(in srgb, var(--color-warning) 45%, var(--color-border));
   border-radius: var(--radius-md);
-  color: var(--color-text);
-  background: color-mix(in srgb, var(--color-warning-soft) 92%, transparent);
+  color: var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 16%, var(--color-surface));
   box-shadow: var(--shadow-sm);
   font-size: 12px;
   text-align: center;

@@ -1,3 +1,10 @@
+# v0.8.9
+
+- Preserve custom zoom, fit mode, and sidebar state while switching landings and after reopening Landing Preview.
+- Replace browser-default grey toolbar buttons with theme-aware Wishly controls and restore readable warning contrast in dark mode.
+- Capture long pages as seamless full-resolution WebP slices instead of silently saving only the 1440 × 900 viewport, including pages that scroll inside a nested container.
+- Reject empty or invalid cached screenshots, eagerly settle lazy-loaded content, automatically rebuild previews created by the old capture profile, and retain the previous valid preview if rebuilding fails.
+
 # v0.8.8
 
 - Add a dedicated full-screen Landing Preview tool that recursively finds `index.html`/`index.htm` landing roots, builds a source tree, and supports search, previous/next navigation, keyboard controls, zoom presets, and true full-screen viewing.

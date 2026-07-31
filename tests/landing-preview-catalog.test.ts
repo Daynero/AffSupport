@@ -42,10 +42,11 @@ class TestRenderer implements LandingRenderer {
       this.failNext = false;
       throw new Error('Synthetic renderer failure.');
     }
-    await writeFile(outputPath, `preview-${this.renders}`);
+    await writeFile(outputPath, fakePreview(`preview-${this.renders}`));
     return {
       width: 1440,
       height: 1200,
+      segmentFiles: [outputPath],
       title: null,
       blockedExternalRequests: 0,
       warning: null
@@ -124,7 +125,7 @@ describe('landing preview discovery and cache', () => {
     expect(first).toMatchObject({ status: 'ready', stale: false, previewAvailable: true });
     const originalPreview = await catalog.previewPath(first.id);
     expect(originalPreview).not.toBeNull();
-    expect(await readFile(originalPreview!, 'utf8')).toBe('preview-1');
+    expect((await readFile(originalPreview!)).includes(Buffer.from('preview-1'))).toBe(true);
 
     expect(catalog.refresh('changed')).toBe(true);
     await waitForIdle(catalog);
@@ -141,7 +142,7 @@ describe('landing preview discovery and cache', () => {
       previewAvailable: true,
       error: 'Synthetic renderer failure.'
     });
-    expect(await readFile(originalPreview!, 'utf8')).toBe('preview-1');
+    expect((await readFile(originalPreview!)).includes(Buffer.from('preview-1'))).toBe(true);
     await catalog.shutdown();
 
     const restoredRenderer = new TestRenderer();
@@ -189,6 +190,68 @@ describe('landing preview discovery and cache', () => {
     expect(catalog.sourcePath(landing.id)).toBe(await realpath(archive));
     await catalog.shutdown();
   });
+
+  it('does not restore an empty cached screenshot as a ready preview', async () => {
+    const workspace = await temporaryDirectory('wishly-preview-empty-cache-');
+    const catalogueRoot = path.join(workspace, 'catalogue');
+    const landingRoot = path.join(catalogueRoot, 'campaign');
+    const cacheRoot = path.join(workspace, 'cache');
+    await mkdir(landingRoot, { recursive: true });
+    await writeFile(path.join(landingRoot, 'index.html'), '<h1>Campaign</h1>');
+
+    const catalog = new LandingPreviewCatalog({ root: cacheRoot, renderer: new TestRenderer() });
+    await catalog.init();
+    await catalog.openRoot(catalogueRoot);
+    await waitForIdle(catalog);
+    const preview = await catalog.previewPath(catalog.state().landings[0].id);
+    expect(preview).not.toBeNull();
+    await catalog.shutdown();
+    await writeFile(preview!, Buffer.alloc(0));
+
+    const restored = new LandingPreviewCatalog({ root: cacheRoot, renderer: new TestRenderer() });
+    await restored.init();
+    expect(restored.state().landings[0]).toMatchObject({
+      status: 'queued',
+      previewAvailable: false,
+      previewWidth: null,
+      previewHeight: null
+    });
+    await restored.shutdown();
+  });
+
+  it('queues previews made by the old capture profile for an automatic rebuild', async () => {
+    const workspace = await temporaryDirectory('wishly-preview-profile-upgrade-');
+    const catalogueRoot = path.join(workspace, 'catalogue');
+    const landingRoot = path.join(catalogueRoot, 'campaign');
+    const cacheRoot = path.join(workspace, 'cache');
+    await mkdir(landingRoot, { recursive: true });
+    await writeFile(path.join(landingRoot, 'index.html'), '<h1>Campaign</h1>');
+
+    const original = new LandingPreviewCatalog({ root: cacheRoot, renderer: new TestRenderer() });
+    await original.init();
+    await original.openRoot(catalogueRoot);
+    await waitForIdle(original);
+    await original.shutdown();
+
+    const statePath = path.join(cacheRoot, 'state.json');
+    const stored = JSON.parse(await readFile(statePath, 'utf8'));
+    stored.catalogs[0].landings[0].renderProfile = 'desktop-1440x900-v1';
+    await writeFile(statePath, JSON.stringify(stored));
+
+    const renderer = new TestRenderer();
+    const upgraded = new LandingPreviewCatalog({ root: cacheRoot, renderer });
+    await upgraded.init();
+    expect(upgraded.state().landings[0]).toMatchObject({
+      status: 'queued',
+      stale: true,
+      previewAvailable: true
+    });
+    await upgraded.activate(upgraded.state().activeCatalogId!);
+    await waitForIdle(upgraded);
+    expect(renderer.renders).toBe(1);
+    expect(upgraded.state().landings[0]).toMatchObject({ status: 'ready', stale: false });
+    await upgraded.shutdown();
+  });
 });
 
 describe('landing preview Chromium renderer', () => {
@@ -201,7 +264,8 @@ describe('landing preview Chromium renderer', () => {
       path.join(landing, 'index.html'),
       `<!doctype html>
       <style>html,body{margin:0} main{height:1800px;background:linear-gradient(#123,#def)}</style>
-      <main><h1>Local preview</h1><img src="https://example.invalid/tracker.png"></main>`
+      <script src="https://example.invalid/tracker.js"></script>
+      <main><h1>Local preview</h1></main>`
     );
     const renderer = new LandingPageRenderer();
     await renderer.init();
@@ -214,15 +278,47 @@ describe('landing preview Chromium renderer', () => {
       });
       expect(result.width).toBe(1440);
       expect(result.height).toBeGreaterThanOrEqual(1800);
+      expect(result.segmentFiles).toEqual([output]);
       expect(result.blockedExternalRequests).toBeGreaterThanOrEqual(1);
       const bytes = await readFile(output);
       expect(bytes.subarray(0, 4).toString('ascii')).toBe('RIFF');
       expect(bytes.subarray(8, 12).toString('ascii')).toBe('WEBP');
+
+      const longOutput = path.join(workspace, 'long-preview.webp');
+      await writeFile(
+        path.join(landing, 'index.html'),
+        `<!doctype html>
+        <style>
+          html,body{margin:0}
+          .scroll-root{height:900px;overflow-y:auto}
+          .content{height:20500px;background:linear-gradient(#213 0%,#def 100%)}
+        </style>
+        <div class="scroll-root"><main class="content"><h1>Long landing</h1></main></div>`
+      );
+      const longResult = await renderer.render({
+        root: landing,
+        entryFile: 'index.html',
+        outputPath: longOutput
+      });
+      expect(longResult.height).toBeGreaterThanOrEqual(20_000);
+      expect(longResult.segmentFiles.length).toBeGreaterThanOrEqual(3);
+      for (const segment of longResult.segmentFiles) {
+        const segmentBytes = await readFile(segment);
+        expect(segmentBytes.length).toBeGreaterThan(32);
+        expect(segmentBytes.subarray(0, 4).toString('ascii')).toBe('RIFF');
+        expect(segmentBytes.subarray(8, 12).toString('ascii')).toBe('WEBP');
+      }
     } finally {
       await renderer.shutdown();
     }
-  }, 30_000);
+  }, 45_000);
 });
+
+function fakePreview(label: string) {
+  const payload = Buffer.alloc(32, 0);
+  payload.write(label, 0, 'utf8');
+  return Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBP'), payload]);
+}
 
 function storedZip(entries: Array<{ name: string; contents: string }>) {
   const localParts: Buffer[] = [];

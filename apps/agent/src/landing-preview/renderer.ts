@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs';
-import { access, readFile, realpath, stat } from 'node:fs/promises';
+import { access, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,8 +8,9 @@ import { chromium, type Browser, type BrowserContext, type Page } from 'playwrig
 const VIEWPORT = { width: 1440, height: 900 };
 const NAVIGATION_TIMEOUT_MS = 20_000;
 const MAX_SCREENSHOT_WIDTH = 4096;
-const MAX_SCREENSHOT_HEIGHT = 30_000;
-const MAX_SCREENSHOT_PIXELS = 40_000_000;
+const MAX_SEGMENT_HEIGHT = 8000;
+const MAX_DOCUMENT_HEIGHT = 250_000;
+const MAX_TOTAL_SCREENSHOT_PIXELS = 120_000_000;
 const MIME_TYPES: Record<string, string> = {
   '.avif': 'image/avif',
   '.css': 'text/css; charset=utf-8',
@@ -43,6 +44,7 @@ const MIME_TYPES: Record<string, string> = {
 export interface LandingRenderResult {
   width: number;
   height: number;
+  segmentFiles: string[];
   title: string | null;
   blockedExternalRequests: number;
   warning: string | null;
@@ -128,6 +130,7 @@ export class LandingPageRenderer {
       });
       await page.goto(local.url, { waitUntil: 'domcontentloaded' });
       throwIfAborted(input.signal);
+      await page.waitForLoadState('load', { timeout: 8000 }).catch(() => {});
       await settlePage(page, input.signal);
       const dimensions = await page.evaluate(() => ({
         width: Math.max(
@@ -142,45 +145,37 @@ export class LandingPageRenderer {
         )
       }));
       const title = (await page.title()).trim() || null;
-      const captureWidth = Math.max(1, Math.min(dimensions.width, MAX_SCREENSHOT_WIDTH));
-      const captureHeight = Math.max(
+      const captureHeight = Math.max(1, Math.min(dimensions.height, MAX_DOCUMENT_HEIGHT));
+      const scale = Math.min(
         1,
-        Math.min(
-          dimensions.height,
-          MAX_SCREENSHOT_HEIGHT,
-          Math.floor(MAX_SCREENSHOT_PIXELS / captureWidth)
+        MAX_SCREENSHOT_WIDTH / Math.max(1, dimensions.width),
+        Math.sqrt(
+          MAX_TOTAL_SCREENSHOT_PIXELS / Math.max(1, dimensions.width * Math.max(1, captureHeight))
         )
       );
-      const cropped = captureWidth < dimensions.width || captureHeight < dimensions.height;
-      const screenshotOptions: Parameters<Page['screenshot']>[0] = {
-        path: input.outputPath,
-        type: 'webp',
-        quality: 88,
-        animations: 'disabled',
-        caret: 'hide',
-        scale: 'css',
-        timeout: 30_000,
-        signal: input.signal,
-        style:
-          'html { scroll-behavior: auto !important; } *, *::before, *::after { animation-delay: 0s !important; transition-delay: 0s !important; }'
-      };
-      if (cropped) {
-        screenshotOptions.clip = {
-          x: 0,
-          y: 0,
-          width: captureWidth,
-          height: captureHeight
-        };
-      } else {
-        screenshotOptions.fullPage = true;
-      }
-      await page.screenshot(screenshotOptions);
+      const captureWidth = Math.max(1, Math.round(dimensions.width * scale));
+      const segmentCssHeight = Math.max(1, Math.floor(MAX_SEGMENT_HEIGHT / scale));
+      const cropped = captureHeight < dimensions.height;
+      const downscaled = scale < 0.999;
+      await prepareForCapture(page);
+      const segmentFiles = await captureSegments({
+        page,
+        outputPath: input.outputPath,
+        width: dimensions.width,
+        height: captureHeight,
+        scale,
+        segmentCssHeight,
+        signal: input.signal
+      });
+      const outputHeight = segmentFiles.reduce((total, segment) => total + segment.height, 0);
       const warnings: string[] = [];
       if (pageErrors.length) warnings.push('PAGE_SCRIPT_ERROR');
       if (cropped) warnings.push('PREVIEW_CROPPED');
+      if (downscaled) warnings.push('PREVIEW_DOWNSCALED');
       return {
         width: captureWidth,
-        height: captureHeight,
+        height: outputHeight,
+        segmentFiles: segmentFiles.map(segment => segment.path),
         title,
         blockedExternalRequests,
         warning: warnings.join(',') || null
@@ -224,30 +219,174 @@ export class LandingPageRenderer {
 async function settlePage(page: Page, signal?: AbortSignal) {
   await page
     .evaluate(async () => {
+      const wait = (milliseconds: number) =>
+        new Promise<void>(resolve => window.setTimeout(resolve, milliseconds));
+      const promoteLazyAssets = () => {
+        for (const image of document.querySelectorAll<HTMLImageElement>('img')) {
+          image.loading = 'eager';
+          const source =
+            image.dataset.src ||
+            image.dataset.original ||
+            image.dataset.lazySrc ||
+            image.getAttribute('data-lazy');
+          if (source && (!image.getAttribute('src') || image.currentSrc.startsWith('data:'))) {
+            image.src = source;
+          }
+          const sourceSet = image.dataset.srcset || image.getAttribute('data-lazy-srcset');
+          if (sourceSet && !image.getAttribute('srcset')) image.srcset = sourceSet;
+        }
+        for (const source of document.querySelectorAll<HTMLSourceElement>('source')) {
+          const sourceSet = source.dataset.srcset || source.getAttribute('data-lazy-srcset');
+          if (sourceSet && !source.getAttribute('srcset')) source.srcset = sourceSet;
+        }
+        for (const element of document.querySelectorAll<HTMLElement>(
+          '[data-bg], [data-background]'
+        )) {
+          const background = element.dataset.bg || element.dataset.background;
+          if (background && !element.style.backgroundImage) {
+            const escaped = background.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+            element.style.backgroundImage = `url("${escaped}")`;
+          }
+        }
+      };
       if ('fonts' in document) {
-        await Promise.race([
-          document.fonts.ready,
-          new Promise<void>(resolve => window.setTimeout(resolve, 4000))
-        ]);
+        await Promise.race([document.fonts.ready, wait(4000)]);
       }
-      const maximum = Math.min(
-        120,
-        Math.ceil(
-          Math.max(document.body?.scrollHeight ?? 0, document.documentElement.scrollHeight) /
-            Math.max(600, window.innerHeight * 0.8)
-        )
+      promoteLazyAssets();
+
+      const scrollContainers = [...document.querySelectorAll<HTMLElement>('body *')].filter(
+        element => {
+          const style = getComputedStyle(element);
+          return (
+            /auto|scroll/iu.test(style.overflowY) &&
+            element.scrollHeight > element.clientHeight + 32 &&
+            element.clientHeight > 120
+          );
+        }
       );
-      for (let index = 0; index < maximum; index += 1) {
-        const before = window.scrollY;
-        window.scrollBy(0, Math.max(600, window.innerHeight * 0.8));
-        await new Promise<void>(resolve => window.setTimeout(resolve, 45));
-        if (window.scrollY === before) break;
+      for (const element of scrollContainers.slice(0, 24)) {
+        const step = Math.max(400, element.clientHeight * 0.8);
+        for (
+          let index = 0;
+          index < 80 && element.scrollTop + element.clientHeight < element.scrollHeight;
+          index += 1
+        ) {
+          element.scrollTop = Math.min(element.scrollHeight, element.scrollTop + step);
+          promoteLazyAssets();
+          await wait(35);
+        }
+        element.scrollTop = 0;
+      }
+
+      const step = Math.max(600, window.innerHeight * 0.8);
+      let stablePasses = 0;
+      let previousHeight = 0;
+      for (let index = 0; index < 180 && stablePasses < 3; index += 1) {
+        promoteLazyAssets();
+        const height = Math.max(
+          document.body?.scrollHeight ?? 0,
+          document.documentElement.scrollHeight
+        );
+        window.scrollTo(0, Math.min(height, window.scrollY + step));
+        await wait(55);
+        const atBottom = window.scrollY + window.innerHeight >= height - 2;
+        stablePasses = atBottom && height === previousHeight ? stablePasses + 1 : 0;
+        previousHeight = height;
+      }
+
+      for (const element of scrollContainers) {
+        if (element.clientHeight < window.innerHeight * 0.55) continue;
+        element.style.setProperty('overflow-y', 'visible', 'important');
+        element.style.setProperty('max-height', 'none', 'important');
+        element.style.setProperty('height', 'auto', 'important');
       }
       window.scrollTo(0, 0);
-      await new Promise<void>(resolve => window.setTimeout(resolve, 500));
+      promoteLazyAssets();
+      const pendingImages = [...document.images]
+        .filter(image => !image.complete)
+        .map(
+          image =>
+            new Promise<void>(resolve => {
+              const complete = () => resolve();
+              image.addEventListener('load', complete, { once: true });
+              image.addEventListener('error', complete, { once: true });
+            })
+        );
+      await Promise.race([Promise.allSettled(pendingImages), wait(6000)]);
+      await wait(350);
     })
     .catch(() => {});
   throwIfAborted(signal);
+}
+
+async function prepareForCapture(page: Page) {
+  await page.addStyleTag({
+    content:
+      'html { scroll-behavior: auto !important; } *, *::before, *::after { animation-play-state: paused !important; caret-color: transparent !important; transition: none !important; }'
+  });
+  await page.evaluate(() => {
+    window.scrollTo(0, 0);
+    for (const video of document.querySelectorAll<HTMLVideoElement>('video')) video.pause();
+    for (const element of document.querySelectorAll<HTMLElement>('body *')) {
+      if (element.scrollTop) element.scrollTop = 0;
+      if (element.scrollLeft) element.scrollLeft = 0;
+    }
+  });
+  await page.waitForTimeout(100);
+}
+
+async function captureSegments(input: {
+  page: Page;
+  outputPath: string;
+  width: number;
+  height: number;
+  scale: number;
+  segmentCssHeight: number;
+  signal?: AbortSignal;
+}) {
+  const session = await input.page.context().newCDPSession(input.page);
+  const segments: Array<{ path: string; height: number }> = [];
+  const generatedFiles: string[] = [];
+  try {
+    for (let top = 0, index = 0; top < input.height; index += 1) {
+      throwIfAborted(input.signal);
+      const cssHeight = Math.min(input.segmentCssHeight, input.height - top);
+      const target = segmentOutputPath(input.outputPath, index);
+      const response = (await session.send('Page.captureScreenshot', {
+        format: 'webp',
+        quality: 88,
+        fromSurface: true,
+        captureBeyondViewport: true,
+        optimizeForSpeed: false,
+        clip: { x: 0, y: top, width: input.width, height: cssHeight, scale: input.scale }
+      })) as { data?: string };
+      const bytes = Buffer.from(response.data ?? '', 'base64');
+      if (
+        bytes.length < 32 ||
+        bytes.toString('ascii', 0, 4) !== 'RIFF' ||
+        bytes.toString('ascii', 8, 12) !== 'WEBP'
+      ) {
+        throw new Error('Chromium returned an empty or invalid landing preview.');
+      }
+      await writeFile(target, bytes);
+      generatedFiles.push(target);
+      segments.push({ path: target, height: Math.max(1, Math.round(cssHeight * input.scale)) });
+      top += cssHeight;
+    }
+    if (!segments.length) throw new Error('Chromium did not capture the landing preview.');
+    return segments;
+  } catch (error) {
+    await Promise.all(generatedFiles.map(file => rm(file, { force: true }).catch(() => {})));
+    throw error;
+  } finally {
+    await session.detach().catch(() => {});
+  }
+}
+
+function segmentOutputPath(outputPath: string, index: number) {
+  if (index === 0) return outputPath;
+  const extension = path.extname(outputPath);
+  return `${outputPath.slice(0, -extension.length)}.${index}${extension}`;
 }
 
 async function createLandingServer(root: string, entryFile: string) {

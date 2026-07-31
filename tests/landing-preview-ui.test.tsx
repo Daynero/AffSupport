@@ -23,8 +23,8 @@ vi.mock('../apps/web/src/api/client.js', () => ({
   landingGalleryCancel: api.cancel,
   landingGalleryClearCache: api.clearCache,
   landingGalleryEventUrl: () => 'http://127.0.0.1/events',
-  landingGalleryImageUrl: (id: string, revision: number | null) =>
-    `http://127.0.0.1/preview/${id}?v=${revision ?? 0}`,
+  landingGalleryImageUrl: (id: string, revision: number | null, segment = 0) =>
+    `http://127.0.0.1/preview/${id}?v=${revision ?? 0}&segment=${segment}`,
   landingGalleryOpen: api.open,
   landingGalleryOpenExtracted: api.openExtracted,
   landingGalleryRefresh: api.refresh,
@@ -82,6 +82,7 @@ const galleryState: LandingPreviewState = {
       previewAvailable: true,
       previewWidth: 1440,
       previewHeight: 1800,
+      previewSegments: 3,
       renderedAt: 20,
       blockedExternalRequests: 0,
       warning: null,
@@ -102,6 +103,7 @@ class EventSourceStub {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   localStorage.clear();
   localStorage.setItem('language', 'en');
   vi.stubGlobal('EventSource', EventSourceStub);
@@ -131,14 +133,41 @@ describe('landing preview viewer', () => {
     render(<LandingPreviewPage />);
 
     expect(await screen.findByRole('img', { name: 'Acme' })).toBeTruthy();
+    expect(api.activate).toHaveBeenCalledWith('catalog-1');
     expect(screen.getByRole('treeitem', { name: /clients/iu })).toBeTruthy();
     expect(screen.getByRole('treeitem', { name: /offers\.zip/iu })).toBeTruthy();
 
     await userEvent.click(screen.getAllByRole('button', { name: 'Next landing' })[0]);
     expect(await screen.findByRole('img', { name: 'Summer offer' })).toBeTruthy();
+    expect(document.querySelectorAll('.landing-gallery-image-stack img')).toHaveLength(3);
     const extracted = screen.getByRole('button', { name: 'Open extracted copy' });
     expect((extracted as HTMLButtonElement).disabled).toBe(false);
     await userEvent.click(extracted);
     expect(api.openExtracted).toHaveBeenCalledWith('landing-b');
+  });
+
+  it('keeps zoom and fit preferences while switching landings and reopening the viewer', async () => {
+    const first = render(<LandingPreviewPage />);
+    expect(await screen.findByRole('img', { name: 'Acme' })).toBeTruthy();
+
+    await userEvent.click(screen.getByTitle('Actual size'));
+    await userEvent.click(screen.getByRole('button', { name: 'Zoom out' }));
+    expect(screen.getByText('90%')).toBeTruthy();
+    await userEvent.click(screen.getAllByRole('button', { name: 'Next landing' })[0]);
+    expect(await screen.findByRole('img', { name: 'Summer offer' })).toBeTruthy();
+    expect(screen.getByText('90%')).toBeTruthy();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Fit page' }));
+    await userEvent.click(screen.getAllByRole('button', { name: 'Previous landing' })[0]);
+    expect(screen.getByRole('button', { name: 'Fit page' }).getAttribute('aria-pressed')).toBe(
+      'true'
+    );
+
+    first.unmount();
+    render(<LandingPreviewPage />);
+    expect(await screen.findByRole('img', { name: 'Acme' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Fit page' }).getAttribute('aria-pressed')).toBe(
+      'true'
+    );
   });
 });

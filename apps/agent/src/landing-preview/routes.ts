@@ -20,10 +20,14 @@ export function registerLandingPreviewRoutes(
   app.get('/api/landing-preview/state', async () => catalog.state());
   app.get('/api/landing-preview/events', events.handler);
 
-  app.get<{ Params: { landingId: string } }>(
+  app.get<{ Params: { landingId: string }; Querystring: { segment?: string } }>(
     '/api/landing-preview/landings/:landingId/image',
     async (request, reply) => {
-      const preview = await catalog.previewPath(request.params.landingId);
+      const segment = request.query.segment === undefined ? 0 : Number(request.query.segment);
+      if (!Number.isInteger(segment) || segment < 0) {
+        return reply.code(400).send({ error: 'Preview segment is invalid.' });
+      }
+      const preview = await catalog.previewPath(request.params.landingId, segment);
       if (!preview) return reply.code(404).send({ error: 'Preview is unavailable.' });
       return reply
         .header('Cache-Control', 'private, no-store')

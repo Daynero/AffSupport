@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import {
   access,
   mkdir,
+  open as openFile,
   readFile,
   readdir,
   realpath,
@@ -22,7 +23,7 @@ import { LandingPageRenderer, type LandingRenderResult } from './renderer.js';
 import { discoverLandings, type DiscoveredLanding } from './scanner.js';
 
 const STATE_VERSION = 1;
-const RENDER_PROFILE = 'desktop-1440x900-v1';
+const RENDER_PROFILE = 'desktop-1440x900-v2-segmented';
 const MAX_VISIBLE_WARNINGS = 8;
 
 interface StoredLanding extends LandingPreviewItem {
@@ -31,6 +32,7 @@ interface StoredLanding extends LandingPreviewItem {
   renderProfile: string;
   entryFile: string;
   previewFile: string | null;
+  previewFiles: string[];
 }
 
 interface StoredCatalog {
@@ -222,11 +224,13 @@ export class LandingPreviewCatalog {
       : extracted;
   }
 
-  async previewPath(landingId: string): Promise<string | null> {
+  async previewPath(landingId: string, segment = 0): Promise<string | null> {
     const landing = this.activeCatalog()?.landings.find(item => item.id === landingId);
-    if (!landing?.previewAvailable || !landing.previewFile) return null;
-    const candidate = path.join(this.root, landing.previewFile);
-    return (await exists(candidate)) ? candidate : null;
+    const previewFile = landing ? previewFilesOf(landing)[segment] : null;
+    if (!landing?.previewAvailable || !previewFile) return null;
+    const candidate = safeCachePath(this.root, previewFile);
+    if (!candidate) return null;
+    return (await isUsablePreview(candidate)) ? candidate : null;
   }
 
   async removeCatalog(catalogId: string) {
@@ -249,6 +253,7 @@ export class LandingPreviewCatalog {
     for (const landing of catalog.landings) {
       landing.previewAvailable = false;
       landing.previewFile = null;
+      landing.previewFiles = [];
       landing.previewWidth = null;
       landing.previewHeight = null;
       landing.renderedAt = null;
@@ -321,8 +326,8 @@ export class LandingPreviewCatalog {
     for (const discovered of discovery.landings) {
       const old = previous.get(discovered.key);
       previous.delete(discovered.key);
-      const previewStillExists = old?.previewFile
-        ? await exists(path.join(this.root, old.previewFile))
+      const previewStillExists = old
+        ? await previewFilesUsable(this.root, previewFilesOf(old))
         : false;
       const unchanged =
         Boolean(old) &&
@@ -341,9 +346,12 @@ export class LandingPreviewCatalog {
     catalog.updatedAt = Date.now();
     await this.cleanupUnusedArchiveCache(catalog);
     for (const removed of previous.values()) {
-      if (removed.previewFile) {
-        await rm(path.join(this.root, removed.previewFile), { force: true }).catch(() => {});
-      }
+      await Promise.all(
+        previewFilesOf(removed).map(file => {
+          const target = safeCachePath(this.root, file);
+          return target ? rm(target, { force: true }).catch(() => {}) : Promise.resolve();
+        })
+      );
     }
     const queued = catalog.landings.filter(
       item => item.status === 'queued' && (mode !== 'current' || item.id === landingId)
@@ -365,6 +373,8 @@ export class LandingPreviewCatalog {
       throw new Error(renderer.error ?? 'Chromium renderer is unavailable.');
     }
     for (const landing of queued) {
+      let obsoletePreviewFiles: string[] = [];
+      let generatedPreviewFiles: string[] = [];
       throwIfAborted(signal);
       this.progress.currentLandingId = landing.id;
       landing.status = 'rendering';
@@ -378,31 +388,48 @@ export class LandingPreviewCatalog {
         this.notify('landing-preview:progress');
         const previewDirectory = path.join(this.catalogCacheRoot(catalog), 'previews');
         await mkdir(previewDirectory, { recursive: true });
-        const finalPath = path.join(previewDirectory, `${landing.id}.webp`);
-        const temporaryPath = path.join(previewDirectory, `${landing.id}.${randomUUID()}.tmp.webp`);
-        try {
-          const result = await this.renderer.render({
-            root: prepared.root,
-            entryFile: prepared.entryFile,
-            outputPath: temporaryPath,
-            signal
-          });
-          await rename(temporaryPath, finalPath);
-          landing.previewFile = path.relative(this.root, finalPath);
-          landing.previewAvailable = true;
-          landing.previewWidth = result.width;
-          landing.previewHeight = result.height;
-          landing.blockedExternalRequests = result.blockedExternalRequests;
-          landing.warning = result.warning;
-          landing.renderedAt = Date.now();
-          landing.status = 'ready';
-          landing.stale = false;
-          landing.error = null;
-          landing.renderProfile = RENDER_PROFILE;
-        } finally {
-          await rm(temporaryPath, { force: true }).catch(() => {});
+        const outputPath = path.join(
+          previewDirectory,
+          `${landing.id}.${randomUUID()}.segment-0.webp`
+        );
+        const result = await this.renderer.render({
+          root: prepared.root,
+          entryFile: prepared.entryFile,
+          outputPath,
+          signal
+        });
+        generatedPreviewFiles = result.segmentFiles;
+        if (!generatedPreviewFiles.length) {
+          throw new Error('The renderer did not return a landing preview.');
         }
+        const previewRoot = path.resolve(previewDirectory);
+        for (const file of generatedPreviewFiles) {
+          const resolved = path.resolve(file);
+          if (!resolved.startsWith(`${previewRoot}${path.sep}`) || !(await isUsablePreview(file))) {
+            throw new Error('The renderer returned an invalid landing preview segment.');
+          }
+        }
+        const relativeFiles = generatedPreviewFiles.map(file => path.relative(this.root, file));
+        obsoletePreviewFiles = previewFilesOf(landing).filter(
+          file => !relativeFiles.includes(file)
+        );
+        landing.previewFile = relativeFiles[0];
+        landing.previewFiles = relativeFiles;
+        landing.previewAvailable = true;
+        landing.previewWidth = result.width;
+        landing.previewHeight = result.height;
+        landing.blockedExternalRequests = result.blockedExternalRequests;
+        landing.warning = result.warning;
+        landing.renderedAt = Date.now();
+        landing.status = 'ready';
+        landing.stale = false;
+        landing.error = null;
+        landing.renderProfile = RENDER_PROFILE;
+        generatedPreviewFiles = [];
       } catch (error) {
+        await Promise.all(
+          generatedPreviewFiles.map(file => rm(file, { force: true }).catch(() => {}))
+        );
         if (signal.aborted) {
           landing.status = 'queued';
           throw error;
@@ -412,6 +439,12 @@ export class LandingPreviewCatalog {
       }
       this.progress.completed += 1;
       await this.persist();
+      await Promise.all(
+        obsoletePreviewFiles.map(file => {
+          const target = safeCachePath(this.root, file);
+          return target ? rm(target, { force: true }).catch(() => {}) : Promise.resolve();
+        })
+      );
       this.notify('landing-preview:progress');
     }
     this.progress.currentLandingId = null;
@@ -497,8 +530,10 @@ export class LandingPreviewCatalog {
     for (const catalog of this.catalogs) {
       catalog.sourceAvailable = await exists(catalog.rootPath);
       for (const landing of catalog.landings) {
-        if (!landing.previewFile || !(await exists(path.join(this.root, landing.previewFile)))) {
+        const previews = previewFilesOf(landing);
+        if (!(await previewFilesUsable(this.root, previews))) {
           landing.previewFile = null;
+          landing.previewFiles = [];
           landing.previewAvailable = false;
           landing.previewWidth = null;
           landing.previewHeight = null;
@@ -506,6 +541,10 @@ export class LandingPreviewCatalog {
           landing.status = landing.status === 'failed' ? 'failed' : 'queued';
         } else if (landing.status === 'rendering') {
           landing.status = 'ready';
+        }
+        if (landing.previewAvailable && landing.renderProfile !== RENDER_PROFILE) {
+          landing.status = 'queued';
+          landing.stale = true;
         }
         if (landing.sourceKind === 'zip') {
           const content = this.archiveContentPath(catalog, landing);
@@ -545,7 +584,8 @@ function reconcileLanding(
   options: { reusePreview: boolean; keepOldPreview: boolean }
 ): StoredLanding {
   const id = old?.id ?? `preview_${digest(`${catalogId}\0${discovered.key}`).slice(0, 24)}`;
-  const previewAvailable = options.keepOldPreview && Boolean(old?.previewFile);
+  const oldPreviewFiles = old ? previewFilesOf(old) : [];
+  const previewAvailable = options.keepOldPreview && oldPreviewFiles.length > 0;
   const sameSource = old?.fingerprint === discovered.fingerprint;
   return {
     id,
@@ -563,7 +603,8 @@ function reconcileLanding(
     status: options.reusePreview ? 'ready' : 'queued',
     stale: previewAvailable && !options.reusePreview,
     previewAvailable,
-    previewFile: previewAvailable ? (old?.previewFile ?? null) : null,
+    previewFile: previewAvailable ? oldPreviewFiles[0] : null,
+    previewFiles: previewAvailable ? oldPreviewFiles : [],
     previewWidth: previewAvailable ? (old?.previewWidth ?? null) : null,
     previewHeight: previewAvailable ? (old?.previewHeight ?? null) : null,
     renderedAt: previewAvailable ? (old?.renderedAt ?? null) : null,
@@ -587,6 +628,7 @@ function publicLanding(landing: StoredLanding): LandingPreviewItem {
     previewAvailable: landing.previewAvailable,
     previewWidth: landing.previewWidth,
     previewHeight: landing.previewHeight,
+    previewSegments: Math.max(1, previewFilesOf(landing).length),
     renderedAt: landing.renderedAt,
     blockedExternalRequests: landing.blockedExternalRequests,
     warning: landing.warning,
@@ -612,7 +654,15 @@ function normalizeCatalog(value: StoredCatalog): StoredCatalog | null {
       : [],
     landings: value.landings
       .filter(item => item && typeof item.id === 'string')
-      .map(item => ({ ...item, extractedAvailable: item.extractedAvailable === true }))
+      .map(item => ({
+        ...item,
+        previewFiles: Array.isArray(item.previewFiles)
+          ? item.previewFiles.filter(file => typeof file === 'string')
+          : item.previewFile
+            ? [item.previewFile]
+            : [],
+        extractedAvailable: item.extractedAvailable === true
+      }))
   };
 }
 
@@ -633,6 +683,54 @@ async function exists(target: string) {
   try {
     await access(target);
     return true;
+  } catch {
+    return false;
+  }
+}
+
+function previewFilesOf(landing: Pick<StoredLanding, 'previewFile' | 'previewFiles'>) {
+  const files = Array.isArray(landing.previewFiles)
+    ? landing.previewFiles.filter(file => typeof file === 'string' && file.length > 0)
+    : [];
+  if (!files.length && landing.previewFile) files.push(landing.previewFile);
+  return [...new Set(files)];
+}
+
+async function previewFilesUsable(root: string, files: string[]) {
+  return (
+    files.length > 0 &&
+    (
+      await Promise.all(
+        files.map(file => {
+          const target = safeCachePath(root, file);
+          return target ? isUsablePreview(target) : Promise.resolve(false);
+        })
+      )
+    ).every(Boolean)
+  );
+}
+
+function safeCachePath(root: string, relative: string) {
+  const target = path.resolve(root, relative);
+  return target.startsWith(`${path.resolve(root)}${path.sep}`) ? target : null;
+}
+
+async function isUsablePreview(target: string) {
+  try {
+    const handle = await openFile(target, 'r');
+    try {
+      const details = await handle.stat();
+      if (!details.isFile() || details.size < 32) return false;
+      const header = Buffer.alloc(12);
+      const { bytesRead } = await handle.read(header, 0, header.length, 0);
+      return (
+        bytesRead === header.length &&
+        header.toString('ascii', 0, 4) === 'RIFF' &&
+        header.toString('ascii', 8, 12) === 'WEBP'
+      );
+    } finally {
+      await handle.close().catch(() => {});
+    }
   } catch {
     return false;
   }

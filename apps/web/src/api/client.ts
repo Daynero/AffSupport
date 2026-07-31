@@ -214,11 +214,11 @@ export function landingGalleryEventUrl() {
   return `${agentUrl}/api/landing-preview/events?token=${encodeURIComponent(token)}`;
 }
 
-export function landingGalleryImageUrl(landingId: string, revision: number | null) {
+export function landingGalleryImageUrl(landingId: string, revision: number | null, segment = 0) {
   const suffix = revision ? `&v=${encodeURIComponent(revision)}` : '';
   return `${agentUrl}/api/landing-preview/landings/${encodeURIComponent(
     landingId
-  )}/image?token=${encodeURIComponent(token)}${suffix}`;
+  )}/image?token=${encodeURIComponent(token)}&segment=${encodeURIComponent(segment)}${suffix}`;
 }
 
 export function landingGallerySelect(): Promise<LandingPreviewState> {

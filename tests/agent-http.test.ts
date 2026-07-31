@@ -87,10 +87,14 @@ async function makeServer(options: { entitlementPublicKey?: string } = {}) {
     init: async () => {},
     availability: () => ({ available: true, error: null }),
     render: async ({ outputPath }) => {
-      await writeFile(outputPath, 'test-preview');
+      await writeFile(
+        outputPath,
+        Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBP'), Buffer.alloc(32)])
+      );
       return {
         width: 1440,
         height: 900,
+        segmentFiles: [outputPath],
         title: null,
         blockedExternalRequests: 0,
         warning: null
@@ -218,7 +222,13 @@ describe('agent HTTP surface', () => {
     });
     expect(image.statusCode).toBe(200);
     expect(image.headers['content-type']).toContain('image/webp');
-    expect(image.body).toBe('test-preview');
+    expect(image.body.slice(0, 4)).toBe('RIFF');
+
+    const invalidSegment = await app.inject({
+      url: `/api/landing-preview/landings/${state.landings[0].id}/image?segment=-1`,
+      headers: { 'x-session-token': TOKEN }
+    });
+    expect(invalidSegment.statusCode).toBe(400);
   });
 
   it('rejects /api requests without a valid session token, via header or query', async () => {

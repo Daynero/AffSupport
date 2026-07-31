@@ -729,6 +729,8 @@ export interface LandingPreviewItem {
   previewAvailable: boolean;
   previewWidth: number | null;
   previewHeight: number | null;
+  /** Number of seamless full-resolution image slices that form this preview. */
+  previewSegments?: number;
   renderedAt: number | null;
   blockedExternalRequests: number;
   warning: string | null;
