@@ -3,9 +3,15 @@ import type { WishlyToolId } from '@video-compressor/shared';
 import type { AnalyticsTool } from '../analytics/events';
 import type { TranslationKey } from '../i18n';
 import { isProtected, type FeatureId } from './feature-flags';
-import { CompressorIcon, LandingIcon, TranscriptionIcon } from '../components/tool-icons';
+import {
+  CompressorIcon,
+  LandingIcon,
+  LandingPreviewIcon,
+  TranscriptionIcon
+} from '../components/tool-icons';
 import CompressorPage from '../App';
 import LandingOptimizerPage from '../landing/LandingOptimizerPage';
+import LandingPreviewPage from '../landing-preview/LandingPreviewPage';
 import TranscriptionPage from '../transcription/TranscriptionPage';
 
 // The single source of truth for the Wishly web tools. Adding a tool here
@@ -78,6 +84,18 @@ export const webTools: readonly WebTool[] = [
     status: statusFor('landingOptimizer'),
     capability: 'landing',
     page: LandingOptimizerPage
+  },
+  {
+    id: 'landingPreview',
+    analyticsId: 'landing-preview',
+    path: '/landing-preview',
+    labelKey: 'landingGallery',
+    descriptionKey: 'landingGalleryDescription',
+    icon: LandingPreviewIcon,
+    featureFlag: 'landingPreview',
+    status: statusFor('landingPreview'),
+    capability: 'landing-preview',
+    page: LandingPreviewPage
   },
   {
     id: 'transcription',

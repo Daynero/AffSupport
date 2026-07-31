@@ -1,19 +1,19 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.8.7",
-  "buildNumber": "32",
-  "buildId": "0.8.7+32",
+  "version": "0.8.8",
+  "buildNumber": "33",
+  "buildId": "0.8.8+33",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-07-30T19:50:56.000Z",
+  "publishedAt": "2026-07-31T12:38:04.000Z",
   "summary": {
-    "en": "Cleaner transcripts and faithful translations without repeated copy-paste, with improved Hindi and Urdu handling.",
-    "uk": "Чистіші транскрипції та точні переклади без повторюваної копіпасти, з кращою обробкою гінді й урду."
+    "en": "Private full-page previews for landing folders and ZIP archives, with Google Drive support, local caching, navigation, zoom, and safe refresh controls.",
+    "uk": "Приватний перегляд лендінгів із папок і ZIP-архівів, підтримкою Google Drive, локальним кешем, навігацією, масштабом і безпечним оновленням."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.8.7/Wishly-Agent-v0.8.7-macOS-arm64.dmg",
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.8.8/Wishly-Agent-v0.8.8-macOS-arm64.dmg",
       "sha256": "31127c234619d9b2a0e6ff3732934665f6111bcc6befec85b96bcc2e049ca5f4"
     }
   },
@@ -25,9 +25,12 @@
     "landingOptimizer": {
       "landingOptimizer": 2
     },
+    "landingPreview": {
+      "landingPreview": 1
+    },
     "transcription": {
       "transcription": 5
     }
   },
-  "signature": "M5ZsqLI9-K9vYKr3et0sd5bWtpHPVYIFXgPoPM8Sx2vvwLf9PhKimNgxDMANsgK66mFZ5KOuD2YNNURIlg3_8A"
+  "signature": "9_v9bvLAwgp-c1M6SSl-5lkhvUaI1G2x2RTdfVs25GwoWCafVfd07x4k3xnGQhgenhtCTYVLZBxxD-Pv3JaiRA"
 }

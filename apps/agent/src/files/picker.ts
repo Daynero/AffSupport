@@ -80,6 +80,20 @@ export async function selectLandingFolders(): Promise<string[]> {
   return runMultiplePicker(script, 'Could not open the folder picker.');
 }
 
+/** Selects one catalogue root whose descendant folders/ZIPs contain landings. */
+export async function selectLandingPreviewFolder(): Promise<string | null> {
+  if (process.platform === 'win32') {
+    const folders = await runWindowsPicker(
+      windowsFolderScript('Choose a folder that contains landings'),
+      'Could not open the folder picker.'
+    );
+    return folders[0] ?? null;
+  }
+  const script =
+    'POSIX path of (choose folder with prompt "Choose a folder that contains landings")';
+  return runFolderScript(script, 'Could not open the folder picker.');
+}
+
 export async function selectOutputFolder(): Promise<string | null> {
   if (process.platform === 'win32') {
     const folders = await runWindowsPicker(

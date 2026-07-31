@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { cp, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { chromium } from 'playwright-core';
 
 export const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -118,6 +119,8 @@ export async function stageAgentRuntime(destination) {
     path.join(destination, 'package.json')
   );
 
+  const browserRuntime = await stageChromiumHeadlessShell(destination);
+
   for (const { source, relativePath } of productionPackages) {
     const sourceStats = await stat(source);
     if (!sourceStats.isDirectory()) throw new Error(`Dependency is not a directory: ${source}`);
@@ -172,7 +175,8 @@ export async function stageAgentRuntime(destination) {
     dependencies: [
       ...productionPackages.map(({ relativePath }) => relativePath.split(path.sep).join('/')),
       '@video-compressor/shared'
-    ].sort()
+    ].sort(),
+    browser: browserRuntime
   };
   await writeFile(
     path.join(destination, 'production-dependencies.json'),
@@ -181,4 +185,75 @@ export async function stageAgentRuntime(destination) {
   );
 
   return manifest;
+}
+
+async function stageChromiumHeadlessShell(destination) {
+  const chromiumExecutable = chromium.executablePath();
+  let chromiumInstallRoot = path.dirname(chromiumExecutable);
+  while (
+    path.dirname(chromiumInstallRoot) !== chromiumInstallRoot &&
+    !/^chromium-\d+$/u.test(path.basename(chromiumInstallRoot))
+  ) {
+    chromiumInstallRoot = path.dirname(chromiumInstallRoot);
+  }
+  const match = /^chromium-(\d+)$/u.exec(path.basename(chromiumInstallRoot));
+  if (!match) {
+    throw new Error(
+      `Could not locate Playwright's Chromium installation from ${chromiumExecutable}.`
+    );
+  }
+  const sourceRoot = path.join(
+    path.dirname(chromiumInstallRoot),
+    `chromium_headless_shell-${match[1]}`
+  );
+  const sourceStats = await stat(sourceRoot).catch(() => null);
+  if (!sourceStats?.isDirectory()) {
+    throw new Error(
+      `Playwright Chromium Headless Shell is missing at ${sourceRoot}. Run npm ci without --ignore-scripts before packaging.`
+    );
+  }
+  const [sourceExecutable, sourceLicense] = await Promise.all([
+    findBundledFile(sourceRoot, /^(?:chrome-headless-shell|headless_shell)(?:\.exe)?$/u),
+    findBundledFile(sourceRoot, /^LICENSE\.headless_shell$/u)
+  ]);
+  if (!sourceExecutable || !sourceLicense) {
+    throw new Error('The Playwright Chromium download is incomplete (binary or license missing).');
+  }
+
+  const targetRoot = path.join(destination, 'browser', 'chromium-headless-shell');
+  await mkdir(path.dirname(targetRoot), { recursive: true });
+  await cp(sourceRoot, targetRoot, { recursive: true });
+  const executableRelativePath = path
+    .relative(destination, path.join(targetRoot, path.relative(sourceRoot, sourceExecutable)))
+    .split(path.sep)
+    .join('/');
+  const licenseRelativePath = path
+    .relative(destination, path.join(targetRoot, path.relative(sourceRoot, sourceLicense)))
+    .split(path.sep)
+    .join('/');
+  const browserRuntime = {
+    name: 'chromium-headless-shell',
+    revision: match[1],
+    executableRelativePath,
+    licenseRelativePath
+  };
+  await writeFile(
+    path.join(destination, 'browser-runtime.json'),
+    `${JSON.stringify({ schemaVersion: 1, ...browserRuntime }, null, 2)}\n`,
+    'utf8'
+  );
+  return browserRuntime;
+}
+
+async function findBundledFile(root, pattern) {
+  const queue = [root];
+  while (queue.length) {
+    const directory = queue.shift();
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const candidate = path.join(directory, entry.name);
+      if (entry.isFile() && pattern.test(entry.name)) return candidate;
+      if (entry.isDirectory()) queue.push(candidate);
+    }
+  }
+  return null;
 }

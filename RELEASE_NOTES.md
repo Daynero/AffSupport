@@ -1,3 +1,11 @@
+# v0.8.8
+
+- Add a dedicated full-screen Landing Preview tool that recursively finds `index.html`/`index.htm` landing roots, builds a source tree, and supports search, previous/next navigation, keyboard controls, zoom presets, and true full-screen viewing.
+- Render private full-page WebP previews in the bundled Chromium Headless Shell, block external traffic, preserve the last successful image when a refresh fails, and reuse unchanged previews through a persistent local cache.
+- Support Google Drive for desktop folders through their mounted Finder/Explorer path, including normal on-demand hydration without Google credentials or a Drive API integration.
+- Discover one or many landings inside ZIP archives, safely inspect and extract them into managed cache storage, and reject traversal paths, links, archive bombs, encrypted archives, and unsafe desktop filenames.
+- Add current/changed/full rebuild controls, cache clearing, cancellation, recent catalogues, source reveal/open actions, localized EN/UA UI, packaging verification, and end-to-end scanner, cache, HTTP, UI, and real-renderer tests.
+
 # v0.8.7
 
 - Split long, punctuation-poor transcripts into short natural segments before translation, preventing oversized model requests and making results easier to read.

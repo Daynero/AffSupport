@@ -143,7 +143,7 @@ describe('image embedding settings UI', () => {
     fireEvent.drop(screen.getByRole('group'), { dataTransfer: { files: [second] } });
     await waitFor(() => expect(uploaded).toHaveLength(2));
     expect(uploaded[1]).toMatchObject({ slot: 'start', file: second });
-    expect(screen.getByAltText('replacement.webp')).toBeTruthy();
+    expect(await screen.findByAltText('replacement.webp')).toBeTruthy();
     expect(screen.getByAltText('opening image.png')).toBeTruthy();
   });
 

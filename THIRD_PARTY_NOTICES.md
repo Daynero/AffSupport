@@ -22,6 +22,13 @@ No FFmpeg or FFprobe binary from Homebrew is included.
 
 The application bundles an arm64 Node.js runtime. Node.js is distributed under the MIT license and includes components under compatible licenses. Source and license information: https://github.com/nodejs/node and https://raw.githubusercontent.com/nodejs/node/main/LICENSE.
 
+## Playwright and Chromium Headless Shell
+
+Landing previews are rendered locally with Playwright 1.62.1 and its pinned Chromium Headless Shell revision 1234 (Chrome for Testing 151.0.7922.34). Playwright is distributed under the Apache License 2.0. The bundled browser directory retains `LICENSE.headless_shell`, which contains the Chromium BSD license and the notices for Chromium's third-party components.
+
+- Playwright source and license: https://github.com/microsoft/playwright
+- Chromium source and license information: https://www.chromium.org/Home/
+
 ## Supabase JavaScript client
 
 The web application uses `@supabase/supabase-js`, distributed under the MIT license. Source and license information: https://github.com/supabase/supabase-js.

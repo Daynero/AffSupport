@@ -87,7 +87,8 @@ export const analyticsEventNames = [
 ] as const;
 
 export type AnalyticsEventName = (typeof analyticsEventNames)[number];
-export type AnalyticsTool = 'compressor' | 'landing-optimizer' | 'transcription';
+export type AnalyticsTool =
+  'compressor' | 'landing-optimizer' | 'landing-preview' | 'transcription';
 export type CompressionMode = 'optimal' | 'custom';
 export type RateControl = 'crf' | 'bitrate';
 
@@ -253,7 +254,7 @@ export function sanitizeAnalyticsProperties(input: unknown): Record<string, Json
       output[key] = raw as Json;
     else if (
       typedKey === 'tool_identifier' &&
-      ['compressor', 'landing-optimizer', 'transcription'].includes(String(raw))
+      ['compressor', 'landing-optimizer', 'landing-preview', 'transcription'].includes(String(raw))
     )
       output[key] = raw as Json;
     else if (typeof raw === 'string' && safeToken.test(raw)) output[key] = raw;

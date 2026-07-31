@@ -20,6 +20,16 @@ export function LandingIcon() {
   );
 }
 
+export function LandingPreviewIcon() {
+  return (
+    <svg viewBox="0 0 32 32">
+      <path d="M4.5 8.5A3.5 3.5 0 0 1 8 5h5l2.2 2.5H24A3.5 3.5 0 0 1 27.5 11v11A3.5 3.5 0 0 1 24 25.5H8A3.5 3.5 0 0 1 4.5 22z" />
+      <path d="M9 17s2.8-4 7-4 7 4 7 4-2.8 4-7 4-7-4-7-4Z" />
+      <circle cx="16" cy="17" r="1.8" />
+    </svg>
+  );
+}
+
 export function TranscriptionIcon() {
   return (
     <svg viewBox="0 0 32 32">

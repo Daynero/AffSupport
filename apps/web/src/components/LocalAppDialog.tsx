@@ -30,7 +30,14 @@ export default function LocalAppDialog({
   const macDownloadUrl = macAppleSiliconDownloadUrl(releaseManifest.manifest);
   const windowsDownload = downloadUrlForPlatform(releaseManifest.manifest, 'windows-x64');
   const windowsFirst = windowsDownload.available && currentBrowserPlatform() === 'windows';
-  const toolIdentifier = tool === 'landingOptimizer' ? 'landing-optimizer' : 'compressor';
+  const toolIdentifier =
+    tool === 'landingOptimizer'
+      ? 'landing-optimizer'
+      : tool === 'landingPreview'
+        ? 'landing-preview'
+        : tool === 'transcription'
+          ? 'transcription'
+          : 'compressor';
   const title = updatePending
     ? t('localAppBusyUpdateTitle')
     : needsUpdate

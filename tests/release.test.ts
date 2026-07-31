@@ -145,6 +145,8 @@ describe('release identity', () => {
     expect(toolContractCompatible('landingOptimizer', { compressor: 1 })).toBe(false);
     expect(toolContractCompatible('landingOptimizer', { landingOptimizer: 1 })).toBe(false);
     expect(toolContractCompatible('landingOptimizer', { landingOptimizer: 2 })).toBe(true);
+    expect(toolContractCompatible('landingPreview', { landingOptimizer: 2 })).toBe(false);
+    expect(toolContractCompatible('landingPreview', { landingPreview: 1 })).toBe(true);
     expect(toolContractCompatible('transcription', { transcription: 1 })).toBe(false);
     expect(toolContractCompatible('transcription', { transcription: 2 })).toBe(false);
     expect(toolContractCompatible('transcription', { transcription: 3 })).toBe(false);
@@ -179,6 +181,8 @@ describe('release identity', () => {
     expect(stageRuntimeScript).toContain('./lib/agent-staging.mjs');
     expect(stageWindowsScript).toContain('./lib/agent-staging.mjs');
     expect(stagingLibrary).toContain('does not match package-lock.json');
+    expect(stagingLibrary).toContain('chromium-headless-shell');
+    expect(stagingLibrary).toContain('browser-runtime.json');
     for (const script of [productionVerifyScript, developmentVerifyScript]) {
       expect(script).toContain('scripts/verify-staged-dependencies.mjs');
     }

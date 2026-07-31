@@ -1,4 +1,5 @@
-import { readFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -54,6 +55,42 @@ for (const relativePath of stagedManifest.dependencies) {
   }
 }
 
+const browserManifest = JSON.parse(
+  await readFile(path.join(stagedAgent, 'browser-runtime.json'), 'utf8')
+);
+if (
+  browserManifest.schemaVersion !== 1 ||
+  browserManifest.name !== 'chromium-headless-shell' ||
+  typeof browserManifest.executableRelativePath !== 'string' ||
+  typeof browserManifest.licenseRelativePath !== 'string'
+) {
+  throw new Error('The staged Chromium runtime manifest is invalid.');
+}
+const resolveBrowserFile = relativePath => {
+  const target = path.resolve(stagedAgent, relativePath);
+  const browserRoot = path.join(stagedAgent, 'browser');
+  if (!target.startsWith(`${browserRoot}${path.sep}`)) {
+    throw new Error(`The staged browser path escapes its runtime directory: ${relativePath}`);
+  }
+  return target;
+};
+const browserExecutable = resolveBrowserFile(browserManifest.executableRelativePath);
+const browserLicense = resolveBrowserFile(browserManifest.licenseRelativePath);
+for (const target of [browserExecutable, browserLicense]) {
+  const details = await stat(target);
+  if (!details.isFile() || details.size === 0) {
+    throw new Error(`The staged browser file is missing or empty: ${target}`);
+  }
+}
+const browserVersion = execFileSync(browserExecutable, ['--version'], {
+  encoding: 'utf8',
+  timeout: 15_000,
+  windowsHide: true
+}).trim();
+if (!/(?:Chrome|Chromium)/iu.test(browserVersion)) {
+  throw new Error(`The staged Chromium runtime returned an invalid version: ${browserVersion}`);
+}
+
 process.stdout.write(
-  `Verified ${stagedManifest.dependencies.length} staged dependency versions against package-lock.json.\n`
+  `Verified ${stagedManifest.dependencies.length} staged dependencies and ${browserVersion}.\n`
 );

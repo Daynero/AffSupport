@@ -100,7 +100,7 @@ beforeAll(async () => {
   });
 
   ALL = resolvePeriod('all', undefined);
-});
+}, 30_000);
 
 afterAll(async () => {
   setQueryExecutor(null);

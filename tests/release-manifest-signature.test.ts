@@ -25,6 +25,7 @@ function baseManifest(): StableReleaseManifest {
     toolRequirements: {
       compressor: { compressor: 3, imageEmbedding: 2 },
       landingOptimizer: { landingOptimizer: 2 },
+      landingPreview: { landingPreview: 1 },
       transcription: { transcription: 4 }
     }
   };

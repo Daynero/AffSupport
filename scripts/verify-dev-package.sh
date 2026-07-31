@@ -49,6 +49,6 @@ done
 (
   cd "$app/Contents/Resources/agent"
   ../runtime/node --input-type=module -e \
-    "await import('fastify'); await import('@jsquash/webp/encode.js'); await import('@video-compressor/shared'); await import('./dist/media-actions/image-converter.js');"
+    "await import('fastify'); await import('@jsquash/webp/encode.js'); await import('@video-compressor/shared'); await import('playwright-core'); await import('yauzl'); await import('./dist/media-actions/image-converter.js'); await import('./dist/landing-preview/catalog.js');"
 )
 print "Wishly Dev identity, isolation, slim dependencies, signature, and runtimes verified."

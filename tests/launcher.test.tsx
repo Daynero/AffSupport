@@ -9,6 +9,7 @@ describe('Wishly product launcher', () => {
   it('maps the root and direct tool URLs to separate product screens', () => {
     expect(routeKind('/')).toBe('home');
     expect(routeKind('/compressor')).toBe('compressor');
+    expect(routeKind('/landing-preview')).toBe('landing-preview');
     expect(routeKind('/transcription')).toBe('transcription');
   });
 
@@ -16,6 +17,7 @@ describe('Wishly product launcher', () => {
     expect(webTools.map(({ id, path, status }) => ({ id, path, status }))).toEqual([
       { id: 'compressor', path: '/compressor', status: 'available' },
       { id: 'landingOptimizer', path: '/landing-optimizer', status: 'available' },
+      { id: 'landingPreview', path: '/landing-preview', status: 'available' },
       { id: 'transcription', path: '/transcription', status: 'in-development' }
     ]);
   });
@@ -25,13 +27,16 @@ describe('Wishly product launcher', () => {
     expect(webTools.map(tool => tool.analyticsId)).toEqual([
       'compressor',
       'landing-optimizer',
+      'landing-preview',
       'transcription'
     ]);
     expect(webTools.find(tool => tool.id === 'landingOptimizer')?.capability).toBe('landing');
+    expect(webTools.find(tool => tool.id === 'landingPreview')?.capability).toBe('landing-preview');
   });
 
   it('opens the landing optimizer to every Wishly user without a developer pass', () => {
     expect(isProtected('landingOptimizer')).toBe(false);
+    expect(isProtected('landingPreview')).toBe(false);
   });
 
   it('localizes launcher content in EN and UA', () => {

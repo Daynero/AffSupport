@@ -9,12 +9,18 @@ import {
   defaultImageEmbeddingSettings,
   type AgentEvent,
   type LandingEvent,
+  type LandingPreviewEvent,
+  type LandingPreviewState,
   type TranscriptionEvent
 } from '../packages/shared/src/types.js';
 import { EntitlementGate } from '../apps/agent/src/entitlement/entitlement.js';
 import { EstimationWorker } from '../apps/agent/src/estimate/worker.js';
 import { ImageAssetStore } from '../apps/agent/src/images/store.js';
 import { LandingOptimizer } from '../apps/agent/src/landing/optimizer.js';
+import {
+  LandingPreviewCatalog,
+  type LandingRenderer
+} from '../apps/agent/src/landing-preview/catalog.js';
 import { MediaActionQueue } from '../apps/agent/src/media-actions/queue.js';
 import { JobQueue } from '../apps/agent/src/queue/queue.js';
 import { TranscriptionQueue } from '../apps/agent/src/queue/transcription-queue.js';
@@ -77,6 +83,36 @@ async function makeServer(options: { entitlementPublicKey?: string } = {}) {
   const landingOptimizer = new LandingOptimizer(tools, () =>
     landingEvents.broadcast({ type: 'landing:state', state: landingOptimizer.state() })
   );
+  const landingPreviewRenderer: LandingRenderer = {
+    init: async () => {},
+    availability: () => ({ available: true, error: null }),
+    render: async ({ outputPath }) => {
+      await writeFile(outputPath, 'test-preview');
+      return {
+        width: 1440,
+        height: 900,
+        title: null,
+        blockedExternalRequests: 0,
+        warning: null
+      };
+    },
+    shutdown: async () => {}
+  };
+  const landingPreviewCatalog = new LandingPreviewCatalog({
+    root: path.join(dir, 'landing-previews'),
+    renderer: landingPreviewRenderer
+  });
+  await landingPreviewCatalog.init();
+  const landingPreviewEvents = new EventChannel<LandingPreviewEvent>(allowedOrigins, () => ({
+    type: 'landing-preview:state',
+    state: landingPreviewCatalog.state()
+  }));
+  landingPreviewCatalog.setNotify(type =>
+    landingPreviewEvents.broadcast({
+      type: type ?? 'landing-preview:state',
+      state: landingPreviewCatalog.state()
+    })
+  );
   const transcriptionEvents = new EventChannel<TranscriptionEvent>(allowedOrigins, () => ({
     type: 'transcription:state',
     state: transcriptionQueue.state()
@@ -118,6 +154,7 @@ async function makeServer(options: { entitlementPublicKey?: string } = {}) {
       compressor: { queue, estimator, imageStore, events: agentEvents, tools },
       mediaActions,
       landing: { optimizer: landingOptimizer, events: landingEvents },
+      landingPreview: { catalog: landingPreviewCatalog, events: landingPreviewEvents },
       transcription: { queue: transcriptionQueue, events: transcriptionEvents }
     }),
     webRoot
@@ -142,6 +179,48 @@ function entitlementKit() {
 }
 
 describe('agent HTTP surface', () => {
+  it('builds and serves a landing preview catalogue through authenticated routes', async () => {
+    const app = await makeServer();
+    const dir = handles.at(-1)!.dir;
+    const source = path.join(dir, 'preview-source', 'campaign');
+    await mkdir(source, { recursive: true });
+    await writeFile(path.join(source, 'index.html'), '<!doctype html><h1>Campaign</h1>');
+
+    const opened = await app.inject({
+      method: 'POST',
+      url: '/api/landing-preview/open',
+      headers: { 'x-session-token': TOKEN, 'content-type': 'application/json' },
+      payload: { paths: [path.dirname(source)] }
+    });
+    expect(opened.statusCode).toBe(200);
+
+    let state: LandingPreviewState = opened.json();
+    const deadline = Date.now() + 5_000;
+    while (state.running && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 10));
+      const response = await app.inject({
+        url: '/api/landing-preview/state',
+        headers: { 'x-session-token': TOKEN }
+      });
+      state = response.json();
+    }
+    expect(state.running).toBe(false);
+    expect(state.landings).toHaveLength(1);
+    expect(state.landings[0]).toMatchObject({
+      name: 'campaign',
+      status: 'ready',
+      previewAvailable: true
+    });
+
+    const image = await app.inject({
+      url: `/api/landing-preview/landings/${state.landings[0].id}/image`,
+      headers: { 'x-session-token': TOKEN }
+    });
+    expect(image.statusCode).toBe(200);
+    expect(image.headers['content-type']).toContain('image/webp');
+    expect(image.body).toBe('test-preview');
+  });
+
   it('rejects /api requests without a valid session token, via header or query', async () => {
     const app = await makeServer();
 

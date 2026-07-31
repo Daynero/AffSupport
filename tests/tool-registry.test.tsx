@@ -15,6 +15,7 @@ vi.mock('../apps/web/src/App.js', async () => {
   };
 });
 vi.mock('../apps/web/src/landing/LandingOptimizerPage.js', () => ({ default: () => null }));
+vi.mock('../apps/web/src/landing-preview/LandingPreviewPage.js', () => ({ default: () => null }));
 vi.mock('../apps/web/src/transcription/TranscriptionPage.js', () => ({ default: () => null }));
 vi.mock('../apps/web/src/AgentContext.js', () => ({
   useAgent: () => ({
@@ -49,6 +50,7 @@ describe('web tool registry', () => {
     expect(webTools.map(tool => ({ id: tool.id, path: tool.path }))).toEqual([
       { id: 'compressor', path: '/compressor' },
       { id: 'landingOptimizer', path: '/landing-optimizer' },
+      { id: 'landingPreview', path: '/landing-preview' },
       { id: 'transcription', path: '/transcription' }
     ]);
     // Every registered tool maps onto the shared agent contract.

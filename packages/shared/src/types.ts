@@ -481,6 +481,7 @@ export interface HealthResponse {
 export const AGENT_CAPABILITIES = [
   'finder-image-conversion',
   'landing',
+  'landing-preview',
   'local-file-paths',
   'transcription'
 ] as const;
@@ -687,6 +688,86 @@ export function calculateLandingSummary(assets: LandingAsset[]): LandingSummary 
       ? Math.max(0, Math.round((savedBytes / originalMediaSize) * 100))
       : 0
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Landing Preview                                                            */
+/*                                                                            */
+/* A persistent, local catalogue of full-page landing screenshots. A source  */
+/* catalogue is a user-selected folder (including a Google Drive for desktop  */
+/* mount); individual landings may be folders or one/many roots inside ZIPs.  */
+/* -------------------------------------------------------------------------- */
+
+export type LandingPreviewSourceKind = 'folder' | 'zip';
+export type LandingPreviewItemStatus = 'queued' | 'rendering' | 'ready' | 'failed';
+export type LandingPreviewPhase =
+  | 'idle'
+  | 'scanning'
+  | 'downloading'
+  | 'inspecting'
+  | 'extracting'
+  | 'rendering'
+  | 'completed'
+  | 'cancelled'
+  | 'failed';
+
+export interface LandingPreviewItem {
+  id: string;
+  name: string;
+  /** POSIX path used to place this leaf in the UI tree. */
+  relativePath: string;
+  sourceKind: LandingPreviewSourceKind;
+  /** Folder or ZIP path relative to the selected catalogue root. */
+  sourceRelativePath: string;
+  /** Landing root inside a ZIP, or null for folder sources / archive root. */
+  archiveRoot: string | null;
+  /** A safe cached extraction exists and can be opened locally. */
+  extractedAvailable: boolean;
+  status: LandingPreviewItemStatus;
+  /** The source changed after the last successful preview. */
+  stale: boolean;
+  previewAvailable: boolean;
+  previewWidth: number | null;
+  previewHeight: number | null;
+  renderedAt: number | null;
+  blockedExternalRequests: number;
+  warning: string | null;
+  error: string | null;
+}
+
+export interface LandingPreviewCatalogSummary {
+  id: string;
+  name: string;
+  landingCount: number;
+  lastOpenedAt: number;
+  sourceAvailable: boolean;
+}
+
+export interface LandingPreviewProgress {
+  phase: LandingPreviewPhase;
+  completed: number;
+  total: number;
+  currentLandingId: string | null;
+}
+
+export interface LandingPreviewState {
+  catalogs: LandingPreviewCatalogSummary[];
+  activeCatalogId: string | null;
+  activeCatalogName: string | null;
+  landings: LandingPreviewItem[];
+  running: boolean;
+  progress: LandingPreviewProgress;
+  renderer: { available: boolean; error: string | null };
+  /** Non-fatal inaccessible/corrupt entries skipped during the last scan. */
+  warnings: string[];
+  error: string | null;
+  updatedAt: number | null;
+}
+
+export type LandingPreviewEventType = 'landing-preview:state' | 'landing-preview:progress';
+export interface LandingPreviewEvent {
+  type: LandingPreviewEventType;
+  state: LandingPreviewState;
 }
 
 /* -------------------------------------------------------------------------- */

@@ -22,7 +22,12 @@ function manifestWith(artifacts: StableReleaseManifest['artifacts']): StableRele
     minimumSupportedVersion: '0.4.0',
     publishedAt: '2026-07-29T00:00:00.000Z',
     artifacts,
-    toolRequirements: { compressor: {}, landingOptimizer: {}, transcription: {} }
+    toolRequirements: {
+      compressor: {},
+      landingOptimizer: {},
+      landingPreview: {},
+      transcription: {}
+    }
   };
 }
 

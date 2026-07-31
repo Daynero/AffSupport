@@ -28,6 +28,9 @@ the macOS bundle's `Contents/Resources`). An installer must produce:
     package.json
     node_modules/              # production deps, staged by scripts/stage-agent-runtime.mjs
     production-dependencies.json
+    browser-runtime.json       # exact bundled preview-browser executable path
+    browser/
+      chromium-headless-shell/ # Playwright-pinned local landing renderer + license
   web/
     dist/                      # apps/web build, served by the agent at /local
 ```

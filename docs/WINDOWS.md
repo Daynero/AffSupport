@@ -35,6 +35,9 @@ and the step-by-step packaging pipeline.
   payload mirroring the mac `Contents/Resources` layout (the agent's relative
   `../../../runtime` lookups work unchanged). It shares the lockfile-exact
   dependency staging with the mac pipeline via `scripts/lib/agent-staging.mjs`.
+  The same step copies Playwright's platform-matched Chromium Headless Shell,
+  its complete license file, and an exact `browser-runtime.json` executable
+  descriptor used by Landing Preview.
 - **Installer template** — `packaging/windows-installer.iss` (Inno Setup):
   installs to `{autopf}\Wishly`, HKCU Run-key autostart of the tray host,
   post-install launch, uninstall stops the host, version/AppId rendered by
@@ -53,7 +56,8 @@ and the step-by-step packaging pipeline.
 4. **Compile + sign the installer** (Inno Setup `iscc`, Authenticode
    `signtool`).
 5. **Full end-to-end pass** — install, pair with the hosted page, compress,
-   transcribe, translate (after the checksum pin), uninstall cleanly.
+   render folder and multi-landing ZIP previews, transcribe, translate (after
+   the checksum pin), uninstall cleanly.
 6. **Verify the Windows zip layout assumption** — the descriptor assumes the
    official Windows zip is flat (`llama-server.exe` + DLLs at the archive
    root). If b10092's zip has a top-level directory instead, set

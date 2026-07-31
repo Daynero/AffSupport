@@ -105,6 +105,44 @@ suffix in Finder so it can be tested beside the stable extension. The internal
 design and future video-action extension point are documented in
 [`docs/FINDER_MEDIA_ACTIONS.md`](docs/FINDER_MEDIA_ACTIONS.md).
 
+### Landing previews
+
+Open **Landing Preview** and choose one catalogue folder. Wishly scans it
+recursively for folders whose root contains `index.html` or `index.htm`; once
+that root is found, its internal files and nested folders are not added to the
+navigation tree. ZIP files can sit at any scanned level and may contain one or
+many landing roots. Nested archives and archive formats other than ZIP are
+intentionally ignored in this first version.
+
+Google Drive works through **Google Drive for desktop**: choose the mounted
+Drive folder from Finder or Explorer exactly like any local folder. Reading a
+cloud-only file lets Drive hydrate it through its normal filesystem provider;
+Wishly does not request Google credentials or use the Drive API. The system
+folder picker is the reliable path. Dragging a folder also works when the
+browser supplies its local `file://` URI; otherwise the UI asks the user to use
+the picker.
+
+Each landing is rendered in an isolated, bundled Chromium Headless Shell at a
+1440 × 900 desktop viewport and stored as a full-page WebP. External HTTP,
+WebSocket, service-worker, and non-proxied WebRTC traffic is blocked during the
+render, so a landing that depends on CDN-only assets can show a warning or an
+incomplete local preview. An unusually large page is cropped to a bounded safe
+size rather than exhausting memory.
+
+The full-screen viewer provides a folder/ZIP tree, search, previous/next
+navigation, keyboard arrows, fit-width, fit-page, 100% and custom zoom,
+full-screen mode, and actions to open a folder source, reveal a ZIP, or open its
+managed extracted copy. **Refresh changed** fingerprints the catalogue and
+reuses unchanged previews; **Refresh current** rebuilds one item; **Rebuild
+all** forces a complete pass. If a refresh fails, the last successful preview
+stays visible and is marked stale. **Clear cache** removes managed previews and
+extractions only—source files are never changed.
+
+ZIPs are inspected before extraction. Wishly rejects encrypted archives,
+symbolic links, absolute/parent paths, unsafe cross-platform names, unsupported
+compression, excessive nesting, more than 50,000 entries, a file over 2 GB,
+more than 5 GB expanded data, and suspicious compression ratios.
+
 1. Keep the default **Optimal** mode for 30 FPS, CRF 26, and a 720p longest side, or open **Custom settings** for FPS, longest-side resolution, and CRF or target bitrate.
 2. Optionally enable **Embed images into video**. Add one or more opening and final images, choose the final duration and cover, contain, or stretch adaptation, and enable **Replace existing** when prior static edges should be removed first.
 3. Keep **Next to originals**, or use **Separate folder** for a native folder dialog.
@@ -151,6 +189,11 @@ Estimate cache: `~/Library/Application Support/Wishly/estimate-cache.json`.
 
 Managed image assets: `~/Library/Application Support/Wishly/Images/`. A pre-rebrand `~/Library/Application Support/Local Video Compressor` directory is migrated automatically on the first launch of Wishly Agent. Persisted image selections are revalidated when the Agent starts; missing or damaged assets are cleared and must be selected again. Disabling image embedding makes all stored selections inert.
 
+Landing preview catalogue, screenshots, and safe ZIP extractions:
+`~/Library/Application Support/Wishly/LandingPreviews/`. This cache remains
+available when a Google Drive source is temporarily offline and can be cleared
+from Landing Preview without touching the source.
+
 Closing or reloading the browser does not stop processing. Restarting the agent restores the queue; a job that was processing becomes **interrupted** and can be retried from the beginning. Partial output from an abrupt OS/process termination may remain on disk and is never overwritten; retry chooses the next safe filename.
 
 Before starting, the agent conservatively compares free space in every relevant output folder with the original sizes. An obvious shortage produces a warning but never changes the originals.
@@ -185,6 +228,11 @@ These routes are not part of the browser contract.
 | POST, GET    | `/api/transcription/jobs/:id/translations[/:language]`         | Queue or read a cached fully local translation                       |
 | POST, GET    | `/api/transcription/jobs/:id/media/prepare`, `/status`         | Prepare or inspect a local browser-compatible preview                |
 | GET          | `/api/transcription/jobs/:id/media`                            | Token-gated source/proxy streaming with HTTP Range                   |
+| GET          | `/api/landing-preview/state`, `/events`                        | Read the persistent landing catalogue and live generation progress   |
+| POST         | `/api/landing-preview/select`, `/open`, `/refresh`, `/cancel`  | Choose, scan, rebuild, or cancel a local landing catalogue           |
+| GET          | `/api/landing-preview/landings/:id/image`                      | Stream one authenticated cached WebP preview                         |
+| POST         | `/api/landing-preview/landings/:id/reveal`, `/open-extracted`  | Open the source or its managed safe ZIP extraction                   |
+| DELETE       | `/api/landing-preview/cache`, `/catalogs/:id`                  | Remove managed cache data or a recent catalogue                      |
 
 ## Troubleshooting
 

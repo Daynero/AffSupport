@@ -1,0 +1,144 @@
+// @vitest-environment jsdom
+import React from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import type { LandingPreviewState } from '../packages/shared/src/types.js';
+
+const api = vi.hoisted(() => ({
+  request: vi.fn(),
+  activate: vi.fn(),
+  cancel: vi.fn(),
+  clearCache: vi.fn(),
+  open: vi.fn(),
+  openExtracted: vi.fn(),
+  refresh: vi.fn(),
+  reveal: vi.fn(),
+  select: vi.fn()
+}));
+
+vi.mock('../apps/web/src/api/client.js', () => ({
+  request: api.request,
+  landingGalleryActivate: api.activate,
+  landingGalleryCancel: api.cancel,
+  landingGalleryClearCache: api.clearCache,
+  landingGalleryEventUrl: () => 'http://127.0.0.1/events',
+  landingGalleryImageUrl: (id: string, revision: number | null) =>
+    `http://127.0.0.1/preview/${id}?v=${revision ?? 0}`,
+  landingGalleryOpen: api.open,
+  landingGalleryOpenExtracted: api.openExtracted,
+  landingGalleryRefresh: api.refresh,
+  landingGalleryReveal: api.reveal,
+  landingGallerySelect: api.select
+}));
+
+vi.mock('../apps/web/src/analytics/service.js', () => ({
+  analytics: { track: vi.fn(), setLocale: vi.fn() }
+}));
+
+import LandingPreviewPage from '../apps/web/src/landing-preview/LandingPreviewPage.js';
+
+const galleryState: LandingPreviewState = {
+  catalogs: [
+    {
+      id: 'catalog-1',
+      name: 'Affiliate landings',
+      landingCount: 2,
+      lastOpenedAt: 1,
+      sourceAvailable: true
+    }
+  ],
+  activeCatalogId: 'catalog-1',
+  activeCatalogName: 'Affiliate landings',
+  landings: [
+    {
+      id: 'landing-a',
+      name: 'Acme',
+      relativePath: 'clients/acme',
+      sourceKind: 'folder',
+      sourceRelativePath: 'clients/acme',
+      archiveRoot: null,
+      extractedAvailable: false,
+      status: 'ready',
+      stale: false,
+      previewAvailable: true,
+      previewWidth: 1440,
+      previewHeight: 2200,
+      renderedAt: 10,
+      blockedExternalRequests: 0,
+      warning: null,
+      error: null
+    },
+    {
+      id: 'landing-b',
+      name: 'Summer offer',
+      relativePath: 'offers.zip/bundle/summer',
+      sourceKind: 'zip',
+      sourceRelativePath: 'offers.zip',
+      archiveRoot: 'bundle/summer',
+      extractedAvailable: true,
+      status: 'ready',
+      stale: false,
+      previewAvailable: true,
+      previewWidth: 1440,
+      previewHeight: 1800,
+      renderedAt: 20,
+      blockedExternalRequests: 0,
+      warning: null,
+      error: null
+    }
+  ],
+  running: false,
+  progress: { phase: 'completed', completed: 2, total: 2, currentLandingId: null },
+  renderer: { available: true, error: null },
+  warnings: [],
+  error: null,
+  updatedAt: 20
+};
+
+class EventSourceStub {
+  onmessage: ((event: MessageEvent) => void) | null = null;
+  close() {}
+}
+
+beforeEach(() => {
+  localStorage.clear();
+  localStorage.setItem('language', 'en');
+  vi.stubGlobal('EventSource', EventSourceStub);
+  api.request.mockResolvedValue(galleryState);
+  for (const action of [
+    api.activate,
+    api.cancel,
+    api.clearCache,
+    api.open,
+    api.openExtracted,
+    api.refresh,
+    api.reveal,
+    api.select
+  ]) {
+    action.mockResolvedValue(galleryState);
+  }
+});
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
+describe('landing preview viewer', () => {
+  it('renders the folder tree and switches screenshots with navigation controls', async () => {
+    render(<LandingPreviewPage />);
+
+    expect(await screen.findByRole('img', { name: 'Acme' })).toBeTruthy();
+    expect(screen.getByRole('treeitem', { name: /clients/iu })).toBeTruthy();
+    expect(screen.getByRole('treeitem', { name: /offers\.zip/iu })).toBeTruthy();
+
+    await userEvent.click(screen.getAllByRole('button', { name: 'Next landing' })[0]);
+    expect(await screen.findByRole('img', { name: 'Summer offer' })).toBeTruthy();
+    const extracted = screen.getByRole('button', { name: 'Open extracted copy' });
+    expect((extracted as HTMLButtonElement).disabled).toBe(false);
+    await userEvent.click(extracted);
+    expect(api.openExtracted).toHaveBeenCalledWith('landing-b');
+  });
+});

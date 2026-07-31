@@ -1,7 +1,13 @@
 import type { FastifyInstance } from 'fastify';
-import type { LandingEvent, TranscriptionEvent } from '@video-compressor/shared';
+import type {
+  LandingEvent,
+  LandingPreviewEvent,
+  TranscriptionEvent
+} from '@video-compressor/shared';
 import { registerCompressorRoutes, type CompressorContext } from '../compressor/routes.js';
 import type { LandingOptimizer } from '../landing/optimizer.js';
+import type { LandingPreviewCatalog } from '../landing-preview/catalog.js';
+import { registerLandingPreviewRoutes } from '../landing-preview/routes.js';
 import { registerMediaActionRoutes } from '../media-actions/routes.js';
 import type { MediaActionQueue } from '../media-actions/queue.js';
 import type { TranscriptionQueue } from '../queue/transcription-queue.js';
@@ -33,6 +39,10 @@ export interface ToolModulesDeps {
   compressor: CompressorContext;
   mediaActions: MediaActionQueue;
   landing: { optimizer: LandingOptimizer; events: EventChannel<LandingEvent> };
+  landingPreview: {
+    catalog: LandingPreviewCatalog;
+    events: EventChannel<LandingPreviewEvent>;
+  };
   transcription: { queue: TranscriptionQueue; events: EventChannel<TranscriptionEvent> };
 }
 
@@ -42,7 +52,7 @@ export interface ToolModulesDeps {
  * media actions → landing optimizer → transcription queue.
  */
 export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
-  const { compressor, mediaActions, landing, transcription } = deps;
+  const { compressor, mediaActions, landing, landingPreview, transcription } = deps;
   return [
     {
       id: 'compressor',
@@ -70,6 +80,17 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
         }),
       busy: () => landing.optimizer.state().running,
       shutdown: () => landing.optimizer.shutdown()
+    },
+    {
+      id: 'landing-preview',
+      register: (app, ctx) =>
+        registerLandingPreviewRoutes(app, {
+          catalog: landingPreview.catalog,
+          events: landingPreview.events,
+          acceptingNewTasks: ctx.acceptingNewTasks
+        }),
+      busy: () => landingPreview.catalog.busy(),
+      shutdown: () => landingPreview.catalog.shutdown()
     },
     {
       id: 'transcription',

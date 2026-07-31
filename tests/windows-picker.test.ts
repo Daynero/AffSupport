@@ -18,6 +18,7 @@ vi.mock('node:child_process', () => ({
 
 import {
   selectLandingFolders,
+  selectLandingPreviewFolder,
   selectLandingZips,
   selectOutputFolder,
   selectTranscribeMedia,
@@ -125,6 +126,14 @@ describe('Windows transcription and landing pickers', () => {
     const script = lastSpawnCall().args[4];
     expect(script).toContain('System.Windows.Forms.FolderBrowserDialog');
     expect(script).toContain("$dialog.Description = 'Choose a landing folder'");
+  });
+
+  it('picks one recursive landing-preview catalogue folder', async () => {
+    stubPickerRun({ stdout: 'G:\\My Drive\\Landings\r\n' });
+    await expect(selectLandingPreviewFolder()).resolves.toBe('G:\\My Drive\\Landings');
+    const script = lastSpawnCall().args[4];
+    expect(script).toContain('System.Windows.Forms.FolderBrowserDialog');
+    expect(script).toContain("$dialog.Description = 'Choose a folder that contains landings'");
   });
 });
 

@@ -320,7 +320,7 @@ describe('bilingual transcript modal integration', () => {
       return element!;
     });
     expect(media.src).toContain('/local-media');
-    expect(HTMLMediaElement.prototype.play).toHaveBeenCalled();
+    await waitFor(() => expect(HTMLMediaElement.prototype.play).toHaveBeenCalled());
     expect(source.querySelectorAll('.ts-selected').length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole('button', { name: 'Hide preview' }));

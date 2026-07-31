@@ -2,6 +2,7 @@ import type {
   AgentEntitlementStatus,
   HealthResponse,
   ImageSlot,
+  LandingPreviewState,
   LandingState,
   QueueState,
   SelectionResponse,
@@ -207,6 +208,64 @@ export function landingPreviewUrl(
     assetId
   )}/preview/${side}`;
   return `${agentUrl}${path}?variant=${variant}&token=${encodeURIComponent(token)}`;
+}
+
+export function landingGalleryEventUrl() {
+  return `${agentUrl}/api/landing-preview/events?token=${encodeURIComponent(token)}`;
+}
+
+export function landingGalleryImageUrl(landingId: string, revision: number | null) {
+  const suffix = revision ? `&v=${encodeURIComponent(revision)}` : '';
+  return `${agentUrl}/api/landing-preview/landings/${encodeURIComponent(
+    landingId
+  )}/image?token=${encodeURIComponent(token)}${suffix}`;
+}
+
+export function landingGallerySelect(): Promise<LandingPreviewState> {
+  return request<LandingPreviewState>('/api/landing-preview/select', 'POST');
+}
+
+export function landingGalleryOpen(paths: string[]): Promise<LandingPreviewState> {
+  return requestBody<LandingPreviewState>('/api/landing-preview/open', { paths });
+}
+
+export function landingGalleryActivate(catalogId: string): Promise<LandingPreviewState> {
+  return request<LandingPreviewState>(
+    `/api/landing-preview/catalogs/${encodeURIComponent(catalogId)}/activate`,
+    'POST'
+  );
+}
+
+export function landingGalleryRefresh(
+  mode: 'changed' | 'all' | 'current',
+  landingId?: string
+): Promise<LandingPreviewState> {
+  return requestBody<LandingPreviewState>('/api/landing-preview/refresh', {
+    mode,
+    ...(landingId ? { landingId } : {})
+  });
+}
+
+export function landingGalleryCancel(): Promise<LandingPreviewState> {
+  return request<LandingPreviewState>('/api/landing-preview/cancel', 'POST');
+}
+
+export function landingGalleryReveal(landingId: string): Promise<LandingPreviewState> {
+  return request<LandingPreviewState>(
+    `/api/landing-preview/landings/${encodeURIComponent(landingId)}/reveal`,
+    'POST'
+  );
+}
+
+export function landingGalleryOpenExtracted(landingId: string): Promise<LandingPreviewState> {
+  return request<LandingPreviewState>(
+    `/api/landing-preview/landings/${encodeURIComponent(landingId)}/open-extracted`,
+    'POST'
+  );
+}
+
+export function landingGalleryClearCache(): Promise<LandingPreviewState> {
+  return request<LandingPreviewState>('/api/landing-preview/cache', 'DELETE');
 }
 async function uploadForm<T>(url: string, body: FormData): Promise<T> {
   let response: Response;

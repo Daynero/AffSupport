@@ -7,6 +7,7 @@ import type {
   AgentEventType,
   LandingEvent,
   LandingEventType,
+  LandingPreviewEvent,
   TranscriptionEvent,
   TranscriptionEventType
 } from '@video-compressor/shared';
@@ -22,6 +23,7 @@ import {
 } from './ffmpeg/tools.js';
 import { ImageAssetStore } from './images/store.js';
 import { LandingOptimizer } from './landing/optimizer.js';
+import { LandingPreviewCatalog } from './landing-preview/catalog.js';
 import { MediaActionQueue } from './media-actions/queue.js';
 import { JobQueue } from './queue/queue.js';
 import { loadState, saveState } from './queue/store.js';
@@ -70,6 +72,19 @@ const landingEvents = new EventChannel<LandingEvent>(allowedOrigins, () => ({
 }));
 const landingOptimizer = new LandingOptimizer(tools, (type: LandingEventType = 'landing:state') =>
   landingEvents.broadcast({ type, state: landingOptimizer.state() })
+);
+
+const landingPreviewCatalog = new LandingPreviewCatalog();
+await landingPreviewCatalog.init();
+const landingPreviewEvents = new EventChannel<LandingPreviewEvent>(allowedOrigins, () => ({
+  type: 'landing-preview:state',
+  state: landingPreviewCatalog.state()
+}));
+landingPreviewCatalog.setNotify(type =>
+  landingPreviewEvents.broadcast({
+    type: type ?? 'landing-preview:state',
+    state: landingPreviewCatalog.state()
+  })
 );
 
 const transcriptionEvents = new EventChannel<TranscriptionEvent>(allowedOrigins, () => ({
@@ -195,6 +210,7 @@ const modules = createToolModules({
   compressor: { queue, estimator, imageStore, events: agentEvents, tools },
   mediaActions,
   landing: { optimizer: landingOptimizer, events: landingEvents },
+  landingPreview: { catalog: landingPreviewCatalog, events: landingPreviewEvents },
   transcription: { queue: transcriptionQueue, events: transcriptionEvents }
 });
 
