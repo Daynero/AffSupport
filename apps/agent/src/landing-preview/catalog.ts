@@ -11,10 +11,12 @@ import {
   stat,
   writeFile
 } from 'node:fs/promises';
+import { availableParallelism } from 'node:os';
 import path from 'node:path';
 import type {
   LandingPreviewEventType,
   LandingPreviewItem,
+  LandingPreviewRenderSettings,
   LandingPreviewState
 } from '@video-compressor/shared';
 import { applicationSupportRoot } from '../files/support-dir.js';
@@ -23,8 +25,39 @@ import { LandingPageRenderer, type LandingRenderResult } from './renderer.js';
 import { discoverLandings, type DiscoveredLanding } from './scanner.js';
 
 const STATE_VERSION = 1;
-const RENDER_PROFILE = 'desktop-1440x900-v2-segmented';
+/** Bumped whenever the capture pipeline changes in a way that invalidates caches. */
+const RENDER_PIPELINE_VERSION = 'v2-segmented';
 const MAX_VISIBLE_WARNINGS = 8;
+/** How many landings render at once. Kept low to bound Chromium memory. */
+const RENDER_CONCURRENCY = Math.min(4, Math.max(1, availableParallelism() - 2));
+
+export const DEVICE_VIEWPORTS: Record<
+  LandingPreviewRenderSettings['device'],
+  { width: number; height: number; mobile: boolean }
+> = {
+  desktop: { width: 1440, height: 900, mobile: false },
+  tablet: { width: 834, height: 1112, mobile: true },
+  mobile: { width: 390, height: 844, mobile: true }
+};
+
+const DEFAULT_SETTINGS: LandingPreviewRenderSettings = {
+  device: 'desktop',
+  colorScheme: 'light'
+};
+
+/** Preview cache key: previews re-render whenever any of these inputs change. */
+function renderProfileOf(settings: LandingPreviewRenderSettings): string {
+  const viewport = DEVICE_VIEWPORTS[settings.device];
+  return `${settings.device}-${viewport.width}x${viewport.height}-${settings.colorScheme}-${RENDER_PIPELINE_VERSION}`;
+}
+
+function normalizeSettings(value: unknown): LandingPreviewRenderSettings {
+  const source = (value ?? {}) as Partial<LandingPreviewRenderSettings>;
+  return {
+    device: source.device === 'tablet' || source.device === 'mobile' ? source.device : 'desktop',
+    colorScheme: source.colorScheme === 'dark' ? 'dark' : 'light'
+  };
+}
 
 interface StoredLanding extends LandingPreviewItem {
   key: string;
@@ -50,6 +83,7 @@ interface StoredState {
   version: number;
   activeCatalogId: string | null;
   catalogs: StoredCatalog[];
+  settings?: LandingPreviewRenderSettings;
 }
 
 export interface LandingRenderer {
@@ -60,6 +94,8 @@ export interface LandingRenderer {
     entryFile: string;
     outputPath: string;
     signal?: AbortSignal;
+    viewport?: { width: number; height: number; mobile: boolean };
+    colorScheme?: LandingPreviewRenderSettings['colorScheme'];
   }): Promise<LandingRenderResult>;
   shutdown(): Promise<void>;
 }
@@ -73,10 +109,13 @@ export class LandingPreviewCatalog {
   private controller: AbortController | null = null;
   private activeRun: Promise<void> | null = null;
   private saveChain = Promise.resolve();
+  /** De-dupes concurrent ZIP extraction when several landings share one archive. */
+  private archiveWork = new Map<string, Promise<void>>();
   private notify: (type?: LandingPreviewEventType) => void = () => {};
   private progress: LandingPreviewState['progress'] = emptyProgress();
   private running = false;
   private error: string | null = null;
+  private settings: LandingPreviewRenderSettings = { ...DEFAULT_SETTINGS };
 
   constructor(options: { root?: string; renderer?: LandingRenderer } = {}) {
     this.root = options.root ?? path.join(applicationSupportRoot(), 'LandingPreviews');
@@ -97,6 +136,7 @@ export class LandingPreviewCatalog {
         this.activeCatalogId = this.catalogs.some(item => item.id === parsed.activeCatalogId)
           ? parsed.activeCatalogId
           : (this.catalogs[0]?.id ?? null);
+        this.settings = normalizeSettings(parsed.settings);
       }
     } catch {
       this.catalogs = [];
@@ -124,6 +164,7 @@ export class LandingPreviewCatalog {
       running: this.running,
       progress: { ...this.progress },
       renderer: this.renderer.availability(),
+      settings: { ...this.settings },
       warnings: [...(active?.warnings ?? [])],
       error: this.error,
       updatedAt: active?.updatedAt ?? null
@@ -132,6 +173,28 @@ export class LandingPreviewCatalog {
 
   busy() {
     return this.running;
+  }
+
+  private renderProfile() {
+    return renderProfileOf(this.settings);
+  }
+
+  /** Applies new render settings and re-renders anything that no longer matches. */
+  async updateSettings(partial: Partial<LandingPreviewRenderSettings>) {
+    if (this.running) return false;
+    const next = normalizeSettings({ ...this.settings, ...partial });
+    if (renderProfileOf(next) === this.renderProfile()) {
+      this.settings = next;
+      await this.persist();
+      this.notify();
+      return true;
+    }
+    this.settings = next;
+    await this.persist();
+    const catalog = this.activeCatalog();
+    if (catalog) this.startRun(catalog, 'changed');
+    else this.notify();
+    return true;
   }
 
   async openRoot(rootPath: string) {
@@ -332,13 +395,14 @@ export class LandingPreviewCatalog {
       const unchanged =
         Boolean(old) &&
         old!.fingerprint === discovered.fingerprint &&
-        old!.renderProfile === RENDER_PROFILE &&
+        old!.renderProfile === this.renderProfile() &&
         previewStillExists;
       const forced = mode === 'all' || (mode === 'current' && old?.id === landingId);
       next.push(
         reconcileLanding(catalog.id, discovered, old, {
           reusePreview: unchanged && !forced,
-          keepOldPreview: previewStillExists
+          keepOldPreview: previewStillExists,
+          renderProfile: this.renderProfile()
         })
       );
     }
@@ -372,84 +436,108 @@ export class LandingPreviewCatalog {
       }
       throw new Error(renderer.error ?? 'Chromium renderer is unavailable.');
     }
-    for (const landing of queued) {
-      let obsoletePreviewFiles: string[] = [];
-      let generatedPreviewFiles: string[] = [];
-      throwIfAborted(signal);
-      this.progress.currentLandingId = landing.id;
-      landing.status = 'rendering';
-      landing.error = null;
-      this.progress.phase = landing.sourceKind === 'zip' ? 'extracting' : 'rendering';
-      this.notify('landing-preview:progress');
-      try {
-        const prepared = await this.prepareLanding(catalog, landing, signal);
-        throwIfAborted(signal);
-        this.progress.phase = 'rendering';
-        this.notify('landing-preview:progress');
-        const previewDirectory = path.join(this.catalogCacheRoot(catalog), 'previews');
-        await mkdir(previewDirectory, { recursive: true });
-        const outputPath = path.join(
-          previewDirectory,
-          `${landing.id}.${randomUUID()}.segment-0.webp`
-        );
-        const result = await this.renderer.render({
-          root: prepared.root,
-          entryFile: prepared.entryFile,
-          outputPath,
-          signal
-        });
-        generatedPreviewFiles = result.segmentFiles;
-        if (!generatedPreviewFiles.length) {
-          throw new Error('The renderer did not return a landing preview.');
-        }
-        const previewRoot = path.resolve(previewDirectory);
-        for (const file of generatedPreviewFiles) {
-          const resolved = path.resolve(file);
-          if (!resolved.startsWith(`${previewRoot}${path.sep}`) || !(await isUsablePreview(file))) {
-            throw new Error('The renderer returned an invalid landing preview segment.');
-          }
-        }
-        const relativeFiles = generatedPreviewFiles.map(file => path.relative(this.root, file));
-        obsoletePreviewFiles = previewFilesOf(landing).filter(
-          file => !relativeFiles.includes(file)
-        );
-        landing.previewFile = relativeFiles[0];
-        landing.previewFiles = relativeFiles;
-        landing.previewAvailable = true;
-        landing.previewWidth = result.width;
-        landing.previewHeight = result.height;
-        landing.blockedExternalRequests = result.blockedExternalRequests;
-        landing.warning = result.warning;
-        landing.renderedAt = Date.now();
-        landing.status = 'ready';
-        landing.stale = false;
-        landing.error = null;
-        landing.renderProfile = RENDER_PROFILE;
-        generatedPreviewFiles = [];
-      } catch (error) {
-        await Promise.all(
-          generatedPreviewFiles.map(file => rm(file, { force: true }).catch(() => {}))
-        );
-        if (signal.aborted) {
-          landing.status = 'queued';
-          throw error;
-        }
-        landing.status = 'failed';
-        landing.error = errorMessage(error);
-      }
-      this.progress.completed += 1;
-      await this.persist();
-      await Promise.all(
-        obsoletePreviewFiles.map(file => {
-          const target = safeCachePath(this.root, file);
-          return target ? rm(target, { force: true }).catch(() => {}) : Promise.resolve();
-        })
-      );
-      this.notify('landing-preview:progress');
-    }
+    this.progress.phase = 'rendering';
+    this.notify('landing-preview:progress');
+    await this.renderQueue(catalog, queued, signal);
+    throwIfAborted(signal);
     this.progress.currentLandingId = null;
     this.progress.phase = 'completed';
     catalog.updatedAt = Date.now();
+  }
+
+  /** Renders queued landings through a small pool of concurrent workers. */
+  private async renderQueue(catalog: StoredCatalog, queued: StoredLanding[], signal: AbortSignal) {
+    let cursor = 0;
+    const takeNext = () => (cursor < queued.length ? queued[cursor++] : null);
+    const worker = async () => {
+      for (let landing = takeNext(); landing; landing = takeNext()) {
+        throwIfAborted(signal);
+        await this.renderOne(catalog, landing, signal);
+      }
+    };
+    const workers = Array.from({ length: Math.min(RENDER_CONCURRENCY, queued.length) }, () =>
+      worker()
+    );
+    const results = await Promise.allSettled(workers);
+    // Wait for every worker to unwind (cancellation, failures) before surfacing.
+    throwIfAborted(signal);
+    const failure = results.find(
+      (result): result is PromiseRejectedResult => result.status === 'rejected'
+    );
+    if (failure) throw failure.reason;
+  }
+
+  private async renderOne(catalog: StoredCatalog, landing: StoredLanding, signal: AbortSignal) {
+    let obsoletePreviewFiles: string[] = [];
+    let generatedPreviewFiles: string[] = [];
+    this.progress.currentLandingId = landing.id;
+    landing.status = 'rendering';
+    landing.error = null;
+    this.notify('landing-preview:progress');
+    try {
+      const prepared = await this.prepareLanding(catalog, landing, signal);
+      throwIfAborted(signal);
+      const previewDirectory = path.join(this.catalogCacheRoot(catalog), 'previews');
+      await mkdir(previewDirectory, { recursive: true });
+      const outputPath = path.join(
+        previewDirectory,
+        `${landing.id}.${randomUUID()}.segment-0.webp`
+      );
+      const viewport = DEVICE_VIEWPORTS[this.settings.device];
+      const result = await this.renderer.render({
+        root: prepared.root,
+        entryFile: prepared.entryFile,
+        outputPath,
+        signal,
+        viewport,
+        colorScheme: this.settings.colorScheme
+      });
+      generatedPreviewFiles = result.segmentFiles;
+      if (!generatedPreviewFiles.length) {
+        throw new Error('The renderer did not return a landing preview.');
+      }
+      const previewRoot = path.resolve(previewDirectory);
+      for (const file of generatedPreviewFiles) {
+        const resolved = path.resolve(file);
+        if (!resolved.startsWith(`${previewRoot}${path.sep}`) || !(await isUsablePreview(file))) {
+          throw new Error('The renderer returned an invalid landing preview segment.');
+        }
+      }
+      const relativeFiles = generatedPreviewFiles.map(file => path.relative(this.root, file));
+      obsoletePreviewFiles = previewFilesOf(landing).filter(file => !relativeFiles.includes(file));
+      landing.previewFile = relativeFiles[0];
+      landing.previewFiles = relativeFiles;
+      landing.previewAvailable = true;
+      landing.previewWidth = result.width;
+      landing.previewHeight = result.height;
+      landing.blockedExternalRequests = result.blockedExternalRequests;
+      landing.warning = result.warning;
+      landing.renderedAt = Date.now();
+      landing.status = 'ready';
+      landing.stale = false;
+      landing.error = null;
+      landing.renderProfile = this.renderProfile();
+      generatedPreviewFiles = [];
+    } catch (error) {
+      await Promise.all(
+        generatedPreviewFiles.map(file => rm(file, { force: true }).catch(() => {}))
+      );
+      if (signal.aborted) {
+        landing.status = 'queued';
+        throw error;
+      }
+      landing.status = 'failed';
+      landing.error = errorMessage(error);
+    }
+    this.progress.completed += 1;
+    await this.persist();
+    await Promise.all(
+      obsoletePreviewFiles.map(file => {
+        const target = safeCachePath(this.root, file);
+        return target ? rm(target, { force: true }).catch(() => {}) : Promise.resolve();
+      })
+    );
+    this.notify('landing-preview:progress');
   }
 
   private async prepareLanding(
@@ -464,9 +552,30 @@ export class LandingPreviewCatalog {
       return { root, entryFile: landing.entryFile };
     }
     const content = this.archiveContentPath(catalog, landing);
-    const completeMarker = path.join(path.dirname(content), 'complete.json');
-    if (!(await exists(completeMarker)) || !(await exists(content))) {
-      const archiveDirectory = path.dirname(content);
+    await this.ensureArchiveExtracted(source, content, landing.fingerprint, signal);
+    landing.extractedAvailable = true;
+    const root = landing.archiveRoot
+      ? path.join(content, ...landing.archiveRoot.split('/'))
+      : content;
+    return { root: await realpath(root), entryFile: landing.entryFile };
+  }
+
+  /**
+   * Extracts an archive at most once even when concurrent workers request the
+   * same ZIP (multiple landing roots inside one archive share this directory).
+   */
+  private ensureArchiveExtracted(
+    source: string,
+    content: string,
+    fingerprint: string,
+    signal: AbortSignal
+  ): Promise<void> {
+    const archiveDirectory = path.dirname(content);
+    const existing = this.archiveWork.get(archiveDirectory);
+    if (existing) return existing;
+    const work = (async () => {
+      const completeMarker = path.join(archiveDirectory, 'complete.json');
+      if ((await exists(completeMarker)) && (await exists(content))) return;
       const staging = `${archiveDirectory}.installing-${randomUUID()}`;
       await rm(staging, { recursive: true, force: true });
       await mkdir(staging, { recursive: true });
@@ -474,7 +583,7 @@ export class LandingPreviewCatalog {
         await extractZipSafely(source, path.join(staging, 'content'), signal);
         await writeFile(
           path.join(staging, 'complete.json'),
-          `${JSON.stringify({ fingerprint: landing.fingerprint })}\n`,
+          `${JSON.stringify({ fingerprint })}\n`,
           'utf8'
         );
         await rm(archiveDirectory, { recursive: true, force: true });
@@ -483,12 +592,11 @@ export class LandingPreviewCatalog {
       } finally {
         await rm(staging, { recursive: true, force: true }).catch(() => {});
       }
-    }
-    landing.extractedAvailable = true;
-    const root = landing.archiveRoot
-      ? path.join(content, ...landing.archiveRoot.split('/'))
-      : content;
-    return { root: await realpath(root), entryFile: landing.entryFile };
+    })().finally(() => {
+      this.archiveWork.delete(archiveDirectory);
+    });
+    this.archiveWork.set(archiveDirectory, work);
+    return work;
   }
 
   private archiveContentPath(catalog: StoredCatalog, landing: StoredLanding) {
@@ -542,7 +650,7 @@ export class LandingPreviewCatalog {
         } else if (landing.status === 'rendering') {
           landing.status = 'ready';
         }
-        if (landing.previewAvailable && landing.renderProfile !== RENDER_PROFILE) {
+        if (landing.previewAvailable && landing.renderProfile !== this.renderProfile()) {
           landing.status = 'queued';
           landing.stale = true;
         }
@@ -563,7 +671,8 @@ export class LandingPreviewCatalog {
     const snapshot: StoredState = structuredClone({
       version: STATE_VERSION,
       activeCatalogId: this.activeCatalogId,
-      catalogs: this.catalogs
+      catalogs: this.catalogs,
+      settings: this.settings
     });
     this.saveChain = this.saveChain
       .catch(() => {})
@@ -581,7 +690,7 @@ function reconcileLanding(
   catalogId: string,
   discovered: DiscoveredLanding,
   old: StoredLanding | undefined,
-  options: { reusePreview: boolean; keepOldPreview: boolean }
+  options: { reusePreview: boolean; keepOldPreview: boolean; renderProfile: string }
 ): StoredLanding {
   const id = old?.id ?? `preview_${digest(`${catalogId}\0${discovered.key}`).slice(0, 24)}`;
   const oldPreviewFiles = old ? previewFilesOf(old) : [];
@@ -591,7 +700,7 @@ function reconcileLanding(
     id,
     key: discovered.key,
     fingerprint: discovered.fingerprint,
-    renderProfile: old?.renderProfile ?? RENDER_PROFILE,
+    renderProfile: old?.renderProfile ?? options.renderProfile,
     entryFile: discovered.entryFile,
     name: discovered.name,
     relativePath: discovered.relativePath,

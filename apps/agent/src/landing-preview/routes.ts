@@ -29,8 +29,11 @@ export function registerLandingPreviewRoutes(
       }
       const preview = await catalog.previewPath(request.params.landingId, segment);
       if (!preview) return reply.code(404).send({ error: 'Preview is unavailable.' });
+      // The URL carries the render revision (`v`), so a given URL always maps to
+      // the same bytes — safe to cache immutably and avoid re-downloading slices
+      // every time the user switches landings.
       return reply
-        .header('Cache-Control', 'private, no-store')
+        .header('Cache-Control', 'private, max-age=31536000, immutable')
         .type('image/webp')
         .send(createReadStream(preview));
     }
@@ -112,6 +115,34 @@ export function registerLandingPreviewRoutes(
       ? catalog.state()
       : reply.code(409).send({ error: 'No preview generation is running.' })
   );
+
+  app.post<{
+    Body?: { device?: unknown; colorScheme?: unknown };
+  }>('/api/landing-preview/settings', async (request, reply) => {
+    if (!acceptingNewTasks()) return reply.code(409).send({ error: 'UPDATE_PENDING' });
+    const body = request.body ?? {};
+    const partial: {
+      device?: 'desktop' | 'tablet' | 'mobile';
+      colorScheme?: 'light' | 'dark';
+    } = {};
+    if (body.device !== undefined) {
+      if (body.device !== 'desktop' && body.device !== 'tablet' && body.device !== 'mobile') {
+        return reply.code(400).send({ error: 'Invalid device preset.' });
+      }
+      partial.device = body.device;
+    }
+    if (body.colorScheme !== undefined) {
+      if (body.colorScheme !== 'light' && body.colorScheme !== 'dark') {
+        return reply.code(400).send({ error: 'Invalid color scheme.' });
+      }
+      partial.colorScheme = body.colorScheme;
+    }
+    return (await catalog.updateSettings(partial))
+      ? catalog.state()
+      : reply
+          .code(409)
+          .send({ error: 'Settings cannot be changed while previews are generating.' });
+  });
 
   app.delete('/api/landing-preview/cache', async (_request, reply) =>
     (await catalog.clearActiveCache())

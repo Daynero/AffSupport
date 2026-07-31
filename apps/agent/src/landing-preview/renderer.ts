@@ -7,6 +7,8 @@ import { chromium, type Browser, type BrowserContext, type Page } from 'playwrig
 
 const VIEWPORT = { width: 1440, height: 900 };
 const NAVIGATION_TIMEOUT_MS = 20_000;
+/** Upper bound for a single landing render, so a pathological page can't hold a slot. */
+const RENDER_TIMEOUT_MS = 90_000;
 const MAX_SCREENSHOT_WIDTH = 4096;
 const MAX_SEGMENT_HEIGHT = 8000;
 const MAX_DOCUMENT_HEIGHT = 250_000;
@@ -77,47 +79,34 @@ export class LandingPageRenderer {
     entryFile: string;
     outputPath: string;
     signal?: AbortSignal;
+    viewport?: { width: number; height: number; mobile: boolean };
+    colorScheme?: 'light' | 'dark';
   }): Promise<LandingRenderResult> {
     if (!this.executable) throw new Error(this.availability().error ?? 'Renderer unavailable.');
-    throwIfAborted(input.signal);
+    // Combine the caller's cancellation with a hard render budget so a page that
+    // never settles is abandoned at the next checkpoint instead of stalling the pool.
+    const budget = AbortSignal.timeout(RENDER_TIMEOUT_MS);
+    const signal = input.signal ? AbortSignal.any([input.signal, budget]) : budget;
+    throwIfAborted(signal);
     const browser = await this.getBrowser();
     const local = await createLandingServer(input.root, input.entryFile);
+    const viewport = input.viewport ?? { ...VIEWPORT, mobile: false };
     let context: BrowserContext | null = null;
     try {
       context = await browser.newContext({
-        viewport: VIEWPORT,
+        viewport: { width: viewport.width, height: viewport.height },
         deviceScaleFactor: 1,
+        isMobile: viewport.mobile,
+        hasTouch: viewport.mobile,
         serviceWorkers: 'block',
         acceptDownloads: false,
         javaScriptEnabled: true,
         locale: 'en-US',
-        colorScheme: 'light'
+        colorScheme: input.colorScheme ?? 'light'
       });
-      const origin = new URL(local.url).origin;
-      let blockedExternalRequests = 0;
-      await context.route('**/*', async route => {
-        const requestUrl = route.request().url();
-        let allowed: boolean;
-        try {
-          const parsed = new URL(requestUrl);
-          allowed =
-            parsed.origin === origin ||
-            parsed.protocol === 'data:' ||
-            parsed.protocol === 'blob:' ||
-            parsed.protocol === 'about:';
-        } catch {
-          allowed = false;
-        }
-        if (allowed) await route.continue();
-        else {
-          blockedExternalRequests += 1;
-          await route.abort('blockedbyclient');
-        }
-      });
-      await context.routeWebSocket('**/*', async socket => {
-        blockedExternalRequests += 1;
-        await socket.close({ code: 1008, reason: 'Network disabled for local previews' });
-      });
+      // Previews load external assets (fonts, images, scripts) so they render
+      // exactly as published; nothing is proxied or captured beyond the screenshot.
+      const blockedExternalRequests = 0;
       const page = await context.newPage();
       page.setDefaultNavigationTimeout(NAVIGATION_TIMEOUT_MS);
       page.setDefaultTimeout(NAVIGATION_TIMEOUT_MS);
@@ -129,9 +118,9 @@ export class LandingPageRenderer {
         if (pageErrors.length < 3) pageErrors.push(error.message);
       });
       await page.goto(local.url, { waitUntil: 'domcontentloaded' });
-      throwIfAborted(input.signal);
+      throwIfAborted(signal);
       await page.waitForLoadState('load', { timeout: 8000 }).catch(() => {});
-      await settlePage(page, input.signal);
+      await settlePage(page, signal);
       const dimensions = await page.evaluate(() => ({
         width: Math.max(
           document.documentElement.scrollWidth,
@@ -165,7 +154,7 @@ export class LandingPageRenderer {
         height: captureHeight,
         scale,
         segmentCssHeight,
-        signal: input.signal
+        signal
       });
       const outputHeight = segmentFiles.reduce((total, segment) => total + segment.height, 0);
       const warnings: string[] = [];

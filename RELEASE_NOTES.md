@@ -1,3 +1,11 @@
+# v0.8.10
+
+- Load external fonts, images, and scripts when rendering landing previews so they match the published page instead of blocking every outside request.
+- Add desktop, tablet, and mobile device presets plus a light/dark theme for previews, and a grid overview to scan every landing at a glance.
+- Render several landings at once instead of one at a time, with a per-render time limit and de-duplicated extraction for ZIPs that hold multiple landings.
+- Remember opened catalogues, remove a folder from the list, flag folders whose source went missing, and stop re-scanning the whole folder on every visit.
+- Zoom previews with Ctrl/⌘ + scroll and drag to pan, keep the collapsed sidebar keyboard-safe, and reconnect automatically after the local agent restarts.
+
 # v0.8.9
 
 - Preserve custom zoom, fit mode, and sidebar state while switching landings and after reopening Landing Preview.

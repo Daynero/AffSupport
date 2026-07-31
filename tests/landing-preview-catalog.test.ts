@@ -28,6 +28,10 @@ async function temporaryDirectory(prefix: string) {
 class TestRenderer implements LandingRenderer {
   renders = 0;
   failNext = false;
+  active = 0;
+  peakConcurrency = 0;
+  lastViewport: { width: number; height: number; mobile: boolean } | undefined;
+  lastColorScheme: 'light' | 'dark' | undefined;
 
   async init() {}
 
@@ -35,22 +39,38 @@ class TestRenderer implements LandingRenderer {
     return { available: true, error: null };
   }
 
-  async render({ root, entryFile, outputPath }: Parameters<LandingRenderer['render']>[0]) {
+  async render({
+    root,
+    entryFile,
+    outputPath,
+    viewport,
+    colorScheme
+  }: Parameters<LandingRenderer['render']>[0]) {
     await access(path.join(root, entryFile));
     this.renders += 1;
-    if (this.failNext) {
-      this.failNext = false;
-      throw new Error('Synthetic renderer failure.');
+    this.active += 1;
+    this.peakConcurrency = Math.max(this.peakConcurrency, this.active);
+    this.lastViewport = viewport;
+    this.lastColorScheme = colorScheme;
+    try {
+      // Yield so overlapping workers can be observed by peakConcurrency.
+      await new Promise(resolve => setTimeout(resolve, 15));
+      if (this.failNext) {
+        this.failNext = false;
+        throw new Error('Synthetic renderer failure.');
+      }
+      await writeFile(outputPath, fakePreview(`preview-${this.renders}`));
+      return {
+        width: 1440,
+        height: 1200,
+        segmentFiles: [outputPath],
+        title: null,
+        blockedExternalRequests: 0,
+        warning: null
+      };
+    } finally {
+      this.active -= 1;
     }
-    await writeFile(outputPath, fakePreview(`preview-${this.renders}`));
-    return {
-      width: 1440,
-      height: 1200,
-      segmentFiles: [outputPath],
-      title: null,
-      blockedExternalRequests: 0,
-      warning: null
-    };
   }
 
   async shutdown() {}
@@ -252,10 +272,88 @@ describe('landing preview discovery and cache', () => {
     expect(upgraded.state().landings[0]).toMatchObject({ status: 'ready', stale: false });
     await upgraded.shutdown();
   });
+
+  it('renders multiple landings concurrently and dedupes shared ZIP extraction', async () => {
+    const workspace = await temporaryDirectory('wishly-preview-parallel-');
+    const catalogueRoot = path.join(workspace, 'catalogue');
+    const archiveSource = path.join(workspace, 'bundle');
+    await Promise.all([
+      mkdir(path.join(catalogueRoot, 'a'), { recursive: true }),
+      mkdir(path.join(catalogueRoot, 'b'), { recursive: true }),
+      mkdir(path.join(archiveSource, 'one'), { recursive: true }),
+      mkdir(path.join(archiveSource, 'two'), { recursive: true })
+    ]);
+    await Promise.all([
+      writeFile(path.join(catalogueRoot, 'a', 'index.html'), '<h1>A</h1>'),
+      writeFile(path.join(catalogueRoot, 'b', 'index.html'), '<h1>B</h1>'),
+      writeFile(path.join(archiveSource, 'one', 'index.html'), '<h1>One</h1>'),
+      writeFile(path.join(archiveSource, 'two', 'index.html'), '<h1>Two</h1>')
+    ]);
+    // A single ZIP with two landing roots must extract exactly once.
+    await zipDirectory(archiveSource, path.join(catalogueRoot, 'bundle.zip'));
+
+    const renderer = new TestRenderer();
+    const catalog = new LandingPreviewCatalog({
+      root: path.join(workspace, 'cache'),
+      renderer
+    });
+    await catalog.init();
+    await catalog.openRoot(catalogueRoot);
+    await waitForIdle(catalog);
+
+    const landings = catalog.state().landings;
+    expect(landings).toHaveLength(4);
+    expect(landings.every(item => item.status === 'ready' && item.previewAvailable)).toBe(true);
+    expect(renderer.renders).toBe(4);
+    // The two folder landings plus at least one archive root overlap in time.
+    expect(renderer.peakConcurrency).toBeGreaterThan(1);
+    await catalog.shutdown();
+  });
+
+  it('persists render settings and re-renders when the device profile changes', async () => {
+    const workspace = await temporaryDirectory('wishly-preview-settings-');
+    const catalogueRoot = path.join(workspace, 'catalogue');
+    const cacheRoot = path.join(workspace, 'cache');
+    await mkdir(path.join(catalogueRoot, 'campaign'), { recursive: true });
+    await writeFile(path.join(catalogueRoot, 'campaign', 'index.html'), '<h1>Campaign</h1>');
+
+    const renderer = new TestRenderer();
+    const catalog = new LandingPreviewCatalog({ root: cacheRoot, renderer });
+    await catalog.init();
+    expect(catalog.state().settings).toEqual({
+      device: 'desktop',
+      colorScheme: 'light'
+    });
+    await catalog.openRoot(catalogueRoot);
+    await waitForIdle(catalog);
+    expect(renderer.renders).toBe(1);
+    expect(renderer.lastViewport).toMatchObject({ width: 1440, mobile: false });
+
+    // Switching device changes the render profile and must rebuild the preview.
+    expect(await catalog.updateSettings({ device: 'mobile', colorScheme: 'dark' })).toBe(true);
+    await waitForIdle(catalog);
+    expect(catalog.state().settings).toMatchObject({ device: 'mobile', colorScheme: 'dark' });
+    expect(renderer.renders).toBe(2);
+    expect(renderer.lastViewport).toMatchObject({ width: 390, mobile: true });
+    expect(renderer.lastColorScheme).toBe('dark');
+    expect(catalog.state().landings[0]).toMatchObject({ status: 'ready', stale: false });
+
+    // Re-applying the same settings is a no-op that does not re-render.
+    expect(await catalog.updateSettings({ device: 'mobile', colorScheme: 'dark' })).toBe(true);
+    await waitForIdle(catalog);
+    expect(renderer.renders).toBe(2);
+    await catalog.shutdown();
+
+    // Settings survive a restart.
+    const restored = new LandingPreviewCatalog({ root: cacheRoot, renderer: new TestRenderer() });
+    await restored.init();
+    expect(restored.state().settings).toMatchObject({ device: 'mobile', colorScheme: 'dark' });
+    await restored.shutdown();
+  });
 });
 
 describe('landing preview Chromium renderer', () => {
-  it('renders a full-page WebP locally while blocking external resources', async () => {
+  it('renders a full-page WebP locally, tolerating external references', async () => {
     const workspace = await temporaryDirectory('wishly-preview-render-');
     const landing = path.join(workspace, 'landing');
     const output = path.join(workspace, 'preview.webp');
@@ -279,7 +377,6 @@ describe('landing preview Chromium renderer', () => {
       expect(result.width).toBe(1440);
       expect(result.height).toBeGreaterThanOrEqual(1800);
       expect(result.segmentFiles).toEqual([output]);
-      expect(result.blockedExternalRequests).toBeGreaterThanOrEqual(1);
       const bytes = await readFile(output);
       expect(bytes.subarray(0, 4).toString('ascii')).toBe('RIFF');
       expect(bytes.subarray(8, 12).toString('ascii')).toBe('WEBP');

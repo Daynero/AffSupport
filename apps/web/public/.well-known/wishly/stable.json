@@ -1,19 +1,19 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.8.9",
-  "buildNumber": "34",
-  "buildId": "0.8.9+34",
+  "version": "0.8.10",
+  "buildNumber": "35",
+  "buildId": "0.8.10+35",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-07-31T13:26:12.000Z",
+  "publishedAt": "2026-07-31T16:39:26.000Z",
   "summary": {
-    "en": "Complete long landing previews without blank or viewport-only screenshots, plus persistent viewer controls and polished dark-theme styling.",
-    "uk": "Повні прев’ю довгих лендінгів без порожніх чи обрізаних скріншотів, зі збереженням налаштувань і виправленою темною темою."
+    "en": "Landing previews now load external fonts and images to match the published page, add device and light/dark presets, a grid overview, faster parallel rendering, and catalogue management.",
+    "uk": "Прев’ю лендінгів тепер вантажать зовнішні шрифти й зображення для точного вигляду, додають пресети пристрою й теми, огляд сіткою, швидший паралельний рендер і керування каталогами."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.8.9/Wishly-Agent-v0.8.9-macOS-arm64.dmg",
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.8.10/Wishly-Agent-v0.8.10-macOS-arm64.dmg",
       "sha256": "7b6650b187bc98b2157e1adb0d54277778b20a43f9a54b75a17b5d410b90c3bf"
     }
   },
@@ -26,11 +26,11 @@
       "landingOptimizer": 2
     },
     "landingPreview": {
-      "landingPreview": 1
+      "landingPreview": 2
     },
     "transcription": {
       "transcription": 5
     }
   },
-  "signature": "_5AL8P_rNVKHm7tQqD7y2Fv5xBAEmhsZfXrlUEHE0W42ixD7g-DVSnm_5q0cMcyqp0LT16Q3MHUw1XExihchZQ"
+  "signature": "Ly794KSMq00M8VbAizdhp6KbwgklNIuPavRQsD4Ab1-DLgu_P-OH31AqKrnbeGvInLBW2uyVkpXe_e65qdzQ6w"
 }

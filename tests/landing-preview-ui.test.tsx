@@ -92,6 +92,7 @@ const galleryState: LandingPreviewState = {
   running: false,
   progress: { phase: 'completed', completed: 2, total: 2, currentLandingId: null },
   renderer: { available: true, error: null },
+  settings: { device: 'desktop', colorScheme: 'light' },
   warnings: [],
   error: null,
   updatedAt: 20

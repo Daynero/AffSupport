@@ -146,7 +146,8 @@ describe('release identity', () => {
     expect(toolContractCompatible('landingOptimizer', { landingOptimizer: 1 })).toBe(false);
     expect(toolContractCompatible('landingOptimizer', { landingOptimizer: 2 })).toBe(true);
     expect(toolContractCompatible('landingPreview', { landingOptimizer: 2 })).toBe(false);
-    expect(toolContractCompatible('landingPreview', { landingPreview: 1 })).toBe(true);
+    expect(toolContractCompatible('landingPreview', { landingPreview: 1 })).toBe(false);
+    expect(toolContractCompatible('landingPreview', { landingPreview: 2 })).toBe(true);
     expect(toolContractCompatible('transcription', { transcription: 1 })).toBe(false);
     expect(toolContractCompatible('transcription', { transcription: 2 })).toBe(false);
     expect(toolContractCompatible('transcription', { transcription: 3 })).toBe(false);

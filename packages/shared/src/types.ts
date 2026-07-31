@@ -752,6 +752,15 @@ export interface LandingPreviewProgress {
   currentLandingId: string | null;
 }
 
+export type LandingPreviewDevice = 'desktop' | 'tablet' | 'mobile';
+export type LandingPreviewColorScheme = 'light' | 'dark';
+
+/** Render options that change the captured image, so they key the preview cache. */
+export interface LandingPreviewRenderSettings {
+  device: LandingPreviewDevice;
+  colorScheme: LandingPreviewColorScheme;
+}
+
 export interface LandingPreviewState {
   catalogs: LandingPreviewCatalogSummary[];
   activeCatalogId: string | null;
@@ -760,6 +769,7 @@ export interface LandingPreviewState {
   running: boolean;
   progress: LandingPreviewProgress;
   renderer: { available: boolean; error: string | null };
+  settings: LandingPreviewRenderSettings;
   /** Non-fatal inaccessible/corrupt entries skipped during the last scan. */
   warnings: string[];
   error: string | null;

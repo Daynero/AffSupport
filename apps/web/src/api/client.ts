@@ -2,6 +2,7 @@ import type {
   AgentEntitlementStatus,
   HealthResponse,
   ImageSlot,
+  LandingPreviewRenderSettings,
   LandingPreviewState,
   LandingState,
   QueueState,
@@ -266,6 +267,19 @@ export function landingGalleryOpenExtracted(landingId: string): Promise<LandingP
 
 export function landingGalleryClearCache(): Promise<LandingPreviewState> {
   return request<LandingPreviewState>('/api/landing-preview/cache', 'DELETE');
+}
+
+export function landingGalleryRemoveCatalog(catalogId: string): Promise<LandingPreviewState> {
+  return request<LandingPreviewState>(
+    `/api/landing-preview/catalogs/${encodeURIComponent(catalogId)}`,
+    'DELETE'
+  );
+}
+
+export function landingGallerySettings(
+  partial: Partial<LandingPreviewRenderSettings>
+): Promise<LandingPreviewState> {
+  return requestBody<LandingPreviewState>('/api/landing-preview/settings', partial);
 }
 async function uploadForm<T>(url: string, body: FormData): Promise<T> {
   let response: Response;

@@ -5,12 +5,15 @@ import {
   useRef,
   useState,
   type DragEvent,
+  type PointerEvent,
   type ReactNode
 } from 'react';
 import type {
+  LandingPreviewDevice,
   LandingPreviewEvent,
   LandingPreviewItem,
   LandingPreviewPhase,
+  LandingPreviewRenderSettings,
   LandingPreviewState
 } from '@video-compressor/shared';
 import {
@@ -22,8 +25,10 @@ import {
   landingGalleryOpen,
   landingGalleryOpenExtracted,
   landingGalleryRefresh,
+  landingGalleryRemoveCatalog,
   landingGalleryReveal,
   landingGallerySelect,
+  landingGallerySettings,
   request
 } from '../api/client';
 import { analytics } from '../analytics/service';
@@ -40,6 +45,7 @@ const emptyState: LandingPreviewState = {
   running: false,
   progress: { phase: 'idle', completed: 0, total: 0, currentLandingId: null },
   renderer: { available: true, error: null },
+  settings: { device: 'desktop', colorScheme: 'light' },
   warnings: [],
   error: null,
   updatedAt: null
@@ -47,6 +53,8 @@ const emptyState: LandingPreviewState = {
 
 type ZoomMode = 'fit-width' | 'fit-page' | 'custom';
 const VIEWER_PREFERENCES_KEY = 'wishly:landing-preview:viewer-preferences';
+/** Skip the auto re-scan when the catalogue was refreshed within this window. */
+const AUTO_RESCAN_STALE_MS = 60_000;
 
 export default function LandingPreviewPage() {
   const { t } = useI18n();
@@ -61,19 +69,24 @@ export default function LandingPreviewPage() {
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const [dragging, setDragging] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [connectionLost, setConnectionLost] = useState(false);
+  const [gridMode, setGridMode] = useState(false);
   const viewer = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLDivElement>(null);
   const dragDepth = useRef(0);
 
   useEffect(() => {
     document.title = `${t('landingGallery')} — Wishly`;
+  }, [t]);
+
+  useEffect(() => {
     analytics.track('tool_opened', { tool_identifier: 'landing-preview' });
-    let source: EventSource | null = null;
     request<LandingPreviewState>('/api/landing-preview/state', 'GET')
       .then(next => {
         setState(next);
         setLoaded(true);
-        if (next.activeCatalogId && !next.running) {
+        const fresh = next.updatedAt !== null && Date.now() - next.updatedAt < AUTO_RESCAN_STALE_MS;
+        if (next.activeCatalogId && !next.running && !fresh) {
           void landingGalleryActivate(next.activeCatalogId)
             .then(setState)
             .catch(() => {});
@@ -83,14 +96,21 @@ export default function LandingPreviewPage() {
         setMessage(t('landingGalleryActionFailed'));
         setLoaded(true);
       });
-    source = new EventSource(landingGalleryEventUrl());
+    const source = new EventSource(landingGalleryEventUrl());
     source.onmessage = event => {
-      const update = JSON.parse(event.data) as LandingPreviewEvent;
-      setState(update.state);
-      setLoaded(true);
+      setConnectionLost(false);
+      try {
+        const update = JSON.parse(event.data) as LandingPreviewEvent;
+        setState(update.state);
+        setLoaded(true);
+      } catch {
+        // Ignore a malformed frame; the next snapshot restores the state.
+      }
     };
-    return () => source?.close();
-  }, [t]);
+    source.onopen = () => setConnectionLost(false);
+    source.onerror = () => setConnectionLost(true);
+    return () => source.close();
+  }, []);
 
   useEffect(() => {
     writeViewerPreferences({ sidebarOpen, zoomMode, customScale });
@@ -152,6 +172,48 @@ export default function LandingPreviewPage() {
     setZoomMode('custom');
   }, []);
 
+  // Ctrl/⌘ + wheel zooms the preview. A native non-passive listener is required
+  // because React's synthetic wheel handler cannot preventDefault the browser zoom.
+  const scaleRef = useRef(scale);
+  scaleRef.current = scale;
+  useEffect(() => {
+    const element = canvas.current;
+    if (!element) return;
+    const onWheel = (event: WheelEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      event.preventDefault();
+      setZoom(scaleRef.current + (event.deltaY < 0 ? 0.1 : -0.1));
+    };
+    element.addEventListener('wheel', onWheel, { passive: false });
+    return () => element.removeEventListener('wheel', onWheel);
+  }, [setZoom]);
+
+  const pan = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
+  const onCanvasPointerDown = (event: PointerEvent<HTMLElement>) => {
+    if (event.button !== 0 || (event.target as HTMLElement).closest('button, a, input, select'))
+      return;
+    const element = canvas.current;
+    if (!element) return;
+    pan.current = {
+      x: event.clientX,
+      y: event.clientY,
+      left: element.scrollLeft,
+      top: element.scrollTop
+    };
+    element.classList.add('is-panning');
+  };
+  const onCanvasPointerMove = (event: PointerEvent<HTMLElement>) => {
+    const element = canvas.current;
+    const origin = pan.current;
+    if (!element || !origin) return;
+    element.scrollLeft = origin.left - (event.clientX - origin.x);
+    element.scrollTop = origin.top - (event.clientY - origin.y);
+  };
+  const endPan = () => {
+    pan.current = null;
+    canvas.current?.classList.remove('is-panning');
+  };
+
   useEffect(() => {
     const keyboard = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -187,6 +249,11 @@ export default function LandingPreviewPage() {
   };
 
   const chooseFolder = () => void apply(landingGallerySelect);
+  const removeCatalog = (catalogId: string) => {
+    if (window.confirm(t('landingGalleryRemoveCatalogConfirm'))) {
+      void apply(() => landingGalleryRemoveCatalog(catalogId));
+    }
+  };
   const handleDrop = (event: DragEvent) => {
     event.preventDefault();
     dragDepth.current = 0;
@@ -215,6 +282,7 @@ export default function LandingPreviewPage() {
         message={message}
         chooseFolder={chooseFolder}
         activate={id => void apply(() => landingGalleryActivate(id))}
+        remove={removeCatalog}
         onDragEnter={event => {
           event.preventDefault();
           dragDepth.current += 1;
@@ -237,23 +305,18 @@ export default function LandingPreviewPage() {
       ? null
       : 100;
   const previewNotes = selected
-    ? [
-        selected.blockedExternalRequests > 0
-          ? t('landingGalleryExternalBlocked', { count: selected.blockedExternalRequests })
-          : null,
-        ...(selected.warning ?? '')
-          .split(',')
-          .filter(Boolean)
-          .map(code =>
-            code === 'PAGE_SCRIPT_ERROR'
-              ? t('landingGalleryPageErrorWarning')
-              : code === 'PREVIEW_CROPPED'
-                ? t('landingGalleryCroppedWarning')
-                : code === 'PREVIEW_DOWNSCALED'
-                  ? t('landingGalleryDownscaledWarning')
-                  : code
-          )
-      ].filter((note): note is string => Boolean(note))
+    ? (selected.warning ?? '')
+        .split(',')
+        .filter(Boolean)
+        .map(code =>
+          code === 'PAGE_SCRIPT_ERROR'
+            ? t('landingGalleryPageErrorWarning')
+            : code === 'PREVIEW_CROPPED'
+              ? t('landingGalleryCroppedWarning')
+              : code === 'PREVIEW_DOWNSCALED'
+                ? t('landingGalleryDownscaledWarning')
+                : code
+        )
     : [];
 
   return (
@@ -368,6 +431,14 @@ export default function LandingPreviewPage() {
             </IconButton>
           )}
           <IconButton
+            label={t('landingGalleryGrid')}
+            aria-pressed={gridMode}
+            disabled={!state.landings.length}
+            onClick={() => setGridMode(value => !value)}
+          >
+            ▦
+          </IconButton>
+          <IconButton
             label={t('landingGalleryFullscreen')}
             aria-pressed={fullscreen}
             onClick={() => {
@@ -377,11 +448,21 @@ export default function LandingPreviewPage() {
           >
             {fullscreen ? '×' : '⛶'}
           </IconButton>
-          <GalleryMoreMenu state={state} apply={apply} chooseFolder={chooseFolder} />
+          <GallerySettingsMenu
+            settings={state.settings ?? emptyState.settings}
+            disabled={state.running}
+            onChange={partial => void apply(() => landingGallerySettings(partial))}
+          />
+          <GalleryMoreMenu
+            state={state}
+            apply={apply}
+            chooseFolder={chooseFolder}
+            removeCatalog={removeCatalog}
+          />
         </div>
       </header>
 
-      <aside className="landing-gallery-sidebar" aria-hidden={!sidebarOpen}>
+      <aside className="landing-gallery-sidebar" inert={!sidebarOpen}>
         <div className="landing-gallery-source-select">
           <label htmlFor="landing-gallery-catalog">{t('landingGalleryRecent')}</label>
           <select
@@ -428,8 +509,24 @@ export default function LandingPreviewPage() {
         )}
       </aside>
 
-      <main ref={canvas} className="landing-gallery-canvas">
-        {!state.renderer.available ? (
+      <main
+        ref={canvas}
+        className={`landing-gallery-canvas ${gridMode ? 'is-grid' : ''}`}
+        onPointerDown={gridMode ? undefined : onCanvasPointerDown}
+        onPointerMove={gridMode ? undefined : onCanvasPointerMove}
+        onPointerUp={endPan}
+        onPointerCancel={endPan}
+      >
+        {gridMode ? (
+          <GalleryGrid
+            landings={state.landings}
+            selectedId={selectedId}
+            onSelect={id => {
+              setSelectedId(id);
+              setGridMode(false);
+            }}
+          />
+        ) : !state.renderer.available ? (
           <GalleryEmpty
             title={t('landingGalleryRendererMissing')}
             body={t('landingGalleryRendererMissingBody')}
@@ -486,7 +583,7 @@ export default function LandingPreviewPage() {
             action={<Button onClick={chooseFolder}>{t('landingGalleryChooseAnother')}</Button>}
           />
         )}
-        {selectedIndex > 0 && (
+        {!gridMode && selectedIndex > 0 && (
           <button
             className="landing-gallery-edge-nav is-left"
             type="button"
@@ -496,7 +593,7 @@ export default function LandingPreviewPage() {
             ‹
           </button>
         )}
-        {selectedIndex >= 0 && selectedIndex < state.landings.length - 1 && (
+        {!gridMode && selectedIndex >= 0 && selectedIndex < state.landings.length - 1 && (
           <button
             className="landing-gallery-edge-nav is-right"
             type="button"
@@ -508,10 +605,16 @@ export default function LandingPreviewPage() {
         )}
       </main>
 
-      {(state.running || state.error || message) && (
-        <footer className={`landing-gallery-progress ${state.error || message ? 'is-error' : ''}`}>
+      {(state.running || state.error || message || connectionLost) && (
+        <footer
+          className={`landing-gallery-progress ${state.error || message || connectionLost ? 'is-error' : ''}`}
+        >
           <div>
-            <strong>{state.error || message || phaseLabel}</strong>
+            <strong>
+              {state.error ||
+                message ||
+                (connectionLost ? t('landingGalleryConnectionLost') : phaseLabel)}
+            </strong>
             {state.running && state.progress.total > 0 && (
               <span>
                 {t('landingGalleryProgress', {
@@ -547,6 +650,7 @@ function LandingGalleryWelcome({
   message,
   chooseFolder,
   activate,
+  remove,
   onDragEnter,
   onDragLeave,
   onDrop
@@ -556,6 +660,7 @@ function LandingGalleryWelcome({
   message: string | null;
   chooseFolder: () => void;
   activate: (id: string) => void;
+  remove: (id: string) => void;
   onDragEnter: (event: DragEvent) => void;
   onDragLeave: (event: DragEvent) => void;
   onDrop: (event: DragEvent) => void;
@@ -596,13 +701,28 @@ function LandingGalleryWelcome({
         <section className="landing-gallery-recent-list">
           <h2>{t('landingGalleryRecent')}</h2>
           {state.catalogs.map(catalog => (
-            <button type="button" key={catalog.id} onClick={() => activate(catalog.id)}>
-              <span>
-                <strong>{catalog.name}</strong>
-                <small>{t('landingGalleryCount', { count: catalog.landingCount })}</small>
-              </span>
-              <span aria-hidden="true">›</span>
-            </button>
+            <div
+              key={catalog.id}
+              className={`landing-gallery-recent-row ${catalog.sourceAvailable ? '' : 'is-unavailable'}`}
+            >
+              <button type="button" onClick={() => activate(catalog.id)}>
+                <span>
+                  <strong>{catalog.name}</strong>
+                  <small>
+                    {catalog.sourceAvailable
+                      ? t('landingGalleryCount', { count: catalog.landingCount })
+                      : t('landingGalleryUnavailable')}
+                  </small>
+                </span>
+                <span aria-hidden="true">›</span>
+              </button>
+              <IconButton
+                label={t('landingGalleryRemoveCatalog')}
+                onClick={() => remove(catalog.id)}
+              >
+                🗑
+              </IconButton>
+            </div>
           ))}
         </section>
       )}
@@ -613,11 +733,13 @@ function LandingGalleryWelcome({
 function GalleryMoreMenu({
   state,
   apply,
-  chooseFolder
+  chooseFolder,
+  removeCatalog
 }: {
   state: LandingPreviewState;
   apply: (operation: () => Promise<LandingPreviewState>) => Promise<void>;
   chooseFolder: () => void;
+  removeCatalog: (id: string) => void;
 }) {
   const { t } = useI18n();
   return (
@@ -652,8 +774,116 @@ function GalleryMoreMenu({
         >
           {t('landingGalleryClearCache')}
         </button>
+        <button
+          type="button"
+          className="is-danger"
+          disabled={state.running || !state.activeCatalogId}
+          onClick={() => state.activeCatalogId && removeCatalog(state.activeCatalogId)}
+        >
+          {t('landingGalleryRemoveActiveCatalog')}
+        </button>
       </div>
     </details>
+  );
+}
+
+const DEVICE_OPTIONS: Array<{ value: LandingPreviewDevice; key: TranslationKey }> = [
+  { value: 'desktop', key: 'landingGalleryDeviceDesktop' },
+  { value: 'tablet', key: 'landingGalleryDeviceTablet' },
+  { value: 'mobile', key: 'landingGalleryDeviceMobile' }
+];
+
+function GallerySettingsMenu({
+  settings,
+  disabled,
+  onChange
+}: {
+  settings: LandingPreviewRenderSettings;
+  disabled: boolean;
+  onChange: (partial: Partial<LandingPreviewRenderSettings>) => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <details className="landing-gallery-settings">
+      <summary aria-label={t('landingGalleryDeviceLabel')}>⚙</summary>
+      <div>
+        <fieldset disabled={disabled}>
+          <legend>{t('landingGalleryDeviceLabel')}</legend>
+          <div className="landing-gallery-segment">
+            {DEVICE_OPTIONS.map(option => (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={settings.device === option.value}
+                onClick={() => onChange({ device: option.value })}
+              >
+                {t(option.key)}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+        <fieldset disabled={disabled}>
+          <legend>{t('landingGalleryColorSchemeLabel')}</legend>
+          <div className="landing-gallery-segment">
+            <button
+              type="button"
+              aria-pressed={settings.colorScheme === 'light'}
+              onClick={() => onChange({ colorScheme: 'light' })}
+            >
+              {t('landingGalleryColorSchemeLight')}
+            </button>
+            <button
+              type="button"
+              aria-pressed={settings.colorScheme === 'dark'}
+              onClick={() => onChange({ colorScheme: 'dark' })}
+            >
+              {t('landingGalleryColorSchemeDark')}
+            </button>
+          </div>
+        </fieldset>
+      </div>
+    </details>
+  );
+}
+
+function GalleryGrid({
+  landings,
+  selectedId,
+  onSelect
+}: {
+  landings: LandingPreviewItem[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className="landing-gallery-grid">
+      {landings.map(item => (
+        <button
+          key={item.id}
+          type="button"
+          className={`landing-gallery-grid-tile ${item.id === selectedId ? 'is-selected' : ''} ${item.stale ? 'is-stale' : ''}`}
+          onClick={() => onSelect(item.id)}
+          title={item.relativePath}
+        >
+          <span className="landing-gallery-grid-thumb">
+            {item.previewAvailable ? (
+              <img
+                src={landingGalleryImageUrl(item.id, item.renderedAt, 0)}
+                alt=""
+                loading="lazy"
+                draggable={false}
+              />
+            ) : item.status === 'failed' ? (
+              <em>{t('landingGalleryStatusFailed')}</em>
+            ) : (
+              <Spinner />
+            )}
+          </span>
+          <span className="landing-gallery-grid-name">{item.name}</span>
+        </button>
+      ))}
+    </div>
   );
 }
 
