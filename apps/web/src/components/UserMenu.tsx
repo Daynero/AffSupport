@@ -86,6 +86,9 @@ export function UserMenu() {
             <strong>{profile?.display_name || email}</strong>
             {profile?.display_name && <span>{email}</span>}
           </div>
+          <button type="button" role="menuitem" onClick={() => go('/team')}>
+            {t('teamWorkspace')}
+          </button>
           <button type="button" role="menuitem" onClick={() => go('/account')}>
             {t('account')}
           </button>

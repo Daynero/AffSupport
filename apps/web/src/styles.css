@@ -426,6 +426,45 @@ a {
   margin-top: 0;
 }
 
+.team-workspace-launcher-card {
+  display: flex;
+  min-height: 126px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+  background:
+    radial-gradient(
+      circle at 12% 10%,
+      color-mix(in srgb, var(--purple-200) 55%, transparent),
+      transparent 42%
+    ),
+    var(--color-surface);
+}
+
+.team-workspace-launcher-copy {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 18px;
+}
+
+.team-workspace-launcher-copy h3 {
+  font-size: 20px;
+  letter-spacing: -0.015em;
+}
+
+.team-workspace-launcher-copy p {
+  max-width: 620px;
+  margin-top: 6px;
+  color: var(--color-text-muted);
+  line-height: 1.55;
+}
+
+.team-workspace-launcher-card > .button {
+  flex: 0 0 auto;
+}
+
 .tool-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3021,6 +3060,17 @@ input.is-invalid {
     margin-bottom: 18px;
   }
 
+  .team-workspace-launcher-card {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 18px;
+    padding: 20px;
+  }
+
+  .team-workspace-launcher-card > .button {
+    width: 100%;
+  }
+
   .tool-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 14px;
@@ -3235,6 +3285,14 @@ input.is-invalid {
   .agent-checking {
     max-width: 100%;
     text-align: center;
+  }
+
+  .team-workspace-launcher-copy {
+    align-items: flex-start;
+  }
+
+  .team-workspace-launcher-copy h3 {
+    font-size: 18px;
   }
 
   .launcher .onboarding-panel {

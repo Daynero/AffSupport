@@ -185,11 +185,20 @@ describe('release identity', () => {
 
     const webGate = readFileSync('scripts/verify-web-env.mjs', 'utf8');
     const releaseGate = readFileSync('scripts/verify-release.mjs', 'utf8');
+    const providerGate = readFileSync('scripts/verify-team-production.mjs', 'utf8');
+    const rootPackage = JSON.parse(readFileSync('package.json', 'utf8')) as {
+      scripts: Record<string, string>;
+    };
     const realAgentGate = readFileSync('scripts/real-agent-check.mjs', 'utf8');
     for (const gate of [webGate, releaseGate]) {
       expect(gate).toContain('PRODUCTION_SITE_ORIGIN');
       expect(gate).toContain('DRIVE_OAUTH_MODE');
       expect(gate).toContain('verified');
+    }
+    expect(providerGate).toContain('drive-connect/readiness');
+    expect(providerGate).toContain('missingTeamProductionSecrets');
+    for (const script of ['deploy:web', 'release:check', 'package:mac', 'package:dmg']) {
+      expect(rootPackage.scripts[script]).toContain('verify:team-production');
     }
     expect(realAgentGate).toContain('AGENT_UPDATE_REQUIRED');
     expect(realAgentGate).toContain('legacyContracts');

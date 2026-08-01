@@ -10,6 +10,7 @@ import {
   executeDriveConnectCommand,
   validateRootCandidate
 } from '../supabase/functions/drive-connect/handler';
+import { evaluateTeamProviderReadiness } from '../supabase/functions/drive-connect/readiness';
 import { completeDriveOAuthCallback } from '../supabase/functions/drive-oauth-callback/handler';
 import { runInitialSyncSlice } from '../supabase/functions/catalog-sync/worker';
 
@@ -88,6 +89,41 @@ describe('Drive OAuth release gate', () => {
     ).rejects.toMatchObject({ code: 'OAUTH_APPROVAL_REQUIRED' });
 
     expect(Object.values(effects).every(effect => effect.mock.calls.length === 0)).toBe(true);
+  });
+
+  it('reports production ready only when every Team Workspace provider is configured', () => {
+    const signals = { siteUrl: productionOrigin, requestOrigin: productionOrigin };
+    const complete = {
+      DRIVE_OAUTH_MODE: 'verified',
+      GOOGLE_CLIENT_ID: 'google-client-id',
+      GOOGLE_CLIENT_SECRET: 'google-client-secret',
+      GOOGLE_REDIRECT_URI: 'https://project.supabase.co/functions/v1/drive-oauth-callback',
+      RESEND_API_KEY: 'resend-api-key',
+      INVITE_EMAIL_FROM: 'Wishly <team@example.test>',
+      CATALOG_SYNC_SECRET: 'c'.repeat(32)
+    };
+
+    expect(evaluateTeamProviderReadiness(complete, signals)).toMatchObject({
+      ready: true,
+      oauthMode: 'verified',
+      services: {
+        googleDrive: true,
+        invitationEmail: true,
+        catalogWorker: true
+      }
+    });
+    expect(
+      evaluateTeamProviderReadiness(
+        { ...complete, GOOGLE_CLIENT_SECRET: undefined, RESEND_API_KEY: undefined },
+        signals
+      )
+    ).toMatchObject({
+      ready: false,
+      services: { googleDrive: false, invitationEmail: false, catalogWorker: true }
+    });
+    expect(
+      evaluateTeamProviderReadiness({ ...complete, DRIVE_OAUTH_MODE: 'testing' }, signals)
+    ).toMatchObject({ ready: false, oauthMode: 'testing' });
   });
 });
 

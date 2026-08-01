@@ -37,3 +37,13 @@ export function TranscriptionIcon() {
     </svg>
   );
 }
+
+export function TeamWorkspaceIcon() {
+  return (
+    <svg viewBox="0 0 32 32">
+      <circle cx="12" cy="11" r="4" />
+      <circle cx="22.5" cy="13" r="3" />
+      <path d="M5 25c.6-5 3.1-7.5 7-7.5s6.4 2.5 7 7.5M18.5 19c1.1-1.2 2.4-1.8 4-1.8 3 0 4.8 2 5.3 5.8" />
+    </svg>
+  );
+}

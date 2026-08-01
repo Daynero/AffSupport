@@ -305,6 +305,7 @@ quality gates across the selected stories without deploying production.
 - [x] T122 Run formatting, lint, unit/integration, shared/web/agent builds, pgTAP, and real-agent gates and record commands/results in `specs/001-team-media-workspace/quickstart.md`
 - [ ] T123 Execute V1–V9 against isolated Supabase/My/Shared Drive fixtures, including stale-dist, every-function ACL, OAuth matrix, 50k benchmark, 100 preview/action matrices and four weekly denominators, and record hashes/environment/sample counts/p50/p95/p99/max/deviations in `specs/001-team-media-workspace/quickstart.md`
 - [x] T124 Add copy-ready 20-person SC-001/SC-005/SC-008 moderator scripts, supported preview/TXT-editor/transcript/version/size limits, independent Drive ACL warning, recovery expectations, and safe failure guidance in `TESTER_GUIDE.md` and `docs/TEAM_WORKSPACE_PILOT_PROTOCOL.md`
+- [x] T125 [US1] Add a visible Team Workspace launcher card and authenticated user-menu entry, cover both navigation paths, and add a production provider-readiness gate so a release cannot be called usable while Google, Resend, or catalog worker configuration is absent
 
 **Checkpoint**: The implementation is reviewable, measurable through the read-only
 analytics path, documented for pilot use, and has passed every local gate without a

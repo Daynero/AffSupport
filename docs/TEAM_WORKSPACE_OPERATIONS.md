@@ -41,6 +41,12 @@ Use the names in `supabase/functions/.env.example`:
 - `WISHLY_SITE_URL`, `PRODUCTION_SITE_ORIGIN`, `DRIVE_OAUTH_MODE`: deployment gates, never
   credentials.
 
+Before packaging, releasing, or deploying a production build that advertises Team Workspace,
+run `npm run verify:team-production`. The gate inspects only Supabase secret names and the
+deployed non-secret readiness result; it never reads or prints credential values. It requires
+Google OAuth, Resend invitation delivery, and the catalog worker to be configured, and it
+requires the live production OAuth mode to report `verified`.
+
 Local values belong in the ignored `supabase/functions/.env.local`; hosted values belong in
 the verified isolated project secret store. Never place Google access/refresh tokens,
 resumable session URIs, transfer tickets, Vault ids, or provider response bodies in browser

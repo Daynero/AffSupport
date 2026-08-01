@@ -31,6 +31,7 @@ import {
   type DriveConnectCommand,
   type RootCandidateSnapshot
 } from './handler.ts';
+import { evaluateTeamProviderReadiness } from './readiness.ts';
 
 interface RpcFailure {
   code?: string;
@@ -267,9 +268,26 @@ Deno.serve(async request => {
     }
     const body = bodyResult?.ok ? bodyResult.value : undefined;
     const action = actionFromRequest(url, body);
+    const signals = productionSignals(request);
+    if (request.method === 'GET' && action === 'readiness') {
+      return successResponse(
+        evaluateTeamProviderReadiness(
+          {
+            DRIVE_OAUTH_MODE: Deno.env.get('DRIVE_OAUTH_MODE'),
+            GOOGLE_CLIENT_ID: Deno.env.get('GOOGLE_CLIENT_ID'),
+            GOOGLE_CLIENT_SECRET: Deno.env.get('GOOGLE_CLIENT_SECRET'),
+            GOOGLE_REDIRECT_URI: Deno.env.get('GOOGLE_REDIRECT_URI'),
+            RESEND_API_KEY: Deno.env.get('RESEND_API_KEY'),
+            INVITE_EMAIL_FROM: Deno.env.get('INVITE_EMAIL_FROM'),
+            CATALOG_SYNC_SECRET: Deno.env.get('CATALOG_SYNC_SECRET')
+          },
+          signals
+        ),
+        cors
+      );
+    }
     const configured = clients(request);
     const { userId } = await authorizeCaller(request, configured.service);
-    const signals = productionSignals(request);
 
     if (request.method === 'GET' && action === 'status') {
       const teamId = parseTeamId(url.searchParams.get('teamId'));

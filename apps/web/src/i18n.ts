@@ -769,6 +769,8 @@ const en = {
   featureLockConfirm: 'Got it, open the tool',
   featureLockCancel: 'Not now',
   teamWorkspace: 'Team workspace',
+  teamWorkspaceDescription:
+    'Create a team, manage access, organize shared media, and run Wishly workflows together.',
   teamActiveLabel: 'Active team',
   teamCreate: 'Create team',
   teamName: 'Team name',
@@ -1754,6 +1756,8 @@ const uk: Record<keyof typeof en, string> = {
   featureLockConfirm: 'Зрозуміло, відкрити',
   featureLockCancel: 'Не зараз',
   teamWorkspace: 'Командний простір',
+  teamWorkspaceDescription:
+    'Створюйте команду, керуйте доступом, упорядковуйте спільні медіа та запускайте процеси Wishly разом.',
   teamActiveLabel: 'Активна команда',
   teamCreate: 'Створити команду',
   teamName: 'Назва команди',

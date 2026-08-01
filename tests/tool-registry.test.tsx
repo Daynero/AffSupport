@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { WEB_TOOL_REQUIREMENTS } from '@video-compressor/shared';
 
 // The registry imports the real tool pages; stub them (and the agent context)
@@ -92,5 +92,18 @@ describe('web tool registry', () => {
       ).toBeTruthy();
       expect(screen.getByText(translate('en', tool.descriptionKey))).toBeTruthy();
     }
+  });
+
+  it('exposes Team Workspace from the launcher without requiring the local agent', () => {
+    const navigate = vi.fn();
+    render(<HomePage navigate={navigate} />);
+
+    const workspace = screen.getByRole('button', {
+      name: translate('en', 'teamWorkspace')
+    });
+    expect(workspace).toBeTruthy();
+
+    fireEvent.click(workspace);
+    expect(navigate).toHaveBeenCalledWith('/team');
   });
 });

@@ -8,6 +8,7 @@ import FeatureLockDialog from './components/FeatureLockDialog';
 import { isLocked } from './lib/feature-flags';
 import { usePageEntrance } from './lib/navigation';
 import LocalAppDialog from './components/LocalAppDialog';
+import { TeamWorkspaceIcon } from './components/tool-icons';
 import { webTools, type WebTool } from './lib/tool-registry';
 
 export default function HomePage({ navigate }: { navigate: (path: string) => void }) {
@@ -78,6 +79,33 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
             {notice}
           </div>
         )}
+
+        <Card
+          as="article"
+          interactive
+          className="team-workspace-launcher-card"
+          onClick={() => navigate('/team')}
+          onKeyDown={event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              navigate('/team');
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label={t('teamWorkspace')}
+        >
+          <div className="team-workspace-launcher-copy">
+            <span className="tool-icon" aria-hidden="true">
+              <TeamWorkspaceIcon />
+            </span>
+            <div>
+              <h3>{t('teamWorkspace')}</h3>
+              <p>{t('teamWorkspaceDescription')}</p>
+            </div>
+          </div>
+          <span className="button button-primary">{t('openTool')}</span>
+        </Card>
 
         <div className="agent-panel-slot" ref={panel} tabIndex={-1}>
           {connection === 'checking' ? (
