@@ -65,6 +65,11 @@ describe('Wishly brand identity', () => {
     expect(manifest.theme_color).toBe('#7557e8');
   });
 
+  it('keeps the public OAuth home page crawlable', () => {
+    const headers = readFileSync('apps/web/public/_headers', 'utf8');
+    expect(headers).toMatch(/\/[\s\S]*X-Robots-Tag: index, follow/);
+  });
+
   it('keeps the packaged agent branded as Wishly Agent without touching its bundle id', () => {
     const plist = readFileSync('packaging/Info.plist', 'utf8');
     expect(plist).toContain('<string>Wishly Agent</string>');
