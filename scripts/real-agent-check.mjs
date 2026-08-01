@@ -6,10 +6,14 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   AGENT_API_VERSION,
+  AGENT_TOOL_CONTRACTS,
   BUILD_ID,
   BUILD_NUMBER,
-  PRODUCT_VERSION
+  PRODUCT_VERSION,
+  WEB_TOOL_REQUIREMENTS,
+  toolContractCompatible
 } from '../packages/shared/dist/release.js';
+import { OPTIMAL_FRAME_RATE } from '../packages/shared/dist/types.js';
 
 const root = path.resolve(import.meta.dirname, '..');
 const agentNode = process.env.AGENT_NODE_BINARY || process.execPath;
@@ -113,6 +117,25 @@ try {
   ) {
     throw new Error(`Agent health check failed: ${JSON.stringify(health)}`);
   }
+  assert(
+    health.toolContracts?.teamWorkspace === AGENT_TOOL_CONTRACTS.teamWorkspace,
+    'Agent health is missing the team workspace contract.'
+  );
+  const legacyContracts = { ...health.toolContracts };
+  delete legacyContracts.teamWorkspace;
+  const compatibilityError = tool =>
+    toolContractCompatible(tool, legacyContracts) ? null : 'AGENT_UPDATE_REQUIRED';
+  assert(
+    compatibilityError('teamWorkspace') === 'AGENT_UPDATE_REQUIRED',
+    'An old agent did not isolate the team workspace behind AGENT_UPDATE_REQUIRED.'
+  );
+  const existingTools = Object.keys(WEB_TOOL_REQUIREMENTS).filter(tool => tool !== 'teamWorkspace');
+  for (const tool of existingTools) {
+    assert(
+      compatibilityError(tool) === null,
+      `An old team-workspace handshake broke the existing ${tool} tool.`
+    );
+  }
 
   const optimalInput = path.join(temporary, 'optimal-source.mp4');
   await createVideo(optimalInput, 24);
@@ -124,7 +147,10 @@ try {
   const optimalMedia = await probe(optimalDone.outputPath);
   assert(optimalMedia.codec === 'h264', 'Optimal output is not H.264.');
   assert(optimalMedia.width === 320 && optimalMedia.height === 180, 'Optimal changed resolution.');
-  assert(Math.abs(optimalMedia.fps - 24) < 0.02, 'Optimal changed frame rate.');
+  assert(
+    Math.abs(optimalMedia.fps - OPTIMAL_FRAME_RATE) < 0.02,
+    `Optimal did not use the contract frame rate (expected ${OPTIMAL_FRAME_RATE}, measured ${optimalMedia.fps}).`
+  );
   assert((await sha256(optimalInput)) === optimalHash, 'Optimal changed the original file.');
 
   await api('/api/settings', {
@@ -151,7 +177,10 @@ try {
     customMedia.width === 240 && customMedia.height === 136,
     'Custom resolution was not applied.'
   );
-  assert(Math.abs(customMedia.fps - 12) < 0.02, 'Custom frame rate was not applied.');
+  assert(
+    Math.abs(customMedia.fps - 12) < 0.02,
+    `Custom frame rate was not applied (expected 12, measured ${customMedia.fps}).`
+  );
   assert((await sha256(customInput)) === customHash, 'Custom changed the original file.');
 
   const openingImage = path.join(temporary, 'opening frame.png');
@@ -160,18 +189,13 @@ try {
   await createImage(finalImage, 'green', '300x100');
   let imageState = await uploadImage(api, openingImage, 'opening frame.png', 'start', 'image/png');
   imageState = await uploadImage(api, finalImage, 'final image.webp', 'end', 'image/webp');
-  assert(
-    imageState.settings.imageEmbedding.startImage.fileName === 'opening frame.png',
-    'Opening image was not stored.'
-  );
-  assert(
-    imageState.settings.imageEmbedding.endImage.fileName === 'final image.webp',
-    'Final image was not stored.'
-  );
-  const preview = await fetch(
-    `${origin}/api/images/${imageState.settings.imageEmbedding.startImage.id}/content`,
-    { headers: { 'x-session-token': token } }
-  );
+  const storedOpeningImage = imageState.settings.imageEmbedding.startImages[0];
+  const storedFinalImage = imageState.settings.imageEmbedding.endImages[0];
+  assert(storedOpeningImage?.fileName === 'opening frame.png', 'Opening image was not stored.');
+  assert(storedFinalImage?.fileName === 'final image.webp', 'Final image was not stored.');
+  const preview = await fetch(`${origin}/api/images/${storedOpeningImage.id}/content`, {
+    headers: { 'x-session-token': token }
+  });
   assert(
     preview.ok && preview.headers.get('content-type') === 'image/png',
     'Image preview endpoint failed.'
@@ -229,6 +253,11 @@ try {
         version: health.version,
         buildId: health.buildId,
         apiVersion: health.apiVersion,
+        legacyHandshake: {
+          error: 'AGENT_UPDATE_REQUIRED',
+          blockedTools: ['teamWorkspace'],
+          existingToolsCompatible: true
+        },
         optimal: {
           status: optimalDone.status,
           output: path.basename(optimalDone.outputPath),

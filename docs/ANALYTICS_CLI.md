@@ -19,6 +19,7 @@ shipped in any bundle, and holds no product logic — it only reads aggregates.
 npm run analytics -- overview
 npm run analytics -- compressor --days 7
 npm run analytics -- top-users --by compressions --period 30d
+npm run analytics -- team-workspace --period all --json
 npm run analytics -- user someone@example.com
 
 # Machine-readable JSON (for the coding agent)
@@ -50,6 +51,7 @@ for the built-in reference.
 | `diagnose <fingerprint>` | All matching occurrences of one normalized error.                                                                                                                                                                |
 | `cohorts`                | Success/failure comparison by local-app version, platform, or web build (`--cohort-by`).                                                                                                                         |
 | `retention`              | Registered users active again after 1, 7, and 30 days.                                                                                                                                                           |
+| `team-workspace`         | Aggregate-only SC-001 onboarding and SC-005 find cohorts plus four independent, root-relative SC-009 team-week rates. Empty denominators are `insufficient`; weak weeks are never averaged away.                 |
 
 ### Options
 
@@ -106,6 +108,10 @@ The CLI reads two objects in the production `public` schema:
   `supabase/migrations/20260719130000_analytics_readonly.sql`. Exposes id, email,
   display name, language, plan, account status, registration, last activity, and
   last login — no auth secrets or raw metadata.
+- **`analytics_team_workspace`** — an aggregate-input view for explicitly enrolled pilot
+  teams. It exposes only a one-way opaque workspace key, member identity needed to join the
+  event stream, membership dates, root-relative dates/state, and pilot interval. It excludes
+  team names, emails, file/folder/Drive ids, metadata, content, provider payloads and secrets.
 
 Event and property semantics (per-video vs per-batch, allowed property keys) come
 straight from the analytics migration and `apps/web/src/analytics/`.
@@ -116,7 +122,8 @@ Read access is layered so writes are impossible:
 
 1. **Dedicated role.** A least-privilege `wishly_analytics_ro` Postgres role with
    `LOGIN`, no superuser/createdb/createrole, and only `SELECT` on
-   `analytics_events` and `analytics_users`. It has **no** INSERT/UPDATE/DELETE
+   `analytics_events`, `analytics_users`, and the privacy-scoped
+   `analytics_team_workspace` view. It has **no** INSERT/UPDATE/DELETE
    grant anywhere.
 2. **Forced read-only.** The role has `default_transaction_read_only = on`, and
    the CLI additionally opens every connection with
@@ -205,3 +212,20 @@ ANALYTICS_DATABASE_URL=postgresql://wishly_analytics_ro.<project-ref>:<your-pass
    `20260719130000_analytics_readonly` migration.
 
 Keep everything `SELECT`-only; the `assertReadOnlySql` guard will reject writes.
+
+### Team workspace metric semantics
+
+`team-workspace` uses only parameterized `SELECT` queries. SC-001 is a fixed 20-attempt
+cohort and passes at 18 successful, fully completed onboarding flows within five minutes.
+SC-005 is a fixed 20-attempt cohort, five attempts per GEO/offer/language/category cue, and
+passes at 18 unaided exact finds within 30 seconds.
+
+SC-009 returns weeks 1–4 separately from each enrolled team's root connection. A team-week
+enters the denominator only when the pilot interval covers the window start, the latest root
+is not detached, at least two members were active at the window start, and the event stream
+contains an authenticated workspace session during that week. The numerator additionally
+requires both discovery (successful find or useful preview) and production (successful file
+operation or returned workflow). A zero denominator is `insufficient`. `all_windows_pass`
+is false if any week fails, null if none fail but any is insufficient, and true only when all
+four pass. The command's final privacy guard refuses identifying fields or values before JSON
+is printed.

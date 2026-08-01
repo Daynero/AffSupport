@@ -41,6 +41,7 @@ import {
   formatOverview,
   formatTools,
   formatTopUsers,
+  formatTeamWorkspace,
   formatUserDetail,
   formatUsers
 } from './format.js';
@@ -62,10 +63,16 @@ import {
   getOverview,
   getTools,
   getTopUsers,
+  getTeamWorkspace,
   getUserDetail,
   getUsers
 } from './queries.js';
-import type { CommandEnvelope, ErrorEnvelope } from './types.js';
+import {
+  buildCommandEnvelope,
+  teamWorkspaceOutputIsPrivate,
+  type CommandEnvelope,
+  type ErrorEnvelope
+} from './types.js';
 
 interface ParsedArgs {
   command: string;
@@ -102,6 +109,7 @@ Commands:
   diagnose <id>       Events matching an error fingerprint
   cohorts             Compare versions/platforms/builds
   retention           Return activity after registration
+  team-workspace      SC-001/SC-005 cohorts + four independent SC-009 weeks
 
 Options:
   --period <t>   today | 7d | 30d | 90d | all  (default 7d)
@@ -163,13 +171,7 @@ function emit<T>(
   human: string
 ): void {
   if (args.json) {
-    const envelope: CommandEnvelope<T> = {
-      ok: true,
-      command,
-      generated_at: new Date().toISOString(),
-      period,
-      data
-    };
+    const envelope = buildCommandEnvelope(command, period, data);
     process.stdout.write(JSON.stringify(envelope, null, 2) + '\n');
   } else {
     process.stdout.write(human + '\n');
@@ -300,6 +302,14 @@ async function run(args: ParsedArgs): Promise<void> {
     case 'retention': {
       const data = await getRetention(period);
       emit(args, command, period, data, formatRetention(data, period));
+      break;
+    }
+    case 'team-workspace': {
+      const data = await getTeamWorkspace(period);
+      if (!teamWorkspaceOutputIsPrivate(data)) {
+        fail(args, command, 'Team workspace aggregate failed its privacy guard.');
+      }
+      emit(args, command, period, data, formatTeamWorkspace(data, period));
       break;
     }
     default:

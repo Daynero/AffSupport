@@ -14,12 +14,17 @@ import AdminPage from './pages/AdminPage';
 import LocalAppDialog from './components/LocalAppDialog';
 import ReleaseUpdateNotice from './components/ReleaseUpdateNotice';
 import { SupportGoalProvider } from './support/SupportGoalContext';
+import { teamApi } from './api/team';
+import { TeamProvider } from './team/TeamContext';
+import TeamWorkspacePage from './team/TeamWorkspacePage';
 
 export default function ProtectedWishly({ path }: { path: string }) {
   return (
     <AgentProvider>
       <SupportGoalProvider>
-        <ApplicationShell path={path} />
+        <TeamProvider client={teamApi}>
+          <ApplicationShell path={path} />
+        </TeamProvider>
         <ReleaseUpdateNotice />
         <ProfileOnboarding />
       </SupportGoalProvider>
@@ -52,6 +57,7 @@ function ProtectedApplication({ path }: { path: string }) {
   if (tool) return <ToolRoute tool={tool} />;
   if (path === '/account') return <AccountPage />;
   if (path === '/admin') return <AdminPage />;
+  if (path === '/team') return <TeamWorkspacePage />;
   return <HomePage navigate={navigateTo} />;
 }
 

@@ -1,8 +1,13 @@
 node_modules/
 dist/
+build/
 *.tsbuildinfo
 *.log
 .DS_Store
+Thumbs.db
+*.tmp
+*.swp
+.vscode/
 release/
 .env
 .env.*
@@ -11,6 +16,8 @@ release/
 coverage/
 .idea/
 supabase/.temp/
+supabase/.branches/
+supabase/functions/.env.local
 packaging/icon-source/
 
 # Whisper models & bundled binaries (large; fetched/built locally)

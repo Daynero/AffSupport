@@ -51,6 +51,8 @@ class LandingJobOptimizer {
   private destinationDir: string | null = null;
   private pendingName = 'landing';
   private running = false;
+  private controller: AbortController | null = null;
+  private idleWaiters: Array<() => void> = [];
   private previews = new LandingPreviewStore();
 
   constructor(
@@ -104,8 +106,16 @@ class LandingJobOptimizer {
   }
 
   async shutdown() {
+    await this.cancel();
     if (this.workspace) await removeWorkspace(this.workspace);
     this.previews.clear();
+  }
+
+  async cancel(): Promise<boolean> {
+    if (!this.running || !this.controller) return false;
+    this.controller.abort(new Error('PROCESS_CANCELED'));
+    await new Promise<void>(resolve => this.idleWaiters.push(resolve));
+    return true;
   }
 
   async previewContent(
@@ -231,6 +241,8 @@ class LandingJobOptimizer {
     if (!this.landingRoot || !this.destinationDir) return false;
     if (!this.tools.ffmpeg || !this.tools.ffprobe) return false;
     this.running = true;
+    const controller = new AbortController();
+    this.controller = controller;
     this.job.status = 'processing';
     this.job.phase = 'optimizing';
     this.job.progress = 0;
@@ -241,16 +253,19 @@ class LandingJobOptimizer {
     this.job.settings = { ...this.settings };
     this.notify();
     try {
-      await this.processAssets();
+      await this.processAssets(controller.signal);
+      throwIfAborted(controller.signal);
       this.job.phase = 'rewriting';
       this.job.progress = Math.max(this.job.progress ?? 0, 91);
       this.job.currentAssetId = null;
       this.notify();
-      await this.rewriteAndClean();
+      await this.rewriteAndClean(controller.signal);
+      throwIfAborted(controller.signal);
       this.job.phase = 'packaging';
       this.job.progress = Math.max(this.job.progress ?? 0, 96);
       this.notify();
       await this.produceOutput();
+      throwIfAborted(controller.signal);
       this.job.status = 'completed';
       this.job.phase = 'completed';
       this.job.progress = 100;
@@ -268,16 +283,19 @@ class LandingJobOptimizer {
       this.inputDir = null;
       this.landingRoot = null;
       this.destinationDir = null;
+      this.controller = null;
       this.notify();
+      for (const resolve of this.idleWaiters.splice(0)) resolve();
     }
     return true;
   }
 
-  private async processAssets() {
+  private async processAssets(signal: AbortSignal) {
     const root = this.landingRoot!;
     const scanned = new Set((await walkFiles(root)).map(file => file.relPath));
     applyJobProgress(this.job!);
     for (const item of this.job!.assets) {
+      throwIfAborted(signal);
       if (item.status !== 'pending') continue;
       item.status = 'processing';
       this.job!.currentAssetId = item.id;
@@ -285,7 +303,8 @@ class LandingJobOptimizer {
       this.notify();
       try {
         if (item.type === 'image') await this.processImage(root, item, scanned);
-        else await this.processVideo(root, item, scanned);
+        else await this.processVideo(root, item, scanned, signal);
+        throwIfAborted(signal);
       } catch (error) {
         await this.previews.remove(item.id);
         item.preview = null;
@@ -346,15 +365,26 @@ class LandingJobOptimizer {
     if (previewCached) attachPreview(item, this.previews);
   }
 
-  private async processVideo(root: string, item: LandingAsset, scanned: Set<string>) {
+  private async processVideo(
+    root: string,
+    item: LandingAsset,
+    scanned: Set<string>,
+    signal: AbortSignal
+  ) {
     const absPath = path.join(root, item.relPath);
     const temporary = path.join(path.dirname(absPath), `.${path.basename(absPath)}.wishly.mp4`);
     await unlink(temporary).catch(() => {});
-    const result = await optimizeVideo(absPath, temporary, this.settings.videoQuality, value => {
-      item.progress = value;
-      applyJobProgress(this.job!);
-      this.notify('landing:progress');
-    });
+    const result = await optimizeVideo(
+      absPath,
+      temporary,
+      this.settings.videoQuality,
+      value => {
+        item.progress = value;
+        applyJobProgress(this.job!);
+        this.notify('landing:progress');
+      },
+      signal
+    );
     item.progress = null;
     if (result.code !== 0) {
       await unlink(temporary).catch(() => {});
@@ -377,7 +407,7 @@ class LandingJobOptimizer {
     markOptimized(item, newSize, newRel === item.relPath ? null : newRel);
   }
 
-  private async rewriteAndClean() {
+  private async rewriteAndClean(signal: AbortSignal) {
     const root = this.landingRoot!;
     const renames: RenameMap = new Map();
     for (const item of this.job!.assets) {
@@ -388,6 +418,7 @@ class LandingJobOptimizer {
     if (renames.size) {
       let updated = 0;
       for (const file of await walkFiles(root)) {
+        throwIfAborted(signal);
         if (!isRewritableFile(file.relPath)) continue;
         const text = await readText(file.absPath);
         if (text === null) continue;
@@ -431,6 +462,8 @@ class LandingJobOptimizer {
 export class LandingOptimizer {
   private settings: LandingSettings = defaultLandingSettings();
   private workers: LandingJobOptimizer[] = [];
+  private teamWorkers = new Set<LandingJobOptimizer>();
+  private teamJobIds = new Set<string>();
   private activeUpload: LandingJobOptimizer | null = null;
   private pendingJobIds: string[] = [];
   private pumpPromise: Promise<void> | null = null;
@@ -441,7 +474,11 @@ export class LandingOptimizer {
   ) {}
 
   state(): LandingState {
+    const allJobs = this.workers
+      .map(worker => worker.state().job)
+      .filter((job): job is LandingJob => job !== null);
     const jobs = this.workers
+      .filter(worker => !this.teamWorkers.has(worker))
       .map(worker => worker.state().job)
       .filter((job): job is LandingJob => job !== null);
     return {
@@ -451,7 +488,7 @@ export class LandingOptimizer {
       tools: this.tools,
       running:
         this.pumpPromise !== null ||
-        jobs.some(job => job.status === 'queued' || job.status === 'processing')
+        allJobs.some(job => job.status === 'queued' || job.status === 'processing')
     };
   }
 
@@ -469,6 +506,27 @@ export class LandingOptimizer {
       await this.discardWorker(worker);
       throw error;
     }
+  }
+
+  async prepareTeamZip(zipPath: string, settings: LandingSettings): Promise<string> {
+    const worker = this.addWorker(settings);
+    this.teamWorkers.add(worker);
+    try {
+      await worker.prepareFromZipPath(zipPath, false);
+      const jobId = worker.state().job?.id;
+      if (!jobId) throw new Error('PROCESS_FAILED');
+      this.teamJobIds.add(jobId);
+      this.notify();
+      return jobId;
+    } catch (error) {
+      await this.discardWorker(worker);
+      throw error;
+    }
+  }
+
+  teamJob(jobId: string): LandingJob | null {
+    const job = this.findWorker(jobId)?.state().job ?? null;
+    return job && this.teamJobIds.has(jobId) ? job : null;
   }
 
   async prepareFromFolderPath(folderPath: string) {
@@ -559,6 +617,14 @@ export class LandingOptimizer {
     return true;
   }
 
+  async cancel(jobId: string): Promise<boolean> {
+    const worker = this.findWorker(jobId);
+    if (!worker || !this.teamJobIds.has(jobId)) return false;
+    const canceled = await worker.cancel();
+    if (!worker.state().running) await this.discardWorker(worker);
+    return canceled;
+  }
+
   async clearFinished() {
     const removable = this.workers.filter(worker => {
       const status = worker.state().job?.status;
@@ -576,6 +642,8 @@ export class LandingOptimizer {
   async shutdown() {
     await Promise.all(this.workers.map(worker => worker.shutdown()));
     this.workers = [];
+    this.teamWorkers.clear();
+    this.teamJobIds.clear();
     this.pendingJobIds = [];
     this.activeUpload = null;
   }
@@ -593,8 +661,8 @@ export class LandingOptimizer {
     return this.findWorker(jobId)?.state().job?.outputPath ?? null;
   }
 
-  private addWorker() {
-    const worker = new LandingJobOptimizer(this.tools, type => this.notify(type), this.settings);
+  private addWorker(settings: LandingSettings = this.settings) {
+    const worker = new LandingJobOptimizer(this.tools, type => this.notify(type), settings);
     this.workers.push(worker);
     return worker;
   }
@@ -606,8 +674,10 @@ export class LandingOptimizer {
   private async discardWorker(worker: LandingJobOptimizer) {
     const jobId = worker.state().job?.id;
     if (jobId) this.pendingJobIds = this.pendingJobIds.filter(id => id !== jobId);
+    if (jobId) this.teamJobIds.delete(jobId);
     if (this.activeUpload === worker) this.activeUpload = null;
     await worker.reset();
+    this.teamWorkers.delete(worker);
     const index = this.workers.indexOf(worker);
     if (index >= 0) this.workers.splice(index, 1);
     this.notify();
@@ -787,6 +857,10 @@ async function exists(target: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function throwIfAborted(signal: AbortSignal) {
+  if (signal.aborted) throw signal.reason ?? new Error('PROCESS_CANCELED');
 }
 
 async function readText(absPath: string): Promise<string | null> {

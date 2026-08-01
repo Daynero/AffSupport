@@ -1,0 +1,1180 @@
+import {
+  MATERIAL_CATEGORIES,
+  TEAM_BASE_ROLES,
+  TEAM_INVITATION_DELIVERY_STATES,
+  TEAM_INVITATION_STATES,
+  TEAM_PERMISSION_FLAGS,
+  decodeCatalogMaterial,
+  decodeCatalogSearchResponse,
+  normalizeCatalogSearchRequest,
+  normalizeMaterialMetadataPatch,
+  parseTeamEdgeResult,
+  parseTeamDownloadGrantResult,
+  parseTeamFileOperationResult,
+  parseTeamPreviewResult,
+  parseTeamProcessStartResult,
+  parseTeamUploadSession,
+  type CatalogMaterialItem,
+  type CatalogSearchRequestInput,
+  type CatalogSearchResponse,
+  type CatalogVocabulary,
+  type MaterialMetadataPatch,
+  type MaterialCategory,
+  type TeamErrorCode,
+  type TeamInvitationDeliveryState,
+  type TeamInvitationState,
+  type TeamBaseRole,
+  type TeamLandingValidationRecord,
+  type TeamDownloadGrantResult,
+  type TeamFileOperationResult,
+  type TeamMaterialProvenanceEntry,
+  type TeamOperationState,
+  type TeamPermissions,
+  type TeamPermissionFlag,
+  type TeamPreviewResult,
+  type TeamProcessStartResult,
+  type TeamTextEditRequest,
+  type TeamUploadSession,
+  type TeamRole
+} from '@video-compressor/shared';
+import type { Json } from '../lib/database.types';
+import { requireSupabaseClient } from '../lib/supabase';
+
+export class TeamApiError extends Error {
+  readonly code: TeamErrorCode;
+  readonly retryable: boolean;
+  readonly details?: Record<string, string | number | boolean | null>;
+
+  constructor(
+    code: TeamErrorCode,
+    retryable: boolean,
+    details?: Record<string, string | number | boolean | null>
+  ) {
+    super(code);
+    this.name = 'TeamApiError';
+    this.code = code;
+    this.retryable = retryable;
+    this.details = details;
+  }
+}
+
+export interface TeamContextSnapshot {
+  id: string;
+  name: string;
+  role: TeamRole;
+  permissions: TeamPermissions;
+  connectionState: 'none' | 'pending' | 'connected' | 'needs_reauth' | 'unavailable' | 'detached';
+}
+
+export type UnknownGuard<T> = (value: unknown) => value is T;
+
+export async function invokeTeamFunction<T>(
+  functionName: string,
+  body: Record<string, unknown>,
+  guard: UnknownGuard<T>
+): Promise<T> {
+  const supabase = requireSupabaseClient();
+  const { data, error } = await supabase.functions.invoke(functionName, { body });
+  if (error && data === null) throw new TeamApiError('DRIVE_UNAVAILABLE', true);
+  const parsed = parseTeamEdgeResult(data);
+  if (!parsed.ok) {
+    throw new TeamApiError(parsed.error.code, parsed.error.retryable, parsed.error.details);
+  }
+  if (!guard(parsed.value)) throw new TeamApiError('INVALID_RESPONSE', false);
+  return parsed.value;
+}
+
+export function isTeamContextSnapshot(value: unknown): value is TeamContextSnapshot {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const item = value as Record<string, unknown>;
+  if (
+    typeof item.id !== 'string' ||
+    typeof item.name !== 'string' ||
+    !['owner', 'admin', 'editor', 'viewer'].includes(String(item.role)) ||
+    !item.permissions ||
+    typeof item.permissions !== 'object' ||
+    Array.isArray(item.permissions) ||
+    !['none', 'pending', 'connected', 'needs_reauth', 'unavailable', 'detached'].includes(
+      String(item.connectionState)
+    )
+  ) {
+    return false;
+  }
+  const permissions = item.permissions as Record<string, unknown>;
+  return [
+    'view',
+    'download',
+    'upload',
+    'edit',
+    'delete',
+    'process',
+    'manage_members',
+    'manage_metadata'
+  ].every(permission => typeof permissions[permission] === 'boolean');
+}
+
+export function isTeamContextSnapshotList(value: unknown): value is TeamContextSnapshot[] {
+  return Array.isArray(value) && value.every(isTeamContextSnapshot);
+}
+
+export interface TeamInvitationSummary {
+  id: string;
+  teamId?: string;
+  teamName?: string;
+  inviterName?: string;
+  targetEmail: string;
+  targetUserId?: string | null;
+  initialRole: TeamBaseRole;
+  state: TeamInvitationState;
+  deliveryState: TeamInvitationDeliveryState;
+  deliveryErrorCode: TeamErrorCode | null;
+  expiresAt: string;
+  createdAt?: string;
+  lastSentAt?: string;
+}
+
+export type TeamPermissionOverrides = Partial<Record<TeamPermissionFlag, boolean>>;
+
+export interface TeamMemberSummary {
+  membershipId: string;
+  userId: string;
+  displayName: string | null;
+  email: string | null;
+  role: TeamRole;
+  baseRole: TeamBaseRole;
+  permissionOverrides: TeamPermissionOverrides;
+  effectivePermissions: TeamPermissions;
+  joinedAt: string;
+}
+
+export interface TeamAuditEventSummary {
+  id: string;
+  actorLabel: string | null;
+  action: string;
+  target: Partial<
+    Record<
+      | 'member_id'
+      | 'invitation_id'
+      | 'connection_id'
+      | 'material_id'
+      | 'operation_id'
+      | 'relation'
+      | 'role'
+      | 'state'
+      | 'warning_code',
+      string
+    >
+  >;
+  result: 'succeeded' | 'denied' | 'failed' | 'canceled';
+  errorCode: TeamErrorCode | null;
+  occurredAt: string;
+}
+
+export interface DriveConnectionStatus {
+  connectionId: string | null;
+  state: TeamContextSnapshot['connectionState'];
+  rootFolderName: string | null;
+  driveKind: 'my_drive' | 'shared_drive' | null;
+  initialSyncState: 'not_started' | 'scanning' | 'replaying' | 'ready' | 'failed';
+  lastSyncedAt: string | null;
+  lastErrorCode: TeamErrorCode | null;
+  connectedAccountEmail: string | null;
+  capabilitiesCheckedAt: string | null;
+}
+
+export interface DriveFolderSummary {
+  id: string;
+  name: string;
+  driveKind: 'my_drive' | 'shared_drive';
+  resourceKey?: string | null;
+}
+
+export interface DriveFolderPage {
+  folders: DriveFolderSummary[];
+  nextPageToken: string | null;
+}
+
+export type DriveRootResult =
+  | {
+      state: 'confirmation_required';
+      folder: DriveFolderSummary;
+      account: string;
+      independentAclWarning: true;
+    }
+  | {
+      state: 'connected';
+      folder: DriveFolderSummary;
+      syncState: 'queued' | 'scanning' | 'replaying' | 'ready';
+      connectionId?: string;
+    };
+
+export interface TeamMaterialSummary {
+  id: string;
+  teamId: string;
+  providerId?: string;
+  parentFolderId?: string | null;
+  name: string;
+  kind: 'file' | 'folder' | 'shortcut';
+  category: MaterialCategory | null;
+  mimeType?: string | null;
+  fileExtension?: string | null;
+  sizeBytes?: number | null;
+  modifiedAt?: string | null;
+  previewState?: string;
+}
+
+export interface TeamOperationSnapshot {
+  id: string;
+  teamId: string;
+  kind: string;
+  state: TeamOperationState;
+  stage: string;
+  progress: number;
+  sourceMaterialId: string | null;
+  resultMaterialId: string | null;
+  errorCode: TeamErrorCode | null;
+  retryable: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TeamUploadStartInput {
+  teamId: string;
+  destinationFolderId: string;
+  name: string;
+  mimeType: string;
+  sizeBytes: number;
+  conflictMode: 'cancel' | 'keep_both' | 'replace';
+  replaceMaterialId?: string | null;
+  versionOfMaterialId?: string | null;
+  idempotencyKey: string;
+}
+
+export interface TeamProcessStartInput {
+  teamId: string;
+  materialId: string;
+  toolId: string;
+  optionsSummary: Record<string, unknown>;
+  destinationFolderId: string;
+  outputName: string;
+  conflictMode: 'cancel' | 'keep_both';
+  idempotencyKey: string;
+  agentContractVersion: number;
+  toolContractVersion: number;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function errorCode(value: unknown): TeamErrorCode | null {
+  return typeof value === 'string' ? (value as TeamErrorCode) : null;
+}
+
+function mapTeamContext(value: unknown): TeamContextSnapshot | null {
+  const row = asRecord(value);
+  if (!row) return null;
+  const mapped = {
+    id: row.id,
+    name: row.name,
+    role: row.role,
+    permissions: row.permissions,
+    connectionState: row.connection_state ?? row.connectionState
+  };
+  return isTeamContextSnapshot(mapped) ? mapped : null;
+}
+
+function mapInvitation(value: unknown): TeamInvitationSummary | null {
+  const row = asRecord(value);
+  if (!row) return null;
+  const initialRole = row.initial_role ?? row.initialRole;
+  const state = row.state;
+  const deliveryState = row.delivery_state ?? row.deliveryState;
+  const id = row.id ?? row.invitationId;
+  const targetEmail = row.target_email ?? row.targetEmail;
+  const expiresAt = row.expires_at ?? row.expiresAt;
+  if (
+    typeof id !== 'string' ||
+    typeof targetEmail !== 'string' ||
+    typeof expiresAt !== 'string' ||
+    typeof initialRole !== 'string' ||
+    !(TEAM_BASE_ROLES as readonly string[]).includes(initialRole) ||
+    typeof state !== 'string' ||
+    !(TEAM_INVITATION_STATES as readonly string[]).includes(state) ||
+    typeof deliveryState !== 'string' ||
+    !(TEAM_INVITATION_DELIVERY_STATES as readonly string[]).includes(deliveryState)
+  ) {
+    return null;
+  }
+  return {
+    id,
+    ...(typeof (row.team_id ?? row.teamId) === 'string'
+      ? { teamId: (row.team_id ?? row.teamId) as string }
+      : {}),
+    ...(typeof (row.team_name ?? row.teamName) === 'string'
+      ? { teamName: (row.team_name ?? row.teamName) as string }
+      : {}),
+    ...(typeof (row.inviter_name ?? row.inviterName) === 'string'
+      ? { inviterName: (row.inviter_name ?? row.inviterName) as string }
+      : {}),
+    targetEmail,
+    targetUserId:
+      typeof (row.target_user_id ?? row.targetUserId) === 'string'
+        ? ((row.target_user_id ?? row.targetUserId) as string)
+        : null,
+    initialRole: initialRole as TeamBaseRole,
+    state: state as TeamInvitationState,
+    deliveryState: deliveryState as TeamInvitationDeliveryState,
+    deliveryErrorCode: errorCode(row.delivery_error_code ?? row.deliveryErrorCode),
+    expiresAt,
+    ...(typeof (row.created_at ?? row.createdAt) === 'string'
+      ? { createdAt: (row.created_at ?? row.createdAt) as string }
+      : {}),
+    ...(typeof (row.last_sent_at ?? row.lastSentAt) === 'string'
+      ? { lastSentAt: (row.last_sent_at ?? row.lastSentAt) as string }
+      : {})
+  };
+}
+
+function invitationGuard(value: unknown): value is TeamInvitationSummary {
+  return mapInvitation(value) !== null;
+}
+
+function teamPermissions(value: unknown): TeamPermissions | null {
+  const row = asRecord(value);
+  if (!row || !TEAM_PERMISSION_FLAGS.every(flag => typeof row[flag] === 'boolean')) return null;
+  return Object.fromEntries(
+    TEAM_PERMISSION_FLAGS.map(flag => [flag, row[flag] as boolean])
+  ) as TeamPermissions;
+}
+
+function permissionOverrides(value: unknown): TeamPermissionOverrides | null {
+  const row = asRecord(value);
+  if (!row) return null;
+  const entries = Object.entries(row);
+  if (
+    entries.some(
+      ([key, allowed]) =>
+        !(TEAM_PERMISSION_FLAGS as readonly string[]).includes(key) || typeof allowed !== 'boolean'
+    )
+  ) {
+    return null;
+  }
+  return Object.fromEntries(entries) as TeamPermissionOverrides;
+}
+
+function mapMember(value: unknown): TeamMemberSummary | null {
+  const row = asRecord(value);
+  if (!row) return null;
+  const role = row.role;
+  const baseRole = row.base_role ?? row.baseRole;
+  const effective = teamPermissions(row.effective_permissions ?? row.effectivePermissions);
+  const overrides = permissionOverrides(row.permission_overrides ?? row.permissionOverrides);
+  if (
+    typeof (row.membership_id ?? row.membershipId) !== 'string' ||
+    typeof (row.user_id ?? row.userId) !== 'string' ||
+    typeof role !== 'string' ||
+    !['owner', 'admin', 'editor', 'viewer'].includes(role) ||
+    typeof baseRole !== 'string' ||
+    !(TEAM_BASE_ROLES as readonly string[]).includes(baseRole) ||
+    typeof (row.joined_at ?? row.joinedAt) !== 'string' ||
+    !effective ||
+    !overrides
+  ) {
+    return null;
+  }
+  return {
+    membershipId: (row.membership_id ?? row.membershipId) as string,
+    userId: (row.user_id ?? row.userId) as string,
+    displayName:
+      typeof (row.display_name ?? row.displayName) === 'string'
+        ? ((row.display_name ?? row.displayName) as string)
+        : null,
+    email: typeof row.email === 'string' ? row.email : null,
+    role: role as TeamRole,
+    baseRole: baseRole as TeamBaseRole,
+    permissionOverrides: overrides,
+    effectivePermissions: effective,
+    joinedAt: (row.joined_at ?? row.joinedAt) as string
+  };
+}
+
+const AUDIT_TARGET_KEYS = new Set([
+  'member_id',
+  'invitation_id',
+  'connection_id',
+  'material_id',
+  'operation_id',
+  'relation',
+  'role',
+  'state',
+  'warning_code'
+]);
+
+function mapAuditEvent(value: unknown): TeamAuditEventSummary | null {
+  const row = asRecord(value);
+  const target = asRecord(row?.target);
+  const result = row?.result;
+  if (
+    !row ||
+    typeof row.id !== 'string' ||
+    typeof row.action !== 'string' ||
+    !target ||
+    Object.entries(target).some(
+      ([key, entry]) => !AUDIT_TARGET_KEYS.has(key) || typeof entry !== 'string'
+    ) ||
+    !['succeeded', 'denied', 'failed', 'canceled'].includes(String(result)) ||
+    typeof row.occurred_at !== 'string'
+  ) {
+    return null;
+  }
+  return {
+    id: row.id,
+    actorLabel: typeof row.actor_label === 'string' ? row.actor_label : null,
+    action: row.action,
+    target: target as TeamAuditEventSummary['target'],
+    result: result as TeamAuditEventSummary['result'],
+    errorCode: errorCode(row.error_code),
+    occurredAt: row.occurred_at
+  };
+}
+
+function driveFolder(value: unknown): DriveFolderSummary | null {
+  const row = asRecord(value);
+  if (
+    !row ||
+    typeof row.id !== 'string' ||
+    typeof row.name !== 'string' ||
+    !['my_drive', 'shared_drive'].includes(String(row.driveKind ?? row.drive_kind))
+  ) {
+    return null;
+  }
+  return {
+    id: row.id,
+    name: row.name,
+    driveKind: (row.driveKind ?? row.drive_kind) as 'my_drive' | 'shared_drive',
+    resourceKey:
+      typeof (row.resourceKey ?? row.resource_key) === 'string'
+        ? ((row.resourceKey ?? row.resource_key) as string)
+        : null
+  };
+}
+
+function driveFolderPageGuard(value: unknown): value is DriveFolderPage {
+  const row = asRecord(value);
+  return Boolean(
+    row &&
+    Array.isArray(row.folders) &&
+    row.folders.every(folder => driveFolder(folder) !== null) &&
+    (row.nextPageToken === null || typeof row.nextPageToken === 'string')
+  );
+}
+
+function driveRootResultGuard(value: unknown): value is DriveRootResult {
+  const row = asRecord(value);
+  if (!row || !['confirmation_required', 'connected'].includes(String(row.state))) return false;
+  const folder = driveFolder(row.folder);
+  if (!folder) return false;
+  return row.state === 'confirmation_required'
+    ? typeof row.account === 'string' && row.independentAclWarning === true
+    : typeof row.syncState === 'string';
+}
+
+function teamMaterial(value: unknown): TeamMaterialSummary | null {
+  const row = asRecord(value);
+  if (
+    !row ||
+    typeof row.id !== 'string' ||
+    typeof (row.team_id ?? row.teamId) !== 'string' ||
+    typeof row.name !== 'string' ||
+    !['file', 'folder', 'shortcut'].includes(String(row.kind))
+  ) {
+    return null;
+  }
+  const category = row.category;
+  if (
+    category !== null &&
+    category !== undefined &&
+    !(MATERIAL_CATEGORIES as readonly string[]).includes(String(category))
+  ) {
+    return null;
+  }
+  return {
+    id: row.id,
+    teamId: (row.team_id ?? row.teamId) as string,
+    providerId:
+      typeof (row.drive_file_id ?? row.providerId) === 'string'
+        ? ((row.drive_file_id ?? row.providerId) as string)
+        : row.id,
+    parentFolderId:
+      typeof (row.parent_folder_id ?? row.parentFolderId) === 'string'
+        ? ((row.parent_folder_id ?? row.parentFolderId) as string)
+        : null,
+    name: row.name,
+    kind: row.kind as TeamMaterialSummary['kind'],
+    category: (category ?? null) as MaterialCategory | null,
+    mimeType:
+      typeof (row.mime_type ?? row.mimeType) === 'string'
+        ? ((row.mime_type ?? row.mimeType) as string)
+        : null,
+    fileExtension:
+      typeof (row.file_extension ?? row.fileExtension) === 'string'
+        ? ((row.file_extension ?? row.fileExtension) as string)
+        : null,
+    sizeBytes:
+      typeof (row.size_bytes ?? row.sizeBytes) === 'number'
+        ? ((row.size_bytes ?? row.sizeBytes) as number)
+        : null,
+    modifiedAt:
+      typeof (row.modified_at ?? row.modifiedAt) === 'string'
+        ? ((row.modified_at ?? row.modifiedAt) as string)
+        : null,
+    previewState:
+      typeof (row.preview_state ?? row.previewState) === 'string'
+        ? ((row.preview_state ?? row.previewState) as string)
+        : undefined
+  };
+}
+
+function throwRpc(error: { message: string; code?: string } | null): void {
+  if (!error) return;
+  const candidates = [error.message, error.code ?? ''].flatMap(
+    value => value.match(/[A-Z][A-Z0-9_]+/g) ?? []
+  );
+  const code = candidates[0] as TeamErrorCode | undefined;
+  throw new TeamApiError(code ?? 'INVALID_RESPONSE', false);
+}
+
+function uploadSessionGuard(value: unknown): value is TeamUploadSession {
+  return parseTeamUploadSession(value) !== null;
+}
+
+function fileOperationGuard(value: unknown): value is TeamFileOperationResult {
+  return parseTeamFileOperationResult(value) !== null;
+}
+
+function downloadGrantGuard(value: unknown): value is TeamDownloadGrantResult {
+  return parseTeamDownloadGrantResult(value) !== null;
+}
+
+function processStartGuard(value: unknown): value is TeamProcessStartResult {
+  return parseTeamProcessStartResult(value) !== null;
+}
+
+function mapOperation(value: unknown): TeamOperationSnapshot | null {
+  const row = asRecord(value);
+  if (
+    !row ||
+    typeof row.id !== 'string' ||
+    typeof row.team_id !== 'string' ||
+    typeof row.kind !== 'string' ||
+    !['pending', 'running', 'succeeded', 'failed', 'canceled'].includes(String(row.state)) ||
+    typeof row.stage !== 'string' ||
+    typeof row.progress !== 'number' ||
+    row.progress < 0 ||
+    row.progress > 100 ||
+    typeof row.retryable !== 'boolean' ||
+    typeof row.created_at !== 'string' ||
+    typeof row.updated_at !== 'string'
+  ) {
+    return null;
+  }
+  return {
+    id: row.id,
+    teamId: row.team_id,
+    kind: row.kind,
+    state: row.state as TeamOperationState,
+    stage: row.stage,
+    progress: row.progress,
+    sourceMaterialId: typeof row.source_material_id === 'string' ? row.source_material_id : null,
+    resultMaterialId: typeof row.result_material_id === 'string' ? row.result_material_id : null,
+    errorCode: errorCode(row.error_code),
+    retryable: row.retryable,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function mapProvenance(value: unknown): TeamMaterialProvenanceEntry | null {
+  const row = asRecord(value);
+  if (
+    !row ||
+    typeof row.link_id !== 'string' ||
+    !['processed_from', 'version_of'].includes(String(row.relation)) ||
+    typeof row.source_material_id !== 'string' ||
+    typeof row.derivative_material_id !== 'string' ||
+    typeof row.source_name_snapshot !== 'string' ||
+    typeof row.source_name !== 'string' ||
+    !['active', 'trashed', 'missing'].includes(String(row.source_lifecycle)) ||
+    typeof row.derivative_name !== 'string' ||
+    !['active', 'trashed', 'missing'].includes(String(row.derivative_lifecycle)) ||
+    typeof row.created_at !== 'string'
+  ) {
+    return null;
+  }
+  const version = row.tool_contract_version;
+  if (version !== null && (typeof version !== 'number' || !Number.isInteger(version))) return null;
+  return {
+    linkId: row.link_id,
+    relation: row.relation as TeamMaterialProvenanceEntry['relation'],
+    sourceMaterialId: row.source_material_id,
+    derivativeMaterialId: row.derivative_material_id,
+    sourceNameSnapshot: row.source_name_snapshot,
+    sourceName: row.source_name,
+    sourceLifecycle: row.source_lifecycle as TeamMaterialProvenanceEntry['sourceLifecycle'],
+    derivativeName: row.derivative_name,
+    derivativeLifecycle:
+      row.derivative_lifecycle as TeamMaterialProvenanceEntry['derivativeLifecycle'],
+    toolId: typeof row.tool_id === 'string' ? row.tool_id : null,
+    toolContractVersion: version as number | null,
+    createdAt: row.created_at
+  };
+}
+
+export const teamApi = {
+  async listTeams(): Promise<TeamContextSnapshot[]> {
+    const { data, error } = await requireSupabaseClient().rpc('list_my_teams');
+    throwRpc(error);
+    const teams = (data ?? []).map(mapTeamContext);
+    if (teams.some(team => team === null)) throw new TeamApiError('INVALID_RESPONSE', false);
+    return teams.filter((team): team is TeamContextSnapshot => team !== null);
+  },
+
+  async createTeam(name: string): Promise<TeamContextSnapshot> {
+    const { data, error } = await requireSupabaseClient().rpc('create_team', { p_name: name });
+    throwRpc(error);
+    const team = mapTeamContext(data?.[0]);
+    if (!team) throw new TeamApiError('INVALID_RESPONSE', false);
+    return team;
+  },
+
+  async listMembers(teamId: string): Promise<TeamMemberSummary[]> {
+    const { data, error } = await requireSupabaseClient().rpc('list_team_members', {
+      p_team: teamId
+    });
+    throwRpc(error);
+    const members = (data ?? []).map(mapMember);
+    if (members.some(member => member === null)) {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return members.filter((member): member is TeamMemberSummary => member !== null);
+  },
+
+  async updateMembership(input: {
+    teamId: string;
+    userId: string;
+    baseRole: TeamBaseRole;
+    permissionOverrides: TeamPermissionOverrides;
+  }): Promise<TeamMemberSummary> {
+    const { data, error } = await requireSupabaseClient().rpc('update_membership', {
+      p_team: input.teamId,
+      p_member: input.userId,
+      p_base_role: input.baseRole,
+      p_overrides: input.permissionOverrides
+    });
+    throwRpc(error);
+    const member = mapMember(data?.[0]);
+    if (!member) throw new TeamApiError('INVALID_RESPONSE', false);
+    return member;
+  },
+
+  async removeMember(
+    teamId: string,
+    userId: string
+  ): Promise<{ ok: true; warningCode: 'EXTERNAL_DRIVE_ACCESS_REMAINS' }> {
+    const { data, error } = await requireSupabaseClient().rpc('remove_member', {
+      p_team: teamId,
+      p_member: userId
+    });
+    throwRpc(error);
+    const row = data?.[0];
+    if (!row?.ok || row.warning_code !== 'EXTERNAL_DRIVE_ACCESS_REMAINS') {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return { ok: true, warningCode: row.warning_code };
+  },
+
+  async transferOwnership(input: {
+    teamId: string;
+    toUserId: string;
+    demoteTo: TeamBaseRole;
+  }): Promise<TeamContextSnapshot> {
+    const { data, error } = await requireSupabaseClient().rpc('transfer_ownership', {
+      p_team: input.teamId,
+      p_to_user: input.toUserId,
+      p_demote_to: input.demoteTo
+    });
+    throwRpc(error);
+    const team = mapTeamContext(data?.[0]);
+    if (!team) throw new TeamApiError('INVALID_RESPONSE', false);
+    return team;
+  },
+
+  async listAuditEvents(
+    teamId: string,
+    options: { limit?: number; before?: string } = {}
+  ): Promise<TeamAuditEventSummary[]> {
+    const { data, error } = await requireSupabaseClient().rpc('list_team_audit_events', {
+      p_team: teamId,
+      p_limit: options.limit ?? 50,
+      ...(options.before ? { p_before: options.before } : {})
+    });
+    throwRpc(error);
+    const events = (data ?? []).map(mapAuditEvent);
+    if (events.some(event => event === null)) {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return events.filter((event): event is TeamAuditEventSummary => event !== null);
+  },
+
+  async listInvitations(teamId: string): Promise<TeamInvitationSummary[]> {
+    const { data, error } = await requireSupabaseClient().rpc('list_team_invitations', {
+      p_team: teamId
+    });
+    throwRpc(error);
+    const invitations = (data ?? []).map(mapInvitation);
+    if (invitations.some(invitation => invitation === null)) {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return invitations.filter((item): item is TeamInvitationSummary => item !== null);
+  },
+  async listMyInvitations(): Promise<TeamInvitationSummary[]> {
+    const { data, error } = await requireSupabaseClient().rpc('list_my_invitations');
+    throwRpc(error);
+    const invitations = (data ?? []).map(mapInvitation);
+    if (invitations.some(invitation => invitation === null)) {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return invitations.filter((item): item is TeamInvitationSummary => item !== null);
+  },
+
+  async createInvitation(input: {
+    teamId: string;
+    email: string;
+    initialRole?: TeamBaseRole;
+  }): Promise<TeamInvitationSummary> {
+    const value = await invokeTeamFunction(
+      'team-invitations',
+      {
+        action: 'create',
+        teamId: input.teamId,
+        email: input.email,
+        initialRole: input.initialRole ?? 'viewer',
+        idempotencyKey: crypto.randomUUID()
+      },
+      invitationGuard
+    );
+    const invitation = mapInvitation(value);
+    if (!invitation) throw new TeamApiError('INVALID_RESPONSE', false);
+    return invitation;
+  },
+
+  async resendInvitation(invitationId: string): Promise<TeamInvitationSummary> {
+    const value = await invokeTeamFunction(
+      'team-invitations',
+      { action: 'resend', invitationId },
+      invitationGuard
+    );
+    const invitation = mapInvitation(value);
+    if (!invitation) throw new TeamApiError('INVALID_RESPONSE', false);
+    return invitation;
+  },
+
+  async revokeInvitation(invitationId: string): Promise<void> {
+    await invokeTeamFunction(
+      'team-invitations',
+      { action: 'revoke', invitationId },
+      (value): value is boolean => value === true
+    );
+  },
+
+  async acceptInvitation(invitationId: string, token?: string): Promise<TeamContextSnapshot> {
+    const { data, error } = await requireSupabaseClient().rpc('accept_invitation', {
+      p_invitation: invitationId,
+      ...(token ? { p_plain_token: token } : {})
+    });
+    throwRpc(error);
+    const team = mapTeamContext(data?.[0]);
+    if (!team) throw new TeamApiError('INVALID_RESPONSE', false);
+    return team;
+  },
+
+  async declineInvitation(invitationId: string, token?: string): Promise<void> {
+    const { error } = await requireSupabaseClient().rpc('decline_invitation', {
+      p_invitation: invitationId,
+      ...(token ? { p_plain_token: token } : {})
+    });
+    throwRpc(error);
+  },
+
+  async getConnectionStatus(teamId: string): Promise<DriveConnectionStatus> {
+    const { data, error } = await requireSupabaseClient().rpc('get_drive_connection_status', {
+      p_team: teamId
+    });
+    throwRpc(error);
+    const row = data?.[0] as Record<string, unknown> | undefined;
+    if (!row || typeof row.state !== 'string') {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return {
+      connectionId: typeof row.connection_id === 'string' ? row.connection_id : null,
+      state: row.state as DriveConnectionStatus['state'],
+      rootFolderName: typeof row.root_folder_name === 'string' ? row.root_folder_name : null,
+      driveKind:
+        row.drive_kind === 'my_drive' || row.drive_kind === 'shared_drive' ? row.drive_kind : null,
+      initialSyncState: (row.initial_sync_state ??
+        'not_started') as DriveConnectionStatus['initialSyncState'],
+      lastSyncedAt: typeof row.last_synced_at === 'string' ? row.last_synced_at : null,
+      lastErrorCode: errorCode(row.last_error_code),
+      connectedAccountEmail:
+        typeof row.connected_account_email === 'string' ? row.connected_account_email : null,
+      capabilitiesCheckedAt:
+        typeof row.capabilities_checked_at === 'string' ? row.capabilities_checked_at : null
+    };
+  },
+
+  async startDriveOAuth(teamId: string): Promise<{ authorizationUrl: string; expiresAt: string }> {
+    return invokeTeamFunction(
+      'drive-connect',
+      { action: 'start', teamId },
+      (value): value is { authorizationUrl: string; expiresAt: string } => {
+        const row = asRecord(value);
+        return Boolean(
+          row && typeof row.authorizationUrl === 'string' && typeof row.expiresAt === 'string'
+        );
+      }
+    );
+  },
+
+  async listFolders(
+    teamId: string,
+    parentId = 'root',
+    pageToken?: string | null
+  ): Promise<DriveFolderPage> {
+    const value = await invokeTeamFunction(
+      'drive-connect',
+      { action: 'folders', teamId, parentId, pageToken: pageToken ?? null },
+      driveFolderPageGuard
+    );
+    return {
+      folders: value.folders.map(folder => driveFolder(folder) as DriveFolderSummary),
+      nextPageToken: value.nextPageToken
+    };
+  },
+
+  async confirmDriveRoot(input: {
+    teamId: string;
+    folderId: string;
+    resourceKey?: string | null;
+    expectedAccount?: string;
+    confirmed: boolean;
+  }): Promise<DriveRootResult> {
+    return invokeTeamFunction(
+      'drive-connect',
+      { action: 'confirm', ...input },
+      driveRootResultGuard
+    );
+  },
+
+  async replaceDriveRoot(input: {
+    teamId: string;
+    folderId: string;
+    folderName?: string;
+    driveKind?: 'my_drive' | 'shared_drive';
+    resourceKey?: string | null;
+    expectedAccount?: string;
+  }): Promise<DriveRootResult> {
+    const value = await invokeTeamFunction(
+      'drive-connect',
+      {
+        action: 'replace',
+        ...input,
+        confirmed: true,
+        idempotencyKey: crypto.randomUUID()
+      },
+      (result): result is Record<string, unknown> => asRecord(result)?.state === 'connected'
+    );
+    return {
+      state: 'connected',
+      folder: {
+        id: input.folderId,
+        name: input.folderName ?? input.folderId,
+        driveKind: input.driveKind ?? 'my_drive',
+        resourceKey: input.resourceKey
+      },
+      syncState:
+        value.initial_sync_state === 'ready' || value.initial_sync_state === 'replaying'
+          ? value.initial_sync_state
+          : 'queued',
+      connectionId: typeof value.connection_id === 'string' ? value.connection_id : undefined
+    };
+  },
+
+  async detachDrive(teamId: string, connectionId: string): Promise<void> {
+    await invokeTeamFunction(
+      'drive-connect',
+      {
+        action: 'detach',
+        teamId,
+        connectionId,
+        confirmed: true,
+        idempotencyKey: crypto.randomUUID()
+      },
+      (value): value is { state: 'detached' } => asRecord(value)?.state === 'detached'
+    );
+  },
+
+  async listMaterials(
+    teamId: string,
+    parentFolderId: string | null
+  ): Promise<TeamMaterialSummary[]> {
+    const { data, error } = await requireSupabaseClient().rpc('list_team_materials', {
+      p_team: teamId,
+      ...(parentFolderId ? { p_parent_folder_id: parentFolderId } : {})
+    });
+    throwRpc(error);
+    const materials = (data ?? []).map(teamMaterial);
+    if (materials.some(material => material === null)) {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return materials.filter((item): item is TeamMaterialSummary => item !== null);
+  },
+
+  async searchCatalog(
+    teamId: string,
+    request: CatalogSearchRequestInput
+  ): Promise<CatalogSearchResponse> {
+    const normalized = normalizeCatalogSearchRequest(request);
+    if (!normalized) throw new TeamApiError('INVALID_INPUT', false);
+    const { data, error } = await requireSupabaseClient().rpc('search_materials', {
+      p_team: teamId,
+      p_query: normalized.query || undefined,
+      p_filters: normalized.filters as unknown as Json,
+      p_page: normalized.page,
+      p_page_size: normalized.pageSize
+    });
+    throwRpc(error);
+    const result = decodeCatalogSearchResponse(data, teamId);
+    if (!result) throw new TeamApiError('INVALID_RESPONSE', false);
+    return result;
+  },
+
+  async getCatalogVocabulary(teamId: string): Promise<CatalogVocabulary> {
+    const { data, error } = await requireSupabaseClient().rpc('get_team_vocab_and_facets', {
+      p_team: teamId
+    });
+    throwRpc(error);
+    const row = asRecord(data);
+    if (
+      !row ||
+      !Array.isArray(row.geo) ||
+      !Array.isArray(row.languages) ||
+      !Array.isArray(row.offers) ||
+      !Array.isArray(row.tags) ||
+      ![row.geo, row.languages, row.offers, row.tags].every(values =>
+        values.every(value => typeof value === 'string')
+      )
+    ) {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return row as unknown as CatalogVocabulary;
+  },
+
+  async updateMaterialMetadata(
+    teamId: string,
+    materialId: string,
+    patch: MaterialMetadataPatch
+  ): Promise<CatalogMaterialItem> {
+    const normalized = normalizeMaterialMetadataPatch(patch);
+    if (!normalized) throw new TeamApiError('INVALID_INPUT', false);
+    const { data, error } = await requireSupabaseClient().rpc('update_material_metadata', {
+      p_team: teamId,
+      p_material: materialId,
+      p_patch: normalized as unknown as Json
+    });
+    throwRpc(error);
+    const material = decodeCatalogMaterial(data, teamId);
+    if (!material) throw new TeamApiError('INVALID_RESPONSE', false);
+    return material;
+  },
+
+  async startUpload(input: TeamUploadStartInput): Promise<TeamUploadSession> {
+    const value = await invokeTeamFunction(
+      'drive-ops/uploads/start',
+      { ...input },
+      uploadSessionGuard
+    );
+    const parsed = parseTeamUploadSession(value);
+    if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed;
+  },
+
+  async finalizeUpload(input: {
+    operationId: string;
+    driveFileId: string;
+    idempotencyKey: string;
+  }): Promise<TeamFileOperationResult> {
+    const value = await invokeTeamFunction(
+      `drive-ops/uploads/${encodeURIComponent(input.operationId)}/finalize`,
+      { driveFileId: input.driveFileId, idempotencyKey: input.idempotencyKey },
+      fileOperationGuard
+    );
+    const parsed = parseTeamFileOperationResult(value);
+    if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed;
+  },
+
+  async renameMaterial(input: {
+    teamId: string;
+    materialId: string;
+    newName: string;
+    conflictMode: 'cancel' | 'keep_both';
+    idempotencyKey: string;
+  }): Promise<TeamFileOperationResult> {
+    const value = await invokeTeamFunction('drive-ops/rename', { ...input }, fileOperationGuard);
+    return parseTeamFileOperationResult(value) as TeamFileOperationResult;
+  },
+
+  async moveMaterial(input: {
+    teamId: string;
+    materialId: string;
+    destinationFolderId: string;
+    conflictMode: 'cancel' | 'keep_both';
+    idempotencyKey: string;
+  }): Promise<TeamFileOperationResult> {
+    const value = await invokeTeamFunction('drive-ops/move', { ...input }, fileOperationGuard);
+    return parseTeamFileOperationResult(value) as TeamFileOperationResult;
+  },
+
+  async trashMaterial(input: {
+    teamId: string;
+    materialId: string;
+    idempotencyKey: string;
+  }): Promise<TeamFileOperationResult> {
+    const value = await invokeTeamFunction(
+      'drive-ops/trash',
+      { ...input, confirmed: true },
+      fileOperationGuard
+    );
+    return parseTeamFileOperationResult(value) as TeamFileOperationResult;
+  },
+
+  async restoreMaterial(input: {
+    teamId: string;
+    materialId: string;
+    destinationFolderId?: string | null;
+    idempotencyKey: string;
+  }): Promise<TeamFileOperationResult> {
+    const value = await invokeTeamFunction('drive-ops/restore', { ...input }, fileOperationGuard);
+    return parseTeamFileOperationResult(value) as TeamFileOperationResult;
+  },
+
+  async editText(input: TeamTextEditRequest): Promise<TeamFileOperationResult> {
+    const value = await invokeTeamFunction('drive-ops/text-edit', { ...input }, fileOperationGuard);
+    return parseTeamFileOperationResult(value) as TeamFileOperationResult;
+  },
+
+  async requestDownload(
+    teamId: string,
+    materialId: string,
+    consumer: 'browser' | 'agent'
+  ): Promise<TeamDownloadGrantResult> {
+    const value = await invokeTeamFunction(
+      'drive-transfer',
+      { action: 'grant', purpose: 'download', teamId, materialId, consumer },
+      downloadGrantGuard
+    );
+    const parsed = parseTeamDownloadGrantResult(value);
+    if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed;
+  },
+
+  async startProcess(input: TeamProcessStartInput): Promise<TeamProcessStartResult> {
+    const value = await invokeTeamFunction(
+      'drive-ops/process/start',
+      { ...input },
+      processStartGuard
+    );
+    const parsed = parseTeamProcessStartResult(value);
+    if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed;
+  },
+
+  async getOperation(teamId: string, operationId: string): Promise<TeamOperationSnapshot> {
+    const { data, error } = await requireSupabaseClient().rpc('get_operation', {
+      p_team: teamId,
+      p_operation: operationId
+    });
+    throwRpc(error);
+    const operation = mapOperation(data?.[0]);
+    if (!operation) throw new TeamApiError('INVALID_RESPONSE', false);
+    return operation;
+  },
+
+  async cancelOperation(teamId: string, operationId: string): Promise<TeamOperationSnapshot> {
+    const { data, error } = await requireSupabaseClient().rpc('cancel_team_operation', {
+      p_team: teamId,
+      p_operation: operationId
+    });
+    throwRpc(error);
+    const operation = mapOperation(data?.[0]);
+    if (!operation) throw new TeamApiError('INVALID_RESPONSE', false);
+    return operation;
+  },
+
+  async getMaterialProvenance(
+    teamId: string,
+    materialId: string
+  ): Promise<TeamMaterialProvenanceEntry[]> {
+    const { data, error } = await requireSupabaseClient().rpc('get_material_provenance', {
+      p_team: teamId,
+      p_material: materialId
+    });
+    throwRpc(error);
+    const provenance = (data ?? []).map(mapProvenance);
+    if (provenance.some(item => item === null)) {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return provenance.filter((item): item is TeamMaterialProvenanceEntry => item !== null);
+  },
+
+  async previewMaterial(
+    teamId: string,
+    materialId: string,
+    mode: 'media' | 'transcript' | 'archive' | 'landing'
+  ): Promise<TeamPreviewResult> {
+    const value = await invokeTeamFunction(
+      'drive-transfer',
+      { teamId, materialId, mode },
+      (candidate): candidate is TeamPreviewResult => parseTeamPreviewResult(candidate) !== null
+    );
+    const parsed = parseTeamPreviewResult(value);
+    if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed;
+  },
+
+  async commitLandingPreviewValidation(input: {
+    teamId: string;
+    materialId: string;
+    operationId: string;
+    ticket: string;
+    validation: TeamLandingValidationRecord;
+  }): Promise<boolean> {
+    const value = await invokeTeamFunction(
+      'drive-transfer',
+      {
+        action: 'landing_validation',
+        teamId: input.teamId,
+        materialId: input.materialId,
+        operationId: input.operationId,
+        ticket: input.ticket,
+        validation: input.validation
+      },
+      (candidate): candidate is { validated: boolean } =>
+        typeof asRecord(candidate)?.validated === 'boolean'
+    );
+    return value.validated;
+  }
+};

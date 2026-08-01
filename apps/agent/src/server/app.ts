@@ -80,6 +80,11 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     if (request.url === '/health' || request.url === '/api/health') {
       reply.header('Cache-Control', 'no-store');
     }
+    if (request.url.startsWith('/api/team/')) {
+      reply.header('Cache-Control', 'no-store');
+      reply.header('Referrer-Policy', 'no-referrer');
+      reply.header('X-Content-Type-Options', 'nosniff');
+    }
     if (
       request.headers['access-control-request-private-network'] === 'true' &&
       request.headers.origin &&

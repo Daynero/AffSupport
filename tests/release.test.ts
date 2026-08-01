@@ -2,16 +2,19 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   AGENT_API_VERSION,
+  AGENT_TOOL_CONTRACTS,
   BUILD_ID,
   BUILD_NUMBER,
   BUNDLE_VERSION,
   MAX_SUPPORTED_AGENT_API_VERSION,
   MIN_SUPPORTED_AGENT_API_VERSION,
   PRODUCT_VERSION,
+  PRODUCTION_SITE_ORIGIN,
   RELEASE_ARTIFACT_NAME,
   RELEASE_DOWNLOAD_URL,
   RELEASE_DOWNLOAD_URL_WINDOWS,
   RELEASE_TAG,
+  WEB_TOOL_REQUIREMENTS,
   compareProductVersions,
   toolContractCompatible
 } from '../packages/shared/src/release';
@@ -153,6 +156,43 @@ describe('release identity', () => {
     expect(toolContractCompatible('transcription', { transcription: 3 })).toBe(false);
     expect(toolContractCompatible('transcription', { transcription: 4 })).toBe(false);
     expect(toolContractCompatible('transcription', { transcription: 5 })).toBe(true);
+    expect(toolContractCompatible('teamWorkspace', {})).toBe(false);
+    expect(toolContractCompatible('teamWorkspace', { teamWorkspace: 1 })).toBe(true);
+  });
+
+  it('keeps legacy agents compatible with existing tools while isolating team routes', () => {
+    const legacyContracts = { ...AGENT_TOOL_CONTRACTS } as Record<string, number>;
+    delete legacyContracts.teamWorkspace;
+
+    expect(toolContractCompatible('teamWorkspace', legacyContracts)).toBe(false);
+    for (const tool of [
+      'compressor',
+      'landingOptimizer',
+      'landingPreview',
+      'transcription'
+    ] as const) {
+      expect(toolContractCompatible(tool, legacyContracts), tool).toBe(true);
+    }
+    expect(WEB_TOOL_REQUIREMENTS.teamWorkspace).toEqual({ teamWorkspace: 1 });
+  });
+
+  it('pins production team OAuth and web origin to the shared release identity', () => {
+    const production = readFileSync('config/production.env', 'utf8');
+    expect(production.match(/^PUBLIC_SITE_ORIGIN=(.+)$/m)?.[1]?.trim()).toBe(
+      PRODUCTION_SITE_ORIGIN
+    );
+    expect(production.match(/^DRIVE_OAUTH_MODE=(.+)$/m)?.[1]?.trim()).toBe('verified');
+
+    const webGate = readFileSync('scripts/verify-web-env.mjs', 'utf8');
+    const releaseGate = readFileSync('scripts/verify-release.mjs', 'utf8');
+    const realAgentGate = readFileSync('scripts/real-agent-check.mjs', 'utf8');
+    for (const gate of [webGate, releaseGate]) {
+      expect(gate).toContain('PRODUCTION_SITE_ORIGIN');
+      expect(gate).toContain('DRIVE_OAUTH_MODE');
+      expect(gate).toContain('verified');
+    }
+    expect(realAgentGate).toContain('AGENT_UPDATE_REQUIRED');
+    expect(realAgentGate).toContain('legacyContracts');
   });
 
   it('keeps installable dev builds isolated from production identities and services', () => {

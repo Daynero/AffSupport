@@ -61,6 +61,8 @@ export type {
   WishlyToolId
 } from './release.js';
 
+export * from './team/index.js';
+
 export const FRAME_RATE_MIN = 1;
 export const FRAME_RATE_MAX = 240;
 export const DEFAULT_CUSTOM_FRAME_RATE = 30;
@@ -483,6 +485,7 @@ export const AGENT_CAPABILITIES = [
   'landing',
   'landing-preview',
   'local-file-paths',
+  'team-workspace',
   'transcription'
 ] as const;
 export interface SessionResponse {

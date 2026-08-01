@@ -1,4 +1,17 @@
 import type { Json } from '../lib/database.types';
+import {
+  TEAM_ANALYTICS_EVENT_NAMES,
+  sanitizeTeamAnalyticsProperties,
+  type MaterialCategory,
+  type TeamAnalyticsAction,
+  type TeamAnalyticsCacheState,
+  type TeamAnalyticsEventName,
+  type TeamAnalyticsOutcome,
+  type TeamAnalyticsProperties,
+  type TeamAnalyticsSizeBucket,
+  type TeamAnalyticsStage,
+  type TeamAnalyticsStorage
+} from '@video-compressor/shared';
 
 export const analyticsEventNames = [
   'session_started',
@@ -83,7 +96,8 @@ export const analyticsEventNames = [
   'support_donation_clicked',
   'support_feedback_started',
   'diagnostics_copied',
-  'error_occurred'
+  'error_occurred',
+  ...TEAM_ANALYTICS_EVENT_NAMES
 ] as const;
 
 export type AnalyticsEventName = (typeof analyticsEventNames)[number];
@@ -137,9 +151,56 @@ export type AnalyticsProperties = {
   has_audio?: boolean;
   language?: 'en' | 'uk';
   marketing_consent?: boolean;
-};
+} & TeamAnalyticsProperties;
 
-export type AnalyticsEventProperties = Record<AnalyticsEventName, AnalyticsProperties>;
+export interface TeamFileAttemptStartedProperties {
+  attempt_id: string;
+  action: TeamAnalyticsAction;
+  storage_kind: TeamAnalyticsStorage;
+  size_bucket: TeamAnalyticsSizeBucket;
+  cache_state: TeamAnalyticsCacheState;
+  attempt_number: number;
+  stage: TeamAnalyticsStage;
+}
+
+export interface TeamFileAttemptCompletedProperties extends TeamFileAttemptStartedProperties {
+  duration_ms: number;
+  outcome: TeamAnalyticsOutcome;
+  retryable: boolean;
+  production_completed: boolean;
+}
+
+export interface TeamWorkflowStartedProperties {
+  workflow_id: string;
+  category: MaterialCategory;
+  cache_state: TeamAnalyticsCacheState;
+  attempt_number: number;
+  stage: TeamAnalyticsStage;
+}
+
+export interface TeamWorkflowCompletedProperties extends TeamWorkflowStartedProperties {
+  duration_ms: number;
+  outcome: TeamAnalyticsOutcome;
+  retryable: boolean;
+  production_completed: boolean;
+}
+
+type TeamEventProperties<Event extends TeamAnalyticsEventName> =
+  Event extends 'team_file_attempt_started'
+    ? TeamFileAttemptStartedProperties
+    : Event extends 'team_file_attempt_completed'
+      ? TeamFileAttemptCompletedProperties
+      : Event extends 'team_workflow_started'
+        ? TeamWorkflowStartedProperties
+        : Event extends 'team_workflow_completed'
+          ? TeamWorkflowCompletedProperties
+          : TeamAnalyticsProperties;
+
+export type AnalyticsEventProperties = {
+  [Event in AnalyticsEventName]: Event extends TeamAnalyticsEventName
+    ? TeamEventProperties<Event>
+    : AnalyticsProperties;
+};
 
 const allowedPropertyKeys = new Set<keyof AnalyticsProperties>([
   'flow_id',
@@ -185,7 +246,25 @@ const allowedPropertyKeys = new Set<keyof AnalyticsProperties>([
   'image_embedding',
   'has_audio',
   'language',
-  'marketing_consent'
+  'marketing_consent',
+  'study_run_id',
+  'attempt_id',
+  'workflow_id',
+  'category',
+  'cue_category',
+  'action',
+  'storage_kind',
+  'size_bucket',
+  'cache_state',
+  'assisted',
+  'invite_persisted',
+  'root_confirmed',
+  'sync_queued',
+  'workspace_session',
+  'discovery_completed',
+  'production_completed',
+  'window_index',
+  'stage'
 ]);
 
 const numericRanges: Partial<Record<keyof AnalyticsProperties, readonly [number, number]>> = {
@@ -219,7 +298,13 @@ export function isAnalyticsEventName(value: string): value is AnalyticsEventName
   return (analyticsEventNames as readonly string[]).includes(value);
 }
 
-export function sanitizeAnalyticsProperties(input: unknown): Record<string, Json> {
+export function sanitizeAnalyticsProperties(
+  input: unknown,
+  eventName?: AnalyticsEventName
+): Record<string, Json> {
+  if (eventName && (TEAM_ANALYTICS_EVENT_NAMES as readonly string[]).includes(eventName)) {
+    return sanitizeTeamAnalyticsProperties(input) as Record<string, Json>;
+  }
   if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
   const output: Record<string, Json> = {};
   for (const [key, raw] of Object.entries(input as Record<string, unknown>)) {
@@ -249,7 +334,7 @@ export function sanitizeAnalyticsProperties(input: unknown): Record<string, Json
     else if (typedKey === 'language' && (raw === 'en' || raw === 'uk')) output[key] = raw;
     else if (
       typedKey === 'outcome' &&
-      ['success', 'failure', 'cancelled', 'blocked', 'skipped'].includes(String(raw))
+      ['success', 'failure', 'cancelled', 'blocked', 'skipped', 'unsupported'].includes(String(raw))
     )
       output[key] = raw as Json;
     else if (

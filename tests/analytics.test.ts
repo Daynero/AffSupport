@@ -2,7 +2,16 @@
 import { readFile } from 'node:fs/promises';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { analyticsEventNames, sanitizeAnalyticsProperties } from '../apps/web/src/analytics/events';
-import { ProductAnalytics, type PendingAnalyticsEvent } from '../apps/web/src/analytics/service';
+import {
+  ProductAnalytics,
+  completeTeamFileAttempt,
+  completeTeamWorkflow,
+  startTeamFileAttempt,
+  startTeamWorkflow,
+  teamAnalyticsSizeBucket,
+  trackTeamWorkspaceSession,
+  type PendingAnalyticsEvent
+} from '../apps/web/src/analytics/service';
 import { PRODUCT_SESSION_IDLE_MS, productSessionId } from '../apps/web/src/analytics/session';
 import {
   jobTransitionEventNames,
@@ -62,6 +71,109 @@ describe('privacy-minimized analytics', () => {
       mode: 'optimal',
       image_embedding: true
     });
+  });
+
+  it('emits content-free file attempt and processing workflow lifecycles', async () => {
+    const sender = vi.fn(async (events: PendingAnalyticsEvent[]) => ({
+      acceptedEventIds: events.map(event => event.event_id)
+    }));
+    const service = new ProductAnalytics(sender, new MemoryStorage());
+    service.setUser('11111111-1111-4111-8111-111111111111');
+
+    const fileAttempt = startTeamFileAttempt(
+      {
+        action: 'download',
+        storageKind: 'shared_drive',
+        sizeBucket: 'agent',
+        cacheState: 'cold',
+        attemptNumber: 2,
+        stage: 'downloading'
+      },
+      { now: 1_000, tracker: service }
+    );
+    completeTeamFileAttempt(
+      fileAttempt,
+      { outcome: 'failure', retryable: true, stage: 'downloading' },
+      { now: 1_375, tracker: service }
+    );
+
+    const workflow = startTeamWorkflow(
+      {
+        category: 'video',
+        cacheState: 'warm',
+        attemptNumber: 1,
+        stage: 'downloading'
+      },
+      { now: 2_000, tracker: service }
+    );
+    completeTeamWorkflow(
+      workflow,
+      { outcome: 'success', retryable: false, stage: 'finalizing' },
+      { now: 2_900, tracker: service }
+    );
+
+    await service.flush();
+
+    const delivered = sender.mock.calls[0][0];
+    expect(delivered.map(event => event.event_name)).toEqual([
+      'team_file_attempt_started',
+      'team_file_attempt_completed',
+      'team_workflow_started',
+      'team_workflow_completed'
+    ]);
+    expect(delivered[1].properties).toEqual({
+      attempt_id: fileAttempt.attemptId,
+      action: 'download',
+      storage_kind: 'shared_drive',
+      size_bucket: 'agent',
+      cache_state: 'cold',
+      attempt_number: 2,
+      duration_ms: 375,
+      stage: 'downloading',
+      outcome: 'failure',
+      retryable: true,
+      production_completed: false
+    });
+    expect(delivered[3].properties).toEqual({
+      workflow_id: workflow.workflowId,
+      category: 'video',
+      cache_state: 'warm',
+      attempt_number: 1,
+      duration_ms: 900,
+      stage: 'finalizing',
+      outcome: 'success',
+      retryable: false,
+      production_completed: true
+    });
+    expect(fileAttempt.attemptId).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(workflow.workflowId).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(JSON.stringify(delivered.map(event => event.properties))).not.toMatch(
+      /team_id|material_id|drive_id|file_name|filename|path|content|metadata|provider|grant|ticket|session/i
+    );
+  });
+
+  it('maps byte counts to stable non-identifying size buckets', () => {
+    expect(teamAnalyticsSizeBucket(512 * 1024)).toBe('tiny');
+    expect(teamAnalyticsSizeBucket(8 * 1024 * 1024)).toBe('small');
+    expect(teamAnalyticsSizeBucket(24 * 1024 * 1024)).toBe('medium');
+    expect(teamAnalyticsSizeBucket(80 * 1024 * 1024)).toBe('large');
+    expect(teamAnalyticsSizeBucket(101 * 1024 * 1024)).toBe('agent');
+    expect(teamAnalyticsSizeBucket(null)).toBe('agent');
+  });
+
+  it('emits a content-free workspace-session denominator', async () => {
+    const sender = vi.fn(async (events: PendingAnalyticsEvent[]) => ({
+      acceptedEventIds: events.map(event => event.event_id)
+    }));
+    const service = new ProductAnalytics(sender, new MemoryStorage());
+    service.setUser('11111111-1111-4111-8111-111111111111');
+
+    trackTeamWorkspaceSession(service);
+    await service.flush();
+
+    expect(sender.mock.calls[0][0]).toMatchObject([
+      { event_name: 'team_workspace_session', properties: { workspace_session: true } }
+    ]);
   });
 
   it('does not emit analytics for progress-only state changes', () => {

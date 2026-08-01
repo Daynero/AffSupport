@@ -22,6 +22,94 @@ export interface CommandEnvelope<T> {
   data: T;
 }
 
+export type TeamMetricStatus = 'pass' | 'fail' | 'insufficient';
+
+export interface TeamPilotCriterion {
+  attempts: number;
+  successes: number;
+  success_rate: number | null;
+  status: TeamMetricStatus;
+}
+
+export interface TeamFindCueMetric {
+  cue: 'geo' | 'offer' | 'language' | 'category';
+  attempts: number;
+  successes: number;
+}
+
+export interface TeamFindCriterion extends TeamPilotCriterion {
+  cues: TeamFindCueMetric[];
+}
+
+export interface TeamActivationWindow {
+  window_index: 1 | 2 | 3 | 4;
+  denominator: number;
+  numerator: number;
+  rate: number | null;
+  status: TeamMetricStatus;
+}
+
+export interface TeamWorkspaceData {
+  sc001: TeamPilotCriterion;
+  sc005: TeamFindCriterion;
+  sc009: {
+    windows: TeamActivationWindow[];
+    all_windows_pass: boolean | null;
+  };
+}
+
+export function buildCommandEnvelope<T>(
+  command: string,
+  period: ResolvedPeriod,
+  data: T,
+  generatedAt = new Date().toISOString()
+): CommandEnvelope<T> {
+  return { ok: true, command, generated_at: generatedAt, period, data };
+}
+
+const TEAM_OUTPUT_FORBIDDEN_KEYS = new Set([
+  'team_id',
+  'workspace_key',
+  'member_user_id',
+  'user_id',
+  'email',
+  'name',
+  'filename',
+  'file_name',
+  'path',
+  'query',
+  'drive_id',
+  'folder_id',
+  'material_id',
+  'metadata',
+  'content',
+  'transcript',
+  'provider',
+  'grant',
+  'ticket',
+  'session_id',
+  'session_uri'
+]);
+
+/** Defense in depth for the aggregate-only team-workspace CLI response. */
+export function teamWorkspaceOutputIsPrivate(value: unknown): boolean {
+  if (Array.isArray(value)) return value.every(teamWorkspaceOutputIsPrivate);
+  if (value && typeof value === 'object') {
+    return Object.entries(value).every(
+      ([key, entry]) =>
+        !TEAM_OUTPUT_FORBIDDEN_KEYS.has(key.toLocaleLowerCase('en-US')) &&
+        teamWorkspaceOutputIsPrivate(entry)
+    );
+  }
+  if (typeof value !== 'string') return true;
+  return (
+    !/@/u.test(value) &&
+    !/[/\\]/u.test(value) &&
+    !/^[0-9a-f]{8}-[0-9a-f-]{27}$/iu.test(value) &&
+    !/(?:bearer|oauth|token|grant|ticket|session_uri)/iu.test(value)
+  );
+}
+
 export interface ErrorEnvelope {
   ok: false;
   command: string;

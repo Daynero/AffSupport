@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { assertReadOnlySql } from '../scripts/analytics/db';
 import { resolvePeriod } from '../scripts/analytics/periods';
 import { formatBytes } from '../scripts/analytics/format';
+import {
+  buildCommandEnvelope,
+  teamWorkspaceOutputIsPrivate,
+  type TeamWorkspaceData
+} from '../scripts/analytics/types';
 
 describe('resolvePeriod', () => {
   it('defaults to a rolling 7-day window', () => {
@@ -73,5 +78,36 @@ describe('formatBytes', () => {
     expect(formatBytes(1024)).toBe('1.00 KB');
     expect(formatBytes(1536)).toBe('1.50 KB');
     expect(formatBytes(1024 ** 3)).toBe('1.00 GB');
+  });
+});
+
+describe('team-workspace JSON contract', () => {
+  it('builds the stable envelope and rejects identifying output fields', () => {
+    const period = resolvePeriod('all', undefined);
+    const data: TeamWorkspaceData = {
+      sc001: { attempts: 20, successes: 18, success_rate: 0.9, status: 'pass' },
+      sc005: {
+        attempts: 20,
+        successes: 18,
+        success_rate: 0.9,
+        status: 'pass',
+        cues: [{ cue: 'geo', attempts: 5, successes: 5 }]
+      },
+      sc009: {
+        windows: [{ window_index: 1, denominator: 4, numerator: 3, rate: 0.75, status: 'pass' }],
+        all_windows_pass: true
+      }
+    };
+    expect(teamWorkspaceOutputIsPrivate(data)).toBe(true);
+    expect(
+      buildCommandEnvelope('team-workspace', period, data, '2026-08-01T00:00:00.000Z')
+    ).toMatchObject({
+      ok: true,
+      command: 'team-workspace',
+      generated_at: '2026-08-01T00:00:00.000Z',
+      data
+    });
+    expect(teamWorkspaceOutputIsPrivate({ ...data, team_id: 'secret' })).toBe(false);
+    expect(teamWorkspaceOutputIsPrivate({ ...data, email: 'owner@example.com' })).toBe(false);
   });
 });

@@ -1,3 +1,11 @@
+# v0.9.0
+
+- Add Team Workspace for creating teams, inviting up to 50 members, managing roles and independent file/metadata permissions, and transferring ownership safely.
+- Connect one shared Google Drive root per team through a fail-closed OAuth flow, with server-held credentials, live ancestry/capability checks, resumable transfers, and recoverable file operations.
+- Add a permission-filtered media catalog with canonical classification, GEO/language/offer/tag metadata, combined search and filters, bounded transcript indexing, and durable synchronization.
+- Preview video, images, transcripts, archives, and isolated landing packages, then run existing Wishly tools and return separate provenance-linked results without overwriting sources.
+- Add RLS-protected database authority, scoped transfer grants, append-only audit, privacy-safe analytics, bilingual UI, and old-Agent compatibility gates for the new team routes.
+
 # v0.8.10
 
 - Load external fonts, images, and scripts when rendering landing previews so they match the published page instead of blocking every outside request.

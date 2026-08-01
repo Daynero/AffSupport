@@ -11,6 +11,7 @@ import type {
   ResolvedPeriod,
   RetentionMetric,
   StageMetric,
+  TeamWorkspaceData,
   ToolRow,
   TopListItem,
   TopUsersData,
@@ -311,5 +312,35 @@ export function formatRetention(data: RetentionMetric, period: ResolvedPeriod): 
       ['Active after 7 days', num(data.active_after_7d)],
       ['Active after 30 days', num(data.active_after_30d)]
     ])
+  ].join('\n');
+}
+
+export function formatTeamWorkspace(data: TeamWorkspaceData, period: ResolvedPeriod): string {
+  const cohort = (label: string, value: TeamWorkspaceData['sc001']) => [
+    label,
+    num(value.attempts),
+    num(value.successes),
+    pct(value.success_rate),
+    value.status
+  ];
+  return [
+    header('Team workspace success criteria', period),
+    table(
+      ['Criterion', 'Attempts', 'Successes', 'Rate', 'Status'],
+      [cohort('SC-001', data.sc001), cohort('SC-005', data.sc005)]
+    ),
+    '',
+    '  SC-009 · each root-relative week stands alone:',
+    table(
+      ['Week', 'Eligible', 'Activated', 'Rate', 'Status'],
+      data.sc009.windows.map(window => [
+        String(window.window_index),
+        num(window.denominator),
+        num(window.numerator),
+        pct(window.rate),
+        window.status
+      ])
+    ),
+    `  All four pass: ${data.sc009.all_windows_pass == null ? 'insufficient' : data.sc009.all_windows_pass ? 'yes' : 'no'}`
   ].join('\n');
 }

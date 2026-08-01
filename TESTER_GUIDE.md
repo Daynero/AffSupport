@@ -40,6 +40,39 @@ Successful conversions need no extra window—the new files appear in Finder. If
 one fails, the Wishly menu-bar icon changes to a warning; open its **Finder
 conversion failed — Details…** item for the reason.
 
+## Test the Team workspace pilot
+
+Open **Team workspace** only with the account and Google Drive folder assigned by the pilot
+moderator. A Wishly team role does not remove sharing that was granted directly in Google
+Drive: removing someone from Wishly may still leave their independent Drive access intact.
+Do not use production customer files in a pilot fixture.
+
+The first release supports video/image previews, safe transcript previews, archive entry
+lists, and isolated landing previews. TXT editing is limited to complete, valid UTF-8 `.txt`
+files no larger than 1 MiB; `.srt`, `.vtt`, invalid, truncated, and larger text stays
+read-only. A new version is a separate linked file and never silently overwrites the source.
+Browser downloads stop at 100 MiB and hand larger files to a compatible Wishly Agent; each
+permission-checked transfer range is at most 32 MiB, and Agent intake stops at 100 GiB or the
+selected tool's lower limit.
+
+Archive preview shows a manifest and rejects unsafe/password-protected content, more than
+50,000 entries, more than 5 GiB expanded total, a single entry over 2 GiB, suspicious
+compression, and path traversal. Landing content runs in an isolated preview that blocks
+external navigation, forms, popups, top navigation, and network access.
+
+If Wishly reports permission loss, a stale source, an unavailable root, reauthorization,
+agent mismatch, or a provider outage, stop and record the displayed error code. Do not retry
+with a new filename, reconnect a different account, or edit the Drive object unless the
+moderator instructs you. A provider operation may have succeeded while Wishly is reconciling;
+starting a replacement can create the duplicate that the safe-recovery path is designed to
+avoid. Trash recovery follows the current Google Drive retention/admin policy and cannot be
+guaranteed after someone purges the item directly in Drive.
+
+Moderators must use the copy-ready 20-person SC-001, SC-005, and SC-008 scripts in
+[`docs/TEAM_WORKSPACE_PILOT_PROTOCOL.md`](docs/TEAM_WORKSPACE_PILOT_PROTOCOL.md). Those
+scripts define exactly when timing starts, when to stop, what counts as help, and what must be
+recorded; an informal walkthrough is not a scored pilot run.
+
 ## Quit and report a problem
 
 Quit the app from its **menu bar icon** → **Quit Wishly Agent** (there is no Dock icon). In the interface open the compact header menu, choose **Copy diagnostics**, and send that text with a short description. The report includes separate web/Agent versions, build IDs, API compatibility and instance start time; it excludes videos and full private paths.

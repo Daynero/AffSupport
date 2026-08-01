@@ -180,6 +180,9 @@ export class TranscriptionQueue {
   private documentOperations = new Map<string, Promise<void>>();
   /** Serializes target choices for one job so rapid UI changes preserve order. */
   private translationRequestOperations = new Map<string, Promise<void>>();
+  /** Ephemeral cloud-team jobs never enter the interactive or persisted list. */
+  private teamJobIds = new Set<string>();
+  private teamJobLanguages = new Map<string, string>();
 
   constructor(
     private tools: TranscriptionTooling,
@@ -1052,12 +1055,14 @@ export class TranscriptionQueue {
       // The browser operates exclusively on opaque job ids. Keep local source,
       // and diagnostic paths inside the agent process instead of exposing them
       // through state/SSE.
-      jobs: this.jobs.map(job => ({
-        ...job,
-        inputPath: '',
-        text: null,
-        errorDetails: null
-      })),
+      jobs: this.jobs
+        .filter(job => !this.teamJobIds.has(job.id))
+        .map(job => ({
+          ...job,
+          inputPath: '',
+          text: null,
+          errorDetails: null
+        })),
       running: this.inFlight || this.translating || this.translationTasks.length > 0,
       tools: { ...this.tools, model: modelPresent() },
       model: this.downloader.status(),
@@ -1075,13 +1080,20 @@ export class TranscriptionQueue {
    */
   persisted(): PersistedTranscriptionState {
     return {
-      jobs: this.jobs.map(job => ({
-        ...job,
-        text: null,
-        translation: job.translation ? { ...job.translation } : (job.translation ?? null)
-      })),
+      jobs: this.jobs
+        .filter(job => !this.teamJobIds.has(job.id))
+        .map(job => ({
+          ...job,
+          text: null,
+          translation: job.translation ? { ...job.translation } : (job.translation ?? null)
+        })),
       settings: { ...this.settings }
     };
+  }
+
+  teamJob(sourceKey: string): TranscriptionJob | null {
+    const job = this.jobs.find(candidate => candidate.sourceKey === sourceKey);
+    return job && this.teamJobIds.has(job.id) ? { ...job } : null;
   }
 
   startTranslatorModelDownload(downloadBatchId = randomUUID()): void {
@@ -1196,11 +1208,26 @@ export class TranscriptionQueue {
     return [];
   }
 
+  async addTeamUploaded(
+    inputPath: string,
+    fileName: string,
+    sourceKey: string,
+    language = this.settings.language
+  ): Promise<SelectionWarning[]> {
+    const warning = await this.addOne(inputPath, 'uploaded', sourceKey, fileName, language);
+    if (warning) return [warning];
+    const job = this.jobs.find(candidate => candidate.sourceKey === sourceKey);
+    if (!job) return [selectionWarning(fileName, 'inaccessible', 'The file could not be read.')];
+    this.importedSources.add(path.resolve(inputPath));
+    return [];
+  }
+
   private async addOne(
     inputPath: string,
     sourceKind: SourceKind,
     sourceKey: string | null,
-    fileNameOverride?: string
+    fileNameOverride?: string,
+    teamLanguage?: string
   ): Promise<SelectionWarning | null> {
     const fileName = fileNameOverride ?? path.basename(inputPath);
     if (!isTranscribableFileName(fileName)) {
@@ -1240,6 +1267,11 @@ export class TranscriptionQueue {
       finishedAt: null
     };
     this.jobs.push(job);
+    if (teamLanguage) {
+      this.teamJobIds.add(job.id);
+      this.teamJobLanguages.set(job.id, teamLanguage);
+      job.requestedLanguage = teamLanguage;
+    }
     this.notify();
 
     // Probe duration so the progress bar has a denominator; a probe failure is
@@ -1271,7 +1303,7 @@ export class TranscriptionQueue {
       job.translation = null;
       job.detectedLanguage = null;
       job.finishedAt = null;
-      job.requestedLanguage = this.settings.language;
+      job.requestedLanguage = this.teamJobLanguages.get(job.id) ?? this.settings.language;
     }
     this.preemptTranslationForTranscription();
     this.notify();
@@ -1303,6 +1335,8 @@ export class TranscriptionQueue {
     if (job.status === 'processing') return false;
     this.cancelTranslationsForJob(id);
     this.jobs = this.jobs.filter(item => item.id !== id);
+    this.teamJobIds.delete(id);
+    this.teamJobLanguages.delete(id);
     await this.cleanupSource(job);
     this.notify();
     queueMicrotask(() => void this.pumpTranslations());
@@ -1315,6 +1349,10 @@ export class TranscriptionQueue {
     const removableIds = new Set(removable.map(job => job.id));
     for (const id of removableIds) this.cancelTranslationsForJob(id);
     this.jobs = this.jobs.filter(job => !removableIds.has(job.id));
+    for (const id of removableIds) {
+      this.teamJobIds.delete(id);
+      this.teamJobLanguages.delete(id);
+    }
     for (const job of removable) await this.cleanupSource(job);
     this.notify();
     queueMicrotask(() => void this.pumpTranslations());
@@ -1328,6 +1366,10 @@ export class TranscriptionQueue {
     const clearedIds = new Set(cleared.map(job => job.id));
     for (const id of clearedIds) this.cancelTranslationsForJob(id);
     this.jobs = this.jobs.filter(job => !clearedIds.has(job.id));
+    for (const id of clearedIds) {
+      this.teamJobIds.delete(id);
+      this.teamJobLanguages.delete(id);
+    }
     for (const job of cleared) await this.cleanupSource(job);
     this.notify();
   }

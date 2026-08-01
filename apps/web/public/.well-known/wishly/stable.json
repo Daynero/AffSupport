@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.8.10",
-  "buildNumber": "35",
-  "buildId": "0.8.10+35",
+  "version": "0.9.0",
+  "buildNumber": "36",
+  "buildId": "0.9.0+36",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-07-31T16:39:26.000Z",
+  "publishedAt": "2026-08-01T20:41:25.000Z",
   "summary": {
-    "en": "Landing previews now load external fonts and images to match the published page, add device and light/dark presets, a grid overview, faster parallel rendering, and catalogue management.",
-    "uk": "Прев’ю лендінгів тепер вантажать зовнішні шрифти й зображення для точного вигляду, додають пресети пристрою й теми, огляд сіткою, швидший паралельний рендер і керування каталогами."
+    "en": "Adds Team Workspace: create teams, invite members, manage roles, connect a shared Google Drive folder, search and preview media, and run permission-scoped file workflows.",
+    "uk": "Додає командний простір: створення команд, запрошення, ролі, спільну папку Google Drive, пошук і перегляд медіа та файлові процеси з контрольованими правами."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.8.10/Wishly-Agent-v0.8.10-macOS-arm64.dmg",
-      "sha256": "222366e17cfafa91aca41691710a65f8250e73f0c1c44c873329c7d6480f9323"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.0/Wishly-Agent-v0.9.0-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -30,7 +30,10 @@
     },
     "transcription": {
       "transcription": 5
+    },
+    "teamWorkspace": {
+      "teamWorkspace": 1
     }
   },
-  "signature": "0U7Gnz3lwPo7_u-veHBizcsT1Copm6uCLmwNSOYXpmxQ70r2sTaEiqjpa1kTQ51StOsbZkWlgrKGx3MDwR02_w"
+  "signature": "Ium_1bDbT6ihWfcDgreUbDCiOQtthbaqpIvcWJ-SNNbjqBW_WXWyW3hGP8C6QC217ooXsXdhXVImFm3PTbxhqA"
 }

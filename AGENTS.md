@@ -39,6 +39,7 @@ npm run analytics -- run <uuid> [--json]
 npm run analytics -- diagnose <error-fingerprint> [--json]
 npm run analytics -- cohorts [--cohort-by local-app-version|platform|web-build] [--json]
 npm run analytics -- retention  [--period ...] [--json]
+npm run analytics -- team-workspace [--period ...] [--json]
 ```
 
 Default period is `7d`. `--days N` gives a rolling N-day window and overrides
@@ -63,8 +64,9 @@ Default period is `7d`. `--days N` gives a rolling N-day window and overrides
 | General product health for a period?                     | `overview`                                                                                 |
 | Why could a user not complete a task?                    | `journey <email>`, then `run <uuid>` or `diagnose <fingerprint>`                           |
 | Are users stuck installing, pairing, or updating?        | `onboarding`, `updates`, and `friction`                                                    |
-| Is one build or platform less reliable?                  | `cohorts --cohort-by local-app-version|platform|web-build` and `errors`                    |
+| Is one build or platform less reliable?                  | `cohorts --cohort-by local-app-version                                                     | platform | web-build`and`errors` |
 | Which features are seen but not learned?                 | `features`                                                                                 |
+| Team pilot onboarding/find/weekly activation health?     | `team-workspace` → `data.sc001` / `data.sc005` / four separate `data.sc009.windows`        |
 
 ### Examples
 

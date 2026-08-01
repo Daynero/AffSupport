@@ -1,0 +1,403 @@
+import type {
+  TeamPreviewResult,
+  TeamTransferGrant,
+  TeamPreviewUnavailableReason
+} from '../../../packages/shared/dist/team/transport.js';
+import type { TranscriptIngestState } from '../../../packages/shared/dist/team/contract.js';
+import type { MaterialCategory } from '../../../packages/shared/dist/team/material-category.js';
+import { TeamFunctionError } from '../_shared/errors.ts';
+
+export const MAX_PREVIEW_RANGE_BYTES = 32 * 1024 * 1024;
+export const MAX_BROWSER_DOWNLOAD_BYTES = 100 * 1024 * 1024;
+const MAX_EDITABLE_TEXT_BYTES = 1024 * 1024;
+
+export type PreviewMode = 'media' | 'transcript' | 'archive' | 'landing';
+
+export interface PreviewMaterialRecord {
+  teamId: string;
+  materialId: string;
+  driveFileId: string;
+  resourceKey: string | null;
+  name: string;
+  category: MaterialCategory | null;
+  mimeType: string | null;
+  fileExtension: string | null;
+  sizeBytes: number | null;
+  driveVersion: string | null;
+  checksum: string | null;
+  previewState: string;
+  previewErrorCode: string | null;
+  transcriptText: string | null;
+  transcriptIngestState: TranscriptIngestState;
+  transcriptTruncated: boolean;
+  transcriptIndexedBytes: number;
+  transcriptSourceVersion: string | null;
+  canDownload: boolean;
+  canEdit: boolean;
+}
+
+export type IssuePreviewGrant = (
+  material: PreviewMaterialRecord,
+  binding: { mode: PreviewMode; operationId: string | null }
+) => Promise<TeamTransferGrant>;
+
+export interface PreviewBuildOptions {
+  rangeEndpoint?: string;
+  operationId?: () => string;
+}
+
+export type DownloadGrantResult =
+  | {
+      kind: 'browser';
+      rangeUrl: string;
+      expiresAt: string;
+      disposition: 'attachment';
+    }
+  | {
+      kind: 'agent';
+      transferUrl: string;
+      grant: TeamTransferGrant;
+    };
+
+export async function buildDownloadGrantResult(
+  material: PreviewMaterialRecord,
+  options: { consumer: 'browser' | 'agent'; rangeEndpoint: string },
+  issueGrant: (material: PreviewMaterialRecord) => Promise<TeamTransferGrant>
+): Promise<DownloadGrantResult> {
+  if (!material.canDownload) {
+    throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+  }
+  if (material.sizeBytes === null || material.sizeBytes < 0) {
+    throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+  }
+  if (options.consumer === 'browser' && material.sizeBytes > MAX_BROWSER_DOWNLOAD_BYTES) {
+    throw new TeamFunctionError('AGENT_REQUIRED', { retryable: false });
+  }
+  const endpoint = new URL(options.rangeEndpoint);
+  const grant = await issueGrant(material);
+  if (grant.purpose !== 'download_range') {
+    throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+  }
+  if (options.consumer === 'agent') {
+    return { kind: 'agent', transferUrl: endpoint.toString(), grant };
+  }
+  endpoint.searchParams.set('grant', grant.ticket);
+  return {
+    kind: 'browser',
+    rangeUrl: endpoint.toString(),
+    expiresAt: grant.expiresAt,
+    disposition: 'attachment'
+  };
+}
+
+function unavailableReason(material: PreviewMaterialRecord) {
+  const error = material.previewErrorCode?.toLocaleUpperCase('en-US') ?? '';
+  if (error.includes('PROTECTED') || error.includes('PASSWORD')) return 'protected' as const;
+  if (error.includes('TOO_LARGE') || error.includes('LIMIT')) return 'too_large' as const;
+  if (error.includes('CORRUPT') || error.includes('INVALID_ARCHIVE')) return 'corrupt' as const;
+  if (material.previewState === 'failed') return 'corrupt' as const;
+  return null;
+}
+
+function unavailable(
+  material: PreviewMaterialRecord,
+  reason: TeamPreviewUnavailableReason
+): TeamPreviewResult {
+  return {
+    kind: 'unavailable',
+    reason,
+    allowedActions: material.canDownload ? ['download'] : []
+  };
+}
+
+function transcriptActions(material: PreviewMaterialRecord) {
+  const actions: Array<'download' | 'edit'> = [];
+  if (material.canDownload) actions.push('download');
+  if (
+    material.canEdit &&
+    material.transcriptIngestState === 'full' &&
+    !material.transcriptTruncated &&
+    material.fileExtension?.toLocaleLowerCase('en-US') === 'txt' &&
+    material.sizeBytes !== null &&
+    material.sizeBytes <= MAX_EDITABLE_TEXT_BYTES
+  ) {
+    actions.push('edit');
+  }
+  return actions;
+}
+
+export async function buildPreviewResult(
+  material: PreviewMaterialRecord,
+  mode: PreviewMode,
+  issueGrant: IssuePreviewGrant,
+  options: PreviewBuildOptions = {}
+): Promise<TeamPreviewResult> {
+  const explicitUnavailable = unavailableReason(material);
+  if (explicitUnavailable) return unavailable(material, explicitUnavailable);
+
+  if (mode === 'transcript') {
+    if (material.category !== 'transcript') return unavailable(material, 'unsupported');
+    return {
+      kind: 'transcript',
+      text:
+        material.transcriptIngestState === 'full' || material.transcriptIngestState === 'truncated'
+          ? material.transcriptText
+          : null,
+      ingestState: material.transcriptIngestState,
+      truncated: material.transcriptTruncated,
+      indexedBytes: material.transcriptIndexedBytes,
+      sourceVersion: material.transcriptSourceVersion,
+      allowedActions: transcriptActions(material)
+    };
+  }
+
+  if (mode === 'media') {
+    if (material.category !== 'video' && material.category !== 'image') {
+      return unavailable(material, 'unsupported');
+    }
+    if (!material.mimeType) return unavailable(material, 'unsupported');
+    const grant = await issueGrant(material, { mode, operationId: null });
+    const endpoint = options.rangeEndpoint;
+    if (!endpoint) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+    const rangeUrl = new URL(endpoint);
+    rangeUrl.searchParams.set('grant', grant.ticket);
+    return {
+      kind: 'media',
+      rangeUrl: rangeUrl.toString(),
+      mimeType: material.mimeType,
+      expiresAt: grant.expiresAt
+    };
+  }
+
+  const categoryAllowed =
+    mode === 'archive'
+      ? material.category === 'archive'
+      : material.category === 'landing' || material.category === 'archive';
+  if (!categoryAllowed) return unavailable(material, 'unsupported');
+  try {
+    const operationId = options.operationId?.() ?? crypto.randomUUID();
+    const grant = await issueGrant(material, { mode, operationId });
+    return {
+      kind: 'agent',
+      operationId,
+      transferGrant: grant,
+      previewKind: mode
+    };
+  } catch (error) {
+    if (error instanceof Error && error.message === 'AGENT_REQUIRED') {
+      return unavailable(material, 'agent_required');
+    }
+    throw error;
+  }
+}
+
+export interface ByteRange {
+  start: number;
+  end: number;
+}
+
+/** Parses one RFC 9110 byte range and caps open/no-range requests to 32 MiB. */
+export function parseBoundedRange(
+  header: string | null,
+  totalBytes: number,
+  maximumBytes = MAX_PREVIEW_RANGE_BYTES
+): ByteRange {
+  if (!Number.isSafeInteger(totalBytes) || totalBytes <= 0) {
+    throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+  }
+  const cap = Math.min(Math.max(Math.trunc(maximumBytes), 1), MAX_PREVIEW_RANGE_BYTES);
+  if (header === null || header.trim() === '') {
+    return { start: 0, end: Math.min(totalBytes, cap) - 1 };
+  }
+  const match = /^bytes=(\d*)-(\d*)$/u.exec(header.trim());
+  if (!match || (!match[1] && !match[2])) {
+    throw new TeamFunctionError('INVALID_INPUT', { status: 416, retryable: false });
+  }
+  if (!match[1]) {
+    const suffix = Number(match[2]);
+    if (!Number.isSafeInteger(suffix) || suffix <= 0 || suffix > cap) {
+      throw new TeamFunctionError(suffix > cap ? 'TOO_LARGE' : 'INVALID_INPUT', {
+        status: 416,
+        retryable: false
+      });
+    }
+    return { start: Math.max(0, totalBytes - suffix), end: totalBytes - 1 };
+  }
+  const start = Number(match[1]);
+  const requestedEnd = match[2] ? Number(match[2]) : Math.min(totalBytes - 1, start + cap - 1);
+  if (
+    !Number.isSafeInteger(start) ||
+    !Number.isSafeInteger(requestedEnd) ||
+    start < 0 ||
+    start >= totalBytes ||
+    requestedEnd < start
+  ) {
+    throw new TeamFunctionError('INVALID_INPUT', { status: 416, retryable: false });
+  }
+  const end = Math.min(requestedEnd, totalBytes - 1);
+  if (end - start + 1 > cap) {
+    throw new TeamFunctionError('TOO_LARGE', { status: 416, retryable: false });
+  }
+  return { start, end };
+}
+
+export function forwardedRangeHeaders(
+  upstream: Headers,
+  mimeType: string,
+  disposition: 'inline' | 'attachment'
+): Headers {
+  const headers = new Headers({
+    'accept-ranges': 'bytes',
+    'cache-control': 'no-store',
+    'content-disposition': disposition,
+    'content-type': mimeType || 'application/octet-stream',
+    'referrer-policy': 'no-referrer',
+    'x-content-type-options': 'nosniff'
+  });
+  for (const name of ['content-length', 'content-range'] as const) {
+    const value = upstream.get(name);
+    if (value) headers.set(name, value);
+  }
+  return headers;
+}
+
+export function validateUpstreamRangeResponse(
+  status: number,
+  headers: Headers,
+  requested: ByteRange,
+  totalBytes: number
+): number {
+  const rawLength = headers.get('content-length');
+  const contentLength = rawLength && /^\d+$/u.test(rawLength) ? Number(rawLength) : Number.NaN;
+  const expectedLength = requested.end - requested.start + 1;
+  if (!Number.isSafeInteger(contentLength) || contentLength !== expectedLength) {
+    throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+  }
+  if (status === 200) {
+    if (requested.start !== 0 || requested.end !== totalBytes - 1) {
+      throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+    }
+    return contentLength;
+  }
+  const match = /^bytes (\d+)-(\d+)\/(\d+)$/u.exec(headers.get('content-range') ?? '');
+  if (
+    status !== 206 ||
+    !match ||
+    Number(match[1]) !== requested.start ||
+    Number(match[2]) !== requested.end ||
+    Number(match[3]) !== totalBytes
+  ) {
+    throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+  }
+  return contentLength;
+}
+
+/** Stops a lying/truncated upstream before bytes outside the authorized range are forwarded. */
+export function boundedResponseBody(
+  body: ReadableStream<Uint8Array> | null,
+  expectedBytes: number
+): ReadableStream<Uint8Array> {
+  if (!body) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+  let forwarded = 0;
+  return body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        forwarded += chunk.byteLength;
+        if (forwarded > expectedBytes) {
+          throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+        }
+        controller.enqueue(chunk);
+      },
+      flush() {
+        if (forwarded !== expectedBytes) {
+          throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+        }
+      }
+    })
+  );
+}
+
+export interface PreviewGrantContext {
+  teamId: string;
+  actorId: string;
+  materialId: string;
+  maxRangeBytes: number;
+  toolId?: string | null;
+  purpose?: 'preview_range' | 'download_range' | 'process_input';
+}
+
+export interface LivePreviewSource {
+  fileId: string;
+  resourceKey: string | null;
+  sizeBytes: number;
+  mimeType: string;
+  canDownload: boolean;
+  sourceVersion?: string | null;
+  sourceChecksum?: string | null;
+}
+
+export interface PreviewRangeDependencies {
+  consumeGrant: (ticket: string) => Promise<PreviewGrantContext | null>;
+  loadMaterial: (grant: PreviewGrantContext) => Promise<PreviewMaterialRecord | null>;
+  proveLiveAccess: (
+    material: PreviewMaterialRecord,
+    grant: PreviewGrantContext
+  ) => Promise<LivePreviewSource>;
+}
+
+export async function authorizePreviewRange(
+  input: { ticket: string; rangeHeader: string | null },
+  dependencies: PreviewRangeDependencies
+) {
+  if (input.ticket.length < 8 || input.ticket.length > 2048) {
+    throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+  }
+  const grant = await dependencies.consumeGrant(input.ticket);
+  if (!grant) throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+  const material = await dependencies.loadMaterial(grant);
+  if (!material || material.teamId !== grant.teamId || material.materialId !== grant.materialId) {
+    throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+  }
+  const live = await dependencies.proveLiveAccess(material, grant);
+  if (!live.canDownload) throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+  return {
+    grant,
+    material,
+    source: live,
+    range: parseBoundedRange(input.rangeHeader, live.sizeBytes, grant.maxRangeBytes)
+  };
+}
+
+export type PreviewMeasurementCategory = 'video' | 'image' | 'transcript' | 'archive' | 'landing';
+
+export interface PreviewStartMeasurement {
+  category: PreviewMeasurementCategory;
+  cache: 'cold' | 'warm';
+  network: string;
+  elapsedMs: number;
+  outcome: 'useful' | 'loading' | 'typed_error';
+  falseReady: boolean;
+}
+
+export function summarizePreviewMeasurements(attempts: readonly PreviewStartMeasurement[]) {
+  const usefulWithinTarget = attempts.filter(
+    attempt => attempt.outcome === 'useful' && attempt.elapsedMs <= 3000
+  ).length;
+  const typedRemainder = attempts.filter(
+    attempt =>
+      attempt.elapsedMs <= 3000 &&
+      (attempt.outcome === 'loading' || attempt.outcome === 'typed_error')
+  ).length;
+  const falseReady = attempts.filter(attempt => attempt.falseReady).length;
+  return {
+    attempts: attempts.length,
+    usefulWithinTarget,
+    typedRemainder,
+    falseReady,
+    meetsSc006:
+      attempts.length === 100 &&
+      usefulWithinTarget >= 95 &&
+      usefulWithinTarget + typedRemainder === attempts.length &&
+      falseReady === 0
+  };
+}

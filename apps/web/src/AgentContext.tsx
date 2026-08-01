@@ -29,6 +29,7 @@ import {
   pairWithAgent
 } from './api/client';
 import { ensureAgentEntitlement } from './api/entitlement';
+import { useAgentEventStream } from './api/useAgentEventStream';
 import { failureState, type ConnectionState, versionState } from './connection';
 import { analytics } from './analytics/service';
 import { loadStableReleaseManifest, type ReleaseManifestState } from './release-manifest';
@@ -66,6 +67,7 @@ export interface AgentContextValue {
   toolContracts: ToolContracts;
   releaseManifest: ReleaseManifestState;
   toolAvailable: (tool: WishlyToolId) => boolean;
+  teamWorkspaceAvailable?: boolean;
   reconnect: () => void;
 }
 
@@ -87,7 +89,6 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   });
   const [entitlement, setEntitlement] = useState<AgentEntitlementStatus | null>(null);
   const connectedOnceRef = useRef(false);
-  const events = useRef<EventSource | null>(null);
   const connecting = useRef(false);
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mounted = useRef(true);
@@ -101,8 +102,6 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       // indicator. Flipping to the full "connecting" state on every 4s attempt made
       // the home page blink between the spinner and the onboarding panel.
       if (mode !== 'retry') setConnection(mode);
-      events.current?.close();
-      events.current = null;
       const controller = new AbortController();
       const timer = window.setTimeout(() => controller.abort(), 2200);
       try {
@@ -146,19 +145,6 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         setState(result.state);
         setConnectedOnce(true);
         connectedOnceRef.current = true;
-        const source = new EventSource(eventUrl());
-        events.current = source;
-        source.onmessage = event => {
-          const update = JSON.parse(event.data) as AgentEvent;
-          setState(update.state);
-          setConnection('connected');
-        };
-        source.onerror = () => {
-          source.close();
-          events.current = null;
-          setConnection('disconnected');
-          retryTimer.current = setTimeout(() => void establish('retry'), 4000);
-        };
       } catch (error) {
         window.clearTimeout(timer);
         if (!mounted.current) return;
@@ -179,6 +165,17 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     },
     []
   );
+
+  useAgentEventStream<AgentEvent>({
+    url: connectedOnce ? eventUrl() : null,
+    enabled: connectedOnce,
+    onMessage: update => {
+      setState(update.state);
+      setConnection('connected');
+    },
+    onDisconnect: () => setConnection('disconnected'),
+    onReconnect: () => establish('retry')
+  });
 
   // The signed token lives 12h and the agent adds a 7-day offline grace, so a
   // long-running session only needs an occasional silent top-up. Failures are
@@ -214,7 +211,6 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     return () => {
       mounted.current = false;
       removePairingListener();
-      events.current?.close();
       if (retryTimer.current) clearTimeout(retryTimer.current);
     };
   }, [establish]);
@@ -268,6 +264,8 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         toolContracts,
         releaseManifest,
         toolAvailable: tool => toolContractCompatible(tool, toolContracts),
+        teamWorkspaceAvailable:
+          connection === 'connected' && toolContractCompatible('teamWorkspace', toolContracts),
         reconnect: () => void establish('connecting')
       }}
     >
@@ -280,6 +278,10 @@ export function useAgent() {
   const value = useContext(AgentContext);
   if (!value) throw new Error('useAgent must be used inside AgentProvider');
   return value;
+}
+
+export function useOptionalAgent() {
+  return useContext(AgentContext);
 }
 
 export function AgentContextOverride({

@@ -64,6 +64,8 @@ export interface AddSourceOptions {
   sourceKind?: SourceKind;
   sourceKey?: string | null;
   fileName?: string;
+  /** Per-operation settings isolated from the interactive queue defaults. */
+  settings?: AgentSettings;
 }
 
 const SUPPORTED_VIDEO_EXTENSIONS = new Set([
@@ -101,6 +103,7 @@ export class JobQueue {
     start: new Set(),
     end: new Set()
   };
+  private teamJobSettings = new Map<string, AgentSettings>();
 
   constructor(
     private tools: QueueState['tools'],
@@ -141,7 +144,7 @@ export class JobQueue {
         this.jobs.some(job => job.batchId === this.batch!.id && job.status === 'queued')
       );
     return {
-      jobs: this.jobs.map(job => cloneJob(job)),
+      jobs: this.jobs.filter(job => !this.teamJobSettings.has(job.id)).map(job => cloneJob(job)),
       running,
       tools: this.tools,
       settings: cloneSettings(this.settings),
@@ -173,11 +176,22 @@ export class JobQueue {
   }
 
   persisted() {
+    const durableJobs = this.jobs.filter(job => !this.teamJobSettings.has(job.id));
     return {
-      jobs: this.jobs.map(job => cloneJob(job)),
+      jobs: durableJobs.map(job => cloneJob(job)),
       settings: cloneSettings(this.settings),
-      batch: this.batch ? { ...this.batch, jobIds: [...this.batch.jobIds] } : null
+      batch: this.batch
+        ? {
+            ...this.batch,
+            jobIds: this.batch.jobIds.filter(id => !this.teamJobSettings.has(id))
+          }
+        : null
     };
+  }
+
+  teamJob(sourceKey: string): CompressionJob | null {
+    const job = this.jobs.find(candidate => candidate.sourceKey === sourceKey);
+    return job && this.teamJobSettings.has(job.id) ? cloneJob(job) : null;
   }
 
   async updateSettings(next: Partial<AgentSettings>) {
@@ -231,6 +245,7 @@ export class JobQueue {
       const encoding = encodingFromSettings(this.settings);
       const imageEmbedding = draftImageEmbedding(this.settings.imageEmbedding);
       for (const job of this.jobs) {
+        if (this.teamJobSettings.has(job.id)) continue;
         if (!['analyzing', 'ready', 'failed', 'cancelled', 'interrupted'].includes(job.status))
           continue;
         if (encodingChanged) job.encoding = { ...encoding };
@@ -242,6 +257,7 @@ export class JobQueue {
 
     if (outputChanged || imageEmbeddingChanged) {
       for (const job of this.jobs) {
+        if (this.teamJobSettings.has(job.id)) continue;
         if (!['analyzing', 'ready', 'failed', 'cancelled', 'interrupted'].includes(job.status))
           continue;
         job.outputPath = await this.outputPathFor(job.inputPath, job);
@@ -397,13 +413,31 @@ export class JobQueue {
     return warning ? [warning] : [];
   }
 
+  async addTeamUploaded(
+    inputPath: string,
+    fileName: string,
+    sourceKey: string,
+    settings: AgentSettings
+  ): Promise<SelectionWarning[]> {
+    const warning = await this.addOne(
+      inputPath,
+      {
+        sourceKind: 'uploaded',
+        fileName,
+        sourceKey,
+        settings: cloneSettings(settings)
+      },
+      false
+    );
+    return warning ? [warning] : [];
+  }
+
   async start(ids: string[]) {
     if (
       !this.tools.ffmpeg ||
       !this.tools.ffprobe ||
       !this.acceptingNewTasks() ||
-      this.state().running ||
-      this.embeddingConfigurationError()
+      this.state().running
     )
       return false;
     const requested = new Set(ids);
@@ -415,6 +449,14 @@ export class JobQueue {
     for (const job of rerunnable) await this.resetForRerun(job);
     const jobs = this.jobs.filter(job => requested.has(job.id) && job.status === 'ready');
     if (!jobs.length) return false;
+    if (
+      jobs.some(job => {
+        const embedding = (this.teamJobSettings.get(job.id) ?? this.settings).imageEmbedding;
+        return embedding.enabled && !embedding.startImages.length && !embedding.endImages.length;
+      })
+    ) {
+      return false;
+    }
 
     const batch: QueueBatch = {
       id: randomUUID(),
@@ -425,16 +467,17 @@ export class JobQueue {
     this.batch = batch;
     this.warning = await this.diskWarning(jobs);
     for (const job of jobs) {
+      const jobSettings = this.teamJobSettings.get(job.id) ?? this.settings;
       const draftKey = jobConfigurationKey(job.encoding, job.imageEmbedding);
       const estimatedEmbedding = job.imageEmbedding;
-      const selectedImages = this.settings.imageEmbedding.enabled
+      const selectedImages = jobSettings.imageEmbedding.enabled
         ? {
-            startImage: this.drawImage('start', this.settings.imageEmbedding.startImages),
-            endImage: this.drawImage('end', this.settings.imageEmbedding.endImages)
+            startImage: this.drawImage('start', jobSettings.imageEmbedding.startImages),
+            endImage: this.drawImage('end', jobSettings.imageEmbedding.endImages)
           }
         : { startImage: null, endImage: null };
       job.imageEmbedding = freezeImageEmbedding(
-        this.settings.imageEmbedding,
+        jobSettings.imageEmbedding,
         this.random,
         selectedImages
       );
@@ -442,7 +485,7 @@ export class JobQueue {
         job.imageEmbedding.sourceTrimStartSeconds = estimatedEmbedding.sourceTrimStartSeconds;
         job.imageEmbedding.sourceTrimEndSeconds = estimatedEmbedding.sourceTrimEndSeconds;
       }
-      job.outputPath = await this.outputPathFor(job.inputPath, job);
+      job.outputPath = await this.outputPathFor(job.inputPath, job, jobSettings);
       if (
         draftKey !== jobConfigurationKey(job.encoding, job.imageEmbedding) &&
         !refreshEstimateFromBreakdown(job)
@@ -465,14 +508,17 @@ export class JobQueue {
 
   async cancel(id: string) {
     const job = this.jobs.find(candidate => candidate.id === id);
-    if (!job || job.status !== 'processing') return false;
+    if (!job || (job.status !== 'processing' && job.status !== 'queued')) return false;
+    const wasProcessing = job.status === 'processing';
     job.status = 'cancelled';
     job.error = 'Compression was cancelled.';
     job.finishedAt = finishTimestamp(job);
     job.processingStage = null;
     resetEstimate(job);
-    if (this.compressionPausedForEstimates && this.active) resumeProcess(this.active);
-    this.active?.kill('SIGTERM');
+    if (wasProcessing && this.compressionPausedForEstimates && this.active) {
+      resumeProcess(this.active);
+    }
+    if (wasProcessing && this.active) this.active.kill('SIGTERM');
     this.notify('estimate:queued');
     return true;
   }
@@ -517,6 +563,7 @@ export class JobQueue {
     if (job.estimatePriorityOrder !== null) this.estimateHooks?.cancelPrioritized?.(id);
     const images = jobImages(job);
     this.jobs = this.jobs.filter(candidate => candidate !== job);
+    this.teamJobSettings.delete(job.id);
     void cleanupImportedSource(job);
     for (const image of images) void this.releaseImageIfUnused(image);
     this.notify();
@@ -531,6 +578,7 @@ export class JobQueue {
     if (!removable.length) return 0;
     for (const job of removable) {
       if (job.estimatePriorityOrder !== null) this.estimateHooks?.cancelPrioritized?.(job.id);
+      this.teamJobSettings.delete(job.id);
     }
     const removed = new Set(removable.map(job => job.id));
     const images = removable.flatMap(jobImages);
@@ -562,6 +610,7 @@ export class JobQueue {
     );
     const images = removed.flatMap(jobImages);
     this.jobs = this.jobs.filter(job => !removed.includes(job));
+    for (const job of removed) this.teamJobSettings.delete(job.id);
     for (const job of removed) void cleanupImportedSource(job);
     for (const image of images) void this.releaseImageIfUnused(image);
     this.notify();
@@ -596,7 +645,7 @@ export class JobQueue {
   }
 
   estimationJobs() {
-    return this.jobs.map(job => cloneJob(job));
+    return this.jobs.filter(job => !this.teamJobSettings.has(job.id)).map(job => cloneJob(job));
   }
 
   private async addOne(
@@ -606,6 +655,7 @@ export class JobQueue {
   ): Promise<SelectionWarning | null> {
     const canonical = path.resolve(inputPath);
     const fileName = options.fileName ?? path.basename(canonical);
+    const sourceSettings = options.settings ?? this.settings;
     if (!isSupportedVideoPath(fileName)) {
       return selectionWarning(fileName, 'unsupported-format', 'This file format is not supported.');
     }
@@ -655,8 +705,8 @@ export class JobQueue {
         status: 'analyzing',
         error: null,
         errorDetails: null,
-        encoding: encodingFromSettings(this.settings),
-        imageEmbedding: draftImageEmbedding(this.settings.imageEmbedding),
+        encoding: encodingFromSettings(sourceSettings),
+        imageEmbedding: draftImageEmbedding(sourceSettings.imageEmbedding),
         batchId: null,
         startedAt: null,
         finishedAt: null,
@@ -671,8 +721,9 @@ export class JobQueue {
         estimatePriorityOrder: null,
         estimateBreakdown: null
       };
-      job.outputPath = await this.outputPathFor(canonical, job);
+      job.outputPath = await this.outputPathFor(canonical, job, sourceSettings);
       this.jobs.push(job);
+      if (options.settings) this.teamJobSettings.set(job.id, cloneSettings(sourceSettings));
       this.notify();
 
       if (!this.tools.ffprobe) {
@@ -711,6 +762,7 @@ export class JobQueue {
   }
 
   private async resetForRerun(job: CompressionJob) {
+    const jobSettings = this.teamJobSettings.get(job.id) ?? this.settings;
     const previousImages = jobImages(job);
     job.status = 'ready';
     job.error = null;
@@ -727,9 +779,9 @@ export class JobQueue {
     job.startedAt = null;
     job.finishedAt = null;
     job.batchId = null;
-    job.encoding = encodingFromSettings(this.settings);
-    job.imageEmbedding = draftImageEmbedding(this.settings.imageEmbedding);
-    job.outputPath = await this.outputPathFor(job.inputPath, job);
+    job.encoding = encodingFromSettings(jobSettings);
+    job.imageEmbedding = draftImageEmbedding(jobSettings.imageEmbedding);
+    job.outputPath = await this.outputPathFor(job.inputPath, job, jobSettings);
     resetEstimate(job);
     for (const image of previousImages) void this.releaseImageIfUnused(image);
   }
@@ -760,10 +812,14 @@ export class JobQueue {
     return { ...selected };
   }
 
-  private async outputPathFor(inputPath: string, current?: CompressionJob) {
+  private async outputPathFor(
+    inputPath: string,
+    current?: CompressionJob,
+    settings: AgentSettings = this.settings
+  ) {
     let folder: string | undefined;
-    if (this.settings.outputMode === 'chosen-folder') {
-      folder = this.settings.outputFolder ?? undefined;
+    if (settings.outputMode === 'chosen-folder') {
+      folder = settings.outputFolder ?? undefined;
       if (!folder) throw new Error('Choose an output folder first.');
     }
     if (folder) await mkdir(folder, { recursive: true });
@@ -775,7 +831,7 @@ export class JobQueue {
       inputPath,
       folder,
       reserved,
-      Boolean(draftImageEmbedding(this.settings.imageEmbedding))
+      Boolean(draftImageEmbedding(settings.imageEmbedding))
     );
   }
 

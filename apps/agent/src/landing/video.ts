@@ -47,16 +47,60 @@ export async function optimizeVideo(
   inputPath: string,
   outputPath: string,
   quality: LandingVideoQuality,
-  onProgress: (value: number | null) => void
+  onProgress: (value: number | null) => void,
+  signal?: AbortSignal
 ): Promise<EncodeResult> {
   const media = await probeMedia(inputPath);
   const settings = landingVideoEncoding(quality);
-  let result = await encodeVideo(inputPath, outputPath, media.duration, settings, false, onProgress)
-    .done;
+  let result = await runEncoding(
+    inputPath,
+    outputPath,
+    media.duration,
+    settings,
+    false,
+    onProgress,
+    signal
+  );
   if (result.code !== 0 && isAudioCopyFailure(result.stderr)) {
     onProgress(0);
-    result = await encodeVideo(inputPath, outputPath, media.duration, settings, true, onProgress)
-      .done;
+    result = await runEncoding(
+      inputPath,
+      outputPath,
+      media.duration,
+      settings,
+      true,
+      onProgress,
+      signal
+    );
   }
   return result;
+}
+
+async function runEncoding(
+  inputPath: string,
+  outputPath: string,
+  duration: number | null,
+  settings: EncodingSettings,
+  transcodeAudio: boolean,
+  onProgress: (value: number | null) => void,
+  signal?: AbortSignal
+) {
+  if (signal?.aborted) throw signal.reason ?? new Error('PROCESS_CANCELED');
+  const operation = encodeVideo(
+    inputPath,
+    outputPath,
+    duration,
+    settings,
+    transcodeAudio,
+    onProgress
+  );
+  const abort = () => operation.child.kill('SIGTERM');
+  signal?.addEventListener('abort', abort, { once: true });
+  try {
+    const result = await operation.done;
+    if (signal?.aborted) throw signal.reason ?? new Error('PROCESS_CANCELED');
+    return result;
+  } finally {
+    signal?.removeEventListener('abort', abort);
+  }
 }

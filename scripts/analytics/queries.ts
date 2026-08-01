@@ -17,7 +17,10 @@ import type {
   FeatureMetric,
   JourneyEvent,
   CohortMetric,
-  RetentionMetric
+  RetentionMetric,
+  TeamWorkspaceData,
+  TeamFindCueMetric,
+  TeamActivationWindow
 } from './types.js';
 
 /** Range params are always $1 = start (nullable), $2 = end. */
@@ -590,4 +593,198 @@ export async function getRetention(period: ResolvedPeriod): Promise<RetentionMet
   return (
     row ?? { registered_users: 0, active_after_1d: 0, active_after_7d: 0, active_after_30d: 0 }
   );
+}
+
+export async function getTeamWorkspace(period: ResolvedPeriod): Promise<TeamWorkspaceData> {
+  const params = rangeParams(period);
+  const onboarding = await queryOne<{ attempts: number; successes: number }>(
+    `with started as (
+       select distinct e.flow_id
+       from public.analytics_events e
+       where ${EVENTS_RANGE}
+         and e.event_name = 'team_onboarding_started'
+         and e.flow_id is not null
+     ), completed as (
+       select e.flow_id,
+         bool_or(
+           coalesce(e.outcome, e.properties ->> 'outcome') = 'success'
+           and e.properties ->> 'invite_persisted' = 'true'
+           and e.properties ->> 'root_confirmed' = 'true'
+           and e.properties ->> 'sync_queued' = 'true'
+           and jsonb_typeof(e.properties -> 'duration_ms') = 'number'
+           and (e.properties ->> 'duration_ms')::numeric <= 300000
+         ) as succeeded
+       from public.analytics_events e
+       where ${EVENTS_RANGE}
+         and e.event_name = 'team_onboarding_completed'
+         and e.flow_id is not null
+       group by e.flow_id
+     )
+     select count(*)::int as attempts,
+       count(*) filter (where completed.succeeded)::int as successes
+     from started left join completed using (flow_id)`,
+    params
+  );
+
+  const findRows = await query<{
+    cue: TeamFindCueMetric['cue'];
+    attempts: number;
+    successes: number;
+  }>(
+    `with started as (
+       select distinct
+         e.properties ->> 'study_run_id' as study_run_id,
+         e.properties ->> 'attempt_id' as attempt_id,
+         e.properties ->> 'cue_category' as cue
+       from public.analytics_events e
+       where ${EVENTS_RANGE}
+         and e.event_name = 'team_find_started'
+         and e.properties ->> 'study_run_id' is not null
+         and e.properties ->> 'attempt_id' is not null
+         and e.properties ->> 'cue_category' in ('geo','offer','language','category')
+     ), completed as (
+       select e.properties ->> 'study_run_id' as study_run_id,
+         e.properties ->> 'attempt_id' as attempt_id,
+         bool_or(
+           coalesce(e.outcome, e.properties ->> 'outcome') = 'success'
+           and e.properties ->> 'assisted' = 'false'
+           and jsonb_typeof(e.properties -> 'duration_ms') = 'number'
+           and (e.properties ->> 'duration_ms')::numeric <= 30000
+         ) as succeeded
+       from public.analytics_events e
+       where ${EVENTS_RANGE}
+         and e.event_name = 'team_find_completed'
+         and e.properties ->> 'study_run_id' is not null
+         and e.properties ->> 'attempt_id' is not null
+       group by 1, 2
+     )
+     select started.cue,
+       count(*)::int as attempts,
+       count(*) filter (where completed.succeeded)::int as successes
+     from started
+     left join completed using (study_run_id, attempt_id)
+     group by started.cue
+     order by started.cue`,
+    params
+  );
+
+  const windowRows = await query<{
+    window_index: number;
+    denominator: number;
+    numerator: number;
+  }>(
+    `with roots as (
+       select distinct workspace_key, root_connected_at, root_state,
+         pilot_enrolled_at, pilot_exited_at
+       from public.analytics_team_workspace
+       where root_state <> 'detached'
+         and root_connected_at < $2::timestamptz
+         and ($1::timestamptz is null or root_connected_at >= $1::timestamptz)
+     ), windows as (
+       select roots.workspace_key, series.window_index,
+         roots.root_connected_at + (series.window_index - 1) * interval '7 days' as window_start,
+         roots.root_connected_at + series.window_index * interval '7 days' as window_end
+       from roots
+       cross join generate_series(1, 4) as series(window_index)
+       where roots.pilot_enrolled_at <=
+         roots.root_connected_at + (series.window_index - 1) * interval '7 days'
+         and (roots.pilot_exited_at is null or roots.pilot_exited_at >
+           roots.root_connected_at + (series.window_index - 1) * interval '7 days')
+     ), signals as (
+       select windows.workspace_key, windows.window_index,
+         count(distinct member.member_user_id) filter (
+           where member.member_joined_at <= windows.window_start
+             and (member.member_removed_at is null or member.member_removed_at > windows.window_start)
+         ) as active_members,
+         bool_or(
+           event.event_name = 'team_workspace_session'
+           and event.properties ->> 'workspace_session' = 'true'
+         ) as has_workspace_session,
+         bool_or(
+           event.event_name in ('team_find_completed','team_preview_completed')
+           and coalesce(event.outcome, event.properties ->> 'outcome') = 'success'
+         ) as has_discovery,
+         bool_or(
+           event.event_name in ('team_file_attempt_completed','team_workflow_completed')
+           and coalesce(event.outcome, event.properties ->> 'outcome') = 'success'
+         ) as has_production
+       from windows
+       join public.analytics_team_workspace member
+         on member.workspace_key = windows.workspace_key
+       left join public.analytics_events event
+         on event.user_id = member.member_user_id
+        and event.occurred_at >= windows.window_start
+        and event.occurred_at < windows.window_end
+       group by windows.workspace_key, windows.window_index
+     ), eligible as (
+       select * from signals
+       where active_members >= 2 and has_workspace_session
+     )
+     select series.window_index::int,
+       count(eligible.workspace_key)::int as denominator,
+       count(eligible.workspace_key) filter (
+         where eligible.has_discovery and eligible.has_production
+       )::int as numerator
+     from generate_series(1, 4) as series(window_index)
+     left join eligible on eligible.window_index = series.window_index
+     group by series.window_index
+     order by series.window_index`,
+    params
+  );
+
+  const onboardingAttempts = onboarding?.attempts ?? 0;
+  const onboardingSuccesses = onboarding?.successes ?? 0;
+  const findAttempts = findRows.reduce((total, row) => total + row.attempts, 0);
+  const findSuccesses = findRows.reduce((total, row) => total + row.successes, 0);
+  const balancedCues = findRows.length === 4 && findRows.every(row => row.attempts === 5);
+  const windows = windowRows.map(row => activationWindow(row));
+  return {
+    sc001: {
+      attempts: onboardingAttempts,
+      successes: onboardingSuccesses,
+      success_rate: rate(onboardingSuccesses, onboardingAttempts),
+      status: fixedCohortStatus(onboardingAttempts, onboardingSuccesses, true)
+    },
+    sc005: {
+      attempts: findAttempts,
+      successes: findSuccesses,
+      success_rate: rate(findSuccesses, findAttempts),
+      status: fixedCohortStatus(findAttempts, findSuccesses, balancedCues),
+      cues: findRows
+    },
+    sc009: {
+      windows,
+      all_windows_pass: windows.some(window => window.status === 'fail')
+        ? false
+        : windows.some(window => window.status === 'insufficient')
+          ? null
+          : true
+    }
+  };
+}
+
+function fixedCohortStatus(attempts: number, successes: number, validShape: boolean) {
+  if (attempts < 20) return 'insufficient' as const;
+  return attempts === 20 && successes >= 18 && validShape ? ('pass' as const) : ('fail' as const);
+}
+
+function rate(numerator: number, denominator: number): number | null {
+  return denominator > 0 ? round(numerator / denominator, 4) : null;
+}
+
+function activationWindow(row: {
+  window_index: number;
+  denominator: number;
+  numerator: number;
+}): TeamActivationWindow {
+  const denominator = row.denominator ?? 0;
+  const numerator = row.numerator ?? 0;
+  const ratio = rate(numerator, denominator);
+  return {
+    window_index: row.window_index as TeamActivationWindow['window_index'],
+    denominator,
+    numerator,
+    rate: ratio,
+    status: ratio === null ? 'insufficient' : ratio >= 0.7 ? 'pass' : 'fail'
+  };
 }

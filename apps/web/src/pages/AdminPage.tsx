@@ -198,8 +198,8 @@ export default function AdminPage() {
       supabase.rpc('admin_agent_versions', args),
       supabase.rpc('admin_list_users', {
         p_search: search,
-        p_marketing_consent: consent,
-        p_account_status: statusFilter || null,
+        p_marketing_consent: consent ?? undefined,
+        p_account_status: statusFilter || undefined,
         p_limit: pageSize,
         p_offset: page * pageSize
       }),

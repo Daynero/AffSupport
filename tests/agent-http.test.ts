@@ -27,6 +27,14 @@ import { TranscriptionQueue } from '../apps/agent/src/queue/transcription-queue.
 import { buildServer } from '../apps/agent/src/server/app.js';
 import { EventChannel } from '../apps/agent/src/server/sse.js';
 import { createToolModules } from '../apps/agent/src/server/tools.js';
+import { TeamPreviewBridge } from '../apps/agent/src/team-bridge/preview.js';
+import { TeamDownloadBridge } from '../apps/agent/src/team-bridge/download.js';
+import {
+  TeamOperationEvents,
+  type TeamOperationEvent
+} from '../apps/agent/src/team-bridge/events.js';
+import { TeamProcessBridge } from '../apps/agent/src/team-bridge/process.js';
+import { TeamTransferClient } from '../apps/agent/src/team-bridge/transfer.js';
 import { optimalSettings } from './helpers.js';
 
 const TOKEN = 'test-session-token';
@@ -128,6 +136,27 @@ async function makeServer(options: { entitlementPublicKey?: string } = {}) {
     })
   );
   const mediaActions = new MediaActionQueue();
+  const teamPreviewBridge = new TeamPreviewBridge({
+    temporaryRoot: path.join(dir, 'team-previews'),
+    renderer: landingPreviewRenderer
+  });
+  await teamPreviewBridge.init();
+  const teamOperationEvents = new TeamOperationEvents();
+  const teamEvents = new EventChannel<TeamOperationEvent>(allowedOrigins, () =>
+    teamOperationEvents.snapshot()
+  );
+  teamOperationEvents.setNotify(event => teamEvents.broadcast(event));
+  const teamTransfer = new TeamTransferClient({ temporaryRoot: path.join(dir, 'team-transfer') });
+  const teamProcessBridge = new TeamProcessBridge({
+    transfer: teamTransfer,
+    delegates: {},
+    events: teamOperationEvents
+  });
+  const teamDownloadBridge = new TeamDownloadBridge({
+    transfer: teamTransfer,
+    chooseDestination: async () => null,
+    reveal: () => undefined
+  });
   const entitlementGate = new EntitlementGate({
     publicKeyBase64: options.entitlementPublicKey ?? null,
     stateFile: path.join(dir, 'entitlement.json')
@@ -159,7 +188,13 @@ async function makeServer(options: { entitlementPublicKey?: string } = {}) {
       mediaActions,
       landing: { optimizer: landingOptimizer, events: landingEvents },
       landingPreview: { catalog: landingPreviewCatalog, events: landingPreviewEvents },
-      transcription: { queue: transcriptionQueue, events: transcriptionEvents }
+      transcription: { queue: transcriptionQueue, events: transcriptionEvents },
+      teamWorkspace: {
+        preview: teamPreviewBridge,
+        process: teamProcessBridge,
+        download: teamDownloadBridge,
+        events: teamEvents
+      }
     }),
     webRoot
   });
@@ -183,6 +218,34 @@ function entitlementKit() {
 }
 
 describe('agent HTTP surface', () => {
+  it('advertises and guards the registered team workspace preview bridge', async () => {
+    const app = await makeServer();
+    const health = await app.inject({
+      url: '/api/health',
+      headers: { 'x-session-token': TOKEN }
+    });
+    expect(health.json()).toMatchObject({
+      capabilities: expect.arrayContaining(['team-workspace']),
+      toolContracts: { teamWorkspace: 1 }
+    });
+
+    const unauthenticated = await app.inject({
+      method: 'POST',
+      url: '/api/team/preview/archive',
+      payload: {}
+    });
+    expect(unauthenticated.statusCode).toBe(401);
+    const malformed = await app.inject({
+      method: 'POST',
+      url: '/api/team/preview/archive',
+      headers: { 'x-session-token': TOKEN, 'content-type': 'application/json' },
+      payload: {}
+    });
+    expect(malformed.statusCode).toBe(400);
+    expect(malformed.json()).toEqual({ error: 'INVALID_INPUT' });
+    expect(malformed.headers['cache-control']).toBe('no-store');
+  });
+
   it('builds and serves a landing preview catalogue through authenticated routes', async () => {
     const app = await makeServer();
     const dir = handles.at(-1)!.dir;

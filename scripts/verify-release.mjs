@@ -3,6 +3,7 @@ import { createPublicKey, verify as cryptoVerify } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import {
   AGENT_API_VERSION,
+  AGENT_TOOL_CONTRACTS,
   BUILD_ID,
   BUILD_NUMBER,
   BUNDLE_VERSION,
@@ -15,7 +16,8 @@ import {
   RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64,
   RELEASE_TAG,
   WEB_TOOL_REQUIREMENTS,
-  releaseManifestSigningPayload
+  releaseManifestSigningPayload,
+  toolContractCompatible
 } from '../packages/shared/dist/release.js';
 
 function fail(message) {
@@ -129,6 +131,21 @@ if (configuredOrigin !== PRODUCTION_SITE_ORIGIN) {
     `config/production.env PUBLIC_SITE_ORIGIN (${configuredOrigin}) does not match ` +
       `PRODUCTION_SITE_ORIGIN (${PRODUCTION_SITE_ORIGIN}) in packages/shared/src/release.ts`
   );
+}
+const configuredDriveOAuthMode = productionEnv.match(/^DRIVE_OAUTH_MODE=(.+)$/m)?.[1]?.trim();
+if (configuredDriveOAuthMode !== 'verified') {
+  fail(`production team OAuth requires DRIVE_OAUTH_MODE=verified, got ${configuredDriveOAuthMode}`);
+}
+
+const legacyContracts = { ...AGENT_TOOL_CONTRACTS };
+delete legacyContracts.teamWorkspace;
+if (toolContractCompatible('teamWorkspace', legacyContracts)) {
+  fail('an agent without the teamWorkspace contract was accepted for team routes');
+}
+for (const tool of ['compressor', 'landingOptimizer', 'landingPreview', 'transcription']) {
+  if (!toolContractCompatible(tool, legacyContracts)) {
+    fail(`adding the teamWorkspace contract made legacy ${tool} incompatible`);
+  }
 }
 
 for (const file of [

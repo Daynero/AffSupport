@@ -13,9 +13,19 @@ import type {
   TranscriptionMediaPreview,
   TranscriptionSettings,
   TranscriptionState,
-  TranslationDocument
+  TranslationDocument,
+  TeamAgentProcessRequest,
+  TeamAgentPreviewResult,
+  TeamFileOperationResult,
+  TeamTransferGrant
+} from '@video-compressor/shared';
+import {
+  parseTeamAgentPreviewResult,
+  parseTeamFileOperationResult,
+  toolContractCompatible
 } from '@video-compressor/shared';
 import { agentFetchOptions, pairingPath, probeAgent, versionState } from '../connection';
+import { publicConfig } from '../lib/config';
 
 const configured = import.meta.env.VITE_AGENT_URL || 'http://127.0.0.1:43120';
 export const agentUrl =
@@ -141,13 +151,21 @@ export async function requestBody<T>(
   method = 'POST',
   signal?: AbortSignal
 ): Promise<T> {
-  const response = await fetch(agentUrl + url, {
-    method,
-    headers: { 'x-session-token': token, 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-    signal,
-    ...privateNetworkInit
-  });
+  if (!token) throw new Error('PAIRING_REQUIRED');
+  let response: Response;
+  try {
+    response = await fetch(agentUrl + url, {
+      method,
+      headers: { 'x-session-token': token, 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      signal,
+      cache: 'no-store',
+      ...privateNetworkInit
+    });
+  } catch (error) {
+    if (signal?.aborted) throw new Error('TIMEOUT', { cause: error });
+    throw new Error('CONNECTION_FAILED', { cause: error });
+  }
   return assertOk(response) as Promise<T>;
 }
 export async function uploadFile(file: File): Promise<SelectionResponse> {
@@ -220,6 +238,134 @@ export function landingGalleryImageUrl(landingId: string, revision: number | nul
   return `${agentUrl}/api/landing-preview/landings/${encodeURIComponent(
     landingId
   )}/image?token=${encodeURIComponent(token)}&segment=${encodeURIComponent(segment)}${suffix}`;
+}
+
+function teamTransferRangeUrl() {
+  if (!publicConfig.ok) throw new Error('SUPABASE_CONFIGURATION_MISSING');
+  return `${publicConfig.value.supabaseUrl}/functions/v1/drive-transfer/range`;
+}
+
+function teamCloudBaseUrl() {
+  if (!publicConfig.ok) throw new Error('SUPABASE_CONFIGURATION_MISSING');
+  return `${publicConfig.value.supabaseUrl}/functions/v1/drive-ops`;
+}
+
+export interface TeamAgentPreviewRequest {
+  operationId: string;
+  transferGrant: TeamTransferGrant;
+}
+
+async function openTeamAgentPreview(
+  kind: 'archive' | 'landing',
+  input: TeamAgentPreviewRequest
+): Promise<TeamAgentPreviewResult> {
+  const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
+  if (!toolContractCompatible('teamWorkspace', health.toolContracts ?? {})) {
+    throw new Error('AGENT_UPDATE_REQUIRED');
+  }
+  const value: unknown = await requestBody(`/api/team/preview/${kind}`, {
+    operationId: input.operationId,
+    transferGrant: input.transferGrant,
+    transferUrl: teamTransferRangeUrl()
+  });
+  const parsed = parseTeamAgentPreviewResult(value);
+  if (!parsed) throw new Error('INVALID_RESPONSE');
+  return parsed;
+}
+
+export function openTeamArchivePreview(
+  input: TeamAgentPreviewRequest
+): Promise<TeamAgentPreviewResult> {
+  return openTeamAgentPreview('archive', input);
+}
+
+export function openTeamLandingPreview(
+  input: TeamAgentPreviewRequest
+): Promise<TeamAgentPreviewResult> {
+  return openTeamAgentPreview('landing', input);
+}
+
+export function teamLandingScreenshotUrl(operationId: string, segment = 0) {
+  return `${agentUrl}/api/team/preview/${encodeURIComponent(
+    operationId
+  )}/screenshot?token=${encodeURIComponent(token)}&segment=${encodeURIComponent(segment)}`;
+}
+
+export async function closeTeamPreview(operationId: string): Promise<boolean> {
+  const value = await request<{ closed?: unknown }>(
+    `/api/team/preview/${encodeURIComponent(operationId)}`,
+    'DELETE'
+  );
+  return value.closed === true;
+}
+
+export function teamEventUrl() {
+  return `${agentUrl}/api/team/events?token=${encodeURIComponent(token)}`;
+}
+
+export async function downloadTeamFileWithAgent(input: {
+  transferUrl: string;
+  transferGrant: TeamTransferGrant;
+  fileName: string;
+}): Promise<{ saved: true; fileName: string; sizeBytes: number }> {
+  const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
+  if (!toolContractCompatible('teamWorkspace', health.toolContracts ?? {})) {
+    throw new Error('AGENT_UPDATE_REQUIRED');
+  }
+  const value = await requestBody<{
+    saved?: unknown;
+    fileName?: unknown;
+    sizeBytes?: unknown;
+  }>('/api/team/download', {
+    operationId: crypto.randomUUID(),
+    transferUrl: input.transferUrl,
+    transferGrant: input.transferGrant,
+    fileName: input.fileName
+  });
+  if (
+    value.saved !== true ||
+    typeof value.fileName !== 'string' ||
+    typeof value.sizeBytes !== 'number' ||
+    !Number.isSafeInteger(value.sizeBytes) ||
+    value.sizeBytes < 0
+  ) {
+    throw new Error('INVALID_RESPONSE');
+  }
+  return { saved: true, fileName: value.fileName, sizeBytes: value.sizeBytes };
+}
+
+export async function startTeamAgentProcess(
+  input: TeamAgentProcessRequest
+): Promise<TeamFileOperationResult> {
+  const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
+  if (!toolContractCompatible('teamWorkspace', health.toolContracts ?? {})) {
+    throw new Error('AGENT_UPDATE_REQUIRED');
+  }
+  const tool =
+    input.toolId === 'landingOptimizer'
+      ? 'landingOptimizer'
+      : input.toolId === 'transcription'
+        ? 'transcription'
+        : 'compressor';
+  if (!toolContractCompatible(tool, health.toolContracts ?? {})) {
+    throw new Error('AGENT_UPDATE_REQUIRED');
+  }
+  const value: unknown = await requestBody('/api/team/process', {
+    ...input,
+    transferUrl: teamTransferRangeUrl(),
+    cloudBaseUrl: teamCloudBaseUrl()
+  });
+  const parsed = parseTeamFileOperationResult(value);
+  if (!parsed) throw new Error('INVALID_RESPONSE');
+  return parsed;
+}
+
+export async function cancelTeamAgentProcess(operationId: string): Promise<boolean> {
+  const value = await requestBody<{ canceled?: unknown }>(
+    `/api/team/process/${encodeURIComponent(operationId)}/cancel`,
+    {}
+  );
+  return value.canceled === true;
 }
 
 export function landingGallerySelect(): Promise<LandingPreviewState> {

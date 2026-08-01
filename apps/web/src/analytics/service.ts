@@ -1,4 +1,15 @@
-import { PRODUCT_VERSION, type ToolContracts } from '@video-compressor/shared';
+import {
+  PRODUCT_VERSION,
+  type MaterialCategory,
+  type TeamAnalyticsAction,
+  type TeamAnalyticsCacheState,
+  type TeamAnalyticsCue,
+  type TeamAnalyticsOutcome,
+  type TeamAnalyticsSizeBucket,
+  type TeamAnalyticsStage,
+  type TeamAnalyticsStorage,
+  type ToolContracts
+} from '@video-compressor/shared';
 import { getSupabaseClient } from '../lib/supabase';
 import type { Json } from '../lib/database.types';
 import { currentBrowserPlatform } from '../lib/platform';
@@ -85,7 +96,10 @@ function readQueue(storage: Storage): PendingAnalyticsEvent[] {
           typeof value.user_id === 'string'
         );
       })
-      .map(event => ({ ...event, properties: sanitizeAnalyticsProperties(event.properties) }))
+      .map(event => ({
+        ...event,
+        properties: sanitizeAnalyticsProperties(event.properties, event.event_name)
+      }))
       .slice(-MAX_QUEUE_SIZE);
   } catch {
     return [];
@@ -194,7 +208,7 @@ export class ProductAnalytics {
 
   track<E extends AnalyticsEventName>(name: E, properties: AnalyticsEventProperties[E]) {
     if (!ANALYTICS_ENABLED || !this.userId || typeof window === 'undefined') return;
-    const sanitized = sanitizeAnalyticsProperties(properties);
+    const sanitized = sanitizeAnalyticsProperties(properties, name);
     const eventProperties = { ...sanitized };
     delete eventProperties.flow_id;
     delete eventProperties.run_id;
@@ -311,6 +325,255 @@ function safeUuid(value: Json | undefined): string | null {
 }
 
 export const analytics = new ProductAnalytics();
+
+type AnalyticsTracker = Pick<ProductAnalytics, 'track'>;
+
+export function trackTeamWorkspaceSession(tracker: AnalyticsTracker = analytics): void {
+  tracker.track('team_workspace_session', { workspace_session: true });
+}
+
+export interface TeamFileAttemptFlow {
+  attemptId: string;
+  action: TeamAnalyticsAction;
+  storageKind: TeamAnalyticsStorage;
+  sizeBucket: TeamAnalyticsSizeBucket;
+  cacheState: TeamAnalyticsCacheState;
+  attemptNumber: number;
+  startedAt: number;
+  completed: boolean;
+}
+
+export interface TeamWorkflowFlow {
+  workflowId: string;
+  category: MaterialCategory;
+  cacheState: TeamAnalyticsCacheState;
+  attemptNumber: number;
+  startedAt: number;
+  completed: boolean;
+}
+
+interface TeamAnalyticsLifecycleOptions {
+  now?: number;
+  tracker?: AnalyticsTracker;
+}
+
+export function teamAnalyticsSizeBucket(
+  sizeBytes: number | null | undefined
+): TeamAnalyticsSizeBucket {
+  if (typeof sizeBytes !== 'number' || !Number.isFinite(sizeBytes) || sizeBytes < 0) return 'agent';
+  if (sizeBytes <= 1024 * 1024) return 'tiny';
+  if (sizeBytes <= 10 * 1024 * 1024) return 'small';
+  if (sizeBytes <= 32 * 1024 * 1024) return 'medium';
+  if (sizeBytes <= 100 * 1024 * 1024) return 'large';
+  return 'agent';
+}
+
+export function startTeamFileAttempt(
+  input: {
+    action: TeamAnalyticsAction;
+    storageKind: TeamAnalyticsStorage;
+    sizeBucket: TeamAnalyticsSizeBucket;
+    cacheState?: TeamAnalyticsCacheState;
+    attemptNumber?: number;
+    stage?: TeamAnalyticsStage;
+  },
+  options: TeamAnalyticsLifecycleOptions = {}
+): TeamFileAttemptFlow {
+  const flow: TeamFileAttemptFlow = {
+    attemptId: uuid(),
+    action: input.action,
+    storageKind: input.storageKind,
+    sizeBucket: input.sizeBucket,
+    cacheState: input.cacheState ?? 'unknown',
+    attemptNumber: boundedAttemptNumber(input.attemptNumber),
+    startedAt: options.now ?? Date.now(),
+    completed: false
+  };
+  (options.tracker ?? analytics).track('team_file_attempt_started', {
+    attempt_id: flow.attemptId,
+    action: flow.action,
+    storage_kind: flow.storageKind,
+    size_bucket: flow.sizeBucket,
+    cache_state: flow.cacheState,
+    attempt_number: flow.attemptNumber,
+    stage: input.stage ?? stageForFileAction(flow.action)
+  });
+  return flow;
+}
+
+export function completeTeamFileAttempt(
+  flow: TeamFileAttemptFlow,
+  result: {
+    outcome: TeamAnalyticsOutcome;
+    retryable: boolean;
+    stage?: TeamAnalyticsStage;
+  },
+  options: TeamAnalyticsLifecycleOptions = {}
+): void {
+  if (flow.completed) return;
+  flow.completed = true;
+  (options.tracker ?? analytics).track('team_file_attempt_completed', {
+    attempt_id: flow.attemptId,
+    action: flow.action,
+    storage_kind: flow.storageKind,
+    size_bucket: flow.sizeBucket,
+    cache_state: flow.cacheState,
+    attempt_number: flow.attemptNumber,
+    duration_ms: boundedDuration(flow.startedAt, options.now ?? Date.now()),
+    stage: result.stage ?? stageForFileAction(flow.action),
+    outcome: result.outcome,
+    retryable: result.retryable,
+    production_completed: result.outcome === 'success'
+  });
+}
+
+export function startTeamWorkflow(
+  input: {
+    category: MaterialCategory;
+    cacheState?: TeamAnalyticsCacheState;
+    attemptNumber?: number;
+    stage?: TeamAnalyticsStage;
+  },
+  options: TeamAnalyticsLifecycleOptions = {}
+): TeamWorkflowFlow {
+  const flow: TeamWorkflowFlow = {
+    workflowId: uuid(),
+    category: input.category,
+    cacheState: input.cacheState ?? 'unknown',
+    attemptNumber: boundedAttemptNumber(input.attemptNumber),
+    startedAt: options.now ?? Date.now(),
+    completed: false
+  };
+  (options.tracker ?? analytics).track('team_workflow_started', {
+    workflow_id: flow.workflowId,
+    category: flow.category,
+    cache_state: flow.cacheState,
+    attempt_number: flow.attemptNumber,
+    stage: input.stage ?? 'downloading'
+  });
+  return flow;
+}
+
+export function completeTeamWorkflow(
+  flow: TeamWorkflowFlow,
+  result: {
+    outcome: TeamAnalyticsOutcome;
+    retryable: boolean;
+    stage?: TeamAnalyticsStage;
+  },
+  options: TeamAnalyticsLifecycleOptions = {}
+): void {
+  if (flow.completed) return;
+  flow.completed = true;
+  (options.tracker ?? analytics).track('team_workflow_completed', {
+    workflow_id: flow.workflowId,
+    category: flow.category,
+    cache_state: flow.cacheState,
+    attempt_number: flow.attemptNumber,
+    duration_ms: boundedDuration(flow.startedAt, options.now ?? Date.now()),
+    stage: result.stage ?? 'finalizing',
+    outcome: result.outcome,
+    retryable: result.retryable,
+    production_completed: result.outcome === 'success'
+  });
+}
+
+function boundedAttemptNumber(value: number | undefined): number {
+  return typeof value === 'number' && Number.isInteger(value)
+    ? Math.min(Math.max(value, 1), 10_000)
+    : 1;
+}
+
+function boundedDuration(startedAt: number, completedAt: number): number {
+  return Math.min(Math.max(Math.round(completedAt - startedAt), 0), 31_536_000_000);
+}
+
+function stageForFileAction(action: TeamAnalyticsAction): TeamAnalyticsStage {
+  if (action === 'download') return 'downloading';
+  if (action === 'upload') return 'uploading';
+  return 'finalizing';
+}
+
+export interface TeamOnboardingFlow {
+  flowId: string;
+  startedAt: number;
+  completed: boolean;
+}
+
+export function startTeamOnboardingFlow(now = Date.now()): TeamOnboardingFlow {
+  const flow = { flowId: uuid(), startedAt: now, completed: false };
+  analytics.track('team_onboarding_started', { flow_id: flow.flowId });
+  return flow;
+}
+
+export function completeTeamOnboardingFlow(
+  flow: TeamOnboardingFlow,
+  result: {
+    invitePersisted: boolean;
+    rootConfirmed: boolean;
+    syncQueued: boolean;
+    outcome: 'success' | 'failure' | 'cancelled' | 'blocked';
+  },
+  now = Date.now()
+): void {
+  if (flow.completed) return;
+  flow.completed = true;
+  analytics.track('team_onboarding_completed', {
+    flow_id: flow.flowId,
+    duration_ms: Math.max(0, now - flow.startedAt),
+    invite_persisted: result.invitePersisted,
+    root_confirmed: result.rootConfirmed,
+    sync_queued: result.syncQueued,
+    outcome: result.outcome
+  });
+}
+
+export interface TeamFindFlow {
+  studyRunId: string;
+  attemptId: string;
+  cueCategory: TeamAnalyticsCue;
+  startedAt: number;
+  completed: boolean;
+}
+
+export function startTeamFindFlow(
+  cueCategory: TeamAnalyticsCue,
+  options: { studyRunId?: string; now?: number } = {}
+): TeamFindFlow {
+  const flow = {
+    studyRunId: options.studyRunId ?? uuid(),
+    attemptId: uuid(),
+    cueCategory,
+    startedAt: options.now ?? Date.now(),
+    completed: false
+  };
+  analytics.track('team_find_started', {
+    study_run_id: flow.studyRunId,
+    attempt_id: flow.attemptId,
+    cue_category: flow.cueCategory,
+    stage: 'finding'
+  });
+  return flow;
+}
+
+export function completeTeamFindFlow(
+  flow: TeamFindFlow,
+  result: { outcome: TeamAnalyticsOutcome; assisted: boolean },
+  now = Date.now()
+): void {
+  if (flow.completed) return;
+  flow.completed = true;
+  analytics.track('team_find_completed', {
+    study_run_id: flow.studyRunId,
+    attempt_id: flow.attemptId,
+    cue_category: flow.cueCategory,
+    duration_ms: Math.max(0, now - flow.startedAt),
+    outcome: result.outcome,
+    assisted: result.assisted,
+    stage: 'finding'
+  });
+}
+
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => void analytics.flush());
   document.addEventListener('visibilitychange', () => {

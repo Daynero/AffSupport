@@ -11,6 +11,11 @@ import { registerLandingPreviewRoutes } from '../landing-preview/routes.js';
 import { registerMediaActionRoutes } from '../media-actions/routes.js';
 import type { MediaActionQueue } from '../media-actions/queue.js';
 import type { TranscriptionQueue } from '../queue/transcription-queue.js';
+import type { TeamOperationEvent } from '../team-bridge/events.js';
+import type { TeamDownloadBridge } from '../team-bridge/download.js';
+import type { TeamPreviewBridge } from '../team-bridge/preview.js';
+import type { TeamProcessBridge } from '../team-bridge/process.js';
+import { registerTeamBridgeRoutes } from '../team-bridge/routes.js';
 import { registerLandingRoutes } from '../landing/routes.js';
 import { registerTranscriptionRoutes } from '../transcription/routes.js';
 import type { EventChannel } from './sse.js';
@@ -44,6 +49,12 @@ export interface ToolModulesDeps {
     events: EventChannel<LandingPreviewEvent>;
   };
   transcription: { queue: TranscriptionQueue; events: EventChannel<TranscriptionEvent> };
+  teamWorkspace: {
+    preview: TeamPreviewBridge;
+    process: TeamProcessBridge;
+    download: TeamDownloadBridge;
+    events: EventChannel<TeamOperationEvent>;
+  };
 }
 
 /**
@@ -52,7 +63,7 @@ export interface ToolModulesDeps {
  * media actions → landing optimizer → transcription queue.
  */
 export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
-  const { compressor, mediaActions, landing, landingPreview, transcription } = deps;
+  const { compressor, mediaActions, landing, landingPreview, transcription, teamWorkspace } = deps;
   return [
     {
       id: 'compressor',
@@ -102,6 +113,26 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
         }),
       busy: () => transcription.queue.workActive(),
       shutdown: () => transcription.queue.shutdown()
+    },
+    {
+      id: 'team-workspace',
+      register: (app, ctx) =>
+        registerTeamBridgeRoutes(app, {
+          preview: teamWorkspace.preview,
+          process: teamWorkspace.process,
+          download: teamWorkspace.download,
+          events: teamWorkspace.events,
+          acceptingNewTasks: ctx.acceptingNewTasks
+        }),
+      busy: () =>
+        teamWorkspace.preview.busy() ||
+        teamWorkspace.process.busy() ||
+        teamWorkspace.download.busy(),
+      shutdown: async () => {
+        await teamWorkspace.download.shutdown();
+        await teamWorkspace.process.shutdown();
+        await teamWorkspace.preview.shutdown();
+      }
     }
   ];
 }

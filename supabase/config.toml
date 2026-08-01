@@ -1,8 +1,29 @@
 project_id = "wishly"
 
+[db]
+major_version = 17
+
 [auth]
 site_url = "http://127.0.0.1:5173"
 additional_redirect_urls = ["http://127.0.0.1:5173/auth/callback"]
 
 [functions.delete-account]
 verify_jwt = true
+
+[functions.team-invitations]
+verify_jwt = true
+
+[functions.drive-connect]
+verify_jwt = true
+
+[functions.drive-oauth-callback]
+verify_jwt = false
+
+[functions.catalog-sync]
+verify_jwt = false
+
+[functions.drive-transfer]
+verify_jwt = false
+
+[functions.drive-ops]
+verify_jwt = false

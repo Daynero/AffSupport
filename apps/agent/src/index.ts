@@ -32,6 +32,11 @@ import { TranscriptionQueue } from './queue/transcription-queue.js';
 import { buildServer } from './server/app.js';
 import { EventChannel } from './server/sse.js';
 import { createToolModules } from './server/tools.js';
+import { TeamPreviewBridge } from './team-bridge/preview.js';
+import { TeamOperationEvents, type TeamOperationEvent } from './team-bridge/events.js';
+import { TeamDownloadBridge } from './team-bridge/download.js';
+import { createTeamProcessDelegates, TeamProcessBridge } from './team-bridge/process.js';
+import { TeamTransferClient } from './team-bridge/transfer.js';
 import { createAligner } from './translation/aligner.js';
 import { createTranslator } from './translation/translator.js';
 import { whisperAvailable } from './whisper/tools.js';
@@ -59,6 +64,8 @@ const transcriptionTools = {
 };
 const imageStore = new ImageAssetStore();
 const mediaActions = new MediaActionQueue();
+const teamPreviewBridge = new TeamPreviewBridge();
+await teamPreviewBridge.init();
 let saveChain = Promise.resolve();
 let shuttingDown = false;
 let runtimeRestartRequested = false;
@@ -206,12 +213,35 @@ await persistQueueState();
 await persistTranscriptionState();
 await estimator.init();
 
+const teamOperationEvents = new TeamOperationEvents();
+const teamEvents = new EventChannel<TeamOperationEvent>(allowedOrigins, () =>
+  teamOperationEvents.snapshot()
+);
+teamOperationEvents.setNotify(event => teamEvents.broadcast(event));
+const teamTransfer = new TeamTransferClient();
+const teamProcessBridge = new TeamProcessBridge({
+  transfer: teamTransfer,
+  delegates: createTeamProcessDelegates({
+    compressor: queue,
+    transcription: transcriptionQueue,
+    landing: landingOptimizer
+  }),
+  events: teamOperationEvents
+});
+const teamDownloadBridge = new TeamDownloadBridge({ transfer: teamTransfer });
+
 const modules = createToolModules({
   compressor: { queue, estimator, imageStore, events: agentEvents, tools },
   mediaActions,
   landing: { optimizer: landingOptimizer, events: landingEvents },
   landingPreview: { catalog: landingPreviewCatalog, events: landingPreviewEvents },
-  transcription: { queue: transcriptionQueue, events: transcriptionEvents }
+  transcription: { queue: transcriptionQueue, events: transcriptionEvents },
+  teamWorkspace: {
+    preview: teamPreviewBridge,
+    process: teamProcessBridge,
+    download: teamDownloadBridge,
+    events: teamEvents
+  }
 });
 
 const here = path.dirname(fileURLToPath(import.meta.url));

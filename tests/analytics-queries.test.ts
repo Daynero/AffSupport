@@ -7,6 +7,7 @@ import {
   getEvents,
   getFunnel,
   getOverview,
+  getTeamWorkspace,
   getTools,
   getTopUsers,
   getUserDetail,
@@ -27,6 +28,12 @@ const ALICE = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const BOB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const CAROL = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const DAVE = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const PILOT_OWNER = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+const PILOT_BUYER = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+const TEAM_A_MEMBER_1 = '11111111-aaaa-4111-8111-111111111111';
+const TEAM_A_MEMBER_2 = '22222222-aaaa-4222-8222-222222222222';
+const TEAM_B_MEMBER_1 = '33333333-bbbb-4333-8333-333333333333';
+const TEAM_B_MEMBER_2 = '44444444-bbbb-4444-8444-444444444444';
 
 beforeAll(async () => {
   db = await PGlite.create();
@@ -55,7 +62,20 @@ beforeAll(async () => {
       agent_version text,
       locale text,
       platform text,
+      occurred_at timestamptz not null default now(),
+      flow_id uuid,
+      outcome text,
       created_at timestamptz not null default now()
+    );
+    create table public.analytics_team_workspace (
+      workspace_key text not null,
+      member_user_id uuid not null,
+      member_joined_at timestamptz not null,
+      member_removed_at timestamptz,
+      root_connected_at timestamptz not null,
+      root_state text not null,
+      pilot_enrolled_at timestamptz not null,
+      pilot_exited_at timestamptz
     );
 
     insert into public.analytics_users values
@@ -76,6 +96,60 @@ beforeAll(async () => {
       ('${BOB}','compression_started','22222222-2222-4222-8222-222222222222','compressor','{}','en','windows','0.4.0','0.4.0'),
       ('${BOB}','compression_failed','22222222-2222-4222-8222-222222222222','compressor','{"error_category":"network"}','en','windows','0.4.0','0.4.0'),
       ('${CAROL}','home_viewed','33333333-3333-4333-8333-333333333333',null,'{}','uk','macos','0.4.0',null);
+
+    insert into public.analytics_team_workspace values
+      ('workspace-a','${TEAM_A_MEMBER_1}', '2026-05-01T00:00:00Z', null, '2026-06-01T00:00:00Z', 'connected', '2026-05-01T00:00:00Z', null),
+      ('workspace-a','${TEAM_A_MEMBER_2}', '2026-05-01T00:00:00Z', null, '2026-06-01T00:00:00Z', 'connected', '2026-05-01T00:00:00Z', null),
+      ('workspace-b','${TEAM_B_MEMBER_1}', '2026-05-01T00:00:00Z', null, '2026-06-01T00:00:00Z', 'connected', '2026-05-01T00:00:00Z', null),
+      ('workspace-b','${TEAM_B_MEMBER_2}', '2026-05-01T00:00:00Z', null, '2026-06-01T00:00:00Z', 'connected', '2026-05-01T00:00:00Z', null);
+  `);
+
+  const onboarding = Array.from({ length: 20 }, (_, index) => {
+    const suffix = String(index + 1).padStart(12, '0');
+    const flow = `10000000-0000-4000-8000-${suffix}`;
+    const success = index < 18;
+    return [
+      `('${PILOT_OWNER}','team_onboarding_started','${flow}','{}','2026-06-02T00:00:00Z','2026-06-02T00:00:00Z')`,
+      `('${PILOT_OWNER}','team_onboarding_completed','${flow}','{"duration_ms":${success ? 240000 : 360000},"invite_persisted":${success},"root_confirmed":${success},"sync_queued":${success},"outcome":"${success ? 'success' : 'failure'}"}','2026-06-02T00:04:00Z','2026-06-02T00:04:00Z')`
+    ].join(',');
+  }).join(',');
+  await db.exec(`
+    insert into public.analytics_events
+      (user_id,event_name,flow_id,properties,occurred_at,created_at)
+    values ${onboarding};
+  `);
+
+  const cues = ['geo', 'offer', 'language', 'category'] as const;
+  const finds = Array.from({ length: 20 }, (_, index) => {
+    const attempt = `attempt_${String(index + 1).padStart(2, '0')}`;
+    const cue = cues[index % cues.length];
+    const success = index < 18;
+    return [
+      `('${PILOT_BUYER}','team_find_started','{"study_run_id":"study_01","attempt_id":"${attempt}","cue_category":"${cue}","stage":"finding"}','2026-06-03T00:00:00Z','2026-06-03T00:00:00Z')`,
+      `('${PILOT_BUYER}','team_find_completed','{"study_run_id":"study_01","attempt_id":"${attempt}","cue_category":"${cue}","duration_ms":${success ? 20000 : 40000},"outcome":"${success ? 'success' : 'failure'}","assisted":false,"stage":"finding"}','2026-06-03T00:00:20Z','2026-06-03T00:00:20Z')`
+    ].join(',');
+  }).join(',');
+  await db.exec(`
+    insert into public.analytics_events
+      (user_id,event_name,properties,occurred_at,created_at)
+    values ${finds};
+
+    insert into public.analytics_events (user_id,event_name,properties,outcome,occurred_at,created_at) values
+      ('${TEAM_A_MEMBER_1}','team_workspace_session','{"workspace_session":true}',null,'2026-06-02T00:00:00Z','2026-06-02T00:00:00Z'),
+      ('${TEAM_A_MEMBER_1}','team_find_completed','{"outcome":"success"}','success','2026-06-02T00:01:00Z','2026-06-02T00:01:00Z'),
+      ('${TEAM_A_MEMBER_1}','team_file_attempt_completed','{"outcome":"success","production_completed":true}','success','2026-06-02T00:02:00Z','2026-06-02T00:02:00Z'),
+      ('${TEAM_B_MEMBER_1}','team_workspace_session','{"workspace_session":true}',null,'2026-06-02T00:00:00Z','2026-06-02T00:00:00Z'),
+      ('${TEAM_B_MEMBER_1}','team_preview_completed','{"outcome":"success"}','success','2026-06-02T00:01:00Z','2026-06-02T00:01:00Z'),
+      ('${TEAM_B_MEMBER_1}','team_workflow_completed','{"outcome":"success","production_completed":true}','success','2026-06-02T00:02:00Z','2026-06-02T00:02:00Z'),
+
+      ('${TEAM_A_MEMBER_1}','team_workspace_session','{"workspace_session":true}',null,'2026-06-09T00:00:00Z','2026-06-09T00:00:00Z'),
+      ('${TEAM_A_MEMBER_1}','team_preview_completed','{"outcome":"success"}','success','2026-06-09T00:01:00Z','2026-06-09T00:01:00Z'),
+      ('${TEAM_A_MEMBER_1}','team_workflow_completed','{"outcome":"success","production_completed":true}','success','2026-06-09T00:02:00Z','2026-06-09T00:02:00Z'),
+      ('${TEAM_B_MEMBER_1}','team_workspace_session','{"workspace_session":true}',null,'2026-06-09T00:00:00Z','2026-06-09T00:00:00Z'),
+
+      ('${TEAM_A_MEMBER_1}','team_workspace_session','{"workspace_session":true}',null,'2026-06-23T00:00:00Z','2026-06-23T00:00:00Z'),
+      ('${TEAM_A_MEMBER_1}','team_find_completed','{"outcome":"success"}','success','2026-06-23T00:01:00Z','2026-06-23T00:01:00Z'),
+      ('${TEAM_A_MEMBER_1}','team_file_attempt_completed','{"outcome":"success","production_completed":true}','success','2026-06-23T00:02:00Z','2026-06-23T00:02:00Z');
   `);
 
   // PGlite has a single connection and does not tolerate overlapping queries;
@@ -198,5 +272,48 @@ describe('getTools / getEvents / getFunnel', () => {
     expect(byStage.compression_started).toBe(2);
     expect(byStage.compression_completed).toBe(1);
     expect(funnel[3].conversion_from_start).toBe(0.5);
+  });
+});
+
+describe('getTeamWorkspace', () => {
+  it('reports SC-001/SC-005 and each SC-009 root-relative week independently', async () => {
+    const data = await getTeamWorkspace(ALL);
+
+    expect(data.sc001).toMatchObject({
+      attempts: 20,
+      successes: 18,
+      success_rate: 0.9,
+      status: 'pass'
+    });
+    expect(data.sc005).toMatchObject({
+      attempts: 20,
+      successes: 18,
+      success_rate: 0.9,
+      status: 'pass'
+    });
+    expect(data.sc005.cues).toEqual([
+      { cue: 'category', attempts: 5, successes: 4 },
+      { cue: 'geo', attempts: 5, successes: 5 },
+      { cue: 'language', attempts: 5, successes: 4 },
+      { cue: 'offer', attempts: 5, successes: 5 }
+    ]);
+    expect(
+      data.sc009.windows.map(window => ({
+        window: window.window_index,
+        denominator: window.denominator,
+        numerator: window.numerator,
+        rate: window.rate,
+        status: window.status
+      }))
+    ).toEqual([
+      { window: 1, denominator: 2, numerator: 2, rate: 1, status: 'pass' },
+      { window: 2, denominator: 2, numerator: 1, rate: 0.5, status: 'fail' },
+      { window: 3, denominator: 0, numerator: 0, rate: null, status: 'insufficient' },
+      { window: 4, denominator: 1, numerator: 1, rate: 1, status: 'pass' }
+    ]);
+    expect(data.sc009.all_windows_pass).toBe(false);
+    expect(JSON.stringify(data)).not.toMatch(
+      /alice|bob|carol|dave|example\.com|workspace-[ab]|[0-9a-f]{8}-[0-9a-f-]{27}/i
+    );
   });
 });

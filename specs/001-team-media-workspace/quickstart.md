@@ -276,3 +276,115 @@ and provenance is committed.
 | `tests/team-file-operations.test.tsx`                        | permission split, TXT edit, version lineage/conflicts            |
 | `tests/team-workspace.test.tsx`                              | route/context/API/Realtime/SSE composition and UX states         |
 | `tests/analytics-queries.test.ts` / `analytics-cli.test.ts`  | four-window aggregate denominators and stable read-only envelope |
+
+## Local implementation evidence — 2026-08-01
+
+Environment: macOS development workspace, Node 22 project toolchain, local Supabase CLI
+stack with PostgreSQL 17 migrations rebuilt from an empty database. No production project,
+provider account, deployment, release, or user data was changed.
+
+- V2 automated authority/delivery subset: `tests/team-invitations.test.ts`,
+  `tests/team-workspace.test.tsx`, and the US1 pgTAP cases pass. This proves atomic owner
+  creation, canonical/deduplicated invitations, identity/expiry/capacity enforcement,
+  persisted delivery failure, token rotation/revoke, switching, and hidden-team UI
+  isolation. The separate moderated SC-001 cohort remains unexecuted and is not represented
+  as evidence here.
+- V3: `tests/team-members.test.tsx`, `tests/delete-account-team.test.ts`, and the US2 pgTAP
+  cases pass. The complete database suite now contains 234 assertions and proves independent
+  `edit`/`manage_metadata` overrides, next-action reads, serialized transfer/removal with one
+  owner, transfer-grant revocation, owner/admin-only audit reads, and owner deletion
+  preflight. The deletion Edge function also bundled and returned a 204 CORS preflight in
+  the local runtime.
+- V4 automated OAuth/root subset: `tests/drive-connect.test.ts` passes its complete closed
+  mode/origin matrix, state/PKCE replay, refresh-token omission/`invalid_grant`, My Drive and
+  Shared Drive flags, root confirmation/replacement/detach, and initial-sync enqueue smoke
+  cases. Live provider-account exercises in V4 steps 4–9 remain external validation.
+- V5 automated catalog subset: the six US3 Vitest files pass 34 assertions, and the complete
+  local pgTAP run passes 234 assertions, including an exactly-50,000-row visible PostgreSQL
+  fixture plus 137 hidden-team rows, caller/team isolation, metadata-only writes, conditional
+  transcript commits, tombstones, durable provenance, indexes, ACL inventory, and the one
+  named Cron schedule. The catalog Edge worker bundled in the local runtime and rejected a
+  request without its named secret with `AUTH_REQUIRED`.
+- The deterministic application workload used fixture hash
+  `116a619362c3ddcb393cca9ce999ccbd161a8d20f80a217858586b742f8ec42e` and query-manifest
+  hash `87cece125fb4d66383287fbd4496dd795cacc8ad8ffef02730767de012bd23e4`.
+  Across 3 × (20 warmups + 100 searches + 100 filter changes), milliseconds were: overall
+  p50 1.362 / p95 1.773 / p99 1.992 / max 3.020; search p50 1.411 / p95 1.862 /
+  p99 2.105 / max 3.020; filter p50 1.273 / p95 1.578 / p99 1.745 / max 1.966.
+  This is repeatable local adapter evidence, not a substitute for the specified dedicated
+  4-vCPU/8-GiB authenticated PostgreSQL environment. That formal run and the 20-person
+  balanced-cue SC-005 cohort remain unexecuted, so T079 stays open.
+- V6 automated preview subset: `tests/drive-transfer.test.ts`,
+  `tests/team-preview-sandbox.test.tsx`, and `tests/team-preview-ui.test.tsx` pass. They prove
+  bounded Range responses and grants, explicit media states, archive limits, landing-package
+  navigation on the isolated origin, sandbox restrictions, fallback behavior, and old-agent
+  blocking limited to Team Workspace. The controlled 100-attempt network matrix has not been
+  run, so T091 stays open.
+- V7/V8 automated file and process subset: `tests/drive-ops-guard.test.ts`,
+  `tests/drive-transfer.test.ts`, `tests/team-bridge.test.ts`,
+  `tests/team-file-operations.test.tsx`, the transcript regression, and the operation pgTAP
+  cases pass. They cover live ancestry/capability guards, resumable transfer, scoped grants,
+  exact conflicts, TXT preconditions, version/provenance invariants, trash/restore,
+  permission loss, cancellation/cleanup, one-result idempotency, authoritative Realtime plus
+  local SSE progress, and large agent downloads. The SC-007 100-action provider matrix and
+  SC-008 20-person pilot remain unexecuted, so T113 stays open.
+- V9 implementation and privacy subset: typed runtime workspace/file/workflow events feed a
+  content-free, read-only `team-workspace --period ... --json` aggregate. Analytics query/CLI,
+  UI emission, adversarial log/error/audit/Realtime payload, and recursively discovered EN/UK
+  translation-key tests pass. The four production team-week denominators were not queried;
+  that external measurement remains part of T123.
+- The production configuration source pins `DRIVE_OAUTH_MODE=verified` and the shared
+  canonical origin. An inert public-key fixture passes `scripts/verify-web-env.mjs`. The
+  already-published signed stable manifest was intentionally not changed, packaged, or
+  released; the complete publication gate must continue to reject it until the normal release
+  process publishes a manifest advertising the Team Workspace contract.
+
+Final local gate results:
+
+- `npm run generate:team-contract -- --check`: passed after rebuilding shared output.
+- `npm run format:check` and `npm run lint`: passed.
+- `npm test`: 102 files and 651 tests passed; 3 manual files / 6 tests were explicitly skipped.
+- `npm run test:team`: 18 files and 147 tests passed.
+- `npm run test:db`: 2 pgTAP files and 234 assertions passed against the isolated local stack.
+- Shared, web, and agent builds passed. Vite reported only its non-failing >500 kB chunk
+  advisory.
+- `npm run test:agent:e2e`: passed against release candidate `0.9.0+36` / API 5. A legacy contract got
+  `AGENT_UPDATE_REQUIRED` only for Team Workspace while existing tools remained compatible;
+  Optimal, Custom, and Embedded real media jobs completed and left every source unchanged.
+
+Locally implementable work is covered by these gates. T051, T079, T091, T113, and T123 stay
+open because their remaining acceptance evidence requires moderated participants, live
+My/Shared Drive fixtures, controlled network/hardware conditions, or production-relative
+analytics windows.
+
+### Release decision — 2026-08-01
+
+The product owner authorized the `0.9.0` release and production deployment after all automated
+contract, unit, integration, pgTAP, build, privacy, and real-agent gates passed. The owner will
+perform the remaining moderated cohorts and live-provider/network matrices after deployment.
+No SC-001/SC-005/SC-006/SC-007/SC-008/SC-009 result is inferred or fabricated by this release
+decision; T051, T079, T091, T113, and T123 remain post-release validation items until their
+specified samples and evidence are recorded.
+
+Commands used for this evidence:
+
+```bash
+npx supabase db reset
+npx supabase test db supabase/tests/database/team-workspace.test.sql
+npx vitest run tests/team-invitations.test.ts tests/drive-connect.test.ts tests/team-workspace.test.tsx
+npx vitest run tests/team-members.test.tsx tests/delete-account-team.test.ts
+npm run build -w @video-compressor/shared
+npx vitest run tests/material-category.test.ts tests/transcript-ingestion.test.ts tests/catalog-search.test.ts tests/catalog-sync.test.ts tests/catalog-benchmark.test.ts tests/team-catalog.test.tsx
+npm run generate:team-contract -- --check
+npm run format:check
+npm run lint
+npm test
+npm run test:team
+npm run test:db
+npm run build
+npm run test:agent:e2e
+VITE_SUPABASE_URL=https://example.supabase.co \
+  VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_fixture \
+  VITE_SITE_URL=https://wishly-app.pages.dev \
+  node scripts/verify-web-env.mjs
+```

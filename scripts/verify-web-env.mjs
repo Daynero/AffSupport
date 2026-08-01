@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { loadEnv } from 'vite';
+import { PRODUCTION_SITE_ORIGIN } from '../packages/shared/dist/release.js';
 
 const environment = loadEnv('production', process.cwd(), '');
 const required = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_PUBLISHABLE_KEY', 'VITE_SITE_URL'];
@@ -47,12 +48,18 @@ const releaseEnvironment = Object.fromEntries(
     })
 );
 
-if (siteOrigin && siteOrigin !== releaseEnvironment.PUBLIC_SITE_ORIGIN)
-  failures.push('VITE_SITE_URL does not match the release production origin');
+if (releaseEnvironment.PUBLIC_SITE_ORIGIN !== PRODUCTION_SITE_ORIGIN)
+  failures.push('the release production origin does not match shared PRODUCTION_SITE_ORIGIN');
+if (siteOrigin && siteOrigin !== PRODUCTION_SITE_ORIGIN)
+  failures.push('VITE_SITE_URL does not match shared PRODUCTION_SITE_ORIGIN');
+if (releaseEnvironment.DRIVE_OAUTH_MODE !== 'verified')
+  failures.push('production team OAuth requires DRIVE_OAUTH_MODE=verified');
 
 if (failures.length) {
   console.error(`Production web environment check failed: ${failures.join('; ')}.`);
   process.exitCode = 1;
 } else {
-  console.log('Production web environment is complete and uses only a public Supabase key.');
+  console.log(
+    'Production web environment is complete, uses only a public Supabase key, and pins verified team OAuth.'
+  );
 }
