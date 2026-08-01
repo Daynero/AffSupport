@@ -74,6 +74,21 @@ describe('protected routing and safe OAuth returns', () => {
     expect(protectedApplication).toContain('<AgentProvider>');
     expect(protectedApplication).toContain('toolByPath(path)');
   });
+
+  it('keeps the public Wishly purpose visible at the root before sign-in', async () => {
+    const [root, publicHome] = await Promise.all([
+      readFile('apps/web/src/Root.tsx', 'utf8'),
+      readFile('apps/web/src/PublicHomePage.tsx', 'utf8')
+    ]);
+    expect(root).toContain(
+      "path === '/' && (decision === 'configuration-error' || decision === 'login')"
+    );
+    expect(root).toContain('<PublicHomePage />');
+    expect(publicHome).toContain("t('publicHomeDescription')");
+    expect(publicHome).toContain('id="google-drive"');
+    expect(publicHome).toContain('href="/privacy"');
+    expect(publicHome).toContain('href="/terms"');
+  });
 });
 
 describe('environment and localization foundation', () => {

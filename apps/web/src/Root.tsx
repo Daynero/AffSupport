@@ -8,6 +8,7 @@ import {
   ConfigErrorScreen,
   LoginPage
 } from './auth/AuthScreens';
+import PublicHomePage from './PublicHomePage';
 import { loginUrl } from './lib/redirects';
 import { navigateTo, useBrowserRoute } from './lib/navigation';
 
@@ -55,6 +56,8 @@ function Routes() {
     configurationError: auth.error === 'configuration'
   });
   if (decision === 'loading') return <AuthLoadingScreen />;
+  if (path === '/' && (decision === 'configuration-error' || decision === 'login'))
+    return <PublicHomePage />;
   if (decision === 'configuration-error') return <ConfigErrorScreen />;
   if (decision === 'recovery') return <AuthRecoveryScreen />;
   if (decision === 'login') return <RedirectToLogin route={route} />;

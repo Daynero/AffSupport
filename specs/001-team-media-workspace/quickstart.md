@@ -392,9 +392,16 @@ VITE_SITE_URL=https://wishly-app.pages.dev \
 ### Production provider follow-up — 2026-08-02
 
 - Google Drive API is enabled, the production Edge callback is registered, and the broad
-  `drive` scope is configured as a restricted scope. The OAuth app is still in Google
-  `Testing` status, so production `DRIVE_OAUTH_MODE` remains `disabled`; no unverified mode
-  was labelled `verified` and no production Drive operation was attempted.
+  `drive` scope is configured as a restricted scope. On 2026-08-02 the OAuth app was
+  explicitly published and Google reports `In production`. Publication is not restricted-
+  scope approval, so production `DRIVE_OAUTH_MODE` remains `disabled`; no unverified mode was
+  labelled `verified` and no production Drive operation was attempted.
+- The first branding verification run reported four concrete issues: the live home page
+  resolves to sign-in, the public purpose was not visible there, the page name could not be
+  matched to `Wishly`, and the uploaded PNG had incorrect padding. The PNG was regenerated
+  from the canonical Wishly SVG and saved in Google. A public bilingual Wishly home page with
+  purpose, Google Drive use, privacy and legal links is implemented and validated locally;
+  it is not recorded as live until the production deployment gate truthfully passes.
 - The Google OAuth client credentials and a new Resend API key are stored only in the
   Supabase secret store. Resend has no verified sending domain because the Cloudflare
   account currently has zero zones or custom Pages domains. `INVITE_EMAIL_FROM` therefore
@@ -408,7 +415,7 @@ VITE_SITE_URL=https://wishly-app.pages.dev \
   deployment still identifies release commit `8147fb7`; the readiness gate correctly blocks
   deploying the hotfix until the provider state above is truthful.
 - Fresh automated gates passed: contract generation check, formatting, lint, 150 Team
-  Workspace tests in 19 files, 234 pgTAP assertions, 656 full-suite tests in 104 files (with
+  Workspace tests in 19 files, 234 pgTAP assertions, 657 full-suite tests in 104 files (with
   the same 6 explicitly manual tests skipped), the web/agent builds, and the real-agent E2E
   check for `0.9.0+36` / API 5.
 - The read-only production analytics command

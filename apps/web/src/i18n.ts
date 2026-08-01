@@ -53,6 +53,28 @@ const en = {
   supportClose: 'Close',
   supportMessageRequired: 'Write a short message first.',
   loginSupportPitch: 'Completely free — made by a media buyer for media buyers.',
+  publicHomeEyebrow: 'LOCAL MEDIA WORKFLOWS · SHARED TEAM SPACE',
+  publicHomeTitle: 'Wishly keeps media work fast, local, and organized.',
+  publicHomeDescription:
+    'Wishly helps media teams compress video, transcribe audio, optimize and preview landing pages, and organize shared files in a connected Google Drive folder.',
+  publicHomeSignIn: 'Open Wishly',
+  publicHomeLearnMore: 'How Google Drive works',
+  publicHomeCapabilities: 'Wishly capabilities',
+  publicHomeLocalTitle: 'Local media tools',
+  publicHomeLocalBody:
+    'Video, audio, images, and landing pages are processed by Wishly on your computer instead of being uploaded to a remote media processor.',
+  publicHomeTeamTitle: 'One workspace for the team',
+  publicHomeTeamBody:
+    'Create a team, invite members, manage roles, search shared materials, and run Wishly workflows from one catalog.',
+  publicHomePrivacyTitle: 'Clear access and control',
+  publicHomePrivacyBody:
+    'Team permissions, activity history, and explicit actions keep shared work understandable. Wishly never asks for your Google password.',
+  publicHomeDriveTitle: 'Connect the folder your team already uses',
+  publicHomeDriveBody:
+    'A team owner connects Google Drive and selects the team root folder. Wishly uses that connection to list and manage materials inside the selected workspace.',
+  publicHomeDriveControl:
+    'The owner can replace or disconnect the folder. Google Drive permissions remain separate from Wishly team roles.',
+  publicHomeFooter: 'Wishly · Local media tools and team workspace',
   toolsTitle: 'Wishly Tools',
   toolsSubtitle: 'Choose a tool to work with your files.',
   videoCompressor: 'Video Compressor',
@@ -1037,6 +1059,28 @@ const uk: Record<keyof typeof en, string> = {
   supportClose: 'Закрити',
   supportMessageRequired: 'Спершу напишіть коротке повідомлення.',
   loginSupportPitch: 'Повністю безкоштовно — зроблено баєром для баєрів.',
+  publicHomeEyebrow: 'ЛОКАЛЬНА РОБОТА З МЕДІА · СПІЛЬНИЙ ПРОСТІР КОМАНДИ',
+  publicHomeTitle: 'Wishly допомагає працювати з медіа швидко, локально й організовано.',
+  publicHomeDescription:
+    'Wishly допомагає медіакоманді стискати відео, транскрибувати аудіо, оптимізувати й переглядати лендинги та впорядковувати спільні файли у підключеній папці Google Drive.',
+  publicHomeSignIn: 'Відкрити Wishly',
+  publicHomeLearnMore: 'Як працює Google Drive',
+  publicHomeCapabilities: 'Можливості Wishly',
+  publicHomeLocalTitle: 'Локальні медіаінструменти',
+  publicHomeLocalBody:
+    'Відео, аудіо, зображення й лендинги обробляються Wishly на вашому комп’ютері, а не завантажуються до віддаленого сервісу обробки.',
+  publicHomeTeamTitle: 'Один простір для команди',
+  publicHomeTeamBody:
+    'Створюйте команду, запрошуйте учасників, керуйте ролями, шукайте спільні матеріали й запускайте процеси Wishly з одного каталогу.',
+  publicHomePrivacyTitle: 'Зрозумілий доступ і контроль',
+  publicHomePrivacyBody:
+    'Командні дозволи, історія дій та явні операції роблять спільну роботу прозорою. Wishly ніколи не запитує ваш пароль Google.',
+  publicHomeDriveTitle: 'Підключіть папку, якою вже користується команда',
+  publicHomeDriveBody:
+    'Власник команди підключає Google Drive та обирає кореневу папку команди. Wishly використовує це з’єднання для перегляду й керування матеріалами всередині обраного простору.',
+  publicHomeDriveControl:
+    'Власник може замінити або від’єднати папку. Дозволи Google Drive залишаються окремими від командних ролей Wishly.',
+  publicHomeFooter: 'Wishly · Локальні медіаінструменти та командний простір',
   toolsTitle: 'Інструменти Wishly',
   toolsSubtitle: 'Оберіть інструмент для роботи з вашими файлами.',
   videoCompressor: 'Відеокомпресор',
