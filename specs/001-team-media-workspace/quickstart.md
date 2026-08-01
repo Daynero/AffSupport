@@ -385,6 +385,39 @@ npm run build
 npm run test:agent:e2e
 VITE_SUPABASE_URL=https://example.supabase.co \
   VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_fixture \
-  VITE_SITE_URL=https://wishly-app.pages.dev \
+VITE_SITE_URL=https://wishly-app.pages.dev \
   node scripts/verify-web-env.mjs
 ```
+
+### Production provider follow-up — 2026-08-02
+
+- Google Drive API is enabled, the production Edge callback is registered, and the broad
+  `drive` scope is configured as a restricted scope. The OAuth app is still in Google
+  `Testing` status, so production `DRIVE_OAUTH_MODE` remains `disabled`; no unverified mode
+  was labelled `verified` and no production Drive operation was attempted.
+- The Google OAuth client credentials and a new Resend API key are stored only in the
+  Supabase secret store. Resend has no verified sending domain because the Cloudflare
+  account currently has zero zones or custom Pages domains. `INVITE_EMAIL_FROM` therefore
+  remains unset instead of claiming that the Resend test sender is production-ready.
+- The deployed provider-readiness endpoint reports `production=true`, `oauthMode=disabled`,
+  Google Drive unavailable, invitation email unavailable, and the catalog worker available.
+  `npm run verify:team-production` correctly stops at this state.
+- The live Team Workspace route at `https://wishly-app.pages.dev/team` renders the team,
+  member/invitation management, Drive connection panel, audit history, and catalog. The
+  visible launcher hotfix is committed and pushed, but the latest production Pages
+  deployment still identifies release commit `8147fb7`; the readiness gate correctly blocks
+  deploying the hotfix until the provider state above is truthful.
+- Fresh automated gates passed: contract generation check, formatting, lint, 150 Team
+  Workspace tests in 19 files, 234 pgTAP assertions, 656 full-suite tests in 104 files (with
+  the same 6 explicitly manual tests skipped), the web/agent builds, and the real-agent E2E
+  check for `0.9.0+36` / API 5.
+- The read-only production analytics command
+  `npm run analytics -- team-workspace --period all --json` returned one SC-001 attempt with
+  zero successes, four SC-005 attempts with zero successes, and four SC-009 windows with
+  zero denominators. All three results are explicitly `insufficient`; no success criterion
+  or remaining task is inferred from them.
+
+T051, T079, T091, T113, and T123 remain open until their real participant, controlled
+network, live My/Shared Drive, dedicated benchmark, and four qualifying production-window
+samples exist. This follow-up records actual readiness and measurements without fabricating
+those samples.
