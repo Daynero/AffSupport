@@ -400,8 +400,12 @@ VITE_SITE_URL=https://wishly-app.pages.dev \
   resolves to sign-in, the public purpose was not visible there, the page name could not be
   matched to `Wishly`, and the uploaded PNG had incorrect padding. The PNG was regenerated
   from the canonical Wishly SVG and saved in Google. A public bilingual Wishly home page with
-  purpose, Google Drive use, privacy and legal links is implemented and validated locally;
-  it is not recorded as live until the production deployment gate truthfully passes.
+  purpose, Google Drive use, privacy and legal links is implemented and validated locally.
+  Commit `44d7458` is pushed and deployed to the isolated Cloudflare preview alias
+  `https://oauth-review.wishly-app.pages.dev` (deployment `8cffafe2`), and that alias is saved
+  as the OAuth home page without bypassing the production provider gate. A second branding
+  verification was submitted, but Google still reports that the branding is not being shown;
+  restricted-scope approval is therefore not claimed.
 - The Google OAuth client credentials and a new Resend API key are stored only in the
   Supabase secret store. Resend has no verified sending domain because the Cloudflare
   account currently has zero zones or custom Pages domains. `INVITE_EMAIL_FROM` therefore
