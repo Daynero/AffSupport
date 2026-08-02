@@ -15,6 +15,7 @@ function isRecord(value) {
 }
 
 const environment = loadEnv('production', process.cwd(), '');
+const memberPilot = process.argv.includes('--member-pilot');
 const supabaseUrl = environment.VITE_SUPABASE_URL?.trim();
 const publishableKey = environment.VITE_SUPABASE_PUBLISHABLE_KEY?.trim();
 const siteUrl = environment.VITE_SITE_URL?.trim();
@@ -44,7 +45,7 @@ try {
   fail(error instanceof Error ? error.message : 'could not inspect Supabase secrets');
 }
 
-const missing = missingTeamProductionSecrets(secretNames);
+const missing = missingTeamProductionSecrets(secretNames, { memberPilot });
 if (missing.length > 0) fail(`missing Supabase secrets: ${missing.join(', ')}`);
 
 let response;
@@ -62,13 +63,27 @@ if (!response.ok || !isRecord(payload) || payload.ok !== true || !isRecord(paylo
   fail(`the deployed provider-readiness endpoint returned HTTP ${response.status}`);
 }
 const readiness = payload.value;
+if (memberPilot) {
+  if (
+    readiness.production !== true ||
+    readiness.memberOnboarding !== 'direct_add_testing' ||
+    !isRecord(readiness.services) ||
+    readiness.services.directMemberAdd !== true
+  ) {
+    fail('deployed direct-add member pilot is not explicitly ready');
+  }
+  console.log('Team member pilot reports direct-add testing ready.');
+  process.exit(0);
+}
+
 if (
   readiness.ready !== true ||
+  readiness.fullProviderReady !== true ||
   readiness.production !== true ||
   readiness.oauthMode !== 'verified' ||
   !isRecord(readiness.services) ||
   readiness.services.googleDrive !== true ||
-  (readiness.services.invitationEmail !== true && readiness.services.directMemberAdd !== true) ||
+  readiness.services.invitationEmail !== true ||
   readiness.services.catalogWorker !== true
 ) {
   const unavailable = isRecord(readiness.services)
@@ -81,6 +96,4 @@ if (
   );
 }
 
-const onboardingMode =
-  readiness.services.invitationEmail === true ? 'email invitation' : 'direct-add testing';
-console.log(`Team Workspace reports ready with ${onboardingMode} member onboarding.`);
+console.log('Team Workspace production providers are configured and report fully ready.');

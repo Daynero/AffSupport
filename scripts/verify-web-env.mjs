@@ -3,6 +3,7 @@ import { loadEnv } from 'vite';
 import { PRODUCTION_SITE_ORIGIN } from '../packages/shared/dist/release.js';
 
 const environment = loadEnv('production', process.cwd(), '');
+const memberPilot = process.argv.includes('--member-pilot');
 const required = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_PUBLISHABLE_KEY', 'VITE_SITE_URL'];
 const failures = required
   .filter(name => !environment[name]?.trim())
@@ -52,8 +53,10 @@ if (releaseEnvironment.PUBLIC_SITE_ORIGIN !== PRODUCTION_SITE_ORIGIN)
   failures.push('the release production origin does not match shared PRODUCTION_SITE_ORIGIN');
 if (siteOrigin && siteOrigin !== PRODUCTION_SITE_ORIGIN)
   failures.push('VITE_SITE_URL does not match shared PRODUCTION_SITE_ORIGIN');
-if (releaseEnvironment.DRIVE_OAUTH_MODE !== 'verified')
+if (!memberPilot && releaseEnvironment.DRIVE_OAUTH_MODE !== 'verified')
   failures.push('production team OAuth requires DRIVE_OAUTH_MODE=verified');
+if (memberPilot && environment.VITE_TEAM_DIRECT_ADD_MODE?.trim() !== 'testing')
+  failures.push('member pilot requires VITE_TEAM_DIRECT_ADD_MODE=testing');
 if (
   environment.VITE_TEAM_DIRECT_ADD_MODE &&
   !['disabled', 'testing'].includes(environment.VITE_TEAM_DIRECT_ADD_MODE.trim())
@@ -65,6 +68,8 @@ if (failures.length) {
   process.exitCode = 1;
 } else {
   console.log(
-    'Production web environment is complete, uses only a public Supabase key, and pins verified team OAuth.'
+    memberPilot
+      ? 'Member-pilot web environment is complete and explicitly labels direct-add testing.'
+      : 'Production web environment is complete, uses only a public Supabase key, and pins verified team OAuth.'
   );
 }

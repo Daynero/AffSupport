@@ -47,11 +47,15 @@ Use the names in `supabase/functions/.env.example`:
 Before packaging, releasing, or deploying a production build that advertises Team Workspace,
 run `npm run verify:team-production`. The gate inspects only Supabase secret names and the
 deployed non-secret readiness result; it never reads or prints credential values. It requires
-Google OAuth and the catalog worker, plus either complete Resend invitation delivery or the
-explicit `TEAM_DIRECT_ADD_MODE=testing` pilot path. It always requires the live production
-OAuth mode to report `verified`. Readiness exposes `fullProviderReady=false` and
-`memberOnboarding=direct_add_testing` while the temporary path substitutes for Resend, so it
-cannot be mistaken for completed email-provider setup.
+Google OAuth, Resend invitation delivery, and the catalog worker, and it requires the live
+production OAuth mode to report `verified`. This strict gate is unchanged by the temporary
+member pilot.
+
+`npm run verify:team-member-pilot` and `npm run deploy:web:member-pilot` are separate narrow
+paths for this explicitly labelled test. They require live
+`memberOnboarding=direct_add_testing` and the matching public UI flag, but do not claim Google
+Drive, Resend, catalog, or `fullProviderReady`. Never use the pilot command for a normal
+production-readiness or Agent release decision.
 
 ### Temporary direct-member pilot mode
 

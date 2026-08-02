@@ -4,10 +4,15 @@ export const REQUIRED_TEAM_PRODUCTION_SECRETS = Object.freeze([
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
   'GOOGLE_REDIRECT_URI',
+  'INVITE_EMAIL_FROM',
+  'RESEND_API_KEY',
   'WISHLY_SITE_URL'
 ]);
 
-export const TEAM_INVITATION_EMAIL_SECRETS = Object.freeze(['RESEND_API_KEY', 'INVITE_EMAIL_FROM']);
+export const REQUIRED_TEAM_MEMBER_PILOT_SECRETS = Object.freeze([
+  'TEAM_DIRECT_ADD_MODE',
+  'WISHLY_SITE_URL'
+]);
 
 export function parseSupabaseSecretNames(value) {
   if (!Array.isArray(value)) throw new Error('invalid Supabase secrets response');
@@ -16,13 +21,10 @@ export function parseSupabaseSecretNames(value) {
     .map(entry => entry.name);
 }
 
-export function missingTeamProductionSecrets(secretNames) {
+export function missingTeamProductionSecrets(secretNames, options = {}) {
   const available = new Set(secretNames);
-  const missing = REQUIRED_TEAM_PRODUCTION_SECRETS.filter(name => !available.has(name));
-  const invitationEmail = TEAM_INVITATION_EMAIL_SECRETS.every(name => available.has(name));
-  const directMemberTesting = available.has('TEAM_DIRECT_ADD_MODE');
-  if (!invitationEmail && !directMemberTesting) {
-    missing.push('RESEND_API_KEY+INVITE_EMAIL_FROM or TEAM_DIRECT_ADD_MODE');
-  }
-  return missing;
+  const required = options.memberPilot
+    ? REQUIRED_TEAM_MEMBER_PILOT_SECRETS
+    : REQUIRED_TEAM_PRODUCTION_SECRETS;
+  return required.filter(name => !available.has(name));
 }
