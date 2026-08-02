@@ -106,6 +106,30 @@ Same target identity rule and optional deep-link token check; transition
 One scheduled database sweep moves stale pending rows to `expired`; every accept call also
 checks time, so sweep delay cannot extend validity.
 
+## Temporary registered-account direct add
+
+### `POST /functions/v1/team-invitations/direct-add`
+
+**Body**: `{ teamId, email, initialRole }`.
+
+- Available only when the server has `TEAM_DIRECT_ADD_MODE=testing`; missing, `disabled`, or
+  unknown values return `WRONG_STATE` before an RPC or delivery side effect.
+- The authenticated caller must pass `lookup_invitable_account(p_team,p_email)`, which proves
+  `manage_members` and an exact active account with confirmed email.
+- Only then does Edge call the service-only
+  `service_direct_add_registered_member(p_actor,p_team,p_email,p_base_role)`. The function
+  rechecks actor authority, locks the active team, enforces the 50-member cap and active
+  membership dedupe, inserts one membership, revokes a matching obsolete pending invite,
+  and appends `membership.direct_added` audit atomically.
+- The returned value is the same closed `Membership` projection used by member management.
+  No email is sent and no token/invitation is created.
+- **Errors**: `NOT_FOUND`, `ALREADY_MEMBER`, `TEAM_MEMBER_LIMIT`, `INVALID_INPUT`,
+  `PERMISSION_DENIED`, `WRONG_STATE`.
+
+The public web setting only exposes the test UI. It is never authority: a mismatched or
+missing server setting still fails closed. Disable both settings once verified invitation
+delivery is available; the normal invitation contract above remains unchanged.
+
 ## Existing account lifecycle integration
 
 `supabase/functions/delete-account` performs `owned_team_count(auth.uid())` before deleting

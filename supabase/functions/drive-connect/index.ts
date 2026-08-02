@@ -279,6 +279,7 @@ Deno.serve(async request => {
             GOOGLE_REDIRECT_URI: Deno.env.get('GOOGLE_REDIRECT_URI'),
             RESEND_API_KEY: Deno.env.get('RESEND_API_KEY'),
             INVITE_EMAIL_FROM: Deno.env.get('INVITE_EMAIL_FROM'),
+            TEAM_DIRECT_ADD_MODE: Deno.env.get('TEAM_DIRECT_ADD_MODE'),
             CATALOG_SYNC_SECRET: Deno.env.get('CATALOG_SYNC_SECRET')
           },
           signals

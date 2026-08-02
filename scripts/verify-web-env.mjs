@@ -54,6 +54,11 @@ if (siteOrigin && siteOrigin !== PRODUCTION_SITE_ORIGIN)
   failures.push('VITE_SITE_URL does not match shared PRODUCTION_SITE_ORIGIN');
 if (releaseEnvironment.DRIVE_OAUTH_MODE !== 'verified')
   failures.push('production team OAuth requires DRIVE_OAUTH_MODE=verified');
+if (
+  environment.VITE_TEAM_DIRECT_ADD_MODE &&
+  !['disabled', 'testing'].includes(environment.VITE_TEAM_DIRECT_ADD_MODE.trim())
+)
+  failures.push('VITE_TEAM_DIRECT_ADD_MODE must be disabled or testing');
 
 if (failures.length) {
   console.error(`Production web environment check failed: ${failures.join('; ')}.`);

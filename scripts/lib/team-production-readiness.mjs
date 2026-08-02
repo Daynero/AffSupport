@@ -4,10 +4,10 @@ export const REQUIRED_TEAM_PRODUCTION_SECRETS = Object.freeze([
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
   'GOOGLE_REDIRECT_URI',
-  'INVITE_EMAIL_FROM',
-  'RESEND_API_KEY',
   'WISHLY_SITE_URL'
 ]);
+
+export const TEAM_INVITATION_EMAIL_SECRETS = Object.freeze(['RESEND_API_KEY', 'INVITE_EMAIL_FROM']);
 
 export function parseSupabaseSecretNames(value) {
   if (!Array.isArray(value)) throw new Error('invalid Supabase secrets response');
@@ -18,5 +18,11 @@ export function parseSupabaseSecretNames(value) {
 
 export function missingTeamProductionSecrets(secretNames) {
   const available = new Set(secretNames);
-  return REQUIRED_TEAM_PRODUCTION_SECRETS.filter(name => !available.has(name));
+  const missing = REQUIRED_TEAM_PRODUCTION_SECRETS.filter(name => !available.has(name));
+  const invitationEmail = TEAM_INVITATION_EMAIL_SECRETS.every(name => available.has(name));
+  const directMemberTesting = available.has('TEAM_DIRECT_ADD_MODE');
+  if (!invitationEmail && !directMemberTesting) {
+    missing.push('RESEND_API_KEY+INVITE_EMAIL_FROM or TEAM_DIRECT_ADD_MODE');
+  }
+  return missing;
 }

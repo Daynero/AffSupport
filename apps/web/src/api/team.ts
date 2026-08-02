@@ -401,6 +401,10 @@ function mapMember(value: unknown): TeamMemberSummary | null {
   };
 }
 
+function memberRpcResultGuard(value: unknown): value is unknown[] {
+  return Array.isArray(value) && value.length === 1 && mapMember(value[0]) !== null;
+}
+
 const AUDIT_TARGET_KEYS = new Set([
   'member_id',
   'invitation_id',
@@ -769,6 +773,26 @@ export const teamApi = {
     const invitation = mapInvitation(value);
     if (!invitation) throw new TeamApiError('INVALID_RESPONSE', false);
     return invitation;
+  },
+
+  async directAddMember(input: {
+    teamId: string;
+    email: string;
+    initialRole?: TeamBaseRole;
+  }): Promise<TeamMemberSummary> {
+    const value = await invokeTeamFunction(
+      'team-invitations',
+      {
+        action: 'direct-add',
+        teamId: input.teamId,
+        email: input.email,
+        initialRole: input.initialRole ?? 'viewer'
+      },
+      memberRpcResultGuard
+    );
+    const member = mapMember(value[0]);
+    if (!member) throw new TeamApiError('INVALID_RESPONSE', false);
+    return member;
   },
 
   async resendInvitation(invitationId: string): Promise<TeamInvitationSummary> {

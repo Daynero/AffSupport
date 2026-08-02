@@ -29,6 +29,16 @@ verified production deployment may set `verified`. Dynamic
 refresh tokens are created in local Vault; there is no `DRIVE_TOKEN_KEY` or per-team env
 secret.
 
+If the Resend sending domain is temporarily unavailable, set
+`TEAM_DIRECT_ADD_MODE=testing` in the Edge environment and
+`VITE_TEAM_DIRECT_ADD_MODE=testing` in the matching web build. In this labelled pilot mode,
+the member form accepts only an existing active Wishly account's exact confirmed email and
+adds it immediately; an unknown/unconfirmed account returns `NOT_FOUND`. Both settings
+default to `disabled` and must be disabled when normal invitation delivery is restored.
+The provider-readiness endpoint may report `ready=true` for this usable pilot path while
+retaining `fullProviderReady=false` and `memberOnboarding=direct_add_testing`; only verified
+Resend configuration makes `fullProviderReady=true`.
+
 For the isolated hosted dev project, set the same configuration with `supabase secrets set`
 only after verifying the linked project. Local `functions serve` does not automatically use
 remote secrets.
@@ -97,8 +107,13 @@ and contract/version checks are deterministic.
 4. Verify wrong/unconfirmed email, replayed token and token after 14 days fail.
 5. Fill 50 active members and accept one more invite concurrently: exactly one request can
    reach the cap; excess is `TEAM_MEMBER_LIMIT`.
+6. With direct-add mode disabled, call `direct-add`: verify `WRONG_STATE` and zero lookup,
+   membership, invitation-delivery, or audit side effects. Enable `testing`; add an existing
+   confirmed account and verify one active membership, matching pending invite revoked,
+   `membership.direct_added` audit, and no delivery call. Unknown/unconfirmed email returns
+   `NOT_FOUND`; non-manager, duplicate, and member 51 remain denied.
 
-6. Moderate 20 first-time owners from authenticated workspace-open until team exists, first
+7. Moderate 20 first-time owners from authenticated workspace-open until team exists, first
    invite is persisted, root is confirmed, and initial sync is queued. Assistance,
    abandonment, or >300 s is failure.
 
@@ -435,3 +450,27 @@ T051, T079, T091, T113, and T123 remain open until their real participant, contr
 network, live My/Shared Drive, dedicated benchmark, and four qualifying production-window
 samples exist. This follow-up records actual readiness and measurements without fabricating
 those samples.
+
+### Temporary direct-member implementation evidence — 2026-08-02
+
+- `npx supabase db reset` rebuilt PostgreSQL 17 from empty state through
+  `20260802100000_team_direct_member_testing.sql`; `npm run test:db` passed both files and
+  244 assertions. The new cases prove service-only ACL, caller permission recheck, exact
+  confirmed-account matching, pending-invite closure, duplicate rejection, member-51
+  rejection, atomic audit, and no membership for unknown/unconfirmed accounts.
+- Failing-first Edge and UI cases in `tests/team-invitations.test.ts` and
+  `tests/team-direct-member.test.tsx` now pass. They prove disabled mode performs no RPC,
+  lookup precedes the service mutation, delivery/token functions are not called, the member
+  list refreshes, and the unknown-account message is explicit. Readiness/config tests prove
+  unknown values fail closed and distinguish `direct_add_testing` from full provider ready.
+- `npm run generate:team-contract:check`, migration validation, `npm run format:check`,
+  `npm run lint`, and `scripts/verify-web-env.mjs` passed. The Edge runtime bundled all
+  functions successfully with the new command.
+- `npm test` passed 105 files / 663 tests; the same 3 manual files / 6 tests remain explicitly
+  skipped. Shared, web, and agent builds passed with only Vite's existing non-failing chunk
+  advisory. `npm run test:agent:e2e` passed for `0.9.0+36` / API 5 and left all source media
+  unchanged.
+- Before enabling the pilot secret, `npm run verify:team-production` correctly failed on the
+  absent `INVITE_EMAIL_FROM`; no readiness was fabricated. The deployment record is added
+  only after the server secret, migration, functions, web build, and live endpoint are
+  actually verified.

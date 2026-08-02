@@ -109,8 +109,10 @@ describe('Drive OAuth release gate', () => {
       services: {
         googleDrive: true,
         invitationEmail: true,
+        directMemberAdd: false,
         catalogWorker: true
-      }
+      },
+      memberOnboarding: 'email_invitation'
     });
     expect(
       evaluateTeamProviderReadiness(
@@ -119,7 +121,24 @@ describe('Drive OAuth release gate', () => {
       )
     ).toMatchObject({
       ready: false,
-      services: { googleDrive: false, invitationEmail: false, catalogWorker: true }
+      services: {
+        googleDrive: false,
+        invitationEmail: false,
+        directMemberAdd: false,
+        catalogWorker: true
+      },
+      memberOnboarding: 'unavailable'
+    });
+    expect(
+      evaluateTeamProviderReadiness(
+        { ...complete, RESEND_API_KEY: undefined, TEAM_DIRECT_ADD_MODE: 'testing' },
+        signals
+      )
+    ).toMatchObject({
+      ready: true,
+      fullProviderReady: false,
+      services: { invitationEmail: false, directMemberAdd: true },
+      memberOnboarding: 'direct_add_testing'
     });
     expect(
       evaluateTeamProviderReadiness({ ...complete, DRIVE_OAUTH_MODE: 'testing' }, signals)

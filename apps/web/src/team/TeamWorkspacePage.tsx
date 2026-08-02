@@ -4,6 +4,7 @@ import { teamApi } from '../api/team';
 import { Button } from '../components/ui';
 import { useI18n } from '../i18n';
 import { usePageEntrance } from '../lib/navigation';
+import { configuredTeamDirectAddMode } from '../lib/config';
 import { CreateTeamDialog } from './CreateTeamDialog';
 import { TeamSwitcher } from './TeamSwitcher';
 import { useTeam } from './TeamContext';
@@ -31,9 +32,11 @@ export type TeamWorkspaceClient = {
   TeamCatalogClient;
 
 export function TeamWorkspacePage({
-  client = teamApi as TeamWorkspaceClient
+  client = teamApi as TeamWorkspaceClient,
+  directAddMode = configuredTeamDirectAddMode()
 }: {
   client?: TeamWorkspaceClient;
+  directAddMode?: 'disabled' | 'testing';
 }) {
   const { t } = useI18n();
   const entering = usePageEntrance();
@@ -163,6 +166,7 @@ export function TeamWorkspacePage({
               teamId={activeTeam.id}
               client={client}
               canManage={can('manage_members')}
+              directAddMode={directAddMode}
               revision={effectiveRevision}
               onChanged={() => {
                 markOnboarding('invite');

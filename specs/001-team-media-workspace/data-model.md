@@ -301,9 +301,11 @@ narrow grant. No function accepts a user id as proof of the actor.
   `private.can`, ownership constraint triggers, and audit helpers. Unknown permission is
   false; any helper reachable from a policy has only the minimum intended execute grant.
 - Service-only definers (grant only `service_role`): credential access, OAuth-state
-  consumption, operation/content-edit/new-version finalize, transfer-grant consumption,
-  sync lease/checkpoint/transcript ingestion, and audit append. Execute is revoked from
-  `PUBLIC`, `anon`, and `authenticated`.
+  consumption, temporary `service_direct_add_registered_member` membership creation after
+  an Edge caller-scoped gate, operation/content-edit/new-version finalize, transfer-grant
+  consumption, sync lease/checkpoint/transcript ingestion, and audit append. The direct-add
+  function rechecks the supplied actor, exact confirmed account, capacity and duplicate
+  state under a team lock. Execute is revoked from `PUBLIC`, `anon`, and `authenticated`.
 
 An inventory pgTAP assertion covers every feature function: `pg_proc.prosecdef=true`, empty
 `search_path` in `proconfig`, exact ACL, null/spoofed/inactive/foreign-team rejection, no

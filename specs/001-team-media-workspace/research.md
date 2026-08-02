@@ -268,6 +268,14 @@ always checks `expires_at`.
 of delivery; `delivery_state` exposes pending/sent/failed and resend rotates token/expiry.
 In-app `list_my_invitations()` covers delivery failure and existing accounts.
 
+Until the sending domain is available, an explicit server-only
+`TEAM_DIRECT_ADD_MODE=testing` permits a team manager to add only an existing active account
+whose confirmed email exactly matches. The Edge function first performs the normal
+caller-scoped `manage_members` lookup, then invokes a service-only atomic membership RPC
+which rechecks that actor, locks the team, enforces dedupe/capacity, closes a matching stale
+pending invitation, and audits the action. Missing/unknown mode fails closed; the browser
+flag changes presentation only and cannot authorize the operation.
+
 **Rationale.** Supabase Auth invite APIs do not model Wishly team membership and do not
 cover both existing/new accounts. Resend is the documented existing Edge pattern, while the
 database remains authoritative if email is temporarily unavailable.
@@ -275,7 +283,9 @@ database remains authoritative if email is temporarily unavailable.
 Source: [Supabase Edge email example](https://supabase.com/docs/guides/functions/examples/send-emails).
 
 **Alternatives considered.** Cron-only expiry races acceptance; separate email/user unique
-indexes allow cross-form duplicates; unverified-email acceptance violates FR-005.
+indexes allow cross-form duplicates; unverified-email acceptance violates FR-005. A direct
+authenticated insert or browser-only flag would permanently bypass the temporary server
+gate and was rejected.
 
 ## R12. Cross-system consistency, analytics, and compatibility
 

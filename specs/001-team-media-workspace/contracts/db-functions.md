@@ -82,6 +82,9 @@ predicate of an owner-executed function.
 Every service function is also `security definer`; execute is granted only to the backend
 service role. User endpoints must complete their caller-scoped authorization before calling:
 
+- temporary `service_direct_add_registered_member(actor,team,email,role)` only after the
+  caller-authenticated exact-account lookup; it rechecks `manage_members`, confirmed active
+  identity, duplicate and 50-member capacity under the same team lock, then inserts/audits;
 - OAuth transaction create/consume and Vault credential create/read/update/delete;
 - issue/consume/revoke hashed transfer grants;
 - start/finalize/fail/cancel operations and name reservations, including text edit and

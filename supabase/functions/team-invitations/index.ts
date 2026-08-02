@@ -89,7 +89,9 @@ function actionFromUrl(url: URL, body: Record<string, unknown>): string | null {
   if (typeof body.action === 'string') return body.action;
   const parts = url.pathname.split('/').filter(Boolean);
   const candidate = parts.at(-1);
-  return candidate && ['create', 'resend', 'revoke'].includes(candidate) ? candidate : null;
+  return candidate && ['create', 'direct-add', 'resend', 'revoke'].includes(candidate)
+    ? candidate
+    : null;
 }
 
 function invitationIdFromUrl(url: URL, body: Record<string, unknown>): unknown {
@@ -122,6 +124,20 @@ function parseCommand(url: URL, body: Record<string, unknown>): InvitationComman
       idempotencyKey: idempotencyKey.value
     };
   }
+  if (action === 'direct-add') {
+    const teamId = parseUuid(body.teamId);
+    const email = parseBoundedString(body.email, 3, 320);
+    const initialRole = parseEnum(body.initialRole, TEAM_BASE_ROLES);
+    if (!teamId.ok || !email.ok || !initialRole.ok || !email.value.includes('@')) {
+      throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+    }
+    return {
+      action,
+      teamId: teamId.value,
+      email: email.value,
+      initialRole: initialRole.value
+    };
+  }
   if (action === 'resend' || action === 'revoke') {
     const invitationId = parseUuid(invitationIdFromUrl(url, body));
     if (!invitationId.ok) throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
@@ -144,12 +160,12 @@ Deno.serve(async request => {
     if (!body.ok) throw new TeamFunctionError(body.error, { retryable: false });
     const command = parseCommand(new URL(request.url), body.value);
     const { caller, service } = configuredClients(request);
-    await authorizeCaller(request, service);
+    const identity = await authorizeCaller(request, service);
     const callerRpc = asRpc(caller as unknown as RpcClient);
     const serviceRpc = asRpc(service as unknown as RpcClient);
     const value = await executeInvitationCommand(command, {
       rpc: (name, parameters) =>
-        name === 'set_invitation_delivery_state'
+        name === 'set_invitation_delivery_state' || name === 'service_direct_add_registered_member'
           ? serviceRpc(name, parameters)
           : callerRpc(name, parameters),
       deliver: requestValue =>
@@ -160,7 +176,9 @@ Deno.serve(async request => {
           message: requestValue.message
         }),
       createToken: randomToken,
-      siteUrl: Deno.env.get('WISHLY_SITE_URL') ?? 'http://127.0.0.1:5173'
+      siteUrl: Deno.env.get('WISHLY_SITE_URL') ?? 'http://127.0.0.1:5173',
+      actorId: identity.userId,
+      directAddMode: Deno.env.get('TEAM_DIRECT_ADD_MODE')
     });
     return successResponse(value, cors);
   } catch (error) {

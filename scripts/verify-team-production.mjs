@@ -68,7 +68,7 @@ if (
   readiness.oauthMode !== 'verified' ||
   !isRecord(readiness.services) ||
   readiness.services.googleDrive !== true ||
-  readiness.services.invitationEmail !== true ||
+  (readiness.services.invitationEmail !== true && readiness.services.directMemberAdd !== true) ||
   readiness.services.catalogWorker !== true
 ) {
   const unavailable = isRecord(readiness.services)
@@ -81,4 +81,6 @@ if (
   );
 }
 
-console.log('Team Workspace production providers are configured and report ready.');
+const onboardingMode =
+  readiness.services.invitationEmail === true ? 'email invitation' : 'direct-add testing';
+console.log(`Team Workspace reports ready with ${onboardingMode} member onboarding.`);

@@ -12,6 +12,12 @@ export type InvitationCommand =
       initialRole: BaseRole;
       idempotencyKey: string;
     }
+  | {
+      action: 'direct-add';
+      teamId: string;
+      email: string;
+      initialRole: BaseRole;
+    }
   | { action: 'resend'; invitationId: string }
   | { action: 'revoke'; invitationId: string }
   | { action: 'accept' | 'decline'; invitationId: string; token?: string };
@@ -34,6 +40,8 @@ export interface InvitationCommandDependencies {
   deliver: (request: DeliveryRequest) => Promise<InvitationDeliveryResult>;
   createToken: () => string;
   siteUrl: string;
+  actorId?: string;
+  directAddMode?: unknown;
 }
 
 interface InvitationDeliverySnapshot {
@@ -81,6 +89,22 @@ function unwrap(result: InvitationRpcResult): unknown {
     retryable: result.error.retryable,
     details: result.error.details
   });
+}
+
+function directAddLookupExists(value: unknown): boolean {
+  if (!Array.isArray(value)) {
+    throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+  }
+  if (value.length === 0) return false;
+  const row = value[0];
+  if (!row || typeof row !== 'object' || Array.isArray(row)) {
+    throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+  }
+  const userId = (row as Record<string, unknown>).user_id;
+  if (typeof userId !== 'string' || !/^[0-9a-f-]{36}$/i.test(userId)) {
+    throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+  }
+  return true;
 }
 
 async function sha256Hex(value: string): Promise<string> {
@@ -132,6 +156,32 @@ export async function executeInvitationCommand(
   command: InvitationCommand,
   dependencies: InvitationCommandDependencies
 ): Promise<unknown> {
+  if (command.action === 'direct-add') {
+    if (dependencies.directAddMode !== 'testing') {
+      throw new TeamFunctionError('WRONG_STATE', { retryable: false });
+    }
+    if (!dependencies.actorId || !/^[0-9a-f-]{36}$/i.test(dependencies.actorId)) {
+      throw new TeamFunctionError('AUTH_REQUIRED', { retryable: false });
+    }
+    const lookup = unwrap(
+      await dependencies.rpc('lookup_invitable_account', {
+        p_team: command.teamId,
+        p_email: command.email
+      })
+    );
+    if (!directAddLookupExists(lookup)) {
+      throw new TeamFunctionError('NOT_FOUND', { retryable: false });
+    }
+    return unwrap(
+      await dependencies.rpc('service_direct_add_registered_member', {
+        p_actor: dependencies.actorId,
+        p_team: command.teamId,
+        p_email: command.email,
+        p_base_role: command.initialRole
+      })
+    );
+  }
+
   if (command.action === 'accept' || command.action === 'decline') {
     return unwrap(
       await dependencies.rpc(`${command.action}_invitation`, {

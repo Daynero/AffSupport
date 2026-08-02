@@ -205,4 +205,129 @@ describe('team invitation delivery', () => {
       )
     ).rejects.toMatchObject({ code: 'PERMISSION_DENIED', retryable: false });
   });
+
+  it('directly adds a confirmed Wishly account only after the caller-scoped lookup gate', async () => {
+    const calls: Array<{ name: string; parameters: Record<string, unknown> }> = [];
+    const deliver = vi.fn();
+    const createToken = vi.fn();
+    const member = {
+      membership_id: '31000000-0000-4000-8000-000000000001',
+      user_id: '10000000-0000-4000-8000-000000000002',
+      display_name: 'Registered Member',
+      email: 'member@example.test',
+      role: 'viewer',
+      base_role: 'viewer',
+      permission_overrides: {},
+      effective_permissions: {
+        view: true,
+        download: true,
+        upload: false,
+        edit: false,
+        delete: false,
+        process: false,
+        manage_members: false,
+        manage_metadata: false
+      },
+      joined_at: '2026-08-02T10:00:00.000Z'
+    };
+
+    await expect(
+      executeInvitationCommand(
+        {
+          action: 'direct-add',
+          teamId: '20000000-0000-4000-8000-000000000001',
+          email: ' MEMBER@EXAMPLE.TEST ',
+          initialRole: 'viewer'
+        },
+        {
+          actorId: '10000000-0000-4000-8000-000000000001',
+          directAddMode: 'testing',
+          rpc: async (name, parameters) => {
+            calls.push({ name, parameters });
+            if (name === 'lookup_invitable_account') {
+              return {
+                ok: true,
+                value: [
+                  {
+                    user_id: member.user_id,
+                    confirmed_email: member.email,
+                    display_name: member.display_name
+                  }
+                ]
+              };
+            }
+            return { ok: true, value: [member] };
+          },
+          deliver,
+          createToken,
+          siteUrl: 'https://wishly-app.pages.dev'
+        }
+      )
+    ).resolves.toEqual([member]);
+
+    expect(calls).toEqual([
+      {
+        name: 'lookup_invitable_account',
+        parameters: {
+          p_team: '20000000-0000-4000-8000-000000000001',
+          p_email: ' MEMBER@EXAMPLE.TEST '
+        }
+      },
+      {
+        name: 'service_direct_add_registered_member',
+        parameters: {
+          p_actor: '10000000-0000-4000-8000-000000000001',
+          p_team: '20000000-0000-4000-8000-000000000001',
+          p_email: ' MEMBER@EXAMPLE.TEST ',
+          p_base_role: 'viewer'
+        }
+      }
+    ]);
+    expect(deliver).not.toHaveBeenCalled();
+    expect(createToken).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when direct-add testing mode is disabled or the account lookup is empty', async () => {
+    const disabledRpc = vi.fn();
+    await expect(
+      executeInvitationCommand(
+        {
+          action: 'direct-add',
+          teamId: '20000000-0000-4000-8000-000000000001',
+          email: 'member@example.test',
+          initialRole: 'viewer'
+        },
+        {
+          actorId: '10000000-0000-4000-8000-000000000001',
+          directAddMode: 'disabled',
+          rpc: disabledRpc,
+          deliver: vi.fn(),
+          createToken: vi.fn(),
+          siteUrl: 'https://wishly-app.pages.dev'
+        }
+      )
+    ).rejects.toMatchObject({ code: 'WRONG_STATE', retryable: false });
+    expect(disabledRpc).not.toHaveBeenCalled();
+
+    const missingRpc = vi.fn().mockResolvedValue({ ok: true, value: [] });
+    await expect(
+      executeInvitationCommand(
+        {
+          action: 'direct-add',
+          teamId: '20000000-0000-4000-8000-000000000001',
+          email: 'missing@example.test',
+          initialRole: 'editor'
+        },
+        {
+          actorId: '10000000-0000-4000-8000-000000000001',
+          directAddMode: 'testing',
+          rpc: missingRpc,
+          deliver: vi.fn(),
+          createToken: vi.fn(),
+          siteUrl: 'https://wishly-app.pages.dev'
+        }
+      )
+    ).rejects.toMatchObject({ code: 'NOT_FOUND', retryable: false });
+    expect(missingRpc).toHaveBeenCalledTimes(1);
+  });
 });

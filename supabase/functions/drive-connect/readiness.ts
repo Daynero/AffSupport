@@ -31,15 +31,24 @@ export function evaluateTeamProviderReadiness(
     validRedirect(environment.GOOGLE_REDIRECT_URI);
   const invitationEmail =
     configured(environment.RESEND_API_KEY) && configured(environment.INVITE_EMAIL_FROM);
+  const directMemberAdd = environment.TEAM_DIRECT_ADD_MODE === 'testing';
   const catalogWorker = configured(environment.CATALOG_SYNC_SECRET, 32);
+  const fullProviderReady = googleDrive && invitationEmail && catalogWorker;
 
   return {
-    ready: googleDrive && invitationEmail && catalogWorker,
+    ready: googleDrive && (invitationEmail || directMemberAdd) && catalogWorker,
+    fullProviderReady,
     production: gate.production,
     oauthMode: gate.mode,
+    memberOnboarding: directMemberAdd
+      ? 'direct_add_testing'
+      : invitationEmail
+        ? 'email_invitation'
+        : 'unavailable',
     services: {
       googleDrive,
       invitationEmail,
+      directMemberAdd,
       catalogWorker
     }
   };

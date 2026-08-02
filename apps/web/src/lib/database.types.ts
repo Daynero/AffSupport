@@ -1608,6 +1608,25 @@ export type Database = {
           detached: boolean;
         }[];
       };
+      service_direct_add_registered_member: {
+        Args: {
+          p_actor: string;
+          p_base_role: string;
+          p_email: string;
+          p_team: string;
+        };
+        Returns: {
+          base_role: string;
+          display_name: string;
+          effective_permissions: Json;
+          email: string;
+          joined_at: string;
+          membership_id: string;
+          permission_overrides: Json;
+          role: string;
+          user_id: string;
+        }[];
+      };
       service_enqueue_catalog_reconciliation: {
         Args: { p_connection: string };
         Returns: string;

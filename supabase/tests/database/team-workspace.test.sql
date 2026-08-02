@@ -1,6 +1,6 @@
 begin;
 
-select plan(212);
+select plan(222);
 
 select has_schema('private', 'private integration schema exists');
 select has_table('public', 'teams', 'teams table exists');
@@ -402,6 +402,12 @@ select has_function(
   array['uuid', 'uuid', 'uuid', 'text', 'text', 'text', 'text', 'jsonb'],
   'US1 service-only connection confirmation RPC exists'
 );
+select has_function(
+  'public',
+  'service_direct_add_registered_member',
+  array['uuid', 'uuid', 'text', 'text'],
+  'US1 test-mode direct member add RPC exists'
+);
 
 select is_empty(
   $$
@@ -446,6 +452,7 @@ select is_empty(
     from (values
       ('public.set_invitation_delivery_state(uuid,text,text)'),
       ('public.expire_team_invitations()'),
+      ('public.service_direct_add_registered_member(uuid,uuid,text,text)'),
       ('public.service_create_drive_oauth_transaction(uuid,uuid,bytea,text,text,timestamp with time zone)'),
       ('public.service_peek_drive_oauth_transaction(bytea)'),
       ('public.service_consume_drive_oauth_transaction(bytea)'),
@@ -483,6 +490,14 @@ insert into auth.users (
   (
     '10000000-0000-4000-8000-000000000006', 'authenticated', 'authenticated',
     'expired-target@example.test', now(), '{}'::jsonb, '{}'::jsonb, now(), now()
+  ),
+  (
+    '10000000-0000-4000-8000-000000000010', 'authenticated', 'authenticated',
+    'direct-member@example.test', now(), '{}'::jsonb, '{}'::jsonb, now(), now()
+  ),
+  (
+    '10000000-0000-4000-8000-000000000011', 'authenticated', 'authenticated',
+    'direct-unconfirmed@example.test', null, '{}'::jsonb, '{}'::jsonb, now(), now()
   );
 
 select set_config(
@@ -539,6 +554,169 @@ select is(
   ),
   1::bigint,
   'list_my_teams returns only caller memberships with computed role'
+);
+
+create temporary table us1_direct_invitation as
+select *
+from public.create_invitation(
+  (select id from pg_temp.us1_created_team),
+  'direct-member@example.test',
+  'viewer',
+  extensions.digest(convert_to('direct-member-invitation-token', 'UTF8'), 'sha256')
+);
+
+create temporary table us1_direct_member as
+select *
+from public.service_direct_add_registered_member(
+  '10000000-0000-4000-8000-000000000001',
+  (select id from pg_temp.us1_created_team),
+  ' DIRECT-MEMBER@EXAMPLE.TEST ',
+  'editor'
+);
+
+select is(
+  (select base_role from pg_temp.us1_direct_member),
+  'editor',
+  'test-mode direct add returns the closed member projection with the requested role'
+);
+
+select is(
+  (
+    select count(*)
+    from public.team_members as member
+    where member.team_id = (select id from pg_temp.us1_created_team)
+      and member.user_id = '10000000-0000-4000-8000-000000000010'
+      and member.status = 'active'
+  ),
+  1::bigint,
+  'test-mode direct add creates exactly one active membership'
+);
+
+select is(
+  (
+    select state
+    from public.team_invitations as invitation
+    where invitation.id = (select id from pg_temp.us1_direct_invitation)
+  ),
+  'revoked',
+  'test-mode direct add closes an obsolete pending invitation for the same identity'
+);
+
+select is(
+  (
+    select count(*)
+    from public.team_audit_events as event
+    where event.team_id = (select id from pg_temp.us1_created_team)
+      and event.actor_id = '10000000-0000-4000-8000-000000000001'
+      and event.action = 'membership.direct_added'
+      and event.target ->> 'member_id' = '10000000-0000-4000-8000-000000000010'
+  ),
+  1::bigint,
+  'test-mode direct add records one content-free membership audit event'
+);
+
+select throws_ok(
+  $$
+    select * from public.service_direct_add_registered_member(
+      '10000000-0000-4000-8000-000000000001',
+      (select id from pg_temp.us1_created_team),
+      'direct-member@example.test',
+      'viewer'
+    )
+  $$,
+  '23505',
+  'ALREADY_MEMBER',
+  'test-mode direct add rejects an already-active member without a duplicate'
+);
+
+select throws_ok(
+  $$
+    select * from public.service_direct_add_registered_member(
+      '10000000-0000-4000-8000-000000000001',
+      (select id from pg_temp.us1_created_team),
+      'missing@example.test',
+      'viewer'
+    )
+  $$,
+  'P0002',
+  'NOT_FOUND',
+  'test-mode direct add reports no account for an unknown email'
+);
+
+select throws_ok(
+  $$
+    select * from public.service_direct_add_registered_member(
+      '10000000-0000-4000-8000-000000000001',
+      (select id from pg_temp.us1_created_team),
+      'direct-unconfirmed@example.test',
+      'viewer'
+    )
+  $$,
+  'P0002',
+  'NOT_FOUND',
+  'test-mode direct add treats an unconfirmed account as unavailable'
+);
+
+select set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-4000-8000-000000000002',
+  true
+);
+select throws_ok(
+  $$
+    select * from public.service_direct_add_registered_member(
+      '10000000-0000-4000-8000-000000000002',
+      (select id from pg_temp.us1_created_team),
+      'direct-unconfirmed@example.test',
+      'viewer'
+    )
+  $$,
+  '42501',
+  'PERMISSION_DENIED',
+  'test-mode direct add rechecks the supplied actor manage-members authority'
+);
+select set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-4000-8000-000000000001',
+  true
+);
+
+insert into auth.users (
+  id, aud, role, email, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+)
+select md5('direct-capacity-' || fixture.number::text)::uuid,
+       'authenticated',
+       'authenticated',
+       'direct-capacity-' || fixture.number::text || '@example.test',
+       now(),
+       '{}'::jsonb,
+       '{}'::jsonb,
+       now(),
+       now()
+from generate_series(1, 50) as fixture(number);
+
+create temporary table us1_direct_capacity_team as
+select * from public.create_team('Direct capacity team');
+
+insert into public.team_members (team_id, user_id, base_role)
+select (select id from pg_temp.us1_direct_capacity_team),
+       md5('direct-capacity-' || fixture.number::text)::uuid,
+       'viewer'
+from generate_series(1, 49) as fixture(number);
+
+select throws_ok(
+  $$
+    select * from public.service_direct_add_registered_member(
+      '10000000-0000-4000-8000-000000000001',
+      (select id from pg_temp.us1_direct_capacity_team),
+      'direct-capacity-50@example.test',
+      'viewer'
+    )
+  $$,
+  '22023',
+  'TEAM_MEMBER_LIMIT',
+  'test-mode direct add cannot create active member 51'
 );
 
 create temporary table us1_first_invitation as

@@ -12,6 +12,8 @@ export type ConfigResult =
 
 type Env = Record<string, string | boolean | undefined>;
 
+export type TeamDirectAddMode = 'disabled' | 'testing';
+
 function value(env: Env, key: string) {
   const raw = env[key];
   return typeof raw === 'string' ? raw.trim() : '';
@@ -51,6 +53,7 @@ export function validatePublicConfig(env: Env): ConfigResult {
   const supabaseUrl = value(env, 'VITE_SUPABASE_URL');
   const supabasePublishableKey = value(env, 'VITE_SUPABASE_PUBLISHABLE_KEY');
   const siteUrl = value(env, 'VITE_SITE_URL');
+  const directAddMode = value(env, 'VITE_TEAM_DIRECT_ADD_MODE');
   const errors: string[] = [];
 
   if (!supabaseUrl) errors.push('VITE_SUPABASE_URL is missing.');
@@ -67,6 +70,10 @@ export function validatePublicConfig(env: Env): ConfigResult {
     errors.push('VITE_SITE_URL must be an HTTPS origin (localhost may use HTTP).');
   else if (env.PROD === true && ['localhost', '127.0.0.1'].includes(new URL(siteUrl).hostname))
     errors.push('VITE_SITE_URL must use the production HTTPS origin in a production build.');
+
+  if (directAddMode && !['disabled', 'testing'].includes(directAddMode)) {
+    errors.push('VITE_TEAM_DIRECT_ADD_MODE must be disabled or testing.');
+  }
 
   if (errors.length) return { ok: false, value: null, errors };
 
@@ -85,6 +92,10 @@ export function validatePublicConfig(env: Env): ConfigResult {
 }
 
 export const publicConfig = validatePublicConfig(import.meta.env);
+
+export function configuredTeamDirectAddMode(env: Env = import.meta.env): TeamDirectAddMode {
+  return value(env, 'VITE_TEAM_DIRECT_ADD_MODE') === 'testing' ? 'testing' : 'disabled';
+}
 
 export function configuredSiteUrl() {
   return publicConfig.ok ? publicConfig.value.siteUrl : window.location.origin;

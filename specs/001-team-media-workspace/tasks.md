@@ -313,6 +313,41 @@ production migration, deploy, package, tag, or release.
 
 ---
 
+## Phase 9: Temporary Registered-Member Test Mode
+
+**Purpose**: Let an authorized team manager test real membership/role flows before the
+invitation sending domain is available, without weakening the permanent invitation model.
+
+- [x] T126 [US1] Add failing Edge-command, web interaction, and pgTAP coverage for disabled
+      mode, caller lookup, exact confirmed-account add, unknown/unconfirmed account, duplicate,
+      capacity, pending-invite closure, audit, and service-only ACL in
+      `tests/team-invitations.test.ts`, `tests/team-direct-member.test.tsx`, and
+      `supabase/tests/database/team-workspace.test.sql`
+- [x] T127 [US1] Add the forward-only service RPC migration and generated Supabase types in
+      `supabase/migrations/20260802100000_team_direct_member_testing.sql` and
+      `apps/web/src/lib/database.types.ts`
+- [x] T128 [US1] Add fail-closed `TEAM_DIRECT_ADD_MODE=testing` parsing, caller-scoped lookup
+      gate, and service-only direct-add dispatch to `supabase/functions/team-invitations/handler.ts`
+      and `supabase/functions/team-invitations/index.ts`
+- [x] T129 [US1] Add the typed API method, labelled test-mode member form, precise not-found/
+      duplicate messages, member refresh, localization, styling, and public display flag to
+      `apps/web/src/api/team.ts`, `apps/web/src/team/members/InvitationPanel.tsx`,
+      `apps/web/src/team/TeamWorkspacePage.tsx`, `apps/web/src/lib/config.ts`,
+      `apps/web/src/i18n.ts`, and `apps/web/src/styles.css`
+- [x] T130 [US1] Document activation/deactivation, contract, validation, and reverse recovery
+      in feature artifacts, env examples, `docs/TEAM_WORKSPACE_OPERATIONS.md`, and
+      `supabase/migrations/ROLLBACK.md`
+- [x] T131 Run targeted tests, contract/type drift, formatting, lint, unit/integration,
+      shared/web/agent builds, pgTAP, and security gates; record evidence in `quickstart.md`
+- [ ] T132 With explicit user authorization, set the server and web test flags, push the
+      forward migration, deploy `team-invitations` and the web build, smoke-test the live path,
+      then publish the reviewed commit without creating an Agent release
+
+**Checkpoint**: Existing registered users can be added immediately only while both pilot
+flags are intentional; the server remains authoritative and normal invitations remain intact.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase dependencies

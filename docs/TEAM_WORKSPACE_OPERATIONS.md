@@ -37,6 +37,9 @@ Use the names in `supabase/functions/.env.example`:
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`: Edge only.
 - `RESEND_API_KEY`, `INVITE_EMAIL_FROM`: use a verified Resend sending domain. Invitation
   persistence is authoritative; provider failure leaves a visible retryable delivery state.
+- `TEAM_DIRECT_ADD_MODE`: `disabled` by default. `testing` temporarily enables immediate
+  addition of an existing confirmed Wishly account after caller and database permission
+  checks; it is not an invitation-delivery replacement for a public launch.
 - `CATALOG_SYNC_SECRET`: named worker authentication only.
 - `WISHLY_SITE_URL`, `PRODUCTION_SITE_ORIGIN`, `DRIVE_OAUTH_MODE`: deployment gates, never
   credentials.
@@ -44,8 +47,28 @@ Use the names in `supabase/functions/.env.example`:
 Before packaging, releasing, or deploying a production build that advertises Team Workspace,
 run `npm run verify:team-production`. The gate inspects only Supabase secret names and the
 deployed non-secret readiness result; it never reads or prints credential values. It requires
-Google OAuth, Resend invitation delivery, and the catalog worker to be configured, and it
-requires the live production OAuth mode to report `verified`.
+Google OAuth and the catalog worker, plus either complete Resend invitation delivery or the
+explicit `TEAM_DIRECT_ADD_MODE=testing` pilot path. It always requires the live production
+OAuth mode to report `verified`. Readiness exposes `fullProviderReady=false` and
+`memberOnboarding=direct_add_testing` while the temporary path substitutes for Resend, so it
+cannot be mistaken for completed email-provider setup.
+
+### Temporary direct-member pilot mode
+
+Use this only while the invitation sending domain is unavailable:
+
+1. Set Edge secret `TEAM_DIRECT_ADD_MODE=testing` and build the web with
+   `VITE_TEAM_DIRECT_ADD_MODE=testing`.
+2. A manager enters the exact confirmed email of an already registered active Wishly user.
+   The user becomes a member immediately; unknown/unconfirmed/inactive accounts show a
+   not-found message and nothing is created.
+3. Verify `membership.direct_added` in the safe team audit and that the member list refreshes.
+4. When Resend delivery is verified, set both values back to `disabled` and redeploy Edge +
+   web. Existing memberships remain; the original invitation flow resumes unchanged.
+
+The server setting is authoritative. The Edge function first uses the caller-scoped lookup,
+then a service-only RPC rechecks actor permission, team state, duplicate membership and the
+50-member limit under a lock. Never grant the service RPC to `authenticated`.
 
 Local values belong in the ignored `supabase/functions/.env.local`; hosted values belong in
 the verified isolated project secret store. Never place Google access/refresh tokens,

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { readFile } from 'node:fs/promises';
-import { validatePublicConfig } from '../apps/web/src/lib/config';
+import { configuredTeamDirectAddMode, validatePublicConfig } from '../apps/web/src/lib/config';
 import { loginUrl, safeReturnPath } from '../apps/web/src/lib/redirects';
 import { protectedRouteDecision } from '../apps/web/src/Root';
 import { routeKind } from '../apps/web/src/lib/tool-registry';
@@ -114,6 +114,20 @@ describe('environment and localization foundation', () => {
         VITE_SITE_URL: 'https://wishly-app.pages.dev'
       }).ok
     ).toBe(true);
+  });
+
+  it('keeps temporary direct-member mode disabled unless testing is explicit', () => {
+    expect(configuredTeamDirectAddMode({})).toBe('disabled');
+    expect(configuredTeamDirectAddMode({ VITE_TEAM_DIRECT_ADD_MODE: 'unknown' })).toBe('disabled');
+    expect(configuredTeamDirectAddMode({ VITE_TEAM_DIRECT_ADD_MODE: 'testing' })).toBe('testing');
+    expect(
+      validatePublicConfig({
+        VITE_SUPABASE_URL: 'https://project.supabase.co',
+        VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_public_value_only',
+        VITE_SITE_URL: 'https://wishly-app.pages.dev',
+        VITE_TEAM_DIRECT_ADD_MODE: 'unknown'
+      }).ok
+    ).toBe(false);
   });
 
   it('rejects privileged Supabase keys and localhost as a production callback origin', () => {
