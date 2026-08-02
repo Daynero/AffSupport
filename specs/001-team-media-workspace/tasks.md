@@ -339,7 +339,7 @@ invitation sending domain is available, without weakening the permanent invitati
       `supabase/migrations/ROLLBACK.md`
 - [x] T131 Run targeted tests, contract/type drift, formatting, lint, unit/integration,
       shared/web/agent builds, pgTAP, and security gates; record evidence in `quickstart.md`
-- [ ] T132 With explicit user authorization, set the server and web test flags, push the
+- [x] T132 With explicit user authorization, set the server and web test flags, push the
       forward migration, deploy `team-invitations` and the web build, smoke-test the live path,
       then publish the reviewed commit without creating an Agent release
 

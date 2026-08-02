@@ -474,3 +474,18 @@ those samples.
   absent `INVITE_EMAIL_FROM`; no readiness was fabricated. The deployment record is added
   only after the server secret, migration, functions, web build, and live endpoint are
   actually verified.
+- With explicit owner authorization, `TEAM_DIRECT_ADD_MODE=testing` was set in the Supabase
+  secret store, migration `20260802100000` was applied to the linked Wishly project, and
+  `team-invitations` v7 plus `drive-connect` v8 were deployed active with JWT verification.
+  `npm run verify:team-member-pilot` then passed against the live production-origin readiness
+  endpoint while the strict full-provider check continued to report the truthful
+  `oauthMode=disabled`, unavailable Google Drive, and unavailable invitation email.
+- Functional commits `8e58e18` and `0382cf7` were pushed to `origin/main`. The scoped
+  `npm run deploy:web:member-pilot` gate passed release compatibility and published Cloudflare
+  Pages production deployment `1b0effc2-0753-4b36-b030-6150d5089fc7` from source `0382cf7`.
+  The canonical site serves the new `index-CsEB5el0.js` and
+  `ProtectedWishly-HBYoCI26.js` bundles; live bundle inspection found the labelled registered-
+  email copy and `direct-add` action. An unauthenticated direct-add request returned structured
+  `AUTH_REQUIRED` HTTP 401, and the remote migration list contains `20260802100000` on both
+  sides. No synthetic production user, team, membership, Drive object, Agent release, or tag
+  was created during smoke verification.
