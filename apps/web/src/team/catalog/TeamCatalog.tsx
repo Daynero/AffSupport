@@ -141,6 +141,7 @@ export function TeamCatalog({ teamId, client }: { teamId: string; client: TeamCa
       <CatalogFilters
         filters={catalog.filters}
         vocabulary={catalog.vocabulary}
+        hasContent={(catalog.result?.total ?? 0) > 0}
         onSet={catalog.setFacet}
         onRemove={catalog.removeFilter}
         onClear={catalog.clearFilters}

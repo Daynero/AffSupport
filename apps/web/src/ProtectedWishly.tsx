@@ -16,7 +16,7 @@ import ReleaseUpdateNotice from './components/ReleaseUpdateNotice';
 import { SupportGoalProvider } from './support/SupportGoalContext';
 import { teamApi } from './api/team';
 import { TeamProvider } from './team/TeamContext';
-import TeamWorkspacePage from './team/TeamWorkspacePage';
+import TeamSpace from './team/TeamSpace';
 
 export default function ProtectedWishly({ path }: { path: string }) {
   return (
@@ -57,7 +57,7 @@ function ProtectedApplication({ path }: { path: string }) {
   if (tool) return <ToolRoute tool={tool} />;
   if (path === '/account') return <AccountPage />;
   if (path === '/admin') return <AdminPage />;
-  if (path === '/team') return <TeamWorkspacePage />;
+  if (path === '/team') return <TeamSpace />;
   return <HomePage navigate={navigateTo} />;
 }
 

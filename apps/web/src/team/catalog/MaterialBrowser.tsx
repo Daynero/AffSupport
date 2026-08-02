@@ -11,12 +11,15 @@ export function MaterialBrowser({
   teamId,
   client,
   revision = 0,
-  syncLabel
+  syncLabel,
+  onLoaded
 }: {
   teamId: string;
   client: MaterialBrowserClient;
   revision?: number;
   syncLabel?: string | null;
+  /** Reports the count of items in the currently viewed folder after each load. */
+  onLoaded?: (count: number) => void;
 }) {
   const { t } = useI18n();
   const [path, setPath] = useState<{ id: string; name: string }[]>([]);
@@ -36,8 +39,10 @@ export function MaterialBrowser({
       .listMaterials(teamId, parentId)
       .then(value => {
         if (!active) return;
-        setMaterials(value.filter(material => material.teamId === teamId));
+        const visible = value.filter(material => material.teamId === teamId);
+        setMaterials(visible);
         setError(null);
+        onLoaded?.(visible.length);
       })
       .catch(() => {
         if (active) setError(t('teamLoadFailed'));
@@ -48,7 +53,7 @@ export function MaterialBrowser({
     return () => {
       active = false;
     };
-  }, [client, parentId, revision, t, teamId]);
+  }, [client, onLoaded, parentId, revision, t, teamId]);
 
   return (
     <section className="team-panel team-material-browser" aria-labelledby="team-materials-title">

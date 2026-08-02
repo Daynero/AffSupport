@@ -2,7 +2,7 @@
 import React from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { TeamCatalog, type TeamCatalogClient } from '../apps/web/src/team/catalog/TeamCatalog';
@@ -19,6 +19,11 @@ const team = {
   },
   connectionState: 'connected' as const
 };
+
+beforeEach(() => {
+  // Enter the space explicitly; the workspace no longer auto-selects teams[0].
+  localStorage.setItem('wishly.active-team.v1', TEAM_ID);
+});
 
 afterEach(() => {
   cleanup();

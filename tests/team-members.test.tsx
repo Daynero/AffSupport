@@ -2,7 +2,7 @@
 import React from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
 import type {
   TeamAuditEventSummary,
@@ -48,6 +48,11 @@ const editor: TeamMemberSummary = {
   effectivePermissions: DEFAULT_ROLE_PERMISSIONS.editor,
   joinedAt: '2026-08-01T11:00:00.000Z'
 };
+
+beforeEach(() => {
+  // Enter the space explicitly; the workspace no longer auto-selects teams[0].
+  localStorage.setItem('wishly.active-team.v1', TEAM_ID);
+});
 
 afterEach(() => {
   cleanup();

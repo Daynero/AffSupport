@@ -22,7 +22,13 @@ export interface TeamContextValue {
   error: string | null;
   revision: number;
   realtimeState: TeamRealtimeState;
+  /** True once the user has an explicitly entered, still-valid space. */
+  hasEnteredSpace: boolean;
   setActiveTeamId: (teamId: string | null) => void;
+  /** Enter a space and persist the choice (lobby → workspace). */
+  enterSpace: (teamId: string) => void;
+  /** Leave the current space back to the lobby ("Change space"). */
+  leaveSpace: () => void;
   replaceTeams: (teams: TeamContextSnapshot[]) => void;
   refreshTeams: () => Promise<void>;
   notifyStateChanged: () => void;
@@ -56,14 +62,19 @@ export function TeamProvider({
   const [revision, setRevision] = useState(0);
   const [activeTeamId, setActiveTeamIdState] = useState<string | null>(() => persistedTeamId());
 
+  // No implicit `teams[0]` fallback: "no space entered" is a first-class state
+  // that renders the lobby. A persisted id that no longer resolves to a team
+  // (deleted / membership lost) yields null and is cleared by the sync effect.
   const activeTeam = useMemo(
-    () => teams.find(team => team.id === activeTeamId) ?? teams[0] ?? null,
+    () => teams.find(team => team.id === activeTeamId) ?? null,
     [activeTeamId, teams]
   );
 
   useEffect(() => {
-    if (activeTeam?.id !== activeTeamId) setActiveTeamIdState(activeTeam?.id ?? null);
-  }, [activeTeam?.id, activeTeamId]);
+    // Clear a stale persisted selection once teams have loaded; keep an
+    // as-yet-unresolved id while the first load is still in flight.
+    if (activeTeamId && teams.length > 0 && !activeTeam) setActiveTeamIdState(null);
+  }, [activeTeam, activeTeamId, teams.length]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -74,6 +85,9 @@ export function TeamProvider({
   const setActiveTeamId = useCallback((teamId: string | null) => {
     if (teamId === null || /^[0-9a-f-]{36}$/i.test(teamId)) setActiveTeamIdState(teamId);
   }, []);
+
+  const enterSpace = useCallback((teamId: string) => setActiveTeamId(teamId), [setActiveTeamId]);
+  const leaveSpace = useCallback(() => setActiveTeamId(null), [setActiveTeamId]);
 
   const replaceTeams = useCallback((nextTeams: TeamContextSnapshot[]) => {
     setTeams(nextTeams);
@@ -133,7 +147,10 @@ export function TeamProvider({
       error,
       revision,
       realtimeState,
+      hasEnteredSpace: activeTeam !== null,
       setActiveTeamId,
+      enterSpace,
+      leaveSpace,
       replaceTeams,
       refreshTeams,
       notifyStateChanged,
@@ -142,7 +159,9 @@ export function TeamProvider({
     [
       activeTeam,
       can,
+      enterSpace,
       error,
+      leaveSpace,
       loading,
       loadingTeams,
       notifyStateChanged,

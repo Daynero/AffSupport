@@ -8756,6 +8756,196 @@ input.is-invalid {
   color: var(--color-error);
   padding: var(--space-3);
 }
+
+/* --- Guided team space: lobby, create wizard, content-first shell --- */
+.team-space-page {
+  width: min(1000px, 100%);
+  margin-inline: auto;
+}
+.team-space-lobby {
+  display: grid;
+  gap: var(--space-5);
+}
+.team-space-lobby-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.team-space-lobby-header h1 {
+  margin: 0;
+}
+.team-space-lobby-subtitle {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+}
+.team-space-lobby-empty {
+  min-height: 40vh;
+  place-content: center;
+  justify-items: center;
+  text-align: center;
+}
+.team-space-lobby-empty-copy {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: center;
+  max-width: 32rem;
+}
+.team-space-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: var(--space-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.team-space-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 96px;
+}
+.team-space-card.is-preparing {
+  opacity: 0.75;
+}
+.team-space-card-copy h3 {
+  margin: 0;
+}
+.team-space-card-role {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+.team-space-card-hint {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+.team-space-card-action {
+  flex: none;
+  border-radius: 999px;
+  padding: 4px 12px;
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.team-space-card-action.is-ready {
+  background: var(--color-accent-softer);
+  color: var(--color-accent);
+}
+.team-space-card-action.is-setup_incomplete {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.team-create-wizard {
+  width: min(560px, 100%);
+  margin-inline: auto;
+  display: grid;
+  gap: var(--space-5);
+}
+.team-create-wizard-header h1 {
+  margin: 0;
+}
+.team-create-progress {
+  margin: var(--space-1) 0 0;
+  color: var(--color-accent);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.team-create-step,
+.team-create-step-copy,
+.team-create-field {
+  display: grid;
+  gap: var(--space-2);
+}
+.team-create-step {
+  gap: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-5);
+}
+.team-create-step-copy h2 {
+  margin: 0;
+}
+.team-create-step-copy p,
+.team-create-hint,
+.team-create-resume-name {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+.team-create-field span {
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+.team-create-field input {
+  min-height: 42px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: 0 var(--space-3);
+}
+.team-create-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.team-space-shell {
+  display: grid;
+  gap: var(--space-5);
+}
+.team-space-shell-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.team-space-shell-header h1 {
+  margin: 0;
+}
+.team-space-shell-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.team-space-shell-body {
+  display: grid;
+  gap: var(--space-4);
+}
+.team-space-settings {
+  display: grid;
+  gap: var(--space-4);
+}
+.team-space-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.team-space-settings-header h2 {
+  margin: 0;
+}
+.team-space-settings-grid {
+  display: grid;
+  gap: var(--space-5);
+}
+@media (min-width: 900px) {
+  .team-space-settings-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
 .team-invitation-inbox li > div:first-child {
   display: grid;
 }

@@ -19,12 +19,15 @@ const LABELS: Record<keyof CatalogSearchFilters, string> = {
 export function CatalogFilters({
   filters,
   vocabulary,
+  hasContent = true,
   onSet,
   onRemove,
   onClear
 }: {
   filters: CatalogSearchFilters;
   vocabulary: CatalogVocabulary;
+  /** Whether the catalog currently has any material to filter. */
+  hasContent?: boolean;
   onSet: (key: keyof CatalogSearchFilters, value: string | null) => void;
   onRemove: (key: keyof CatalogSearchFilters, value: string) => void;
   onClear: () => void;
@@ -33,6 +36,11 @@ export function CatalogFilters({
   const selections = (Object.keys(filters) as Array<keyof CatalogSearchFilters>).flatMap(key =>
     (filters[key] as readonly string[]).map(value => ({ key, value }))
   );
+  const hasFacets =
+    vocabulary.geo.length > 0 || vocabulary.languages.length > 0 || vocabulary.offers.length > 0;
+  // No junk filters for an empty space: show nothing to filter unless there is
+  // content or the user already has an active selection to clear.
+  if (!hasContent && !hasFacets && selections.length === 0) return null;
   const select = (key: keyof CatalogSearchFilters, options: readonly string[], label: string) => (
     <label>
       <span>{label}</span>
