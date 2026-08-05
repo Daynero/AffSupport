@@ -608,7 +608,7 @@ const en = {
   backToWishly: 'Back to Wishly',
   privacyTitle: 'Privacy Policy',
   termsTitle: 'Terms of Use',
-  lastUpdated: 'Last updated: July 18, 2026',
+  lastUpdated: 'Last updated: August 5, 2026',
   legalPlaceholderWarning: 'Product operator and contact details must be completed before launch.',
   landingOptimizer: 'Landing Optimizer',
   landingOptimizerDescription:
@@ -1654,7 +1654,7 @@ const uk: Record<keyof typeof en, string> = {
   backToWishly: 'Повернутися у Wishly',
   privacyTitle: 'Політика конфіденційності',
   termsTitle: 'Умови використання',
-  lastUpdated: 'Оновлено: 18 липня 2026 року',
+  lastUpdated: 'Оновлено: 5 серпня 2026 року',
   legalPlaceholderWarning: 'Дані оператора продукту та контакт потрібно заповнити до запуску.',
   landingOptimizer: 'Оптимізатор лендінгів',
   landingOptimizerDescription:

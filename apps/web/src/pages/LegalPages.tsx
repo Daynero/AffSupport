@@ -14,7 +14,23 @@ const privacy: Record<Language, LegalSection[]> = {
       heading: 'What Wishly stores',
       paragraphs: [
         'Wishly uses Google Login through Supabase Auth. We store your Supabase user ID, email, display name, avatar URL, account and activity timestamps, language, plan, account status, onboarding choice and optional marketing consent.',
-        'Wishly does not create or store a Google password. Google access tokens and refresh tokens are not copied into Wishly product tables.'
+        'Wishly does not create or store a Google password. Login tokens are handled by Supabase Auth and are separate from an optional Google Drive team-workspace connection.'
+      ]
+    },
+    {
+      heading: 'Google Drive team workspace',
+      paragraphs: [
+        'A team owner can optionally connect one Google Drive folder. Wishly requests Google Drive access so it can browse the confirmed folder and its descendants and, when an authorized team member asks, list, preview, upload, download, edit, move, process, or move items to and from Google Drive Trash. Wishly limits product actions to the confirmed team root and checks the member’s Wishly permissions before every operation. Wishly roles do not change permissions granted directly in Google Drive.',
+        'The Google refresh token for a connected account is encrypted in Supabase Vault. Short-lived access tokens are used only by server-side Edge Functions. Google credentials are never sent to team members, the browser, Wishly Agent, product analytics, or application logs. For an explicitly requested local workflow, Wishly Agent receives only a short-lived, operation-specific file transfer grant and never a Google credential.',
+        'Wishly stores the connected account email and the file and folder metadata needed for the team catalog, such as Google Drive identifiers, names, types, parent relationships, sizes, timestamps, capabilities, sync state, and workflow history. Authorized team members can see catalog data and file content according to their Wishly permissions. File contents remain in Google Drive and are relayed by Wishly only for a requested preview, download, edit, upload, or processing operation.'
+      ]
+    },
+    {
+      heading: 'Google data sharing, retention and deletion',
+      paragraphs: [
+        'Wishly uses Google user data only to provide the connected team-workspace features described above. It does not sell Google user data or use it for advertising. Wishly’s use and transfer to any other app of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.',
+        'A team owner can disconnect or replace the Google Drive folder. Disconnecting removes the stored Google credential when it is no longer used by another active connection and does not delete files from Google Drive. Cached catalog metadata, provenance, and audit records can remain after disconnect to preserve team history and recoverability. Contact Wishly support to request deletion of this retained team data, subject to security or legal retention obligations.',
+        'When Wishly deletes a Drive item, it moves the item to Google Drive Trash rather than permanently erasing it. Google Drive’s own retention and direct user actions control final deletion and recovery.'
       ]
     },
     {
@@ -54,7 +70,23 @@ const privacy: Record<Language, LegalSection[]> = {
       heading: 'Які дані зберігає Wishly',
       paragraphs: [
         'Wishly використовує Google Login через Supabase Auth. Ми зберігаємо ваш Supabase user ID, email, ім’я для відображення, URL аватара, час створення й активності, мову, план, статус акаунта, вибір onboarding та необов’язкову маркетингову згоду.',
-        'Wishly не створює і не зберігає пароль Google. Google access token та refresh token не копіюються в продуктові таблиці Wishly.'
+        'Wishly не створює і не зберігає пароль Google. Токени входу обробляє Supabase Auth; вони не пов’язані з необов’язковим підключенням командного простору Google Drive.'
+      ]
+    },
+    {
+      heading: 'Командний простір Google Drive',
+      paragraphs: [
+        'Власник команди може за бажанням підключити одну папку Google Drive. Wishly запитує доступ до Google Drive, щоб переглядати підтверджену папку та її вкладений вміст і, на явний запит уповноваженого учасника, показувати, завантажувати, скачувати, редагувати, переміщувати, обробляти файли або переносити їх до й із кошика Google Drive. Wishly обмежує продуктові дії підтвердженим коренем команди й перед кожною операцією перевіряє дозволи учасника у Wishly. Ролі Wishly не змінюють дозволи, надані безпосередньо в Google Drive.',
+        'Google refresh token підключеного акаунта зберігається зашифрованим у Supabase Vault. Короткочасні access tokens використовують лише серверні Edge Functions. Google credentials ніколи не передаються учасникам команди, браузеру, Wishly Agent, продуктовій аналітиці чи журналам застосунку. Для явно запущеної локальної операції Wishly Agent отримує лише короткочасний дозвіл на передачу конкретного файла й ніколи не отримує Google credential.',
+        'Wishly зберігає email підключеного акаунта та метадані файлів і папок, потрібні для командного каталогу: Google Drive identifiers, назви, типи, зв’язки з батьківськими папками, розміри, timestamps, capabilities, стан синхронізації й історію операцій. Уповноважені учасники бачать дані каталогу та вміст файлів відповідно до своїх дозволів Wishly. Вміст файлів залишається в Google Drive і передається через Wishly лише для запитаного preview, download, edit, upload або processing.'
+      ]
+    },
+    {
+      heading: 'Передавання, зберігання й видалення даних Google',
+      paragraphs: [
+        'Wishly використовує дані користувача Google лише для описаних вище функцій командного простору. Wishly не продає дані користувача Google і не використовує їх для реклами. Використання та передавання в інші застосунки інформації, отриманої Wishly від Google APIs, відповідає Google API Services User Data Policy, зокрема вимогам Limited Use.',
+        'Власник команди може від’єднати або замінити папку Google Drive. Від’єднання видаляє збережений Google credential, коли його більше не використовує інше активне підключення, і не видаляє файли з Google Drive. Кешовані метадані каталогу, provenance та audit records можуть залишатися після від’єднання для збереження історії команди й можливості відновлення. Щоб попросити про видалення цих командних даних, зверніться до підтримки Wishly; можуть діяти обов’язкові строки зберігання для безпеки чи згідно із законом.',
+        'Коли Wishly видаляє об’єкт Drive, він переноситься до кошика Google Drive, а не стирається назавжди. Остаточне видалення й відновлення визначаються правилами Google Drive та прямими діями користувача.'
       ]
     },
     {

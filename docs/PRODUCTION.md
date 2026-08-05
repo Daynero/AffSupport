@@ -4,9 +4,9 @@
 
 - [ ] SQL migrations застосовані в порядку з `supabase/migrations/`.
 - [ ] RLS увімкнений для `profiles`, `admin_users` і `analytics_events`.
-- [ ] Supabase Site URL — `https://wishly-app.pages.dev`.
-- [ ] Supabase redirect allowlist містить `https://wishly-app.pages.dev/auth/callback`.
-- [ ] Google Authorized JavaScript origins містить `https://wishly-app.pages.dev`.
+- [ ] Supabase Site URL — `https://soty.pp.ua`.
+- [ ] Supabase redirect allowlist містить `https://soty.pp.ua/auth/callback`.
+- [ ] Google Authorized JavaScript origins містить `https://soty.pp.ua`.
 - [ ] Google Authorized redirect URI точно збігається із Supabase provider callback `https://PROJECT_REF.supabase.co/auth/v1/callback`.
 - [ ] Google Data Access містить тільки `openid`, email і basic profile.
 - [ ] `VITE_PRODUCT_OPERATOR` і `VITE_LEGAL_CONTACT_EMAIL` заповнені реальними значеннями.
@@ -17,7 +17,7 @@
 
 ## Production build environment
 
-Project: `wishly-app`. Production origin: `https://wishly-app.pages.dev`.
+Project: `wishly-app`. Canonical production origin: `https://soty.pp.ua`.
 
 Додайте у production build environment:
 
@@ -25,7 +25,7 @@ Project: `wishly-app`. Production origin: `https://wishly-app.pages.dev`.
 | ------------------------------- | ---------------------------------------------- |
 | `VITE_SUPABASE_URL`             | Project URL із Supabase                        |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | `sb_publishable_...` із Supabase               |
-| `VITE_SITE_URL`                 | `https://wishly-app.pages.dev`                 |
+| `VITE_SITE_URL`                 | `https://soty.pp.ua`                           |
 | `VITE_ADMIN_EMAIL`              | необов’язкова development-підказка або порожнє |
 | `VITE_PRODUCT_OPERATOR`         | реальне ім’я/назва оператора                   |
 | `VITE_LEGAL_CONTACT_EMAIL`      | реальний contact email                         |
@@ -68,7 +68,7 @@ Preview повинен мати власний стабільний origin:
 
 ## Smoke test після deployment
 
-1. У приватному вікні відкрийте `https://wishly-app.pages.dev/compressor`: має бути redirect на `/login`.
+1. У приватному вікні відкрийте `https://soty.pp.ua/compressor`: має бути redirect на `/login`.
 2. Перемкніть UA/EN; маршрут і layout мають залишитися стабільними.
 3. Увійдіть через Google і перевірте повернення на `/compressor`.
 4. Оновіть сторінку — session має відновитися без миготіння login.

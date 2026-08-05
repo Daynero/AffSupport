@@ -14,7 +14,7 @@ import { evaluateTeamProviderReadiness } from '../supabase/functions/drive-conne
 import { completeDriveOAuthCallback } from '../supabase/functions/drive-oauth-callback/handler';
 import { runInitialSyncSlice } from '../supabase/functions/catalog-sync/worker';
 
-const productionOrigin = 'https://wishly-app.pages.dev';
+const productionOrigin = 'https://soty.pp.ua';
 const localSignals = {
   siteUrl: 'http://127.0.0.1:5173',
   requestOrigin: 'http://127.0.0.1:5173',

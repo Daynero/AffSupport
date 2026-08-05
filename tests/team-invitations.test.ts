@@ -10,12 +10,12 @@ describe('team invitation delivery', () => {
     const message = buildInvitationEmail({
       teamName: '<Wishly & Friends>',
       inviterName: 'Owner <script>',
-      inviteUrl: 'https://wishly-app.pages.dev/account?invite=opaque-token'
+      inviteUrl: 'https://soty.pp.ua/account?invite=opaque-token'
     });
     expect(message.subject).toContain('Wishly');
     expect(message.html).toContain('&lt;Wishly &amp; Friends&gt;');
     expect(message.html).not.toContain('<script>');
-    expect(message.html).toContain('https://wishly-app.pages.dev/account?invite=opaque-token');
+    expect(message.html).toContain('https://soty.pp.ua/account?invite=opaque-token');
     expect(message.text).not.toContain('<script>');
   });
 
@@ -96,7 +96,7 @@ describe('team invitation delivery', () => {
           calls.push('deliver');
           return { state: 'failed', errorCode: 'DELIVERY_UNAVAILABLE' };
         },
-        siteUrl: 'https://wishly-app.pages.dev'
+        siteUrl: 'https://soty.pp.ua'
       }
     );
     expect(calls).toEqual(['create_invitation', 'deliver', 'set_invitation_delivery_state']);
@@ -122,7 +122,7 @@ describe('team invitation delivery', () => {
       }
     });
     const deliver = vi.fn().mockResolvedValue({ state: 'sent', errorCode: null });
-    const deps = { rpc, deliver, createToken, siteUrl: 'https://wishly-app.pages.dev' };
+    const deps = { rpc, deliver, createToken, siteUrl: 'https://soty.pp.ua' };
 
     await executeInvitationCommand(
       {
@@ -172,7 +172,7 @@ describe('team invitation delivery', () => {
           rpc,
           deliver: vi.fn(),
           createToken: vi.fn(),
-          siteUrl: 'https://wishly-app.pages.dev'
+          siteUrl: 'https://soty.pp.ua'
         }
       );
 
@@ -200,7 +200,7 @@ describe('team invitation delivery', () => {
           rpc,
           deliver: vi.fn(),
           createToken: vi.fn(),
-          siteUrl: 'https://wishly-app.pages.dev'
+          siteUrl: 'https://soty.pp.ua'
         }
       )
     ).rejects.toMatchObject({ code: 'PERMISSION_DENIED', retryable: false });
@@ -260,7 +260,7 @@ describe('team invitation delivery', () => {
           },
           deliver,
           createToken,
-          siteUrl: 'https://wishly-app.pages.dev'
+          siteUrl: 'https://soty.pp.ua'
         }
       )
     ).resolves.toEqual([member]);
@@ -303,7 +303,7 @@ describe('team invitation delivery', () => {
           rpc: disabledRpc,
           deliver: vi.fn(),
           createToken: vi.fn(),
-          siteUrl: 'https://wishly-app.pages.dev'
+          siteUrl: 'https://soty.pp.ua'
         }
       )
     ).rejects.toMatchObject({ code: 'WRONG_STATE', retryable: false });
@@ -324,7 +324,7 @@ describe('team invitation delivery', () => {
           rpc: missingRpc,
           deliver: vi.fn(),
           createToken: vi.fn(),
-          siteUrl: 'https://wishly-app.pages.dev'
+          siteUrl: 'https://soty.pp.ua'
         }
       )
     ).rejects.toMatchObject({ code: 'NOT_FOUND', retryable: false });

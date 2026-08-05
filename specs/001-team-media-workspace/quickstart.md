@@ -400,7 +400,7 @@ npm run build
 npm run test:agent:e2e
 VITE_SUPABASE_URL=https://example.supabase.co \
   VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_fixture \
-VITE_SITE_URL=https://wishly-app.pages.dev \
+VITE_SITE_URL=https://soty.pp.ua \
   node scripts/verify-web-env.mjs
 ```
 
@@ -431,7 +431,7 @@ VITE_SITE_URL=https://wishly-app.pages.dev \
 - The deployed provider-readiness endpoint reports `production=true`, `oauthMode=disabled`,
   Google Drive unavailable, invitation email unavailable, and the catalog worker available.
   `npm run verify:team-production` correctly stops at this state.
-- The live Team Workspace route at `https://wishly-app.pages.dev/team` renders the team,
+- The live Team Workspace route at `https://soty.pp.ua/team` renders the team,
   member/invitation management, Drive connection panel, audit history, and catalog. The
   visible launcher hotfix is committed and pushed, but the latest production Pages
   deployment still identifies release commit `8147fb7`; the readiness gate correctly blocks

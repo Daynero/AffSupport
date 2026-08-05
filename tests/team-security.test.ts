@@ -12,7 +12,7 @@ import {
 } from '../supabase/functions/_shared/errors';
 import { executeDriveConnectCommand } from '../supabase/functions/drive-connect/handler';
 
-const productionOrigin = 'https://wishly-app.pages.dev';
+const productionOrigin = 'https://soty.pp.ua';
 const localSignals = {
   siteUrl: 'http://127.0.0.1:5173',
   requestOrigin: 'http://127.0.0.1:5173',

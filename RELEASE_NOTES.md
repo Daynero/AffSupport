@@ -1,3 +1,7 @@
+# v0.9.2
+
+- Move the canonical Wishly web app to `https://soty.pp.ua` and align the packaged Agent, authentication callbacks, Google Drive workspace flow, and production release checks with the new origin.
+
 # v0.9.1
 
 - Stop the local agent from loading the CPU in the background when nothing is running: cancelling, removing, or restarting a task now actually stops the media work it started, instead of letting hidden ffmpeg passes keep the machine warm until the agent is quit.

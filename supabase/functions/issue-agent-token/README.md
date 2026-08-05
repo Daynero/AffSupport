@@ -17,7 +17,7 @@ this function stops issuing tokens for that account immediately.
 # (config/keys/agent-entitlement.private.pem, gitignored).
 node -e "const{readFileSync}=require('fs');const{createPrivateKey}=require('crypto');process.stdout.write(createPrivateKey(readFileSync('config/keys/agent-entitlement.private.pem')).export({type:'pkcs8',format:'der'}).toString('base64'))" \
   | xargs -I{} npx supabase secrets set AGENT_TOKEN_PRIVATE_KEY={}
-npx supabase secrets set WISHLY_SITE_URL=https://wishly-app.pages.dev
+npx supabase secrets set WISHLY_SITE_URL=https://soty.pp.ua
 
 npx supabase functions deploy issue-agent-token
 ```

@@ -32,7 +32,7 @@ agent_pid=$(ps -o ppid= -p "$listener_pid" | tr -d ' '); [[ -n "$agent_pid" ]]
 [[ "$(ps -o command= -p "$listener_pid")" == *"$app/Contents/Resources/runtime/node"* ]]
 headers="$work/pair.headers"; /usr/bin/curl -sS -D "$headers" -o /dev/null --max-redirs 0 http://127.0.0.1:43120/pair
 token=$(sed -n 's/^[Ll]ocation: .*#agentToken=\([a-f0-9]*\).*/\1/p' "$headers" | tr -d '\r'); [[ ${#token} -eq 64 ]]
-origin='https://wishly-app.pages.dev'; health=$(/usr/bin/curl -fsS -H "Origin: $origin" -H "x-session-token: $token" http://127.0.0.1:43120/api/health); print -r -- "$health" | grep -q '"ok":true'; print -r -- "$health" | grep -q "\"buildId\":\"$build_id\""; print -r -- "$health" | grep -q "\"apiVersion\":$api_version"
+origin='https://soty.pp.ua'; health=$(/usr/bin/curl -fsS -H "Origin: $origin" -H "x-session-token: $token" http://127.0.0.1:43120/api/health); print -r -- "$health" | grep -q '"ok":true'; print -r -- "$health" | grep -q "\"buildId\":\"$build_id\""; print -r -- "$health" | grep -q "\"apiVersion\":$api_version"
 # The packaged agent gates tool routes behind a server-issued entitlement token.
 # Mint one with the release private key and submit it: this both unlocks the
 # smoke test below and proves the public key embedded in the build actually

@@ -6,9 +6,9 @@
  * contract is incompatible, while the supported range lets a web release keep
  * working with older compatible agents.
  */
-export const PRODUCT_VERSION = '0.9.1';
-export const BUNDLE_VERSION = '0.9.1';
-export const BUILD_NUMBER = '37';
+export const PRODUCT_VERSION = '0.9.2';
+export const BUNDLE_VERSION = '0.9.2';
+export const BUILD_NUMBER = '38';
 export const RELEASE_CHANNEL = 'stable';
 
 /**
@@ -29,11 +29,10 @@ export const PRODUCT_NAME = 'Wishly';
 export const AGENT_PRODUCT_NAME = 'Wishly Agent';
 
 /**
- * Single source for brand URLs. The hosted page runs on the free Cloudflare
- * Pages subdomain until a custom domain is purchased; swap this constant
- * (and config/production.env, which release checks keep in sync) to move.
+ * Single source for brand URLs. Keep this constant and config/production.env
+ * synchronized when moving the hosted app to another canonical origin.
  */
-export const PRODUCTION_SITE_ORIGIN = 'https://wishly-app.pages.dev';
+export const PRODUCTION_SITE_ORIGIN = 'https://soty.pp.ua';
 export const HELP_URL = `${PRODUCTION_SITE_ORIGIN}/help`;
 
 export const BUILD_ID = `${PRODUCT_VERSION}+${BUILD_NUMBER}`;

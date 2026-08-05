@@ -40,8 +40,8 @@ describe('Wishly brand identity', () => {
     expect(RELEASE_DOWNLOAD_URL).toContain(RELEASE_ARTIFACT_NAME);
   });
 
-  it('serves the hosted page from a wishly origin configured in one place', () => {
-    expect(new URL(PRODUCTION_SITE_ORIGIN).hostname).toContain('wishly');
+  it('serves the hosted page from the canonical custom origin configured in one place', () => {
+    expect(PRODUCTION_SITE_ORIGIN).toBe('https://soty.pp.ua');
     const env = readFileSync('config/production.env', 'utf8');
     expect(env.match(/^PUBLIC_SITE_ORIGIN=(.+)$/m)?.[1]?.trim()).toBe(PRODUCTION_SITE_ORIGIN);
   });

@@ -89,6 +89,15 @@ describe('protected routing and safe OAuth returns', () => {
     expect(publicHome).toContain('href="/privacy"');
     expect(publicHome).toContain('href="/terms"');
   });
+
+  it('publishes the Google Drive data-use disclosures required for OAuth review', async () => {
+    const legalPages = await readFile('apps/web/src/pages/LegalPages.tsx', 'utf8');
+    expect(legalPages).toContain('Google Drive team workspace');
+    expect(legalPages).toContain('encrypted in Supabase Vault');
+    expect(legalPages).toContain('Google API Services User Data Policy');
+    expect(legalPages).toContain('Limited Use requirements');
+    expect(legalPages).toContain('Google Drive Trash');
+  });
 });
 
 describe('environment and localization foundation', () => {
@@ -111,7 +120,7 @@ describe('environment and localization foundation', () => {
       validatePublicConfig({
         VITE_SUPABASE_URL: 'https://project.supabase.co',
         VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_public_value_only',
-        VITE_SITE_URL: 'https://wishly-app.pages.dev'
+        VITE_SITE_URL: 'https://soty.pp.ua'
       }).ok
     ).toBe(true);
   });
@@ -124,7 +133,7 @@ describe('environment and localization foundation', () => {
       validatePublicConfig({
         VITE_SUPABASE_URL: 'https://project.supabase.co',
         VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_public_value_only',
-        VITE_SITE_URL: 'https://wishly-app.pages.dev',
+        VITE_SITE_URL: 'https://soty.pp.ua',
         VITE_TEAM_DIRECT_ADD_MODE: 'unknown'
       }).ok
     ).toBe(false);
@@ -139,7 +148,7 @@ describe('environment and localization foundation', () => {
       validatePublicConfig({
         VITE_SUPABASE_URL: 'https://project.supabase.co',
         VITE_SUPABASE_PUBLISHABLE_KEY: `header.${serviceRolePayload}.signature`,
-        VITE_SITE_URL: 'https://wishly-app.pages.dev'
+        VITE_SITE_URL: 'https://soty.pp.ua'
       }).ok
     ).toBe(false);
     expect(

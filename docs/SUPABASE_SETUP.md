@@ -6,12 +6,12 @@
 
 ## Адреси цієї реалізації
 
-| Призначення           | Development                           | Production                                   |
-| --------------------- | ------------------------------------- | -------------------------------------------- |
-| Wishly origin         | `http://127.0.0.1:5173`               | `https://wishly-app.pages.dev`               |
-| Wishly OAuth callback | `http://127.0.0.1:5173/auth/callback` | `https://wishly-app.pages.dev/auth/callback` |
-| Privacy Policy        | `http://127.0.0.1:5173/privacy`       | `https://wishly-app.pages.dev/privacy`       |
-| Terms of Use          | `http://127.0.0.1:5173/terms`         | `https://wishly-app.pages.dev/terms`         |
+| Призначення           | Development                           | Production                         |
+| --------------------- | ------------------------------------- | ---------------------------------- |
+| Wishly origin         | `http://127.0.0.1:5173`               | `https://soty.pp.ua`               |
+| Wishly OAuth callback | `http://127.0.0.1:5173/auth/callback` | `https://soty.pp.ua/auth/callback` |
+| Privacy Policy        | `http://127.0.0.1:5173/privacy`       | `https://soty.pp.ua/privacy`       |
+| Terms of Use          | `http://127.0.0.1:5173/terms`         | `https://soty.pp.ua/terms`         |
 
 Якщо production-домен зміниться, спочатку оновіть єдине джерело адреси в `packages/shared/src/release.ts`, синхронний `PUBLIC_SITE_ORIGIN` у `config/production.env`, а потім усі production-адреси в Supabase, Google Cloud і хостингу.
 
@@ -74,14 +74,14 @@ Rollback-пояснення є в `supabase/migrations/ROLLBACK.md`. Для prod
 2. У **Site URL** для поточного production-проєкту введіть:
 
 ```text
-https://wishly-app.pages.dev
+https://soty.pp.ua
 ```
 
 3. У **Redirect URLs** додайте обидві точні адреси:
 
 ```text
 http://127.0.0.1:5173/auth/callback
-https://wishly-app.pages.dev/auth/callback
+https://soty.pp.ua/auth/callback
 ```
 
 4. Не використовуйте широкий wildcard для production, якщо він не потрібен. Preview-домен додавайте окремим точним callback URL.
@@ -94,9 +94,9 @@ Site URL — fallback Supabase. Код Wishly завжди передає кон
 2. Відкрийте **Google Auth Platform → Branding**.
 3. Вкажіть назву **Wishly**, support email і developer contact email.
 4. Для production додайте:
-   - Homepage: `https://wishly-app.pages.dev`;
-   - Privacy Policy: `https://wishly-app.pages.dev/privacy`;
-   - Terms of Use: `https://wishly-app.pages.dev/terms`.
+   - Homepage: `https://soty.pp.ua`;
+   - Privacy Policy: `https://soty.pp.ua/privacy`;
+   - Terms of Use: `https://soty.pp.ua/terms`.
 5. Не вигадуйте юридичну особу. Перед публічним запуском заповніть `VITE_PRODUCT_OPERATOR` і `VITE_LEGAL_CONTACT_EMAIL` реальними даними та перевірте legal-тексти.
 6. Відкрийте **Audience**:
    - для звичайних Google-акаунтів виберіть **External**;
@@ -113,7 +113,7 @@ Site URL — fallback Supabase. Код Wishly завжди передає кон
 
 ```text
 http://127.0.0.1:5173
-https://wishly-app.pages.dev
+https://soty.pp.ua
 ```
 
 11. Тепер у сусідній вкладці відкрийте Supabase **Authentication → Sign In / Providers → Google**.
@@ -126,7 +126,7 @@ https://PROJECT_REF.supabase.co/auth/v1/callback
 13. Поверніться в Google client і вставте цю адресу в **Authorized redirect URIs**. Не вставляйте сюди `/auth/callback` Wishly: Google спочатку повертає користувача в Supabase.
 14. Створіть client і одразу скопіюйте **Client ID** та **Client Secret**. Google може показати secret лише один раз.
 
-Для публічної Google Branding verification зазвичай потрібен домен, яким ви реально володієте й який можете підтвердити в Google Search Console. `wishly-app.pages.dev` достатній для технічного тесту, але перед широким production launch краще підключити власний Wishly-домен і оновити адреси за checklist у `PRODUCTION.md`.
+Для публічної Google Branding verification використовуйте власний підтверджений домен `soty.pp.ua` і актуальні адреси з checklist у `PRODUCTION.md`.
 
 Документація: [Supabase Google Login](https://supabase.com/docs/guides/auth/social-login/auth-google), [Google OAuth Clients](https://support.google.com/cloud/answer/15549257).
 
@@ -183,7 +183,7 @@ on conflict (user_id) do nothing;
 До deployment функції кнопка видалення навмисно вимкнена.
 
 ```bash
-npx supabase secrets set WISHLY_SITE_URL=https://wishly-app.pages.dev --project-ref YOUR_PROJECT_REF
+npx supabase secrets set WISHLY_SITE_URL=https://soty.pp.ua --project-ref YOUR_PROJECT_REF
 npx supabase functions deploy delete-account --project-ref YOUR_PROJECT_REF --use-api
 ```
 
@@ -208,7 +208,7 @@ Supabase автоматично надає функції її server-side proje
 ```text
 VITE_SUPABASE_URL=https://PROJECT_REF.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_REPLACE_ME
-VITE_SITE_URL=https://wishly-app.pages.dev
+VITE_SITE_URL=https://soty.pp.ua
 VITE_ADMIN_EMAIL=
 VITE_PRODUCT_OPERATOR=REAL_OPERATOR_NAME
 VITE_LEGAL_CONTACT_EMAIL=REAL_CONTACT_EMAIL
