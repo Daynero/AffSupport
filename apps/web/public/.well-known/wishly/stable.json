@@ -6,7 +6,7 @@
   "buildId": "0.9.2+38",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-08-05T09:15:00.000Z",
+  "publishedAt": "2026-08-05T10:38:22.000Z",
   "summary": {
     "en": "Moves Wishly to soty.pp.ua, updates the Agent's trusted production origin, and expands the Team Workspace privacy disclosures required for Google Drive verification.",
     "uk": "Переносить Wishly на soty.pp.ua, оновлює довірений production origin Агента й розширює privacy disclosure командного простору для Google Drive verification."
@@ -14,7 +14,7 @@
   "artifacts": {
     "macos-arm64": {
       "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.2/Wishly-Agent-v0.9.2-macOS-arm64.dmg",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      "sha256": "676287f2a18ad5ce0c7a677e63341fa92b9a73a2963829f5496f749ea6f04827"
     }
   },
   "toolRequirements": {
@@ -35,5 +35,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "lwiQQQPmw9dD38qyxjfsTCuzCZBUZvQG21ng4W81MXGPBLHPyzc-OD4Ys4hhq2-UUvs_5AHfftfaxoW148UEWw"
+  "signature": "ZSf4iDbRYpFpmVfGwR4x1lOe0CKCibj8K448T1gDT8JQTbCVkAiVnFK4KxJeIAJvLHWRL2Mv5Snl4-xM28UuQw"
 }
