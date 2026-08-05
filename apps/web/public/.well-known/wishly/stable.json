@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.9.0",
-  "buildNumber": "36",
-  "buildId": "0.9.0+36",
+  "version": "0.9.1",
+  "buildNumber": "37",
+  "buildId": "0.9.1+37",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-08-01T20:41:25.000Z",
+  "publishedAt": "2026-08-05T07:07:10.000Z",
   "summary": {
-    "en": "Adds Team Workspace: create teams, invite members, manage roles, connect a shared Google Drive folder, search and preview media, and run permission-scoped file workflows.",
-    "uk": "Додає командний простір: створення команд, запрошення, ролі, спільну папку Google Drive, пошук і перегляд медіа та файлові процеси з контрольованими правами."
+    "en": "Stops the local agent from quietly using the CPU in the background after a task is cancelled or removed, and fixes the queue occasionally refusing to start a new task until the agent was restarted.",
+    "uk": "Прибирає фонове навантаження CPU локальним агентом після скасування чи видалення задачі та виправляє залипання черги, яка інколи відмовлялася запускати нову задачу до перезапуску агента."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.0/Wishly-Agent-v0.9.0-macOS-arm64.dmg",
-      "sha256": "6ebcfc089d4c0d96e1e30dbb8bd155e5aeeee59aa48b531cdd484cfbb577a14a"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.1/Wishly-Agent-v0.9.1-macOS-arm64.dmg",
+      "sha256": "ceb23893ad7fa99df3bdf15125dcac93a9a0cb0b87e727d80a85d5f3339a4e4d"
     }
   },
   "toolRequirements": {
@@ -35,5 +35,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "HIgR20K1KpPMza7B3J8seYv25Xtt63jBTHUFYL1xua2mMqwEo0iu5LThkGlUm26PRkKq9JiFY6-gr8hTpgFRoQ"
+  "signature": "5wb7biSZt1y16hZ4eabQHqVLpxxc3mKcfwblwtG3jzogXbS2_IYUQkMvpmntXZdrQPAuak8X6DeMlEtMl47Wiw"
 }
