@@ -489,3 +489,48 @@ those samples.
   `AUTH_REQUIRED` HTTP 401, and the remote migration list contains `20260802100000` on both
   sides. No synthetic production user, team, membership, Drive object, Agent release, or tag
   was created during smoke verification.
+
+### Canonical-domain production migration — 2026-08-05
+
+- NIC.UA delegates `soty.pp.ua` to `cecelia.ns.cloudflare.com` and
+  `duke.ns.cloudflare.com`; the Cloudflare zone is active. The 37 imported registrar parking
+  records were permanently removed and the required records were recreated: a proxied apex
+  CNAME targets `wishly-app.pages.dev`, the Search Console ownership TXT remains in place, and
+  the Resend sender records described below are authoritative. Cloudflare Pages reports the
+  `soty.pp.ua` custom domain active. Public DNS resolves through Cloudflare, and HTTPS checks
+  plus a signed-out browser pass returned the public bilingual Wishly home page, privacy page,
+  and terms page with HTTP 200.
+- Search Console verified the `soty.pp.ua` domain property. Google OAuth branding now uses
+  `https://soty.pp.ua`, `/privacy`, and `/terms`; `soty.pp.ua` is an authorized domain and the
+  Wishly web client accepts `https://soty.pp.ua` as its production JavaScript origin. The
+  Supabase callback URIs remain registered. A fresh branding re-verification was requested
+  after the canonical domain became owned and public; the ownership finding disappeared, while
+  Google still displays three findings from the previous verification attempt and has not yet
+  approved the branding. Restricted-scope verification therefore remains unavailable and
+  production `DRIVE_OAUTH_MODE` truthfully remains `disabled`; no live Drive readiness or
+  approval is claimed.
+- Supabase Auth now has `https://soty.pp.ua` as its site URL and allows the new production auth
+  callback, with the Pages callback retained temporarily for rollback. The Edge secret
+  `WISHLY_SITE_URL` uses the canonical origin. All eight Team Workspace functions are active;
+  after the sender update, `team-invitations` is v11 and `drive-connect` is v12. A production
+  origin preflight to `drive-ops` returns 204 with the new origin, while the old Pages origin
+  and an unrelated origin return 403.
+- Resend domain `mail.soty.pp.ua` is verified for sending in `eu-west-1`: DKIM, the custom MAIL
+  FROM MX record, and SPF all report `Verified`. `INVITE_EMAIL_FROM` is configured as
+  `Wishly <noreply@mail.soty.pp.ua>`, and the readiness endpoint now reports
+  `invitationEmail=true`, `directMemberAdd=true`, and `catalogWorker=true`. The member-pilot
+  gate passes. The strict full-provider gate now fails only with
+  `mode=disabled, unavailable=googleDrive`, matching the pending Google approval rather than a
+  missing email provider.
+- Release `v0.9.2` / build 38 / API 5 is published from commit `39036dd`; checksum metadata is
+  recorded by `5532ec5`. Cloudflare Pages production deployment
+  `c2584c93-9546-4d9d-8998-8a5ea6bf8e58` serves source `5532ec5`. Twelve consecutive canonical-
+  domain and eight Pages-alias stable-manifest reads all advertised `0.9.2+38`. The macOS DMG
+  SHA-256 is `676287f2a18ad5ce0c7a677e63341fa92b9a73a2963829f5496f749ea6f04827`; the ZIP
+  SHA-256 is `72c0235c4047f5e6ab2650b54325d8bf1b92b9da05d7a3cbbd108b96b0a93e47`.
+- Formatting, lint, shared/web/agent builds, and the full suite passed before publication: 111
+  test files and 674 tests passed, with the same three manual files / six tests explicitly
+  skipped. T051, T079, T091, T113, and T123 remain open because Google approval and their
+  moderated participant, live My/Shared Drive, controlled network/hardware, benchmark, and four
+  qualifying production-window samples do not yet exist; none of that evidence is fabricated
+  by this migration.
