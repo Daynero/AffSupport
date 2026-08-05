@@ -140,7 +140,9 @@ describe('embedded static-section estimation', () => {
     await worker.shutdown();
 
     expect(job.estimateStatus, job.estimateError ?? '').toBe('estimated');
-    expect(detect).toHaveBeenCalledWith(video, 1, 24);
+    // The fourth argument is the cancellation signal that lets pause/invalidate
+    // kill the (otherwise untracked) static-edge ffmpeg children.
+    expect(detect).toHaveBeenCalledWith(video, 1, 24, expect.any(AbortSignal));
     expect(job.imageEmbedding?.sourceTrimEndSeconds).toBe(0.75);
     expect(outputDurationSeconds(job)).toBeCloseTo(1, 5);
     const breakdown = job.estimateBreakdown!;

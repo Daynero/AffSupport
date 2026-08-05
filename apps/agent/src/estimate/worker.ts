@@ -47,6 +47,11 @@ export class EstimationWorker {
   private shuttingDown = false;
   private debounce: ReturnType<typeof setTimeout> | null = null;
   private replacementTrimCache = new Map<string, Promise<StaticEdgeTrims>>();
+  // Aborts the in-flight estimate's background media work (static-edge
+  // detection and ffprobe) whose children are not tracked in `this.child`, so
+  // invalidate/pause/cancel actually stop them instead of letting them run —
+  // and burn CPU — to completion.
+  private currentAbort: AbortController | null = null;
 
   constructor(
     private jobs: () => CompressionJob[],
@@ -72,6 +77,7 @@ export class EstimationWorker {
 
   invalidate() {
     this.generation++;
+    this.currentAbort?.abort();
     this.child?.kill('SIGTERM');
     for (const job of this.jobs()) {
       if (!['ready', 'analyzing'].includes(job.status)) continue;
@@ -97,6 +103,7 @@ export class EstimationWorker {
   async pause() {
     this.paused = true;
     this.generation++;
+    this.currentAbort?.abort();
     const child = this.child;
     child?.kill('SIGTERM');
     if (child) {
@@ -144,6 +151,7 @@ export class EstimationWorker {
   cancelPrioritized(id: string) {
     if (this.currentJobId !== id) return;
     this.generation++;
+    this.currentAbort?.abort();
     const child = this.child;
     child?.kill('SIGTERM');
     if (child) {
@@ -157,6 +165,7 @@ export class EstimationWorker {
     this.shuttingDown = true;
     this.paused = true;
     this.generation++;
+    this.currentAbort?.abort();
     this.child?.kill('SIGTERM');
     await this.currentDone;
   }
@@ -206,16 +215,19 @@ export class EstimationWorker {
 
   private async estimate(job: CompressionJob, generation: number, prioritized: boolean) {
     let temporaryDirectory = '';
+    const abort = new AbortController();
+    this.currentAbort = abort;
     try {
       const source = await stat(job.inputPath);
       let metadata: Awaited<ReturnType<typeof probe>> | null = null;
       if (job.imageEmbedding?.replaceExisting) {
-        metadata = await probe(job.inputPath);
+        metadata = await probe(job.inputPath, abort.signal);
         const trims = await this.detectReplacementTrims(
           job,
           source.size,
           source.mtimeMs,
-          metadata.duration
+          metadata.duration,
+          abort.signal
         );
         if (this.cancelled(job.id, generation, prioritized)) throw new Cancelled();
         if (
@@ -260,7 +272,7 @@ export class EstimationWorker {
         return;
       }
 
-      metadata ??= await probe(job.inputPath);
+      metadata ??= await probe(job.inputPath, abort.signal);
       const sourceStart = job.imageEmbedding?.replaceExisting
         ? job.imageEmbedding.sourceTrimStartSeconds
         : 0;
@@ -378,7 +390,11 @@ export class EstimationWorker {
         'estimate:completed'
       );
     } catch (error) {
-      if (error instanceof Cancelled) {
+      // Aborting the background media work (static-edge detection / ffprobe)
+      // surfaces as an AbortError; treat it the same as an explicit Cancelled
+      // so a superseded or paused estimate is not reported as "unavailable".
+      const aborted = error instanceof Error && error.name === 'AbortError';
+      if (error instanceof Cancelled || aborted) {
         const paused = this.paused && !prioritized;
         this.update(
           job.id,
@@ -402,6 +418,7 @@ export class EstimationWorker {
         );
       }
     } finally {
+      if (this.currentAbort === abort) this.currentAbort = null;
       this.child = null;
       if (temporaryDirectory) {
         await rm(temporaryDirectory, { recursive: true, force: true }).catch(() => {});
@@ -422,7 +439,8 @@ export class EstimationWorker {
     job: CompressionJob,
     size: number,
     mtimeMs: number,
-    duration: number
+    duration: number,
+    signal?: AbortSignal
   ) {
     const frameRate = job.sourceFrameRate ?? outputFrameRate(job);
     const key = JSON.stringify([
@@ -434,7 +452,7 @@ export class EstimationWorker {
     ]);
     let pending = this.replacementTrimCache.get(key);
     if (!pending) {
-      pending = this.detectStaticEdges(job.inputPath, duration, frameRate);
+      pending = this.detectStaticEdges(job.inputPath, duration, frameRate, signal);
       this.replacementTrimCache.set(key, pending);
       void pending.catch(() => {
         if (this.replacementTrimCache.get(key) === pending) {
@@ -448,9 +466,13 @@ export class EstimationWorker {
 
 class Cancelled extends Error {}
 
-function probe(input: string) {
+function probe(input: string, signal?: AbortSignal) {
   return new Promise<{ duration: number; audioBitrate: number; hasAudio: boolean }>(
     (resolve, reject) => {
+      if (signal?.aborted) {
+        reject(probeAborted());
+        return;
+      }
       const process = spawn(
         ffprobePath,
         [
@@ -464,12 +486,23 @@ function probe(input: string) {
         ],
         { shell: false }
       );
+      const onAbort = () => process.kill('SIGKILL');
+      signal?.addEventListener('abort', onAbort, { once: true });
+      const detach = () => signal?.removeEventListener('abort', onAbort);
       let output = '';
       process.stdout.on('data', data => {
         output += data;
       });
-      process.on('error', reject);
+      process.on('error', error => {
+        detach();
+        reject(error);
+      });
       process.on('close', code => {
+        detach();
+        if (signal?.aborted) {
+          reject(probeAborted());
+          return;
+        }
         try {
           if (code !== 0) throw new Error();
           const value = JSON.parse(output);
@@ -489,4 +522,11 @@ function probe(input: string) {
       });
     }
   );
+}
+
+/** Rejection raised when a probe is cancelled through its AbortSignal. */
+function probeAborted() {
+  const error = new Error('Probe was cancelled.');
+  error.name = 'AbortError';
+  return error;
 }

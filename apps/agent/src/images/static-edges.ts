@@ -19,7 +19,8 @@ export interface StaticEdgeTrims {
 export async function detectStaticEdgeTrims(
   input: string,
   durationSeconds: number,
-  frameRate: number
+  frameRate: number,
+  signal?: AbortSignal
 ): Promise<StaticEdgeTrims> {
   if (
     !Number.isFinite(durationSeconds) ||
@@ -38,7 +39,7 @@ export async function detectStaticEdgeTrims(
     let value = cache.get(safeIndex);
     if (!value) {
       const time = Math.min(Math.max(0, durationSeconds - 1 / frameRate), safeIndex / frameRate);
-      value = sampleFrame(input, time);
+      value = sampleFrame(input, time, signal);
       cache.set(safeIndex, value);
     }
     return value;
@@ -114,8 +115,13 @@ async function visuallyMatches(left: Buffer, right: Promise<Buffer>) {
   return difference / SAMPLE_BYTES <= STATIC_MEAN_DIFFERENCE;
 }
 
-function sampleFrame(input: string, seconds: number) {
+function sampleFrame(input: string, seconds: number, signal?: AbortSignal) {
   return new Promise<Buffer>((resolve, reject) => {
+    // Abort before spawning: nothing to launch if the caller already gave up.
+    if (signal?.aborted) {
+      reject(edgeDetectionAborted());
+      return;
+    }
     const child = spawn(
       ffmpegPath,
       [
@@ -139,6 +145,11 @@ function sampleFrame(input: string, seconds: number) {
       ],
       { shell: false }
     );
+    // Kill the decode as soon as the caller aborts so a cancelled compression or
+    // a superseded estimate stops burning CPU instead of running to completion.
+    const onAbort = () => child.kill('SIGKILL');
+    signal?.addEventListener('abort', onAbort, { once: true });
+    const detach = () => signal?.removeEventListener('abort', onAbort);
     const chunks: Buffer[] = [];
     let stderr = '';
     child.stdout.on('data', chunk => chunks.push(Buffer.from(chunk)));
@@ -146,15 +157,28 @@ function sampleFrame(input: string, seconds: number) {
       stderr = (stderr + chunk.toString()).slice(-4000);
     });
     child.once('error', error => {
+      detach();
       const code = 'code' in error && typeof error.code === 'string' ? error.code : null;
       if (code) reject(new MediaToolUnavailableError('ffmpeg', code));
       else reject(error);
     });
     child.once('close', code => {
+      detach();
+      if (signal?.aborted) {
+        reject(edgeDetectionAborted());
+        return;
+      }
       if (code === 0) resolve(Buffer.concat(chunks).subarray(0, SAMPLE_BYTES));
       else reject(new Error(stderr || 'Could not inspect static video edges.'));
     });
   });
+}
+
+/** Rejection raised when edge detection is cancelled through its AbortSignal. */
+function edgeDetectionAborted() {
+  const error = new Error('Static edge detection was cancelled.');
+  error.name = 'AbortError';
+  return error;
 }
 
 function roundSeconds(value: number) {

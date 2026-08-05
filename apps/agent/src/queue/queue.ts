@@ -87,6 +87,10 @@ export function isSupportedVideoPath(filePath: string) {
 
 export class JobQueue {
   private active: ChildProcessWithoutNullStreams | null = null;
+  // Aborts background media work for the current job (static-edge detection in
+  // `preparing-images`) whose ffmpeg children are not the tracked `active`
+  // encoder, so cancel/shutdown can actually stop them.
+  private activeAbort: AbortController | null = null;
   private compressionInFlight = false;
   private compressionPausedForEstimates = false;
   private prioritizingEstimates = false;
@@ -129,10 +133,16 @@ export class JobQueue {
 
   setToolAvailability(next: QueueState['tools']) {
     const changed = this.tools.ffmpeg !== next.ffmpeg || this.tools.ffprobe !== next.ffprobe;
+    const becameAvailable =
+      next.ffmpeg && next.ffprobe && (!this.tools.ffmpeg || !this.tools.ffprobe);
     this.tools.ffmpeg = next.ffmpeg;
     this.tools.ffprobe = next.ffprobe;
     if (next.ffmpeg && next.ffprobe && this.warning === RUNTIME_WARNING) this.warning = null;
     if (changed) this.notify();
+    // A transient tool outage can make `pump` bail while a batch still has
+    // queued jobs; once the tools return, resume draining it so those jobs do
+    // not stay wedged as "running" until the agent restarts.
+    if (becameAvailable && !this.compressionInFlight) queueMicrotask(() => void this.pump());
   }
 
   state(): QueueState {
@@ -464,11 +474,18 @@ export class JobQueue {
       startedAt: Date.now(),
       finishedAt: null
     };
-    this.batch = batch;
-    this.warning = await this.diskWarning(jobs);
+    // Resolve every output path (which can throw on an unwritable/missing
+    // folder) BEFORE mutating any job or the batch. A throw mid-loop must never
+    // leave jobs marked `queued` with no `pump` running, which would wedge
+    // `running=true` until the agent restarts.
+    const warning = await this.diskWarning(jobs);
+    const prepared: {
+      job: CompressionJob;
+      imageEmbedding: CompressionJob['imageEmbedding'];
+      outputPath: string;
+    }[] = [];
     for (const job of jobs) {
       const jobSettings = this.teamJobSettings.get(job.id) ?? this.settings;
-      const draftKey = jobConfigurationKey(job.encoding, job.imageEmbedding);
       const estimatedEmbedding = job.imageEmbedding;
       const selectedImages = jobSettings.imageEmbedding.enabled
         ? {
@@ -476,16 +493,28 @@ export class JobQueue {
             endImage: this.drawImage('end', jobSettings.imageEmbedding.endImages)
           }
         : { startImage: null, endImage: null };
-      job.imageEmbedding = freezeImageEmbedding(
+      const imageEmbedding = freezeImageEmbedding(
         jobSettings.imageEmbedding,
         this.random,
         selectedImages
       );
-      if (job.imageEmbedding?.replaceExisting && estimatedEmbedding?.replaceExisting) {
-        job.imageEmbedding.sourceTrimStartSeconds = estimatedEmbedding.sourceTrimStartSeconds;
-        job.imageEmbedding.sourceTrimEndSeconds = estimatedEmbedding.sourceTrimEndSeconds;
+      if (imageEmbedding?.replaceExisting && estimatedEmbedding?.replaceExisting) {
+        imageEmbedding.sourceTrimStartSeconds = estimatedEmbedding.sourceTrimStartSeconds;
+        imageEmbedding.sourceTrimEndSeconds = estimatedEmbedding.sourceTrimEndSeconds;
       }
-      job.outputPath = await this.outputPathFor(job.inputPath, job, jobSettings);
+      // Reserve against paths already committed in this loop as well as the
+      // other jobs' current paths, so two started jobs never collide.
+      const reserved = prepared.map(entry => entry.outputPath);
+      const outputPath = await this.outputPathFor(job.inputPath, job, jobSettings, reserved);
+      prepared.push({ job, imageEmbedding, outputPath });
+    }
+
+    this.batch = batch;
+    this.warning = warning;
+    for (const { job, imageEmbedding, outputPath } of prepared) {
+      const draftKey = jobConfigurationKey(job.encoding, job.imageEmbedding);
+      job.imageEmbedding = imageEmbedding;
+      job.outputPath = outputPath;
       if (
         draftKey !== jobConfigurationKey(job.encoding, job.imageEmbedding) &&
         !refreshEstimateFromBreakdown(job)
@@ -515,10 +544,14 @@ export class JobQueue {
     job.finishedAt = finishTimestamp(job);
     job.processingStage = null;
     resetEstimate(job);
-    if (wasProcessing && this.compressionPausedForEstimates && this.active) {
-      resumeProcess(this.active);
+    if (wasProcessing) {
+      // Stop untracked background work too (static-edge detection during
+      // `preparing-images`), whose ffmpeg children are not `this.active` and
+      // would otherwise keep loading the CPU after the UI shows "cancelled".
+      this.activeAbort?.abort();
+      if (this.compressionPausedForEstimates && this.active) resumeProcess(this.active);
+      if (this.active) this.active.kill('SIGTERM');
     }
-    if (wasProcessing && this.active) this.active.kill('SIGTERM');
     this.notify('estimate:queued');
     return true;
   }
@@ -622,6 +655,10 @@ export class JobQueue {
   }
 
   async shutdown() {
+    // Abort background media work first: static-edge detection runs its own
+    // ffmpeg children that are not `this.active`, so without this a shutdown
+    // during `preparing-images` would leave them running.
+    this.activeAbort?.abort();
     const child = this.active;
     if (!child) return;
     if (this.compressionPausedForEstimates) resumeProcess(child);
@@ -815,7 +852,8 @@ export class JobQueue {
   private async outputPathFor(
     inputPath: string,
     current?: CompressionJob,
-    settings: AgentSettings = this.settings
+    settings: AgentSettings = this.settings,
+    extraReserved: string[] = []
   ) {
     let folder: string | undefined;
     if (settings.outputMode === 'chosen-folder') {
@@ -826,7 +864,8 @@ export class JobQueue {
     const reserved = this.jobs
       .filter(job => job !== current)
       .map(job => job.outputPath)
-      .filter(Boolean);
+      .filter(Boolean)
+      .concat(extraReserved.filter(Boolean));
     return nextOutputPath(
       inputPath,
       folder,
@@ -877,22 +916,28 @@ export class JobQueue {
       return;
     }
 
-    this.compressionInFlight = true;
-    job.status = 'processing';
-    job.error = null;
-    job.errorDetails = null;
-    job.estimatePriorityOrder = null;
-    job.startedAt = Date.now();
-    job.finishedAt = null;
-    job.processingStage = job.imageEmbedding ? 'preparing-images' : 'compressing';
-    this.notify();
+    // Set the in-flight flag and the abort handle as the very first statements
+    // inside the guarded region so a throw from `notify()` (or anywhere below)
+    // can never strand `compressionInFlight=true` — which would wedge the queue
+    // as permanently "running" until the agent restarts.
+    const abort = new AbortController();
     try {
+      this.compressionInFlight = true;
+      this.activeAbort = abort;
+      job.status = 'processing';
+      job.error = null;
+      job.errorDetails = null;
+      job.estimatePriorityOrder = null;
+      job.startedAt = Date.now();
+      job.finishedAt = null;
+      job.processingStage = job.imageEmbedding ? 'preparing-images' : 'compressing';
+      this.notify();
       await access(job.inputPath);
       if (isCancelled(job)) {
         await unlink(job.outputPath).catch(() => {});
         return;
       }
-      const embedding = await this.embeddingOptions(job);
+      const embedding = await this.embeddingOptions(job, abort.signal);
       if (isCancelled(job)) {
         await unlink(job.outputPath).catch(() => {});
         return;
@@ -933,6 +978,14 @@ export class JobQueue {
         await unlink(job.outputPath).catch(() => {});
       }
     } catch (error) {
+      // A cancel during `preparing-images` aborts background media work, which
+      // surfaces here as a rejection. The job is already marked `cancelled`, so
+      // treat it as a clean cancellation rather than overwriting it with a
+      // failure state.
+      if (isCancelled(job)) {
+        await unlink(job.outputPath).catch(() => {});
+        return;
+      }
       if (isMediaToolUnavailableError(error)) {
         const phase = job.processingStage === 'finalizing' ? 'output-validation' : 'encoding';
         await this.pauseForRuntimeFailure(job, error, phase);
@@ -945,6 +998,7 @@ export class JobQueue {
       job.finishedAt = finishTimestamp(job);
       await unlink(job.outputPath).catch(() => {});
     } finally {
+      if (this.activeAbort === abort) this.activeAbort = null;
       this.active = null;
       this.compressionInFlight = false;
       this.compressionPausedForEstimates = false;
@@ -1010,7 +1064,7 @@ export class JobQueue {
     }
   }
 
-  private async embeddingOptions(job: CompressionJob) {
+  private async embeddingOptions(job: CompressionJob, signal?: AbortSignal) {
     if (!job.imageEmbedding) return undefined;
     const dimensions = outputDimensions(job);
     if (!dimensions || !job.durationSeconds) {
@@ -1027,7 +1081,8 @@ export class JobQueue {
       const trims = await detectStaticEdgeTrims(
         job.inputPath,
         job.durationSeconds,
-        job.sourceFrameRate ?? frameRate
+        job.sourceFrameRate ?? frameRate,
+        signal
       );
       job.imageEmbedding.sourceTrimStartSeconds = trims.startSeconds;
       job.imageEmbedding.sourceTrimEndSeconds = trims.endSeconds;
@@ -1081,20 +1136,23 @@ export class JobQueue {
     }
     if (this.compressionInFlight && !this.active) return;
     const pausedChild = this.active;
-    if (pausedChild) {
-      if (pauseProcess(pausedChild)) {
-        this.compressionPausedForEstimates = true;
-      } else if (processPauseSupported()) {
-        // The pause signal could not be delivered (the process is likely
-        // already gone); leave the handoff to the next scheduling pass.
-        return;
-      }
-      // Platforms without pause support (Windows) fall through: prioritized
-      // estimates simply run alongside the active compression.
-    }
+    // Claim the flag before any awaited/notifying work so the `finally` below
+    // always resets it; a throw here must never strand `prioritizingEstimates`
+    // (which would wedge `running=true`) or leave `pausedChild` suspended.
     this.prioritizingEstimates = true;
-    this.notify();
     try {
+      if (pausedChild) {
+        if (pauseProcess(pausedChild)) {
+          this.compressionPausedForEstimates = true;
+        } else if (processPauseSupported()) {
+          // The pause signal could not be delivered (the process is likely
+          // already gone); leave the handoff to the next scheduling pass.
+          return;
+        }
+        // Platforms without pause support (Windows) fall through: prioritized
+        // estimates simply run alongside the active compression.
+      }
+      this.notify();
       let processed: boolean;
       do {
         processed = await runPrioritized();
