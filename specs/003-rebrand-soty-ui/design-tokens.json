@@ -1,0 +1,350 @@
+{
+  "$description": "Soty Purple & Honey design tokens. DTCG-compatible JSON for Tokens Studio.",
+  "primitives": {
+    "purple": {
+      "$type": "color",
+      "$description": "Brand scale. Purple communicates Soty, structure, navigation, selection and focus; it is not the primary action color.",
+      "50": {
+        "$value": "#F5F1FF",
+        "$description": "Barely visible purple tint for page decoration and very subtle backgrounds."
+      },
+      "100": {
+        "$value": "#ECE5FF",
+        "$description": "Selected backgrounds, icon containers and secondary button surfaces in light theme."
+      },
+      "200": {
+        "$value": "#D9CCFF",
+        "$description": "Soft brand borders, separators and inactive honeycomb outlines."
+      },
+      "300": {
+        "$value": "#BCA7F7",
+        "$description": "Dark-theme focus ring and low-emphasis purple highlight."
+      },
+      "400": {
+        "$value": "#9B7AEE",
+        "$description": "Dark-theme hover state and bright brand detail."
+      },
+      "500": {
+        "$value": "#7C59E0",
+        "$description": "General illustrations, icons and medium-emphasis brand graphics."
+      },
+      "600": { "$value": "#6842D9", "$description": "Primary Soty brand color in light theme." },
+      "700": {
+        "$value": "#5532B8",
+        "$description": "Light-theme hover state for purple controls and links."
+      },
+      "800": {
+        "$value": "#42288F",
+        "$description": "Pressed state and deep section of a light-theme purple surface."
+      },
+      "900": {
+        "$value": "#2D1B62",
+        "$description": "Large branded surfaces and featured cards in dark theme."
+      },
+      "950": {
+        "$value": "#191033",
+        "$description": "Deepest purple for dark gradients, overlays and secondary dark surfaces."
+      }
+    },
+    "honey": {
+      "$type": "color",
+      "$description": "Action and honey-material scale. Honey is reserved for primary actions, progress and small tactile brand details.",
+      "50": {
+        "$value": "#FFF8E5",
+        "$description": "Very subtle action background or honey-tinted empty state."
+      },
+      "100": {
+        "$value": "#FFEFBD",
+        "$description": "Honey specular highlight and soft warning/action background."
+      },
+      "200": { "$value": "#FFDD7A", "$description": "Light passing through translucent honey." },
+      "300": {
+        "$value": "#FFC83D",
+        "$description": "Bright honey highlight; use sparingly in material illustrations."
+      },
+      "400": { "$value": "#FFB51B", "$description": "Primary CTA and active state in dark theme." },
+      "500": {
+        "$value": "#F5A318",
+        "$description": "Primary CTA and action color in light theme."
+      },
+      "600": {
+        "$value": "#D98508",
+        "$description": "Hover state for light-theme CTA and depth inside honey."
+      },
+      "700": { "$value": "#AD6605", "$description": "Pressed CTA state." },
+      "800": {
+        "$value": "#804A0B",
+        "$description": "Internal honey shadow; not for ordinary UI text."
+      },
+      "900": { "$value": "#55310A", "$description": "Deep honey material shading." },
+      "950": { "$value": "#2D1A05", "$description": "Readable foreground text on honey buttons." }
+    },
+    "neutral": {
+      "$type": "color",
+      "$description": "Purple-tinted neutral scale for backgrounds, surfaces, typography, borders and disabled states.",
+      "0": { "$value": "#FFFFFF", "$description": "Primary white card surface and inverse text." },
+      "25": { "$value": "#FBF9FD", "$description": "Raised or secondary light surface." },
+      "50": { "$value": "#F7F4FA", "$description": "Default light-theme page background." },
+      "100": {
+        "$value": "#EEEAF1",
+        "$description": "Disabled light surface and quiet separators."
+      },
+      "200": { "$value": "#DED8E2", "$description": "Default light-theme border." },
+      "300": {
+        "$value": "#C7BECF",
+        "$description": "Strong light-theme border and control outline."
+      },
+      "400": {
+        "$value": "#A99EAF",
+        "$description": "Disabled foreground and nonessential labels."
+      },
+      "500": { "$value": "#897E90", "$description": "Muted text and development status." },
+      "600": { "$value": "#6C6173", "$description": "Secondary text in light theme." },
+      "700": {
+        "$value": "#514757",
+        "$description": "High-emphasis secondary text or dark outline."
+      },
+      "800": {
+        "$value": "#372F3D",
+        "$description": "Dark neutral surface and light-theme primary text support."
+      },
+      "900": { "$value": "#231D29", "$description": "Deep elevated surface in dark compositions." },
+      "950": {
+        "$value": "#120F17",
+        "$description": "Default dark-theme page background; use instead of pure black."
+      }
+    }
+  },
+  "semantic": {
+    "light": {
+      "$description": "Semantic color roles for the Soty light theme. Components should reference these roles instead of primitive colors whenever possible.",
+      "background": {
+        "$description": "Page and component surfaces. Page is the canvas; surface is a standard card; elevated is used for popovers and raised content.",
+        "page": { "$type": "color", "$value": "{primitives.neutral.50}" },
+        "surface": { "$type": "color", "$value": "{primitives.neutral.0}" },
+        "surfaceSecondary": { "$type": "color", "$value": "{primitives.neutral.25}" },
+        "elevated": { "$type": "color", "$value": "{primitives.neutral.0}" }
+      },
+      "text": {
+        "$description": "Typography roles. Primary is for titles and essential content; secondary for descriptions; muted only for nonessential metadata.",
+        "primary": { "$type": "color", "$value": "#211A2C" },
+        "secondary": { "$type": "color", "$value": "{primitives.neutral.600}" },
+        "muted": { "$type": "color", "$value": "{primitives.neutral.500}" },
+        "inverse": { "$type": "color", "$value": "{primitives.neutral.0}" },
+        "onAction": { "$type": "color", "$value": "{primitives.honey.950}" }
+      },
+      "border": {
+        "$description": "Structural lines. Default separates cards; strong outlines focused or emphasized controls; brand marks purple structure.",
+        "default": { "$type": "color", "$value": "{primitives.neutral.200}" },
+        "strong": { "$type": "color", "$value": "{primitives.neutral.300}" },
+        "brand": { "$type": "color", "$value": "{primitives.purple.300}" }
+      },
+      "brand": {
+        "$description": "Purple interaction roles. Use for identity, selection, focus, links and secondary actions, never as the main CTA color.",
+        "default": { "$type": "color", "$value": "{primitives.purple.600}" },
+        "hover": { "$type": "color", "$value": "{primitives.purple.700}" },
+        "pressed": { "$type": "color", "$value": "{primitives.purple.800}" },
+        "subtle": { "$type": "color", "$value": "{primitives.purple.100}" },
+        "focus": { "$type": "color", "$value": "{primitives.purple.400}" }
+      },
+      "action": {
+        "$description": "Honey action roles. Reserved for primary CTA, progress and the current action; do not use across ordinary decoration.",
+        "default": { "$type": "color", "$value": "{primitives.honey.500}" },
+        "hover": { "$type": "color", "$value": "{primitives.honey.600}" },
+        "pressed": { "$type": "color", "$value": "{primitives.honey.700}" },
+        "subtle": { "$type": "color", "$value": "{primitives.honey.50}" }
+      },
+      "disabled": {
+        "$description": "Noninteractive light-theme state. Disabled controls must also communicate their state through opacity, label or icon.",
+        "background": { "$type": "color", "$value": "{primitives.neutral.100}" },
+        "foreground": { "$type": "color", "$value": "{primitives.neutral.400}" },
+        "border": { "$type": "color", "$value": "{primitives.neutral.200}" }
+      },
+      "status": {
+        "$description": "Strict three-color status mapping: purple means ready, honey means active, neutral means in development. Always pair color with text or an icon.",
+        "ready": { "$type": "color", "$value": "{primitives.purple.600}" },
+        "active": { "$type": "color", "$value": "{primitives.honey.500}" },
+        "development": { "$type": "color", "$value": "{primitives.neutral.500}" }
+      }
+    },
+    "dark": {
+      "$description": "Semantic color roles for the Soty dark theme. Accent colors are intentionally lighter than their light-theme equivalents for contrast.",
+      "background": {
+        "$description": "Dark page and component surfaces with a purple undertone; never replace the page background with pure black.",
+        "page": { "$type": "color", "$value": "{primitives.neutral.950}" },
+        "surface": { "$type": "color", "$value": "#1C1725" },
+        "surfaceSecondary": { "$type": "color", "$value": "#241D2F" },
+        "elevated": { "$type": "color", "$value": "#2B2237" }
+      },
+      "text": {
+        "$description": "Dark-theme typography roles. Muted text is for nonessential information only and must remain readable on its actual surface.",
+        "primary": { "$type": "color", "$value": "#F6F2F8" },
+        "secondary": { "$type": "color", "$value": "#B8ADBE" },
+        "muted": { "$type": "color", "$value": "{primitives.neutral.500}" },
+        "inverse": { "$type": "color", "$value": "#211A2C" },
+        "onAction": { "$type": "color", "$value": "{primitives.honey.950}" }
+      },
+      "border": {
+        "$description": "Dark-theme structural borders. Prefer subtle separation over bright outlines or glow.",
+        "default": { "$type": "color", "$value": "#382F43" },
+        "strong": { "$type": "color", "$value": "#51435E" },
+        "brand": { "$type": "color", "$value": "{primitives.purple.700}" }
+      },
+      "brand": {
+        "$description": "Dark-theme purple roles for identity, selection, focus, links and secondary actions.",
+        "default": { "$type": "color", "$value": "#8A67E8" },
+        "hover": { "$type": "color", "$value": "{primitives.purple.400}" },
+        "pressed": { "$type": "color", "$value": "{primitives.purple.600}" },
+        "subtle": { "$type": "color", "$value": "#2D2344" },
+        "focus": { "$type": "color", "$value": "{primitives.purple.300}" }
+      },
+      "action": {
+        "$description": "Dark-theme honey roles for primary CTA, progress and active work. Honey 400 is brighter to remain visible on dark surfaces.",
+        "default": { "$type": "color", "$value": "{primitives.honey.400}" },
+        "hover": { "$type": "color", "$value": "{primitives.honey.500}" },
+        "pressed": { "$type": "color", "$value": "{primitives.honey.600}" },
+        "subtle": { "$type": "color", "$value": "#33260F" }
+      },
+      "disabled": {
+        "$description": "Noninteractive dark-theme state. Do not use honey or bright purple on disabled controls.",
+        "background": { "$type": "color", "$value": "#241D2F" },
+        "foreground": { "$type": "color", "$value": "{primitives.neutral.500}" },
+        "border": { "$type": "color", "$value": "#382F43" }
+      },
+      "status": {
+        "$description": "Dark-theme status mapping: light purple means ready, honey means active, neutral means in development. Never rely on color alone.",
+        "ready": { "$type": "color", "$value": "#8A67E8" },
+        "active": { "$type": "color", "$value": "{primitives.honey.400}" },
+        "development": { "$type": "color", "$value": "{primitives.neutral.500}" }
+      }
+    }
+  },
+  "components": {
+    "light": {
+      "$description": "Ready-to-apply component tokens for the Soty light theme.",
+      "logo": {
+        "$description": "Honey mark plus purple wordmark. Use the neutral inverse wordmark only on dark or purple surfaces.",
+        "mark": { "$type": "color", "$value": "{primitives.honey.500}" },
+        "wordmark": { "$type": "color", "$value": "{primitives.purple.600}" }
+      },
+      "buttonPrimary": {
+        "$description": "Highest-emphasis action such as ‘Відкрити’. Use no more than one primary action per card or local action group.",
+        "background": { "$type": "color", "$value": "{semantic.light.action.default}" },
+        "backgroundHover": { "$type": "color", "$value": "{semantic.light.action.hover}" },
+        "backgroundPressed": { "$type": "color", "$value": "{semantic.light.action.pressed}" },
+        "foreground": { "$type": "color", "$value": "{semantic.light.text.onAction}" },
+        "focusRing": { "$type": "color", "$value": "{semantic.light.brand.focus}" }
+      },
+      "buttonSecondary": {
+        "$description": "Lower-emphasis action, filter or supporting navigation. It must not compete with the honey primary CTA.",
+        "background": { "$type": "color", "$value": "{semantic.light.brand.subtle}" },
+        "foreground": { "$type": "color", "$value": "{semantic.light.brand.default}" },
+        "border": { "$type": "color", "$value": "{primitives.purple.200}" }
+      },
+      "toolCard": {
+        "$description": "Standard scalable tool card. The whole card may be a direct link; title, description, status and CTA keep consistent positions.",
+        "background": { "$type": "color", "$value": "{semantic.light.background.surface}" },
+        "border": { "$type": "color", "$value": "{semantic.light.border.default}" },
+        "title": { "$type": "color", "$value": "{semantic.light.text.primary}" },
+        "description": { "$type": "color", "$value": "{semantic.light.text.secondary}" },
+        "iconBackground": { "$type": "color", "$value": "{primitives.purple.100}" },
+        "iconForeground": { "$type": "color", "$value": "{primitives.purple.600}" }
+      },
+      "teamCard": {
+        "$description": "Featured full-width Team space card. This is the largest purple brand surface; keep honey limited to its CTA and one small material detail.",
+        "background": { "$type": "color", "$value": "{primitives.purple.600}" },
+        "backgroundDeep": { "$type": "color", "$value": "{primitives.purple.800}" },
+        "title": { "$type": "color", "$value": "{primitives.neutral.0}" },
+        "description": { "$type": "color", "$value": "{primitives.purple.100}" },
+        "action": { "$type": "color", "$value": "{primitives.honey.500}" }
+      }
+    },
+    "dark": {
+      "$description": "Ready-to-apply component tokens for the Soty dark theme.",
+      "logo": {
+        "$description": "Honey mark with light neutral wordmark for the dark header.",
+        "mark": { "$type": "color", "$value": "{primitives.honey.400}" },
+        "wordmark": { "$type": "color", "$value": "{semantic.dark.text.primary}" }
+      },
+      "buttonPrimary": {
+        "$description": "Dark-theme highest-emphasis action. Use solid honey without neon glow.",
+        "background": { "$type": "color", "$value": "{semantic.dark.action.default}" },
+        "backgroundHover": { "$type": "color", "$value": "{semantic.dark.action.hover}" },
+        "backgroundPressed": { "$type": "color", "$value": "{semantic.dark.action.pressed}" },
+        "foreground": { "$type": "color", "$value": "{semantic.dark.text.onAction}" },
+        "focusRing": { "$type": "color", "$value": "{semantic.dark.brand.focus}" }
+      },
+      "buttonSecondary": {
+        "$description": "Dark-theme lower-emphasis action using a subtle purple surface.",
+        "background": { "$type": "color", "$value": "{semantic.dark.brand.subtle}" },
+        "foreground": { "$type": "color", "$value": "{semantic.dark.brand.default}" },
+        "border": { "$type": "color", "$value": "{primitives.purple.800}" }
+      },
+      "toolCard": {
+        "$description": "Standard dark tool card. Use thin neutral borders and purple icon containers; avoid colored glowing outlines.",
+        "background": { "$type": "color", "$value": "{semantic.dark.background.surface}" },
+        "border": { "$type": "color", "$value": "{semantic.dark.border.default}" },
+        "title": { "$type": "color", "$value": "{semantic.dark.text.primary}" },
+        "description": { "$type": "color", "$value": "{semantic.dark.text.secondary}" },
+        "iconBackground": { "$type": "color", "$value": "{semantic.dark.brand.subtle}" },
+        "iconForeground": { "$type": "color", "$value": "{semantic.dark.brand.default}" }
+      },
+      "teamCard": {
+        "$description": "Featured Team space card in deep purple. Honey remains limited to the CTA and a restrained honey detail.",
+        "background": { "$type": "color", "$value": "{primitives.purple.900}" },
+        "backgroundDeep": { "$type": "color", "$value": "{primitives.purple.950}" },
+        "title": { "$type": "color", "$value": "{semantic.dark.text.primary}" },
+        "description": { "$type": "color", "$value": "{primitives.purple.100}" },
+        "action": { "$type": "color", "$value": "{primitives.honey.400}" }
+      }
+    },
+    "honeyMaterial": {
+      "$description": "Five-step material recipe for rendered honey. Use only in brand illustration or tiny tactile details, not as general UI fills.",
+      "highlight": { "$type": "color", "$value": "{primitives.honey.100}" },
+      "light": { "$type": "color", "$value": "{primitives.honey.200}" },
+      "base": { "$type": "color", "$value": "{primitives.honey.400}" },
+      "depth": { "$type": "color", "$value": "{primitives.honey.600}" },
+      "innerShadow": { "$type": "color", "$value": "{primitives.honey.800}" }
+    }
+  },
+  "guidance": {
+    "$type": "string",
+    "$description": "Human-readable usage rules included with the token package.",
+    "proportion": {
+      "$value": "70% neutral / 20% purple / 10% honey",
+      "$description": "Default color distribution for a balanced screen. Honey stays scarce so actions remain obvious."
+    },
+    "purpleRole": {
+      "$value": "Brand, structure, selection and focus",
+      "$description": "Use purple for the Soty identity, icon containers, navigation, selected states, focus rings and large branded surfaces."
+    },
+    "honeyRole": {
+      "$value": "Primary action, progress and honey material",
+      "$description": "Use honey for the main CTA, active progress and small tactile honey details. Do not use it for ordinary borders or all icons."
+    },
+    "neutralRole": {
+      "$value": "Canvas, surfaces, text, borders and disabled states",
+      "$description": "Use purple-tinted neutrals instead of pure black or cold gray so both themes remain visually related."
+    },
+    "primaryAction": {
+      "$value": "One honey CTA per card or local action group",
+      "$description": "The visible honey action and the clickable card may lead to the same destination; never add an intermediate selection click."
+    },
+    "statusRule": {
+      "$value": "Ready = purple; active = honey; development = neutral",
+      "$description": "Always pair status color with readable text or an icon so meaning never depends on color alone."
+    },
+    "gradientRule": {
+      "$value": "Purple-to-purple or honey-to-honey only",
+      "$description": "Avoid universal purple-to-orange gradients; they weaken hierarchy and create a generic gaming or AI-template look."
+    },
+    "materialRule": {
+      "$value": "Matte UI, glossy honey",
+      "$description": "Cards and purple surfaces stay matte. Only the honey illustration or tiny honey seam receives realistic gloss and refraction."
+    },
+    "accessibilityRule": {
+      "$value": "Use semantic roles and verify contrast in context",
+      "$description": "Do not use muted text for essential content. Use dark text on honey buttons and light text only on sufficiently dark purple surfaces."
+    }
+  }
+}
