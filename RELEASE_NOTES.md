@@ -1,3 +1,9 @@
+# v0.9.1
+
+- Stop the local agent from loading the CPU in the background when nothing is running: cancelling, removing, or restarting a task now actually stops the media work it started, instead of letting hidden ffmpeg passes keep the machine warm until the agent is quit.
+- Fix cancelling a task while it is preparing images so it stops immediately and is reported as cancelled rather than failed.
+- Fix the queue occasionally refusing to start a new task "as if it were already busy" until the agent was restarted, including after a failed start or a brief media-engine hiccup.
+
 # v0.9.0
 
 - Add Team Workspace for creating teams, inviting up to 50 members, managing roles and independent file/metadata permissions, and transferring ownership safely.
