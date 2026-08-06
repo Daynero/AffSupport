@@ -1,0 +1,556 @@
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+}
+button,
+input,
+select {
+  font: inherit;
+}
+.soty-review {
+  --page: var(--soty-semantic-light-background-page);
+  --surface: var(--soty-semantic-light-background-surface);
+  --surface-2: var(--soty-semantic-light-background-surface-secondary);
+  --text: var(--soty-semantic-light-text-primary);
+  --text-2: var(--soty-semantic-light-text-secondary);
+  --border: var(--soty-semantic-light-border-strong);
+  --brand: var(--soty-semantic-light-brand-default);
+  --brand-soft: var(--soty-semantic-light-brand-subtle);
+  --focus: var(--soty-semantic-light-brand-focus);
+  --action: var(--soty-semantic-light-action-default);
+  --action-hover: var(--soty-semantic-light-action-hover);
+  --on-action: var(--soty-semantic-light-text-on-action);
+  --disabled-bg: var(--soty-semantic-light-disabled-background);
+  --disabled-text: var(--soty-semantic-light-disabled-foreground);
+  min-height: 100vh;
+  color: var(--text);
+  background: var(--page);
+  color-scheme: light;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+}
+.soty-review[data-soty-theme='dark'] {
+  --page: var(--soty-semantic-dark-background-page);
+  --surface: var(--soty-semantic-dark-background-surface);
+  --surface-2: var(--soty-semantic-dark-background-surface-secondary);
+  --text: var(--soty-semantic-dark-text-primary);
+  --text-2: var(--soty-semantic-dark-text-secondary);
+  --border: var(--soty-semantic-dark-border-strong);
+  --brand: var(--soty-semantic-dark-brand-default);
+  --brand-soft: var(--soty-semantic-dark-brand-subtle);
+  --focus: var(--soty-semantic-dark-brand-focus);
+  --action: var(--soty-semantic-dark-action-default);
+  --action-hover: var(--soty-semantic-dark-action-hover);
+  --on-action: var(--soty-semantic-dark-text-on-action);
+  --disabled-bg: var(--soty-semantic-dark-disabled-background);
+  --disabled-text: var(--soty-semantic-dark-disabled-foreground);
+  color-scheme: dark;
+}
+:where(.soty-review) :focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 2px var(--page);
+}
+.soty-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 14px clamp(16px, 4vw, 48px);
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  backdrop-filter: blur(18px);
+}
+.soty-brand-button {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 213px;
+  width: 213px;
+  height: 68px;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.soty-logo {
+  position: absolute;
+  top: -10px;
+  left: clamp(-32px, -2vw, -12px);
+  display: block;
+}
+.soty-logo-image {
+  display: block;
+  width: auto;
+  height: 136px;
+  object-fit: contain;
+}
+.soty-iteration {
+  color: var(--text-2);
+  font-size: 13px;
+}
+.soty-topbar-controls {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+.soty-segmented {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+.soty-segmented button {
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: var(--text-2);
+  background: transparent;
+  cursor: pointer;
+}
+.soty-segmented button[aria-checked='true'] {
+  color: var(--brand);
+  background: var(--brand-soft);
+  font-weight: 700;
+}
+.soty-catalog,
+.soty-screen {
+  position: relative;
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  padding: clamp(28px, 6vw, 76px) clamp(16px, 4vw, 44px) 80px;
+  overflow: clip;
+}
+.soty-screen-heading {
+  max-width: 760px;
+  margin-bottom: 30px;
+}
+.soty-screen-heading h1 {
+  margin: 7px 0 12px;
+  font-size: clamp(34px, 6vw, 68px);
+  line-height: 0.98;
+  letter-spacing: -0.055em;
+}
+.soty-screen-heading p {
+  color: var(--text-2);
+  font-size: clamp(16px, 2vw, 19px);
+  line-height: 1.55;
+}
+.soty-eyebrow {
+  color: var(--brand) !important;
+  font-size: 12px !important;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+.soty-catalog-grid,
+.soty-tool-grid,
+.soty-item-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
+  gap: 16px;
+}
+.soty-card,
+.soty-panel,
+.soty-empty,
+.soty-message,
+.soty-disclosure {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: var(--surface);
+  box-shadow: 0 16px 44px rgb(33 26 44 / 8%);
+  overflow-wrap: anywhere;
+}
+.soty-card h3,
+.soty-panel h2 {
+  margin-top: 0;
+}
+.soty-card p,
+.soty-panel p {
+  color: var(--text-2);
+  line-height: 1.55;
+}
+.soty-card.is-interactive {
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease;
+}
+.soty-card.is-interactive:hover {
+  transform: translateY(-3px);
+  border-color: var(--brand);
+}
+.soty-actions,
+.soty-chip-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+.soty-action {
+  min-height: 44px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-weight: 750;
+}
+.soty-action-primary {
+  color: var(--on-action);
+  background: var(--action);
+  box-shadow:
+    inset 0 1px rgb(255 255 255 / 45%),
+    0 7px 18px color-mix(in srgb, var(--action) 22%, transparent);
+}
+.soty-action-primary:hover {
+  background: var(--action-hover);
+}
+.soty-action-secondary {
+  border-color: var(--brand);
+  color: var(--brand);
+  background: var(--brand-soft);
+}
+.soty-action-ghost {
+  color: var(--text);
+  background: transparent;
+}
+.soty-action:disabled {
+  cursor: not-allowed;
+  color: var(--disabled-text);
+  background: var(--disabled-bg);
+  border-color: var(--border);
+}
+.soty-status {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.soty-status.is-ready {
+  color: var(--text);
+  background: var(--brand-soft);
+}
+.soty-status.is-ready .soty-status-dot {
+  color: var(--brand);
+}
+.soty-status.is-active {
+  color: var(--on-action);
+  background: var(--action);
+}
+.soty-status.is-development {
+  color: var(--text-2);
+  border: 1px solid var(--border);
+}
+.soty-status.is-warning {
+  color: #805900;
+  background: #fff3c2;
+}
+.soty-message.is-error {
+  color: #8f1d16;
+  border-color: #b42318;
+}
+.soty-review[data-soty-theme='dark'] .soty-message.is-error {
+  color: #ff8178;
+  border-color: #e5534b;
+  background: rgb(180 45 35 / 16%);
+}
+.soty-message.is-success {
+  color: #3d6b18;
+  border-color: #76b936;
+  background: #f0f9df;
+}
+.soty-review[data-soty-theme='dark'] .soty-message.is-success {
+  color: #b9ed70;
+  border-color: #5c9f2d;
+  background: rgb(91 145 42 / 16%);
+}
+.soty-progress-wrap {
+  margin: 20px 0;
+  color: var(--text-2);
+}
+.soty-progress {
+  height: 10px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.soty-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--action);
+}
+.soty-progress.is-indeterminate > span {
+  width: 40%;
+  animation: soty-progress 1.2s ease-in-out infinite alternate;
+}
+.soty-disclosure {
+  margin-top: 22px;
+}
+.soty-disclosure > button,
+.soty-statebar button,
+.soty-gallery aside button,
+.soty-back {
+  border: 0;
+  color: var(--brand);
+  background: transparent;
+  cursor: pointer;
+  font-weight: 750;
+}
+.soty-disclosure-body {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.soty-disclosure-body label,
+.soty-panel label {
+  display: grid;
+  gap: 8px;
+}
+.soty-disclosure-body input,
+.soty-disclosure-body select,
+.soty-panel input {
+  width: 100%;
+  min-height: 42px;
+}
+.soty-statebar {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 12px clamp(16px, 4vw, 48px);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  overflow-x: auto;
+}
+.soty-state-chips {
+  display: flex;
+  gap: 6px;
+  margin: 0 auto;
+}
+.soty-state-chips button {
+  white-space: nowrap;
+  border-radius: 999px;
+  padding: 7px 10px;
+}
+.soty-state-chips button[aria-pressed='true'] {
+  color: var(--on-action);
+  background: var(--action);
+}
+.soty-gallery {
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) minmax(0, 1fr);
+  gap: 18px;
+}
+.soty-gallery aside {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+.soty-gallery aside button {
+  text-align: left;
+  padding: 8px;
+}
+.soty-preview-frame {
+  min-height: 260px;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--border);
+  border-radius: 18px;
+  background: var(--surface-2);
+}
+.soty-compare,
+.soty-steps {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+.soty-steps li {
+  padding: 8px;
+}
+.soty-steps .is-current {
+  color: var(--on-action);
+  background: var(--action);
+  border-radius: 9px;
+}
+.soty-breadcrumb {
+  color: var(--text-2);
+}
+.soty-confirmation {
+  margin: 18px 0;
+  padding: 18px;
+  border: 2px solid var(--action);
+  border-radius: 18px;
+  background: var(--soty-semantic-light-action-subtle);
+}
+.soty-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgb(18 15 23 / 62%);
+}
+.soty-modal {
+  width: min(520px, 100%);
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: var(--surface);
+  box-shadow: 0 24px 80px rgb(0 0 0 / 35%);
+}
+.soty-motifs {
+  position: absolute;
+  inset: -12px -18px auto auto;
+  z-index: 0;
+  width: 270px;
+  height: 232px;
+  overflow: hidden;
+  opacity: 0.42;
+  pointer-events: none;
+}
+.soty-tech-cells {
+  position: absolute;
+  top: 0;
+  right: -18px;
+  display: grid;
+  grid-template-columns: repeat(5, 64px);
+  grid-auto-rows: 56px;
+  gap: -2px 4px;
+  width: 330px;
+  transform: rotate(-9deg);
+  transform-origin: center;
+}
+.soty-tech-cell {
+  position: relative;
+  width: 64px;
+  height: 56px;
+  clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+  background: rgb(245 163 24 / 34%);
+  filter: drop-shadow(0 0 7px rgb(245 163 24 / 12%));
+}
+.soty-tech-cell::after {
+  position: absolute;
+  inset: 2px;
+  content: '';
+  clip-path: inherit;
+  background: color-mix(in srgb, var(--page) 91%, var(--action));
+}
+.soty-tech-cell.is-2,
+.soty-tech-cell.is-5 {
+  background: rgb(255 200 61 / 48%);
+}
+.soty-tech-cell.is-2::after,
+.soty-tech-cell.is-5::after {
+  background: color-mix(in srgb, var(--page) 84%, var(--action));
+}
+.soty-tech-cell.is-3 {
+  transform: translateY(27px);
+}
+.soty-tech-cell.is-4 {
+  opacity: 0.5;
+}
+.soty-exclusions {
+  margin-top: 28px;
+  color: var(--text-2);
+}
+@keyframes soty-progress {
+  from {
+    transform: translateX(-40%);
+  }
+  to {
+    transform: translateX(190%);
+  }
+}
+@keyframes soty-float {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-9px);
+  }
+}
+@media (max-width: 620px) {
+  .soty-topbar {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .soty-topbar-controls {
+    width: 100%;
+    margin: 0;
+  }
+  .soty-iteration {
+    margin-left: auto;
+  }
+  .soty-gallery {
+    grid-template-columns: 1fr;
+  }
+  .soty-statebar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .soty-state-chips {
+    width: 100%;
+    margin: 0;
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+  .soty-motifs {
+    opacity: 0.28;
+    transform: scale(0.7);
+    transform-origin: top right;
+  }
+}
+@media (max-width: 380px) {
+  .soty-motifs {
+    display: none;
+  }
+  .soty-screen-heading h1 {
+    font-size: 36px;
+  }
+  .soty-card,
+  .soty-panel,
+  .soty-disclosure {
+    padding: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .soty-review * {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .soty-progress.is-indeterminate > span {
+    width: 40%;
+    transform: none;
+  }
+  .soty-bee {
+    transform: none;
+  }
+}

@@ -35,7 +35,11 @@
     "test": "npm run build -w @video-compressor/shared && vitest run",
     "test:agent:e2e": "npm run build && node scripts/real-agent-check.mjs",
     "test:db": "npx supabase test db",
-    "types:supabase": "npx supabase gen types typescript --linked --schema public"
+    "types:supabase": "npx supabase gen types typescript --linked --schema public",
+    "dev:soty-review": "npm run dev -w @video-compressor/soty-review",
+    "build:soty-review": "npm run build -w @video-compressor/soty-review",
+    "preview:soty-review": "npm run preview -w @video-compressor/soty-review",
+    "verify:soty-review": "npm run verify -w @video-compressor/soty-review"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.4",

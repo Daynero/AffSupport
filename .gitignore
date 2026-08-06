@@ -14,6 +14,7 @@ release/
 !.env.example
 !apps/web/.env.production
 coverage/
+apps/soty-review/review-output/
 .idea/
 supabase/.temp/
 supabase/.branches/
