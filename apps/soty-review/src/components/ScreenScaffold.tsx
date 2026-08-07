@@ -4,7 +4,6 @@ import { Confirmation } from './Confirmation';
 import { Disclosure } from './Disclosure';
 import { Modal } from './Modal';
 import { Progress } from './Progress';
-import { SotyMotifs } from './SotyMotifs';
 import { Status } from './Controls';
 import type { ScreenProps } from '../review/model';
 
@@ -17,7 +16,6 @@ export function ScreenScaffold({
 }: ScreenProps & { showDisclosure?: boolean }) {
   return (
     <main className="soty-screen">
-      <SotyMotifs />
       <header className="soty-screen-heading">
         <p className="soty-eyebrow">{model.eyebrow}</p>
         <h1>{model.title}</h1>

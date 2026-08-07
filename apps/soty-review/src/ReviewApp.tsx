@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { HoneycombField } from './components/HoneycombField';
 import { ReviewCatalog } from './components/ReviewCatalog';
 import { ReviewChrome } from './components/ReviewChrome';
 import { findSurface, reviewCatalog } from './review/catalog';
@@ -26,9 +27,12 @@ function ReviewContent() {
   }, [route.locale, route.theme]);
   if (route.kind === 'catalog')
     return (
-      <ReviewChrome route={route} dispatch={dispatch}>
-        <ReviewCatalog route={route} dispatch={dispatch} />
-      </ReviewChrome>
+      <>
+        <HoneycombField theme={route.theme} />
+        <ReviewChrome route={route} dispatch={dispatch}>
+          <ReviewCatalog route={route} dispatch={dispatch} />
+        </ReviewChrome>
+      </>
     );
   const surface = findSurface(route.surfaceId);
   const selected = surface?.states.find(item => item.id === route.stateId);
@@ -37,8 +41,10 @@ function ReviewContent() {
   const referencePrefix = `${reviewCatalog.iteration}/${surface.id}/${selected.id}`;
   const model = { ...selected.model, advanced: state.advanced, overlay: state.overlay };
   return (
-    <ReviewChrome route={route} dispatch={dispatch}>
-      <nav className="soty-statebar" aria-label="Навігація оглядом екрана">
+    <>
+      <HoneycombField theme={route.theme} />
+      <ReviewChrome route={route} dispatch={dispatch}>
+        <nav className="soty-statebar" aria-label="Навігація оглядом екрана">
         <button
           type="button"
           onClick={() =>
@@ -93,7 +99,8 @@ function ReviewContent() {
         referencePrefix={referencePrefix}
         dispatch={dispatch}
       />
-    </ReviewChrome>
+      </ReviewChrome>
+    </>
   );
 }
 

@@ -29,6 +29,7 @@ select {
   --disabled-bg: var(--soty-semantic-light-disabled-background);
   --disabled-text: var(--soty-semantic-light-disabled-foreground);
   min-height: 100vh;
+  isolation: isolate;
   color: var(--text);
   background: var(--page);
   color-scheme: light;
@@ -38,6 +39,153 @@ select {
     BlinkMacSystemFont,
     'Segoe UI',
     sans-serif;
+}
+/* Стільниковий фон сайту — інлайн-SVG (HoneycombField): щільна сітка сот +
+   заповнені соти по краях + світло, що біжить уздовж зʼєднань комірок. */
+.soty-honeycomb {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.soty-scene,
+.soty-trace-layer {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* Соти біля курсора піднімаються до глядача в 3D (translateZ ставить JS) і
+   плавно опускаються назад, коли миша йде. Позиція й форма не змінюються. */
+.soty-cell {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition:
+    transform 240ms ease-out,
+    filter 240ms ease-out;
+}
+/* Поле старого кольору позаду сот — плавно згасає до нового під час зміни теми,
+   тож комірка при звуженні не відкриває зазор (позаду те саме поле). */
+.hc-base-veil {
+  opacity: 0;
+}
+/* Стінки просто плавно перетікають у новий колір. */
+.hc-grid {
+  transition: stroke 310ms ease;
+}
+/* Під час анімації зміни теми всі UI-панелі (не плитки) плавно перетікають
+   кольором за час, поки плитки перегортаються. */
+.soty-review.is-theming .soty-layout,
+.soty-review.is-theming .soty-layout * {
+  transition:
+    background-color 660ms ease,
+    color 660ms ease,
+    border-color 660ms ease,
+    box-shadow 660ms ease,
+    fill 660ms ease !important;
+}
+/* --- Кольори сцени: світла тема за замовчуванням. Тему перемикає лише CSS за
+   атрибутом .soty-review[data-soty-theme='dark'] — DOM сцени не змінюється. --- */
+.hc-base {
+  fill: url(#baseL);
+}
+.hc-pool {
+  fill: none;
+}
+.hc-grid {
+  stroke: #ffd780;
+  stroke-opacity: 0.32;
+}
+/* Прозорі у спокої — поле малює база+сітка (дешевше). Колір отримують лише
+   під час перевороту при зміні теми (ставить JS). */
+.soty-cell.t-field {
+  fill: none;
+}
+.soty-cell.t-bright {
+  fill: url(#brightL);
+  stroke: #fff2cc;
+  stroke-opacity: 0.45;
+  stroke-width: 1;
+}
+.soty-cell.t-a {
+  fill: url(#fillA);
+  stroke: #e89a2a;
+  stroke-opacity: 0.3;
+  stroke-width: 1;
+}
+.soty-cell.t-b {
+  fill: url(#fillB);
+  stroke: #e89a2a;
+  stroke-opacity: 0.3;
+  stroke-width: 1;
+}
+/* Електричні розряди вздовж стінок — біло-блакитний струм зі світінням
+   (однаковий на обох темах). */
+.soty-trace-layer > g {
+  stroke: #eafcff;
+  stroke-opacity: 0.45;
+}
+.soty-cell.is-lit {
+  filter: drop-shadow(0 0 4px rgb(255 190 80 / 45%));
+}
+
+.soty-review[data-soty-theme='dark'] .hc-base {
+  fill: url(#baseD);
+}
+.soty-review[data-soty-theme='dark'] .hc-pool0 {
+  fill: url(#pool0);
+}
+.soty-review[data-soty-theme='dark'] .hc-pool1 {
+  fill: url(#pool1);
+}
+.soty-review[data-soty-theme='dark'] .hc-pool2 {
+  fill: url(#pool2);
+}
+.soty-review[data-soty-theme='dark'] .hc-pool3 {
+  fill: url(#pool3);
+}
+.soty-review[data-soty-theme='dark'] .hc-grid {
+  stroke: #8a74da;
+  stroke-opacity: 0.2;
+}
+.soty-review[data-soty-theme='dark'] .soty-cell.t-bright {
+  fill: url(#brightD);
+  stroke: #ffebac;
+  stroke-opacity: 0.55;
+  stroke-width: 1.2;
+}
+.soty-review[data-soty-theme='dark'] .soty-cell.t-a,
+.soty-review[data-soty-theme='dark'] .soty-cell.t-b {
+  fill: url(#raise);
+  stroke: #6e57c2;
+  stroke-opacity: 0.42;
+  stroke-width: 1;
+}
+.soty-review[data-soty-theme='dark'] .soty-cell.is-lit {
+  filter: drop-shadow(0 0 6px rgb(255 175 45 / 72%));
+}
+/* Одна світна іскра-жучок повзе всю трасу за свій час життя (5–12с). */
+.soty-trace {
+  stroke-dasharray: 10 90;
+  stroke-dashoffset: 100;
+  animation-name: soty-trace-run;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  animation-fill-mode: both;
+  filter: drop-shadow(0 0 2.5px rgb(69 214 255 / 50%));
+}
+.soty-trace.is-rev {
+  animation-direction: reverse;
+}
+@keyframes soty-trace-run {
+  from {
+    stroke-dashoffset: 100;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 .soty-review[data-soty-theme='dark'] {
   --page: var(--soty-semantic-dark-background-page);
@@ -424,57 +572,6 @@ select {
   background: var(--surface);
   box-shadow: 0 24px 80px rgb(0 0 0 / 35%);
 }
-.soty-motifs {
-  position: absolute;
-  inset: -12px -18px auto auto;
-  z-index: 0;
-  width: 270px;
-  height: 232px;
-  overflow: hidden;
-  opacity: 0.42;
-  pointer-events: none;
-}
-.soty-tech-cells {
-  position: absolute;
-  top: 0;
-  right: -18px;
-  display: grid;
-  grid-template-columns: repeat(5, 64px);
-  grid-auto-rows: 56px;
-  gap: -2px 4px;
-  width: 330px;
-  transform: rotate(-9deg);
-  transform-origin: center;
-}
-.soty-tech-cell {
-  position: relative;
-  width: 64px;
-  height: 56px;
-  clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
-  background: rgb(245 163 24 / 34%);
-  filter: drop-shadow(0 0 7px rgb(245 163 24 / 12%));
-}
-.soty-tech-cell::after {
-  position: absolute;
-  inset: 2px;
-  content: '';
-  clip-path: inherit;
-  background: color-mix(in srgb, var(--page) 91%, var(--action));
-}
-.soty-tech-cell.is-2,
-.soty-tech-cell.is-5 {
-  background: rgb(255 200 61 / 48%);
-}
-.soty-tech-cell.is-2::after,
-.soty-tech-cell.is-5::after {
-  background: color-mix(in srgb, var(--page) 84%, var(--action));
-}
-.soty-tech-cell.is-3 {
-  transform: translateY(27px);
-}
-.soty-tech-cell.is-4 {
-  opacity: 0.5;
-}
 .soty-exclusions {
   margin-top: 28px;
   color: var(--text-2);
@@ -520,16 +617,8 @@ select {
     flex-wrap: wrap;
     overflow: visible;
   }
-  .soty-motifs {
-    opacity: 0.28;
-    transform: scale(0.7);
-    transform-origin: top right;
-  }
 }
 @media (max-width: 380px) {
-  .soty-motifs {
-    display: none;
-  }
   .soty-screen-heading h1 {
     font-size: 36px;
   }
@@ -552,5 +641,8 @@ select {
   }
   .soty-bee {
     transform: none;
+  }
+  .soty-trace {
+    display: none;
   }
 }
