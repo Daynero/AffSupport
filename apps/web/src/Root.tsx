@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { AuthProvider, useAuth } from './auth/AuthContext';
+import { HoneycombField } from './components/HoneycombField';
 import {
   AuthCallbackPage,
   AuthLoadingScreen,
@@ -23,6 +24,7 @@ const TermsPage = lazy(() =>
 export default function Root() {
   return (
     <AuthProvider>
+      <HoneycombField />
       <Routes />
     </AuthProvider>
   );

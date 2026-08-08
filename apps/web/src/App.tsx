@@ -85,7 +85,7 @@ export default function CompressorPage() {
   const connected = connection === 'connected';
 
   useEffect(() => {
-    document.title = 'Video Compressor — Wishly';
+    document.title = 'Video Compressor — Soty';
     analytics.track('tool_opened', { tool_identifier: 'compressor' });
   }, []);
 

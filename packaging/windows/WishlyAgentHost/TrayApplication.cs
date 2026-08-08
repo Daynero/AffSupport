@@ -67,7 +67,7 @@ internal sealed class TrayApplication : ApplicationContext
   private NotifyIcon BuildTrayIcon()
   {
     var menu = new ContextMenuStrip();
-    menu.Items.Add("Open Wishly", null, (_, _) => OpenInterface());
+    menu.Items.Add("Open Soty", null, (_, _) => OpenInterface());
     var versionItem = new ToolStripMenuItem(
       $"Version {HostConfig.ExpectedVersion} · build {HostConfig.ExpectedBuildNumber}"
     )
@@ -80,8 +80,7 @@ internal sealed class TrayApplication : ApplicationContext
 
     return new NotifyIcon
     {
-      // TODO(windows-machine): replace with a bundled .ico once the icon is produced.
-      Icon = SystemIcons.Application,
+      Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application,
       Text = HostConfig.ApplicationName,
       ContextMenuStrip = menu,
       Visible = true
@@ -303,7 +302,7 @@ internal sealed class TrayApplication : ApplicationContext
     {
       ShowFailure(
         "The bundled media runtime is unavailable.",
-        "Reinstall Wishly Agent. Your local queue and original files are safe.\n\n"
+        "Reinstall Soty. Your local queue and original files are safe.\n\n"
           + $"Missing: {string.Join(", ", missing)}"
       );
       return;

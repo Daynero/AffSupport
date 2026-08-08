@@ -7,9 +7,9 @@
   <key>CFBundleIdentifier</key>
   <string>local.video.compressor.test</string>
   <key>CFBundleName</key>
-  <string>Wishly Agent</string>
+  <string>Soty</string>
   <key>CFBundleDisplayName</key>
-  <string>Wishly Agent</string>
+  <string>Soty</string>
   <key>CFBundleIconFile</key>
   <string>AppIcon</string>
   <key>CFBundleShortVersionString</key>
@@ -38,12 +38,12 @@
       <key>NSMenuItem</key>
       <dict>
         <key>default</key>
-        <string>Wishly Finder Action</string>
+        <string>Soty Finder Action</string>
       </dict>
       <key>NSMessage</key>
       <string>performFinderAction</string>
       <key>NSPortName</key>
-      <string>Wishly Agent</string>
+      <string>Soty</string>
       <key>NSSendTypes</key>
       <array>
         <string>com.wishly.finder-action</string>
@@ -60,7 +60,7 @@
         <string>public.data</string>
       </array>
       <key>UTTypeDescription</key>
-      <string>Wishly Finder Action</string>
+      <string>Soty Finder Action</string>
       <key>UTTypeIdentifier</key>
       <string>com.wishly.finder-action</string>
     </dict>

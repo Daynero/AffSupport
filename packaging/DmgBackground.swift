@@ -1,6 +1,6 @@
 import AppKit
 
-// Renders the Wishly Agent DMG background at 2x for Retina Finder windows.
+// Renders the Soty DMG background at 2x for Retina Finder windows.
 // The Wishly W mark geometry mirrors apps/web/public/favicon.svg.
 let output = CommandLine.arguments[1]
 let points = NSSize(width: 660, height: 400)
@@ -77,7 +77,7 @@ func drawCentered(_ text: NSString, y: CGFloat, attributes: [NSAttributedString.
 }
 
 drawCentered(
-  "Install Wishly Agent", y: 300,
+  "Install Soty", y: 300,
   attributes: [.font: NSFont.systemFont(ofSize: 22, weight: .semibold), .foregroundColor: ink])
 drawCentered(
   "Drag the app to Applications", y: 274,

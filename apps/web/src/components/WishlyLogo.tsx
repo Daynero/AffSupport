@@ -1,7 +1,10 @@
 /**
- * The Wishly mark: a flowing W with a small wish spark. The same geometry is
- * used by the favicon, the macOS app icon, and the DMG background, so keep
- * the paths in sync with apps/web/public/favicon.svg when changing them.
+ * Soty brand marks.
+ *
+ * `WishlyMark` (name kept so existing call sites stay untouched) is the Soty
+ * honeycomb cell — a honey-gradient hexagon with a small honey spark. The same
+ * geometry backs the favicon and app icon, so keep it in sync when changing.
+ * `WishlyLogo` renders the full Soty wordmark lockup image.
  */
 export function WishlyMark({ size = 24 }: { size?: number }) {
   return (
@@ -15,22 +18,32 @@ export function WishlyMark({ size = 24 }: { size?: number }) {
       focusable="false"
     >
       <defs>
-        <linearGradient id="wishly-mark-gradient" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#7557e8" />
-          <stop offset="1" stopColor="#9b6ff3" />
+        <linearGradient id="soty-mark-honey" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ffc83d" />
+          <stop offset="1" stopColor="#d98508" />
         </linearGradient>
       </defs>
+      {/* Honeycomb cell — flat-top hexagon, rounded via a round-joined stroke */}
       <path
-        d="M13 22 C14 31 16.5 43 21 43 C24.4 43 26.8 36.8 29.2 30.8 C30.6 27.3 31.2 25.2 32 25.2 C32.8 25.2 33.4 27.3 34.8 30.8 C37.2 36.8 39.6 43 43 43 C47.5 43 50 31 51 22"
-        fill="none"
-        stroke="url(#wishly-mark-gradient)"
-        strokeWidth="6.4"
-        strokeLinecap="round"
+        d="M55 32 L43.5 51.9 L20.5 51.9 L9 32 L20.5 12.1 L43.5 12.1 Z"
+        fill="url(#soty-mark-honey)"
+        stroke="url(#soty-mark-honey)"
+        strokeWidth="7"
         strokeLinejoin="round"
       />
+      {/* Inset wall — a beveled inner cell for depth */}
       <path
-        d="M49.5 10 C50.1 12.6 51.2 13.7 53.8 14.3 C51.2 14.9 50.1 16 49.5 18.6 C48.9 16 47.8 14.9 45.2 14.3 C47.8 13.7 48.9 12.6 49.5 10 Z"
-        fill="#8b6df6"
+        d="M45 32 L38 44.1 L24 44.1 L17 32 L24 19.9 L38 19.9 Z"
+        fill="none"
+        stroke="#fff8e5"
+        strokeOpacity="0.34"
+        strokeWidth="2.4"
+        strokeLinejoin="round"
+      />
+      {/* Honey spark */}
+      <path
+        d="M44 15 C44.7 18 46 19.3 49 20 C46 20.7 44.7 22 44 25 C43.3 22 42 20.7 39 20 C42 19.3 43.3 18 44 15 Z"
+        fill="#fff8e5"
       />
     </svg>
   );
@@ -38,9 +51,18 @@ export function WishlyMark({ size = 24 }: { size?: number }) {
 
 export function WishlyLogo({ name }: { name: string }) {
   return (
-    <span className="wishly-logo">
-      <WishlyMark size={26} />
-      <span className="wishly-wordmark">{name}</span>
+    <span className="wishly-logo soty-logo-lockup">
+      <img
+        className="soty-wordmark-img soty-wordmark-img-light"
+        src="/soty-header-logo-light.svg"
+        alt={name}
+      />
+      <img
+        className="soty-wordmark-img soty-wordmark-img-dark"
+        src="/soty-header-logo-dark.svg"
+        alt=""
+        aria-hidden="true"
+      />
     </span>
   );
 }

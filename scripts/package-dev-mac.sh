@@ -2,8 +2,8 @@
 set -euo pipefail
 
 root="$PWD/release/dev"
-app="$root/Wishly Dev.app"
-source_app="${DEV_RUNTIME_SOURCE_APP:-$PWD/release/Wishly Agent.app}"
+app="$root/Soty Dev.app"
+source_app="${DEV_RUNTIME_SOURCE_APP:-$PWD/release/Soty.app}"
 port="${DEV_AGENT_PORT:-43130}"
 
 [[ "$port" == <1024-65535> ]] || { print -u2 "DEV_AGENT_PORT must be between 1024 and 65535."; exit 1; }
@@ -23,12 +23,12 @@ port="${DEV_AGENT_PORT:-43130}"
 if listener=$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null); then
   health=$(/usr/bin/curl -fsS --max-time 1 "http://127.0.0.1:$port/health" 2>/dev/null || true)
   print -r -- "$health" | grep -q '"busy":false' || {
-    print -u2 "Wishly Dev is using port $port and may be busy. Finish its work and quit it before rebuilding."
+    print -u2 "Soty Dev is using port $port and may be busy. Finish its work and quit it before rebuilding."
     exit 1
   }
   /usr/bin/osascript -e 'tell application id "com.wishly.dev" to quit' >/dev/null 2>&1 || kill $listener 2>/dev/null || true
   for _ in {1..40}; do lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 || break; sleep .1; done
-  lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 && { print -u2 "Wishly Dev did not quit cleanly."; exit 1; }
+  lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 && { print -u2 "Soty Dev did not quit cleanly."; exit 1; }
 fi
 
 base_version=$(node scripts/release-meta.mjs product-version)
@@ -41,7 +41,7 @@ stamp=$(date -u +%Y%m%d%H%M%S)
 version="$base_version-dev.$short_revision$dirty.$stamp"
 build_number=$(date -u +%s)
 build_id="$version+$build_number"
-archive_name="Wishly-Dev-$version-macOS-arm64.zip"
+archive_name="Soty-Dev-$version-macOS-arm64.zip"
 
 npm run build -w @video-compressor/shared
 VITE_AGENT_URL="http://127.0.0.1:$port" \
@@ -56,9 +56,9 @@ rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/runtime/bin" "$app/Contents/Resources/runtime/models" "$app/Contents/Resources/agent"
 node scripts/render-launcher.mjs packaging/Launcher.swift "$root/Launcher.generated.swift" \
   "AGENT_PORT=$port" \
-  "APP_NAME=Wishly Dev" \
+  "APP_NAME=Soty Dev" \
   "INSTANCE_LOCK_NAME=wishly-dev-agent.lock" \
-  "SUPPORT_DIRECTORY_NAME=Wishly Dev" \
+  "SUPPORT_DIRECTORY_NAME=Soty Dev" \
   "PUBLIC_SITE_ORIGIN=http://127.0.0.1:$port" \
   "APP_VERSION=$version" \
   "BUILD_NUMBER=$build_number" \
@@ -94,27 +94,27 @@ cp packaging/Info.plist "$app/Contents/Info.plist"
 cp THIRD_PARTY_NOTICES.md "$app/Contents/Resources/"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.wishly.dev" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable WishlyDevAgent" "$app/Contents/Info.plist"
-/usr/libexec/PlistBuddy -c "Set :CFBundleName Wishly Dev" "$app/Contents/Info.plist"
-/usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Wishly Dev" "$app/Contents/Info.plist"
-/usr/libexec/PlistBuddy -c "Set :NSServices:0:NSMenuItem:default Wishly Dev Finder Action" "$app/Contents/Info.plist"
-/usr/libexec/PlistBuddy -c "Set :NSServices:0:NSPortName Wishly Dev" "$app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleName Soty Dev" "$app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Soty Dev" "$app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :NSServices:0:NSMenuItem:default Soty Dev Finder Action" "$app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :NSServices:0:NSPortName Soty Dev" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $bundle_version" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $build_number" "$app/Contents/Info.plist"
 zsh scripts/build-finder-extension.sh \
   "$app" \
   "com.wishly.dev.finder-extension" \
-  "Wishly Dev Finder" \
-  "Wishly Dev Finder Action" \
+  "Soty Dev Finder" \
+  "Soty Dev Finder Action" \
   "$bundle_version" \
   "$build_number" \
   "$root/FinderSync.generated.swift" \
-  " — Wishly Dev"
+  " — Soty Dev"
 node scripts/dev-release-meta.mjs "$version" "$bundle_version" "$build_number" "$build_id" "$api_version" "$source_revision" "$archive_name" > "$app/Contents/Resources/release.json"
 zsh scripts/make-icns.sh assets/AppIcon.png "$app/Contents/Resources/AppIcon.icns"
 xattr -cr "$app"
 codesign --force --deep --preserve-metadata=entitlements --sign - "$app"
 archive="$root/$archive_name"
-rm -f "$root"/Wishly-Dev-*-macOS-arm64.zip(N) "$root"/Wishly-Dev-*-macOS-arm64.zip.sha256(N)
+rm -f "$root"/Soty-Dev-*-macOS-arm64.zip(N) "$root"/Soty-Dev-*-macOS-arm64.zip.sha256(N)
 ditto -c -k --keepParent "$app" "$archive"
 (cd "$root"; shasum -a 256 "${archive:t}" > "${archive:t}.sha256")
 print "Built $archive"

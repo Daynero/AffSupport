@@ -5,13 +5,13 @@
   <key>CFBundleDevelopmentRegion</key>
   <string>en</string>
   <key>CFBundleDisplayName</key>
-  <string>Wishly Finder</string>
+  <string>Soty Finder</string>
   <key>CFBundleExecutable</key>
   <string>WishlyFinderExtension</string>
   <key>CFBundleIdentifier</key>
   <string>local.video.compressor.test.finder-extension</string>
   <key>CFBundleName</key>
-  <string>Wishly Finder</string>
+  <string>Soty Finder</string>
   <key>CFBundlePackageType</key>
   <string>XPC!</string>
   <key>CFBundleShortVersionString</key>

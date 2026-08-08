@@ -3,6 +3,7 @@
 node_modules
 release
 coverage
+apps/soty-review/src/generated/soty-tokens.css
 *.zip
 *.dmg
 package-lock.json

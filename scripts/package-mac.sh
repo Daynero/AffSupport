@@ -17,7 +17,7 @@ WHISPER_MODEL="${WHISPER_MODEL:-}"
 AGENT_ENTITLEMENT_PUBLIC_KEY="${AGENT_ENTITLEMENT_PUBLIC_KEY:-$(grep '^AGENT_ENTITLEMENT_PUBLIC_KEY=' config/production.env | cut -d= -f2-)}"
 [[ -n "$AGENT_ENTITLEMENT_PUBLIC_KEY" ]] || { print -u2 "AGENT_ENTITLEMENT_PUBLIC_KEY is missing; set it in config/production.env or the environment"; exit 1; }
 node_binary="${NODE_BINARY:-$(command -v node)}"; [[ -x "$node_binary" ]] || { print -u2 "No node binary found; set NODE_BINARY to a portable arm64 Node.js"; exit 1; }
-output_app="$PWD/release/Wishly Agent.app"
+output_app="$PWD/release/Soty.app"
 for input in "$node_binary" "$FFMPEG_BINARY" "$FFPROBE_BINARY" "$FFMPEG_SOURCE_ARCHIVE" "$X264_SOURCE_ARCHIVE" "$WHISPER_BINARY" "$WHISPER_VAD_MODEL" ${WHISPER_MODEL:+"$WHISPER_MODEL"}; do
   case "${input:A}" in
     "${output_app:A}"/*) print -u2 "Package input must not be inside the output app: $input"; exit 1 ;;
@@ -32,13 +32,13 @@ api_version=$(node scripts/release-meta.mjs api-version)
 release_channel=$(node scripts/release-meta.mjs release-channel)
 dmg_name=$(node scripts/release-meta.mjs artifact-name)
 source_revision=$(git rev-parse HEAD)
-root="$PWD/release"; app="$root/Wishly Agent.app"; archive="$root/${dmg_name%.dmg}.zip"
+root="$PWD/release"; app="$root/Soty.app"; archive="$root/${dmg_name%.dmg}.zip"
 mkdir -p "$root"
 [[ ! -e "$archive" ]] || { print -u2 "$archive already exists. Published build identities are immutable; bump PRODUCT_VERSION and BUILD_NUMBER."; exit 1; }
 rm -rf "$app"; mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/runtime/bin" "$app/Contents/Resources/runtime/models" "$app/Contents/Resources/agent"
 node scripts/render-launcher.mjs packaging/Launcher.swift "$root/Launcher.generated.swift" \
   "AGENT_PORT=43120" \
-  "APP_NAME=Wishly Agent" \
+  "APP_NAME=Soty" \
   "INSTANCE_LOCK_NAME=local-video-compressor-agent.lock" \
   "SUPPORT_DIRECTORY_NAME=Wishly" \
   "PUBLIC_SITE_ORIGIN=$PUBLIC_SITE_ORIGIN" \
@@ -75,8 +75,8 @@ cp packaging/Info.plist "$app/Contents/Info.plist"; cp THIRD_PARTY_NOTICES.md "$
 zsh scripts/build-finder-extension.sh \
   "$app" \
   "local.video.compressor.test.finder-extension" \
-  "Wishly Finder" \
-  "Wishly Finder Action" \
+  "Soty Finder" \
+  "Soty Finder Action" \
   "$bundle_version" \
   "$build_number" \
   "$root/FinderSync.generated.swift" \

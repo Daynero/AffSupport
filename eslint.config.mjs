@@ -33,15 +33,51 @@ export default tseslint.config(
     }
   },
   {
-    files: ['scripts/**/*.{js,mjs}'],
+    files: ['scripts/**/*.{js,mjs}', 'apps/soty-review/scripts/**/*.{js,mjs}'],
     languageOptions: {
-      globals: globals.node
+      globals: {
+        ...globals.node,
+        ...globals.browser
+      }
     }
   },
   {
     files: ['apps/web/src/**/*.{ts,tsx}'],
     languageOptions: {
       globals: globals.browser
+    }
+  },
+  {
+    files: ['apps/soty-review/src/**/*.{ts,tsx}'],
+    languageOptions: {
+      globals: globals.browser
+    },
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/apps/web/**', '../../web/**', '../../../web/**'],
+              message: 'Soty review must not import production web code.'
+            },
+            {
+              group: ['@video-compressor/shared', '@supabase/**'],
+              message: 'Soty review is fixture-only.'
+            }
+          ]
+        }
+      ],
+      'no-restricted-globals': [
+        'error',
+        { name: 'fetch', message: 'Soty review cannot perform network requests.' },
+        { name: 'XMLHttpRequest', message: 'Soty review cannot perform network requests.' },
+        { name: 'WebSocket', message: 'Application WebSockets are forbidden.' },
+        { name: 'EventSource', message: 'Application event streams are forbidden.' },
+        { name: 'localStorage', message: 'Review state belongs in the URL.' },
+        { name: 'sessionStorage', message: 'Review state belongs in the URL.' },
+        { name: 'indexedDB', message: 'Review data must remain immutable fixtures.' }
+      ]
     }
   }
 );

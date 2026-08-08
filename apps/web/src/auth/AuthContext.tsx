@@ -63,7 +63,7 @@ const LOCAL_DEV_AUTH = import.meta.env.VITE_LOCAL_DEV_AUTH === 'true';
 const localDevUser = {
   id: '00000000-0000-4000-8000-000000000001',
   email: 'dev@wishly.local',
-  user_metadata: { full_name: 'Wishly Developer' },
+  user_metadata: { full_name: 'Soty Developer' },
   app_metadata: {},
   aud: 'authenticated',
   created_at: new Date(0).toISOString()
@@ -78,7 +78,7 @@ const localDevSession = {
 const localDevProfile: Profile = {
   id: localDevUser.id,
   email: localDevUser.email ?? null,
-  display_name: 'Wishly Developer',
+  display_name: 'Soty Developer',
   avatar_url: null,
   language: 'uk',
   plan: 'pro',

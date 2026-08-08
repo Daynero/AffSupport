@@ -1,9 +1,9 @@
-# Wishly Agent Host (Windows)
+# Soty Host (Windows)
 
 C#/.NET 8 WinForms tray application mirroring the macOS menu-bar launcher
 (`packaging/Launcher.swift`). It owns the single-instance lock, spawns the bundled
 Node agent with the packaged environment, restarts it after transient failures,
-monitors installed updates, and exposes Open Wishly / Quit from the notification area.
+monitors installed updates, and exposes Open Soty / Quit from the notification area.
 
 ## Expected install layout
 
@@ -55,7 +55,7 @@ node scripts/render-launcher.mjs \
   packaging/windows/WishlyAgentHost/HostConfig.template.cs \
   packaging/windows/WishlyAgentHost/HostConfig.cs \
   "AGENT_PORT=43120" \
-  "APP_NAME=Wishly Agent" \
+  "APP_NAME=Soty" \
   "INSTANCE_LOCK_NAME=local-video-compressor-agent.lock" \
   "SUPPORT_DIRECTORY_NAME=Wishly" \
   "PUBLIC_SITE_ORIGIN=$PUBLIC_SITE_ORIGIN" \

@@ -229,7 +229,7 @@ function LegalPage({ kind }: { kind: 'privacy' | 'terms' }) {
     <div className="legal-page">
       <header className="legal-topbar">
         <a href="/" onClick={event => internalLink(event, '/')} aria-label={t('backToWishly')}>
-          <WishlyLogo name="Wishly" />
+          <WishlyLogo name="Soty" />
         </a>
         <div className="topbar-cluster">
           <ThemeToggle />
