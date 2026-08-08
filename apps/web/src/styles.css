@@ -432,7 +432,7 @@ a {
 .launcher {
   width: min(80%, 1440px);
   margin: 0 auto;
-  padding: clamp(48px, 9vh, 88px) 0 64px;
+  padding: clamp(28px, 5vh, 48px) 0 64px;
 }
 
 .launcher-heading {
@@ -2122,9 +2122,9 @@ input.is-invalid {
 }
 
 .job-actions .button {
-  min-height: 30px;
-  padding: 0 9px;
-  font-size: 17.94px;
+  min-height: 44.2px;
+  padding: 0 15.6px;
+  font-size: inherit;
   animation: fade-in var(--dur-control) var(--ease-enter);
 }
 
@@ -3154,7 +3154,7 @@ input.is-invalid {
 
   .launcher {
     width: min(100% - 24px, 600px);
-    padding: 38px 0 48px;
+    padding: 22px 0 48px;
   }
 
   .launcher-heading {
@@ -3391,7 +3391,7 @@ input.is-invalid {
 
   .launcher {
     width: calc(100% - 20px);
-    padding-top: 30px;
+    padding-top: 18px;
   }
 
   .launcher-heading {
@@ -3718,7 +3718,7 @@ input.is-invalid {
   inset: 0;
   display: grid;
   grid-template:
-    'toolbar toolbar' 62px
+    'toolbar toolbar' 70px
     'sidebar canvas' minmax(0, 1fr)
     'progress progress' auto /
     286px minmax(0, 1fr);
@@ -3738,7 +3738,7 @@ input.is-invalid {
   align-items: center;
   grid-template-columns: minmax(220px, 1fr) auto minmax(220px, 1fr);
   gap: 12px;
-  padding: 8px 12px;
+  padding: 12px;
   border-bottom: 1px solid var(--color-border);
   background: color-mix(in srgb, var(--color-surface) 96%, transparent);
   box-shadow: var(--shadow-sm);
@@ -4573,7 +4573,7 @@ input.is-invalid {
   }
 
   .landing-gallery-toolbar {
-    min-height: 62px;
+    min-height: 70px;
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
@@ -4590,7 +4590,7 @@ input.is-invalid {
   .landing-gallery-sidebar {
     position: fixed;
     z-index: 20;
-    top: 62px;
+    top: 70px;
     bottom: 0;
     left: 0;
     width: min(86vw, 320px);
