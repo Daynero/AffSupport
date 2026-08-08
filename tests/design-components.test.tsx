@@ -1,4 +1,5 @@
 import React from 'react';
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
@@ -26,6 +27,17 @@ describe('Soty UI components', () => {
     expect(markup).toContain('Compress selected');
     expect(markup).toContain('button-spinner');
     expect(markup).toContain('disabled');
+  });
+
+  it('keeps text actions large and help controls rigidly circular across contextual overrides', () => {
+    const styles = readFileSync('apps/web/src/styles.css', 'utf8');
+    expect(styles).toContain('.button.button:not(.landing-gallery-label-action)');
+    expect(styles).toMatch(
+      /\.button\.button:not\(.landing-gallery-label-action\)\s*\{[^}]*min-height:\s*44\.2px/s
+    );
+    expect(styles).toMatch(
+      /\.tooltip-button\s*\{[^}]*width:\s*30px;[^}]*height:\s*30px;[^}]*flex:\s*0 0 30px/s
+    );
   });
 
   it('renders the segmented control as an accessible radiogroup', () => {

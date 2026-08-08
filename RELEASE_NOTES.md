@@ -1,3 +1,8 @@
+# v0.9.7
+
+- Standardize button sizing across the application while preserving compact controls in dense toolbars.
+- Restore circular help controls after the interface scale increase and remove redundant navigation from Landing Preview.
+
 # v0.9.6
 
 - Increase the application-wide interface scale and align the public sign-in header and dialog geometry with the authenticated tools experience.

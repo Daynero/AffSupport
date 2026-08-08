@@ -338,9 +338,6 @@ export default function LandingPreviewPage() {
     >
       <header className="landing-gallery-toolbar">
         <div className="landing-gallery-toolbar-group is-leading">
-          <IconButton label={t('landingGalleryBack')} onClick={() => navigateTo('/')}>
-            ←
-          </IconButton>
           <IconButton
             label={t('landingGalleryToggleSidebar')}
             aria-pressed={sidebarOpen}

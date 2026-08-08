@@ -328,7 +328,7 @@ a {
   overflow: hidden;
   align-items: center;
   gap: 8px;
-  min-height: 37px;
+  min-height: 44.2px;
   padding: 0 11.5px;
   border: 1px solid var(--color-border);
   border-radius: 999px;
@@ -1782,8 +1782,12 @@ input.is-invalid {
 
 .tooltip-button {
   display: inline-grid;
-  width: 18px;
-  height: 18px;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  flex: 0 0 30px;
+  box-sizing: border-box;
   place-items: center;
   padding: 0;
   border: 1px solid var(--color-border-strong);
@@ -2713,10 +2717,6 @@ input.is-invalid {
 
 .onboarding-panel p {
   color: var(--color-text-muted);
-}
-
-.onboarding-panel .soty-mark {
-  margin-bottom: var(--space-1);
 }
 
 /* Quiet "still looking" indicator so background reconnect attempts pulse gently
@@ -5140,14 +5140,14 @@ body:has(.public-home) {
 
 .topbar .user-menu-trigger {
   gap: 9.2px;
-  min-width: 46px;
-  min-height: 46px;
+  min-width: 44.2px;
+  min-height: 44.2px;
   padding: 3.45px 9.2px 3.45px 3.45px;
 }
 
 .topbar .avatar-small {
-  width: 37px;
-  height: 37px;
+  width: 35px;
+  height: 35px;
   font-size: 16.45px;
 }
 
@@ -5773,21 +5773,6 @@ body:has(.public-home) {
 
 .windows-coming-soon-modal {
   width: min(528px, 100%);
-}
-
-.local-app-mark {
-  display: grid;
-  width: 62px;
-  height: 62px;
-  place-items: center;
-  border-radius: 14px;
-  background: var(--color-accent-soft);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 18%, transparent);
-}
-
-.local-app-mark .soty-mark {
-  border-radius: 13px;
-  transform: translateX(2px);
 }
 
 .lock-head {
@@ -9155,14 +9140,9 @@ body:has(.public-home) {
   }
 }
 
-/* Keep every interactive control on the same large scale established by the
-   tool-card actions. Component-specific shapes remain intact. */
-button,
-[role='button'] {
-  min-height: 44.2px;
-}
-
-.button {
+/* Control sizing is semantic: text actions use the full 44px target, while
+   icon-only and compact contextual controls keep their intended geometry. */
+.button.button:not(.landing-gallery-label-action) {
   min-height: 44.2px;
   padding-inline: 15.6px;
 }
@@ -9170,11 +9150,55 @@ button,
 .theme-toggle,
 .icon-button,
 .modal-close,
-.transcript-modal-close,
-.transcript-match-help {
+.transcript-modal-close {
   width: 44.2px;
   height: 44.2px;
   min-width: 44.2px;
+  min-height: 44.2px;
+}
+
+.language-switch button {
+  height: 37.6px;
+  min-height: 37.6px;
+}
+
+.tooltip-button {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  flex-basis: 30px;
+}
+
+.transcript-match-help {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+}
+
+/* The landing viewer is a dense workspace. Its toolbar has a deliberate
+   compact scale and must not inherit the larger application icon buttons. */
+.landing-gallery-toolbar .icon-button {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.landing-gallery-zoom .icon-button {
+  width: 31px;
+  height: 31px;
+  min-width: 31px;
+  min-height: 31px;
+}
+
+.landing-gallery-zoom > button:not(.icon-button) {
+  min-height: 30px;
+}
+
+.landing-gallery-label-action {
+  min-height: 34px;
 }
 .team-invitation-inbox li > div:first-child {
   display: grid;
