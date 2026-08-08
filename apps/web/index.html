@@ -47,5 +47,35 @@
     </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      (function () {
+        var recoveryKey = 'soty.boot-recovery.v1';
+        window.setTimeout(function () {
+          var root = document.getElementById('root');
+          if (!root || root.childElementCount > 0) {
+            try {
+              sessionStorage.removeItem(recoveryKey);
+            } catch (e) {}
+            return;
+          }
+
+          try {
+            if (!sessionStorage.getItem(recoveryKey)) {
+              sessionStorage.setItem(recoveryKey, '1');
+              var url = new URL(window.location.href);
+              url.searchParams.set('boot-recovery', Date.now().toString(36));
+              window.location.replace(url.toString());
+              return;
+            }
+          } catch (e) {}
+
+          root.innerHTML =
+            '<main style="min-height:100vh;display:grid;place-items:center;padding:24px;background:#120e1f;color:#fff;font:16px/1.5 system-ui,sans-serif;text-align:center">' +
+            '<div><h1 style="margin:0 0 12px;font-size:28px">Soty не вдалося запустити</h1>' +
+            '<p style="margin:0 0 20px;color:#c9c2dc">Оновіть сторінку, щоб завантажити актуальну версію.</p>' +
+            '<button type="button" onclick="location.reload()" style="min-height:44px;padding:0 18px;border:0;border-radius:9px;background:#f5a623;color:#1b102d;font:inherit;font-weight:700;cursor:pointer">Оновити сторінку</button></div></main>';
+        }, 3500);
+      })();
+    </script>
   </body>
 </html>
