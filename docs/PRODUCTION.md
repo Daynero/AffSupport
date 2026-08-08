@@ -1,4 +1,4 @@
-# Wishly production checklist
+# Soty production checklist
 
 ## Перед першим публічним запуском
 
@@ -9,6 +9,9 @@
 - [ ] Google Authorized JavaScript origins містить `https://soty.pp.ua`.
 - [ ] Google Authorized redirect URI точно збігається із Supabase provider callback `https://PROJECT_REF.supabase.co/auth/v1/callback`.
 - [ ] Google Data Access містить тільки `openid`, email і basic profile.
+- [ ] Google consent-screen назва — **Soty** — збігається з homepage, Privacy Policy і Terms of Use.
+- [ ] `soty.pp.ua` підтверджено в Google Search Console тим самим Google-акаунтом, який є Owner або Editor відповідного Cloud project.
+- [ ] Виконано checklist із `docs/GOOGLE_OAUTH_VERIFICATION.md`; Drive scopes не додані до identity-only production project.
 - [ ] `VITE_PRODUCT_OPERATOR` і `VITE_LEGAL_CONTACT_EMAIL` заповнені реальними значеннями.
 - [ ] Власник перевірив Privacy Policy і Terms of Use; це базові тексти, а не юридична консультація.
 - [ ] Edge Function `delete-account` розгорнута до ввімкнення `VITE_DELETE_ACCOUNT_ENABLED=true`.
@@ -43,6 +46,10 @@ npm run deploy:web
 ```
 
 Команду запускайте тільки після зелених `format:check`, `lint`, `test`, `build`, чистого commit і доступного versioned Agent release. Скрипт сам відмовиться деплоїти невідповідний release.
+
+Поки командний простір і Google Drive ще не готові, для публікації лише homepage та Google Login
+використовуйте `npm run deploy:web:identity`. Вона не декларує готовність Drive; повний
+`npm run deploy:web` як і раніше вимагає verified Drive integration.
 
 ## SPA routing
 

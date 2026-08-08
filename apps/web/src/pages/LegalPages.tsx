@@ -219,10 +219,17 @@ export function TermsPage() {
 function LegalPage({ kind }: { kind: 'privacy' | 'terms' }) {
   const { language, t } = useI18n();
   const title = t(kind === 'privacy' ? 'privacyTitle' : 'termsTitle');
-  const sections = (kind === 'privacy' ? privacy : terms)[language];
+  // The legal copy predates the Soty rename. Keep the displayed brand identical
+  // to the public homepage and OAuth consent-screen name; Google verification
+  // rejects branding that does not match across these surfaces.
+  const sections = (kind === 'privacy' ? privacy : terms)[language].map(section => ({
+    ...section,
+    heading: section.heading.replaceAll('Wishly', 'Soty'),
+    paragraphs: section.paragraphs.map(paragraph => paragraph.replaceAll('Wishly', 'Soty'))
+  }));
 
   useEffect(() => {
-    document.title = `${title} — Wishly`;
+    document.title = `${title} — Soty`;
   }, [title]);
 
   return (

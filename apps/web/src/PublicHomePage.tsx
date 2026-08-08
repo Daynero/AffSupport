@@ -9,7 +9,7 @@ export default function PublicHomePage() {
   const { t } = useI18n();
 
   useEffect(() => {
-    document.title = 'Soty — Local media tools and team workspace';
+    document.title = 'Soty — Free local media tools';
     document
       .querySelector('meta[name="description"]')
       ?.setAttribute('content', t('publicHomeDescription'));
@@ -45,45 +45,12 @@ export default function PublicHomePage() {
             >
               {t('publicHomeSignIn')}
             </a>
-            <a className="button" href="#google-drive">
-              {t('publicHomeLearnMore')}
-            </a>
           </div>
-        </section>
-
-        <section className="public-feature-grid" aria-label={t('publicHomeCapabilities')}>
-          <article>
-            <span className="public-feature-number" aria-hidden="true">
-              01
-            </span>
-            <h2>{t('publicHomeLocalTitle')}</h2>
-            <p>{t('publicHomeLocalBody')}</p>
-          </article>
-          <article>
-            <span className="public-feature-number" aria-hidden="true">
-              02
-            </span>
-            <h2>{t('publicHomeTeamTitle')}</h2>
-            <p>{t('publicHomeTeamBody')}</p>
-          </article>
-          <article>
-            <span className="public-feature-number" aria-hidden="true">
-              03
-            </span>
-            <h2>{t('publicHomePrivacyTitle')}</h2>
-            <p>{t('publicHomePrivacyBody')}</p>
-          </article>
-        </section>
-
-        <section id="google-drive" className="public-drive-section">
-          <div>
-            <p className="public-eyebrow">Google Drive</p>
-            <h2>{t('publicHomeDriveTitle')}</h2>
-          </div>
-          <div className="public-drive-copy">
-            <p>{t('publicHomeDriveBody')}</p>
-            <p>{t('publicHomeDriveControl')}</p>
-          </div>
+          <ul className="public-home-points" aria-label={t('publicHomeCapabilities')}>
+            <li>{t('publicHomeLocalTitle')}</li>
+            <li>{t('publicHomeFreeTitle')}</li>
+            <li>{t('publicHomeRoutineTitle')}</li>
+          </ul>
         </section>
       </main>
 

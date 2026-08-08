@@ -4579,8 +4579,12 @@ input.is-invalid {
 
 .public-home {
   position: relative;
-  min-height: 100vh;
-  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100vh;
+  height: 100dvh;
+  overflow: clip;
+  isolation: isolate;
   background:
     radial-gradient(circle at 50% 18%, rgb(255 255 255 / 92%) 0 18%, transparent 50%),
     linear-gradient(
@@ -4606,10 +4610,10 @@ input.is-invalid {
 
 .public-home-content {
   display: grid;
-  gap: 72px;
+  align-items: center;
   width: min(1120px, calc(100% - 40px));
   margin: 0 auto;
-  padding: 72px 0 80px;
+  padding: 32px 0;
 }
 
 .public-hero {
@@ -4668,6 +4672,26 @@ input.is-invalid {
   min-height: 46px;
   padding: 0 20px;
   text-decoration: none;
+}
+
+.public-home-points {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: var(--space-6) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.public-home-points li {
+  padding: 8px 12px;
+  border: 1px solid rgb(117 87 232 / 16%);
+  border-radius: 999px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 650;
+  background: color-mix(in srgb, var(--color-surface) 84%, transparent);
 }
 
 .public-feature-grid {
@@ -6296,8 +6320,7 @@ input.is-invalid {
 
 @media (max-width: 760px) {
   .public-home-content {
-    gap: 48px;
-    padding: 48px 0 56px;
+    padding: 24px 0;
   }
 
   .public-feature-grid,
@@ -6385,7 +6408,7 @@ input.is-invalid {
   }
 
   .public-hero h1 {
-    font-size: 38px;
+    font-size: clamp(32px, 10vw, 38px);
   }
 
   .public-home-actions,
@@ -6397,6 +6420,10 @@ input.is-invalid {
   .public-home-actions .button {
     justify-content: center;
     width: 100%;
+  }
+
+  .public-home-points {
+    margin-top: var(--space-4);
   }
 
   .login-card {
@@ -9804,5 +9831,7 @@ body {
 :root.is-theming body,
 :root.is-theming .public-home,
 :root.is-theming .app-shell {
-  transition: background-color 520ms cubic-bezier(0.65, 0, 0.35, 1), color 520ms cubic-bezier(0.65, 0, 0.35, 1);
+  transition:
+    background-color 520ms cubic-bezier(0.65, 0, 0.35, 1),
+    color 520ms cubic-bezier(0.65, 0, 0.35, 1);
 }

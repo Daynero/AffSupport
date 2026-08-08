@@ -1,4 +1,4 @@
-# Налаштування Supabase і Google Login для Wishly
+# Налаштування Supabase і Google Login для Soty
 
 Цей файл розрахований на перше налаштування без попереднього досвіду. У коді вже є авторизація, таблиці, RLS, аналітика, адмінка й видалення акаунта. Реальні ключі в репозиторій додавати не потрібно.
 
@@ -6,12 +6,12 @@
 
 ## Адреси цієї реалізації
 
-| Призначення           | Development                           | Production                         |
-| --------------------- | ------------------------------------- | ---------------------------------- |
-| Wishly origin         | `http://127.0.0.1:5173`               | `https://soty.pp.ua`               |
-| Wishly OAuth callback | `http://127.0.0.1:5173/auth/callback` | `https://soty.pp.ua/auth/callback` |
-| Privacy Policy        | `http://127.0.0.1:5173/privacy`       | `https://soty.pp.ua/privacy`       |
-| Terms of Use          | `http://127.0.0.1:5173/terms`         | `https://soty.pp.ua/terms`         |
+| Призначення         | Development                           | Production                         |
+| ------------------- | ------------------------------------- | ---------------------------------- |
+| Soty origin         | `http://127.0.0.1:5173`               | `https://soty.pp.ua`               |
+| Soty OAuth callback | `http://127.0.0.1:5173/auth/callback` | `https://soty.pp.ua/auth/callback` |
+| Privacy Policy      | `http://127.0.0.1:5173/privacy`       | `https://soty.pp.ua/privacy`       |
+| Terms of Use        | `http://127.0.0.1:5173/terms`         | `https://soty.pp.ua/terms`         |
 
 Якщо production-домен зміниться, спочатку оновіть єдине джерело адреси в `packages/shared/src/release.ts`, синхронний `PUBLIC_SITE_ORIGIN` у `config/production.env`, а потім усі production-адреси в Supabase, Google Cloud і хостингу.
 
@@ -92,7 +92,7 @@ Site URL — fallback Supabase. Код Wishly завжди передає кон
 
 1. Відкрийте [Google Cloud Console](https://console.cloud.google.com/) і створіть або виберіть project для Wishly.
 2. Відкрийте **Google Auth Platform → Branding**.
-3. Вкажіть назву **Wishly**, support email і developer contact email.
+3. Вкажіть назву **Soty**, support email і developer contact email. Назва, логотип і посилання мають точно збігатися з публічною homepage `https://soty.pp.ua`.
 4. Для production додайте:
    - Homepage: `https://soty.pp.ua`;
    - Privacy Policy: `https://soty.pp.ua/privacy`;
@@ -126,7 +126,7 @@ https://PROJECT_REF.supabase.co/auth/v1/callback
 13. Поверніться в Google client і вставте цю адресу в **Authorized redirect URIs**. Не вставляйте сюди `/auth/callback` Wishly: Google спочатку повертає користувача в Supabase.
 14. Створіть client і одразу скопіюйте **Client ID** та **Client Secret**. Google може показати secret лише один раз.
 
-Для публічної Google Branding verification використовуйте власний підтверджений домен `soty.pp.ua` і актуальні адреси з checklist у `PRODUCTION.md`.
+Для публічної Google Branding verification використовуйте власний підтверджений домен `soty.pp.ua` і актуальні адреси з checklist у `PRODUCTION.md`. Повний порядок подання й окремі вимоги для ще неактивного Google Drive описані в `docs/GOOGLE_OAUTH_VERIFICATION.md`.
 
 Документація: [Supabase Google Login](https://supabase.com/docs/guides/auth/social-login/auth-google), [Google OAuth Clients](https://support.google.com/cloud/answer/15549257).
 

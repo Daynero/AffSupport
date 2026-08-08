@@ -85,7 +85,7 @@ describe('protected routing and safe OAuth returns', () => {
     );
     expect(root).toContain('<PublicHomePage />');
     expect(publicHome).toContain("t('publicHomeDescription')");
-    expect(publicHome).toContain('id="google-drive"');
+    expect(publicHome).toContain("t('publicHomeRoutineTitle')");
     expect(publicHome).toContain('href="/privacy"');
     expect(publicHome).toContain('href="/terms"');
   });
@@ -162,15 +162,15 @@ describe('environment and localization foundation', () => {
   });
 
   it('contains the required EN and UA login and consent copy', () => {
-    expect(translate('en', 'loginHeading')).toBe('Sign in to Wishly');
-    expect(translate('uk', 'loginHeading')).toBe('Увійдіть у Wishly');
+    expect(translate('en', 'loginHeading')).toBe('Sign in to Soty');
+    expect(translate('uk', 'loginHeading')).toBe('Увійдіть у Soty');
     expect(translate('en', 'continueGoogle')).toBe('Continue with Google');
     expect(translate('uk', 'continueGoogle')).toBe('Продовжити з Google');
     expect(translate('en', 'marketingConsent')).toBe(
-      'Receive news about new Wishly tools and updates.'
+      'Receive news about new Soty tools and updates.'
     );
     expect(translate('uk', 'marketingConsent')).toBe(
-      'Отримувати новини про нові інструменти та оновлення Wishly.'
+      'Отримувати новини про нові інструменти та оновлення Soty.'
     );
   });
 

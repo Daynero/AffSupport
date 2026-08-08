@@ -53,28 +53,16 @@ const en = {
   supportClose: 'Close',
   supportMessageRequired: 'Write a short message first.',
   loginSupportPitch: 'Completely free — made by a media buyer for media buyers.',
-  publicHomeEyebrow: 'LOCAL MEDIA WORKFLOWS · SHARED TEAM SPACE',
-  publicHomeTitle: 'Soty keeps media work fast, local, and organized.',
+  publicHomeEyebrow: 'MADE BY A MEDIA BUYER FOR MEDIA BUYERS',
+  publicHomeTitle: 'Free local tools that take routine off your hands.',
   publicHomeDescription:
-    'Soty helps media teams compress video, transcribe audio, optimize and preview landing pages, and organize shared files in a connected Google Drive folder.',
+    'Compress video, turn audio into text, and optimize or preview landing pages directly on your computer. No subscriptions, no upload queue, no extra busywork.',
   publicHomeSignIn: 'Open Soty',
-  publicHomeLearnMore: 'How Google Drive works',
   publicHomeCapabilities: 'Soty capabilities',
-  publicHomeLocalTitle: 'Local media tools',
-  publicHomeLocalBody:
-    'Video, audio, images, and landing pages are processed by Soty on your computer instead of being uploaded to a remote media processor.',
-  publicHomeTeamTitle: 'One workspace for the team',
-  publicHomeTeamBody:
-    'Create a team, invite members, manage roles, search shared materials, and run Soty workflows from one catalog.',
-  publicHomePrivacyTitle: 'Clear access and control',
-  publicHomePrivacyBody:
-    'Team permissions, activity history, and explicit actions keep shared work understandable. Soty never asks for your Google password.',
-  publicHomeDriveTitle: 'Connect the folder your team already uses',
-  publicHomeDriveBody:
-    'A team owner connects Google Drive and selects the team root folder. Soty uses that connection to list and manage materials inside the selected workspace.',
-  publicHomeDriveControl:
-    'The owner can replace or disconnect the folder. Google Drive permissions remain separate from Soty team roles.',
-  publicHomeFooter: 'Soty · Local media tools and team workspace',
+  publicHomeLocalTitle: 'Works locally',
+  publicHomeFreeTitle: 'Free to use',
+  publicHomeRoutineTitle: 'Built for the daily media-buying routine',
+  publicHomeFooter: 'Soty · Free local tools for media buyers',
   toolsTitle: 'Soty Tools',
   toolsSubtitle: 'Choose a tool to work with your files.',
   videoCompressor: 'Video Compressor',
@@ -1096,28 +1084,16 @@ const uk: Record<keyof typeof en, string> = {
   supportClose: 'Закрити',
   supportMessageRequired: 'Спершу напишіть коротке повідомлення.',
   loginSupportPitch: 'Повністю безкоштовно — зроблено баєром для баєрів.',
-  publicHomeEyebrow: 'ЛОКАЛЬНА РОБОТА З МЕДІА · СПІЛЬНИЙ ПРОСТІР КОМАНДИ',
-  publicHomeTitle: 'Soty допомагає працювати з медіа швидко, локально й організовано.',
+  publicHomeEyebrow: 'ЗРОБЛЕНО МЕДІАБАЄРОМ ДЛЯ МЕДІАБАЄРІВ',
+  publicHomeTitle: 'Безкоштовні локальні інструменти, що забирають рутину.',
   publicHomeDescription:
-    'Soty допомагає медіакоманді стискати відео, транскрибувати аудіо, оптимізувати й переглядати лендинги та впорядковувати спільні файли у підключеній папці Google Drive.',
+    'Стискайте відео, перетворюйте аудіо на текст, оптимізуйте й переглядайте лендинги прямо на своєму комп’ютері. Без підписок, черг на завантаження та зайвої ручної роботи.',
   publicHomeSignIn: 'Відкрити Soty',
-  publicHomeLearnMore: 'Як працює Google Drive',
   publicHomeCapabilities: 'Можливості Soty',
-  publicHomeLocalTitle: 'Локальні медіаінструменти',
-  publicHomeLocalBody:
-    'Відео, аудіо, зображення й лендинги обробляються Soty на вашому комп’ютері, а не завантажуються до віддаленого сервісу обробки.',
-  publicHomeTeamTitle: 'Один простір для команди',
-  publicHomeTeamBody:
-    'Створюйте команду, запрошуйте учасників, керуйте ролями, шукайте спільні матеріали й запускайте процеси Soty з одного каталогу.',
-  publicHomePrivacyTitle: 'Зрозумілий доступ і контроль',
-  publicHomePrivacyBody:
-    'Командні дозволи, історія дій та явні операції роблять спільну роботу прозорою. Soty ніколи не запитує ваш пароль Google.',
-  publicHomeDriveTitle: 'Підключіть папку, якою вже користується команда',
-  publicHomeDriveBody:
-    'Власник команди підключає Google Drive та обирає кореневу папку команди. Soty використовує це з’єднання для перегляду й керування матеріалами всередині обраного простору.',
-  publicHomeDriveControl:
-    'Власник може замінити або від’єднати папку. Дозволи Google Drive залишаються окремими від командних ролей Soty.',
-  publicHomeFooter: 'Soty · Локальні медіаінструменти та командний простір',
+  publicHomeLocalTitle: 'Працює локально',
+  publicHomeFreeTitle: 'Безкоштовно',
+  publicHomeRoutineTitle: 'Створено для щоденної рутини медіабаєра',
+  publicHomeFooter: 'Soty · Безкоштовні локальні інструменти для медіабаєрів',
   toolsTitle: 'Інструменти Soty',
   toolsSubtitle: 'Оберіть інструмент для роботи з вашими файлами.',
   videoCompressor: 'Відеокомпресор',
