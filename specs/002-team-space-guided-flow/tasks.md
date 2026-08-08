@@ -1,5 +1,5 @@
 ---
-description: "Task list for feature implementation: Спрощений покроковий інтерфейс командного простору"
+description: 'Task list for feature implementation: Спрощений покроковий інтерфейс командного простору'
 ---
 
 # Tasks: Спрощений покроковий інтерфейс командного простору
@@ -35,7 +35,7 @@ docblock).
 
 **Purpose**: Establish a green baseline before changing anything.
 
-- [X] T001 Establish a green baseline: run `npm run format:check`, `npm run lint`, `npm test`, and `npm run build -w @video-compressor/web`; record any pre-existing failures so they are not attributed to this feature.
+- [x] T001 Establish a green baseline: run `npm run format:check`, `npm run lint`, `npm test`, and `npm run build -w @video-compressor/web`; record any pre-existing failures so they are not attributed to this feature.
 
 ---
 
@@ -46,10 +46,10 @@ Every user story depends on these.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [X] T002 Replace the passive active-team selection with an explicit nullable *entered space* in `apps/web/src/team/TeamContext.tsx`: drop the `?? teams[0]` fallback in the `activeTeam` derivation; add `enterSpace(id)` (validate membership in `teams`, persist to `wishly.active-team.v1`) and `leaveSpace()` (set null, clear storage); on load, clear a persisted id not present in `teams`; keep the existing membership-lost handler clearing the entered space. Extend `TeamContextValue` (and `TeamContextOverride` usage) with `enterSpace`/`leaveSpace` and a derived `enteredSpace`/`hasEnteredSpace`. (data-model §1)
-- [X] T003 [P] Add all new compile-checked `TranslationKey`s for the lobby, create wizard, space settings, and shell copy to both `en` and `uk` maps in `apps/web/src/i18n.ts` (e.g. space picker title, "Create a new space", "Continue setup", "Space is being set up", wizard step labels, "Change space", "Space settings", empty-space copy). Plain, non-technical wording. (FR-018)
-- [X] T004 Create the `/team` resolver `apps/web/src/team/TeamSpace.tsx` that reads `TeamContext` and renders exactly one surface — lobby vs create wizard vs workspace shell — per the resolution table in `contracts/navigation-and-lobby.md`. Stub the three surfaces initially (filled by US1/US2/US3). (Depends on T002)
-- [X] T005 Swap the route in `apps/web/src/ProtectedWishly.tsx`: `path === '/team'` renders `<TeamSpace/>` instead of `<TeamWorkspacePage/>`; update imports. (Depends on T004)
+- [x] T002 Replace the passive active-team selection with an explicit nullable _entered space_ in `apps/web/src/team/TeamContext.tsx`: drop the `?? teams[0]` fallback in the `activeTeam` derivation; add `enterSpace(id)` (validate membership in `teams`, persist to `soty.active-team.v1`) and `leaveSpace()` (set null, clear storage); on load, clear a persisted id not present in `teams`; keep the existing membership-lost handler clearing the entered space. Extend `TeamContextValue` (and `TeamContextOverride` usage) with `enterSpace`/`leaveSpace` and a derived `enteredSpace`/`hasEnteredSpace`. (data-model §1)
+- [x] T003 [P] Add all new compile-checked `TranslationKey`s for the lobby, create wizard, space settings, and shell copy to both `en` and `uk` maps in `apps/web/src/i18n.ts` (e.g. space picker title, "Create a new space", "Continue setup", "Space is being set up", wizard step labels, "Change space", "Space settings", empty-space copy). Plain, non-technical wording. (FR-018)
+- [x] T004 Create the `/team` resolver `apps/web/src/team/TeamSpace.tsx` that reads `TeamContext` and renders exactly one surface — lobby vs create wizard vs workspace shell — per the resolution table in `contracts/navigation-and-lobby.md`. Stub the three surfaces initially (filled by US1/US2/US3). (Depends on T002)
+- [x] T005 Swap the route in `apps/web/src/ProtectedSoty.tsx`: `path === '/team'` renders `<TeamSpace/>` instead of `<TeamWorkspacePage/>`; update imports. (Depends on T004)
 
 **Checkpoint**: `/team` mounts the resolver; entered-space state is authoritative.
 
@@ -66,14 +66,14 @@ see the lobby → select a space → land in it → reopen `/team` and arrive di
 
 ### Implementation for User Story 1
 
-- [X] T006 [P] [US1] Create `apps/web/src/team/lobby/SpaceCard.tsx` rendering a team as a simple card with `ready` | `setup_incomplete` | `preparing` variants derived from `connectionState` per data-model §2 (enterable / "Continue setup" owner-only / read-only "Space is being set up"). Keyboard-operable (`role="button"`, Enter/Space).
-- [X] T007 [US1] Create `apps/web/src/team/lobby/SpaceLobby.tsx`: list the user's teams as `SpaceCard`s plus a single "Create a new space" action, and a welcoming empty state (no teams) whose primary action starts creation; no management panels or filters. (FR-002, FR-006; depends on T006)
-- [X] T008 [US1] Create a minimal `apps/web/src/team/workspace/WorkspaceShell.tsx`: shows the entered space's name, an always-available "Change space" control wired to `leaveSpace()`, and a placeholder content region (enriched in US3). (FR-005)
-- [X] T009 [US1] Wire the resolver in `apps/web/src/team/TeamSpace.tsx`: render `SpaceLobby` when no space is entered and the minimal `WorkspaceShell` when one is; call `enterSpace(id)` on selecting a `ready` card; fire the existing `trackTeamWorkspaceSession()` once per entered space; clear an invalid cached selection to the lobby. (FR-003, FR-004, FR-007; depends on T007, T008)
-- [X] T010 [US1] Ensure a prominent, labelled, keyboard-operable Team Space entry to `/team` on the home screen in `apps/web/src/HomePage.tsx` (retain/elevate the existing launcher card). (FR-001)
-- [X] T011 [US1] Add lobby, space-card, and minimal-shell styles to `apps/web/src/styles.css` using `className` + CSS custom properties (no inline static styles); readable on narrow/zoomed viewports without horizontal scroll. (FR-021)
-- [X] T012 [P] [US1] DOM test `tests/team-space-lobby.test.tsx`: entry resolves to lobby; cards render by readiness; selecting a `ready` card enters that space; empty state leads to create; "Change space" returns to the lobby. Use `TeamContextOverride` + injected client stub.
-- [X] T013 [P] [US1] DOM test `tests/team-space-cache.test.tsx`: a valid persisted selection opens the workspace directly (no lobby); an invalid/missing selection falls back to the lobby without error.
+- [x] T006 [P] [US1] Create `apps/web/src/team/lobby/SpaceCard.tsx` rendering a team as a simple card with `ready` | `setup_incomplete` | `preparing` variants derived from `connectionState` per data-model §2 (enterable / "Continue setup" owner-only / read-only "Space is being set up"). Keyboard-operable (`role="button"`, Enter/Space).
+- [x] T007 [US1] Create `apps/web/src/team/lobby/SpaceLobby.tsx`: list the user's teams as `SpaceCard`s plus a single "Create a new space" action, and a welcoming empty state (no teams) whose primary action starts creation; no management panels or filters. (FR-002, FR-006; depends on T006)
+- [x] T008 [US1] Create a minimal `apps/web/src/team/workspace/WorkspaceShell.tsx`: shows the entered space's name, an always-available "Change space" control wired to `leaveSpace()`, and a placeholder content region (enriched in US3). (FR-005)
+- [x] T009 [US1] Wire the resolver in `apps/web/src/team/TeamSpace.tsx`: render `SpaceLobby` when no space is entered and the minimal `WorkspaceShell` when one is; call `enterSpace(id)` on selecting a `ready` card; fire the existing `trackTeamWorkspaceSession()` once per entered space; clear an invalid cached selection to the lobby. (FR-003, FR-004, FR-007; depends on T007, T008)
+- [x] T010 [US1] Ensure a prominent, labelled, keyboard-operable Team Space entry to `/team` on the home screen in `apps/web/src/HomePage.tsx` (retain/elevate the existing launcher card). (FR-001)
+- [x] T011 [US1] Add lobby, space-card, and minimal-shell styles to `apps/web/src/styles.css` using `className` + CSS custom properties (no inline static styles); readable on narrow/zoomed viewports without horizontal scroll. (FR-021)
+- [x] T012 [P] [US1] DOM test `tests/team-space-lobby.test.tsx`: entry resolves to lobby; cards render by readiness; selecting a `ready` card enters that space; empty state leads to create; "Change space" returns to the lobby. Use `TeamContextOverride` + injected client stub.
+- [x] T013 [P] [US1] DOM test `tests/team-space-cache.test.tsx`: a valid persisted selection opens the workspace directly (no lobby); an invalid/missing selection falls back to the lobby without error.
 
 **Checkpoint**: US1 fully functional and independently testable (navigation skeleton + cache).
 
@@ -90,12 +90,12 @@ confirm the space appears only as "Continue setup".
 
 ### Implementation for User Story 2
 
-- [X] T014 [P] [US2] Create `apps/web/src/team/create/SpaceNameStep.tsx`: required name input reusing the existing normalization/length rule (NFC, collapse whitespace, 1…120); block "Continue" while invalid; on continue call `teamApi.createTeam(name)` and surface `NAME_CONFLICT` in place. (FR-009; contracts/create-space-wizard §Step 1)
-- [X] T015 [P] [US2] Create `apps/web/src/team/create/ConnectFolderStep.tsx`: wrap the existing drive-connect sub-flow (`startDriveOAuth` → `listFolders('root')` → `DriveFolderBrowser` → `confirmDriveRoot` two-phase) for the new `teamId`; block completion until `connected`; surface `OAUTH_APPROVAL_REQUIRED` (and the `?drive=OAUTH_APPROVAL_REQUIRED` callback) as plain-language, non-completing. (FR-010, FR-013; contracts/create-space-wizard §Step 2)
-- [X] T016 [US2] Create `apps/web/src/team/create/CreateSpaceWizard.tsx`: the linear step machine `name → folder → done` with visible progress and one primary action per step; bracket the flow with the existing `startTeamOnboardingFlow`/`completeTeamOnboardingFlow` analytics; on `done` call `enterSpace(newTeamId)`. (FR-008, FR-011, FR-012; depends on T014, T015)
-- [X] T017 [US2] Wire the wizard into `apps/web/src/team/TeamSpace.tsx`: the lobby "Create a new space" action opens the wizard, and selecting a `setup_incomplete` card resumes the wizard at the folder step for that team. (Depends on T016; touches the resolver after T009)
-- [X] T018 [US2] Add wizard step/progress styles to `apps/web/src/styles.css` (no inline static styles; accessible focus, no horizontal scroll on narrow/zoomed viewports). (FR-021)
-- [X] T019 [P] [US2] DOM test `tests/create-space-wizard.test.tsx`: name required to advance; folder required to finish; completion enters the new space; abandoning leaves a resumable `setup_incomplete` space (never a ready one); `OAUTH_APPROVAL_REQUIRED` blocks completion with an explanation.
+- [x] T014 [P] [US2] Create `apps/web/src/team/create/SpaceNameStep.tsx`: required name input reusing the existing normalization/length rule (NFC, collapse whitespace, 1…120); block "Continue" while invalid; on continue call `teamApi.createTeam(name)` and surface `NAME_CONFLICT` in place. (FR-009; contracts/create-space-wizard §Step 1)
+- [x] T015 [P] [US2] Create `apps/web/src/team/create/ConnectFolderStep.tsx`: wrap the existing drive-connect sub-flow (`startDriveOAuth` → `listFolders('root')` → `DriveFolderBrowser` → `confirmDriveRoot` two-phase) for the new `teamId`; block completion until `connected`; surface `OAUTH_APPROVAL_REQUIRED` (and the `?drive=OAUTH_APPROVAL_REQUIRED` callback) as plain-language, non-completing. (FR-010, FR-013; contracts/create-space-wizard §Step 2)
+- [x] T016 [US2] Create `apps/web/src/team/create/CreateSpaceWizard.tsx`: the linear step machine `name → folder → done` with visible progress and one primary action per step; bracket the flow with the existing `startTeamOnboardingFlow`/`completeTeamOnboardingFlow` analytics; on `done` call `enterSpace(newTeamId)`. (FR-008, FR-011, FR-012; depends on T014, T015)
+- [x] T017 [US2] Wire the wizard into `apps/web/src/team/TeamSpace.tsx`: the lobby "Create a new space" action opens the wizard, and selecting a `setup_incomplete` card resumes the wizard at the folder step for that team. (Depends on T016; touches the resolver after T009)
+- [x] T018 [US2] Add wizard step/progress styles to `apps/web/src/styles.css` (no inline static styles; accessible focus, no horizontal scroll on narrow/zoomed viewports). (FR-021)
+- [x] T019 [P] [US2] DOM test `tests/create-space-wizard.test.tsx`: name required to advance; folder required to finish; completion enters the new space; abandoning leaves a resumable `setup_incomplete` space (never a ready one); `OAUTH_APPROVAL_REQUIRED` blocks completion with an explanation.
 
 **Checkpoint**: US1 and US2 both work; a user can create a space end-to-end and enter it.
 
@@ -112,14 +112,14 @@ search reveals only facets that exist.
 
 ### Implementation for User Story 3
 
-- [X] T020 [P] [US3] Create `apps/web/src/team/workspace/SpaceSettings.tsx`: a dedicated sub-view re-parenting the existing 001 components unchanged — `members/MemberList` (including its role/permission and ownership controls `members/MemberPermissionsDialog` and `members/OwnershipTransferDialog`), `members/InvitationPanel`, `drive/DriveConnectionPanel` (owner), `members/TeamAuditPanel` (owner/admin) — each shown per its existing permission gate. Roles are managed via `MemberList`, not a separate panel. (FR-016, FR-019, FR-020; contracts/workspace-shell-and-disclosure)
-- [X] T021 [US3] Enrich `apps/web/src/team/workspace/WorkspaceShell.tsx`: make `catalog/MaterialBrowser` the central default element; header carries space name, "Change space", a "Space settings" entry (opens T020), and a search/filter toggle shown only when there is content; manage a `content | settings | search` view state. (FR-014, FR-015; depends on T008, T020)
-- [X] T022 [US3] Update `apps/web/src/team/catalog/TeamCatalog.tsx`: do not render `CatalogSearchBar`/`CatalogFilters` on mount; reveal search via the shell toggle; keep `useCatalogSearch`/`searchCatalog`/`getCatalogVocabulary` unchanged. (FR-017)
-- [X] T023 [US3] Update `apps/web/src/team/catalog/CatalogFilters.tsx`: render only when the catalog has ≥1 material and the returned facet vocabulary is non-empty; render nothing for an empty space. (FR-017, SC-004)
-- [X] T024 [US3] Add full workspace-shell, space-settings sub-view, and revealed-search styles to `apps/web/src/styles.css` (no inline static styles; accessible, no horizontal scroll of primary content). (FR-021)
-- [X] T025 [P] [US3] DOM test `tests/workspace-shell.test.tsx`: a freshly created empty space renders zero filter controls and zero side management panels; the search toggle appears only with content.
-- [X] T026 [P] [US3] DOM test `tests/space-settings.test.tsx`: every 001 capability (members, invitations, drive, audit) is reachable in ≤ 2 actions from the shell and is hidden when the viewer lacks the permission.
-- [X] T027 [US3] Update `tests/team-workspace.test.tsx` to the new shell composition (replace assertions against the old all-panels grid with the content-first shell + settings surface).
+- [x] T020 [P] [US3] Create `apps/web/src/team/workspace/SpaceSettings.tsx`: a dedicated sub-view re-parenting the existing 001 components unchanged — `members/MemberList` (including its role/permission and ownership controls `members/MemberPermissionsDialog` and `members/OwnershipTransferDialog`), `members/InvitationPanel`, `drive/DriveConnectionPanel` (owner), `members/TeamAuditPanel` (owner/admin) — each shown per its existing permission gate. Roles are managed via `MemberList`, not a separate panel. (FR-016, FR-019, FR-020; contracts/workspace-shell-and-disclosure)
+- [x] T021 [US3] Enrich `apps/web/src/team/workspace/WorkspaceShell.tsx`: make `catalog/MaterialBrowser` the central default element; header carries space name, "Change space", a "Space settings" entry (opens T020), and a search/filter toggle shown only when there is content; manage a `content | settings | search` view state. (FR-014, FR-015; depends on T008, T020)
+- [x] T022 [US3] Update `apps/web/src/team/catalog/TeamCatalog.tsx`: do not render `CatalogSearchBar`/`CatalogFilters` on mount; reveal search via the shell toggle; keep `useCatalogSearch`/`searchCatalog`/`getCatalogVocabulary` unchanged. (FR-017)
+- [x] T023 [US3] Update `apps/web/src/team/catalog/CatalogFilters.tsx`: render only when the catalog has ≥1 material and the returned facet vocabulary is non-empty; render nothing for an empty space. (FR-017, SC-004)
+- [x] T024 [US3] Add full workspace-shell, space-settings sub-view, and revealed-search styles to `apps/web/src/styles.css` (no inline static styles; accessible, no horizontal scroll of primary content). (FR-021)
+- [x] T025 [P] [US3] DOM test `tests/workspace-shell.test.tsx`: a freshly created empty space renders zero filter controls and zero side management panels; the search toggle appears only with content.
+- [x] T026 [P] [US3] DOM test `tests/space-settings.test.tsx`: every 001 capability (members, invitations, drive, audit) is reachable in ≤ 2 actions from the shell and is hidden when the viewer lacks the permission.
+- [x] T027 [US3] Update `tests/team-workspace.test.tsx` to the new shell composition (replace assertions against the old all-panels grid with the content-first shell + settings surface).
 
 **Checkpoint**: All three stories independently functional; the workspace is decluttered.
 
@@ -129,10 +129,10 @@ search reveals only facets that exist.
 
 **Purpose**: Remove superseded UI, optional telemetry, and final verification.
 
-- [X] T028 Remove the superseded `apps/web/src/team/TeamWorkspacePage.tsx`, `apps/web/src/team/TeamSwitcher.tsx`, and `apps/web/src/team/CreateTeamDialog.tsx`, plus any dangling imports/exports (e.g. `apps/web/src/team/index.ts`) and test references. (Do only after T005/T017/T027 no longer reference them.)
-- [X] T029 [P] OPTIONAL (Decision 7): if lobby/selection funnel measurement is wanted, add a single event name to `TeamAnalyticsEventName` in `packages/shared/src/team/analytics.ts` with typed props and rebuild shared (`npm run build -w @video-compressor/shared`); emit it from `enterSpace`/lobby view. Otherwise skip — existing onboarding/session events suffice.
-- [X] T030 Accessibility & responsive sweep across the lobby, wizard, and shell: keyboard operability, visible focus, labelled controls, and no horizontal scroll of primary content on narrow/zoomed viewports. (FR-021)
-- [X] T031 Run the full gate and quickstart validation: `npm run format:check`, `npm run lint`, `npm test`, `npm run build -w @video-compressor/web`, then the manual walkthrough in `specs/002-team-space-guided-flow/quickstart.md` (scenarios 1–3). Confirm the tree stays `any`-free and no new backend surface was introduced.
+- [x] T028 Remove the superseded `apps/web/src/team/TeamWorkspacePage.tsx`, `apps/web/src/team/TeamSwitcher.tsx`, and `apps/web/src/team/CreateTeamDialog.tsx`, plus any dangling imports/exports (e.g. `apps/web/src/team/index.ts`) and test references. (Do only after T005/T017/T027 no longer reference them.)
+- [x] T029 [P] OPTIONAL (Decision 7): if lobby/selection funnel measurement is wanted, add a single event name to `TeamAnalyticsEventName` in `packages/shared/src/team/analytics.ts` with typed props and rebuild shared (`npm run build -w @video-compressor/shared`); emit it from `enterSpace`/lobby view. Otherwise skip — existing onboarding/session events suffice.
+- [x] T030 Accessibility & responsive sweep across the lobby, wizard, and shell: keyboard operability, visible focus, labelled controls, and no horizontal scroll of primary content on narrow/zoomed viewports. (FR-021)
+- [x] T031 Run the full gate and quickstart validation: `npm run format:check`, `npm run lint`, `npm test`, `npm run build -w @video-compressor/web`, then the manual walkthrough in `specs/002-team-space-guided-flow/quickstart.md` (scenarios 1–3). Confirm the tree stays `any`-free and no new backend surface was introduced.
 
 ---
 
@@ -199,9 +199,9 @@ Task: "Create CreateSpaceWizard.tsx step machine name → folder → done"      
 ### Incremental Delivery
 
 1. Foundation ready (T002–T005).
-2. + US1 → navigation & lobby (MVP).
-3. + US2 → guided creation (a first-time user can create and enter a space end-to-end).
-4. + US3 → decluttered, content-first workspace with progressive disclosure.
+2. - US1 → navigation & lobby (MVP).
+3. - US2 → guided creation (a first-time user can create and enter a space end-to-end).
+4. - US3 → decluttered, content-first workspace with progressive disclosure.
 5. Polish → remove superseded UI, optional telemetry, a11y sweep, full gate.
 
 ### Notes

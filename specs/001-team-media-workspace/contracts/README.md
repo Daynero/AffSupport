@@ -1,4 +1,4 @@
-# Contracts: Командний медіапростір Wishly
+# Contracts: Командний медіапростір Soty
 
 Behavioral contracts for four surfaces:
 
@@ -6,7 +6,7 @@ Behavioral contracts for four surfaces:
    and atomic domain changes.
 2. Supabase Edge Functions — Google OAuth/Drive, invitation delivery, transfer grants, and
    bounded sync work.
-3. Google resumable upload + Wishly Range gateway — file bytes without exposing Google
+3. Google resumable upload + Soty Range gateway — file bytes without exposing Google
    credentials or buffering whole files in Edge.
 4. Local Fastify agent bridge — existing tools, archive inspection, isolated landing
    preview, large download, and processing.
@@ -60,7 +60,7 @@ details?:SafeDetails } }`; the local agent retains its constitutional
   `ROOT_ESCAPE` (403).
 - Provider errors are mapped to this closed union. `invalid_grant` maps to `NEEDS_REAUTH`;
   Google 429/5xx retain retry metadata without leaking raw responses.
-- OAuth callback success/failure uses a 303 redirect to the Wishly web origin with an opaque
+- OAuth callback success/failure uses a 303 redirect to the Soty web origin with an opaque
   result code; it never renders provider content.
 
 ## Boundary rules

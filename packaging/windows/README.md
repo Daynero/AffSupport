@@ -12,7 +12,7 @@ the macOS bundle's `Contents/Resources`). An installer must produce:
 
 ```
 <installDir>/
-  WishlyAgentHost.exe          # this project (plus its .NET files unless single-file)
+  SotyAgentHost.exe          # this project (plus its .NET files unless single-file)
   release.json                 # scripts/release-meta.mjs --json output
   runtime/
     node.exe                   # portable win-x64 Node.js
@@ -43,7 +43,7 @@ relative to its own directory.
 
 ## Rendering the config
 
-`WishlyAgentHost/HostConfig.template.cs` carries the same `__TOKEN__` placeholders as
+`SotyAgentHost/HostConfig.template.cs` carries the same `__TOKEN__` placeholders as
 `Launcher.swift` and is rendered by the existing `scripts/render-launcher.mjs`
 (string replace + unresolved-placeholder check). The rendered `HostConfig.cs` is
 gitignored; the build fails with a clear error if it is missing.
@@ -52,12 +52,12 @@ From the repository root:
 
 ```sh
 node scripts/render-launcher.mjs \
-  packaging/windows/WishlyAgentHost/HostConfig.template.cs \
-  packaging/windows/WishlyAgentHost/HostConfig.cs \
+  packaging/windows/SotyAgentHost/HostConfig.template.cs \
+  packaging/windows/SotyAgentHost/HostConfig.cs \
   "AGENT_PORT=43120" \
   "APP_NAME=Soty" \
   "INSTANCE_LOCK_NAME=local-video-compressor-agent.lock" \
-  "SUPPORT_DIRECTORY_NAME=Wishly" \
+  "SUPPORT_DIRECTORY_NAME=Soty" \
   "PUBLIC_SITE_ORIGIN=$PUBLIC_SITE_ORIGIN" \
   "APP_VERSION=$(node scripts/release-meta.mjs product-version)" \
   "BUILD_NUMBER=$(node scripts/release-meta.mjs build-number)" \
@@ -81,13 +81,13 @@ Compiles on any OS thanks to `<EnableWindowsTargeting>true</EnableWindowsTargeti
 
 ```sh
 # Debug/CI compile check (works on macOS/Linux):
-dotnet build packaging/windows/WishlyAgentHost -c Release
+dotnet build packaging/windows/SotyAgentHost -c Release
 
 # Framework-dependent publish (requires .NET 8 Desktop Runtime on the target machine):
-dotnet publish packaging/windows/WishlyAgentHost -c Release -r win-x64 --self-contained false
+dotnet publish packaging/windows/SotyAgentHost -c Release -r win-x64 --self-contained false
 
 # Self-contained single file (no runtime prerequisite, ~150 MB):
-dotnet publish packaging/windows/WishlyAgentHost -c Release -r win-x64 \
+dotnet publish packaging/windows/SotyAgentHost -c Release -r win-x64 \
   --self-contained true /p:PublishSingleFile=true
 ```
 
@@ -110,20 +110,20 @@ dotnet publish packaging/windows/WishlyAgentHost -c Release -r win-x64 \
   Windows counterpart; the installer controls the location. Not ported.
 - **Finder integration.** The Finder Sync extension, the image-conversion service
   provider, and the `/native/media-actions` polling (authenticated with
-  `X-Wishly-Native-Token`) are macOS-only. A Windows counterpart would be an Explorer
+  `X-Soty-Native-Token`) are macOS-only. A Windows counterpart would be an Explorer
   shell extension; consciously out of scope for this host. The host still generates
   `AGENT_NATIVE_TOKEN` (two concatenated uppercase UUIDv4 strings from a CSPRNG, same
   shape and entropy as the Swift launcher) because the agent requires it at startup.
 - **Sibling termination.** When a stale different-build host holds the lock, macOS asks
-  the other bundle instances to terminate; Windows kills sibling `WishlyAgentHost.exe`
+  the other bundle instances to terminate; Windows kills sibling `SotyAgentHost.exe`
   processes started from the same path, then enters the same 12-second handoff loop.
 
 ## Not done yet — checklist for the first run on a Windows machine
 
-- [ ] Produce `WishlyAgentHost.ico` from `assets/AppIcon.png`, reference it via
+- [ ] Produce `SotyAgentHost.ico` from `assets/AppIcon.png`, reference it via
       `<ApplicationIcon>` in the .csproj, and load it for the `NotifyIcon`
       (currently `SystemIcons.Application`).
-- [ ] Authenticode signing of `WishlyAgentHost.exe`, `node.exe`, `ffmpeg.exe`,
+- [ ] Authenticode signing of `SotyAgentHost.exe`, `node.exe`, `ffmpeg.exe`,
       `ffprobe.exe`, `whisper-cli.exe` (SmartScreen will flag unsigned binaries).
 - [ ] An installer (MSIX/Inno/WiX) that produces the layout above, stops the host
       before upgrading, and starts it afterwards; decide on an autostart Run key.

@@ -86,11 +86,11 @@ https://soty.pp.ua/auth/callback
 
 4. Не використовуйте широкий wildcard для production, якщо він не потрібен. Preview-домен додавайте окремим точним callback URL.
 
-Site URL — fallback Supabase. Код Wishly завжди передає конкретний `<VITE_SITE_URL>/auth/callback` і приймає return path лише з внутрішнього allowlist.
+Site URL — fallback Supabase. Код Soty завжди передає конкретний `<VITE_SITE_URL>/auth/callback` і приймає return path лише з внутрішнього allowlist.
 
 ## 4. Створіть Google OAuth client
 
-1. Відкрийте [Google Cloud Console](https://console.cloud.google.com/) і створіть або виберіть project для Wishly.
+1. Відкрийте [Google Cloud Console](https://console.cloud.google.com/) і створіть або виберіть project для Soty.
 2. Відкрийте **Google Auth Platform → Branding**.
 3. Вкажіть назву **Soty**, support email і developer contact email. Назва, логотип і посилання мають точно збігатися з публічною homepage `https://soty.pp.ua`.
 4. Для production додайте:
@@ -101,7 +101,7 @@ Site URL — fallback Supabase. Код Wishly завжди передає кон
 6. Відкрийте **Audience**:
    - для звичайних Google-акаунтів виберіть **External**;
    - під час тестування залиште статус **Testing** і додайте email тестувальників у **Test users**;
-   - якщо проєкт належить Google Workspace і Wishly потрібен лише всередині організації, можна вибрати **Internal**.
+   - якщо проєкт належить Google Workspace і Soty потрібен лише всередині організації, можна вибрати **Internal**.
      У режимі Testing увійти можуть лише додані test users (до 100). Google показує їм тестове попередження, а дозвіл може закінчуватися через 7 днів, тому повторний consent під час тестування є нормальним.
 7. Відкрийте **Data Access** і залиште тільки базові scopes:
    - `openid`;
@@ -123,7 +123,7 @@ https://soty.pp.ua
 https://PROJECT_REF.supabase.co/auth/v1/callback
 ```
 
-13. Поверніться в Google client і вставте цю адресу в **Authorized redirect URIs**. Не вставляйте сюди `/auth/callback` Wishly: Google спочатку повертає користувача в Supabase.
+13. Поверніться в Google client і вставте цю адресу в **Authorized redirect URIs**. Не вставляйте сюди `/auth/callback` Soty: Google спочатку повертає користувача в Supabase.
 14. Створіть client і одразу скопіюйте **Client ID** та **Client Secret**. Google може показати secret лише один раз.
 
 Для публічної Google Branding verification використовуйте власний підтверджений домен `soty.pp.ua` і актуальні адреси з checklist у `PRODUCTION.md`. Повний порядок подання й окремі вимоги для ще неактивного Google Drive описані в `docs/GOOGLE_OAUTH_VERIFICATION.md`.
@@ -140,7 +140,7 @@ https://PROJECT_REF.supabase.co/auth/v1/callback
 
 Client Secret залишається в Supabase. Не копіюйте його в `.env`, frontend, Cloudflare Pages або репозиторій.
 
-## 6. Запустіть Wishly і перевірте перший вхід
+## 6. Запустіть Soty і перевірте перший вхід
 
 ```bash
 npm install
@@ -149,7 +149,7 @@ npm run dev
 
 1. Відкрийте `http://127.0.0.1:5173`.
 2. Натисніть **Продовжити з Google**.
-3. Після входу має відкритися Wishly, а не залишитися `/auth/callback`.
+3. Після входу має відкритися Soty, а не залишитися `/auth/callback`.
 4. Оновіть сторінку: сесія має зберегтися.
 5. Відкрийте напряму `http://127.0.0.1:5173/compressor`: маршрут має працювати.
 6. У Supabase відкрийте **Authentication → Users** — там зʼявиться користувач.
@@ -162,7 +162,7 @@ npm run dev
 
 Email або `VITE_ADMIN_EMAIL` не надає адмін-доступ. Потрібен UUID із Supabase:
 
-1. Спочатку увійдіть у Wishly через Google.
+1. Спочатку увійдіть у Soty через Google.
 2. У Supabase відкрийте **Authentication → Users**.
 3. Відкрийте свій рядок і скопіюйте **User UID**.
 4. Відкрийте **SQL Editor → New query**.
@@ -174,7 +174,7 @@ values ('PASTE-YOUR-USER-UUID-HERE')
 on conflict (user_id) do nothing;
 ```
 
-6. Виконайте query, перезавантажте Wishly і відкрийте `/admin`.
+6. Виконайте query, перезавантажте Soty і відкрийте `/admin`.
 
 Звичайні користувачі не можуть читати `admin_users`, додавати себе або викликати admin aggregates: це перевіряється RLS і database functions.
 
@@ -183,7 +183,7 @@ on conflict (user_id) do nothing;
 До deployment функції кнопка видалення навмисно вимкнена.
 
 ```bash
-npx supabase secrets set WISHLY_SITE_URL=https://soty.pp.ua --project-ref YOUR_PROJECT_REF
+npx supabase secrets set SOTY_SITE_URL=https://soty.pp.ua --project-ref YOUR_PROJECT_REF
 npx supabase functions deploy delete-account --project-ref YOUR_PROJECT_REF --use-api
 ```
 
@@ -197,9 +197,9 @@ Supabase автоматично надає функції її server-side proje
    - current user зник з **Authentication → Users**;
    - його profile видалено каскадно;
    - його analytics events стали анонімними (`user_id = null`);
-   - Wishly повернувся на `/login`.
+   - Soty повернувся на `/login`.
 
-Функція приймає поточний Supabase JWT, перевіряє його на сервері й видаляє тільки цього користувача. JWT не передається Wishly Agent і не логуються.
+Функція приймає поточний Supabase JWT, перевіряє його на сервері й видаляє тільки цього користувача. JWT не передається Soty Agent і не логуються.
 
 ## 9. Production variables
 
@@ -243,7 +243,7 @@ npx supabase stop
 
 Тести лежать у `supabase/tests/database/rls.test.sql`. Вони перевіряють ізоляцію профілів, заборону зміни plan/status, ownership analytics, admin membership і доступ до aggregates.
 
-## 11. Що Wishly навмисно не робить
+## 11. Що Soty навмисно не робить
 
 - не має власних паролів;
 - не зберігає Google access/refresh tokens;

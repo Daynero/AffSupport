@@ -1,4 +1,4 @@
-# Quickstart & Validation: Командний медіапростір Wishly
+# Quickstart & Validation: Командний медіапростір Soty
 
 Runnable validation guide for the design in [data-model.md](./data-model.md) and
 [contracts/](./contracts/). It intentionally contains no implementation bodies, migrations
@@ -24,7 +24,7 @@ or complete test suites.
 For local Edge functions, create a git-ignored `supabase/functions/.env.local` containing
 test-only `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `RESEND_API_KEY`,
 `INVITE_EMAIL_FROM`, `CATALOG_SYNC_SECRET`, `DRIVE_OAUTH_MODE=testing`, and existing
-Wishly/Supabase values. The tracked `.env.example` uses `DRIVE_OAUTH_MODE=disabled`; only a
+Soty/Supabase values. The tracked `.env.example` uses `DRIVE_OAUTH_MODE=disabled`; only a
 verified production deployment may set `verified`. Dynamic
 refresh tokens are created in local Vault; there is no `DRIVE_TOKEN_KEY` or per-team env
 secret.
@@ -32,7 +32,7 @@ secret.
 If the Resend sending domain is temporarily unavailable, set
 `TEAM_DIRECT_ADD_MODE=testing` in the Edge environment and
 `VITE_TEAM_DIRECT_ADD_MODE=testing` in the matching web build. In this labelled pilot mode,
-the member form accepts only an existing active Wishly account's exact confirmed email and
+the member form accepts only an existing active Soty account's exact confirmed email and
 adds it immediately; an unknown/unconfirmed account returns `NOT_FOUND`. Both settings
 default to `disabled` and must be disabled when normal invitation delivery is restored.
 The provider-readiness endpoint may report `ready=true` for this usable pilot path while
@@ -140,7 +140,7 @@ acceptance.
 
 1. Test the entire `DRIVE_OAUTH_MODE × environment` matrix: disabled rejects both; testing
    allows only local/isolated dev; verified allows both. Missing/invalid parses disabled.
-   A production `WISHLY_SITE_URL`, request origin, or transaction origin overrides a falsely
+   A production `SOTY_SITE_URL`, request origin, or transaction origin overrides a falsely
    labelled environment and rejects testing with `OAUTH_APPROVAL_REQUIRED`.
 2. Confirm every gate rejection is 503 structured JSON (or fixed callback 303), creates no
    OAuth transaction/provider request/Vault secret/connection mutation, and preserves
@@ -157,7 +157,7 @@ acceptance.
    silently nulling, the Vault secret.
 8. Try root itself and an inside shortcut targeting an outside file: move/trash/dereference
    are refused with `ROOT_ESCAPE`/`UNSUPPORTED_MEDIA`.
-9. Use a target whose per-file `canTrash=false`: Wishly refuses even if connection snapshot
+9. Use a target whose per-file `canTrash=false`: Soty refuses even if connection snapshot
    previously showed write capability.
 
 **Pass**: every side effect proves live source/destination ancestry and item capabilities;
@@ -204,7 +204,7 @@ participants open the exact target within 30 s.
 3. Archive returns entry list only; zip-slip, zip bomb, corrupt/password/limit cases return
    typed unavailable states and leave no extracted Drive/local residue.
 4. Landing internal links navigate inside a sandboxed dedicated origin. Test scripts/forms/
-   popups/top navigation/network calls and attempts to reach Wishly/session/local APIs: all
+   popups/top navigation/network calls and attempts to reach Soty/session/local APIs: all
    blocked. Screenshot fallback remains usable.
 
 **Pass**: ≥95/100 attempts reach the useful milestone in 3 s; every remainder shows explicit
@@ -413,11 +413,11 @@ VITE_SITE_URL=https://soty.pp.ua \
   labelled `verified` and no production Drive operation was attempted.
 - The first branding verification run reported four concrete issues: the live home page
   resolves to sign-in, the public purpose was not visible there, the page name could not be
-  matched to `Wishly`, and the uploaded PNG had incorrect padding. The PNG was regenerated
-  from the canonical Wishly SVG and saved in Google. A public bilingual Wishly home page with
+  matched to `Soty`, and the uploaded PNG had incorrect padding. The PNG was regenerated
+  from the canonical Soty SVG and saved in Google. A public bilingual Soty home page with
   purpose, Google Drive use, privacy and legal links is implemented and validated locally.
   Commit `44d7458` is pushed and deployed to the isolated Cloudflare preview alias
-  `https://oauth-review.wishly-app.pages.dev`, and that alias is saved as the OAuth home page
+  `https://oauth-review.soty-app.pages.dev`, and that alias is saved as the OAuth home page
   without bypassing the production provider gate. A second branding verification was
   submitted, but Google still reported that the branding was not being shown. Cloudflare's
   preview-only `noindex` response was then explicitly overridden for `/`; deployment
@@ -475,7 +475,7 @@ those samples.
   only after the server secret, migration, functions, web build, and live endpoint are
   actually verified.
 - With explicit owner authorization, `TEAM_DIRECT_ADD_MODE=testing` was set in the Supabase
-  secret store, migration `20260802100000` was applied to the linked Wishly project, and
+  secret store, migration `20260802100000` was applied to the linked Soty project, and
   `team-invitations` v7 plus `drive-connect` v8 were deployed active with JWT verification.
   `npm run verify:team-member-pilot` then passed against the live production-origin readiness
   endpoint while the strict full-provider check continued to report the truthful
@@ -484,7 +484,7 @@ those samples.
   `npm run deploy:web:member-pilot` gate passed release compatibility and published Cloudflare
   Pages production deployment `1b0effc2-0753-4b36-b030-6150d5089fc7` from source `0382cf7`.
   The canonical site serves the new `index-CsEB5el0.js` and
-  `ProtectedWishly-HBYoCI26.js` bundles; live bundle inspection found the labelled registered-
+  `ProtectedSoty-HBYoCI26.js` bundles; live bundle inspection found the labelled registered-
   email copy and `direct-add` action. An unauthenticated direct-add request returned structured
   `AUTH_REQUIRED` HTTP 401, and the remote migration list contains `20260802100000` on both
   sides. No synthetic production user, team, membership, Drive object, Agent release, or tag
@@ -495,14 +495,14 @@ those samples.
 - NIC.UA delegates `soty.pp.ua` to `cecelia.ns.cloudflare.com` and
   `duke.ns.cloudflare.com`; the Cloudflare zone is active. The 37 imported registrar parking
   records were permanently removed and the required records were recreated: a proxied apex
-  CNAME targets `wishly-app.pages.dev`, the Search Console ownership TXT remains in place, and
+  CNAME targets `soty-app.pages.dev`, the Search Console ownership TXT remains in place, and
   the Resend sender records described below are authoritative. Cloudflare Pages reports the
   `soty.pp.ua` custom domain active. Public DNS resolves through Cloudflare, and HTTPS checks
-  plus a signed-out browser pass returned the public bilingual Wishly home page, privacy page,
+  plus a signed-out browser pass returned the public bilingual Soty home page, privacy page,
   and terms page with HTTP 200.
 - Search Console verified the `soty.pp.ua` domain property. Google OAuth branding now uses
   `https://soty.pp.ua`, `/privacy`, and `/terms`; `soty.pp.ua` is an authorized domain and the
-  Wishly web client accepts `https://soty.pp.ua` as its production JavaScript origin. The
+  Soty web client accepts `https://soty.pp.ua` as its production JavaScript origin. The
   Supabase callback URIs remain registered. A fresh branding re-verification was requested
   after the canonical domain became owned and public; the ownership finding disappeared, while
   Google still displays three findings from the previous verification attempt and has not yet
@@ -511,13 +511,13 @@ those samples.
   approval is claimed.
 - Supabase Auth now has `https://soty.pp.ua` as its site URL and allows the new production auth
   callback, with the Pages callback retained temporarily for rollback. The Edge secret
-  `WISHLY_SITE_URL` uses the canonical origin. All eight Team Workspace functions are active;
+  `SOTY_SITE_URL` uses the canonical origin. All eight Team Workspace functions are active;
   after the sender update, `team-invitations` is v11 and `drive-connect` is v12. A production
   origin preflight to `drive-ops` returns 204 with the new origin, while the old Pages origin
   and an unrelated origin return 403.
 - Resend domain `mail.soty.pp.ua` is verified for sending in `eu-west-1`: DKIM, the custom MAIL
   FROM MX record, and SPF all report `Verified`. `INVITE_EMAIL_FROM` is configured as
-  `Wishly <noreply@mail.soty.pp.ua>`, and the readiness endpoint now reports
+  `Soty <noreply@mail.soty.pp.ua>`, and the readiness endpoint now reports
   `invitationEmail=true`, `directMemberAdd=true`, and `catalogWorker=true`. The member-pilot
   gate passes. The strict full-provider gate now fails only with
   `mode=disabled, unavailable=googleDrive`, matching the pending Google approval rather than a

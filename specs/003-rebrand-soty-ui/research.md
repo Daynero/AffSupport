@@ -52,7 +52,7 @@ decoration) доповнює, але не замінює screen coverage. Market
 installer/release assets, email/store/external integrations отримують explicit exclusion
 records згідно зі scope специфікації.
 
-**Rationale**: Інвентар звіряється з `Root.tsx`, `ProtectedWishly.tsx`,
+**Rationale**: Інвентар звіряється з `Root.tsx`, `ProtectedSoty.tsx`,
 `tool-registry.ts` та деревом team components. Кожна нова production surface до approval
 ламає completeness check, доки її не класифіковано.
 
@@ -66,7 +66,7 @@ marketing/legal/admin (поза визначеним first-stage scope).
 elevation, motion і outcome colors позначаються як review proposals, бо JSON їх нормативно
 не визначає.
 
-**Rationale**: Ручне копіювання створює drift, а заміна чинних `--color-*` змінює Wishly.
+**Rationale**: Ручне копіювання створює drift, а заміна чинних `--color-*` змінює Soty.
 Generated output можна перевірити на stale content, unresolved/cyclic aliases і literals.
 
 **Alternatives considered**: reuse/replace `apps/web/src/styles.css`; ручні duplicate
@@ -94,7 +94,7 @@ axe; використовувати color alone для status/disabled.
 Reduced-motion rule прибирає декоративні loops/transitions і залишає текстовий стан.
 Layout reflows до 320 CSS px; decoration зникає раніше за зміст.
 
-**Rationale**: Production theme використовує global DOM/storage/event і Wishly meta
+**Rationale**: Production theme використовує global DOM/storage/event і Soty meta
 colors; reuse порушив би ізоляцію. Viewport emulation не дорівнює 200% browser zoom, тому
 потрібна і automated reflow matrix, і ручна zoom-перевірка.
 
@@ -105,7 +105,7 @@ screenshot; animation як єдина ознака progress.
 
 **Decision**: Playwright дозволяє лише review origin/static/HMR, клікає щонайменше 50
 `data-demo-action` controls і fail-ить на зовнішньому/API/analytics/agent request. Окремі
-checks сканують imports, browser globals, Soty/Wishly brand text і production build output.
+checks сканують imports, browser globals, Soty/Soty brand text і production build output.
 Screenshot matrix та axe є review evidence, але письмовий owner approval є єдиним SC-010
 gate.
 
@@ -115,4 +115,3 @@ gate.
 
 **Alternatives considered**: ручний network inspection; snapshot approval як product
 approval; автоматичне включення preview tests у production deploy.
-

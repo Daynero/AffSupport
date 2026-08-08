@@ -1,13 +1,13 @@
 # Contract: Google Drive Connection, Transfer & File Operations
 
-Covers FR-018…FR-031. A Wishly permission is necessary but not sufficient: every external
+Covers FR-018…FR-031. A Soty permission is necessary but not sufficient: every external
 action also re-fetches current Drive ancestry and per-item capabilities. All Shared Drive
 calls use `supportsAllDrives=true`; lists/changes add the corresponding all-drives flags.
 
 ## OAuth and root lifecycle
 
 `DRIVE_OAUTH_MODE` is server-only and parsed as `disabled|testing|verified`; missing/unknown
-is `disabled`. Production is true if normalized `WISHLY_SITE_URL`, the request/OAuth
+is `disabled`. Production is true if normalized `SOTY_SITE_URL`, the request/OAuth
 transaction origin, or canonical `PRODUCTION_SITE_ORIGIN` from shared release contract is
 production—any signal wins.
 
@@ -39,7 +39,7 @@ catalog state is preserved and the connection is explicitly unavailable, never d
 - Public callback (`verify_jwt=false`); browser `Origin`/Supabase JWT is not expected.
 - Atomically consumes unexpired state, exchanges code with PKCE, verifies Google principal,
   stores/updates refresh token in Vault, deletes transient verifier, and redirects 303 to a
-  fixed Wishly route with an opaque result code.
+  fixed Soty route with an opaque result code.
 - A response omitting a refresh token never overwrites an existing valid one. `invalid_grant`
   transitions related connections to `needs_reauth`.
 - State replay/expiry/actor-team swap changes nothing.
@@ -88,7 +88,7 @@ catalog parents/capabilities never satisfy this guard.
 
 Permission → required Drive capability:
 
-| Wishly action | Wishly flag       | Current Drive check                                        |
+| Soty action   | Soty flag         | Current Drive check                                        |
 | ------------- | ----------------- | ---------------------------------------------------------- |
 | preview       | `view`            | readable blob/metadata; scoped inline representation       |
 | full download | `download`        | `canDownload`                                              |
@@ -104,7 +104,7 @@ Permission → required Drive capability:
 ## Catalog-backed list and metadata
 
 Folder list/search uses Postgres catalog RPC, not live recursive Drive listing. A direct
-Wishly file operation writes its verified result immediately; scheduled sync reconciles
+Soty file operation writes its verified result immediately; scheduled sync reconciles
 external Drive changes. Team-only GEO/language/offer/tag writes use
 `update_material_metadata()` from `db-functions.md` and never invoke Drive.
 
@@ -183,7 +183,7 @@ Body: `{ teamId, materialId, destinationFolderId, conflictMode, idempotencyKey }
   longer allowed, owner chooses a valid root destination.
 - Catalog row becomes/restores from tombstone. UI states that Google normally purges trash
   after its current retention window (30 days) and a direct Drive user can purge sooner;
-  Wishly never guarantees recovery.
+  Soty never guarantees recovery.
 
 ## Download and preview transfer
 

@@ -1,6 +1,6 @@
 # Windows port — status and first-build guide
 
-This document tracks the Windows x64 port of Wishly Agent: what is already
+This document tracks the Windows x64 port of Soty Agent: what is already
 portable in the codebase, what can only be finished on a real Windows machine,
 and the step-by-step packaging pipeline.
 
@@ -39,7 +39,7 @@ and the step-by-step packaging pipeline.
   its complete license file, and an exact `browser-runtime.json` executable
   descriptor used by Landing Preview.
 - **Installer template** — `packaging/windows-installer.iss` (Inno Setup):
-  installs to `{autopf}\Wishly`, HKCU Run-key autostart of the tray host,
+  installs to `{autopf}\Soty`, HKCU Run-key autostart of the tray host,
   post-install launch, uninstall stops the host, version/AppId rendered by
   `scripts/render-launcher.mjs`.
 
@@ -50,7 +50,7 @@ and the step-by-step packaging pipeline.
    arguments and output parsing; PowerShell does not run on macOS. Verify:
    multi-select, unicode paths, Cancel returning no output/exit 0, and that
    the dialog appears in the foreground.
-3. **Tray host** — build/publish `WishlyAgentHost` (`packaging/windows/`,
+3. **Tray host** — build/publish `SotyAgentHost` (`packaging/windows/`,
    `dotnet publish`), verify it supervises `runtime\node.exe agent\dist\…`
    and stops it on exit.
 4. **Compile + sign the installer** (Inno Setup `iscc`, Authenticode
@@ -112,18 +112,18 @@ Inno Setup 6 (`iscc` on PATH) and `signtool` (Windows SDK):
    ```
 2. **Stage the runtime payload** (set the env vars from the table above):
    ```
-   set NODE_BINARY_WIN=C:\wishly-deps\node.exe
-   set FFMPEG_BINARY_WIN=C:\wishly-deps\ffmpeg.exe
-   set FFPROBE_BINARY_WIN=C:\wishly-deps\ffprobe.exe
-   set WHISPER_BINARY_WIN=C:\wishly-deps\whisper-cli.exe
-   set WHISPER_VAD_MODEL=C:\wishly-deps\ggml-silero-v5.1.2.bin
+   set NODE_BINARY_WIN=C:\soty-deps\node.exe
+   set FFMPEG_BINARY_WIN=C:\soty-deps\ffmpeg.exe
+   set FFPROBE_BINARY_WIN=C:\soty-deps\ffprobe.exe
+   set WHISPER_BINARY_WIN=C:\soty-deps\whisper-cli.exe
+   set WHISPER_VAD_MODEL=C:\soty-deps\ggml-silero-v5.1.2.bin
    node scripts\stage-windows-runtime.mjs
    ```
    (Use `--dry-run` anywhere, including macOS, to preview the plan.)
 3. **Publish the tray host** (project maintained in `packaging/windows/`):
    ```
-   dotnet publish packaging\windows\WishlyAgentHost -c Release -r win-x64 -o release\windows\host
-   signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /a release\windows\host\WishlyAgentHost.exe
+   dotnet publish packaging\windows\SotyAgentHost -c Release -r win-x64 -o release\windows\host
+   signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /a release\windows\host\SotyAgentHost.exe
    ```
 4. **Render the installer script** (same replacer as the mac launcher):
    ```
@@ -134,21 +134,21 @@ Inno Setup 6 (`iscc` on PATH) and `signtool` (Windows SDK):
    ```
    iscc /DStageDir=%CD%\release\windows\stage /DHostDir=%CD%\release\windows\host release\windows\installer.generated.iss
    ```
-   Output: `Output\Wishly-Agent-v<ver>-Windows-x64.exe` (matches
+   Output: `Output\Soty-Agent-v<ver>-Windows-x64.exe` (matches
    `RELEASE_ARTIFACT_NAME_WINDOWS`).
 6. **Sign the installer**:
    ```
-   signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /a Output\Wishly-Agent-v<ver>-Windows-x64.exe
+   signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /a Output\Soty-Agent-v<ver>-Windows-x64.exe
    ```
-7. **Checksum**: `certutil -hashfile Output\Wishly-Agent-v<ver>-Windows-x64.exe SHA256`
+7. **Checksum**: `certutil -hashfile Output\Soty-Agent-v<ver>-Windows-x64.exe SHA256`
 8. **Publish**: upload the exe as a release asset on the same immutable
    `v<ver>` tag as the DMG, then add to
-   `apps/web/public/.well-known/wishly/stable.json`:
+   `apps/web/public/.well-known/soty/stable.json`:
    ```json
    "artifacts": {
      "macos-arm64": { … },
      "windows-x64": {
-       "url": "https://github.com/Daynero/AffSupport/releases/download/v<ver>/Wishly-Agent-v<ver>-Windows-x64.exe",
+       "url": "https://github.com/Daynero/AffSupport/releases/download/v<ver>/Soty-Agent-v<ver>-Windows-x64.exe",
        "sha256": null
      }
    }

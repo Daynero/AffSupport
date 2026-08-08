@@ -1,7 +1,7 @@
 # Contract: Catalog, Metadata, Search & Synchronization
 
 Covers FR-024 and FR-032…FR-037. Postgres is the searchable catalog; Drive is reconciled
-asynchronously but every Wishly-originated write updates the catalog immediately after live
+asynchronously but every Soty-originated write updates the catalog immediately after live
 Drive verification.
 
 ## Catalog/search RPC
@@ -100,7 +100,7 @@ root loss removes the body from active search while preserving safe state/proven
 
 - Confirm/replace root enqueues `initial_scan` after first capturing a Drive start page token.
 - One Supabase Cron job (for example every minute) invokes `catalog-sync` with a named secret.
-- Wishly Drive mutations enqueue targeted reconciliation on uncertain finalize.
+- Soty Drive mutations enqueue targeted reconciliation on uncertain finalize.
 - Periodic `reconcile` jobs protect against missed/ambiguous change events.
 
 ### Worker contract

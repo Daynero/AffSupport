@@ -10,7 +10,7 @@ discriminated results, consistent with Principle I.
 
 The single persisted client value. Replaces the passive auto-select.
 
-- **Storage**: `localStorage['wishly.active-team.v1']` (existing key, re-purposed).
+- **Storage**: `localStorage['soty.active-team.v1']` (existing key, re-purposed).
 - **Shape**: `string | null` — a team UUID or "no space entered".
 - **Validation**: on read, must match the existing UUID regex; anything else → `null`.
 - **Derived**: `enteredSpace = teams.find(t => t.id === activeTeamId) ?? null`. Note the
@@ -25,11 +25,11 @@ The single persisted client value. Replaces the passive auto-select.
 
 One card per team the user belongs to, derived from `TeamContextSnapshot`.
 
-| Field | Source | Notes |
-| --- | --- | --- |
-| `id` | `snapshot.id` | team UUID |
-| `name` | `snapshot.name` | shown on the card |
-| `role` | `snapshot.role` | owner/admin/editor/viewer |
+| Field       | Source                                  | Notes                                        |
+| ----------- | --------------------------------------- | -------------------------------------------- |
+| `id`        | `snapshot.id`                           | team UUID                                    |
+| `name`      | `snapshot.name`                         | shown on the card                            |
+| `role`      | `snapshot.role`                         | owner/admin/editor/viewer                    |
 | `readiness` | derived from `snapshot.connectionState` | `ready` \| `setup_incomplete` \| `preparing` |
 
 - **Readiness derivation**:

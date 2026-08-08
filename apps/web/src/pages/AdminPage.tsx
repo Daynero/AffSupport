@@ -167,7 +167,7 @@ export default function AdminPage() {
   const pageSize = 20;
 
   useEffect(() => {
-    document.title = `${t('adminTitle')} — Wishly`;
+    document.title = `${t('adminTitle')} — Soty`;
   }, [t]);
 
   const dates = useMemo(() => {

@@ -14,12 +14,12 @@ import LandingOptimizerPage from '../landing/LandingOptimizerPage';
 import LandingPreviewPage from '../landing-preview/LandingPreviewPage';
 import TranscriptionPage from '../transcription/TranscriptionPage';
 
-// The single source of truth for the Wishly web tools. Adding a tool here
-// registers its route (ProtectedWishly), its home-page tile (HomePage) and its
+// The single source of truth for the Soty web tools. Adding a tool here
+// registers its route (ProtectedSoty), its home-page tile (HomePage) and its
 // path classification (routeKind) in one step.
 //
 // Pages are imported statically on purpose: this module is only reachable
-// through the lazily loaded ProtectedWishly chunk, so every page stays in that
+// through the lazily loaded ProtectedSoty chunk, so every page stays in that
 // one chunk — exactly as before the registry existed. Importing this module
 // from eagerly loaded code (Root, main) would pull all tool pages into the
 // entry bundle; keep such code off the registry.
@@ -27,7 +27,7 @@ import TranscriptionPage from '../transcription/TranscriptionPage';
 export type WebToolStatus = 'available' | 'coming-soon' | 'in-development';
 
 export type WebTool = {
-  /** Canonical id, aligned with the WishlyToolId agent contract. */
+  /** Canonical id, aligned with the SotyToolId agent contract. */
   id: WishlyToolId;
   /** Kebab-case identifier used by analytics events and route classification. */
   analyticsId: AnalyticsTool;
@@ -44,7 +44,7 @@ export type WebTool = {
    * and a connected agent without the capability redirects home.
    */
   capability: string | null;
-  /** Rendered synchronously inside the ProtectedWishly chunk. */
+  /** Rendered synchronously inside the ProtectedSoty chunk. */
   page: ComponentType;
 };
 

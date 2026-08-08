@@ -15,7 +15,7 @@ afterEach(() => {
 });
 
 describe('temporary registered-member direct add', () => {
-  it('adds an existing Wishly account immediately without creating an invitation', async () => {
+  it('adds an existing Soty account immediately without creating an invitation', async () => {
     const onChanged = vi.fn();
     const directAddMember = vi.fn().mockResolvedValue({
       membershipId: '31000000-0000-4000-8000-000000000001',
@@ -46,7 +46,7 @@ describe('temporary registered-member direct add', () => {
     );
 
     expect(screen.getByText(/test mode/i)).toBeTruthy();
-    await user.type(screen.getByLabelText('Registered Wishly email'), ' MEMBER@EXAMPLE.TEST ');
+    await user.type(screen.getByLabelText('Registered Soty email'), ' MEMBER@EXAMPLE.TEST ');
     await user.selectOptions(screen.getByLabelText('Initial role'), 'editor');
     await user.click(screen.getByRole('button', { name: 'Add member' }));
 
@@ -62,7 +62,7 @@ describe('temporary registered-member direct add', () => {
     expect(onChanged).toHaveBeenCalledTimes(1);
   });
 
-  it('shows that no registered Wishly account exists for an unknown email', async () => {
+  it('shows that no registered Soty account exists for an unknown email', async () => {
     const user = userEvent.setup();
     render(
       <InvitationPanel
@@ -77,11 +77,11 @@ describe('temporary registered-member direct add', () => {
       />
     );
 
-    await user.type(screen.getByLabelText('Registered Wishly email'), 'missing@example.test');
+    await user.type(screen.getByLabelText('Registered Soty email'), 'missing@example.test');
     await user.click(screen.getByRole('button', { name: 'Add member' }));
 
     expect(
-      await screen.findByText('No registered Wishly user was found for this email.')
+      await screen.findByText('No registered Soty user was found for this email.')
     ).toBeTruthy();
   });
 });

@@ -35,10 +35,9 @@ inventory is absent or when a canonical state has neither decision.
 Before each iteration, compare catalog with:
 
 - `apps/web/src/Root.tsx`
-- `apps/web/src/ProtectedWishly.tsx`
+- `apps/web/src/ProtectedSoty.tsx`
 - `apps/web/src/lib/tool-registry.ts`
 - `apps/web/src/team/**`
 
 New in-scope production UI makes the review incomplete until catalogued. Marketing, legal,
 admin-only and release/external surfaces remain explicit exclusions unless scope changes.
-

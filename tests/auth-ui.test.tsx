@@ -99,7 +99,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('Wishly login and OAuth callback', () => {
+describe('Soty login and OAuth callback', () => {
   it('renders the localized login page and starts Google OAuth with a safe return route', async () => {
     const signInWithGoogle = vi.fn().mockResolvedValue(undefined);
     history.replaceState(null, '', '/login?returnTo=%2Fcompressor');
@@ -109,7 +109,7 @@ describe('Wishly login and OAuth callback', () => {
       </AuthContextOverride>
     );
 
-    expect(screen.getByRole('heading', { name: 'Sign in to Wishly' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Sign in to Soty' })).toBeTruthy();
     const button = screen.getByRole('button', { name: 'Continue with Google' });
     expect(button.querySelector('img')?.getAttribute('src')).toBe('/google-sign-in.svg');
     await userEvent.click(button);
@@ -138,7 +138,7 @@ describe('Wishly login and OAuth callback', () => {
       </AuthContextOverride>
     );
     await userEvent.click(screen.getByRole('button', { name: 'UA' }));
-    expect(screen.getByRole('heading', { name: 'Увійдіть у Wishly' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Увійдіть у Soty' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Продовжити з Google' })).toBeTruthy();
     expect(document.querySelector('.login-legal')?.textContent).toBe(
       'Продовжуючи, ви погоджуєтеся з Умовами використання та Політикою конфіденційності.'
@@ -200,7 +200,7 @@ describe('profile onboarding, account and blocked state', () => {
     );
     const checkbox = screen.getByRole('checkbox');
     expect((checkbox as HTMLInputElement).checked).toBe(false);
-    await userEvent.click(screen.getByRole('button', { name: 'Continue to Wishly' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Continue to Soty' }));
     expect(updateProfile).toHaveBeenCalledWith({
       language: 'en',
       marketing_consent: false,

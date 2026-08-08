@@ -6,8 +6,8 @@ import { internalLink, navigateTo } from '../lib/navigation';
 import { useI18n } from '../i18n';
 import { Card } from '../components/Card';
 import { Modal } from '../components/Modal';
-import { Button, Checkbox, WishlyLoader } from '../components/ui';
-import { WishlyLogo, WishlyMark } from '../components/WishlyLogo';
+import { Button, Checkbox, SotyLoader } from '../components/ui';
+import { SotyLogo, SotyMark } from '../components/SotyLogo';
 import { LanguageSwitch } from '../components/LanguageSwitch';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { analytics } from '../analytics/service';
@@ -17,8 +17,8 @@ export function AuthLoadingScreen({ callback = false }: { callback?: boolean }) 
   return (
     <main className="auth-state-screen" role="status" aria-live="polite">
       <div className="auth-state-brand">
-        <WishlyMark size={34} />
-        <WishlyLoader size={26} />
+        <SotyMark size={34} />
+        <SotyLoader size={26} />
       </div>
       <p>{t(callback ? 'callbackWorking' : 'authChecking')}</p>
     </main>
@@ -29,7 +29,7 @@ export function ConfigErrorScreen() {
   const { t } = useI18n();
   return (
     <main className="auth-state-screen auth-error-screen">
-      <WishlyMark size={42} />
+      <SotyMark size={42} />
       <h1>{t('authConfigTitle')}</h1>
       <p>{t('authConfigBody')}</p>
       {!publicConfig.ok && (
@@ -84,7 +84,7 @@ export function LoginPage() {
       <div className="login-accent accent-one" aria-hidden="true" />
       <div className="login-accent accent-two" aria-hidden="true" />
       <header className="login-topbar">
-        <WishlyLogo name="Soty" />
+        <SotyLogo name="Soty" />
         <div className="topbar-cluster">
           <ThemeToggle />
           <LanguageSwitch />
@@ -92,7 +92,7 @@ export function LoginPage() {
       </header>
       <Card className="login-card" aria-labelledby="login-heading">
         <span className="login-mark" aria-hidden="true">
-          <WishlyMark size={44} />
+          <SotyMark size={44} />
         </span>
         <div className="login-copy">
           <h1 id="login-heading">{t('loginHeading')}</h1>
@@ -116,7 +116,7 @@ export function LoginPage() {
           <span>{authenticating ? t('oauthLoading') : t('continueGoogle')}</span>
           {authenticating && (
             <span className="google-button-loader" aria-hidden="true">
-              <WishlyLoader size={20} />
+              <SotyLoader size={20} />
             </span>
           )}
         </button>
@@ -188,7 +188,7 @@ export function AuthRecoveryScreen() {
           : t('profileError');
   return (
     <main className="auth-state-screen auth-error-screen">
-      <WishlyMark size={42} />
+      <SotyMark size={42} />
       <h1>{message}</h1>
       <div className="inline-actions">
         {error !== 'session' && (
@@ -207,7 +207,7 @@ export function BlockedAccountScreen({ deleted = false }: { deleted?: boolean })
   const { t } = useI18n();
   return (
     <main className="auth-state-screen auth-error-screen blocked-screen">
-      <WishlyMark size={42} />
+      <SotyMark size={42} />
       <h1>{t(deleted ? 'deletedAccountTitle' : 'blockedAccountTitle')}</h1>
       <p>{t(deleted ? 'deletedAccountBody' : 'blockedAccountBody')}</p>
       <Button variant="primary" loading={status === 'signing-out'} onClick={() => void signOut()}>
@@ -248,7 +248,7 @@ export function ProfileOnboarding() {
 
   return (
     <Modal className="onboarding-modal" labelledBy={titleId} initialFocus=".button-primary">
-      <WishlyMark size={40} />
+      <SotyMark size={40} />
       <div>
         <h2 id={titleId}>{t('welcomeTitle')}</h2>
         <p>{t('welcomeBody')}</p>
@@ -284,7 +284,7 @@ export function ProfileOnboarding() {
       </div>
       {failed && <div className="inline-alert inline-alert-error">{t('profileError')}</div>}
       <Button variant="primary" loading={saving} onClick={() => void save()}>
-        {saving ? t('saving') : t('continueWishly')}
+        {saving ? t('saving') : t('continueSoty')}
       </Button>
     </Modal>
   );

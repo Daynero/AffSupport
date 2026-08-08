@@ -30,7 +30,7 @@ function releaseManifest(
     summary,
     artifacts: {
       'macos-arm64': {
-        url: `https://example.test/Wishly-Agent-v${version}.dmg`,
+        url: `https://example.test/Soty-v${version}.dmg`,
         sha256: 'a'.repeat(64)
       }
     },
@@ -85,7 +85,7 @@ describe('release update notice', () => {
     const manifest = releaseManifest();
     renderNotice(agentValue(manifest));
 
-    expect(screen.getByRole('region', { name: 'Вийшла Wishly 0.6.2' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Вийшла Soty 0.6.2' })).toBeTruthy();
     expect(screen.getByText('Додано новий інструмент транскрипції.')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Завантажити оновлення' }).getAttribute('href')).toBe(
       manifest.artifacts['macos-arm64']?.url
@@ -105,7 +105,7 @@ describe('release update notice', () => {
 
     cleanup();
     renderNotice(agentValue(releaseManifest('0.6.3', '15')));
-    expect(screen.getByRole('region', { name: 'Вийшла Wishly 0.6.3' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Вийшла Soty 0.6.3' })).toBeTruthy();
   });
 
   it('uses the generic maintenance copy when a release has no summary', () => {

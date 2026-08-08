@@ -4,7 +4,7 @@ import { landingPreviewUrl } from '../api/client';
 import { formatSize } from '../format';
 import type { Language, TranslationKey } from '../i18n';
 import { Card } from '../components/Card';
-import { Button, Collapse, ProgressBar, WishlyLoader, type Translate } from '../components/ui';
+import { Button, Collapse, ProgressBar, SotyLoader, type Translate } from '../components/ui';
 import { ImageCompareModal } from './ImageCompareModal';
 
 export function LandingJobCard({
@@ -330,7 +330,7 @@ function LandingAssetRow({
 
       <div className="landing-asset-state">
         <span className={`status-badge ${landingStatusClass(asset.status)}`}>
-          {asset.status === 'processing' && <WishlyLoader size={15} />}
+          {asset.status === 'processing' && <SotyLoader size={15} />}
           {asset.status === 'optimized' && <CheckIcon />}
           {t(landingStatusKey(asset.status))}
         </span>
@@ -459,7 +459,7 @@ function LandingBatchStatus({
             : 'status-processing';
   return (
     <span className={`status-badge ${statusClass}`}>
-      {running && <WishlyLoader size={15} />}
+      {running && <SotyLoader size={15} />}
       {job.status === 'completed' && <CheckIcon />}
       {label}
     </span>

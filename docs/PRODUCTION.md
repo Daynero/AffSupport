@@ -20,7 +20,7 @@
 
 ## Production build environment
 
-Project: `wishly-app`. Canonical production origin: `https://soty.pp.ua`.
+Project: `soty-app`. Canonical production origin: `https://soty.pp.ua`.
 
 Додайте у production build environment:
 
@@ -95,7 +95,7 @@ Preview повинен мати власний стабільний origin:
 3. `VITE_SITE_URL` на хостингу;
 4. Supabase Site URL і точний redirect URL;
 5. Google origin, Branding links та, за потреби, verified domain;
-6. `WISHLY_SITE_URL` secret Edge Function;
+6. `SOTY_SITE_URL` secret Edge Function;
 7. Cloudflare custom domain.
 
 Потім запустіть `npm run release:check`.

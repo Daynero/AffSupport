@@ -136,7 +136,7 @@ export default function LocalAppDialog({
         <div className="inline-actions">
           {connection === 'pairing_required' && (
             <a className="button button-secondary" href={`${agentUrl}/local`}>
-              {t('openWishly')}
+              {t('openSoty')}
             </a>
           )}
           {!updatePending && <Button onClick={reconnect}>{t('checkAgain')}</Button>}

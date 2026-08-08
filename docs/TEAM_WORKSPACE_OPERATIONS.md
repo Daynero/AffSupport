@@ -15,7 +15,7 @@ moving, restoring, or replacing provider files.
 | `verified`                   | Allowed                                               | Allowed after the normal identity/permission checks |
 
 The canonical production signal is `PRODUCTION_SITE_ORIGIN` from
-`packages/shared/src/release.ts`. `WISHLY_SITE_URL`, the request origin, and the persisted
+`packages/shared/src/release.ts`. `SOTY_SITE_URL`, the request origin, and the persisted
 OAuth transaction origin are checked independently; any one matching production requires
 `verified`. Changing the mode after OAuth start does not bypass the callback check.
 
@@ -38,10 +38,10 @@ Use the names in `supabase/functions/.env.example`:
 - `RESEND_API_KEY`, `INVITE_EMAIL_FROM`: use a verified Resend sending domain. Invitation
   persistence is authoritative; provider failure leaves a visible retryable delivery state.
 - `TEAM_DIRECT_ADD_MODE`: `disabled` by default. `testing` temporarily enables immediate
-  addition of an existing confirmed Wishly account after caller and database permission
+  addition of an existing confirmed Soty account after caller and database permission
   checks; it is not an invitation-delivery replacement for a public launch.
 - `CATALOG_SYNC_SECRET`: named worker authentication only.
-- `WISHLY_SITE_URL`, `PRODUCTION_SITE_ORIGIN`, `DRIVE_OAUTH_MODE`: deployment gates, never
+- `SOTY_SITE_URL`, `PRODUCTION_SITE_ORIGIN`, `DRIVE_OAUTH_MODE`: deployment gates, never
   credentials.
 
 Before packaging, releasing, or deploying a production build that advertises Team Workspace,
@@ -63,7 +63,7 @@ Use this only while the invitation sending domain is unavailable:
 
 1. Set Edge secret `TEAM_DIRECT_ADD_MODE=testing` and build the web with
    `VITE_TEAM_DIRECT_ADD_MODE=testing`.
-2. A manager enters the exact confirmed email of an already registered active Wishly user.
+2. A manager enters the exact confirmed email of an already registered active Soty user.
    The user becomes a member immediately; unknown/unconfirmed/inactive accounts show a
    not-found message and nothing is created.
 3. Verify `membership.direct_added` in the safe team audit and that the member list refreshes.
@@ -96,7 +96,7 @@ service-only accessor.
 My Drive uses no `driveId`. Shared Drive must carry its `driveId` and use the all-drives flags
 for list/get/change/create/update calls. Cached parents and capabilities are display hints;
 every write proves live source and destination ancestry and the relevant per-item capability.
-Wishly role removal does not revoke independent sharing configured directly in Google Drive;
+Soty role removal does not revoke independent sharing configured directly in Google Drive;
 show that warning during membership/root changes.
 
 ## Published limits
@@ -119,7 +119,7 @@ Realtime, analytics, audit, logs, error details, or provider diagnostics. SRT/VT
 sanitized cue text, never HTML. A source identity change returns `SOURCE_CHANGED`; the user
 must reload or create a distinct version. Exact replacement is a separate confirmed action
 requiring both upload and edit permission. Trash is recoverable only within current Drive
-retention/admin policy; direct provider purge cannot be guaranteed recoverable by Wishly.
+retention/admin policy; direct provider purge cannot be guaranteed recoverable by Soty.
 
 ## Safe failure and reconciliation
 
@@ -131,7 +131,7 @@ retention/admin policy; direct provider purge cannot be guaranteed recoverable b
 - Permission loss, root escape, stale source, grant expiry/use exhaustion, agent mismatch,
   provider outage, and cancellation are typed outcomes. Do not log provider bodies.
 - On shutdown/update drain, refuse new team tasks, cancel bounded local work, and clean only
-  temporary agent directories. Never kill another active Wishly Dev process.
+  temporary agent directories. Never kill another active Soty Dev process.
 
 Use `specs/001-team-media-workspace/quickstart.md` for the isolated V1–V9 validation matrix
 and `supabase/migrations/ROLLBACK.md` for reverse-order development recovery. Neither document

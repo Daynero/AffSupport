@@ -20,7 +20,7 @@ export default function AccountPage() {
   const sawSkeleton = useRef(false);
 
   useEffect(() => {
-    document.title = `${t('accountTitle')} — Wishly`;
+    document.title = `${t('accountTitle')} — Soty`;
   }, [t]);
 
   if (!profile || !user) {
@@ -217,7 +217,7 @@ function AccountContent({
                 {['update_available', 'update_required'].includes(releaseStatus) && (
                   <span className="agent-version-note">
                     {' · '}
-                    <a href={downloadUrl}>{t('updateWishly')}</a>
+                    <a href={downloadUrl}>{t('updateSoty')}</a>
                   </span>
                 )}
               </dd>

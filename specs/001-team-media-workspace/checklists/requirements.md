@@ -1,4 +1,4 @@
-# Specification Quality Checklist: Командний медіапростір Wishly
+# Specification Quality Checklist: Командний медіапростір Soty
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-08-01
@@ -38,4 +38,7 @@
   revalidated. `edit`/`manage_metadata`, the TXT editor and separate-version behavior,
   deterministic classification, bounded transcript handling, production approval blocking,
   and every success-metric cohort/denominator are now explicit and testable.
-- No clarification markers remain. The security-sensitive Google Drive and Wishly permission boundary is stated explicitly in requirements, edge cases, and assumptions.
+- Validation iteration 4: all 16 checks passed after adding FR-045 and SC-010. The global
+  theme-transition requirement, reduced-motion behavior, scope, acceptance coverage and
+  measurable visual outcome are explicit and technology-agnostic.
+- No clarification markers remain. The security-sensitive Google Drive and Soty permission boundary is stated explicitly in requirements, edge cases, and assumptions.

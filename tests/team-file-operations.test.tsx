@@ -360,7 +360,7 @@ describe('team file operations', () => {
         onClose={vi.fn()}
       />
     );
-    expect(screen.getByText('Update Wishly to process team files.')).toBeTruthy();
+    expect(screen.getByText('Update Soty to process team files.')).toBeTruthy();
     expect(
       (screen.getByRole('button', { name: 'Start processing' }) as HTMLButtonElement).disabled
     ).toBe(true);

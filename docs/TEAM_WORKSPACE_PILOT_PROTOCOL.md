@@ -7,7 +7,7 @@ pilot environment and preserve every outcome, including failures.
 ## Rules shared by all three cohorts
 
 Prepare exactly 20 eligible participant records (`P01`–`P20`) before the run. Record the
-Wishly web build, Agent build, platform, My Drive/Shared Drive fixture, fixture version/hash,
+Soty web build, Agent build, platform, My Drive/Shared Drive fixture, fixture version/hash,
 moderator, date, and local timezone once per cohort. Record participant IDs rather than names
 or emails in the score sheet. SC-001 participants must be first-time owners; SC-005 must be a
 first-use search cohort; SC-008 must be an uninterrupted first attempt. Use separate cohorts
@@ -49,7 +49,7 @@ moderator-only target mapping in the restricted fixture workbook.
 ### Read aloud verbatim
 
 > Create a team using the team name on your card. Invite the person on the invitation card.
-> Connect and confirm the assigned Google Drive folder for that team. Stop when Wishly shows
+> Connect and confirm the assigned Google Drive folder for that team. Stop when Soty shows
 > that the folder is connected and the initial catalog sync has been queued. Begin now.
 
 Start the timer on “now.” Stop at the first authoritative state in which all four backend
@@ -83,7 +83,7 @@ error_code, deviation`
 
 ### Read aloud verbatim
 
-> Using Wishly's Team catalog, find and open the exact material named on your target card.
+> Using Soty's Team catalog, find and open the exact material named on your target card.
 > Stop when that exact material is open. Begin now.
 
 Start the timer on “now.” Stop when the assigned material—not merely a matching list row—is
@@ -108,7 +108,7 @@ exact_target_opened, wrong_target_opened, assisted, outcome, error_code, deviati
 ### Preparation
 
 - Give each participant a task card containing a fixture target code, the requested existing
-  Wishly tool, the destination folder code, and the required output-name code. The restricted
+  Soty tool, the destination folder code, and the required output-name code. The restricted
   moderator mapping resolves codes to fixtures.
 - Confirm the compatible Agent is connected and the source, destination, and tool are within
   their documented limits. Start at the unfiltered Team catalog with no preview or operation
@@ -118,9 +118,9 @@ exact_target_opened, wrong_target_opened, assisted, outcome, error_code, deviati
 
 ### Read aloud verbatim
 
-> Find the source on your task card, open its preview, process it with the requested Wishly
+> Find the source on your task card, open its preview, process it with the requested Soty
 > tool, and return the result to the assigned team folder as a separate result. Stop when
-> Wishly reports that the result is complete. Begin now.
+> Soty reports that the result is complete. Begin now.
 
 Start the timer on “now.” This is one continuous first attempt. Internal resumable or
 idempotent retry may continue automatically. A participant-triggered restart, a new operation
@@ -168,16 +168,16 @@ extracted/provider/local residue.
 
 Read this before a membership removal, root replacement, trash, or recovery exercise:
 
-> Wishly permissions and Google Drive sharing are independent. Removing a member in Wishly
-> immediately blocks Wishly team actions, but it does not revoke access granted directly in
-> Google Drive. A Wishly role change is not proof that the Drive ACL changed.
+> Soty permissions and Google Drive sharing are independent. Removing a member in Soty
+> immediately blocks Soty team actions, but it does not revoke access granted directly in
+> Google Drive. A Soty role change is not proof that the Drive ACL changed.
 
 For `NEEDS_REAUTH`, reauthorize the same intended account; catalog, metadata, provenance, and
 audit history must remain. For an unavailable root, restore provider access or explicitly
 confirm a replacement root, then let reconciliation run. Detaching a root must not delete
 provider files. A Drive mutation followed by database failure remains unresolved until the
 same idempotent operation is reconciled—do not create a replacement operation or rename the
-target to “make it work.” Trash is not permanent deletion, but Wishly cannot guarantee
+target to “make it work.” Trash is not permanent deletion, but Soty cannot guarantee
 recovery after direct purge or expiry under current Drive/admin retention policy.
 
 When safe continuation is impossible, end the participant attempt truthfully, capture only

@@ -53,7 +53,7 @@ Realtime, analytics, audit, or logs.
 - The new team preview is served from a dedicated random local preview origin and embedded
   in an iframe sandbox with scripts only: no same-origin, forms, popups, top navigation or
   downloads. CSP blocks `connect-src`, form submission and object embedding; local package
-  assets are path-confined. The preview receives no Wishly/session/team data.
+  assets are path-confined. The preview receives no Soty/session/team data.
 - Internal links can navigate within the extracted package. External navigation/actions are
   blocked and surfaced as a warning. Screenshot segments are the safe fallback.
 - A successful scanner result returns a source-version/fingerprint-bound validation record;

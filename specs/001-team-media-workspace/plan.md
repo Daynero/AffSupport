@@ -1,4 +1,4 @@
-# Implementation Plan: Командний медіапростір Wishly
+# Implementation Plan: Командний медіапростір Soty
 
 **Branch**: `main` _(Spec Kit feature: `001-team-media-workspace`)_ | **Date**: 2026-08-01 | **Spec**: [spec.md](./spec.md)
 
@@ -6,10 +6,10 @@
 
 ## Summary
 
-Wishly gains a team media workspace in which authenticated users create teams, invite up to
+Soty gains a team media workspace in which authenticated users create teams, invite up to
 50 active members, manage roles and per-member permission overrides, and connect one Google
 Drive folder as shared storage. Members receive a permission-scoped catalog, search and
-filters, safe previews, file operations, and a path from an existing Wishly tool back to a
+filters, safe previews, file operations, and a path from an existing Soty tool back to a
 separate derivative stored beside its source.
 
 The v1 content editor is deliberately closed to complete UTF-8 `.txt` transcripts up to
@@ -77,7 +77,7 @@ transcript ingestion, and change feeds are resumable, paged jobs.
 **Constraints**:
 
 - one active Drive root and shared OAuth connection per team;
-- all Drive mutations re-check Wishly permission, current per-item Drive `capabilities`,
+- all Drive mutations re-check Soty permission, current per-item Drive `capabilities`,
   and live ancestry under the root; cached catalog parents/capabilities are not authority;
 - broad `drive` scope is a restricted scope and production launch is gated on Google OAuth
   verification/security assessment; `DRIVE_OAUTH_MODE` is the closed enum
@@ -85,7 +85,7 @@ transcript ingestion, and change feeds are resumable, paged jobs.
   production, and permits a production OAuth start only as `verified`; rejected starts use
   stable code `OAUTH_APPROVAL_REQUIRED`; the broad server token is never passed to Picker
   or the browser;
-- production detection combines normalized `WISHLY_SITE_URL`, OAuth transaction/request
+- production detection combines normalized `SOTY_SITE_URL`, OAuth transaction/request
   origin, and canonical `PRODUCTION_SITE_ORIGIN` from `release.ts`; any production signal
   wins. The gate runs before transaction creation, provider exchange, reconnect/root
   replacement, and production credential refresh, with zero OAuth/Vault/connection side
@@ -208,7 +208,7 @@ apps/web/src/
 │   └── processing/
 ├── api/team.ts                      # typed Supabase RPC/Edge wrappers
 ├── analytics/events.ts              # typed team success-metric events
-└── ProtectedWishly.tsx              # actual team-workspace route/provider integration
+└── ProtectedSoty.tsx              # actual team-workspace route/provider integration
 
 apps/agent/src/
 ├── team-bridge/                     # scoped transfer + existing tool adapters

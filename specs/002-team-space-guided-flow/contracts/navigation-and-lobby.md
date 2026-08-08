@@ -11,14 +11,14 @@ Covers FR-001…FR-007, SC-003.
 
 ## `/team` resolution (FR-002, FR-004)
 
-`ProtectedWishly` maps `/team` to `<TeamSpace/>`, which renders exactly one surface:
+`ProtectedSoty` maps `/team` to `<TeamSpace/>`, which renders exactly one surface:
 
-| Condition | Rendered surface |
-| --- | --- |
-| `enteredSpace === null` and `teams.length > 0` | **Lobby** (space picker) |
-| `enteredSpace === null` and `teams.length === 0` | **Lobby empty state** → create |
-| `enteredSpace !== null` and `readiness === 'ready'` | **Workspace shell** |
-| a `setup_incomplete` card is chosen | **Create wizard** at the folder step |
+| Condition                                           | Rendered surface                     |
+| --------------------------------------------------- | ------------------------------------ |
+| `enteredSpace === null` and `teams.length > 0`      | **Lobby** (space picker)             |
+| `enteredSpace === null` and `teams.length === 0`    | **Lobby empty state** → create       |
+| `enteredSpace !== null` and `readiness === 'ready'` | **Workspace shell**                  |
+| a `setup_incomplete` card is chosen                 | **Create wizard** at the folder step |
 
 - **Cache skip (FR-004, SC-003)**: when a valid selection is persisted, opening `/team` renders
   the workspace shell directly, with no lobby in between — exactly one action (opening the

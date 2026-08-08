@@ -34,7 +34,7 @@ import { DropZone } from './components/DropZone';
 import { JobRow } from './components/JobRow';
 import { SettingsPanel } from './components/SettingsPanel';
 import { Button, ProgressBar, Spinner, type Translate } from './components/ui';
-import { WishlyLogo, WishlyMark } from './components/WishlyLogo';
+import { SotyLogo, SotyMark } from './components/SotyLogo';
 import { ThemeToggle } from './components/ThemeToggle';
 import { useAgent } from './AgentContext';
 import { internalLink, usePageEntrance } from './lib/navigation';
@@ -590,7 +590,7 @@ export function Header({
             onClick={event => internalLink(event, '/')}
             aria-label={t('backToTools')}
           >
-            <WishlyLogo name={t('appName')} />
+            <SotyLogo name={t('appName')} />
           </a>
         </h1>
         <SupportButton />
@@ -740,7 +740,7 @@ export function Onboarding({
   }
   return (
     <section className="onboarding-panel">
-      <WishlyMark size={40} />
+      <SotyMark size={40} />
       <h2>{t('onboardingTitle')}</h2>
       <p>{t('onboardingBody')}</p>
       <div className="inline-actions">

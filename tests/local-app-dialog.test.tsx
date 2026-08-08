@@ -79,11 +79,11 @@ describe('local app platform choices', () => {
     expect(macLink.getAttribute('href')).toBe(RELEASE_DOWNLOAD_URL);
 
     await userEvent.click(screen.getByRole('button', { name: 'Windows' }));
-    expect(screen.getByRole('heading', { name: 'Wishly для Windows' })).toBeTruthy();
-    expect(screen.getByText('На жаль, версія Wishly для Windows ще в розробці.')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Soty для Windows' })).toBeTruthy();
+    expect(screen.getByText('На жаль, версія Soty для Windows ще в розробці.')).toBeTruthy();
 
     await userEvent.click(screen.getByText('Закрити', { selector: 'button' }));
-    expect(screen.queryByText('На жаль, версія Wishly для Windows ще в розробці.')).toBeNull();
+    expect(screen.queryByText('На жаль, версія Soty для Windows ще в розробці.')).toBeNull();
   });
 
   it('makes the Windows installer the primary action for Windows visitors once shipped', () => {

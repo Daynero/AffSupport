@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { LanguageSwitch } from './components/LanguageSwitch';
 import { ThemeToggle } from './components/ThemeToggle';
-import { WishlyLogo, WishlyMark } from './components/WishlyLogo';
+import { SotyLogo } from './components/SotyLogo';
 import { useI18n } from './i18n';
 import { internalLink } from './lib/navigation';
 
@@ -21,7 +21,7 @@ export default function PublicHomePage() {
       <div className="login-accent accent-two" aria-hidden="true" />
       <header className="login-topbar public-topbar">
         <a href="/" onClick={event => internalLink(event, '/')} aria-label="Soty">
-          <WishlyLogo name="Soty" />
+          <SotyLogo name="Soty" />
         </a>
         <div className="topbar-cluster">
           <ThemeToggle />
@@ -32,7 +32,7 @@ export default function PublicHomePage() {
       <main className="public-home-content">
         <section className="public-hero" aria-labelledby="public-home-title">
           <div className="public-hero-mark" aria-hidden="true">
-            <WishlyMark size={54} />
+            <img src="/icon-192.png" alt="" />
           </div>
           <p className="public-eyebrow">{t('publicHomeEyebrow')}</p>
           <h1 id="public-home-title">{t('publicHomeTitle')}</h1>

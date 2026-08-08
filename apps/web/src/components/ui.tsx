@@ -169,12 +169,12 @@ export function Spinner({ small = false }: { small?: boolean }) {
   return <span className={`spinner ${small ? 'spinner-small' : ''}`} aria-hidden="true" />;
 }
 
-/** Wishly conversion loader: three ribbons calmly compress into one.
+/** Soty conversion loader: three ribbons calmly compress into one.
  * Pure SVG + CSS transforms, sized for the status area. */
-export function WishlyLoader({ size = 18 }: { size?: number }) {
+export function SotyLoader({ size = 18 }: { size?: number }) {
   return (
     <svg
-      className="wishly-loader"
+      className="soty-loader"
       width={size}
       height={size}
       viewBox="0 0 20 20"
@@ -233,9 +233,9 @@ export function TranscriptionLoader({ size = 14 }: { size?: number }) {
 
 /** Calm staggered dots for the estimation state — intentionally lighter
  * than the conversion loader. */
-export function WishlyDots() {
+export function SotyDots() {
   return (
-    <span className="wishly-dots" aria-hidden="true">
+    <span className="soty-dots" aria-hidden="true">
       <i />
       <i />
       <i />
@@ -268,7 +268,7 @@ export function StatusBadge({
         context === 'transcription' ? (
           <TranscriptionLoader size={13} />
         ) : (
-          <WishlyLoader size={13} />
+          <SotyLoader size={13} />
         )
       ) : status === 'completed' ? (
         <svg

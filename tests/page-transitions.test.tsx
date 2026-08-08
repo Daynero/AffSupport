@@ -92,7 +92,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
-  document.documentElement.classList.remove('wishly-page-transition', 'theme-transitioning');
+  document.documentElement.classList.remove('wishly-page-transition', 'is-theming');
   Reflect.deleteProperty(document, 'startViewTransition');
   vi.restoreAllMocks();
 });
@@ -102,11 +102,11 @@ describe('persistent shell', () => {
     const { rerender } = render(<ProtectedWishly path="/" />);
     const header = document.querySelector('header.topbar');
     expect(header).not.toBeNull();
-    expect(screen.getByRole('heading', { name: 'Wishly Tools' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Soty Tools' })).toBeTruthy();
 
     rerender(<ProtectedWishly path="/compressor" />);
     expect(screen.getByTestId('compressor-page')).toBeTruthy();
-    expect(screen.queryByRole('heading', { name: 'Wishly Tools' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Soty Tools' })).toBeNull();
     expect(document.querySelector('header.topbar')).toBe(header);
 
     rerender(<ProtectedWishly path="/account" />);
@@ -140,7 +140,7 @@ describe('route changes without the View Transitions API', () => {
 
   it('skips the view transition while a theme transition is running', () => {
     const { startViewTransition } = installViewTransitionStub();
-    document.documentElement.classList.add('theme-transitioning');
+    document.documentElement.classList.add('is-theming');
     render(<RouteProbe />);
 
     act(() => navigateTo('/compressor'));

@@ -1,4 +1,4 @@
-# Phase 1 Data Model: Командний медіапростір Wishly
+# Phase 1 Data Model: Командний медіапростір Soty
 
 Postgres owns relational authority and searchable metadata; Drive owns file bytes; Vault
 owns refresh-token plaintext. Public **and private** tables enable/force RLS. Public tables
@@ -111,7 +111,7 @@ Generated role defaults are exact:
 | Field                                      | Type        | Rules                                                     |
 | ------------------------------------------ | ----------- | --------------------------------------------------------- |
 | `id`                                       | uuid PK     |                                                           |
-| `connected_by`                             | uuid        | Wishly account that consented                             |
+| `connected_by`                             | uuid        | Soty account that consented                               |
 | `google_permission_id`                     | text        | stable Drive principal identifier                         |
 | `google_account_email`                     | text        | display only                                              |
 | `vault_secret_id`                          | uuid        | references encrypted refresh token; never client-readable |
@@ -230,7 +230,7 @@ content_edit|new_version|process`), `state`, `stage`, `progress` (0–100),
 
 - Unique `(team_id, actor_id, kind, idempotency_key)`.
 - A partial unique reservation on `(team_id, destination_folder_id, reserved_name_key)`
-  where `reservation_released_at is null` serializes Wishly's no-silent-duplicate policy
+  where `reservation_released_at is null` serializes Soty's no-silent-duplicate policy
   even though Drive itself permits duplicate names. Finalize/cancel releases explicitly;
   a sweeper releases timed-out rows using `reservation_expires_at` (the volatile clock is
   not embedded in an index predicate).

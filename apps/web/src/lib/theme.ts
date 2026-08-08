@@ -48,8 +48,6 @@ let themingTimer = 0;
  * Commits the theme with a smooth cross-fade. `is-theming` is armed on the root
  * *before* the colour swap so every UI surface cross-fades from the same instant
  * as the honeycomb backdrop (HoneycombField), keeping them perfectly in step.
- * (A View Transitions snapshot would freeze the honeycomb animation, so the
- * earlier "cosmic reveal" is intentionally retired.)
  */
 export function transitionTheme(next: Theme, _origin: Origin) {
   const root = document.documentElement;
@@ -61,10 +59,7 @@ export function transitionTheme(next: Theme, _origin: Origin) {
   void root.offsetWidth;
   applyTheme(next);
   clearTimeout(themingTimer);
-  themingTimer = window.setTimeout(
-    () => root.classList.remove('is-theming'),
-    THEME_FADE_MS + 80
-  );
+  themingTimer = window.setTimeout(() => root.classList.remove('is-theming'), THEME_FADE_MS + 80);
 }
 
 export function useTheme() {

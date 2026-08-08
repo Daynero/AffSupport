@@ -24,11 +24,11 @@ production integration, deployment or rollout task is authorized.
 
 **Purpose**: Create the physical build and dependency boundary without touching production UI.
 
-- [X] T001 Create the isolated React/Vite workspace manifests and TypeScript project in `apps/soty-review/package.json`, `apps/soty-review/tsconfig.json`, and `apps/soty-review/tsconfig.node.json`
-- [X] T002 Add pinned review workspace dependencies plus `dev:soty-review`, `build:soty-review`, `preview:soty-review`, and `verify:soty-review` commands in `package.json` and `package-lock.json`
-- [X] T003 [P] Configure loopback-only servers, `envDir: false`, no proxy, strict ports, and the separate output directory in `apps/soty-review/vite.config.ts`
-- [X] T004 [P] Create the review-only CSP document and React entrypoint in `apps/soty-review/index.html` and `apps/soty-review/src/main.tsx`
-- [X] T005 [P] Add review artifact ignore rules without ignoring versioned baselines in `.gitignore`
+- [x] T001 Create the isolated React/Vite workspace manifests and TypeScript project in `apps/soty-review/package.json`, `apps/soty-review/tsconfig.json`, and `apps/soty-review/tsconfig.node.json`
+- [x] T002 Add pinned review workspace dependencies plus `dev:soty-review`, `build:soty-review`, `preview:soty-review`, and `verify:soty-review` commands in `package.json` and `package-lock.json`
+- [x] T003 [P] Configure loopback-only servers, `envDir: false`, no proxy, strict ports, and the separate output directory in `apps/soty-review/vite.config.ts`
+- [x] T004 [P] Create the review-only CSP document and React entrypoint in `apps/soty-review/index.html` and `apps/soty-review/src/main.tsx`
+- [x] T005 [P] Add review artifact ignore rules without ignoring versioned baselines in `.gitignore`
 
 **Checkpoint**: The empty review workspace builds separately and is absent from production build/deploy scripts.
 
@@ -43,22 +43,22 @@ isolation boundary required by every story.
 
 ### Foundation Tests
 
-- [X] T006 [P] Write failing catalog uniqueness, canonical-state coverage, exclusion, and primary-state validation tests in `tests/soty-review-catalog.test.ts`
-- [X] T007 [P] Write failing hash parse/serialize, untrusted-input validation, and invalid-route fallback tests in `tests/soty-review-routing.test.ts`
-- [X] T008 [P] Write failing exhaustive transition, disabled no-op, and side-effect-free action tests in `tests/soty-review-reducer.test.tsx`
-- [X] T009 [P] Write failing alias resolution, cycle detection, source-digest, generated-drift, and forbidden-color-literal tests in `tests/soty-review-tokens.test.ts`
-- [X] T010 [P] Write failing forbidden-import, forbidden-browser-global, root-script, and production-output boundary tests in `tests/soty-review-isolation.test.ts`
+- [x] T006 [P] Write failing catalog uniqueness, canonical-state coverage, exclusion, and primary-state validation tests in `tests/soty-review-catalog.test.ts`
+- [x] T007 [P] Write failing hash parse/serialize, untrusted-input validation, and invalid-route fallback tests in `tests/soty-review-routing.test.ts`
+- [x] T008 [P] Write failing exhaustive transition, disabled no-op, and side-effect-free action tests in `tests/soty-review-reducer.test.tsx`
+- [x] T009 [P] Write failing alias resolution, cycle detection, source-digest, generated-drift, and forbidden-color-literal tests in `tests/soty-review-tokens.test.ts`
+- [x] T010 [P] Write failing forbidden-import, forbidden-browser-global, root-script, and production-output boundary tests in `tests/soty-review-isolation.test.ts`
 
 ### Foundation Implementation
 
-- [X] T011 Define `ReviewCatalog`, surface/state IDs, coverage decisions, per-surface discriminated models, `DemoAction`, motif, review-reference, and approval types in `apps/soty-review/src/review/model.ts`
-- [X] T012 Implement the initial single-source catalog registry, canonical state list, viewport matrix, and explicit scope exclusions in `apps/soty-review/src/review/catalog.ts`
-- [X] T013 [P] Implement validated dependency-free hash parsing and serialization with explanatory catalog fallback in `apps/soty-review/src/review/router.ts`
-- [X] T014 [P] Implement the exhaustive local demo reducer and review context with no browser/network/storage effects in `apps/soty-review/src/review/reducer.tsx`
-- [X] T015 [P] Implement deterministic DTCG alias resolution and `--soty-*` CSS generation from `specs/003-rebrand-soty-ui/design-tokens.json` in `apps/soty-review/scripts/generate-tokens.mjs` and `apps/soty-review/src/generated/soty-tokens.css`
-- [X] T016 [P] Create immutable synthetic people, teams, files, jobs, errors, long-copy, and empty-state fixture foundations in `apps/soty-review/src/review/fixtures/base.ts`
-- [X] T017 Implement the review shell, catalog/screen resolver, navigation controls, theme/locale query state, and invalid-route notice in `apps/soty-review/src/ReviewApp.tsx` and `apps/soty-review/src/components/ReviewChrome.tsx`
-- [X] T018 Enforce forbidden production imports and runtime globals for `apps/soty-review/**` in `eslint.config.mjs`
+- [x] T011 Define `ReviewCatalog`, surface/state IDs, coverage decisions, per-surface discriminated models, `DemoAction`, motif, review-reference, and approval types in `apps/soty-review/src/review/model.ts`
+- [x] T012 Implement the initial single-source catalog registry, canonical state list, viewport matrix, and explicit scope exclusions in `apps/soty-review/src/review/catalog.ts`
+- [x] T013 [P] Implement validated dependency-free hash parsing and serialization with explanatory catalog fallback in `apps/soty-review/src/review/router.ts`
+- [x] T014 [P] Implement the exhaustive local demo reducer and review context with no browser/network/storage effects in `apps/soty-review/src/review/reducer.tsx`
+- [x] T015 [P] Implement deterministic DTCG alias resolution and `--soty-*` CSS generation from `specs/003-rebrand-soty-ui/design-tokens.json` in `apps/soty-review/scripts/generate-tokens.mjs` and `apps/soty-review/src/generated/soty-tokens.css`
+- [x] T016 [P] Create immutable synthetic people, teams, files, jobs, errors, long-copy, and empty-state fixture foundations in `apps/soty-review/src/review/fixtures/base.ts`
+- [x] T017 Implement the review shell, catalog/screen resolver, navigation controls, theme/locale query state, and invalid-route notice in `apps/soty-review/src/ReviewApp.tsx` and `apps/soty-review/src/components/ReviewChrome.tsx`
+- [x] T018 Enforce forbidden production imports and runtime globals for `apps/soty-review/**` in `eslint.config.mjs`
 
 **Checkpoint**: Typed local navigation and token generation pass their tests; no review source can reach production runtime seams.
 
@@ -67,7 +67,7 @@ isolation boundary required by every story.
 ## Phase 3: User Story 1 — Переглянути ізольований концепт Soty (Priority: P1) 🎯 MVP
 
 **Goal**: Let the owner browse every current in-app surface and relevant state using only
-synthetic local transitions, with stable references for feedback and no effect on Wishly.
+synthetic local transitions, with stable references for feedback and no effect on Soty.
 
 **Independent Test**: Start the review app, traverse every catalog entry/state, activate at
 least 50 demo controls, and confirm stable `iteration/surface/state/element` references plus
@@ -75,24 +75,24 @@ zero auth, storage, processing, analytics, API, agent or external network activi
 
 ### Tests for User Story 1
 
-- [X] T019 [P] [US1] Write failing full-inventory and relevant-state coverage tests for FR-004, FR-005, FR-007, and SC-001 in `tests/soty-review-inventory.test.ts`
-- [X] T020 [P] [US1] Write failing catalog navigation, direct-link, iteration label, stable `data-review-id`, and invalid-link recovery tests in `tests/soty-review-navigation.test.tsx`
-- [X] T021 [P] [US1] Write the failing Playwright scenario that invokes at least 50 demo actions and rejects real/external requests for FR-002, FR-003, FR-006, and SC-002 in `apps/soty-review/scripts/verify-isolation.mjs`
+- [x] T019 [P] [US1] Write failing full-inventory and relevant-state coverage tests for FR-004, FR-005, FR-007, and SC-001 in `tests/soty-review-inventory.test.ts`
+- [x] T020 [P] [US1] Write failing catalog navigation, direct-link, iteration label, stable `data-review-id`, and invalid-link recovery tests in `tests/soty-review-navigation.test.tsx`
+- [x] T021 [P] [US1] Write the failing Playwright scenario that invokes at least 50 demo actions and rejects real/external requests for FR-002, FR-003, FR-006, and SC-002 in `apps/soty-review/scripts/verify-isolation.mjs`
 
 ### Implementation for User Story 1
 
-- [X] T022 [P] [US1] Build synthetic auth-entry, profile-onboarding, global shell, connection, user-menu, support, update, feature-lock, and local-app overlay states in `apps/soty-review/src/screens/auth/AuthReview.tsx`, `apps/soty-review/src/screens/shell/ShellReview.tsx`, and `apps/soty-review/src/review/fixtures/auth-shell.ts`
-- [X] T023 [P] [US1] Build authenticated tools-home and account/profile/invitation/release-status states in `apps/soty-review/src/screens/home/HomeReview.tsx`, `apps/soty-review/src/screens/account/AccountReview.tsx`, and `apps/soty-review/src/review/fixtures/home-account.ts`
-- [X] T024 [P] [US1] Build compressor empty, populated, selection, job lifecycle, batch, settings, image-slot, success, failure, and disabled states in `apps/soty-review/src/screens/compressor/CompressorReview.tsx` and `apps/soty-review/src/review/fixtures/compressor.ts`
-- [X] T025 [P] [US1] Build Landing Optimizer queue, batch, phase, asset, comparison, settings, warning, success, and error states in `apps/soty-review/src/screens/landing-optimizer/LandingOptimizerReview.tsx` and `apps/soty-review/src/review/fixtures/landing-optimizer.ts`
-- [X] T026 [P] [US1] Build Landing Gallery welcome, catalog, viewer, tree/grid, search, rendering, stale, and error states in `apps/soty-review/src/screens/landing-gallery/LandingGalleryReview.tsx` and `apps/soty-review/src/review/fixtures/landing-gallery.ts`
-- [X] T027 [P] [US1] Build transcription model-gate, download, queue/job, translation, transcript, media-preview, karaoke, success, and error states in `apps/soty-review/src/screens/transcription/TranscriptionReview.tsx` and `apps/soty-review/src/review/fixtures/transcription.ts`
-- [X] T028 [P] [US1] Build Team lobby and create-space name/folder/resume/loading/error states in `apps/soty-review/src/screens/team/TeamLobbyReview.tsx`, `apps/soty-review/src/screens/team/CreateSpaceReview.tsx`, and `apps/soty-review/src/review/fixtures/team-entry.ts`
-- [X] T029 [P] [US1] Build Team workspace catalog/search/preview/edit/process/operation states and settings/member/Drive/invitation/permission/ownership/audit states in `apps/soty-review/src/screens/team/TeamWorkspaceReview.tsx`, `apps/soty-review/src/screens/team/TeamSettingsReview.tsx`, and `apps/soty-review/src/review/fixtures/team-workspace.ts`
-- [X] T030 [P] [US1] Build the Soty component showcase for buttons, controls, cards, modal, progress, badges, toast, logo, icons, and decoration in `apps/soty-review/src/screens/components/ComponentShowcase.tsx`
-- [X] T031 [US1] Register all twelve surface groups, their canonical scenario-or-N/A coverage, fixtures, route hints, requirement links, and explicit exclusions in `apps/soty-review/src/review/catalog.ts`
-- [X] T032 [US1] Complete catalog filtering, previous/next navigation, state chips, visible iteration ID, and stable feedback references in `apps/soty-review/src/components/ReviewCatalog.tsx`, `apps/soty-review/src/components/ReviewChrome.tsx`, and `apps/soty-review/src/ReviewApp.tsx`
-- [X] T033 [US1] Implement the isolated preview server lifecycle, request interception, 50-action traversal, and guaranteed browser/context cleanup in `apps/soty-review/scripts/verify-review.mjs`
+- [x] T022 [P] [US1] Build synthetic auth-entry, profile-onboarding, global shell, connection, user-menu, support, update, feature-lock, and local-app overlay states in `apps/soty-review/src/screens/auth/AuthReview.tsx`, `apps/soty-review/src/screens/shell/ShellReview.tsx`, and `apps/soty-review/src/review/fixtures/auth-shell.ts`
+- [x] T023 [P] [US1] Build authenticated tools-home and account/profile/invitation/release-status states in `apps/soty-review/src/screens/home/HomeReview.tsx`, `apps/soty-review/src/screens/account/AccountReview.tsx`, and `apps/soty-review/src/review/fixtures/home-account.ts`
+- [x] T024 [P] [US1] Build compressor empty, populated, selection, job lifecycle, batch, settings, image-slot, success, failure, and disabled states in `apps/soty-review/src/screens/compressor/CompressorReview.tsx` and `apps/soty-review/src/review/fixtures/compressor.ts`
+- [x] T025 [P] [US1] Build Landing Optimizer queue, batch, phase, asset, comparison, settings, warning, success, and error states in `apps/soty-review/src/screens/landing-optimizer/LandingOptimizerReview.tsx` and `apps/soty-review/src/review/fixtures/landing-optimizer.ts`
+- [x] T026 [P] [US1] Build Landing Gallery welcome, catalog, viewer, tree/grid, search, rendering, stale, and error states in `apps/soty-review/src/screens/landing-gallery/LandingGalleryReview.tsx` and `apps/soty-review/src/review/fixtures/landing-gallery.ts`
+- [x] T027 [P] [US1] Build transcription model-gate, download, queue/job, translation, transcript, media-preview, karaoke, success, and error states in `apps/soty-review/src/screens/transcription/TranscriptionReview.tsx` and `apps/soty-review/src/review/fixtures/transcription.ts`
+- [x] T028 [P] [US1] Build Team lobby and create-space name/folder/resume/loading/error states in `apps/soty-review/src/screens/team/TeamLobbyReview.tsx`, `apps/soty-review/src/screens/team/CreateSpaceReview.tsx`, and `apps/soty-review/src/review/fixtures/team-entry.ts`
+- [x] T029 [P] [US1] Build Team workspace catalog/search/preview/edit/process/operation states and settings/member/Drive/invitation/permission/ownership/audit states in `apps/soty-review/src/screens/team/TeamWorkspaceReview.tsx`, `apps/soty-review/src/screens/team/TeamSettingsReview.tsx`, and `apps/soty-review/src/review/fixtures/team-workspace.ts`
+- [x] T030 [P] [US1] Build the Soty component showcase for buttons, controls, cards, modal, progress, badges, toast, logo, icons, and decoration in `apps/soty-review/src/screens/components/ComponentShowcase.tsx`
+- [x] T031 [US1] Register all twelve surface groups, their canonical scenario-or-N/A coverage, fixtures, route hints, requirement links, and explicit exclusions in `apps/soty-review/src/review/catalog.ts`
+- [x] T032 [US1] Complete catalog filtering, previous/next navigation, state chips, visible iteration ID, and stable feedback references in `apps/soty-review/src/components/ReviewCatalog.tsx`, `apps/soty-review/src/components/ReviewChrome.tsx`, and `apps/soty-review/src/ReviewApp.tsx`
+- [x] T033 [US1] Implement the isolated preview server lifecycle, request interception, 50-action traversal, and guaranteed browser/context cleanup in `apps/soty-review/scripts/verify-review.mjs`
 
 **Checkpoint**: User Story 1 is a complete reviewable MVP; stop here for an isolation and inventory review before visual refinement.
 
@@ -109,16 +109,16 @@ focus target, click target or step.
 
 ### Tests for User Story 2
 
-- [X] T034 [P] [US2] Write failing primary-action hierarchy, single-honey-CTA, whole-card destination parity, and decorative non-interaction tests for FR-021–FR-023 in `tests/soty-review-primary-action.test.tsx`
-- [X] T035 [P] [US2] Write failing five-screen timed-review scenario definitions for SC-004 and SC-005 in `tests/soty-review-usability-scenarios.test.ts`
+- [x] T034 [P] [US2] Write failing primary-action hierarchy, single-honey-CTA, whole-card destination parity, and decorative non-interaction tests for FR-021–FR-023 in `tests/soty-review-primary-action.test.tsx`
+- [x] T035 [P] [US2] Write failing five-screen timed-review scenario definitions for SC-004 and SC-005 in `tests/soty-review-usability-scenarios.test.ts`
 
 ### Implementation for User Story 2
 
-- [X] T036 [P] [US2] Implement primary, secondary, ghost, disabled, status, and direct-link card primitives with FR-010–FR-012 and FR-019–FR-020 token roles in `apps/soty-review/src/components/Action.tsx`, `apps/soty-review/src/components/Card.tsx`, and `apps/soty-review/src/styles.css`
-- [X] T037 [P] [US2] Apply one-step card/CTA navigation and dominant-action hierarchy to the tools home in `apps/soty-review/src/screens/home/HomeReview.tsx`
-- [X] T038 [P] [US2] Apply direct next-step hierarchy to compressor, landing, transcription, and team-workspace representative flows in `apps/soty-review/src/screens/compressor/CompressorReview.tsx`, `apps/soty-review/src/screens/landing-optimizer/LandingOptimizerReview.tsx`, `apps/soty-review/src/screens/transcription/TranscriptionReview.tsx`, and `apps/soty-review/src/screens/team/TeamWorkspaceReview.tsx`
-- [X] T039 [P] [US2] Implement pointer-transparent, unfocusable honeycomb/bee/honey motifs with matte purple surfaces and family-safe gradients for FR-014–FR-017 in `apps/soty-review/src/components/SotyMotifs.tsx` and `apps/soty-review/src/styles.css`
-- [X] T040 [US2] Link primary-action and timed usability scenarios to every representative catalog state in `apps/soty-review/src/review/catalog.ts`
+- [x] T036 [P] [US2] Implement primary, secondary, ghost, disabled, status, and direct-link card primitives with FR-010–FR-012 and FR-019–FR-020 token roles in `apps/soty-review/src/components/Action.tsx`, `apps/soty-review/src/components/Card.tsx`, and `apps/soty-review/src/styles.css`
+- [x] T037 [P] [US2] Apply one-step card/CTA navigation and dominant-action hierarchy to the tools home in `apps/soty-review/src/screens/home/HomeReview.tsx`
+- [x] T038 [P] [US2] Apply direct next-step hierarchy to compressor, landing, transcription, and team-workspace representative flows in `apps/soty-review/src/screens/compressor/CompressorReview.tsx`, `apps/soty-review/src/screens/landing-optimizer/LandingOptimizerReview.tsx`, `apps/soty-review/src/screens/transcription/TranscriptionReview.tsx`, and `apps/soty-review/src/screens/team/TeamWorkspaceReview.tsx`
+- [x] T039 [P] [US2] Implement pointer-transparent, unfocusable honeycomb/bee/honey motifs with matte purple surfaces and family-safe gradients for FR-014–FR-017 in `apps/soty-review/src/components/SotyMotifs.tsx` and `apps/soty-review/src/styles.css`
+- [x] T040 [US2] Link primary-action and timed usability scenarios to every representative catalog state in `apps/soty-review/src/review/catalog.ts`
 
 **Checkpoint**: User Story 2 can be tested without opening any advanced settings or relying on another visual story.
 
@@ -135,17 +135,17 @@ context/back navigation, while confirmation always shows target and consequence.
 
 ### Tests for User Story 3
 
-- [X] T041 [P] [US3] Write failing safe-default, discoverable-disclosure, expand/change/collapse, and base-flow tests for FR-024–FR-026 and SC-006 in `tests/soty-review-disclosure.test.tsx`
-- [X] T042 [P] [US3] Write failing nested-context, back-navigation state preservation, confirmation consequence, and lifecycle-state tests for FR-025 and FR-027–FR-031 in `tests/soty-review-nested-flow.test.tsx`
+- [x] T041 [P] [US3] Write failing safe-default, discoverable-disclosure, expand/change/collapse, and base-flow tests for FR-024–FR-026 and SC-006 in `tests/soty-review-disclosure.test.tsx`
+- [x] T042 [P] [US3] Write failing nested-context, back-navigation state preservation, confirmation consequence, and lifecycle-state tests for FR-025 and FR-027–FR-031 in `tests/soty-review-nested-flow.test.tsx`
 
 ### Implementation for User Story 3
 
-- [X] T043 [P] [US3] Implement accessible disclosure, nested-page heading, breadcrumb/back, summary, and confirmation primitives in `apps/soty-review/src/components/Disclosure.tsx`, `apps/soty-review/src/components/NestedLevel.tsx`, and `apps/soty-review/src/components/Confirmation.tsx`
-- [X] T044 [P] [US3] Recompose compressor defaults, output/image settings, and final action consequence around progressive disclosure in `apps/soty-review/src/screens/compressor/CompressorReview.tsx`
-- [X] T045 [P] [US3] Recompose Landing Optimizer quality/archive controls and comparison detail into contextual disclosure in `apps/soty-review/src/screens/landing-optimizer/LandingOptimizerReview.tsx`
-- [X] T046 [P] [US3] Recompose transcription language/model/translation/media controls with visible current choices and nested return paths in `apps/soty-review/src/screens/transcription/TranscriptionReview.tsx`
-- [X] T047 [P] [US3] Recompose Team workspace search/settings/metadata/process and permission/ownership confirmations without hiding target or consequence in `apps/soty-review/src/screens/team/TeamWorkspaceReview.tsx` and `apps/soty-review/src/screens/team/TeamSettingsReview.tsx`
-- [X] T048 [US3] Register basic, advanced, nested, return, confirmation, and all applicable lifecycle scenarios in `apps/soty-review/src/review/catalog.ts`
+- [x] T043 [P] [US3] Implement accessible disclosure, nested-page heading, breadcrumb/back, summary, and confirmation primitives in `apps/soty-review/src/components/Disclosure.tsx`, `apps/soty-review/src/components/NestedLevel.tsx`, and `apps/soty-review/src/components/Confirmation.tsx`
+- [x] T044 [P] [US3] Recompose compressor defaults, output/image settings, and final action consequence around progressive disclosure in `apps/soty-review/src/screens/compressor/CompressorReview.tsx`
+- [x] T045 [P] [US3] Recompose Landing Optimizer quality/archive controls and comparison detail into contextual disclosure in `apps/soty-review/src/screens/landing-optimizer/LandingOptimizerReview.tsx`
+- [x] T046 [P] [US3] Recompose transcription language/model/translation/media controls with visible current choices and nested return paths in `apps/soty-review/src/screens/transcription/TranscriptionReview.tsx`
+- [x] T047 [P] [US3] Recompose Team workspace search/settings/metadata/process and permission/ownership confirmations without hiding target or consequence in `apps/soty-review/src/screens/team/TeamWorkspaceReview.tsx` and `apps/soty-review/src/screens/team/TeamSettingsReview.tsx`
+- [x] T048 [US3] Register basic, advanced, nested, return, confirmation, and all applicable lifecycle scenarios in `apps/soty-review/src/review/catalog.ts`
 
 **Checkpoint**: User Story 3 independently demonstrates both the simple default path and expert control path.
 
@@ -162,21 +162,21 @@ content, horizontal main-flow scrolling, invisible focus or decoration overlap.
 
 ### Tests for User Story 4
 
-- [X] T049 [P] [US4] Extend token tests with computed foreground/surface, border, focus, hover, disabled, and status contrast thresholds for FR-009, FR-013, FR-020, and FR-034 in `tests/soty-review-tokens.test.ts`
-- [X] T050 [P] [US4] Write failing accessible-name, semantic-state, color-independent status, decorative exclusion, modal focus trap/restore/Escape, and keyboard-order tests for FR-035–FR-036 in `tests/soty-review-accessibility.test.tsx`
-- [X] T051 [P] [US4] Write failing reduced-motion fallback and animation-independent progress tests for FR-031 and FR-037 in `tests/soty-review-motion.test.tsx`
-- [X] T052 [P] [US4] Add failing Playwright viewport, long-content, overflow, focus-visibility, and overlap assertions for FR-033 and FR-038 in `apps/soty-review/scripts/verify-layout.mjs`
+- [x] T049 [P] [US4] Extend token tests with computed foreground/surface, border, focus, hover, disabled, and status contrast thresholds for FR-009, FR-013, FR-020, and FR-034 in `tests/soty-review-tokens.test.ts`
+- [x] T050 [P] [US4] Write failing accessible-name, semantic-state, color-independent status, decorative exclusion, modal focus trap/restore/Escape, and keyboard-order tests for FR-035–FR-036 in `tests/soty-review-accessibility.test.tsx`
+- [x] T051 [P] [US4] Write failing reduced-motion fallback and animation-independent progress tests for FR-031 and FR-037 in `tests/soty-review-motion.test.tsx`
+- [x] T052 [P] [US4] Add failing Playwright viewport, long-content, overflow, focus-visibility, and overlap assertions for FR-033 and FR-038 in `apps/soty-review/scripts/verify-layout.mjs`
 
 ### Implementation for User Story 4
 
-- [X] T053 [P] [US4] Implement preview-scoped light/dark theme selection, URL determinism, system fallback, `color-scheme`, and safe theme transition handling in `apps/soty-review/src/review/theme.ts` and `apps/soty-review/src/ReviewApp.tsx`
-- [X] T054 [US4] Add explicitly reviewable success/warning/error proposal roles and accessible ready/active/development treatments without altering normative primitives in `apps/soty-review/src/review/visual-proposals.ts` and `apps/soty-review/src/styles.css`
-- [X] T055 [US4] Implement native/APG keyboard behavior, opaque or dual focus rings, modal inertness, disabled explanations, and live status semantics in `apps/soty-review/src/components/Controls.tsx`, `apps/soty-review/src/components/Modal.tsx`, and `apps/soty-review/src/styles.css`
-- [X] T056 [US4] Implement fluid 320px reflow, wrapping/truncation with full-value access, long-card resilience, and decoration-first hiding in `apps/soty-review/src/styles.css` and `apps/soty-review/src/review/fixtures/long-content.ts`
-- [X] T057 [US4] Implement global reduced-motion overrides and static indeterminate-progress meaning in `apps/soty-review/src/styles.css` and `apps/soty-review/src/components/Progress.tsx`
-- [X] T058 [P] [US4] Implement the reviewable honey-mark/purple-or-neutral Soty wordmark direction and theme-safe volumetric motifs for FR-018 in `apps/soty-review/src/components/SotyLogo.tsx` and `apps/soty-review/src/components/SotyMotifs.tsx`
-- [X] T059 [US4] Extend the browser verifier with light/dark, reduced-motion, axe, screenshot naming, and five-viewport coverage in `apps/soty-review/scripts/verify-review.mjs`
-- [X] T060 [US4] Register theme, locale, viewport, reduced-motion, long-content, keyboard, and contrast evidence dimensions for every approval surface in `apps/soty-review/src/review/catalog.ts`
+- [x] T053 [P] [US4] Implement preview-scoped light/dark theme selection, URL determinism, system fallback, `color-scheme`, and safe theme transition handling in `apps/soty-review/src/review/theme.ts` and `apps/soty-review/src/ReviewApp.tsx`
+- [x] T054 [US4] Add explicitly reviewable success/warning/error proposal roles and accessible ready/active/development treatments without altering normative primitives in `apps/soty-review/src/review/visual-proposals.ts` and `apps/soty-review/src/styles.css`
+- [x] T055 [US4] Implement native/APG keyboard behavior, opaque or dual focus rings, modal inertness, disabled explanations, and live status semantics in `apps/soty-review/src/components/Controls.tsx`, `apps/soty-review/src/components/Modal.tsx`, and `apps/soty-review/src/styles.css`
+- [x] T056 [US4] Implement fluid 320px reflow, wrapping/truncation with full-value access, long-card resilience, and decoration-first hiding in `apps/soty-review/src/styles.css` and `apps/soty-review/src/review/fixtures/long-content.ts`
+- [x] T057 [US4] Implement global reduced-motion overrides and static indeterminate-progress meaning in `apps/soty-review/src/styles.css` and `apps/soty-review/src/components/Progress.tsx`
+- [x] T058 [P] [US4] Implement the reviewable honey-mark/purple-or-neutral Soty wordmark direction and theme-safe volumetric motifs for FR-018 in `apps/soty-review/src/components/SotyLogo.tsx` and `apps/soty-review/src/components/SotyMotifs.tsx`
+- [x] T059 [US4] Extend the browser verifier with light/dark, reduced-motion, axe, screenshot naming, and five-viewport coverage in `apps/soty-review/scripts/verify-review.mjs`
+- [x] T060 [US4] Register theme, locale, viewport, reduced-motion, long-content, keyboard, and contrast evidence dimensions for every approval surface in `apps/soty-review/src/review/catalog.ts`
 
 **Checkpoint**: User Story 4 produces complete automated evidence and is ready for manual 200%-zoom and owner review.
 
@@ -187,9 +187,9 @@ content, horizontal main-flow scrolling, invisible focus or decoration overlap.
 **Purpose**: Validate cross-story integrity, record human evidence and stop at the written
 visual approval boundary.
 
-- [X] T061 [P] Add the Soty-only customer-text scan with explicit before/after exceptions for FR-001, FR-032, and SC-003 in `tests/soty-review-branding.test.ts`
-- [X] T062 [P] Add production bundle/script regression checks proving review code is absent from `apps/web/dist`, deploy, package, release, and manifest flows in `tests/soty-review-production-boundary.test.ts`
-- [X] T063 Capture deterministic light/dark/reduced-motion baselines named by iteration, surface, state, theme, and viewport in `specs/003-rebrand-soty-ui/review/soty-ui-r01/baselines/`
+- [x] T061 [P] Add the Soty-only customer-text scan with explicit before/after exceptions for FR-001, FR-032, and SC-003 in `tests/soty-review-branding.test.ts`
+- [x] T062 [P] Add production bundle/script regression checks proving review code is absent from `apps/web/dist`, deploy, package, release, and manifest flows in `tests/soty-review-production-boundary.test.ts`
+- [x] T063 Capture deterministic light/dark/reduced-motion baselines named by iteration, surface, state, theme, and viewport in `specs/003-rebrand-soty-ui/review/soty-ui-r01/baselines/`
 - [ ] T064 Record keyboard-only, actual contrast-pair, 320px reflow, long-copy, decoration-overlap, and real 200%-zoom results for SC-007 and SC-008 in `specs/003-rebrand-soty-ui/review/soty-ui-r01/accessibility-matrix.md`
 - [ ] T065 Conduct the 20-participant five-screen primary-action and time-to-tool study for SC-004 and SC-005 and record results in `specs/003-rebrand-soty-ui/review/soty-ui-r01/usability-primary-actions.md`
 - [ ] T066 Conduct the 20-participant basic-flow and advanced-setting discoverability study for SC-006 and record results in `specs/003-rebrand-soty-ui/review/soty-ui-r01/usability-disclosure.md`

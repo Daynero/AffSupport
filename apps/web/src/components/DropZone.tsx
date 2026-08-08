@@ -1,6 +1,6 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 import { Spinner, type Translate } from './ui';
-import { WishlyMark } from './WishlyLogo';
+import { SotyMark } from './SotyLogo';
 
 export function DropZone({
   disabled,
@@ -80,7 +80,7 @@ export function DropZone({
       onDrop={onDrop}
     >
       <span className="drop-icon" aria-hidden="true">
-        {importing ? <Spinner /> : <WishlyMark size={20} />}
+        {importing ? <Spinner /> : <SotyMark size={20} />}
       </span>
       <div>
         <strong>

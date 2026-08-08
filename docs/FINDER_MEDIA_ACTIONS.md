@@ -1,6 +1,6 @@
 # Finder media actions
 
-Wishly ships a small Finder Sync extension that adds a native **Convert to**
+Soty ships a small Finder Sync extension that adds a native **Convert to**
 submenu for selected still images. The output targets are intentionally limited
 to PNG, JPEG, and WebP. HEIC/HEIF is accepted as an input when the media engine
 can decode it, but is not offered as an output.
@@ -12,16 +12,16 @@ can decode it, but is not offered as an output.
    re-queries the transient selection from the click callback. It never encodes
    media inside Finder.
 2. The selected format and absolute paths are sent through a private macOS
-   Service pasteboard type to the containing Wishly app.
+   Service pasteboard type to the containing Soty app.
 3. The launcher forwards the request to the loopback Agent using a random
    per-process native token. The browser API token cannot call these routes.
 4. `MediaActionQueue` serializes conversions. Each executor writes a hidden
    temporary file beside the source, validates it, and publishes it with
    no-overwrite semantics.
 5. The launcher polls the accepted jobs. Successful output simply appears next
-   to the original; failures are surfaced from the Wishly menu-bar item.
+   to the original; failures are surfaced from the Soty menu-bar item.
 
-The extension must be enabled once in macOS System Settings. Wishly exposes the
+The extension must be enabled once in macOS System Settings. Soty exposes the
 system management screen from its menu and offers it once after the feature is
 installed. The isolated development build also uses its own executable name,
 Service name, bundle identifiers, port, and Agent lock so it can run beside the

@@ -15,7 +15,7 @@ Supabase, agent/API, analytics або реальні дані, не входит
 Каталог є єдиним джерелом істини для стабільних screen/state IDs, покриття станів,
 навігації й review-посилань. Нормативний `design-tokens.json` генерує ізольовані
 `--soty-*` CSS variables для світлої й темної тем. План закінчується локальним візуальним
-approval gate; підключення функціональності, заміна Wishly UI та rollout не входять до
+approval gate; підключення функціональності, заміна Soty UI та rollout не входять до
 цього етапу.
 
 ## Technical Context
@@ -73,18 +73,18 @@ email/store/external integration surfaces мають явні exclusion records.
 
 _GATE: evaluated before research and re-checked after Phase 1 design._
 
-| Principle | Gate and post-design verdict |
-| --- | --- |
-| **I. Type-safe contracts** | Catalog, route parser, fixtures, actions and per-surface state are closed discriminated unions; URL input is validated; exhaustive reducers use `never`; no unvalidated casts or `any`. **PASS** |
-| **II. One source of truth** | Release/protocol constants are untouched. `design-tokens.json` is canonical and generated CSS is drift-checked; one catalog drives navigation and coverage. Review iteration has one constant. **PASS** |
-| **III. Security/least privilege** | Separate app has no auth/data/network integration, uses loopback-only servers, no proxy/env, restrictive CSP and automated forbidden-request checks. **PASS** |
-| **IV. Child-process/resource orchestration** | No product child-process code changes. Screenshot harness uses the existing pinned Chromium family through Playwright and always closes browser/context in `finally`. **PASS (limited test tooling)** |
-| **V. HTTP/error conventions** | Review app exposes no API and calls none; errors are local discriminated fixture states. **PASS (N/A)** |
-| **VI. Frontend composition/state** | Small functional components, preview-local reducer/context, CSS classes and scoped custom properties; no production provider reuse, prop-drilled i18n or data-fetching layer. **PASS** |
+| Principle                                    | Gate and post-design verdict                                                                                                                                                                            |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **I. Type-safe contracts**                   | Catalog, route parser, fixtures, actions and per-surface state are closed discriminated unions; URL input is validated; exhaustive reducers use `never`; no unvalidated casts or `any`. **PASS**        |
+| **II. One source of truth**                  | Release/protocol constants are untouched. `design-tokens.json` is canonical and generated CSS is drift-checked; one catalog drives navigation and coverage. Review iteration has one constant. **PASS** |
+| **III. Security/least privilege**            | Separate app has no auth/data/network integration, uses loopback-only servers, no proxy/env, restrictive CSP and automated forbidden-request checks. **PASS**                                           |
+| **IV. Child-process/resource orchestration** | No product child-process code changes. Screenshot harness uses the existing pinned Chromium family through Playwright and always closes browser/context in `finally`. **PASS (limited test tooling)**   |
+| **V. HTTP/error conventions**                | Review app exposes no API and calls none; errors are local discriminated fixture states. **PASS (N/A)**                                                                                                 |
+| **VI. Frontend composition/state**           | Small functional components, preview-local reducer/context, CSS classes and scoped custom properties; no production provider reuse, prop-drilled i18n or data-fetching layer. **PASS**                  |
 
 Additional gates: `npm run format:check`, `npm run lint`, `npm test`, `npm run build:web`
 remain green; review-specific type/build/isolation/a11y/screenshot checks run separately.
-The constitution's Wishly identity remains unchanged because Soty is an inactive review
+The constitution's Soty identity remains unchanged because Soty is an inactive review
 artifact and internal package scope stays `@video-compressor/*`. Any later production
 replacement is blocked on a separate plan and explicit governance decision.
 
@@ -160,4 +160,3 @@ tests/
 
 Constitution violations відсутні. Окремий workspace є необхідною ізоляційною межею, а не
 новим production application tier; його build/dependencies не входять до release/deploy.
-

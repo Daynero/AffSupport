@@ -6,8 +6,7 @@ const NAVIGATION_EVENT = 'wishly-navigation';
 /**
  * While a route view transition runs, this class on <html> gives the page
  * viewport its `wishly-page` view-transition-name (styles.css). Gating by
- * class keeps the theme "cosmic reveal" transition (theme.ts) working on a
- * single root snapshot — the two transitions never share pseudo-element rules.
+ * class keeps route and theme motion independent.
  */
 const PAGE_TRANSITION_CLASS = 'wishly-page-transition';
 
@@ -48,7 +47,7 @@ function commitRouteChange(apply: () => void) {
     !('startViewTransition' in document) ||
     prefersReducedMotion() ||
     routeTransitionActive ||
-    root.classList.contains('theme-transitioning')
+    root.classList.contains('is-theming')
   ) {
     apply();
     return;

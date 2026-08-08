@@ -1,4 +1,4 @@
-# Phase 0 Research: Командний медіапростір Wishly
+# Phase 0 Research: Командний медіапростір Soty
 
 All specification clarifications and technical unknowns are resolved. No
 `NEEDS CLARIFICATION` marker remains. Decisions below are the basis for `plan.md` and the
@@ -8,7 +8,7 @@ Phase 1 artifacts.
 
 **Decision.** Use one server-held OAuth connection per team and request the restricted
 `https://www.googleapis.com/auth/drive` scope. The owner selects the root through a
-server-proxied folder browser; Wishly never gives the broad access token to browser Picker.
+server-proxied folder browser; Soty never gives the broad access token to browser Picker.
 Production launch is gated on Google's restricted-scope verification/security assessment.
 The closed deployment setting is `DRIVE_OAUTH_MODE=disabled|testing|verified`, defaults to
 `disabled`, allows `testing` only on a non-production origin, and allows production OAuth
@@ -41,7 +41,7 @@ omits a refresh token never erases the stored token. A refresh token is stored w
 `vault.create_secret`; the public connection row stores no credential field. Detach deletes
 the Vault secret when its final reference is gone; reauth updates it. `invalid_grant`,
 revocation, time-limited/testing grants and provider inactivity move connections to
-`needs_reauth`. The callback redirects to the Wishly web origin and never returns HTML
+`needs_reauth`. The callback redirects to the Soty web origin and never returns HTML
 content itself.
 
 **Rationale.** Google redirects do not carry the user's Supabase JWT. Supabase Vault is
@@ -108,7 +108,7 @@ constraint without widening table grants.
 **Rationale.** Supabase Edge workers have 256 MB memory, 2 s CPU, 150/400 s wall-clock and
 a 150 s idle limit. Streaming controls memory but not wall time. Google recommends resumable
 uploads for most files and limits multipart guidance to small files. Private Drive blobs
-download through authenticated `alt=media`; there is no Wishly-member-safe Google presigned
+download through authenticated `alt=media`; there is no Soty-member-safe Google presigned
 download URL, while byte ranges are supported.
 
 Sources: [Edge limits](https://supabase.com/docs/guides/functions/limits),
@@ -226,10 +226,10 @@ described as an already-navigable HTML sandbox.
 
 **Rationale.** Supabase rewrites HTML without a custom domain and is not the safe landing
 runtime. A dedicated local origin plus opaque iframe origin prevents team HTML from reading
-Wishly account/team data or calling authenticated APIs.
+Soty account/team data or calling authenticated APIs.
 
 **Alternatives considered.** Public Drive links violate FR-016; rendering untrusted HTML on
-the Wishly origin is unsafe; screenshot-only does not satisfy the navigable acceptance case.
+the Soty origin is unsafe; screenshot-only does not satisfy the navigable acceptance case.
 
 ## R10. Local processing bridge and live state
 
@@ -276,7 +276,7 @@ which rechecks that actor, locks the team, enforces dedupe/capacity, closes a ma
 pending invitation, and audits the action. Missing/unknown mode fails closed; the browser
 flag changes presentation only and cannot authorize the operation.
 
-**Rationale.** Supabase Auth invite APIs do not model Wishly team membership and do not
+**Rationale.** Supabase Auth invite APIs do not model Soty team membership and do not
 cover both existing/new accounts. Resend is the documented existing Edge pattern, while the
 database remains authoritative if email is temporarily unavailable.
 
@@ -359,7 +359,7 @@ duplicates and name lookup cannot identify an exact target.
 ## R14. OAuth approval release gate
 
 **Decision.** Parse `DRIVE_OAUTH_MODE` from `unknown` through a closed shared guard. Missing
-or invalid means `disabled`. Production is detected from normalized `WISHLY_SITE_URL`, the
+or invalid means `disabled`. Production is detected from normalized `SOTY_SITE_URL`, the
 request/OAuth-transaction origin, and canonical `PRODUCTION_SITE_ORIGIN` exported by
 `release.ts`; any production signal wins. `drive-connect/start`, callback exchange,
 reconnect/root replacement, and production credential refresh reject with

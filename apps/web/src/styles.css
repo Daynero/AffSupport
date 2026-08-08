@@ -1,5 +1,5 @@
 /* ============================================================
-   Wishly design tokens
+   Soty design tokens
    Purple leads attention; most surfaces stay neutral.
    ============================================================ */
 :root {
@@ -217,8 +217,8 @@ a {
 /* Route content swaps inside the persistent shell; the topbar stays mounted.
    During a route view transition (navigation.ts adds .wishly-page-transition
    to <html>) the viewport forms its own `wishly-page` group, so only the page
-   content crossfades — never the header. The class gate keeps the theme
-   "cosmic reveal" transition on a single root snapshot. */
+   content crossfades — never the header. The class gate keeps route and theme
+   transitions independent. */
 :root.wishly-page-transition .page-viewport {
   view-transition-name: wishly-page;
 }
@@ -254,7 +254,7 @@ a {
   backdrop-filter: blur(12px);
 }
 
-.wishly-logo {
+.soty-logo {
   display: inline-flex;
   align-items: center;
   gap: 9px;
@@ -288,15 +288,15 @@ a {
 }
 
 /* Make the home / brand button read a touch larger than the Support pill. */
-.topbar-lead .brand-link .wishly-logo {
+.topbar-lead .brand-link .soty-logo {
   gap: 10px;
 }
 
-.topbar-lead .brand-link .wishly-wordmark {
+.topbar-lead .brand-link .soty-wordmark {
   font-size: 21px;
 }
 
-.topbar-lead .brand-link .wishly-mark {
+.topbar-lead .brand-link .soty-mark {
   width: 30px;
   height: 30px;
 }
@@ -639,12 +639,12 @@ a {
   }
 }
 
-.wishly-mark {
+.soty-mark {
   display: block;
   flex: 0 0 auto;
 }
 
-.wishly-wordmark {
+.soty-wordmark {
   letter-spacing: -0.01em;
 }
 
@@ -2102,26 +2102,26 @@ input.is-invalid {
   width: 38px;
 }
 
-/* Wishly conversion loader: three ribbons compress into one. */
-.wishly-loader {
+/* Soty conversion loader: three ribbons compress into one. */
+.soty-loader {
   display: inline-block;
   flex: 0 0 auto;
   color: var(--color-accent);
 }
 
-.wishly-loader rect {
+.soty-loader rect {
   transform-origin: center;
 }
 
-.wishly-loader .ribbon-top {
+.soty-loader .ribbon-top {
   animation: ribbon-squeeze-top 1.8s var(--ease-standard) infinite;
 }
 
-.wishly-loader .ribbon-bottom {
+.soty-loader .ribbon-bottom {
   animation: ribbon-squeeze-bottom 1.8s var(--ease-standard) infinite;
 }
 
-.wishly-loader .ribbon-center {
+.soty-loader .ribbon-center {
   animation: ribbon-center 1.8s var(--ease-standard) infinite;
 }
 
@@ -2287,14 +2287,14 @@ input.is-invalid {
   font-variant-numeric: tabular-nums;
 }
 
-.wishly-dots {
+.soty-dots {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
   gap: 3px;
 }
 
-.wishly-dots i {
+.soty-dots i {
   width: 5px;
   height: 5px;
   border-radius: 50%;
@@ -2302,11 +2302,11 @@ input.is-invalid {
   animation: dot-pulse 1.4s var(--ease-standard) infinite;
 }
 
-.wishly-dots i:nth-child(2) {
+.soty-dots i:nth-child(2) {
   animation-delay: 0.18s;
 }
 
-.wishly-dots i:nth-child(3) {
+.soty-dots i:nth-child(3) {
   animation-delay: 0.36s;
 }
 
@@ -2684,7 +2684,7 @@ input.is-invalid {
   color: var(--color-text-muted);
 }
 
-.onboarding-panel .wishly-mark {
+.onboarding-panel .soty-mark {
   margin-bottom: var(--space-1);
 }
 
@@ -3285,7 +3285,7 @@ input.is-invalid {
     gap: 7px;
   }
 
-  .wishly-logo {
+  .soty-logo {
     gap: 7px;
   }
 
@@ -3454,7 +3454,7 @@ input.is-invalid {
 }
 
 @media (max-width: 420px) {
-  .topbar-lead .brand-link .wishly-wordmark {
+  .topbar-lead .brand-link .soty-wordmark {
     display: none;
   }
 }
@@ -3483,11 +3483,11 @@ input.is-invalid {
 
   .progress-track.is-flowing > span,
   .skeleton,
-  .wishly-loader .ribbon-top,
-  .wishly-loader .ribbon-bottom,
-  .wishly-loader .ribbon-center,
+  .soty-loader .ribbon-top,
+  .soty-loader .ribbon-bottom,
+  .soty-loader .ribbon-center,
   .transcription-loader .wave-bar,
-  .wishly-dots i {
+  .soty-dots i {
     animation: none !important;
   }
 
@@ -4581,8 +4581,8 @@ input.is-invalid {
   position: relative;
   display: grid;
   grid-template-rows: auto 1fr auto;
-  height: 100vh;
-  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
   overflow: clip;
   isolation: isolate;
   background:
@@ -4593,6 +4593,14 @@ input.is-invalid {
       var(--color-surface-3) 48%,
       var(--color-surface-2) 100%
     );
+}
+
+/* The OAuth homepage is a single self-contained screen. Never let the
+   honeycomb canvas or a route beneath it peek through while the viewport
+   changes (mobile browser chrome, trackpad overscroll, or a short screen). */
+body:has(.public-home) {
+  overflow: hidden;
+  background: var(--color-surface-3);
 }
 
 .public-topbar,
@@ -4632,9 +4640,17 @@ input.is-invalid {
   margin-bottom: var(--space-5);
   border: 1px solid rgb(117 87 232 / 18%);
   border-radius: 25px;
-  background: rgb(255 255 255 / 76%);
+  overflow: hidden;
+  background: var(--color-surface-3);
   box-shadow: 0 18px 54px rgb(67 48 113 / 12%);
   backdrop-filter: blur(16px);
+}
+
+.public-hero-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .public-eyebrow {
@@ -7714,30 +7730,8 @@ input.is-invalid {
 }
 
 /* ============================================================
-   Cosmic reveal — the incoming theme wipes in as a growing
-   circle from the toggle. Driven by the View Transitions API.
-   ============================================================ */
-::view-transition-old(root),
-::view-transition-new(root) {
-  /* Kill the default cross-fade; the reveal below is the only motion. */
-  animation: none;
-  mix-blend-mode: normal;
-}
-/* The incoming theme always grows on top; the old stays put underneath. */
-::view-transition-new(root) {
-  z-index: 9999;
-}
-::view-transition-old(root) {
-  z-index: 1;
-}
-/* transitionTheme() adds a short-lived keyframe with the measured toggle
-   position as percentages. That keeps the origin aligned when a browser uses
-   device-pixel dimensions for the view-transition snapshot. */
-
-/* ============================================================
    Route transitions — a short crossfade of the page content
-   only. The root group keeps `animation: none` (above), so the
-   persistent topbar swaps instantly and never shimmers.
+   only; the persistent topbar remains mounted.
    ============================================================ */
 ::view-transition-old(wishly-page) {
   animation: wishly-page-out var(--dur-section) var(--ease-standard) both;
@@ -7879,16 +7873,16 @@ input.is-invalid {
   }
 }
 
-/* Lift the toggle above the reveal and spin the icons past each other.
-   Scoped to the theme transition: route view transitions also snapshot the
+/* Lift the toggle above the transition and spin the icons past each other.
+   Scoped to an active theme transition: route view transitions also snapshot the
    named toggle, and an unscoped rule would spin it on every navigation. */
 ::view-transition-group(theme-toggle) {
   z-index: 10001;
 }
-:root.theme-transitioning::view-transition-old(theme-toggle) {
+:root.is-theming::view-transition-old(theme-toggle) {
   animation: theme-toggle-out 0.5s var(--ease-standard) both;
 }
-:root.theme-transitioning::view-transition-new(theme-toggle) {
+:root.is-theming::view-transition-new(theme-toggle) {
   animation: theme-toggle-in 0.5s var(--ease-standard) both;
 }
 @keyframes theme-toggle-out {
@@ -9824,14 +9818,24 @@ body {
 .hc-base-veil {
   opacity: 0;
 }
-/* Keep theme motion broadly compatible. Typed custom-property registration was
-   rejected by some production browsers, causing the entire stylesheet to be
-   dropped and leaving a black canvas. */
+/* Theme is a design-system contract: when its semantic tokens change, every
+   current surface and every new component inherits a single calm colour fade.
+   This deliberately includes text, chips, borders, SVGs, shadows and form
+   controls, rather than only the page canvas. Layout and transform are not
+   transitioned here, so a theme change never shifts or "bounces" content. */
 :root.is-theming,
-:root.is-theming body,
-:root.is-theming .public-home,
-:root.is-theming .app-shell {
+:root.is-theming *,
+:root.is-theming *::before,
+:root.is-theming *::after {
   transition:
-    background-color 520ms cubic-bezier(0.65, 0, 0.35, 1),
-    color 520ms cubic-bezier(0.65, 0, 0.35, 1);
+    color var(--dur-complete) var(--ease-standard),
+    background-color var(--dur-complete) var(--ease-standard),
+    border-color var(--dur-complete) var(--ease-standard),
+    outline-color var(--dur-complete) var(--ease-standard),
+    text-decoration-color var(--dur-complete) var(--ease-standard),
+    caret-color var(--dur-complete) var(--ease-standard),
+    fill var(--dur-complete) var(--ease-standard),
+    stroke var(--dur-complete) var(--ease-standard),
+    box-shadow var(--dur-complete) var(--ease-standard),
+    -webkit-text-fill-color var(--dur-complete) var(--ease-standard);
 }

@@ -6,9 +6,9 @@ are no `NEEDS CLARIFICATION` markers in the spec; each open UX decision is resol
 
 ## Current-state findings (grounding)
 
-- `ProtectedWishly.tsx` mounts `<TeamProvider client={teamApi}>` once and maps the exact path
+- `ProtectedSoty.tsx` mounts `<TeamProvider client={teamApi}>` once and maps the exact path
   `/team` to `<TeamWorkspacePage/>`. Routing is hand-rolled and matches exact path strings.
-- `TeamContext.tsx` persists the active team in `localStorage['wishly.active-team.v1']` and
+- `TeamContext.tsx` persists the active team in `localStorage['soty.active-team.v1']` and
   derives `activeTeam = teams.find(id) ?? teams[0] ?? null`. The `?? teams[0]` fallback means
   the app **auto-enters** the first team — there is no "no space chosen yet" state.
 - `TeamWorkspacePage.tsx` renders everything at once in a two-column grid: `MemberList`,
@@ -36,7 +36,7 @@ space), **create wizard** (user chose "create" or is resuming an incomplete setu
 **workspace shell** (a space is entered). The create wizard and space-settings surface are
 in-route view states, not new URL paths.
 
-**Rationale**: The spec's core rules are about *state*, not URLs — a cached choice skips the
+**Rationale**: The spec's core rules are about _state_, not URLs — a cached choice skips the
 lobby, "Change space" returns to it. The hand-rolled router matches exact path strings and all
 in-app pages share one lazy chunk, so introducing prefix-matched sub-routes would touch the
 router core and the view-transition path for no spec-required benefit (there is no deep-link-
@@ -57,7 +57,7 @@ nullable **entered space**: `activeTeamId` is the persisted confirmed choice wit
 show the lobby. The lobby renders whenever `activeTeamId` is null or unresolved.
 
 **Rationale**: The `?? teams[0]` fallback is precisely what removes the "choose a space first"
-step (FR-002) and what a returning user's cache must be able to *not* satisfy after "Change
+step (FR-002) and what a returning user's cache must be able to _not_ satisfy after "Change
 space" (FR-005). Making "no confirmed choice" a real state is the smallest change that yields
 the whole navigation behaviour, and it keeps one source of truth for the active space (Prin.
 VI). Realtime membership-loss already clears the active team; that path now naturally returns
@@ -131,7 +131,7 @@ backend data.
 
 **Alternatives considered**: Always-visible search with disabled filters — rejected: still
 shows controls with nothing to act on. Removing filters entirely for v1 — rejected: loses
-capability the spec wants merely *hidden*, not deleted (FR-019).
+capability the spec wants merely _hidden_, not deleted (FR-019).
 
 ## Decision 6 — Home entry stays and is made unmistakable
 

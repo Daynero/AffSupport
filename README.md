@@ -1,6 +1,6 @@
-# Wishly — local tools for your files
+# Soty — local tools for your files
 
-Wishly is a set of browser-controlled tools whose file processing happens in a local Wishly application. The browser provides the interface; supported files stay on the user’s computer. Release artifacts are platform-specific, so macOS today and Windows later use the same compatibility and update protocol.
+Soty is a set of browser-controlled tools whose file processing happens in a local Soty application. The browser provides the interface; supported files stay on the user’s computer. Release artifacts are platform-specific, so macOS today and Windows later use the same compatibility and update protocol.
 
 ## Run
 
@@ -12,7 +12,7 @@ npm run build
 npm start
 ```
 
-The agent listens only on `http://127.0.0.1:43120`. Launching it does not open a page automatically; use **Open Wishly** from its menu when the interface is needed. Development mode is `npm run dev` with the fixed `http://127.0.0.1:5173` origin.
+The agent listens only on `http://127.0.0.1:43120`. Launching it does not open a page automatically; use **Open Soty** from its menu when the interface is needed. Development mode is `npm run dev` with the fixed `http://127.0.0.1:5173` origin.
 
 ### Isolated installable development build
 
@@ -22,20 +22,20 @@ Use one command when a feature must be tested through the real launcher or DMG:
 npm run package:dev:dmg
 ```
 
-The command creates `release/dev/Wishly Dev.app` and a timestamped DMG. It does
+The command creates `release/dev/Soty Dev.app` and a timestamped DMG. It does
 not change the product version, stable manifest, Git tags, GitHub Releases,
-Supabase migrations, or Cloudflare deployment. Wishly Dev uses bundle ID
-`com.wishly.dev`, port `43130`, its own instance lock and
-`~/Library/Application Support/Wishly Dev`. Packaged development builds use a
+Supabase migrations, or Cloudflare deployment. Soty Dev uses bundle ID
+`com.soty.dev`, port `43130`, its own instance lock and
+`~/Library/Application Support/Soty Dev`. Packaged development builds use a
 local synthetic profile and compile analytics out, so they do not authenticate
-against or write to production Supabase. They may run beside Wishly Agent.
+against or write to production Supabase. They may run beside Soty Agent.
 
 The verified Node, FFmpeg, FFprobe, whisper.cpp, Silero VAD, and corresponding
-source archives are reused from `release/Wishly Agent.app`. Override that
-source with `DEV_RUNTIME_SOURCE_APP=/path/to/verified/Wishly Agent.app` when
+source archives are reused from `release/Soty Agent.app`. Override that
+source with `DEV_RUNTIME_SOURCE_APP=/path/to/verified/Soty Agent.app` when
 necessary. The pinned llama.cpp runtime is downloaded and checksum-verified
 together with the local translation models instead of being duplicated in
-every installer. If Wishly Dev is already running, packaging quits it only
+every installer. If Soty Dev is already running, packaging quits it only
 when health reports `busy:false`; active work is never interrupted.
 
 For local model development, the Agent accepts explicit absolute paths without
@@ -47,13 +47,13 @@ TRANSLATION_MODEL_PATH=/path/to/translategemma-4b-it-Q4_K_M.gguf
 ALIGNMENT_MODEL_PATH=/path/to/multilingual-e5-small-Q4_K_M.gguf
 ```
 
-Wishly now uses Supabase Auth with Google OAuth for the hosted product, PostgreSQL profiles, RLS-protected first-party product analytics, and database-confirmed admin access. Copy `.env.example` to `.env`, then follow the beginner-friendly [Supabase and Google setup guide](docs/SUPABASE_SETUP.md). Real credentials are never committed; a missing or invalid browser configuration renders an explicit setup screen instead of starting with `undefined` values.
+Soty now uses Supabase Auth with Google OAuth for the hosted product, PostgreSQL profiles, RLS-protected first-party product analytics, and database-confirmed admin access. Copy `.env.example` to `.env`, then follow the beginner-friendly [Supabase and Google setup guide](docs/SUPABASE_SETUP.md). Real credentials are never committed; a missing or invalid browser configuration renders an explicit setup screen instead of starting with `undefined` values.
 
 The Privacy Policy and Terms are baseline EN/UA drafts. The owner **must review them and set real `VITE_PRODUCT_OPERATOR` and `VITE_LEGAL_CONTACT_EMAIL` values before public launch**; the repository deliberately does not invent a company, address, or contact identity.
 
 ## Hosted closed test
 
-Videos are still selected and processed exclusively through the local agent and never enter Cloudflare or Supabase. The hosted web app now uses Supabase only for authentication, profiles, consent, and privacy-filtered product analytics; the trusted `delete-account` Edge Function is the sole server-side account action. The current `wishly-app` Pages project uses Direct Upload, so pushing GitHub does not deploy it; the canonical production origin is `https://soty.pp.ua`. `PRODUCTION_SITE_ORIGIN` in `packages/shared/src/release.ts` and `PUBLIC_SITE_ORIGIN` in `config/production.env` are kept in sync by `npm run release:check`. The included `_redirects` supplies SPA fallback and `_headers` prevents a stale HTML shell while keeping hashed assets immutable. Environment and smoke-test steps are in [docs/PRODUCTION.md](docs/PRODUCTION.md).
+Videos are still selected and processed exclusively through the local agent and never enter Cloudflare or Supabase. The hosted web app now uses Supabase only for authentication, profiles, consent, and privacy-filtered product analytics; the trusted `delete-account` Edge Function is the sole server-side account action. The current `soty-app` Pages project uses Direct Upload, so pushing GitHub does not deploy it; the canonical production origin is `https://soty.pp.ua`. `PRODUCTION_SITE_ORIGIN` in `packages/shared/src/release.ts` and `PUBLIC_SITE_ORIGIN` in `config/production.env` are kept in sync by `npm run release:check`. The included `_redirects` supplies SPA fallback and `_headers` prevents a stale HTML shell while keeping hashed assets immutable. Environment and smoke-test steps are in [docs/PRODUCTION.md](docs/PRODUCTION.md).
 
 Before packaging, obtain matching standalone Apple Silicon FFmpeg and FFprobe from a reviewed, reproducible distribution; record version, configure flags, license, source URL and checksums in `THIRD_PARTY_NOTICES.md`. Homebrew-linked binaries are rejected. Then run:
 
@@ -70,7 +70,7 @@ All five variables are required; `scripts/package-mac.sh` aborts if any is missi
 
 ### Release and compatibility policy
 
-`packages/shared/src/release.ts` defines product and tool contracts, while `apps/web/public/.well-known/wishly/stable.json` is the platform-aware stable release manifest. Its optional localized `summary.en` and `summary.uk` fields provide the short text in the in-app release notice; omit `summary` for the generic maintenance message. The installable local app and hosted UI have separate build identities. Compatibility is checked per tool, not inferred from a connection or a matching marketing version, and a newer development build is never offered a stable downgrade.
+`packages/shared/src/release.ts` defines product and tool contracts, while `apps/web/public/.well-known/soty/stable.json` is the platform-aware stable release manifest. Its optional localized `summary.en` and `summary.uk` fields provide the short text in the in-app release notice; omit `summary` for the generic maintenance message. The installable local app and hosted UI have separate build identities. Compatibility is checked per tool, not inferred from a connection or a matching marketing version, and a newer development build is never offered a stable downgrade.
 
 When a new local build replaces the installed one, the running build enters update draining: it finishes the active batch, refuses new work, reports the pending target build, and only then restarts. An idle build can restart immediately. A web deployment may raise a tool’s minimum contract; incompatible tools are blocked before opening and explain installation or updating in a user-facing modal.
 
@@ -83,31 +83,31 @@ Use these rules for every published change:
 5. Create the new tag on that exact commit and publish the uniquely named DMG and checksum. Packaging aborts if the tag is already present locally or on `origin`, so a published release cannot be rebuilt in place.
 6. Only after the Agent asset is reachable, run `npm run deploy:web`. Deployment accepts the exact tagged commit or a descendant containing web-only changes. It aborts if the release tag is not on `origin`, the exact versioned Agent asset is unavailable, or Agent/shared release inputs changed after the tag.
 
-The packaged launcher opens the web UI bundled inside the same `.app` only when the user chooses **Open Wishly**, so its UI and API contract are always atomic without interrupting app launch. The hosted page remains useful for onboarding and remote pairing. Before navigating to the loopback pairing endpoint, it must receive a valid unauthenticated Agent health response; an unavailable Agent leaves the hosted onboarding page visible instead of replacing it with a dead `127.0.0.1` URL. If it encounters an older Agent, it offers the bundled local interface immediately as a safe fallback; if it encounters a newer Agent, it asks to refresh the page instead of incorrectly requesting an Agent downgrade.
+The packaged launcher opens the web UI bundled inside the same `.app` only when the user chooses **Open Soty**, so its UI and API contract are always atomic without interrupting app launch. The hosted page remains useful for onboarding and remote pairing. Before navigating to the loopback pairing endpoint, it must receive a valid unauthenticated Agent health response; an unavailable Agent leaves the hosted onboarding page visible instead of replacing it with a dead `127.0.0.1` URL. If it encounters an older Agent, it offers the bundled local interface immediately as a safe fallback; if it encounters a newer Agent, it asks to refresh the page instead of incorrectly requesting an Agent downgrade.
 
 Starting with `0.2.0-test.1`, the launcher also watches the installed release manifest. When a newer `.app` replaces the running copy, it performs a version-aware handoff after active compression completes. Migrating from the legacy `0.1.0-test` build requires one manual quit because that old launcher predates the handoff protocol.
 
-This test build is **ad-hoc signed, not Apple-notarized**. macOS quarantines it after download and Gatekeeper will not launch it directly (there is no "Open Anyway" affordance for an ad-hoc signature). Testers must run `xattr -dr com.apple.quarantine "/Applications/Wishly Agent.app"` after installing each downloaded build — see `TESTER_GUIDE.md`. A production release requires a Developer ID Application certificate, `--options runtime` hardened signing, and Apple notarization + stapling, after which no such step is needed. Intel/Universal support has not been verified and is not claimed.
+This test build is **ad-hoc signed, not Apple-notarized**. macOS quarantines it after download and Gatekeeper will not launch it directly (there is no "Open Anyway" affordance for an ad-hoc signature). Testers must run `xattr -dr com.apple.quarantine "/Applications/Soty Agent.app"` after installing each downloaded build — see `TESTER_GUIDE.md`. A production release requires a Developer ID Application certificate, `--options runtime` hardened signing, and Apple notarization + stapling, after which no such step is needed. Intel/Universal support has not been verified and is not claimed.
 
 ## Daily use
 
 ### Finder image conversion
 
-The packaged app embeds a Finder Sync extension. After enabling **Wishly
+The packaged app embeds a Finder Sync extension. After enabling **Soty
 Finder** once in macOS System Settings, right-click selected still images and
 choose **Convert to** → **PNG**, **JPEG**, or **WebP**. Conversion runs in the
 existing local Agent, produces collision-safe siblings beside the sources, and
 does not open the browser interface. HEIC/HEIF can be decoded as input when the
 bundled engine supports it, but is deliberately not an output target.
 
-Wishly Dev has a separate extension identity, service name, and a **Wishly Dev**
+Soty Dev has a separate extension identity, service name, and a **Soty Dev**
 suffix in Finder so it can be tested beside the stable extension. The internal
 design and future video-action extension point are documented in
 [`docs/FINDER_MEDIA_ACTIONS.md`](docs/FINDER_MEDIA_ACTIONS.md).
 
 ### Landing previews
 
-Open **Landing Preview** and choose one catalogue folder. Wishly scans it
+Open **Landing Preview** and choose one catalogue folder. Soty scans it
 recursively for folders whose root contains `index.html` or `index.htm`; once
 that root is found, its internal files and nested folders are not added to the
 navigation tree. ZIP files can sit at any scanned level and may contain one or
@@ -117,7 +117,7 @@ intentionally ignored in this first version.
 Google Drive works through **Google Drive for desktop**: choose the mounted
 Drive folder from Finder or Explorer exactly like any local folder. Reading a
 cloud-only file lets Drive hydrate it through its normal filesystem provider;
-Wishly does not request Google credentials or use the Drive API. The system
+Soty does not request Google credentials or use the Drive API. The system
 folder picker is the reliable path. Dragging a folder also works when the
 browser supplies its local `file://` URI; otherwise the UI asks the user to use
 the picker.
@@ -141,7 +141,7 @@ all** forces a complete pass. If a refresh fails, the last successful preview
 stays visible and is marked stale. **Clear cache** removes managed previews and
 extractions only—source files are never changed.
 
-ZIPs are inspected before extraction. Wishly rejects encrypted archives,
+ZIPs are inspected before extraction. Soty rejects encrypted archives,
 symbolic links, absolute/parent paths, unsafe cross-platform names, unsupported
 compression, excessive nesting, more than 50,000 entries, a file over 2 GB,
 more than 5 GB expanded data, and suspicious compression ratios.
@@ -159,7 +159,7 @@ The app warns before adding an `_compressed` file or a duplicate already represe
 
 PNG, JPEG and WebP images are copied into Agent-managed local storage under opaque IDs; the UI never exposes their absolute paths. Opening and final pools appear in scrollable two-row grids. Every job draws one image from each configured pool without replacement; after all images are used, that pool refills. The opening image is exactly one frame at each job's final frame rate. The final image receives a frozen per-job random duration of 30–40, 40–50, or 50–60 minutes, or a validated custom duration. Either pool can be used independently.
 
-Every image is adapted separately to the final dimensions of its video. **Fill and crop** preserves aspect ratio and center-crops, **Fit fully** adds a stable black background, and **Stretch** uses the exact frame dimensions. When **Replace existing** is enabled, Wishly detects and trims static frame runs at the beginning and end before adding the new image segments. The remaining source, optional image segments, normalized 48 kHz stereo audio or generated silence, and compression preset are assembled in one FFmpeg filter graph and one H.264/AAC encode. There is no uncompressed intermediate video.
+Every image is adapted separately to the final dimensions of its video. **Fill and crop** preserves aspect ratio and center-crops, **Fit fully** adds a stable black background, and **Stretch** uses the exact frame dimensions. When **Replace existing** is enabled, Soty detects and trims static frame runs at the beginning and end before adding the new image segments. The remaining source, optional image segments, normalized 48 kHz stereo audio or generated silence, and compression preset are assembled in one FFmpeg filter graph and one H.264/AAC encode. There is no uncompressed intermediate video.
 
 Starting a batch freezes its images, fit mode, encoding controls, and a separate random duration for every selected video. Later form changes cannot alter a queued or processing job. Embedded results use `_embedded_compressed.mp4` with the same collision-safe numbering as ordinary results. FFprobe validates the MP4, dimensions, frame rate, total duration, audio presence, and A/V duration before a job is marked complete.
 
@@ -185,15 +185,15 @@ Results use `name_compressed.mp4`, then `_compressed_2`, `_compressed_3`, and so
 Settings and queue metadata are stored locally at:
 
 ```text
-~/Library/Application Support/Wishly/state.json
+~/Library/Application Support/Soty/state.json
 ```
 
-Estimate cache: `~/Library/Application Support/Wishly/estimate-cache.json`.
+Estimate cache: `~/Library/Application Support/Soty/estimate-cache.json`.
 
-Managed image assets: `~/Library/Application Support/Wishly/Images/`. A pre-rebrand `~/Library/Application Support/Local Video Compressor` directory is migrated automatically on the first launch of Wishly Agent. Persisted image selections are revalidated when the Agent starts; missing or damaged assets are cleared and must be selected again. Disabling image embedding makes all stored selections inert.
+Managed image assets: `~/Library/Application Support/Soty/Images/`. A pre-rebrand `~/Library/Application Support/Local Video Compressor` directory is migrated automatically on the first launch of Soty Agent. Persisted image selections are revalidated when the Agent starts; missing or damaged assets are cleared and must be selected again. Disabling image embedding makes all stored selections inert.
 
 Landing preview catalogue, screenshots, and safe ZIP extractions:
-`~/Library/Application Support/Wishly/LandingPreviews/`. This cache remains
+`~/Library/Application Support/Soty/LandingPreviews/`. This cache remains
 available when a Google Drive source is temporarily offline and can be cleared
 from Landing Preview without touching the source.
 

@@ -1,4 +1,4 @@
-// Catalogue icons for the Wishly web tools. They live in their own module so
+// Catalogue icons for the Soty web tools. They live in their own module so
 // the tool registry can reference them without dragging page code along.
 
 export function CompressorIcon() {

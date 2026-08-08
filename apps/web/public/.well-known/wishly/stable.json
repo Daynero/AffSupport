@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.9.3",
-  "buildNumber": "39",
-  "buildId": "0.9.3+39",
+  "version": "0.9.4",
+  "buildNumber": "40",
+  "buildId": "0.9.4+40",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
   "publishedAt": "2026-08-08T00:00:00.000Z",
   "summary": {
-    "en": "Full Soty rebrand: new local app icons, installers and header artwork, with smooth light and dark theme transitions.",
-    "uk": "Повний ребрендинг у Soty: нові іконки локального застосунку, інсталятори й хедер, а також плавні переходи світлої та темної тем."
+    "en": "Simplified Soty homepage and OAuth identity surfaces, with the unfinished Google Drive workspace kept out of the public sign-in release.",
+    "uk": "Спрощена публічна сторінка Soty та поверхні OAuth-ідентифікації; незавершений простір Google Drive виключено з публічного релізу входу."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.3/Soty-v0.9.3-macOS-arm64.dmg",
-      "sha256": "12d6a95ac7fd578720405274c1a41861c7cdc65d1f4ab7db2b30d8141066d128"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.4/Soty-v0.9.4-macOS-arm64.dmg",
+      "sha256": "38b15bec0ecf175586e410409093487fd69b6dda2466cca2e64ffa3e4a1c832c"
     }
   },
   "toolRequirements": {
@@ -35,5 +35,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "5nMAHIUmgBZk1blg1Hxlb_gmexTOY-3dmNXA3FiA-ToGue7VKo_ajXPqyFY6fE_E9tyO_abG4uNTQLAhLCx6Hg"
+  "signature": "jOYcUaZcZ4IMZclO9omMw9OWCIvka2jE6nXsdN70HQoKye4LOXcFF36DOy88cVXH9-_1QFV6XV6Wh2wtycXJvA"
 }

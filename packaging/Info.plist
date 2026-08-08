@@ -23,15 +23,15 @@
   <key>LSUIElement</key>
   <true/>
   <key>NSDesktopFolderUsageDescription</key>
-  <string>Wishly creates converted or compressed files next to the originals you select.</string>
+  <string>Soty creates converted or compressed files next to the originals you select.</string>
   <key>NSDocumentsFolderUsageDescription</key>
-  <string>Wishly creates converted or compressed files next to the originals you select.</string>
+  <string>Soty creates converted or compressed files next to the originals you select.</string>
   <key>NSDownloadsFolderUsageDescription</key>
-  <string>Wishly creates converted or compressed files next to the originals you select.</string>
+  <string>Soty creates converted or compressed files next to the originals you select.</string>
   <key>NSNetworkVolumesUsageDescription</key>
-  <string>Wishly creates converted or compressed files next to the originals you select.</string>
+  <string>Soty creates converted or compressed files next to the originals you select.</string>
   <key>NSRemovableVolumesUsageDescription</key>
-  <string>Wishly creates converted or compressed files next to the originals you select.</string>
+  <string>Soty creates converted or compressed files next to the originals you select.</string>
   <key>NSServices</key>
   <array>
     <dict>

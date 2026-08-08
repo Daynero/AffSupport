@@ -11,13 +11,13 @@ workspace (`001-team-media-workspace`) into a guided, progressively disclosed ex
 non-technical users. No server capability is added: every RPC, Edge Function, table, and
 shared contract from 001 is reused unchanged. The work lives almost entirely in
 `apps/web/src/team/**`, plus the home-screen entry, the `/team` route resolution in
-`ProtectedWishly.tsx`, new compile-checked i18n keys, and DOM tests.
+`ProtectedSoty.tsx`, new compile-checked i18n keys, and DOM tests.
 
 Three surfaces replace the single overloaded `TeamWorkspacePage` grid:
 
 1. **Space lobby** — the `/team` entry resolves to a plain space picker when no space is
    actively selected: the user's teams as simple cards plus "Create a new space". Selecting a
-   space *enters* it and persists that choice; a later visit skips the lobby and opens the
+   space _enters_ it and persists that choice; a later visit skips the lobby and opens the
    entered space directly. A "Change space" control in the workspace returns to the lobby.
 2. **Create-space wizard** — a linear, one-primary-action-per-step flow: enter name
    (required) → connect one Google Drive folder (required) → land in the new space. A space
@@ -28,7 +28,7 @@ Three surfaces replace the single overloaded `TeamWorkspacePage` grid:
    surfaced on demand, with filter controls shown only when there is content to filter.
 
 The key state change is in `TeamContext`: the passive `activeTeamId ?? teams[0]` auto-select
-is replaced by an explicit, nullable *entered space* selection, so "no confirmed choice" is a
+is replaced by an explicit, nullable _entered space_ selection, so "no confirmed choice" is a
 first-class state that renders the lobby (FR-002, FR-004, FR-005, FR-007).
 
 The one reconciliation the design must own: `create_team` persists a team row before a folder
@@ -53,7 +53,7 @@ the existing drive-connect / catalog / preview / processing components under
 `apps/web/src/team/**`. No new client dependency; no new data-fetching library.
 
 **Storage**: No database or Edge change. The only persisted client state is the existing
-`localStorage` key `wishly.active-team.v1`, whose semantics change from "last auto-selected"
+`localStorage` key `soty.active-team.v1`, whose semantics change from "last auto-selected"
 to "explicitly entered space" (nullable; cleared on "Change space" and on invalid/missing
 selection). All authoritative data continues to come from 001's RPC/Edge surface.
 
@@ -102,14 +102,14 @@ billing, or to any 001 out-of-scope item.
 
 _GATE: evaluated before research and re-checked against the Phase 1 design below._
 
-| Principle | Gate | Post-design verdict |
-| --- | --- | --- |
-| **I. Type-safe contracts** | New client state (entered-space selection, lobby-item readiness, wizard step machine) is modelled as string-literal unions and discriminated results; the persisted `activeTeamId` is validated (UUID shape) on read as it is today; no `as`-casting of untrusted data; internal ESM imports keep `.js`. Reuses the already-typed `TeamContextSnapshot` / `DriveRootResult` / `TeamApiError`. | **PASS** |
-| **II. One source of truth** | No release/protocol/version change. If a lobby/selection analytics event is added, its name joins `TeamAnalyticsEventName` in `@video-compressor/shared` (not hard-coded in the app) and follows the existing typed-props discipline; otherwise existing `team_onboarding_*` / workspace-session events are reused. No duplicated constants. | **PASS** |
-| **III. Security/least privilege** | Purely presentational re-composition. No new data path, grant, token, or Drive scope. Permission-gated controls stay gated by the server-derived `permissions`; the client never widens access. Production Drive gating is displayed, not circumvented. | **PASS (N/A surface)** |
-| **IV. Child-process/resource orchestration** | No agent or child-process code touched. | **PASS (N/A)** |
-| **V. HTTP/error conventions** | No new endpoint. The wizard and lobby surface existing stable `TeamApiError` codes (`OAUTH_APPROVAL_REQUIRED`, `NAME_CONFLICT`, `DRIVE_UNAVAILABLE`, …) through i18n, branching on the code, not on message text. | **PASS** |
-| **VI. Frontend composition/state** | Entered-space selection and readiness live in the existing throwing `useTeam()` context with its `TeamContextOverride` test seam; no new global store. Backend calls stay in the typed `teamApi` wrappers; no new call is added. No polling, no prop-drilled `t`, no inline static styles (new layout uses `className` against `styles.css` + CSS custom properties), no new `any`. Large files are split, not grown: the current `TeamWorkspacePage` is decomposed into `SpaceLobby`, `CreateSpaceWizard`, `WorkspaceShell`, and a `SpaceSettings` surface rather than extended in place. | **PASS** |
+| Principle                                    | Gate                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Post-design verdict    |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------- |
+| **I. Type-safe contracts**                   | New client state (entered-space selection, lobby-item readiness, wizard step machine) is modelled as string-literal unions and discriminated results; the persisted `activeTeamId` is validated (UUID shape) on read as it is today; no `as`-casting of untrusted data; internal ESM imports keep `.js`. Reuses the already-typed `TeamContextSnapshot` / `DriveRootResult` / `TeamApiError`.                                                                                                                                                                                              | **PASS**               |
+| **II. One source of truth**                  | No release/protocol/version change. If a lobby/selection analytics event is added, its name joins `TeamAnalyticsEventName` in `@video-compressor/shared` (not hard-coded in the app) and follows the existing typed-props discipline; otherwise existing `team_onboarding_*` / workspace-session events are reused. No duplicated constants.                                                                                                                                                                                                                                               | **PASS**               |
+| **III. Security/least privilege**            | Purely presentational re-composition. No new data path, grant, token, or Drive scope. Permission-gated controls stay gated by the server-derived `permissions`; the client never widens access. Production Drive gating is displayed, not circumvented.                                                                                                                                                                                                                                                                                                                                    | **PASS (N/A surface)** |
+| **IV. Child-process/resource orchestration** | No agent or child-process code touched.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | **PASS (N/A)**         |
+| **V. HTTP/error conventions**                | No new endpoint. The wizard and lobby surface existing stable `TeamApiError` codes (`OAUTH_APPROVAL_REQUIRED`, `NAME_CONFLICT`, `DRIVE_UNAVAILABLE`, …) through i18n, branching on the code, not on message text.                                                                                                                                                                                                                                                                                                                                                                          | **PASS**               |
+| **VI. Frontend composition/state**           | Entered-space selection and readiness live in the existing throwing `useTeam()` context with its `TeamContextOverride` test seam; no new global store. Backend calls stay in the typed `teamApi` wrappers; no new call is added. No polling, no prop-drilled `t`, no inline static styles (new layout uses `className` against `styles.css` + CSS custom properties), no new `any`. Large files are split, not grown: the current `TeamWorkspacePage` is decomposed into `SpaceLobby`, `CreateSpaceWizard`, `WorkspaceShell`, and a `SpaceSettings` surface rather than extended in place. | **PASS**               |
 
 Additional gates: local gates are `format:check`, `lint`, `test`, and `build -w @video-compressor/web`; new tests live in `tests/*.test.tsx` with the jsdom docblock; i18n stays a compile-checked union across `en`/`uk`. No migration, DB type regen, or `test:db` run is required because no SQL changes.
 
@@ -162,7 +162,7 @@ apps/web/src/team/
     └── CatalogFilters.tsx          # CHANGE: render only when facets/content make filters meaningful
 
 apps/web/src/
-├── ProtectedWishly.tsx             # CHANGE: `/team` → <TeamSpace/> (was <TeamWorkspacePage/>)
+├── ProtectedSoty.tsx             # CHANGE: `/team` → <TeamSpace/> (was <TeamWorkspacePage/>)
 ├── HomePage.tsx                    # CHANGE: keep/elevate the prominent Team Space entry card
 ├── i18n.ts                         # CHANGE: add lobby/wizard/settings keys to en + uk unions
 └── analytics/ (events.ts,service.ts) # OPTIONAL: reuse onboarding events; add one only if needed
@@ -188,13 +188,13 @@ shared touch is one optional analytics event name).
 ## Complexity Tracking
 
 No constitution violation requires a waiver. The one non-obvious choice — creating the team
-row at the wizard's folder step and classifying any folderless team as *setup-incomplete*
+row at the wizard's folder step and classifying any folderless team as _setup-incomplete_
 rather than adding a delete-team backend path — is a reuse-preserving decision: it keeps this
 feature frontend-only (Principle VI), avoids new SQL/RLS surface (Principle III), and reuses
 001's existing `create_team` + `drive-connect` contract exactly. True space deletion is
 recorded as an explicit follow-up, not silently assumed.
 
-| Reconciliation | Why needed | Simpler alternative rejected because |
-| --- | --- | --- |
-| Create team at folder step + "setup-incomplete" lobby card (no delete) | `drive-connect` needs a `teamId`; 001 has no delete-team RPC | Deferring team creation until both steps done is impossible (folder connect requires the team to exist); adding a delete-team RPC would break the frontend-only scope and open new SQL/RLS surface |
-| Replace passive `activeTeamId ?? teams[0]` with explicit nullable entered-space | The `?? teams[0]` fallback is exactly what defeats "show the lobby first" | Keeping the fallback and layering a separate "show lobby" flag would create two sources of truth for the active space and reintroduce auto-enter races |
+| Reconciliation                                                                  | Why needed                                                                | Simpler alternative rejected because                                                                                                                                                               |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Create team at folder step + "setup-incomplete" lobby card (no delete)          | `drive-connect` needs a `teamId`; 001 has no delete-team RPC              | Deferring team creation until both steps done is impossible (folder connect requires the team to exist); adding a delete-team RPC would break the frontend-only scope and open new SQL/RLS surface |
+| Replace passive `activeTeamId ?? teams[0]` with explicit nullable entered-space | The `?? teams[0]` fallback is exactly what defeats "show the lobby first" | Keeping the fallback and layering a separate "show lobby" flag would create two sources of truth for the active space and reintroduce auto-enter races                                             |

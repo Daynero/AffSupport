@@ -1,3 +1,8 @@
+# v0.9.4
+
+- Simplify Soty’s public homepage and align Google OAuth branding and privacy surfaces with the released product.
+- Keep the not-yet-ready Google Drive workspace out of the production OAuth scope configuration.
+
 # v0.9.3
 
 - Full rebrand to **Soty** across the local macOS app, Windows installer, web application, downloadable artifacts, and app icons.
@@ -6,7 +11,7 @@
 
 # v0.9.2
 
-- Move the canonical Wishly web app to `https://soty.pp.ua` and align the packaged Agent, authentication callbacks, Google Drive workspace flow, and production release checks with the new origin.
+- Move the canonical Soty web app to `https://soty.pp.ua` and align the packaged Agent, authentication callbacks, Google Drive workspace flow, and production release checks with the new origin.
 
 # v0.9.1
 
@@ -19,7 +24,7 @@
 - Add Team Workspace for creating teams, inviting up to 50 members, managing roles and independent file/metadata permissions, and transferring ownership safely.
 - Connect one shared Google Drive root per team through a fail-closed OAuth flow, with server-held credentials, live ancestry/capability checks, resumable transfers, and recoverable file operations.
 - Add a permission-filtered media catalog with canonical classification, GEO/language/offer/tag metadata, combined search and filters, bounded transcript indexing, and durable synchronization.
-- Preview video, images, transcripts, archives, and isolated landing packages, then run existing Wishly tools and return separate provenance-linked results without overwriting sources.
+- Preview video, images, transcripts, archives, and isolated landing packages, then run existing Soty tools and return separate provenance-linked results without overwriting sources.
 - Add RLS-protected database authority, scoped transfer grants, append-only audit, privacy-safe analytics, bilingual UI, and old-Agent compatibility gates for the new team routes.
 
 # v0.8.10
@@ -33,7 +38,7 @@
 # v0.8.9
 
 - Preserve custom zoom, fit mode, and sidebar state while switching landings and after reopening Landing Preview.
-- Replace browser-default grey toolbar buttons with theme-aware Wishly controls and restore readable warning contrast in dark mode.
+- Replace browser-default grey toolbar buttons with theme-aware Soty controls and restore readable warning contrast in dark mode.
 - Capture long pages as seamless full-resolution WebP slices instead of silently saving only the 1440 × 900 viewport, including pages that scroll inside a nested container.
 - Reject empty or invalid cached screenshots, eagerly settle lazy-loaded content, automatically rebuild previews created by the old capture profile, and retain the previous valid preview if rebuilding fails.
 
@@ -63,7 +68,7 @@
 
 # v0.8.5
 
-- Require a signed-in Wishly account to use the local tools; the app confirms the account with the server occasionally and keeps working offline for several days between checks.
+- Require a signed-in Soty account to use the local tools; the app confirms the account with the server occasionally and keeps working offline for several days between checks.
 - Verify the update manifest's signature before offering any download, so the installer a browser is pointed at cannot be redirected by anyone who does not hold the release key.
 - Make navigation flow: the header stays in place across pages, tools and settings transition instead of snapping, and a finished compression morphs from its size estimate into the real result.
 - Preserve the transcription queue across restarts, showing interrupted work as retryable instead of silently dropping it.
@@ -73,7 +78,7 @@
 # v0.8.4
 
 - Detect and remove previously embedded static opening and ending sections before estimating a replacement, keeping predicted duration and output size accurate.
-- Preserve compressor selections while navigating within Wishly and remove stale leave-page prompts and redundant interface copy.
+- Preserve compressor selections while navigating within Soty and remove stale leave-page prompts and redundant interface copy.
 - Refine image embedding controls and responsive layouts across the compressor, account, landing, and transcription interfaces.
 
 # v0.8.3
@@ -83,7 +88,7 @@
 
 # v0.8.2
 
-- Keep Wishly idle after launch instead of opening a page automatically; open the interface manually when needed.
+- Keep Soty idle after launch instead of opening a page automatically; open the interface manually when needed.
 - Make **Optimal** explicitly use 30 FPS, CRF 26, and a 720p longest side, with the values visible under the preset button.
 - Add scrollable opening and ending image pools, choosing images randomly without repeats until every image in the pool has been used.
 - Add **Replace existing** to remove static opening and ending runs before embedding new images and compressing the video.
@@ -92,18 +97,18 @@
 # v0.8.1
 
 - Make Finder image conversion reliably use the files selected when the submenu opens, so PNG, JPEG, and WebP actions work even after Finder clears its transient selection.
-- Keep the stable and development Finder bridges isolated when both Wishly builds are installed, and add privacy-safe native diagnostics for failed handoffs.
+- Keep the stable and development Finder bridges isolated when both Soty builds are installed, and add privacy-safe native diagnostics for failed handoffs.
 
 # v0.8.0
 
 - Convert one or many selected still images directly from Finder through a native **Convert to** submenu.
 - Export PNG, JPEG, or WebP beside each original with collision-safe names; HEIC/HEIF remains available as an input when macOS can decode it, but is not offered as an output.
-- Keep conversion private and unobtrusive: Wishly queues the work in the local Agent without opening the browser UI and reports completion through macOS.
+- Keep conversion private and unobtrusive: Soty queues the work in the local Agent without opening the browser UI and reports completion through macOS.
 - Ship the Finder action inside both production and development app bundles, with localized English and Ukrainian labels and a reusable media-action queue for future video workflows.
 
 # v0.7.4
 
-- Automatically translate every completed transcript in the background using the Wishly interface language as the default target.
+- Automatically translate every completed transcript in the background using the Soty interface language as the default target.
 - Show compact per-file translation status and real segment progress directly in the transcription queue.
 - Let users change the translation language from a completed file row, cancelling stale work and restarting progress safely.
 - Reuse model-versioned translations from the local cache, join repeated in-flight requests, and avoid duplicate inference across identical queued transcripts.
@@ -179,7 +184,7 @@
 - Add multi-landing ZIP and folder imports with a sequential optimization queue and independent per-landing actions.
 - Add large image previews, including draggable before/after comparisons and single previews when the original image is kept.
 - Recompress WebP images when it reduces file size, while always retaining the original when an optimized result would be larger.
-- Open Landing Optimizer to every Wishly user without the developer-pass gate.
+- Open Landing Optimizer to every Soty user without the developer-pass gate.
 
 # v0.5.5
 
@@ -194,22 +199,22 @@
 
 # v0.4.0-test.1
 
-The product is now **Wishly**, and the macOS menu bar app is **Wishly Agent** (Agent API v5).
+The product is now **Soty**, and the macOS menu bar app is **Soty Agent** (Agent API v5).
 
-- Full rebrand from Local Video Compressor to Wishly / Wishly Agent, including a new app icon and a new DMG appearance.
+- Full rebrand from Local Video Compressor to Soty / Soty Agent, including a new app icon and a new DMG appearance.
 - New purple design system and motion system in the web UI.
-- New hosted origin: <https://wishly-app.pages.dev>.
-- Local queue, settings, estimate cache and managed images are migrated automatically from the old `~/Library/Application Support/Local Video Compressor` directory on the first launch of Wishly Agent.
-- Uploaded (dropped) outputs are now saved to `~/Movies/Wishly`.
+- New hosted origin: <https://soty-app.pages.dev>.
+- Local queue, settings, estimate cache and managed images are migrated automatically from the old `~/Library/Application Support/Local Video Compressor` directory on the first launch of Soty Agent.
+- Uploaded (dropped) outputs are now saved to `~/Movies/Soty`.
 
 ## Updating the test build
 
-Because the app bundle was renamed, dragging Wishly Agent into Applications does **not** replace the old app. Quit **Local Video Compressor Agent** from its menu bar icon, delete it from Applications, then install **Wishly Agent** from the new DMG. Your local data is migrated automatically.
+Because the app bundle was renamed, dragging Soty Agent into Applications does **not** replace the old app. Quit **Local Video Compressor Agent** from its menu bar icon, delete it from Applications, then install **Soty Agent** from the new DMG. Your local data is migrated automatically.
 
 This remains an ad-hoc-signed, non-notarized Apple Silicon test build. After copying it to Applications, run:
 
 ```bash
-xattr -dr com.apple.quarantine "/Applications/Wishly Agent.app"
+xattr -dr com.apple.quarantine "/Applications/Soty Agent.app"
 ```
 
 # v0.3.0-test.2

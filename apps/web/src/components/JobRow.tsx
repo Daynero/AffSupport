@@ -29,7 +29,7 @@ import {
   Spinner,
   StatusBadge,
   Tooltip,
-  WishlyDots,
+  SotyDots,
   type Translate
 } from './ui';
 
@@ -328,7 +328,7 @@ function EstimatePanel({
       ) : (
         <div className="estimate-state">
           {job.estimateStatus === 'estimating' || !current ? (
-            <WishlyDots />
+            <SotyDots />
           ) : (
             <span className="skeleton skeleton-size" aria-hidden="true" />
           )}

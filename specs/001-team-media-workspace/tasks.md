@@ -1,4 +1,4 @@
-# Tasks: Командний медіапростір Wishly
+# Tasks: Командний медіапростір Soty
 
 **Input**: Design documents from `/specs/001-team-media-workspace/`
 
@@ -70,7 +70,7 @@ and database security tests.
 ### Boundary adapters
 
 - [x] T020 [P] Implement shared CORS, unknown-input parsing, stable `{ ok:false,error:{code,retryable,details?} }` Edge mapping, safe logging/redaction, and JSON response helpers in `supabase/functions/_shared/cors.ts`, `supabase/functions/_shared/validation.ts`, and `supabase/functions/_shared/errors.ts`
-- [x] T021 Implement user-JWT caller-scoped gates, one-time OAuth callback, named-secret worker auth, closed `DRIVE_OAUTH_MODE`, and any-production-signal detection via `WISHLY_SITE_URL`, transaction/request origin, and shared `PRODUCTION_SITE_ORIGIN` in `supabase/functions/_shared/auth.ts`
+- [x] T021 Implement user-JWT caller-scoped gates, one-time OAuth callback, named-secret worker auth, closed `DRIVE_OAUTH_MODE`, and any-production-signal detection via `SOTY_SITE_URL`, transaction/request origin, and shared `PRODUCTION_SITE_ORIGIN` in `supabase/functions/_shared/auth.ts`
 - [x] T022 Implement service-only Vault credential access, mode-gated Google token refresh, provider validation, Shared Drive flags, live ancestry/per-item capability checks, and zero-side-effect `OAUTH_APPROVAL_REQUIRED` rejection in `supabase/functions/_shared/credentials.ts` and `supabase/functions/_shared/drive.ts`
 - [x] T023 Implement idempotency, operation state, name reservation, transfer-grant hashing/consumption, and audit completion adapters in `supabase/functions/_shared/operations.ts`
 - [x] T024 [P] Create only schema-independent Edge invocation, `unknown` response validation, and closed machine-error decoding in `apps/web/src/api/team.ts`; defer every generated-`Database` RPC signature until its story migration and type generation complete
@@ -117,7 +117,7 @@ team's nested catalog and cannot see another team's data.
 
 - [x] T040 [US1] After T036 generated types exist, add schema-bound team, invitation, Drive connection, folder-browser, and basic catalog RPC methods to `apps/web/src/api/team.ts`
 - [x] T041 [US1] Load/switch team contexts and react to invitation, connection, and catalog state in `apps/web/src/team/TeamContext.tsx`
-- [x] T042 [US1] Add the authenticated team workspace route and provider composition in `apps/web/src/team/TeamWorkspacePage.tsx` and `apps/web/src/ProtectedWishly.tsx`
+- [x] T042 [US1] Add the authenticated team workspace route and provider composition in `apps/web/src/team/TeamWorkspacePage.tsx` and `apps/web/src/ProtectedSoty.tsx`
 - [x] T043 [P] [US1] Implement explicit active-team selection and connection-state badges in `apps/web/src/team/TeamSwitcher.tsx`
 - [x] T044 [P] [US1] Implement validated team creation and duplicate-name feedback in `apps/web/src/team/CreateTeamDialog.tsx`
 - [x] T045 [P] [US1] Implement owner invitation forms, pending/delivery states, resend/revoke actions, and the 50-member limit display in `apps/web/src/team/members/InvitationPanel.tsx` and `apps/web/src/team/members/MemberList.tsx`
@@ -205,7 +205,7 @@ integrated with US1 without requiring preview or file mutations.
 
 ---
 
-## Phase 6: User Story 4 — Preview a material in Wishly (Priority: P4)
+## Phase 6: User Story 4 — Preview a material in Soty (Priority: P4)
 
 **Goal**: Members preview supported video, image, transcript, archive, and navigable landing
 content safely, with truthful typed fallback states for unsupported or damaged inputs.
@@ -214,7 +214,7 @@ content safely, with truthful typed fallback states for unsupported or damaged i
 
 **Independent Test**: Open one fixture per supported category plus corrupt, protected,
 oversized, and unsupported fixtures; prove media starts or reports an explicit state,
-archive inspection leaves no residue, and landing code cannot access Wishly/session APIs.
+archive inspection leaves no residue, and landing code cannot access Soty/session APIs.
 
 ### Tests for User Story 4
 

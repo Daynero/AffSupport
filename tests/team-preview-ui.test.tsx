@@ -192,7 +192,7 @@ describe('team material preview UI', () => {
     ['corrupt', 'This file is damaged or unreadable.'],
     ['protected', 'Password-protected files cannot be previewed.'],
     ['too_large', 'This file exceeds the safe preview limit.'],
-    ['agent_required', 'Open or update the Wishly app to preview this file.']
+    ['agent_required', 'Open or update the Soty app to preview this file.']
   ] as const)('shows the %s fallback without a false-ready surface', async (reason, copy) => {
     const previewClient = client({ kind: 'unavailable', reason, allowedActions: ['download'] });
     const { container } = render(

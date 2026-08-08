@@ -76,7 +76,7 @@ export default function LandingPreviewPage() {
   const dragDepth = useRef(0);
 
   useEffect(() => {
-    document.title = `${t('landingGallery')} — Wishly`;
+    document.title = `${t('landingGallery')} — Soty`;
   }, [t]);
 
   useEffect(() => {

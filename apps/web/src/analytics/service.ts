@@ -126,7 +126,7 @@ async function sendWithSupabase(events: PendingAnalyticsEvent[]) {
     p_events: payload as unknown as Json
   });
   if (error) {
-    console.warn('Wishly analytics delivery failed.', {
+    console.warn('Soty analytics delivery failed.', {
       code: error.code,
       message: error.message
     });
@@ -141,7 +141,7 @@ async function sendWithSupabase(events: PendingAnalyticsEvent[]) {
   const rejected = data.filter(result => result.accepted !== true && batchIds.has(result.event_id));
   if (rejected.length) {
     console.warn(
-      'Wishly analytics rejected events.',
+      'Soty analytics rejected events.',
       rejected.map(result => ({ event_id: result.event_id, reason: result.reason }))
     );
   }

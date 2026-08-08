@@ -40,8 +40,8 @@ describe('Wishly product launcher', () => {
   });
 
   it('localizes launcher content in EN and UA', () => {
-    expect(translate('en', 'toolsTitle')).toBe('Wishly Tools');
-    expect(translate('uk', 'toolsTitle')).toBe('Інструменти Wishly');
+    expect(translate('en', 'toolsTitle')).toBe('Soty Tools');
+    expect(translate('uk', 'toolsTitle')).toBe('Інструменти Soty');
     expect(translate('en', 'comingSoon')).toBe('Coming soon');
     expect(translate('uk', 'comingSoon')).toBe('Незабаром');
     expect(translate('en', 'inDevelopment')).toBe('In development');
