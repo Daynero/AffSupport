@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
+import localAppIcon from '../../../assets/AppIcon.png';
 import { LanguageSwitch } from './components/LanguageSwitch';
 import { ThemeToggle } from './components/ThemeToggle';
-import { SotyLogo } from './components/SotyLogo';
 import { useI18n } from './i18n';
 import { internalLink } from './lib/navigation';
 
@@ -21,7 +21,7 @@ export default function PublicHomePage() {
       <div className="login-accent accent-two" aria-hidden="true" />
       <header className="login-topbar public-topbar">
         <a href="/" onClick={event => internalLink(event, '/')} aria-label="Soty">
-          <SotyLogo name="Soty" />
+          <img className="public-topbar-app-icon" src={localAppIcon} alt="" aria-hidden="true" />
         </a>
         <div className="topbar-cluster">
           <ThemeToggle />

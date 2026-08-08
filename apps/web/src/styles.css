@@ -4616,6 +4616,13 @@ body:has(.public-home) {
   text-decoration: none;
 }
 
+.public-topbar-app-icon {
+  display: block;
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+}
+
 .public-home-content {
   display: grid;
   align-items: center;
