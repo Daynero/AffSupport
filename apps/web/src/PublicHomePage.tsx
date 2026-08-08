@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import localAppIcon from '../../../assets/AppIcon.png';
 import { LanguageSwitch } from './components/LanguageSwitch';
+import { SotyLogo } from './components/SotyLogo';
 import { ThemeToggle } from './components/ThemeToggle';
 import { useI18n } from './i18n';
 import { internalLink } from './lib/navigation';
@@ -20,9 +20,6 @@ export default function PublicHomePage() {
       <div className="login-accent accent-one" aria-hidden="true" />
       <div className="login-accent accent-two" aria-hidden="true" />
       <header className="login-topbar public-topbar">
-        <a href="/" onClick={event => internalLink(event, '/')} aria-label="Soty">
-          <img className="public-topbar-app-icon" src={localAppIcon} alt="" aria-hidden="true" />
-        </a>
         <div className="topbar-cluster">
           <ThemeToggle />
           <LanguageSwitch />
@@ -31,8 +28,8 @@ export default function PublicHomePage() {
 
       <main className="public-home-content">
         <section className="public-hero" aria-labelledby="public-home-title">
-          <div className="public-hero-mark" aria-hidden="true">
-            <img src="/icon-192.png" alt="" />
+          <div className="public-hero-logo" aria-hidden="true">
+            <SotyLogo name="Soty" />
           </div>
           <p className="public-eyebrow">{t('publicHomeEyebrow')}</p>
           <h1 id="public-home-title">{t('publicHomeTitle')}</h1>

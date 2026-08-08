@@ -91,9 +91,6 @@ export function LoginPage() {
         </div>
       </header>
       <Card className="login-card" aria-labelledby="login-heading">
-        <span className="login-mark" aria-hidden="true">
-          <SotyMark size={44} />
-        </span>
         <div className="login-copy">
           <h1 id="login-heading">{t('loginHeading')}</h1>
           <p>{t('loginDescription')}</p>
