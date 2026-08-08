@@ -9797,82 +9797,12 @@ body {
 .hc-base-veil {
   opacity: 0;
 }
-/* Theme cross-fade.
-   A plain `transition: color/background …` on every element does NOT interpolate
-   here: nearly all UI colours are declared as `var(--color-…)`, and a property
-   whose value is a `var()` reference doesn't run a transition when only the
-   referenced custom property changes — it snaps. That snap is the "blink" the
-   header text showed on a theme flip. (Colours that are *inherited* animated
-   fine, which is why the user-menu name / connection badge never blinked.)
-
-   The fix is to animate the theme tokens themselves: registering each colour
-   token as an `<color>` @property makes it interpolable, so a transition on
-   `:root` cross-fades the tokens and every element reading them — directly or
-   through `color-mix()` — tracks the live value each frame. Descendants must
-   NOT run their own colour transitions on top (that reintroduces the snap), so
-   `:root.is-theming *` keeps only motion transitions (transform/opacity/filter,
-   e.g. the sun↔moon toggle morph) and drops the colour ones. */
-@property --color-bg { syntax: '<color>'; inherits: true; initial-value: #f7f4fa; }
-@property --color-surface { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
-@property --color-surface-subtle { syntax: '<color>'; inherits: true; initial-value: #fbf9fd; }
-@property --color-surface-muted { syntax: '<color>'; inherits: true; initial-value: #eeeaf1; }
-@property --color-surface-2 { syntax: '<color>'; inherits: true; initial-value: #fbf9fd; }
-@property --color-surface-3 { syntax: '<color>'; inherits: true; initial-value: #f7f4fa; }
-@property --color-text { syntax: '<color>'; inherits: true; initial-value: #211a2c; }
-@property --color-text-muted { syntax: '<color>'; inherits: true; initial-value: #6c6173; }
-@property --color-border { syntax: '<color>'; inherits: true; initial-value: #ded8e2; }
-@property --color-border-strong { syntax: '<color>'; inherits: true; initial-value: #c7becf; }
-@property --color-accent { syntax: '<color>'; inherits: true; initial-value: #6842d9; }
-@property --color-accent-hover { syntax: '<color>'; inherits: true; initial-value: #5532b8; }
-@property --color-accent-active { syntax: '<color>'; inherits: true; initial-value: #42288f; }
-@property --color-accent-soft { syntax: '<color>'; inherits: true; initial-value: #ece5ff; }
-@property --color-accent-softer { syntax: '<color>'; inherits: true; initial-value: #f5f1ff; }
-@property --color-focus { syntax: '<color>'; inherits: true; initial-value: #9b7aee; }
-@property --color-action { syntax: '<color>'; inherits: true; initial-value: #f5a318; }
-@property --color-action-hover { syntax: '<color>'; inherits: true; initial-value: #d98508; }
-@property --color-action-active { syntax: '<color>'; inherits: true; initial-value: #ad6605; }
-@property --color-action-soft { syntax: '<color>'; inherits: true; initial-value: #fff8e5; }
-@property --color-on-action { syntax: '<color>'; inherits: true; initial-value: #2d1a05; }
-@property --color-success { syntax: '<color>'; inherits: true; initial-value: #18794e; }
-@property --color-success-soft { syntax: '<color>'; inherits: true; initial-value: #eaf7f0; }
-@property --color-warning { syntax: '<color>'; inherits: true; initial-value: #9a6700; }
-@property --color-warning-soft { syntax: '<color>'; inherits: true; initial-value: #fff7db; }
-@property --color-error { syntax: '<color>'; inherits: true; initial-value: #b42318; }
-@property --color-error-soft { syntax: '<color>'; inherits: true; initial-value: #fff0ee; }
-
-:root.is-theming {
-  transition:
-    --color-bg 775ms cubic-bezier(0.65, 0, 0.35, 1),
-    --color-surface 775ms cubic-bezier(0.65, 0, 0.35, 1),
-    --color-surface-subtle 775ms cubic-bezier(0.65, 0, 0.35, 1),
-    --color-surface-muted 775ms cubic-bezier(0.65, 0, 0.35, 1),
-    --color-surface-2 775ms cubic-bezier(0.65, 0, 0.35, 1),
-    --color-surface-3 775ms cubic-bezier(0.65, 0, 0.35, 1),
-    --color-text 775ms cubic-bezier(0.65, 0, 0.35, 1),
-    --color-text-muted 775ms cubic-bezier(0.65, 0, 0.35, 1),
-    --color-border 775ms cubic-bezier(0.65, 0, 0.35, 1),
-    --color-border-strong 775ms cubic-bezier(0.65, 0, 0.35, 1),
-    --color-accent 775ms cubic-bezier(0.65, 0, 0.35, 1),
-    --color-accent-hover 775ms cubic-bezier(0.65, 0, 0.35, 1),
-    --color-accent-active 775ms cubic-bezier(0.65, 0, 0.35, 1),
-    --color-accent-soft 775ms cubic-bezier(0.65, 0, 0.35, 1),
-    --color-accent-softer 775ms cubic-bezier(0.65, 0, 0.35, 1),
-    --color-focus 775ms cubic-bezier(0.65, 0, 0.35, 1),
-    --color-action 775ms cubic-bezier(0.65, 0, 0.35, 1),
-    --color-action-hover 775ms cubic-bezier(0.65, 0, 0.35, 1),
-    --color-action-active 775ms cubic-bezier(0.65, 0, 0.35, 1),
-    --color-action-soft 775ms cubic-bezier(0.65, 0, 0.35, 1),
-    --color-on-action 775ms cubic-bezier(0.65, 0, 0.35, 1),
-    --color-success 775ms cubic-bezier(0.65, 0, 0.35, 1),
-    --color-success-soft 775ms cubic-bezier(0.65, 0, 0.35, 1),
-    --color-warning 775ms cubic-bezier(0.65, 0, 0.35, 1),
-    --color-warning-soft 775ms cubic-bezier(0.65, 0, 0.35, 1),
-    --color-error 775ms cubic-bezier(0.65, 0, 0.35, 1),
-    --color-error-soft 775ms cubic-bezier(0.65, 0, 0.35, 1);
-}
-
-/* Colours ride the animated tokens above; leave only motion transitions running
-   so the sun↔moon toggle morph (and any hover motion) still animates. */
-:root.is-theming * {
-  transition-property: transform, opacity, filter !important;
+/* Keep theme motion broadly compatible. Typed custom-property registration was
+   rejected by some production browsers, causing the entire stylesheet to be
+   dropped and leaving a black canvas. */
+:root.is-theming,
+:root.is-theming body,
+:root.is-theming .public-home,
+:root.is-theming .app-shell {
+  transition: background-color 520ms cubic-bezier(0.65, 0, 0.35, 1), color 520ms cubic-bezier(0.65, 0, 0.35, 1);
 }
