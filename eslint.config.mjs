@@ -33,7 +33,12 @@ export default tseslint.config(
     }
   },
   {
-    files: ['scripts/**/*.{js,mjs}', 'apps/soty-review/scripts/**/*.{js,mjs}'],
+    files: [
+      'scripts/**/*.{js,mjs}',
+      'apps/soty-review/scripts/**/*.{js,mjs}',
+      'apps/web/scripts/**/*.{js,mjs}',
+      'apps/web/_shot_tmp.mjs'
+    ],
     languageOptions: {
       globals: {
         ...globals.node,

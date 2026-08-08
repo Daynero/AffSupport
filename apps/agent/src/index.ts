@@ -295,7 +295,7 @@ async function shutdown(code = 0) {
 
 try {
   await app.listen({ host: config.host, port: config.port });
-  app.log.info(`Wishly Agent: http://${config.host}:${config.port}`);
+  app.log.info(`Soty Agent: http://${config.host}:${config.port}`);
 } catch (error) {
   app.log.error(error);
   process.exit(1);

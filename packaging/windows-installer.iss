@@ -1,4 +1,4 @@
-; Wishly Agent — Inno Setup installer template.
+; Soty Agent — Inno Setup installer template.
 ;
 ; Rendering (the same generic string replacer the mac launcher uses):
 ;   node scripts/render-launcher.mjs packaging/windows-installer.iss \
@@ -21,7 +21,7 @@
 ;   signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 ^
 ;     /a <HostDir>\WishlyAgentHost.exe
 ;   signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 ^
-;     /a Output\Wishly-Agent-v__PRODUCT_VERSION__-Windows-x64.exe
+;     /a Output\Soty-Agent-v__PRODUCT_VERSION__-Windows-x64.exe
 ; Inno can also sign intermediate files itself via SignTool=... if configured.
 
 #ifndef StageDir

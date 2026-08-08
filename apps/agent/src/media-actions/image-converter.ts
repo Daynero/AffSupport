@@ -60,7 +60,7 @@ export async function convertImage(
     if (['EACCES', 'EPERM', 'EROFS'].includes(errorCode(error) ?? '')) {
       throw new ImageConversionError(
         'PERMISSION_DENIED',
-        'Wishly does not have permission to read this image or create a file beside it.'
+        'Soty does not have permission to read this image or create a file beside it.'
       );
     }
     throw new ImageConversionError('INPUT_UNAVAILABLE', 'The selected image is unavailable.');
@@ -106,7 +106,7 @@ export async function convertImage(
     ) {
       throw new ImageConversionError(
         'OUTPUT_INVALID',
-        'Wishly could not validate the converted image.'
+        'Soty could not validate the converted image.'
       );
     }
     await publishWithoutOverwrite(temporary, outputPath);
@@ -123,7 +123,7 @@ export async function convertImage(
     ) {
       throw new ImageConversionError(
         'PERMISSION_DENIED',
-        'Wishly does not have permission to create the converted image beside the original.'
+        'Soty does not have permission to create the converted image beside the original.'
       );
     }
     throw error;

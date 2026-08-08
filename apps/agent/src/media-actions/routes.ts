@@ -22,7 +22,7 @@ export function registerMediaActionRoutes(app: FastifyInstance, ctx: MediaAction
       return reply.code(501).send({ error: 'Finder image conversion is available only on macOS.' });
     }
     if (!acceptingNewTasks()) {
-      return reply.code(409).send({ error: 'Wishly is preparing to install an update.' });
+      return reply.code(409).send({ error: 'Soty is preparing to install an update.' });
     }
     const paths = request.body?.paths;
     const format = request.body?.format;

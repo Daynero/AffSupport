@@ -1,8 +1,10 @@
 import AppKit
 
 // Renders the Soty DMG background at 2x for Retina Finder windows.
-// The Wishly W mark geometry mirrors apps/web/public/favicon.svg.
+// The brand mark is supplied from the same Soty logo used by the web app.
+guard CommandLine.arguments.count >= 3 else { exit(1) }
 let output = CommandLine.arguments[1]
+let logoPath = CommandLine.arguments[2]
 let points = NSSize(width: 660, height: 400)
 let scale: CGFloat = 2
 let pixels = NSSize(width: points.width * scale, height: points.height * scale)
@@ -29,7 +31,7 @@ let primarySoft = NSColor(calibratedRed: 0.867, green: 0.835, blue: 0.988, alpha
 NSGradient(starting: lavender, ending: surface)?
   .draw(in: NSRect(origin: .zero, size: points), angle: -90)
 
-// Wishly mark, centered above the title.
+// Soty logo, centered above the title.
 func markPath(originX: CGFloat, originY: CGFloat, unit: CGFloat) -> NSBezierPath {
   // favicon.svg W path in a 64-unit box; SVG y-axis points down, AppKit up.
   func p(_ x: CGFloat, _ y: CGFloat) -> NSPoint {
@@ -63,13 +65,20 @@ func sparkPath(originX: CGFloat, originY: CGFloat, unit: CGFloat) -> NSBezierPat
   return s
 }
 
-let unit: CGFloat = 0.9
-let markX = points.width / 2 - 32 * unit
-let markY: CGFloat = 322
-primary.setStroke()
-markPath(originX: markX, originY: markY, unit: unit).stroke()
-NSColor(calibratedRed: 0.545, green: 0.427, blue: 0.965, alpha: 1).setFill() // #8B6DF6
-sparkPath(originX: markX, originY: markY, unit: unit).fill()
+if let logo = NSImage(contentsOfFile: logoPath) {
+  let logoSize = NSSize(width: 178, height: 52)
+  logo.draw(
+    in: NSRect(
+      x: (points.width - logoSize.width) / 2,
+      y: 318,
+      width: logoSize.width,
+      height: logoSize.height
+    ),
+    from: .zero,
+    operation: .sourceOver,
+    fraction: 1
+  )
+}
 
 func drawCentered(_ text: NSString, y: CGFloat, attributes: [NSAttributedString.Key: Any]) {
   let size = text.size(withAttributes: attributes)

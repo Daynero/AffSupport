@@ -56,9 +56,9 @@ type RuntimeRecoveryPhase = 'input-analysis' | 'encoding' | 'output-validation';
 export type QueueMediaRuntime = { probeMedia: typeof probeMedia };
 
 const defaultMediaRuntime: QueueMediaRuntime = { probeMedia };
-const RUNTIME_WARNING = 'Wishly media tools became unavailable. The agent is restarting safely.';
+const RUNTIME_WARNING = 'Soty media tools became unavailable. The agent is restarting safely.';
 const RUNTIME_JOB_ERROR =
-  'Wishly media tools became unavailable. This task will recover after restart.';
+  'Soty media tools became unavailable. This task will recover after restart.';
 
 export interface AddSourceOptions {
   sourceKind?: SourceKind;

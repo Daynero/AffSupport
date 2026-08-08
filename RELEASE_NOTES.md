@@ -1,3 +1,8 @@
+# v0.9.5
+
+- Complete the Soty rebrand across local Agent messages, Finder image conversion, landing exports, runtime notices, application icons, and installer artwork.
+- Refresh the web app’s installable icon and manifest metadata so browsers pick up the Soty identity reliably.
+
 # v0.9.4
 
 - Simplify Soty’s public homepage and align Google OAuth branding and privacy surfaces with the released product.

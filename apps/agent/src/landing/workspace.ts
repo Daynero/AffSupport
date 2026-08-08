@@ -78,7 +78,7 @@ async function exists(target: string): Promise<boolean> {
 
 /** Where results land when the source was uploaded (no original on disk). */
 export function uploadedOutputDir(): string {
-  return path.join(os.homedir(), 'Downloads', 'Wishly Landings');
+  return path.join(os.homedir(), 'Downloads', 'Soty Landings');
 }
 
 /**

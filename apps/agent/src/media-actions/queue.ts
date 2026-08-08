@@ -62,7 +62,7 @@ export class MediaActionQueue {
 
   async addImageConversions(paths: string[], targetFormat: ImageConversionFormat) {
     if (this.stopping) {
-      throw new ImageConversionError('QUEUE_STOPPING', 'Wishly is shutting down.');
+      throw new ImageConversionError('QUEUE_STOPPING', 'Soty is shutting down.');
     }
     this.additionsInFlight += 1;
     try {
@@ -164,7 +164,7 @@ export class MediaActionQueue {
     }
     throw new ImageConversionError(
       'OUTPUT_COLLISION',
-      'Wishly could not reserve a unique output name.'
+      'Soty could not reserve a unique output name.'
     );
   }
 

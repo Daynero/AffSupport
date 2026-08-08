@@ -5,7 +5,7 @@ root="$PWD/release"; app="$root/Soty.app"; dmg_name=$(node scripts/release-meta.
 [[ ! -e "$dmg" ]] || { print -u2 "$dmg already exists. Published build identities are immutable; bump PRODUCT_VERSION and BUILD_NUMBER."; exit 1; }
 stage="$root/dmg-stage"; rw="$root/Wishly-rw.dmg"; rm -rf "$stage"; rm -f "$rw"; mkdir -p "$stage/.background"
 cp -R "$app" "$stage/"; ln -s /Applications "$stage/Applications"
-swiftc packaging/DmgBackground.swift -o "$root/DmgBackground" -framework AppKit; "$root/DmgBackground" "$stage/.background/background.png"
+swiftc packaging/DmgBackground.swift -o "$root/DmgBackground" -framework AppKit; "$root/DmgBackground" "$stage/.background/background.png" "$root/apps/web/public/soty-header-logo-light.svg"
 hdiutil create -quiet -srcfolder "$stage" -volname "Soty" -fs HFS+ -format UDRW "$rw"
 device=$(hdiutil attach -readwrite -noverify -noautoopen "$rw" | awk '/Apple_HFS/{print $1; exit}')
 mount="/Volumes/Soty"

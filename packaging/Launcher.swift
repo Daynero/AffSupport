@@ -554,7 +554,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       })
     else {
       launcherLogger.error("Rejected invalid Finder action service request")
-      error.pointee = "Wishly received an invalid Finder conversion request."
+      error.pointee = "Soty received an invalid Finder conversion request."
       return
     }
     launcherLogger.notice(
@@ -596,7 +596,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         DispatchQueue.main.async {
           self?.showFinderActionFailure(
-            "Wishly could not hand the conversion request to its local media engine."
+            "Soty could not hand the conversion request to its local media engine."
           )
         }
         return
@@ -608,7 +608,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let self else { return }
         for job in accepted.jobs {
           if job.status == "failed" {
-            self.showFinderActionFailure("Wishly could not start one of the selected images.")
+            self.showFinderActionFailure("Soty could not start one of the selected images.")
           } else if job.status == "queued" || job.status == "processing" {
             if self.pendingFinderJobIDs.isEmpty { self.finderPollAttempts = 0 }
             self.pendingFinderJobIDs.insert(job.id)
@@ -734,7 +734,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       alert.alertStyle = .informational
       alert.messageText = "Enable image conversion in Finder?"
       alert.informativeText = """
-        Wishly can add Convert to → PNG, JPEG, and WebP to the Finder context menu.
+        Soty can add Convert to → PNG, JPEG, and WebP to the Finder context menu.
 
         macOS requires you to enable the Soty Finder extension once in System Settings.
         """

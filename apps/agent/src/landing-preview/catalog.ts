@@ -331,7 +331,7 @@ export class LandingPreviewCatalog {
   }
 
   async shutdown() {
-    this.controller?.abort(new Error('Wishly is shutting down.'));
+    this.controller?.abort(new Error('Soty is shutting down.'));
     await this.activeRun?.catch(() => {});
     await this.saveChain;
     await this.renderer.shutdown();

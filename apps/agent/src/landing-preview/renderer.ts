@@ -508,7 +508,7 @@ async function resolveChromiumExecutable(): Promise<string> {
       // Try the next known installation.
     }
   }
-  throw new Error('Chromium renderer is not installed. Reinstall Wishly to restore it.');
+  throw new Error('Chromium renderer is not installed. Reinstall Soty to restore it.');
 }
 
 function message(error: unknown) {

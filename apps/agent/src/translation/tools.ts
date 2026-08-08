@@ -46,7 +46,7 @@ export type TranslationRuntimePlatform = 'darwin-arm64' | 'win32-x64';
 /**
  * llama.cpp is pinned independently from the model, one descriptor per
  * supported platform. Each official release archive contains `llama-server`
- * plus its adjacent shared libraries; Wishly runs it bound to the loopback
+ * plus its adjacent shared libraries; Soty runs it bound to the loopback
  * interface only, authenticated with a per-launch API key.
  */
 export const TRANSLATION_RUNTIME_DESCRIPTORS: Record<
