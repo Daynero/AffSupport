@@ -9,6 +9,13 @@ swiftc packaging/DmgBackground.swift -o "$root/DmgBackground" -framework AppKit;
 hdiutil create -quiet -srcfolder "$stage" -volname "Soty" -fs HFS+ -format UDRW "$rw"
 device=$(hdiutil attach -readwrite -noverify -noautoopen "$rw" | awk '/Apple_HFS/{print $1; exit}')
 mount="/Volumes/Soty"
+# Disk Arbitration reports the device before Finder has registered the mounted
+# volume. Wait for the mount point so the Finder layout script cannot race it.
+for _ in {1..40}; do
+  [[ -d "$mount" ]] && break
+  sleep 0.25
+done
+[[ -d "$mount" ]] || { print -u2 "DMG volume did not mount at $mount"; hdiutil detach -quiet "$device" || true; exit 1; }
 osascript <<APPLESCRIPT
 tell application "Finder"
   tell disk "Soty"
