@@ -100,6 +100,15 @@ describe('protected routing and safe OAuth returns', () => {
     expect(legalPages).toContain('Limited Use requirements');
     expect(legalPages).toContain('Google Drive Trash');
   });
+
+  it('paints the legal surface while its lazy route chunk loads', async () => {
+    const root = await readFile('apps/web/src/Root.tsx', 'utf8');
+    expect(root.match(/fallback={<LegalLoadingScreen \/>}/g)).toHaveLength(2);
+    expect(root).toContain('<div className="legal-page">');
+    expect(root).not.toMatch(
+      /path === '\/(?:privacy|terms)'[\s\S]{0,180}fallback={<AuthLoadingScreen \/>}/
+    );
+  });
 });
 
 describe('environment and localization foundation', () => {

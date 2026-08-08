@@ -20,6 +20,7 @@ export default function PublicHomePage() {
     <div className="public-home">
       <div className="login-accent accent-one" aria-hidden="true" />
       <div className="login-accent accent-two" aria-hidden="true" />
+      <PublicAmbientLabels />
       <header className="login-topbar public-topbar">
         <div className="topbar-cluster">
           <ThemeToggle />
@@ -28,7 +29,6 @@ export default function PublicHomePage() {
       </header>
 
       <main className="public-home-content">
-        <PublicAmbientLabels />
         <section className="public-hero" aria-labelledby="public-home-title">
           <div className="public-hero-brand">
             <div className="public-hero-logo" aria-hidden="true">

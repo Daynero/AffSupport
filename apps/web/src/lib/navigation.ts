@@ -37,8 +37,9 @@ export function prefersReducedMotion(): boolean {
  * the one lazily loaded ProtectedWishly chunk, so in-app route swaps are
  * synchronous and the transition never captures an empty fallback. The only
  * lazy boundary crossed by navigation is the rarely visited legal chunk; if
- * it suspends, the transition crossfades to the branded loading screen and
- * the page then enters with its own `.page-enter` animation — no blank flash.
+ * it suspends, the transition crossfades to a loading screen painted on the
+ * legal surface itself, so the global honeycomb cannot flash through before
+ * the page then renders.
  */
 function commitRouteChange(apply: () => void) {
   const root = typeof document !== 'undefined' ? document.documentElement : null;

@@ -86,6 +86,14 @@
   --radius-lg: 14px;
   --radius-xl: 18px;
 
+  /* Global page-header geometry. Every full-page topbar uses these values so
+     controls stay on the same axes while navigating between public, auth,
+     legal, and authenticated routes. */
+  --app-header-height: 62px;
+  --app-header-padding-inline: 16px;
+  --app-header-logo-height: 55.2px;
+  --app-header-control-icon-size: 23px;
+
   /* Ink tints (the rgba(36,27,58,α) family) and overlays */
   --tint-soft: rgba(36, 27, 58, 0.06);
   --tint-medium: rgba(36, 27, 58, 0.14);
@@ -208,7 +216,7 @@ a {
 .app-shell {
   /* Height of the fixed topbar; reused for the content offset below so the two
      never drift. */
-  --topbar-h: 62px;
+  --topbar-h: var(--app-header-height);
   min-height: 100vh;
   /* The topbar is position:fixed (never scrolls off the top), so reserve its
      height here. box-sizing:border-box (global) keeps this inside the 100vh. */
@@ -250,7 +258,7 @@ a {
   justify-content: space-between;
   height: var(--topbar-h);
   min-height: var(--topbar-h);
-  padding: 0 16px;
+  padding: 0 var(--app-header-padding-inline);
   border-bottom: 1px solid var(--color-border);
   background: color-mix(in srgb, var(--color-surface) 94%, transparent);
   backdrop-filter: blur(12px);
@@ -286,7 +294,7 @@ a {
 }
 /* Brand mark sized to sit flush inside the topbar (the bar grows to fit it). */
 .topbar-lead .brand-link .soty-wordmark-img {
-  height: 55.2px;
+  height: var(--app-header-logo-height);
 }
 
 /* Make the home / brand button read a touch larger than the Support pill. */
@@ -3116,16 +3124,18 @@ input.is-invalid {
 }
 
 @media (max-width: 760px) {
-  .app-shell {
-    --topbar-h: 55px;
+  :root {
+    --app-header-height: 55px;
+    --app-header-padding-inline: 12px;
+    --app-header-logo-height: 47.15px;
   }
 
   .topbar {
-    padding: 0 12px;
+    padding: 0 var(--app-header-padding-inline);
   }
 
   .topbar-lead .brand-link .soty-wordmark-img {
-    height: 47.15px;
+    height: var(--app-header-logo-height);
   }
 
   .topbar-actions {
@@ -3313,8 +3323,12 @@ input.is-invalid {
 }
 
 @media (max-width: 500px) {
+  :root {
+    --app-header-padding-inline: 10px;
+  }
+
   .topbar {
-    padding-inline: 10px;
+    padding-inline: var(--app-header-padding-inline);
   }
 
   .topbar-lead {
@@ -4652,7 +4666,7 @@ body:has(.public-home) {
   top: 0;
   right: 0;
   width: 100%;
-  padding-inline: 20px;
+  padding-inline: var(--app-header-padding-inline);
 }
 
 .public-home-content {
@@ -4883,23 +4897,19 @@ body:has(.public-home) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 68px;
-  padding: 0 max(20px, calc((100vw - 1120px) / 2));
+  min-height: var(--app-header-height);
+  padding: 0 var(--app-header-padding-inline);
 }
 
-/* Match the authenticated tools shell without adding its private controls. */
-.login-page > .login-topbar {
-  min-height: 62px;
-  padding-inline: 16px;
+.login-topbar .soty-wordmark-img,
+.legal-topbar .soty-wordmark-img {
+  height: var(--app-header-logo-height);
 }
 
-.login-page > .login-topbar .soty-wordmark-img {
-  height: 55.2px;
-}
-
-.login-page > .login-topbar .theme-toggle__icon {
-  width: 23px;
-  height: 23px;
+.login-topbar .theme-toggle__icon,
+.legal-topbar .theme-toggle__icon {
+  width: var(--app-header-control-icon-size);
+  height: var(--app-header-control-icon-size);
 }
 
 .login-accent {
@@ -6387,20 +6397,9 @@ body:has(.public-home) {
   position: sticky;
   z-index: 10;
   top: 0;
-  min-height: 62px;
-  padding-inline: 16px;
   border-bottom: 1px solid rgb(228 225 236 / 80%);
   background: rgb(250 249 253 / 86%);
   backdrop-filter: blur(16px);
-}
-
-.legal-topbar .soty-wordmark-img {
-  height: 55.2px;
-}
-
-.legal-topbar .theme-toggle__icon {
-  width: 23px;
-  height: 23px;
 }
 
 .legal-topbar > a {
@@ -6574,8 +6573,8 @@ body:has(.public-home) {
 @media (max-width: 500px) {
   .login-topbar,
   .legal-topbar {
-    min-height: 60px;
-    padding: 0 var(--space-4);
+    min-height: var(--app-header-height);
+    padding: 0 var(--app-header-padding-inline);
   }
 
   .public-home-content,
@@ -7935,8 +7934,8 @@ body:has(.public-home) {
 }
 
 .topbar .theme-toggle__icon {
-  width: 23px;
-  height: 23px;
+  width: var(--app-header-control-icon-size);
+  height: var(--app-header-control-icon-size);
 }
 :root[data-theme='dark'] .theme-toggle {
   color: #d3c4ff;

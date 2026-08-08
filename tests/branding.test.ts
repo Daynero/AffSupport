@@ -128,6 +128,24 @@ describe('Soty design system', () => {
     expect(reduced).toContain('animation: none !important');
   });
 
+  it('keeps every full-page header on shared geometry tokens', () => {
+    for (const token of [
+      '--app-header-height: 62px',
+      '--app-header-padding-inline: 16px',
+      '--app-header-logo-height: 55.2px',
+      '--app-header-control-icon-size: 23px'
+    ]) {
+      expect(css).toContain(token);
+    }
+    expect(css).toMatch(/\.app-shell\s*{[\s\S]*?--topbar-h: var\(--app-header-height\)/);
+    expect(css).toMatch(
+      /\.login-topbar,\s*\.legal-topbar\s*{[\s\S]*?min-height: var\(--app-header-height\);[\s\S]*?padding: 0 var\(--app-header-padding-inline\)/
+    );
+    expect(css).toMatch(
+      /\.login-topbar\.public-topbar\s*{[\s\S]*?padding-inline: var\(--app-header-padding-inline\)/
+    );
+  });
+
   it('reserves tabular numbers for timers, progress and metrics', () => {
     for (const selector of ['.job-timer', '.job-progress-meta', '.batch-counts']) {
       const block = css.slice(css.indexOf(selector));

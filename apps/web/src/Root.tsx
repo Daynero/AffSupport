@@ -37,13 +37,13 @@ function Routes() {
 
   if (path === '/privacy')
     return (
-      <Suspense fallback={<AuthLoadingScreen />}>
+      <Suspense fallback={<LegalLoadingScreen />}>
         <PrivacyPage />
       </Suspense>
     );
   if (path === '/terms')
     return (
-      <Suspense fallback={<AuthLoadingScreen />}>
+      <Suspense fallback={<LegalLoadingScreen />}>
         <TermsPage />
       </Suspense>
     );
@@ -70,6 +70,14 @@ function Routes() {
     <Suspense fallback={<AuthLoadingScreen />}>
       <ProtectedWishly path={path} />
     </Suspense>
+  );
+}
+
+function LegalLoadingScreen() {
+  return (
+    <div className="legal-page">
+      <AuthLoadingScreen />
+    </div>
   );
 }
 
