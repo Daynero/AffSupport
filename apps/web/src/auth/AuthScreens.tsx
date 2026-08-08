@@ -57,7 +57,7 @@ export function LoginPage() {
   const queryError = queryErrorMessage(t);
 
   useEffect(() => {
-    document.title = `${t('loginHeading')} — Wishly`;
+    document.title = `${t('loginHeading')} — Soty`;
   }, [t]);
 
   useEffect(() => {
@@ -84,7 +84,7 @@ export function LoginPage() {
       <div className="login-accent accent-one" aria-hidden="true" />
       <div className="login-accent accent-two" aria-hidden="true" />
       <header className="login-topbar">
-        <WishlyLogo name="Wishly" />
+        <WishlyLogo name="Soty" />
         <div className="topbar-cluster">
           <ThemeToggle />
           <LanguageSwitch />

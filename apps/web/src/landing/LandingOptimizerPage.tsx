@@ -48,7 +48,7 @@ export default function LandingOptimizerPage() {
   const connected = connection === 'connected';
 
   useEffect(() => {
-    document.title = 'Landing Optimizer — Wishly';
+    document.title = 'Landing Optimizer — Soty';
     analytics.track('tool_opened', { tool_identifier: 'landing-optimizer' });
   }, []);
 

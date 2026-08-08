@@ -5,43 +5,65 @@
 :root {
   color-scheme: light;
 
-  /* Brand primary scale */
-  --purple-50: #f7f5ff;
-  --purple-100: #eeeafe;
-  --purple-200: #ddd5fc;
-  --purple-300: #c4b5fa;
-  --purple-400: #8b6df6;
-  --purple-500: #7557e8;
-  --purple-600: #6242d0;
-  --purple-700: #4c32a8;
-  --purple-900: #241b3a;
+  /* Soty brand — purple scale (design-tokens.json primitives) */
+  --purple-50: #f5f1ff;
+  --purple-100: #ece5ff;
+  --purple-200: #d9ccff;
+  --purple-300: #bca7f7;
+  --purple-400: #9b7aee;
+  --purple-500: #7c59e0;
+  --purple-600: #6842d9;
+  --purple-700: #5532b8;
+  --purple-800: #42288f;
+  --purple-900: #2d1b62;
+  --purple-950: #191033;
 
-  /* Neutral cool greys */
-  --color-bg: #f6f5fa;
+  /* Soty honey — primary action, active progress, honey material */
+  --honey-50: #fff8e5;
+  --honey-100: #ffefbd;
+  --honey-200: #ffdd7a;
+  --honey-300: #ffc83d;
+  --honey-400: #ffb51b;
+  --honey-500: #f5a318;
+  --honey-600: #d98508;
+  --honey-700: #ad6605;
+  --honey-800: #804a0b;
+  --honey-900: #55310a;
+  --honey-950: #2d1a05;
+
+  /* Neutral — purple-tinted canvas, surfaces, text, borders */
+  --color-bg: #f7f4fa;
   --color-surface: #ffffff;
-  --color-surface-subtle: #faf9fd;
-  --color-surface-muted: #f0eef6;
-  /* Tinted surface steps below subtle: gradient stops and washed panels
-     (the former #f8f6fc / #f4f1fd near-white family) */
-  --color-surface-2: #f8f6fc;
-  --color-surface-3: #f4f1fd;
-  --color-text: #241b3a;
-  --color-text-muted: #6f687d;
-  /* Text/icons sitting on accent fills and dark media overlays; stays white
-     in both themes (accent fills keep their contrast in dark mode) */
+  --color-surface-subtle: #fbf9fd;
+  --color-surface-muted: #eeeaf1;
+  /* Tinted surface steps below subtle: gradient stops and washed panels */
+  --color-surface-2: #fbf9fd;
+  --color-surface-3: #f7f4fa;
+  --color-text: #211a2c;
+  --color-text-muted: #6c6173;
+  /* Text/icons on purple accent fills and dark media overlays */
   --color-on-accent: #ffffff;
-  --color-border: #e4e1ec;
-  --color-border-strong: #c9c4d8;
+  --color-border: #ded8e2;
+  --color-border-strong: #c7becf;
 
-  /* Brand roles */
-  --color-accent: var(--purple-500);
-  --color-accent-hover: var(--purple-600);
-  --color-accent-active: var(--purple-700);
+  /* Brand roles — purple leads identity, structure, nav, focus, links, secondary */
+  --color-accent: var(--purple-600);
+  --color-accent-hover: var(--purple-700);
+  --color-accent-active: var(--purple-800);
   --color-accent-soft: var(--purple-100);
   --color-accent-softer: var(--purple-50);
   --color-focus: var(--purple-400);
-  --gradient-brand: linear-gradient(90deg, #7557e8 0%, #9b6ff3 50%, #c06fef 100%);
-  --gradient-progress: linear-gradient(90deg, #7557e8 0%, #9b6ff3 60%, #8b6df6 100%);
+
+  /* Honey action roles — the single primary CTA + active progress only */
+  --color-action: var(--honey-500);
+  --color-action-hover: var(--honey-600);
+  --color-action-active: var(--honey-700);
+  --color-action-soft: var(--honey-50);
+  --color-on-action: var(--honey-950);
+
+  /* Gradients stay within one family (no purple-to-orange) */
+  --gradient-brand: linear-gradient(90deg, #6842d9 0%, #7c59e0 55%, #9b7aee 100%);
+  --gradient-progress: linear-gradient(90deg, #f5a318 0%, #ffb51b 100%);
 
   /* Semantic colors stay non-purple */
   --color-success: #18794e;
@@ -183,7 +205,13 @@ a {
 }
 
 .app-shell {
+  /* Height of the fixed topbar; reused for the content offset below so the two
+     never drift. */
+  --topbar-h: 68px;
   min-height: 100vh;
+  /* The topbar is position:fixed (never scrolls off the top), so reserve its
+     height here. box-sizing:border-box (global) keeps this inside the 100vh. */
+  padding-top: var(--topbar-h);
 }
 
 /* Route content swaps inside the persistent shell; the topbar stays mounted.
@@ -207,14 +235,20 @@ a {
    Topbar & brand
    ============================================================ */
 .topbar {
-  position: sticky;
+  /* Fixed (not sticky) so it can never scroll off the top of the screen — the
+     content offset lives on .app-shell (--topbar-h). Height follows the brand
+     logo so the bar just grows a little instead of letting the logo spill out
+     below and overlap content. */
+  position: fixed;
   z-index: 40;
   top: 0;
+  left: 0;
+  right: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 56px;
-  padding: 0 max(16px, calc((100vw - 1440px) / 2));
+  min-height: var(--topbar-h);
+  padding: 6px max(16px, calc((100vw - 1440px) / 2));
   border-bottom: 1px solid var(--color-border);
   background: color-mix(in srgb, var(--color-surface) 94%, transparent);
   backdrop-filter: blur(12px);
@@ -224,6 +258,33 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 9px;
+}
+
+/* Soty wordmark lockup — the full honey wordmark image, fitted to its container */
+.soty-logo-lockup {
+  display: inline-grid;
+  align-items: center;
+}
+.soty-wordmark-img {
+  grid-area: 1 / 1;
+  display: block;
+  height: 46px;
+  width: auto;
+  object-fit: contain;
+  transition: opacity 520ms cubic-bezier(0.65, 0, 0.35, 1);
+}
+.soty-wordmark-img-dark {
+  opacity: 0;
+}
+:root[data-theme='dark'] .soty-wordmark-img-light {
+  opacity: 0;
+}
+:root[data-theme='dark'] .soty-wordmark-img-dark {
+  opacity: 1;
+}
+/* Brand mark sized to sit flush inside the topbar (the bar grows to fit it). */
+.topbar-lead .brand-link .soty-wordmark-img {
+  height: 52px;
 }
 
 /* Make the home / brand button read a touch larger than the Support pill. */
@@ -259,23 +320,15 @@ a {
   overflow: hidden;
   align-items: center;
   gap: 7px;
-  min-height: 36px;
-  padding: 0 13px;
-  border: 1px solid color-mix(in srgb, var(--color-accent) 38%, var(--color-border));
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
   border-radius: 999px;
-  color: var(--color-accent);
-  font-size: 13px;
+  color: var(--color-accent-hover);
+  font-size: 12px;
   font-weight: 700;
-  background:
-    radial-gradient(
-      circle at 12% 0,
-      color-mix(in srgb, var(--color-accent) 18%, transparent),
-      transparent 52%
-    ),
-    var(--color-accent-softer);
-  box-shadow:
-    0 5px 16px color-mix(in srgb, var(--color-accent) 13%, transparent),
-    inset 0 1px color-mix(in srgb, var(--color-on-accent) 72%, transparent);
+  background: var(--color-surface-muted);
+  box-shadow: 0 1px 2px var(--tint-soft);
   cursor: pointer;
   transition:
     border-color var(--dur-control) var(--ease-standard),
@@ -285,11 +338,9 @@ a {
 }
 
 .support-trigger:hover {
-  border-color: var(--color-accent);
+  border-color: color-mix(in srgb, var(--color-accent) 48%, var(--color-border));
   background: var(--color-accent-soft);
-  box-shadow:
-    0 7px 20px color-mix(in srgb, var(--color-accent) 18%, transparent),
-    inset 0 1px color-mix(in srgb, var(--color-on-accent) 78%, transparent);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--color-accent) 12%, transparent);
   transform: translateY(-1px);
 }
 
@@ -298,7 +349,7 @@ a {
 }
 
 .support-trigger.has-goal {
-  padding-bottom: 4px;
+  padding-bottom: 3px;
 }
 
 .support-trigger-label {
@@ -310,10 +361,11 @@ a {
   align-items: baseline;
   gap: 3px;
   padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
   border-radius: 999px;
   color: var(--color-text);
-  background: color-mix(in srgb, var(--color-surface) 72%, transparent);
-  font-size: 12.5px;
+  background: var(--color-surface);
+  font-size: 11.5px;
   font-weight: 750;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -329,8 +381,8 @@ a {
   right: 0;
   bottom: 0;
   left: 0;
-  height: 4px;
-  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  height: 3px;
+  background: color-mix(in srgb, var(--honey-800) 18%, transparent);
 }
 
 .support-trigger-progress i {
@@ -338,8 +390,8 @@ a {
   width: 0;
   height: 100%;
   border-radius: 0 999px 999px 0;
-  background: var(--gradient-brand);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--color-accent) 45%, transparent);
+  background: var(--honey-700);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--honey-700) 28%, transparent);
   transition: width var(--dur-section) var(--ease-standard);
 }
 
@@ -753,24 +805,29 @@ a {
   cursor: not-allowed;
 }
 
+/* Primary CTA is the single honey action (Soty). Dark text keeps AA on honey;
+   a soft top highlight adds the tactile honey-material sheen. */
 .button-primary {
-  border-color: color-mix(in srgb, var(--color-accent-hover) 70%, transparent);
-  color: var(--color-on-accent);
-  background: linear-gradient(180deg, var(--color-accent) 0%, var(--color-accent-hover) 100%);
+  border-color: color-mix(in srgb, var(--color-action-hover) 70%, transparent);
+  color: var(--color-on-action);
+  background: linear-gradient(180deg, var(--color-action) 0%, var(--color-action-hover) 100%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 40%);
 }
 
 .button-primary:hover:not(:disabled) {
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--color-accent) 88%, #fff) 0%,
-    var(--color-accent-hover) 100%
+    color-mix(in srgb, var(--color-action) 90%, #fff) 0%,
+    var(--color-action-hover) 100%
   );
-  box-shadow: var(--shadow-raise);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 40%),
+    var(--shadow-raise);
   transform: translateY(-1px);
 }
 
 .button-primary:active:not(:disabled) {
-  background: var(--color-accent-active);
+  background: var(--color-action-active);
   box-shadow: none;
   transform: scale(0.98);
 }
@@ -851,7 +908,7 @@ a {
 }
 
 .button-primary.is-loading .button-spinner {
-  color: var(--color-on-accent);
+  color: var(--color-on-action);
 }
 
 .button-secondary.is-loading .button-spinner,
@@ -3023,9 +3080,16 @@ input.is-invalid {
 }
 
 @media (max-width: 760px) {
+  .app-shell {
+    --topbar-h: 60px;
+  }
+
   .topbar {
-    min-height: 54px;
-    padding: 0 12px;
+    padding: 5px 12px;
+  }
+
+  .topbar-lead .brand-link .soty-wordmark-img {
+    height: 44px;
   }
 
   .topbar-actions {
@@ -5189,34 +5253,22 @@ input.is-invalid {
   display: grid;
   overflow: hidden;
   gap: 14px;
-  padding: 22px;
-  border: 1px solid color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
-  border-radius: var(--radius-xl);
-  background:
-    radial-gradient(
-      circle at 92% -10%,
-      color-mix(in srgb, var(--color-accent) 24%, transparent),
-      transparent 43%
-    ),
-    linear-gradient(
-      145deg,
-      color-mix(in srgb, var(--color-surface) 94%, var(--color-accent-softer)),
-      var(--color-surface-subtle)
-    );
-  box-shadow:
-    0 18px 42px color-mix(in srgb, var(--color-accent) 13%, transparent),
-    inset 0 1px color-mix(in srgb, var(--color-on-accent) 78%, transparent);
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
 }
 
+/* Slim brand accent along the top edge — the card's only flourish, matching the
+   otherwise clean surface cards used across the app. */
 .support-goal-card::before {
   position: absolute;
   top: 0;
-  right: 11%;
-  left: 11%;
-  height: 2px;
-  border-radius: 0 0 999px 999px;
+  right: 0;
+  left: 0;
+  height: 3px;
   background: var(--gradient-brand);
-  box-shadow: 0 2px 12px color-mix(in srgb, var(--color-accent) 38%, transparent);
   content: '';
 }
 
@@ -5265,10 +5317,9 @@ input.is-invalid {
   justify-content: space-between;
   gap: var(--space-4);
   padding: 14px 16px;
-  border: 1px solid color-mix(in srgb, var(--color-accent) 18%, var(--color-border));
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--color-surface) 78%, transparent);
-  box-shadow: inset 0 1px color-mix(in srgb, var(--color-on-accent) 70%, transparent);
+  background: var(--color-surface-subtle);
 }
 
 .support-goal-total {
@@ -5326,14 +5377,9 @@ input.is-invalid {
 .support-goal-progress {
   position: relative;
   overflow: hidden;
-  height: 18px;
-  padding: 3px;
-  border: 1px solid color-mix(in srgb, var(--color-accent) 26%, var(--color-border));
+  height: 10px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--color-accent) 13%, var(--color-surface-muted));
-  box-shadow:
-    inset 0 2px 5px color-mix(in srgb, var(--color-text) 13%, transparent),
-    0 5px 16px color-mix(in srgb, var(--color-accent) 18%, transparent);
+  background: var(--color-surface-muted);
 }
 
 .support-goal-progress > span {
@@ -5343,29 +5389,13 @@ input.is-invalid {
   height: 100%;
   border-radius: inherit;
   background: var(--gradient-brand);
-  box-shadow: 0 0 16px color-mix(in srgb, var(--color-accent) 48%, transparent);
   transition: width var(--dur-section) var(--ease-standard);
 }
 
-.support-goal-progress > span::before {
-  position: absolute;
-  inset: 1px 5px auto;
-  height: 3px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--color-on-accent) 58%, transparent);
-  content: '';
-}
-
+/* Decorative shine/knob retired — the bar reads cleaner as a flat fill. */
+.support-goal-progress > span::before,
 .support-goal-progress > span i {
-  position: absolute;
-  top: 50%;
-  right: 3px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--color-on-accent);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--color-on-accent) 70%, transparent);
-  transform: translateY(-50%);
+  display: none;
 }
 
 .support-goal-note {
@@ -7523,25 +7553,35 @@ input.is-invalid {
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --color-bg: #100c1c;
-  --color-surface: #1b1630;
-  --color-surface-subtle: #16112a;
-  --color-surface-muted: #241d3c;
-  --color-surface-2: #16112c;
-  --color-surface-3: #14102a;
-  --color-text: #eeebf7;
-  --color-text-muted: #a7a0bd;
-  --color-border: #2e2748;
-  --color-border-strong: #453b64;
+  /* Neutral — deepest Soty neutral, never pure black */
+  --color-bg: #120f17;
+  --color-surface: #1c1725;
+  --color-surface-subtle: #171220;
+  --color-surface-muted: #241d2f;
+  --color-surface-2: #1c1725;
+  --color-surface-3: #171220;
+  --color-text: #f6f2f8;
+  --color-text-muted: #b8adbe;
+  --color-border: #382f43;
+  --color-border-strong: #51435e;
 
-  --color-accent: #967bf9;
-  --color-accent-hover: #a98ffb;
-  --color-accent-active: #bda6fc;
-  --color-accent-soft: color-mix(in srgb, #967bf9 20%, transparent);
-  --color-accent-softer: color-mix(in srgb, #967bf9 11%, transparent);
-  --color-focus: #b49bfb;
-  --gradient-brand: linear-gradient(90deg, #8b6df6 0%, #a983f7 50%, #cd8bf3 100%);
-  --gradient-progress: linear-gradient(90deg, #8b6df6 0%, #a983f7 60%, #9b7bf6 100%);
+  /* Brand roles — purple */
+  --color-accent: #8a67e8;
+  --color-accent-hover: #9b7aee;
+  --color-accent-active: #6842d9;
+  --color-accent-soft: color-mix(in srgb, #8a67e8 22%, transparent);
+  --color-accent-softer: color-mix(in srgb, #8a67e8 12%, transparent);
+  --color-focus: #bca7f7;
+
+  /* Honey action roles — brighter honey reads on the dark canvas */
+  --color-action: #ffb51b;
+  --color-action-hover: #f5a318;
+  --color-action-active: #d98508;
+  --color-action-soft: color-mix(in srgb, #ffb51b 16%, transparent);
+  --color-on-action: #2d1a05;
+
+  --gradient-brand: linear-gradient(90deg, #6842d9 0%, #8a67e8 55%, #9b7aee 100%);
+  --gradient-progress: linear-gradient(90deg, #ffb51b 0%, #f5a318 100%);
 
   --color-success: #56d597;
   --color-success-soft: color-mix(in srgb, #56d597 15%, transparent);
@@ -9598,4 +9638,241 @@ input.is-invalid {
     grid-column: 1 / -1;
     grid-row: 2;
   }
+}
+
+/* ============================================================
+   Soty honeycomb backdrop (ported from soty-review).
+   Fixed full-viewport layer behind app content; colours follow
+   the app theme via :root[data-theme]. The app's own theme
+   transition recolours it — no separate flip here.
+   ============================================================ */
+.soty-honeycomb {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.soty-scene,
+.soty-trace-layer {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* Filled cells lift + glow toward the cursor (transform set by JS) */
+.soty-cell {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition:
+    transform 240ms ease-out,
+    filter 240ms ease-out;
+}
+.soty-cell.is-lit {
+  filter: drop-shadow(0 0 4px rgb(255 190 80 / 45%));
+}
+:root[data-theme='dark'] .soty-cell.is-lit {
+  filter: drop-shadow(0 0 6px rgb(255 175 45 / 72%));
+}
+
+/* Scene colours — light default */
+.hc-base {
+  fill: url(#baseL);
+}
+.hc-pool {
+  fill: none;
+}
+.hc-grid {
+  stroke: #ffd780;
+  stroke-opacity: 0.32;
+  transition: stroke 520ms ease;
+}
+.soty-cell.t-field {
+  fill: none;
+}
+.soty-cell.t-bright {
+  fill: url(#brightL);
+  stroke: #fff2cc;
+  stroke-opacity: 0.45;
+  stroke-width: 1;
+}
+.soty-cell.t-a {
+  fill: url(#fillA);
+  stroke: #e89a2a;
+  stroke-opacity: 0.3;
+  stroke-width: 1;
+}
+.soty-cell.t-b {
+  fill: url(#fillB);
+  stroke: #e89a2a;
+  stroke-opacity: 0.3;
+  stroke-width: 1;
+}
+
+/* Scene colours — dark */
+:root[data-theme='dark'] .hc-base {
+  fill: url(#baseD);
+}
+:root[data-theme='dark'] .hc-pool0 {
+  fill: url(#pool0);
+}
+:root[data-theme='dark'] .hc-pool1 {
+  fill: url(#pool1);
+}
+:root[data-theme='dark'] .hc-pool2 {
+  fill: url(#pool2);
+}
+:root[data-theme='dark'] .hc-pool3 {
+  fill: url(#pool3);
+}
+:root[data-theme='dark'] .hc-grid {
+  stroke: #8a74da;
+  stroke-opacity: 0.2;
+}
+:root[data-theme='dark'] .soty-cell.t-bright {
+  fill: url(#brightD);
+  stroke: #ffebac;
+  stroke-opacity: 0.55;
+  stroke-width: 1.2;
+}
+:root[data-theme='dark'] .soty-cell.t-a,
+:root[data-theme='dark'] .soty-cell.t-b {
+  fill: url(#raise);
+  stroke: #6e57c2;
+  stroke-opacity: 0.42;
+  stroke-width: 1;
+}
+
+/* Two honey cells land directly behind the centred "Інструменти Soty" launcher
+   title and washed it out. The hex grid is deterministic, so pin them by
+   coordinate and drop them to plain (unfilled, unlit) field cells — the field
+   already has many empty cells, so this reads as the honey accent simply not
+   being there rather than a hole. */
+.soty-cell[data-cx='1031'][data-cy='204'],
+.soty-cell[data-cx='1296'][data-cy='153'] {
+  fill: none !important;
+  stroke: none !important;
+  filter: none !important;
+}
+
+/* Electric "bug" traces — one long glowing spark crawls each conduit */
+.soty-trace-layer > g {
+  stroke: #eafcff;
+  stroke-opacity: 0.45;
+}
+.soty-trace {
+  stroke-dasharray: 10 90;
+  stroke-dashoffset: 100;
+  animation-name: soty-trace-run;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  animation-fill-mode: both;
+  filter: drop-shadow(0 0 2.5px rgb(69 214 255 / 50%));
+}
+.soty-trace.is-rev {
+  animation-direction: reverse;
+}
+@keyframes soty-trace-run {
+  from {
+    stroke-dashoffset: 100;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .soty-trace {
+    display: none;
+  }
+}
+
+/* Let the honeycomb show as the canvas behind the app */
+html,
+body {
+  background: transparent;
+}
+
+/* Old-colour field overlay — cross-fades to the new colour during a theme flip */
+.hc-base-veil {
+  opacity: 0;
+}
+/* Theme cross-fade.
+   A plain `transition: color/background …` on every element does NOT interpolate
+   here: nearly all UI colours are declared as `var(--color-…)`, and a property
+   whose value is a `var()` reference doesn't run a transition when only the
+   referenced custom property changes — it snaps. That snap is the "blink" the
+   header text showed on a theme flip. (Colours that are *inherited* animated
+   fine, which is why the user-menu name / connection badge never blinked.)
+
+   The fix is to animate the theme tokens themselves: registering each colour
+   token as an `<color>` @property makes it interpolable, so a transition on
+   `:root` cross-fades the tokens and every element reading them — directly or
+   through `color-mix()` — tracks the live value each frame. Descendants must
+   NOT run their own colour transitions on top (that reintroduces the snap), so
+   `:root.is-theming *` keeps only motion transitions (transform/opacity/filter,
+   e.g. the sun↔moon toggle morph) and drops the colour ones. */
+@property --color-bg { syntax: '<color>'; inherits: true; initial-value: #f7f4fa; }
+@property --color-surface { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
+@property --color-surface-subtle { syntax: '<color>'; inherits: true; initial-value: #fbf9fd; }
+@property --color-surface-muted { syntax: '<color>'; inherits: true; initial-value: #eeeaf1; }
+@property --color-surface-2 { syntax: '<color>'; inherits: true; initial-value: #fbf9fd; }
+@property --color-surface-3 { syntax: '<color>'; inherits: true; initial-value: #f7f4fa; }
+@property --color-text { syntax: '<color>'; inherits: true; initial-value: #211a2c; }
+@property --color-text-muted { syntax: '<color>'; inherits: true; initial-value: #6c6173; }
+@property --color-border { syntax: '<color>'; inherits: true; initial-value: #ded8e2; }
+@property --color-border-strong { syntax: '<color>'; inherits: true; initial-value: #c7becf; }
+@property --color-accent { syntax: '<color>'; inherits: true; initial-value: #6842d9; }
+@property --color-accent-hover { syntax: '<color>'; inherits: true; initial-value: #5532b8; }
+@property --color-accent-active { syntax: '<color>'; inherits: true; initial-value: #42288f; }
+@property --color-accent-soft { syntax: '<color>'; inherits: true; initial-value: #ece5ff; }
+@property --color-accent-softer { syntax: '<color>'; inherits: true; initial-value: #f5f1ff; }
+@property --color-focus { syntax: '<color>'; inherits: true; initial-value: #9b7aee; }
+@property --color-action { syntax: '<color>'; inherits: true; initial-value: #f5a318; }
+@property --color-action-hover { syntax: '<color>'; inherits: true; initial-value: #d98508; }
+@property --color-action-active { syntax: '<color>'; inherits: true; initial-value: #ad6605; }
+@property --color-action-soft { syntax: '<color>'; inherits: true; initial-value: #fff8e5; }
+@property --color-on-action { syntax: '<color>'; inherits: true; initial-value: #2d1a05; }
+@property --color-success { syntax: '<color>'; inherits: true; initial-value: #18794e; }
+@property --color-success-soft { syntax: '<color>'; inherits: true; initial-value: #eaf7f0; }
+@property --color-warning { syntax: '<color>'; inherits: true; initial-value: #9a6700; }
+@property --color-warning-soft { syntax: '<color>'; inherits: true; initial-value: #fff7db; }
+@property --color-error { syntax: '<color>'; inherits: true; initial-value: #b42318; }
+@property --color-error-soft { syntax: '<color>'; inherits: true; initial-value: #fff0ee; }
+
+:root.is-theming {
+  transition:
+    --color-bg 775ms cubic-bezier(0.65, 0, 0.35, 1),
+    --color-surface 775ms cubic-bezier(0.65, 0, 0.35, 1),
+    --color-surface-subtle 775ms cubic-bezier(0.65, 0, 0.35, 1),
+    --color-surface-muted 775ms cubic-bezier(0.65, 0, 0.35, 1),
+    --color-surface-2 775ms cubic-bezier(0.65, 0, 0.35, 1),
+    --color-surface-3 775ms cubic-bezier(0.65, 0, 0.35, 1),
+    --color-text 775ms cubic-bezier(0.65, 0, 0.35, 1),
+    --color-text-muted 775ms cubic-bezier(0.65, 0, 0.35, 1),
+    --color-border 775ms cubic-bezier(0.65, 0, 0.35, 1),
+    --color-border-strong 775ms cubic-bezier(0.65, 0, 0.35, 1),
+    --color-accent 775ms cubic-bezier(0.65, 0, 0.35, 1),
+    --color-accent-hover 775ms cubic-bezier(0.65, 0, 0.35, 1),
+    --color-accent-active 775ms cubic-bezier(0.65, 0, 0.35, 1),
+    --color-accent-soft 775ms cubic-bezier(0.65, 0, 0.35, 1),
+    --color-accent-softer 775ms cubic-bezier(0.65, 0, 0.35, 1),
+    --color-focus 775ms cubic-bezier(0.65, 0, 0.35, 1),
+    --color-action 775ms cubic-bezier(0.65, 0, 0.35, 1),
+    --color-action-hover 775ms cubic-bezier(0.65, 0, 0.35, 1),
+    --color-action-active 775ms cubic-bezier(0.65, 0, 0.35, 1),
+    --color-action-soft 775ms cubic-bezier(0.65, 0, 0.35, 1),
+    --color-on-action 775ms cubic-bezier(0.65, 0, 0.35, 1),
+    --color-success 775ms cubic-bezier(0.65, 0, 0.35, 1),
+    --color-success-soft 775ms cubic-bezier(0.65, 0, 0.35, 1),
+    --color-warning 775ms cubic-bezier(0.65, 0, 0.35, 1),
+    --color-warning-soft 775ms cubic-bezier(0.65, 0, 0.35, 1),
+    --color-error 775ms cubic-bezier(0.65, 0, 0.35, 1),
+    --color-error-soft 775ms cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+/* Colours ride the animated tokens above; leave only motion transitions running
+   so the sun↔moon toggle morph (and any hover motion) still animates. */
+:root.is-theming * {
+  transition-property: transform, opacity, filter !important;
 }

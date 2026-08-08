@@ -3,14 +3,14 @@ set -euo pipefail
 dmg="$PWD/release/$(node scripts/release-meta.mjs artifact-name)"
 build_id=$(node scripts/release-meta.mjs build-id); api_version=$(node scripts/release-meta.mjs api-version)
 [[ -f "$dmg" ]] || { print -u2 "DMG not found"; exit 1; }
-[[ -z "$(lsof -tiTCP:43120 -sTCP:LISTEN 2>/dev/null)" ]] || { print -u2 "Quit the currently running Wishly Agent before DMG verification."; exit 1; }
+[[ -z "$(lsof -tiTCP:43120 -sTCP:LISTEN 2>/dev/null)" ]] || { print -u2 "Quit the currently running Soty before DMG verification."; exit 1; }
 work=$(mktemp -d /tmp/wishly-dmg-verify.XXXXXX); mount=''; agent_pid=''; listener_pid=''
 cleanup() { [[ -z "$agent_pid" ]] || kill -TERM "$agent_pid" 2>/dev/null || true; [[ -z "$listener_pid" ]] || kill -TERM "$listener_pid" 2>/dev/null || true; [[ -z "$mount" ]] || hdiutil detach -quiet "$mount" 2>/dev/null || true; rm -rf "$work"; }
 trap cleanup EXIT INT TERM
 attach=$(hdiutil attach -readonly -nobrowse "$dmg"); mount=$(print -r -- "$attach" | sed -n 's|^.*\t\(/Volumes/.*\)$|\1|p' | tail -1)
-[[ -d "$mount/Wishly Agent.app" && -L "$mount/Applications" && -f "$mount/.background/background.png" ]]
-ditto "$mount/Wishly Agent.app" "$work/Wishly Agent.app"
-app="$work/Wishly Agent.app"; [[ -f "$app/Contents/Resources/AppIcon.icns" ]]
+[[ -d "$mount/Soty.app" && -L "$mount/Applications" && -f "$mount/.background/background.png" ]]
+ditto "$mount/Soty.app" "$work/Soty.app"
+app="$work/Soty.app"; [[ -f "$app/Contents/Resources/AppIcon.icns" ]]
 finder_extension="$app/Contents/PlugIns/WishlyFinderExtension.appex"
 finder_binary="$finder_extension/Contents/MacOS/WishlyFinderExtension"
 [[ -x "$finder_binary" ]]

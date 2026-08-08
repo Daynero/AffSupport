@@ -9,7 +9,7 @@ export default function PublicHomePage() {
   const { t } = useI18n();
 
   useEffect(() => {
-    document.title = 'Wishly — Local media tools and team workspace';
+    document.title = 'Soty — Local media tools and team workspace';
     document
       .querySelector('meta[name="description"]')
       ?.setAttribute('content', t('publicHomeDescription'));
@@ -20,8 +20,8 @@ export default function PublicHomePage() {
       <div className="login-accent accent-one" aria-hidden="true" />
       <div className="login-accent accent-two" aria-hidden="true" />
       <header className="login-topbar public-topbar">
-        <a href="/" onClick={event => internalLink(event, '/')} aria-label="Wishly">
-          <WishlyLogo name="Wishly" />
+        <a href="/" onClick={event => internalLink(event, '/')} aria-label="Soty">
+          <WishlyLogo name="Soty" />
         </a>
         <div className="topbar-cluster">
           <ThemeToggle />

@@ -35,26 +35,26 @@
 ; AppId identifies the product across upgrades. NEVER change it, or installs
 ; stop upgrading in place. (Doubled first brace is Inno constant-escaping.)
 AppId={{9E1FA1D4-6C3B-4A34-9D06-2B62E7C6A3F1}
-AppName=Wishly Agent
+AppName=Soty
 AppVersion=__PRODUCT_VERSION__
-AppVerName=Wishly Agent __PRODUCT_VERSION__
-AppPublisher=Wishly
+AppVerName=Soty __PRODUCT_VERSION__
+AppPublisher=Soty
 VersionInfoVersion=__PRODUCT_VERSION__
 ; Full immutable build identity (PRODUCT_VERSION+BUILD_NUMBER), for diagnostics.
 VersionInfoTextVersion=__BUILD_ID__
-DefaultDirName={autopf}\Wishly
-DefaultGroupName=Wishly
+DefaultDirName={autopf}\Soty
+DefaultGroupName=Soty
 DisableProgramGroupPage=yes
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-OutputBaseFilename=Wishly-Agent-v__PRODUCT_VERSION__-Windows-x64
+OutputBaseFilename=Soty-v__PRODUCT_VERSION__-Windows-x64
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 ; Installing into {autopf} requires elevation; the Run key below is still
 ; written to the installing user's HKCU.
 PrivilegesRequired=admin
-UninstallDisplayName=Wishly Agent
+UninstallDisplayName=Soty
 CloseApplications=yes
 
 [Files]
@@ -67,12 +67,12 @@ Source: "{#HostDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs
 [Registry]
 ; Autostart for the current user; uninsdeletevalue removes it on uninstall.
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; \
-  ValueType: string; ValueName: "Wishly Agent"; \
+  ValueType: string; ValueName: "Soty"; \
   ValueData: """{app}\WishlyAgentHost.exe"""; Flags: uninsdeletevalue
 
 [Run]
 ; Start the tray host right after installation finishes.
-Filename: "{app}\WishlyAgentHost.exe"; Description: "Start Wishly Agent"; \
+Filename: "{app}\WishlyAgentHost.exe"; Description: "Start Soty"; \
   Flags: nowait postinstall skipifsilent
 
 [UninstallRun]

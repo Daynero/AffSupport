@@ -1,24 +1,24 @@
 #!/bin/zsh
 set -euo pipefail
 
-app="$PWD/release/dev/Wishly Dev.app"
+app="$PWD/release/dev/Soty Dev.app"
 finder_extension="$app/Contents/PlugIns/WishlyFinderExtension.appex"
 finder_binary="$finder_extension/Contents/MacOS/WishlyFinderExtension"
 [[ -d "$app" ]]
 [[ -d "$finder_extension" && -x "$finder_binary" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" == "com.wishly.dev" ]]
-[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$app/Contents/Info.plist")" == "Wishly Dev" ]]
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$app/Contents/Info.plist")" == "Soty Dev" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")" == "WishlyDevAgent" ]]
-[[ "$(/usr/libexec/PlistBuddy -c 'Print :NSServices:0:NSMenuItem:default' "$app/Contents/Info.plist")" == "Wishly Dev Finder Action" ]]
-[[ "$(/usr/libexec/PlistBuddy -c 'Print :NSServices:0:NSPortName' "$app/Contents/Info.plist")" == "Wishly Dev" ]]
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :NSServices:0:NSMenuItem:default' "$app/Contents/Info.plist")" == "Soty Dev Finder Action" ]]
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :NSServices:0:NSPortName' "$app/Contents/Info.plist")" == "Soty Dev" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$finder_extension/Contents/Info.plist")" == "com.wishly.dev.finder-extension" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionPointIdentifier' "$finder_extension/Contents/Info.plist")" == "com.apple.FinderSync" ]]
 grep -q '"channel": "development"' "$app/Contents/Resources/release.json"
 grep -q 'private let agentPort = 43130' "$PWD/release/dev/Launcher.generated.swift"
 grep -q 'private let instanceLockName = "wishly-dev-agent.lock"' "$PWD/release/dev/Launcher.generated.swift"
-grep -q 'private let supportDirectoryName = "Wishly Dev"' "$PWD/release/dev/Launcher.generated.swift"
-grep -q 'private let finderServiceName = "Wishly Dev Finder Action"' "$PWD/release/dev/FinderSync.generated.swift"
-grep -q 'private let finderMenuSuffix = " — Wishly Dev"' "$PWD/release/dev/FinderSync.generated.swift"
+grep -q 'private let supportDirectoryName = "Soty Dev"' "$PWD/release/dev/Launcher.generated.swift"
+grep -q 'private let finderServiceName = "Soty Dev Finder Action"' "$PWD/release/dev/FinderSync.generated.swift"
+grep -q 'private let finderMenuSuffix = " — Soty Dev"' "$PWD/release/dev/FinderSync.generated.swift"
 ! grep -q '__[A-Z0-9_]*__' "$PWD/release/dev/FinderSync.generated.swift"
 ! grep -qiE 'case heic|case heif|\"heic\"|\"heif\"' "$PWD/release/dev/FinderSync.generated.swift"
 grep -q 'VITE_ANALYTICS_ENABLED=false' scripts/package-dev-mac.sh

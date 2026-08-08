@@ -219,7 +219,7 @@ describe('release identity', () => {
     expect(packageScript).toContain('VITE_ANALYTICS_ENABLED=false');
     expect(packageScript).toContain('VITE_LOCAL_DEV_AUTH=true');
     expect(packageScript).toContain('AGENT_PORT=$port');
-    expect(packageScript).toContain('SUPPORT_DIRECTORY_NAME=Wishly Dev');
+    expect(packageScript).toContain('SUPPORT_DIRECTORY_NAME=Soty Dev');
     expect(packageScript).toContain('INSTANCE_LOCK_NAME=wishly-dev-agent.lock');
     expect(packageScript).not.toMatch(/git (tag|push)|supabase|wrangler/);
     for (const script of [packageScript, productionPackageScript]) {

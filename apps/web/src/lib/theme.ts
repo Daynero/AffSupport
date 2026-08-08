@@ -37,91 +37,34 @@ export function applyTheme(theme: Theme) {
   if (meta) meta.setAttribute('content', theme === 'dark' ? META_DARK : META_LIGHT);
 }
 
-function prefersReducedMotion(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  );
-}
-
 type Origin = { x: number; y: number } | null;
-let revealAnimationId = 0;
 
-function cssPercentage(value: number) {
-  return `${Math.round(value * 100_000) / 100_000}%`;
-}
-
-function createRevealStyle(x: number, y: number, endRadius: number) {
-  const viewportWidth = window.innerWidth;
-  const viewportHeight = window.innerHeight;
-  const normalizedDiagonal = Math.hypot(viewportWidth, viewportHeight) / Math.SQRT2;
-  const originX = cssPercentage((x / viewportWidth) * 100);
-  const originY = cssPercentage((y / viewportHeight) * 100);
-  const radius = cssPercentage((endRadius / normalizedDiagonal) * 100);
-  const animationName = `theme-cosmic-reveal-${++revealAnimationId}`;
-  const style = document.createElement('style');
-  style.dataset.themeReveal = 'active';
-  style.textContent = `
-:root.theme-transitioning::view-transition-new(root) {
-  animation: ${animationName} 620ms cubic-bezier(0.4, 0, 0.2, 1) both;
-}
-@keyframes ${animationName} {
-  from {
-    clip-path: circle(0 at ${originX} ${originY});
-  }
-  to {
-    clip-path: circle(${radius} at ${originX} ${originY});
-  }
-}`;
-  document.head.append(style);
-  return style;
-}
+// Duration of the theme cross-fade; kept in sync with the honeycomb veil in
+// HoneycombField and the `.is-theming` transition in styles.css.
+const THEME_FADE_MS = 775;
+let themingTimer = 0;
 
 /**
- * Circular "cosmic reveal": the incoming theme wipes in as a growing circle
- * from the toggle using the View Transitions API. Falls back to an
- * instant swap when the API is unavailable or motion is reduced.
+ * Commits the theme with a smooth cross-fade. `is-theming` is armed on the root
+ * *before* the colour swap so every UI surface cross-fades from the same instant
+ * as the honeycomb backdrop (HoneycombField), keeping them perfectly in step.
+ * (A View Transitions snapshot would freeze the honeycomb animation, so the
+ * earlier "cosmic reveal" is intentionally retired.)
  */
-export function transitionTheme(next: Theme, origin: Origin) {
-  const supportsViewTransition =
-    typeof document !== 'undefined' && 'startViewTransition' in document;
-
-  if (!supportsViewTransition || prefersReducedMotion() || !origin) {
-    applyTheme(next);
-    return;
-  }
-
-  const { x, y } = origin;
-  if (
-    !Number.isFinite(x) ||
-    !Number.isFinite(y) ||
-    window.innerWidth <= 0 ||
-    window.innerHeight <= 0
-  ) {
-    applyTheme(next);
-    return;
-  }
-
-  const endRadius = Math.hypot(
-    Math.max(x, window.innerWidth - x),
-    Math.max(y, window.innerHeight - y)
-  );
-
-  // Put scale-independent percentages directly into a short-lived CSS
-  // animation. Chromium can size the root snapshot in device pixels on Retina
-  // displays, so raw layout-viewport pixels make the origin appear divided by
-  // devicePixelRatio.
+export function transitionTheme(next: Theme, _origin: Origin) {
   const root = document.documentElement;
-  const revealStyle = createRevealStyle(x, y, endRadius);
-  root.classList.add('theme-transitioning');
-
-  const transition = document.startViewTransition(() => applyTheme(next));
-
-  transition.finished.finally(() => {
-    root.classList.remove('theme-transitioning');
-    revealStyle.remove();
-  });
+  root.classList.add('is-theming');
+  // Flush styles so the `.is-theming` universal transition is committed *before*
+  // the colour swap. Without this, the transition rule and the variable change
+  // land in one restyle, so elements that gain their colour transition only from
+  // `.is-theming` (e.g. header text) snap instead of cross-fading.
+  void root.offsetWidth;
+  applyTheme(next);
+  clearTimeout(themingTimer);
+  themingTimer = window.setTimeout(
+    () => root.classList.remove('is-theming'),
+    THEME_FADE_MS + 80
+  );
 }
 
 export function useTheme() {

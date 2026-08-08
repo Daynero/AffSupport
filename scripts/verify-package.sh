@@ -1,6 +1,6 @@
 #!/bin/zsh
 set -euo pipefail
-app="$PWD/release/Wishly Agent.app"
+app="$PWD/release/Soty.app"
 finder_extension="$app/Contents/PlugIns/WishlyFinderExtension.appex"
 finder_binary="$finder_extension/Contents/MacOS/WishlyFinderExtension"
 product_version=$(node scripts/release-meta.mjs product-version); bundle_version=$(node scripts/release-meta.mjs bundle-version); build_number=$(node scripts/release-meta.mjs build-number); build_id=$(node scripts/release-meta.mjs build-id); api_version=$(node scripts/release-meta.mjs api-version)
@@ -8,14 +8,14 @@ product_version=$(node scripts/release-meta.mjs product-version); bundle_version
 [[ -d "$finder_extension" && -x "$finder_binary" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")" == "$bundle_version" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Contents/Info.plist")" == "$build_number" ]]
-[[ "$(/usr/libexec/PlistBuddy -c 'Print :NSServices:0:NSMenuItem:default' "$app/Contents/Info.plist")" == "Wishly Finder Action" ]]
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :NSServices:0:NSMenuItem:default' "$app/Contents/Info.plist")" == "Soty Finder Action" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$finder_extension/Contents/Info.plist")" == "local.video.compressor.test.finder-extension" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionPointIdentifier' "$finder_extension/Contents/Info.plist")" == "com.apple.FinderSync" ]]
 file "$finder_binary" | grep -q arm64
 for binary in "$app/Contents/MacOS/WishlyAgent" "$finder_binary"; do
   vtool -show-build "$binary" | grep -q 'minos 13.0'
 done
-grep -q 'private let finderServiceName = "Wishly Finder Action"' "$PWD/release/FinderSync.generated.swift"
+grep -q 'private let finderServiceName = "Soty Finder Action"' "$PWD/release/FinderSync.generated.swift"
 grep -q 'private let finderMenuSuffix = ""' "$PWD/release/FinderSync.generated.swift"
 ! grep -q '__[A-Z0-9_]*__' "$PWD/release/FinderSync.generated.swift"
 ! grep -qiE 'case heic|case heif|\"heic\"|\"heif\"' "$PWD/release/FinderSync.generated.swift"

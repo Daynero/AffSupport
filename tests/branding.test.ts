@@ -11,21 +11,21 @@ import { translate, translationKeys } from '../apps/web/src/i18n';
 
 const OLD_BRAND = /Local Video Compressor/;
 
-describe('Wishly brand identity', () => {
-  it('names the product Wishly and the agent Wishly Agent', () => {
-    expect(PRODUCT_NAME).toBe('Wishly');
-    expect(AGENT_PRODUCT_NAME).toBe('Wishly Agent');
-    expect(translate('en', 'appName')).toBe('Wishly');
-    expect(translate('uk', 'appName')).toBe('Wishly');
+describe('Soty brand identity', () => {
+  it('names the product and local application Soty', () => {
+    expect(PRODUCT_NAME).toBe('Soty');
+    expect(AGENT_PRODUCT_NAME).toBe('Soty');
+    expect(translate('en', 'appName')).toBe('Soty');
+    expect(translate('uk', 'appName')).toBe('Soty');
   });
 
-  it('uses Wishly Agent in connection and install strings in both languages', () => {
-    expect(translate('en', 'agentConnected')).toBe('Wishly Agent connected');
-    expect(translate('uk', 'agentConnected')).toBe('Wishly Agent підключено');
-    expect(translate('uk', 'agentNotRunning')).toBe('Wishly Agent не запущено');
-    expect(translate('uk', 'agentUpdateRequired')).toBe('Потрібне оновлення Wishly Agent');
-    expect(translate('uk', 'downloadAgent')).toBe('Встановити Wishly');
-    expect(translate('en', 'downloadAgent')).toBe('Install Wishly');
+  it('uses Soty in connection and install strings in both languages', () => {
+    expect(translate('en', 'agentConnected')).toBe('Soty connected');
+    expect(translate('uk', 'agentConnected')).toBe('Soty підключено');
+    expect(translate('uk', 'agentNotRunning')).toBe('Soty не запущено');
+    expect(translate('uk', 'agentUpdateRequired')).toBe('Потрібне оновлення Soty');
+    expect(translate('uk', 'downloadAgent')).toBe('Встановити Soty');
+    expect(translate('en', 'downloadAgent')).toBe('Install Soty');
   });
 
   it('leaves no old brand names in either dictionary', () => {
@@ -35,8 +35,8 @@ describe('Wishly brand identity', () => {
     expect(text).not.toMatch(OLD_BRAND);
   });
 
-  it('publishes release artifacts under the Wishly name', () => {
-    expect(RELEASE_ARTIFACT_NAME).toMatch(/^Wishly-Agent-v.+-macOS-arm64\.dmg$/);
+  it('publishes release artifacts under the Soty name', () => {
+    expect(RELEASE_ARTIFACT_NAME).toMatch(/^Soty-v.+-macOS-arm64\.dmg$/);
     expect(RELEASE_DOWNLOAD_URL).toContain(RELEASE_ARTIFACT_NAME);
   });
 
@@ -48,21 +48,21 @@ describe('Wishly brand identity', () => {
 
   it('brands the web document metadata', () => {
     const html = readFileSync('apps/web/index.html', 'utf8');
-    expect(html).toContain('<title>Wishly — Local media tools and team workspace</title>');
+    expect(html).toContain('<title>Soty — Local media tools and team workspace</title>');
     expect(html).toContain('href="/favicon.svg"');
     expect(html).toContain('rel="apple-touch-icon"');
     expect(html).toContain('rel="manifest"');
     expect(html).toMatch(
-      /property="og:title" content="Wishly — Local media tools and team workspace"/
+      /property="og:title" content="Soty — Local media tools and team workspace"/
     );
-    expect(html).toMatch(/name="theme-color" content="#7557e8"/);
+    expect(html).toMatch(/name="theme-color" content="#d98508"/);
     // The production origin is injected at build time from shared config.
     expect(html).toContain('%SITE_ORIGIN%');
     expect(html).not.toMatch(OLD_BRAND);
 
     const manifest = JSON.parse(readFileSync('apps/web/public/manifest.webmanifest', 'utf8'));
-    expect(manifest.name).toBe('Wishly');
-    expect(manifest.theme_color).toBe('#7557e8');
+    expect(manifest.name).toBe('Soty');
+    expect(manifest.theme_color).toBe('#d98508');
   });
 
   it('keeps the public OAuth home page crawlable', () => {
@@ -70,28 +70,28 @@ describe('Wishly brand identity', () => {
     expect(headers).toMatch(/\/[\s\S]*X-Robots-Tag: index, follow/);
   });
 
-  it('keeps the packaged agent branded as Wishly Agent without touching its bundle id', () => {
+  it('keeps the packaged agent branded as Soty without touching its bundle id', () => {
     const plist = readFileSync('packaging/Info.plist', 'utf8');
-    expect(plist).toContain('<string>Wishly Agent</string>');
+    expect(plist).toContain('<string>Soty</string>');
     expect(plist).toContain('<string>local.video.compressor.test</string>');
     expect(plist).not.toContain('Local Video Compressor');
 
     const launcher = readFileSync('packaging/Launcher.swift', 'utf8');
     expect(launcher).toContain('__APP_NAME__');
-    expect(readFileSync('scripts/package-mac.sh', 'utf8')).toContain('APP_NAME=Wishly Agent');
+    expect(readFileSync('scripts/package-mac.sh', 'utf8')).toContain('APP_NAME=Soty');
     // The health handshake identifier is a compatibility constant, not a brand.
     expect(launcher).toContain('local-video-compressor-agent');
     expect(launcher).not.toMatch(/"[^"]*Local Video Compressor[^"]*"/);
   });
 });
 
-describe('Wishly design system', () => {
+describe('Soty design system', () => {
   const css = readFileSync('apps/web/src/styles.css', 'utf8');
 
   it('builds the palette and motion system on shared tokens', () => {
     for (const token of [
-      '--purple-500: #7557e8',
-      '--color-accent: var(--purple-500)',
+      '--purple-500: #7c59e0',
+      '--color-accent: var(--purple-600)',
       '--gradient-progress',
       '--ease-standard: cubic-bezier(0.2, 0, 0, 1)',
       '--dur-control',

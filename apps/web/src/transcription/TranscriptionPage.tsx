@@ -111,7 +111,7 @@ export default function TranscriptionPage() {
   const canUseLocalPaths = capabilities.includes('local-file-paths');
 
   useEffect(() => {
-    document.title = 'Transcription — Wishly';
+    document.title = 'Transcription — Soty';
     analytics.track('tool_opened', { tool_identifier: 'transcription' });
   }, []);
 

@@ -1,3 +1,9 @@
+# v0.9.3
+
+- Full rebrand to **Soty** across the local macOS app, Windows installer, web application, downloadable artifacts, and app icons.
+- Replace the header mark with a clean Soty SVG lockup and make its light/dark appearance cross-fade smoothly without residual transition artifacts.
+- Add the Soty honeycomb visual system and align the interface, progress styling, metadata, and install experience with it.
+
 # v0.9.2
 
 - Move the canonical Wishly web app to `https://soty.pp.ua` and align the packaged Agent, authentication callbacks, Google Drive workspace flow, and production release checks with the new origin.

@@ -42,7 +42,7 @@ describe('Wishly Finder image conversion integration', () => {
 
   it('uses a private authenticated service bridge instead of exposing filesystem writes', () => {
     expect(plist).toContain('<string>com.wishly.finder-action</string>');
-    expect(plist).toContain('<string>Wishly Finder Action</string>');
+    expect(plist).toContain('<string>Soty Finder Action</string>');
     expect(launcher).toContain('"AGENT_NATIVE_TOKEN": nativeToken');
     expect(launcher).toContain('"X-Wishly-Native-Token"');
     expect(agent).toContain("request.url.startsWith('/native/')");
@@ -71,8 +71,8 @@ describe('Wishly Finder image conversion integration', () => {
     }
     expect(production).toContain('local.video.compressor.test.finder-extension');
     expect(development).toContain('com.wishly.dev.finder-extension');
-    expect(development).toContain('Wishly Dev Finder Action');
-    expect(development).toContain('— Wishly Dev');
+    expect(development).toContain('Soty Dev Finder Action');
+    expect(development).toContain('— Soty Dev');
     expect(development).toContain('Contents/MacOS/WishlyDevAgent');
   });
 

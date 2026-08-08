@@ -23,10 +23,10 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
   const connected = connection === 'connected';
 
   useEffect(() => {
-    document.title = 'Wishly — Tools';
+    document.title = 'Soty — Tools';
     document
       .querySelector('meta[name="description"]')
-      ?.setAttribute('content', 'A collection of local Wishly tools for working with your files.');
+      ?.setAttribute('content', 'A collection of local Soty tools for working with your files.');
     analytics.track('home_viewed', {});
     for (const tool of webTools) {
       analytics.track('tool_impression', { tool_identifier: tool.analyticsId });

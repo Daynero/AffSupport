@@ -93,9 +93,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   func applicationDidFinishLaunching(_ notification: Notification) {
     guard installedLocationAllowed() else {
       showFailure(
-        "Move Wishly Agent to Applications before opening it.",
+        "Move Soty to Applications before opening it.",
         details:
-          "Running directly from a DMG or Downloads can make the bundled media tools disappear while a video is being processed. Drag Wishly Agent to Applications, then open that installed copy."
+          "Running directly from a DMG or Downloads can make the bundled media tools disappear while a video is being processed. Drag Soty to Applications, then open that installed copy."
       )
       return
     }
@@ -171,7 +171,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
     let menu = NSMenu()
     let openItem = menu.addItem(
-      withTitle: "Open Wishly",
+      withTitle: "Open Soty",
       action: #selector(openInterface),
       keyEquivalent: "o"
     )
@@ -368,7 +368,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       showFailure(
         "The bundled media runtime is unavailable.",
         details:
-          "Reinstall Wishly Agent in Applications. Your local queue and original files are safe."
+          "Reinstall Soty in Applications. Your local queue and original files are safe."
       )
       return
     }
@@ -736,7 +736,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       alert.informativeText = """
         Wishly can add Convert to → PNG, JPEG, and WebP to the Finder context menu.
 
-        macOS requires you to enable the Wishly Finder extension once in System Settings.
+        macOS requires you to enable the Soty Finder extension once in System Settings.
         """
       alert.addButton(withTitle: "Open Settings")
       alert.addButton(withTitle: "Later")

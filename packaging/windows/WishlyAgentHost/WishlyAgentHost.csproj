@@ -15,9 +15,7 @@
     <!-- The host only talks to 127.0.0.1 and renders fixed English strings. -->
     <InvariantGlobalization>true</InvariantGlobalization>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
-    <!-- TODO(windows-machine): add a real .ico and uncomment.
-    <ApplicationIcon>WishlyAgentHost.ico</ApplicationIcon>
-    -->
+    <ApplicationIcon>Soty.ico</ApplicationIcon>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(PublishSingleFile)' == 'true'">
