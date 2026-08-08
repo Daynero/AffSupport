@@ -817,15 +817,15 @@ function TranscriptionRow({
           {done && (
             <>
               <Button
-                variant="secondary"
+                variant="primary"
                 onClick={event => onView(event.currentTarget as HTMLElement)}
               >
                 {t('transcriptionView')}
               </Button>
-              <Button variant="ghost" onClick={() => void copy()}>
+              <Button variant="secondary" onClick={() => void copy()}>
                 {copied ? t('transcriptionCopied') : t('transcriptionCopy')}
               </Button>
-              <Button variant="ghost" onClick={onReveal}>
+              <Button variant="success" onClick={onReveal}>
                 {t('transcriptionReveal')}
               </Button>
             </>
@@ -841,12 +841,12 @@ function TranscriptionRow({
             </Button>
           )}
           {(job.status === 'failed' || job.status === 'cancelled') && (
-            <Button variant="secondary" disabled={!connected} onClick={onRetry}>
+            <Button variant="primary" disabled={!connected} onClick={onRetry}>
               {t('transcriptionRetry')}
             </Button>
           )}
           {job.status !== 'processing' && (
-            <Button variant="ghost" onClick={onRemove}>
+            <Button variant="danger" onClick={onRemove}>
               {t('transcriptionRemove')}
             </Button>
           )}

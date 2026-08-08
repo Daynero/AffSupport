@@ -140,13 +140,13 @@ export function LandingJobCard({
               <Button variant="primary" disabled={!connected} onClick={() => onReveal('open')}>
                 {t('landingOpenResult')}
               </Button>
-              <Button variant="ghost" disabled={!connected} onClick={() => onReveal('reveal')}>
+              <Button variant="success" disabled={!connected} onClick={() => onReveal('reveal')}>
                 {t('landingShowResult')}
               </Button>
             </>
           )}
           {(completed || failed) && (
-            <Button variant="ghost" disabled={!connected} onClick={onReset}>
+            <Button variant="danger" disabled={!connected} onClick={onReset}>
               {t('landingRemove')}
             </Button>
           )}
