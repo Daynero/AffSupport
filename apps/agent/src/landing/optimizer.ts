@@ -372,7 +372,7 @@ class LandingJobOptimizer {
     signal: AbortSignal
   ) {
     const absPath = path.join(root, item.relPath);
-    const temporary = path.join(path.dirname(absPath), `.${path.basename(absPath)}.wishly.mp4`);
+    const temporary = path.join(path.dirname(absPath), `.${path.basename(absPath)}.soty.mp4`);
     await unlink(temporary).catch(() => {});
     const result = await optimizeVideo(
       absPath,

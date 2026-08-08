@@ -32,39 +32,6 @@ NSGradient(starting: lavender, ending: surface)?
   .draw(in: NSRect(origin: .zero, size: points), angle: -90)
 
 // Soty logo, centered above the title.
-func markPath(originX: CGFloat, originY: CGFloat, unit: CGFloat) -> NSBezierPath {
-  // favicon.svg W path in a 64-unit box; SVG y-axis points down, AppKit up.
-  func p(_ x: CGFloat, _ y: CGFloat) -> NSPoint {
-    NSPoint(x: originX + x * unit, y: originY + (64 - y) * unit)
-  }
-  let w = NSBezierPath()
-  w.move(to: p(13, 22))
-  w.curve(to: p(21, 43), controlPoint1: p(14, 31), controlPoint2: p(16.5, 43))
-  w.curve(to: p(29.2, 30.8), controlPoint1: p(24.4, 43), controlPoint2: p(26.8, 36.8))
-  w.curve(to: p(32, 25.2), controlPoint1: p(30.6, 27.3), controlPoint2: p(31.2, 25.2))
-  w.curve(to: p(34.8, 30.8), controlPoint1: p(32.8, 25.2), controlPoint2: p(33.4, 27.3))
-  w.curve(to: p(43, 43), controlPoint1: p(37.2, 36.8), controlPoint2: p(39.6, 43))
-  w.curve(to: p(51, 22), controlPoint1: p(47.5, 43), controlPoint2: p(50, 31))
-  w.lineWidth = 6 * unit
-  w.lineCapStyle = .round
-  w.lineJoinStyle = .round
-  return w
-}
-
-func sparkPath(originX: CGFloat, originY: CGFloat, unit: CGFloat) -> NSBezierPath {
-  func p(_ x: CGFloat, _ y: CGFloat) -> NSPoint {
-    NSPoint(x: originX + x * unit, y: originY + (64 - y) * unit)
-  }
-  let s = NSBezierPath()
-  s.move(to: p(49.5, 10))
-  s.curve(to: p(53.8, 14.3), controlPoint1: p(50.1, 12.6), controlPoint2: p(51.2, 13.7))
-  s.curve(to: p(49.5, 18.6), controlPoint1: p(51.2, 14.9), controlPoint2: p(50.1, 16))
-  s.curve(to: p(45.2, 14.3), controlPoint1: p(48.9, 16), controlPoint2: p(47.8, 14.9))
-  s.curve(to: p(49.5, 10), controlPoint1: p(47.8, 13.7), controlPoint2: p(48.9, 12.6))
-  s.close()
-  return s
-}
-
 if let logo = NSImage(contentsOfFile: logoPath) {
   let logoSize = NSSize(width: 178, height: 52)
   logo.draw(

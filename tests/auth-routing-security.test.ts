@@ -85,7 +85,9 @@ describe('protected routing and safe OAuth returns', () => {
     );
     expect(root).toContain('<PublicHomePage />');
     expect(publicHome).toContain("t('publicHomeDescription')");
-    expect(publicHome).toContain("t('publicHomeRoutineTitle')");
+    expect(publicHome).toContain("t('publicHomeEyebrow')");
+    expect(publicHome).toContain("t('publicHomeTitle')");
+    expect(publicHome).toContain("t('publicHomeSignIn')");
     expect(publicHome).toContain('href="/privacy"');
     expect(publicHome).toContain('href="/terms"');
   });

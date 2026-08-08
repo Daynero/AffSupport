@@ -1,7 +1,7 @@
 # issue-agent-token
 
 Issues short-lived (12h) ECDSA P-256 signed entitlement tokens for the local
-Wishly Agent. The web app exchanges the signed-in Supabase session for a token
+Soty. The web app exchanges the signed-in Supabase session for a token
 and forwards it to the agent; the packaged agent verifies the signature offline
 with the embedded public key and refuses tool operations without a valid token
 (plus a 7-day offline grace window handled by the agent).

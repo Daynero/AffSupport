@@ -1,6 +1,6 @@
 #!/usr/bin/env -S npx tsx
 /**
- * Wishly analytics CLI — read-only, developer/agent-side product analytics.
+ * Soty analytics CLI — read-only, developer/agent-side product analytics.
  *
  * Usage:
  *   npm run analytics -- <command> [options]
@@ -86,7 +86,7 @@ interface ParsedArgs {
   help: boolean;
 }
 
-const HELP = `Wishly analytics CLI (read-only)
+const HELP = `Soty analytics CLI (read-only)
 
 Usage: npm run analytics -- <command> [options]
 

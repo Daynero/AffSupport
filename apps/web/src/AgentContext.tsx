@@ -18,7 +18,7 @@ import {
   type AgentEvent,
   type QueueState,
   type ToolContracts,
-  type WishlyToolId
+  type SotyToolId
 } from '@video-compressor/shared';
 import {
   agentInstallAwaitingPairing,
@@ -66,7 +66,7 @@ export interface AgentContextValue {
   capabilities: string[];
   toolContracts: ToolContracts;
   releaseManifest: ReleaseManifestState;
-  toolAvailable: (tool: WishlyToolId) => boolean;
+  toolAvailable: (tool: SotyToolId) => boolean;
   teamWorkspaceAvailable?: boolean;
   reconnect: () => void;
 }

@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.9.5",
-  "buildNumber": "41",
-  "buildId": "0.9.5+41",
+  "version": "0.9.6",
+  "buildNumber": "42",
+  "buildId": "0.9.6+42",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-08-08T15:30:00.000Z",
+  "publishedAt": "2026-08-08T17:30:53.000Z",
   "summary": {
-    "en": "Finish the Soty rebrand in local media tools, Finder messages, app icons, and installer artwork.",
-    "uk": "Завершено ребрендинг Soty у локальних медіаінструментах, повідомленнях Finder, іконках і оформленні інсталятора."
+    "en": "Improve Soty's interface scale, sign-in experience, local media reliability, and team workspace readiness.",
+    "uk": "Покращено масштаб інтерфейсу й авторизацію Soty, надійність локальних медіаінструментів і готовність командного простору."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.5/Soty-v0.9.5-macOS-arm64.dmg",
-      "sha256": "6492fddc8b45de0e4be817fdfbebabbea03d8eb6e2698f9d6fcd214e035beb8a"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.6/Soty-v0.9.6-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -35,5 +35,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "nx5PbZAxo26NfhleGQ7AvQRrUj-VbxZImuO1vbK0FQwHltL54zbt2sMc4e3l1KFwhouymkZ9c-_5pnlWmvxTbg"
+  "signature": "9MvdZ9mnQV9AngT1X8coipMkg9LPdVwYXRVm-ZWwcQuP4nYQ7Z699vasbs5-4z9gBXLBnQH502t5oTnT2JUO5w"
 }

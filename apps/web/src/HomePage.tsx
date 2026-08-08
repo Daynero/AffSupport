@@ -18,6 +18,7 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
   const [help, setHelp] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [lockedTool, setLockedTool] = useState<WebTool | null>(null);
+  const [teamWorkspaceWarning, setTeamWorkspaceWarning] = useState(false);
   const [setupTool, setSetupTool] = useState<WebTool | null>(null);
   const panel = useRef<HTMLDivElement>(null);
   const connected = connection === 'connected';
@@ -66,6 +67,14 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
     }
   };
 
+  const openTeamWorkspace = () => {
+    if (isLocked('teamWorkspace')) {
+      setTeamWorkspaceWarning(true);
+      return;
+    }
+    navigate('/team');
+  };
+
   return (
     <>
       <main className={entering ? 'launcher page-enter' : 'launcher'}>
@@ -84,11 +93,11 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
           as="article"
           interactive
           className="team-workspace-launcher-card"
-          onClick={() => navigate('/team')}
+          onClick={openTeamWorkspace}
           onKeyDown={event => {
             if (event.key === 'Enter' || event.key === ' ') {
               event.preventDefault();
-              navigate('/team');
+              openTeamWorkspace();
             }
           }}
           role="button"
@@ -100,7 +109,10 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
               <TeamWorkspaceIcon />
             </span>
             <div>
-              <h3>{t('teamWorkspace')}</h3>
+              <div className="team-workspace-launcher-title">
+                <h3>{t('teamWorkspace')}</h3>
+                <span className="soon-badge">{t('inDevelopment')}</span>
+              </div>
               <p>{t('teamWorkspaceDescription')}</p>
             </div>
           </div>
@@ -184,6 +196,16 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
             const tool = lockedTool;
             setLockedTool(null);
             if (connected) navigate(tool.path);
+          }}
+        />
+      )}
+      {teamWorkspaceWarning && (
+        <FeatureLockDialog
+          feature="teamWorkspace"
+          onClose={() => setTeamWorkspaceWarning(false)}
+          onUnlocked={() => {
+            setTeamWorkspaceWarning(false);
+            navigate('/team');
           }}
         />
       )}

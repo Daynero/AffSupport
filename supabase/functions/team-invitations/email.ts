@@ -63,30 +63,30 @@ function safeInviteUrl(value: string): string {
 
 export function buildInvitationEmail(input: InvitationEmailInput): InvitationEmailMessage {
   const teamName = safePlainText(input.teamName).slice(0, 120);
-  const inviterName = safePlainText(input.inviterName).slice(0, 120) || 'Wishly member';
+  const inviterName = safePlainText(input.inviterName).slice(0, 120) || 'Soty member';
   const inviteUrl = safeInviteUrl(input.inviteUrl);
   const htmlTeam = escapeHtml(input.teamName.normalize('NFC').trim().slice(0, 120));
   const htmlInviter = escapeHtml(inviterName);
   const htmlUrl = escapeHtml(inviteUrl);
 
   return {
-    subject: `${inviterName} invited you to ${teamName} in Wishly`,
+    subject: `${inviterName} invited you to ${teamName} in Soty`,
     text: [
-      `${inviterName} invited you to the “${teamName}” team in Wishly.`,
+      `${inviterName} invited you to the “${teamName}” team in Soty.`,
       `Accept the invitation: ${inviteUrl}`,
       '',
-      `${inviterName} запрошує вас до команди «${teamName}» у Wishly.`,
+      `${inviterName} запрошує вас до команди «${teamName}» у Soty.`,
       `Прийняти запрошення: ${inviteUrl}`
     ].join('\n'),
     html: `<!doctype html>
 <html lang="en">
   <body style="font-family:system-ui,-apple-system,sans-serif;color:#171717;line-height:1.5">
     <h1 style="font-size:20px">You’re invited to ${htmlTeam}</h1>
-    <p>${htmlInviter} invited you to collaborate in Wishly.</p>
+    <p>${htmlInviter} invited you to collaborate in Soty.</p>
     <p><a href="${htmlUrl}">Accept invitation</a></p>
     <hr style="border:0;border-top:1px solid #e5e5e5">
     <h2 style="font-size:18px">Вас запрошено до ${htmlTeam}</h2>
-    <p>${htmlInviter} запрошує вас до спільної роботи у Wishly.</p>
+    <p>${htmlInviter} запрошує вас до спільної роботи у Soty.</p>
     <p><a href="${htmlUrl}">Прийняти запрошення</a></p>
   </body>
 </html>`

@@ -114,7 +114,7 @@ export class MediaPreviewManager {
       await access(entry.outputPath);
       return {
         path: entry.outputPath,
-        fileName: `${path.parse(source.fileName).name}-wishly-preview.mp4`,
+        fileName: `${path.parse(source.fileName).name}-soty-preview.mp4`,
         mimeType: entry.status.mimeType ?? 'video/mp4'
       };
     } catch {

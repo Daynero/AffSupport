@@ -288,9 +288,9 @@ function CryptoRow({ network, address }: { network: string; address: string }) {
 
 function HeartIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+    <svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
       <path
-        d="M10 17s-6.2-3.9-8.2-7.6C.4 6.7 1.8 4 4.6 4c1.8 0 3 1 4.4 2.6C10.4 5 11.6 4 13.4 4c2.8 0 4.2 2.7 2.8 5.4C16.2 13.1 10 17 10 17Z"
+        d="M10 17.5 8.9 16.5C4.7 12.8 2 10.4 2 7.4 2 4.9 4 3 6.5 3c1.4 0 2.7.7 3.5 1.8C10.8 3.7 12.1 3 13.5 3 16 3 18 4.9 18 7.4c0 3-2.7 5.4-6.9 9.1L10 17.5Z"
         fill="currentColor"
       />
     </svg>

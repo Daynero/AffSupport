@@ -58,7 +58,7 @@ export type {
   StableReleaseManifest,
   ToolContractName,
   ToolContracts,
-  WishlyToolId
+  SotyToolId
 } from './release.js';
 
 export * from './team/index.js';
@@ -961,7 +961,7 @@ export function normalizeTargetLanguage(code: string): string {
  * Returns null when the source is unknown (`auto`) or the preferred language
  * is not a valid TranslateGemma target. Translating into the source language
  * is avoided via `lastDistinctTarget` (an earlier explicit pick), then the
- * opposite built-in Wishly language.
+ * opposite built-in Soty language.
  */
 export function resolveTranslationTarget(
   sourceLanguage: string,
@@ -984,7 +984,7 @@ export function resolveTranslationTarget(
 export interface TranscriptionSettings {
   /** `auto` detects the spoken language; otherwise an ISO 639-1 code. */
   language: string;
-  /** Preferred automatic translation target (normally the Wishly UI language). */
+  /** Preferred automatic translation target (normally the Soty UI language). */
   translationLanguage: string;
 }
 

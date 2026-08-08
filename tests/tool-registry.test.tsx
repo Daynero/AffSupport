@@ -94,7 +94,7 @@ describe('web tool registry', () => {
     }
   });
 
-  it('exposes Team Workspace from the launcher without requiring the local agent', () => {
+  it('warns before exposing Team Workspace without requiring the local agent', () => {
     const navigate = vi.fn();
     render(<HomePage navigate={navigate} />);
 
@@ -104,6 +104,8 @@ describe('web tool registry', () => {
     expect(workspace).toBeTruthy();
 
     fireEvent.click(workspace);
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: translate('en', 'featureLockConfirm') }));
     expect(navigate).toHaveBeenCalledWith('/team');
   });
 });

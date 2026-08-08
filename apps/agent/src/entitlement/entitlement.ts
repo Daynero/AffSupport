@@ -14,7 +14,7 @@ import type { AgentEntitlementStatus } from '@video-compressor/shared';
  * of demanding a live connection for every session.
  *
  * Enforcement is packaging-driven: without AGENT_ENTITLEMENT_PUBLIC_KEY (dev
- * runs, `npm start`, Wishly Dev) the gate reports everything as entitled.
+ * runs, `npm start`, Soty Dev) the gate reports everything as entitled.
  */
 
 export const ENTITLEMENT_TOKEN_PREFIX = 'wat1';

@@ -134,7 +134,7 @@ export async function convertImage(
 
 function temporaryOutputPath(outputPath: string) {
   const parsed = path.parse(outputPath);
-  return path.join(parsed.dir, `.${parsed.name}.wishly-${randomUUID()}${parsed.ext}`);
+  return path.join(parsed.dir, `.${parsed.name}.soty-${randomUUID()}${parsed.ext}`);
 }
 
 function encodeWithFfmpeg(

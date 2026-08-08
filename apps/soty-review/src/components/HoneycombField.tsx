@@ -107,12 +107,18 @@ export function HoneycombField({ theme }: { theme: Theme }) {
         )
       );
       timers.push(
-        window.setTimeout(() => {
-          el.style.fill = `url(#${cellFill(theme, tier)})`;
-        }, delay + FLIP / 2),
-        window.setTimeout(() => {
-          el.style.fill = '';
-        }, delay + FLIP + 30)
+        window.setTimeout(
+          () => {
+            el.style.fill = `url(#${cellFill(theme, tier)})`;
+          },
+          delay + FLIP / 2
+        ),
+        window.setTimeout(
+          () => {
+            el.style.fill = '';
+          },
+          delay + FLIP + 30
+        )
       );
     }
 
@@ -155,9 +161,11 @@ export function HoneycombField({ theme }: { theme: Theme }) {
     let my = 0;
     // Cache the screen→SVG matrix (only changes on resize) so mousemove doesn't
     // force a layout every frame.
-    let inv = svg.getScreenCTM()?.inverse() ?? null;
+    const screenMatrix = () =>
+      typeof svg.getScreenCTM === 'function' ? (svg.getScreenCTM()?.inverse() ?? null) : null;
+    let inv = screenMatrix();
     const refreshCtm = () => {
-      inv = svg.getScreenCTM()?.inverse() ?? null;
+      inv = screenMatrix();
     };
 
     const process = () => {
@@ -233,14 +241,31 @@ export function HoneycombField({ theme }: { theme: Theme }) {
 
   return (
     <div className="soty-honeycomb" aria-hidden="true">
-      <svg ref={ref} className="soty-scene" viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="xMidYMid slice">
+      <svg
+        ref={ref}
+        className="soty-scene"
+        viewBox={`0 0 ${VW} ${VH}`}
+        preserveAspectRatio="xMidYMid slice"
+      >
         <defs>
-          <radialGradient id="baseL" gradientUnits="userSpaceOnUse" cx={VW * 0.5} cy={VH * 0.4} r={VW * 0.72}>
+          <radialGradient
+            id="baseL"
+            gradientUnits="userSpaceOnUse"
+            cx={VW * 0.5}
+            cy={VH * 0.4}
+            r={VW * 0.72}
+          >
             <stop offset="0%" stopColor="#FDC868" />
             <stop offset="52%" stopColor="#FBB149" />
             <stop offset="100%" stopColor="#F5A233" />
           </radialGradient>
-          <radialGradient id="baseD" gradientUnits="userSpaceOnUse" cx={VW * 0.5} cy={VH * 0.4} r={VW * 0.72}>
+          <radialGradient
+            id="baseD"
+            gradientUnits="userSpaceOnUse"
+            cx={VW * 0.5}
+            cy={VH * 0.4}
+            r={VW * 0.72}
+          >
             <stop offset="0%" stopColor="#2C2058" />
             <stop offset="52%" stopColor="#1E1545" />
             <stop offset="100%" stopColor="#140D2B" />

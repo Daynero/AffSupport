@@ -107,8 +107,8 @@ export function LoginPage() {
           disabled={authenticating}
           onClick={() => void signInWithGoogle(returnPath)}
         >
-          <span className="google-logo-crop" aria-hidden="true">
-            <img src="/google-sign-in.svg" alt="" width="40" height="40" />
+          <span className="google-logo" aria-hidden="true">
+            <img src="/google-g-logo.svg" alt="" width="20" height="20" />
           </span>
           <span>{authenticating ? t('oauthLoading') : t('continueGoogle')}</span>
           {authenticating && (

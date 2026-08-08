@@ -265,7 +265,7 @@ export default function AdminPage() {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = `wishly-marketing-consent-${new Date().toISOString().slice(0, 10)}.csv`;
+      anchor.download = `soty-marketing-consent-${new Date().toISOString().slice(0, 10)}.csv`;
       anchor.click();
       URL.revokeObjectURL(url);
     }

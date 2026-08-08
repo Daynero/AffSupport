@@ -10,7 +10,8 @@ import { useEffect, useState } from 'react';
 // To open a feature to everyone without the warning, flip its `protected`
 // flag to false.
 
-export type FeatureId = 'videoCompressor' | 'landingOptimizer' | 'landingPreview' | 'transcription';
+export type FeatureId =
+  'videoCompressor' | 'landingOptimizer' | 'landingPreview' | 'transcription' | 'teamWorkspace';
 
 type FeatureFlag = { protected: boolean };
 
@@ -18,7 +19,8 @@ export const featureFlags: Record<FeatureId, FeatureFlag> = {
   videoCompressor: { protected: false },
   landingOptimizer: { protected: false },
   landingPreview: { protected: false },
-  transcription: { protected: true }
+  transcription: { protected: true },
+  teamWorkspace: { protected: true }
 };
 
 const STORAGE_PREFIX = 'wishly.feature-unlock.';

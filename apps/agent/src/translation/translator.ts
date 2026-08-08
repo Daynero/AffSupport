@@ -288,7 +288,7 @@ export class LlamaTranslator implements Translator {
       ],
       {
         shell: false,
-        // Prompts and translations must never be copied into Wishly logs.
+        // Prompts and translations must never be copied into Soty logs.
         stdio: ['ignore', 'ignore', 'ignore']
       }
     );

@@ -6,9 +6,9 @@
  * contract is incompatible, while the supported range lets a web release keep
  * working with older compatible agents.
  */
-export const PRODUCT_VERSION = '0.9.5';
-export const BUNDLE_VERSION = '0.9.5';
-export const BUILD_NUMBER = '41';
+export const PRODUCT_VERSION = '0.9.6';
+export const BUNDLE_VERSION = '0.9.6';
+export const BUILD_NUMBER = '42';
 export const RELEASE_CHANNEL = 'stable';
 
 /**
@@ -73,7 +73,7 @@ export const WEB_TOOL_REQUIREMENTS = {
 
 export type ToolContractName = keyof typeof AGENT_TOOL_CONTRACTS;
 export type ToolContracts = Partial<Record<ToolContractName, number>>;
-export type WishlyToolId = keyof typeof WEB_TOOL_REQUIREMENTS;
+export type SotyToolId = keyof typeof WEB_TOOL_REQUIREMENTS;
 export type ReleasePlatform = 'macos-arm64' | 'macos-x64' | 'windows-x64';
 export type ReleaseSummaryLanguage = 'en' | 'uk';
 
@@ -127,7 +127,7 @@ export interface StableReleaseManifest {
   /** Short user-facing release copy. Omit it to use the generic maintenance text. */
   summary?: Partial<Record<ReleaseSummaryLanguage, string>>;
   artifacts: Partial<Record<ReleasePlatform, ReleaseArtifact>>;
-  toolRequirements: Record<WishlyToolId, ToolContracts>;
+  toolRequirements: Record<SotyToolId, ToolContracts>;
   /** Base64url ECDSA P-256 (IEEE P1363) signature over releaseManifestSigningPayload(). */
   signature?: string;
 }
@@ -157,9 +157,9 @@ export function normalizeToolContracts(
 }
 
 export function toolContractCompatible(
-  tool: WishlyToolId,
+  tool: SotyToolId,
   contracts: ToolContracts,
-  requirements: Record<WishlyToolId, ToolContracts> = WEB_TOOL_REQUIREMENTS
+  requirements: Record<SotyToolId, ToolContracts> = WEB_TOOL_REQUIREMENTS
 ): boolean {
   return Object.entries(requirements[tool]).every(
     ([name, minimum]) => (contracts[name as ToolContractName] ?? 0) >= (minimum ?? 0)

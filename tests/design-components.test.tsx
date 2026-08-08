@@ -6,16 +6,16 @@ import {
   ProgressBar,
   SegmentedControl,
   StatusBadge,
-  WishlyLoader
+  SotyLoader
 } from '../apps/web/src/components/ui';
-import { WishlyLogo, WishlyMark } from '../apps/web/src/components/WishlyLogo';
+import { SotyLogo, SotyMark } from '../apps/web/src/components/SotyLogo';
 import { translate } from '../apps/web/src/i18n';
 import type { TranslationKey } from '../apps/web/src/i18n';
 
 const t = (key: TranslationKey, values?: Record<string, string | number>) =>
   translate('en', key, values);
 
-describe('Wishly UI components', () => {
+describe('Soty UI components', () => {
   it('keeps button width stable while loading (overlay spinner, label kept)', () => {
     const markup = renderToStaticMarkup(
       <Button variant="primary" loading>
@@ -47,13 +47,13 @@ describe('Wishly UI components', () => {
     expect(markup).toContain('no-indicator');
   });
 
-  it('marks completed status with an animated check and processing with the Wishly loader', () => {
+  it('marks completed status with an animated check and processing with the Soty loader', () => {
     const completed = renderToStaticMarkup(<StatusBadge status="completed" t={t} />);
     expect(completed).toContain('status-check');
     expect(completed).toContain('Completed');
 
     const processing = renderToStaticMarkup(<StatusBadge status="processing" t={t} />);
-    expect(processing).toContain('wishly-loader');
+    expect(processing).toContain('soty-loader');
   });
 
   it('uses a speech waveform and transcription copy in transcription status badges', () => {
@@ -62,7 +62,7 @@ describe('Wishly UI components', () => {
     );
     expect(processing).toContain('transcription-loader');
     expect(processing).toContain('Transcribing');
-    expect(processing).not.toContain('wishly-loader');
+    expect(processing).not.toContain('soty-loader');
     expect(processing).not.toContain('Compressing');
   });
 
@@ -79,11 +79,11 @@ describe('Wishly UI components', () => {
     );
   });
 
-  it('exposes the Wishly mark and wordmark for the header and drop zones', () => {
-    const logo = renderToStaticMarkup(<WishlyLogo name="Wishly" />);
-    expect(logo).toContain('wishly-mark');
-    expect(logo).toContain('Wishly');
-    expect(renderToStaticMarkup(<WishlyMark size={20} />)).toContain('viewBox="0 0 64 64"');
-    expect(renderToStaticMarkup(<WishlyLoader />)).toContain('ribbon-center');
+  it('exposes the Soty mark and wordmark for the header and drop zones', () => {
+    const logo = renderToStaticMarkup(<SotyLogo name="Soty" />);
+    expect(logo).toContain('soty-wordmark-img');
+    expect(logo).toContain('Soty');
+    expect(renderToStaticMarkup(<SotyMark size={20} />)).toContain('/icon-192.png');
+    expect(renderToStaticMarkup(<SotyLoader />)).toContain('ribbon-center');
   });
 });

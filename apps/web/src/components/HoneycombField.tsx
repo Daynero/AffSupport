@@ -153,14 +153,31 @@ export function HoneycombField() {
 
   return (
     <div className="soty-honeycomb" aria-hidden="true">
-      <svg ref={ref} className="soty-scene" viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="xMidYMid slice">
+      <svg
+        ref={ref}
+        className="soty-scene"
+        viewBox={`0 0 ${VW} ${VH}`}
+        preserveAspectRatio="xMidYMid slice"
+      >
         <defs>
-          <radialGradient id="baseL" gradientUnits="userSpaceOnUse" cx={VW * 0.5} cy={VH * 0.4} r={VW * 0.72}>
+          <radialGradient
+            id="baseL"
+            gradientUnits="userSpaceOnUse"
+            cx={VW * 0.5}
+            cy={VH * 0.4}
+            r={VW * 0.72}
+          >
             <stop offset="0%" stopColor="#fdc868" />
             <stop offset="52%" stopColor="#fbb149" />
             <stop offset="100%" stopColor="#f5a233" />
           </radialGradient>
-          <radialGradient id="baseD" gradientUnits="userSpaceOnUse" cx={VW * 0.5} cy={VH * 0.4} r={VW * 0.72}>
+          <radialGradient
+            id="baseD"
+            gradientUnits="userSpaceOnUse"
+            cx={VW * 0.5}
+            cy={VH * 0.4}
+            r={VW * 0.72}
+          >
             <stop offset="0%" stopColor="#2c2058" />
             <stop offset="52%" stopColor="#1e1545" />
             <stop offset="100%" stopColor="#140d2b" />

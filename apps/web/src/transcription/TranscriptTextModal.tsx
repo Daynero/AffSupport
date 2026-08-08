@@ -17,6 +17,7 @@ import type {
 } from '@video-compressor/shared';
 import { TRANSLATEGEMMA_LANGUAGE_CODES } from '@video-compressor/shared';
 import { Modal } from '../components/Modal';
+import { SotyMark } from '../components/SotyLogo';
 import { Button, ProgressBar, type Translate } from '../components/ui';
 import { formatSize } from '../format';
 import {
@@ -1581,7 +1582,9 @@ export function TranscriptTextModal({
                 />
                 {audioOnly && (
                   <div className="transcript-audio-poster" aria-hidden="true">
-                    <span className="transcript-audio-mark">W</span>
+                    <span className="transcript-audio-mark">
+                      <SotyMark size={38} />
+                    </span>
                     <span className="transcript-audio-bars">
                       <i />
                       <i />

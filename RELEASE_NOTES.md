@@ -1,3 +1,10 @@
+# v0.9.6
+
+- Increase the application-wide interface scale and align the public sign-in header and dialog geometry with the authenticated tools experience.
+- Replace the dark-theme Google sign-in tile with a clean brand mark and refresh Soty's public, application, and installer artwork.
+- Improve local media processing reliability, support-directory migration, entitlement handling, and packaged Finder actions.
+- Advance team workspace readiness, invitation messaging, analytics coverage, and production contract generation.
+
 # v0.9.5
 
 - Complete the Soty rebrand across local Agent messages, Finder image conversion, landing exports, runtime notices, application icons, and installer artwork.

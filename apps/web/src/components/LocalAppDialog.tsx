@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import type { WishlyToolId } from '@video-compressor/shared';
+import type { SotyToolId } from '@video-compressor/shared';
 import { useAgent } from '../AgentContext';
 import { agentUrl, markAgentInstallStarted } from '../api/client';
 import type { ConnectionState } from '../connection';
@@ -8,6 +8,7 @@ import { downloadUrlForPlatform, macAppleSiliconDownloadUrl } from '../release-m
 import { currentBrowserPlatform } from '../lib/platform';
 import { analytics } from '../analytics/service';
 import { Modal } from './Modal';
+import { SotyMark } from './SotyLogo';
 import { Button } from './ui';
 
 export default function LocalAppDialog({
@@ -15,7 +16,7 @@ export default function LocalAppDialog({
   connection,
   onClose
 }: {
-  tool: WishlyToolId;
+  tool: SotyToolId;
   connection: ConnectionState;
   onClose?: () => void;
 }) {
@@ -69,17 +70,13 @@ export default function LocalAppDialog({
   };
 
   const macAction = (
-    <a
-      className={`button ${windowsFirst ? 'button-secondary' : 'button-primary'}`}
-      href={macDownloadUrl}
-      onClick={trackDownload}
-    >
+    <a className="button platform-download-button" href={macDownloadUrl} onClick={trackDownload}>
       {t('macAppleSilicon')}
     </a>
   );
   const windowsAction = windowsDownload.available ? (
     <a
-      className={`button ${windowsFirst ? 'button-primary' : 'button-secondary'}`}
+      className="button platform-download-button"
       href={windowsDownload.url}
       onClick={trackDownload}
     >
@@ -88,7 +85,7 @@ export default function LocalAppDialog({
   ) : (
     <button
       ref={windowsButton}
-      className="button button-secondary"
+      className="button platform-download-button"
       type="button"
       onClick={() => {
         analytics.track('blocked_action_attempted', {
@@ -110,13 +107,12 @@ export default function LocalAppDialog({
         className="local-app-modal"
         labelledBy={titleId}
         onClose={onClose}
-        closeOnBackdrop={false}
         closeOnEscape={false}
         closeLabel={t('supportClose')}
         backdropAriaHidden={windowsNoticeOpen}
       >
-        <div className="local-app-mark" aria-hidden="true">
-          W
+        <div className="local-app-mark">
+          <SotyMark size={54} />
         </div>
         <h2 id={titleId}>{title}</h2>
         <p>{body}</p>
@@ -139,7 +135,11 @@ export default function LocalAppDialog({
               {t('openSoty')}
             </a>
           )}
-          {!updatePending && <Button onClick={reconnect}>{t('checkAgain')}</Button>}
+          {!updatePending && (
+            <Button variant="secondary" onClick={reconnect}>
+              {t('checkAgain')}
+            </Button>
+          )}
         </div>
       </Modal>
       {windowsNoticeOpen && <WindowsComingSoonDialog onClose={closeWindowsNotice} />}
@@ -161,8 +161,8 @@ function WindowsComingSoonDialog({ onClose }: { onClose: () => void }) {
       nested
       initialFocus=".dialog-actions button"
     >
-      <div className="local-app-mark" aria-hidden="true">
-        W
+      <div className="local-app-mark">
+        <SotyMark size={54} />
       </div>
       <h2 id={titleId}>{t('windowsComingSoonTitle')}</h2>
       <p>{t('windowsComingSoonBody')}</p>

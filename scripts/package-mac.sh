@@ -40,7 +40,7 @@ node scripts/render-launcher.mjs packaging/Launcher.swift "$root/Launcher.genera
   "AGENT_PORT=43120" \
   "APP_NAME=Soty" \
   "INSTANCE_LOCK_NAME=local-video-compressor-agent.lock" \
-  "SUPPORT_DIRECTORY_NAME=Wishly" \
+  "SUPPORT_DIRECTORY_NAME=Soty" \
   "PUBLIC_SITE_ORIGIN=$PUBLIC_SITE_ORIGIN" \
   "APP_VERSION=$product_version" \
   "BUILD_NUMBER=$build_number" \

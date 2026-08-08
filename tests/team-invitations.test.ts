@@ -12,7 +12,7 @@ describe('team invitation delivery', () => {
       inviterName: 'Owner <script>',
       inviteUrl: 'https://soty.pp.ua/account?invite=opaque-token'
     });
-    expect(message.subject).toContain('Wishly');
+    expect(message.subject).toContain('in Soty');
     expect(message.html).toContain('&lt;Wishly &amp; Friends&gt;');
     expect(message.html).not.toContain('<script>');
     expect(message.html).toContain('https://soty.pp.ua/account?invite=opaque-token');
@@ -30,7 +30,7 @@ describe('team invitation delivery', () => {
       sendInvitationEmail(
         {
           apiKey: 'resend-test-secret',
-          from: 'Wishly <team@example.test>',
+          from: 'Soty <team@example.test>',
           to: 'member@example.test',
           message: buildInvitationEmail({
             teamName: 'Media buyers',
@@ -51,7 +51,7 @@ describe('team invitation delivery', () => {
       sendInvitationEmail(
         {
           apiKey: 'resend-test-secret',
-          from: 'Wishly <team@example.test>',
+          from: 'Soty <team@example.test>',
           to: 'member@example.test',
           message: buildInvitationEmail({
             teamName: 'Media buyers',

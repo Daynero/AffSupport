@@ -86,7 +86,7 @@ describe('local app platform choices', () => {
     expect(screen.queryByText('На жаль, версія Soty для Windows ще в розробці.')).toBeNull();
   });
 
-  it('makes the Windows installer the primary action for Windows visitors once shipped', () => {
+  it('keeps both platform downloads equally prominent for Windows visitors once shipped', () => {
     mockNavigator('Win32', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
     const value = agentValue();
     value.releaseManifest = {
@@ -105,15 +105,15 @@ describe('local app platform choices', () => {
 
     const windowsLink = screen.getByRole('link', { name: 'Windows' });
     expect(windowsLink.getAttribute('href')).toBe(WINDOWS_ARTIFACT_URL);
-    expect(windowsLink.className).toContain('button-primary');
+    expect(windowsLink.className).toContain('platform-download-button');
     const macLink = screen.getByRole('link', { name: 'Mac (Apple Silicon)' });
     expect(macLink.getAttribute('href')).toBe(MAC_ARTIFACT_URL);
-    expect(macLink.className).toContain('button-secondary');
+    expect(macLink.className).toContain('platform-download-button');
     // The coming-soon trigger is gone once the artifact exists.
     expect(screen.queryByRole('button', { name: 'Windows' })).toBeNull();
   });
 
-  it('keeps the Mac build primary for Mac visitors while linking the shipped Windows build', () => {
+  it('keeps both platform downloads equally prominent for Mac visitors', () => {
     mockNavigator('MacIntel', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)');
     const value = agentValue();
     value.releaseManifest = {
@@ -132,9 +132,9 @@ describe('local app platform choices', () => {
 
     const macLink = screen.getByRole('link', { name: 'Mac (Apple Silicon)' });
     expect(macLink.getAttribute('href')).toBe(MAC_ARTIFACT_URL);
-    expect(macLink.className).toContain('button-primary');
+    expect(macLink.className).toContain('platform-download-button');
     const windowsLink = screen.getByRole('link', { name: 'Windows' });
     expect(windowsLink.getAttribute('href')).toBe(WINDOWS_ARTIFACT_URL);
-    expect(windowsLink.className).toContain('button-secondary');
+    expect(windowsLink.className).toContain('platform-download-button');
   });
 });

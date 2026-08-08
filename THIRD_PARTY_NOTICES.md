@@ -39,7 +39,7 @@ The Google "G" asset used by the sign-in button is an unmodified current asset f
 
 ## TranslateGemma (local translation model)
 
-Wishly can download a quantized **TranslateGemma 4B IT** model on demand for local translation. The model is not committed to this repository and is not embedded in the application package. Translation runs through the pinned local llama.cpp runtime; transcript text and translation requests are not sent to a network service.
+Soty can download a quantized **TranslateGemma 4B IT** model on demand for local translation. The model is not committed to this repository and is not embedded in the application package. Translation runs through the pinned local llama.cpp runtime; transcript text and translation requests are not sent to a network service.
 
 > Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms
 
@@ -68,11 +68,11 @@ llama.cpp/build/bin/llama-quantize \
 shasum -a 256 translategemma-4b-it-Q4_K_M.gguf
 ```
 
-The exact byte size and SHA-256 above are authoritative: Wishly downloads to `.part`, checks both values, validates the GGUF container, and atomically installs only an exact match. The artifact is a community conversion rather than an official Google GGUF. Before pinning it, Wishly independently inspected its TranslateGemma/Gemma 3 metadata and embedded chat template and exercised the exact hash through the opt-in real local translation smoke test. It is not affiliated with, endorsed by, or sponsored by Google.
+The exact byte size and SHA-256 above are authoritative: Soty downloads to `.part`, checks both values, validates the GGUF container, and atomically installs only an exact match. The artifact is a community conversion rather than an official Google GGUF. Before pinning it, Soty independently inspected its TranslateGemma/Gemma 3 metadata and embedded chat template and exercised the exact hash through the opt-in real local translation smoke test. It is not affiliated with, endorsed by, or sponsored by Google.
 
 ## llama.cpp (local model runtime)
 
-Wishly downloads and verifies the official Apple Silicon llama.cpp release archive on demand:
+Soty downloads and verifies the official Apple Silicon llama.cpp release archive on demand:
 
 - Project: https://github.com/ggml-org/llama.cpp
 - License: MIT (copied as `llama.cpp-LICENSE`)
@@ -86,7 +86,7 @@ The local servers bind authenticated private Unix-domain sockets, not TCP ports,
 
 ## Multilingual E5 Small (word/phrase alignment)
 
-Semantic source↔translation alignment uses `intfloat/multilingual-e5-small`, whose pinned upstream model-card metadata declares `license: mit`, through the same pinned local llama.cpp runtime. The model is downloaded on demand and is not committed to Git. The pinned repository does not contain a separate LICENSE file or copyright-holder line, so Wishly packages an explicit provenance notice plus the standard MIT text as `multilingual-e5-small-MIT.txt` rather than inventing an upstream copyright notice.
+Semantic source↔translation alignment uses `intfloat/multilingual-e5-small`, whose pinned upstream model-card metadata declares `license: mit`, through the same pinned local llama.cpp runtime. The model is downloaded on demand and is not committed to Git. The pinned repository does not contain a separate LICENSE file or copyright-holder line, so Soty packages an explicit provenance notice plus the standard MIT text as `multilingual-e5-small-MIT.txt` rather than inventing an upstream copyright notice.
 
 - Base model revision: `intfloat/multilingual-e5-small@614241f622f53c4eeff9890bdc4f31cfecc418b3`
 - GGUF conversion revision: `keisuke-miyako/multilingual-e5-small-gguf-q4_k_m@3251974431b4ec1b9f6b0335edebedc505ec36d8`
@@ -95,4 +95,4 @@ Semantic source↔translation alignment uses `intfloat/multilingual-e5-small`, w
 - Exact size: `124,350,304` bytes
 - SHA-256: `6661b6e1ccb06e3044e2cd7aa25ca0b837ef7224a2cb5aff3a9e6807c60d01f1`
 
-Alignment confidence is derived from local multilingual embeddings and coverage. If phrase alignment is missing or fails, Wishly falls back to the corresponding whole segment with an explicitly capped approximate/yellow score.
+Alignment confidence is derived from local multilingual embeddings and coverage. If phrase alignment is missing or fails, Soty falls back to the corresponding whole segment with an explicitly capped approximate/yellow score.

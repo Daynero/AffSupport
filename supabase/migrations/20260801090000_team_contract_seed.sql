@@ -462,4 +462,4 @@ revoke all on table public.geo_options from public, anon, authenticated;
 revoke all on table public.language_options from public, anon, authenticated;
 
 comment on table public.team_contract_settings is
-  'Generated Wishly team contract settings; regenerate from shared TypeScript.';
+  'Generated Soty team contract settings; regenerate from shared TypeScript.';

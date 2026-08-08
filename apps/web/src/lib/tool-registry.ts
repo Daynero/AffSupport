@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import type { WishlyToolId } from '@video-compressor/shared';
+import type { SotyToolId } from '@video-compressor/shared';
 import type { AnalyticsTool } from '../analytics/events';
 import type { TranslationKey } from '../i18n';
 import { isProtected, type FeatureId } from './feature-flags';
@@ -28,7 +28,7 @@ export type WebToolStatus = 'available' | 'coming-soon' | 'in-development';
 
 export type WebTool = {
   /** Canonical id, aligned with the SotyToolId agent contract. */
-  id: WishlyToolId;
+  id: SotyToolId;
   /** Kebab-case identifier used by analytics events and route classification. */
   analyticsId: AnalyticsTool;
   path: `/${string}`;

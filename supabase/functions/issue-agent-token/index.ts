@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 // Issues a short-lived, ECDSA P-256 signed entitlement token that the local
-// Wishly Agent verifies offline before performing tool operations. This is the
+// Soty verifies offline before performing tool operations. This is the
 // server-side half of agent pairing: only signed-in users with an active
 // account receive tokens, and blocking an account (profiles.account_status)
 // stops new tokens immediately — installed agents lose access once the current

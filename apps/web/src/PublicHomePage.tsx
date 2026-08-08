@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { LanguageSwitch } from './components/LanguageSwitch';
+import { PublicAmbientLabels } from './components/PublicAmbientLabels';
 import { SotyLogo } from './components/SotyLogo';
 import { ThemeToggle } from './components/ThemeToggle';
 import { useI18n } from './i18n';
@@ -27,11 +28,14 @@ export default function PublicHomePage() {
       </header>
 
       <main className="public-home-content">
+        <PublicAmbientLabels />
         <section className="public-hero" aria-labelledby="public-home-title">
-          <div className="public-hero-logo" aria-hidden="true">
-            <SotyLogo name="Soty" />
+          <div className="public-hero-brand">
+            <div className="public-hero-logo" aria-hidden="true">
+              <SotyLogo name="Soty" />
+            </div>
+            <p className="public-eyebrow">{t('publicHomeEyebrow')}</p>
           </div>
-          <p className="public-eyebrow">{t('publicHomeEyebrow')}</p>
           <h1 id="public-home-title">{t('publicHomeTitle')}</h1>
           <p className="public-hero-copy">{t('publicHomeDescription')}</p>
           <div className="public-home-actions">
@@ -43,11 +47,6 @@ export default function PublicHomePage() {
               {t('publicHomeSignIn')}
             </a>
           </div>
-          <ul className="public-home-points" aria-label={t('publicHomeCapabilities')}>
-            <li>{t('publicHomeLocalTitle')}</li>
-            <li>{t('publicHomeFreeTitle')}</li>
-            <li>{t('publicHomeRoutineTitle')}</li>
-          </ul>
         </section>
       </main>
 

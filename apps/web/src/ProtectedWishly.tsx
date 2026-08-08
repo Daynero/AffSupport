@@ -6,7 +6,7 @@ import HomePage from './HomePage';
 import FeatureLockDialog from './components/FeatureLockDialog';
 import { useFeatureLock, type FeatureId } from './lib/feature-flags';
 import { toolByPath, type WebTool } from './lib/tool-registry';
-import type { WishlyToolId } from '@video-compressor/shared';
+import type { SotyToolId } from '@video-compressor/shared';
 import { useI18n } from './i18n';
 import { navigateTo, usePageEntrance } from './lib/navigation';
 import AccountPage from './pages/AccountPage';
@@ -91,7 +91,7 @@ function ToolSetupScreen({
   tool,
   connection
 }: {
-  tool: WishlyToolId;
+  tool: SotyToolId;
   connection: ReturnType<typeof useAgent>['connection'];
 }) {
   // Setup ↔ tool swaps remount this branch; the entrance animation makes the

@@ -111,7 +111,7 @@ describe('Soty login and OAuth callback', () => {
 
     expect(screen.getByRole('heading', { name: 'Sign in to Soty' })).toBeTruthy();
     const button = screen.getByRole('button', { name: 'Continue with Google' });
-    expect(button.querySelector('img')?.getAttribute('src')).toBe('/google-sign-in.svg');
+    expect(button.querySelector('img')?.getAttribute('src')).toBe('/google-g-logo.svg');
     await userEvent.click(button);
     expect(signInWithGoogle).toHaveBeenCalledWith('/compressor');
     expect(document.querySelector('.login-legal')?.textContent).toBe(

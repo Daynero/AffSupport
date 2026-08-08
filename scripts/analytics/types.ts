@@ -1,4 +1,4 @@
-// Stable, machine-readable output shapes for the Wishly analytics CLI.
+// Stable, machine-readable output shapes for the Soty analytics CLI.
 // The coding agent parses these; keep field names and meanings stable.
 
 export type PeriodToken = 'today' | '7d' | '30d' | '90d' | 'all';

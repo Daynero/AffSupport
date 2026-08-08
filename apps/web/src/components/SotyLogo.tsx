@@ -3,7 +3,7 @@ export function SotyMark({ size = 24 }: { size?: number }) {
   return (
     <img
       className="soty-mark"
-      src="/soty-app-icon.png"
+      src="/icon-192.png"
       width={size}
       height={size}
       alt=""

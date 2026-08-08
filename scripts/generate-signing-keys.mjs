@@ -1,4 +1,4 @@
-// Generates the two ECDSA P-256 keypairs Wishly uses for offline verification:
+// Generates the two ECDSA P-256 keypairs Soty uses for offline verification:
 //
 //   1. Agent entitlement tokens — the issue-agent-token Supabase Edge Function
 //      signs short-lived tokens with the private key; the packaged agent embeds

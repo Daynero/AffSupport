@@ -45,60 +45,60 @@ function ReviewContent() {
       <HoneycombField theme={route.theme} />
       <ReviewChrome route={route} dispatch={dispatch}>
         <nav className="soty-statebar" aria-label="Навігація оглядом екрана">
-        <button
-          type="button"
-          onClick={() =>
-            dispatch({
-              type: 'navigate',
-              route: { kind: 'catalog', theme: route.theme, locale: route.locale }
-            })
-          }
-          data-review-id={`${referencePrefix}/back-catalog`}
-          data-demo-action
-        >
-          ← Каталог
-        </button>
-        <div className="soty-state-chips" aria-label="Стани екрана">
-          {surface.states.map(item => (
-            <button
-              type="button"
-              key={item.id}
-              aria-pressed={item.id === selected.id}
-              onClick={() => dispatch({ type: 'select-state', stateId: item.id })}
-              data-review-id={`${referencePrefix}/state-${item.id}`}
-              data-demo-action
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            const next = reviewCatalog.surfaces[(index + 1) % reviewCatalog.surfaces.length];
-            dispatch({
-              type: 'navigate',
-              route: {
-                kind: 'screen',
-                surfaceId: next.id,
-                stateId: next.primaryStateId,
-                theme: route.theme,
-                locale: route.locale
-              }
-            });
-          }}
-          data-review-id={`${referencePrefix}/next-screen`}
-          data-demo-action
-        >
-          Наступний екран →
-        </button>
-      </nav>
-      <ScreenRegistry
-        surfaceId={surface.id}
-        model={model}
-        referencePrefix={referencePrefix}
-        dispatch={dispatch}
-      />
+          <button
+            type="button"
+            onClick={() =>
+              dispatch({
+                type: 'navigate',
+                route: { kind: 'catalog', theme: route.theme, locale: route.locale }
+              })
+            }
+            data-review-id={`${referencePrefix}/back-catalog`}
+            data-demo-action
+          >
+            ← Каталог
+          </button>
+          <div className="soty-state-chips" aria-label="Стани екрана">
+            {surface.states.map(item => (
+              <button
+                type="button"
+                key={item.id}
+                aria-pressed={item.id === selected.id}
+                onClick={() => dispatch({ type: 'select-state', stateId: item.id })}
+                data-review-id={`${referencePrefix}/state-${item.id}`}
+                data-demo-action
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const next = reviewCatalog.surfaces[(index + 1) % reviewCatalog.surfaces.length];
+              dispatch({
+                type: 'navigate',
+                route: {
+                  kind: 'screen',
+                  surfaceId: next.id,
+                  stateId: next.primaryStateId,
+                  theme: route.theme,
+                  locale: route.locale
+                }
+              });
+            }}
+            data-review-id={`${referencePrefix}/next-screen`}
+            data-demo-action
+          >
+            Наступний екран →
+          </button>
+        </nav>
+        <ScreenRegistry
+          surfaceId={surface.id}
+          model={model}
+          referencePrefix={referencePrefix}
+          dispatch={dispatch}
+        />
       </ReviewChrome>
     </>
   );
