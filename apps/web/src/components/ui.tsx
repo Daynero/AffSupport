@@ -42,6 +42,7 @@ export function Button({
 export function IconButton({
   label,
   children,
+  title = label,
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; children: ReactNode }) {
   return (
@@ -49,7 +50,7 @@ export function IconButton({
       {...props}
       className={`icon-button ${props.className ?? ''}`.trim()}
       aria-label={label}
-      title={label}
+      title={title}
     >
       {children}
     </button>

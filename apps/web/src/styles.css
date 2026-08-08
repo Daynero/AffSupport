@@ -151,6 +151,12 @@ select {
   font: inherit;
 }
 
+button {
+  appearance: none;
+  color: inherit;
+  background-color: transparent;
+}
+
 button,
 select,
 input[type='checkbox'],
@@ -3712,7 +3718,7 @@ input.is-invalid {
   inset: 0;
   display: grid;
   grid-template:
-    'toolbar toolbar' 58px
+    'toolbar toolbar' 62px
     'sidebar canvas' minmax(0, 1fr)
     'progress progress' auto /
     286px minmax(0, 1fr);
@@ -3755,8 +3761,8 @@ input.is-invalid {
 
 .landing-gallery-toolbar .icon-button {
   display: grid;
-  width: 36px;
-  height: 36px;
+  width: 44.2px;
+  height: 44.2px;
   flex: 0 0 auto;
   place-items: center;
   padding: 0;
@@ -3765,6 +3771,7 @@ input.is-invalid {
   color: var(--color-text-muted);
   background: transparent;
   cursor: pointer;
+  line-height: 1;
   transition:
     color var(--dur-micro) var(--ease-standard),
     border-color var(--dur-micro) var(--ease-standard),
@@ -3815,7 +3822,7 @@ input.is-invalid {
 
 .landing-gallery-zoom {
   display: flex;
-  height: 34px;
+  height: 44.2px;
   align-items: center;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -3823,15 +3830,18 @@ input.is-invalid {
 }
 
 .landing-gallery-zoom .icon-button {
-  width: 31px;
-  height: 31px;
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  min-height: 42px;
   border: 0;
   background: transparent;
 }
 
 .landing-gallery-zoom > button:not(.icon-button) {
   min-width: 50px;
-  height: 30px;
+  height: 42px;
+  min-height: 42px;
   padding: 0 5px;
   border: 0;
   color: var(--color-text-muted);
@@ -3859,12 +3869,13 @@ input.is-invalid {
 
 .landing-gallery-more > summary {
   display: grid;
-  width: 36px;
-  height: 36px;
+  width: 44.2px;
+  height: 44.2px;
   place-items: center;
   border-radius: var(--radius-md);
   color: var(--color-text-muted);
   cursor: pointer;
+  line-height: 1;
   list-style: none;
 }
 
@@ -3916,12 +3927,13 @@ input.is-invalid {
 
 .landing-gallery-settings > summary {
   display: grid;
-  width: 36px;
-  height: 36px;
+  width: 44.2px;
+  height: 44.2px;
   place-items: center;
   border-radius: var(--radius-md);
   color: var(--color-text-muted);
   cursor: pointer;
+  line-height: 1;
   list-style: none;
 }
 
@@ -3938,9 +3950,9 @@ input.is-invalid {
   position: absolute;
   z-index: 20;
   top: calc(100% + 8px);
-  right: 0;
+  right: calc(-44.2px - 6px);
   display: grid;
-  width: 240px;
+  width: min(300px, calc(100vw - 24px));
   gap: 12px;
   padding: 12px;
   border: 1px solid var(--color-border);
@@ -3977,6 +3989,7 @@ input.is-invalid {
 }
 
 .landing-gallery-segment button {
+  min-width: 0;
   flex: 1 1 0;
   padding: 6px 4px;
   border: 0;
@@ -4103,12 +4116,83 @@ input.is-invalid {
 
 .landing-gallery-source-select select {
   width: 100%;
+  min-height: 48.4px;
   min-width: 0;
   padding: 7px 28px 7px 9px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   color: var(--color-text);
   background: var(--color-surface-subtle);
+}
+
+.landing-gallery-delayed-tooltip {
+  position: relative;
+}
+
+.landing-gallery-delayed-tooltip::after {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 8px);
+  left: 50%;
+  width: max-content;
+  max-width: min(240px, calc(100vw - 24px));
+  padding: 5px 8px;
+  border: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+  border-radius: var(--radius-sm);
+  color: var(--color-on-accent);
+  background: color-mix(in srgb, var(--purple-950) 92%, transparent);
+  box-shadow: var(--shadow-md);
+  content: attr(data-tooltip);
+  font-size: 13.46px;
+  font-weight: 600;
+  line-height: 1.25;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -3px);
+  visibility: hidden;
+  white-space: normal;
+  transition:
+    opacity var(--dur-micro) var(--ease-standard) 1s,
+    transform var(--dur-micro) var(--ease-standard) 1s,
+    visibility 0s linear calc(1s + var(--dur-micro));
+}
+
+.landing-gallery-delayed-tooltip:hover:not(:focus)::after,
+.landing-gallery-delayed-tooltip:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  visibility: visible;
+  transition-delay: 1s;
+}
+
+.landing-gallery-toolbar-group.is-leading .landing-gallery-delayed-tooltip::after {
+  right: auto;
+  left: 0;
+  transform: translate(0, -3px);
+}
+
+.landing-gallery-toolbar-group.is-leading .landing-gallery-delayed-tooltip:hover:not(:focus)::after,
+.landing-gallery-toolbar-group.is-leading .landing-gallery-delayed-tooltip:focus-visible::after {
+  transform: translate(0, 0);
+}
+
+.landing-gallery-toolbar-group.is-actions .landing-gallery-delayed-tooltip::after {
+  right: 0;
+  left: auto;
+  transform: translate(0, -3px);
+}
+
+.landing-gallery-toolbar-group.is-actions .landing-gallery-delayed-tooltip:hover:not(:focus)::after,
+.landing-gallery-toolbar-group.is-actions .landing-gallery-delayed-tooltip:focus-visible::after {
+  transform: translate(0, 0);
+}
+
+.landing-gallery-more[open] > summary::after,
+.landing-gallery-settings[open] > summary::after,
+.landing-gallery-delayed-tooltip:active::after {
+  opacity: 0;
+  visibility: hidden;
+  transition-delay: 0s;
 }
 
 .landing-gallery-search {
@@ -4489,7 +4573,7 @@ input.is-invalid {
   }
 
   .landing-gallery-toolbar {
-    min-height: 58px;
+    min-height: 62px;
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
@@ -4506,7 +4590,7 @@ input.is-invalid {
   .landing-gallery-sidebar {
     position: fixed;
     z-index: 20;
-    top: 58px;
+    top: 62px;
     bottom: 0;
     left: 0;
     width: min(86vw, 320px);

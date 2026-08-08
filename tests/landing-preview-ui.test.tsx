@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
+import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -151,7 +152,7 @@ describe('landing preview viewer', () => {
     const first = render(<LandingPreviewPage />);
     expect(await screen.findByRole('img', { name: 'Acme' })).toBeTruthy();
 
-    await userEvent.click(screen.getByTitle('Actual size'));
+    await userEvent.click(screen.getByRole('button', { name: 'Actual size' }));
     await userEvent.click(screen.getByRole('button', { name: 'Zoom out' }));
     expect(screen.getByText('90%')).toBeTruthy();
     await userEvent.click(screen.getAllByRole('button', { name: 'Next landing' })[0]);
@@ -170,5 +171,24 @@ describe('landing preview viewer', () => {
     expect(screen.getByRole('button', { name: 'Fit page' }).getAttribute('aria-pressed')).toBe(
       'true'
     );
+  });
+
+  it('labels icon controls with delayed custom hints instead of native titles', async () => {
+    render(<LandingPreviewPage />);
+    expect(await screen.findByRole('img', { name: 'Acme' })).toBeTruthy();
+
+    const back = screen.getByRole('button', { name: 'Back to tools' });
+    expect(back.getAttribute('data-tooltip')).toBe('Back to tools');
+    expect(back.getAttribute('title')).toBe('');
+
+    const actualSize = screen.getByRole('button', { name: 'Actual size' });
+    expect(actualSize.getAttribute('data-tooltip')).toBe('Actual size');
+
+    const css = readFileSync('apps/web/src/styles.css', 'utf8');
+    expect(css).toMatch(
+      /\.landing-gallery-delayed-tooltip::after\s*{[\s\S]*?transition:[\s\S]*?1s/
+    );
+    expect(css).toContain('.landing-gallery-delayed-tooltip:hover:not(:focus)::after');
+    expect(css).toContain('.landing-gallery-delayed-tooltip:active::after');
   });
 });

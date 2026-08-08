@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ComponentProps,
   type DragEvent,
   type PointerEvent,
   type ReactNode
@@ -50,6 +51,17 @@ const emptyState: LandingPreviewState = {
   error: null,
   updatedAt: null
 };
+
+function GalleryIconButton({ className = '', ...props }: ComponentProps<typeof IconButton>) {
+  return (
+    <IconButton
+      {...props}
+      className={`landing-gallery-delayed-tooltip ${className}`.trim()}
+      data-tooltip={props.label}
+      title=""
+    />
+  );
+}
 
 type ZoomMode = 'fit-width' | 'fit-page' | 'custom';
 const VIEWER_PREFERENCES_KEY = 'wishly:landing-preview:viewer-preferences';
@@ -338,16 +350,16 @@ export default function LandingPreviewPage() {
     >
       <header className="landing-gallery-toolbar">
         <div className="landing-gallery-toolbar-group is-leading">
-          <IconButton label={t('landingGalleryBack')} onClick={() => navigateTo('/')}>
+          <GalleryIconButton label={t('landingGalleryBack')} onClick={() => navigateTo('/')}>
             ←
-          </IconButton>
-          <IconButton
+          </GalleryIconButton>
+          <GalleryIconButton
             label={t('landingGalleryToggleSidebar')}
             aria-pressed={sidebarOpen}
             onClick={() => setSidebarOpen(value => !value)}
           >
             ☰
-          </IconButton>
+          </GalleryIconButton>
           <div className="landing-gallery-identity">
             <strong>{selected?.name ?? state.activeCatalogName}</strong>
             <span title={selected?.relativePath}>{selected?.relativePath ?? phaseLabel}</span>
@@ -355,39 +367,51 @@ export default function LandingPreviewPage() {
         </div>
 
         <div className="landing-gallery-toolbar-group is-navigation">
-          <IconButton
+          <GalleryIconButton
             label={t('landingGalleryPrevious')}
             disabled={!state.landings.length}
             onClick={() => selectAt(selectedIndex - 1)}
           >
             ‹
-          </IconButton>
+          </GalleryIconButton>
           <span className="landing-gallery-counter numeric">
             {t('landingGalleryCounter', {
               current: selectedIndex >= 0 ? selectedIndex + 1 : 0,
               total: state.landings.length
             })}
           </span>
-          <IconButton
+          <GalleryIconButton
             label={t('landingGalleryNext')}
             disabled={!state.landings.length}
             onClick={() => selectAt(selectedIndex + 1)}
           >
             ›
-          </IconButton>
+          </GalleryIconButton>
         </div>
 
         <div className="landing-gallery-toolbar-group is-actions">
           <div className="landing-gallery-zoom">
-            <IconButton label={t('landingGalleryZoomOut')} onClick={() => setZoom(scale - 0.1)}>
+            <GalleryIconButton
+              label={t('landingGalleryZoomOut')}
+              onClick={() => setZoom(scale - 0.1)}
+            >
               −
-            </IconButton>
-            <button type="button" onClick={() => setZoom(1)} title={t('landingGalleryActualSize')}>
+            </GalleryIconButton>
+            <button
+              type="button"
+              className="landing-gallery-delayed-tooltip"
+              data-tooltip={t('landingGalleryActualSize')}
+              aria-label={t('landingGalleryActualSize')}
+              onClick={() => setZoom(1)}
+            >
               {Math.round(scale * 100)}%
             </button>
-            <IconButton label={t('landingGalleryZoomIn')} onClick={() => setZoom(scale + 0.1)}>
+            <GalleryIconButton
+              label={t('landingGalleryZoomIn')}
+              onClick={() => setZoom(scale + 0.1)}
+            >
               +
-            </IconButton>
+            </GalleryIconButton>
           </div>
           <Button
             variant="ghost"
@@ -405,7 +429,7 @@ export default function LandingPreviewPage() {
           >
             {t('landingGalleryFitPage')}
           </Button>
-          <IconButton
+          <GalleryIconButton
             label={t('landingGalleryRefreshCurrent')}
             disabled={!selected || state.running}
             onClick={() =>
@@ -413,32 +437,32 @@ export default function LandingPreviewPage() {
             }
           >
             ↻
-          </IconButton>
-          <IconButton
+          </GalleryIconButton>
+          <GalleryIconButton
             label={t('landingGalleryReveal')}
             disabled={!selected}
             onClick={() => selected && void apply(() => landingGalleryReveal(selected.id))}
           >
             ⌂
-          </IconButton>
+          </GalleryIconButton>
           {selected?.sourceKind === 'zip' && (
-            <IconButton
+            <GalleryIconButton
               label={t('landingGalleryOpenExtracted')}
               disabled={!selected.extractedAvailable}
               onClick={() => void apply(() => landingGalleryOpenExtracted(selected.id))}
             >
               ▣
-            </IconButton>
+            </GalleryIconButton>
           )}
-          <IconButton
+          <GalleryIconButton
             label={t('landingGalleryGrid')}
             aria-pressed={gridMode}
             disabled={!state.landings.length}
             onClick={() => setGridMode(value => !value)}
           >
             ▦
-          </IconButton>
-          <IconButton
+          </GalleryIconButton>
+          <GalleryIconButton
             label={t('landingGalleryFullscreen')}
             aria-pressed={fullscreen}
             onClick={() => {
@@ -447,7 +471,7 @@ export default function LandingPreviewPage() {
             }}
           >
             {fullscreen ? '×' : '⛶'}
-          </IconButton>
+          </GalleryIconButton>
           <GallerySettingsMenu
             settings={state.settings ?? emptyState.settings}
             disabled={state.running}
@@ -709,12 +733,12 @@ function LandingGalleryWelcome({
                 </span>
                 <span aria-hidden="true">›</span>
               </button>
-              <IconButton
+              <GalleryIconButton
                 label={t('landingGalleryRemoveCatalog')}
                 onClick={() => remove(catalog.id)}
               >
                 🗑
-              </IconButton>
+              </GalleryIconButton>
             </div>
           ))}
         </section>
@@ -737,7 +761,13 @@ function GalleryMoreMenu({
   const { t } = useI18n();
   return (
     <details className="landing-gallery-more">
-      <summary aria-label={t('landingGalleryMoreActions')}>•••</summary>
+      <summary
+        className="landing-gallery-delayed-tooltip"
+        data-tooltip={t('landingGalleryMoreActions')}
+        aria-label={t('landingGalleryMoreActions')}
+      >
+        •••
+      </summary>
       <div>
         <button type="button" onClick={chooseFolder}>
           {t('landingGalleryChooseAnother')}
@@ -798,7 +828,13 @@ function GallerySettingsMenu({
   const { t } = useI18n();
   return (
     <details className="landing-gallery-settings">
-      <summary aria-label={t('landingGalleryDeviceLabel')}>⚙</summary>
+      <summary
+        className="landing-gallery-delayed-tooltip"
+        data-tooltip={t('landingGalleryDeviceLabel')}
+        aria-label={t('landingGalleryDeviceLabel')}
+      >
+        ⚙
+      </summary>
       <div>
         <fieldset disabled={disabled}>
           <legend>{t('landingGalleryDeviceLabel')}</legend>
