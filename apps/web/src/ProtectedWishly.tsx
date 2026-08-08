@@ -20,7 +20,7 @@ import TeamSpace from './team/TeamSpace';
 
 export default function ProtectedWishly({ path }: { path: string }) {
   return (
-    <AgentProvider key="protected-shell-cache-v2">
+    <AgentProvider>
       <SupportGoalProvider>
         <TeamProvider client={teamApi}>
           <ApplicationShell path={path} />

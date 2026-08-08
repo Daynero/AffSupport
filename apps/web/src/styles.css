@@ -1782,8 +1782,12 @@ input.is-invalid {
 
 .tooltip-button {
   display: inline-grid;
-  width: 18px;
-  height: 18px;
+  width: 44.2px;
+  height: 44.2px;
+  min-width: 44.2px;
+  min-height: 44.2px;
+  aspect-ratio: 1;
+  flex: 0 0 44.2px;
   place-items: center;
   padding: 0;
   border: 1px solid var(--color-border-strong);
@@ -1791,7 +1795,7 @@ input.is-invalid {
   color: var(--color-text-muted);
   background: var(--color-surface);
   cursor: help;
-  font-size: 16.45px;
+  font-size: 17.94px;
   font-weight: 800;
   line-height: 1;
   transition:
@@ -4768,10 +4772,10 @@ body:has(.public-home) {
 }
 
 .public-home-actions .button {
-  min-height: 92px;
-  padding: 0 40px;
-  border-radius: calc(var(--radius-sm) * 2);
-  font-size: 2em;
+  min-height: 48px;
+  padding: 0 24px;
+  border-radius: var(--radius-sm);
+  font-size: 17.94px;
   text-decoration: none;
 }
 
@@ -9737,8 +9741,12 @@ button,
   color: var(--color-text-muted);
 }
 .transcript-match-help {
-  width: 18px;
-  height: 18px;
+  width: 44.2px;
+  height: 44.2px;
+  min-width: 44.2px;
+  min-height: 44.2px;
+  aspect-ratio: 1;
+  flex: 0 0 44.2px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -10007,19 +10015,4 @@ body {
     stroke var(--dur-complete) var(--ease-standard),
     box-shadow var(--dur-complete) var(--ease-standard),
     -webkit-text-fill-color var(--dur-complete) var(--ease-standard);
-}
-
-/* Desktop-first application canvas: primary page content occupies roughly
-   four fifths of the viewport while remaining centered. Full-screen viewers
-   and dialogs intentionally keep their task-specific dimensions. */
-@media (min-width: 900px) {
-  .launcher,
-  .workspace,
-  .page-container,
-  .landing-gallery-welcome,
-  .public-home-content,
-  .public-footer {
-    width: 80vw;
-    max-width: none;
-  }
 }

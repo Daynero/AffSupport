@@ -668,13 +668,6 @@ function LandingGalleryWelcome({
   const { t } = useI18n();
   return (
     <main className="landing-gallery-welcome">
-      <button
-        className="landing-gallery-welcome-back"
-        type="button"
-        onClick={() => navigateTo('/')}
-      >
-        ← {t('landingGalleryBack')}
-      </button>
       <section
         className={`landing-gallery-drop-zone ${dragging ? 'is-dragging' : ''}`}
         onDragEnter={onDragEnter}
