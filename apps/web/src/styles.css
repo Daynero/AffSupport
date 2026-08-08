@@ -415,7 +415,7 @@ a {
 
 /* Product launcher */
 .launcher {
-  width: min(920px, calc(100% - 32px));
+  width: min(1120px, calc(100% - 32px));
   margin: 0 auto;
   padding: clamp(48px, 9vh, 88px) 0 64px;
 }
@@ -3546,15 +3546,6 @@ input.is-invalid {
   width: min(900px, calc(100% - 32px));
   margin: 0 auto;
   padding: 42px 0 80px;
-}
-
-.landing-gallery-welcome-back {
-  margin-bottom: 22px;
-  padding: 7px 0;
-  border: 0;
-  color: var(--color-text-muted);
-  background: transparent;
-  cursor: pointer;
 }
 
 .landing-gallery-drop-zone {
