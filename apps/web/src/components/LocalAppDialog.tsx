@@ -8,6 +8,7 @@ import { downloadUrlForPlatform, macAppleSiliconDownloadUrl } from '../release-m
 import { currentBrowserPlatform } from '../lib/platform';
 import { analytics } from '../analytics/service';
 import { Modal } from './Modal';
+import { SotyMark } from './SotyLogo';
 import { Button } from './ui';
 
 export default function LocalAppDialog({
@@ -110,6 +111,9 @@ export default function LocalAppDialog({
         closeLabel={t('supportClose')}
         backdropAriaHidden={windowsNoticeOpen}
       >
+        <div className="local-app-mark">
+          <SotyMark size={54} />
+        </div>
         <h2 id={titleId}>{title}</h2>
         <p>{body}</p>
         <div className="platform-download-actions">
@@ -157,6 +161,9 @@ function WindowsComingSoonDialog({ onClose }: { onClose: () => void }) {
       nested
       initialFocus=".dialog-actions button"
     >
+      <div className="local-app-mark">
+        <SotyMark size={54} />
+      </div>
       <h2 id={titleId}>{t('windowsComingSoonTitle')}</h2>
       <p>{t('windowsComingSoonBody')}</p>
       <div className="dialog-actions">

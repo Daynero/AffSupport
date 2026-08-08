@@ -34,7 +34,7 @@ import { DropZone } from './components/DropZone';
 import { JobRow } from './components/JobRow';
 import { SettingsPanel } from './components/SettingsPanel';
 import { Button, ProgressBar, Spinner, type Translate } from './components/ui';
-import { SotyLogo } from './components/SotyLogo';
+import { SotyLogo, SotyMark } from './components/SotyLogo';
 import { ThemeToggle } from './components/ThemeToggle';
 import { useAgent } from './AgentContext';
 import { internalLink, usePageEntrance } from './lib/navigation';
@@ -740,6 +740,7 @@ export function Onboarding({
   }
   return (
     <section className="onboarding-panel">
+      <SotyMark size={40} />
       <h2>{t('onboardingTitle')}</h2>
       <p>{t('onboardingBody')}</p>
       <div className="inline-actions">
