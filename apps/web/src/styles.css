@@ -3,6 +3,7 @@
    Purple leads attention; most surfaces stay neutral.
    ============================================================ */
 :root {
+  --ui-cache-generation: 2;
   color-scheme: light;
 
   /* Soty brand — purple scale (design-tokens.json primitives) */
