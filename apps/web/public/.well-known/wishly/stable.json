@@ -6,7 +6,7 @@
   "buildId": "0.9.10+46",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-08-09T22:42:31.000Z",
+  "publishedAt": "2026-08-09T22:47:29.000Z",
   "summary": {
     "en": "Add the shared Team Workspace landings gallery with safe full previews, source-bound cached renders, and local previewer integration.",
     "uk": "Додано спільну галерею лендінгів Team Workspace, безпечний повний перегляд, кеш рендерів за версією джерела та інтеграцію з локальним переглядачем."
@@ -14,7 +14,7 @@
   "artifacts": {
     "macos-arm64": {
       "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.10/Soty-v0.9.10-macOS-arm64.dmg",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      "sha256": "7d2dc4b6fb92da5c254a63a4773b4f19ad52498cf4a95ed3ffc5b29451a56ce3"
     }
   },
   "toolRequirements": {
@@ -35,5 +35,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "ZRTFsUZDveCWx5Yd4xdLICzb6_Xf66z4hExen1WOClS8PUkXoruBIXT-RN0nW5LSFnpzyFHyuTb7VDjtdDrybQ"
+  "signature": "1yKz2Z2l6w2RuSMdJBhMsu6Zfq5Dh2QbaG9WjMi52HJ-YnHmEO2Eyg5pRbaiivu01Z5hN3Qz9aAqNGNECV8dzA"
 }
