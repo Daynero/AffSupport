@@ -105,7 +105,7 @@ tiles/counts/facets; download/edit affordances are absent.
 - [ ] T018 [US1] Implement `useTeamLandings` layering `useCatalogSearch` (fixed landing facet) + `listLandingRenders` + `useTeamRealtime`, deriving the `LandingTileState` union per data-model §3, in `apps/web/src/team/landings/useTeamLandings.ts`
 - [X] T019 [P] [US1] Implement `LandingGalleryTile` — thumbnail from a valid render segment or a state chip (`candidate`/`rendering`/`needs_agent`/`agent_outdated`/`error`), keyboard-operable, gated download/edit — in `apps/web/src/team/landings/LandingGalleryTile.tsx`
 - [ ] T020 [US1] Implement `LandingGallery` — lazy/paginated tile grid, welcoming empty state (`teamLandingsEmpty`), filters revealed only with content — in `apps/web/src/team/landings/LandingGallery.tsx`
-- [ ] T021 [US1] Add a `landings` view mode with a labelled entry (reachable in ≤2 actions) alongside `content | search | settings` in `apps/web/src/team/workspace/WorkspaceShell.tsx`
+- [X] T021 [US1] Add a `landings` view mode with a labelled entry (reachable in ≤2 actions) alongside `content | search | settings` in `apps/web/src/team/workspace/WorkspaceShell.tsx`
 - [X] T022 [US1] Add US1 English/Ukrainian gallery/empty/tile copy and responsive gallery/tile styling in `apps/web/src/i18n.ts` and `apps/web/src/styles.css`
 - [ ] T023 [US1] Emit the content-free `team_landing_gallery_view` event (opaque attempt id, counts, duration; no names/paths/content) in `apps/web/src/analytics/events.ts` and `apps/web/src/analytics/service.ts`
 - [ ] T024 [US1] Make the US1 pgTAP and DOM suites pass and record isolation + SC-001 evidence in `supabase/tests/database/team-workspace.test.sql`, `tests/team-landing-gallery.test.tsx`, and `specs/004-team-landings-gallery/quickstart.md`
