@@ -1,6 +1,6 @@
 begin;
 
-select plan(222);
+select plan(227);
 
 select has_schema('private', 'private integration schema exists');
 select has_table('public', 'teams', 'teams table exists');
@@ -30,7 +30,7 @@ select is_empty(
           'get_material_preview', 'get_operation', 'get_material_provenance',
           'cancel_team_operation',
           'refresh_team_material_search', 'invoke_catalog_sync_worker',
-          'effective_permissions', 'can',
+          'effective_permissions', 'can', 'can_access_team_workspace',
           'record_team_audit', 'issue_team_transfer_grant', 'consume_team_transfer_grant'
         )
       )
@@ -58,7 +58,7 @@ select is_empty(
           'get_material_preview', 'get_operation', 'get_material_provenance',
           'cancel_team_operation',
           'refresh_team_material_search', 'invoke_catalog_sync_worker',
-          'effective_permissions', 'can',
+          'effective_permissions', 'can', 'can_access_team_workspace',
           'record_team_audit', 'issue_team_transfer_grant', 'consume_team_transfer_grant'
         )
       )
@@ -86,7 +86,7 @@ select is_empty(
           'get_material_preview', 'get_operation', 'get_material_provenance',
           'cancel_team_operation',
           'refresh_team_material_search', 'invoke_catalog_sync_worker',
-          'effective_permissions', 'can',
+          'effective_permissions', 'can', 'can_access_team_workspace',
           'record_team_audit', 'issue_team_transfer_grant', 'consume_team_transfer_grant'
         )
       )
@@ -166,7 +166,7 @@ select is_empty(
           'get_material_preview', 'get_operation', 'get_material_provenance',
           'cancel_team_operation',
           'refresh_team_material_search', 'invoke_catalog_sync_worker',
-          'effective_permissions', 'can',
+          'effective_permissions', 'can', 'can_access_team_workspace',
           'record_team_audit', 'issue_team_transfer_grant', 'consume_team_transfer_grant'
         )
       )
@@ -174,7 +174,7 @@ select is_empty(
       and not (
         (n.nspname = 'private' and p.proname = 'can')
         or (n.nspname = 'public' and p.proname in (
-          'create_team', 'list_my_teams', 'lookup_invitable_account',
+          'create_team', 'list_my_teams', 'can_access_team_workspace', 'lookup_invitable_account',
           'create_invitation', 'list_my_invitations', 'accept_invitation',
           'list_team_invitations', 'decline_invitation', 'revoke_invitation', 'resend_invitation',
           'get_drive_connection_status', 'list_team_materials'
@@ -267,10 +267,30 @@ values
     'viewer'
   );
 
+-- A historical self-created team must never satisfy the pilot gate.
+insert into public.teams (id, name, owner_id)
+values (
+  '20000000-0000-4000-8000-000000000002',
+  'Legacy self-created team',
+  '10000000-0000-4000-8000-000000000002'
+);
+insert into public.team_members (team_id, user_id, base_role)
+values (
+  '20000000-0000-4000-8000-000000000002',
+  '10000000-0000-4000-8000-000000000002',
+  'admin'
+);
+
 select set_config(
   'request.jwt.claim.sub',
   '10000000-0000-4000-8000-000000000001',
   true
+);
+
+select is(
+  public.can_access_team_workspace(),
+  true,
+  'a product admin may enter the Team Workspace pilot'
 );
 
 select is(
@@ -297,6 +317,28 @@ select set_config(
   'request.jwt.claim.sub',
   '10000000-0000-4000-8000-000000000002',
   true
+);
+
+select is(
+  public.can_access_team_workspace(),
+  false,
+  'a legacy self-created team does not unlock the Team Workspace pilot'
+);
+
+select is(
+  private.can(
+    '20000000-0000-4000-8000-000000000002',
+    'view',
+    '10000000-0000-4000-8000-000000000002'
+  ),
+  false,
+  'the authorization helper denies every action in an undesignated workspace'
+);
+
+select is(
+  (select count(*) from public.list_my_teams()),
+  0::bigint,
+  'list_my_teams does not reveal a legacy self-created workspace'
 );
 
 select is(
@@ -341,6 +383,12 @@ select is(
 
 select has_function('public', 'create_team', array['text'], 'US1 create_team RPC exists');
 select has_function('public', 'list_my_teams', array[]::text[], 'US1 team list RPC exists');
+select has_function(
+  'public',
+  'can_access_team_workspace',
+  array[]::text[],
+  'Team Workspace access gate RPC exists'
+);
 select has_function(
   'public',
   'lookup_invitable_account',
@@ -420,6 +468,7 @@ select is_empty(
     from (values
       ('public.create_team(text)'),
       ('public.list_my_teams()'),
+      ('public.can_access_team_workspace()'),
       ('public.lookup_invitable_account(uuid,text)'),
       ('public.create_invitation(uuid,text,text,bytea)'),
       ('public.list_my_invitations()'),
