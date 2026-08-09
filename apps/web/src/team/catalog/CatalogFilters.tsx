@@ -20,6 +20,7 @@ export function CatalogFilters({
   filters,
   vocabulary,
   hasContent = true,
+  visibleKeys,
   onSet,
   onRemove,
   onClear
@@ -28,13 +29,17 @@ export function CatalogFilters({
   vocabulary: CatalogVocabulary;
   /** Whether the catalog currently has any material to filter. */
   hasContent?: boolean;
+  visibleKeys?: readonly (keyof CatalogSearchFilters)[];
   onSet: (key: keyof CatalogSearchFilters, value: string | null) => void;
   onRemove: (key: keyof CatalogSearchFilters, value: string) => void;
   onClear: () => void;
 }) {
   const { t } = useI18n();
+  const visible = new Set<keyof CatalogSearchFilters>(
+    visibleKeys ?? (Object.keys(filters) as Array<keyof CatalogSearchFilters>)
+  );
   const selections = (Object.keys(filters) as Array<keyof CatalogSearchFilters>).flatMap(key =>
-    (filters[key] as readonly string[]).map(value => ({ key, value }))
+    visible.has(key) ? (filters[key] as readonly string[]).map(value => ({ key, value })) : []
   );
   const hasFacets =
     vocabulary.geo.length > 0 || vocabulary.languages.length > 0 || vocabulary.offers.length > 0;
@@ -61,13 +66,17 @@ export function CatalogFilters({
   return (
     <div className="team-catalog-filter-region">
       <div className="team-catalog-filters">
-        {select('geo', vocabulary.geo, 'GEO')}
-        {select('language', vocabulary.languages, t('teamCatalogLanguage'))}
-        {select('offer', vocabulary.offers, t('teamCatalogOffer'))}
-        {select('category', MATERIAL_CATEGORIES, t('teamCatalogCategory'))}
-        {select('originalType', [], t('teamCatalogOriginalType'))}
-        {select('kind', ['file', 'folder', 'shortcut'], t('teamCatalogKind'))}
-        {select('unfilled', ['geo', 'offer', 'language'], t('teamCatalogMissingMetadata'))}
+        {visible.has('geo') && select('geo', vocabulary.geo, 'GEO')}
+        {visible.has('language') &&
+          select('language', vocabulary.languages, t('teamCatalogLanguage'))}
+        {visible.has('offer') && select('offer', vocabulary.offers, t('teamCatalogOffer'))}
+        {visible.has('category') &&
+          select('category', MATERIAL_CATEGORIES, t('teamCatalogCategory'))}
+        {visible.has('originalType') && select('originalType', [], t('teamCatalogOriginalType'))}
+        {visible.has('kind') &&
+          select('kind', ['file', 'folder', 'shortcut'], t('teamCatalogKind'))}
+        {visible.has('unfilled') &&
+          select('unfilled', ['geo', 'offer', 'language'], t('teamCatalogMissingMetadata'))}
       </div>
       {selections.length > 0 && (
         <div className="team-catalog-chips" aria-label={t('teamCatalogActiveFilters')}>

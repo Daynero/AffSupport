@@ -9,7 +9,86 @@ import { TeamFunctionError } from '../_shared/errors.ts';
 
 export const MAX_PREVIEW_RANGE_BYTES = 32 * 1024 * 1024;
 export const MAX_BROWSER_DOWNLOAD_BYTES = 100 * 1024 * 1024;
+export const MAX_LANDING_RENDER_SEGMENTS = 64;
 const MAX_EDITABLE_TEXT_BYTES = 1024 * 1024;
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder';
+
+export type LandingArtifactGrantBinding =
+  | { mode: 'upload'; renderId: string; operationId: string }
+  | { mode: 'view'; renderId: string; segment: number };
+
+export function landingArtifactGrantTool(binding: LandingArtifactGrantBinding): string {
+  return binding.mode === 'upload'
+    ? `landing-upload:${binding.renderId}:${binding.operationId}`
+    : `landing-render:${binding.renderId}:${binding.segment}`;
+}
+
+export function parseLandingArtifactGrantTool(value: unknown): LandingArtifactGrantBinding | null {
+  if (typeof value !== 'string' || value.length > 240) return null;
+  const upload = /^landing-upload:([^:]+):([^:]+)$/u.exec(value);
+  if (upload && UUID.test(upload[1]) && UUID.test(upload[2])) {
+    return { mode: 'upload', renderId: upload[1], operationId: upload[2] };
+  }
+  const view = /^landing-render:([^:]+):(\d{1,2})$/u.exec(value);
+  if (!view || !UUID.test(view[1])) return null;
+  const segment = Number(view[2]);
+  return Number.isInteger(segment) && segment >= 0 && segment < MAX_LANDING_RENDER_SEGMENTS
+    ? { mode: 'view', renderId: view[1], segment }
+    : null;
+}
+
+export interface LandingArtifactFolderClient {
+  listChildren: (input: { parentId: string }) => Promise<{
+    files: Array<{ id: string; name: string; mimeType: string; trashed: boolean }>;
+  }>;
+  createFolder: (input: { name: string; parentId: string }) => Promise<{ id: string }>;
+}
+
+async function ensureFolder(
+  client: LandingArtifactFolderClient,
+  parentId: string,
+  name: string
+): Promise<string> {
+  const page = await client.listChildren({ parentId });
+  const existing = page.files.find(
+    file => !file.trashed && file.mimeType === FOLDER_MIME_TYPE && file.name === name
+  );
+  if (existing) return existing.id;
+  return (await client.createFolder({ name, parentId })).id;
+}
+
+/** Resolve the hidden, deterministic namespace without exposing any folder id to a caller. */
+export async function ensureLandingArtifactFolder(
+  client: LandingArtifactFolderClient,
+  input: {
+    rootFolderId: string;
+    materialId: string;
+    sourceVersion: string;
+    fingerprint: string;
+    preset: string;
+  }
+): Promise<string> {
+  if (
+    !input.rootFolderId ||
+    !UUID.test(input.materialId) ||
+    !/^[a-z0-9._-]{1,128}$/iu.test(input.sourceVersion) ||
+    !/^[a-f0-9]{64}$/u.test(input.fingerprint) ||
+    !/^[a-z0-9_-]{1,64}$/iu.test(input.preset)
+  ) {
+    throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+  }
+  const system = await ensureFolder(client, input.rootFolderId, '.soty');
+  const previews = await ensureFolder(client, system, 'landing-previews');
+  const material = await ensureFolder(client, previews, input.materialId);
+  const source = await ensureFolder(
+    client,
+    material,
+    `${input.sourceVersion}-${input.fingerprint}`
+  );
+  return ensureFolder(client, source, input.preset);
+}
 
 export type PreviewMode = 'media' | 'transcript' | 'archive' | 'landing';
 

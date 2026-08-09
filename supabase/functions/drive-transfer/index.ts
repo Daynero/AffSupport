@@ -13,7 +13,12 @@ import {
   type TeamErrorCode,
   type TeamTransferGrant
 } from '../../../packages/shared/dist/team/transport.js';
-import { authorizeCaller, type OAuthProductionSignals } from '../_shared/auth.ts';
+import {
+  authorizeCaller,
+  requireDriveOAuthGate,
+  type CallerAuthClient,
+  type OAuthProductionSignals
+} from '../_shared/auth.ts';
 import { corsHeadersForRequest, corsPreflight } from '../_shared/cors.ts';
 import {
   readDriveCredential,
@@ -29,24 +34,32 @@ import {
 } from '../_shared/errors.ts';
 import { isRecord, parseEnum, parseJsonBody, parseUuid } from '../_shared/validation.ts';
 import {
+  MAX_LANDING_RENDER_SEGMENTS,
   MAX_PREVIEW_RANGE_BYTES,
   authorizePreviewRange,
   boundedResponseBody,
   buildDownloadGrantResult,
   buildPreviewResult,
+  ensureLandingArtifactFolder,
   forwardedRangeHeaders,
+  landingArtifactGrantTool,
+  parseBoundedRange,
+  parseLandingArtifactGrantTool,
   validateUpstreamRangeResponse,
   type PreviewGrantContext,
   type PreviewMaterialRecord,
   type PreviewMode
 } from './handler.ts';
 
+const WEBP_MIME_TYPE = 'image/webp';
+const LANDING_RENDER_GRANT_TTL_MS = 20 * 60 * 1000;
+
 interface RpcFailure {
   code?: string;
   message?: string;
 }
 
-interface RpcClient extends ServiceRpcClient {
+interface RpcClient extends ServiceRpcClient, CallerAuthClient {
   rpc: (
     name: string,
     parameters: Record<string, unknown>
@@ -68,6 +81,23 @@ interface TransferContext {
   sizeBytes: number | null;
   driveVersion: string | null;
   checksum: string | null;
+}
+
+interface LandingRenderArtifact {
+  renderId: string;
+  artifactRoot: string;
+  segmentCount: number;
+  sourceVersion: string;
+  fingerprint: string;
+  preset: string;
+}
+
+interface LandingRenderUpload {
+  renderId: string;
+  preset: string;
+  sourceVersion: string;
+  sourceChecksum: string | null;
+  renderedBy: string;
 }
 
 function clients(request: Request): { caller: RpcClient; service: RpcClient } {
@@ -220,6 +250,53 @@ function transferContext(value: unknown): TransferContext | null {
   };
 }
 
+function landingRenderArtifact(value: unknown): LandingRenderArtifact | null {
+  const row = firstRecord(value);
+  if (!row) return null;
+  const renderId = stringValue(row, 'render_id');
+  const artifactRoot = stringValue(row, 'artifact_root');
+  const sourceVersion = stringValue(row, 'source_version');
+  const fingerprint = stringValue(row, 'fingerprint');
+  const preset = stringValue(row, 'preset');
+  const segmentCount = safeInteger(row.segment_count);
+  if (
+    !renderId ||
+    !parseUuid(renderId).ok ||
+    !artifactRoot ||
+    !sourceVersion ||
+    !fingerprint ||
+    !/^[a-f0-9]{64}$/u.test(fingerprint) ||
+    !preset ||
+    segmentCount === null ||
+    segmentCount < 1 ||
+    segmentCount > MAX_LANDING_RENDER_SEGMENTS
+  ) {
+    return null;
+  }
+  return { renderId, artifactRoot, segmentCount, sourceVersion, fingerprint, preset };
+}
+
+function landingRenderUpload(value: unknown): LandingRenderUpload | null {
+  const row = firstRecord(value);
+  if (!row) return null;
+  const renderId = stringValue(row, 'render_id');
+  const preset = stringValue(row, 'preset');
+  const sourceVersion = stringValue(row, 'source_version');
+  const renderedBy = stringValue(row, 'rendered_by');
+  if (!renderId || !preset || !sourceVersion || !renderedBy) return null;
+  return {
+    renderId,
+    preset,
+    sourceVersion,
+    sourceChecksum: stringValue(row, 'source_checksum'),
+    renderedBy
+  };
+}
+
+function parseLandingPreset(value: unknown): string | null {
+  return typeof value === 'string' && /^[a-z0-9_-]{1,64}$/iu.test(value) ? value : null;
+}
+
 function randomTicket(): string {
   return btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))))
     .replaceAll('+', '-')
@@ -241,6 +318,57 @@ function rangeEndpoint(request: Request) {
   url.hash = '';
   if (!url.pathname.endsWith('/range')) url.pathname = `${url.pathname.replace(/\/$/u, '')}/range`;
   return url.toString();
+}
+
+function driveTransferEndpoint(request: Request): URL {
+  const url = new URL(request.url);
+  const marker = '/drive-transfer';
+  const markerIndex = url.pathname.indexOf(marker);
+  if (markerIndex < 0) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+  url.pathname = url.pathname.slice(0, markerIndex + marker.length);
+  url.search = '';
+  url.hash = '';
+  return url;
+}
+
+function artifactUploadEndpoint(request: Request): string {
+  const url = driveTransferEndpoint(request);
+  url.pathname += '/landing-artifacts';
+  return url.toString();
+}
+
+async function issueLandingArtifactGrant(
+  service: RpcClient,
+  input: {
+    teamId: string;
+    materialId: string;
+    actorId: string;
+    toolId: string;
+    maxUses: number;
+  }
+): Promise<TeamTransferGrant> {
+  const ticket = randomTicket();
+  const expiresAt = new Date(Date.now() + LANDING_RENDER_GRANT_TTL_MS).toISOString();
+  await rpcValue(service, 'issue_team_transfer_grant', {
+    p_token_hash: byteaHex(await sha256(ticket)),
+    p_operation: null,
+    p_team: input.teamId,
+    p_actor: input.actorId,
+    p_purpose: 'preview_range',
+    p_material: input.materialId,
+    p_destination: null,
+    p_tool: input.toolId,
+    p_max_range_bytes: MAX_PREVIEW_RANGE_BYTES,
+    p_expires_at: expiresAt,
+    p_max_uses: input.maxUses
+  });
+  return {
+    ticket,
+    purpose: 'preview_range',
+    expiresAt,
+    maxRangeBytes: MAX_PREVIEW_RANGE_BYTES,
+    maxUses: input.maxUses
+  };
 }
 
 async function issueGrant(
@@ -506,6 +634,463 @@ async function handleRange(request: Request, service: RpcClient, cors: Record<st
   });
 }
 
+async function landingUploadContext(
+  service: RpcClient,
+  grant: PreviewGrantContext,
+  renderId: string
+): Promise<LandingRenderUpload> {
+  const upload = landingRenderUpload(
+    await rpcValue(service, 'service_get_landing_render_upload', {
+      p_render: renderId,
+      p_team: grant.teamId,
+      p_material: grant.materialId
+    })
+  );
+  if (!upload || upload.renderedBy !== grant.actorId) {
+    throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+  }
+  return upload;
+}
+
+async function landingDriveContext(
+  request: Request,
+  service: RpcClient,
+  grant: PreviewGrantContext
+): Promise<{ context: TransferContext; drive: GoogleDriveClient }> {
+  const context = transferContext(
+    await rpcValue(service, 'service_get_material_transfer_context', {
+      p_team: grant.teamId,
+      p_material: grant.materialId,
+      p_actor: grant.actorId
+    })
+  );
+  if (!context) throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+  const drive = await driveClient(service, context.credentialId, request);
+  return { context, drive };
+}
+
+async function landingArtifactFolder(input: {
+  request: Request;
+  service: RpcClient;
+  grant: PreviewGrantContext;
+  upload: LandingRenderUpload;
+  fingerprint: string;
+}) {
+  const { context, drive } = await landingDriveContext(input.request, input.service, input.grant);
+  const root = await drive.getFile(context.rootFolderId, context.rootResourceKey);
+  requireDriveCapability(root, 'canListChildren');
+  requireDriveCapability(root, 'canAddChildren');
+  const folderId = await ensureLandingArtifactFolder(drive, {
+    rootFolderId: context.rootFolderId,
+    materialId: input.grant.materialId,
+    sourceVersion: input.upload.sourceVersion,
+    fingerprint: input.fingerprint,
+    preset: input.upload.preset
+  });
+  return { drive, folderId };
+}
+
+function landingArtifactRoute(
+  pathname: string
+):
+  | { operationId: string; action: 'upload'; segment: number }
+  | { operationId: string; action: 'commit' | 'fail' }
+  | null {
+  const marker = '/landing-artifacts/';
+  const index = pathname.indexOf(marker);
+  if (index < 0) return null;
+  const parts = pathname.slice(index + marker.length).split('/');
+  if (parts.length !== 2 || !parseUuid(parts[0]).ok) return null;
+  if (parts[1] === 'commit' || parts[1] === 'fail') {
+    return { operationId: parts[0], action: parts[1] };
+  }
+  if (!/^\d{1,2}$/u.test(parts[1])) return null;
+  const segment = Number(parts[1]);
+  return segment >= 0 && segment < MAX_LANDING_RENDER_SEGMENTS
+    ? { operationId: parts[0], action: 'upload', segment }
+    : null;
+}
+
+async function authorizeLandingUpload(
+  request: Request,
+  service: RpcClient,
+  route: NonNullable<ReturnType<typeof landingArtifactRoute>>
+) {
+  const ticket = request.headers.get('x-wishly-transfer-grant') ?? '';
+  const grant = await consumeGrant(service, ticket, 'preview_range');
+  const binding = parseLandingArtifactGrantTool(grant?.toolId);
+  if (
+    !grant ||
+    !binding ||
+    binding.mode !== 'upload' ||
+    binding.operationId !== route.operationId
+  ) {
+    throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+  }
+  const upload = await landingUploadContext(service, grant, binding.renderId);
+  return { grant, binding, upload };
+}
+
+async function handleLandingArtifactRoute(
+  request: Request,
+  service: RpcClient,
+  route: NonNullable<ReturnType<typeof landingArtifactRoute>>
+) {
+  const authorized = await authorizeLandingUpload(request, service, route);
+  if (route.action === 'fail') {
+    const parsed = await parseJsonBody(request);
+    const reason = parsed.ok
+      ? parseEnum(parsed.value.reason, [
+          'unsupported',
+          'corrupt',
+          'protected',
+          'too_large',
+          'render_error'
+        ] as const)
+      : { ok: false as const };
+    if (!reason.ok) throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+    await rpcValue(service, 'service_fail_landing_render', {
+      p_render: authorized.binding.renderId,
+      p_reason: reason.value
+    });
+    return successResponse({ failed: true, reason: reason.value });
+  }
+
+  if (route.action === 'upload') {
+    const fingerprint = request.headers.get('x-wishly-landing-fingerprint');
+    const rawLength = request.headers.get('content-length');
+    const contentLength = rawLength && /^\d+$/u.test(rawLength) ? Number(rawLength) : Number.NaN;
+    if (
+      !fingerprint ||
+      !/^[a-f0-9]{64}$/u.test(fingerprint) ||
+      request.headers.get('content-type')?.split(';', 1)[0].trim() !== WEBP_MIME_TYPE ||
+      !Number.isSafeInteger(contentLength) ||
+      contentLength < 32 ||
+      contentLength > authorized.grant.maxRangeBytes
+    ) {
+      throw new TeamFunctionError(
+        contentLength > authorized.grant.maxRangeBytes ? 'TOO_LARGE' : 'INVALID_INPUT',
+        { retryable: false }
+      );
+    }
+    const artifact = await landingArtifactFolder({
+      request,
+      service,
+      grant: authorized.grant,
+      upload: authorized.upload,
+      fingerprint
+    });
+    const name = `${route.segment}.webp`;
+    const children = await artifact.drive.listChildren({ parentId: artifact.folderId });
+    const existing = children.files.find(file => !file.trashed && file.name === name);
+    const session = await artifact.drive.startResumableUpload({
+      name,
+      mimeType: WEBP_MIME_TYPE,
+      sizeBytes: contentLength,
+      parentId: artifact.folderId,
+      existingFileId: existing?.id ?? null
+    });
+    const upstream = await artifact.drive.relayResumableChunk({
+      sessionUri: session.sessionUri,
+      contentRange: `bytes 0-${contentLength - 1}/${contentLength}`,
+      contentLength,
+      body: boundedResponseBody(request.body, contentLength),
+      signal: request.signal
+    });
+    const accepted = upstream.status === 200 || upstream.status === 201;
+    await upstream.body?.cancel().catch(() => undefined);
+    if (!accepted) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+    return successResponse({ uploaded: true, segment: route.segment });
+  }
+
+  const parsed = await parseJsonBody(request);
+  const fingerprint = parsed.ok ? parsed.value.fingerprint : null;
+  const segmentCount = parsed.ok ? safeInteger(parsed.value.segmentCount) : null;
+  if (
+    typeof fingerprint !== 'string' ||
+    !/^[a-f0-9]{64}$/u.test(fingerprint) ||
+    segmentCount === null ||
+    segmentCount < 1 ||
+    segmentCount > MAX_LANDING_RENDER_SEGMENTS
+  ) {
+    throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+  }
+  const artifact = await landingArtifactFolder({
+    request,
+    service,
+    grant: authorized.grant,
+    upload: authorized.upload,
+    fingerprint
+  });
+  const children = await artifact.drive.listChildren({ parentId: artifact.folderId });
+  const segments = new Map(
+    children.files
+      .filter(file => !file.trashed && file.mimeType === WEBP_MIME_TYPE)
+      .map(file => [file.name, file] as const)
+  );
+  for (let segment = 0; segment < segmentCount; segment += 1) {
+    const file = segments.get(`${segment}.webp`);
+    if (!file || file.size === null || file.size < 32 || file.size > MAX_PREVIEW_RANGE_BYTES) {
+      throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+    }
+  }
+  await rpcValue(service, 'service_commit_landing_preview_validation', {
+    p_team: authorized.grant.teamId,
+    p_material: authorized.grant.materialId,
+    p_actor: authorized.grant.actorId,
+    p_expected_version: authorized.upload.sourceVersion,
+    p_expected_checksum: authorized.upload.sourceChecksum,
+    p_fingerprint: fingerprint
+  });
+  const state = await rpcValue(service, 'service_commit_landing_render', {
+    p_render: authorized.binding.renderId,
+    p_artifact_root: artifact.folderId,
+    p_segment_count: segmentCount,
+    p_fingerprint: fingerprint
+  });
+  if (state !== 'ready') throw new TeamFunctionError('SOURCE_CHANGED', { retryable: true });
+  return successResponse({
+    renderId: authorized.binding.renderId,
+    state: 'ready',
+    segmentCount,
+    fingerprint
+  });
+}
+
+async function handleLandingRenderRange(
+  request: Request,
+  service: RpcClient,
+  cors: Record<string, string>
+) {
+  const url = new URL(request.url);
+  const ticket = url.searchParams.get('grant') ?? '';
+  const requestedSegment = safeInteger(url.searchParams.get('segment'));
+  const grant = await consumeGrant(service, ticket, 'preview_range');
+  const binding = parseLandingArtifactGrantTool(grant?.toolId);
+  if (
+    !grant ||
+    !binding ||
+    binding.mode !== 'view' ||
+    requestedSegment === null ||
+    binding.segment !== requestedSegment
+  ) {
+    throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+  }
+  const artifact = landingRenderArtifact(
+    await rpcValue(service, 'service_get_landing_render_artifact_by_id', {
+      p_render: binding.renderId,
+      p_team: grant.teamId,
+      p_material: grant.materialId
+    })
+  );
+  if (!artifact || requestedSegment >= artifact.segmentCount) {
+    throw new TeamFunctionError('NOT_FOUND', { retryable: false });
+  }
+  const { drive } = await landingDriveContext(request, service, grant);
+  const children = await drive.listChildren({ parentId: artifact.artifactRoot });
+  const file = children.files.find(
+    item =>
+      !item.trashed &&
+      item.name === `${requestedSegment}.webp` &&
+      item.mimeType === WEBP_MIME_TYPE &&
+      item.parents.includes(artifact.artifactRoot)
+  );
+  if (!file || file.size === null || file.size < 32 || file.size > MAX_PREVIEW_RANGE_BYTES) {
+    throw new TeamFunctionError('NOT_FOUND', { retryable: false });
+  }
+  requireDriveCapability(file, 'canDownload');
+  const range = parseBoundedRange(request.headers.get('range'), file.size, grant.maxRangeBytes);
+  const upstream = await drive.fetchFileRange({
+    fileId: file.id,
+    resourceKey: file.resourceKey,
+    start: range.start,
+    end: range.end,
+    signal: request.signal
+  });
+  let contentLength: number;
+  try {
+    contentLength = validateUpstreamRangeResponse(
+      upstream.status,
+      upstream.headers,
+      range,
+      file.size
+    );
+  } catch (error) {
+    await upstream.body?.cancel().catch(() => undefined);
+    throw error;
+  }
+  const headers = forwardedRangeHeaders(upstream.headers, WEBP_MIME_TYPE, 'inline');
+  for (const [name, value] of Object.entries(cors)) headers.set(name, value);
+  return new Response(boundedResponseBody(upstream.body, contentLength), {
+    status: upstream.status === 206 ? 206 : 200,
+    headers
+  });
+}
+
+async function handleLandingRenderStart(
+  request: Request,
+  caller: RpcClient,
+  service: RpcClient,
+  input: Record<string, unknown>,
+  cors: Record<string, string>
+) {
+  const teamId = parseUuid(input.teamId);
+  const materialId = parseUuid(input.materialId);
+  const preset = parseLandingPreset(input.preset);
+  if (!teamId.ok || !materialId.ok || !preset) {
+    throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+  }
+  const { userId } = await authorizeCaller(request, service);
+  requireDriveOAuthGate(productionSignals(request), Deno.env.get('DRIVE_OAUTH_MODE'));
+  const material = previewMaterial(
+    await rpcValue(caller, 'get_material_preview', {
+      p_team: teamId.value,
+      p_material: materialId.value
+    })
+  );
+  if (
+    !material ||
+    (material.category !== 'landing' && material.category !== 'archive') ||
+    !material.driveVersion
+  ) {
+    throw new TeamFunctionError(material ? 'UNSUPPORTED_MEDIA' : 'NOT_FOUND', {
+      retryable: false
+    });
+  }
+  const rawRenderId = await rpcValue(service, 'service_start_landing_render', {
+    p_team: teamId.value,
+    p_material: materialId.value,
+    p_actor: userId,
+    p_preset: preset,
+    p_source_version: material.driveVersion,
+    p_source_checksum: material.checksum
+  });
+  const renderId =
+    typeof rawRenderId === 'string' ? parseUuid(rawRenderId) : { ok: false as const };
+  if (!renderId.ok) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+  const operationId = crypto.randomUUID();
+  const [sourceGrant, artifactGrant] = await Promise.all([
+    issueGrant(service, material, userId, { mode: 'landing', operationId }),
+    issueLandingArtifactGrant(service, {
+      teamId: teamId.value,
+      materialId: materialId.value,
+      actorId: userId,
+      toolId: landingArtifactGrantTool({
+        mode: 'upload',
+        renderId: renderId.value,
+        operationId
+      }),
+      maxUses: MAX_LANDING_RENDER_SEGMENTS + 2
+    })
+  ]);
+  return successResponse(
+    {
+      operationId,
+      renderId: renderId.value,
+      teamId: teamId.value,
+      materialId: materialId.value,
+      preset,
+      transferUrl: rangeEndpoint(request),
+      artifactUploadUrl: artifactUploadEndpoint(request),
+      sourceGrant,
+      artifactGrant
+    },
+    cors
+  );
+}
+
+async function handleLandingRenderTokens(
+  request: Request,
+  caller: RpcClient,
+  service: RpcClient,
+  input: Record<string, unknown>,
+  cors: Record<string, string>
+) {
+  const teamId = parseUuid(input.teamId);
+  const preset = parseLandingPreset(input.preset);
+  const rawMaterialIds = input.materialIds;
+  if (
+    !teamId.ok ||
+    !preset ||
+    !Array.isArray(rawMaterialIds) ||
+    rawMaterialIds.length < 1 ||
+    rawMaterialIds.length > 50
+  ) {
+    throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+  }
+  const materialIds = [...new Set(rawMaterialIds)].map(value => parseUuid(value));
+  if (materialIds.some(value => !value.ok)) {
+    throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+  }
+  const ids = materialIds.map(value => (value.ok ? value.value : ''));
+  const allSegments = input.allSegments === true;
+  if (allSegments && ids.length !== 1) {
+    throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+  }
+  const { userId } = await authorizeCaller(request, service);
+  requireDriveOAuthGate(productionSignals(request), Deno.env.get('DRIVE_OAUTH_MODE'));
+  const listed = await rpcValue(caller, 'list_landing_renders', {
+    p_team: teamId.value,
+    p_material_ids: ids,
+    p_preset: preset
+  });
+  const visible = Array.isArray(listed)
+    ? listed.filter(
+        row =>
+          isRecord(row) &&
+          row.valid === true &&
+          row.render_state === 'ready' &&
+          typeof row.material_id === 'string'
+      )
+    : [];
+  const artifacts = await Promise.all(
+    visible.map(async row => {
+      const materialId = row.material_id as string;
+      const artifact = landingRenderArtifact(
+        await rpcValue(service, 'service_get_landing_render_artifact', {
+          p_team: teamId.value,
+          p_material: materialId,
+          p_preset: preset
+        })
+      );
+      if (!artifact) return null;
+      const tokenCount = allSegments ? artifact.segmentCount : 1;
+      const grants = await Promise.all(
+        Array.from({ length: tokenCount }, (_, segment) =>
+          issueLandingArtifactGrant(service, {
+            teamId: teamId.value,
+            materialId,
+            actorId: userId,
+            toolId: landingArtifactGrantTool({
+              mode: 'view',
+              renderId: artifact.renderId,
+              segment
+            }),
+            maxUses: 8
+          })
+        )
+      );
+      return {
+        materialId,
+        sourceVersion: artifact.sourceVersion,
+        fingerprint: artifact.fingerprint,
+        preset: artifact.preset,
+        segmentCount: artifact.segmentCount,
+        artifactToken: grants[0].ticket,
+        ...(allSegments ? { segmentTokens: grants.map(grant => grant.ticket) } : {})
+      };
+    })
+  );
+  return successResponse(
+    {
+      artifacts: artifacts.filter(
+        (artifact): artifact is NonNullable<typeof artifact> => !!artifact
+      )
+    },
+    cors
+  );
+}
+
 Deno.serve(async request => {
   const preflight = corsPreflight(request);
   if (preflight) return preflight;
@@ -516,14 +1101,39 @@ Deno.serve(async request => {
   try {
     const url = new URL(request.url);
     const configured = clients(request);
+    if (request.method === 'GET' && url.pathname.endsWith('/render-range')) {
+      return await handleLandingRenderRange(request, configured.service, cors);
+    }
     if (request.method === 'GET' && url.pathname.endsWith('/range')) {
       return await handleRange(request, configured.service, cors);
     }
     if (request.method !== 'POST') {
       throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
     }
+    const artifactRoute = landingArtifactRoute(url.pathname);
+    if (artifactRoute) {
+      return await handleLandingArtifactRoute(request, configured.service, artifactRoute);
+    }
     const parsed = await parseJsonBody(request);
     if (!parsed.ok) throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+    if (parsed.value.action === 'landing_render_start') {
+      return await handleLandingRenderStart(
+        request,
+        configured.caller,
+        configured.service,
+        parsed.value,
+        cors
+      );
+    }
+    if (parsed.value.action === 'landing_render_tokens') {
+      return await handleLandingRenderTokens(
+        request,
+        configured.caller,
+        configured.service,
+        parsed.value,
+        cors
+      );
+    }
     const teamId = parseUuid(parsed.value.teamId);
     const materialId = parseUuid(parsed.value.materialId);
     if (!teamId.ok || !materialId.ok) {

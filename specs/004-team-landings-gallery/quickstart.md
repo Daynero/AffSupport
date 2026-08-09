@@ -80,6 +80,47 @@ npm run types:supabase                     # after applying the new migration to
 - Seed ≥300 landings with renders; measure first-visible-page thumbnail render < 2 s p95 across
   3 runs; confirm smooth scroll via lazy loading. Record environment + p50/p95/p99/max.
 
+## Automated evidence — 2026-08-10
+
+Environment: Apple M1 Pro, Darwin 25.5.0 arm64, Node v24.13.0, Vitest + jsdom. The reference
+gallery has 300 authoritative rows, a 50-tile first page, opaque WebP URLs, native pagination,
+and `loading="lazy"` on every visible image.
+
+| Scope            | Evidence                                                                                                                                                                                                             | Result |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| US1 / SC-001     | `team-landing-gallery.test.tsx`: direct workspace Landings entry, fixed `landing + archive` scope, foreign-team rejection, view-only controls, empty state, pagination                                               | PASS   |
+| US2 / SC-006     | `team-landing-fullview.test.tsx`, `team-security.test.ts`: multi-segment cached view, controls, typed failures, inert WebP, sandbox/CSP/navigation guard                                                             | PASS   |
+| US3 / SC-003/004 | `team-landing-render-sharing.test.tsx`: ready render stays viewable agent-less; missing/stale never becomes ready; old-agent state remains explicit                                                                  | PASS   |
+| US3 / SC-007     | `catalog-sync.test.ts` + pgTAP: invalidate before catalog mutation, trash old artifact roots, exclude `.soty`, source-race commit becomes stale                                                                      | PASS   |
+| FR-016 interop   | `team-landing-previewer-interop.test.ts` + `landing-preview-catalog.test.ts`: team enumeration, all segment grants, identical cached WebP, no persisted grant URLs                                                   | PASS   |
+| Convergence      | `team-landing-render-bridge.test.ts` + `drive-transfer.test.ts` + pgTAP: overall render watchdog reaches a typed terminal failure with cleanup/refetch; hidden Drive paths are `<sourceVersion>-<fingerprint>` bound | PASS   |
+| DB authority     | local `supabase db reset` then `npm run test:db`: all migrations from scratch, 2 files / 264 pgTAP assertions                                                                                                        | PASS   |
+
+Final local gate record:
+
+| Command                                    | Result                                                                                                                                      |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run format:check`                     | PASS                                                                                                                                        |
+| `npm run lint`                             | PASS                                                                                                                                        |
+| `npm test`                                 | PASS — 133 files passed, 3 manual files skipped; 760 tests passed, 6 manual tests skipped                                                   |
+| `npm run build -w @video-compressor/web`   | PASS (production Vite build; size advisory only)                                                                                            |
+| `npm run build -w @video-compressor/agent` | PASS                                                                                                                                        |
+| `npm run test:db`                          | PASS — 2 files, 264 assertions                                                                                                              |
+| `npm run test:agent:e2e`                   | PASS — real Fastify agent, v2 team contract/new routes guarded, legacy tools compatible, real FFmpeg cases completed with sources unchanged |
+
+SC-005 first-visible-page measurements (20 samples per invocation):
+
+| Run |      p50 |       p95 |       p99 |       max |
+| --- | -------: | --------: | --------: | --------: |
+| 1   | 8.023 ms | 11.485 ms | 20.543 ms | 20.543 ms |
+| 2   | 8.523 ms | 13.202 ms | 13.379 ms | 13.379 ms |
+| 3   | 8.293 ms | 11.221 ms | 17.553 ms | 17.553 ms |
+
+All p95 values are below the 2,000 ms target. Only the 50 visible tiles mount, and all images
+remain lazy, which is the automated smooth-scroll proxy; browser DevTools/manual scroll remains
+part of the production click-through. SC-002 and SC-008 are moderated human outcomes and are
+not fabricated by the automated suite; record the actual participant cohort after deployment.
+
 ## Evidence to record here
 
 - Command outputs for the local gates; pgTAP + real-agent results.

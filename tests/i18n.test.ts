@@ -72,6 +72,23 @@ describe('language selection and dictionaries', () => {
     }
   });
 
+  it('keeps every shared-landings and previewer-interop key in English/Ukrainian parity', () => {
+    const keys = translationKeys.filter(
+      key =>
+        key.startsWith('teamLanding') ||
+        key.startsWith('teamLandings') ||
+        key.startsWith('landingGalleryTeam')
+    );
+    expect(keys.length).toBeGreaterThan(25);
+    for (const key of keys) {
+      const english = translate('en', key);
+      const ukrainian = translate('uk', key);
+      expect(english.trim(), `empty English copy: ${key}`).not.toBe('');
+      expect(ukrainian.trim(), `empty Ukrainian copy: ${key}`).not.toBe('');
+      expect(placeholders(ukrainian), `placeholder drift: ${key}`).toEqual(placeholders(english));
+    }
+  });
+
   it('offers explicit Mac and Windows installation choices', () => {
     expect(translate('en', 'macAppleSilicon')).toBe('Mac (Apple Silicon)');
     expect(translate('uk', 'macAppleSilicon')).toBe('Mac (Apple Silicon)');

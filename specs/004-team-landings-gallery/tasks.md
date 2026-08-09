@@ -39,8 +39,8 @@ persistence and the gallery/full-view surface on top.
 **Purpose**: Create the module paths the feature will fill without touching release identity or
 deploying anything.
 
-- [X] T001 Scaffold the shared landings-gallery barrel `packages/shared/src/team/landing-gallery.ts` (empty typed exports) and the web feature barrel `apps/web/src/team/landings/index.ts`
-- [X] T002 [P] Reserve the client viewer-preset storage key constant `soty.landing-viewer.v1` and the migration filename slot `supabase/migrations/20260810090000_team_landing_renders.sql` (empty forward-only header + matching `ROLLBACK.md` placeholder) in `apps/web/src/team/landings/index.ts` and `supabase/migrations/`
+- [x] T001 Scaffold the shared landings-gallery barrel `packages/shared/src/team/landing-gallery.ts` (empty typed exports) and the web feature barrel `apps/web/src/team/landings/index.ts`
+- [x] T002 [P] Reserve the client viewer-preset storage key constant `soty.landing-viewer.v1` and the migration filename slot `supabase/migrations/20260810090000_team_landing_renders.sql` (empty forward-only header + matching `ROLLBACK.md` placeholder) in `apps/web/src/team/landings/index.ts` and `supabase/migrations/`
 
 **Checkpoint**: Planned module paths exist; nothing else changed.
 
@@ -56,26 +56,26 @@ database security tests.
 
 ### Tests for the foundation
 
-- [ ] T003 [P] Write failing shared/SQL parity + guard tests for render states, tile states, viewer presets + `clampZoom`, the render validity predicate (`source_version`+`fingerprint`), opaque `artifactToken`, the `teamWorkspace` tool-contract bump, and analytics forbidden-field guards in `tests/team-landing-contract.test.ts`
-- [ ] T004 [P] Write failing pgTAP coverage for `landing_renders` (`prosecdef=true`, empty `search_path`, exact EXECUTE ACL, fully-qualified, base-table RLS, view-gated read, service-only writes, foreign/spoofed denial, realtime publication exposes no raw artifact path) in `supabase/tests/database/team-workspace.test.sql`
+- [x] T003 [P] Write failing shared/SQL parity + guard tests for render states, tile states, viewer presets + `clampZoom`, the render validity predicate (`source_version`+`fingerprint`), opaque `artifactToken`, the `teamWorkspace` tool-contract bump, and analytics forbidden-field guards in `tests/team-landing-contract.test.ts`
+- [x] T004 [P] Write failing pgTAP coverage for `landing_renders` (`prosecdef=true`, empty `search_path`, exact EXECUTE ACL, fully-qualified, base-table RLS, view-gated read, service-only writes, foreign/spoofed denial, realtime publication exposes no raw artifact path) in `supabase/tests/database/team-workspace.test.sql`
 
 ### Shared contract
 
-- [X] T005 [P] Implement `LandingRenderState`/`LandingRenderFailureReason`/`LandingTileState`, `LandingViewerPreset` + `LandingDevicePreset`/`LandingColorScheme` + shared `clampZoom`, `RenderArtifactRef`, `LandingRenderPointer`, `LandingGalleryQuery`/`Item`/`Page`, and `TeamLandingRenderRequest`/`Result` in `packages/shared/src/team/landing-gallery.ts` and `packages/shared/src/team/transport.ts`
-- [X] T006 [P] Add the content-free `team_landing_gallery_view`/`team_landing_open`/`team_landing_render` names + typed props to `packages/shared/src/team/analytics.ts`
-- [X] T007 Re-export the landings contract through `packages/shared/src/team/index.ts` and the package root `packages/shared/src/types.ts`
-- [ ] T008 Register `/api/team/landings/*` under the existing `teamWorkspace` tool contract, bumping only that tool's contract version (not `PRODUCT_VERSION`/`AGENT_API_VERSION`), in `packages/shared/src/release.ts`
+- [x] T005 [P] Implement `LandingRenderState`/`LandingRenderFailureReason`/`LandingTileState`, `LandingViewerPreset` + `LandingDevicePreset`/`LandingColorScheme` + shared `clampZoom`, `RenderArtifactRef`, `LandingRenderPointer`, `LandingGalleryQuery`/`Item`/`Page`, and `TeamLandingRenderRequest`/`Result` in `packages/shared/src/team/landing-gallery.ts` and `packages/shared/src/team/transport.ts`
+- [x] T006 [P] Add the content-free `team_landing_gallery_view`/`team_landing_open`/`team_landing_render` names + typed props to `packages/shared/src/team/analytics.ts`
+- [x] T007 Re-export the landings contract through `packages/shared/src/team/index.ts` and the package root `packages/shared/src/types.ts`
+- [x] T008 Register `/api/team/landings/*` under the existing `teamWorkspace` tool contract, bumping only that tool's contract version (not `PRODUCT_VERSION`/`AGENT_API_VERSION`), in `packages/shared/src/release.ts`
 
 ### Database authority
 
-- [X] T009 Create `public.landing_renders` (RLS enabled, `revoke all` → narrow grants, `(team_id,material_id,preset)` + partial `ready` indexes, FKs, safe realtime publication) plus `list_landing_renders` (view-caller) and `service_start_landing_render`/`service_commit_landing_render`/`service_fail_landing_render`/`service_mark_landing_renders_stale` as `security definer` `search_path=''` fully-qualified functions with caller-vs-service checks and narrow ACLs, in `supabase/migrations/20260810090000_team_landing_renders.sql`
-- [X] T010 Record reverse-order rollback/recovery steps for the render migration in `supabase/migrations/ROLLBACK.md`
-- [X] T011 Apply the migration to the isolated development stack and regenerate render/RPC types in `apps/web/src/lib/database.types.ts`
+- [x] T009 Create `public.landing_renders` (RLS enabled, `revoke all` → narrow grants, `(team_id,material_id,preset)` + partial `ready` indexes, FKs, safe realtime publication) plus `list_landing_renders` (view-caller) and `service_start_landing_render`/`service_commit_landing_render`/`service_fail_landing_render`/`service_mark_landing_renders_stale` as `security definer` `search_path=''` fully-qualified functions with caller-vs-service checks and narrow ACLs, in `supabase/migrations/20260810090000_team_landing_renders.sql`
+- [x] T010 Record reverse-order rollback/recovery steps for the render migration in `supabase/migrations/ROLLBACK.md`
+- [x] T011 Apply the migration to the isolated development stack and regenerate render/RPC types in `apps/web/src/lib/database.types.ts`
 
 ### Boundary seams
 
-- [ ] T012 Implement the schema-independent agent client seams — `renderTeamLanding` (reusing the `/api/health` + `toolContractCompatible('teamWorkspace', …)` handshake and `AGENT_UPDATE_REQUIRED`/`PAIRING_REQUIRED` mapping) and `teamLandingEventUrl` — in `apps/web/src/api/client.ts`
-- [ ] T013 Make the foundation suites pass without weakening assertions in `tests/team-landing-contract.test.ts` and `supabase/tests/database/team-workspace.test.sql`
+- [x] T012 Implement the schema-independent agent client seams — `renderTeamLanding` (reusing the `/api/health` + `toolContractCompatible('teamWorkspace', …)` handshake and `AGENT_UPDATE_REQUIRED`/`PAIRING_REQUIRED` mapping) and `teamLandingEventUrl` — in `apps/web/src/api/client.ts`
+- [x] T013 Make the foundation suites pass without weakening assertions in `tests/team-landing-contract.test.ts` and `supabase/tests/database/team-workspace.test.sql`
 
 **Checkpoint**: Shared/SQL contracts agree, `landing_renders` enforces view-read / service-write
 with source-identity validity, and web/agent have typed seams but no user workflow yet.
@@ -95,20 +95,20 @@ tiles/counts/facets; download/edit affordances are absent.
 
 ### Tests for User Story 1
 
-- [ ] T014 [P] [US1] Add failing pgTAP cases proving `list_landing_renders` is view-gated, team-isolated, applies the valid-render predicate, and denies foreign-team/spoofed callers in `supabase/tests/database/team-workspace.test.sql`
-- [ ] T015 [P] [US1] Add a failing DOM journey — gallery lists `category=landing` items, hides another team's landings, shows the empty state with no filters, and hides download/edit for a view-only member — in `tests/team-landing-gallery.test.tsx`
+- [x] T014 [P] [US1] Add failing pgTAP cases proving `list_landing_renders` is view-gated, team-isolated, applies the valid-render predicate, and denies foreign-team/spoofed callers in `supabase/tests/database/team-workspace.test.sql`
+- [x] T015 [P] [US1] Add a failing DOM journey — gallery lists `category=landing` items, hides another team's landings, shows the empty state with no filters, and hides download/edit for a view-only member — in `tests/team-landing-gallery.test.tsx`
 
 ### Implementation for User Story 1
 
-- [ ] T016 [US1] After T011 generated types exist, add `listLandingRenders` and `landingRenderImageUrl` (a `category=landing`-scoped `searchCatalog` reuse plus render-pointer fetch) to `apps/web/src/api/team.ts`
-- [ ] T017 [US1] Implement the `drive-transfer` cached-render serve mode — opaque `artifactToken`, `view` gate, bounded `no-store` Range forwarding of hidden `.soty/landing-previews/…` WebP, `STALE_RENDER`/`NOT_FOUND` on invalid, reusing the US4 media byte path — in `supabase/functions/drive-transfer/handler.ts` and `supabase/functions/drive-transfer/index.ts`
-- [ ] T018 [US1] Implement `useTeamLandings` layering `useCatalogSearch` (fixed landing facet) + `listLandingRenders` + `useTeamRealtime`, deriving the `LandingTileState` union per data-model §3, in `apps/web/src/team/landings/useTeamLandings.ts`
-- [X] T019 [P] [US1] Implement `LandingGalleryTile` — thumbnail from a valid render segment or a state chip (`candidate`/`rendering`/`needs_agent`/`agent_outdated`/`error`), keyboard-operable, gated download/edit — in `apps/web/src/team/landings/LandingGalleryTile.tsx`
-- [ ] T020 [US1] Implement `LandingGallery` — lazy/paginated tile grid, welcoming empty state (`teamLandingsEmpty`), filters revealed only with content — in `apps/web/src/team/landings/LandingGallery.tsx`
-- [X] T021 [US1] Add a `landings` view mode with a labelled entry (reachable in ≤2 actions) alongside `content | search | settings` in `apps/web/src/team/workspace/WorkspaceShell.tsx`
-- [X] T022 [US1] Add US1 English/Ukrainian gallery/empty/tile copy and responsive gallery/tile styling in `apps/web/src/i18n.ts` and `apps/web/src/styles.css`
-- [ ] T023 [US1] Emit the content-free `team_landing_gallery_view` event (opaque attempt id, counts, duration; no names/paths/content) in `apps/web/src/analytics/events.ts` and `apps/web/src/analytics/service.ts`
-- [ ] T024 [US1] Make the US1 pgTAP and DOM suites pass and record isolation + SC-001 evidence in `supabase/tests/database/team-workspace.test.sql`, `tests/team-landing-gallery.test.tsx`, and `specs/004-team-landings-gallery/quickstart.md`
+- [x] T016 [US1] After T011 generated types exist, add `listLandingRenders` and `landingRenderImageUrl` (a `category=landing`-scoped `searchCatalog` reuse plus render-pointer fetch) to `apps/web/src/api/team.ts`
+- [x] T017 [US1] Implement the `drive-transfer` cached-render serve mode — opaque `artifactToken`, `view` gate, bounded `no-store` Range forwarding of hidden `.soty/landing-previews/…` WebP, `STALE_RENDER`/`NOT_FOUND` on invalid, reusing the US4 media byte path — in `supabase/functions/drive-transfer/handler.ts` and `supabase/functions/drive-transfer/index.ts`
+- [x] T018 [US1] Implement `useTeamLandings` layering `useCatalogSearch` (fixed landing facet) + `listLandingRenders` + `useTeamRealtime`, deriving the `LandingTileState` union per data-model §3, in `apps/web/src/team/landings/useTeamLandings.ts`
+- [x] T019 [P] [US1] Implement `LandingGalleryTile` — thumbnail from a valid render segment or a state chip (`candidate`/`rendering`/`needs_agent`/`agent_outdated`/`error`), keyboard-operable, gated download/edit — in `apps/web/src/team/landings/LandingGalleryTile.tsx`
+- [x] T020 [US1] Implement `LandingGallery` — lazy/paginated tile grid, welcoming empty state (`teamLandingsEmpty`), filters revealed only with content — in `apps/web/src/team/landings/LandingGallery.tsx`
+- [x] T021 [US1] Add a `landings` view mode with a labelled entry (reachable in ≤2 actions) alongside `content | search | settings` in `apps/web/src/team/workspace/WorkspaceShell.tsx`
+- [x] T022 [US1] Add US1 English/Ukrainian gallery/empty/tile copy and responsive gallery/tile styling in `apps/web/src/i18n.ts` and `apps/web/src/styles.css`
+- [x] T023 [US1] Emit the content-free `team_landing_gallery_view` event (opaque attempt id, counts, duration; no names/paths/content) in `apps/web/src/analytics/events.ts` and `apps/web/src/analytics/service.ts`
+- [x] T024 [US1] Make the US1 pgTAP and DOM suites pass and record isolation + SC-001 evidence in `supabase/tests/database/team-workspace.test.sql`, `tests/team-landing-gallery.test.tsx`, and `specs/004-team-landings-gallery/quickstart.md`
 
 **Checkpoint**: US1 is a demonstrable MVP — an agent-backed shared gallery — with no dependency
 on US2/US3.
@@ -129,16 +129,16 @@ fixture and confirm a typed state with the gallery still working.
 
 ### Tests for User Story 2
 
-- [ ] T025 [P] [US2] Add failing DOM tests for open-from-gallery into `MaterialPreview`, device/colour-scheme/zoom controls, blocked external navigation, and typed corrupt/protected/too-large/unsupported states in `tests/team-landing-fullview.test.tsx`
+- [x] T025 [P] [US2] Add failing DOM tests for open-from-gallery into `MaterialPreview`, device/colour-scheme/zoom controls, blocked external navigation, and typed corrupt/protected/too-large/unsupported states in `tests/team-landing-fullview.test.tsx`
 
 ### Implementation for User Story 2
 
-- [X] T026 [P] [US2] Implement `LandingViewerControls` — device/colour-scheme/zoom presets persisted to `soty.landing-viewer.v1`, reusing the shared `LandingViewerPreset` shape — in `apps/web/src/team/landings/LandingViewerControls.tsx`
-- [ ] T027 [US2] Implement `LandingFullView` opening the existing view-gated single-landing preview path and hosting the viewer controls in `apps/web/src/team/landings/LandingFullView.tsx`
-- [ ] T028 [US2] Wire tile → full-view open and thread the active preset into the reused preview in `apps/web/src/team/landings/LandingGallery.tsx` and `apps/web/src/team/preview/MaterialPreview.tsx`
-- [ ] T029 [US2] Add US2 English/Ukrainian full-view/controls/unavailable copy and sandbox/media styling in `apps/web/src/i18n.ts` and `apps/web/src/styles.css`
-- [ ] T030 [US2] Emit the content-free `team_landing_open` event (tile state, had-agent, duration) in `apps/web/src/analytics/events.ts` and `apps/web/src/analytics/service.ts`
-- [ ] T031 [US2] Make the US2 DOM suite pass and record evidence in `tests/team-landing-fullview.test.tsx` and `specs/004-team-landings-gallery/quickstart.md`
+- [x] T026 [P] [US2] Implement `LandingViewerControls` — device/colour-scheme/zoom presets persisted to `soty.landing-viewer.v1`, reusing the shared `LandingViewerPreset` shape — in `apps/web/src/team/landings/LandingViewerControls.tsx`
+- [x] T027 [US2] Implement `LandingFullView` opening the existing view-gated single-landing preview path and hosting the viewer controls in `apps/web/src/team/landings/LandingFullView.tsx`
+- [x] T028 [US2] Wire tile → full-view open and thread the active preset into the reused preview in `apps/web/src/team/landings/LandingGallery.tsx` and `apps/web/src/team/preview/MaterialPreview.tsx`
+- [x] T029 [US2] Add US2 English/Ukrainian full-view/controls/unavailable copy and sandbox/media styling in `apps/web/src/i18n.ts` and `apps/web/src/styles.css`
+- [x] T030 [US2] Emit the content-free `team_landing_open` event (tile state, had-agent, duration) in `apps/web/src/analytics/events.ts` and `apps/web/src/analytics/service.ts`
+- [x] T031 [US2] Make the US2 DOM suite pass and record evidence in `tests/team-landing-fullview.test.tsx` and `specs/004-team-landings-gallery/quickstart.md`
 
 **Checkpoint**: US2 works against a seeded rendered landing; it composes with US1 and needs no
 shared-render persistence yet (an agent-backed render is enough to open one).
@@ -160,22 +160,22 @@ identical previews.
 
 ### Tests for User Story 3
 
-- [ ] T032 [P] [US3] Add failing pgTAP for `service_start/commit/fail/mark_stale` transitions, source-identity-mismatch → `stale` (never `ready`), and service-only ACL in `supabase/tests/database/team-workspace.test.sql`
-- [ ] T033 [P] [US3] Add a failing agent render contract test — grant → range-download → inspect → extract → `LandingPageRenderer` → segment upload → commit/fail, cancellation, `mkdtemp` cleanup, typed failure reasons, candidate-archive promotion — in `tests/team-landing-render.test.ts`
-- [ ] T034 [P] [US3] Add failing shared-render + agent-lifecycle tests — agent-less viewing of a `ready` render, `needs_agent`/`agent_outdated` states, zero false-ready, and invalidation on source change — in `tests/team-landing-render-sharing.test.tsx`
-- [ ] T035 [P] [US3] Add failing `catalog-sync` render invalidation/cleanup coverage (mark stale + delete stale `.soty` artifacts + exclude `.soty` from ingestion) in `tests/catalog-sync.test.ts`
+- [x] T032 [P] [US3] Add failing pgTAP for `service_start/commit/fail/mark_stale` transitions, source-identity-mismatch → `stale` (never `ready`), and service-only ACL in `supabase/tests/database/team-workspace.test.sql`
+- [x] T033 [P] [US3] Add a failing agent render contract test — grant → range-download → inspect → extract → `LandingPageRenderer` → segment upload → commit/fail, cancellation, `mkdtemp` cleanup, typed failure reasons, candidate-archive promotion — in `tests/team-landing-render.test.ts`
+- [x] T034 [P] [US3] Add failing shared-render + agent-lifecycle tests — agent-less viewing of a `ready` render, `needs_agent`/`agent_outdated` states, zero false-ready, and invalidation on source change — in `tests/team-landing-render-sharing.test.tsx`
+- [x] T035 [P] [US3] Add failing `catalog-sync` render invalidation/cleanup coverage (mark stale + delete stale `.soty` artifacts + exclude `.soty` from ingestion) in `tests/catalog-sync.test.ts`
 
 ### Implementation for User Story 3
 
-- [ ] T036 [US3] Implement the `drive-transfer` scoped artifact-write grant — `view`-gated, scoped to `.soty/landing-previews/<materialId>/<source>-<fp>/<preset>/`, zero side effect on rejection, no Google token/Vault reference to browser or agent — in `supabase/functions/drive-transfer/handler.ts`
-- [ ] T037 [US3] Implement the agent landing render flow — obtain preview+artifact grants, range-download, inspect, extract to `mkdtemp`, render with the shared `LandingPageRenderer`, upload segments (bounded relay, `part.file.resume()`/`truncated`), `service_commit_landing_render`/`service_fail_landing_render`, cancel/watchdog + `try/finally` cleanup — in `apps/agent/src/team-bridge/landing-gallery.ts`
-- [ ] T038 [US3] Register `POST /api/team/landings/render` (+ cancel) and the SSE render-progress channel under the `teamWorkspace` `ToolModule` in `apps/agent/src/team-bridge/routes.ts`, `apps/agent/src/team-bridge/events.ts`, and `apps/agent/src/server/tools.ts`
-- [ ] T039 [US3] Implement `catalog-sync` render invalidation — call `service_mark_landing_renders_stale`, delete stale `.soty/landing-previews/…/<old-source>/` artifacts, and exclude the `.soty` subtree from classification/ingestion — in `supabase/functions/catalog-sync/index.ts`
-- [ ] T040 [US3] Wire the tile "render" action and live SSE progress through `renderTeamLanding` into `useTeamLandings`, refetching pointers on completion, in `apps/web/src/api/client.ts` and `apps/web/src/team/landings/useTeamLandings.ts`
-- [ ] T041 [US3] Extend the standalone local previewer to open a connected team space as a catalog source (enumerate the space's landings and render/serve via the team-bridge `/render` flow) in `apps/agent/src/landing-preview/catalog.ts`, `apps/agent/src/landing-preview/scanner.ts`, and `apps/web/src/landing-preview/LandingPreviewPage.tsx`
-- [ ] T042 [US3] Emit the content-free `team_landing_render` event (outcome, reason, duration) in `apps/web/src/analytics/events.ts` and `apps/web/src/analytics/service.ts`
-- [ ] T043 [US3] Add US3 English/Ukrainian needs-agent, needs-rerender, and previewer-interop copy plus state styling in `apps/web/src/i18n.ts` and `apps/web/src/styles.css`
-- [ ] T044 [US3] Make the US3 pgTAP, agent, sync, and DOM suites pass and record SC-003/SC-004/SC-007 evidence in `supabase/tests/database/team-workspace.test.sql`, `tests/team-landing-render.test.ts`, `tests/team-landing-render-sharing.test.tsx`, `tests/catalog-sync.test.ts`, and `specs/004-team-landings-gallery/quickstart.md`
+- [x] T036 [US3] Implement the `drive-transfer` scoped artifact-write grant — `view`-gated, scoped to `.soty/landing-previews/<materialId>/<source>-<fp>/<preset>/`, zero side effect on rejection, no Google token/Vault reference to browser or agent — in `supabase/functions/drive-transfer/handler.ts`
+- [x] T037 [US3] Implement the agent landing render flow — obtain preview+artifact grants, range-download, inspect, extract to `mkdtemp`, render with the shared `LandingPageRenderer`, upload segments (bounded relay, `part.file.resume()`/`truncated`), `service_commit_landing_render`/`service_fail_landing_render`, cancel/watchdog + `try/finally` cleanup — in `apps/agent/src/team-bridge/landing-gallery.ts`
+- [x] T038 [US3] Register `POST /api/team/landings/render` (+ cancel) and the SSE render-progress channel under the `teamWorkspace` `ToolModule` in `apps/agent/src/team-bridge/routes.ts`, `apps/agent/src/team-bridge/events.ts`, and `apps/agent/src/server/tools.ts`
+- [x] T039 [US3] Implement `catalog-sync` render invalidation — call `service_mark_landing_renders_stale`, delete stale `.soty/landing-previews/…/<old-source>/` artifacts, and exclude the `.soty` subtree from classification/ingestion — in `supabase/functions/catalog-sync/index.ts`
+- [x] T040 [US3] Wire the tile "render" action and live SSE progress through `renderTeamLanding` into `useTeamLandings`, refetching pointers on completion, in `apps/web/src/api/client.ts` and `apps/web/src/team/landings/useTeamLandings.ts`
+- [x] T041 [US3] Extend the standalone local previewer to open a connected team space as a catalog source (enumerate the space's landings and render/serve via the team-bridge `/render` flow) in `apps/agent/src/landing-preview/catalog.ts`, `apps/agent/src/landing-preview/scanner.ts`, and `apps/web/src/landing-preview/LandingPreviewPage.tsx`
+- [x] T042 [US3] Emit the content-free `team_landing_render` event (outcome, reason, duration) in `apps/web/src/analytics/events.ts` and `apps/web/src/analytics/service.ts`
+- [x] T043 [US3] Add US3 English/Ukrainian needs-agent, needs-rerender, and previewer-interop copy plus state styling in `apps/web/src/i18n.ts` and `apps/web/src/styles.css`
+- [x] T044 [US3] Make the US3 pgTAP, agent, sync, and DOM suites pass and record SC-003/SC-004/SC-007 evidence in `supabase/tests/database/team-workspace.test.sql`, `tests/team-landing-render.test.ts`, `tests/team-landing-render-sharing.test.tsx`, `tests/catalog-sync.test.ts`, and `specs/004-team-landings-gallery/quickstart.md`
 
 **Checkpoint**: All three stories work independently and compose into shared, agent-optional
 landing browsing consistent with the local previewer.
@@ -187,12 +187,12 @@ landing browsing consistent with the local previewer.
 **Purpose**: Close security, compatibility, localization, docs, and performance gates without a
 production deploy.
 
-- [ ] T045 [P] Extend security regression to prove no logs/errors/audit/realtime/analytics leak Google tokens, Vault/grant ids, session URIs, email, filenames/paths/queries/Drive ids/metadata, or landing content, and that the sandbox/CSP/navigation guard hold for both inert thumbnails and full view, in `tests/team-security.test.ts`
-- [ ] T046 [P] Extend release/handshake/real-agent coverage so the bumped `teamWorkspace` contract includes the new routes, old agents fail only the new routes with `AGENT_UPDATE_REQUIRED`, and existing tools stay compatible, in `tests/release.test.ts` and `scripts/real-agent-check.mjs`
-- [ ] T047 [P] Extend compile-checked translation-key coverage for all landings copy in `tests/i18n.test.ts`
-- [ ] T048 [P] Document the hidden `.soty/landing-previews/` render cache, source-identity invalidation, agent-required rendering, and the Drive-write trade-off in `docs/TEAM_WORKSPACE_OPERATIONS.md`
-- [ ] T049 Add the ≥300-landing first-visible-page benchmark (p95 < 2 s, smooth scroll) and record environment/p50/p95/p99/max in `tests/team-landing-gallery.test.tsx` and `specs/004-team-landings-gallery/quickstart.md`
-- [ ] T050 Run formatting, lint, unit/integration, shared/web/agent builds, pgTAP, and real-agent gates and record commands/results in `specs/004-team-landings-gallery/quickstart.md`
+- [x] T045 [P] Extend security regression to prove no logs/errors/audit/realtime/analytics leak Google tokens, Vault/grant ids, session URIs, email, filenames/paths/queries/Drive ids/metadata, or landing content, and that the sandbox/CSP/navigation guard hold for both inert thumbnails and full view, in `tests/team-security.test.ts`
+- [x] T046 [P] Extend release/handshake/real-agent coverage so the bumped `teamWorkspace` contract includes the new routes, old agents fail only the new routes with `AGENT_UPDATE_REQUIRED`, and existing tools stay compatible, in `tests/release.test.ts` and `scripts/real-agent-check.mjs`
+- [x] T047 [P] Extend compile-checked translation-key coverage for all landings copy in `tests/i18n.test.ts`
+- [x] T048 [P] Document the hidden `.soty/landing-previews/` render cache, source-identity invalidation, agent-required rendering, and the Drive-write trade-off in `docs/TEAM_WORKSPACE_OPERATIONS.md`
+- [x] T049 Add the ≥300-landing first-visible-page benchmark (p95 < 2 s, smooth scroll) and record environment/p50/p95/p99/max in `tests/team-landing-gallery.test.tsx` and `specs/004-team-landings-gallery/quickstart.md`
+- [x] T050 Run formatting, lint, unit/integration, shared/web/agent builds, pgTAP, and real-agent gates and record commands/results in `specs/004-team-landings-gallery/quickstart.md`
 
 **Checkpoint**: The feature is reviewable, measurable, documented, and has passed every local
 gate without a production migration, deploy, tag, or release.
@@ -307,3 +307,27 @@ Task T035: Sync invalidation in tests/catalog-sync.test.ts
 - This list authorizes implementation artifacts only — no production deploys, migration pushes,
   releases, tags, or destructive Drive operations. Team/space deletion remains a separate
   follow-up (002 known debt), out of scope here.
+
+---
+
+## Phase 7: Convergence
+
+**Purpose**: Close the two implementation gaps found by the post-implementation
+spec/plan/tasks-to-code audit before release.
+
+- [x] T051 Add an end-to-end landing-render watchdog that aborts stalled preview/download/upload
+      work, reports a typed terminal failure, closes the temporary preview, and emits the shared
+      catalog refetch event; cover timeout and cleanup in
+      `apps/agent/src/team-bridge/landing-gallery.ts`,
+      `supabase/migrations/20260810090000_team_landing_renders.sql`,
+      `tests/team-landing-render-bridge.test.ts`, and
+      `supabase/tests/database/team-workspace.test.sql`
+- [x] T052 Bind the hidden Drive cache hierarchy to the approved source identity
+      `.soty/landing-previews/<materialId>/<sourceVersion>-<fingerprint>/<preset>/`, carry the
+      validated fingerprint on every segment upload, and prove deterministic reuse in
+      `supabase/functions/drive-transfer/handler.ts`,
+      `supabase/functions/drive-transfer/index.ts`, `apps/agent/src/team-bridge/landing-gallery.ts`,
+      `tests/drive-transfer.test.ts`, and `tests/team-landing-render-bridge.test.ts`
+
+**Checkpoint**: The agent cannot hold a render indefinitely and Drive artifacts are physically
+source-bound as well as source-bound by the database validity predicate.

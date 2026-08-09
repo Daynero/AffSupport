@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useI18n } from '../../i18n';
-import type { TeamLandingValidationRecord } from '@video-compressor/shared';
+import type { LandingViewerPreset, TeamLandingValidationRecord } from '@video-compressor/shared';
 
 export interface LandingPreviewView {
   kind: 'landing';
@@ -12,7 +12,13 @@ export interface LandingPreviewView {
   validation?: TeamLandingValidationRecord;
 }
 
-export function LandingPreviewFrame({ preview }: { preview: LandingPreviewView }) {
+export function LandingPreviewFrame({
+  preview,
+  preset
+}: {
+  preview: LandingPreviewView;
+  preset?: LandingViewerPreset;
+}) {
   const { t } = useI18n();
   const [fallback, setFallback] = useState(false);
   const frameRef = useRef<HTMLIFrameElement>(null);
@@ -24,7 +30,14 @@ export function LandingPreviewFrame({ preview }: { preview: LandingPreviewView }
     return () => frame.removeEventListener('error', showFallback);
   }, [preview.url]);
   return (
-    <div className="team-landing-preview">
+    <div
+      className="team-landing-preview"
+      data-device={preset?.device}
+      data-color-scheme={preset?.colorScheme}
+      style={
+        preset ? ({ '--landing-viewer-zoom': String(preset.zoom) } as CSSProperties) : undefined
+      }
+    >
       {preview.warning === 'external_navigation_blocked' && (
         <p className="team-preview-safety-note">{t('teamPreviewExternalBlocked')}</p>
       )}

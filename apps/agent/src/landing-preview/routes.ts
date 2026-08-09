@@ -71,6 +71,18 @@ export function registerLandingPreviewRoutes(
     }
   });
 
+  app.post<{ Body?: unknown }>('/api/landing-preview/team-space', async (request, reply) => {
+    if (!acceptingNewTasks()) return reply.code(409).send({ error: 'UPDATE_PENDING' });
+    try {
+      if (!(await catalog.openTeamSpace(request.body))) {
+        return reply.code(409).send({ error: 'Preview generation is already running.' });
+      }
+      return catalog.state();
+    } catch (error) {
+      return failure(reply, error);
+    }
+  });
+
   app.post<{ Params: { catalogId: string } }>(
     '/api/landing-preview/catalogs/:catalogId/activate',
     async (request, reply) => {

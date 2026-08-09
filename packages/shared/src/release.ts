@@ -6,9 +6,9 @@
  * contract is incompatible, while the supported range lets a web release keep
  * working with older compatible agents.
  */
-export const PRODUCT_VERSION = '0.9.9';
-export const BUNDLE_VERSION = '0.9.9';
-export const BUILD_NUMBER = '45';
+export const PRODUCT_VERSION = '0.9.10';
+export const BUNDLE_VERSION = '0.9.10';
+export const BUILD_NUMBER = '46';
 export const RELEASE_CHANNEL = 'stable';
 
 /**
@@ -60,7 +60,7 @@ export const AGENT_TOOL_CONTRACTS = {
   landingOptimizer: 2,
   landingPreview: 2,
   transcription: 5,
-  teamWorkspace: 1
+  teamWorkspace: 2
 } as const;
 
 export const WEB_TOOL_REQUIREMENTS = {
@@ -68,6 +68,8 @@ export const WEB_TOOL_REQUIREMENTS = {
   landingOptimizer: { landingOptimizer: 2 },
   landingPreview: { landingPreview: 2 },
   transcription: { transcription: 5 },
+  // Existing team preview/download/process routes stay compatible with contract 1.
+  // Feature-specific callers gate the new landing-render routes on contract 2.
   teamWorkspace: { teamWorkspace: 1 }
 } as const;
 

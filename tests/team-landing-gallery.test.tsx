@@ -9,9 +9,17 @@ import type {
 } from '../packages/shared/src/team/index';
 import { LandingGallery } from '../apps/web/src/team/landings/LandingGallery';
 import { LandingViewerControls } from '../apps/web/src/team/landings/LandingViewerControls';
+import { TeamLandings } from '../apps/web/src/team/landings/TeamLandings';
+import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { DEFAULT_LANDING_VIEWER_PRESET } from '../packages/shared/src/team/index';
 
-afterEach(cleanup);
+const TEAM_ID = '22000000-0000-4000-8000-000000000001';
+
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+  vi.restoreAllMocks();
+});
 
 function material(id: string, name: string): CatalogMaterialItem {
   return {
@@ -39,9 +47,21 @@ function material(id: string, name: string): CatalogMaterialItem {
 }
 
 function item(id: string, name: string, tile: LandingTileState): LandingGalleryItem {
+  const candidate = tile === 'candidate';
   return {
-    material: material(id, name),
-    isCandidate: tile === 'candidate',
+    material: {
+      ...material(id, name),
+      ...(candidate
+        ? {
+            category: 'archive' as const,
+            mimeType: 'application/zip',
+            fileExtension: 'zip',
+            classificationSource: 'extension' as const,
+            previewState: 'pending'
+          }
+        : {})
+    },
+    isCandidate: candidate,
     tile,
     canDownload: false,
     canEdit: false
@@ -96,6 +116,24 @@ describe('team landings gallery (presentational)', () => {
     expect(screen.getByText('Not previewed yet')).toBeTruthy();
   });
 
+  it('offers an explicit shared-render action without hijacking tile open', () => {
+    const onOpen = vi.fn();
+    const onRender = vi.fn();
+    const candidate = item('m4', 'Candidate LP.zip', 'candidate');
+    render(
+      <LandingGallery
+        items={[candidate]}
+        loading={false}
+        error={false}
+        onOpen={onOpen}
+        onRender={onRender}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Create shared preview' }));
+    expect(onRender).toHaveBeenCalledWith(candidate);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
   it('renders a welcoming empty state with no tiles', () => {
     render(<LandingGallery items={[]} loading={false} error={false} onOpen={vi.fn()} />);
     expect(screen.getByText(/No landings yet/)).toBeTruthy();
@@ -105,6 +143,151 @@ describe('team landings gallery (presentational)', () => {
   it('renders an error state', () => {
     render(<LandingGallery items={[]} loading={false} error onOpen={vi.fn()} />);
     expect(screen.getByRole('alert')).toBeTruthy();
+  });
+
+  it('shows the first lazy page of a 300-landing catalog within the 2s p95 budget', () => {
+    const firstPage = Array.from({ length: 50 }, (_, index) =>
+      item(`perf-${index}`, `Landing ${index + 1}`, 'ready')
+    );
+    const samples: number[] = [];
+    let last: ReturnType<typeof render> | null = null;
+    for (let run = 0; run < 20; run += 1) {
+      last?.unmount();
+      const startedAt = performance.now();
+      const view = render(
+        <LandingGallery
+          items={firstPage}
+          loading={false}
+          error={false}
+          page={1}
+          pageSize={50}
+          total={300}
+          resolveThumbnail={entry => `https://example.test/${entry.material.id}.webp`}
+          onPageChange={vi.fn()}
+          onOpen={vi.fn()}
+        />
+      );
+      samples.push(performance.now() - startedAt);
+      last = view;
+    }
+    const ordered = [...samples].sort((left, right) => left - right);
+    const at = (percentile: number) =>
+      ordered[Math.min(ordered.length - 1, Math.ceil(ordered.length * percentile) - 1)];
+    const metrics = {
+      p50: at(0.5),
+      p95: at(0.95),
+      p99: at(0.99),
+      max: ordered.at(-1) ?? 0
+    };
+    console.info('team-landing-gallery-benchmark', JSON.stringify(metrics));
+    expect(metrics.p95).toBeLessThan(2_000);
+    expect(screen.getAllByRole('button', { name: /Open landing:/ })).toHaveLength(50);
+    expect(document.querySelectorAll('img[loading="lazy"]')).toHaveLength(50);
+    expect(screen.getByText('300 landings')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeTruthy();
+  });
+});
+
+describe('team landings gallery journey', () => {
+  it('requests only landing/archive candidates and exposes no view-only write affordance', async () => {
+    localStorage.setItem('wishly.active-team.v1', TEAM_ID);
+    const landing = { ...material('m-team', 'Team promo'), teamId: TEAM_ID };
+    const client = {
+      searchCatalog: vi.fn().mockResolvedValue({
+        items: [landing],
+        total: 1,
+        activeFilters: { category: ['landing', 'archive'] },
+        facets: {},
+        catalogFreshness: { state: 'ready' as const, lastSyncedAt: null }
+      }),
+      getCatalogVocabulary: vi.fn().mockResolvedValue({
+        geo: [],
+        languages: [],
+        offers: [],
+        tags: []
+      }),
+      listLandingRenders: vi.fn().mockResolvedValue([])
+    };
+    render(
+      <TeamProvider
+        initialTeams={[
+          {
+            id: TEAM_ID,
+            name: 'View-only team',
+            role: 'viewer',
+            permissions: {
+              view: true,
+              download: false,
+              upload: false,
+              edit: false,
+              delete: false,
+              process: false,
+              manage_members: false,
+              manage_metadata: false
+            },
+            connectionState: 'connected'
+          }
+        ]}
+        realtime={false}
+      >
+        <TeamLandings teamId={TEAM_ID} client={client} />
+      </TeamProvider>
+    );
+    expect(await screen.findByText('Team promo')).toBeTruthy();
+    expect(client.searchCatalog).toHaveBeenCalledWith(
+      TEAM_ID,
+      expect.objectContaining({
+        filters: expect.objectContaining({ category: ['landing', 'archive'] })
+      })
+    );
+    expect(screen.queryByRole('button', { name: /download|edit/iu })).toBeNull();
+  });
+
+  it('rejects a foreign-team result at the UI boundary', async () => {
+    localStorage.setItem('wishly.active-team.v1', TEAM_ID);
+    const client = {
+      searchCatalog: vi.fn().mockResolvedValue({
+        items: [{ ...material('foreign', 'Hidden competitor'), teamId: 'another-team' }],
+        total: 1,
+        activeFilters: {},
+        facets: {},
+        catalogFreshness: { state: 'ready' as const, lastSyncedAt: null }
+      }),
+      getCatalogVocabulary: vi.fn().mockResolvedValue({
+        geo: [],
+        languages: [],
+        offers: [],
+        tags: []
+      }),
+      listLandingRenders: vi.fn().mockResolvedValue([])
+    };
+    render(
+      <TeamProvider
+        initialTeams={[
+          {
+            id: TEAM_ID,
+            name: 'Safe team',
+            role: 'viewer',
+            permissions: {
+              view: true,
+              download: false,
+              upload: false,
+              edit: false,
+              delete: false,
+              process: false,
+              manage_members: false,
+              manage_metadata: false
+            },
+            connectionState: 'connected'
+          }
+        ]}
+        realtime={false}
+      >
+        <TeamLandings teamId={TEAM_ID} client={client} />
+      </TeamProvider>
+    );
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.queryByText('Hidden competitor')).toBeNull();
   });
 });
 

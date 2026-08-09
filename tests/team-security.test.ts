@@ -11,6 +11,10 @@ import {
   redactForLog
 } from '../supabase/functions/_shared/errors';
 import { executeDriveConnectCommand } from '../supabase/functions/drive-connect/handler';
+import {
+  LANDING_IFRAME_SANDBOX,
+  LANDING_PREVIEW_CSP
+} from '../apps/agent/src/team-bridge/preview-origin';
 
 const productionOrigin = 'https://soty.pp.ua';
 const localSignals = {
@@ -89,8 +93,14 @@ describe('team security privacy boundaries', () => {
       material_id: 'wishly-material-id',
       provider: 'google',
       grant: 'grant-id',
+      grant_id: 'grant-id',
       ticket: 'ticket-value',
+      vault_id: 'vault-secret',
+      access_token: 'google-access-token',
+      refresh_token: 'google-refresh-token',
       session_uri: 'https://googleapis.example/upload',
+      session_url: 'https://googleapis.example/session',
+      upload_uri: 'https://googleapis.example/resumable',
       metadata: { offer: 'private' }
     };
     expect(containsForbiddenTeamAnalyticsField(forbidden)).toBe(true);
@@ -134,6 +144,42 @@ describe('team security privacy boundaries', () => {
     const realtime = foundation.slice(foundation.indexOf('alter publication supabase_realtime'));
     expect(realtime).not.toMatch(
       /transcript_text|name|drive_file_id|root_folder_id|token|grant|ticket|session_uri|metadata/i
+    );
+  });
+
+  it('keeps shared landing artifacts inert and the full view inside the existing sandbox', async () => {
+    expect(LANDING_IFRAME_SANDBOX).toBe('allow-scripts');
+    expect(LANDING_PREVIEW_CSP).toContain("connect-src 'none'");
+    expect(LANDING_PREVIEW_CSP).toContain("form-action 'none'");
+    expect(LANDING_PREVIEW_CSP).toContain("object-src 'none'");
+
+    const origin = await readFile('apps/agent/src/team-bridge/preview-origin.ts', 'utf8');
+    expect(origin).toContain('event.preventDefault()');
+    expect(origin).toContain('window.open = () => null');
+    expect(origin).toContain('external-navigation-blocked');
+
+    const frame = await readFile('apps/web/src/team/preview/LandingPreviewFrame.tsx', 'utf8');
+    expect(frame).toContain('sandbox={preview.sandbox}');
+    expect(frame).toContain('referrerPolicy="no-referrer"');
+
+    const cachedViewer = await readFile('apps/web/src/team/landings/LandingFullView.tsx', 'utf8');
+    expect(cachedViewer).toContain('className="team-landing-preview team-landing-cached"');
+    expect(cachedViewer).toContain('<img');
+    expect(cachedViewer).not.toContain('dangerouslySetInnerHTML');
+
+    const renderMigration = await readFile(
+      'supabase/migrations/20260810090000_team_landing_renders.sql',
+      'utf8'
+    );
+    expect(renderMigration).not.toMatch(
+      /alter publication supabase_realtime[\s\S]*team_landing_renders/iu
+    );
+    const listFunction = renderMigration.slice(
+      renderMigration.indexOf('create or replace function public.list_landing_renders'),
+      renderMigration.indexOf('create or replace function public.service_start_landing_render')
+    );
+    expect(listFunction.slice(0, listFunction.indexOf('language plpgsql'))).not.toMatch(
+      /artifact_root/iu
     );
   });
 });

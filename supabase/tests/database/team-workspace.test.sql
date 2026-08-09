@@ -1,6 +1,6 @@
 begin;
 
-select plan(227);
+select plan(242);
 
 select has_schema('private', 'private integration schema exists');
 select has_table('public', 'teams', 'teams table exists');
@@ -135,7 +135,7 @@ select is_empty(
     where pubname = 'supabase_realtime'
       and tablename in (
         'team_members', 'team_invitations', 'team_drive_connections',
-        'team_materials', 'team_audit_events'
+        'team_materials', 'team_audit_events', 'team_landing_renders'
       )
   $$,
   'Realtime excludes membership, credential-bearing catalog, transcript, and audit rows'
@@ -182,7 +182,7 @@ select is_empty(
           'transfer_ownership', 'list_team_audit_events',
           'search_materials', 'get_team_vocab_and_facets', 'update_material_metadata',
           'get_material_preview', 'get_operation', 'get_material_provenance',
-          'cancel_team_operation'
+          'cancel_team_operation', 'list_landing_renders'
         ))
       )
   $$,
@@ -2962,6 +2962,192 @@ select throws_ok(
   $$,
   '42501', 'PERMISSION_DENIED',
   'manage_metadata cannot substitute for independently denied file edit permission'
+);
+
+-- Feature 004: a paired agent may fill the shared render cache, while every read remains
+-- view-gated and stale source identity can never surface as ready.
+select has_table('public', 'team_landing_renders', 'shared landing render pointer table exists');
+select ok(
+  (
+    select catalog.relrowsecurity
+       and catalog.relforcerowsecurity
+       and not has_table_privilege('authenticated', catalog.oid, 'select')
+       and not has_table_privilege('authenticated', catalog.oid, 'insert')
+       and not has_table_privilege('authenticated', catalog.oid, 'update')
+       and not has_table_privilege('authenticated', catalog.oid, 'delete')
+    from pg_catalog.pg_class as catalog
+    join pg_catalog.pg_namespace as namespace on namespace.oid = catalog.relnamespace
+    where namespace.nspname = 'public' and catalog.relname = 'team_landing_renders'
+  ),
+  'render pointers force RLS and expose no direct authenticated table capability'
+);
+select is(
+  (
+    select count(*)
+    from pg_catalog.pg_publication_tables
+    where pubname = 'supabase_realtime' and tablename = 'team_landing_renders'
+  ),
+  0::bigint,
+  'raw render artifact folders are never published over Realtime'
+);
+select has_function(
+  'public', 'list_landing_renders', array['uuid', 'uuid[]', 'text'],
+  'caller-checked landing render listing exists'
+);
+select is_empty(
+  $$
+    select expected.signature
+    from (values
+      ('public.service_start_landing_render(uuid,uuid,uuid,text,text,text)'),
+      ('public.service_commit_landing_render(uuid,text,integer,text)'),
+      ('public.service_fail_landing_render(uuid,text)'),
+      ('public.service_mark_landing_renders_stale(uuid,uuid)'),
+      ('public.service_get_landing_render_artifact(uuid,uuid,text)'),
+      ('public.service_get_landing_render_artifact_by_id(uuid,uuid,uuid)'),
+      ('public.service_get_landing_render_upload(uuid,uuid,uuid)'),
+      ('public.service_invalidate_landing_renders(uuid,text[])')
+    ) as expected(signature)
+    where not has_function_privilege('service_role', expected.signature, 'execute')
+  $$,
+  'service_role has every exact render lifecycle and byte-delivery grant'
+);
+select is_empty(
+  $$
+    select expected.signature
+    from (values
+      ('public.service_start_landing_render(uuid,uuid,uuid,text,text,text)'),
+      ('public.service_commit_landing_render(uuid,text,integer,text)'),
+      ('public.service_fail_landing_render(uuid,text)'),
+      ('public.service_mark_landing_renders_stale(uuid,uuid)'),
+      ('public.service_get_landing_render_artifact(uuid,uuid,text)'),
+      ('public.service_get_landing_render_artifact_by_id(uuid,uuid,uuid)'),
+      ('public.service_get_landing_render_upload(uuid,uuid,uuid)'),
+      ('public.service_invalidate_landing_renders(uuid,text[])')
+    ) as expected(signature)
+    where has_function_privilege('authenticated', expected.signature, 'execute')
+  $$,
+  'authenticated cannot execute render lifecycle or raw artifact helpers'
+);
+select ok(
+  has_function_privilege(
+    'authenticated', 'public.list_landing_renders(uuid,uuid[],text)', 'execute'
+  ),
+  'authenticated can execute only the view-gated render listing'
+);
+
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000001', true);
+create temporary table us6_landing_render as
+select public.service_start_landing_render(
+  (select id from pg_temp.us1_created_team),
+  (select id from pg_temp.us4_landing_archive),
+  '10000000-0000-4000-8000-000000000001',
+  'default', '18', 'landing-checksum-18'
+) as id;
+select is(
+  (
+    select render_state from public.team_landing_renders
+    where id = (select id from pg_temp.us6_landing_render)
+  ),
+  'rendering',
+  'an exact current source identity starts one shared render'
+);
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000004', true);
+select throws_ok(
+  $$
+    select * from public.list_landing_renders(
+      (select id from pg_temp.us1_created_team),
+      array[(select id from pg_temp.us4_landing_archive)], 'default'
+    )
+  $$,
+  '42501', 'PERMISSION_DENIED',
+  'a non-member cannot discover another team render pointer'
+);
+select is(
+  public.service_commit_landing_render(
+    (select id from pg_temp.us6_landing_render), 'opaque-artifact-folder', 2, repeat('c', 64)
+  ),
+  'ready',
+  'a complete artifact with unchanged source identity commits ready'
+);
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000001', true);
+select is(
+  (
+    select count(*) from public.list_landing_renders(
+      (select id from pg_temp.us1_created_team),
+      array[(select id from pg_temp.us4_landing_archive)], 'default'
+    ) where valid and render_state = 'ready' and segment_count = 2
+  ),
+  1::bigint,
+  'a member sees the valid pointer without its raw artifact folder'
+);
+select throws_ok(
+  $$
+    select public.service_start_landing_render(
+      (select id from pg_temp.us1_created_team),
+      (select id from pg_temp.us4_landing_archive),
+      '10000000-0000-4000-8000-000000000001',
+      'default', 'stale-version', 'landing-checksum-18'
+    )
+  $$,
+  '23514', 'SOURCE_CHANGED',
+  'render start rejects a caller-supplied stale source identity'
+);
+select public.service_start_landing_render(
+  (select id from pg_temp.us1_created_team),
+  (select id from pg_temp.us4_landing_archive),
+  '10000000-0000-4000-8000-000000000001',
+  'default', '18', 'landing-checksum-18'
+);
+update public.team_materials
+set drive_version = '19', checksum = 'landing-checksum-19'
+where id = (select id from pg_temp.us4_landing_archive);
+select is(
+  public.service_commit_landing_render(
+    (select id from pg_temp.us6_landing_render), 'stale-artifact-folder', 1, repeat('d', 64)
+  ),
+  'stale',
+  'a source change during rendering commits stale rather than false-ready'
+);
+select is(
+  (
+    select render_state || '|' || segment_count::text || '|' || coalesce(artifact_root, '<null>')
+    from public.team_landing_renders where id = (select id from pg_temp.us6_landing_render)
+  ),
+  'stale|0|<null>',
+  'stale commit drops all fetchable artifact authority'
+);
+select public.service_start_landing_render(
+  (select id from pg_temp.us1_created_team),
+  (select id from pg_temp.us4_landing_archive),
+  '10000000-0000-4000-8000-000000000001',
+  'default', '19', 'landing-checksum-19'
+);
+create temporary table us6_failure_event_count as
+select count(*) as value
+from public.team_catalog_events
+where team_id = (select id from pg_temp.us1_created_team)
+  and material_id = (select id from pg_temp.us4_landing_archive)
+  and event_kind = 'upserted';
+select public.service_fail_landing_render(
+  (select id from pg_temp.us6_landing_render), 'render_error'
+);
+select is(
+  (
+    select render.render_state || '|' || render.failure_reason || '|' ||
+           (
+             select (
+               count(*) - (select value from pg_temp.us6_failure_event_count)
+             )::text
+             from public.team_catalog_events as event
+             where event.team_id = render.team_id
+               and event.material_id = render.material_id
+               and event.event_kind = 'upserted'
+           )
+    from public.team_landing_renders as render
+    where render.id = (select id from pg_temp.us6_landing_render)
+  ),
+  'failed|render_error|1',
+  'render failure becomes terminal and emits one shared gallery refetch event'
 );
 
 select * from finish();

@@ -1,6 +1,6 @@
 import { MATERIAL_CATEGORIES, type MaterialCategory } from './material-category.js';
 import { isRecord } from './contract.js';
-import type { LandingTileState } from './landing-gallery.js';
+import type { LandingRenderFailureReason, LandingTileState } from './landing-gallery.js';
 
 export const TEAM_ANALYTICS_EVENT_NAMES = [
   'team_workspace_session',
@@ -20,7 +20,8 @@ export const TEAM_ANALYTICS_EVENT_NAMES = [
 ] as const;
 export type TeamAnalyticsEventName = (typeof TEAM_ANALYTICS_EVENT_NAMES)[number];
 
-export type TeamAnalyticsOutcome = 'success' | 'failure' | 'cancelled' | 'blocked' | 'unsupported';
+export type TeamAnalyticsOutcome =
+  'success' | 'failure' | 'cancelled' | 'blocked' | 'unsupported' | 'ready' | 'failed';
 export type TeamAnalyticsCue = 'geo' | 'offer' | 'language' | 'category';
 export type TeamAnalyticsAction = 'upload' | 'download' | 'rename' | 'move' | 'trash';
 export type TeamAnalyticsStorage = 'my_drive' | 'shared_drive';
@@ -57,6 +58,7 @@ export interface TeamAnalyticsProperties {
   ready_count?: number;
   tile_state?: LandingTileState;
   had_agent?: boolean;
+  reason?: LandingRenderFailureReason;
 }
 
 const ID_KEYS = new Set(['flow_id', 'study_run_id', 'attempt_id', 'workflow_id']);
@@ -77,7 +79,9 @@ const OUTCOMES = new Set<TeamAnalyticsOutcome>([
   'failure',
   'cancelled',
   'blocked',
-  'unsupported'
+  'unsupported',
+  'ready',
+  'failed'
 ]);
 const CUES = new Set<TeamAnalyticsCue>(['geo', 'offer', 'language', 'category']);
 const ACTIONS = new Set<TeamAnalyticsAction>(['upload', 'download', 'rename', 'move', 'trash']);
@@ -106,6 +110,13 @@ const TILE_STATES = new Set<LandingTileState>([
   'agent_outdated',
   'error'
 ]);
+const LANDING_FAILURE_REASONS = new Set<LandingRenderFailureReason>([
+  'unsupported',
+  'corrupt',
+  'protected',
+  'too_large',
+  'render_error'
+]);
 
 export const TEAM_ANALYTICS_FORBIDDEN_FIELDS = Object.freeze([
   'email',
@@ -120,8 +131,14 @@ export const TEAM_ANALYTICS_FORBIDDEN_FIELDS = Object.freeze([
   'material_id',
   'provider',
   'grant',
+  'grant_id',
   'ticket',
+  'vault_id',
+  'access_token',
+  'refresh_token',
   'session_uri',
+  'session_url',
+  'upload_uri',
   'metadata',
   'offer',
   'tags',
@@ -191,6 +208,11 @@ export function sanitizeTeamAnalyticsProperties(input: unknown): TeamAnalyticsPr
       output[key as 'item_count'] = value;
     } else if (key === 'tile_state' && TILE_STATES.has(value as LandingTileState)) {
       output.tile_state = value as LandingTileState;
+    } else if (
+      key === 'reason' &&
+      LANDING_FAILURE_REASONS.has(value as LandingRenderFailureReason)
+    ) {
+      output.reason = value as LandingRenderFailureReason;
     }
   }
   return output;

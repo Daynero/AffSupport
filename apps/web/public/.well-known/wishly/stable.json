@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.9.9",
-  "buildNumber": "45",
-  "buildId": "0.9.9+45",
+  "version": "0.9.10",
+  "buildNumber": "46",
+  "buildId": "0.9.10+46",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-08-09T14:54:42.000Z",
+  "publishedAt": "2026-08-09T22:42:31.000Z",
   "summary": {
-    "en": "Add technical support messaging and tighten access to the Team Workspace pilot.",
-    "uk": "Додано звернення до техпідтримки та посилено доступ до пілоту Team Workspace."
+    "en": "Add the shared Team Workspace landings gallery with safe full previews, source-bound cached renders, and local previewer integration.",
+    "uk": "Додано спільну галерею лендінгів Team Workspace, безпечний повний перегляд, кеш рендерів за версією джерела та інтеграцію з локальним переглядачем."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.9/Soty-v0.9.9-macOS-arm64.dmg",
-      "sha256": "dd1edd04ddfbc2a48028e7fe7e5298bef153672b758dba97a9a489773b9b09c3"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.10/Soty-v0.9.10-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -35,5 +35,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "sLmnXSPqAJRZz0tbkeVf8VDpGQOZJVynkOSypKg3LpDyXI33I3JmWxYD2uXl0V7NgkKeQ5ZuW8Da_2Orxv4LnA"
+  "signature": "ZRTFsUZDveCWx5Yd4xdLICzb6_Xf66z4hExen1WOClS8PUkXoruBIXT-RN0nW5LSFnpzyFHyuTb7VDjtdDrybQ"
 }

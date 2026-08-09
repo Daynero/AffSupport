@@ -24,19 +24,24 @@ import {
   landingGalleryEventUrl,
   landingGalleryImageUrl,
   landingGalleryOpen,
+  landingGalleryOpenTeamSpace,
   landingGalleryOpenExtracted,
   landingGalleryRefresh,
   landingGalleryRemoveCatalog,
   landingGalleryReveal,
   landingGallerySelect,
   landingGallerySettings,
+  renderTeamLanding,
   request
 } from '../api/client';
-import { analytics } from '../analytics/service';
+import { teamApi } from '../api/team';
+import { analytics, trackTeamLandingRender } from '../analytics/service';
 import { droppedFilePaths } from '../components/DropZone';
 import { Button, IconButton, ProgressBar, Spinner } from '../components/ui';
 import { useI18n, type TranslationKey } from '../i18n';
 import { navigateTo } from '../lib/navigation';
+import { useOptionalTeam } from '../team/TeamContext';
+import { buildTeamPreviewCatalogSnapshot } from './team-catalog';
 
 const emptyState: LandingPreviewState = {
   catalogs: [],
@@ -70,6 +75,7 @@ const AUTO_RESCAN_STALE_MS = 60_000;
 
 export default function LandingPreviewPage() {
   const { t } = useI18n();
+  const team = useOptionalTeam();
   const [state, setState] = useState<LandingPreviewState>(emptyState);
   const [loaded, setLoaded] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -83,9 +89,12 @@ export default function LandingPreviewPage() {
   const [fullscreen, setFullscreen] = useState(false);
   const [connectionLost, setConnectionLost] = useState(false);
   const [gridMode, setGridMode] = useState(false);
+  const [openingTeamId, setOpeningTeamId] = useState<string | null>(null);
+  const [renderingTeamMaterialId, setRenderingTeamMaterialId] = useState<string | null>(null);
   const viewer = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLDivElement>(null);
   const dragDepth = useRef(0);
+  const autoOpenedTeam = useRef<string | null>(null);
 
   useEffect(() => {
     document.title = `${t('landingGallery')} — Soty`;
@@ -155,6 +164,7 @@ export default function LandingPreviewPage() {
 
   const selectedIndex = state.landings.findIndex(item => item.id === selectedId);
   const selected = selectedIndex >= 0 ? state.landings[selectedIndex] : null;
+  const activeCatalog = state.catalogs.find(item => item.id === state.activeCatalogId) ?? null;
   const selectAt = useCallback(
     (index: number) => {
       if (!state.landings.length) return;
@@ -260,6 +270,70 @@ export default function LandingPreviewPage() {
     }
   };
 
+  const openTeamSpace = useCallback(
+    async (teamId: string) => {
+      const selectedTeam = team?.teams.find(
+        candidate => candidate.id === teamId && candidate.permissions.view
+      );
+      if (!selectedTeam || openingTeamId) return;
+      setMessage(null);
+      setOpeningTeamId(teamId);
+      try {
+        const snapshot = await buildTeamPreviewCatalogSnapshot({
+          teamId,
+          teamName: selectedTeam.name,
+          client: teamApi
+        });
+        setState(await landingGalleryOpenTeamSpace(snapshot));
+      } catch {
+        setMessage(t('landingGalleryTeamOpenFailed'));
+      } finally {
+        setOpeningTeamId(null);
+      }
+    },
+    [openingTeamId, t, team]
+  );
+
+  useEffect(() => {
+    if (!loaded || team?.loading) return;
+    const teamId = new URLSearchParams(window.location.search).get('team');
+    if (!teamId || autoOpenedTeam.current === teamId) return;
+    if (!team?.teams.some(candidate => candidate.id === teamId && candidate.permissions.view)) {
+      return;
+    }
+    autoOpenedTeam.current = teamId;
+    void openTeamSpace(teamId);
+  }, [loaded, openTeamSpace, team]);
+
+  const renderSelectedTeamLanding = async () => {
+    if (
+      !selected ||
+      selected.sourceKind !== 'team' ||
+      !activeCatalog?.teamId ||
+      renderingTeamMaterialId
+    ) {
+      return;
+    }
+    const startedAt = Date.now();
+    setMessage(null);
+    setRenderingTeamMaterialId(selected.sourceRelativePath);
+    try {
+      const job = await teamApi.startLandingRender(
+        activeCatalog.teamId,
+        selected.sourceRelativePath,
+        'default'
+      );
+      await renderTeamLanding(job);
+      trackTeamLandingRender({ outcome: 'ready', durationMs: Date.now() - startedAt });
+      await openTeamSpace(activeCatalog.teamId);
+    } catch {
+      trackTeamLandingRender({ outcome: 'failed', durationMs: Date.now() - startedAt });
+      setMessage(t('landingGalleryTeamRenderFailed'));
+    } finally {
+      setRenderingTeamMaterialId(null);
+    }
+  };
+
   const chooseFolder = () => void apply(landingGallerySelect);
   const removeCatalog = (catalogId: string) => {
     if (window.confirm(t('landingGalleryRemoveCatalogConfirm'))) {
@@ -293,6 +367,9 @@ export default function LandingPreviewPage() {
         dragging={dragging}
         message={message}
         chooseFolder={chooseFolder}
+        teams={team?.teams.filter(candidate => candidate.permissions.view) ?? []}
+        openingTeamId={openingTeamId}
+        openTeamSpace={teamId => void openTeamSpace(teamId)}
         activate={id => void apply(() => landingGalleryActivate(id))}
         remove={removeCatalog}
         onDragEnter={event => {
@@ -431,16 +508,20 @@ export default function LandingPreviewPage() {
           </Button>
           <GalleryIconButton
             label={t('landingGalleryRefreshCurrent')}
-            disabled={!selected || state.running}
-            onClick={() =>
-              selected && void apply(() => landingGalleryRefresh('current', selected.id))
-            }
+            disabled={!selected || state.running || openingTeamId !== null}
+            onClick={() => {
+              if (activeCatalog?.sourceKind === 'team' && activeCatalog.teamId) {
+                void openTeamSpace(activeCatalog.teamId);
+              } else if (selected) {
+                void apply(() => landingGalleryRefresh('current', selected.id));
+              }
+            }}
           >
             ↻
           </GalleryIconButton>
           <GalleryIconButton
             label={t('landingGalleryReveal')}
-            disabled={!selected}
+            disabled={!selected || selected.sourceKind === 'team'}
             onClick={() => selected && void apply(() => landingGalleryReveal(selected.id))}
           >
             ⌂
@@ -595,8 +676,26 @@ export default function LandingPreviewPage() {
                 ? t('landingGalleryStatusFailed')
                 : t('landingGalleryNoPreview')
             }
-            body={selected.error ?? phaseLabel}
-            busy={selected.status === 'rendering' || selected.status === 'queued'}
+            body={
+              selected.sourceKind === 'team' && !selected.error
+                ? t('landingGalleryTeamNeedsRender')
+                : (selected.error ?? phaseLabel)
+            }
+            busy={
+              selected.status === 'rendering' ||
+              renderingTeamMaterialId === selected.sourceRelativePath
+            }
+            action={
+              selected.sourceKind === 'team' && selected.status !== 'rendering' ? (
+                <Button
+                  variant="primary"
+                  disabled={renderingTeamMaterialId !== null || openingTeamId !== null}
+                  onClick={() => void renderSelectedTeamLanding()}
+                >
+                  {t('teamLandingCreatePreview')}
+                </Button>
+              ) : undefined
+            }
           />
         ) : state.running ? (
           <GalleryEmpty title={phaseLabel} busy />
@@ -673,6 +772,9 @@ function LandingGalleryWelcome({
   dragging,
   message,
   chooseFolder,
+  teams,
+  openingTeamId,
+  openTeamSpace,
   activate,
   remove,
   onDragEnter,
@@ -683,6 +785,9 @@ function LandingGalleryWelcome({
   dragging: boolean;
   message: string | null;
   chooseFolder: () => void;
+  teams: Array<{ id: string; name: string }>;
+  openingTeamId: string | null;
+  openTeamSpace: (teamId: string) => void;
   activate: (id: string) => void;
   remove: (id: string) => void;
   onDragEnter: (event: DragEvent) => void;
@@ -708,6 +813,23 @@ function LandingGalleryWelcome({
           {t('landingGalleryOpenFolder')}
         </Button>
         <small>{t('landingGalleryLocalNote')}</small>
+        {teams.length > 0 && (
+          <div className="landing-gallery-team-sources">
+            <span>{t('landingGalleryTeamSourceLabel')}</span>
+            {teams.map(team => (
+              <Button
+                key={team.id}
+                variant="secondary"
+                disabled={openingTeamId !== null}
+                onClick={() => openTeamSpace(team.id)}
+              >
+                {openingTeamId === team.id
+                  ? t('landingGalleryTeamOpening')
+                  : t('landingGalleryOpenTeamSpace', { name: team.name })}
+              </Button>
+            ))}
+          </div>
+        )}
       </section>
       {message && (
         <p className="landing-gallery-welcome-error" role="alert">

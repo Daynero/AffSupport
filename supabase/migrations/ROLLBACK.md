@@ -20,7 +20,12 @@ These are forward-only production migrations. Prefer a backup plus a forward fix
 team has connected storage. For an empty isolated development database, reverse the
 feature group in this exact order:
 
-0. `20260810090000_team_landing_renders.sql` (feature 004 — newest, reverse first): revoke and
+0. `20260810113000_team_landing_render_delivery.sql` (feature 004 delivery helpers): revoke and
+   drop `public.service_invalidate_landing_renders(uuid,text[])`,
+   `public.service_get_landing_render_upload(uuid,uuid,uuid)`, and
+   `public.service_get_landing_render_artifact(uuid,uuid,text)` plus
+   `public.service_get_landing_render_artifact_by_id(uuid,uuid,uuid)` before rolling back the table.
+0. `20260810090000_team_landing_renders.sql` (feature 004 — reverse after delivery helpers): revoke and
    drop `public.list_landing_renders(uuid, uuid[], text)`,
    `public.service_start_landing_render(uuid, uuid, uuid, text, text, text)`,
    `public.service_commit_landing_render(uuid, text, integer, text)`,

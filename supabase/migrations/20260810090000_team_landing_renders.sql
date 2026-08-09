@@ -157,6 +157,16 @@ begin
   ) then
     raise exception 'MATERIAL_NOT_ELIGIBLE' using errcode = 'P0002';
   end if;
+  if not exists (
+    select 1
+    from public.team_materials as material
+    where material.id = p_material
+      and material.team_id = p_team
+      and material.drive_version is not distinct from p_source_version
+      and material.checksum is not distinct from p_source_checksum
+  ) then
+    raise exception 'SOURCE_CHANGED' using errcode = '23514';
+  end if;
   insert into public.team_landing_renders as render (
     team_id, material_id, preset, source_version, source_checksum,
     render_state, failure_reason, artifact_root, segment_count, rendered_by, updated_at
@@ -260,6 +270,9 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  render_team uuid;
+  render_material uuid;
 begin
   if p_reason is null
      or p_reason not in ('unsupported', 'corrupt', 'protected', 'too_large', 'render_error') then
@@ -271,7 +284,12 @@ begin
       artifact_root = null,
       segment_count = 0,
       updated_at = clock_timestamp()
-  where render.id = p_render;
+  where render.id = p_render
+  returning render.team_id, render.material_id into render_team, render_material;
+  if render_team is not null then
+    insert into public.team_catalog_events (team_id, material_id, event_kind)
+    values (render_team, render_material, 'upserted');
+  end if;
 end;
 $$;
 

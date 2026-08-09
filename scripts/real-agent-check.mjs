@@ -137,6 +137,19 @@ try {
     );
   }
 
+  for (const route of ['/api/team/landings/render', '/api/landing-preview/team-space']) {
+    const response = await fetch(`${origin}${route}`, {
+      method: 'POST',
+      headers: { 'x-session-token': token, 'content-type': 'application/json' },
+      body: '{}'
+    });
+    const body = await response.json();
+    assert(
+      response.status === 400 && body.error === 'INVALID_INPUT',
+      `The current agent does not expose the guarded landing route ${route}.`
+    );
+  }
+
   const optimalInput = path.join(temporary, 'optimal-source.mp4');
   await createVideo(optimalInput, 24);
   const optimalHash = await sha256(optimalInput);
@@ -257,6 +270,10 @@ try {
           error: 'AGENT_UPDATE_REQUIRED',
           blockedTools: ['teamWorkspace'],
           existingToolsCompatible: true
+        },
+        teamLandingRoutes: {
+          render: 'guarded',
+          localPreviewerImport: 'guarded'
         },
         optimal: {
           status: optimalDone.status,

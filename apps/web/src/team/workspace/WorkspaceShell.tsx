@@ -5,10 +5,13 @@ import { trackTeamWorkspaceSession } from '../../analytics/service';
 import { useTeam } from '../TeamContext';
 import { MaterialBrowser, type MaterialBrowserClient } from '../catalog/MaterialBrowser';
 import { TeamCatalog, type TeamCatalogClient } from '../catalog/TeamCatalog';
-import { TeamLandings } from '../landings/TeamLandings';
+import { TeamLandings, type TeamLandingsClient } from '../landings/TeamLandings';
 import { SpaceSettings, type SpaceSettingsClient } from './SpaceSettings';
 
-export type WorkspaceShellClient = MaterialBrowserClient & TeamCatalogClient & SpaceSettingsClient;
+export type WorkspaceShellClient = MaterialBrowserClient &
+  TeamCatalogClient &
+  TeamLandingsClient &
+  SpaceSettingsClient;
 
 type ShellView = 'content' | 'settings' | 'search' | 'landings';
 

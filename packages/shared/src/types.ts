@@ -701,7 +701,7 @@ export function calculateLandingSummary(assets: LandingAsset[]): LandingSummary 
 /* mount); individual landings may be folders or one/many roots inside ZIPs.  */
 /* -------------------------------------------------------------------------- */
 
-export type LandingPreviewSourceKind = 'folder' | 'zip';
+export type LandingPreviewSourceKind = 'folder' | 'zip' | 'team';
 export type LandingPreviewItemStatus = 'queued' | 'rendering' | 'ready' | 'failed';
 export type LandingPreviewPhase =
   | 'idle'
@@ -746,6 +746,30 @@ export interface LandingPreviewCatalogSummary {
   landingCount: number;
   lastOpenedAt: number;
   sourceAvailable: boolean;
+  /** Team snapshots are downloaded through scoped render grants; local catalogues use folders. */
+  sourceKind?: 'local' | 'team';
+  teamId?: string;
+}
+
+export type TeamLandingPreviewSnapshotState =
+  'ready' | 'candidate' | 'rendering' | 'needs_agent' | 'agent_outdated' | 'error';
+
+/** Short-lived, browser-authorized snapshot imported into the standalone local previewer. */
+export interface TeamLandingPreviewSnapshotItem {
+  materialId: string;
+  name: string;
+  state: TeamLandingPreviewSnapshotState;
+  sourceVersion: string;
+  fingerprint: string;
+  preset: string;
+  previewUrls: string[];
+  failureReason?: string;
+}
+
+export interface TeamLandingPreviewCatalogRequest {
+  teamId: string;
+  teamName: string;
+  items: TeamLandingPreviewSnapshotItem[];
 }
 
 export interface LandingPreviewProgress {

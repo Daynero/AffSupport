@@ -44,6 +44,8 @@ function dependencies(overrides: Partial<CatalogSyncDependencies> = {}): Catalog
     listChanges: vi.fn(),
     getFile: vi.fn(),
     isWithinRoot: vi.fn().mockResolvedValue(true),
+    isHiddenSystemFile: vi.fn().mockResolvedValue(false),
+    invalidateLandingRenders: vi.fn(),
     upsertFiles: vi.fn(),
     tombstoneFiles: vi.fn(),
     requeueTranscripts: vi.fn(),
@@ -89,6 +91,25 @@ describe('durable catalog synchronization', () => {
       expect.objectContaining({ parentId: 'root', pageToken: 'root-page-2' })
     );
     expect(resumed.upsertFiles).toHaveBeenCalledOnce();
+  });
+
+  it('never catalogs or traverses the hidden render-artifact namespace', async () => {
+    const deps = dependencies({
+      listChildren: vi.fn().mockResolvedValue({
+        files: [
+          file({ id: 'system', name: '.soty', mimeType: folderMime }),
+          file({ id: 'visible', name: 'campaign.html', mimeType: 'text/html' })
+        ],
+        nextPageToken: null
+      })
+    });
+    await runCatalogSyncSlice(baseJob, deps);
+    expect(deps.upsertFiles).toHaveBeenCalledWith(
+      expect.objectContaining({ files: [expect.objectContaining({ id: 'visible' })] })
+    );
+    expect(deps.checkpoint).not.toHaveBeenCalledWith(
+      expect.objectContaining({ folderQueue: expect.arrayContaining(['system']) })
+    );
   });
 
   it('replays every change page and commits the new start token only after the final page', async () => {
@@ -147,6 +168,34 @@ describe('durable catalog synchronization', () => {
     );
     expect(deps.upsertFiles).toHaveBeenCalledWith(
       expect.objectContaining({ files: [expect.objectContaining({ id: 'restored' })] })
+    );
+    expect(deps.invalidateLandingRenders).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fileIds: expect.arrayContaining(['removed', 'trashed', 'outside', 'restored'])
+      })
+    );
+    expect(vi.mocked(deps.invalidateLandingRenders).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(deps.tombstoneFiles).mock.invocationCallOrder[0]
+    );
+  });
+
+  it('tombstones a changed artifact descendant instead of ingesting it', async () => {
+    const hidden = file({ id: 'segment-0', name: '0.webp', mimeType: 'image/webp' });
+    const deps = dependencies({
+      listChanges: vi.fn().mockResolvedValue({
+        changes: [{ fileId: hidden.id, removed: false, file: hidden }],
+        nextPageToken: null,
+        newStartPageToken: 'change-hidden'
+      }),
+      isHiddenSystemFile: vi.fn().mockResolvedValue(true)
+    });
+    await runCatalogSyncSlice(
+      { ...baseJob, phase: 'incremental', pageToken: 'change-11', changeToken: 'change-11' },
+      deps
+    );
+    expect(deps.upsertFiles).not.toHaveBeenCalled();
+    expect(deps.tombstoneFiles).toHaveBeenCalledWith(
+      expect.objectContaining({ items: [{ fileId: 'segment-0', lifecycle: 'missing' }] })
     );
   });
 

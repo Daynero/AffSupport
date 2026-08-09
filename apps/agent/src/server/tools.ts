@@ -13,6 +13,7 @@ import type { MediaActionQueue } from '../media-actions/queue.js';
 import type { TranscriptionQueue } from '../queue/transcription-queue.js';
 import type { TeamOperationEvent } from '../team-bridge/events.js';
 import type { TeamDownloadBridge } from '../team-bridge/download.js';
+import type { TeamLandingRenderBridge } from '../team-bridge/landing-gallery.js';
 import type { TeamPreviewBridge } from '../team-bridge/preview.js';
 import type { TeamProcessBridge } from '../team-bridge/process.js';
 import { registerTeamBridgeRoutes } from '../team-bridge/routes.js';
@@ -53,6 +54,7 @@ export interface ToolModulesDeps {
     preview: TeamPreviewBridge;
     process: TeamProcessBridge;
     download: TeamDownloadBridge;
+    landings: TeamLandingRenderBridge;
     events: EventChannel<TeamOperationEvent>;
   };
 }
@@ -121,14 +123,17 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
           preview: teamWorkspace.preview,
           process: teamWorkspace.process,
           download: teamWorkspace.download,
+          landings: teamWorkspace.landings,
           events: teamWorkspace.events,
           acceptingNewTasks: ctx.acceptingNewTasks
         }),
       busy: () =>
         teamWorkspace.preview.busy() ||
         teamWorkspace.process.busy() ||
-        teamWorkspace.download.busy(),
+        teamWorkspace.download.busy() ||
+        teamWorkspace.landings.busy(),
       shutdown: async () => {
+        await teamWorkspace.landings.shutdown();
         await teamWorkspace.download.shutdown();
         await teamWorkspace.process.shutdown();
         await teamWorkspace.preview.shutdown();

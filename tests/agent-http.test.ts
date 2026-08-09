@@ -29,6 +29,7 @@ import { EventChannel } from '../apps/agent/src/server/sse.js';
 import { createToolModules } from '../apps/agent/src/server/tools.js';
 import { TeamPreviewBridge } from '../apps/agent/src/team-bridge/preview.js';
 import { TeamDownloadBridge } from '../apps/agent/src/team-bridge/download.js';
+import { TeamLandingRenderBridge } from '../apps/agent/src/team-bridge/landing-gallery.js';
 import {
   TeamOperationEvents,
   type TeamOperationEvent
@@ -157,6 +158,10 @@ async function makeServer(options: { entitlementPublicKey?: string } = {}) {
     chooseDestination: async () => null,
     reveal: () => undefined
   });
+  const teamLandingRenderBridge = new TeamLandingRenderBridge({
+    preview: teamPreviewBridge,
+    events: teamOperationEvents
+  });
   const entitlementGate = new EntitlementGate({
     publicKeyBase64: options.entitlementPublicKey ?? null,
     stateFile: path.join(dir, 'entitlement.json')
@@ -193,6 +198,7 @@ async function makeServer(options: { entitlementPublicKey?: string } = {}) {
         preview: teamPreviewBridge,
         process: teamProcessBridge,
         download: teamDownloadBridge,
+        landings: teamLandingRenderBridge,
         events: teamEvents
       }
     }),
@@ -226,7 +232,7 @@ describe('agent HTTP surface', () => {
     });
     expect(health.json()).toMatchObject({
       capabilities: expect.arrayContaining(['team-workspace']),
-      toolContracts: { teamWorkspace: 1 }
+      toolContracts: { teamWorkspace: 2 }
     });
 
     const unauthenticated = await app.inject({
@@ -244,6 +250,36 @@ describe('agent HTTP surface', () => {
     expect(malformed.statusCode).toBe(400);
     expect(malformed.json()).toEqual({ error: 'INVALID_INPUT' });
     expect(malformed.headers['cache-control']).toBe('no-store');
+
+    const unauthenticatedRender = await app.inject({
+      method: 'POST',
+      url: '/api/team/landings/render',
+      payload: {}
+    });
+    expect(unauthenticatedRender.statusCode).toBe(401);
+    const malformedRender = await app.inject({
+      method: 'POST',
+      url: '/api/team/landings/render',
+      headers: { 'x-session-token': TOKEN, 'content-type': 'application/json' },
+      payload: {}
+    });
+    expect(malformedRender.statusCode).toBe(400);
+    expect(malformedRender.json()).toEqual({ error: 'INVALID_INPUT' });
+
+    const unauthenticatedTeamCatalog = await app.inject({
+      method: 'POST',
+      url: '/api/landing-preview/team-space',
+      payload: {}
+    });
+    expect(unauthenticatedTeamCatalog.statusCode).toBe(401);
+    const malformedTeamCatalog = await app.inject({
+      method: 'POST',
+      url: '/api/landing-preview/team-space',
+      headers: { 'x-session-token': TOKEN, 'content-type': 'application/json' },
+      payload: {}
+    });
+    expect(malformedTeamCatalog.statusCode).toBe(400);
+    expect(malformedTeamCatalog.json()).toEqual({ error: 'INVALID_INPUT' });
   });
 
   it('builds and serves a landing preview catalogue through authenticated routes', async () => {

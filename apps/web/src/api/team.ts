@@ -13,7 +13,10 @@ import {
   parseTeamFileOperationResult,
   parseTeamPreviewResult,
   parseTeamProcessStartResult,
+  parseTeamTransferGrant,
   parseTeamUploadSession,
+  type LandingRenderPointer,
+  type RenderArtifactRef,
   type CatalogMaterialItem,
   type CatalogSearchRequestInput,
   type CatalogSearchResponse,
@@ -25,6 +28,7 @@ import {
   type TeamInvitationState,
   type TeamBaseRole,
   type TeamLandingValidationRecord,
+  type TeamLandingRenderJob,
   type TeamDownloadGrantResult,
   type TeamFileOperationResult,
   type TeamMaterialProvenanceEntry,
@@ -38,6 +42,7 @@ import {
   type TeamRole
 } from '@video-compressor/shared';
 import type { Json } from '../lib/database.types';
+import { publicConfig } from '../lib/config';
 import { requireSupabaseClient } from '../lib/supabase';
 
 export class TeamApiError extends Error {
@@ -567,6 +572,70 @@ function processStartGuard(value: unknown): value is TeamProcessStartResult {
   return parseTeamProcessStartResult(value) !== null;
 }
 
+function landingRenderJobGuard(value: unknown): value is TeamLandingRenderJob {
+  const row = asRecord(value);
+  const sourceGrant = parseTeamTransferGrant(row?.sourceGrant);
+  const artifactGrant = parseTeamTransferGrant(row?.artifactGrant);
+  return Boolean(
+    row &&
+    [
+      'operationId',
+      'renderId',
+      'teamId',
+      'materialId',
+      'preset',
+      'transferUrl',
+      'artifactUploadUrl'
+    ].every(key => typeof row[key] === 'string') &&
+    sourceGrant?.purpose === 'preview_range' &&
+    artifactGrant?.purpose === 'preview_range'
+  );
+}
+
+function renderArtifact(value: unknown): RenderArtifactRef | null {
+  const row = asRecord(value);
+  if (
+    !row ||
+    typeof row.materialId !== 'string' ||
+    typeof row.sourceVersion !== 'string' ||
+    typeof row.fingerprint !== 'string' ||
+    typeof row.preset !== 'string' ||
+    typeof row.segmentCount !== 'number' ||
+    !Number.isInteger(row.segmentCount) ||
+    row.segmentCount < 1 ||
+    typeof row.artifactToken !== 'string' ||
+    row.artifactToken.length < 16
+  ) {
+    return null;
+  }
+  if (
+    row.segmentTokens !== undefined &&
+    (!Array.isArray(row.segmentTokens) ||
+      row.segmentTokens.length !== row.segmentCount ||
+      row.segmentTokens.some(token => typeof token !== 'string' || token.length < 16))
+  ) {
+    return null;
+  }
+  return {
+    materialId: row.materialId,
+    sourceVersion: row.sourceVersion,
+    fingerprint: row.fingerprint,
+    preset: row.preset,
+    segmentCount: row.segmentCount,
+    artifactToken: row.artifactToken,
+    ...(Array.isArray(row.segmentTokens) ? { segmentTokens: row.segmentTokens as string[] } : {})
+  };
+}
+
+function renderArtifactsGuard(value: unknown): value is { artifacts: RenderArtifactRef[] } {
+  const row = asRecord(value);
+  return Boolean(
+    row &&
+    Array.isArray(row.artifacts) &&
+    row.artifacts.every(item => renderArtifact(item) !== null)
+  );
+}
+
 function mapOperation(value: unknown): TeamOperationSnapshot | null {
   const row = asRecord(value);
   if (
@@ -1004,6 +1073,124 @@ export const teamApi = {
       throw new TeamApiError('INVALID_RESPONSE', false);
     }
     return row as unknown as CatalogVocabulary;
+  },
+
+  async listLandingRenders(
+    teamId: string,
+    materialIds: string[],
+    preset: string
+  ): Promise<LandingRenderPointer[]> {
+    if (materialIds.length === 0) return [];
+    const { data, error } = await requireSupabaseClient().rpc('list_landing_renders', {
+      p_team: teamId,
+      p_material_ids: materialIds,
+      p_preset: preset
+    });
+    throwRpc(error);
+
+    const rows = Array.isArray(data) ? data.map(asRecord) : [];
+    if (rows.some(row => row === null)) throw new TeamApiError('INVALID_RESPONSE', false);
+    const validRows = rows.filter(
+      row => row?.render_state === 'ready' && row.valid === true && row.segment_count
+    );
+    const tokenByMaterial = new Map<string, RenderArtifactRef>();
+    if (validRows.length > 0) {
+      try {
+        const tokens = await invokeTeamFunction(
+          'drive-transfer',
+          {
+            action: 'landing_render_tokens',
+            teamId,
+            materialIds: validRows.map(row => row!.material_id),
+            preset
+          },
+          renderArtifactsGuard
+        );
+        for (const artifact of tokens.artifacts) tokenByMaterial.set(artifact.materialId, artifact);
+      } catch {
+        // The gallery still reports truthful non-ready states if token minting is unavailable.
+      }
+    }
+
+    const pointers: LandingRenderPointer[] = [];
+    for (const row of rows) {
+      if (!row || typeof row.material_id !== 'string' || typeof row.preset !== 'string') {
+        throw new TeamApiError('INVALID_RESPONSE', false);
+      }
+      const rawState = row.render_state;
+      if (!['rendering', 'ready', 'stale', 'failed'].includes(String(rawState))) {
+        throw new TeamApiError('INVALID_RESPONSE', false);
+      }
+      const state = rawState === 'ready' && row.valid !== true ? 'stale' : rawState;
+      const failureReason = [
+        'unsupported',
+        'corrupt',
+        'protected',
+        'too_large',
+        'render_error'
+      ].includes(String(row.failure_reason))
+        ? (row.failure_reason as LandingRenderPointer['failureReason'])
+        : undefined;
+      const sourceVersion = typeof row.source_version === 'string' ? row.source_version : '';
+      const fingerprint = typeof row.fingerprint === 'string' ? row.fingerprint : '';
+      const artifact = tokenByMaterial.get(row.material_id);
+      pointers.push({
+        materialId: row.material_id,
+        state: state as LandingRenderPointer['state'],
+        ...(failureReason ? { failureReason } : {}),
+        sourceVersion,
+        fingerprint,
+        preset: row.preset,
+        ...(state === 'ready' && artifact ? { artifact } : {})
+      });
+    }
+    return pointers;
+  },
+
+  async startLandingRender(
+    teamId: string,
+    materialId: string,
+    preset = 'default'
+  ): Promise<TeamLandingRenderJob> {
+    return invokeTeamFunction(
+      'drive-transfer',
+      { action: 'landing_render_start', teamId, materialId, preset },
+      landingRenderJobGuard
+    );
+  },
+
+  async getLandingRenderArtifact(
+    teamId: string,
+    materialId: string,
+    preset = 'default'
+  ): Promise<RenderArtifactRef | null> {
+    const result = await invokeTeamFunction(
+      'drive-transfer',
+      {
+        action: 'landing_render_tokens',
+        teamId,
+        materialIds: [materialId],
+        preset,
+        allSegments: true
+      },
+      renderArtifactsGuard
+    );
+    return result.artifacts[0] ?? null;
+  },
+
+  landingRenderImageUrl(artifact: RenderArtifactRef, segment = 0): string {
+    if (!publicConfig.ok) throw new TeamApiError('INVALID_RESPONSE', false);
+    const normalizedSegment = Math.max(0, Math.trunc(segment));
+    const token =
+      artifact.segmentTokens?.[normalizedSegment] ??
+      (normalizedSegment === 0 ? artifact.artifactToken : null);
+    if (!token) throw new TeamApiError('INVALID_RESPONSE', false);
+    const url = new URL(
+      `${publicConfig.value.supabaseUrl}/functions/v1/drive-transfer/render-range`
+    );
+    url.searchParams.set('grant', token);
+    url.searchParams.set('segment', String(normalizedSegment));
+    return url.toString();
   },
 
   async updateMaterialMetadata(

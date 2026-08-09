@@ -36,6 +36,12 @@ export interface CatalogSyncDependencies {
   }>;
   getFile: (fileId: string) => Promise<DriveFileMetadata>;
   isWithinRoot: (file: DriveFileMetadata, rootFolderId: string) => Promise<boolean>;
+  isHiddenSystemFile: (file: DriveFileMetadata, rootFolderId: string) => Promise<boolean>;
+  invalidateLandingRenders: (input: {
+    jobId: string;
+    connectionId: string;
+    fileIds: string[];
+  }) => Promise<unknown>;
   upsertFiles: (input: {
     jobId: string;
     connectionId: string;
@@ -77,6 +83,7 @@ export interface CatalogSyncDependencies {
 }
 
 const FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder';
+const HIDDEN_SYSTEM_FOLDER = '.soty';
 
 function fileExtension(name: string): string | null {
   const index = name.lastIndexOf('.');
@@ -134,9 +141,10 @@ async function runInitialScan(
     pageToken: job.pageToken,
     driveId: job.driveId
   });
-  await persistActiveFiles(job, dependencies, page.files, parentId);
+  const visibleFiles = page.files.filter(file => file.name !== HIDDEN_SYSTEM_FOLDER);
+  await persistActiveFiles(job, dependencies, visibleFiles, parentId);
 
-  const newFolders = page.files
+  const newFolders = visibleFiles
     .filter(file => !file.trashed && file.mimeType === FOLDER_MIME_TYPE && !file.shortcutTargetId)
     .map(file => file.id);
   const discovered = [...new Set([...(job.discoveredFolderIds ?? []), ...newFolders])];
@@ -191,6 +199,14 @@ async function runChanges(
   const active: DriveFileMetadata[] = [];
   const tombstones: Array<{ fileId: string; lifecycle: 'trashed' | 'missing' }> = [];
 
+  if (page.changes.length > 0) {
+    await dependencies.invalidateLandingRenders({
+      jobId: job.jobId,
+      connectionId: job.connectionId,
+      fileIds: [...new Set(page.changes.map(change => change.fileId))]
+    });
+  }
+
   for (const change of page.changes) {
     if (change.removed || !change.file) {
       tombstones.push({ fileId: change.fileId, lifecycle: 'missing' });
@@ -198,6 +214,10 @@ async function runChanges(
     }
     if (change.file.trashed) {
       tombstones.push({ fileId: change.fileId, lifecycle: 'trashed' });
+      continue;
+    }
+    if (await dependencies.isHiddenSystemFile(change.file, job.rootFolderId)) {
+      tombstones.push({ fileId: change.fileId, lifecycle: 'missing' });
       continue;
     }
     if (!(await dependencies.isWithinRoot(change.file, job.rootFolderId))) {

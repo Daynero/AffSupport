@@ -35,6 +35,7 @@ import { createToolModules } from './server/tools.js';
 import { TeamPreviewBridge } from './team-bridge/preview.js';
 import { TeamOperationEvents, type TeamOperationEvent } from './team-bridge/events.js';
 import { TeamDownloadBridge } from './team-bridge/download.js';
+import { TeamLandingRenderBridge } from './team-bridge/landing-gallery.js';
 import { createTeamProcessDelegates, TeamProcessBridge } from './team-bridge/process.js';
 import { TeamTransferClient } from './team-bridge/transfer.js';
 import { createAligner } from './translation/aligner.js';
@@ -229,6 +230,10 @@ const teamProcessBridge = new TeamProcessBridge({
   events: teamOperationEvents
 });
 const teamDownloadBridge = new TeamDownloadBridge({ transfer: teamTransfer });
+const teamLandingRenderBridge = new TeamLandingRenderBridge({
+  preview: teamPreviewBridge,
+  events: teamOperationEvents
+});
 
 const modules = createToolModules({
   compressor: { queue, estimator, imageStore, events: agentEvents, tools },
@@ -240,6 +245,7 @@ const modules = createToolModules({
     preview: teamPreviewBridge,
     process: teamProcessBridge,
     download: teamDownloadBridge,
+    landings: teamLandingRenderBridge,
     events: teamEvents
   }
 });

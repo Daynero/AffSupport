@@ -1,5 +1,23 @@
 import type { LandingGalleryItem } from '@video-compressor/shared';
-import { useI18n } from '../../i18n';
+import { Button } from '../../components/ui';
+import { useI18n, type TranslationKey } from '../../i18n';
+
+const TILE_COPY: Record<LandingGalleryItem['tile'], TranslationKey> = {
+  ready: 'teamLandingTileReady',
+  candidate: 'teamLandingTileCandidate',
+  rendering: 'teamLandingTileRendering',
+  needs_agent: 'teamLandingTileNeedsAgent',
+  agent_outdated: 'teamLandingTileAgentOutdated',
+  error: 'teamLandingTileError'
+};
+
+const ERROR_COPY: Record<NonNullable<LandingGalleryItem['unavailableReason']>, TranslationKey> = {
+  corrupt: 'teamLandingUnavailableCorrupt',
+  protected: 'teamLandingUnavailableProtected',
+  too_large: 'teamLandingUnavailableTooLarge',
+  unsupported: 'teamLandingUnavailableUnsupported',
+  render_error: 'teamLandingTileError'
+};
 
 /**
  * One landing in the gallery (feature 004). Every tile is openable — opening hands off to the
@@ -11,32 +29,54 @@ import { useI18n } from '../../i18n';
 export function LandingGalleryTile({
   item,
   thumbnailSrc,
+  rendering = false,
+  renderProgress,
+  onRender,
   onOpen
 }: {
   item: LandingGalleryItem;
   thumbnailSrc?: string | null;
+  rendering?: boolean;
+  renderProgress?: number | null;
+  onRender?: (item: LandingGalleryItem) => void;
   onOpen: (item: LandingGalleryItem) => void;
 }) {
   const { t } = useI18n();
   return (
-    <button
-      type="button"
-      className={`landing-tile landing-tile-${item.tile}`}
-      data-tile-state={item.tile}
-      aria-label={`${t('teamLandingOpen')}: ${item.material.name}`}
-      onClick={() => onOpen(item)}
-    >
-      <span className="landing-tile-thumb">
-        {thumbnailSrc ? (
-          <img src={thumbnailSrc} alt="" loading="lazy" />
-        ) : (
-          <span className="landing-tile-chip" aria-hidden="true" />
-        )}
-      </span>
-      <span className="landing-tile-name">{item.material.name}</span>
-      {item.isCandidate && (
-        <span className="landing-tile-state">{t('teamLandingTileCandidate')}</span>
+    <div className="landing-tile-shell">
+      <button
+        type="button"
+        className={`landing-tile landing-tile-${item.tile}`}
+        data-tile-state={rendering ? 'rendering' : item.tile}
+        aria-label={`${t('teamLandingOpen')}: ${item.material.name}`}
+        onClick={() => onOpen(item)}
+      >
+        <span className="landing-tile-thumb">
+          {thumbnailSrc ? (
+            <img src={thumbnailSrc} alt="" loading="lazy" />
+          ) : (
+            <span className="landing-tile-chip" aria-hidden="true" />
+          )}
+        </span>
+        <span className="landing-tile-name">{item.material.name}</span>
+        <span className="landing-tile-state">
+          {rendering
+            ? renderProgress && renderProgress > 0
+              ? t('teamLandingTileRenderingProgress', { progress: Math.round(renderProgress) })
+              : t('teamLandingTileRendering')
+            : t(item.unavailableReason ? ERROR_COPY[item.unavailableReason] : TILE_COPY[item.tile])}
+        </span>
+      </button>
+      {onRender && item.tile !== 'ready' && item.tile !== 'rendering' && (
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={rendering}
+          onClick={() => onRender(item)}
+        >
+          {item.tile === 'error' ? t('teamLandingRetryPreview') : t('teamLandingCreatePreview')}
+        </Button>
       )}
-    </button>
+    </div>
   );
 }

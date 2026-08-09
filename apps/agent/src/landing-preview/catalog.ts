@@ -17,17 +17,25 @@ import type {
   LandingPreviewEventType,
   LandingPreviewItem,
   LandingPreviewRenderSettings,
-  LandingPreviewState
+  LandingPreviewState,
+  TeamLandingPreviewCatalogRequest,
+  TeamLandingPreviewSnapshotItem
 } from '@video-compressor/shared';
 import { applicationSupportRoot } from '../files/support-dir.js';
 import { extractZipSafely } from './archive.js';
 import { LandingPageRenderer, type LandingRenderResult } from './renderer.js';
-import { discoverLandings, type DiscoveredLanding } from './scanner.js';
+import {
+  discoverLandings,
+  normalizeTeamLandingSnapshot,
+  type DiscoveredLanding
+} from './scanner.js';
 
 const STATE_VERSION = 1;
 /** Bumped whenever the capture pipeline changes in a way that invalidates caches. */
 const RENDER_PIPELINE_VERSION = 'v2-segmented';
 const MAX_VISIBLE_WARNINGS = 8;
+const MAX_TEAM_PREVIEW_SEGMENTS = 64;
+const MAX_TEAM_PREVIEW_BYTES = 32 * 1024 * 1024;
 /** How many landings render at once. Kept low to bound Chromium memory. */
 const RENDER_CONCURRENCY = Math.min(4, Math.max(1, availableParallelism() - 2));
 
@@ -71,7 +79,9 @@ interface StoredLanding extends LandingPreviewItem {
 interface StoredCatalog {
   id: string;
   name: string;
-  rootPath: string;
+  sourceKind: 'local' | 'team';
+  rootPath: string | null;
+  teamId: string | null;
   lastOpenedAt: number;
   sourceAvailable: boolean;
   landings: StoredLanding[];
@@ -104,6 +114,7 @@ export class LandingPreviewCatalog {
   private readonly root: string;
   private readonly statePath: string;
   private readonly renderer: LandingRenderer;
+  private readonly fetchImpl: typeof fetch;
   private catalogs: StoredCatalog[] = [];
   private activeCatalogId: string | null = null;
   private controller: AbortController | null = null;
@@ -117,10 +128,13 @@ export class LandingPreviewCatalog {
   private error: string | null = null;
   private settings: LandingPreviewRenderSettings = { ...DEFAULT_SETTINGS };
 
-  constructor(options: { root?: string; renderer?: LandingRenderer } = {}) {
+  constructor(
+    options: { root?: string; renderer?: LandingRenderer; fetchImpl?: typeof fetch } = {}
+  ) {
     this.root = options.root ?? path.join(applicationSupportRoot(), 'LandingPreviews');
     this.statePath = path.join(this.root, 'state.json');
     this.renderer = options.renderer ?? new LandingPageRenderer();
+    this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
   setNotify(notify: (type?: LandingPreviewEventType) => void) {
@@ -156,7 +170,9 @@ export class LandingPreviewCatalog {
           name: item.name,
           landingCount: item.landings.length,
           lastOpenedAt: item.lastOpenedAt,
-          sourceAvailable: item.sourceAvailable
+          sourceAvailable: item.sourceAvailable,
+          sourceKind: item.sourceKind,
+          ...(item.teamId ? { teamId: item.teamId } : {})
         })),
       activeCatalogId: active?.id ?? null,
       activeCatalogName: active?.name ?? null,
@@ -192,7 +208,7 @@ export class LandingPreviewCatalog {
     this.settings = next;
     await this.persist();
     const catalog = this.activeCatalog();
-    if (catalog) this.startRun(catalog, 'changed');
+    if (catalog?.sourceKind === 'local') this.startRun(catalog, 'changed');
     else this.notify();
     return true;
   }
@@ -202,12 +218,16 @@ export class LandingPreviewCatalog {
     const canonical = await realpath(path.resolve(rootPath));
     const details = await stat(canonical);
     if (!details.isDirectory()) throw new Error('Choose a folder that contains landings.');
-    let catalog = this.catalogs.find(item => item.rootPath === canonical);
+    let catalog = this.catalogs.find(
+      item => item.sourceKind === 'local' && item.rootPath === canonical
+    );
     if (!catalog) {
       catalog = {
         id: `catalog_${digest(canonical).slice(0, 20)}`,
         name: path.basename(canonical) || canonical,
+        sourceKind: 'local',
         rootPath: canonical,
+        teamId: null,
         lastOpenedAt: Date.now(),
         sourceAvailable: true,
         landings: [],
@@ -228,6 +248,66 @@ export class LandingPreviewCatalog {
     return true;
   }
 
+  /** Imports a connected-space snapshot without retaining its short-lived Edge grant URLs. */
+  async openTeamSpace(value: unknown) {
+    if (this.running) return false;
+    const snapshot = normalizeTeamLandingSnapshot(value);
+    if (!snapshot) throw new Error('INVALID_INPUT');
+    const catalogId = `team_${digest(snapshot.teamId).slice(0, 24)}`;
+    const existing = this.catalogs.find(item => item.id === catalogId);
+    const catalog: StoredCatalog = existing ?? {
+      id: catalogId,
+      name: snapshot.teamName,
+      sourceKind: 'team',
+      rootPath: null,
+      teamId: snapshot.teamId,
+      lastOpenedAt: Date.now(),
+      sourceAvailable: true,
+      landings: [],
+      warnings: [],
+      updatedAt: null
+    };
+    if (catalog.sourceKind !== 'team' || catalog.teamId !== snapshot.teamId) {
+      throw new Error('INVALID_INPUT');
+    }
+    this.running = true;
+    this.error = null;
+    this.progress = {
+      phase: 'downloading',
+      completed: 0,
+      total: snapshot.items.filter(item => item.previewUrls.length > 0).length,
+      currentLandingId: null
+    };
+    this.notify('landing-preview:progress');
+    try {
+      const next = await this.importTeamSnapshot(catalog, snapshot);
+      catalog.name = snapshot.teamName;
+      catalog.lastOpenedAt = Date.now();
+      catalog.sourceAvailable = true;
+      catalog.landings = next;
+      catalog.warnings = [];
+      catalog.updatedAt = Date.now();
+      if (!existing) this.catalogs.push(catalog);
+      this.activeCatalogId = catalog.id;
+      this.progress = {
+        phase: 'completed',
+        completed: this.progress.total,
+        total: this.progress.total,
+        currentLandingId: null
+      };
+      await this.persist();
+      this.notify('landing-preview:progress');
+      return true;
+    } catch (error) {
+      this.error = teamImportErrorCode(error);
+      this.progress.phase = 'failed';
+      throw new Error(this.error, { cause: error });
+    } finally {
+      this.running = false;
+      this.notify();
+    }
+  }
+
   async activate(catalogId: string) {
     if (this.running) return false;
     const catalog = this.catalogs.find(item => item.id === catalogId);
@@ -236,7 +316,8 @@ export class LandingPreviewCatalog {
     catalog.lastOpenedAt = Date.now();
     this.error = null;
     await this.persist();
-    this.startRun(catalog, 'changed');
+    if (catalog.sourceKind === 'local') this.startRun(catalog, 'changed');
+    else this.notify();
     return true;
   }
 
@@ -244,6 +325,7 @@ export class LandingPreviewCatalog {
     if (this.running) return false;
     const catalog = this.activeCatalog();
     if (!catalog) return false;
+    if (catalog.sourceKind === 'team') return false;
     if (
       mode === 'current' &&
       (!landingId || !catalog.landings.some(item => item.id === landingId))
@@ -263,7 +345,7 @@ export class LandingPreviewCatalog {
   sourcePath(landingId: string): string | null {
     const catalog = this.activeCatalog();
     const landing = catalog?.landings.find(item => item.id === landingId);
-    if (!catalog || !landing) return null;
+    if (!catalog || !landing || !catalog.rootPath || catalog.sourceKind !== 'local') return null;
     return safeSourcePath(catalog.rootPath, landing.sourceRelativePath);
   }
 
@@ -272,7 +354,7 @@ export class LandingPreviewCatalog {
   ): { path: string; kind: LandingPreviewItem['sourceKind'] } | null {
     const catalog = this.activeCatalog();
     const landing = catalog?.landings.find(item => item.id === landingId);
-    if (!catalog || !landing) return null;
+    if (!catalog || !landing || !catalog.rootPath || catalog.sourceKind !== 'local') return null;
     const source = safeSourcePath(catalog.rootPath, landing.sourceRelativePath);
     return source ? { path: source, kind: landing.sourceKind } : null;
   }
@@ -280,7 +362,14 @@ export class LandingPreviewCatalog {
   extractedPath(landingId: string): string | null {
     const catalog = this.activeCatalog();
     const landing = catalog?.landings.find(item => item.id === landingId);
-    if (!catalog || !landing || landing.sourceKind !== 'zip') return null;
+    if (
+      !catalog ||
+      !landing ||
+      !catalog.rootPath ||
+      catalog.sourceKind !== 'local' ||
+      landing.sourceKind !== 'zip'
+    )
+      return null;
     const extracted = this.archiveContentPath(catalog, landing);
     return landing.archiveRoot
       ? path.join(extracted, ...landing.archiveRoot.split('/'))
@@ -368,6 +457,9 @@ export class LandingPreviewCatalog {
     landingId: string | undefined,
     signal: AbortSignal
   ) {
+    if (catalog.sourceKind !== 'local' || !catalog.rootPath) {
+      throw new Error('A team-space catalogue must be refreshed from the signed-in web app.');
+    }
     this.running = true;
     this.error = null;
     this.progress = { phase: 'scanning', completed: 0, total: 0, currentLandingId: null };
@@ -545,6 +637,9 @@ export class LandingPreviewCatalog {
     landing: StoredLanding,
     signal: AbortSignal
   ) {
+    if (!catalog.rootPath || catalog.sourceKind !== 'local') {
+      throw new Error('The local landing source is unavailable.');
+    }
     const source = safeSourcePath(catalog.rootPath, landing.sourceRelativePath);
     if (!source) throw new Error('Landing source path is invalid.');
     if (landing.sourceKind === 'folder') {
@@ -558,6 +653,61 @@ export class LandingPreviewCatalog {
       ? path.join(content, ...landing.archiveRoot.split('/'))
       : content;
     return { root: await realpath(root), entryFile: landing.entryFile };
+  }
+
+  private async importTeamSnapshot(
+    catalog: StoredCatalog,
+    snapshot: TeamLandingPreviewCatalogRequest
+  ): Promise<StoredLanding[]> {
+    const staging = path.join(this.catalogCacheRoot(catalog), `.team-import-${randomUUID()}`);
+    const finalDirectory = path.join(this.catalogCacheRoot(catalog), 'team-previews');
+    await rm(staging, { recursive: true, force: true });
+    await mkdir(staging, { recursive: true });
+    try {
+      const imported = new Array<StoredLanding>(snapshot.items.length);
+      let cursor = 0;
+      const next = () => (cursor < snapshot.items.length ? cursor++ : null);
+      const worker = async () => {
+        for (let index = next(); index !== null; index = next()) {
+          const item = snapshot.items[index];
+          this.progress.currentLandingId = item.materialId;
+          const relativeFiles: string[] = [];
+          if (item.previewUrls.length > MAX_TEAM_PREVIEW_SEGMENTS) {
+            throw new Error('INVALID_RESPONSE');
+          }
+          const itemDirectory = digest(
+            `${item.materialId}\0${item.sourceVersion}\0${item.fingerprint}\0${item.preset}`
+          ).slice(0, 32);
+          for (let segment = 0; segment < item.previewUrls.length; segment += 1) {
+            const bytes = await downloadTeamPreview(
+              this.fetchImpl,
+              item.previewUrls[segment],
+              segment
+            );
+            const temporary = path.join(staging, itemDirectory, `${segment}.webp`);
+            await mkdir(path.dirname(temporary), { recursive: true });
+            await writeFile(temporary, bytes, { mode: 0o600 });
+            relativeFiles.push(
+              path.relative(this.root, path.join(finalDirectory, itemDirectory, `${segment}.webp`))
+            );
+          }
+          imported[index] = teamStoredLanding(catalog.id, item, relativeFiles);
+          if (item.previewUrls.length > 0) {
+            this.progress.completed += 1;
+            this.notify('landing-preview:progress');
+          }
+        }
+      };
+      await Promise.all(
+        Array.from({ length: Math.min(4, Math.max(1, snapshot.items.length)) }, () => worker())
+      );
+      await rm(finalDirectory, { recursive: true, force: true });
+      await mkdir(path.dirname(finalDirectory), { recursive: true });
+      await rename(staging, finalDirectory);
+      return imported;
+    } finally {
+      await rm(staging, { recursive: true, force: true }).catch(() => {});
+    }
   }
 
   /**
@@ -636,7 +786,10 @@ export class LandingPreviewCatalog {
 
   private async revalidateCachedPreviews() {
     for (const catalog of this.catalogs) {
-      catalog.sourceAvailable = await exists(catalog.rootPath);
+      catalog.sourceAvailable =
+        catalog.sourceKind === 'team'
+          ? true
+          : Boolean(catalog.rootPath && (await exists(catalog.rootPath)));
       for (const landing of catalog.landings) {
         const previews = previewFilesOf(landing);
         if (!(await previewFilesUsable(this.root, previews))) {
@@ -650,7 +803,11 @@ export class LandingPreviewCatalog {
         } else if (landing.status === 'rendering') {
           landing.status = 'ready';
         }
-        if (landing.previewAvailable && landing.renderProfile !== this.renderProfile()) {
+        if (
+          catalog.sourceKind === 'local' &&
+          landing.previewAvailable &&
+          landing.renderProfile !== this.renderProfile()
+        ) {
           landing.status = 'queued';
           landing.stale = true;
         }
@@ -723,6 +880,44 @@ function reconcileLanding(
   };
 }
 
+function teamStoredLanding(
+  catalogId: string,
+  item: TeamLandingPreviewSnapshotItem,
+  previewFiles: string[]
+): StoredLanding {
+  const ready = item.state === 'ready' && previewFiles.length > 0;
+  return {
+    id: `preview_${digest(`${catalogId}\0${item.materialId}`).slice(0, 24)}`,
+    key: `team:${item.materialId}:${item.sourceVersion}:${item.fingerprint}:${item.preset}`,
+    fingerprint: item.fingerprint,
+    renderProfile: item.preset,
+    entryFile: '',
+    name: item.name,
+    relativePath: item.name,
+    sourceKind: 'team',
+    sourceRelativePath: item.materialId,
+    archiveRoot: null,
+    extractedAvailable: false,
+    status: ready
+      ? 'ready'
+      : item.state === 'rendering'
+        ? 'rendering'
+        : item.state === 'error'
+          ? 'failed'
+          : 'queued',
+    stale: false,
+    previewAvailable: ready,
+    previewFile: previewFiles[0] ?? null,
+    previewFiles,
+    previewWidth: ready ? 1440 : null,
+    previewHeight: null,
+    renderedAt: ready ? Date.now() : null,
+    blockedExternalRequests: 0,
+    warning: null,
+    error: item.failureReason ?? null
+  };
+}
+
 function publicLanding(landing: StoredLanding): LandingPreviewItem {
   return {
     id: landing.id,
@@ -750,13 +945,19 @@ function normalizeCatalog(value: StoredCatalog): StoredCatalog | null {
     !value ||
     typeof value.id !== 'string' ||
     typeof value.name !== 'string' ||
-    typeof value.rootPath !== 'string' ||
+    !(
+      typeof value.rootPath === 'string' ||
+      (value.rootPath === null && value.sourceKind === 'team')
+    ) ||
     !Array.isArray(value.landings)
   ) {
     return null;
   }
   return {
     ...value,
+    sourceKind: value.sourceKind === 'team' ? 'team' : 'local',
+    rootPath: value.sourceKind === 'team' ? null : value.rootPath,
+    teamId: value.sourceKind === 'team' && typeof value.teamId === 'string' ? value.teamId : null,
     sourceAvailable: value.sourceAvailable !== false,
     warnings: Array.isArray(value.warnings)
       ? value.warnings.filter(item => typeof item === 'string')
@@ -845,8 +1046,81 @@ async function isUsablePreview(target: string) {
   }
 }
 
+async function downloadTeamPreview(fetchImpl: typeof fetch, rawUrl: string, segment: number) {
+  const url = new URL(rawUrl);
+  const local = url.hostname === '127.0.0.1' || url.hostname === 'localhost';
+  const expectedPath = '/functions/v1/drive-transfer/render-range';
+  if (
+    (url.protocol !== 'https:' && !(local && url.protocol === 'http:')) ||
+    url.username ||
+    url.password ||
+    url.hash ||
+    !url.pathname.endsWith(expectedPath) ||
+    url.searchParams.get('segment') !== String(segment) ||
+    (url.searchParams.get('grant')?.length ?? 0) < 16 ||
+    [...url.searchParams.keys()].some(key => key !== 'grant' && key !== 'segment')
+  ) {
+    throw new Error('INVALID_INPUT');
+  }
+  let response: Response;
+  try {
+    response = await fetchImpl(url, {
+      method: 'GET',
+      headers: { accept: 'image/webp' },
+      redirect: 'error'
+    });
+  } catch (cause) {
+    throw new Error('TEAM_PREVIEW_DOWNLOAD_FAILED', { cause });
+  }
+  if (!response.ok || !response.headers.get('content-type')?.startsWith('image/webp')) {
+    throw new Error('INVALID_RESPONSE');
+  }
+  const declared = Number(response.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > MAX_TEAM_PREVIEW_BYTES) {
+    throw new Error('PREVIEW_TOO_LARGE');
+  }
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('INVALID_RESPONSE');
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_TEAM_PREVIEW_BYTES) {
+      await reader.cancel().catch(() => undefined);
+      throw new Error('PREVIEW_TOO_LARGE');
+    }
+    chunks.push(value);
+  }
+  const bytes = Buffer.concat(
+    chunks.map(chunk => Buffer.from(chunk)),
+    total
+  );
+  if (
+    bytes.byteLength < 32 ||
+    bytes.toString('ascii', 0, 4) !== 'RIFF' ||
+    bytes.toString('ascii', 8, 12) !== 'WEBP'
+  ) {
+    throw new Error('INVALID_RESPONSE');
+  }
+  return bytes;
+}
+
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Landing preview failed.';
+}
+
+function teamImportErrorCode(error: unknown) {
+  const code = error instanceof Error ? error.message : '';
+  return [
+    'INVALID_INPUT',
+    'TEAM_PREVIEW_DOWNLOAD_FAILED',
+    'INVALID_RESPONSE',
+    'PREVIEW_TOO_LARGE'
+  ].includes(code)
+    ? code
+    : 'TEAM_PREVIEW_IMPORT_FAILED';
 }
 
 function throwIfAborted(signal: AbortSignal) {

@@ -191,10 +191,11 @@ describe('team contract', () => {
   });
 
   it('negotiates teamWorkspace independently of existing agent tools', () => {
-    expect(AGENT_TOOL_CONTRACTS.teamWorkspace).toBe(1);
+    expect(AGENT_TOOL_CONTRACTS.teamWorkspace).toBe(2);
     expect(WEB_TOOL_REQUIREMENTS.teamWorkspace).toEqual({ teamWorkspace: 1 });
     expect(toolContractCompatible('teamWorkspace', {})).toBe(false);
     expect(toolContractCompatible('teamWorkspace', { teamWorkspace: 1 })).toBe(true);
+    expect(toolContractCompatible('teamWorkspace', { teamWorkspace: 2 })).toBe(true);
     expect(toolContractCompatible('compressor', { compressor: 3, imageEmbedding: 2 })).toBe(true);
   });
 

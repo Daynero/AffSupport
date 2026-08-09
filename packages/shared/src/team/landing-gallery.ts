@@ -1,22 +1,14 @@
 import { isRecord } from './contract.js';
 import type { CatalogMaterialItem, CatalogSearchResponse } from './catalog-search.js';
+import type { TeamTransferGrant } from './transport.js';
 
-/**
- * Shared contract for the team landings gallery (feature 004).
- *
- * A landing render is produced once by a paired local agent and shared team-wide by
- * persisting its WebP segments in a hidden Drive subtree; the pointer row lives in
- * `landing_renders`. A render is *valid* only while its (sourceVersion, fingerprint) still
- * match the material's current immutable source identity — the same rule landing-promotion
- * uses — so a replaced landing never shows a stale render as current.
- */
-
+/** Shared contract for the team landings gallery (feature 004). */
 export type LandingRenderState = 'rendering' | 'ready' | 'stale' | 'failed';
 
 export type LandingRenderFailureReason =
   'unsupported' | 'corrupt' | 'protected' | 'too_large' | 'render_error';
 
-/** Derived, per-tile view state. `ready` guarantees a fetchable render exists (no false-ready). */
+/** Derived per-tile state. `ready` guarantees a currently fetchable render. */
 export type LandingTileState =
   'ready' | 'candidate' | 'rendering' | 'needs_agent' | 'agent_outdated' | 'error';
 
@@ -39,7 +31,7 @@ export const DEFAULT_LANDING_VIEWER_PRESET: LandingViewerPreset = {
   zoom: 1
 };
 
-/** Opaque handle the browser passes to drive-transfer to fetch cached render bytes. */
+/** Opaque handle used to fetch cached render bytes. No Drive path/id crosses the boundary. */
 export interface RenderArtifactRef {
   materialId: string;
   sourceVersion: string;
@@ -47,6 +39,8 @@ export interface RenderArtifactRef {
   preset: string;
   segmentCount: number;
   artifactToken: string;
+  /** One short-lived, segment-bound token per WebP segment. `artifactToken` is segment 0. */
+  segmentTokens?: string[];
 }
 
 export interface LandingRenderPointer {
@@ -56,7 +50,6 @@ export interface LandingRenderPointer {
   sourceVersion: string;
   fingerprint: string;
   preset: string;
-  /** Present iff state === 'ready' and the source identity still matches. */
   artifact?: RenderArtifactRef;
 }
 
@@ -82,6 +75,26 @@ export interface TeamLandingRenderRequest {
   preset: LandingViewerPreset;
 }
 
+/** Browser-authorized, provider-credential-free job handed to the paired local agent. */
+export interface TeamLandingRenderJob {
+  operationId: string;
+  renderId: string;
+  teamId: string;
+  materialId: string;
+  preset: string;
+  transferUrl: string;
+  artifactUploadUrl: string;
+  sourceGrant: TeamTransferGrant;
+  artifactGrant: TeamTransferGrant;
+}
+
+export interface TeamLandingAgentRenderResult {
+  renderId: string;
+  state: 'ready';
+  segmentCount: number;
+  fingerprint: string;
+}
+
 export type TeamLandingRenderResult =
   { ok: true; pointer: LandingRenderPointer } | { ok: false; reason: LandingRenderFailureReason };
 
@@ -101,7 +114,6 @@ export function clampZoom(value: number): number {
   return Math.min(LANDING_ZOOM_MAX, Math.max(LANDING_ZOOM_MIN, value));
 }
 
-/** Narrow an untrusted persisted/transport value to a viewer preset, falling back to defaults. */
 export function normalizeLandingViewerPreset(value: unknown): LandingViewerPreset {
   if (!isRecord(value)) return { ...DEFAULT_LANDING_VIEWER_PRESET };
   const device = DEVICES.has(value.device as LandingDevicePreset)
@@ -129,13 +141,23 @@ function parseArtifactRef(value: unknown): RenderArtifactRef | null {
   ) {
     return null;
   }
+  const segmentTokens = value.segmentTokens;
+  if (
+    segmentTokens !== undefined &&
+    (!Array.isArray(segmentTokens) ||
+      segmentTokens.length !== value.segmentCount ||
+      segmentTokens.some(token => typeof token !== 'string' || token.length < 16))
+  ) {
+    return null;
+  }
   return {
     materialId: value.materialId,
     sourceVersion: value.sourceVersion,
     fingerprint: value.fingerprint,
     preset: value.preset,
     segmentCount: value.segmentCount,
-    artifactToken: value.artifactToken
+    artifactToken: value.artifactToken,
+    ...(segmentTokens ? { segmentTokens: [...segmentTokens] } : {})
   };
 }
 
@@ -154,7 +176,6 @@ export function parseLandingRenderPointer(value: unknown): LandingRenderPointer 
   const failureReason = FAILURE_REASONS.has(value.failureReason as LandingRenderFailureReason)
     ? (value.failureReason as LandingRenderFailureReason)
     : undefined;
-  // An artifact is only meaningful for a ready render; ignore it otherwise.
   const artifact = state === 'ready' ? (parseArtifactRef(value.artifact) ?? undefined) : undefined;
   return {
     materialId: value.materialId,
@@ -179,7 +200,6 @@ export function parseTeamLandingRenderResult(value: unknown): TeamLandingRenderR
   return null;
 }
 
-/** True iff a render pointer is a currently-valid, fetchable `ready` render for the material. */
 export function isValidReadyRender(
   pointer: LandingRenderPointer | undefined,
   material: Pick<CatalogMaterialItem, 'id'> & { sourceVersion: string; fingerprint: string }
@@ -203,10 +223,7 @@ export interface LandingTileContext {
   agentCompatible: boolean;
 }
 
-/**
- * Structural derivation of the tile state — guarantees SC-004 (zero false-ready): `ready` is
- * returned only when a valid, fetchable render exists.
- */
+/** Structural resolution guarantees zero false-ready states. */
 export function resolveLandingTileState(ctx: LandingTileContext): LandingTileState {
   if (ctx.hasValidReadyRender) return 'ready';
   if (ctx.renderState === 'rendering') return 'rendering';
@@ -216,6 +233,5 @@ export function resolveLandingTileState(ctx: LandingTileContext): LandingTileSta
   if (ctx.isCandidate && !ctx.agentPaired) return 'candidate';
   if (ctx.agentPaired && !ctx.agentCompatible) return 'agent_outdated';
   if (!ctx.agentPaired) return 'needs_agent';
-  // agent paired + compatible, no render yet → treat as candidate/renderable
   return ctx.isCandidate ? 'candidate' : 'needs_agent';
 }

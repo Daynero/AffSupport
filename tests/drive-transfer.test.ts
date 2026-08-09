@@ -6,6 +6,9 @@ import {
   buildPreviewResult,
   boundedResponseBody,
   forwardedRangeHeaders,
+  ensureLandingArtifactFolder,
+  landingArtifactGrantTool,
+  parseLandingArtifactGrantTool,
   parseBoundedRange,
   summarizePreviewMeasurements,
   validateUpstreamRangeResponse,
@@ -49,6 +52,58 @@ function material(overrides: Partial<PreviewMaterialRecord> = {}): PreviewMateri
 }
 
 describe('team preview transfer contract', () => {
+  it('binds opaque landing artifact grants to one render and segment', () => {
+    const renderId = '41000000-0000-4000-8000-000000000010';
+    const operationId = '41000000-0000-4000-8000-000000000011';
+    const upload = landingArtifactGrantTool({ mode: 'upload', renderId, operationId });
+    const view = landingArtifactGrantTool({ mode: 'view', renderId, segment: 3 });
+    expect(parseLandingArtifactGrantTool(upload)).toEqual({
+      mode: 'upload',
+      renderId,
+      operationId
+    });
+    expect(parseLandingArtifactGrantTool(view)).toEqual({ mode: 'view', renderId, segment: 3 });
+    expect(parseLandingArtifactGrantTool(`${view}:../../secret`)).toBeNull();
+    expect(parseLandingArtifactGrantTool(`landing-render:${renderId}:99`)).toBeNull();
+    expect(JSON.stringify({ upload, view })).not.toMatch(/drive|vault|token|path/i);
+  });
+
+  it('creates the hidden landing cache hierarchy once and reuses it', async () => {
+    const children = new Map<
+      string,
+      Array<{ id: string; name: string; mimeType: string; trashed: boolean }>
+    >();
+    const createFolder = vi.fn(async ({ name, parentId }: { name: string; parentId: string }) => {
+      const value = {
+        id: `${parentId}/${name}`,
+        name,
+        mimeType: 'application/vnd.google-apps.folder',
+        trashed: false
+      };
+      children.set(parentId, [...(children.get(parentId) ?? []), value]);
+      return value;
+    });
+    const client = {
+      listChildren: vi.fn(async ({ parentId }: { parentId: string }) => ({
+        files: children.get(parentId) ?? []
+      })),
+      createFolder
+    };
+    const input = {
+      rootFolderId: 'root',
+      materialId: MATERIAL_ID,
+      sourceVersion: '7',
+      fingerprint: 'a'.repeat(64),
+      preset: 'default'
+    };
+    const first = await ensureLandingArtifactFolder(client, input);
+    const second = await ensureLandingArtifactFolder(client, input);
+    expect(first).toBe(second);
+    expect(createFolder).toHaveBeenCalledTimes(5);
+    expect(first).toContain('.soty/landing-previews');
+    expect(first).toContain(`/7-${'a'.repeat(64)}/default`);
+  });
+
   it('issues short-lived scoped media and agent grants without provider credentials', async () => {
     const issueGrant = vi.fn().mockResolvedValue({
       ticket: 'opaque-preview-ticket-with-enough-entropy',

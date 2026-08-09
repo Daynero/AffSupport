@@ -1792,6 +1792,38 @@ export type Database = {
           google_account_email: string;
         }[];
       };
+      service_get_landing_render_artifact: {
+        Args: { p_material: string; p_preset: string; p_team: string };
+        Returns: {
+          artifact_root: string;
+          fingerprint: string;
+          preset: string;
+          render_id: string;
+          segment_count: number;
+          source_version: string;
+        }[];
+      };
+      service_get_landing_render_artifact_by_id: {
+        Args: { p_material: string; p_render: string; p_team: string };
+        Returns: {
+          artifact_root: string;
+          fingerprint: string;
+          preset: string;
+          render_id: string;
+          segment_count: number;
+          source_version: string;
+        }[];
+      };
+      service_get_landing_render_upload: {
+        Args: { p_material: string; p_render: string; p_team: string };
+        Returns: {
+          preset: string;
+          render_id: string;
+          rendered_by: string;
+          source_checksum: string;
+          source_version: string;
+        }[];
+      };
       service_get_material_operation_context: {
         Args: {
           p_actor: string;
@@ -1876,6 +1908,14 @@ export type Database = {
           checksum: string;
           drive_file_id: string;
           drive_version: string;
+        }[];
+      };
+      service_invalidate_landing_renders: {
+        Args: { p_connection: string; p_drive_file_ids: string[] };
+        Returns: {
+          artifact_root: string;
+          material_id: string;
+          team_id: string;
         }[];
       };
       service_list_pending_catalog_transcripts: {

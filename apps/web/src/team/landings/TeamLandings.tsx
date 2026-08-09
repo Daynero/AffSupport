@@ -1,100 +1,181 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type {
   CatalogMaterialItem,
   CatalogSearchRequestInput,
   CatalogSearchResponse,
-  LandingGalleryItem
+  CatalogVocabulary,
+  LandingRenderPointer,
+  RenderArtifactRef,
+  TeamLandingRenderJob
 } from '@video-compressor/shared';
 import { useI18n } from '../../i18n';
-import { trackTeamLandingGalleryView, trackTeamLandingOpen } from '../../analytics/service';
+import {
+  trackTeamLandingGalleryView,
+  trackTeamLandingOpen,
+  trackTeamLandingRender
+} from '../../analytics/service';
+import { renderTeamLanding } from '../../api/client';
 import { useOptionalAgent } from '../../AgentContext';
-import { MaterialPreview } from '../preview/MaterialPreview';
+import { CatalogFilters } from '../catalog/CatalogFilters';
+import { CatalogSearchBar } from '../catalog/CatalogSearchBar';
+import { Button } from '../../components/ui';
+import { navigateTo } from '../../lib/navigation';
 import { LandingGallery } from './LandingGallery';
+import { LandingFullView } from './LandingFullView';
+import { useTeamLandings } from './useTeamLandings';
 
 export interface TeamLandingsClient {
   searchCatalog: (
     teamId: string,
     request: CatalogSearchRequestInput
   ) => Promise<CatalogSearchResponse>;
+  getCatalogVocabulary: (teamId: string) => Promise<CatalogVocabulary>;
+  listLandingRenders?: (
+    teamId: string,
+    materialIds: string[],
+    preset: string
+  ) => Promise<LandingRenderPointer[]>;
+  landingRenderImageUrl?: (artifact: RenderArtifactRef, segment: number) => string;
+  startLandingRender?: (
+    teamId: string,
+    materialId: string,
+    preset?: string
+  ) => Promise<TeamLandingRenderJob>;
+  getLandingRenderArtifact?: (
+    teamId: string,
+    materialId: string,
+    preset?: string
+  ) => Promise<RenderArtifactRef | null>;
 }
 
-/**
- * Shared landings gallery for the entered space (feature 004, US1 + US2). Lists every landing
- * in the connected folder — a `category=landing` view over the existing catalog search, so team
- * isolation, permissions, and freshness come from the deployed 001 backend unchanged — and opens
- * any landing in the existing view-gated `MaterialPreview`. A shared render thumbnail (US3) is a
- * later enhancement; here the preview is produced live by the paired agent on open.
- */
+/** Shared gallery over the entered space's category-scoped catalog. */
 export function TeamLandings({ teamId, client }: { teamId: string; client: TeamLandingsClient }) {
   const { t } = useI18n();
   const agent = useOptionalAgent();
-  const [response, setResponse] = useState<CatalogSearchResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-  const [previewing, setPreviewing] = useState<CatalogMaterialItem | null>(null);
+  const gallery = useTeamLandings({ teamId, client });
+  const [previewing, setPreviewing] = useState<{
+    material: CatalogMaterialItem;
+    artifact?: RenderArtifactRef;
+    tileState: Parameters<typeof trackTeamLandingOpen>[0]['tileState'];
+    hadAgent: boolean;
+    openedAt: number;
+  } | null>(null);
+  const measuredResult = useRef<CatalogSearchResponse | null>(null);
+  const startedAt = useRef(Date.now());
 
   useEffect(() => {
-    let active = true;
-    const startedAt = Date.now();
-    setLoading(true);
-    setError(false);
-    void client
-      .searchCatalog(teamId, { filters: { category: ['landing'] }, pageSize: 100 })
-      .then(result => {
-        if (!active) return;
-        setResponse(result);
-        trackTeamLandingGalleryView({
-          itemCount: result.total,
-          readyCount: result.items.length,
-          durationMs: Date.now() - startedAt
-        });
-      })
-      .catch(() => {
-        if (active) setError(true);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [client, teamId]);
-
-  const items = useMemo<LandingGalleryItem[]>(
-    () =>
-      (response?.items ?? []).map(material => ({
-        material,
-        isCandidate: material.classificationSource !== 'inspected_landing',
-        tile: 'ready',
-        canDownload: false,
-        canEdit: false
-      })),
-    [response]
-  );
+    if (!gallery.result || measuredResult.current === gallery.result) return;
+    measuredResult.current = gallery.result;
+    trackTeamLandingGalleryView({
+      itemCount: gallery.result.total,
+      readyCount: gallery.items.filter(item => item.tile === 'ready').length,
+      durationMs: Date.now() - startedAt.current
+    });
+  }, [gallery.items, gallery.result]);
 
   return (
     <section className="team-panel team-landings" aria-labelledby="team-landings-title">
       <div className="team-panel-heading">
         <h2 id="team-landings-title">{t('teamLandingsTitle')}</h2>
+        <div className="team-landings-heading-actions">
+          {(gallery.loading || gallery.rendersLoading) && (
+            <small aria-live="polite">{t('teamLandingsLoading')}</small>
+          )}
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => navigateTo(`/landing-preview?team=${encodeURIComponent(teamId)}`)}
+          >
+            {t('teamLandingsOpenLocalPreviewer')}
+          </Button>
+        </div>
       </div>
+      {(gallery.result?.total ?? 0) > 0 && (
+        <div className="team-landings-discovery">
+          <CatalogSearchBar value={gallery.query} onChange={gallery.setQuery} />
+          <CatalogFilters
+            filters={gallery.filters}
+            vocabulary={gallery.vocabulary}
+            hasContent
+            visibleKeys={['geo', 'language', 'offer']}
+            onSet={gallery.setFacet}
+            onRemove={gallery.removeFilter}
+            onClear={gallery.clearFilters}
+          />
+        </div>
+      )}
       <LandingGallery
-        items={items}
-        loading={loading}
-        error={error}
-        freshness={response?.catalogFreshness}
+        items={gallery.items}
+        loading={gallery.loading}
+        error={gallery.error}
+        freshness={gallery.result?.catalogFreshness}
+        page={gallery.page}
+        total={gallery.result?.total ?? 0}
+        pageSize={50}
+        onPageChange={gallery.setPage}
+        resolveThumbnail={gallery.resolveThumbnail}
+        renderingMaterialId={gallery.activeRender?.materialId ?? null}
+        renderProgress={gallery.activeRender?.progress ?? null}
+        onRender={
+          gallery.agentCompatible && client.startLandingRender
+            ? item => {
+                if (gallery.activeRender) return;
+                const renderStartedAt = Date.now();
+                gallery.beginRender(item.material.id);
+                void client.startLandingRender!(teamId, item.material.id, 'default')
+                  .then(job => {
+                    gallery.bindRenderOperation(job.operationId);
+                    return renderTeamLanding(job);
+                  })
+                  .then(async () => {
+                    trackTeamLandingRender({
+                      outcome: 'ready',
+                      durationMs: Date.now() - renderStartedAt
+                    });
+                    await gallery.refetch();
+                  })
+                  .catch(async () => {
+                    trackTeamLandingRender({
+                      outcome: 'failed',
+                      durationMs: Date.now() - renderStartedAt
+                    });
+                    await gallery.refetch();
+                  })
+                  .finally(gallery.finishRender);
+              }
+            : undefined
+        }
         onOpen={item => {
-          trackTeamLandingOpen({
+          setPreviewing({
+            material: item.material,
             tileState: item.tile,
-            hadAgent: agent?.teamWorkspaceAvailable === true
+            hadAgent: agent?.teamWorkspaceAvailable === true,
+            openedAt: Date.now(),
+            ...(item.render?.artifact ? { artifact: item.render.artifact } : {})
           });
-          setPreviewing(item.material);
         }}
       />
       {previewing && (
-        <MaterialPreview
+        <LandingFullView
           teamId={teamId}
-          material={previewing}
-          onClose={() => setPreviewing(null)}
+          material={previewing.material}
+          artifact={previewing.artifact}
+          artifactClient={
+            client.getLandingRenderArtifact && client.landingRenderImageUrl
+              ? {
+                  getLandingRenderArtifact: client.getLandingRenderArtifact,
+                  landingRenderImageUrl: client.landingRenderImageUrl
+                }
+              : undefined
+          }
+          onClose={() => {
+            trackTeamLandingOpen({
+              tileState: previewing.tileState,
+              hadAgent: previewing.hadAgent,
+              durationMs: Date.now() - previewing.openedAt
+            });
+            setPreviewing(null);
+          }}
         />
       )}
     </section>

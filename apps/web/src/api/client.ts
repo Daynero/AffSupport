@@ -1,25 +1,27 @@
-import type {
-  AgentEntitlementStatus,
-  HealthResponse,
-  ImageSlot,
-  LandingPreviewRenderSettings,
-  LandingPreviewState,
-  LandingState,
-  QueueState,
-  SelectionResponse,
-  SelectionWarning,
-  ToolContracts,
-  TranscriptionDocument,
-  TranscriptionMediaPreview,
-  TranscriptionSettings,
-  TranscriptionState,
-  TranslationDocument,
-  TeamAgentProcessRequest,
-  TeamAgentPreviewResult,
-  TeamFileOperationResult,
-  TeamTransferGrant
-} from '@video-compressor/shared';
 import {
+  AGENT_TOOL_CONTRACTS,
+  type AgentEntitlementStatus,
+  type HealthResponse,
+  type ImageSlot,
+  type LandingPreviewRenderSettings,
+  type LandingPreviewState,
+  type LandingState,
+  type QueueState,
+  type SelectionResponse,
+  type SelectionWarning,
+  type ToolContracts,
+  type TranscriptionDocument,
+  type TranscriptionMediaPreview,
+  type TranscriptionSettings,
+  type TranscriptionState,
+  type TranslationDocument,
+  type TeamAgentProcessRequest,
+  type TeamAgentPreviewResult,
+  type TeamFileOperationResult,
+  type TeamLandingAgentRenderResult,
+  type TeamLandingPreviewCatalogRequest,
+  type TeamLandingRenderJob,
+  type TeamTransferGrant,
   parseTeamAgentPreviewResult,
   parseTeamFileOperationResult,
   toolContractCompatible
@@ -303,6 +305,43 @@ export function teamEventUrl() {
   return `${agentUrl}/api/team/events?token=${encodeURIComponent(token)}`;
 }
 
+export function teamLandingEventUrl() {
+  return `${agentUrl}/api/team/landings/events?token=${encodeURIComponent(token)}`;
+}
+
+export async function renderTeamLanding(
+  input: TeamLandingRenderJob
+): Promise<TeamLandingAgentRenderResult> {
+  const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
+  if ((health.toolContracts?.teamWorkspace ?? 0) < AGENT_TOOL_CONTRACTS.teamWorkspace) {
+    throw new Error('AGENT_UPDATE_REQUIRED');
+  }
+  const value = await requestBody<Partial<TeamLandingAgentRenderResult>>(
+    '/api/team/landings/render',
+    input
+  );
+  if (
+    value.renderId !== input.renderId ||
+    value.state !== 'ready' ||
+    typeof value.segmentCount !== 'number' ||
+    !Number.isInteger(value.segmentCount) ||
+    value.segmentCount < 1 ||
+    typeof value.fingerprint !== 'string' ||
+    !/^[a-f0-9]{64}$/u.test(value.fingerprint)
+  ) {
+    throw new Error('INVALID_RESPONSE');
+  }
+  return value as TeamLandingAgentRenderResult;
+}
+
+export async function cancelTeamLandingRender(operationId: string): Promise<boolean> {
+  const value = await requestBody<{ canceled?: unknown }>(
+    `/api/team/landings/render/${encodeURIComponent(operationId)}/cancel`,
+    {}
+  );
+  return value.canceled === true;
+}
+
 export async function downloadTeamFileWithAgent(input: {
   transferUrl: string;
   transferGrant: TeamTransferGrant;
@@ -374,6 +413,16 @@ export function landingGallerySelect(): Promise<LandingPreviewState> {
 
 export function landingGalleryOpen(paths: string[]): Promise<LandingPreviewState> {
   return requestBody<LandingPreviewState>('/api/landing-preview/open', { paths });
+}
+
+export async function landingGalleryOpenTeamSpace(
+  snapshot: TeamLandingPreviewCatalogRequest
+): Promise<LandingPreviewState> {
+  const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
+  if ((health.toolContracts?.teamWorkspace ?? 0) < AGENT_TOOL_CONTRACTS.teamWorkspace) {
+    throw new Error('AGENT_UPDATE_REQUIRED');
+  }
+  return requestBody<LandingPreviewState>('/api/landing-preview/team-space', snapshot);
 }
 
 export function landingGalleryActivate(catalogId: string): Promise<LandingPreviewState> {

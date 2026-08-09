@@ -1,9 +1,10 @@
 import { createReadStream } from 'node:fs';
 import type { FastifyInstance, FastifyReply } from 'fastify';
-import { parseTeamTransferGrant } from '@video-compressor/shared';
+import { parseTeamTransferGrant, type TeamLandingRenderJob } from '@video-compressor/shared';
 import type { EventChannel } from '../server/sse.js';
 import type { TeamAgentDownloadRequest, TeamDownloadBridge } from './download.js';
 import type { TeamOperationEvent } from './events.js';
+import { TeamLandingRenderError, type TeamLandingRenderBridge } from './landing-gallery.js';
 import type { TeamPreviewBridge, TeamPreviewTransferRequest } from './preview.js';
 import type { TeamProcessBridge, TeamProcessRequest } from './process.js';
 
@@ -11,15 +12,40 @@ export interface TeamBridgeRoutesDeps {
   preview: TeamPreviewBridge;
   process: TeamProcessBridge;
   download: TeamDownloadBridge;
+  landings: TeamLandingRenderBridge;
   events: EventChannel<TeamOperationEvent>;
   acceptingNewTasks: () => boolean;
 }
 
 export function registerTeamBridgeRoutes(
   app: FastifyInstance,
-  { preview, process, download, events, acceptingNewTasks }: TeamBridgeRoutesDeps
+  { preview, process, download, landings, events, acceptingNewTasks }: TeamBridgeRoutesDeps
 ) {
   app.get('/api/team/events', events.handler);
+  app.get('/api/team/landings/events', events.handler);
+
+  app.post<{ Body?: unknown }>('/api/team/landings/render', async (request, reply) => {
+    if (!acceptingNewTasks()) return reply.code(409).send({ error: 'UPDATE_PENDING' });
+    const input = landingRenderJob(request.body);
+    if (!input) return reply.code(400).send({ error: 'INVALID_INPUT' });
+    try {
+      return await landings.render(input);
+    } catch (error) {
+      if (error instanceof TeamLandingRenderError) {
+        return reply.code(409).send({ error: 'RENDER_FAILED', reason: error.reason });
+      }
+      return routeFailure(reply, error, 'RENDER_FAILED');
+    }
+  });
+
+  app.post<{ Params: { operationId: string } }>(
+    '/api/team/landings/render/:operationId/cancel',
+    async (request, reply) => {
+      const canceled = landings.cancel(request.params.operationId);
+      if (!canceled) return reply.code(404).send({ error: 'NOT_FOUND' });
+      return { canceled: true };
+    }
+  );
 
   app.post<{ Body?: unknown }>('/api/team/download', async (request, reply) => {
     if (!acceptingNewTasks()) return reply.code(409).send({ error: 'UPDATE_PENDING' });
@@ -129,6 +155,39 @@ function previewRequest(value: unknown): TeamPreviewTransferRequest | null {
   };
 }
 
+function landingRenderJob(value: unknown): TeamLandingRenderJob | null {
+  if (!record(value)) return null;
+  const sourceGrant = parseTeamTransferGrant(value.sourceGrant);
+  const artifactGrant = parseTeamTransferGrant(value.artifactGrant);
+  const strings = [
+    value.operationId,
+    value.renderId,
+    value.teamId,
+    value.materialId,
+    value.preset,
+    value.transferUrl,
+    value.artifactUploadUrl
+  ];
+  if (
+    strings.some(entry => typeof entry !== 'string') ||
+    sourceGrant?.purpose !== 'preview_range' ||
+    artifactGrant?.purpose !== 'preview_range'
+  ) {
+    return null;
+  }
+  return {
+    operationId: value.operationId as string,
+    renderId: value.renderId as string,
+    teamId: value.teamId as string,
+    materialId: value.materialId as string,
+    preset: value.preset as string,
+    transferUrl: value.transferUrl as string,
+    artifactUploadUrl: value.artifactUploadUrl as string,
+    sourceGrant,
+    artifactGrant
+  };
+}
+
 function processRequest(value: unknown): TeamProcessRequest | null {
   if (!record(value)) return null;
   const sourceGrant = parseTeamTransferGrant(value.sourceGrant);
@@ -182,7 +241,7 @@ function record(value: unknown): value is Record<string, unknown> {
 function routeFailure(
   reply: FastifyReply,
   error: unknown,
-  fallback: 'PREVIEW_FAILED' | 'PROCESS_FAILED' | 'DOWNLOAD_FAILED'
+  fallback: 'PREVIEW_FAILED' | 'PROCESS_FAILED' | 'DOWNLOAD_FAILED' | 'RENDER_FAILED'
 ) {
   const code = safeErrorCode(error, fallback);
   const status =
@@ -190,7 +249,11 @@ function routeFailure(
       ? 403
       : code === 'TOO_LARGE'
         ? 413
-        : code === 'WRONG_STATE' || code === 'UPDATE_PENDING' || code === 'AGENT_UPDATE_REQUIRED'
+        : code === 'WRONG_STATE' ||
+            code === 'UPDATE_PENDING' ||
+            code === 'AGENT_UPDATE_REQUIRED' ||
+            code === 'RENDER_FAILED' ||
+            code === 'SOURCE_CHANGED'
           ? 409
           : code === 'PREVIEW_CANCELED' ||
               code === 'PROCESS_CANCELED' ||
@@ -206,7 +269,7 @@ function routeFailure(
 
 function safeErrorCode(
   error: unknown,
-  fallback: 'PREVIEW_FAILED' | 'PROCESS_FAILED' | 'DOWNLOAD_FAILED'
+  fallback: 'PREVIEW_FAILED' | 'PROCESS_FAILED' | 'DOWNLOAD_FAILED' | 'RENDER_FAILED'
 ) {
   const value = error instanceof Error ? error.message : '';
   return [
@@ -218,6 +281,7 @@ function safeErrorCode(
     'PROCESS_CANCELED',
     'DOWNLOAD_CANCELED',
     'DOWNLOAD_FAILED',
+    'RENDER_FAILED',
     'PROCESS_TIMEOUT',
     'PROCESS_FAILED',
     'AGENT_UPDATE_REQUIRED',

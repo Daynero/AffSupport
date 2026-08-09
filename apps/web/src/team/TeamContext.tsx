@@ -193,6 +193,10 @@ export function useTeam(): TeamContextValue {
   return value;
 }
 
+export function useOptionalTeam(): TeamContextValue | null {
+  return useContext(TeamContext);
+}
+
 export function selectEffectivePermissions(value: TeamContextValue): TeamPermissions | null {
   return value.activeTeam?.permissions ?? null;
 }

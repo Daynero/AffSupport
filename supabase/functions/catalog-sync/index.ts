@@ -204,6 +204,28 @@ function catalogJob(row: Record<string, unknown>): CatalogSyncJob {
   };
 }
 
+async function isHiddenSystemFile(
+  drive: GoogleDriveClient,
+  file: DriveFileMetadata,
+  rootFolderId: string
+): Promise<boolean> {
+  if (file.name === '.soty') return true;
+  let frontier = [...file.parents];
+  const visited = new Set<string>();
+  for (let depth = 0; depth < 100 && frontier.length > 0; depth += 1) {
+    const next: string[] = [];
+    for (const parentId of frontier) {
+      if (parentId === rootFolderId || visited.has(parentId)) continue;
+      visited.add(parentId);
+      const parent = await drive.getFile(parentId);
+      if (parent.name === '.soty') return true;
+      next.push(...parent.parents);
+    }
+    frontier = next;
+  }
+  return false;
+}
+
 function dependencies(input: {
   service: RpcClient;
   drive: GoogleDriveClient;
@@ -228,6 +250,26 @@ function dependencies(input: {
         const error = mapUnknownError(cause);
         if (['ROOT_ESCAPE', 'NOT_FOUND', 'PERMISSION_DENIED'].includes(error.code)) return false;
         throw error;
+      }
+    },
+    isHiddenSystemFile: (file, rootFolderId) => isHiddenSystemFile(drive, file, rootFolderId),
+    invalidateLandingRenders: async request => {
+      if (request.fileIds.length === 0) return;
+      const invalidated = rows(
+        await rpcValue(service, 'service_invalidate_landing_renders', {
+          p_connection: request.connectionId,
+          p_drive_file_ids: request.fileIds
+        })
+      );
+      const artifactRoots = [
+        ...new Set(
+          invalidated
+            .map(row => optionalString(row.artifact_root))
+            .filter((root): root is string => root !== null)
+        )
+      ];
+      for (const artifactRoot of artifactRoots) {
+        await drive.updateFileMetadata({ fileId: artifactRoot, trashed: true });
       }
     },
     upsertFiles: request =>

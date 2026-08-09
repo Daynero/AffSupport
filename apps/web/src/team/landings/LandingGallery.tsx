@@ -1,6 +1,7 @@
 import type { CatalogSearchResponse, LandingGalleryItem } from '@video-compressor/shared';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { LandingGalleryTile } from './LandingGalleryTile';
+import { Button } from '../../components/ui';
 
 type Freshness = CatalogSearchResponse['catalogFreshness'];
 
@@ -25,6 +26,13 @@ export function LandingGallery({
   error,
   freshness,
   resolveThumbnail,
+  page = 1,
+  total = items.length,
+  pageSize = 50,
+  onPageChange,
+  renderingMaterialId,
+  renderProgress,
+  onRender,
   onOpen
 }: {
   items: LandingGalleryItem[];
@@ -32,6 +40,13 @@ export function LandingGallery({
   error: boolean;
   freshness?: Freshness;
   resolveThumbnail?: (item: LandingGalleryItem) => string | null;
+  page?: number;
+  total?: number;
+  pageSize?: number;
+  onPageChange?: (page: number) => void;
+  renderingMaterialId?: string | null;
+  renderProgress?: number | null;
+  onRender?: (item: LandingGalleryItem) => void;
   onOpen: (item: LandingGalleryItem) => void;
 }) {
   const { t } = useI18n();
@@ -61,9 +76,7 @@ export function LandingGallery({
   }
 
   const count =
-    items.length === 1
-      ? t('teamLandingsCountOne')
-      : t('teamLandingsCountMany', { count: items.length });
+    total === 1 ? t('teamLandingsCountOne') : t('teamLandingsCountMany', { count: total });
 
   return (
     <section className="landing-gallery" aria-label={t('teamLandingsTitle')}>
@@ -81,11 +94,35 @@ export function LandingGallery({
             <LandingGalleryTile
               item={item}
               thumbnailSrc={resolveThumbnail?.(item) ?? null}
+              rendering={renderingMaterialId === item.material.id}
+              renderProgress={renderingMaterialId === item.material.id ? renderProgress : undefined}
+              onRender={onRender}
               onOpen={onOpen}
             />
           </li>
         ))}
       </ul>
+      {onPageChange && total > pageSize && (
+        <nav className="landing-gallery-pagination" aria-label={t('teamLandingsTitle')}>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={page <= 1}
+            onClick={() => onPageChange(Math.max(1, page - 1))}
+          >
+            {t('previous')}
+          </Button>
+          <span>{page}</span>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={page * pageSize >= total}
+            onClick={() => onPageChange(page + 1)}
+          >
+            {t('next')}
+          </Button>
+        </nav>
+      )}
     </section>
   );
 }

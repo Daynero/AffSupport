@@ -121,6 +121,38 @@ must reload or create a distinct version. Exact replacement is a separate confir
 requiring both upload and edit permission. Trash is recoverable only within current Drive
 retention/admin policy; direct provider purge cannot be guaranteed recoverable by Soty.
 
+## Shared landing preview cache
+
+Team landing previews are WebP segments stored under the connected root in the hidden
+`.soty/landing-previews/<material-id>/<render-id>/<preset>/` namespace. The catalog sync worker
+must never classify or ingest `.soty`; it walks ancestry before ingestion and tombstones any
+historical rows that predate this exclusion. The render pointer table is deliberately absent
+from `supabase_realtime`, and browser/agent responses contain only short-lived, segment-bound
+grants — never the hidden Drive folder id or path.
+
+Creating a render requires a paired local app with the current `teamWorkspace` contract. The
+app downloads the source through a scoped, permission-rechecked range grant, uses the same
+`LandingPageRenderer` as the standalone landing previewer, uploads bounded WebP segments
+through another scoped relay, and closes its temporary preview in `finally`. Viewing an
+already-ready render does not require a running local app. A team can also be opened in the
+standalone previewer: the signed-in web app enumerates the view-gated team catalog, mints
+segment grants, and the local app copies only verified WebP bytes into its private cache; grant
+URLs are never persisted.
+
+Every render row records the source version/checksum plus the renderer fingerprint. Commit is
+atomic only if that identity still matches the current material. Catalog replacement/deletion
+first marks matching rows stale and clears their artifact pointers, then trashes the returned
+hidden artifact roots. If cleanup is interrupted, the row remains non-ready, so stale bytes can
+never be presented as current; retry the next reconciliation cycle rather than restoring the
+pointer manually.
+
+The Drive-write trade-off is intentional: co-locating previews with the connected source avoids
+a new storage provider, bucket policy, credential, and retention system. It does mean the
+connection needs child-list/create/update/trash capabilities for the hidden namespace and the
+customer may observe `.soty` with a tool that displays hidden folders. Do not rename, move, or
+hand-edit this namespace. To recover, re-run catalog sync and re-render affected landings; never
+manufacture `ready` rows or paste provider ids into SQL.
+
 ## Safe failure and reconciliation
 
 - Every Drive mutation is an idempotent saga: authorize, reserve, perform, verify, commit the

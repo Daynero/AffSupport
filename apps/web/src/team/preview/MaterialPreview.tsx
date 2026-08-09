@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import type {
   CatalogMaterialItem,
+  LandingViewerPreset,
   TeamAgentPreviewResult,
   TeamPreviewResult
 } from '@video-compressor/shared';
@@ -80,11 +81,15 @@ export function MaterialPreview({
   teamId,
   material,
   client = defaultClient,
+  landingPreset,
+  toolbar,
   onClose
 }: {
   teamId: string;
   material: CatalogMaterialItem;
   client?: MaterialPreviewClient;
+  landingPreset?: LandingViewerPreset;
+  toolbar?: ReactNode;
   onClose: () => void;
 }) {
   const { t } = useI18n();
@@ -168,10 +173,13 @@ export function MaterialPreview({
   return (
     <div className="team-preview-backdrop" role="presentation">
       <section
-        className="team-preview-dialog"
+        className={`team-preview-dialog${landingPreset ? ' landing-full-view' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="team-preview-title"
+        data-landing-device={landingPreset?.device}
+        data-landing-scheme={landingPreset?.colorScheme}
+        data-landing-zoom={landingPreset?.zoom}
       >
         <header className="team-preview-heading">
           <div>
@@ -182,6 +190,7 @@ export function MaterialPreview({
             {t('teamPreviewClose')}
           </Button>
         </header>
+        {toolbar && <div className="landing-full-view-toolbar">{toolbar}</div>}
         <div className="team-preview-content">
           {state.kind === 'loading' && <p aria-live="polite">{t('teamPreviewLoading')}</p>}
           {state.kind === 'error' && (
@@ -217,11 +226,14 @@ export function MaterialPreview({
           {state.kind === 'archive' && (
             <ArchiveManifest entries={state.entries} truncated={state.truncated} />
           )}
-          {state.kind === 'landing' && <LandingPreviewFrame preview={state} />}
+          {state.kind === 'landing' && (
+            <LandingPreviewFrame preview={state} preset={landingPreset} />
+          )}
           {state.kind === 'unavailable' && (
             <PreviewUnavailable
               reason={state.reason}
               allowedActions={state.allowedActions}
+              variant={landingPreset ? 'landing' : 'default'}
               onDownload={download}
               onNewVersion={createVersion}
             />

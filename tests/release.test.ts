@@ -158,6 +158,7 @@ describe('release identity', () => {
     expect(toolContractCompatible('transcription', { transcription: 5 })).toBe(true);
     expect(toolContractCompatible('teamWorkspace', {})).toBe(false);
     expect(toolContractCompatible('teamWorkspace', { teamWorkspace: 1 })).toBe(true);
+    expect(toolContractCompatible('teamWorkspace', { teamWorkspace: 2 })).toBe(true);
   });
 
   it('keeps legacy agents compatible with existing tools while isolating team routes', () => {
@@ -174,6 +175,13 @@ describe('release identity', () => {
       expect(toolContractCompatible(tool, legacyContracts), tool).toBe(true);
     }
     expect(WEB_TOOL_REQUIREMENTS.teamWorkspace).toEqual({ teamWorkspace: 1 });
+    expect(AGENT_TOOL_CONTRACTS.teamWorkspace).toBe(2);
+
+    const client = readFileSync('apps/web/src/api/client.ts', 'utf8');
+    for (const route of ['/api/team/landings/render', '/api/landing-preview/team-space']) {
+      expect(client).toContain(route);
+    }
+    expect(client.match(/AGENT_TOOL_CONTRACTS\.teamWorkspace/gu)?.length).toBeGreaterThanOrEqual(2);
   });
 
   it('pins production team OAuth and web origin to the shared release identity', () => {
@@ -204,6 +212,8 @@ describe('release identity', () => {
     expect(rootPackage.scripts['deploy:web:member-pilot']).toContain('--member-pilot');
     expect(realAgentGate).toContain('AGENT_UPDATE_REQUIRED');
     expect(realAgentGate).toContain('legacyContracts');
+    expect(realAgentGate).toContain('/api/team/landings/render');
+    expect(realAgentGate).toContain('/api/landing-preview/team-space');
   });
 
   it('keeps installable dev builds isolated from production identities and services', () => {

@@ -35,8 +35,9 @@ export function useCatalogSearch(input: {
   teamId: string;
   client: CatalogSearchClient;
   debounceMs?: number;
+  fixedFilters?: Partial<CatalogSearchFilters>;
 }) {
-  const { teamId, client, debounceMs = 180 } = input;
+  const { teamId, client, debounceMs = 180, fixedFilters } = input;
   const { revision, realtimeState } = useTeam();
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState<CatalogSearchFilters>(EMPTY_FILTERS);
@@ -78,8 +79,14 @@ export function useCatalogSearch(input: {
   }, [client, revision, teamId]);
 
   const request = useMemo(
-    () => normalizeCatalogSearchRequest({ query, filters, page, pageSize: 50 }),
-    [filters, page, query]
+    () =>
+      normalizeCatalogSearchRequest({
+        query,
+        filters: { ...filters, ...fixedFilters },
+        page,
+        pageSize: 50
+      }),
+    [filters, fixedFilters, page, query]
   );
 
   const refetch = useCallback(async () => {

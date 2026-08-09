@@ -350,6 +350,121 @@ describe('landing preview discovery and cache', () => {
     expect(restored.state().settings).toMatchObject({ device: 'mobile', colorScheme: 'dark' });
     await restored.shutdown();
   });
+
+  it('opens a connected team-space snapshot as a local catalog without persisting grants', async () => {
+    const workspace = await temporaryDirectory('wishly-preview-team-');
+    const cacheRoot = path.join(workspace, 'cache');
+    const teamId = '11111111-1111-1111-1111-111111111111';
+    const materialId = '22222222-2222-2222-2222-222222222222';
+    const grant = 'opaque-render-grant-that-must-not-be-persisted';
+    const fetchImpl = async (input: string | URL | Request) => {
+      const url = new URL(String(input));
+      expect(url.searchParams.get('grant')).toBe(grant);
+      return new Response(fakePreview('shared-team-preview'), {
+        headers: { 'content-type': 'image/webp' }
+      });
+    };
+    const catalog = new LandingPreviewCatalog({
+      root: cacheRoot,
+      renderer: new TestRenderer(),
+      fetchImpl: fetchImpl as typeof fetch
+    });
+    await catalog.init();
+    expect(
+      await catalog.openTeamSpace({
+        teamId,
+        teamName: 'Affiliate Team',
+        items: [
+          {
+            materialId,
+            name: 'Shared offer',
+            state: 'ready',
+            sourceVersion: '7',
+            fingerprint: 'a'.repeat(64),
+            preset: 'default',
+            previewUrls: [
+              `https://project.supabase.co/functions/v1/drive-transfer/render-range?grant=${grant}&segment=0`
+            ]
+          },
+          {
+            materialId: '33333333-3333-3333-3333-333333333333',
+            name: 'Needs render',
+            state: 'needs_agent',
+            sourceVersion: '',
+            fingerprint: '',
+            preset: 'default',
+            previewUrls: []
+          }
+        ]
+      })
+    ).toBe(true);
+
+    expect(catalog.state().catalogs[0]).toMatchObject({
+      name: 'Affiliate Team',
+      sourceKind: 'team',
+      teamId,
+      landingCount: 2
+    });
+    expect(catalog.state().landings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'Shared offer',
+          sourceKind: 'team',
+          status: 'ready',
+          previewAvailable: true
+        }),
+        expect.objectContaining({
+          name: 'Needs render',
+          sourceKind: 'team',
+          status: 'queued',
+          previewAvailable: false
+        })
+      ])
+    );
+    const ready = catalog.state().landings.find(item => item.name === 'Shared offer')!;
+    expect(await catalog.previewPath(ready.id)).not.toBeNull();
+    expect(catalog.sourcePath(ready.id)).toBeNull();
+    await catalog.shutdown();
+
+    const stored = await readFile(path.join(cacheRoot, 'state.json'), 'utf8');
+    expect(stored).not.toContain(grant);
+    expect(stored).not.toContain('project.supabase.co');
+  });
+
+  it('maps team-preview download failures to a content-free machine code', async () => {
+    const workspace = await temporaryDirectory('wishly-preview-team-error-');
+    const secretGrant = 'secret-grant-must-not-escape';
+    const catalog = new LandingPreviewCatalog({
+      root: path.join(workspace, 'cache'),
+      renderer: new TestRenderer(),
+      fetchImpl: (async () => {
+        throw new Error(`provider failed at ?grant=${secretGrant}`);
+      }) as typeof fetch
+    });
+    await catalog.init();
+    await expect(
+      catalog.openTeamSpace({
+        teamId: '11111111-1111-1111-1111-111111111111',
+        teamName: 'Affiliate Team',
+        items: [
+          {
+            materialId: '22222222-2222-2222-2222-222222222222',
+            name: 'Shared offer',
+            state: 'ready',
+            sourceVersion: '7',
+            fingerprint: 'a'.repeat(64),
+            preset: 'default',
+            previewUrls: [
+              `https://project.supabase.co/functions/v1/drive-transfer/render-range?grant=${secretGrant}&segment=0`
+            ]
+          }
+        ]
+      })
+    ).rejects.toThrow('TEAM_PREVIEW_DOWNLOAD_FAILED');
+    expect(catalog.state().error).toBe('TEAM_PREVIEW_DOWNLOAD_FAILED');
+    expect(JSON.stringify(catalog.state())).not.toContain(secretGrant);
+    await catalog.shutdown();
+  });
 });
 
 describe('landing preview Chromium renderer', () => {

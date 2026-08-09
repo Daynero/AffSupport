@@ -8,6 +8,7 @@ import {
   type TeamAnalyticsSizeBucket,
   type TeamAnalyticsStage,
   type TeamAnalyticsStorage,
+  type LandingRenderFailureReason,
   type LandingTileState,
   type ToolContracts
 } from '@video-compressor/shared';
@@ -338,6 +339,7 @@ export function trackTeamLandingGalleryView(
   tracker: AnalyticsTracker = analytics
 ): void {
   tracker.track('team_landing_gallery_view', {
+    attempt_id: uuid(),
     item_count: properties.itemCount,
     ready_count: properties.readyCount,
     ...(properties.durationMs !== undefined ? { duration_ms: properties.durationMs } : {})
@@ -345,12 +347,30 @@ export function trackTeamLandingGalleryView(
 }
 
 export function trackTeamLandingOpen(
-  properties: { tileState: LandingTileState; hadAgent: boolean },
+  properties: { tileState: LandingTileState; hadAgent: boolean; durationMs?: number },
   tracker: AnalyticsTracker = analytics
 ): void {
   tracker.track('team_landing_open', {
+    attempt_id: uuid(),
     tile_state: properties.tileState,
-    had_agent: properties.hadAgent
+    had_agent: properties.hadAgent,
+    ...(properties.durationMs !== undefined ? { duration_ms: properties.durationMs } : {})
+  });
+}
+
+export function trackTeamLandingRender(
+  properties: {
+    outcome: 'ready' | 'failed';
+    durationMs: number;
+    reason?: LandingRenderFailureReason;
+  },
+  tracker: AnalyticsTracker = analytics
+): void {
+  tracker.track('team_landing_render', {
+    attempt_id: uuid(),
+    outcome: properties.outcome,
+    duration_ms: properties.durationMs,
+    ...(properties.reason ? { reason: properties.reason } : {})
   });
 }
 

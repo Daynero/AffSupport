@@ -1,10 +1,31 @@
 import { createHash } from 'node:crypto';
 import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
+import type {
+  TeamLandingPreviewCatalogRequest,
+  TeamLandingPreviewSnapshotItem,
+  TeamLandingPreviewSnapshotState
+} from '@video-compressor/shared';
 import { inspectZip } from './archive.js';
 
 const IGNORED_DIRECTORIES = new Set(['.git', '.hg', '.svn', 'node_modules', '__MACOSX']);
 const IGNORED_FILES = new Set(['.DS_Store', 'Thumbs.db']);
+const TEAM_SNAPSHOT_STATES = new Set<TeamLandingPreviewSnapshotState>([
+  'ready',
+  'candidate',
+  'rendering',
+  'needs_agent',
+  'agent_outdated',
+  'error'
+]);
+const TEAM_FAILURE_REASONS = new Set([
+  'unsupported',
+  'corrupt',
+  'protected',
+  'too_large',
+  'render_error'
+]);
+const MAX_TEAM_SNAPSHOT_ITEMS = 50_000;
 
 export interface DiscoveredLanding {
   key: string;
@@ -20,6 +41,65 @@ export interface DiscoveredLanding {
 export interface DiscoveryResult {
   landings: DiscoveredLanding[];
   warnings: string[];
+}
+
+/**
+ * Validates the provider-credential-free snapshot sent by the signed-in web app. Preview URLs
+ * are still checked against the configured Edge render endpoint immediately before download.
+ */
+export function normalizeTeamLandingSnapshot(
+  value: unknown
+): TeamLandingPreviewCatalogRequest | null {
+  if (!record(value)) return null;
+  if (!uuid(value.teamId) || !compact(value.teamName, 240) || !Array.isArray(value.items)) {
+    return null;
+  }
+  if (value.items.length > MAX_TEAM_SNAPSHOT_ITEMS) return null;
+  const seen = new Set<string>();
+  const items: TeamLandingPreviewSnapshotItem[] = [];
+  for (const candidate of value.items) {
+    if (!record(candidate)) return null;
+    const materialId = candidate.materialId;
+    const name = compact(candidate.name, 240);
+    const state = candidate.state;
+    const sourceVersion = candidate.sourceVersion;
+    const fingerprint = candidate.fingerprint;
+    const preset = candidate.preset;
+    const previewUrls = candidate.previewUrls;
+    const failureReason = candidate.failureReason;
+    if (
+      !uuid(materialId) ||
+      seen.has(materialId) ||
+      !name ||
+      !TEAM_SNAPSHOT_STATES.has(state as TeamLandingPreviewSnapshotState) ||
+      typeof sourceVersion !== 'string' ||
+      sourceVersion.length > 512 ||
+      (fingerprint !== '' &&
+        (typeof fingerprint !== 'string' || !/^[a-f0-9]{64}$/u.test(fingerprint))) ||
+      typeof preset !== 'string' ||
+      !/^[a-z0-9_-]{1,64}$/iu.test(preset) ||
+      !Array.isArray(previewUrls) ||
+      previewUrls.length > 64 ||
+      previewUrls.some(url => typeof url !== 'string' || url.length > 4096) ||
+      (failureReason !== undefined &&
+        (typeof failureReason !== 'string' || !TEAM_FAILURE_REASONS.has(failureReason)))
+    ) {
+      return null;
+    }
+    if ((state === 'ready') !== previewUrls.length > 0) return null;
+    seen.add(materialId);
+    items.push({
+      materialId,
+      name,
+      state: state as TeamLandingPreviewSnapshotState,
+      sourceVersion,
+      fingerprint,
+      preset,
+      previewUrls: [...previewUrls],
+      ...(typeof failureReason === 'string' ? { failureReason } : {})
+    });
+  }
+  return { teamId: value.teamId, teamName: compact(value.teamName, 240)!, items };
 }
 
 /** Finds folder and ZIP landing roots without descending inside a landing. */
@@ -175,4 +255,18 @@ function errorMessage(error: unknown) {
 
 function throwIfAborted(signal?: AbortSignal) {
   if (signal?.aborted) throw signal.reason ?? new Error('Operation cancelled.');
+}
+
+function record(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function uuid(value: unknown): value is string {
+  return typeof value === 'string' && /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/iu.test(value);
+}
+
+function compact(value: unknown, maxLength: number): string | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.normalize('NFC').trim().replace(/\s+/gu, ' ');
+  return normalized && normalized.length <= maxLength ? normalized : null;
 }

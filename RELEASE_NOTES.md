@@ -1,3 +1,8 @@
+# v0.9.10
+
+- Add a shared Team Workspace landings gallery with search, filters, safe full previews, and consistent device, colour-scheme, and zoom controls.
+- Render source-bound previews once through the local Soty app, share cached WebP previews with the whole team, invalidate them when a source changes, and open team spaces in the standalone landing previewer.
+
 # v0.9.9
 
 - Add a dedicated technical support message form to the account menu, separate from donation options.
