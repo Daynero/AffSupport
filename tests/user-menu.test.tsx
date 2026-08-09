@@ -43,4 +43,16 @@ describe('user menu', () => {
 
     expect(location.pathname).toBe('/team');
   });
+
+  it('opens a technical-support message dialog without donation options', () => {
+    render(<UserMenu />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open user menu' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Technical support' }));
+
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Technical support' })).toBeTruthy();
+    expect(screen.getByRole('textbox', { name: 'Your message' })).toBeTruthy();
+    expect(screen.queryByText('Donate to development')).toBeNull();
+  });
 });

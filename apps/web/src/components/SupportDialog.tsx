@@ -72,12 +72,23 @@ export function SupportButton() {
   );
 }
 
-export function SupportDialog({ onClose }: { onClose: () => void }) {
+type SupportDialogMode = 'project' | 'technical';
+
+export function SupportDialog({
+  onClose,
+  mode = 'project',
+  returnFocus
+}: {
+  onClose: () => void;
+  mode?: SupportDialogMode;
+  returnFocus?: HTMLElement | null;
+}) {
   const { t } = useI18n();
   const { goal } = useSupportGoal();
   const titleId = useId();
   const [message, setMessage] = useState('');
   const [error, setError] = useState(false);
+  const isTechnicalSupport = mode === 'technical';
 
   const send = () => {
     if (!message.trim()) {
@@ -85,7 +96,7 @@ export function SupportDialog({ onClose }: { onClose: () => void }) {
       return;
     }
     const href = `mailto:${supportEmail}?subject=${encodeURIComponent(
-      t('supportSubject')
+      t(isTechnicalSupport ? 'technicalSupportSubject' : 'supportSubject')
     )}&body=${encodeURIComponent(message.trim())}`;
     analytics.track('support_feedback_started', {});
     window.location.href = href;
@@ -93,60 +104,71 @@ export function SupportDialog({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Modal size="lg" labelledBy={titleId} onClose={onClose} closeLabel={t('supportClose')}>
+    <Modal
+      size="lg"
+      labelledBy={titleId}
+      onClose={onClose}
+      closeLabel={t('supportClose')}
+      returnFocus={returnFocus}
+      initialFocus={isTechnicalSupport ? 'textarea' : undefined}
+    >
       <header className="support-head">
         <span className="support-badge" aria-hidden="true">
-          <HeartIcon />
+          {isTechnicalSupport ? <TechnicalSupportIcon /> : <HeartIcon />}
         </span>
-        <h2 id={titleId}>{t('supportTitle')}</h2>
-        <p>{t('supportIntro')}</p>
+        <h2 id={titleId}>{t(isTechnicalSupport ? 'technicalSupportTitle' : 'supportTitle')}</h2>
+        <p>{t(isTechnicalSupport ? 'technicalSupportIntro' : 'supportIntro')}</p>
       </header>
 
-      {goal && <SupportGoalCard />}
+      {!isTechnicalSupport && goal && <SupportGoalCard />}
+
+      {!isTechnicalSupport && (
+        <section className="support-section">
+          <h3>{goal ? t('supportGoalDonateTitle') : t('supportDonateTitle')}</h3>
+          {hasDonationOptions ? (
+            <div className="support-donate">
+              {monobankUrl && (
+                <a
+                  className="button button-primary support-monobank"
+                  href={monobankUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() =>
+                    analytics.track('support_donation_clicked', {
+                      feature_identifier: goal?.slug ?? 'general-support',
+                      action_identifier: 'monobank'
+                    })
+                  }
+                >
+                  {goal
+                    ? `${t('supportGoalDonateCta')} · ${t('supportMonobank')}`
+                    : `${t('supportMonobank')} · ${t('supportMonobankOpen')}`}
+                </a>
+              )}
+              {activeCryptoWallets.length > 0 && (
+                <div className="support-crypto">
+                  <p className="support-note">{t('supportCryptoNote')}</p>
+                  {activeCryptoWallets.map(wallet => (
+                    <CryptoRow
+                      key={wallet.network}
+                      network={wallet.network}
+                      address={wallet.address}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="support-note">{t('supportDonateSoon')}</p>
+          )}
+        </section>
+      )}
 
       <section className="support-section">
-        <h3>{goal ? t('supportGoalDonateTitle') : t('supportDonateTitle')}</h3>
-        {hasDonationOptions ? (
-          <div className="support-donate">
-            {monobankUrl && (
-              <a
-                className="button button-primary support-monobank"
-                href={monobankUrl}
-                target="_blank"
-                rel="noreferrer"
-                onClick={() =>
-                  analytics.track('support_donation_clicked', {
-                    feature_identifier: goal?.slug ?? 'general-support',
-                    action_identifier: 'monobank'
-                  })
-                }
-              >
-                {goal
-                  ? `${t('supportGoalDonateCta')} · ${t('supportMonobank')}`
-                  : `${t('supportMonobank')} · ${t('supportMonobankOpen')}`}
-              </a>
-            )}
-            {activeCryptoWallets.length > 0 && (
-              <div className="support-crypto">
-                <p className="support-note">{t('supportCryptoNote')}</p>
-                {activeCryptoWallets.map(wallet => (
-                  <CryptoRow
-                    key={wallet.network}
-                    network={wallet.network}
-                    address={wallet.address}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        ) : (
-          <p className="support-note">{t('supportDonateSoon')}</p>
-        )}
-      </section>
-
-      <section className="support-section">
-        <h3>{t('supportFeedbackTitle')}</h3>
-        <p className="support-note">{t('supportFeedbackHint')}</p>
+        <h3>{t(isTechnicalSupport ? 'technicalSupportMessageTitle' : 'supportFeedbackTitle')}</h3>
+        <p className="support-note">
+          {t(isTechnicalSupport ? 'technicalSupportMessageHint' : 'supportFeedbackHint')}
+        </p>
         {supportEmail ? (
           <div className="support-form">
             <label className="support-field">
@@ -154,7 +176,11 @@ export function SupportDialog({ onClose }: { onClose: () => void }) {
               <textarea
                 value={message}
                 rows={4}
-                placeholder={t('supportMessagePlaceholder')}
+                placeholder={t(
+                  isTechnicalSupport
+                    ? 'technicalSupportMessagePlaceholder'
+                    : 'supportMessagePlaceholder'
+                )}
                 onChange={event => {
                   setMessage(event.target.value);
                   if (error) setError(false);
@@ -292,6 +318,21 @@ function HeartIcon() {
       <path
         d="M10 17.5 8.9 16.5C4.7 12.8 2 10.4 2 7.4 2 4.9 4 3 6.5 3c1.4 0 2.7.7 3.5 1.8C10.8 3.7 12.1 3 13.5 3 16 3 18 4.9 18 7.4c0 3-2.7 5.4-6.9 9.1L10 17.5Z"
         fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function TechnicalSupportIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M5 13v-1a7 7 0 0 1 14 0v1M5 13H3v4h4v-4H5Zm14 0h2v4h-4v-4h2Zm-2 4c0 2.2-1.8 4-4 4h-2"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
       />
     </svg>
   );

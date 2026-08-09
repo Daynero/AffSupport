@@ -2,12 +2,15 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useI18n } from '../i18n';
 import { navigateTo } from '../lib/navigation';
+import { analytics } from '../analytics/service';
+import { SupportDialog } from './SupportDialog';
 import { UserAvatar } from './UserAvatar';
 
 export function UserMenu() {
   const { user, profile, isAdmin, signOut, status } = useAuth();
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
+  const [technicalSupportOpen, setTechnicalSupportOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -57,6 +60,12 @@ export function UserMenu() {
     navigateTo(path);
   };
 
+  const openTechnicalSupport = () => {
+    setOpen(false);
+    setTechnicalSupportOpen(true);
+    analytics.track('support_opened', { source_kind: 'technical_support' });
+  };
+
   return (
     <div className="user-menu" ref={root}>
       <button
@@ -92,6 +101,9 @@ export function UserMenu() {
           <button type="button" role="menuitem" onClick={() => go('/account')}>
             {t('account')}
           </button>
+          <button type="button" role="menuitem" onClick={openTechnicalSupport}>
+            {t('technicalSupport')}
+          </button>
           {isAdmin && (
             <button type="button" role="menuitem" onClick={() => go('/admin')}>
               {t('adminPanel')}
@@ -107,6 +119,13 @@ export function UserMenu() {
             {t('signOut')}
           </button>
         </div>
+      )}
+      {technicalSupportOpen && (
+        <SupportDialog
+          mode="technical"
+          onClose={() => setTechnicalSupportOpen(false)}
+          returnFocus={trigger.current}
+        />
       )}
     </div>
   );
