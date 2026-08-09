@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
@@ -10,6 +10,7 @@ import { makeClient, makeTeam } from './team-space-fixtures';
 afterEach(() => {
   cleanup();
   localStorage.clear();
+  history.replaceState(null, '', '/');
   vi.restoreAllMocks();
 });
 
@@ -51,5 +52,28 @@ describe('team space lobby', () => {
     expect(screen.getByRole('button', { name: 'Notify me when it’s ready' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Speed up development' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Create your first space' })).toBeNull();
+  });
+
+  it('closes the workspace launch gate and returns home when its backdrop is pressed', async () => {
+    history.replaceState(null, '', '/team');
+    const client = makeClient({ listTeams: vi.fn().mockResolvedValue([]) });
+    renderSpace(client);
+
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.pointerDown(dialog.parentElement!);
+
+    expect(screen.queryByRole('heading', { name: 'ДОНТ ПУШ ЗЕ ХОРСИС' })).toBeNull();
+    expect(location.pathname).toBe('/');
+  });
+
+  it('closes the workspace launch gate before opening the donation dialog', async () => {
+    const client = makeClient({ listTeams: vi.fn().mockResolvedValue([]) });
+    const user = userEvent.setup();
+    renderSpace(client);
+
+    await user.click(await screen.findByRole('button', { name: 'Speed up development' }));
+
+    expect(screen.queryByRole('heading', { name: 'ДОНТ ПУШ ЗЕ ХОРСИС' })).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Support the project' })).toBeTruthy();
   });
 });

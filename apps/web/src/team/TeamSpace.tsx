@@ -7,7 +7,7 @@ import { requireSupabaseClient } from '../lib/supabase';
 import type { TeamContextSnapshot } from '../api/team';
 import { teamApi } from '../api/team';
 import { useI18n } from '../i18n';
-import { usePageEntrance } from '../lib/navigation';
+import { navigateTo, usePageEntrance } from '../lib/navigation';
 import { configuredTeamDirectAddMode } from '../lib/config';
 import { useTeam } from './TeamContext';
 import { SpaceLobby } from './lobby/SpaceLobby';
@@ -43,6 +43,7 @@ export function TeamSpace({
   const [flow, setFlow] = useState<Flow>({ mode: 'browse' });
   const [loadError, setLoadError] = useState<string | null>(null);
   const [waitlistState, setWaitlistState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [gateOpen, setGateOpen] = useState(true);
   const [supportOpen, setSupportOpen] = useState(false);
   const [workspaceAccess, setWorkspaceAccess] = useState<WorkspaceAccess>(() => {
     // Component-only previews do not mount AuthProvider. Keep their existing
@@ -132,6 +133,21 @@ export function TeamSpace({
     setWaitlistState(error ? 'error' : 'saved');
   };
 
+  const closeWorkspaceGate = () => {
+    setGateOpen(false);
+    navigateTo('/', true);
+  };
+
+  const openSupport = () => {
+    setGateOpen(false);
+    setSupportOpen(true);
+  };
+
+  const closeSupport = () => {
+    setSupportOpen(false);
+    navigateTo('/', true);
+  };
+
   if (workspaceAccess === 'checking') {
     return wrap(<div className="team-workspace-gate-background" aria-busy="true" />);
   }
@@ -140,35 +156,38 @@ export function TeamSpace({
     return wrap(
       <>
         <div className="team-workspace-gate-background" aria-hidden="true" />
-        <Modal
-          labelledBy={gateTitleId}
-          className="team-workspace-gate"
-          initialFocus="[data-team-waitlist]"
-        >
-          <p className="team-workspace-eyebrow">{t('teamWorkspace')}</p>
-          <h2 id={gateTitleId}>{t('teamWorkspaceGateTitle')}</h2>
-          <p>{t('teamWorkspaceGateBody')}</p>
-          <div className="team-workspace-gate-actions">
-            <Button
-              variant="primary"
-              data-team-waitlist="true"
-              loading={waitlistState === 'saving'}
-              disabled={waitlistState === 'saved'}
-              onClick={() => void joinWaitlist()}
-            >
-              {t(
-                waitlistState === 'saved' ? 'teamWorkspaceWaitlistSaved' : 'teamWorkspaceWaitlist'
-              )}
-            </Button>
-            <Button onClick={() => setSupportOpen(true)}>{t('teamWorkspaceAccelerate')}</Button>
-          </div>
-          {waitlistState === 'error' && (
-            <p className="support-error" role="alert">
-              {t('teamWorkspaceWaitlistError')}
-            </p>
-          )}
-        </Modal>
-        {supportOpen && <SupportDialog onClose={() => setSupportOpen(false)} />}
+        {gateOpen && (
+          <Modal
+            labelledBy={gateTitleId}
+            className="team-workspace-gate"
+            initialFocus="[data-team-waitlist]"
+            onClose={closeWorkspaceGate}
+          >
+            <p className="team-workspace-eyebrow">{t('teamWorkspace')}</p>
+            <h2 id={gateTitleId}>{t('teamWorkspaceGateTitle')}</h2>
+            <p>{t('teamWorkspaceGateBody')}</p>
+            <div className="team-workspace-gate-actions">
+              <Button
+                variant="primary"
+                data-team-waitlist="true"
+                loading={waitlistState === 'saving'}
+                disabled={waitlistState === 'saved'}
+                onClick={() => void joinWaitlist()}
+              >
+                {t(
+                  waitlistState === 'saved' ? 'teamWorkspaceWaitlistSaved' : 'teamWorkspaceWaitlist'
+                )}
+              </Button>
+              <Button onClick={openSupport}>{t('teamWorkspaceAccelerate')}</Button>
+            </div>
+            {waitlistState === 'error' && (
+              <p className="support-error" role="alert">
+                {t('teamWorkspaceWaitlistError')}
+              </p>
+            )}
+          </Modal>
+        )}
+        {supportOpen && <SupportDialog onClose={closeSupport} />}
       </>
     );
   }
