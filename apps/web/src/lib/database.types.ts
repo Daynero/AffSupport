@@ -540,6 +540,72 @@ export type Database = {
           }
         ];
       };
+      team_landing_renders: {
+        Row: {
+          artifact_root: string | null;
+          created_at: string;
+          failure_reason: string | null;
+          fingerprint: string | null;
+          id: string;
+          material_id: string;
+          preset: string;
+          render_state: string;
+          rendered_by: string | null;
+          segment_count: number;
+          source_checksum: string | null;
+          source_version: string | null;
+          team_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          artifact_root?: string | null;
+          created_at?: string;
+          failure_reason?: string | null;
+          fingerprint?: string | null;
+          id?: string;
+          material_id: string;
+          preset?: string;
+          render_state?: string;
+          rendered_by?: string | null;
+          segment_count?: number;
+          source_checksum?: string | null;
+          source_version?: string | null;
+          team_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          artifact_root?: string | null;
+          created_at?: string;
+          failure_reason?: string | null;
+          fingerprint?: string | null;
+          id?: string;
+          material_id?: string;
+          preset?: string;
+          render_state?: string;
+          rendered_by?: string | null;
+          segment_count?: number;
+          source_checksum?: string | null;
+          source_version?: string | null;
+          team_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_landing_renders_material_fk';
+            columns: ['material_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_materials';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_landing_renders_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
       team_material_links: {
         Row: {
           created_at: string;
@@ -1335,6 +1401,20 @@ export type Database = {
           team_name: string;
         }[];
       };
+      list_landing_renders: {
+        Args: { p_material_ids: string[]; p_preset: string; p_team: string };
+        Returns: {
+          failure_reason: string;
+          fingerprint: string;
+          material_id: string;
+          preset: string;
+          render_state: string;
+          segment_count: number;
+          source_checksum: string;
+          source_version: string;
+          valid: boolean;
+        }[];
+      };
       list_my_teams: {
         Args: never;
         Returns: {
@@ -1535,6 +1615,34 @@ export type Database = {
           p_text: string;
         };
         Returns: boolean;
+      };
+      service_commit_landing_render: {
+        Args: {
+          p_artifact_root: string;
+          p_fingerprint: string;
+          p_render: string;
+          p_segment_count: number;
+        };
+        Returns: string;
+      };
+      service_fail_landing_render: {
+        Args: { p_reason: string; p_render: string };
+        Returns: undefined;
+      };
+      service_mark_landing_renders_stale: {
+        Args: { p_material: string; p_team: string };
+        Returns: number;
+      };
+      service_start_landing_render: {
+        Args: {
+          p_actor: string;
+          p_material: string;
+          p_preset: string;
+          p_source_checksum: string;
+          p_source_version: string;
+          p_team: string;
+        };
+        Returns: string;
       };
       service_commit_landing_preview_validation: {
         Args: {

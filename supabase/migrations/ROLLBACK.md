@@ -20,6 +20,16 @@ These are forward-only production migrations. Prefer a backup plus a forward fix
 team has connected storage. For an empty isolated development database, reverse the
 feature group in this exact order:
 
+0. `20260810090000_team_landing_renders.sql` (feature 004 — newest, reverse first): revoke and
+   drop `public.list_landing_renders(uuid, uuid[], text)`,
+   `public.service_start_landing_render(uuid, uuid, uuid, text, text, text)`,
+   `public.service_commit_landing_render(uuid, text, integer, text)`,
+   `public.service_fail_landing_render(uuid, text)`, and
+   `public.service_mark_landing_renders_stale(uuid, uuid)`; then drop
+   `public.team_landing_renders`. The table is intentionally not in `supabase_realtime`, so no
+   publication change is needed. If a test connection produced render artifacts, delete the
+   hidden `.soty/landing-previews/` subtree through the service path first; this rollback never
+   deletes source landing files.
 1. `20260802100000_team_direct_member_testing.sql`: revoke and drop
    `public.service_direct_add_registered_member(uuid,uuid,text,text)`. Disable
    `TEAM_DIRECT_ADD_MODE` in Edge and web before rollback. Existing memberships are normal

@@ -9109,6 +9109,9 @@ body:has(.public-home) {
   background: var(--color-surface);
   opacity: 0.55;
 }
+.modal-backdrop.team-workspace-gate-backdrop {
+  animation: none;
+}
 .team-workspace-gate {
   display: grid;
   gap: var(--space-4);
@@ -10284,4 +10287,103 @@ body {
     stroke var(--dur-complete) var(--ease-standard),
     box-shadow var(--dur-complete) var(--ease-standard),
     -webkit-text-fill-color var(--dur-complete) var(--ease-standard);
+}
+
+/* Feature 004: team landings gallery */
+.landing-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3, 12px);
+}
+.landing-gallery-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.landing-gallery-count {
+  color: var(--text-muted, #6b7280);
+  font-size: 0.875rem;
+}
+.landing-gallery-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-3, 12px);
+}
+.landing-gallery-grid > li {
+  min-width: 0;
+}
+.landing-gallery-empty,
+.landing-gallery-state {
+  padding: var(--space-5, 24px);
+  text-align: center;
+  color: var(--text-muted, #6b7280);
+}
+.landing-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--radius-2, 10px);
+  background: var(--surface, #fff);
+  text-align: left;
+  color: inherit;
+  cursor: default;
+}
+button.landing-tile {
+  cursor: pointer;
+}
+button.landing-tile:hover {
+  border-color: var(--accent, #6366f1);
+}
+.landing-tile-thumb {
+  display: block;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--radius-1, 8px);
+  overflow: hidden;
+  background: var(--surface-sunken, #f3f4f6);
+}
+.landing-tile-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.landing-tile-chip {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.landing-tile-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.landing-tile-state {
+  font-size: 0.8125rem;
+  color: var(--text-muted, #6b7280);
+}
+.landing-tile-error .landing-tile-state {
+  color: var(--danger, #dc2626);
+}
+.landing-viewer-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3, 12px);
+}
+.landing-viewer-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.landing-viewer-zoom-value {
+  min-width: 3.5ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }

@@ -1,5 +1,6 @@
 import { MATERIAL_CATEGORIES, type MaterialCategory } from './material-category.js';
 import { isRecord } from './contract.js';
+import type { LandingTileState } from './landing-gallery.js';
 
 export const TEAM_ANALYTICS_EVENT_NAMES = [
   'team_workspace_session',
@@ -12,7 +13,10 @@ export const TEAM_ANALYTICS_EVENT_NAMES = [
   'team_file_attempt_started',
   'team_file_attempt_completed',
   'team_workflow_started',
-  'team_workflow_completed'
+  'team_workflow_completed',
+  'team_landing_gallery_view',
+  'team_landing_open',
+  'team_landing_render'
 ] as const;
 export type TeamAnalyticsEventName = (typeof TEAM_ANALYTICS_EVENT_NAMES)[number];
 
@@ -49,6 +53,10 @@ export interface TeamAnalyticsProperties {
   discovery_completed?: boolean;
   production_completed?: boolean;
   window_index?: number;
+  item_count?: number;
+  ready_count?: number;
+  tile_state?: LandingTileState;
+  had_agent?: boolean;
 }
 
 const ID_KEYS = new Set(['flow_id', 'study_run_id', 'attempt_id', 'workflow_id']);
@@ -60,7 +68,8 @@ const BOOLEAN_KEYS = new Set([
   'sync_queued',
   'workspace_session',
   'discovery_completed',
-  'production_completed'
+  'production_completed',
+  'had_agent'
 ]);
 const safeOpaqueId = /^[a-z0-9][a-z0-9_-]{0,95}$/i;
 const OUTCOMES = new Set<TeamAnalyticsOutcome>([
@@ -88,6 +97,14 @@ const STAGES = new Set<TeamAnalyticsStage>([
   'processing',
   'uploading',
   'finalizing'
+]);
+const TILE_STATES = new Set<LandingTileState>([
+  'ready',
+  'candidate',
+  'rendering',
+  'needs_agent',
+  'agent_outdated',
+  'error'
 ]);
 
 export const TEAM_ANALYTICS_FORBIDDEN_FIELDS = Object.freeze([
@@ -164,6 +181,16 @@ export function sanitizeTeamAnalyticsProperties(input: unknown): TeamAnalyticsPr
       output.stage = value as TeamAnalyticsStage;
     } else if (key === 'outcome' && OUTCOMES.has(value as TeamAnalyticsOutcome)) {
       output.outcome = value as TeamAnalyticsOutcome;
+    } else if (
+      (key === 'item_count' || key === 'ready_count') &&
+      typeof value === 'number' &&
+      Number.isInteger(value) &&
+      value >= 0 &&
+      value <= 1_000_000
+    ) {
+      output[key as 'item_count'] = value;
+    } else if (key === 'tile_state' && TILE_STATES.has(value as LandingTileState)) {
+      output.tile_state = value as LandingTileState;
     }
   }
   return output;
