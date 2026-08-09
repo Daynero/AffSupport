@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useOptionalAuth } from '../auth/AuthContext';
-import { Modal } from '../components/Modal';
+import { Modal, ModalBackdrop } from '../components/Modal';
 import { SupportDialog } from '../components/SupportDialog';
 import { Button } from '../components/ui';
 import { requireSupabaseClient } from '../lib/supabase';
@@ -149,7 +149,12 @@ export function TeamSpace({
   };
 
   if (workspaceAccess === 'checking') {
-    return wrap(<div className="team-workspace-gate-background" aria-busy="true" />);
+    return wrap(
+      <>
+        <div className="team-workspace-gate-background" aria-busy="true" />
+        <ModalBackdrop className="team-workspace-gate-backdrop" />
+      </>
+    );
   }
 
   if (workspaceAccess === 'denied') {
@@ -160,6 +165,7 @@ export function TeamSpace({
           <Modal
             labelledBy={gateTitleId}
             className="team-workspace-gate"
+            backdropClassName="team-workspace-gate-backdrop"
             initialFocus="[data-team-waitlist]"
             onClose={closeWorkspaceGate}
           >

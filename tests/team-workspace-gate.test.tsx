@@ -43,6 +43,25 @@ afterEach(() => {
 });
 
 describe('team workspace launch gate', () => {
+  it('paints the gate backdrop while the access check is still pending', () => {
+    rpc.mockReturnValue(new Promise(() => {}));
+    const client = makeClient({ listTeams: vi.fn().mockResolvedValue([]) });
+
+    render(
+      <AuthContextOverride value={outsideUserContext}>
+        <TeamProvider realtime={false}>
+          <TeamSpace client={client} directAddMode="disabled" />
+        </TeamProvider>
+      </AuthContextOverride>
+    );
+
+    const backdrop = document.querySelector('.modal-backdrop.team-workspace-gate-backdrop');
+    expect(backdrop).not.toBeNull();
+    expect(backdrop?.parentElement).toBe(document.body);
+    expect(backdrop?.getAttribute('aria-hidden')).toBe('true');
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
   it('does not let a user with an unrelated legacy team into the workspace', async () => {
     rpc.mockResolvedValue({ data: false, error: null });
     const legacyTeam = makeTeam({ name: 'A user-created legacy team' });
@@ -57,6 +76,9 @@ describe('team workspace launch gate', () => {
     );
 
     expect(await screen.findByRole('heading', { name: 'ДОНТ ПУШ ЗЕ ХОРСИС' })).toBeTruthy();
+    expect(
+      screen.getByRole('dialog').parentElement?.classList.contains('team-workspace-gate-backdrop')
+    ).toBe(true);
     expect(rpc).toHaveBeenCalledWith('can_access_team_workspace');
     expect(screen.queryByRole('heading', { name: 'Choose a space' })).toBeNull();
   });

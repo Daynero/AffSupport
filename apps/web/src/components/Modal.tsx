@@ -72,6 +72,15 @@ export interface ModalProps {
 }
 
 /**
+ * Portaled backdrop-only surface for async routes that must paint the modal
+ * background before their dialog content is ready.
+ */
+export function ModalBackdrop({ className = '' }: { className?: string }) {
+  const classes = `modal-backdrop ${className}`.replace(/\s+/g, ' ').trim();
+  return createPortal(<div className={classes} aria-hidden="true" />, document.body);
+}
+
+/**
  * Shared dialog primitive: portal into <body>, dimmed backdrop, `modal-rise`
  * entrance (disabled under reduced motion via the global CSS), body scroll
  * lock, focus trap and focus restore, Escape/backdrop dismissal and ARIA
