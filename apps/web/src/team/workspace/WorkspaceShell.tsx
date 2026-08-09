@@ -5,11 +5,12 @@ import { trackTeamWorkspaceSession } from '../../analytics/service';
 import { useTeam } from '../TeamContext';
 import { MaterialBrowser, type MaterialBrowserClient } from '../catalog/MaterialBrowser';
 import { TeamCatalog, type TeamCatalogClient } from '../catalog/TeamCatalog';
+import { TeamLandings } from '../landings/TeamLandings';
 import { SpaceSettings, type SpaceSettingsClient } from './SpaceSettings';
 
 export type WorkspaceShellClient = MaterialBrowserClient & TeamCatalogClient & SpaceSettingsClient;
 
-type ShellView = 'content' | 'settings' | 'search';
+type ShellView = 'content' | 'settings' | 'search' | 'landings';
 
 /**
  * Content-first workspace for a single entered space. The connected folder's
@@ -58,6 +59,14 @@ export function WorkspaceShell({
           <h1 id="team-space-shell-title">{activeTeam?.name ?? ''}</h1>
         </div>
         <div className="team-space-shell-actions">
+          <Button
+            type="button"
+            variant="secondary"
+            aria-pressed={view === 'landings'}
+            onClick={() => setView(current => (current === 'landings' ? 'content' : 'landings'))}
+          >
+            {t('teamLandingsTitle')}
+          </Button>
           {hasContent && (
             <Button
               type="button"
@@ -93,6 +102,8 @@ export function WorkspaceShell({
           />
         ) : view === 'search' ? (
           <TeamCatalog key={`search:${teamId}`} teamId={teamId} client={client} />
+        ) : view === 'landings' ? (
+          <TeamLandings key={`landings:${teamId}`} teamId={teamId} client={client} />
         ) : (
           <MaterialBrowser
             key={`materials:${teamId}`}

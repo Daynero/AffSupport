@@ -8,6 +8,7 @@ import {
   type TeamAnalyticsSizeBucket,
   type TeamAnalyticsStage,
   type TeamAnalyticsStorage,
+  type LandingTileState,
   type ToolContracts
 } from '@video-compressor/shared';
 import { getSupabaseClient } from '../lib/supabase';
@@ -330,6 +331,27 @@ type AnalyticsTracker = Pick<ProductAnalytics, 'track'>;
 
 export function trackTeamWorkspaceSession(tracker: AnalyticsTracker = analytics): void {
   tracker.track('team_workspace_session', { workspace_session: true });
+}
+
+export function trackTeamLandingGalleryView(
+  properties: { itemCount: number; readyCount: number; durationMs?: number },
+  tracker: AnalyticsTracker = analytics
+): void {
+  tracker.track('team_landing_gallery_view', {
+    item_count: properties.itemCount,
+    ready_count: properties.readyCount,
+    ...(properties.durationMs !== undefined ? { duration_ms: properties.durationMs } : {})
+  });
+}
+
+export function trackTeamLandingOpen(
+  properties: { tileState: LandingTileState; hadAgent: boolean },
+  tracker: AnalyticsTracker = analytics
+): void {
+  tracker.track('team_landing_open', {
+    tile_state: properties.tileState,
+    had_agent: properties.hadAgent
+  });
 }
 
 export interface TeamFileAttemptFlow {

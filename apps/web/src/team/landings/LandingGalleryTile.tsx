@@ -1,28 +1,12 @@
-import type { LandingGalleryItem, LandingRenderFailureReason } from '@video-compressor/shared';
-import { useI18n, type TranslationKey } from '../../i18n';
-
-const TILE_STATE_COPY: Record<LandingGalleryItem['tile'], TranslationKey> = {
-  ready: 'teamLandingTileReady',
-  rendering: 'teamLandingTileRendering',
-  candidate: 'teamLandingTileCandidate',
-  needs_agent: 'teamLandingTileNeedsAgent',
-  agent_outdated: 'teamLandingTileAgentOutdated',
-  error: 'teamLandingTileError'
-};
-
-const UNAVAILABLE_COPY: Record<LandingRenderFailureReason, TranslationKey> = {
-  corrupt: 'teamLandingUnavailableCorrupt',
-  protected: 'teamLandingUnavailableProtected',
-  too_large: 'teamLandingUnavailableTooLarge',
-  unsupported: 'teamLandingUnavailableUnsupported',
-  render_error: 'teamLandingTileError'
-};
+import type { LandingGalleryItem } from '@video-compressor/shared';
+import { useI18n } from '../../i18n';
 
 /**
- * One landing in the gallery: a rendered thumbnail when a shared render exists, otherwise a
- * truthful state chip (candidate / rendering / needs-agent / outdated / error). Presentational —
- * the caller resolves `thumbnailSrc` (via drive-transfer) and handles `onOpen` (feature 004, US1).
- * A tile is only actionable when it is `ready`; other states never present a false preview.
+ * One landing in the gallery (feature 004). Every tile is openable — opening hands off to the
+ * existing view-gated `MaterialPreview`, which renders the landing via the paired agent and
+ * reports agent-required / unavailable states truthfully. A shared render thumbnail, when one
+ * exists, is shown as a progressive enhancement (US3); until then the tile shows a neutral
+ * placeholder plus the landing name, never a false "ready" preview.
  */
 export function LandingGalleryTile({
   item,
@@ -34,48 +18,25 @@ export function LandingGalleryTile({
   onOpen: (item: LandingGalleryItem) => void;
 }) {
   const { t } = useI18n();
-  const isReady = item.tile === 'ready' && !!thumbnailSrc;
-  const stateCopy =
-    item.tile === 'error' && item.unavailableReason
-      ? t(UNAVAILABLE_COPY[item.unavailableReason])
-      : t(TILE_STATE_COPY[item.tile]);
-
-  const commonProps = {
-    className: `landing-tile landing-tile-${item.tile}`,
-    'data-tile-state': item.tile
-  } as const;
-
-  const body = (
-    <>
-      <span className="landing-tile-thumb" aria-hidden={isReady ? undefined : true}>
-        {isReady ? (
-          <img src={thumbnailSrc ?? undefined} alt="" loading="lazy" />
+  return (
+    <button
+      type="button"
+      className={`landing-tile landing-tile-${item.tile}`}
+      data-tile-state={item.tile}
+      aria-label={`${t('teamLandingOpen')}: ${item.material.name}`}
+      onClick={() => onOpen(item)}
+    >
+      <span className="landing-tile-thumb">
+        {thumbnailSrc ? (
+          <img src={thumbnailSrc} alt="" loading="lazy" />
         ) : (
-          <span className="landing-tile-chip" />
+          <span className="landing-tile-chip" aria-hidden="true" />
         )}
       </span>
       <span className="landing-tile-name">{item.material.name}</span>
-      {!isReady && <span className="landing-tile-state">{stateCopy}</span>}
-    </>
-  );
-
-  if (isReady) {
-    return (
-      <button
-        type="button"
-        {...commonProps}
-        aria-label={`${t('teamLandingOpen')}: ${item.material.name}`}
-        onClick={() => onOpen(item)}
-      >
-        {body}
-      </button>
-    );
-  }
-
-  // Non-ready tiles are informational, not actionable (no false-ready affordance).
-  return (
-    <div {...commonProps} aria-label={`${item.material.name}: ${stateCopy}`}>
-      {body}
-    </div>
+      {item.isCandidate && (
+        <span className="landing-tile-state">{t('teamLandingTileCandidate')}</span>
+      )}
+    </button>
   );
 }

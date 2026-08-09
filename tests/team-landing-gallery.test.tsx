@@ -49,7 +49,7 @@ function item(id: string, name: string, tile: LandingTileState): LandingGalleryI
 }
 
 describe('team landings gallery (presentational)', () => {
-  it('renders a ready landing as an openable tile and fires onOpen', () => {
+  it('renders each landing as an openable tile and fires onOpen', () => {
     const onOpen = vi.fn();
     render(
       <LandingGallery
@@ -61,39 +61,39 @@ describe('team landings gallery (presentational)', () => {
       />
     );
     const tile = screen.getByRole('button', { name: /Open landing: Promo LP/ });
-    expect(tile).toBeTruthy();
     expect(tile.querySelector('img')?.getAttribute('src')).toBe('blob:thumb-1');
     fireEvent.click(tile);
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
 
-  it('shows a truthful state chip for a needs-agent landing and does not make it actionable', () => {
+  it('opens a landing even without a shared render thumbnail (live preview handles state)', () => {
     const onOpen = vi.fn();
     render(
       <LandingGallery
-        items={[item('m2', 'Needs agent LP', 'needs_agent')]}
+        items={[item('m2', 'No thumb LP', 'ready')]}
         loading={false}
         error={false}
         resolveThumbnail={() => null}
         onOpen={onOpen}
       />
     );
-    expect(screen.queryByRole('button', { name: /Open landing/ })).toBeNull();
-    expect(screen.getByText('Open the Soty app to create a preview')).toBeTruthy();
+    const tile = screen.getByRole('button', { name: /Open landing: No thumb LP/ });
+    // No fake thumbnail is shown, but the tile is still openable → the live preview reports state.
+    expect(tile.querySelector('img')).toBeNull();
+    fireEvent.click(tile);
+    expect(onOpen).toHaveBeenCalledTimes(1);
   });
 
-  it('never presents a ready tile without a fetchable thumbnail', () => {
+  it('marks a not-yet-inspected archive as a candidate', () => {
     render(
       <LandingGallery
-        items={[item('m3', 'No thumb LP', 'ready')]}
+        items={[item('m3', 'Maybe LP.zip', 'candidate')]}
         loading={false}
         error={false}
-        resolveThumbnail={() => null}
         onOpen={vi.fn()}
       />
     );
-    // ready state but no thumbnail → falls back to an informational tile, not an open button.
-    expect(screen.queryByRole('button', { name: /Open landing/ })).toBeNull();
+    expect(screen.getByText('Not previewed yet')).toBeTruthy();
   });
 
   it('renders a welcoming empty state with no tiles', () => {
