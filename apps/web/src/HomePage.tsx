@@ -18,7 +18,6 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
   const [help, setHelp] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [lockedTool, setLockedTool] = useState<WebTool | null>(null);
-  const [teamWorkspaceWarning, setTeamWorkspaceWarning] = useState(false);
   const [setupTool, setSetupTool] = useState<WebTool | null>(null);
   const panel = useRef<HTMLDivElement>(null);
   const connected = connection === 'connected';
@@ -68,10 +67,6 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
   };
 
   const openTeamWorkspace = () => {
-    if (isLocked('teamWorkspace')) {
-      setTeamWorkspaceWarning(true);
-      return;
-    }
     navigate('/team');
   };
 
@@ -196,16 +191,6 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
             const tool = lockedTool;
             setLockedTool(null);
             if (connected) navigate(tool.path);
-          }}
-        />
-      )}
-      {teamWorkspaceWarning && (
-        <FeatureLockDialog
-          feature="teamWorkspace"
-          onClose={() => setTeamWorkspaceWarning(false)}
-          onUnlocked={() => {
-            setTeamWorkspaceWarning(false);
-            navigate('/team');
           }}
         />
       )}

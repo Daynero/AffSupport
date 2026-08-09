@@ -20,7 +20,9 @@ export const featureFlags: Record<FeatureId, FeatureFlag> = {
   landingOptimizer: { protected: false },
   landingPreview: { protected: false },
   transcription: { protected: true },
-  teamWorkspace: { protected: true }
+  // Team workspace is controlled by membership authorization, not a
+  // browser-local development acknowledgement.
+  teamWorkspace: { protected: false }
 };
 
 const STORAGE_PREFIX = 'wishly.feature-unlock.';

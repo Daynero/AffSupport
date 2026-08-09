@@ -243,6 +243,11 @@ update public.profiles
 set account_status = 'blocked'
 where id = '10000000-0000-4000-8000-000000000003';
 
+-- The test workspace is the designated admin-owned workspace. All following
+-- members model the approved team rather than arbitrary user-created teams.
+insert into public.admin_users (user_id)
+values ('10000000-0000-4000-8000-000000000001');
+
 insert into public.teams (id, name, owner_id)
 values (
   '20000000-0000-4000-8000-000000000001',

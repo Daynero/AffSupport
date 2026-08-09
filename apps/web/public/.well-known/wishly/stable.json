@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.9.8",
-  "buildNumber": "44",
-  "buildId": "0.9.8+44",
+  "version": "0.9.9",
+  "buildNumber": "45",
+  "buildId": "0.9.9+45",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-08-09T07:22:53.000Z",
+  "publishedAt": "2026-08-09T14:42:02.000Z",
   "summary": {
-    "en": "Add the team workspace launch waitlist, improve responsive layouts, and update the Soty support address.",
-    "uk": "Додано список очікування запуску командного простору, покращено адаптивність і оновлено адресу підтримки Soty."
+    "en": "Add technical support messaging and tighten access to the Team Workspace pilot.",
+    "uk": "Додано звернення до техпідтримки та посилено доступ до пілоту Team Workspace."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.8/Soty-v0.9.8-macOS-arm64.dmg",
-      "sha256": "3be0974cdb23a5baa1a07b8d1169c4c5855413486571d556ea5e11165ec0470b"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.9/Soty-v0.9.9-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -35,5 +35,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "RXSPutlSXDtBH2aQgZDVO5rTkOvNboaufGuCI_QPvwaZm_FZZUEmOC-9wxenAs-EtSuU8FjoHAz0hWDIhv6a3Q"
+  "signature": "iXOnmu8SYcOfDrLzkJ6cbViLRuhAurFm4Em2RyzeC11pjyswvPoRfsORfl-7yZ1lN-GIRqqnq4A-1pi66ADXig"
 }

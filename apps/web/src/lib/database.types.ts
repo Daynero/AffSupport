@@ -1091,6 +1091,10 @@ export type Database = {
           user_id: string;
         }[];
       };
+      can_access_team_workspace: {
+        Args: never;
+        Returns: boolean;
+      };
       join_team_workspace_waitlist: {
         Args: never;
         Returns: boolean;

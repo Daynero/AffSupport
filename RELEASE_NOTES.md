@@ -1,3 +1,8 @@
+# v0.9.9
+
+- Add a dedicated technical support message form to the account menu, separate from donation options.
+- Restrict the Team Workspace pilot to administrator-designated spaces and prevent legacy workspaces from bypassing its access gate.
+
 # v0.9.8
 
 - Add a launch waitlist for the team workspace, with an admin view of interested users and production database enforcement for pilot team creation.

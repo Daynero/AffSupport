@@ -5055,9 +5055,11 @@ body:has(.public-home) {
   align-self: center;
   justify-self: center;
   display: grid;
+  align-content: center;
   justify-items: center;
   gap: 24px;
-  width: min(749px, calc(100vw - 32px));
+  width: min(800px, calc(100vw - 32px));
+  min-height: 470px;
   margin: 0 0 62px;
   padding: 36px;
   border: 1px solid rgb(117 87 232 / 14%);
@@ -5089,7 +5091,7 @@ body:has(.public-home) {
   grid-template-columns: 24px 1fr 24px;
   align-items: center;
   gap: 10px;
-  width: min(100%, 502px);
+  width: min(100%, 402px);
   min-height: 50px;
   padding: 4px 12px;
   border: 1px solid #747775;
