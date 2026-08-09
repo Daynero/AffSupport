@@ -6,7 +6,7 @@
   "buildId": "0.9.9+45",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-08-09T14:42:02.000Z",
+  "publishedAt": "2026-08-09T14:54:42.000Z",
   "summary": {
     "en": "Add technical support messaging and tighten access to the Team Workspace pilot.",
     "uk": "Додано звернення до техпідтримки та посилено доступ до пілоту Team Workspace."
@@ -14,7 +14,7 @@
   "artifacts": {
     "macos-arm64": {
       "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.9/Soty-v0.9.9-macOS-arm64.dmg",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      "sha256": "dd1edd04ddfbc2a48028e7fe7e5298bef153672b758dba97a9a489773b9b09c3"
     }
   },
   "toolRequirements": {
@@ -35,5 +35,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "iXOnmu8SYcOfDrLzkJ6cbViLRuhAurFm4Em2RyzeC11pjyswvPoRfsORfl-7yZ1lN-GIRqqnq4A-1pi66ADXig"
+  "signature": "sLmnXSPqAJRZz0tbkeVf8VDpGQOZJVynkOSypKg3LpDyXI33I3JmWxYD2uXl0V7NgkKeQ5ZuW8Da_2Orxv4LnA"
 }
