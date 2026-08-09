@@ -9074,12 +9074,37 @@ body:has(.public-home) {
   color: var(--color-error);
   padding: var(--space-3);
 }
+.team-inline-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
 
 /* --- Guided team space: lobby, create wizard, content-first shell --- */
 .team-space-page {
-  width: min(1000px, 100%);
+  width: min(1240px, 100%);
   margin-inline: auto;
   min-width: 0;
+}
+.team-workspace-gate-background {
+  min-height: 52vh;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  opacity: 0.55;
+}
+.team-workspace-gate {
+  display: grid;
+  gap: var(--space-4);
+  text-align: center;
+}
+.team-workspace-gate h2,
+.team-workspace-gate p {
+  margin: 0;
+}
+.team-workspace-gate-actions {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 .team-space-lobby {
   display: grid;
@@ -9293,7 +9318,7 @@ body:has(.public-home) {
 .team-space-settings-grid > * {
   min-width: 0;
 }
-@media (min-width: 900px) {
+@media (min-width: 1180px) {
   .team-space-settings-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: start;
@@ -9361,6 +9386,11 @@ button,
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
+}
+.team-member-list li > div:first-child > strong,
+.team-audit-list li > div:first-child > strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .team-member-list li > div:first-child > small,
 .team-audit-list li > div:first-child > span {
@@ -9651,6 +9681,12 @@ button,
   overflow-wrap: anywhere;
 }
 
+@media (max-width: 1179px) {
+  .team-invite-form {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 860px) {
   .team-workspace-header,
   .team-workspace-header-actions,
@@ -9659,9 +9695,6 @@ button,
     flex-direction: column;
   }
   .team-workspace-grid {
-    grid-template-columns: 1fr;
-  }
-  .team-invite-form {
     grid-template-columns: 1fr;
   }
   .team-catalog-filters {

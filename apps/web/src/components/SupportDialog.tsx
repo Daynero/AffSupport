@@ -72,7 +72,7 @@ export function SupportButton() {
   );
 }
 
-function SupportDialog({ onClose }: { onClose: () => void }) {
+export function SupportDialog({ onClose }: { onClose: () => void }) {
   const { t } = useI18n();
   const { goal } = useSupportGoal();
   const titleId = useId();

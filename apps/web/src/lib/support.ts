@@ -14,7 +14,7 @@ export type CryptoWallet = {
 export const supportConfig = {
   // Email that receives feedback messages. Used to build a mailto: link.
   // Leave empty to hide the message form until it is ready.
-  email: 'support@soty.pp.ua',
+  email: 'Soty.support@gmail.com',
 
   // Monobank jar link, e.g. https://send.monobank.ua/jar/XXXXXXXX
   monobankUrl: 'https://send.monobank.ua/jar/9XWBE8MQYg',

@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.9.6",
-  "buildNumber": "42",
-  "buildId": "0.9.6+42",
+  "version": "0.9.8",
+  "buildNumber": "44",
+  "buildId": "0.9.8+44",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-08-08T17:30:53.000Z",
+  "publishedAt": "2026-08-09T07:22:53.000Z",
   "summary": {
-    "en": "Improve Soty's interface scale, sign-in experience, local media reliability, and team workspace readiness.",
-    "uk": "Покращено масштаб інтерфейсу й авторизацію Soty, надійність локальних медіаінструментів і готовність командного простору."
+    "en": "Add the team workspace launch waitlist, improve responsive layouts, and update the Soty support address.",
+    "uk": "Додано список очікування запуску командного простору, покращено адаптивність і оновлено адресу підтримки Soty."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.6/Soty-v0.9.6-macOS-arm64.dmg",
-      "sha256": "0d7f26da5a3f6d6eeba5c111cc9085553afd1e478bc462f898bafe2bf94f958a"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.8/Soty-v0.9.8-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -35,5 +35,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "vuG_wDva0TRpRXHbqj9ySjTMphKnWmPvn5vuI7qcahcgLXpyFCNfMeKNUOZBcPq1D0kM2llEphLrbFJ1LLo5AQ"
+  "signature": "4I2Trppat2SaYA8rCYXvb80yTueJ57XIohiXQB1yHrLJqENFW52YiDoi8IkOht1lYT7u8h51xFaThMK9s-c6Nw"
 }

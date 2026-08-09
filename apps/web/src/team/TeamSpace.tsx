@@ -1,4 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { useOptionalAuth } from '../auth/AuthContext';
+import { Modal } from '../components/Modal';
+import { SupportDialog } from '../components/SupportDialog';
+import { Button } from '../components/ui';
+import { requireSupabaseClient } from '../lib/supabase';
 import type { TeamContextSnapshot } from '../api/team';
 import { teamApi } from '../api/team';
 import { useI18n } from '../i18n';
@@ -31,10 +36,14 @@ export function TeamSpace({
   directAddMode?: 'disabled' | 'testing';
 }) {
   const { t } = useI18n();
+  const isAdmin = useOptionalAuth()?.isAdmin === true;
   const entering = usePageEntrance();
   const { teams, activeTeam, loading, replaceTeams, enterSpace, leaveSpace } = useTeam();
   const [flow, setFlow] = useState<Flow>({ mode: 'browse' });
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [waitlistState, setWaitlistState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [supportOpen, setSupportOpen] = useState(false);
+  const gateTitleId = useId();
   const resumedFromDrive = useRef(false);
 
   // A Drive OAuth redirect returns to `/team?drive=...` and resets local flow.
@@ -73,6 +82,50 @@ export function TeamSpace({
       {node}
     </main>
   );
+
+  const joinWaitlist = async () => {
+    if (waitlistState === 'saving' || waitlistState === 'saved') return;
+    setWaitlistState('saving');
+    const { error } = await requireSupabaseClient().rpc('join_team_workspace_waitlist');
+    setWaitlistState(error ? 'error' : 'saved');
+  };
+
+  if (!loading && !isAdmin && teams.length === 0) {
+    return wrap(
+      <>
+        <div className="team-workspace-gate-background" aria-hidden="true" />
+        <Modal
+          labelledBy={gateTitleId}
+          className="team-workspace-gate"
+          initialFocus="[data-team-waitlist]"
+        >
+          <p className="team-workspace-eyebrow">{t('teamWorkspace')}</p>
+          <h2 id={gateTitleId}>{t('teamWorkspaceGateTitle')}</h2>
+          <p>{t('teamWorkspaceGateBody')}</p>
+          <div className="team-workspace-gate-actions">
+            <Button
+              variant="primary"
+              data-team-waitlist="true"
+              loading={waitlistState === 'saving'}
+              disabled={waitlistState === 'saved'}
+              onClick={() => void joinWaitlist()}
+            >
+              {t(
+                waitlistState === 'saved' ? 'teamWorkspaceWaitlistSaved' : 'teamWorkspaceWaitlist'
+              )}
+            </Button>
+            <Button onClick={() => setSupportOpen(true)}>{t('teamWorkspaceAccelerate')}</Button>
+          </div>
+          {waitlistState === 'error' && (
+            <p className="support-error" role="alert">
+              {t('teamWorkspaceWaitlistError')}
+            </p>
+          )}
+        </Modal>
+        {supportOpen && <SupportDialog onClose={() => setSupportOpen(false)} />}
+      </>
+    );
+  }
 
   if (flow.mode !== 'browse') {
     return wrap(

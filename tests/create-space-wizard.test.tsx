@@ -3,6 +3,7 @@ import React from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { AuthContextOverride, type AuthContextValue } from '../apps/web/src/auth/AuthContext';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { TeamSpace } from '../apps/web/src/team/TeamSpace';
 import { makeClient, makeTeam } from './team-space-fixtures';
@@ -36,10 +37,26 @@ function wizardClient() {
 }
 
 function renderSpace(client: ReturnType<typeof makeClient>) {
+  const adminAuth = {
+    status: 'authenticated',
+    user: null,
+    session: null,
+    profile: null,
+    isAdmin: true,
+    error: null,
+    loading: false,
+    signInWithGoogle: vi.fn(),
+    completeOAuthCallback: vi.fn(),
+    signOut: vi.fn(),
+    updateProfile: vi.fn(),
+    refreshProfile: vi.fn()
+  } as AuthContextValue;
   return render(
-    <TeamProvider realtime={false}>
-      <TeamSpace client={client} directAddMode="disabled" />
-    </TeamProvider>
+    <AuthContextOverride value={adminAuth}>
+      <TeamProvider realtime={false}>
+        <TeamSpace client={client} directAddMode="disabled" />
+      </TeamProvider>
+    </AuthContextOverride>
   );
 }
 

@@ -396,6 +396,11 @@ export function useAuth() {
   return value;
 }
 
+/** Auth snapshot when mounted in the app; null in isolated component previews/tests. */
+export function useOptionalAuth() {
+  return useContext(AuthContext);
+}
+
 export function AuthContextOverride({
   value,
   children

@@ -43,13 +43,13 @@ describe('team space lobby', () => {
     expect(await screen.findByRole('heading', { name: 'Choose a space' })).toBeTruthy();
   });
 
-  it('shows a welcoming empty state that leads into create when there are no spaces', async () => {
+  it('blocks users without a team behind the workspace launch gate', async () => {
     const client = makeClient({ listTeams: vi.fn().mockResolvedValue([]) });
     renderSpace(client);
 
-    expect(await screen.findByRole('heading', { name: 'You have no spaces yet' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Create your first space' })).toBeTruthy();
-    // No management panels or filters in the lobby.
-    expect(screen.queryByRole('heading', { name: 'Space settings' })).toBeNull();
+    expect(await screen.findByRole('heading', { name: 'ДОНТ ПУШ ЗЕ ХОРСИС' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Notify me when it’s ready' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Speed up development' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Create your first space' })).toBeNull();
   });
 });

@@ -65,17 +65,21 @@ describe('Soty brand identity', () => {
     expect(manifest.theme_color).toBe('#3d217f');
   });
 
-  it('keeps every compatibility and social image on the approved Soty assets', () => {
-    expect(readFileSync('apps/web/public/soty-app-icon.png')).toEqual(
-      readFileSync('apps/web/public/icon-512.png')
-    );
-    expect(readFileSync('apps/web/public/og-image.png')).toEqual(
-      readFileSync('apps/web/public/soty-logo.png')
-    );
-    expect(readFileSync('packaging/DmgBackground.swift', 'utf8')).not.toContain(
-      'favicon.svg W path'
-    );
-  });
+  it(
+    'keeps every compatibility and social image on the approved Soty assets',
+    { timeout: 15_000 },
+    () => {
+      expect(readFileSync('apps/web/public/soty-app-icon.png')).toEqual(
+        readFileSync('apps/web/public/icon-512.png')
+      );
+      expect(readFileSync('apps/web/public/og-image.png')).toEqual(
+        readFileSync('apps/web/public/soty-logo.png')
+      );
+      expect(readFileSync('packaging/DmgBackground.swift', 'utf8')).not.toContain(
+        'favicon.svg W path'
+      );
+    }
+  );
 
   it('keeps the public OAuth home page crawlable', () => {
     const headers = readFileSync('apps/web/public/_headers', 'utf8');

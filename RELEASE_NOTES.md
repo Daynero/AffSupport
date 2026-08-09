@@ -1,3 +1,8 @@
+# v0.9.8
+
+- Add a launch waitlist for the team workspace, with an admin view of interested users and production database enforcement for pilot team creation.
+- Improve team workspace layouts on narrower screens and route support requests to the new Soty support address.
+
 # v0.9.6
 
 - Increase the application-wide interface scale and align the public sign-in header and dialog geometry with the authenticated tools experience.

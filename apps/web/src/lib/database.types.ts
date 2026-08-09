@@ -1083,6 +1083,18 @@ export type Database = {
           total_count: number;
         }[];
       };
+      admin_list_team_workspace_waitlist: {
+        Args: never;
+        Returns: {
+          created_at: string;
+          email: string;
+          user_id: string;
+        }[];
+      };
+      join_team_workspace_waitlist: {
+        Args: never;
+        Returns: boolean;
+      };
       admin_marketing_export: {
         Args: never;
         Returns: {
