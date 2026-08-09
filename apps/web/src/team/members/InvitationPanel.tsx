@@ -173,12 +173,12 @@ export function InvitationPanel({
                   : t('teamInvitationPending')}
             </span>
             {invitation.state === 'pending' && client.resendInvitation && (
-              <Button type="button" variant="ghost" onClick={() => void resend(invitation.id)}>
+              <Button type="button" variant="secondary" onClick={() => void resend(invitation.id)}>
                 {t('teamInvitationResend')}
               </Button>
             )}
             {invitation.state === 'pending' && client.revokeInvitation && (
-              <Button type="button" variant="ghost" onClick={() => void revoke(invitation.id)}>
+              <Button type="button" variant="danger" onClick={() => void revoke(invitation.id)}>
                 {t('teamInvitationRevoke')}
               </Button>
             )}

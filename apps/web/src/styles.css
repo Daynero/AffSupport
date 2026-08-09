@@ -5057,7 +5057,7 @@ body:has(.public-home) {
   display: grid;
   justify-items: center;
   gap: 24px;
-  width: min(576px, calc(100vw - 32px));
+  width: min(749px, calc(100vw - 32px));
   margin: 0 0 62px;
   padding: 36px;
   border: 1px solid rgb(117 87 232 / 14%);
@@ -5089,7 +5089,7 @@ body:has(.public-home) {
   grid-template-columns: 24px 1fr 24px;
   align-items: center;
   gap: 10px;
-  width: 100%;
+  width: min(100%, 502px);
   min-height: 50px;
   padding: 4px 12px;
   border: 1px solid #747775;
@@ -9019,6 +9019,21 @@ body:has(.public-home) {
   min-width: 0;
   border-top: 1px solid var(--color-border);
   padding-top: var(--space-2);
+}
+.team-invitation-list li {
+  flex-wrap: wrap;
+}
+.team-invitation-list li > :first-child {
+  flex: 1 1 220px;
+  overflow-wrap: anywhere;
+}
+.team-invitation-list li > .team-delivery-state,
+.team-invitation-list li > .button {
+  flex: 0 0 auto;
+}
+.team-invitation-list li > .button,
+.team-inline-actions > .button {
+  min-width: max-content;
 }
 .team-invitation-list li > *,
 .team-member-list li > *,

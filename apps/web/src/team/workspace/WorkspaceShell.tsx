@@ -61,7 +61,7 @@ export function WorkspaceShell({
           {hasContent && (
             <Button
               type="button"
-              variant="ghost"
+              variant="secondary"
               aria-pressed={view === 'search'}
               onClick={() => setView(current => (current === 'search' ? 'content' : 'search'))}
             >

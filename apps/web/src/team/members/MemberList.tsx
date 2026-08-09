@@ -133,7 +133,7 @@ export function MemberList({
                   <div className="team-inline-actions">
                     <Button
                       type="button"
-                      variant="ghost"
+                      variant="secondary"
                       aria-label={t('teamMemberEditFor', { name })}
                       onClick={() => setEditing(member)}
                     >
