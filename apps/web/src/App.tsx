@@ -762,11 +762,12 @@ export function Onboarding({
         <div className="installation-help">
           <h3>{t('installTitle')}</h3>
           <ol>
-            {(['install1', 'install2', 'install3', 'install4'] as TranslationKey[]).map(key => (
+            {(
+              ['install1', 'install2', 'install3', 'install4', 'install5', 'install6', 'install7'] as TranslationKey[]
+            ).map(key => (
               <li key={key}>{t(key)}</li>
             ))}
           </ol>
-          <p>{t('gatekeeperHelp')}</p>
         </div>
       )}
     </section>

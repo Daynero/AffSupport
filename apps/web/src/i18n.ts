@@ -256,10 +256,12 @@ const en = {
   installTitle: 'Install Soty',
   install1: 'Download the DMG.',
   install2: 'Drag Soty to Applications.',
-  install3: 'Open Soty.',
-  install4: 'Return to this page.',
-  gatekeeperHelp:
-    'For an unnotarized build, open Applications, Control-click Soty, choose Open, then confirm Open again. Do not disable Gatekeeper.',
+  install3:
+    'Try to open Soty. macOS may say the app was downloaded from the internet or could not be verified—select “Done”.',
+  install4: 'Open  → System Settings → Privacy & Security.',
+  install5: 'Scroll to the bottom, find the message about Soty, and select “Open Anyway”.',
+  install6: 'Select “Open Anyway” once more and enter your Mac password if prompted.',
+  install7: 'Once Soty opens, return to this page and continue.',
   compressionSettings: 'Compression settings',
   compressionMode: 'Mode',
   optimal: 'Optimal',
@@ -1306,10 +1308,14 @@ const uk: Record<keyof typeof en, string> = {
   installTitle: 'Встановлення Soty',
   install1: 'Завантажте DMG.',
   install2: 'Перетягніть Soty у Applications.',
-  install3: 'Запустіть Soty.',
-  install4: 'Поверніться до цієї сторінки.',
-  gatekeeperHelp:
-    'Для ненотаризованої версії відкрийте Applications, натисніть Control-click на Soty, виберіть Open і ще раз підтвердьте Open. Не вимикайте Gatekeeper.',
+  install3:
+    'Спробуйте відкрити Soty. macOS може повідомити, що застосунок завантажено з інтернету або його не вдалося перевірити — натисніть «Готово».',
+  install4: 'Відкрийте  → Системні параметри → Приватність і безпека.',
+  install5:
+    'Прокрутіть сторінку донизу, знайдіть повідомлення про Soty та натисніть «Усе одно відкрити».',
+  install6:
+    'У наступному вікні ще раз натисніть «Усе одно відкрити» й введіть пароль від Mac, якщо система його запитає.',
+  install7: 'Після цього Soty відкриється — поверніться на сайт і продовжуйте роботу.',
   compressionSettings: 'Налаштування стиснення',
   compressionMode: 'Режим',
   optimal: 'Оптимальний',
