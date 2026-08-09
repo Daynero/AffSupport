@@ -1,6 +1,6 @@
 {
   "name": "@video-compressor/agent",
-  "version": "0.9.10",
+  "version": "0.9.9",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
