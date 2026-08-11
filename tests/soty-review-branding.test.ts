@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -19,19 +19,20 @@ describe('Soty customer-facing brand', () => {
       expect(readFileSync(file, 'utf8'), file).not.toMatch(/Wishly/);
   });
 
-  it('uses the approved single-image Soty logo without reconstructing it in UI code', () => {
+  it('uses the current shared Soty header logo without reconstructing it in UI code', () => {
     const logo = readFileSync('apps/soty-review/src/components/SotyLogo.tsx', 'utf8');
-    expect(logo).toContain("import sotyLogo from '../assets/soty-logo.png'");
-    expect(logo).toContain('className="soty-logo-image"');
-    expect(readFileSync('apps/soty-review/src/assets/soty-logo.png').byteLength).toBeGreaterThan(
-      1000
-    );
+    expect(logo).toContain("import sotyLogoLight from '../assets/soty-header-logo-light.svg'");
+    expect(logo).toContain("import sotyLogoDark from '../assets/soty-header-logo-dark.svg'");
+    expect(logo).toContain('className="soty-logo-image soty-logo-image-light"');
+    expect(existsSync('apps/soty-review/src/assets/soty-logo.png')).toBe(false);
+    expect(existsSync('apps/soty-review/src/assets/soty-header-logo-light.svg')).toBe(true);
+    expect(existsSync('apps/soty-review/src/assets/soty-header-logo-dark.svg')).toBe(true);
   });
 
-  it('lets the large logo extend beyond a compact header footprint', () => {
+  it('keeps the header logo within the shared compact header footprint', () => {
     const styles = readFileSync('apps/soty-review/src/styles.css', 'utf8');
     expect(styles).toMatch(/\.soty-brand-button\s*\{[^}]*height: 68px/s);
     expect(styles).toMatch(/\.soty-logo\s*\{[^}]*position: absolute/s);
-    expect(styles).toMatch(/\.soty-logo-image\s*\{[^}]*height: 136px/s);
+    expect(styles).toMatch(/\.soty-logo-image\s*\{[^}]*height: 55\.2px/s);
   });
 });

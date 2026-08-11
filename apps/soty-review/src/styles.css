@@ -235,15 +235,27 @@ select {
 }
 .soty-logo {
   position: absolute;
-  top: -10px;
-  left: clamp(-32px, -2vw, -12px);
-  display: block;
+  top: 6px;
+  left: 0;
+  display: grid;
+  align-items: center;
 }
 .soty-logo-image {
+  grid-area: 1 / 1;
   display: block;
   width: auto;
-  height: 136px;
+  height: 55.2px;
   object-fit: contain;
+  transition: opacity 520ms cubic-bezier(0.65, 0, 0.35, 1);
+}
+.soty-logo-image-dark {
+  opacity: 0;
+}
+.soty-review[data-soty-theme='dark'] .soty-logo-image-light {
+  opacity: 0;
+}
+.soty-review[data-soty-theme='dark'] .soty-logo-image-dark {
+  opacity: 1;
 }
 .soty-iteration {
   color: var(--text-2);

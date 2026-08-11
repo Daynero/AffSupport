@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.9.10",
-  "buildNumber": "46",
-  "buildId": "0.9.10+46",
+  "version": "0.9.11",
+  "buildNumber": "47",
+  "buildId": "0.9.11+47",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-08-09T22:47:29.000Z",
+  "publishedAt": "2026-08-11T18:30:16.000Z",
   "summary": {
-    "en": "Add the shared Team Workspace landings gallery with safe full previews, source-bound cached renders, and local previewer integration.",
-    "uk": "Додано спільну галерею лендінгів Team Workspace, безпечний повний перегляд, кеш рендерів за версією джерела та інтеграцію з локальним переглядачем."
+    "en": "Refresh Soty branding across the web and add a new honeycomb icon in the macOS menu bar.",
+    "uk": "Оновлено брендинг Soty у вебзастосунку та додано новий значок-соту в меню-бар macOS."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.10/Soty-v0.9.10-macOS-arm64.dmg",
-      "sha256": "7d2dc4b6fb92da5c254a63a4773b4f19ad52498cf4a95ed3ffc5b29451a56ce3"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.11/Soty-v0.9.11-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -35,5 +35,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "1yKz2Z2l6w2RuSMdJBhMsu6Zfq5Dh2QbaG9WjMi52HJ-YnHmEO2Eyg5pRbaiivu01Z5hN3Qz9aAqNGNECV8dzA"
+  "signature": "CC67dJEszPBym06KZ2yIihWgiAJeBK3C8ITNRdm4zsCjwZ9LREQvtfQ6bF72KvCcoLo1NR6SXZi3d_NP52nUHA"
 }

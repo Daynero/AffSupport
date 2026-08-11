@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   AGENT_PRODUCT_NAME,
@@ -55,6 +55,10 @@ describe('Soty brand identity', () => {
     expect(html).toMatch(
       /property="og:title" content="Soty — Local media tools and team workspace"/
     );
+    expect(html).toContain('content="%SITE_ORIGIN%/soty-share-preview.png"');
+    expect(html).toContain('property="og:image:width" content="1200"');
+    expect(html).toContain('property="og:image:height" content="630"');
+    expect(html).toContain('name="twitter:image"');
     expect(html).toMatch(/name="theme-color" content="#3d217f"/);
     // The production origin is injected at build time from shared config.
     expect(html).toContain('%SITE_ORIGIN%');
@@ -65,21 +69,17 @@ describe('Soty brand identity', () => {
     expect(manifest.theme_color).toBe('#3d217f');
   });
 
-  it(
-    'keeps every compatibility and social image on the approved Soty assets',
-    { timeout: 15_000 },
-    () => {
-      expect(readFileSync('apps/web/public/soty-app-icon.png')).toEqual(
-        readFileSync('apps/web/public/icon-512.png')
-      );
-      expect(readFileSync('apps/web/public/og-image.png')).toEqual(
-        readFileSync('apps/web/public/soty-logo.png')
-      );
-      expect(readFileSync('packaging/DmgBackground.swift', 'utf8')).not.toContain(
-        'favicon.svg W path'
-      );
-    }
-  );
+  it('keeps every compatibility and social image on the approved Soty assets', () => {
+    expect(readFileSync('apps/web/public/soty-app-icon.png')).toEqual(
+      readFileSync('apps/web/public/icon-512.png')
+    );
+    expect(existsSync('apps/web/public/soty-share-preview.png')).toBe(true);
+    expect(existsSync('apps/web/public/og-image.png')).toBe(false);
+    expect(existsSync('apps/web/public/soty-logo.png')).toBe(false);
+    expect(readFileSync('packaging/DmgBackground.swift', 'utf8')).not.toContain(
+      'favicon.svg W path'
+    );
+  });
 
   it('keeps the public OAuth home page crawlable', () => {
     const headers = readFileSync('apps/web/public/_headers', 'utf8');

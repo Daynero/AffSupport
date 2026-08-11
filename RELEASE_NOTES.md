@@ -1,3 +1,9 @@
+# v0.9.11
+
+- Refresh Soty’s web and social-brand assets, including theme-safe header lockups.
+- Replace the macOS menu-bar film icon with a partially filled honeycomb mark and simplify its version label.
+- Deploy the hosted web app to the current `soty-app` Cloudflare Pages project.
+
 # v0.9.10
 
 - Add a shared Team Workspace landings gallery with search, filters, safe full previews, and consistent device, colour-scheme, and zoom controls.

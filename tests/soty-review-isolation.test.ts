@@ -29,8 +29,8 @@ describe('Soty review isolation boundary', () => {
 
   it('keeps production scripts independent', () => {
     const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
-    expect(pkg.scripts['build:web']).not.toContain('soty');
-    expect(pkg.scripts['deploy:web']).not.toContain('soty');
-    expect(pkg.scripts.build).not.toContain('soty');
+    expect(pkg.scripts['build:web']).not.toContain('soty-review');
+    expect(pkg.scripts['deploy:web']).not.toContain('soty-review');
+    expect(pkg.scripts.build).not.toContain('soty-review');
   });
 });

@@ -23,6 +23,54 @@ private let launcherLogger = Logger(
   category: "finder-actions"
 )
 
+/// A compact, monochrome honeycomb mark for the macOS menu bar.  Template
+/// images let AppKit choose the correct foreground colour for light and dark
+/// menu bars while retaining the intentionally uneven half-fill.
+private func honeycombStatusImage(accessibilityDescription: String) -> NSImage {
+  let image = NSImage(size: NSSize(width: 18, height: 18))
+  image.lockFocus()
+  defer { image.unlockFocus() }
+
+  let hexagon = NSBezierPath()
+  hexagon.move(to: NSPoint(x: 9, y: 1.2))
+  hexagon.line(to: NSPoint(x: 15.5, y: 4.95))
+  hexagon.line(to: NSPoint(x: 15.5, y: 13.05))
+  hexagon.line(to: NSPoint(x: 9, y: 16.8))
+  hexagon.line(to: NSPoint(x: 2.5, y: 13.05))
+  hexagon.line(to: NSPoint(x: 2.5, y: 4.95))
+  hexagon.close()
+
+  // Keep the lower portion visibly organic rather than splitting the cell
+  // along a perfectly level line.
+  let fill = NSBezierPath()
+  fill.move(to: NSPoint(x: 2.5, y: 9.35))
+  fill.line(to: NSPoint(x: 4.75, y: 8.85))
+  fill.line(to: NSPoint(x: 6.7, y: 9.6))
+  fill.line(to: NSPoint(x: 8.8, y: 7.95))
+  fill.line(to: NSPoint(x: 11, y: 8.75))
+  fill.line(to: NSPoint(x: 12.65, y: 8.15))
+  fill.line(to: NSPoint(x: 15.5, y: 10.5))
+  fill.line(to: NSPoint(x: 15.5, y: 13.05))
+  fill.line(to: NSPoint(x: 9, y: 16.8))
+  fill.line(to: NSPoint(x: 2.5, y: 13.05))
+  fill.close()
+
+  NSGraphicsContext.saveGraphicsState()
+  hexagon.addClip()
+  NSColor.black.setFill()
+  fill.fill()
+  NSGraphicsContext.restoreGraphicsState()
+
+  hexagon.lineWidth = 1.35
+  hexagon.lineJoinStyle = .round
+  NSColor.black.setStroke()
+  hexagon.stroke()
+
+  image.isTemplate = true
+  image.accessibilityDescription = accessibilityDescription
+  return image
+}
+
 private struct AgentHealth: Decodable {
   let product: String
   let ready: Bool
@@ -165,10 +213,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   private func installMenuBarItem() {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    item.button?.image = NSImage(
-      systemSymbolName: "film.stack",
-      accessibilityDescription: applicationName
-    )
+    item.button?.image = honeycombStatusImage(accessibilityDescription: applicationName)
     let menu = NSMenu()
     let openItem = menu.addItem(
       withTitle: "Open Soty",
@@ -177,7 +222,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
     openItem.target = self
     let versionItem = menu.addItem(
-      withTitle: "Version \(expectedVersion) · build \(expectedBuildNumber)",
+      withTitle: "Version \(expectedVersion)",
       action: nil,
       keyEquivalent: ""
     )
@@ -675,10 +720,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   private func clearFinderActionFailure() {
     lastFinderFailure = nil
-    statusItem?.button?.image = NSImage(
-      systemSymbolName: "film.stack",
-      accessibilityDescription: applicationName
-    )
+    statusItem?.button?.image = honeycombStatusImage(accessibilityDescription: applicationName)
     finderStatusItem?.isHidden = true
   }
 
