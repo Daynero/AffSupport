@@ -208,6 +208,9 @@ describe('release identity', () => {
     for (const script of ['deploy:web', 'release:check', 'package:mac', 'package:dmg']) {
       expect(rootPackage.scripts[script]).toContain('verify:team-production');
     }
+    for (const script of ['deploy:web', 'deploy:web:identity', 'deploy:web:member-pilot']) {
+      expect(rootPackage.scripts[script]).toContain('--project-name wishly-app');
+    }
     expect(rootPackage.scripts['deploy:web:member-pilot']).toContain('verify:team-member-pilot');
     expect(rootPackage.scripts['deploy:web:member-pilot']).toContain('--member-pilot');
     expect(realAgentGate).toContain('AGENT_UPDATE_REQUIRED');

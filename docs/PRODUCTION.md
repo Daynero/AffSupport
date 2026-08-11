@@ -20,7 +20,7 @@
 
 ## Production build environment
 
-Project: `soty-app`. Canonical production origin: `https://soty.pp.ua`.
+Project: `wishly-app`. Canonical production origin: `https://soty.pp.ua`.
 
 Додайте у production build environment:
 
