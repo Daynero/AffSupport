@@ -6,7 +6,7 @@
   "buildId": "0.9.11+47",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-08-11T18:30:16.000Z",
+  "publishedAt": "2026-08-11T18:36:14.000Z",
   "summary": {
     "en": "Refresh Soty branding across the web and add a new honeycomb icon in the macOS menu bar.",
     "uk": "Оновлено брендинг Soty у вебзастосунку та додано новий значок-соту в меню-бар macOS."
@@ -14,7 +14,7 @@
   "artifacts": {
     "macos-arm64": {
       "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.11/Soty-v0.9.11-macOS-arm64.dmg",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      "sha256": "a9a7a780abbe622beccfcc273f0b6c4d3066b22f138dc075ac6d405deb5b57db"
     }
   },
   "toolRequirements": {
@@ -35,5 +35,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "CC67dJEszPBym06KZ2yIihWgiAJeBK3C8ITNRdm4zsCjwZ9LREQvtfQ6bF72KvCcoLo1NR6SXZi3d_NP52nUHA"
+  "signature": "VOW9vgGqaWQl4keeBPb0DK-n7eC4wfKs6xQX5o5ZHo0w0GzQQ6PU-LY5v4IIXPL4kmdPD_mzdv-fZDYX1r6xMQ"
 }
