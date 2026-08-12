@@ -48,14 +48,15 @@ describe('Soty brand identity', () => {
 
   it('brands the web document metadata', () => {
     const html = readFileSync('apps/web/index.html', 'utf8');
-    expect(html).toContain('<title>Soty — Local media tools and team workspace</title>');
+    expect(html).toContain('<title>Soty — Твій помічник у медіабаїнгу</title>');
+    expect(html).toContain('content="Твій помічник у медіабаїнгу."');
     expect(html).toContain('href="/icon-192.png"');
     expect(html).toContain('rel="apple-touch-icon"');
     expect(html).toContain('rel="manifest"');
     expect(html).toMatch(
-      /property="og:title" content="Soty — Local media tools and team workspace"/
+      /property="og:title" content="Soty — Твій помічник у медіабаїнгу"/
     );
-    expect(html).toContain('content="%SITE_ORIGIN%/soty-share-preview.png"');
+    expect(html).toContain('content="%SITE_ORIGIN%/soty-share-preview-v2.png"');
     expect(html).toContain('property="og:image:width" content="1200"');
     expect(html).toContain('property="og:image:height" content="630"');
     expect(html).toContain('name="twitter:image"');
@@ -73,7 +74,8 @@ describe('Soty brand identity', () => {
     expect(readFileSync('apps/web/public/soty-app-icon.png')).toEqual(
       readFileSync('apps/web/public/icon-512.png')
     );
-    expect(existsSync('apps/web/public/soty-share-preview.png')).toBe(true);
+    expect(existsSync('apps/web/public/soty-share-preview-v2.png')).toBe(true);
+    expect(existsSync('apps/web/public/soty-share-preview.png')).toBe(false);
     expect(existsSync('apps/web/public/og-image.png')).toBe(false);
     expect(existsSync('apps/web/public/soty-logo.png')).toBe(false);
     expect(readFileSync('packaging/DmgBackground.swift', 'utf8')).not.toContain(

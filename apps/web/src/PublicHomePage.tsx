@@ -10,7 +10,7 @@ export default function PublicHomePage() {
   const { t } = useI18n();
 
   useEffect(() => {
-    document.title = 'Soty — Free local media tools';
+    document.title = 'Soty — Твій помічник у медіабаїнгу';
     document
       .querySelector('meta[name="description"]')
       ?.setAttribute('content', t('publicHomeDescription'));
