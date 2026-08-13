@@ -1,86 +1,74 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildBridgeChunks,
-  buildChunkWhisperArgs,
-  buildSpeechChunks,
-  buildVadDetectionArgs,
   buildWhisperArgs,
   collapseTranscriptArtifacts,
-  mergeTranscriptChunks,
-  parseVadSpeechRanges,
+  dropTrailingCredits,
+  isCreditHallucination,
   shouldCreateEnglishPivot,
+  stripCreditSuffix,
   stripNonSpeechArtifacts
 } from '../apps/agent/src/whisper/transcriber.js';
 
-describe('Whisper transcription safeguards', () => {
-  it('keeps timestamp tokens enabled for the temporary Whisper output', () => {
+describe('Whisper long-form transcription', () => {
+  it('builds a single long-form pass with word timestamps and VAD', () => {
     const args = buildWhisperArgs(
-      {
-        wavPath: '/tmp/input.wav',
-        outputBase: '/tmp/transcript',
-        language: 'hi'
-      },
+      { wavPath: '/tmp/input.wav', outputBase: '/tmp/transcript', language: 'ar' },
       { threads: 4, vadModelPath: '/tmp/silero.bin' }
     );
 
-    expect(args).toContain('-otxt');
-    expect(args).not.toContain('-nt');
-    expect(args).not.toContain('--no-timestamps');
-    expect(args).toEqual(expect.arrayContaining(['--vad', '-vm', '/tmp/silero.bin', '-l', 'hi']));
-  });
-
-  it('detects speech ranges before loading bounded timestamp-aware chunks', () => {
-    const detection = buildVadDetectionArgs(
-      { wavPath: '/tmp/input.wav' },
-      { threads: 4, vadModelPath: '/tmp/silero.bin' }
-    );
-    const chunks = buildChunkWhisperArgs(
-      {
-        wavPaths: ['/tmp/chunk-0.wav', '/tmp/chunk-1.wav'],
-        language: 'hi'
-      },
-      { threads: 4 }
-    );
-    const recovery = buildChunkWhisperArgs(
-      {
-        wavPaths: ['/tmp/recovery.wav'],
-        language: 'hi'
-      },
-      { threads: 4 }
-    );
-    const translated = buildChunkWhisperArgs(
-      {
-        wavPaths: ['/tmp/chunk-0.wav'],
-        language: 'hi',
-        translateToEnglish: true
-      },
-      { threads: 4 }
-    );
-
-    expect(detection).toEqual(
-      expect.arrayContaining(['-f', '/tmp/input.wav', '-dl', '--vad', '-vm', '/tmp/silero.bin'])
-    );
-    expect(chunks).toEqual(
+    expect(args).toEqual(
       expect.arrayContaining([
+        '-f',
+        '/tmp/input.wav',
         '-l',
-        'hi',
+        'ar',
+        '-otxt',
         '-oj',
         '-ojf',
         '-sow',
-        '-tpi',
-        '0.4',
-        '/tmp/chunk-0.wav',
-        '/tmp/chunk-1.wav'
+        '-of',
+        '/tmp/transcript',
+        '-pp',
+        '-bs',
+        '5',
+        '-bo',
+        '5',
+        '-sns',
+        '--vad',
+        '-vm',
+        '/tmp/silero.bin'
       ])
     );
-    expect(chunks).not.toContain('-nf');
-    expect(chunks).not.toContain('-nt');
-    expect(chunks).not.toContain('--no-timestamps');
-    expect(chunks).not.toContain('-of');
-    expect(recovery).toContain('-otxt');
-    expect(recovery).not.toContain('-nt');
-    expect(recovery).not.toContain('--no-timestamps');
-    expect(translated).toEqual(expect.arrayContaining(['-l', 'hi', '-tr']));
+    expect(args).not.toContain('-nt');
+    expect(args).not.toContain('--no-timestamps');
+    // The source pass never translates.
+    expect(args).not.toContain('-tr');
+  });
+
+  it('omits VAD flags on runtimes without the Silero model', () => {
+    const args = buildWhisperArgs(
+      { wavPath: '/tmp/input.wav', outputBase: '/tmp/out', language: 'auto' },
+      { threads: 4, vadModelPath: null }
+    );
+
+    expect(args).not.toContain('--vad');
+    expect(args).not.toContain('-vm');
+    expect(args).toContain('-otxt');
+    expect(args).toEqual(expect.arrayContaining(['-l', 'auto']));
+  });
+
+  it('adds the speech→English task only for the pivot pass', () => {
+    const source = buildWhisperArgs(
+      { wavPath: '/tmp/a.wav', outputBase: '/tmp/a', language: 'hi' },
+      { threads: 4, vadModelPath: '/tmp/silero.bin' }
+    );
+    const pivot = buildWhisperArgs(
+      { wavPath: '/tmp/a.wav', outputBase: '/tmp/a-en', language: 'hi', translateToEnglish: true },
+      { threads: 4, vadModelPath: '/tmp/silero.bin' }
+    );
+
+    expect(source).not.toContain('-tr');
+    expect(pivot).toEqual(expect.arrayContaining(['-l', 'hi', '-tr']));
   });
 
   it('limits the extra speech-to-English pass to measured weak source languages', () => {
@@ -91,88 +79,46 @@ describe('Whisper transcription safeguards', () => {
     expect(shouldCreateEnglishPivot(null, true)).toBe(false);
   });
 
-  it('parses, joins, and bounds VAD speech ranges with overlap', () => {
-    const ranges = parseVadSpeechRanges(`
-      whisper_vad_segments_from_probs: VAD segment 0: start = 0.10, end = 43.25 (duration: 43.15)
-      whisper_vad_segments_from_probs: VAD segment 1: start = 43.25, end = 47.00 (duration: 3.75)
-      whisper_vad: vad_segment_info: orig_start: 0.10, orig_end: 43.25
-    `);
+  it('drops the trailing Arabic translator-credit hallucination', () => {
+    const lines = [
+      'الحجم الصغير وعدم استقرار الانتصاب ليس حكما نهائيا',
+      'لا تفوتوا فرصتكم',
+      'ترجمة نانسي قنقر'
+    ];
 
-    expect(ranges).toEqual([
-      { startMs: 100, endMs: 43_250 },
-      { startMs: 43_250, endMs: 47_000 }
+    expect(dropTrailingCredits(lines)).toEqual([
+      'الحجم الصغير وعدم استقرار الانتصاب ليس حكما نهائيا',
+      'لا تفوتوا فرصتكم'
     ]);
-    const chunks = buildSpeechChunks(ranges, {
-      chunkMs: 12_000,
-      overlapMs: 3_000,
-      mergeGapMs: 750,
-      edgePaddingMs: 0
-    });
-    expect(chunks[0]).toEqual({ startMs: 100, endMs: 20_100 });
-    expect(chunks.at(-1)).toEqual({ startMs: 35_000, endMs: 47_000 });
-    expect(chunks.slice(1).every(chunk => chunk.endMs - chunk.startMs <= 12_000)).toBe(true);
   });
 
-  it('adds a shifted bridge when adjacent audio windows share no text', () => {
-    const bridges = buildBridgeChunks(
-      [
-        { startMs: 96_000, endMs: 108_000 },
-        { startMs: 102_000, endMs: 114_000 }
-      ],
-      [
-        'यह ओफर सीमित समय के लिए है और आपको बिना किसी जोखिम के इस समाधान को',
-        'अगर उत्पाद आपके लिए काम नहीं करता तो मैं आपको पूरा पैसा वापस करने की गारंटी देता हूँ'
-      ]
+  it('recognizes common subtitle-credit hallucinations but keeps real speech', () => {
+    expect(isCreditHallucination('ترجمة نانسي قنقر')).toBe(true);
+    expect(isCreditHallucination('اشتركوا في القناة')).toBe(true);
+    expect(isCreditHallucination('Thanks for watching!')).toBe(true);
+    expect(isCreditHallucination('Subtitles by the Amara.org community')).toBe(true);
+    expect(isCreditHallucination('Please subscribe')).toBe(true);
+
+    // Real spoken lines must never be treated as credits.
+    expect(isCreditHallucination('لا تفوتوا فرصتكم')).toBe(false);
+    expect(isCreditHallucination('شكرا لكم وسنبدأ الآن بشرح المنتج بالتفصيل')).toBe(false);
+    expect(isCreditHallucination('This product improves your health today')).toBe(false);
+  });
+
+  it('strips a credit clause appended after the final sentence', () => {
+    expect(stripCreditSuffix('لا تفوتوا فرصتكم. ترجمة نانسي قنقر')).toBe('لا تفوتوا فرصتكم.');
+    expect(stripCreditSuffix('Order now. Thanks for watching')).toBe('Order now.');
+    // A normal trailing clause is left untouched.
+    expect(stripCreditSuffix('Order now. Do not miss your chance')).toBe(
+      'Order now. Do not miss your chance'
     );
-
-    expect(bridges).toEqual([
-      {
-        beforeIndex: 1,
-        range: { startMs: 96_000, endMs: 114_000 }
-      }
-    ]);
   });
 
-  it('recovers a missing clause at any unstable boundary using both sides as context', () => {
-    const left =
-      'Şimdi erkek olarak haklarını talep etme zamanı. Aşağıdaki linke hemen tıkla. ' +
-      'Bu stoğu daha cesur olanlar kapmadan şimdi al. Dünyaya kan';
-    const recovery =
-      'Şimdi erkek olarak haklarını talep etme zamanı. Aşağıdaki linke hemen tıkla. ' +
-      'Bu stoğu daha cesur olanlar kapmadan şimdi al. Dünyaya kanıtla. ' +
-      'Ve en önemlisi karına kanıtla. Yatakta gerçek kral kim?';
-    const right = 'Yatakta gerçek kral kim?';
-
-    const merged = mergeTranscriptChunks([left, recovery, right]);
-
-    expect(merged).toContain('Dünyaya kanıtla.');
-    expect(merged).toContain('Ve en önemlisi karına kanıtla.');
-    expect(merged.match(/Yatakta gerçek kral kim\?/gu)).toHaveLength(1);
-    expect(merged).not.toContain('Dünyaya kan\n');
-  });
-
-  it('merges overlapping short windows and replaces a hallucinated tail', () => {
-    const merged = mergeTranscriptChunks([
-      'अगर आप 80 वर्ष की उम्र में भी इस प्राकृतिक उपचार के केवल 3 ग्राम रोजाना लेते हैं यह उत्पाद अभी लागत',
-      'तीन ग्राम रोजाना लेते हैं। यह उत्पाद अभी लागत मूल्य पर उपलब्ध है और ओर्डर करने पर आपको एक मुफ्त सैंपल उपहार में मिलेगा। ये ओफर सीमित समय के लिए है और आपको बिना किसी जोखिम के इस समाधान को',
-      'और आपको बिना किसी जोखिम के इस समाधान को आजमाने का मौका देता है अगर उत्पाद आपके लिए काम नहीं करता तो मैं आपको पूरा पैसा वापस करने की गारंटी देता हूँ अभी ओर्डर कीजिए और आप कल',
-      'आपके लिए काम नहीं करता तो मैं आपको पूरा पैसा वापस करने की गारंटी देता हूँ अभी ओर्डर कीजिए और आप कल ही परिणाम महसूस करेंगे अभी कदम उठाईए और अपने निजी स्वास्थे पर फिर से नियंत्रन पाईए'
-    ]);
-
-    expect(merged).toContain('यह उत्पाद अभी लागत मूल्य पर उपलब्ध है');
-    expect(merged).toContain('एक मुफ्त सैंपल उपहार में मिलेगा');
-    expect(merged).toContain('बिना किसी जोखिम के इस समाधान को आजमाने का मौका देता है');
-    expect(merged).toContain('अपने निजी स्वास्थे पर फिर से नियंत्रन पाईए');
-    expect(merged.match(/पूरा पैसा वापस करने की गारंटी देता हूँ/gu)).toHaveLength(1);
-  });
-
-  it('merges scripts that do not put spaces between words', () => {
-    expect(
-      mergeTranscriptChunks([
-        '这是一个完整的测试句子用于检查转录',
-        '测试句子用于检查转录不会遗漏任何内容。'
-      ])
-    ).toBe('这是一个完整的测试句子用于检查转录不会遗漏任何内容。');
+  it('only removes credits at the tail, never a credit-like line mid-transcript', () => {
+    const lines = ['ترجمة هذا الكلام مهمة جدا للفهم', 'ثم ننتقل إلى المنتج', 'لا تفوتوا فرصتكم'];
+    // The final line is real, so nothing is dropped even though line 0 looks
+    // credit-shaped — trailing-only removal keeps mid-transcript speech safe.
+    expect(dropTrailingCredits(lines)).toEqual(lines);
   });
 
   it('replaces mid-word decoder fragments with their corrected segments', () => {
@@ -203,24 +149,17 @@ describe('Whisper transcription safeguards', () => {
     expect(collapseTranscriptArtifacts(lines)).toEqual(lines);
   });
 
-  it('strips hallucination markers and bare ellipses from merged chunks', () => {
-    const merged = mergeTranscriptChunks([
-      '[BLANK_AUDIO]',
-      'Це перевірений засіб ... який працює швидко...',
-      '(music)',
-      '♪ ♪',
-      'Замовляйте зараз і отримайте знижку.'
-    ]);
-
-    expect(merged).not.toContain('BLANK_AUDIO');
-    expect(merged).not.toContain('music');
-    expect(merged).not.toContain('♪');
-    expect(merged).not.toContain('...');
-    expect(merged).toContain('Це перевірений засіб який працює швидко');
-    expect(merged).toContain('Замовляйте зараз і отримайте знижку.');
+  it('strips hallucination markers and bare ellipses from a line', () => {
+    // The sanitizer blanks markers to whitespace; the caller trims per line.
+    expect(stripNonSpeechArtifacts('[BLANK_AUDIO]').trim()).toBe('');
+    expect(stripNonSpeechArtifacts('(music)').trim()).toBe('');
+    expect(stripNonSpeechArtifacts('♪ ♪').trim()).toBe('');
+    expect(stripNonSpeechArtifacts('Це перевірений засіб ... який працює швидко...')).toBe(
+      'Це перевірений засіб який працює швидко'
+    );
   });
 
-  it('keeps sentence-final ellipsis attached to a word mid-chunk', () => {
+  it('keeps sentence-final ellipsis attached to a word mid-line', () => {
     expect(stripNonSpeechArtifacts('Ну я не знаю... може бути.')).toBe(
       'Ну я не знаю... може бути.'
     );
