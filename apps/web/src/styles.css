@@ -4146,9 +4146,12 @@ input.is-invalid {
 }
 
 /* Toolbar view-mode toggle sizes each option to its label (unlike the equal-width menu segments),
-   otherwise the two labels collapse and overlap in the auto-width toolbar. */
-.landing-gallery-viewmode button {
+   otherwise the `flex: 1 1 0; min-width: 0` from `.landing-gallery-segment button` collapses the
+   buttons and the labels spill outside the frame. The compound selector must out-specify that base
+   rule, which is declared later in this file. */
+.landing-gallery-viewmode.landing-gallery-segment button {
   flex: 0 0 auto;
+  min-width: max-content;
   padding: 6px 12px;
   white-space: nowrap;
 }
