@@ -4145,6 +4145,14 @@ input.is-invalid {
   flex: 0 0 auto;
 }
 
+/* Toolbar view-mode toggle sizes each option to its label (unlike the equal-width menu segments),
+   otherwise the two labels collapse and overlap in the auto-width toolbar. */
+.landing-gallery-viewmode button {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  white-space: nowrap;
+}
+
 .landing-gallery-settings {
   position: relative;
 }
