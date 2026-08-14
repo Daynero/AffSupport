@@ -1,3 +1,8 @@
+# v0.9.12
+
+- Rebuild video transcription on Whisper’s native voice-activity long-form pass for noticeably more accurate results, especially on ads with long trailing silence.
+- Stop the transcript from ending in a spurious “subtitle credit” line (for example an Arabic translator credit) that the old engine could hallucinate.
+
 # v0.9.11
 
 - Refresh Soty’s web and social-brand assets, including theme-safe header lockups.

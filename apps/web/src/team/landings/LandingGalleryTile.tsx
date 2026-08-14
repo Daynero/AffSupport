@@ -59,13 +59,15 @@ export function LandingGalleryTile({
           )}
         </span>
         <span className="landing-tile-name">{item.material.name}</span>
-        <span className="landing-tile-state">
-          {rendering
-            ? renderProgress && renderProgress > 0
-              ? t('teamLandingTileRenderingProgress', { progress: Math.round(renderProgress) })
-              : t('teamLandingTileRendering')
-            : t(item.unavailableReason ? ERROR_COPY[item.unavailableReason] : TILE_COPY[item.tile])}
-        </span>
+        {(rendering || item.tile !== 'ready' || item.unavailableReason) && (
+          <span className="landing-tile-state">
+            {rendering
+              ? renderProgress && renderProgress > 0
+                ? t('teamLandingTileRenderingProgress', { progress: Math.round(renderProgress) })
+                : t('teamLandingTileRendering')
+              : t(item.unavailableReason ? ERROR_COPY[item.unavailableReason] : TILE_COPY[item.tile])}
+          </span>
+        )}
       </button>
       {onRender && item.tile !== 'ready' && item.tile !== 'rendering' && (
         <Button

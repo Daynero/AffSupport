@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.9.11",
-  "buildNumber": "47",
-  "buildId": "0.9.11+47",
+  "version": "0.9.12",
+  "buildNumber": "48",
+  "buildId": "0.9.12+48",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-08-11T18:36:14.000Z",
+  "publishedAt": "2026-08-13T18:55:01.000Z",
   "summary": {
-    "en": "Refresh Soty branding across the web and add a new honeycomb icon in the macOS menu bar.",
-    "uk": "Оновлено брендинг Soty у вебзастосунку та додано новий значок-соту в меню-бар macOS."
+    "en": "Improve video transcription accuracy and remove a spurious subtitle-credit line that could appear at the end of a transcript.",
+    "uk": "Підвищено точність транскрибування відео та усунено хибний субтитровий рядок, що міг зʼявлятися в кінці транскрипту."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.11/Soty-v0.9.11-macOS-arm64.dmg",
-      "sha256": "a9a7a780abbe622beccfcc273f0b6c4d3066b22f138dc075ac6d405deb5b57db"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.12/Soty-v0.9.12-macOS-arm64.dmg",
+      "sha256": "c9a2c1f39408b38620e163d2cce9d490f04c0a221ed2912434bd5e2016090e64"
     }
   },
   "toolRequirements": {
@@ -35,5 +35,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "VOW9vgGqaWQl4keeBPb0DK-n7eC4wfKs6xQX5o5ZHo0w0GzQQ6PU-LY5v4IIXPL4kmdPD_mzdv-fZDYX1r6xMQ"
+  "signature": "qcspR2oPtiMVkyEU1dvazBG0NJuexNkPIhXOcG2S4uyVvW85nujriTNRZ5q7d_P_yMIT5aoghKtoT5Sx4hJfPw"
 }

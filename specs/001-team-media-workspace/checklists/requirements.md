@@ -41,4 +41,8 @@
 - Validation iteration 4: all 16 checks passed after adding FR-045 and SC-010. The global
   theme-transition requirement, reduced-motion behavior, scope, acceptance coverage and
   measurable visual outcome are explicit and technology-agnostic.
+- Validation iteration 5: all 16 checks passed after adding the source-language gate for
+  transcription. Acceptance scenarios 8–9, FR-049–FR-050, SC-014, the unresolved-language
+  edge case, scope, entity data and the separation from manual language metadata are explicit,
+  measurable and technology-agnostic.
 - No clarification markers remain. The security-sensitive Google Drive and Soty permission boundary is stated explicitly in requirements, edge cases, and assumptions.
