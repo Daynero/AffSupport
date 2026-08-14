@@ -3939,6 +3939,212 @@ input.is-invalid {
   opacity: 0.45;
 }
 
+/* Folder switcher — the clickable folder identity that lists recent folders + "choose another". */
+.landing-gallery-source-switcher {
+  position: relative;
+  min-width: 0;
+}
+
+.landing-gallery-source-switcher > summary {
+  display: flex;
+  max-width: 260px;
+  min-width: 0;
+  height: 44.2px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  background: var(--color-surface-subtle);
+  cursor: pointer;
+  line-height: 1;
+  list-style: none;
+}
+
+.landing-gallery-source-switcher > summary::-webkit-details-marker {
+  display: none;
+}
+
+.landing-gallery-source-switcher[open] > summary,
+.landing-gallery-source-switcher > summary:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 24%, var(--color-border));
+  background: var(--color-accent-soft);
+}
+
+.landing-gallery-source-icon {
+  flex: 0 0 auto;
+  font-size: 18px;
+}
+
+.landing-gallery-source-copy {
+  display: grid;
+  min-width: 0;
+}
+
+.landing-gallery-source-copy strong,
+.landing-gallery-source-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.landing-gallery-source-copy small {
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.landing-gallery-source-caret {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+}
+
+.landing-gallery-source-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  left: 0;
+  display: grid;
+  width: min(320px, calc(100vw - 24px));
+  max-height: min(60vh, 420px);
+  gap: 2px;
+  padding: 6px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-menu);
+}
+
+.landing-gallery-source-menu button {
+  display: grid;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.landing-gallery-source-menu button small {
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.landing-gallery-source-menu button:hover:not(:disabled) {
+  background: var(--color-surface-muted);
+}
+
+.landing-gallery-source-menu button[aria-current='true'] {
+  background: var(--color-accent-soft);
+}
+
+.landing-gallery-source-menu button:disabled {
+  opacity: 0.45;
+}
+
+.landing-gallery-source-add {
+  padding: 9px 10px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-accent-hover);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-weight: 600;
+}
+
+.landing-gallery-source-add:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
+  background: var(--color-accent-soft);
+}
+
+.landing-gallery-source-menu .landing-gallery-source-add {
+  margin-top: 6px;
+}
+
+.landing-gallery-source-select .landing-gallery-source-add {
+  width: 100%;
+  margin-top: 6px;
+}
+
+/* Refresh split control — primary "refresh folder" plus a caret for the finer options. */
+.landing-gallery-refresh {
+  display: flex;
+  align-items: center;
+}
+
+.landing-gallery-refresh-more {
+  position: relative;
+}
+
+.landing-gallery-refresh-more > summary {
+  display: grid;
+  width: 22px;
+  height: 44.2px;
+  place-items: center;
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  line-height: 1;
+  list-style: none;
+}
+
+.landing-gallery-refresh-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.landing-gallery-refresh-more[open] > summary,
+.landing-gallery-refresh-more > summary:hover {
+  background: var(--color-surface-muted);
+}
+
+.landing-gallery-refresh-more > div {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  width: 220px;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-menu);
+}
+
+.landing-gallery-refresh-more > div button {
+  padding: 9px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.landing-gallery-refresh-more > div button:hover:not(:disabled) {
+  background: var(--color-surface-muted);
+}
+
+.landing-gallery-refresh-more > div button:disabled {
+  opacity: 0.45;
+}
+
+.landing-gallery-refresh-primary {
+  min-height: 34px;
+  padding: 6px 10px;
+  border-color: transparent;
+  font-size: 17.94px;
+  white-space: nowrap;
+}
+
+.landing-gallery-viewmode {
+  flex: 0 0 auto;
+}
+
 .landing-gallery-settings {
   position: relative;
 }

@@ -112,7 +112,9 @@ export function LandingGallery({
           >
             {t('previous')}
           </Button>
-          <span>{page}</span>
+          <span className="landing-gallery-page-indicator">
+            {page} / {Math.max(1, Math.ceil(total / pageSize))}
+          </span>
           <Button
             type="button"
             variant="secondary"

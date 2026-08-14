@@ -15,7 +15,9 @@ const api = vi.hoisted(() => ({
   openExtracted: vi.fn(),
   refresh: vi.fn(),
   reveal: vi.fn(),
-  select: vi.fn()
+  removeCatalog: vi.fn(),
+  select: vi.fn(),
+  settings: vi.fn()
 }));
 
 vi.mock('../apps/web/src/api/client.js', () => ({
@@ -29,8 +31,10 @@ vi.mock('../apps/web/src/api/client.js', () => ({
   landingGalleryOpen: api.open,
   landingGalleryOpenExtracted: api.openExtracted,
   landingGalleryRefresh: api.refresh,
+  landingGalleryRemoveCatalog: api.removeCatalog,
   landingGalleryReveal: api.reveal,
-  landingGallerySelect: api.select
+  landingGallerySelect: api.select,
+  landingGallerySettings: api.settings
 }));
 
 vi.mock('../apps/web/src/analytics/service.js', () => ({
@@ -117,8 +121,10 @@ beforeEach(() => {
     api.open,
     api.openExtracted,
     api.refresh,
+    api.removeCatalog,
     api.reveal,
-    api.select
+    api.select,
+    api.settings
   ]) {
     action.mockResolvedValue(galleryState);
   }
