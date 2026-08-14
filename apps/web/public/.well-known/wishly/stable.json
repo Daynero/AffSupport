@@ -1,20 +1,16 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.9.12",
-  "buildNumber": "48",
-  "buildId": "0.9.12+48",
+  "version": "0.9.13",
+  "buildNumber": "49",
+  "buildId": "0.9.13+49",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-08-13T18:55:01.000Z",
-  "summary": {
-    "en": "Improve video transcription accuracy and remove a spurious subtitle-credit line that could appear at the end of a transcript.",
-    "uk": "Підвищено точність транскрибування відео та усунено хибний субтитровий рядок, що міг зʼявлятися в кінці транскрипту."
-  },
+  "publishedAt": "2026-08-14T21:44:03.000Z",
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.12/Soty-v0.9.12-macOS-arm64.dmg",
-      "sha256": "c9a2c1f39408b38620e163d2cce9d490f04c0a221ed2912434bd5e2016090e64"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.13/Soty-v0.9.13-macOS-arm64.dmg",
+      "sha256": "89bb6a469bc973479992248457229c8f6e1ccdce0527f7ba7d923ea1bb938cf5"
     }
   },
   "toolRequirements": {
@@ -35,5 +31,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "qcspR2oPtiMVkyEU1dvazBG0NJuexNkPIhXOcG2S4uyVvW85nujriTNRZ5q7d_P_yMIT5aoghKtoT5Sx4hJfPw"
+  "signature": "T2yrCJEzmwNd7Vis4_mO_0SP_uqZ9p8_G5hr6ipQILCnA6LHdjQhcM1GzFEfu-oO42SkZr8ppBxVcQrOdXqA7w"
 }
