@@ -32,6 +32,7 @@ export function LandingGalleryTile({
   rendering = false,
   renderProgress,
   onRender,
+  onCreateTask,
   onOpen
 }: {
   item: LandingGalleryItem;
@@ -39,6 +40,7 @@ export function LandingGalleryTile({
   rendering?: boolean;
   renderProgress?: number | null;
   onRender?: (item: LandingGalleryItem) => void;
+  onCreateTask?: (item: LandingGalleryItem) => void;
   onOpen: (item: LandingGalleryItem) => void;
 }) {
   const { t } = useI18n();
@@ -65,7 +67,9 @@ export function LandingGalleryTile({
               ? renderProgress && renderProgress > 0
                 ? t('teamLandingTileRenderingProgress', { progress: Math.round(renderProgress) })
                 : t('teamLandingTileRendering')
-              : t(item.unavailableReason ? ERROR_COPY[item.unavailableReason] : TILE_COPY[item.tile])}
+              : t(
+                  item.unavailableReason ? ERROR_COPY[item.unavailableReason] : TILE_COPY[item.tile]
+                )}
           </span>
         )}
       </button>
@@ -77,6 +81,11 @@ export function LandingGalleryTile({
           onClick={() => onRender(item)}
         >
           {item.tile === 'error' ? t('teamLandingRetryPreview') : t('teamLandingCreatePreview')}
+        </Button>
+      )}
+      {onCreateTask && (
+        <Button type="button" variant="ghost" onClick={() => onCreateTask(item)}>
+          {t('creativeLibraryCreateTask')}
         </Button>
       )}
     </div>

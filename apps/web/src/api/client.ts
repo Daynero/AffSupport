@@ -6,6 +6,7 @@ import {
   type LandingPreviewRenderSettings,
   type LandingPreviewState,
   type LandingState,
+  type LibraryJobKind,
   type QueueState,
   type SelectionResponse,
   type SelectionWarning,
@@ -385,7 +386,9 @@ export async function startTeamAgentProcess(
       ? 'landingOptimizer'
       : input.toolId === 'transcription'
         ? 'transcription'
-        : 'compressor';
+        : input.toolId === 'translation'
+          ? 'transcription'
+          : 'compressor';
   if (!toolContractCompatible(tool, health.toolContracts ?? {})) {
     throw new Error('AGENT_UPDATE_REQUIRED');
   }
@@ -397,6 +400,50 @@ export async function startTeamAgentProcess(
   const parsed = parseTeamFileOperationResult(value);
   if (!parsed) throw new Error('INVALID_RESPONSE');
   return parsed;
+}
+
+export interface TeamLibraryAgentProcessRequest {
+  operationId: string;
+  teamId: string;
+  requirementId: string;
+  attemptId: string;
+  agentInstanceId: string;
+  kind: LibraryJobKind;
+  variant: string;
+  sourceVersion: string;
+  leaseToken: string;
+  sourceGrant: TeamTransferGrant;
+  finalizeGrant: TeamTransferGrant;
+  options: unknown;
+}
+
+export async function startTeamLibraryAgentProcess(
+  input: TeamLibraryAgentProcessRequest
+): Promise<TeamFileOperationResult> {
+  const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
+  if (!toolContractCompatible('teamWorkspace', health.toolContracts ?? {})) {
+    throw new Error('AGENT_UPDATE_REQUIRED');
+  }
+  const tool = input.kind === 'landing_optimization' ? 'landingOptimizer' : 'transcription';
+  if (!toolContractCompatible(tool, health.toolContracts ?? {})) {
+    throw new Error('AGENT_UPDATE_REQUIRED');
+  }
+  const value: unknown = await requestBody('/api/team/library/process', {
+    ...input,
+    transferUrl: teamTransferRangeUrl(),
+    cloudBaseUrl: teamCloudBaseUrl()
+  });
+  const parsed = parseTeamFileOperationResult(value);
+  if (!parsed) throw new Error('INVALID_RESPONSE');
+  return parsed;
+}
+
+export async function cancelTeamLibraryAgentProcess(attemptId: string): Promise<boolean> {
+  const value = await requestBody<{ canceled?: unknown }>(
+    `/api/team/library/process/${encodeURIComponent(attemptId)}/cancel`,
+    {}
+  );
+  return value.canceled === true;
 }
 
 export async function cancelTeamAgentProcess(operationId: string): Promise<boolean> {

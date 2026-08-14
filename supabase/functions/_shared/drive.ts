@@ -9,6 +9,7 @@ export interface DriveCapabilities {
   canMoveItemWithinDrive: boolean;
   canMoveItemOutOfDrive: boolean;
   canModifyContent: boolean;
+  canShare?: boolean;
   canTrash: boolean;
   canUntrash: boolean;
 }
@@ -28,6 +29,7 @@ export interface DriveFileMetadata {
   modifiedAt: string | null;
   version: string | null;
   checksum: string | null;
+  webViewLink?: string | null;
 }
 
 export interface DriveChange {
@@ -45,11 +47,12 @@ const FILE_FIELDS = [
   'driveId',
   'resourceKey',
   'shortcutDetails(targetId,targetMimeType,targetResourceKey)',
-  'capabilities(canDownload,canListChildren,canAddChildren,canRename,canMoveItemWithinDrive,canMoveItemOutOfDrive,canModifyContent,canTrash,canUntrash)',
+  'capabilities(canDownload,canListChildren,canAddChildren,canRename,canMoveItemWithinDrive,canMoveItemOutOfDrive,canModifyContent,canShare,canTrash,canUntrash)',
   'size',
   'modifiedTime',
   'version',
-  'md5Checksum'
+  'md5Checksum',
+  'webViewLink'
 ].join(',');
 
 function parseCapabilities(value: unknown): DriveCapabilities | null {
@@ -63,6 +66,7 @@ function parseCapabilities(value: unknown): DriveCapabilities | null {
     canMoveItemWithinDrive: capability('canMoveItemWithinDrive'),
     canMoveItemOutOfDrive: capability('canMoveItemOutOfDrive'),
     canModifyContent: capability('canModifyContent'),
+    canShare: capability('canShare'),
     canTrash: capability('canTrash'),
     canUntrash: capability('canUntrash')
   };
@@ -102,7 +106,8 @@ function parseMetadata(value: unknown): DriveFileMetadata | null {
     size: parsedSize !== null && Number.isSafeInteger(parsedSize) ? parsedSize : null,
     modifiedAt: typeof value.modifiedTime === 'string' ? value.modifiedTime : null,
     version: typeof value.version === 'string' ? value.version : null,
-    checksum: typeof value.md5Checksum === 'string' ? value.md5Checksum : null
+    checksum: typeof value.md5Checksum === 'string' ? value.md5Checksum : null,
+    webViewLink: typeof value.webViewLink === 'string' ? value.webViewLink : null
   };
 }
 
@@ -254,6 +259,51 @@ export class GoogleDriveClient {
       throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
     }
     return metadata;
+  }
+
+  async listAnyonePermissions(fileId: string): Promise<Array<{ id: string; role: string }>> {
+    const url = new URL(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions`
+    );
+    url.searchParams.set('supportsAllDrives', 'true');
+    url.searchParams.set('fields', 'permissions(id,type,role)');
+    const response = await this.#request(url);
+    const payload: unknown = await response.json().catch(() => null);
+    if (!isRecord(payload) || !Array.isArray(payload.permissions)) {
+      throw new TeamFunctionError('INVALID_RESPONSE');
+    }
+    const permissions: Array<{ id: string; role: string }> = [];
+    for (const raw of payload.permissions) {
+      if (!isRecord(raw) || typeof raw.id !== 'string' || typeof raw.role !== 'string') {
+        throw new TeamFunctionError('INVALID_RESPONSE');
+      }
+      if (raw.type === 'anyone') permissions.push({ id: raw.id, role: raw.role });
+    }
+    return permissions;
+  }
+
+  async createAnyoneReaderPermission(fileId: string): Promise<{ id: string; role: 'reader' }> {
+    const url = new URL(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions`
+    );
+    url.searchParams.set('supportsAllDrives', 'true');
+    url.searchParams.set('sendNotificationEmail', 'false');
+    url.searchParams.set('fields', 'id,type,role');
+    const response = await this.#request(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ type: 'anyone', role: 'reader', allowFileDiscovery: false })
+    });
+    const payload: unknown = await response.json().catch(() => null);
+    if (
+      !isRecord(payload) ||
+      typeof payload.id !== 'string' ||
+      payload.type !== 'anyone' ||
+      payload.role !== 'reader'
+    ) {
+      throw new TeamFunctionError('INVALID_RESPONSE');
+    }
+    return { id: payload.id, role: 'reader' };
   }
 
   async downloadFileRange(input: {

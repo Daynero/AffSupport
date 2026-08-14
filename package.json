@@ -30,6 +30,7 @@
     "generate:team-contract": "npm run build -w @video-compressor/shared && node scripts/generate-team-contract-sql.mjs",
     "generate:team-contract:check": "npm run generate:team-contract -- --check",
     "test:team": "npm run build -w @video-compressor/shared && vitest run tests/team-*.test.ts tests/team-*.test.tsx tests/drive-*.test.ts tests/catalog-*.test.ts tests/material-category.test.ts tests/transcript-ingestion.test.ts",
+    "test:creative-library": "npm run build -w @video-compressor/shared && vitest run tests/creative-library-*.test.ts tests/creative-library-*.test.tsx",
     "format": "prettier --write apps packages tests scripts docs supabase/functions README.md TESTER_GUIDE.md RELEASE_NOTES.md THIRD_PARTY_NOTICES.md package.json",
     "format:check": "prettier --check apps packages tests scripts docs supabase/functions README.md TESTER_GUIDE.md RELEASE_NOTES.md THIRD_PARTY_NOTICES.md package.json",
     "lint": "eslint apps packages tests scripts",

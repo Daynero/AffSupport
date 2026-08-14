@@ -49,7 +49,15 @@ export interface TeamLandingsClient {
 }
 
 /** Shared gallery over the entered space's category-scoped catalog. */
-export function TeamLandings({ teamId, client }: { teamId: string; client: TeamLandingsClient }) {
+export function TeamLandings({
+  teamId,
+  client,
+  onCreateTask
+}: {
+  teamId: string;
+  client: TeamLandingsClient;
+  onCreateTask?: (asset: { id: string; name: string }) => void;
+}) {
   const { t } = useI18n();
   const agent = useOptionalAgent();
   const gallery = useTeamLandings({ teamId, client });
@@ -154,6 +162,7 @@ export function TeamLandings({ teamId, client }: { teamId: string; client: TeamL
             ...(item.render?.artifact ? { artifact: item.render.artifact } : {})
           });
         }}
+        onCreateTask={item => onCreateTask?.(item.material)}
       />
       {previewing && (
         <LandingFullView

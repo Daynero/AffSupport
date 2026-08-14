@@ -30,6 +30,7 @@ import { createToolModules } from '../apps/agent/src/server/tools.js';
 import { TeamPreviewBridge } from '../apps/agent/src/team-bridge/preview.js';
 import { TeamDownloadBridge } from '../apps/agent/src/team-bridge/download.js';
 import { TeamLandingRenderBridge } from '../apps/agent/src/team-bridge/landing-gallery.js';
+import { CreativeLibraryProcessBridge } from '../apps/agent/src/team-bridge/library.js';
 import {
   TeamOperationEvents,
   type TeamOperationEvent
@@ -153,6 +154,9 @@ async function makeServer(options: { entitlementPublicKey?: string } = {}) {
     delegates: {},
     events: teamOperationEvents
   });
+  const creativeLibraryProcessBridge = new CreativeLibraryProcessBridge({
+    process: teamProcessBridge
+  });
   const teamDownloadBridge = new TeamDownloadBridge({
     transfer: teamTransfer,
     chooseDestination: async () => null,
@@ -199,6 +203,7 @@ async function makeServer(options: { entitlementPublicKey?: string } = {}) {
         process: teamProcessBridge,
         download: teamDownloadBridge,
         landings: teamLandingRenderBridge,
+        library: creativeLibraryProcessBridge,
         events: teamEvents
       }
     }),

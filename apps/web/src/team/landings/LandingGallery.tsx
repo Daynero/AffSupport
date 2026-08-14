@@ -33,6 +33,7 @@ export function LandingGallery({
   renderingMaterialId,
   renderProgress,
   onRender,
+  onCreateTask,
   onOpen
 }: {
   items: LandingGalleryItem[];
@@ -47,6 +48,7 @@ export function LandingGallery({
   renderingMaterialId?: string | null;
   renderProgress?: number | null;
   onRender?: (item: LandingGalleryItem) => void;
+  onCreateTask?: (item: LandingGalleryItem) => void;
   onOpen: (item: LandingGalleryItem) => void;
 }) {
   const { t } = useI18n();
@@ -97,6 +99,7 @@ export function LandingGallery({
               rendering={renderingMaterialId === item.material.id}
               renderProgress={renderingMaterialId === item.material.id ? renderProgress : undefined}
               onRender={onRender}
+              onCreateTask={onCreateTask}
               onOpen={onOpen}
             />
           </li>

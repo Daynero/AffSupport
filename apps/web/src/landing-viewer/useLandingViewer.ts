@@ -34,10 +34,12 @@ export function useLandingViewer({ source }: UseLandingViewerInput) {
       .then(next => {
         setState(next);
         setLoaded(true);
-        const fresh =
-          next.updatedAt !== null && Date.now() - next.updatedAt < AUTO_RESCAN_STALE_MS;
+        const fresh = next.updatedAt !== null && Date.now() - next.updatedAt < AUTO_RESCAN_STALE_MS;
         if (next.activeCatalogId && !next.running && !fresh) {
-          void source.activate(next.activeCatalogId).then(setState).catch(() => {});
+          void source
+            .activate(next.activeCatalogId)
+            .then(setState)
+            .catch(() => {});
         }
       })
       .catch(() => {
@@ -93,7 +95,10 @@ export function useLandingViewer({ source }: UseLandingViewerInput) {
    */
   const pushState = useCallback((next: LandingPreviewState) => setState(next), []);
 
-  const activate = useCallback((id: string) => void apply(() => source.activate(id)), [apply, source]);
+  const activate = useCallback(
+    (id: string) => void apply(() => source.activate(id)),
+    [apply, source]
+  );
   const chooseFolder = useCallback(() => {
     if (source.chooseFolder) void apply(() => source.chooseFolder!());
   }, [apply, source]);

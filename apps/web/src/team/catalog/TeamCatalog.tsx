@@ -50,7 +50,15 @@ export interface TeamCatalogClient {
   getConnectionStatus?: (teamId: string) => Promise<DriveConnectionStatus>;
 }
 
-export function TeamCatalog({ teamId, client }: { teamId: string; client: TeamCatalogClient }) {
+export function TeamCatalog({
+  teamId,
+  client,
+  onCreateTask
+}: {
+  teamId: string;
+  client: TeamCatalogClient;
+  onCreateTask?: (asset: { id: string; name: string }) => void;
+}) {
   const { t } = useI18n();
   const { can, permissions } = useTeam();
   const agent = useOptionalAgent();
@@ -162,6 +170,7 @@ export function TeamCatalog({ teamId, client }: { teamId: string; client: TeamCa
             .getMaterialProvenance(teamId, material.id)
             .then(entries => setProvenance({ material, entries }));
         }}
+        onCreateTask={onCreateTask}
         onChanged={() => void catalog.refetch()}
       />
       {editing && (

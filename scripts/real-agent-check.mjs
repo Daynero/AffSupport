@@ -137,7 +137,11 @@ try {
     );
   }
 
-  for (const route of ['/api/team/landings/render', '/api/landing-preview/team-space']) {
+  for (const route of [
+    '/api/team/landings/render',
+    '/api/landing-preview/team-space',
+    '/api/team/library/process'
+  ]) {
     const response = await fetch(`${origin}${route}`, {
       method: 'POST',
       headers: { 'x-session-token': token, 'content-type': 'application/json' },

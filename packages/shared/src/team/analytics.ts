@@ -1,6 +1,12 @@
 import { MATERIAL_CATEGORIES, type MaterialCategory } from './material-category.js';
 import { isRecord } from './contract.js';
 import type { LandingRenderFailureReason, LandingTileState } from './landing-gallery.js';
+import {
+  CREATIVE_LIBRARY_CONTRIBUTION_ACTIONS,
+  CREATIVE_LIBRARY_CONTRIBUTION_CATEGORIES,
+  type CreativeLibraryContributionAction,
+  type CreativeLibraryContributionCategory
+} from './creative-library.js';
 
 export const TEAM_ANALYTICS_EVENT_NAMES = [
   'team_workspace_session',
@@ -16,7 +22,10 @@ export const TEAM_ANALYTICS_EVENT_NAMES = [
   'team_workflow_completed',
   'team_landing_gallery_view',
   'team_landing_open',
-  'team_landing_render'
+  'team_landing_render',
+  'team_library_batch_completed',
+  'team_library_processing_completed',
+  'team_task_completed'
 ] as const;
 export type TeamAnalyticsEventName = (typeof TEAM_ANALYTICS_EVENT_NAMES)[number];
 
@@ -59,6 +68,8 @@ export interface TeamAnalyticsProperties {
   tile_state?: LandingTileState;
   had_agent?: boolean;
   reason?: LandingRenderFailureReason;
+  contribution_category?: CreativeLibraryContributionCategory;
+  contribution_action?: CreativeLibraryContributionAction;
 }
 
 const ID_KEYS = new Set(['flow_id', 'study_run_id', 'attempt_id', 'workflow_id']);
@@ -117,6 +128,12 @@ const LANDING_FAILURE_REASONS = new Set<LandingRenderFailureReason>([
   'too_large',
   'render_error'
 ]);
+const CONTRIBUTION_CATEGORIES = new Set<CreativeLibraryContributionCategory>(
+  CREATIVE_LIBRARY_CONTRIBUTION_CATEGORIES
+);
+const CONTRIBUTION_ACTIONS = new Set<CreativeLibraryContributionAction>(
+  CREATIVE_LIBRARY_CONTRIBUTION_ACTIONS
+);
 
 export const TEAM_ANALYTICS_FORBIDDEN_FIELDS = Object.freeze([
   'email',
@@ -213,6 +230,16 @@ export function sanitizeTeamAnalyticsProperties(input: unknown): TeamAnalyticsPr
       LANDING_FAILURE_REASONS.has(value as LandingRenderFailureReason)
     ) {
       output.reason = value as LandingRenderFailureReason;
+    } else if (
+      key === 'contribution_category' &&
+      CONTRIBUTION_CATEGORIES.has(value as CreativeLibraryContributionCategory)
+    ) {
+      output.contribution_category = value as CreativeLibraryContributionCategory;
+    } else if (
+      key === 'contribution_action' &&
+      CONTRIBUTION_ACTIONS.has(value as CreativeLibraryContributionAction)
+    ) {
+      output.contribution_action = value as CreativeLibraryContributionAction;
     }
   }
   return output;

@@ -178,9 +178,14 @@ describe('release identity', () => {
     expect(AGENT_TOOL_CONTRACTS.teamWorkspace).toBe(2);
 
     const client = readFileSync('apps/web/src/api/client.ts', 'utf8');
+    const agentRoutes = readFileSync('apps/agent/src/team-bridge/routes.ts', 'utf8');
+    const agentTools = readFileSync('apps/agent/src/server/tools.ts', 'utf8');
     for (const route of ['/api/team/landings/render', '/api/landing-preview/team-space']) {
       expect(client).toContain(route);
     }
+    expect(client).toContain('/api/team/library/process');
+    expect(agentRoutes).toContain('/api/team/library/process');
+    expect(agentTools).toContain('library: CreativeLibraryProcessBridge');
     expect(client.match(/AGENT_TOOL_CONTRACTS\.teamWorkspace/gu)?.length).toBeGreaterThanOrEqual(2);
   });
 
@@ -217,6 +222,7 @@ describe('release identity', () => {
     expect(realAgentGate).toContain('legacyContracts');
     expect(realAgentGate).toContain('/api/team/landings/render');
     expect(realAgentGate).toContain('/api/landing-preview/team-space');
+    expect(realAgentGate).toContain('/api/team/library/process');
   });
 
   it('keeps installable dev builds isolated from production identities and services', () => {

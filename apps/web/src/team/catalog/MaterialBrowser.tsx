@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { TeamMaterialSummary } from '../../api/team';
 import { useI18n } from '../../i18n';
 import { Button } from '../../components/ui';
+import { TASK_MATERIAL_DRAG_TYPE } from '../tasks/task-drag';
 
 export interface MaterialBrowserClient {
   listMaterials: (teamId: string, parentFolderId: string | null) => Promise<TeamMaterialSummary[]>;
@@ -12,7 +13,9 @@ export function MaterialBrowser({
   client,
   revision = 0,
   syncLabel,
-  onLoaded
+  onLoaded,
+  onCreateTask,
+  taskDragSelection
 }: {
   teamId: string;
   client: MaterialBrowserClient;
@@ -20,6 +23,12 @@ export function MaterialBrowser({
   syncLabel?: string | null;
   /** Reports the count of items in the currently viewed folder after each load. */
   onLoaded?: (count: number) => void;
+  /** Convenient reverse flow: create and immediately open a task for this stable material. */
+  onCreateTask?: (material: { id: string; name: string }) => void;
+  taskDragSelection?: {
+    selectedIds: ReadonlySet<string>;
+    onChange: (selectedIds: Set<string>) => void;
+  };
 }) {
   const { t } = useI18n();
   const [path, setPath] = useState<{ id: string; name: string }[]>([]);
@@ -90,10 +99,44 @@ export function MaterialBrowser({
                 <span aria-hidden="true">📁</span> {material.name}
               </Button>
             ) : (
-              <span>
-                <span aria-hidden="true">{material.kind === 'shortcut' ? '↗' : '▤'}</span>{' '}
-                {material.name}
-              </span>
+              <>
+                <span
+                  draggable={Boolean(taskDragSelection)}
+                  onDragStart={event => {
+                    if (!taskDragSelection) return;
+                    const ids = taskDragSelection.selectedIds.has(material.id)
+                      ? [...taskDragSelection.selectedIds]
+                      : [material.id];
+                    event.dataTransfer.effectAllowed = 'copy';
+                    event.dataTransfer.setData(TASK_MATERIAL_DRAG_TYPE, JSON.stringify(ids));
+                  }}
+                >
+                  {taskDragSelection && (
+                    <input
+                      type="checkbox"
+                      checked={taskDragSelection.selectedIds.has(material.id)}
+                      aria-label={t('teamTaskSelectMedia', { name: material.name })}
+                      onChange={event => {
+                        const next = new Set(taskDragSelection.selectedIds);
+                        if (event.target.checked) next.add(material.id);
+                        else next.delete(material.id);
+                        taskDragSelection.onChange(next);
+                      }}
+                    />
+                  )}
+                  <span aria-hidden="true">{material.kind === 'shortcut' ? '↗' : '▤'}</span>{' '}
+                  {material.name}
+                </span>
+                {onCreateTask && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => onCreateTask({ id: material.id, name: material.name })}
+                  >
+                    {t('creativeLibraryCreateTask')}
+                  </Button>
+                )}
+              </>
             )}
             {material.category && <small>{material.category}</small>}
           </li>

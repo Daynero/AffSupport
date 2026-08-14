@@ -29,6 +29,7 @@ export function MaterialResults({
   onEditText,
   onProcess,
   onShowProvenance,
+  onCreateTask,
   onChanged
 }: {
   result: CatalogSearchResponse | null;
@@ -42,6 +43,7 @@ export function MaterialResults({
   onEditText: (material: CatalogMaterialItem) => void;
   onProcess: (material: CatalogMaterialItem) => void;
   onShowProvenance: (material: CatalogMaterialItem) => void;
+  onCreateTask?: (material: CatalogMaterialItem) => void;
   onChanged: () => void;
 }) {
   const { t } = useI18n();
@@ -114,6 +116,11 @@ export function MaterialResults({
                 material.lineage.isVersion) && (
                 <Button type="button" variant="ghost" onClick={() => onShowProvenance(material)}>
                   {t('teamProvenanceTitle')}
+                </Button>
+              )}
+              {onCreateTask && material.kind === 'file' && (
+                <Button type="button" variant="ghost" onClick={() => onCreateTask(material)}>
+                  {t('creativeLibraryCreateTask')}
                 </Button>
               )}
             </div>

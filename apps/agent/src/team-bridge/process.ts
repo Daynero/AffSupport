@@ -81,6 +81,7 @@ export function createTeamProcessDelegates(
     compressor: compressionDelegate(pipelines.compressor, false),
     imageEmbedding: compressionDelegate(pipelines.compressor, true),
     transcription: transcriptionDelegate(pipelines.transcription),
+    translation: transcriptionDelegate(pipelines.transcription, true),
     landingOptimizer: landingDelegate(pipelines.landing)
   };
 }
@@ -327,19 +328,26 @@ function compressionSettings(queue: JobQueue, value: unknown, embedding: boolean
   };
 }
 
-function transcriptionDelegate(queue: TranscriptionQueue): TeamProcessDelegate {
+function transcriptionDelegate(queue: TranscriptionQueue, translate = false): TeamProcessDelegate {
   return async input => {
     const options = record(input.options) ? input.options : null;
     if (!options) throw new Error('INVALID_INPUT');
-    const unknownKeys = Object.keys(options).filter(key => key !== 'language');
+    const allowedKeys = translate ? ['language', 'targetLanguage'] : ['language'];
+    const unknownKeys = Object.keys(options).filter(key => !allowedKeys.includes(key));
     const language = options.language ?? queue.state().settings.language;
+    const targetLanguage = translate ? options.targetLanguage : null;
     if (
       unknownKeys.length > 0 ||
       typeof language !== 'string' ||
-      !/^(?:auto|[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*)$/u.test(language)
+      !/^(?:auto|[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*)$/u.test(language) ||
+      (translate &&
+        (typeof targetLanguage !== 'string' ||
+          !/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/u.test(targetLanguage)))
     ) {
       throw new Error('INVALID_INPUT');
     }
+    const validatedTargetLanguage =
+      translate && typeof targetLanguage === 'string' ? targetLanguage : null;
     const tooling = queue.state().tools;
     if (!tooling.ffmpeg || !tooling.whisper || !tooling.model) {
       throw new Error('AGENT_REQUIRED');
@@ -367,10 +375,30 @@ function transcriptionDelegate(queue: TranscriptionQueue): TeamProcessDelegate {
       if (input.signal.aborted || job.status === 'cancelled') throw new Error('PROCESS_CANCELED');
       if (job.status !== 'completed') throw new Error('PROCESS_FAILED');
       const document = await queue.document(job.id);
-      const transcript =
+      let outputText =
         document?.segments.map(segment => segment.sourceText).join('\n') ?? job.text ?? '';
-      const outputPath = path.join(input.workspace, 'transcript.txt');
-      await writeFile(outputPath, transcript || '\n', { encoding: 'utf8', mode: 0o600 });
+      let outputName = 'transcript.txt';
+      if (validatedTargetLanguage) {
+        const request = await queue.requestTranslation(job.id, validatedTargetLanguage);
+        if (request.outcome === 'unavailable') throw new Error('AGENT_REQUIRED');
+        if (request.outcome === 'invalid-language' || request.outcome === 'no-document') {
+          throw new Error('INVALID_INPUT');
+        }
+        const translation =
+          request.outcome === 'completed'
+            ? request.translation
+            : await waitForTeamTranslation(
+                queue,
+                job.id,
+                validatedTargetLanguage,
+                input.signal,
+                progress => input.onProgress(70 + progress * 0.3)
+              );
+        outputText = translation.segments.map(segment => segment.translatedText).join('\n');
+        outputName = 'translation.txt';
+      }
+      const outputPath = path.join(input.workspace, outputName);
+      await writeFile(outputPath, outputText || '\n', { encoding: 'utf8', mode: 0o600 });
       const output = await stat(outputPath);
       handoff = true;
       return {
@@ -385,6 +413,38 @@ function transcriptionDelegate(queue: TranscriptionQueue): TeamProcessDelegate {
       if (!handoff && job) await queue.remove(job.id);
     }
   };
+}
+
+async function waitForTeamTranslation(
+  queue: TranscriptionQueue,
+  jobId: string,
+  targetLanguage: string,
+  signal: AbortSignal,
+  onProgress: (progress: number) => void
+) {
+  for (;;) {
+    if (signal.aborted) throw new Error('PROCESS_CANCELED');
+    const translation = await queue.translation(jobId, targetLanguage);
+    if (!translation) throw new Error('WRONG_STATE');
+    const total = Math.max(translation.totalCharacters ?? translation.totalSegments ?? 0, 1);
+    const completed = translation.totalCharacters
+      ? (translation.completedCharacters ?? 0)
+      : (translation.completedSegments ?? 0);
+    onProgress(Math.min(100, Math.round((completed / total) * 100)));
+    if (translation.status === 'completed') return translation;
+    if (translation.status === 'failed') throw new Error('PROCESS_FAILED');
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        signal.removeEventListener('abort', abort);
+        resolve();
+      }, JOB_OBSERVE_INTERVAL_MS);
+      const abort = () => {
+        clearTimeout(timer);
+        reject(new Error('PROCESS_CANCELED'));
+      };
+      signal.addEventListener('abort', abort, { once: true });
+    });
+  }
 }
 
 function landingDelegate(optimizer: LandingOptimizer): TeamProcessDelegate {

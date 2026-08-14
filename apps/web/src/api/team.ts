@@ -1,6 +1,7 @@
 import {
   MATERIAL_CATEGORIES,
   TEAM_BASE_ROLES,
+  TEAM_ERROR_CODES,
   TEAM_INVITATION_DELIVERY_STATES,
   TEAM_INVITATION_STATES,
   TEAM_PERMISSION_FLAGS,
@@ -15,6 +16,18 @@ import {
   parseTeamProcessStartResult,
   parseTeamTransferGrant,
   parseTeamUploadSession,
+  parseLibraryJobClaim,
+  parseLibraryJobFinalize,
+  parseLibraryJobHeartbeat,
+  parseLibraryPlacementMutation,
+  parseLibraryShareCopyRequest,
+  parseLibraryShareCopyResult,
+  parseLibraryAssetSummary,
+  parseLibraryVideoTextVariants,
+  parseTaskAttachmentMutation,
+  parseTeamTaskAttachmentSummary,
+  parseTeamTaskPatch,
+  parseUploadBatchRequest,
   type LandingRenderPointer,
   type RenderArtifactRef,
   type CatalogMaterialItem,
@@ -39,7 +52,20 @@ import {
   type TeamProcessStartResult,
   type TeamTextEditRequest,
   type TeamUploadSession,
-  type TeamRole
+  type TeamRole,
+  type LibraryJobClaimRequest,
+  type LibraryJobFinalizeRequest,
+  type LibraryJobFinalizeResult,
+  type LibraryJobHeartbeatRequest,
+  type LibraryPlacementMutationRequest,
+  type LibraryShareCopyRequest,
+  type LibraryShareCopyResult,
+  type LibraryAssetSummary,
+  type UploadBatchRequest,
+  type LibraryVideoTextVariants,
+  type TeamTaskPatch,
+  type TeamTaskSummary,
+  type TeamTaskAttachmentSummary
 } from '@video-compressor/shared';
 import type { Json } from '../lib/database.types';
 import { publicConfig } from '../lib/config';
@@ -268,6 +294,59 @@ export interface TeamProcessStartInput {
   toolContractVersion: number;
 }
 
+export interface TeamTaskAttachmentMutationResult {
+  attached: string[];
+  alreadyAttached: string[];
+  rejected: Array<{ materialId: string | null; code: 'NOT_FOUND' | 'PERMISSION_DENIED' }>;
+}
+
+export interface LibraryRequirementScanResult {
+  created: {
+    transcription: number;
+    translation: number;
+    landingOptimization: number;
+  };
+  missing: {
+    transcription: number;
+    translation: number;
+    landingOptimization: number;
+  };
+  ready: number;
+  started: false;
+}
+
+export interface LibraryJobClaimEnvelope {
+  teamId: string;
+  requirementId: string;
+  attemptId: string;
+  sourceMaterialId: string;
+  sourceVersion: string;
+  kind: LibraryJobClaimRequest['supportedKinds'][number];
+  variant: string;
+  leaseToken: string;
+  leaseExpiresAt: string;
+}
+
+export interface LibraryProcessingContext {
+  sourceMaterialId: string;
+  sourceName: string;
+  category: 'video' | 'landing' | 'archive';
+  destinationFolderId: string;
+}
+
+export interface LibraryUploadBatchStartResult {
+  batchId: string;
+  destinationFolderId: string;
+  state: 'running';
+  items: Array<{ itemId: string; clientItemKey: string; state: 'pending' }>;
+}
+
+export interface LibraryPlacementMutationResult {
+  targetStage: 'finds' | 'library';
+  succeeded: Array<{ materialId: string; reused: boolean }>;
+  failed: Array<{ materialId: string; errorCode: TeamErrorCode; retryable: boolean }>;
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -275,7 +354,9 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 }
 
 function errorCode(value: unknown): TeamErrorCode | null {
-  return typeof value === 'string' ? (value as TeamErrorCode) : null;
+  return typeof value === 'string' && (TEAM_ERROR_CODES as readonly string[]).includes(value)
+    ? (value as TeamErrorCode)
+    : null;
 }
 
 function mapTeamContext(value: unknown): TeamContextSnapshot | null {
@@ -667,6 +748,211 @@ function mapOperation(value: unknown): TeamOperationSnapshot | null {
     retryable: row.retryable,
     createdAt: row.created_at,
     updatedAt: row.updated_at
+  };
+}
+
+function mapTeamTask(value: unknown): TeamTaskSummary | null {
+  const row = asRecord(value);
+  if (
+    !row ||
+    typeof row.id !== 'string' ||
+    typeof row.team_id !== 'string' ||
+    typeof row.created_by !== 'string' ||
+    typeof row.title !== 'string' ||
+    (row.note !== null && typeof row.note !== 'string') ||
+    (row.assignee_id !== null && typeof row.assignee_id !== 'string') ||
+    (row.assignee_label_snapshot !== null && typeof row.assignee_label_snapshot !== 'string') ||
+    !['todo', 'in_progress', 'done'].includes(String(row.status)) ||
+    typeof row.progress_max !== 'number' ||
+    !Number.isInteger(row.progress_max) ||
+    typeof row.progress_value !== 'number' ||
+    !Number.isInteger(row.progress_value) ||
+    typeof row.progress_manually_set !== 'boolean' ||
+    typeof row.created_at !== 'string' ||
+    typeof row.updated_at !== 'string' ||
+    (row.completed_at !== null && typeof row.completed_at !== 'string')
+  ) {
+    return null;
+  }
+  const attachmentCount = row.attachment_count ?? 0;
+  if (typeof attachmentCount !== 'number' || !Number.isSafeInteger(attachmentCount)) return null;
+  return {
+    id: row.id,
+    teamId: row.team_id,
+    createdBy: row.created_by,
+    title: row.title,
+    note: row.note,
+    assigneeId: row.assignee_id,
+    assigneeLabelSnapshot: row.assignee_label_snapshot,
+    status: row.status as TeamTaskSummary['status'],
+    progressMax: row.progress_max,
+    progressValue: row.progress_value,
+    progressManuallySet: row.progress_manually_set,
+    attachmentCount,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    completedAt: row.completed_at
+  };
+}
+
+function taskAttachmentMutationResult(value: unknown): TeamTaskAttachmentMutationResult | null {
+  const row = asRecord(value);
+  if (
+    !row ||
+    !Array.isArray(row.attached) ||
+    !Array.isArray(row.alreadyAttached) ||
+    !Array.isArray(row.rejected)
+  ) {
+    return null;
+  }
+  if (
+    !row.attached.every(item => typeof item === 'string') ||
+    !row.alreadyAttached.every(item => typeof item === 'string')
+  ) {
+    return null;
+  }
+  const rejected: TeamTaskAttachmentMutationResult['rejected'] = [];
+  for (const item of row.rejected) {
+    const rejection = asRecord(item);
+    if (
+      !rejection ||
+      (rejection.materialId !== null && typeof rejection.materialId !== 'string') ||
+      !['NOT_FOUND', 'PERMISSION_DENIED'].includes(String(rejection.code))
+    ) {
+      return null;
+    }
+    rejected.push({
+      materialId: rejection.materialId as string | null,
+      code: rejection.code as 'NOT_FOUND' | 'PERMISSION_DENIED'
+    });
+  }
+  return {
+    attached: row.attached as string[],
+    alreadyAttached: row.alreadyAttached as string[],
+    rejected
+  };
+}
+
+function libraryScanResult(value: unknown): LibraryRequirementScanResult | null {
+  const row = asRecord(value);
+  const created = asRecord(row?.created);
+  const missing = asRecord(row?.missing);
+  if (!row || !created || !missing || row.started !== false) return null;
+  const counts = [
+    created.transcription,
+    created.translation,
+    created.landingOptimization,
+    missing.transcription,
+    missing.translation,
+    missing.landingOptimization,
+    row.ready
+  ];
+  if (
+    counts.some(count => typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0)
+  ) {
+    return null;
+  }
+  return {
+    created: {
+      transcription: created.transcription as number,
+      translation: created.translation as number,
+      landingOptimization: created.landingOptimization as number
+    },
+    missing: {
+      transcription: missing.transcription as number,
+      translation: missing.translation as number,
+      landingOptimization: missing.landingOptimization as number
+    },
+    ready: row.ready as number,
+    started: false
+  };
+}
+
+function libraryJobClaimEnvelope(value: unknown): LibraryJobClaimEnvelope | null {
+  const row = asRecord(value);
+  if (
+    !row ||
+    ![
+      'teamId',
+      'requirementId',
+      'attemptId',
+      'sourceMaterialId',
+      'sourceVersion',
+      'kind',
+      'variant',
+      'leaseToken',
+      'leaseExpiresAt'
+    ].every(key => typeof row[key] === 'string') ||
+    !['transcription', 'translation', 'landing_optimization'].includes(String(row.kind)) ||
+    !Number.isFinite(Date.parse(row.leaseExpiresAt as string))
+  ) {
+    return null;
+  }
+  return row as unknown as LibraryJobClaimEnvelope;
+}
+
+function libraryUploadBatchStartResult(value: unknown): LibraryUploadBatchStartResult | null {
+  const row = asRecord(value);
+  if (
+    !row ||
+    typeof row.batchId !== 'string' ||
+    typeof row.destinationFolderId !== 'string' ||
+    row.state !== 'running' ||
+    !Array.isArray(row.items)
+  ) {
+    return null;
+  }
+  const items: LibraryUploadBatchStartResult['items'] = [];
+  for (const value of row.items) {
+    const item = asRecord(value);
+    if (
+      !item ||
+      typeof item.itemId !== 'string' ||
+      typeof item.clientItemKey !== 'string' ||
+      item.state !== 'pending'
+    ) {
+      return null;
+    }
+    items.push({ itemId: item.itemId, clientItemKey: item.clientItemKey, state: 'pending' });
+  }
+  return {
+    batchId: row.batchId,
+    destinationFolderId: row.destinationFolderId,
+    state: 'running',
+    items
+  };
+}
+
+function libraryPlacementMutationResult(value: unknown): LibraryPlacementMutationResult | null {
+  const row = asRecord(value);
+  if (!row || !['finds', 'library'].includes(String(row.targetStage))) return null;
+  if (!Array.isArray(row.succeeded) || !Array.isArray(row.failed)) return null;
+  const succeeded: LibraryPlacementMutationResult['succeeded'] = [];
+  const failed: LibraryPlacementMutationResult['failed'] = [];
+  for (const candidate of row.succeeded) {
+    const item = asRecord(candidate);
+    if (!item || typeof item.materialId !== 'string' || typeof item.reused !== 'boolean') {
+      return null;
+    }
+    succeeded.push({ materialId: item.materialId, reused: item.reused });
+  }
+  for (const candidate of row.failed) {
+    const item = asRecord(candidate);
+    const code = errorCode(item?.errorCode);
+    if (
+      !item ||
+      typeof item.materialId !== 'string' ||
+      !code ||
+      typeof item.retryable !== 'boolean'
+    ) {
+      return null;
+    }
+    failed.push({ materialId: item.materialId, errorCode: code, retryable: item.retryable });
+  }
+  return {
+    targetStage: row.targetStage as LibraryPlacementMutationResult['targetStage'],
+    succeeded,
+    failed
   };
 }
 
@@ -1364,6 +1650,415 @@ export const teamApi = {
     const parsed = parseTeamPreviewResult(value);
     if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
     return parsed;
+  },
+
+  async listLibraryMaterials(input: {
+    teamId: string;
+    stage: 'finds' | 'library';
+    cursor?: string | null;
+    pageSize?: number;
+  }): Promise<LibraryAssetSummary[]> {
+    const { data, error } = await requireSupabaseClient().rpc('list_library_materials', {
+      p_team: input.teamId,
+      p_stage: input.stage,
+      p_cursor: input.cursor ?? undefined,
+      p_page_size: input.pageSize ?? 50
+    });
+    throwRpc(error);
+    const items = (data ?? []).map(parseLibraryAssetSummary);
+    if (items.some(item => item === null)) throw new TeamApiError('INVALID_RESPONSE', false);
+    return items.filter((item): item is LibraryAssetSummary => item !== null);
+  },
+
+  async moveLibraryMaterials(
+    request: LibraryPlacementMutationRequest
+  ): Promise<LibraryPlacementMutationResult> {
+    const normalized = parseLibraryPlacementMutation(request);
+    if (!normalized) throw new TeamApiError('INVALID_INPUT', false);
+    const value = await invokeTeamFunction(
+      'library-ops/placement/move',
+      { action: 'placement_move', ...normalized },
+      (candidate): candidate is LibraryPlacementMutationResult =>
+        libraryPlacementMutationResult(candidate) !== null
+    );
+    return libraryPlacementMutationResult(value) as LibraryPlacementMutationResult;
+  },
+
+  async startLibraryUploadBatch(
+    request: UploadBatchRequest
+  ): Promise<LibraryUploadBatchStartResult> {
+    const normalized = parseUploadBatchRequest(request);
+    if (!normalized) throw new TeamApiError('INVALID_INPUT', false);
+    return invokeTeamFunction(
+      'library-ops/batches/start',
+      normalized as unknown as Record<string, unknown>,
+      (value): value is LibraryUploadBatchStartResult =>
+        libraryUploadBatchStartResult(value) !== null
+    );
+  },
+
+  async finalizeLibraryBatchItem(input: {
+    teamId: string;
+    batchId: string;
+    clientItemKey: string;
+    materialId: string;
+  }): Promise<{ state: 'succeeded'; materialId: string; reused: boolean }> {
+    const value = await invokeTeamFunction(
+      'library-ops/batches/items/finalize',
+      { action: 'batch_item_finalize', ...input },
+      (candidate): candidate is { state: 'succeeded'; materialId: string; reused: boolean } => {
+        const row = asRecord(candidate);
+        return Boolean(
+          row &&
+          row.state === 'succeeded' &&
+          typeof row.materialId === 'string' &&
+          typeof row.reused === 'boolean'
+        );
+      }
+    );
+    return value;
+  },
+
+  async failLibraryBatchItem(input: {
+    teamId: string;
+    batchId: string;
+    clientItemKey: string;
+    errorCode: string;
+  }): Promise<{ state: 'failed'; errorCode: string }> {
+    return invokeTeamFunction(
+      'library-ops/batches/items/fail',
+      { action: 'batch_item_fail', ...input },
+      (candidate): candidate is { state: 'failed'; errorCode: string } => {
+        const row = asRecord(candidate);
+        return Boolean(
+          row &&
+          row.state === 'failed' &&
+          typeof row.errorCode === 'string' &&
+          /^[A-Z][A-Z0-9_]{0,63}$/u.test(row.errorCode)
+        );
+      }
+    );
+  },
+
+  async createTask(input: {
+    teamId: string;
+    title: string;
+    note?: string | null;
+    assigneeId?: string | null;
+    initialMaterialId?: string | null;
+  }): Promise<TeamTaskSummary> {
+    const title = input.title.normalize('NFC').trim().replace(/\s+/g, ' ');
+    if (title.length < 1 || title.length > 160 || (input.note?.length ?? 0) > 2_000) {
+      throw new TeamApiError('INVALID_INPUT', false);
+    }
+    const { data, error } = await requireSupabaseClient().rpc('create_team_task', {
+      p_team: input.teamId,
+      p_title: title,
+      p_note: input.note ?? undefined,
+      p_assignee: input.assigneeId ?? undefined,
+      p_initial_material: input.initialMaterialId ?? undefined
+    });
+    throwRpc(error);
+    const task = mapTeamTask(data);
+    if (!task) throw new TeamApiError('INVALID_RESPONSE', false);
+    return task;
+  },
+
+  async listTasks(input: {
+    teamId: string;
+    createdFrom?: string | null;
+    createdTo?: string | null;
+    cursor?: string | null;
+    pageSize?: number;
+  }): Promise<TeamTaskSummary[]> {
+    const { data, error } = await requireSupabaseClient().rpc('list_team_tasks', {
+      p_team: input.teamId,
+      p_created_from: input.createdFrom ?? undefined,
+      p_created_to: input.createdTo ?? undefined,
+      p_cursor: input.cursor ?? undefined,
+      p_page_size: input.pageSize ?? 50
+    });
+    throwRpc(error);
+    const tasks = (data ?? []).map(mapTeamTask);
+    if (tasks.some(task => task === null)) throw new TeamApiError('INVALID_RESPONSE', false);
+    return tasks.filter((task): task is TeamTaskSummary => task !== null);
+  },
+
+  async getTask(input: {
+    teamId: string;
+    taskId: string;
+    attachmentCursor?: number | null;
+    attachmentPageSize?: number;
+  }): Promise<{ task: TeamTaskSummary; attachments: TeamTaskAttachmentSummary[] }> {
+    const { data, error } = await requireSupabaseClient().rpc('get_team_task', {
+      p_team: input.teamId,
+      p_task: input.taskId,
+      p_attachment_cursor: input.attachmentCursor ?? undefined,
+      p_attachment_page_size: input.attachmentPageSize ?? 50
+    });
+    throwRpc(error);
+    const payload = asRecord(data);
+    const task = mapTeamTask(payload?.task);
+    const attachments = Array.isArray(payload?.attachments)
+      ? payload.attachments.map(parseTeamTaskAttachmentSummary)
+      : null;
+    if (!task || !attachments || attachments.some(attachment => attachment === null)) {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return {
+      task,
+      attachments: attachments.filter(
+        (attachment): attachment is TeamTaskAttachmentSummary => attachment !== null
+      )
+    };
+  },
+
+  async updateTask(teamId: string, taskId: string, patch: TeamTaskPatch): Promise<TeamTaskSummary> {
+    const normalized = parseTeamTaskPatch(patch);
+    if (!normalized) throw new TeamApiError('INVALID_INPUT', false);
+    const { data, error } = await requireSupabaseClient().rpc('update_team_task', {
+      p_team: teamId,
+      p_task: taskId,
+      p_patch: normalized as unknown as Json
+    });
+    throwRpc(error);
+    const task = mapTeamTask(data);
+    if (!task) throw new TeamApiError('INVALID_RESPONSE', false);
+    return task;
+  },
+
+  async attachTaskMaterials(input: {
+    teamId: string;
+    taskId: string;
+    materialIds: string[];
+  }): Promise<TeamTaskAttachmentMutationResult> {
+    const normalized = parseTaskAttachmentMutation(input);
+    if (!normalized) throw new TeamApiError('INVALID_INPUT', false);
+    const { data, error } = await requireSupabaseClient().rpc('attach_team_task_materials', {
+      p_team: normalized.teamId,
+      p_task: normalized.taskId,
+      p_materials: normalized.materialIds
+    });
+    throwRpc(error);
+    const result = taskAttachmentMutationResult(data);
+    if (!result) throw new TeamApiError('INVALID_RESPONSE', false);
+    return result;
+  },
+
+  async detachTaskMaterial(teamId: string, taskId: string, materialId: string): Promise<boolean> {
+    const { data, error } = await requireSupabaseClient().rpc('detach_team_task_material', {
+      p_team: teamId,
+      p_task: taskId,
+      p_material: materialId
+    });
+    throwRpc(error);
+    if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
+  },
+
+  async scanLibraryRequirements(
+    teamId: string,
+    interfaceLanguage: string,
+    sourceMaterialId?: string
+  ): Promise<LibraryRequirementScanResult> {
+    const { data, error } = await requireSupabaseClient().rpc('scan_library_requirements', {
+      p_team: teamId,
+      p_interface_language: interfaceLanguage,
+      p_source: sourceMaterialId
+    });
+    throwRpc(error);
+    const result = libraryScanResult(data);
+    if (!result) throw new TeamApiError('INVALID_RESPONSE', false);
+    return result;
+  },
+
+  async getLibraryProcessingContext(
+    teamId: string,
+    sourceMaterialId: string
+  ): Promise<LibraryProcessingContext> {
+    const { data, error } = await requireSupabaseClient().rpc('get_library_processing_context', {
+      p_team: teamId,
+      p_source: sourceMaterialId
+    });
+    throwRpc(error);
+    const row = asRecord(data);
+    if (
+      !row ||
+      typeof row.sourceMaterialId !== 'string' ||
+      typeof row.sourceName !== 'string' ||
+      !['video', 'landing', 'archive'].includes(String(row.category)) ||
+      typeof row.destinationFolderId !== 'string'
+    ) {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return row as unknown as LibraryProcessingContext;
+  },
+
+  async claimLibraryJob(input: LibraryJobClaimRequest): Promise<LibraryJobClaimEnvelope> {
+    const normalized = parseLibraryJobClaim(input);
+    if (!normalized) throw new TeamApiError('INVALID_INPUT', false);
+    const { data, error } = await requireSupabaseClient().rpc('claim_library_job', {
+      p_team: normalized.teamId,
+      p_agent_instance: normalized.agentInstanceId,
+      p_supported_kinds: normalized.supportedKinds,
+      p_interface_language: normalized.interfaceLanguage,
+      p_source: normalized.sourceMaterialId
+    });
+    throwRpc(error);
+    const result = libraryJobClaimEnvelope(data);
+    if (!result) throw new TeamApiError('INVALID_RESPONSE', false);
+    return result;
+  },
+
+  async heartbeatLibraryJob(input: LibraryJobHeartbeatRequest): Promise<{
+    attemptId: string;
+    progress: number;
+    stage: string;
+    leaseExpiresAt: string;
+  }> {
+    const normalized = parseLibraryJobHeartbeat(input);
+    if (!normalized) throw new TeamApiError('INVALID_INPUT', false);
+    const { data, error } = await requireSupabaseClient().rpc('heartbeat_library_job', {
+      p_team: normalized.teamId,
+      p_attempt: normalized.attemptId,
+      p_agent_instance: normalized.agentInstanceId,
+      p_lease_token: normalized.leaseToken,
+      p_progress: normalized.progress,
+      p_stage: normalized.stage
+    });
+    throwRpc(error);
+    const row = asRecord(data);
+    if (
+      !row ||
+      typeof row.attemptId !== 'string' ||
+      typeof row.progress !== 'number' ||
+      typeof row.stage !== 'string' ||
+      typeof row.leaseExpiresAt !== 'string'
+    ) {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return row as unknown as {
+      attemptId: string;
+      progress: number;
+      stage: string;
+      leaseExpiresAt: string;
+    };
+  },
+
+  async cancelLibraryJob(input: {
+    teamId: string;
+    attemptId: string;
+    agentInstanceId: string;
+    leaseToken: string;
+  }): Promise<boolean> {
+    const { data, error } = await requireSupabaseClient().rpc('cancel_library_job', {
+      p_team: input.teamId,
+      p_attempt: input.attemptId,
+      p_agent_instance: input.agentInstanceId,
+      p_lease_token: input.leaseToken
+    });
+    throwRpc(error);
+    if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
+  },
+
+  async failLibraryJob(input: {
+    teamId: string;
+    attemptId: string;
+    agentInstanceId: string;
+    leaseToken: string;
+    errorCode: string;
+  }): Promise<boolean> {
+    const { data, error } = await requireSupabaseClient().rpc('fail_library_job', {
+      p_team: input.teamId,
+      p_attempt: input.attemptId,
+      p_agent_instance: input.agentInstanceId,
+      p_lease_token: input.leaseToken,
+      p_error_code: input.errorCode
+    });
+    throwRpc(error);
+    if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
+  },
+
+  async retryFailedLibraryJobs(teamId: string, sourceMaterialId?: string): Promise<number> {
+    const { data, error } = await requireSupabaseClient().rpc('retry_failed_library_jobs', {
+      p_team: teamId,
+      p_source: sourceMaterialId
+    });
+    throwRpc(error);
+    if (typeof data !== 'number' || !Number.isSafeInteger(data) || data < 0) {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return data;
+  },
+
+  async finalizeLibraryJob(input: LibraryJobFinalizeRequest): Promise<LibraryJobFinalizeResult> {
+    const normalized = parseLibraryJobFinalize(input);
+    if (!normalized) throw new TeamApiError('INVALID_INPUT', false);
+    return invokeTeamFunction(
+      'library-ops/jobs/finalize',
+      { action: 'job_finalize', ...normalized },
+      (candidate): candidate is LibraryJobFinalizeResult => {
+        const row = asRecord(candidate);
+        return Boolean(
+          row &&
+          ((row.state === 'accepted' &&
+            typeof row.resultId === 'string' &&
+            typeof row.materialId === 'string') ||
+            (row.state === 'skipped' &&
+              row.reason === 'already_completed' &&
+              (row.materialId === null || typeof row.materialId === 'string')))
+        );
+      }
+    );
+  },
+
+  async listVideoTextVariants(teamId: string, videoId: string): Promise<LibraryVideoTextVariants> {
+    const { data, error } = await requireSupabaseClient().rpc('list_video_text_variants', {
+      p_team: teamId,
+      p_video: videoId
+    });
+    throwRpc(error);
+    const variants = parseLibraryVideoTextVariants(data);
+    if (!variants) throw new TeamApiError('INVALID_RESPONSE', false);
+    return variants;
+  },
+
+  async getLibrarySharePreference(teamId: string): Promise<{
+    allowLinkOnCopy: boolean;
+    remembered: boolean;
+  }> {
+    const { data, error } = await requireSupabaseClient().rpc('get_share_preference', {
+      p_team: teamId
+    });
+    throwRpc(error);
+    const row = asRecord(data);
+    if (!row || typeof row.allowLinkOnCopy !== 'boolean' || typeof row.remembered !== 'boolean') {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return { allowLinkOnCopy: row.allowLinkOnCopy, remembered: row.remembered };
+  },
+
+  async shareLibraryMaterial(request: LibraryShareCopyRequest): Promise<LibraryShareCopyResult> {
+    const normalized = parseLibraryShareCopyRequest(request);
+    if (!normalized) throw new TeamApiError('INVALID_INPUT', false);
+    const value = await invokeTeamFunction(
+      'library-ops/share/copy',
+      { action: 'share_copy', ...normalized },
+      (candidate): candidate is LibraryShareCopyResult =>
+        parseLibraryShareCopyResult(candidate) !== null
+    );
+    return parseLibraryShareCopyResult(value) as LibraryShareCopyResult;
+  },
+
+  async resetLibrarySharePreference(teamId: string): Promise<boolean> {
+    const { data, error } = await requireSupabaseClient().rpc('reset_share_preference', {
+      p_team: teamId
+    });
+    throwRpc(error);
+    if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
   },
 
   async commitLandingPreviewValidation(input: {

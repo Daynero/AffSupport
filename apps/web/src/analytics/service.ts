@@ -8,6 +8,8 @@ import {
   type TeamAnalyticsSizeBucket,
   type TeamAnalyticsStage,
   type TeamAnalyticsStorage,
+  parseCreativeLibraryContribution,
+  type CreativeLibraryContribution,
   type LandingRenderFailureReason,
   type LandingTileState,
   type ToolContracts
@@ -518,6 +520,55 @@ export function completeTeamWorkflow(
     retryable: result.retryable,
     production_completed: result.outcome === 'success'
   });
+}
+
+export type CreativeLibraryContributionEventName =
+  'team_library_batch_completed' | 'team_library_processing_completed' | 'team_task_completed';
+
+/**
+ * Emits only the allowlisted category/action/outcome tuple. Authoritative contribution
+ * records remain in Postgres; this helper intentionally has no score or content field.
+ */
+export function trackCreativeLibraryContribution(
+  eventName: CreativeLibraryContributionEventName,
+  contribution: CreativeLibraryContribution,
+  options: {
+    itemCount?: number;
+    track?: (
+      name: CreativeLibraryContributionEventName,
+      properties: {
+        contribution_category: CreativeLibraryContribution['category'];
+        contribution_action: CreativeLibraryContribution['action'];
+        outcome: TeamAnalyticsOutcome;
+        item_count?: number;
+      }
+    ) => void;
+  } = {}
+): boolean {
+  const parsed = parseCreativeLibraryContribution(contribution);
+  if (!parsed) return false;
+  const outcome: TeamAnalyticsOutcome =
+    parsed.outcome === 'canceled'
+      ? 'cancelled'
+      : parsed.outcome === 'skipped'
+        ? 'ready'
+        : parsed.outcome;
+  const itemCount =
+    typeof options.itemCount === 'number' &&
+    Number.isInteger(options.itemCount) &&
+    options.itemCount >= 0 &&
+    options.itemCount <= 1_000_000
+      ? options.itemCount
+      : undefined;
+  const properties = {
+    contribution_category: parsed.category,
+    contribution_action: parsed.action,
+    outcome,
+    ...(itemCount === undefined ? {} : { item_count: itemCount })
+  };
+  if (options.track) options.track(eventName, properties);
+  else analytics.track(eventName, properties);
+  return true;
 }
 
 function boundedAttemptNumber(value: number | undefined): number {

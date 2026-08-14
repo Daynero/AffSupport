@@ -3,10 +3,7 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type {
-  LandingPreviewItem,
-  LandingPreviewState
-} from '../packages/shared/src/types.js';
+import type { LandingPreviewItem, LandingPreviewState } from '../packages/shared/src/types.js';
 import type { LandingViewerSource } from '../apps/web/src/landing-viewer/types.js';
 import { LandingViewer } from '../apps/web/src/landing-viewer/LandingViewer.js';
 import { useLandingViewer } from '../apps/web/src/landing-viewer/useLandingViewer.js';
@@ -153,9 +150,8 @@ describe('LandingViewer (source-agnostic)', () => {
 
 describe('agentLandingSource', () => {
   it('advertises full capabilities and maps every action 1:1 onto the client', async () => {
-    const { agentLandingSource } = await import(
-      '../apps/web/src/landing-viewer/sources/agentLandingSource.js'
-    );
+    const { agentLandingSource } =
+      await import('../apps/web/src/landing-viewer/sources/agentLandingSource.js');
     const source = agentLandingSource();
     expect(source.capabilities).toEqual({
       chooseFolder: true,

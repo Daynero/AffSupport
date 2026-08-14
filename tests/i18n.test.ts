@@ -89,6 +89,20 @@ describe('language selection and dictionaries', () => {
     }
   });
 
+  it('keeps every Creative Library and task key in English/Ukrainian parity', () => {
+    const keys = translationKeys.filter(
+      key => key.startsWith('creativeLibrary') || key.startsWith('teamTask')
+    );
+    expect(keys.length).toBeGreaterThan(60);
+    for (const key of keys) {
+      const english = translate('en', key);
+      const ukrainian = translate('uk', key);
+      expect(english.trim(), `empty English copy: ${key}`).not.toBe('');
+      expect(ukrainian.trim(), `empty Ukrainian copy: ${key}`).not.toBe('');
+      expect(placeholders(ukrainian), `placeholder drift: ${key}`).toEqual(placeholders(english));
+    }
+  });
+
   it('offers explicit Mac and Windows installation choices', () => {
     expect(translate('en', 'macAppleSilicon')).toBe('Mac (Apple Silicon)');
     expect(translate('uk', 'macAppleSilicon')).toBe('Mac (Apple Silicon)');

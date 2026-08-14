@@ -14,6 +14,7 @@ import type { TranscriptionQueue } from '../queue/transcription-queue.js';
 import type { TeamOperationEvent } from '../team-bridge/events.js';
 import type { TeamDownloadBridge } from '../team-bridge/download.js';
 import type { TeamLandingRenderBridge } from '../team-bridge/landing-gallery.js';
+import type { CreativeLibraryProcessBridge } from '../team-bridge/library.js';
 import type { TeamPreviewBridge } from '../team-bridge/preview.js';
 import type { TeamProcessBridge } from '../team-bridge/process.js';
 import { registerTeamBridgeRoutes } from '../team-bridge/routes.js';
@@ -55,6 +56,7 @@ export interface ToolModulesDeps {
     process: TeamProcessBridge;
     download: TeamDownloadBridge;
     landings: TeamLandingRenderBridge;
+    library: CreativeLibraryProcessBridge;
     events: EventChannel<TeamOperationEvent>;
   };
 }
@@ -124,6 +126,7 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
           process: teamWorkspace.process,
           download: teamWorkspace.download,
           landings: teamWorkspace.landings,
+          library: teamWorkspace.library,
           events: teamWorkspace.events,
           acceptingNewTasks: ctx.acceptingNewTasks
         }),
@@ -131,8 +134,10 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
         teamWorkspace.preview.busy() ||
         teamWorkspace.process.busy() ||
         teamWorkspace.download.busy() ||
-        teamWorkspace.landings.busy(),
+        teamWorkspace.landings.busy() ||
+        teamWorkspace.library.busy(),
       shutdown: async () => {
+        await teamWorkspace.library.shutdown();
         await teamWorkspace.landings.shutdown();
         await teamWorkspace.download.shutdown();
         await teamWorkspace.process.shutdown();

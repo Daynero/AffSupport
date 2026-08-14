@@ -53,9 +53,7 @@ describe('Soty brand identity', () => {
     expect(html).toContain('href="/icon-192.png"');
     expect(html).toContain('rel="apple-touch-icon"');
     expect(html).toContain('rel="manifest"');
-    expect(html).toMatch(
-      /property="og:title" content="Soty — Твій помічник у медіабаїнгу"/
-    );
+    expect(html).toMatch(/property="og:title" content="Soty — Твій помічник у медіабаїнгу"/);
     expect(html).toContain('content="%SITE_ORIGIN%/soty-share-preview-v2.png"');
     expect(html).toContain('property="og:image:width" content="1200"');
     expect(html).toContain('property="og:image:height" content="630"');

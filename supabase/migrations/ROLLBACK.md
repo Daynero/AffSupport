@@ -20,6 +20,23 @@ These are forward-only production migrations. Prefer a backup plus a forward fix
 team has connected storage. For an empty isolated development database, reverse the
 feature group in this exact order:
 
+0. `20260814102000_creative_library_security.sql`: first remove only
+   `team_upload_batches`, `team_upload_batch_items`, `team_library_requirements`, `team_tasks`,
+   and `team_task_attachments` from `supabase_realtime`; then revoke all feature RPC grants
+   and drop the feature RLS policies. Do not remove any Drive file or sidecar.
+0. `20260814101000_creative_library_actions.sql`: stop local Library workers and let their
+   leases expire; then drop caller/service RPCs, the membership cleanup/task normalization
+   triggers, feature `updated_at` triggers, and their private trigger/helper functions. Resolve
+   every `reconciling` group intent before continuing, because catalog rollback cannot repair a
+   provider-side partial move.
+0. `20260814100000_creative_library_foundation.sql`: export task, contribution, processing
+   result and provenance history if it must be retained. Drop in dependency order:
+   `team_library_results`, the requirement current-result FK, private attempts, requirements,
+   task attachments, tasks, upload items/batches, share preferences, contribution records,
+   private enrichments/group intents/folder bindings; then remove Creative Library indexes,
+   constraints and columns from `team_materials`. These steps remove only Postgres authority;
+   transcript/translation files in Drive remain intact and must be reconciled explicitly.
+
 0. `20260810113000_team_landing_render_delivery.sql` (feature 004 delivery helpers): revoke and
    drop `public.service_invalidate_landing_renders(uuid,text[])`,
    `public.service_get_landing_render_upload(uuid,uuid,uuid)`, and

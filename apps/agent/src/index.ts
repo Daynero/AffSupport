@@ -37,6 +37,7 @@ import { TeamOperationEvents, type TeamOperationEvent } from './team-bridge/even
 import { TeamDownloadBridge } from './team-bridge/download.js';
 import { TeamLandingRenderBridge } from './team-bridge/landing-gallery.js';
 import { createTeamProcessDelegates, TeamProcessBridge } from './team-bridge/process.js';
+import { CreativeLibraryProcessBridge } from './team-bridge/library.js';
 import { TeamTransferClient } from './team-bridge/transfer.js';
 import { createAligner } from './translation/aligner.js';
 import { createTranslator } from './translation/translator.js';
@@ -229,6 +230,9 @@ const teamProcessBridge = new TeamProcessBridge({
   }),
   events: teamOperationEvents
 });
+const creativeLibraryProcessBridge = new CreativeLibraryProcessBridge({
+  process: teamProcessBridge
+});
 const teamDownloadBridge = new TeamDownloadBridge({ transfer: teamTransfer });
 const teamLandingRenderBridge = new TeamLandingRenderBridge({
   preview: teamPreviewBridge,
@@ -246,6 +250,7 @@ const modules = createToolModules({
     process: teamProcessBridge,
     download: teamDownloadBridge,
     landings: teamLandingRenderBridge,
+    library: creativeLibraryProcessBridge,
     events: teamEvents
   }
 });

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useI18n } from '../../i18n';
 import type { LandingViewerPreset, TeamLandingValidationRecord } from '@video-compressor/shared';
 
@@ -22,13 +22,24 @@ export function LandingPreviewFrame({
   const { t } = useI18n();
   const [fallback, setFallback] = useState(false);
   const frameRef = useRef<HTMLIFrameElement>(null);
+  const showFallback = useCallback(() => setFallback(true), []);
+  const attachFrame = useCallback(
+    (frame: HTMLIFrameElement | null) => {
+      frameRef.current?.removeEventListener('error', showFallback);
+      frameRef.current = frame;
+      frame?.addEventListener('error', showFallback);
+    },
+    [showFallback]
+  );
+
   useEffect(() => {
-    const frame = frameRef.current;
-    if (!frame) return;
-    const showFallback = () => setFallback(true);
-    frame.addEventListener('error', showFallback);
-    return () => frame.removeEventListener('error', showFallback);
-  }, [preview.url]);
+    setFallback(false);
+  }, [preview.url, preview.screenshotUrl]);
+
+  useEffect(
+    () => () => frameRef.current?.removeEventListener('error', showFallback),
+    [showFallback]
+  );
   return (
     <div
       className="team-landing-preview"
@@ -50,12 +61,12 @@ export function LandingPreviewFrame({
         />
       ) : (
         <iframe
-          ref={frameRef}
+          ref={attachFrame}
           title={t('teamPreviewLandingFrame')}
           src={preview.url}
           sandbox={preview.sandbox}
           referrerPolicy="no-referrer"
-          onError={() => setFallback(true)}
+          onError={showFallback}
         />
       )}
     </div>

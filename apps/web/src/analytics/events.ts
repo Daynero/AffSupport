@@ -185,6 +185,13 @@ export interface TeamWorkflowCompletedProperties extends TeamWorkflowStartedProp
   production_completed: boolean;
 }
 
+export interface CreativeLibraryContributionEventProperties {
+  contribution_category: TeamAnalyticsProperties['contribution_category'];
+  contribution_action: TeamAnalyticsProperties['contribution_action'];
+  outcome: TeamAnalyticsOutcome;
+  item_count?: number;
+}
+
 type TeamEventProperties<Event extends TeamAnalyticsEventName> =
   Event extends 'team_file_attempt_started'
     ? TeamFileAttemptStartedProperties
@@ -194,7 +201,12 @@ type TeamEventProperties<Event extends TeamAnalyticsEventName> =
         ? TeamWorkflowStartedProperties
         : Event extends 'team_workflow_completed'
           ? TeamWorkflowCompletedProperties
-          : TeamAnalyticsProperties;
+          : Event extends
+                | 'team_library_batch_completed'
+                | 'team_library_processing_completed'
+                | 'team_task_completed'
+            ? CreativeLibraryContributionEventProperties
+            : TeamAnalyticsProperties;
 
 export type AnalyticsEventProperties = {
   [Event in AnalyticsEventName]: Event extends TeamAnalyticsEventName

@@ -119,11 +119,9 @@ export function LandingViewer({
   // each other and don't linger when the user clicks away.
   useEffect(() => {
     const closeAll = (except?: Element | null) => {
-      viewerRef.current
-        ?.querySelectorAll<HTMLDetailsElement>('details[open]')
-        .forEach(node => {
-          if (node !== except) node.open = false;
-        });
+      viewerRef.current?.querySelectorAll<HTMLDetailsElement>('details[open]').forEach(node => {
+        if (node !== except) node.open = false;
+      });
     };
     const onToggle = (event: Event) => {
       const node = event.target;

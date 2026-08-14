@@ -4,9 +4,11 @@ import {
   MATERIAL_CLASSIFIER_VERSION,
   RANGE_REQUEST_MAX_BYTES,
   TEAM_ERROR_CODES,
+  TRANSCRIPT_INDEX_MAX_BYTES,
   TRANSFER_GRANT_TTL_SECONDS,
   UPLOAD_CHUNK_MULTIPLE_BYTES,
   classifyMaterial,
+  ingestTranscript,
   type MaterialCategory,
   type TeamErrorCode,
   type TeamTransferGrant
@@ -36,6 +38,7 @@ import {
   transitionOperation,
   type OperationAuthority
 } from '../_shared/operations.ts';
+import { applyLibraryGroupMutation, parseLibraryGroupIntent } from '../_shared/library.ts';
 import {
   isRecord,
   parseBoundedString,
@@ -119,6 +122,7 @@ const TOOL_RULES: Readonly<
 > = {
   compressor: { categories: ['video'], contractVersion: 3, outputMimeType: 'video/mp4' },
   transcription: { categories: ['video'], contractVersion: 5, outputMimeType: 'text/plain' },
+  translation: { categories: ['video'], contractVersion: 5, outputMimeType: 'text/plain' },
   landingOptimizer: {
     categories: ['archive', 'landing'],
     contractVersion: 2,
@@ -425,6 +429,47 @@ function driveResult(metadata: DriveFileMetadata) {
     driveVersion: metadata.version,
     checksum: metadata.checksum
   };
+}
+
+async function cacheGeneratedTextResult(input: {
+  service: RpcClient;
+  client: GoogleDriveClient;
+  materialId: string;
+  result: DriveFileMetadata;
+}): Promise<void> {
+  const extension = extensionOf(input.result.name);
+  let state: 'full' | 'truncated' | 'invalid_encoding' | 'unavailable' = 'unavailable';
+  let text: string | null = null;
+  let indexedBytes = 0;
+  let errorCode: string | null = null;
+  try {
+    const body = await input.client.downloadFileRange({
+      fileId: input.result.id,
+      resourceKey: input.result.resourceKey,
+      maximumBytes: TRANSCRIPT_INDEX_MAX_BYTES + 4
+    });
+    const ingested = ingestTranscript(body.bytes, {
+      extension,
+      totalBytes: body.totalBytes
+    });
+    state = ingested.state === 'not_applicable' ? 'unavailable' : ingested.state;
+    text = ingested.text;
+    indexedBytes = ingested.indexedBytes;
+    errorCode = ingested.errorCode;
+  } catch (error) {
+    errorCode = mapUnknownError(error).code;
+  }
+  await rpcValue(input.service, 'service_commit_catalog_transcript', {
+    p_material: input.materialId,
+    p_expected_version: input.result.version,
+    p_expected_checksum: input.result.checksum,
+    p_expected_mime_type: input.result.mimeType,
+    p_expected_extension: extension,
+    p_state: state,
+    p_text: text,
+    p_indexed_bytes: indexedBytes,
+    p_error_code: errorCode
+  });
 }
 
 async function nameCandidates(
@@ -783,6 +828,19 @@ async function handleUploadFinalize(
     if (!isRecord(committed)) {
       throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
     }
+    const resultMaterialId = stringValue(committed, 'materialId');
+    if (
+      resultMaterialId &&
+      operation.kind === 'process' &&
+      (operation.toolId === 'transcription' || operation.toolId === 'translation')
+    ) {
+      await cacheGeneratedTextResult({
+        service,
+        client,
+        materialId: resultMaterialId,
+        result
+      });
+    }
     return committed;
   } catch (error) {
     await transitionOperation({
@@ -1012,7 +1070,7 @@ async function handleMove(
     mimeType: null,
     expectedSize: null
   });
-  if (authority.reused) return operationRecord(authority);
+  if (authority.reused && authority.state === 'succeeded') return operationRecord(authority);
   await transitionOperation({
     service,
     operationId: authority.operationId,
@@ -1020,18 +1078,27 @@ async function handleMove(
     stage: 'moving',
     progress: 25
   });
-  const updated = await sourceClient.updateFileMetadata({
-    fileId: liveSource.id,
-    resourceKey: liveSource.resourceKey,
-    ...(plan.name !== source.name ? { name: plan.name } : {}),
-    addParentId: destination.live.id,
-    removeParentIds: liveSource.parents
+  const intent = parseLibraryGroupIntent(
+    await rpcValue(service, 'service_create_material_lifecycle_intent', {
+      p_team: common.teamId,
+      p_actor: actorId,
+      p_operation: authority.operationId,
+      p_material: common.materialId,
+      p_action: 'move',
+      p_destination_parent_id: destination.live.id
+    })
+  );
+  if (!intent) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+  await applyLibraryGroupMutation({
+    service,
+    drive: sourceClient,
+    rootFolderId: source.rootFolderId,
+    intent,
+    destinationFolderId: destination.live.id,
+    sourceName: plan.name
   });
-  postconditionForMutation('move', liveTarget(updated), { parentId: destination.live.id });
-  return rpcValue(service, 'service_commit_team_material_mutation', {
-    p_operation: authority.operationId,
-    p_actor: actorId,
-    p_drive: { ...driveResult(updated), trashed: updated.trashed }
+  return rpcValue(service, 'service_complete_material_group_intent', {
+    p_intent: intent.intentId
   });
 }
 
@@ -1084,7 +1151,7 @@ async function handleTrashRestore(
     sourceMaterialId: common.materialId,
     destinationFolderId
   });
-  if (authority.reused) return operationRecord(authority);
+  if (authority.reused && authority.state === 'succeeded') return operationRecord(authority);
   await transitionOperation({
     service,
     operationId: authority.operationId,
@@ -1092,17 +1159,26 @@ async function handleTrashRestore(
     stage: action === 'trash' ? 'trashing' : 'restoring',
     progress: 25
   });
-  const updated = await client.updateFileMetadata({
-    fileId: live.id,
-    resourceKey: live.resourceKey,
-    trashed: action === 'trash',
-    ...(destination ? { addParentId: destination.live.id, removeParentIds: live.parents } : {})
+  const intent = parseLibraryGroupIntent(
+    await rpcValue(service, 'service_create_material_lifecycle_intent', {
+      p_team: common.teamId,
+      p_actor: actorId,
+      p_operation: authority.operationId,
+      p_material: common.materialId,
+      p_action: action,
+      p_destination_parent_id: destination?.live.id ?? null
+    })
+  );
+  if (!intent) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+  await applyLibraryGroupMutation({
+    service,
+    drive: client,
+    rootFolderId: source.rootFolderId,
+    intent,
+    destinationFolderId: destination?.live.id ?? null
   });
-  postconditionForMutation(action, liveTarget(updated), {});
-  return rpcValue(service, 'service_commit_team_material_mutation', {
-    p_operation: authority.operationId,
-    p_actor: actorId,
-    p_drive: { ...driveResult(updated), trashed: updated.trashed }
+  return rpcValue(service, 'service_complete_material_group_intent', {
+    p_intent: intent.intentId
   });
 }
 

@@ -1,10 +1,15 @@
 import { createReadStream } from 'node:fs';
 import type { FastifyInstance, FastifyReply } from 'fastify';
-import { parseTeamTransferGrant, type TeamLandingRenderJob } from '@video-compressor/shared';
+import {
+  LIBRARY_JOB_KINDS,
+  parseTeamTransferGrant,
+  type TeamLandingRenderJob
+} from '@video-compressor/shared';
 import type { EventChannel } from '../server/sse.js';
 import type { TeamAgentDownloadRequest, TeamDownloadBridge } from './download.js';
 import type { TeamOperationEvent } from './events.js';
 import { TeamLandingRenderError, type TeamLandingRenderBridge } from './landing-gallery.js';
+import type { CreativeLibraryProcessBridge, CreativeLibraryProcessRequest } from './library.js';
 import type { TeamPreviewBridge, TeamPreviewTransferRequest } from './preview.js';
 import type { TeamProcessBridge, TeamProcessRequest } from './process.js';
 
@@ -13,13 +18,14 @@ export interface TeamBridgeRoutesDeps {
   process: TeamProcessBridge;
   download: TeamDownloadBridge;
   landings: TeamLandingRenderBridge;
+  library: CreativeLibraryProcessBridge;
   events: EventChannel<TeamOperationEvent>;
   acceptingNewTasks: () => boolean;
 }
 
 export function registerTeamBridgeRoutes(
   app: FastifyInstance,
-  { preview, process, download, landings, events, acceptingNewTasks }: TeamBridgeRoutesDeps
+  { preview, process, download, landings, library, events, acceptingNewTasks }: TeamBridgeRoutesDeps
 ) {
   app.get('/api/team/events', events.handler);
   app.get('/api/team/landings/events', events.handler);
@@ -77,6 +83,26 @@ export function registerTeamBridgeRoutes(
       return routeFailure(reply, error, 'PROCESS_FAILED');
     }
   });
+
+  app.post<{ Body?: unknown }>('/api/team/library/process', async (request, reply) => {
+    if (!acceptingNewTasks()) return reply.code(409).send({ error: 'UPDATE_PENDING' });
+    const input = libraryProcessRequest(request.body);
+    if (!input) return reply.code(400).send({ error: 'INVALID_INPUT' });
+    try {
+      return await library.process(input);
+    } catch (error) {
+      return routeFailure(reply, error, 'PROCESS_FAILED');
+    }
+  });
+
+  app.post<{ Params: { attemptId: string } }>(
+    '/api/team/library/process/:attemptId/cancel',
+    async (request, reply) => {
+      const canceled = library.cancel(request.params.attemptId);
+      if (!canceled) return reply.code(404).send({ error: 'NOT_FOUND' });
+      return { canceled: true };
+    }
+  );
 
   app.post<{ Params: { operationId: string } }>(
     '/api/team/process/:operationId/cancel',
@@ -212,6 +238,50 @@ function processRequest(value: unknown): TeamProcessRequest | null {
     cloudBaseUrl: value.cloudBaseUrl,
     sourceGrant,
     finalizeGrant
+  };
+}
+
+function libraryProcessRequest(value: unknown): CreativeLibraryProcessRequest | null {
+  if (!record(value)) return null;
+  const sourceGrant = parseTeamTransferGrant(value.sourceGrant);
+  const finalizeGrant = parseTeamTransferGrant(value.finalizeGrant);
+  const requiredStrings = [
+    value.operationId,
+    value.teamId,
+    value.requirementId,
+    value.attemptId,
+    value.agentInstanceId,
+    value.variant,
+    value.sourceVersion,
+    value.leaseToken,
+    value.transferUrl,
+    value.cloudBaseUrl
+  ];
+  if (
+    requiredStrings.some(entry => typeof entry !== 'string') ||
+    typeof value.kind !== 'string' ||
+    !(LIBRARY_JOB_KINDS as readonly string[]).includes(value.kind) ||
+    (value.leaseToken as string).length < 24 ||
+    sourceGrant?.purpose !== 'process_input' ||
+    finalizeGrant?.purpose !== 'finalize'
+  ) {
+    return null;
+  }
+  return {
+    operationId: value.operationId as string,
+    teamId: value.teamId as string,
+    requirementId: value.requirementId as string,
+    attemptId: value.attemptId as string,
+    agentInstanceId: value.agentInstanceId as string,
+    kind: value.kind as CreativeLibraryProcessRequest['kind'],
+    variant: value.variant as string,
+    sourceVersion: value.sourceVersion as string,
+    leaseToken: value.leaseToken as string,
+    transferUrl: value.transferUrl as string,
+    cloudBaseUrl: value.cloudBaseUrl as string,
+    sourceGrant,
+    finalizeGrant,
+    options: value.options ?? {}
   };
 }
 

@@ -258,7 +258,7 @@ export type Database = {
           id: string;
           raised_cents: number;
           slug: string;
-          status: string;
+          status: SupportGoalStatus;
           target_cents: number;
           title_en: string;
           title_uk: string;
@@ -272,7 +272,7 @@ export type Database = {
           id?: string;
           raised_cents?: number;
           slug: string;
-          status?: string;
+          status?: SupportGoalStatus;
           target_cents: number;
           title_en: string;
           title_uk: string;
@@ -286,7 +286,7 @@ export type Database = {
           id?: string;
           raised_cents?: number;
           slug?: string;
-          status?: string;
+          status?: SupportGoalStatus;
           target_cents?: number;
           title_en?: string;
           title_uk?: string;
@@ -384,6 +384,47 @@ export type Database = {
           value?: Json;
         };
         Relationships: [];
+      };
+      team_contribution_records: {
+        Row: {
+          action_kind: string;
+          actor_id: string;
+          agent_instance_id: string | null;
+          category: string;
+          id: string;
+          occurred_at: string;
+          outcome: string;
+          team_id: string;
+        };
+        Insert: {
+          action_kind: string;
+          actor_id: string;
+          agent_instance_id?: string | null;
+          category: string;
+          id?: string;
+          occurred_at?: string;
+          outcome: string;
+          team_id: string;
+        };
+        Update: {
+          action_kind?: string;
+          actor_id?: string;
+          agent_instance_id?: string | null;
+          category?: string;
+          id?: string;
+          occurred_at?: string;
+          outcome?: string;
+          team_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_contribution_records_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
       };
       team_drive_connections: {
         Row: {
@@ -606,6 +647,150 @@ export type Database = {
           }
         ];
       };
+      team_library_requirements: {
+        Row: {
+          completed_at: string | null;
+          created_at: string;
+          current_result_id: string | null;
+          id: string;
+          kind: string;
+          last_error_code: string | null;
+          source_material_id: string;
+          source_version: string;
+          state: string;
+          team_id: string;
+          updated_at: string;
+          variant: string;
+        };
+        Insert: {
+          completed_at?: string | null;
+          created_at?: string;
+          current_result_id?: string | null;
+          id?: string;
+          kind: string;
+          last_error_code?: string | null;
+          source_material_id: string;
+          source_version: string;
+          state?: string;
+          team_id: string;
+          updated_at?: string;
+          variant: string;
+        };
+        Update: {
+          completed_at?: string | null;
+          created_at?: string;
+          current_result_id?: string | null;
+          id?: string;
+          kind?: string;
+          last_error_code?: string | null;
+          source_material_id?: string;
+          source_version?: string;
+          state?: string;
+          team_id?: string;
+          updated_at?: string;
+          variant?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_library_requirements_current_result_fk';
+            columns: ['current_result_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_library_results';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'team_library_requirements_source_fk';
+            columns: ['source_material_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_materials';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_library_requirements_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_library_results: {
+        Row: {
+          accepted_attempt_id: string;
+          accepted_by: string;
+          created_at: string;
+          id: string;
+          kind: string;
+          material_id: string;
+          requirement_id: string;
+          source_material_id: string;
+          source_version: string;
+          stale_at: string | null;
+          state: string;
+          team_id: string;
+          variant: string;
+        };
+        Insert: {
+          accepted_attempt_id: string;
+          accepted_by: string;
+          created_at?: string;
+          id?: string;
+          kind: string;
+          material_id: string;
+          requirement_id: string;
+          source_material_id: string;
+          source_version: string;
+          stale_at?: string | null;
+          state?: string;
+          team_id: string;
+          variant: string;
+        };
+        Update: {
+          accepted_attempt_id?: string;
+          accepted_by?: string;
+          created_at?: string;
+          id?: string;
+          kind?: string;
+          material_id?: string;
+          requirement_id?: string;
+          source_material_id?: string;
+          source_version?: string;
+          stale_at?: string | null;
+          state?: string;
+          team_id?: string;
+          variant?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_library_results_material_fk';
+            columns: ['material_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_materials';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_library_results_requirement_fk';
+            columns: ['requirement_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_library_requirements';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_library_results_source_fk';
+            columns: ['source_material_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_materials';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_library_results_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
       team_material_links: {
         Row: {
           created_at: string;
@@ -686,6 +871,9 @@ export type Database = {
           landing_validation_state: string | null;
           landing_validation_version: string | null;
           language: string | null;
+          language_decision_revision: number;
+          language_decision_source: string | null;
+          library_stage: string | null;
           lifecycle: string;
           mime_type: string | null;
           missing_at: string | null;
@@ -693,6 +881,8 @@ export type Database = {
           name: string;
           offer: string | null;
           parent_folder_id: string | null;
+          placement_revision: number;
+          placement_state: string;
           preview_error_code: string | null;
           preview_state: string;
           resource_key: string | null;
@@ -700,8 +890,14 @@ export type Database = {
           shortcut_target_id: string | null;
           shortcut_target_resource_key: string | null;
           size_bytes: number | null;
+          structural_language: string | null;
+          structural_offer: string | null;
+          structural_type: string | null;
           tags: string[];
           team_id: string;
+          thumbnail_source_version: string | null;
+          thumbnail_state: string;
+          thumbnail_time_ms: number | null;
           transcript_error_code: string | null;
           transcript_indexed_bytes: number;
           transcript_ingest_state: string;
@@ -731,6 +927,9 @@ export type Database = {
           landing_validation_state?: string | null;
           landing_validation_version?: string | null;
           language?: string | null;
+          language_decision_revision?: number;
+          language_decision_source?: string | null;
+          library_stage?: string | null;
           lifecycle?: string;
           mime_type?: string | null;
           missing_at?: string | null;
@@ -738,6 +937,8 @@ export type Database = {
           name: string;
           offer?: string | null;
           parent_folder_id?: string | null;
+          placement_revision?: number;
+          placement_state?: string;
           preview_error_code?: string | null;
           preview_state?: string;
           resource_key?: string | null;
@@ -745,8 +946,14 @@ export type Database = {
           shortcut_target_id?: string | null;
           shortcut_target_resource_key?: string | null;
           size_bytes?: number | null;
+          structural_language?: string | null;
+          structural_offer?: string | null;
+          structural_type?: string | null;
           tags?: string[];
           team_id: string;
+          thumbnail_source_version?: string | null;
+          thumbnail_state?: string;
+          thumbnail_time_ms?: number | null;
           transcript_error_code?: string | null;
           transcript_indexed_bytes?: number;
           transcript_ingest_state?: string;
@@ -776,6 +983,9 @@ export type Database = {
           landing_validation_state?: string | null;
           landing_validation_version?: string | null;
           language?: string | null;
+          language_decision_revision?: number;
+          language_decision_source?: string | null;
+          library_stage?: string | null;
           lifecycle?: string;
           mime_type?: string | null;
           missing_at?: string | null;
@@ -783,6 +993,8 @@ export type Database = {
           name?: string;
           offer?: string | null;
           parent_folder_id?: string | null;
+          placement_revision?: number;
+          placement_state?: string;
           preview_error_code?: string | null;
           preview_state?: string;
           resource_key?: string | null;
@@ -790,8 +1002,14 @@ export type Database = {
           shortcut_target_id?: string | null;
           shortcut_target_resource_key?: string | null;
           size_bytes?: number | null;
+          structural_language?: string | null;
+          structural_offer?: string | null;
+          structural_type?: string | null;
           tags?: string[];
           team_id?: string;
+          thumbnail_source_version?: string | null;
+          thumbnail_state?: string;
+          thumbnail_time_ms?: number | null;
           transcript_error_code?: string | null;
           transcript_indexed_bytes?: number;
           transcript_ingest_state?: string;
@@ -1019,6 +1237,344 @@ export type Database = {
         };
         Relationships: [];
       };
+      team_share_preferences: {
+        Row: {
+          allow_link_on_copy: boolean;
+          created_at: string;
+          team_id: string;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          allow_link_on_copy?: boolean;
+          created_at?: string;
+          team_id: string;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          allow_link_on_copy?: boolean;
+          created_at?: string;
+          team_id?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_share_preferences_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_task_attachments: {
+        Row: {
+          attached_at: string;
+          attached_by: string;
+          id: string;
+          material_id: string;
+          position: number;
+          task_id: string;
+          team_id: string;
+        };
+        Insert: {
+          attached_at?: string;
+          attached_by: string;
+          id?: string;
+          material_id: string;
+          position: number;
+          task_id: string;
+          team_id: string;
+        };
+        Update: {
+          attached_at?: string;
+          attached_by?: string;
+          id?: string;
+          material_id?: string;
+          position?: number;
+          task_id?: string;
+          team_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_task_attachments_material_fk';
+            columns: ['material_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_materials';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_task_attachments_task_fk';
+            columns: ['task_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_tasks';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_task_attachments_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_tasks: {
+        Row: {
+          assignee_id: string | null;
+          assignee_label_snapshot: string | null;
+          completed_at: string | null;
+          created_at: string;
+          created_by: string;
+          id: string;
+          note: string | null;
+          progress_manually_set: boolean;
+          progress_max: number;
+          progress_value: number;
+          status: string;
+          team_id: string;
+          title: string;
+          updated_at: string;
+        };
+        Insert: {
+          assignee_id?: string | null;
+          assignee_label_snapshot?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+          created_by: string;
+          id?: string;
+          note?: string | null;
+          progress_manually_set?: boolean;
+          progress_max?: number;
+          progress_value?: number;
+          status?: string;
+          team_id: string;
+          title: string;
+          updated_at?: string;
+        };
+        Update: {
+          assignee_id?: string | null;
+          assignee_label_snapshot?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+          created_by?: string;
+          id?: string;
+          note?: string | null;
+          progress_manually_set?: boolean;
+          progress_max?: number;
+          progress_value?: number;
+          status?: string;
+          team_id?: string;
+          title?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_tasks_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_upload_batch_items: {
+        Row: {
+          batch_id: string;
+          client_item_key: string;
+          created_at: string;
+          error_code: string | null;
+          finished_at: string | null;
+          id: string;
+          material_id: string | null;
+          mime_type: string;
+          operation_id: string | null;
+          progress: number;
+          requested_name: string;
+          size_bytes: number;
+          state: string;
+          team_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          batch_id: string;
+          client_item_key: string;
+          created_at?: string;
+          error_code?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          material_id?: string | null;
+          mime_type: string;
+          operation_id?: string | null;
+          progress?: number;
+          requested_name: string;
+          size_bytes: number;
+          state?: string;
+          team_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          batch_id?: string;
+          client_item_key?: string;
+          created_at?: string;
+          error_code?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          material_id?: string | null;
+          mime_type?: string;
+          operation_id?: string | null;
+          progress?: number;
+          requested_name?: string;
+          size_bytes?: number;
+          state?: string;
+          team_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_upload_batch_items_batch_fk';
+            columns: ['batch_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_upload_batches';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_upload_batch_items_material_fk';
+            columns: ['material_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_materials';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_upload_batch_items_operation_id_fkey';
+            columns: ['operation_id'];
+            isOneToOne: true;
+            referencedRelation: 'team_operations';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'team_upload_batch_items_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_upload_batches: {
+        Row: {
+          actor_id: string;
+          created_at: string;
+          failed_items: number;
+          finished_at: string | null;
+          geo: string;
+          id: string;
+          language: string | null;
+          language_mode: string;
+          offer: string;
+          stage: string;
+          state: string;
+          succeeded_items: number;
+          team_id: string;
+          total_items: number;
+          type_hint: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          actor_id: string;
+          created_at?: string;
+          failed_items?: number;
+          finished_at?: string | null;
+          geo: string;
+          id?: string;
+          language?: string | null;
+          language_mode: string;
+          offer: string;
+          stage: string;
+          state?: string;
+          succeeded_items?: number;
+          team_id: string;
+          total_items: number;
+          type_hint?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          actor_id?: string;
+          created_at?: string;
+          failed_items?: number;
+          finished_at?: string | null;
+          geo?: string;
+          id?: string;
+          language?: string | null;
+          language_mode?: string;
+          offer?: string;
+          stage?: string;
+          state?: string;
+          succeeded_items?: number;
+          team_id?: string;
+          total_items?: number;
+          type_hint?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_upload_batches_geo_fkey';
+            columns: ['geo'];
+            isOneToOne: false;
+            referencedRelation: 'geo_options';
+            referencedColumns: ['code'];
+          },
+          {
+            foreignKeyName: 'team_upload_batches_language_fkey';
+            columns: ['language'];
+            isOneToOne: false;
+            referencedRelation: 'language_options';
+            referencedColumns: ['code'];
+          },
+          {
+            foreignKeyName: 'team_upload_batches_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_workspace_waitlist: {
+        Row: {
+          created_at: string;
+          email: string;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          email: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          email?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_workspace_waitlist_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: true;
+            referencedRelation: 'analytics_users';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'team_workspace_waitlist_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: true;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
       teams: {
         Row: {
           created_at: string;
@@ -1127,6 +1683,14 @@ export type Database = {
           event_count: number;
         }[];
       };
+      admin_list_team_workspace_waitlist: {
+        Args: never;
+        Returns: {
+          created_at: string;
+          email: string;
+          user_id: string;
+        }[];
+      };
       admin_list_users: {
         Args: {
           p_account_status?: string;
@@ -1148,22 +1712,6 @@ export type Database = {
           plan: string;
           total_count: number;
         }[];
-      };
-      admin_list_team_workspace_waitlist: {
-        Args: never;
-        Returns: {
-          created_at: string;
-          email: string;
-          user_id: string;
-        }[];
-      };
-      can_access_team_workspace: {
-        Args: never;
-        Returns: boolean;
-      };
-      join_team_workspace_waitlist: {
-        Args: never;
-        Returns: boolean;
       };
       admin_marketing_export: {
         Args: never;
@@ -1221,6 +1769,20 @@ export type Database = {
         Args: { payload: Json };
         Returns: boolean;
       };
+      attach_team_task_materials: {
+        Args: { p_materials: string[]; p_task: string; p_team: string };
+        Returns: Json;
+      };
+      can_access_team_workspace: { Args: never; Returns: boolean };
+      cancel_library_job: {
+        Args: {
+          p_agent_instance: string;
+          p_attempt: string;
+          p_lease_token: string;
+          p_team: string;
+        };
+        Returns: boolean;
+      };
       cancel_team_operation: {
         Args: { p_operation: string; p_team: string };
         Returns: {
@@ -1237,6 +1799,16 @@ export type Database = {
           team_id: string;
           updated_at: string;
         }[];
+      };
+      claim_library_job: {
+        Args: {
+          p_agent_instance: string;
+          p_interface_language: string;
+          p_source?: string;
+          p_supported_kinds: string[];
+          p_team: string;
+        };
+        Returns: Json;
       };
       consume_team_transfer_grant: {
         Args: { p_purpose: string; p_token_hash: string };
@@ -1281,11 +1853,69 @@ export type Database = {
           role: string;
         }[];
       };
+      create_team_task: {
+        Args: {
+          p_assignee?: string;
+          p_initial_material?: string;
+          p_note?: string;
+          p_team: string;
+          p_title: string;
+        };
+        Returns: {
+          assignee_id: string | null;
+          assignee_label_snapshot: string | null;
+          completed_at: string | null;
+          created_at: string;
+          created_by: string;
+          id: string;
+          note: string | null;
+          progress_manually_set: boolean;
+          progress_max: number;
+          progress_value: number;
+          status: string;
+          team_id: string;
+          title: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'team_tasks';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      create_upload_batch: {
+        Args: {
+          p_geo: string;
+          p_items: Json;
+          p_language: string;
+          p_language_mode: string;
+          p_offer: string;
+          p_stage: string;
+          p_team: string;
+          p_type_hint: string;
+        };
+        Returns: Json;
+      };
       decline_invitation: {
         Args: { p_invitation: string; p_plain_token?: string };
         Returns: boolean;
       };
+      detach_team_task_material: {
+        Args: { p_material: string; p_task: string; p_team: string };
+        Returns: boolean;
+      };
       expire_team_invitations: { Args: never; Returns: number };
+      fail_library_job: {
+        Args: {
+          p_agent_instance: string;
+          p_attempt: string;
+          p_error_code: string;
+          p_lease_token: string;
+          p_team: string;
+        };
+        Returns: boolean;
+      };
       get_drive_connection_status: {
         Args: { p_team: string };
         Returns: {
@@ -1299,6 +1929,10 @@ export type Database = {
           root_folder_name: string;
           state: string;
         }[];
+      };
+      get_library_processing_context: {
+        Args: { p_source: string; p_team: string };
+        Returns: Json;
       };
       get_material_preview: {
         Args: { p_material: string; p_team: string };
@@ -1359,7 +1993,32 @@ export type Database = {
           updated_at: string;
         }[];
       };
+      get_share_preference: { Args: { p_team: string }; Returns: Json };
+      get_team_task: {
+        Args: {
+          p_attachment_cursor?: number;
+          p_attachment_page_size?: number;
+          p_task: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
       get_team_vocab_and_facets: { Args: { p_team: string }; Returns: Json };
+      get_upload_batch: {
+        Args: { p_batch: string; p_team: string };
+        Returns: Json;
+      };
+      heartbeat_library_job: {
+        Args: {
+          p_agent_instance: string;
+          p_attempt: string;
+          p_lease_token: string;
+          p_progress: number;
+          p_stage: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
       ingest_analytics_events: {
         Args: { p_events: Json };
         Returns: {
@@ -1385,6 +2044,58 @@ export type Database = {
         };
         Returns: string;
       };
+      join_team_workspace_waitlist: { Args: never; Returns: boolean };
+      list_landing_renders: {
+        Args: { p_material_ids: string[]; p_preset: string; p_team: string };
+        Returns: {
+          failure_reason: string;
+          fingerprint: string;
+          material_id: string;
+          preset: string;
+          render_state: string;
+          segment_count: number;
+          source_checksum: string;
+          source_version: string;
+          valid: boolean;
+        }[];
+      };
+      list_library_contribution_totals: {
+        Args: { p_from?: string; p_team: string; p_to?: string };
+        Returns: {
+          action_kind: string;
+          category: string;
+          outcome: string;
+          total: number;
+        }[];
+      };
+      list_library_materials: {
+        Args: {
+          p_cursor?: string;
+          p_page_size?: number;
+          p_stage: string;
+          p_team: string;
+        };
+        Returns: {
+          category: string;
+          created_at: string;
+          file_extension: string;
+          id: string;
+          language: string;
+          language_decision_source: string;
+          lifecycle: string;
+          mime_type: string;
+          name: string;
+          offer: string;
+          placement_state: string;
+          size_bytes: number;
+          source_version: string;
+          stage: string;
+          team_id: string;
+          thumbnail_state: string;
+          thumbnail_time_ms: number;
+          type: string;
+        }[];
+      };
       list_my_invitations: {
         Args: never;
         Returns: {
@@ -1399,20 +2110,6 @@ export type Database = {
           target_email: string;
           team_id: string;
           team_name: string;
-        }[];
-      };
-      list_landing_renders: {
-        Args: { p_material_ids: string[]; p_preset: string; p_team: string };
-        Returns: {
-          failure_reason: string;
-          fingerprint: string;
-          material_id: string;
-          preset: string;
-          render_state: string;
-          segment_count: number;
-          source_checksum: string;
-          source_version: string;
-          valid: boolean;
         }[];
       };
       list_my_teams: {
@@ -1483,6 +2180,36 @@ export type Database = {
           user_id: string;
         }[];
       };
+      list_team_tasks: {
+        Args: {
+          p_created_from?: string;
+          p_created_to?: string;
+          p_cursor?: string;
+          p_page_size?: number;
+          p_team: string;
+        };
+        Returns: {
+          assignee_id: string;
+          assignee_label_snapshot: string;
+          attachment_count: number;
+          completed_at: string;
+          created_at: string;
+          created_by: string;
+          id: string;
+          note: string;
+          progress_manually_set: boolean;
+          progress_max: number;
+          progress_value: number;
+          status: string;
+          team_id: string;
+          title: string;
+          updated_at: string;
+        }[];
+      };
+      list_video_text_variants: {
+        Args: { p_team: string; p_video: string };
+        Returns: Json;
+      };
       lookup_invitable_account: {
         Args: { p_email: string; p_team: string };
         Returns: {
@@ -1535,7 +2262,16 @@ export type Database = {
           team_name: string;
         }[];
       };
+      reset_share_preference: { Args: { p_team: string }; Returns: boolean };
+      retry_failed_library_jobs: {
+        Args: { p_source?: string; p_team: string };
+        Returns: number;
+      };
       revoke_invitation: { Args: { p_invitation: string }; Returns: boolean };
+      scan_library_requirements: {
+        Args: { p_interface_language: string; p_source?: string; p_team: string };
+        Returns: Json;
+      };
       search_materials: {
         Args: {
           p_filters?: Json;
@@ -1545,6 +2281,29 @@ export type Database = {
           p_team: string;
         };
         Returns: Json;
+      };
+      service_accept_library_result: {
+        Args: {
+          p_actor: string;
+          p_agent_instance: string;
+          p_attempt: string;
+          p_lease_token: string;
+          p_result_material: string;
+          p_source_version: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_append_library_contribution: {
+        Args: {
+          p_action: string;
+          p_actor: string;
+          p_agent_instance?: string;
+          p_category: string;
+          p_outcome: string;
+          p_team: string;
+        };
+        Returns: string;
       };
       service_begin_change_replay: {
         Args: { p_connection: string; p_job: string };
@@ -1616,34 +2375,6 @@ export type Database = {
         };
         Returns: boolean;
       };
-      service_commit_landing_render: {
-        Args: {
-          p_artifact_root: string;
-          p_fingerprint: string;
-          p_render: string;
-          p_segment_count: number;
-        };
-        Returns: string;
-      };
-      service_fail_landing_render: {
-        Args: { p_reason: string; p_render: string };
-        Returns: undefined;
-      };
-      service_mark_landing_renders_stale: {
-        Args: { p_material: string; p_team: string };
-        Returns: number;
-      };
-      service_start_landing_render: {
-        Args: {
-          p_actor: string;
-          p_material: string;
-          p_preset: string;
-          p_source_checksum: string;
-          p_source_version: string;
-          p_team: string;
-        };
-        Returns: string;
-      };
       service_commit_landing_preview_validation: {
         Args: {
           p_actor: string;
@@ -1654,6 +2385,34 @@ export type Database = {
           p_team: string;
         };
         Returns: boolean;
+      };
+      service_commit_landing_render: {
+        Args: {
+          p_artifact_root: string;
+          p_fingerprint: string;
+          p_render: string;
+          p_segment_count: number;
+        };
+        Returns: string;
+      };
+      service_commit_library_folder: {
+        Args: {
+          p_connection: string;
+          p_drive_folder_id: string;
+          p_parent_folder_id: string;
+          p_resource_key: string;
+          p_segment: string;
+          p_team: string;
+          p_value: string;
+        };
+        Returns: {
+          drive_folder_id: string;
+          material_id: string;
+          parent_folder_id: string;
+          resource_key: string;
+          segment: string;
+          value: string;
+        }[];
       };
       service_commit_team_material_mutation: {
         Args: { p_actor: string; p_drive: Json; p_operation: string };
@@ -1755,6 +2514,35 @@ export type Database = {
         Args: { p_connection: string };
         Returns: string;
       };
+      service_enqueue_material_enrichments: {
+        Args: { p_material: string; p_source_version: string; p_team: string };
+        Returns: number;
+      };
+      service_fail_landing_render: {
+        Args: { p_reason: string; p_render: string };
+        Returns: undefined;
+      };
+      service_fail_upload_batch_item: {
+        Args: {
+          p_actor: string;
+          p_batch: string;
+          p_client_item_key: string;
+          p_error_code: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_finalize_upload_batch_item: {
+        Args: {
+          p_actor: string;
+          p_batch: string;
+          p_client_item_key: string;
+          p_material: string;
+          p_source_version: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
       service_finalize_uploaded_material: {
         Args: { p_actor: string; p_drive: Json; p_operation: string };
         Returns: Json;
@@ -1822,6 +2610,17 @@ export type Database = {
           rendered_by: string;
           source_checksum: string;
           source_version: string;
+        }[];
+      };
+      service_get_library_connection_context: {
+        Args: { p_actor: string; p_team: string };
+        Returns: {
+          connection_id: string;
+          credential_id: string;
+          drive_id: string;
+          drive_kind: string;
+          root_folder_id: string;
+          root_resource_key: string;
         }[];
       };
       service_get_material_operation_context: {
@@ -1934,6 +2733,10 @@ export type Database = {
         Args: { p_credential: string };
         Returns: number;
       };
+      service_mark_landing_renders_stale: {
+        Args: { p_material: string; p_team: string };
+        Returns: number;
+      };
       service_peek_drive_oauth_transaction: {
         Args: { p_state_hash: string };
         Returns: {
@@ -1968,6 +2771,23 @@ export type Database = {
       service_requeue_catalog_transcripts: {
         Args: { p_connection: string; p_files: Json };
         Returns: number;
+      };
+      service_reserve_library_folder: {
+        Args: {
+          p_connection: string;
+          p_parent_folder_id: string;
+          p_segment: string;
+          p_team: string;
+          p_value: string;
+        };
+        Returns: {
+          drive_folder_id: string;
+          material_id: string;
+          parent_folder_id: string;
+          resource_key: string;
+          segment: string;
+          value: string;
+        }[];
       };
       service_resolve_team_folder: {
         Args: {
@@ -2009,6 +2829,17 @@ export type Database = {
           p_version_of_material: string;
         };
         Returns: boolean;
+      };
+      service_start_landing_render: {
+        Args: {
+          p_actor: string;
+          p_material: string;
+          p_preset: string;
+          p_source_checksum: string;
+          p_source_version: string;
+          p_team: string;
+        };
+        Returns: string;
       };
       service_start_team_operation: {
         Args: {
@@ -2072,6 +2903,10 @@ export type Database = {
         };
         Returns: boolean;
       };
+      set_share_preference: {
+        Args: { p_allow: boolean; p_team: string };
+        Returns: boolean;
+      };
       touch_last_seen: { Args: never; Returns: string };
       transfer_ownership: {
         Args: { p_demote_to: string; p_team: string; p_to_user: string };
@@ -2105,6 +2940,31 @@ export type Database = {
           role: string;
           user_id: string;
         }[];
+      };
+      update_team_task: {
+        Args: { p_patch: Json; p_task: string; p_team: string };
+        Returns: {
+          assignee_id: string | null;
+          assignee_label_snapshot: string | null;
+          completed_at: string | null;
+          created_at: string;
+          created_by: string;
+          id: string;
+          note: string | null;
+          progress_manually_set: boolean;
+          progress_max: number;
+          progress_value: number;
+          status: string;
+          team_id: string;
+          title: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'team_tasks';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
       };
     };
     Enums: {

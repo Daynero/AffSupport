@@ -6,6 +6,8 @@ import { useTeam } from '../TeamContext';
 import { MaterialBrowser, type MaterialBrowserClient } from '../catalog/MaterialBrowser';
 import { TeamCatalog, type TeamCatalogClient } from '../catalog/TeamCatalog';
 import { TeamLandings, type TeamLandingsClient } from '../landings/TeamLandings';
+import { CreativeLibrary } from '../library';
+import { TaskSpace } from '../tasks';
 import { SpaceSettings, type SpaceSettingsClient } from './SpaceSettings';
 
 export type WorkspaceShellClient = MaterialBrowserClient &
@@ -13,7 +15,7 @@ export type WorkspaceShellClient = MaterialBrowserClient &
   TeamLandingsClient &
   SpaceSettingsClient;
 
-type ShellView = 'content' | 'settings' | 'search' | 'landings';
+type ShellView = 'content' | 'settings' | 'search' | 'landings' | 'library' | 'tasks';
 
 /**
  * Content-first workspace for a single entered space. The connected folder's
@@ -37,11 +39,13 @@ export function WorkspaceShell({
   const { activeTeam } = useTeam();
   const [view, setView] = useState<ShellView>('content');
   const [hasContent, setHasContent] = useState(false);
+  const [taskAsset, setTaskAsset] = useState<{ id: string; name: string } | null>(null);
   const sessionTeam = useRef<string | null>(null);
 
   useEffect(() => {
     setView('content');
     setHasContent(false);
+    setTaskAsset(null);
   }, [teamId]);
 
   useEffect(() => {
@@ -62,6 +66,22 @@ export function WorkspaceShell({
           <h1 id="team-space-shell-title">{activeTeam?.name ?? ''}</h1>
         </div>
         <div className="team-space-shell-actions">
+          <Button
+            type="button"
+            variant="secondary"
+            aria-pressed={view === 'tasks'}
+            onClick={() => setView(current => (current === 'tasks' ? 'content' : 'tasks'))}
+          >
+            {t('teamTasksTitle')}
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            aria-pressed={view === 'library'}
+            onClick={() => setView(current => (current === 'library' ? 'content' : 'library'))}
+          >
+            {t('creativeLibraryNav')}
+          </Button>
           <Button
             type="button"
             variant="secondary"
@@ -104,15 +124,51 @@ export function WorkspaceShell({
             onBack={() => setView('content')}
           />
         ) : view === 'search' ? (
-          <TeamCatalog key={`search:${teamId}`} teamId={teamId} client={client} />
+          <TeamCatalog
+            key={`search:${teamId}`}
+            teamId={teamId}
+            client={client}
+            onCreateTask={asset => {
+              setTaskAsset(asset);
+              setView('tasks');
+            }}
+          />
         ) : view === 'landings' ? (
-          <TeamLandings key={`landings:${teamId}`} teamId={teamId} client={client} />
+          <TeamLandings
+            key={`landings:${teamId}`}
+            teamId={teamId}
+            client={client}
+            onCreateTask={asset => {
+              setTaskAsset(asset);
+              setView('tasks');
+            }}
+          />
+        ) : view === 'library' ? (
+          <CreativeLibrary
+            key={`library:${teamId}`}
+            teamId={teamId}
+            onCreateTask={asset => {
+              setTaskAsset(asset);
+              setView('tasks');
+            }}
+          />
+        ) : view === 'tasks' ? (
+          <TaskSpace
+            key={`tasks:${teamId}`}
+            teamId={teamId}
+            createFromAsset={taskAsset}
+            onConsumedCreateFromAsset={() => setTaskAsset(null)}
+          />
         ) : (
           <MaterialBrowser
             key={`materials:${teamId}`}
             teamId={teamId}
             client={client}
             onLoaded={onLoaded}
+            onCreateTask={asset => {
+              setTaskAsset(asset);
+              setView('tasks');
+            }}
             syncLabel={activeTeam?.connectionState === 'connected' ? t('teamSyncFresh') : null}
           />
         )}

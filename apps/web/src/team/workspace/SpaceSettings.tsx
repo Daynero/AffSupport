@@ -7,10 +7,61 @@ import { InvitationPanel, type InvitationPanelClient } from '../members/Invitati
 import { TeamAuditPanel, type TeamAuditClient } from '../members/TeamAuditPanel';
 import { DriveConnectionPanel, type DrivePanelClient } from '../drive/DriveConnectionPanel';
 
+export interface SharePreferenceSettingsClient {
+  resetLibrarySharePreference: (teamId: string) => Promise<boolean>;
+}
+
 export type SpaceSettingsClient = MemberManagementClient &
   InvitationPanelClient &
   TeamAuditClient &
-  DrivePanelClient;
+  DrivePanelClient & {
+    resetLibrarySharePreference: SharePreferenceSettingsClient['resetLibrarySharePreference'];
+  };
+
+export function SharePreferenceSettings({
+  teamId,
+  client
+}: {
+  teamId: string;
+  client: SharePreferenceSettingsClient;
+}) {
+  const { t } = useI18n();
+  const [resetting, setResetting] = useState(false);
+  const [state, setState] = useState<'done' | 'empty' | 'failed' | null>(null);
+
+  const reset = async () => {
+    setResetting(true);
+    setState(null);
+    try {
+      setState((await client.resetLibrarySharePreference(teamId)) ? 'done' : 'empty');
+    } catch {
+      setState('failed');
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  return (
+    <section className="team-panel" aria-labelledby="creative-library-share-settings-title">
+      <h2 id="creative-library-share-settings-title">{t('creativeLibraryShareSettingsTitle')}</h2>
+      <p>{t('creativeLibraryShareSettingsDescription')}</p>
+      <Button type="button" variant="secondary" loading={resetting} onClick={() => void reset()}>
+        {t('creativeLibraryShareReset')}
+      </Button>
+      {state && (
+        <p className={state === 'failed' ? 'team-inline-error' : undefined} role="status">
+          {t(
+            state === 'done'
+              ? 'creativeLibraryShareResetDone'
+              : state === 'empty'
+                ? 'creativeLibraryShareResetEmpty'
+                : 'creativeLibraryShareResetFailed'
+          )}
+        </p>
+      )}
+    </section>
+  );
+}
 
 /**
  * Secondary management surface. Re-parents the existing 001 panels — members
@@ -48,6 +99,7 @@ export function SpaceSettings({
       </header>
 
       <div className="team-space-settings-grid">
+        <SharePreferenceSettings teamId={teamId} client={client} />
         <MemberList
           teamId={teamId}
           client={client}

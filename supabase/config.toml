@@ -27,3 +27,6 @@ verify_jwt = false
 
 [functions.drive-ops]
 verify_jwt = false
+
+[functions.library-ops]
+verify_jwt = false

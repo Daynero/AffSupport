@@ -140,7 +140,14 @@ insert into public.team_error_codes (code) values
   ('OAUTH_APPROVAL_REQUIRED'),
   ('ROOT_ESCAPE'),
   ('AGENT_REQUIRED'),
-  ('AGENT_UPDATE_REQUIRED');
+  ('AGENT_UPDATE_REQUIRED'),
+  ('NO_WORK'),
+  ('LEASE_EXPIRED'),
+  ('LEASE_MISMATCH'),
+  ('ALREADY_COMPLETED'),
+  ('STALE_RESULT'),
+  ('GROUP_RECONCILING'),
+  ('SHARE_NOT_ALLOWED');
 
 insert into public.geo_options (code) values
   ('AD'),

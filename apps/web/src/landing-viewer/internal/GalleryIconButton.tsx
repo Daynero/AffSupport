@@ -1,10 +1,7 @@
 import type { ComponentProps } from 'react';
 import { IconButton } from '../../components/ui';
 
-export function GalleryIconButton({
-  className = '',
-  ...props
-}: ComponentProps<typeof IconButton>) {
+export function GalleryIconButton({ className = '', ...props }: ComponentProps<typeof IconButton>) {
   return (
     <IconButton
       {...props}
