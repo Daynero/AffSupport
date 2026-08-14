@@ -109,9 +109,21 @@ export function useLandingViewer({ source }: UseLandingViewerInput) {
     },
     [apply, source]
   );
-  const cancel = useCallback(() => {
-    if (source.cancel) void apply(() => source.cancel!());
-  }, [apply, source]);
+  const cancel = useCallback(async () => {
+    if (!source.cancel) return;
+    setMessage(null);
+    try {
+      setState(await source.cancel());
+    } catch {
+      // The agent may have nothing to cancel (e.g. the scan already finished) and reject the call.
+      // Reconcile with the real state instead of leaving a phantom progress bar running forever.
+      try {
+        setState(await source.fetchState());
+      } catch {
+        setMessage(t('landingGalleryActionFailed'));
+      }
+    }
+  }, [source, t]);
   const reveal = useCallback(
     (id: string) => {
       if (source.reveal) void apply(() => source.reveal!(id));

@@ -114,6 +114,46 @@ export function LandingViewer({
     writeViewerPreferences({ sidebarOpen, zoomMode, customScale: viewport.customScale });
   }, [sidebarOpen, viewport.customScale, zoomMode]);
 
+  // Toolbar dropdowns are native <details>. Keep at most one open, and dismiss any open menu on an
+  // outside click or Escape, so the settings / more / refresh / source menus never stack on top of
+  // each other and don't linger when the user clicks away.
+  useEffect(() => {
+    const closeAll = (except?: Element | null) => {
+      viewerRef.current
+        ?.querySelectorAll<HTMLDetailsElement>('details[open]')
+        .forEach(node => {
+          if (node !== except) node.open = false;
+        });
+    };
+    const onToggle = (event: Event) => {
+      const node = event.target;
+      const root = viewerRef.current;
+      if (!root || !(node instanceof HTMLDetailsElement) || !root.contains(node)) return;
+      if (node.open) closeAll(node);
+    };
+    const onPointerDown = (event: Event) => {
+      const root = viewerRef.current;
+      if (!root) return;
+      const target = event.target as Node;
+      let insideOpen = false;
+      root.querySelectorAll<HTMLDetailsElement>('details[open]').forEach(node => {
+        if (node.contains(target)) insideOpen = true;
+      });
+      if (!insideOpen) closeAll();
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeAll();
+    };
+    document.addEventListener('toggle', onToggle, true);
+    document.addEventListener('pointerdown', onPointerDown, true);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('toggle', onToggle, true);
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, []);
+
   const dropEnabled = capabilities.openPaths;
   const onDragEnter = (event: DragEvent) => {
     event.preventDefault();
