@@ -84,6 +84,9 @@ describe('team landings gallery (presentational)', () => {
     expect(rule('\\.landing-tile')).toContain('color: var(--color-text);');
     expect(rule('\\.landing-tile-name')).toContain('max-width: 100%;');
     expect(rule('\\.landing-gallery-count')).toContain('color: var(--color-text-muted);');
+    expect(rule('\\.landing-tile-shell > \\.button')).toContain('box-sizing: border-box;');
+    expect(rule('\\.landing-tile-shell > \\.button')).toContain('white-space: normal;');
+    expect(rule('\\.landing-tile-shell > \\.button')).toContain('overflow-wrap: anywhere;');
   });
 
   it('renders each landing as an openable tile and fires onOpen', () => {
