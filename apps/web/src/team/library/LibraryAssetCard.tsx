@@ -45,9 +45,11 @@ export function LibraryAssetCard({
       ? asset.category === 'video'
         ? t('creativeLibraryVideoFrame', { seconds: (asset.thumbnailTimeMs ?? 1_000) / 1_000 })
         : t('creativeLibraryPreviewReady')
-      : asset.thumbnailState === 'pending' || asset.thumbnailState === 'running'
+      : asset.thumbnailState === 'running'
         ? t('creativeLibraryEnrichmentPending')
-        : t('creativeLibraryPreviewUnavailable');
+        : asset.thumbnailState === 'pending'
+          ? t('creativeLibraryPreviewPending')
+          : t('creativeLibraryPreviewUnavailable');
 
   return (
     <article

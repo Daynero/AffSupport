@@ -50,6 +50,13 @@ describe('Creative Library workspace controls', () => {
     expect(styles).toContain('overflow-wrap: anywhere;');
   });
 
+  it('distinguishes a queued thumbnail from an actively running preview', () => {
+    render(<LibraryAssetCard asset={{ ...asset, thumbnailState: 'pending' }} />);
+
+    expect(screen.getByText('Preview not created yet')).toBeTruthy();
+    expect(screen.queryByText('Preparing preview…')).toBeNull();
+  });
+
   it('offers selection, task creation, placement correction and a one-second video preview', async () => {
     const onSelect = vi.fn();
     const onCreateTask = vi.fn();
