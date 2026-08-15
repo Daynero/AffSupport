@@ -11134,22 +11134,25 @@ body {
     -webkit-text-fill-color var(--dur-complete) var(--ease-standard);
 }
 
-/* Feature 004: team landings gallery */
-.landing-gallery {
+/* Feature 004: team landings gallery.  These class names deliberately stay
+   separate from the local landing viewer's .landing-gallery-* surface.  Both
+   views are mounted in the same app bundle; sharing its absolute empty-state
+   class previously placed an invisible overlay over the team workspace. */
+.team-landings-gallery {
   display: flex;
   flex-direction: column;
   gap: var(--space-3, 12px);
 }
-.landing-gallery-head {
+.team-landings-gallery-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
-.landing-gallery-count {
+.team-landings-count {
   color: var(--color-text-muted);
   font-size: 0.875rem;
 }
-.landing-gallery-grid {
+.team-landings-grid {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -11157,17 +11160,17 @@ body {
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: var(--space-3, 12px);
 }
-.landing-gallery-grid > li {
+.team-landings-grid > li {
   min-width: 0;
   align-self: start;
 }
-.landing-tile-shell {
+.team-landing-tile-shell {
   display: grid;
   min-width: 0;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2, 8px);
 }
-.landing-tile-shell > .button {
+.team-landing-tile-shell > .button {
   min-width: 0;
   max-width: 100%;
   width: 100%;
@@ -11178,13 +11181,17 @@ body {
   white-space: normal;
   overflow-wrap: anywhere;
 }
-.landing-gallery-empty,
-.landing-gallery-state {
+.team-landings-empty,
+.team-landings-state {
+  position: static;
+  display: grid;
+  min-height: 9rem;
+  place-items: center;
   padding: var(--space-5, 24px);
   text-align: center;
-  color: var(--text-muted, #6b7280);
+  color: var(--color-text-muted);
 }
-.landing-tile {
+.team-landing-tile {
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -11200,13 +11207,13 @@ body {
   color: var(--color-text);
   cursor: default;
 }
-button.landing-tile {
+button.team-landing-tile {
   cursor: pointer;
 }
-button.landing-tile:hover {
+button.team-landing-tile:hover {
   border-color: var(--color-accent);
 }
-.landing-tile-thumb {
+.team-landing-tile-thumb {
   display: block;
   min-width: 0;
   aspect-ratio: 16 / 10;
@@ -11214,18 +11221,18 @@ button.landing-tile:hover {
   overflow: hidden;
   background: var(--color-surface-muted);
 }
-.landing-tile-thumb img {
+.team-landing-tile-thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
-.landing-tile-chip {
+.team-landing-tile-chip {
   display: block;
   width: 100%;
   height: 100%;
 }
-.landing-tile-name {
+.team-landing-tile-name {
   min-width: 0;
   max-width: 100%;
   font-weight: 600;
@@ -11233,13 +11240,13 @@ button.landing-tile:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.landing-tile-state {
+.team-landing-tile-state {
   min-width: 0;
   max-width: 100%;
   font-size: 0.8125rem;
   color: var(--color-text-muted);
 }
-.landing-tile-error .landing-tile-state {
+.team-landing-tile-error .team-landing-tile-state {
   color: var(--color-error);
 }
 .landing-viewer-controls {
@@ -11278,14 +11285,14 @@ button.landing-tile:hover {
   flex-wrap: wrap;
   gap: var(--space-2, 8px);
 }
-.landing-gallery-pagination {
+.team-landings-pagination {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-3, 12px);
 }
 @media (max-width: 720px) {
-  .landing-gallery-grid {
+  .team-landings-grid {
     grid-template-columns: minmax(0, 1fr);
   }
   .landing-viewer-controls {

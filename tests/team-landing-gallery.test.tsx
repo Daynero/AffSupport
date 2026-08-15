@@ -71,22 +71,25 @@ function item(id: string, name: string, tile: LandingTileState): LandingGalleryI
 }
 
 describe('team landings gallery (presentational)', () => {
-  it('keeps long names inside semantic, theme-aware cards', () => {
+  it('keeps long names inside isolated, theme-aware team cards', () => {
     const styles = readFileSync(resolve(process.cwd(), 'apps/web/src/styles.css'), 'utf8');
     const rule = (selector: string) =>
       styles.match(new RegExp(`${selector}\\s*\\{([\\s\\S]*?)\\n\\}`, 'u'))?.[1] ?? '';
 
-    expect(rule('\\.landing-tile-shell')).toContain('min-width: 0;');
-    expect(rule('\\.landing-tile-shell')).toContain('grid-template-columns: minmax(0, 1fr);');
-    expect(rule('\\.landing-tile')).toContain('min-width: 0;');
-    expect(rule('\\.landing-tile')).toContain('max-width: 100%;');
-    expect(rule('\\.landing-tile')).toContain('background: var(--color-surface);');
-    expect(rule('\\.landing-tile')).toContain('color: var(--color-text);');
-    expect(rule('\\.landing-tile-name')).toContain('max-width: 100%;');
-    expect(rule('\\.landing-gallery-count')).toContain('color: var(--color-text-muted);');
-    expect(rule('\\.landing-tile-shell > \\.button')).toContain('box-sizing: border-box;');
-    expect(rule('\\.landing-tile-shell > \\.button')).toContain('white-space: normal;');
-    expect(rule('\\.landing-tile-shell > \\.button')).toContain('overflow-wrap: anywhere;');
+    expect(rule('\\.team-landing-tile-shell')).toContain('min-width: 0;');
+    expect(rule('\\.team-landing-tile-shell')).toContain('grid-template-columns: minmax(0, 1fr);');
+    expect(rule('\\.team-landing-tile')).toContain('min-width: 0;');
+    expect(rule('\\.team-landing-tile')).toContain('max-width: 100%;');
+    expect(rule('\\.team-landing-tile')).toContain('background: var(--color-surface);');
+    expect(rule('\\.team-landing-tile')).toContain('color: var(--color-text);');
+    expect(rule('\\.team-landing-tile-name')).toContain('max-width: 100%;');
+    expect(rule('\\.team-landings-count')).toContain('color: var(--color-text-muted);');
+    expect(rule('\\.team-landing-tile-shell > \\.button')).toContain('box-sizing: border-box;');
+    expect(rule('\\.team-landing-tile-shell > \\.button')).toContain('white-space: normal;');
+    expect(rule('\\.team-landing-tile-shell > \\.button')).toContain('overflow-wrap: anywhere;');
+    expect(styles).toMatch(
+      /\.team-landings-empty,\s*\.team-landings-state\s*\{[\s\S]*?position: static;/u
+    );
   });
 
   it('renders each landing as an openable tile and fires onOpen', () => {
@@ -158,6 +161,8 @@ describe('team landings gallery (presentational)', () => {
     render(<LandingGallery items={[]} loading={false} error={false} onOpen={vi.fn()} />);
     expect(screen.getByText(/No landings yet/)).toBeTruthy();
     expect(screen.queryByRole('button')).toBeNull();
+    expect(document.querySelector('.team-landings-empty')).toBeTruthy();
+    expect(document.querySelector('.landing-gallery-empty')).toBeNull();
   });
 
   it('explains when hidden detached-root landings need owner recovery', async () => {
@@ -203,7 +208,9 @@ describe('team landings gallery (presentational)', () => {
         <TeamLandings teamId={TEAM_ID} client={client} />
       </TeamProvider>
     );
-    expect((await screen.findByRole('status')).textContent).toMatch(/disconnected Google Drive folder/i);
+    expect((await screen.findByRole('status')).textContent).toMatch(
+      /disconnected Google Drive folder/i
+    );
     expect(client.getLandingSourceStatus).toHaveBeenCalledWith(TEAM_ID);
   });
 

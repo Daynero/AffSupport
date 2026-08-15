@@ -55,7 +55,7 @@ export function LandingGallery({
 
   if (error) {
     return (
-      <div className="landing-gallery-state" role="alert">
+      <div className="team-landings-state" role="alert">
         {t('teamLandingsError')}
       </div>
     );
@@ -63,7 +63,7 @@ export function LandingGallery({
 
   if (loading && !items.length) {
     return (
-      <div className="landing-gallery-state" aria-busy="true">
+      <div className="team-landings-state" aria-busy="true">
         {t('teamLandingsLoading')}
       </div>
     );
@@ -71,7 +71,7 @@ export function LandingGallery({
 
   if (!items.length) {
     return (
-      <div className="landing-gallery-empty">
+      <div className="team-landings-empty">
         <p>{t('teamLandingsEmpty')}</p>
       </div>
     );
@@ -81,16 +81,16 @@ export function LandingGallery({
     total === 1 ? t('teamLandingsCountOne') : t('teamLandingsCountMany', { count: total });
 
   return (
-    <section className="landing-gallery" aria-label={t('teamLandingsTitle')}>
-      <header className="landing-gallery-head">
-        <span className="landing-gallery-count">{count}</span>
+    <section className="team-landings-gallery" aria-label={t('teamLandingsTitle')}>
+      <header className="team-landings-gallery-head">
+        <span className="team-landings-count">{count}</span>
         {freshness && (
-          <span className="landing-gallery-freshness" data-freshness={freshness.state}>
+          <span className="team-landings-freshness" data-freshness={freshness.state}>
             {t(FRESHNESS_COPY[freshness.state])}
           </span>
         )}
       </header>
-      <ul className="landing-gallery-grid">
+      <ul className="team-landings-grid">
         {items.map(item => (
           <li key={item.material.id}>
             <LandingGalleryTile
@@ -106,7 +106,7 @@ export function LandingGallery({
         ))}
       </ul>
       {onPageChange && total > pageSize && (
-        <nav className="landing-gallery-pagination" aria-label={t('teamLandingsTitle')}>
+        <nav className="team-landings-pagination" aria-label={t('teamLandingsTitle')}>
           <Button
             type="button"
             variant="secondary"

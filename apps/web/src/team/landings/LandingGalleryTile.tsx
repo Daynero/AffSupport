@@ -45,24 +45,24 @@ export function LandingGalleryTile({
 }) {
   const { t } = useI18n();
   return (
-    <div className="landing-tile-shell">
+    <div className="team-landing-tile-shell">
       <button
         type="button"
-        className={`landing-tile landing-tile-${item.tile}`}
+        className={`team-landing-tile team-landing-tile-${item.tile}`}
         data-tile-state={rendering ? 'rendering' : item.tile}
         aria-label={`${t('teamLandingOpen')}: ${item.material.name}`}
         onClick={() => onOpen(item)}
       >
-        <span className="landing-tile-thumb">
+        <span className="team-landing-tile-thumb">
           {thumbnailSrc ? (
             <img src={thumbnailSrc} alt="" loading="lazy" />
           ) : (
-            <span className="landing-tile-chip" aria-hidden="true" />
+            <span className="team-landing-tile-chip" aria-hidden="true" />
           )}
         </span>
-        <span className="landing-tile-name">{item.material.name}</span>
+        <span className="team-landing-tile-name">{item.material.name}</span>
         {(rendering || item.tile !== 'ready' || item.unavailableReason) && (
-          <span className="landing-tile-state">
+          <span className="team-landing-tile-state">
             {rendering
               ? renderProgress && renderProgress > 0
                 ? t('teamLandingTileRenderingProgress', { progress: Math.round(renderProgress) })
