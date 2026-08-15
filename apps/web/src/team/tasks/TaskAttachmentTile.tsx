@@ -89,7 +89,23 @@ export function TaskAttachmentTile({
   const seekVideo = () => {
     const element = video.current;
     if (!element || !Number.isFinite(element.duration)) return;
-    element.currentTime = taskVideoPreviewTimeSeconds(element.duration);
+    const previewTime = taskVideoPreviewTimeSeconds(element.duration);
+    if (previewTime === 0) {
+      setVideoReady(true);
+      return;
+    }
+    try {
+      element.currentTime = previewTime;
+    } catch {
+      setPreviewUrl(null);
+      setUnavailable(true);
+    }
+  };
+
+  const markUnavailable = () => {
+    setPreviewUrl(null);
+    setVideoReady(false);
+    setUnavailable(true);
   };
 
   return (
@@ -97,7 +113,10 @@ export function TaskAttachmentTile({
       <div className="team-task-attachment-preview">
         {attachment.category === 'video' && previewUrl && (
           <video
-            ref={video}
+            ref={element => {
+              video.current = element;
+              element?.setAttribute('referrerpolicy', 'no-referrer');
+            }}
             src={previewUrl}
             muted
             playsInline
@@ -106,10 +125,16 @@ export function TaskAttachmentTile({
             className={videoReady ? 'is-ready' : ''}
             onLoadedMetadata={seekVideo}
             onSeeked={() => setVideoReady(true)}
+            onError={markUnavailable}
           />
         )}
         {attachment.category !== 'video' && previewUrl && (
-          <img src={previewUrl} alt={attachment.name} referrerPolicy="no-referrer" />
+          <img
+            src={previewUrl}
+            alt={attachment.name}
+            referrerPolicy="no-referrer"
+            onError={markUnavailable}
+          />
         )}
         {(!previewUrl || (attachment.category === 'video' && !videoReady)) && (
           <span className="team-task-attachment-fallback">

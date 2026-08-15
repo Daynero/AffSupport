@@ -145,7 +145,29 @@ describe('Creative Library task workflows', () => {
     expect(element.classList.contains('is-ready')).toBe(false);
     fireEvent.seeked(element);
     expect(element.classList.contains('is-ready')).toBe(true);
+    expect(element.getAttribute('referrerpolicy')).toBe('no-referrer');
     expect(taskVideoPreviewTimeSeconds(0.6)).toBe(0.6);
+  });
+
+  it('does not leave a broken attachment preview in a loading state', async () => {
+    const attachment: TeamTaskAttachmentSummary = {
+      id: '31000000-0000-4000-8000-000000000005',
+      taskId: TASK_ID,
+      materialId: ASSET_ID,
+      name: 'launch.mp4',
+      category: 'video',
+      availability: 'ready',
+      previewState: 'ready',
+      position: 0
+    };
+    render(<TaskAttachmentTile teamId={TEAM_ID} attachment={attachment} client={client()} />);
+    const element = (await screen.findByLabelText(
+      'Video preview for launch.mp4 at one second'
+    )) as HTMLVideoElement;
+    fireEvent.error(element);
+
+    expect(await screen.findByText('Preview unavailable')).toBeTruthy();
+    expect(screen.queryByLabelText('Video preview for launch.mp4 at one second')).toBeNull();
   });
 
   it('creates a task from an asset reference and opens it immediately', async () => {

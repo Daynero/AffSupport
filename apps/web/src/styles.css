@@ -9803,13 +9803,43 @@ button,
   padding: 0;
   list-style: none;
 }
-.team-catalog-results li {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+.team-catalog-results > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
   gap: var(--space-3);
   border-top: 1px solid var(--color-border);
   padding-top: var(--space-3);
+}
+.team-catalog-material-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.team-catalog-material-heading > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.team-catalog-material-heading strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-catalog-material-glyph {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  color: var(--color-accent);
+  font-size: 1.1rem;
+}
+.team-catalog-material-type {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
 }
 .team-catalog-material-main > span,
 .team-catalog-material-main > small {
@@ -9822,11 +9852,36 @@ button,
   padding: 3px 8px;
   font-size: 0.7rem;
 }
+.team-catalog-material-metadata:empty,
+.team-catalog-material-statuses:empty {
+  display: none;
+}
+.team-catalog-metadata-missing {
+  background: color-mix(in oklab, var(--color-warning) 14%, var(--color-surface-muted)) !important;
+  color: var(--color-text) !important;
+}
 .team-catalog-material-actions,
 .team-preview-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+.team-catalog-material-actions {
+  justify-content: flex-end;
+}
+.team-catalog-secondary-actions {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--color-border);
+}
+.team-catalog-secondary-actions summary {
+  width: fit-content;
+  padding: var(--space-2) 0;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+.team-catalog-secondary-actions[open] summary {
+  color: var(--color-text);
 }
 .team-catalog-results li > * {
   min-width: 0;
@@ -10035,8 +10090,8 @@ button,
   .team-catalog-filters {
     grid-template-columns: 1fr;
   }
-  .team-catalog-results li {
-    flex-direction: column;
+  .team-catalog-results > li {
+    grid-template-columns: minmax(0, 1fr);
   }
   .team-space-lobby-header .button,
   .team-space-shell-actions .button,

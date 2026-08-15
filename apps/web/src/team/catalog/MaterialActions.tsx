@@ -112,7 +112,8 @@ export function MaterialActions({
   storageKind = null,
   trashed = false,
   replaceMaterialId = null,
-  destinationFolderId = null
+  destinationFolderId = null,
+  folderUploadLabel
 }: {
   teamId: string;
   material: CatalogMaterialItem;
@@ -125,6 +126,7 @@ export function MaterialActions({
   trashed?: boolean;
   replaceMaterialId?: string | null;
   destinationFolderId?: string | null;
+  folderUploadLabel?: string;
 }) {
   const { t } = useI18n();
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -265,8 +267,13 @@ export function MaterialActions({
       <div className="team-material-action-buttons">
         {isFolder && permissions.upload && (
           <label className="button button-secondary">
-            {t('teamFileUpload')}
-            <input type="file" aria-label={t('teamFileUpload')} hidden onChange={selectUpload} />
+            {folderUploadLabel ?? t('teamFileUpload')}
+            <input
+              type="file"
+              aria-label={folderUploadLabel ?? t('teamFileUpload')}
+              hidden
+              onChange={selectUpload}
+            />
           </label>
         )}
         {!isFolder && permissions.download && (

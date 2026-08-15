@@ -129,7 +129,9 @@ export function InvitationPanel({
 
   return (
     <section className="team-panel team-invitations" aria-labelledby="team-invitations-title">
-      <h2 id="team-invitations-title">{t('teamMembers')}</h2>
+      <h2 id="team-invitations-title">
+        {directAdd ? t('teamDirectAddTitle') : t('teamInviteTitle')}
+      </h2>
       {directAdd && canManage && <p className="team-test-mode-note">{t('teamDirectAddNote')}</p>}
       {canManage && (
         <form className="team-invite-form" onSubmit={event => void submit(event)}>

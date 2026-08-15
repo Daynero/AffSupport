@@ -133,6 +133,41 @@ describe('team catalog search UI', () => {
     );
   });
 
+  it('uses readable material labels instead of raw Drive MIME values', async () => {
+    const api = client();
+    vi.mocked(api.searchCatalog).mockResolvedValue(
+      result({
+        items: [
+          {
+            ...result().items[0],
+            id: 'folder-material',
+            name: 'Creative source',
+            kind: 'folder',
+            category: null,
+            mimeType: 'application/vnd.google-apps.folder',
+            fileExtension: null,
+            sizeBytes: null,
+            geo: null,
+            language: null,
+            offer: null,
+            tags: []
+          }
+        ]
+      })
+    );
+    render(
+      <TeamProvider initialTeams={[team]} realtime={false}>
+        <TeamCatalog teamId={TEAM_ID} client={api} />
+      </TeamProvider>
+    );
+
+    expect(await screen.findByText('Creative source')).toBeTruthy();
+    expect(screen.getByText('Folder')).toBeTruthy();
+    expect(screen.getByText('Metadata needs attention')).toBeTruthy();
+    expect(screen.queryByText('application/vnd.google-apps.folder')).toBeNull();
+    expect(screen.getByText('More actions')).toBeTruthy();
+  });
+
   it('uses a neutral empty state and never renders a foreign-team payload', async () => {
     const api = client();
     vi.mocked(api.searchCatalog)
