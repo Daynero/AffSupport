@@ -73,6 +73,20 @@ describe('shared team landing render lifecycle', () => {
     ).toBe('needs_agent');
   });
 
+  it('presents a generic failed render as an explicit retryable error', () => {
+    const [item] = deriveLandingGalleryItems(
+      [material],
+      [{ ...ready, state: 'failed', artifact: undefined, failureReason: 'render_error' }],
+      {
+        agentPaired: true,
+        agentCompatible: true,
+        canDownload: false,
+        canEdit: false
+      }
+    );
+    expect(item).toMatchObject({ tile: 'error', unavailableReason: 'render_error' });
+  });
+
   it('distinguishes an outdated paired agent from a missing agent', () => {
     const [item] = deriveLandingGalleryItems([material], [], {
       agentPaired: true,

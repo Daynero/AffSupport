@@ -52,14 +52,21 @@ export function deriveLandingGalleryItems(
     const render = byMaterial.get(material.id);
     const isCandidate = material.category === 'archive';
     const hasValidReadyRender = render?.state === 'ready' && render.artifact !== undefined;
-    const tile = resolveLandingTileState({
-      isCandidate,
-      hasValidReadyRender,
-      renderState: render?.state,
-      failureReason: render?.failureReason,
-      agentPaired: context.agentPaired,
-      agentCompatible: context.agentCompatible
-    });
+    // A terminal render failure is actionable in this gallery even when its
+    // agent-facing reason is the generic `render_error`.  The shared contract
+    // intentionally preserves its existing fallback semantics for older
+    // agents; the browser can still give the member an explicit retry state.
+    const tile =
+      render?.state === 'failed'
+        ? 'error'
+        : resolveLandingTileState({
+            isCandidate,
+            hasValidReadyRender,
+            renderState: render?.state,
+            failureReason: render?.failureReason,
+            agentPaired: context.agentPaired,
+            agentCompatible: context.agentCompatible
+          });
     return {
       material,
       isCandidate,
