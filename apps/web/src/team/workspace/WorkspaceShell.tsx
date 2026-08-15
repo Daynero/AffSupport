@@ -41,7 +41,7 @@ export function WorkspaceShell({
   const { activeTeam } = useTeam();
   const [view, setView] = useState<ShellView>('content');
   const [hasContent, setHasContent] = useState(false);
-  const [taskAsset, setTaskAsset] = useState<{ id: string; name: string } | null>(null);
+  const [taskAsset, setTaskAsset] = useState<{ ids: string[]; name: string } | null>(null);
   const [previewing, setPreviewing] = useState<TeamMaterialSummary | null>(null);
   const sessionTeam = useRef<string | null>(null);
 
@@ -133,7 +133,7 @@ export function WorkspaceShell({
             teamId={teamId}
             client={client}
             onCreateTask={asset => {
-              setTaskAsset(asset);
+              setTaskAsset({ ids: [asset.id], name: asset.name });
               setView('tasks');
             }}
           />
@@ -143,7 +143,7 @@ export function WorkspaceShell({
             teamId={teamId}
             client={client}
             onCreateTask={asset => {
-              setTaskAsset(asset);
+              setTaskAsset({ ids: [asset.id], name: asset.name });
               setView('tasks');
             }}
           />
@@ -152,7 +152,15 @@ export function WorkspaceShell({
             key={`library:${teamId}`}
             teamId={teamId}
             onCreateTask={asset => {
-              setTaskAsset(asset);
+              setTaskAsset({ ids: [asset.id], name: asset.name });
+              setView('tasks');
+            }}
+            onCreateTaskFromSelection={assets => {
+              if (assets.length === 0) return;
+              setTaskAsset({
+                ids: assets.map(asset => asset.id),
+                name: t('creativeLibrarySelectionSummary', { count: assets.length })
+              });
               setView('tasks');
             }}
           />
@@ -170,7 +178,7 @@ export function WorkspaceShell({
             client={client}
             onLoaded={onLoaded}
             onCreateTask={asset => {
-              setTaskAsset(asset);
+              setTaskAsset({ ids: [asset.id], name: asset.name });
               setView('tasks');
             }}
             onPreview={setPreviewing}

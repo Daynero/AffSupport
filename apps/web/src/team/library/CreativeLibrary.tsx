@@ -69,12 +69,14 @@ export function CreativeLibrary({
   teamId,
   initialStage = 'library',
   client,
-  onCreateTask
+  onCreateTask,
+  onCreateTaskFromSelection
 }: {
   teamId: string;
   initialStage?: LibraryStage;
   client?: CreativeLibraryClient;
   onCreateTask?: (asset: LibraryAssetSummary) => void;
+  onCreateTaskFromSelection?: (assets: LibraryAssetSummary[]) => void;
 }) {
   const { t } = useI18n();
   const { can, revision } = useTeam();
@@ -99,11 +101,18 @@ export function CreativeLibrary({
     () => library.items.reduce((count, asset) => count + Number(selected.has(asset.id)), 0),
     [library.items, selected]
   );
+  const selectedAssets = useMemo(
+    () => library.items.filter(asset => selected.has(asset.id)),
+    [library.items, selected]
+  );
+  const allSelected = library.items.length > 0 && selectedCount === library.items.length;
 
   const changeStage = (next: LibraryStage) => {
     setStage(next);
     setSelected(new Set());
   };
+
+  const selectAll = () => setSelected(new Set(library.items.map(asset => asset.id)));
 
   const moveSelected = async () => {
     const materialIds = library.items
@@ -162,66 +171,90 @@ export function CreativeLibrary({
 
   return (
     <section className="team-panel creative-library" aria-labelledby="creative-library-title">
-      <div className="team-panel-heading creative-library-heading">
-        <div>
-          <p className="team-workspace-eyebrow">{t('creativeLibraryEyebrow')}</p>
-          <h2 id="creative-library-title">
-            {stage === 'library' ? t('creativeLibraryTitle') : t('creativeLibraryFinds')}
-          </h2>
-          <p className="creative-library-heading-hint">
-            {stage === 'library' ? t('creativeLibraryLibraryHint') : t('creativeLibraryFindsHint')}
-          </p>
-        </div>
-        <div className="creative-library-heading-actions">
-          <Button
-            type="button"
-            variant={stage === 'finds' ? 'primary' : 'secondary'}
-            aria-pressed={stage === 'finds'}
-            onClick={() => changeStage('finds')}
-          >
-            {t('creativeLibraryFinds')}
-          </Button>
-          <Button
-            type="button"
-            variant={stage === 'library' ? 'primary' : 'secondary'}
-            aria-pressed={stage === 'library'}
-            onClick={() => changeStage('library')}
-          >
-            {t('creativeLibraryTitle')}
-          </Button>
-          {can('upload') && (
-            <Button type="button" variant="primary" onClick={() => setUploading(true)}>
-              {t('creativeLibraryBulkAction')}
-            </Button>
-          )}
-          {can('process') && (
-            <Button type="button" variant="secondary" onClick={() => setProcessingSource(null)}>
-              {t('creativeLibraryProcessAction')}
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {selectedCount > 0 && (
-        <div className="creative-library-selection" aria-live="polite">
-          <strong>{t('creativeLibrarySelected', { count: selectedCount })}</strong>
+      <div className="creative-library-toolbar">
+        <div className="team-panel-heading creative-library-heading">
           <div>
+            <p className="team-workspace-eyebrow">{t('creativeLibraryEyebrow')}</p>
+            <h2 id="creative-library-title">
+              {stage === 'library' ? t('creativeLibraryTitle') : t('creativeLibraryFinds')}
+            </h2>
+            <p className="creative-library-heading-hint">
+              {stage === 'library'
+                ? t('creativeLibraryLibraryHint')
+                : t('creativeLibraryFindsHint')}
+            </p>
+          </div>
+          <div className="creative-library-heading-actions">
             <Button
               type="button"
-              variant="primary"
-              loading={moving}
-              onClick={() => void moveSelected()}
+              variant={stage === 'finds' ? 'primary' : 'secondary'}
+              aria-pressed={stage === 'finds'}
+              onClick={() => changeStage('finds')}
             >
-              {stage === 'finds'
-                ? t('creativeLibraryMoveToLibrary')
-                : t('creativeLibraryMoveToFinds')}
+              {t('creativeLibraryFinds')}
             </Button>
-            <Button type="button" variant="ghost" onClick={() => setSelected(new Set())}>
-              {t('creativeLibraryClearSelection')}
+            <Button
+              type="button"
+              variant={stage === 'library' ? 'primary' : 'secondary'}
+              aria-pressed={stage === 'library'}
+              onClick={() => changeStage('library')}
+            >
+              {t('creativeLibraryTitle')}
             </Button>
+            {can('upload') && (
+              <Button type="button" variant="primary" onClick={() => setUploading(true)}>
+                {t('creativeLibraryBulkAction')}
+              </Button>
+            )}
+            {can('process') && (
+              <Button type="button" variant="secondary" onClick={() => setProcessingSource(null)}>
+                {t('creativeLibraryProcessAction')}
+              </Button>
+            )}
           </div>
         </div>
-      )}
+
+        {can('edit') && library.items.length > 0 && (
+          <div className="creative-library-selection" aria-live="polite">
+            <div className="creative-library-selection-lead">
+              <Button type="button" variant="secondary" disabled={allSelected} onClick={selectAll}>
+                {t('creativeLibrarySelectAll')}
+              </Button>
+              {selectedCount > 0 && (
+                <span className="creative-library-selection-count">
+                  {t('creativeLibrarySelected', { count: selectedCount })}
+                </span>
+              )}
+            </div>
+            {selectedCount > 0 && (
+              <div>
+                {onCreateTaskFromSelection && (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={() => onCreateTaskFromSelection(selectedAssets)}
+                  >
+                    {t('creativeLibraryCreateTaskFromSelected', { count: selectedCount })}
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  loading={moving}
+                  onClick={() => void moveSelected()}
+                >
+                  {stage === 'finds'
+                    ? t('creativeLibraryMoveToLibrary')
+                    : t('creativeLibraryMoveToFinds')}
+                </Button>
+                <Button type="button" variant="ghost" onClick={() => setSelected(new Set())}>
+                  {t('creativeLibraryClearSelection')}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
       {placementError && (
         <p className="team-inline-error">{t('creativeLibraryPlacementPartial')}</p>
       )}

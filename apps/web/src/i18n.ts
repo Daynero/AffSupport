@@ -949,6 +949,12 @@ const en = {
   teamLandingsError: 'Could not load the landings gallery.',
   teamLandingsEmpty:
     'No landings yet. Landings appear here automatically as they sync from the connected folder.',
+  teamLandingsDriveNotConnected:
+    'Google Drive is not connected for this space. Connect its folder in Space settings → Google Drive to show landings here.',
+  teamLandingsSyncing:
+    'Scanning the connected Google Drive folder. Landings and ZIP archives in its subfolders will appear here when sync finishes.',
+  teamLandingsSyncFailed:
+    'Google Drive sync did not finish. Check the connection in Space settings → Google Drive and try again.',
   teamLandingsDetachedSourceOwner:
     'Some landing files are in a disconnected Google Drive folder and are hidden to prevent failed previews. In Space settings → Google Drive, select the correct root folder to restore them.',
   teamLandingsDetachedSourceMember:
@@ -1218,6 +1224,10 @@ const en = {
   creativeLibraryPlacementPartial:
     'Some media could not be moved. The unresolved group remains marked for safe retry.',
   creativeLibraryClearSelection: 'Clear selection',
+  creativeLibrarySelectAll: 'Select all',
+  creativeLibraryCreateTaskFromSelected: 'Create task from selected ({count})',
+  creativeLibrarySelectionSummary: '{count} materials',
+  creativeLibraryCopyLinkFor: 'Copy Drive link for {name}',
   creativeLibraryLoading: 'Loading media…',
   creativeLibraryLoadFailed: 'Could not load Creative Library.',
   creativeLibraryRetry: 'Retry',
@@ -2260,6 +2270,12 @@ const uk: Record<keyof typeof en, string> = {
   teamLandingsError: 'Не вдалося завантажити галерею лендінгів.',
   teamLandingsEmpty:
     'Лендінгів поки немає. Вони з’являться тут автоматично в міру синхронізації підключеної папки.',
+  teamLandingsDriveNotConnected:
+    'Google Drive для цього простору не підключено. Підключіть папку в «Налаштуваннях простору → Сховище Google Drive», щоб тут з’явилися лендінги.',
+  teamLandingsSyncing:
+    'Скануємо підключену папку Google Drive. Лендінги й ZIP-архіви з її вкладених папок з’являться тут після завершення синхронізації.',
+  teamLandingsSyncFailed:
+    'Синхронізація Google Drive не завершилася. Перевірте підключення в «Налаштуваннях простору → Сховище Google Drive» і повторіть спробу.',
   teamLandingsDetachedSourceOwner:
     'Частина лендингів лишилася у від’єднаній папці Google Drive й не показується, щоб не створювати хибні прев’ю. У «Налаштуваннях простору → Сховище Google Drive» оберіть коректну кореневу папку, щоб відновити їх.',
   teamLandingsDetachedSourceMember:
@@ -2530,6 +2546,10 @@ const uk: Record<keyof typeof en, string> = {
   creativeLibraryPlacementPartial:
     'Частину медіа не вдалося перемістити. Незавершена група позначена для безпечного повтору.',
   creativeLibraryClearSelection: 'Очистити вибір',
+  creativeLibrarySelectAll: 'Обрати все',
+  creativeLibraryCreateTaskFromSelected: 'Створити таску з обраними ({count})',
+  creativeLibrarySelectionSummary: '{count} матеріалів',
+  creativeLibraryCopyLinkFor: 'Скопіювати посилання на {name}',
   creativeLibraryLoading: 'Завантажуємо медіа…',
   creativeLibraryLoadFailed: 'Не вдалося завантажити креативну бібліотеку.',
   creativeLibraryRetry: 'Повторити',

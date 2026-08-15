@@ -111,7 +111,10 @@ export function TaskEditor({
   };
 
   const load = useCallback(
-    async ({ hydrate = false, resetAttachmentDraft = false }: { hydrate?: boolean; resetAttachmentDraft?: boolean } = {}) => {
+    async ({
+      hydrate = false,
+      resetAttachmentDraft = false
+    }: { hydrate?: boolean; resetAttachmentDraft?: boolean } = {}) => {
       setLoading(true);
       try {
         const value = await client.getTask({ teamId, taskId: task.id, attachmentPageSize: 50 });
@@ -149,7 +152,10 @@ export function TaskEditor({
     () => new Set(visibleAttachments.map(attachment => attachment.materialId)),
     [visibleAttachments]
   );
-  const attachmentCount = Math.max(0, task.attachmentCount - detachedMaterialIds.size + draftAttachments.length);
+  const attachmentCount = Math.max(
+    0,
+    task.attachmentCount - detachedMaterialIds.size + draftAttachments.length
+  );
   const formDirty =
     title !== task.title ||
     note !== (task.note ?? '') ||
@@ -182,7 +188,9 @@ export function TaskEditor({
 
   const addAttachments = (materials: TaskAttachmentCandidate[]) => {
     const persistedIds = new Set(persistedAttachments.map(attachment => attachment.materialId));
-    const reattachedIds = new Set(materials.filter(item => persistedIds.has(item.id)).map(item => item.id));
+    const reattachedIds = new Set(
+      materials.filter(item => persistedIds.has(item.id)).map(item => item.id)
+    );
     if (reattachedIds.size > 0) {
       setDetachedMaterialIds(current => {
         const next = new Set(current);
@@ -201,7 +209,9 @@ export function TaskEditor({
       );
       return [
         ...current,
-        ...additions.map((material, index) => draftAttachment(task.id, material, position + index + 1))
+        ...additions.map((material, index) =>
+          draftAttachment(task.id, material, position + index + 1)
+        )
       ];
     });
   };
@@ -286,7 +296,9 @@ export function TaskEditor({
       const updated = { ...response, attachmentCount: previousTask.attachmentCount };
       setTask(updated);
       // Preserve a locally edited scale; otherwise reflect automatic completion progress.
-      setProgressMax(current => (current === previousTask.progressMax ? updated.progressMax : current));
+      setProgressMax(current =>
+        current === previousTask.progressMax ? updated.progressMax : current
+      );
       setProgressValue(current =>
         current === previousTask.progressValue ? updated.progressValue : current
       );

@@ -271,7 +271,9 @@ export function TaskAttachmentTile({
           <div>
             <strong title={attachment.name}>{attachment.name}</strong>
             <small>{attachment.category ?? t('teamTaskAttachMedia')}</small>
-            {isDraft && <small className="team-task-attachment-draft">{t('teamTaskAttachmentDraft')}</small>}
+            {isDraft && (
+              <small className="team-task-attachment-draft">{t('teamTaskAttachmentDraft')}</small>
+            )}
           </div>
         </div>
         <div className="team-task-attachment-actions">
@@ -357,7 +359,9 @@ export function TaskAttachmentTile({
           size="sm"
         >
           <div className="team-task-detach-confirmation">
-            <h2 id={`team-task-detach-title-${attachment.id}`}>{t('teamTaskDetachConfirmTitle')}</h2>
+            <h2 id={`team-task-detach-title-${attachment.id}`}>
+              {t('teamTaskDetachConfirmTitle')}
+            </h2>
             <p>{t('teamTaskDetachConfirmDescription', { name: attachment.name })}</p>
             <div className="team-dialog-actions">
               <Button type="button" variant="ghost" onClick={() => setConfirmDetach(false)}>

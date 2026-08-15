@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
   localTaskDayBounds,
   type TeamTaskPatch,
@@ -6,6 +7,7 @@ import {
   type TeamTaskSummary
 } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
+import { getSupabaseClient } from '../../lib/supabase';
 
 export type TaskDateFilter = { kind: 'all' } | { kind: 'range'; from: string; to: string };
 export type TaskStatusFilter = 'all' | TeamTaskStatus;
@@ -107,6 +109,61 @@ export function useTasks({
       generation.current += 1;
     };
   }, [refetch, revision]);
+
+  // Live sync: refetch whenever any team member creates, edits, or (de)attaches
+  // a task. The team_tasks / team_task_attachments tables are published over
+  // Supabase Realtime (RLS-scoped to team viewers), so peers see changes without
+  // reopening the workspace. A ref keeps the subscription stable across filter
+  // changes while always refetching with the current filters.
+  const refetchRef = useRef(refetch);
+  useEffect(() => {
+    refetchRef.current = refetch;
+  }, [refetch]);
+
+  useEffect(() => {
+    // A custom client is normally an isolated/test data source, so it cannot
+    // safely be kept in sync with the production Realtime channel.
+    if (client !== defaultClient) return;
+    const supabase = getSupabaseClient();
+    if (!supabase || !teamId) return;
+
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRefetch = () => {
+      if (!active) return;
+      // Coalesce bursts (e.g. a peer attaching many materials at once).
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        void refetchRef.current();
+      }, 300);
+    };
+
+    const channel: RealtimeChannel = supabase
+      .channel(`team-tasks:${teamId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'team_tasks', filter: `team_id=eq.${teamId}` },
+        scheduleRefetch
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'team_task_attachments',
+          filter: `team_id=eq.${teamId}`
+        },
+        scheduleRefetch
+      )
+      .subscribe();
+
+    return () => {
+      active = false;
+      if (timer) clearTimeout(timer);
+      void supabase.removeChannel(channel);
+    };
+  }, [client, teamId]);
 
   const loadMore = useCallback(async () => {
     const cursor = tasks.at(-1)?.id;

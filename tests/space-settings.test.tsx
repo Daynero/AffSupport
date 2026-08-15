@@ -16,10 +16,14 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function renderEnteredSpace(client: ReturnType<typeof makeClient>, teamId: string) {
+function renderEnteredSpace(
+  client: ReturnType<typeof makeClient>,
+  teamId: string,
+  refreshClient?: { listTeams: () => Promise<ReturnType<typeof makeTeam>[]> }
+) {
   localStorage.setItem(STORAGE_KEY, teamId);
   return render(
-    <TeamProvider realtime={false}>
+    <TeamProvider client={refreshClient} realtime={false}>
       <TeamSpace client={client} directAddMode="disabled" />
     </TeamProvider>
   );
@@ -56,5 +60,57 @@ describe('space settings surface', () => {
     // Drive connection (owner) and audit (owner/admin) are not shown to a viewer.
     expect(screen.queryByRole('heading', { name: 'Google Drive storage' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Team audit history' })).toBeNull();
+  });
+
+  it('refreshes the entered space after connecting Drive, so landings show sync progress', async () => {
+    let isConnected = false;
+    const disconnectedTeam = makeTeam({ connectionState: 'none' });
+    const connectedTeam = makeTeam({ connectionState: 'connected' });
+    const folder = { id: 'root-folder', name: 'Campaign root', driveKind: 'my_drive' as const };
+    const listTeams = vi
+      .fn()
+      .mockImplementation(async () => [isConnected ? connectedTeam : disconnectedTeam]);
+    const client = makeClient({
+      listTeams,
+      getConnectionStatus: vi.fn().mockResolvedValue({ state: 'none' }),
+      listFolders: vi.fn().mockResolvedValue({ folders: [folder], nextPageToken: null }),
+      confirmDriveRoot: vi.fn().mockImplementation(async input => {
+        if (!input.confirmed) {
+          return {
+            state: 'confirmation_required' as const,
+            folder,
+            account: 'owner@example.test',
+            independentAclWarning: true
+          };
+        }
+        isConnected = true;
+        return {
+          state: 'connected' as const,
+          folder,
+          syncState: 'scanning' as const,
+          connectionId: 'connection-1'
+        };
+      }),
+      searchCatalog: vi.fn().mockResolvedValue({
+        items: [],
+        total: 0,
+        activeFilters: { category: ['landing', 'archive'] },
+        facets: {},
+        catalogFreshness: { state: 'scanning' as const, lastSyncedAt: null }
+      })
+    });
+    const user = userEvent.setup();
+    renderEnteredSpace(client, disconnectedTeam.id, client);
+
+    await screen.findByRole('heading', { name: 'Media buyers' });
+    await user.click(screen.getByRole('button', { name: 'Space settings' }));
+    await user.click(await screen.findByRole('button', { name: 'Connect Google Drive' }));
+    await user.click(await screen.findByRole('button', { name: /Campaign root/ }));
+    await user.click(await screen.findByRole('button', { name: 'Confirm folder' }));
+    await user.click(screen.getByRole('button', { name: 'Back to space' }));
+    await user.click(screen.getByRole('button', { name: 'Landings' }));
+
+    expect(await screen.findByText(/Scanning the connected Google Drive folder/i)).toBeTruthy();
+    expect(screen.queryByText(/Google Drive is not connected for this space/i)).toBeNull();
   });
 });

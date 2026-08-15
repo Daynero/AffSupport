@@ -2,7 +2,7 @@
 import React from 'react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
   CatalogMaterialItem,
@@ -212,6 +212,102 @@ describe('team landings gallery (presentational)', () => {
       /disconnected Google Drive folder/i
     );
     expect(client.getLandingSourceStatus).toHaveBeenCalledWith(TEAM_ID);
+  });
+
+  it('does not send an owner to reconnect a Drive that is not connected', async () => {
+    localStorage.setItem('wishly.active-team.v1', TEAM_ID);
+    const client = {
+      searchCatalog: vi.fn().mockResolvedValue({
+        items: [],
+        total: 0,
+        activeFilters: { category: ['landing', 'archive'] },
+        facets: {},
+        catalogFreshness: { state: 'not_started' as const, lastSyncedAt: null }
+      }),
+      getCatalogVocabulary: vi.fn().mockResolvedValue({
+        geo: [],
+        languages: [],
+        offers: [],
+        tags: []
+      }),
+      getLandingSourceStatus: vi.fn().mockResolvedValue({ hasDetachedLandingCandidates: true })
+    };
+    render(
+      <TeamProvider
+        initialTeams={[
+          {
+            id: TEAM_ID,
+            name: 'Disconnected team',
+            role: 'owner',
+            permissions: {
+              view: true,
+              download: true,
+              upload: true,
+              edit: true,
+              delete: true,
+              process: true,
+              manage_members: true,
+              manage_metadata: true
+            },
+            connectionState: 'none'
+          }
+        ]}
+        realtime={false}
+      >
+        <TeamLandings teamId={TEAM_ID} client={client} />
+      </TeamProvider>
+    );
+    expect(await screen.findByText(/Google Drive is not connected for this space/i)).toBeTruthy();
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(client.getLandingSourceStatus).not.toHaveBeenCalled();
+  });
+
+  it('shows scan progress instead of detached-root recovery while the connected folder syncs', async () => {
+    localStorage.setItem('wishly.active-team.v1', TEAM_ID);
+    const client = {
+      searchCatalog: vi.fn().mockResolvedValue({
+        items: [],
+        total: 0,
+        activeFilters: { category: ['landing', 'archive'] },
+        facets: {},
+        catalogFreshness: { state: 'scanning' as const, lastSyncedAt: null }
+      }),
+      getCatalogVocabulary: vi.fn().mockResolvedValue({
+        geo: [],
+        languages: [],
+        offers: [],
+        tags: []
+      }),
+      getLandingSourceStatus: vi.fn().mockResolvedValue({ hasDetachedLandingCandidates: true })
+    };
+    render(
+      <TeamProvider
+        initialTeams={[
+          {
+            id: TEAM_ID,
+            name: 'Syncing team',
+            role: 'owner',
+            permissions: {
+              view: true,
+              download: true,
+              upload: true,
+              edit: true,
+              delete: true,
+              process: true,
+              manage_members: true,
+              manage_metadata: true
+            },
+            connectionState: 'connected'
+          }
+        ]}
+        realtime={false}
+      >
+        <TeamLandings teamId={TEAM_ID} client={client} />
+      </TeamProvider>
+    );
+    expect(await screen.findByText(/Scanning the connected Google Drive folder/i)).toBeTruthy();
+    await waitFor(() => expect(client.getLandingSourceStatus).toHaveBeenCalledWith(TEAM_ID));
+    expect(screen.queryByRole('status')).toBeNull();
   });
 
   it('renders an error state', () => {

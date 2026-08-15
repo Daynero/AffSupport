@@ -80,10 +80,12 @@ export function TeamLandings({
   } | null>(null);
   const measuredResult = useRef<CatalogSearchResponse | null>(null);
   const startedAt = useRef(Date.now());
+  const connectedToDrive = activeTeam?.connectionState === 'connected';
+  const catalogState = gallery.result?.catalogFreshness.state;
 
   useEffect(() => {
     let active = true;
-    if (!client.getLandingSourceStatus) {
+    if (!client.getLandingSourceStatus || !connectedToDrive) {
       setSourceStatus(null);
       return () => {
         active = false;
@@ -100,15 +102,27 @@ export function TeamLandings({
     return () => {
       active = false;
     };
-  }, [client, teamId]);
+  }, [client, connectedToDrive, teamId]);
 
-  const recoveryMessage = sourceStatus?.hasDetachedLandingCandidates
-    ? t(
-        activeTeam?.role === 'owner'
-          ? 'teamLandingsDetachedSourceOwner'
-          : 'teamLandingsDetachedSourceMember'
-      )
-    : null;
+  const recoveryMessage =
+    connectedToDrive &&
+    catalogState === 'ready' &&
+    (gallery.result?.total ?? 0) === 0 &&
+    sourceStatus?.hasDetachedLandingCandidates
+      ? t(
+          activeTeam?.role === 'owner'
+            ? 'teamLandingsDetachedSourceOwner'
+            : 'teamLandingsDetachedSourceMember'
+        )
+      : null;
+
+  const emptyMessage = !connectedToDrive
+    ? t('teamLandingsDriveNotConnected')
+    : catalogState === 'scanning' || catalogState === 'replaying'
+      ? t('teamLandingsSyncing')
+      : catalogState === 'failed'
+        ? t('teamLandingsSyncFailed')
+        : undefined;
 
   useEffect(() => {
     if (!gallery.result || measuredResult.current === gallery.result) return;
@@ -165,6 +179,7 @@ export function TeamLandings({
         total={gallery.result?.total ?? 0}
         pageSize={50}
         onPageChange={gallery.setPage}
+        emptyMessage={emptyMessage}
         resolveThumbnail={gallery.resolveThumbnail}
         renderingMaterialId={gallery.activeRender?.materialId ?? null}
         renderProgress={gallery.activeRender?.progress ?? null}

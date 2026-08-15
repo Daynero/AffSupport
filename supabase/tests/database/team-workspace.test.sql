@@ -1,6 +1,6 @@
 begin;
 
-select plan(253);
+select plan(258);
 
 select has_schema('private', 'private integration schema exists');
 select has_table('public', 'teams', 'teams table exists');
@@ -3311,6 +3311,132 @@ select is(
   ),
   1::bigint,
   'a material in the connected root remains previewable'
+);
+
+-- A historical copy from the same root is harmless after reconnecting that
+-- root. It must not keep a recovery banner alive forever.
+create temporary table us7_same_root_team as
+select * from public.create_team('US7 Same Root Recovery');
+
+create temporary table us7_same_root_connection as
+select *
+from public.service_confirm_drive_connection(
+  (select id from pg_temp.us7_same_root_team),
+  '10000000-0000-4000-8000-000000000001',
+  (select id from pg_temp.us1_credential),
+  'root-folder-us7-same',
+  'US7 Same Root Media',
+  null,
+  'my_drive',
+  jsonb_build_object('canListChildren', true, 'startPageToken', 'change-token-us7-initial')
+);
+
+create temporary table us7_same_root_live_material as
+with inserted as (
+  insert into public.team_materials (
+    team_id, connection_id, drive_file_id, parent_folder_id, name,
+    mime_type, file_extension, kind, category, drive_version, checksum
+  )
+  values (
+    (select id from pg_temp.us7_same_root_team),
+    (select connection_id from pg_temp.us7_same_root_connection),
+    'same-root-live-us7', 'root-folder-us7-same', 'Live same root.zip',
+    'application/zip', 'zip', 'file', 'archive', 'same-root-live-version-us7', 'same-root-live-checksum-us7'
+  )
+  returning id
+)
+select id from inserted;
+
+create temporary table us7_same_root_detached_connection as
+with inserted as (
+  insert into public.team_drive_connections (
+    team_id, credential_id, root_folder_id, root_folder_name,
+    drive_kind, state, initial_sync_state, detached_at
+  )
+  select (select id from pg_temp.us7_same_root_team),
+         (select credential_id from public.team_drive_connections
+          where id = (select connection_id from pg_temp.us7_same_root_connection)),
+         'root-folder-us7-same', 'US7 Same Root Media',
+         'my_drive', 'detached', 'ready', clock_timestamp()
+  returning id
+)
+select id from inserted;
+
+create temporary table us7_same_root_detached_material as
+with inserted as (
+  insert into public.team_materials (
+    team_id, connection_id, drive_file_id, parent_folder_id, name,
+    mime_type, file_extension, kind, category, drive_version, checksum
+  )
+  values (
+    (select id from pg_temp.us7_same_root_team),
+    (select id from pg_temp.us7_same_root_detached_connection),
+    'same-root-detached-us7', 'root-folder-us7-same', 'Historical same root.zip',
+    'application/zip', 'zip', 'file', 'archive', 'same-root-version-us7', 'same-root-checksum-us7'
+  )
+  returning id
+)
+select id from inserted;
+
+select is(
+  (
+    select has_detached_landing_candidates
+    from public.get_team_landing_source_status((select id from pg_temp.us7_same_root_team))
+  ),
+  false,
+  'a detached historical copy of the current root does not yield a recovery instruction'
+);
+
+create temporary table us7_same_root_resync as
+select *
+from public.service_replace_drive_connection(
+  (select id from pg_temp.us7_same_root_team),
+  '10000000-0000-4000-8000-000000000001',
+  (select id from pg_temp.us1_credential),
+  'root-folder-us7-same',
+  'US7 Same Root Media',
+  null,
+  'my_drive',
+  jsonb_build_object('canListChildren', true, 'startPageToken', 'change-token-resync')
+);
+
+select is(
+  (select connection_id from pg_temp.us7_same_root_resync),
+  (select connection_id from pg_temp.us7_same_root_connection),
+  'reselecting the same Drive root keeps its catalog connection instead of detaching it'
+);
+
+select is(
+  (
+    select connection.state || '|' || connection.initial_sync_state || '|' ||
+           connection.change_page_token
+    from public.team_drive_connections as connection
+    where connection.id = (select connection_id from pg_temp.us7_same_root_connection)
+  ),
+  'connected|scanning|change-token-resync',
+  'same-root recovery refreshes the active connection and marks its recursive sync as scanning'
+);
+
+select is(
+  (
+    select count(*)
+    from private.catalog_sync_jobs as job
+    where job.id = (select sync_job_id from pg_temp.us7_same_root_resync)
+      and job.connection_id = (select connection_id from pg_temp.us7_same_root_connection)
+      and job.phase = 'initial_scan'
+  ),
+  1::bigint,
+  'same-root recovery queues a new initial scan for the retained connection'
+);
+
+select is(
+  (
+    select count(*)
+    from public.list_team_materials((select id from pg_temp.us7_same_root_team), null) as material
+    where material.id = (select id from pg_temp.us7_same_root_live_material)
+  ),
+  1::bigint,
+  'the retained connection keeps its existing landing visible while the recovery scan runs'
 );
 
 select * from finish();

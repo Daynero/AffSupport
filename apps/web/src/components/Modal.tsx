@@ -1,7 +1,7 @@
 import { useEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 
-export type ModalSize = 'sm' | 'md' | 'lg';
+export type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
 
 const FOCUSABLE_SELECTOR = [
   'a[href]',
@@ -38,7 +38,7 @@ export interface ModalProps {
    * backdrop click, no close button (e.g. onboarding, install gate).
    */
   onClose?: () => void;
-  /** Surface width: sm 460px, md 480px, lg 520px. Ignored when `bare`. */
+  /** Surface width: sm 552px, md 576px, lg 624px, xl 880px. Ignored when `bare`. */
   size?: ModalSize;
   /** Extra class(es) for the dialog surface. */
   className?: string;

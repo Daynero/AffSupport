@@ -358,7 +358,7 @@ export function ProcessLibraryDialog({
         void releaseActive().finally(onClose);
       }}
       closeLabel={t('teamCancel')}
-      size="lg"
+      size="xl"
     >
       <section className="creative-library-process">
         <p className="team-workspace-eyebrow">{t('creativeLibraryProcessEyebrow')}</p>

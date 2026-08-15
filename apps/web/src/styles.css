@@ -5603,6 +5603,10 @@ body:has(.public-home) {
   width: min(624px, 100%);
 }
 
+.modal-xl {
+  width: min(880px, 100%);
+}
+
 .onboarding-modal > div:first-of-type {
   display: grid;
   gap: var(--space-2);
@@ -11933,7 +11937,211 @@ body {
   width: 100%;
 }
 
+/* --- Team media action buttons: colour-coded, icon-led affordances shared by
+   catalog rows, library cards and the share menu. Soft tinted fill + tinted
+   border + saturated icon/text, matching the task-attachment action pattern.
+   Icons carry no fill and inherit each button's colour via currentColor. --- */
+.team-media-action.button {
+  gap: 6px;
+  border-width: 1px;
+  white-space: normal;
+}
+.team-media-action svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+.team-media-action svg path[fill='currentColor'] {
+  fill: currentColor;
+  stroke: none;
+}
+.team-media-action.is-preview {
+  border-color: color-mix(in oklab, #3b82f6 35%, var(--color-border));
+  background: color-mix(in oklab, #3b82f6 10%, var(--color-surface));
+  color: #2563eb;
+}
+.team-media-action.is-task {
+  border-color: color-mix(in oklab, var(--color-accent) 38%, var(--color-border));
+  background: color-mix(in oklab, var(--color-accent) 12%, var(--color-surface));
+  color: var(--color-accent);
+}
+.team-media-action.is-copy-link {
+  border-color: color-mix(in oklab, #8b5cf6 35%, var(--color-border));
+  background: color-mix(in oklab, #8b5cf6 10%, var(--color-surface));
+  color: #7c3aed;
+}
+.team-media-action.is-open {
+  border-color: color-mix(in oklab, #0891b2 35%, var(--color-border));
+  background: color-mix(in oklab, #0891b2 10%, var(--color-surface));
+  color: #0e7490;
+}
+.team-media-action.is-download {
+  border-color: color-mix(in oklab, #0f9f8f 35%, var(--color-border));
+  background: color-mix(in oklab, #0f9f8f 10%, var(--color-surface));
+  color: #0f766e;
+}
+.team-media-action.is-transcribe {
+  border-color: color-mix(in oklab, var(--color-warning) 40%, var(--color-border));
+  background: color-mix(in oklab, var(--color-warning) 12%, var(--color-surface));
+  color: var(--color-warning);
+}
+.team-media-action.is-preview:hover:not(:disabled) {
+  border-color: #3b82f6;
+  background: color-mix(in oklab, #3b82f6 17%, var(--color-surface));
+}
+.team-media-action.is-task:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  background: color-mix(in oklab, var(--color-accent) 18%, var(--color-surface));
+}
+.team-media-action.is-copy-link:hover:not(:disabled) {
+  border-color: #8b5cf6;
+  background: color-mix(in oklab, #8b5cf6 17%, var(--color-surface));
+}
+.team-media-action.is-open:hover:not(:disabled) {
+  border-color: #0891b2;
+  background: color-mix(in oklab, #0891b2 17%, var(--color-surface));
+}
+.team-media-action.is-download:hover:not(:disabled) {
+  border-color: #0f9f8f;
+  background: color-mix(in oklab, #0f9f8f 17%, var(--color-surface));
+}
+.team-media-action.is-transcribe:hover:not(:disabled) {
+  border-color: var(--color-warning);
+  background: color-mix(in oklab, var(--color-warning) 18%, var(--color-surface));
+}
+
+/* Catalog list (View A): let each file row's actions wrap and align right so a
+   long name plus three actions never spills past the panel. */
+.team-material-browser .team-material-list li {
+  flex-wrap: wrap;
+}
+.team-material-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+/* Library card (View B): a larger, stylised selection cell overlaid on the tile,
+   plus a fully clickable free area that toggles selection. */
+.creative-library-card {
+  position: relative;
+}
+.creative-library-card[data-selectable='true'] {
+  cursor: pointer;
+}
+.creative-library-card-select {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 3;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 2px solid var(--color-border-strong);
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--color-surface) 82%, transparent);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(4px);
+  color: transparent;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-micro) var(--ease-standard),
+    background var(--dur-micro) var(--ease-standard),
+    color var(--dur-micro) var(--ease-standard);
+}
+.creative-library-card-select input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.creative-library-card-select svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.creative-library-card-select:hover {
+  border-color: var(--color-accent);
+}
+.creative-library-card-select.is-selected {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+.creative-library-card-select:has(input:focus-visible) {
+  outline: 3px solid color-mix(in srgb, var(--color-focus) 45%, transparent);
+  outline-offset: 2px;
+}
+
+/* Primary card actions: allow wrap + text reflow so labels never clip against
+   the card's `overflow: hidden` edge. */
+.creative-library-card-primary-actions {
+  flex-wrap: wrap;
+}
+.creative-library-card-primary-actions .button {
+  min-width: 0;
+  flex: 1 1 120px;
+  min-height: 38px;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  line-height: 1.2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Sticky toolbar: heading + selection controls stay pinned while scrolling a
+   long gallery, so bulk actions are always in reach. Negative margins let the
+   translucent bar span the panel's padding. */
+.creative-library-toolbar {
+  position: sticky;
+  top: var(--app-header-height);
+  z-index: 20;
+  display: grid;
+  gap: var(--space-3);
+  margin: calc(-1 * var(--space-5)) calc(-1 * var(--space-5)) 0;
+  padding: var(--space-4) var(--space-5) var(--space-3);
+  background: color-mix(in oklab, var(--color-surface) 90%, transparent);
+  backdrop-filter: blur(9px);
+  border-bottom: 1px solid var(--color-border);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+.creative-library-selection-lead {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.creative-library-selection-count {
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+}
+
 @media (max-width: 720px) {
+  .creative-library-toolbar {
+    position: static;
+    margin: 0;
+    padding: 0;
+    background: none;
+    backdrop-filter: none;
+    border-bottom: 0;
+    border-radius: 0;
+  }
   .creative-library-upload {
     min-width: 0;
   }

@@ -65,7 +65,9 @@ export function decodeTaskMaterialDragItems(value: string): TaskMaterialDragItem
       !UUID.test(item.id) ||
       typeof item.name !== 'string' ||
       item.name.trim().length < 1 ||
-      (item.category !== null && item.category !== undefined && typeof item.category !== 'string') ||
+      (item.category !== null &&
+        item.category !== undefined &&
+        typeof item.category !== 'string') ||
       seen.has(item.id)
     ) {
       continue;

@@ -201,9 +201,7 @@ describe('Creative Library task workflows', () => {
       <TaskAttachmentTile teamId={TEAM_ID} attachment={attachment} client={api} />
     );
     await screen.findByLabelText('Video preview for launch.mp4 at one second');
-    rerender(
-      <TaskAttachmentTile teamId={TEAM_ID} attachment={{ ...attachment }} client={api} />
-    );
+    rerender(<TaskAttachmentTile teamId={TEAM_ID} attachment={{ ...attachment }} client={api} />);
     await waitFor(() => expect(api.previewMaterial).toHaveBeenCalledTimes(1));
   });
 

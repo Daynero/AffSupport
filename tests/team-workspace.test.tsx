@@ -63,7 +63,9 @@ describe('guided team space workspace', () => {
     });
     await user.click(screen.getByRole('button', { name: 'Preview launch.mp4' }));
     expect(await screen.findByRole('dialog', { name: 'launch.mp4' })).toBeTruthy();
-    await waitFor(() => expect(previewMaterial).toHaveBeenCalledWith(team.id, 'material-visible', 'media'));
+    await waitFor(() =>
+      expect(previewMaterial).toHaveBeenCalledWith(team.id, 'material-visible', 'media')
+    );
     await user.click(screen.getByRole('button', { name: 'Close preview' }));
     // The old all-panels grid is gone: management is not shown beside the content.
     expect(screen.queryByRole('heading', { name: 'Google Drive storage' })).toBeNull();

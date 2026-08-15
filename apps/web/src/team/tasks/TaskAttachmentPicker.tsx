@@ -287,7 +287,10 @@ export function TaskAttachmentPicker({
                 {path.map((folder, index) => (
                   <span key={folder.id}>
                     <i aria-hidden="true">/</i>
-                    <button type="button" onClick={() => setPath(current => current.slice(0, index + 1))}>
+                    <button
+                      type="button"
+                      onClick={() => setPath(current => current.slice(0, index + 1))}
+                    >
                       {folder.name}
                     </button>
                   </span>
@@ -335,7 +338,7 @@ export function TaskAttachmentPicker({
                               ? t('teamTaskAttachmentAlreadyAdded')
                               : isFolder
                                 ? t('teamTaskFolderOpen')
-                                : material.category ?? material.kind}
+                                : (material.category ?? material.kind)}
                           </small>
                         </span>
                         <span className="team-task-picker-check" aria-hidden="true">

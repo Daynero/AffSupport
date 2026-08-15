@@ -185,7 +185,8 @@ export function MaterialPreview({
   const edit = () => client.editText?.(teamId, material.id);
   const createVersion = () => client.createVersion?.(teamId, material.id);
   const mediaKey = state.kind === 'media' ? `${material.id}:${state.rangeUrl}` : null;
-  const mediaLoading = mediaKey !== null && mediaKey !== loadedMediaKey && mediaKey !== failedMediaKey;
+  const mediaLoading =
+    mediaKey !== null && mediaKey !== loadedMediaKey && mediaKey !== failedMediaKey;
   const mediaFailed = mediaKey !== null && mediaKey === failedMediaKey;
   const markMediaReady = () => {
     if (mediaKey) setLoadedMediaKey(mediaKey);

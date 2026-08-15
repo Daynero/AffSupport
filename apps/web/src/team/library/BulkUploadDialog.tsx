@@ -288,7 +288,7 @@ export function BulkUploadDialog({
       }}
       closeLabel={t('teamCancel')}
       initialFocus="#creative-library-files"
-      size="lg"
+      size="xl"
     >
       <form
         className="team-dialog-form creative-library-upload"

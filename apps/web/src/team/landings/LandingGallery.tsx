@@ -30,6 +30,7 @@ export function LandingGallery({
   total = items.length,
   pageSize = 50,
   onPageChange,
+  emptyMessage,
   renderingMaterialId,
   renderProgress,
   onRender,
@@ -45,6 +46,7 @@ export function LandingGallery({
   total?: number;
   pageSize?: number;
   onPageChange?: (page: number) => void;
+  emptyMessage?: string;
   renderingMaterialId?: string | null;
   renderProgress?: number | null;
   onRender?: (item: LandingGalleryItem) => void;
@@ -72,7 +74,7 @@ export function LandingGallery({
   if (!items.length) {
     return (
       <div className="team-landings-empty">
-        <p>{t('teamLandingsEmpty')}</p>
+        <p>{emptyMessage ?? t('teamLandingsEmpty')}</p>
       </div>
     );
   }

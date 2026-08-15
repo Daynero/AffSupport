@@ -8,6 +8,7 @@ import { teamApi } from '../../api/team';
 import { Modal } from '../../components/Modal';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
+import { MediaActionIcon } from './mediaActionIcons';
 
 export interface LibraryShareClient {
   getLibrarySharePreference(teamId: string): Promise<{
@@ -117,19 +118,35 @@ export function LibraryShareActions({
 
   return (
     <div className="creative-library-share-actions">
-      <Button type="button" variant="ghost" loading={busy === 'copy'} onClick={() => void copy()}>
-        {copied ? t('creativeLibraryLinkCopied') : t('creativeLibraryCopyLink')}
-      </Button>
-      <Button type="button" variant="ghost" loading={busy === 'open'} onClick={() => void open()}>
-        {t('creativeLibraryOpenDrive')}
+      <Button
+        type="button"
+        variant="ghost"
+        className="team-media-action is-copy-link"
+        loading={busy === 'copy'}
+        onClick={() => void copy()}
+      >
+        <MediaActionIcon kind="copy-link" />
+        <span>{copied ? t('creativeLibraryLinkCopied') : t('creativeLibraryCopyLink')}</span>
       </Button>
       <Button
         type="button"
         variant="ghost"
+        className="team-media-action is-open"
+        loading={busy === 'open'}
+        onClick={() => void open()}
+      >
+        <MediaActionIcon kind="open" />
+        <span>{t('creativeLibraryOpenDrive')}</span>
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        className="team-media-action is-download"
         loading={busy === 'download'}
         onClick={() => void download()}
       >
-        {t('creativeLibraryDownload')}
+        <MediaActionIcon kind="download" />
+        <span>{t('creativeLibraryDownload')}</span>
       </Button>
       {error && <small className="team-inline-error">{error}</small>}
       {confirmation && (

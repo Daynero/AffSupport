@@ -5,6 +5,7 @@ import { Button } from '../../components/ui';
 import { Modal } from '../../components/Modal';
 import { useI18n } from '../../i18n';
 import { useTeam } from '../TeamContext';
+import { attachTaskMaterialsInChunks } from './TaskAttachmentPicker';
 import { TaskCard } from './TaskCard';
 import { TaskDateFilterControl } from './TaskDateFilter';
 import { TaskEditor, type TaskEditorClient } from './TaskEditor';
@@ -16,11 +17,20 @@ export type TaskSpaceClient = TasksClient &
   };
 
 export interface TaskSourceAsset {
-  id: string;
+  /** One or more stable material ids to attach to the freshly created task. */
+  ids?: string[];
+  /** The legacy single-material shape remains valid for direct callers. */
+  id?: string;
+  /** Display label used to title the task (a single name, or an "N materials" summary). */
   name: string;
 }
 
 const defaultClient: TaskSpaceClient = teamApi;
+
+function sourceMaterialIds(source: TaskSourceAsset | null): string[] {
+  const candidateIds = source?.ids ?? (source?.id ? [source.id] : []);
+  return [...new Set(candidateIds.filter(id => typeof id === 'string' && id.length > 0))];
+}
 
 export function TaskSpace({
   teamId,
@@ -61,15 +71,35 @@ export function TaskSpace({
   }, [client, revision, teamId]);
 
   useEffect(() => {
-    if (!createFromAsset || !can('edit') || creatingAssetId === createFromAsset.id) return;
-    setCreatingAssetId(createFromAsset.id);
+    const materialIds = sourceMaterialIds(createFromAsset);
+    const selectionKey = materialIds.join(',') || null;
+    if (
+      !createFromAsset ||
+      materialIds.length === 0 ||
+      !can('edit') ||
+      creatingAssetId === selectionKey
+    )
+      return;
+    setCreatingAssetId(selectionKey);
     setBusy(true);
+    const [firstId, ...restIds] = materialIds;
     void tasks
       .create({
         title: t('teamTaskFromAssetTitle', { name: createFromAsset.name }).slice(0, 160),
-        initialMaterialId: createFromAsset.id
+        initialMaterialId: firstId ?? null
       })
-      .then(created => {
+      .then(async created => {
+        // The first material seeds the task; any remaining selection is attached
+        // in one follow-up call, then the list is refetched so counts settle.
+        if (restIds.length > 0) {
+          await attachTaskMaterialsInChunks({
+            client,
+            teamId,
+            taskId: created.id,
+            materialIds: restIds
+          });
+          await tasks.refetch();
+        }
         setOpenTask(created);
         setError(false);
       })
@@ -78,7 +108,7 @@ export function TaskSpace({
         setBusy(false);
         onConsumedCreateFromAsset?.();
       });
-  }, [can, createFromAsset, creatingAssetId, onConsumedCreateFromAsset, t, tasks]);
+  }, [can, client, createFromAsset, creatingAssetId, onConsumedCreateFromAsset, t, tasks, teamId]);
 
   const create = async (event: FormEvent) => {
     event.preventDefault();

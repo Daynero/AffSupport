@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import type { TeamMaterialSummary } from '../../api/team';
 import { useI18n } from '../../i18n';
 import { Button } from '../../components/ui';
+import { CopyDriveLinkButton } from '../library/CopyDriveLinkButton';
+import { MediaActionIcon } from '../library/mediaActionIcons';
 import {
   encodeTaskMaterialDrag,
   TASK_MATERIAL_DRAG_TYPE,
@@ -115,7 +117,9 @@ export function MaterialBrowser({
                       ? [...taskDragSelection.selectedIds]
                       : [material.id];
                     const items: TaskMaterialDragItem[] = materials
-                      .filter(candidate => candidate.kind !== 'folder' && ids.includes(candidate.id))
+                      .filter(
+                        candidate => candidate.kind !== 'folder' && ids.includes(candidate.id)
+                      )
                       .map(candidate => ({
                         id: candidate.id,
                         name: candidate.name,
@@ -123,7 +127,10 @@ export function MaterialBrowser({
                         previewState: candidate.previewState
                       }));
                     event.dataTransfer.effectAllowed = 'copy';
-                    event.dataTransfer.setData(TASK_MATERIAL_DRAG_TYPE, encodeTaskMaterialDrag(items));
+                    event.dataTransfer.setData(
+                      TASK_MATERIAL_DRAG_TYPE,
+                      encodeTaskMaterialDrag(items)
+                    );
                   }}
                 >
                   {taskDragSelection && (
@@ -142,25 +149,36 @@ export function MaterialBrowser({
                   <span aria-hidden="true">{material.kind === 'shortcut' ? '↗' : '▤'}</span>{' '}
                   {material.name}
                 </span>
-                {onPreview && material.kind === 'file' && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    aria-label={t('teamCatalogPreviewFor', { name: material.name })}
-                    onClick={() => onPreview(material)}
-                  >
-                    {t('teamCatalogPreview')}
-                  </Button>
-                )}
-                {onCreateTask && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => onCreateTask({ id: material.id, name: material.name })}
-                  >
-                    {t('creativeLibraryCreateTask')}
-                  </Button>
-                )}
+                <div className="team-material-row-actions">
+                  {onPreview && material.kind === 'file' && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="team-media-action is-preview"
+                      aria-label={t('teamCatalogPreviewFor', { name: material.name })}
+                      onClick={() => onPreview(material)}
+                    >
+                      <MediaActionIcon kind="preview" />
+                      <span>{t('teamCatalogPreview')}</span>
+                    </Button>
+                  )}
+                  <CopyDriveLinkButton
+                    teamId={material.teamId}
+                    materialId={material.id}
+                    name={material.name}
+                  />
+                  {onCreateTask && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="team-media-action is-task"
+                      onClick={() => onCreateTask({ id: material.id, name: material.name })}
+                    >
+                      <MediaActionIcon kind="task" />
+                      <span>{t('creativeLibraryCreateTask')}</span>
+                    </Button>
+                  )}
+                </div>
               </>
             )}
             {material.category && <small>{material.category}</small>}

@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, type MouseEvent } from 'react';
 import type { LibraryAssetSummary } from '@video-compressor/shared';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
+import { MediaActionIcon } from './mediaActionIcons';
 import { VideoTextActions } from './VideoTextActions';
 import { LibraryShareActions } from './LibraryShareActions';
 import {
@@ -56,22 +57,43 @@ export function LibraryAssetCard({
         ? t('creativeLibraryPlacementNeedsAttention')
         : t('creativeLibraryPlacementState', { state: asset.placementState });
 
+  // Clicking any free area of the tile (title, tags, status, padding) toggles
+  // selection; genuine controls (buttons, the preview, form fields) opt out so
+  // preview and per-item actions still work.
+  const toggleFromCard = (event: MouseEvent<HTMLElement>) => {
+    if (!selectable) return;
+    if ((event.target as HTMLElement).closest('button, a, input, select, label')) return;
+    onSelect?.(!selected);
+  };
+
   return (
     <article
       className={`creative-library-card ${selected ? 'is-selected' : ''}`.trim()}
       data-placement-state={asset.placementState}
+      data-selectable={selectable ? 'true' : undefined}
+      onClick={selectable ? toggleFromCard : undefined}
     >
+      {selectable && (
+        <label
+          className={`creative-library-card-select ${selected ? 'is-selected' : ''}`.trim()}
+          onClick={event => {
+            event.stopPropagation();
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={selected}
+            aria-label={t('creativeLibrarySelectAsset', { name: asset.name })}
+            onChange={event => onSelect?.(event.target.checked)}
+          />
+          <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+            <path d="m4.5 10.6 3.4 3.4 7.6-7.9" />
+          </svg>
+        </label>
+      )}
       <LibraryAssetVisualPreview asset={asset} onPreview={onPreview} client={previewClient} />
       <div className="creative-library-card-body">
         <div className="creative-library-card-title">
-          {selectable && (
-            <input
-              type="checkbox"
-              checked={selected}
-              aria-label={t('creativeLibrarySelectAsset', { name: asset.name })}
-              onChange={event => onSelect?.(event.target.checked)}
-            />
-          )}
           <strong title={asset.name}>{asset.name}</strong>
         </div>
         <div className="creative-library-card-tags">
@@ -89,8 +111,14 @@ export function LibraryAssetCard({
         </p>
         <div className="creative-library-card-primary-actions">
           {onCreateTask && (
-            <Button type="button" variant="secondary" onClick={() => onCreateTask(asset)}>
-              {t('creativeLibraryCreateTask')}
+            <Button
+              type="button"
+              variant="ghost"
+              className="team-media-action is-task"
+              onClick={() => onCreateTask(asset)}
+            >
+              <MediaActionIcon kind="task" />
+              <span>{t('creativeLibraryCreateTask')}</span>
             </Button>
           )}
           <Button

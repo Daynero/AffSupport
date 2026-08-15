@@ -82,7 +82,7 @@ export function SpaceSettings({
   onBack: () => void;
 }) {
   const { t } = useI18n();
-  const { activeTeam, can, notifyStateChanged, refreshTeams } = useTeam();
+  const { activeTeam, can, notifyStateChanged, refreshTeams, replaceTeams, teams } = useTeam();
   const [revision, setRevision] = useState(0);
   const changed = () => {
     setRevision(value => value + 1);
@@ -124,7 +124,15 @@ export function SpaceSettings({
             teamId={teamId}
             client={client}
             revision={revision}
-            onConnected={changed}
+            onConnected={() => {
+              changed();
+              replaceTeams(
+                teams.map(team =>
+                  team.id === teamId ? { ...team, connectionState: 'connected' as const } : team
+                )
+              );
+              void refreshTeams();
+            }}
           />
         )}
         {(activeTeam?.role === 'owner' || activeTeam?.role === 'admin') && (

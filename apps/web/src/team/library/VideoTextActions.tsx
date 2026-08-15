@@ -4,6 +4,7 @@ import { teamApi } from '../../api/team';
 import { Modal } from '../../components/Modal';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
+import { MediaActionIcon } from './mediaActionIcons';
 
 export interface VideoTextActionsClient {
   listVideoTextVariants(teamId: string, videoId: string): Promise<LibraryVideoTextVariants>;
@@ -79,8 +80,14 @@ export function VideoTextActions({
   if (loading) return <small>{t('creativeLibraryTextLoading')}</small>;
   if (readyVariants.length === 0) {
     return payload?.canProcess !== false ? (
-      <Button type="button" variant="ghost" onClick={onTranscribe}>
-        {t('creativeLibraryTranscribe')}
+      <Button
+        type="button"
+        variant="ghost"
+        className="team-media-action is-transcribe"
+        onClick={onTranscribe}
+      >
+        <MediaActionIcon kind="transcribe" />
+        <span>{t('creativeLibraryTranscribe')}</span>
       </Button>
     ) : null;
   }
@@ -113,7 +120,7 @@ export function VideoTextActions({
           labelledBy="creative-library-text-title"
           onClose={() => setViewing(false)}
           closeLabel={t('teamCancel')}
-          size="lg"
+          size="xl"
         >
           <div className="creative-library-text-viewer">
             <h2 id="creative-library-text-title">{t('creativeLibraryTranscriptTitle')}</h2>
