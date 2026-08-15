@@ -13,16 +13,22 @@ export const MAX_LANDING_RENDER_SEGMENTS = 64;
 const MAX_EDITABLE_TEXT_BYTES = 1024 * 1024;
 
 /**
- * Supabase's edge runtime can expose the internal hop as `http:` even when
- * the public function is served over HTTPS. Browser and Agent transfer URLs
- * must use the public scheme or Chromium blocks them as mixed content before
- * the scoped range grant can be consumed. Keep local loopback endpoints on
- * HTTP for the local stack and agent tests.
+ * Supabase's edge runtime can expose the internal hop as `http:` and omit
+ * `/functions/v1` even when the public function is served over HTTPS. Browser
+ * and Agent transfer URLs must use the public address or Chromium blocks them
+ * as mixed content (and the public gateway cannot route the shortened path)
+ * before the scoped range grant can be consumed. Keep local loopback endpoints
+ * unchanged for the local stack and agent tests.
  */
 export function publicEndpointUrl(input: URL): URL {
   const url = new URL(input);
   const loopback = ['localhost', '127.0.0.1', '[::1]', '::1'].includes(url.hostname);
-  if (url.protocol === 'http:' && !loopback) url.protocol = 'https:';
+  if (!loopback) {
+    if (url.protocol === 'http:') url.protocol = 'https:';
+    if (url.hostname.endsWith('.supabase.co') && !url.pathname.startsWith('/functions/v1/')) {
+      url.pathname = `/functions/v1${url.pathname.startsWith('/') ? '' : '/'}${url.pathname}`;
+    }
+  }
   return url;
 }
 

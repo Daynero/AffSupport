@@ -53,10 +53,15 @@ function material(overrides: Partial<PreviewMaterialRecord> = {}): PreviewMateri
 }
 
 describe('team preview transfer contract', () => {
-  it('uses HTTPS for public transfer endpoints while preserving local loopback', () => {
+  it('uses the public HTTPS Functions endpoint while preserving local loopback', () => {
     expect(
       publicEndpointUrl(
         new URL('http://project.supabase.co/functions/v1/drive-transfer/range?grant=opaque')
+      ).toString()
+    ).toBe('https://project.supabase.co/functions/v1/drive-transfer/range?grant=opaque');
+    expect(
+      publicEndpointUrl(
+        new URL('http://project.supabase.co/drive-transfer/range?grant=opaque')
       ).toString()
     ).toBe('https://project.supabase.co/functions/v1/drive-transfer/range?grant=opaque');
     expect(
