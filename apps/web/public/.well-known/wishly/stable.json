@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.9.14",
-  "buildNumber": "50",
-  "buildId": "0.9.14+50",
+  "version": "0.9.15",
+  "buildNumber": "51",
+  "buildId": "0.9.15+51",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-08-15T06:34:25.000Z",
+  "publishedAt": "2026-08-15T17:01:05.000Z",
   "summary": {
-    "en": "Fixes long Team Workspace task text, restores localized update notes, and documents the complete Drive catalog deployment.",
-    "uk": "Виправляє довгий текст завдань Team Workspace, повертає локалізовані нотатки оновлення та документує повний деплой каталогу Drive."
+    "en": "Makes Team Workspace Drive reconnection and resync safer, clarifies media actions, and keeps shared tasks up to date.",
+    "uk": "Робить перепідключення й повторну синхронізацію Google Drive у Team Workspace безпечнішими, уточнює медіадії та оновлює спільні задачі."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.14/Soty-v0.9.14-macOS-arm64.dmg",
-      "sha256": "0f8f299a75c253be1785ff532bb956788fe6217bb96884534eb0f2b2fa0ddd08"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.15/Soty-v0.9.15-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -35,5 +35,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "_ZbZD6ZdlAWbHrJ5NROSMDQHr1a7MH049kwrh2wtY6bA7D6o3aPSBskXzy2ulPqTkAsrdR0gDyRNK11W8I1yHg"
+  "signature": "5Dr4rUg1nQYg9hxS0JeqUbPME5dGthdFoT5gMuNnThwFvqd5siTEm7N8yX-Kyd3dV32fQW8qjdOwX3-hfq9I4Q"
 }

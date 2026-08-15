@@ -1,3 +1,9 @@
+# v0.9.15
+
+- Let Team Workspace owners safely queue a complete Google Drive rescan of the already connected folder, without replacing or detaching it.
+- Preserve catalog identity while reconnecting the same Drive root, give clearer recovery guidance for an empty landings gallery, and keep team task changes live for other members.
+- Refine Creative Library media actions, selection, links, previews, and task creation so everyday team work stays clear and accessible.
+
 # v0.9.14
 
 - Keep long task descriptions readable inside Team Workspace cards instead of letting unbroken text overflow the layout.

@@ -209,7 +209,7 @@ describe('team landings gallery (presentational)', () => {
       </TeamProvider>
     );
     expect((await screen.findByRole('status')).textContent).toMatch(
-      /disconnected Google Drive folder/i
+      /current folder scan found no HTML landings or supported archives/i
     );
     expect(client.getLandingSourceStatus).toHaveBeenCalledWith(TEAM_ID);
   });

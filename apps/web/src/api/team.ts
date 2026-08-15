@@ -214,6 +214,11 @@ export interface DriveConnectionStatus {
   capabilitiesCheckedAt: string | null;
 }
 
+export interface DriveCatalogResyncResult {
+  syncJobId: string;
+  initialSyncState: 'scanning';
+}
+
 export interface DriveFolderSummary {
   id: string;
   name: string;
@@ -1225,6 +1230,18 @@ export const teamApi = {
       capabilitiesCheckedAt:
         typeof row.capabilities_checked_at === 'string' ? row.capabilities_checked_at : null
     };
+  },
+
+  async resyncDrive(teamId: string): Promise<DriveCatalogResyncResult> {
+    const { data, error } = await requireSupabaseClient().rpc('request_team_catalog_resync', {
+      p_team: teamId
+    });
+    throwRpc(error);
+    const row = data?.[0] as Record<string, unknown> | undefined;
+    if (typeof row?.sync_job_id !== 'string' || row.initial_sync_state !== 'scanning') {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return { syncJobId: row.sync_job_id, initialSyncState: 'scanning' };
   },
 
   async startDriveOAuth(teamId: string): Promise<{ authorizationUrl: string; expiresAt: string }> {

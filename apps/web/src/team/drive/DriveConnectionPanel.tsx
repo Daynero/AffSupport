@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type {
+  DriveCatalogResyncResult,
   DriveConnectionStatus,
   DriveFolderPage,
   DriveFolderSummary,
@@ -36,6 +37,7 @@ export interface DrivePanelClient {
     expectedAccount?: string;
   }) => Promise<DriveRootResult>;
   detachDrive?: (teamId: string, connectionId: string) => Promise<void>;
+  resyncDrive?: (teamId: string) => Promise<DriveCatalogResyncResult>;
 }
 
 export function DriveConnectionPanel({
@@ -56,6 +58,7 @@ export function DriveConnectionPanel({
   const [confirmation, setConfirmation] = useState<DriveRootResult | null>(null);
   const [authorizationUrl, setAuthorizationUrl] = useState<string | null>(null);
   const [replaceMode, setReplaceMode] = useState(false);
+  const [resyncQueued, setResyncQueued] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -194,6 +197,28 @@ export function DriveConnectionPanel({
     setConfirmation(null);
   };
 
+  const resync = async () => {
+    if (!client.resyncDrive || status.state !== 'connected') return;
+    setBusy(true);
+    setError(null);
+    setResyncQueued(false);
+    try {
+      await client.resyncDrive(teamId);
+      setStatus(current => ({
+        ...current,
+        state: 'connected',
+        initialSyncState: 'scanning',
+        lastErrorCode: null
+      }));
+      setResyncQueued(true);
+      onConnected?.();
+    } catch {
+      setError(t('teamDriveResyncFailed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const connected = status.state === 'connected' || confirmation?.state === 'connected';
   return (
     <section className="team-panel team-drive-panel" aria-labelledby="team-drive-title">
@@ -220,9 +245,14 @@ export function DriveConnectionPanel({
           {t('teamDriveAuthorize')}
         </a>
       )}
-      {connected && !folders && (
+      {connected && (!folders || (status.state === 'connected' && client.resyncDrive)) && (
         <div className="team-inline-actions">
-          {client.replaceDriveRoot && (
+          {status.state === 'connected' && client.resyncDrive && (
+            <Button type="button" variant="secondary" loading={busy} onClick={() => void resync()}>
+              {t('teamDriveResync')}
+            </Button>
+          )}
+          {!folders && client.replaceDriveRoot && (
             <Button
               type="button"
               variant="secondary"
@@ -234,12 +264,12 @@ export function DriveConnectionPanel({
               {t('teamDriveReplace')}
             </Button>
           )}
-          {client.startDriveOAuth && (
+          {!folders && client.startDriveOAuth && (
             <Button type="button" variant="secondary" onClick={() => void connect()}>
               {t('teamDriveReauth')}
             </Button>
           )}
-          {client.detachDrive && (
+          {!folders && client.detachDrive && (
             <Button type="button" variant="danger" onClick={() => void detach()}>
               {t('teamDriveDetach')}
             </Button>
@@ -265,6 +295,7 @@ export function DriveConnectionPanel({
         </div>
       )}
       {confirmation?.state === 'connected' && <p>{t('teamSyncQueued')}</p>}
+      {resyncQueued && <p role="status">{t('teamDriveResyncQueued')}</p>}
       {error && <p className="team-inline-error">{error}</p>}
     </section>
   );

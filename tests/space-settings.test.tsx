@@ -113,4 +113,61 @@ describe('space settings surface', () => {
     expect(await screen.findByText(/Scanning the connected Google Drive folder/i)).toBeTruthy();
     expect(screen.queryByText(/Google Drive is not connected for this space/i)).toBeNull();
   });
+
+  it('queues a full resync for the already connected folder without replacing it', async () => {
+    const team = makeTeam({ connectionState: 'connected' });
+    const resyncDrive = vi.fn().mockResolvedValue({
+      syncJobId: 'resync-job-1',
+      initialSyncState: 'scanning' as const
+    });
+    const client = makeClient({
+      listTeams: vi.fn().mockResolvedValue([team]),
+      resyncDrive
+    });
+    const user = userEvent.setup();
+    renderEnteredSpace(client, team.id);
+
+    await screen.findByRole('heading', { name: 'Media buyers' });
+    await user.click(screen.getByRole('button', { name: 'Space settings' }));
+    await user.click(await screen.findByRole('button', { name: 'Sync now' }));
+
+    expect(resyncDrive).toHaveBeenCalledWith(team.id);
+    expect(client.listFolders).not.toHaveBeenCalled();
+    expect(client.confirmDriveRoot).not.toHaveBeenCalled();
+    expect((await screen.findByRole('status')).textContent).toBe(
+      'A full scan of the connected folder has been queued.'
+    );
+  });
+
+  it('keeps Sync now available while the Drive callback has opened folder selection', async () => {
+    const previousPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    window.history.replaceState(null, '', '/team?drive=connected');
+    try {
+      const team = makeTeam({ connectionState: 'connected' });
+      const resyncDrive = vi.fn().mockResolvedValue({
+        syncJobId: 'resync-job-2',
+        initialSyncState: 'scanning' as const
+      });
+      const client = makeClient({
+        listTeams: vi.fn().mockResolvedValue([team]),
+        listFolders: vi.fn().mockResolvedValue({
+          folders: [{ id: 'folder-1', name: 'Current root', driveKind: 'my_drive' as const }],
+          nextPageToken: null
+        }),
+        resyncDrive
+      });
+      const user = userEvent.setup();
+      renderEnteredSpace(client, team.id);
+
+      await screen.findByRole('heading', { name: 'Media buyers' });
+      await user.click(screen.getByRole('button', { name: 'Space settings' }));
+      await screen.findByRole('button', { name: 'Current root' });
+      await user.click(screen.getByRole('button', { name: 'Sync now' }));
+
+      expect(resyncDrive).toHaveBeenCalledWith(team.id);
+      expect(client.confirmDriveRoot).not.toHaveBeenCalled();
+    } finally {
+      window.history.replaceState(null, '', previousPath);
+    }
+  });
 });

@@ -1,6 +1,6 @@
 begin;
 
-select plan(258);
+select plan(267);
 
 select has_schema('private', 'private integration schema exists');
 select has_table('public', 'teams', 'teams table exists');
@@ -31,7 +31,8 @@ select is_empty(
           'cancel_team_operation',
           'refresh_team_material_search', 'invoke_catalog_sync_worker',
           'effective_permissions', 'can', 'can_access_team_workspace',
-          'record_team_audit', 'issue_team_transfer_grant', 'consume_team_transfer_grant'
+          'record_team_audit', 'issue_team_transfer_grant', 'consume_team_transfer_grant',
+          'request_team_catalog_resync'
         )
       )
       and not p.prosecdef
@@ -59,7 +60,8 @@ select is_empty(
           'cancel_team_operation',
           'refresh_team_material_search', 'invoke_catalog_sync_worker',
           'effective_permissions', 'can', 'can_access_team_workspace',
-          'record_team_audit', 'issue_team_transfer_grant', 'consume_team_transfer_grant'
+          'record_team_audit', 'issue_team_transfer_grant', 'consume_team_transfer_grant',
+          'request_team_catalog_resync'
         )
       )
       and not coalesce(p.proconfig, '{}'::text[]) @> array['search_path=""']::text[]
@@ -87,7 +89,8 @@ select is_empty(
           'cancel_team_operation',
           'refresh_team_material_search', 'invoke_catalog_sync_worker',
           'effective_permissions', 'can', 'can_access_team_workspace',
-          'record_team_audit', 'issue_team_transfer_grant', 'consume_team_transfer_grant'
+          'record_team_audit', 'issue_team_transfer_grant', 'consume_team_transfer_grant',
+          'request_team_catalog_resync'
         )
       )
       and has_function_privilege('public', p.oid, 'execute')
@@ -167,7 +170,8 @@ select is_empty(
           'cancel_team_operation',
           'refresh_team_material_search', 'invoke_catalog_sync_worker',
           'effective_permissions', 'can', 'can_access_team_workspace',
-          'record_team_audit', 'issue_team_transfer_grant', 'consume_team_transfer_grant'
+          'record_team_audit', 'issue_team_transfer_grant', 'consume_team_transfer_grant',
+          'request_team_catalog_resync'
         )
       )
       and has_function_privilege('authenticated', p.oid, 'execute')
@@ -177,7 +181,7 @@ select is_empty(
           'create_team', 'list_my_teams', 'can_access_team_workspace', 'lookup_invitable_account',
           'create_invitation', 'list_my_invitations', 'accept_invitation',
           'list_team_invitations', 'decline_invitation', 'revoke_invitation', 'resend_invitation',
-          'get_drive_connection_status', 'list_team_materials'
+          'get_drive_connection_status', 'request_team_catalog_resync', 'list_team_materials'
           , 'list_team_members', 'update_membership', 'remove_member',
           'transfer_ownership', 'list_team_audit_events',
           'search_materials', 'get_team_vocab_and_facets', 'update_material_metadata',
@@ -451,6 +455,12 @@ select has_function(
 );
 select has_function(
   'public',
+  'request_team_catalog_resync',
+  array['uuid'],
+  'owner-requested catalog resync RPC exists'
+);
+select has_function(
+  'public',
   'service_confirm_drive_connection',
   array['uuid', 'uuid', 'uuid', 'text', 'text', 'text', 'text', 'jsonb'],
   'US1 service-only connection confirmation RPC exists'
@@ -478,6 +488,7 @@ select is_empty(
       ('public.revoke_invitation(uuid)'),
       ('public.resend_invitation(uuid,bytea)'),
       ('public.get_drive_connection_status(uuid)'),
+      ('public.request_team_catalog_resync(uuid)'),
       ('public.list_team_materials(uuid,text)')
     ) as expected(signature)
     where not has_function_privilege('authenticated', expected.signature, 'execute')
@@ -3437,6 +3448,92 @@ select is(
   ),
   1::bigint,
   'the retained connection keeps its existing landing visible while the recovery scan runs'
+);
+
+-- A catalog recovery must be runnable without replacing or detaching the
+-- selected Drive root. Repeated clicks reuse the pending full scan.
+update private.catalog_sync_jobs
+set state = 'succeeded', completed_at = clock_timestamp()
+where connection_id = (select connection_id from pg_temp.us7_same_root_connection)
+  and phase = 'initial_scan';
+update public.team_drive_connections
+set initial_sync_state = 'ready', last_synced_at = clock_timestamp()
+where id = (select connection_id from pg_temp.us7_same_root_connection);
+
+create temporary table us7_manual_resync as
+select *
+from public.request_team_catalog_resync((select id from pg_temp.us7_same_root_team));
+
+select is(
+  (select initial_sync_state from pg_temp.us7_manual_resync),
+  'scanning',
+  'an owner can queue a recursive resync for the already connected root'
+);
+select is(
+  (
+    select connection.state || '|' || connection.initial_sync_state
+    from public.team_drive_connections as connection
+    where connection.id = (select connection_id from pg_temp.us7_same_root_connection)
+  ),
+  'connected|scanning',
+  'manual resync keeps the current Drive connection intact while scanning'
+);
+select is(
+  (
+    select count(*)
+    from private.catalog_sync_jobs as job
+    where job.connection_id = (select connection_id from pg_temp.us7_same_root_connection)
+      and job.phase = 'initial_scan'
+      and job.state in ('pending', 'leased', 'retry')
+  ),
+  1::bigint,
+  'manual resync queues exactly one active full scan'
+);
+select is(
+  (
+    select sync_job_id
+    from public.request_team_catalog_resync((select id from pg_temp.us7_same_root_team))
+  ),
+  (select sync_job_id from pg_temp.us7_manual_resync),
+  'a repeated manual resync reuses the existing full scan job'
+);
+select is(
+  (
+    select count(*)
+    from private.catalog_sync_jobs as job
+    where job.connection_id = (select connection_id from pg_temp.us7_same_root_connection)
+      and job.phase = 'initial_scan'
+      and job.state in ('pending', 'leased', 'retry')
+  ),
+  1::bigint,
+  'repeat resync clicks do not create competing recursive scans'
+);
+select set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-4000-8000-000000000002',
+  true
+);
+select is(
+  auth.uid(),
+  '10000000-0000-4000-8000-000000000002'::uuid,
+  'the resync authorization check runs as the non-owner'
+);
+select is(
+  private.team_role(
+    (select id from pg_temp.us7_same_root_team),
+    auth.uid()
+  ),
+  null,
+  'the resync authorization check uses an account outside the space'
+);
+select throws_ok(
+  $$
+    select *
+    from public.request_team_catalog_resync((select id from pg_temp.us7_same_root_team))
+  $$,
+  '42501',
+  'PERMISSION_DENIED',
+  'only the space owner can queue a full Drive resync'
 );
 
 select * from finish();

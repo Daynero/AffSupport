@@ -854,6 +854,9 @@ const en = {
   teamDriveUnavailable: 'Drive unavailable',
   teamDriveApprovalRequired: 'Google OAuth approval is required for this environment.',
   teamDriveIndependentAcl: 'Soty permissions are independent from direct Google Drive permissions.',
+  teamDriveResync: 'Sync now',
+  teamDriveResyncQueued: 'A full scan of the connected folder has been queued.',
+  teamDriveResyncFailed: 'Could not queue a new scan for the connected folder.',
   teamDriveReplace: 'Replace folder',
   teamDriveDetach: 'Detach',
   teamDriveReauth: 'Reconnect',
@@ -956,9 +959,9 @@ const en = {
   teamLandingsSyncFailed:
     'Google Drive sync did not finish. Check the connection in Space settings → Google Drive and try again.',
   teamLandingsDetachedSourceOwner:
-    'Some landing files are in a disconnected Google Drive folder and are hidden to prevent failed previews. In Space settings → Google Drive, select the correct root folder to restore them.',
+    'The current folder scan found no HTML landings or supported archives. Landing candidates exist only in a previously disconnected source. In Space settings → Google Drive, choose Sync now; if the gallery remains empty after the scan, connect the folder that contains those files.',
   teamLandingsDetachedSourceMember:
-    'Some landing files are in a disconnected Google Drive folder and are hidden to prevent failed previews. Ask the space owner to reconnect the correct folder.',
+    'The current folder scan found no HTML landings or supported archives. Landing candidates exist only in a previously disconnected source. Ask the space owner to run Sync now in Space settings → Google Drive.',
   teamLandingsCountOne: '1 landing',
   teamLandingsCountMany: '{count} landings',
   teamLandingOpen: 'Open landing',
@@ -2175,6 +2178,9 @@ const uk: Record<keyof typeof en, string> = {
   teamDriveUnavailable: 'Google Drive недоступний',
   teamDriveApprovalRequired: 'Для цього середовища потрібне схвалення Google OAuth.',
   teamDriveIndependentAcl: 'Дозволи Soty не залежать від прямих дозволів у Google Drive.',
+  teamDriveResync: 'Синхронізувати зараз',
+  teamDriveResyncQueued: 'Повторне повне сканування підключеної папки поставлено в чергу.',
+  teamDriveResyncFailed: 'Не вдалося поставити в чергу повторне сканування підключеної папки.',
   teamDriveReplace: 'Замінити папку',
   teamDriveDetach: 'Від’єднати',
   teamDriveReauth: 'Підключити знову',
@@ -2277,9 +2283,9 @@ const uk: Record<keyof typeof en, string> = {
   teamLandingsSyncFailed:
     'Синхронізація Google Drive не завершилася. Перевірте підключення в «Налаштуваннях простору → Сховище Google Drive» і повторіть спробу.',
   teamLandingsDetachedSourceOwner:
-    'Частина лендингів лишилася у від’єднаній папці Google Drive й не показується, щоб не створювати хибні прев’ю. У «Налаштуваннях простору → Сховище Google Drive» оберіть коректну кореневу папку, щоб відновити їх.',
+    'Поточне сканування підключеної папки не знайшло HTML-лендінгів або підтримуваних архівів. Кандидати є лише в раніше від’єднаному джерелі. У «Налаштуваннях простору → Сховище Google Drive» натисніть «Синхронізувати зараз»; якщо після завершення галерея лишається порожньою, підключіть папку, де лежать ці файли.',
   teamLandingsDetachedSourceMember:
-    'Частина лендингів лишилася у від’єднаній папці Google Drive й не показується, щоб не створювати хибні прев’ю. Зверніться до власника простору, щоб він повторно підключив потрібну папку.',
+    'Поточне сканування підключеної папки не знайшло HTML-лендінгів або підтримуваних архівів. Кандидати є лише в раніше від’єднаному джерелі. Попросіть власника простору натиснути «Синхронізувати зараз» у «Налаштуваннях простору → Сховище Google Drive».',
   teamLandingsCountOne: '1 лендінг',
   teamLandingsCountMany: '{count} лендінгів',
   teamLandingOpen: 'Відкрити лендінг',

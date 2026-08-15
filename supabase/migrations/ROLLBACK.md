@@ -20,6 +20,10 @@ These are forward-only production migrations. Prefer a backup plus a forward fix
 team has connected storage. For an empty isolated development database, reverse the
 feature group in this exact order:
 
+0. `20260815117000_request_catalog_resync.sql`: revoke and drop
+   `public.request_team_catalog_resync(uuid)`. Do not delete or cancel the
+   resulting catalog jobs or Drive files during production recovery; allow an
+   already queued scan to finish, or forward-fix its state explicitly.
 0. `20260814102000_creative_library_security.sql`: first remove only
    `team_upload_batches`, `team_upload_batch_items`, `team_library_requirements`, `team_tasks`,
    and `team_task_attachments` from `supabase_realtime`; then revoke all feature RPC grants

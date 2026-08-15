@@ -2248,6 +2248,13 @@ export type Database = {
         };
         Returns: string;
       };
+      request_team_catalog_resync: {
+        Args: { p_team: string };
+        Returns: {
+          initial_sync_state: string;
+          sync_job_id: string;
+        }[];
+      };
       remove_member: {
         Args: { p_member: string; p_team: string };
         Returns: {

@@ -1,6 +1,6 @@
 {
   "name": "@video-compressor/shared",
-  "version": "0.9.14",
+  "version": "0.9.15",
   "type": "module",
   "main": "dist/types.js",
   "types": "dist/types.d.ts",
