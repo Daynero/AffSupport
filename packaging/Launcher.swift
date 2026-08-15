@@ -122,6 +122,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var readinessAttempts = 0
   private var handoffAttempts = 0
   private var portWaitAttempts = 0
+  private var replacementRequestedForPortOwner = false
   private var statusItem: NSStatusItem?
   private var lockFD: Int32 = -1
   private var isTerminating = false
@@ -315,7 +316,73 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       )
       .filter { $0.processIdentifier != ownPID }
     for application in others { _ = application.terminate() }
+    // An interrupted/force-quit legacy launcher may have already vanished, so
+    // NSRunningApplication cannot reach its orphaned Node child. The user just
+    // explicitly chose Restart Agent; identify the listener by both its local
+    // health response and bundled command line before sending SIGTERM. This is
+    // intentionally not a blind "free the port" kill.
+    _ = terminateVerifiedAgentListeningOnPort()
     beginHandoff()
+  }
+
+  private func terminateVerifiedAgentListeningOnPort() -> Bool {
+    guard
+      let pid = agentListenerPID(),
+      pid != ProcessInfo.processInfo.processIdentifier,
+      isBundledAgentProcess(pid)
+    else { return false }
+    let stopped = Darwin.kill(pid, SIGTERM) == 0 || errno == ESRCH
+    if stopped {
+      launcherLogger.notice("Requested graceful shutdown of legacy Agent PID \(pid, privacy: .public)")
+    } else {
+      launcherLogger.error("Could not stop legacy Agent PID \(pid, privacy: .public): errno \(errno, privacy: .public)")
+    }
+    return stopped
+  }
+
+  private func agentListenerPID() -> Int32? {
+    guard
+      let output = commandOutput(
+        executable: "/usr/sbin/lsof",
+        arguments: ["-nP", "-t", "-iTCP:\(agentPort)", "-sTCP:LISTEN"]
+      )
+    else { return nil }
+    let pids = Set(
+      output
+        .split(whereSeparator: { $0.isWhitespace })
+        .compactMap { Int32(String($0)) }
+        .filter { $0 > 1 }
+    )
+    return pids.count == 1 ? pids.first : nil
+  }
+
+  private func isBundledAgentProcess(_ pid: Int32) -> Bool {
+    guard
+      let command = commandOutput(
+        executable: "/bin/ps",
+        arguments: ["-ww", "-p", String(pid), "-o", "command="]
+      )
+    else { return false }
+    return command.contains("/Contents/Resources/runtime/node")
+      && command.contains("/Contents/Resources/agent/dist/index.js")
+  }
+
+  private func commandOutput(executable: String, arguments: [String]) -> String? {
+    let command = Process()
+    command.executableURL = URL(fileURLWithPath: executable)
+    command.arguments = arguments
+    let output = Pipe()
+    command.standardOutput = output
+    command.standardError = FileHandle.nullDevice
+    command.standardInput = FileHandle.nullDevice
+    do {
+      try command.run()
+      command.waitUntilExit()
+    } catch {
+      return nil
+    }
+    guard command.terminationStatus == 0 else { return nil }
+    return String(data: output.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
   }
 
   private func beginHandoff() {
@@ -348,21 +415,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private func startAgentWhenPortIsFree() {
     probeHealth(timeout: 0.35) { [weak self] health in
       guard let self, !self.isTerminating else { return }
-      guard health == nil else {
-        self.portWaitAttempts += 1
-        if self.portWaitAttempts < 24 {
-          DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            self.startAgentWhenPortIsFree()
-          }
-        } else {
-          self.showFailure(
-            "An old Agent process is still using port 43120.",
-            details: "Running: \(self.describe(health!)). Quit the old Agent and try again."
-          )
-        }
+      guard let health else {
+        self.spawnAgent()
         return
       }
-      self.spawnAgent()
+      // A launcher can acquire the lock while an orphaned legacy Node process
+      // still owns the port. Offer the same deliberate update handoff used for
+      // a live older app instead of waiting six seconds and showing a dead end.
+      if !self.matchesExpectedBuild(health), !self.replacementRequestedForPortOwner {
+        self.replacementRequestedForPortOwner = true
+        self.offerRunningVersionRestart(health)
+        return
+      }
+      if self.matchesExpectedBuild(health), health.ready {
+        // An exact-build orphan is still safe to use. Do not spawn a duplicate
+        // just because its old menu-bar host vanished.
+        NSApp.terminate(nil)
+        return
+      }
+      self.portWaitAttempts += 1
+      if self.portWaitAttempts < 24 {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+          self.startAgentWhenPortIsFree()
+        }
+      } else {
+        self.showFailure(
+          "An old Agent process is still using port 43120.",
+          details: "Running: \(self.describe(health)). Quit the old Agent and try again."
+        )
+      }
     }
   }
 
@@ -435,6 +516,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       "AGENT_BUILD_ID": expectedBuildID,
       "AGENT_RELEASE_CHANNEL": releaseChannel,
       "AGENT_SOURCE_REVISION": sourceRevision,
+      "AGENT_LAUNCHER_PID": String(ProcessInfo.processInfo.processIdentifier),
       "AGENT_INSTALLED_RELEASE_PATH": resources.appendingPathComponent("release.json").path,
       "AGENT_NATIVE_TOKEN": nativeToken,
       "AGENT_ENTITLEMENT_PUBLIC_KEY": "__AGENT_ENTITLEMENT_PUBLIC_KEY__",

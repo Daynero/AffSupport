@@ -29,6 +29,11 @@ import { JobQueue } from './queue/queue.js';
 import { loadState, saveState } from './queue/store.js';
 import { loadTranscriptionState, saveTranscriptionState } from './queue/transcription-store.js';
 import { TranscriptionQueue } from './queue/transcription-queue.js';
+import {
+  packagedAgentLostLauncher,
+  parseLauncherPid,
+  processIsAlive
+} from './runtime/launcher-watchdog.js';
 import { buildServer } from './server/app.js';
 import { EventChannel } from './server/sse.js';
 import { createToolModules } from './server/tools.js';
@@ -318,8 +323,16 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
 }
 if (process.env.PACKAGED_APP === '1') {
   const parentPid = process.ppid;
+  const launcherPid = parseLauncherPid(process.env.AGENT_LAUNCHER_PID);
   const watchdog = setInterval(() => {
-    if (process.ppid !== parentPid) {
+    if (
+      packagedAgentLostLauncher({
+        initialParentPid: parentPid,
+        currentParentPid: process.ppid,
+        launcherPid,
+        isAlive: processIsAlive
+      })
+    ) {
       clearInterval(watchdog);
       void shutdown(0);
     }

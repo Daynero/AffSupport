@@ -77,4 +77,14 @@ describe('Wishly product launcher', () => {
     expect(agent).not.toContain("import open from 'open'");
     expect(agent).not.toContain('Could not open Wishly in the browser');
   });
+
+  it('hands a verified orphaned Agent over to an installed update after confirmation', async () => {
+    const launcher = await readFile('packaging/Launcher.swift', 'utf8');
+    expect(launcher).toContain('replacementRequestedForPortOwner');
+    expect(launcher).toContain('terminateVerifiedAgentListeningOnPort');
+    expect(launcher).toContain('Darwin.kill(pid, SIGTERM)');
+    expect(launcher).toContain('/Contents/Resources/runtime/node');
+    expect(launcher).toContain('/Contents/Resources/agent/dist/index.js');
+    expect(launcher).toContain('AGENT_LAUNCHER_PID');
+  });
 });
