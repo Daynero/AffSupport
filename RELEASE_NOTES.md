@@ -1,3 +1,8 @@
+# v0.9.18
+
+- Let an installed Soty update recover from a verified orphaned older Agent after you explicitly confirm the restart, instead of leaving port 43120 permanently occupied.
+- Make new packaged Agents track their native launcher explicitly, so an early launcher exit cannot strand a future Agent in the background.
+
 # v0.9.17
 
 - Make Landing Preview scans cancel immediately and time out safely when a selected folder is unavailable, so the interface never remains stuck scanning.

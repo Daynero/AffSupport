@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.9.17",
-  "buildNumber": "53",
-  "buildId": "0.9.17+53",
+  "version": "0.9.18",
+  "buildNumber": "54",
+  "buildId": "0.9.18+54",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-08-15T21:04:23.000Z",
+  "publishedAt": "2026-08-15T21:26:15.000Z",
   "summary": {
-    "en": "Keeps landing preview scans responsive when folders disappear and shows live Google Drive sync progress across Team Workspace.",
-    "uk": "Зберігає чуйність сканування лендінгів, коли папки зникають, і показує живий прогрес синхронізації Google Drive у Team Workspace."
+    "en": "Safely recovers from orphaned older Soty Agents during updates, keeps landing scans responsive, and shows live Google Drive sync progress.",
+    "uk": "Безпечно відновлюється після осиротілих старих Agent Soty під час оновлення, зберігає чуйність сканування лендінгів і показує живий прогрес Google Drive."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.17/Soty-v0.9.17-macOS-arm64.dmg",
-      "sha256": "70b8c0557cce8e7f79f0e98df7b9315404cc5e09cbecea95fcb5294431389fdf"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.18/Soty-v0.9.18-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -35,5 +35,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "1FH8R1YKBNIJZQxO6uAUGAsbb8UTX4QvhH78DgFeLcvv14D9hoRcq41QBCngDp_3MvbgzOeueW3Z_jP5r9vqEQ"
+  "signature": "Kz1t3JsjDxFFZEE8iUf48OmhANoOgd_geM4811xbSOKEVHeJo2gvS6mDH2YqU_Ve9wB7-qzxLBMlnYXKiM1sTA"
 }
