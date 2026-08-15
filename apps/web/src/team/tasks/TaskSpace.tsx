@@ -110,7 +110,12 @@ export function TaskSpace({
           </Button>
         )}
       </div>
-      <TaskDateFilterControl value={tasks.filter} onChange={tasks.setFilter} />
+      <TaskDateFilterControl
+        value={tasks.filter}
+        onChange={tasks.setFilter}
+        status={tasks.statusFilter}
+        onStatusChange={tasks.setStatusFilter}
+      />
       {error && <p className="team-inline-error">{t('teamTaskCreateFailed')}</p>}
       {tasks.loading && tasks.tasks.length === 0 && (
         <p aria-live="polite">{t('teamTaskLoading')}</p>
@@ -119,7 +124,13 @@ export function TaskSpace({
       {!tasks.loading && !tasks.error && tasks.tasks.length === 0 && <p>{t('teamTasksEmpty')}</p>}
       <div className="team-task-grid">
         {tasks.tasks.map(task => (
-          <TaskCard key={task.id} task={task} onOpen={() => setOpenTask(task)} />
+          <TaskCard
+            key={task.id}
+            task={task}
+            canEdit={can('edit')}
+            onOpen={() => setOpenTask(task)}
+            onUpdate={patch => tasks.update(task, patch)}
+          />
         ))}
       </div>
       {tasks.hasMore && (
@@ -154,8 +165,9 @@ export function TaskSpace({
               />
             </label>
             <label>
-              <span>{t('teamTaskNote')}</span>
+              <span>{t('teamTaskDescription')}</span>
               <textarea
+                className="team-task-description-input"
                 value={note}
                 maxLength={2_000}
                 onChange={event => setNote(event.target.value)}

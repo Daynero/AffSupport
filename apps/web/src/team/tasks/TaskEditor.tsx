@@ -8,12 +8,12 @@ import { teamApi, type TeamMemberSummary } from '../../api/team';
 import { Modal } from '../../components/Modal';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
-import { MaterialBrowser, type MaterialBrowserClient } from '../catalog/MaterialBrowser';
 import { TaskAttachmentPicker, type TaskAttachmentPickerClient } from './TaskAttachmentPicker';
 import { TaskAttachmentTile, type TaskAttachmentPreviewClient } from './TaskAttachmentTile';
+import { TaskProgressScale } from './TaskProgressScale';
+import { TaskStatusControl } from './TaskStatusControl';
 
-export interface TaskEditorClient
-  extends TaskAttachmentPickerClient, TaskAttachmentPreviewClient, MaterialBrowserClient {
+export interface TaskEditorClient extends TaskAttachmentPickerClient, TaskAttachmentPreviewClient {
   getTask(input: {
     teamId: string;
     taskId: string;
@@ -65,24 +65,37 @@ export function TaskEditor({
   const [saving, setSaving] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(false);
-  const [treeSelection, setTreeSelection] = useState<Set<string>>(new Set());
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const value = await client.getTask({ teamId, taskId: task.id, attachmentPageSize: 50 });
-      setTask(value.task);
-      setAttachments(value.attachments);
-      setError(false);
-    } catch {
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
-  }, [client, task.id, teamId]);
+  const hydrateTask = (next: TeamTaskSummary) => {
+    setTask(next);
+    setTitle(next.title);
+    setNote(next.note ?? '');
+    setStatus(next.status);
+    setAssigneeId(next.assigneeId ?? '');
+    setProgressMax(next.progressMax);
+    setProgressValue(next.progressValue);
+  };
+
+  const load = useCallback(
+    async ({ hydrate = false }: { hydrate?: boolean } = {}) => {
+      setLoading(true);
+      try {
+        const value = await client.getTask({ teamId, taskId: task.id, attachmentPageSize: 50 });
+        if (hydrate) hydrateTask(value.task);
+        else setTask(value.task);
+        setAttachments(value.attachments);
+        setError(false);
+      } catch {
+        setError(true);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [client, task.id, teamId]
+  );
 
   useEffect(() => {
-    void load();
+    void load({ hydrate: true });
   }, [load]);
 
   const save = async (event: FormEvent) => {
@@ -99,10 +112,8 @@ export function TaskEditor({
         progressValue,
         expectedUpdatedAt: task.updatedAt
       });
-      setTask(updated);
-      setProgressMax(updated.progressMax);
-      setProgressValue(updated.progressValue);
       onChanged(updated);
+      onClose();
     } catch {
       setError(true);
     } finally {
@@ -145,6 +156,10 @@ export function TaskEditor({
             <p className="team-workspace-eyebrow">{t('teamTasksEyebrow')}</p>
             <h2 id="team-task-editor-title">{t('teamTaskEditTitle')}</h2>
           </div>
+          <section className="team-task-editor-status" aria-labelledby="team-task-status-title">
+            <span id="team-task-status-title">{t('teamTaskStatus')}</span>
+            <TaskStatusControl value={status} disabled={!canEdit} onChange={setStatus} />
+          </section>
           <label>
             <span>{t('teamTaskTitle')}</span>
             <input
@@ -156,28 +171,7 @@ export function TaskEditor({
               onChange={event => setTitle(event.target.value)}
             />
           </label>
-          <label>
-            <span>{t('teamTaskNote')}</span>
-            <textarea
-              value={note}
-              maxLength={2_000}
-              disabled={!canEdit}
-              onChange={event => setNote(event.target.value)}
-            />
-          </label>
           <div className="team-task-editor-fields">
-            <label>
-              <span>{t('teamTaskStatus')}</span>
-              <select
-                value={status}
-                disabled={!canEdit}
-                onChange={event => setStatus(event.target.value as TeamTaskSummary['status'])}
-              >
-                <option value="todo">{t('teamTaskStatusTodo')}</option>
-                <option value="in_progress">{t('teamTaskStatusInProgress')}</option>
-                <option value="done">{t('teamTaskStatusDone')}</option>
-              </select>
-            </label>
             <label>
               <span>{t('teamTaskAssignee')}</span>
               <select
@@ -193,52 +187,27 @@ export function TaskEditor({
                 ))}
               </select>
             </label>
-            <label>
-              <span>{t('teamTaskProgressValue')}</span>
-              <input
-                type="number"
-                min={0}
-                max={progressMax}
-                step={1}
-                value={progressValue}
-                disabled={!canEdit}
-                onChange={event => setProgressValue(Number(event.target.value))}
-              />
-            </label>
-            <label>
-              <span>{t('teamTaskProgressMax')}</span>
-              <input
-                type="number"
-                min={1}
-                max={10_000}
-                step={1}
-                value={progressMax}
-                disabled={!canEdit}
-                onChange={event => setProgressMax(Number(event.target.value))}
-              />
-            </label>
           </div>
-          <div className="team-task-progress-editor">
-            <button
-              type="button"
-              className="team-task-progress-step is-red"
-              disabled={!canEdit || progressValue <= 0}
-              aria-label={t('teamTaskProgressDecrease')}
-              onClick={() => setProgressValue(value => Math.max(0, value - 1))}
-            >
-              −
-            </button>
-            <progress max={progressMax} value={progressValue} />
-            <button
-              type="button"
-              className="team-task-progress-step is-green"
-              disabled={!canEdit || progressValue >= progressMax}
-              aria-label={t('teamTaskProgressIncrease')}
-              onClick={() => setProgressValue(value => Math.min(progressMax, value + 1))}
-            >
-              +
-            </button>
-          </div>
+          <section className="team-task-editor-progress" aria-labelledby="team-task-progress-title">
+            <span id="team-task-progress-title">{t('teamTaskProgressScale')}</span>
+            <TaskProgressScale
+              value={progressValue}
+              max={progressMax}
+              disabled={!canEdit}
+              label={t('teamTaskProgressScale')}
+              onChange={setProgressValue}
+            />
+          </section>
+          <label>
+            <span>{t('teamTaskDescription')}</span>
+            <textarea
+              className="team-task-description-input"
+              value={note}
+              maxLength={2_000}
+              disabled={!canEdit}
+              onChange={event => setNote(event.target.value)}
+            />
+          </label>
           {error && <p className="team-inline-error">{t('teamTaskSaveFailed')}</p>}
           {canEdit && (
             <div className="team-dialog-actions">
@@ -250,7 +219,13 @@ export function TaskEditor({
         </form>
 
         <section className="team-task-attachments" aria-labelledby="team-task-attachments-title">
-          <h3 id="team-task-attachments-title">{t('teamTaskAttachments')}</h3>
+          <div className="team-task-attachments-heading">
+            <div>
+              <h3 id="team-task-attachments-title">{t('teamTaskAttachments')}</h3>
+              <p>{t('teamTaskAttachmentsHint')}</p>
+            </div>
+            <span>{t('teamTaskAttachmentsCount', { count: task.attachmentCount })}</span>
+          </div>
           {loading && <p aria-live="polite">{t('teamTaskLoading')}</p>}
           {!loading && attachments.length === 0 && <p>{t('teamTaskAttachmentsEmpty')}</p>}
           <div className="team-task-attachment-grid">
@@ -265,11 +240,7 @@ export function TaskEditor({
                     ? () => {
                         void client
                           .detachTaskMaterial(teamId, task.id, attachment.materialId)
-                          .then(() => {
-                            setAttachments(current =>
-                              current.filter(item => item.id !== attachment.id)
-                            );
-                          })
+                          .then(() => void load())
                           .catch(() => setError(true));
                       }
                     : undefined
@@ -278,28 +249,24 @@ export function TaskEditor({
             ))}
           </div>
           {attachments.length < task.attachmentCount && (
-            <Button type="button" variant="secondary" loading={loadingMore} onClick={loadMore}>
+            <Button
+              type="button"
+              variant="secondary"
+              loading={loadingMore}
+              onClick={() => void loadMore()}
+            >
               {t('teamTaskLoadMoreAttachments')}
             </Button>
           )}
         </section>
 
         {canEdit && (
-          <div className="team-task-media-layout">
-            <aside className="team-task-media-tree">
-              <MaterialBrowser
-                teamId={teamId}
-                client={client}
-                taskDragSelection={{ selectedIds: treeSelection, onChange: setTreeSelection }}
-              />
-            </aside>
-            <TaskAttachmentPicker
-              teamId={teamId}
-              taskId={task.id}
-              client={client}
-              onAttached={() => void load()}
-            />
-          </div>
+          <TaskAttachmentPicker
+            teamId={teamId}
+            taskId={task.id}
+            client={client}
+            onAttached={() => void load()}
+          />
         )}
       </div>
     </Modal>

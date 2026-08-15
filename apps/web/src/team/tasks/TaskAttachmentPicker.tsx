@@ -69,6 +69,7 @@ export function TaskAttachmentPicker({
   const [attaching, setAttaching] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   const attach = async (materialIds: readonly string[]) => {
     if (materialIds.length === 0) return;
@@ -102,60 +103,94 @@ export function TaskAttachmentPicker({
     if (ids.length > 0) void attach(ids);
   };
 
-  const toggle = (material: CatalogMaterialItem, checked: boolean) => {
+  const toggle = (material: CatalogMaterialItem) => {
     setSelected(current => {
       const next = new Set(current);
-      if (checked) next.add(material.id);
-      else next.delete(material.id);
+      if (next.has(material.id)) next.delete(material.id);
+      else next.add(material.id);
       return next;
     });
   };
 
   return (
     <section className="team-task-attachment-picker" aria-labelledby="team-task-attach-title">
-      <h3 id="team-task-attach-title">{t('teamTaskAttachMedia')}</h3>
-      <div
-        className={`team-task-dropzone ${dragging ? 'is-dragging' : ''}`.trim()}
-        onDragEnter={event => {
-          event.preventDefault();
-          setDragging(true);
-        }}
-        onDragOver={event => event.preventDefault()}
-        onDragLeave={event => {
-          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false);
-        }}
-        onDrop={dropped}
-      >
-        {t('teamTaskDropMedia')}
+      <div className="team-task-picker-heading">
+        <div>
+          <h3 id="team-task-attach-title">{t('teamTaskAttachMedia')}</h3>
+          <p>{t('teamTaskAttachMediaHint')}</p>
+        </div>
+        <Button type="button" variant="secondary" onClick={() => setExpanded(current => !current)}>
+          {expanded ? t('teamTaskAttachClose') : t('teamTaskAttachBrowse')}
+        </Button>
       </div>
-      <CatalogSearchBar value={catalog.query} onChange={catalog.setQuery} />
-      {catalog.loading && <p aria-live="polite">{t('teamTaskSearching')}</p>}
-      {catalog.error && <p className="team-inline-error">{t('teamTaskSearchFailed')}</p>}
-      <ul className="team-task-picker-results">
-        {(catalog.result?.items ?? []).map(material => (
-          <li key={material.id}>
-            <label>
-              <input
-                type="checkbox"
-                checked={selected.has(material.id)}
-                onChange={event => toggle(material, event.target.checked)}
-              />
-              <span>{material.name}</span>
-              <small>{material.category ?? material.kind}</small>
-            </label>
-          </li>
-        ))}
-      </ul>
-      {message && <p aria-live="polite">{message}</p>}
-      <Button
-        type="button"
-        variant="primary"
-        loading={attaching}
-        disabled={selected.size === 0}
-        onClick={() => void attach([...selected])}
-      >
-        {t('teamTaskAttachSelected', { count: selected.size })}
-      </Button>
+      {expanded && (
+        <div className="team-task-picker-content">
+          <div
+            className={`team-task-dropzone ${dragging ? 'is-dragging' : ''}`.trim()}
+            onDragEnter={event => {
+              event.preventDefault();
+              setDragging(true);
+            }}
+            onDragOver={event => event.preventDefault()}
+            onDragLeave={event => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+                setDragging(false);
+            }}
+            onDrop={dropped}
+          >
+            <span aria-hidden="true">＋</span>
+            <strong>{t('teamTaskDropMediaTitle')}</strong>
+            <small>{t('teamTaskDropMedia')}</small>
+          </div>
+          <CatalogSearchBar value={catalog.query} onChange={catalog.setQuery} />
+          {catalog.loading && <p aria-live="polite">{t('teamTaskSearching')}</p>}
+          {catalog.error && <p className="team-inline-error">{t('teamTaskSearchFailed')}</p>}
+          <ul className="team-task-picker-results">
+            {(catalog.result?.items ?? []).map(material => {
+              const selectedMaterial = selected.has(material.id);
+              return (
+                <li key={material.id}>
+                  <button
+                    type="button"
+                    className={selectedMaterial ? 'is-selected' : ''}
+                    aria-pressed={selectedMaterial}
+                    onClick={() => toggle(material)}
+                  >
+                    <span className="team-task-picker-item-type" aria-hidden="true">
+                      {material.category === 'video'
+                        ? '▶'
+                        : material.category === 'image'
+                          ? '▧'
+                          : '◇'}
+                    </span>
+                    <span className="team-task-picker-item-copy">
+                      <strong>{material.name}</strong>
+                      <small>{material.category ?? material.kind}</small>
+                    </span>
+                    <span className="team-task-picker-check" aria-hidden="true">
+                      {selectedMaterial ? '✓' : ''}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          {message && (
+            <p className="team-task-picker-message" aria-live="polite">
+              {message}
+            </p>
+          )}
+          <Button
+            type="button"
+            variant="primary"
+            loading={attaching}
+            disabled={selected.size === 0}
+            onClick={() => void attach([...selected])}
+          >
+            {t('teamTaskAttachSelected', { count: selected.size })}
+          </Button>
+        </div>
+      )}
     </section>
   );
 }

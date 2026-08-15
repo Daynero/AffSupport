@@ -1,43 +1,103 @@
-import type { TeamTaskSummary } from '@video-compressor/shared';
-import { Button } from '../../components/ui';
+import { useEffect, useState, type KeyboardEvent, type MouseEvent } from 'react';
+import type { TeamTaskPatch, TeamTaskStatus, TeamTaskSummary } from '@video-compressor/shared';
 import { useI18n } from '../../i18n';
+import { TaskProgressScale } from './TaskProgressScale';
+import { TaskStatusControl } from './TaskStatusControl';
 
-export function TaskCard({ task, onOpen }: { task: TeamTaskSummary; onOpen: () => void }) {
+function isInteractiveTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && Boolean(target.closest('button, [role="slider"]'));
+}
+
+export function TaskCard({
+  task,
+  canEdit,
+  onOpen,
+  onUpdate
+}: {
+  task: TeamTaskSummary;
+  canEdit: boolean;
+  onOpen: () => void;
+  onUpdate: (patch: TeamTaskPatch) => Promise<TeamTaskSummary>;
+}) {
   const { t } = useI18n();
-  const ratio = task.progressValue / Math.max(task.progressMax, 1);
-  const statusLabel =
-    task.status === 'todo'
-      ? t('teamTaskStatusTodo')
-      : task.status === 'in_progress'
-        ? t('teamTaskStatusInProgress')
-        : t('teamTaskStatusDone');
+  const [status, setStatus] = useState<TeamTaskStatus>(task.status);
+  const [progressValue, setProgressValue] = useState(task.progressValue);
+  const [updating, setUpdating] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setStatus(task.status);
+    setProgressValue(task.progressValue);
+  }, [task.progressValue, task.status, task.updatedAt]);
+
+  const update = async (patch: TeamTaskPatch, reset: () => void) => {
+    if (!canEdit || updating) return;
+    setUpdating(true);
+    setFailed(false);
+    try {
+      await onUpdate(patch);
+    } catch {
+      reset();
+      setFailed(true);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const openFromClick = (event: MouseEvent<HTMLElement>) => {
+    if (!isInteractiveTarget(event.target)) onOpen();
+  };
+  const openFromKeyboard = (event: KeyboardEvent<HTMLElement>) => {
+    if (isInteractiveTarget(event.target)) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onOpen();
+    }
+  };
+
   return (
-    <article className="team-task-card" data-status={task.status}>
+    <article
+      className="team-task-card"
+      data-status={status}
+      tabIndex={0}
+      aria-label={t('teamTaskOpenCard', { name: task.title })}
+      onClick={openFromClick}
+      onKeyDown={openFromKeyboard}
+    >
       <div className="team-task-card-heading">
-        <div>
-          <small>{statusLabel}</small>
-          <h3>{task.title}</h3>
-        </div>
-        <strong>
-          {task.progressValue}/{task.progressMax}
-        </strong>
+        <TaskStatusControl
+          compact
+          value={status}
+          disabled={!canEdit || updating}
+          onChange={next => {
+            if (next === status) return;
+            const previous = status;
+            setStatus(next);
+            void update({ status: next }, () => setStatus(previous));
+          }}
+        />
+        {task.assigneeLabelSnapshot && (
+          <span className="team-task-assignee">{task.assigneeLabelSnapshot}</span>
+        )}
       </div>
-      <div
-        className="team-task-progress"
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={task.progressMax}
-        aria-valuenow={task.progressValue}
-      >
-        <span style={{ width: `${Math.round(ratio * 100)}%` }} />
+      <h3 title={task.title}>{task.title}</h3>
+      <TaskProgressScale
+        value={progressValue}
+        max={task.progressMax}
+        label={t('teamTaskProgressScale')}
+        disabled={!canEdit || updating}
+        onChange={setProgressValue}
+        onCommit={next => {
+          const previous = task.progressValue;
+          void update({ progressValue: next }, () => setProgressValue(previous));
+        }}
+      />
+      <div className="team-task-card-description">
+        {task.note ? <p>{task.note}</p> : <span>{t('teamTaskDescriptionEmpty')}</span>}
       </div>
-      {task.note && <p>{task.note}</p>}
       <div className="team-task-card-footer">
         <span>{t('teamTaskAttachmentsCount', { count: task.attachmentCount })}</span>
-        {task.assigneeLabelSnapshot && <span>{task.assigneeLabelSnapshot}</span>}
-        <Button type="button" variant="ghost" onClick={onOpen}>
-          {t('teamTaskOpen')}
-        </Button>
+        {failed && <span className="team-task-card-error">{t('teamTaskSaveFailed')}</span>}
       </div>
     </article>
   );

@@ -8,6 +8,7 @@ import type {
 import { teamApi } from '../../api/team';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
+import { thumbnailRelayUrl } from '../library/thumbnailRelay';
 
 export function taskVideoPreviewTimeSeconds(durationSeconds: number): number {
   if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) return 0;
@@ -43,13 +44,15 @@ export function TaskAttachmentTile({
 }) {
   const { t } = useI18n();
   const video = useRef<HTMLVideoElement | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [rangeUrl, setRangeUrl] = useState<string | null>(null);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [videoReady, setVideoReady] = useState(false);
   const [unavailable, setUnavailable] = useState(attachment.availability !== 'ready');
 
   useEffect(() => {
     let active = true;
-    setPreviewUrl(null);
+    setRangeUrl(null);
+    setThumbnailUrl(null);
     setVideoReady(false);
     setUnavailable(attachment.availability !== 'ready');
     if (attachment.availability !== 'ready' || attachment.previewState === 'unavailable') {
@@ -60,8 +63,12 @@ export function TaskAttachmentTile({
         .previewMaterial(teamId, attachment.materialId, 'media')
         .then(result => {
           if (!active) return;
-          if (result.kind === 'media') setPreviewUrl(result.rangeUrl);
-          else setUnavailable(true);
+          if (result.kind !== 'media') {
+            setUnavailable(true);
+            return;
+          }
+          setRangeUrl(result.rangeUrl);
+          setThumbnailUrl(thumbnailRelayUrl(result.rangeUrl));
         })
         .catch(() => {
           if (active) setUnavailable(true);
@@ -72,7 +79,7 @@ export function TaskAttachmentTile({
         .then(results => {
           if (!active) return;
           const artifact = results[0]?.artifact;
-          if (artifact) setPreviewUrl(client.landingRenderImageUrl(artifact, 0));
+          if (artifact) setRangeUrl(client.landingRenderImageUrl(artifact, 0));
           else setUnavailable(true);
         })
         .catch(() => {
@@ -97,27 +104,40 @@ export function TaskAttachmentTile({
     try {
       element.currentTime = previewTime;
     } catch {
-      setPreviewUrl(null);
+      setRangeUrl(null);
       setUnavailable(true);
     }
   };
 
   const markUnavailable = () => {
-    setPreviewUrl(null);
+    setRangeUrl(null);
+    setThumbnailUrl(null);
     setVideoReady(false);
     setUnavailable(true);
+  };
+
+  const fallBackToRangePreview = () => {
+    setThumbnailUrl(null);
   };
 
   return (
     <article className="team-task-attachment" data-availability={attachment.availability}>
       <div className="team-task-attachment-preview">
-        {attachment.category === 'video' && previewUrl && (
+        {thumbnailUrl && (
+          <img
+            src={thumbnailUrl}
+            alt={attachment.name}
+            referrerPolicy="no-referrer"
+            onError={fallBackToRangePreview}
+          />
+        )}
+        {attachment.category === 'video' && rangeUrl && !thumbnailUrl && (
           <video
             ref={element => {
               video.current = element;
               element?.setAttribute('referrerpolicy', 'no-referrer');
             }}
-            src={previewUrl}
+            src={rangeUrl}
             muted
             playsInline
             preload="metadata"
@@ -128,22 +148,25 @@ export function TaskAttachmentTile({
             onError={markUnavailable}
           />
         )}
-        {attachment.category !== 'video' && previewUrl && (
+        {attachment.category !== 'video' && rangeUrl && !thumbnailUrl && (
           <img
-            src={previewUrl}
+            src={rangeUrl}
             alt={attachment.name}
             referrerPolicy="no-referrer"
             onError={markUnavailable}
           />
         )}
-        {(!previewUrl || (attachment.category === 'video' && !videoReady)) && (
+        {(!rangeUrl || (!thumbnailUrl && attachment.category === 'video' && !videoReady)) && (
           <span className="team-task-attachment-fallback">
             {unavailable ? t('teamTaskPreviewUnavailable') : t('teamTaskPreviewLoading')}
           </span>
         )}
       </div>
       <div className="team-task-attachment-caption">
-        <strong title={attachment.name}>{attachment.name}</strong>
+        <div>
+          <strong title={attachment.name}>{attachment.name}</strong>
+          <small>{attachment.category ?? t('teamTaskAttachMedia')}</small>
+        </div>
         {onDetach && (
           <Button type="button" variant="ghost" onClick={onDetach}>
             {t('teamTaskDetach')}

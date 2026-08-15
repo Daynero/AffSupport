@@ -1,6 +1,6 @@
 begin;
 
-select plan(82);
+select plan(84);
 
 select has_table('public', 'team_upload_batches', 'upload batch authority exists');
 select has_table('public', 'team_upload_batch_items', 'upload batch items exist');
@@ -14,6 +14,10 @@ select has_table('public', 'team_tasks', 'team tasks exist');
 select has_table('public', 'team_task_attachments', 'task reference attachments exist');
 select has_table('public', 'team_share_preferences', 'scoped share preferences exist');
 select has_table('public', 'team_contribution_records', 'separate contributions exist');
+select ok(
+  coalesce((select not public from storage.buckets where id = 'team-thumbnail-cache'), false),
+  'shared thumbnail cache bucket stays private'
+);
 
 select is_empty(
   $$
@@ -429,6 +433,18 @@ select is(
   )),
   0::bigint,
   'task date filtering excludes a different day'
+);
+select is(
+  (select count(*) from public.list_team_tasks(
+    '20000000-0000-4000-8000-000000000001'::uuid,
+    null::timestamptz,
+    null::timestamptz,
+    null::uuid,
+    50,
+    'done'::text
+  )),
+  1::bigint,
+  'task status filtering happens inside the authorized list RPC'
 );
 
 select is(

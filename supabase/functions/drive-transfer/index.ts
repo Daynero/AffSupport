@@ -55,6 +55,7 @@ import {
 const WEBP_MIME_TYPE = 'image/webp';
 const LANDING_RENDER_GRANT_TTL_MS = 20 * 60 * 1000;
 const MAX_THUMBNAIL_BYTES = 4 * 1024 * 1024;
+const THUMBNAIL_CACHE_BUCKET = 'team-thumbnail-cache';
 const THUMBNAIL_MIME_TYPES = new Set([
   'image/avif',
   'image/gif',
@@ -73,6 +74,19 @@ interface RpcClient extends ServiceRpcClient, CallerAuthClient {
     name: string,
     parameters: Record<string, unknown>
   ) => Promise<{ data: unknown; error: RpcFailure | null }>;
+}
+
+interface ThumbnailCacheBucket {
+  download(path: string): Promise<{ data: Blob | null; error: unknown | null }>;
+  upload(
+    path: string,
+    body: Blob | Uint8Array,
+    options: { cacheControl: string; contentType: string; upsert: boolean }
+  ): Promise<{ data: unknown; error: unknown | null }>;
+}
+
+interface ThumbnailStorage {
+  from(bucket: string): ThumbnailCacheBucket;
 }
 
 interface TransferContext {
@@ -109,7 +123,11 @@ interface LandingRenderUpload {
   renderedBy: string;
 }
 
-function clients(request: Request): { caller: RpcClient; service: RpcClient } {
+function clients(request: Request): {
+  caller: RpcClient;
+  service: RpcClient;
+  thumbnailStorage: ThumbnailStorage;
+} {
   const url = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -126,7 +144,8 @@ function clients(request: Request): { caller: RpcClient; service: RpcClient } {
   });
   return {
     caller: caller as unknown as RpcClient,
-    service: service as unknown as RpcClient
+    service: service as unknown as RpcClient,
+    thumbnailStorage: service.storage as unknown as ThumbnailStorage
   };
 }
 
@@ -648,7 +667,64 @@ async function handleRange(request: Request, service: RpcClient, cors: Record<st
  * It repeats the grant, live-ancestry and Drive-capability checks from the
  * range relay, so the thumbnail never turns into a durable public Drive URL.
  */
-async function handleThumbnail(request: Request, service: RpcClient, cors: Record<string, string>) {
+function validThumbnail(mimeType: string, contentLength: number): boolean {
+  return (
+    THUMBNAIL_MIME_TYPES.has(mimeType) &&
+    Number.isSafeInteger(contentLength) &&
+    contentLength >= 1 &&
+    contentLength <= MAX_THUMBNAIL_BYTES
+  );
+}
+
+async function thumbnailCachePath(
+  context: TransferContext,
+  sourceVersion: string | null,
+  sourceChecksum: string | null
+): Promise<string | null> {
+  const sourceIdentity =
+    sourceVersion ?? sourceChecksum ?? context.driveVersion ?? context.checksum;
+  if (!sourceIdentity) return null;
+  const digest = byteaHex(
+    await sha256(
+      `${context.teamId}\u0000${context.materialId}\u0000${sourceIdentity}\u0000${context.mimeType ?? ''}`
+    )
+  ).slice(2);
+  return `${digest.slice(0, 2)}/${digest}.thumbnail`;
+}
+
+function thumbnailHeaders(
+  mimeType: string,
+  contentLength: number,
+  cors: Record<string, string>,
+  cache: 'hit' | 'miss' | 'bypass'
+): Headers {
+  const headers = new Headers({
+    'cache-control': 'no-store',
+    'content-disposition': 'inline',
+    'content-length': String(contentLength),
+    'content-type': mimeType,
+    'referrer-policy': 'no-referrer',
+    'x-content-type-options': 'nosniff',
+    'x-wishly-thumbnail-cache': cache
+  });
+  for (const [name, value] of Object.entries(cors)) headers.set(name, value);
+  return headers;
+}
+
+async function readCachedThumbnail(storage: ThumbnailStorage, path: string) {
+  const { data, error } = await storage.from(THUMBNAIL_CACHE_BUCKET).download(path);
+  if (error || !data) return null;
+  const mimeType = data.type.split(';', 1)[0]?.trim().toLowerCase() ?? '';
+  if (!validThumbnail(mimeType, data.size)) return null;
+  return { body: data, mimeType, contentLength: data.size };
+}
+
+async function handleThumbnail(
+  request: Request,
+  service: RpcClient,
+  thumbnailStorage: ThumbnailStorage,
+  cors: Record<string, string>
+) {
   const url = new URL(request.url);
   const ticket = url.searchParams.get('grant') ?? '';
   const grant = await consumeGrant(service, ticket, 'preview_range');
@@ -675,6 +751,16 @@ async function handleThumbnail(request: Request, service: RpcClient, cors: Recor
   ) {
     throw new TeamFunctionError('UNSUPPORTED_MEDIA', { retryable: false });
   }
+  const cachePath = await thumbnailCachePath(context, live.version, live.checksum);
+  if (cachePath) {
+    const cached = await readCachedThumbnail(thumbnailStorage, cachePath);
+    if (cached) {
+      return new Response(cached.body.stream(), {
+        status: 200,
+        headers: thumbnailHeaders(cached.mimeType, cached.contentLength, cors, 'hit')
+      });
+    }
+  }
   const upstream = await drive.fetchThumbnail({
     thumbnailLink: live.thumbnailLink,
     signal: request.signal
@@ -683,12 +769,7 @@ async function handleThumbnail(request: Request, service: RpcClient, cors: Recor
     upstream.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase() ?? '';
   const rawLength = upstream.headers.get('content-length');
   const contentLength = rawLength && /^\d+$/u.test(rawLength) ? Number(rawLength) : Number.NaN;
-  if (
-    !THUMBNAIL_MIME_TYPES.has(mimeType) ||
-    !Number.isSafeInteger(contentLength) ||
-    contentLength < 1 ||
-    contentLength > MAX_THUMBNAIL_BYTES
-  ) {
+  if (!validThumbnail(mimeType, contentLength)) {
     await upstream.body?.cancel().catch(() => undefined);
     throw new TeamFunctionError(
       Number.isSafeInteger(contentLength) && contentLength > MAX_THUMBNAIL_BYTES
@@ -697,13 +778,23 @@ async function handleThumbnail(request: Request, service: RpcClient, cors: Recor
       { retryable: false }
     );
   }
-  const headers = forwardedRangeHeaders(upstream.headers, mimeType, 'inline');
-  headers.delete('accept-ranges');
-  headers.delete('content-range');
-  for (const [name, value] of Object.entries(cors)) headers.set(name, value);
-  return new Response(boundedResponseBody(upstream.body, contentLength), {
+  const body = new Uint8Array(await upstream.arrayBuffer());
+  if (body.byteLength !== contentLength) {
+    throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+  }
+  if (cachePath) {
+    await thumbnailStorage
+      .from(THUMBNAIL_CACHE_BUCKET)
+      .upload(cachePath, body, {
+        cacheControl: '31536000',
+        contentType: mimeType,
+        upsert: false
+      })
+      .catch(() => undefined);
+  }
+  return new Response(body, {
     status: 200,
-    headers
+    headers: thumbnailHeaders(mimeType, contentLength, cors, cachePath ? 'miss' : 'bypass')
   });
 }
 
@@ -1178,7 +1269,7 @@ Deno.serve(async request => {
       return await handleLandingRenderRange(request, configured.service, cors);
     }
     if (request.method === 'GET' && url.pathname.endsWith('/thumbnail')) {
-      return await handleThumbnail(request, configured.service, cors);
+      return await handleThumbnail(request, configured.service, configured.thumbnailStorage, cors);
     }
     if (request.method === 'GET' && url.pathname.endsWith('/range')) {
       return await handleRange(request, configured.service, cors);

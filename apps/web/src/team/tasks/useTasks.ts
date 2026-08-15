@@ -2,18 +2,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   localTaskDayBounds,
   type TeamTaskPatch,
+  type TeamTaskStatus,
   type TeamTaskSummary
 } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
 
-export type TaskDateFilter =
-  { kind: 'all' } | { kind: 'today' } | { kind: 'yesterday' } | { kind: 'date'; date: string };
+export type TaskDateFilter = { kind: 'all' } | { kind: 'range'; from: string; to: string };
+export type TaskStatusFilter = 'all' | TeamTaskStatus;
 
 export interface TasksClient {
   listTasks(input: {
     teamId: string;
     createdFrom?: string | null;
     createdTo?: string | null;
+    status?: TeamTaskStatus | null;
     cursor?: string | null;
     pageSize?: number;
   }): Promise<TeamTaskSummary[]>;
@@ -37,12 +39,14 @@ export function localDateValue(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-export function taskFilterBounds(filter: TaskDateFilter, now = new Date()) {
+export function taskFilterBounds(filter: TaskDateFilter) {
   if (filter.kind === 'all') return null;
-  if (filter.kind === 'date') return localTaskDayBounds(filter.date);
-  const date = new Date(now);
-  if (filter.kind === 'yesterday') date.setDate(date.getDate() - 1);
-  return localTaskDayBounds(localDateValue(date));
+  const from = filter.from <= filter.to ? filter.from : filter.to;
+  const to = filter.from <= filter.to ? filter.to : filter.from;
+  return {
+    from: localTaskDayBounds(from).from,
+    to: localTaskDayBounds(to).to
+  };
 }
 
 function mergeTasks(current: TeamTaskSummary[], incoming: TeamTaskSummary[]) {
@@ -63,13 +67,15 @@ export function useTasks({
   client?: TasksClient;
 }) {
   const [tasks, setTasks] = useState<TeamTaskSummary[]>([]);
-  const [filter, setFilter] = useState<TaskDateFilter>({ kind: 'today' });
+  const [filter, setFilter] = useState<TaskDateFilter>({ kind: 'all' });
+  const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>('all');
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const generation = useRef(0);
   const bounds = useMemo(() => taskFilterBounds(filter), [filter]);
+  const status = statusFilter === 'all' ? null : statusFilter;
 
   const refetch = useCallback(async () => {
     const requestGeneration = ++generation.current;
@@ -79,6 +85,7 @@ export function useTasks({
         teamId,
         createdFrom: bounds?.from,
         createdTo: bounds?.to,
+        status,
         pageSize: PAGE_SIZE
       });
       if (requestGeneration !== generation.current) return;
@@ -92,7 +99,7 @@ export function useTasks({
     } finally {
       if (requestGeneration === generation.current) setLoading(false);
     }
-  }, [bounds?.from, bounds?.to, client, teamId]);
+  }, [bounds?.from, bounds?.to, client, status, teamId]);
 
   useEffect(() => {
     void refetch();
@@ -110,6 +117,7 @@ export function useTasks({
         teamId,
         createdFrom: bounds?.from,
         createdTo: bounds?.to,
+        status,
         cursor,
         pageSize: PAGE_SIZE
       });
@@ -121,7 +129,7 @@ export function useTasks({
     } finally {
       setLoadingMore(false);
     }
-  }, [bounds?.from, bounds?.to, client, hasMore, loading, loadingMore, tasks, teamId]);
+  }, [bounds?.from, bounds?.to, client, hasMore, loading, loadingMore, status, tasks, teamId]);
 
   const create = useCallback(
     async (input: {
@@ -153,6 +161,8 @@ export function useTasks({
     tasks,
     filter,
     setFilter,
+    statusFilter,
+    setStatusFilter,
     loading,
     loadingMore,
     hasMore,

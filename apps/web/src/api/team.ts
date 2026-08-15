@@ -64,6 +64,7 @@ import {
   type UploadBatchRequest,
   type LibraryVideoTextVariants,
   type TeamTaskPatch,
+  type TeamTaskStatus,
   type TeamTaskSummary,
   type TeamTaskAttachmentSummary
 } from '@video-compressor/shared';
@@ -1790,6 +1791,7 @@ export const teamApi = {
     teamId: string;
     createdFrom?: string | null;
     createdTo?: string | null;
+    status?: TeamTaskStatus | null;
     cursor?: string | null;
     pageSize?: number;
   }): Promise<TeamTaskSummary[]> {
@@ -1797,6 +1799,7 @@ export const teamApi = {
       p_team: input.teamId,
       p_created_from: input.createdFrom ?? undefined,
       p_created_to: input.createdTo ?? undefined,
+      p_status: input.status ?? undefined,
       p_cursor: input.cursor ?? undefined,
       p_page_size: input.pageSize ?? 50
     });

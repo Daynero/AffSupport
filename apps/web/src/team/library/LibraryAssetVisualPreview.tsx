@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { LibraryAssetSummary, TeamPreviewResult } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
 import { useI18n } from '../../i18n';
+import { thumbnailRelayUrl } from './thumbnailRelay';
 
 export interface LibraryAssetVisualPreviewClient {
   previewMaterial(
@@ -25,17 +26,6 @@ function categoryGlyph(asset: LibraryAssetSummary): string {
 function videoPreviewTime(durationSeconds: number): number {
   if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) return 0;
   return Math.min(1, durationSeconds);
-}
-
-function thumbnailRelayUrl(rangeUrl: string): string | null {
-  try {
-    const url = new URL(rangeUrl);
-    if (!/^https?:$/u.test(url.protocol) || !url.pathname.endsWith('/range')) return null;
-    url.pathname = `${url.pathname.slice(0, -'/range'.length)}/thumbnail`;
-    return url.toString();
-  } catch {
-    return null;
-  }
 }
 
 /**

@@ -12,6 +12,7 @@ import { isCreativeLibraryAssetVisible } from '../apps/web/src/team/library/useC
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { teamApi } from '../apps/web/src/api/team';
 import { TaskDateFilterControl } from '../apps/web/src/team/tasks/TaskDateFilter';
+import { localDateValue } from '../apps/web/src/team/tasks/useTasks';
 
 const asset: LibraryAssetSummary = {
   id: '46000000-0000-4000-8000-000000000001',
@@ -123,6 +124,11 @@ describe('Creative Library workspace controls', () => {
     const onCreateTask = vi.fn();
     const onEditPlacement = vi.fn();
     const onTranscribe = vi.fn();
+    vi.spyOn(teamApi, 'listVideoTextVariants').mockResolvedValue({
+      sourceVersion: 'v1',
+      canProcess: true,
+      variants: []
+    });
     render(
       <LibraryAssetCard
         asset={asset}
@@ -155,18 +161,34 @@ describe('Creative Library workspace controls', () => {
     expect(isCreativeLibraryAssetVisible({ ...asset, name: 'landing-config.json' })).toBe(true);
   });
 
-  it('keeps calendar, Today, Yesterday and All Time as accessible explicit filters', () => {
+  it('uses a compact calendar for single dates or ranges and keeps status filters explicit', () => {
     const onChange = vi.fn();
-    render(<TaskDateFilterControl value={{ kind: 'today' }} onChange={onChange} />);
-    expect(screen.getByRole('button', { name: 'Today' }).getAttribute('aria-pressed')).toBe('true');
-    fireEvent.click(screen.getByRole('button', { name: 'Yesterday' }));
-    fireEvent.click(screen.getByRole('button', { name: 'All time' }));
-    fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-08-13' } });
-    expect(onChange.mock.calls.map(([value]) => value)).toEqual([
-      { kind: 'yesterday' },
-      { kind: 'all' },
-      { kind: 'date', date: '2026-08-13' }
-    ]);
+    const onStatusChange = vi.fn();
+    const first = new Date();
+    const second = new Date(first);
+    second.setDate(second.getDate() + 1);
+    const firstDate = localDateValue(first);
+    const secondDate = localDateValue(second);
+    render(
+      <TaskDateFilterControl
+        value={{ kind: 'all' }}
+        onChange={onChange}
+        status="all"
+        onStatusChange={onStatusChange}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Open calendar' }));
+    fireEvent.click(screen.getByRole('button', { name: firstDate }));
+    fireEvent.click(screen.getByRole('button', { name: secondDate }));
+    expect(onChange).toHaveBeenLastCalledWith({ kind: 'range', from: firstDate, to: secondDate });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open calendar' }));
+    fireEvent.doubleClick(screen.getByRole('button', { name: firstDate }));
+    expect(onChange).toHaveBeenLastCalledWith({ kind: 'range', from: firstDate, to: firstDate });
+
+    fireEvent.click(screen.getByRole('button', { name: 'To do' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    expect(onStatusChange.mock.calls.map(([value]) => value)).toEqual(['todo', 'done']);
   });
 
   it('creates a task directly from a file in the default media tree', async () => {

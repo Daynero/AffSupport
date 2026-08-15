@@ -2192,6 +2192,7 @@ export type Database = {
           p_created_to?: string;
           p_cursor?: string;
           p_page_size?: number;
+          p_status?: string;
           p_team: string;
         };
         Returns: {
