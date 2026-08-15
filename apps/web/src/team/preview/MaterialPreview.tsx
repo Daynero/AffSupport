@@ -269,7 +269,7 @@ function TranscriptPreview({
   onEdit: () => void;
 }) {
   const { t } = useI18n();
-  const text = transcriptDisplayText(preview.text, material.fileExtension);
+  const text = transcriptDisplayText(preview.text, material.fileExtension ?? null);
   return (
     <div className="team-transcript-preview">
       {preview.ingestState === 'pending' && <p>{t('teamPreviewTranscriptPending')}</p>}
