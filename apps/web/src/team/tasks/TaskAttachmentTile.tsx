@@ -41,16 +41,51 @@ export interface TaskAttachmentPreviewClient {
 
 const defaultClient: TaskAttachmentPreviewClient = teamApi;
 
+type AttachmentAction = 'view' | 'download' | 'copy-link' | 'detach';
+
+function AttachmentActionIcon({ action }: { action: AttachmentAction }) {
+  if (action === 'view') {
+    return (
+      <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+        <path d="M2.2 10s2.65-4.55 7.8-4.55S17.8 10 17.8 10s-2.65 4.55-7.8 4.55S2.2 10 2.2 10Z" />
+        <circle cx="10" cy="10" r="2.15" />
+      </svg>
+    );
+  }
+  if (action === 'download') {
+    return (
+      <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+        <path d="M10 2.8v9.2m0 0 3.2-3.2M10 12 6.8 8.8M3.4 14.7v1.15c0 .75.6 1.35 1.35 1.35h10.5c.75 0 1.35-.6 1.35-1.35V14.7" />
+      </svg>
+    );
+  }
+  if (action === 'copy-link') {
+    return (
+      <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+        <path d="m7.65 12.35 4.7-4.7M7.3 15.55l-1.1 1.1a3 3 0 0 1-4.25-4.25l3.05-3.05A3 3 0 0 1 9.25 9m3.45 2a3 3 0 0 1 .75-3.2l1.1-1.1a3 3 0 1 1 4.25 4.25L15.75 14a3 3 0 0 1-4.25 0" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+      <path d="m7.55 12.45 4.9-4.9M7.15 15.65 5.5 17.3a2.7 2.7 0 0 1-3.8-3.8l3-3M12.85 4.35 14.5 2.7a2.7 2.7 0 0 1 3.8 3.8l-3 3M3 3l14 14" />
+    </svg>
+  );
+}
+
 export function TaskAttachmentTile({
   teamId,
   attachment,
   client = defaultClient,
-  onDetach
+  onDetach,
+  isDraft = false
 }: {
   teamId: string;
   attachment: TeamTaskAttachmentSummary;
   client?: TaskAttachmentPreviewClient;
   onDetach?: () => void;
+  /** New attachments remain local until the task itself is saved. */
+  isDraft?: boolean;
 }) {
   const { t } = useI18n();
   const video = useRef<HTMLVideoElement | null>(null);
@@ -62,6 +97,7 @@ export function TaskAttachmentTile({
   const [action, setAction] = useState<'download' | 'copy-link' | null>(null);
   const [copied, setCopied] = useState(false);
   const [actionFailed, setActionFailed] = useState(false);
+  const [confirmDetach, setConfirmDetach] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -105,7 +141,14 @@ export function TaskAttachmentTile({
     return () => {
       active = false;
     };
-  }, [attachment, client, teamId]);
+  }, [
+    attachment.availability,
+    attachment.category,
+    attachment.materialId,
+    attachment.previewState,
+    client,
+    teamId
+  ]);
 
   const seekVideo = () => {
     const element = video.current;
@@ -179,7 +222,10 @@ export function TaskAttachmentTile({
   const viewerTitleId = `team-task-attachment-viewer-${attachment.id}`;
 
   return (
-    <article className="team-task-attachment" data-availability={attachment.availability}>
+    <article
+      className={`team-task-attachment ${isDraft ? 'is-draft' : ''}`.trim()}
+      data-availability={attachment.availability}
+    >
       <div className="team-task-attachment-preview">
         {thumbnailUrl && (
           <img
@@ -225,43 +271,53 @@ export function TaskAttachmentTile({
           <div>
             <strong title={attachment.name}>{attachment.name}</strong>
             <small>{attachment.category ?? t('teamTaskAttachMedia')}</small>
+            {isDraft && <small className="team-task-attachment-draft">{t('teamTaskAttachmentDraft')}</small>}
           </div>
-          {onDetach && (
-            <Button
-              type="button"
-              variant="ghost"
-              className="team-task-attachment-detach"
-              onClick={onDetach}
-            >
-              {t('teamTaskDetach')}
-            </Button>
-          )}
         </div>
         <div className="team-task-attachment-actions">
           <Button
             type="button"
             variant="ghost"
+            className="team-task-attachment-action is-view"
             disabled={!rangeUrl || unavailable}
             onClick={() => setPreviewOpen(true)}
           >
-            {t('teamTaskAttachmentView')}
+            <AttachmentActionIcon action="view" />
+            <span>{t('teamTaskAttachmentView')}</span>
           </Button>
           <Button
             type="button"
             variant="ghost"
+            className="team-task-attachment-action is-download"
             loading={action === 'download'}
             onClick={() => void download()}
           >
-            {t('teamTaskAttachmentDownload')}
+            <AttachmentActionIcon action="download" />
+            <span>{t('teamTaskAttachmentDownload')}</span>
           </Button>
           <Button
             type="button"
             variant="ghost"
+            className="team-task-attachment-action is-copy-link"
             loading={action === 'copy-link'}
             onClick={() => void copyLink()}
           >
-            {copied ? t('teamTaskAttachmentLinkCopied') : t('teamTaskAttachmentCopyLink')}
+            <AttachmentActionIcon action="copy-link" />
+            <span>
+              {copied ? t('teamTaskAttachmentLinkCopied') : t('teamTaskAttachmentCopyLink')}
+            </span>
           </Button>
+          {onDetach && (
+            <Button
+              type="button"
+              variant="danger"
+              className="team-task-attachment-action is-detach"
+              onClick={() => setConfirmDetach(true)}
+            >
+              <AttachmentActionIcon action="detach" />
+              <span>{t('teamTaskDetach')}</span>
+            </Button>
+          )}
         </div>
         {actionFailed && (
           <small className="team-task-attachment-action-error">
@@ -289,6 +345,36 @@ export function TaskAttachmentTile({
             ) : (
               <img src={rangeUrl} alt={attachment.name} referrerPolicy="no-referrer" />
             )}
+          </div>
+        </Modal>
+      )}
+      {confirmDetach && onDetach && (
+        <Modal
+          nested
+          labelledBy={`team-task-detach-title-${attachment.id}`}
+          onClose={() => setConfirmDetach(false)}
+          closeLabel={t('teamCancel')}
+          size="sm"
+        >
+          <div className="team-task-detach-confirmation">
+            <h2 id={`team-task-detach-title-${attachment.id}`}>{t('teamTaskDetachConfirmTitle')}</h2>
+            <p>{t('teamTaskDetachConfirmDescription', { name: attachment.name })}</p>
+            <div className="team-dialog-actions">
+              <Button type="button" variant="ghost" onClick={() => setConfirmDetach(false)}>
+                {t('teamCancel')}
+              </Button>
+              <Button
+                type="button"
+                variant="danger"
+                onClick={() => {
+                  setConfirmDetach(false);
+                  onDetach();
+                }}
+              >
+                <AttachmentActionIcon action="detach" />
+                {t('teamTaskDetach')}
+              </Button>
+            </div>
           </div>
         </Modal>
       )}

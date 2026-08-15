@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react';
 import type { TeamMaterialSummary } from '../../api/team';
 import { useI18n } from '../../i18n';
 import { Button } from '../../components/ui';
-import { TASK_MATERIAL_DRAG_TYPE } from '../tasks/task-drag';
+import {
+  encodeTaskMaterialDrag,
+  TASK_MATERIAL_DRAG_TYPE,
+  type TaskMaterialDragItem
+} from '../tasks/task-drag';
 
 export interface MaterialBrowserClient {
   listMaterials: (teamId: string, parentFolderId: string | null) => Promise<TeamMaterialSummary[]>;
@@ -110,8 +114,16 @@ export function MaterialBrowser({
                     const ids = taskDragSelection.selectedIds.has(material.id)
                       ? [...taskDragSelection.selectedIds]
                       : [material.id];
+                    const items: TaskMaterialDragItem[] = materials
+                      .filter(candidate => candidate.kind !== 'folder' && ids.includes(candidate.id))
+                      .map(candidate => ({
+                        id: candidate.id,
+                        name: candidate.name,
+                        category: candidate.category,
+                        previewState: candidate.previewState
+                      }));
                     event.dataTransfer.effectAllowed = 'copy';
-                    event.dataTransfer.setData(TASK_MATERIAL_DRAG_TYPE, JSON.stringify(ids));
+                    event.dataTransfer.setData(TASK_MATERIAL_DRAG_TYPE, encodeTaskMaterialDrag(items));
                   }}
                 >
                   {taskDragSelection && (

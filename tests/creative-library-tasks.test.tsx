@@ -6,17 +6,20 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import {
   attachTaskMaterialsInChunks,
-  decodeTaskMaterialDrag
+  decodeTaskMaterialDrag,
+  TaskAttachmentPicker
 } from '../apps/web/src/team/tasks/TaskAttachmentPicker';
 import {
   TaskAttachmentTile,
   taskVideoPreviewTimeSeconds
 } from '../apps/web/src/team/tasks/TaskAttachmentTile';
+import { TaskEditor } from '../apps/web/src/team/tasks/TaskEditor';
 import { TaskSpace, type TaskSpaceClient } from '../apps/web/src/team/tasks/TaskSpace';
 
 const TEAM_ID = '31000000-0000-4000-8000-000000000001';
 const ASSET_ID = '31000000-0000-4000-8000-000000000002';
 const TASK_ID = '31000000-0000-4000-8000-000000000003';
+const SECOND_ASSET_ID = '31000000-0000-4000-8000-000000000006';
 
 afterEach(() => {
   cleanup();
@@ -182,6 +185,28 @@ describe('Creative Library task workflows', () => {
     expect(screen.queryByLabelText('Video preview for launch.mp4 at one second')).toBeNull();
   });
 
+  it('does not regenerate an existing preview when its attachment object is refreshed', async () => {
+    const attachment: TeamTaskAttachmentSummary = {
+      id: '31000000-0000-4000-8000-000000000005',
+      taskId: TASK_ID,
+      materialId: ASSET_ID,
+      name: 'launch.mp4',
+      category: 'video',
+      availability: 'ready',
+      previewState: 'ready',
+      position: 0
+    };
+    const api = client();
+    const { rerender } = render(
+      <TaskAttachmentTile teamId={TEAM_ID} attachment={attachment} client={api} />
+    );
+    await screen.findByLabelText('Video preview for launch.mp4 at one second');
+    rerender(
+      <TaskAttachmentTile teamId={TEAM_ID} attachment={{ ...attachment }} client={api} />
+    );
+    await waitFor(() => expect(api.previewMaterial).toHaveBeenCalledTimes(1));
+  });
+
   it('opens, downloads and copies a share-ready Drive link for an attachment', async () => {
     const attachment: TeamTaskAttachmentSummary = {
       id: '31000000-0000-4000-8000-000000000005',
@@ -255,6 +280,180 @@ describe('Creative Library task workflows', () => {
     });
     await waitFor(() => expect(api.updateTask).toHaveBeenCalledOnce());
     expect(screen.getByText('1 attachments')).toBeTruthy();
+  });
+
+  it('stages attached media locally and drops it when the editor is closed without saving', async () => {
+    const api = client();
+    api.listMaterials = vi.fn().mockResolvedValue([
+      {
+        id: SECOND_ASSET_ID,
+        teamId: TEAM_ID,
+        providerId: 'drive-new-image',
+        parentFolderId: 'drive-root',
+        name: 'new-image.png',
+        kind: 'file',
+        category: 'image',
+        previewState: 'ready'
+      }
+    ]);
+    const onClose = vi.fn();
+    render(
+      <TaskEditor
+        teamId={TEAM_ID}
+        task={task()}
+        members={[]}
+        canEdit
+        client={api}
+        onClose={onClose}
+        onChanged={vi.fn()}
+      />
+    );
+
+    await screen.findByText('launch.mp4');
+    fireEvent.click(screen.getByRole('button', { name: /Attach media/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /new-image\.png/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add to task (1)' }));
+
+    expect(await screen.findByText('Will be added on save')).toBeTruthy();
+    expect(api.attachTaskMaterials).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(await screen.findByRole('heading', { name: 'You have unsaved changes' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Close without saving' }));
+
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(api.attachTaskMaterials).not.toHaveBeenCalled();
+    expect(api.detachTaskMaterial).not.toHaveBeenCalled();
+  });
+
+  it('sends staged media to the server only when saving the task', async () => {
+    const api = client();
+    api.listMaterials = vi.fn().mockResolvedValue([
+      {
+        id: SECOND_ASSET_ID,
+        teamId: TEAM_ID,
+        providerId: 'drive-new-image',
+        parentFolderId: 'drive-root',
+        name: 'new-image.png',
+        kind: 'file',
+        category: 'image',
+        previewState: 'ready'
+      }
+    ]);
+    const onClose = vi.fn();
+    render(
+      <TaskEditor
+        teamId={TEAM_ID}
+        task={task()}
+        members={[]}
+        canEdit
+        client={api}
+        onClose={onClose}
+        onChanged={vi.fn()}
+      />
+    );
+
+    await screen.findByText('launch.mp4');
+    fireEvent.click(screen.getByRole('button', { name: /Attach media/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /new-image\.png/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add to task (1)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save task' }));
+
+    await waitFor(() =>
+      expect(api.attachTaskMaterials).toHaveBeenCalledWith({
+        teamId: TEAM_ID,
+        taskId: TASK_ID,
+        materialIds: [SECOND_ASSET_ID]
+      })
+    );
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('saves status immediately without treating it as an unsaved editor change', async () => {
+    const api = client();
+    api.updateTask = vi.fn().mockResolvedValue({ ...task(), status: 'in_progress' });
+    const onClose = vi.fn();
+    render(
+      <TaskEditor
+        teamId={TEAM_ID}
+        task={task()}
+        members={[]}
+        canEdit
+        client={api}
+        onClose={onClose}
+        onChanged={vi.fn()}
+      />
+    );
+
+    await screen.findByText('launch.mp4');
+    fireEvent.click(screen.getByRole('button', { name: 'In progress' }));
+    await waitFor(() =>
+      expect(api.updateTask).toHaveBeenCalledWith(
+        TEAM_ID,
+        TASK_ID,
+        expect.objectContaining({ status: 'in_progress' })
+      )
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('heading', { name: 'You have unsaved changes' })).toBeNull();
+  });
+
+  it('browses nested team folders before staging media for a task', async () => {
+    const api = client();
+    api.listMaterials = vi.fn((_: string, parentId: string | null) => {
+      if (parentId === null) {
+        return Promise.resolve([
+          {
+            id: '31000000-0000-4000-8000-000000000007',
+            teamId: TEAM_ID,
+            providerId: 'drive-folder-campaigns',
+            parentFolderId: 'drive-root',
+            name: 'Campaigns',
+            kind: 'folder' as const,
+            category: null,
+            previewState: 'ready'
+          }
+        ]);
+      }
+      return Promise.resolve([
+        {
+          id: SECOND_ASSET_ID,
+          teamId: TEAM_ID,
+          providerId: 'drive-new-image',
+          parentFolderId: 'drive-folder-campaigns',
+          name: 'new-image.png',
+          kind: 'file' as const,
+          category: 'image' as const,
+          previewState: 'ready'
+        }
+      ]);
+    });
+    const onAdd = vi.fn();
+    render(
+      <TaskAttachmentPicker
+        teamId={TEAM_ID}
+        client={api}
+        attachedMaterialIds={new Set()}
+        onAdd={onAdd}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Attach media/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Campaigns/ }));
+    await waitFor(() =>
+      expect(api.listMaterials).toHaveBeenCalledWith(TEAM_ID, 'drive-folder-campaigns')
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    await waitFor(() => expect(api.listMaterials).toHaveBeenLastCalledWith(TEAM_ID, null));
+
+    fireEvent.click(screen.getByRole('button', { name: /Campaigns/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /new-image\.png/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add to task (1)' }));
+
+    expect(onAdd).toHaveBeenCalledWith([
+      expect.objectContaining({ id: SECOND_ASSET_ID, name: 'new-image.png' })
+    ]);
   });
 
   it('creates a task from an asset reference and opens it immediately', async () => {
