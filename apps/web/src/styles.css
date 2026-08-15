@@ -11137,6 +11137,7 @@ body {
 .landing-tile-shell {
   display: grid;
   min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2, 8px);
 }
 .landing-tile-shell > .button {

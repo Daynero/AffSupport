@@ -77,6 +77,7 @@ describe('team landings gallery (presentational)', () => {
       styles.match(new RegExp(`${selector}\\s*\\{([\\s\\S]*?)\\n\\}`, 'u'))?.[1] ?? '';
 
     expect(rule('\\.landing-tile-shell')).toContain('min-width: 0;');
+    expect(rule('\\.landing-tile-shell')).toContain('grid-template-columns: minmax(0, 1fr);');
     expect(rule('\\.landing-tile')).toContain('min-width: 0;');
     expect(rule('\\.landing-tile')).toContain('max-width: 100%;');
     expect(rule('\\.landing-tile')).toContain('background: var(--color-surface);');
