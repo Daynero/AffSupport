@@ -156,10 +156,15 @@ export class GoogleDriveClient {
     if (!isRecord(payload) || !Array.isArray(payload.files)) {
       throw new TeamFunctionError('INVALID_RESPONSE');
     }
-    const files = payload.files.map(parseMetadata);
-    if (files.some(file => file === null)) throw new TeamFunctionError('INVALID_RESPONSE');
+    // A Drive listing can contain an item whose metadata is no longer readable
+    // to the connected account.  Do not let one such item stop the entire
+    // catalog; it cannot be safely cataloged and will be picked up by a later
+    // change or reconciliation once it is readable again.
+    const files = payload.files
+      .map(parseMetadata)
+      .filter((file): file is DriveFileMetadata => file !== null);
     return {
-      files: files.filter((file): file is DriveFileMetadata => file !== null),
+      files,
       nextPageToken: typeof payload.nextPageToken === 'string' ? payload.nextPageToken : null
     };
   }
@@ -188,10 +193,13 @@ export class GoogleDriveClient {
     if (!isRecord(payload) || !Array.isArray(payload.files)) {
       throw new TeamFunctionError('INVALID_RESPONSE');
     }
-    const files = payload.files.map(parseMetadata);
-    if (files.some(file => file === null)) throw new TeamFunctionError('INVALID_RESPONSE');
+    // See listFolders: retain only complete, safe-to-catalog metadata instead
+    // of permanently failing the whole connected Drive scan.
+    const files = payload.files
+      .map(parseMetadata)
+      .filter((file): file is DriveFileMetadata => file !== null);
     return {
-      files: files.filter((file): file is DriveFileMetadata => file !== null),
+      files,
       nextPageToken: typeof payload.nextPageToken === 'string' ? payload.nextPageToken : null
     };
   }
@@ -221,8 +229,11 @@ export class GoogleDriveClient {
       if (!isRecord(raw) || typeof raw.fileId !== 'string') {
         throw new TeamFunctionError('INVALID_RESPONSE');
       }
-      const file = raw.file === undefined ? null : parseMetadata(raw.file);
-      if (raw.file !== undefined && !file) throw new TeamFunctionError('INVALID_RESPONSE');
+      // Change records can legitimately carry no readable file payload (for
+      // example after a permission change).  Treat it as unavailable so the
+      // catalog tombstones the old projection instead of halting all future
+      // synchronization on this one record.
+      const file = raw.file === undefined || raw.file === null ? null : parseMetadata(raw.file);
       changes.push({ fileId: raw.fileId, removed: raw.removed === true, file });
     }
     return {

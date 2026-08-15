@@ -1,6 +1,6 @@
 begin;
 
-select plan(79);
+select plan(82);
 
 select has_table('public', 'team_upload_batches', 'upload batch authority exists');
 select has_table('public', 'team_upload_batch_items', 'upload batch items exist');
@@ -261,12 +261,54 @@ insert into public.team_materials (
     '40000000-0000-4000-8000-000000000002',
     'video-b', 'root-b', 'video-b.mp4', 'video/mp4', 'mp4', 'file', 'video',
     'version-b', 'library', 'Offer B', 'unknown', 'Video', 'ready'
+  ),
+  (
+    '50000000-0000-4000-8000-000000000003',
+    '20000000-0000-4000-8000-000000000001',
+    '40000000-0000-4000-8000-000000000001',
+    'legacy-a', 'root-a', 'legacy-a.mp4', 'video/mp4', 'mp4', 'file', 'video',
+    'version-legacy', null, null, null, null, 'unplaced'
   );
 
 select set_config(
   'request.jwt.claim.sub',
   '10000000-0000-4000-8000-000000000001',
   true
+);
+
+select is(
+  (
+    select asset.stage
+    from public.list_library_materials(
+      '20000000-0000-4000-8000-000000000001', 'finds', null, 50
+    ) as asset
+    where asset.id = '50000000-0000-4000-8000-000000000003'
+  ),
+  'finds',
+  'an active pre-library file appears as an unplaced Find without a catalog rewrite'
+);
+select is(
+  (
+    select count(*)
+    from public.list_library_materials(
+      '20000000-0000-4000-8000-000000000001', 'library', null, 50
+    ) as asset
+    where asset.id = '50000000-0000-4000-8000-000000000003'
+  ),
+  0::bigint,
+  'a pre-library file is not falsely presented as a selected Library asset'
+);
+select is(
+  (
+    select placement.stage
+    from public.service_get_library_asset_placement(
+      '20000000-0000-4000-8000-000000000001',
+      '10000000-0000-4000-8000-000000000001',
+      '50000000-0000-4000-8000-000000000003'
+    ) as placement
+  ),
+  'finds',
+  'a visible pre-library Find can enter the authorized Drive placement workflow'
 );
 
 create temporary table creative_test_task as

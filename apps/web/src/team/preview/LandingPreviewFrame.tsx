@@ -20,9 +20,11 @@ export function LandingPreviewFrame({
   preset?: LandingViewerPreset;
 }) {
   const { t } = useI18n();
-  const [fallback, setFallback] = useState(false);
+  const previewKey = `${preview.url}\u0000${preview.screenshotUrl ?? ''}`;
+  const [fallbackForPreview, setFallbackForPreview] = useState<string | null>(null);
   const frameRef = useRef<HTMLIFrameElement>(null);
-  const showFallback = useCallback(() => setFallback(true), []);
+  const fallback = fallbackForPreview === previewKey;
+  const showFallback = useCallback(() => setFallbackForPreview(previewKey), [previewKey]);
   const attachFrame = useCallback(
     (frame: HTMLIFrameElement | null) => {
       frameRef.current?.removeEventListener('error', showFallback);
@@ -31,10 +33,6 @@ export function LandingPreviewFrame({
     },
     [showFallback]
   );
-
-  useEffect(() => {
-    setFallback(false);
-  }, [preview.url, preview.screenshotUrl]);
 
   useEffect(
     () => () => frameRef.current?.removeEventListener('error', showFallback),

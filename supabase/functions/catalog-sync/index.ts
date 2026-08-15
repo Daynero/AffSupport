@@ -248,11 +248,26 @@ function dependencies(input: {
         return true;
       } catch (cause) {
         const error = mapUnknownError(cause);
-        if (['ROOT_ESCAPE', 'NOT_FOUND', 'PERMISSION_DENIED'].includes(error.code)) return false;
+        if (
+          ['ROOT_ESCAPE', 'NOT_FOUND', 'PERMISSION_DENIED', 'INVALID_RESPONSE'].includes(error.code)
+        ) {
+          return false;
+        }
         throw error;
       }
     },
-    isHiddenSystemFile: (file, rootFolderId) => isHiddenSystemFile(drive, file, rootFolderId),
+    isHiddenSystemFile: async (file, rootFolderId) => {
+      try {
+        return await isHiddenSystemFile(drive, file, rootFolderId);
+      } catch (cause) {
+        const error = mapUnknownError(cause);
+        // An incomplete ancestor response is not sufficient to prove an asset
+        // belongs in the visible catalog.  Mark it unavailable for this slice;
+        // a later valid change can restore it.
+        if (error.code === 'INVALID_RESPONSE') return true;
+        throw error;
+      }
+    },
     invalidateLandingRenders: async request => {
       if (request.fileIds.length === 0) return;
       const invalidated = rows(
@@ -332,7 +347,10 @@ Deno.serve(async request => {
     const claimed = rows(
       await rpcValue(service, 'service_claim_catalog_sync_jobs', {
         p_worker: worker,
-        p_limit: 5,
+        // One bounded Drive page can require several provider reads.  Keep a
+        // scheduler invocation to one job so its lease can finish inside the
+        // worker request budget instead of leaving a batch half-leased.
+        p_limit: 1,
         p_lease_seconds: 60
       })
     );

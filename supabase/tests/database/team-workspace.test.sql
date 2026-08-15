@@ -1243,7 +1243,7 @@ insert into public.team_materials (
   (select id from pg_temp.us1_created_team),
   (select connection_id from pg_temp.us1_connection),
   'visible-file-us1',
-  null,
+  'root-folder-us1',
   'launch.mp4',
   'video/mp4',
   'mp4',
@@ -1260,7 +1260,7 @@ select is(
     where material.name = 'launch.mp4'
   ),
   1::bigint,
-  'a member sees the first visible catalog page for only the selected team'
+  'a member sees the connected Drive root as the first visible catalog page'
 );
 
 select set_config(

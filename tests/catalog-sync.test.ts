@@ -5,6 +5,7 @@ import {
   type CatalogSyncDependencies,
   type CatalogSyncJob
 } from '../supabase/functions/catalog-sync/engine';
+import { GoogleDriveClient } from '../supabase/functions/_shared/drive';
 
 const folderMime = 'application/vnd.google-apps.folder';
 
@@ -197,6 +198,50 @@ describe('durable catalog synchronization', () => {
     expect(deps.tombstoneFiles).toHaveBeenCalledWith(
       expect.objectContaining({ items: [{ fileId: 'segment-0', lifecycle: 'missing' }] })
     );
+  });
+
+  it('tombstones a change with unreadable metadata instead of blocking all later changes', async () => {
+    const deps = dependencies({
+      listChanges: vi.fn().mockResolvedValue({
+        changes: [{ fileId: 'unreadable', removed: false, file: null }],
+        nextPageToken: null,
+        newStartPageToken: 'change-unreadable'
+      })
+    });
+    await runCatalogSyncSlice(
+      {
+        ...baseJob,
+        phase: 'incremental',
+        pageToken: 'change-previous',
+        changeToken: 'change-previous'
+      },
+      deps
+    );
+    expect(deps.tombstoneFiles).toHaveBeenCalledWith(
+      expect.objectContaining({ items: [{ fileId: 'unreadable', lifecycle: 'missing' }] })
+    );
+    expect(deps.complete).toHaveBeenCalledWith(
+      expect.objectContaining({ changeToken: 'change-unreadable', nextPhase: 'incremental' })
+    );
+  });
+
+  it('normalizes incomplete Drive change metadata to an unavailable change record', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          changes: [{ fileId: 'partial-file', removed: false, file: { id: 'partial-file' } }]
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
+    );
+    const drive = new GoogleDriveClient(
+      'test-access-token-with-enough-entropy',
+      fetchImpl as unknown as typeof fetch
+    );
+
+    await expect(drive.listChanges({ pageToken: 'change-token' })).resolves.toMatchObject({
+      changes: [{ fileId: 'partial-file', removed: false, file: null }]
+    });
   });
 
   it('requeues classifier/transcript work on source identity change and reconciles explicitly', async () => {
