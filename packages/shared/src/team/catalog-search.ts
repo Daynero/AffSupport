@@ -101,6 +101,18 @@ export interface CatalogSearchResponse {
   catalogFreshness: {
     state: 'not_started' | 'scanning' | 'replaying' | 'ready' | 'failed' | 'unavailable';
     lastSyncedAt: string | null;
+    /**
+     * Active materials discovered for the connected root so far, unfiltered by the
+     * caller's query. A true percentage is impossible (the Drive tree size is not
+     * known ahead of a breadth-first scan), so this count is the liveness signal
+     * that a scan is progressing even while a filtered view (e.g. landings only)
+     * still shows zero matches.
+     */
+    discoveredCount: number;
+    /** Folders still queued for the initial scan, or null when no scan is in flight. */
+    foldersRemaining: number | null;
+    /** Most recent sync activity, powering a live "updated N ago" cue. */
+    lastProgressAt: string | null;
   };
 }
 
@@ -373,11 +385,34 @@ export function decodeCatalogSearchResponse(
   ) {
     return null;
   }
+  // Progress fields are decoded tolerantly: a server that predates them (or a
+  // future one that drops them) still yields a valid response with safe
+  // defaults, so the catalog never fails to render over a deploy skew.
+  const discoveredCount =
+    typeof freshness.discoveredCount === 'number' &&
+    Number.isSafeInteger(freshness.discoveredCount) &&
+    freshness.discoveredCount >= 0
+      ? freshness.discoveredCount
+      : 0;
+  const foldersRemaining =
+    typeof freshness.foldersRemaining === 'number' &&
+    Number.isSafeInteger(freshness.foldersRemaining) &&
+    freshness.foldersRemaining >= 0
+      ? freshness.foldersRemaining
+      : null;
+  const lastProgressAt =
+    typeof freshness.lastProgressAt === 'string' ? freshness.lastProgressAt : null;
   return {
     items: items as CatalogMaterialItem[],
     total: input.total,
     activeFilters: input.activeFilters as CatalogSearchResponse['activeFilters'],
     facets,
-    catalogFreshness: freshness as unknown as CatalogSearchResponse['catalogFreshness']
+    catalogFreshness: {
+      state: freshness.state as CatalogSearchResponse['catalogFreshness']['state'],
+      lastSyncedAt: freshness.lastSyncedAt as string | null,
+      discoveredCount,
+      foldersRemaining,
+      lastProgressAt
+    }
   };
 }

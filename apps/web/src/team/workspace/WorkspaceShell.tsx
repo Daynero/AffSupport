@@ -10,6 +10,8 @@ import { TeamLandings, type TeamLandingsClient } from '../landings/TeamLandings'
 import { CreativeLibrary } from '../library';
 import { MaterialPreview } from '../preview/MaterialPreview';
 import { TaskSpace } from '../tasks';
+import { SyncProgress } from '../SyncProgress';
+import { useCatalogFreshness } from '../useCatalogFreshness';
 import { SpaceSettings, type SpaceSettingsClient } from './SpaceSettings';
 
 export type WorkspaceShellClient = MaterialBrowserClient &
@@ -39,6 +41,11 @@ export function WorkspaceShell({
 }) {
   const { t } = useI18n();
   const { activeTeam } = useTeam();
+  const connectedToDrive = activeTeam?.connectionState === 'connected';
+  // Space-wide sync status: visible above every tab so a member who just entered
+  // (or who just connected the folder) can see the scan is alive without having
+  // to open the tab whose filtered view still reads empty.
+  const freshness = useCatalogFreshness({ teamId, client, enabled: connectedToDrive });
   const [view, setView] = useState<ShellView>('content');
   const [hasContent, setHasContent] = useState(false);
   const [taskAsset, setTaskAsset] = useState<{ ids: string[]; name: string } | null>(null);
@@ -117,6 +124,8 @@ export function WorkspaceShell({
           </Button>
         </div>
       </header>
+
+      {connectedToDrive && freshness && <SyncProgress variant="banner" freshness={freshness} />}
 
       <div className="team-space-shell-body">
         {view === 'settings' ? (

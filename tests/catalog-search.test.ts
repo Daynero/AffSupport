@@ -116,4 +116,63 @@ describe('closed search response decoding', () => {
       )
     ).toBeNull();
   });
+
+  it('carries the live sync-progress fields when the server provides them', () => {
+    const decoded = decodeCatalogSearchResponse(
+      {
+        ...response,
+        catalogFreshness: {
+          state: 'scanning',
+          lastSyncedAt: null,
+          discoveredCount: 128,
+          foldersRemaining: 7,
+          lastProgressAt: '2026-08-15T12:00:03.000Z'
+        }
+      },
+      teamId
+    );
+    expect(decoded?.catalogFreshness).toEqual({
+      state: 'scanning',
+      lastSyncedAt: null,
+      discoveredCount: 128,
+      foldersRemaining: 7,
+      lastProgressAt: '2026-08-15T12:00:03.000Z'
+    });
+  });
+
+  it('defaults progress fields safely when an older server omits them', () => {
+    // The response fixture predates the progress fields; decoding must still
+    // succeed with safe defaults so the catalog renders across a deploy skew.
+    const decoded = decodeCatalogSearchResponse(response, teamId);
+    expect(decoded?.catalogFreshness).toEqual({
+      state: 'ready',
+      lastSyncedAt: '2026-08-01T12:00:00.000Z',
+      discoveredCount: 0,
+      foldersRemaining: null,
+      lastProgressAt: null
+    });
+  });
+
+  it('ignores malformed progress fields rather than failing the whole page', () => {
+    const decoded = decodeCatalogSearchResponse(
+      {
+        ...response,
+        catalogFreshness: {
+          state: 'scanning',
+          lastSyncedAt: null,
+          discoveredCount: -5,
+          foldersRemaining: 'lots',
+          lastProgressAt: 42
+        }
+      },
+      teamId
+    );
+    expect(decoded?.catalogFreshness).toEqual({
+      state: 'scanning',
+      lastSyncedAt: null,
+      discoveredCount: 0,
+      foldersRemaining: null,
+      lastProgressAt: null
+    });
+  });
 });

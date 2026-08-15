@@ -542,6 +542,12 @@ async function uploadForm<T>(url: string, body: FormData): Promise<T> {
 }
 export async function uploadLandingZip(file: File): Promise<LandingState> {
   const body = new FormData();
+  // Size/lastModified let the agent match the dropped archive back to the
+  // original on disk (findDroppedSource) so the optimized result lands next to
+  // it, mirroring the video compressor's "next to originals" behavior.
+  body.append('signature', `${file.name}:${file.size}:${file.lastModified}`);
+  body.append('size', String(file.size));
+  body.append('lastModified', String(file.lastModified));
   body.append('file', file, file.name);
   return uploadForm<LandingState>('/api/landing/upload/zip', body);
 }

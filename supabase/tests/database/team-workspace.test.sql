@@ -1,6 +1,6 @@
 begin;
 
-select plan(267);
+select plan(268);
 
 select has_schema('private', 'private integration schema exists');
 select has_table('public', 'teams', 'teams table exists');
@@ -1984,6 +1984,14 @@ select ok(
      and not ((payload #> '{items,0}') ? 'driveFileId')
    from pg_temp.us3_safe_search),
   'search returns one closed safe result without transcript or provider identity'
+);
+select ok(
+  (select (payload #> '{catalogFreshness}') ? 'discoveredCount'
+      and (payload #> '{catalogFreshness}') ? 'foldersRemaining'
+      and (payload #> '{catalogFreshness}') ? 'lastProgressAt'
+      and (payload #>> '{catalogFreshness,discoveredCount}')::bigint >= 1
+   from pg_temp.us3_safe_search),
+  'catalog freshness carries live sync-progress fields for the connected drive'
 );
 select is(
   (

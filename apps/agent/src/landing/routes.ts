@@ -4,7 +4,9 @@ import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import type { FastifyInstance } from 'fastify';
 import type { LandingEvent, LandingSettings } from '@video-compressor/shared';
+import { findDroppedSource } from '../files/dropped-source.js';
 import { selectLandingFolders, selectLandingZips } from '../files/picker.js';
+import { uploadIntakeMeta } from '../files/upload-intake.js';
 import { capabilities, openPath, revealInFileManager } from '../platform/platform.js';
 import type { EventChannel } from '../server/sse.js';
 import type { LandingOptimizer } from './optimizer.js';
@@ -105,13 +107,26 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
   app.post('/api/landing/upload/zip', async (request, reply) => {
     const part = await request.file();
     if (!part) return reply.code(400).send({ error: 'No archive was provided.' });
-    const fileName = path.basename(part.filename || 'landing.zip');
-    if (!/\.zip$/i.test(fileName)) {
+    const meta = uploadIntakeMeta(part, 'landing.zip');
+    if (!/\.zip$/i.test(meta.fileName)) {
       part.file.resume();
       return reply.code(400).send({ error: 'Only ZIP archives are supported.' });
     }
     try {
-      await optimizer.beginUpload('zip', fileName);
+      // Mirror the video compressor: if the dropped archive still exists on
+      // disk, optimize from that original so the result is written next to it
+      // rather than into Downloads. Falls back to the uploaded bytes otherwise.
+      const droppedSource = await findDroppedSource(
+        meta.fileName,
+        meta.sourceSize,
+        meta.sourceModifiedAt
+      );
+      if (droppedSource) {
+        part.file.resume();
+        await optimizer.prepareFromZipPath(droppedSource);
+        return optimizer.state();
+      }
+      await optimizer.beginUpload('zip', meta.fileName);
       const target = optimizer.zipStagingPath();
       await pipeline(part.file, createWriteStream(target));
       if (part.file.truncated) throw new Error('The archive is too large.');
