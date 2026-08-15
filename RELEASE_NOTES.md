@@ -1,3 +1,8 @@
+# v0.9.16
+
+- Show live Google Drive catalog-sync progress across Team Workspace, including found items, queued folders, recent activity, and clear guidance if a scan stalls.
+- Keep optimized dropped ZIP landing archives alongside their original files, and preserve clear landing-gallery controls on narrower screens.
+
 # v0.9.15
 
 - Let Team Workspace owners safely queue a complete Google Drive rescan of the already connected folder, without replacing or detaching it.
