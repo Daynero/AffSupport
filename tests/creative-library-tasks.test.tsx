@@ -89,6 +89,18 @@ function client(): TaskSpaceClient {
       mimeType: 'video/mp4',
       expiresAt: '2026-08-14T11:00:00.000Z'
     }),
+    requestDownload: vi.fn().mockResolvedValue({
+      kind: 'browser',
+      rangeUrl: 'https://example.test/download',
+      expiresAt: '2026-08-14T11:00:00.000Z',
+      disposition: 'attachment'
+    }),
+    shareLibraryMaterial: vi.fn().mockResolvedValue({
+      state: 'ready',
+      url: 'https://drive.google.com/file/d/shared/view',
+      public: true,
+      permissionChanged: false
+    }),
     listLandingRenders: vi.fn().mockResolvedValue([]),
     landingRenderImageUrl: vi.fn().mockReturnValue('https://example.test/landing.webp'),
     listMaterials: vi.fn().mockResolvedValue([]),
@@ -168,6 +180,53 @@ describe('Creative Library task workflows', () => {
 
     expect(await screen.findByText('Preview unavailable')).toBeTruthy();
     expect(screen.queryByLabelText('Video preview for launch.mp4 at one second')).toBeNull();
+  });
+
+  it('opens, downloads and copies a share-ready Drive link for an attachment', async () => {
+    const attachment: TeamTaskAttachmentSummary = {
+      id: '31000000-0000-4000-8000-000000000005',
+      taskId: TASK_ID,
+      materialId: ASSET_ID,
+      name: 'launch.mp4',
+      category: 'video',
+      availability: 'ready',
+      previewState: 'ready',
+      position: 0
+    };
+    const api = client();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText }
+    });
+    const anchorClick = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined);
+    render(<TaskAttachmentTile teamId={TEAM_ID} attachment={attachment} client={api} />);
+
+    await screen.findByLabelText('Video preview for launch.mp4 at one second');
+    fireEvent.click(screen.getByRole('button', { name: 'View' }));
+    expect(await screen.findByRole('dialog')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+    await waitFor(() =>
+      expect(api.requestDownload).toHaveBeenCalledWith(TEAM_ID, ASSET_ID, 'browser')
+    );
+    expect(anchorClick).toHaveBeenCalledOnce();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy link' }));
+    await waitFor(() =>
+      expect(api.shareLibraryMaterial).toHaveBeenCalledWith(
+        expect.objectContaining({
+          teamId: TEAM_ID,
+          materialId: ASSET_ID,
+          allowIfRestricted: true,
+          rememberChoice: false
+        })
+      )
+    );
+    expect(writeText).toHaveBeenCalledWith('https://drive.google.com/file/d/shared/view');
   });
 
   it('keeps the attachment count after an inline progress update', async () => {

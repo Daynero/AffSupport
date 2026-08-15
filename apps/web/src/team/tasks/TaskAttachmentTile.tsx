@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import type {
+  LibraryShareCopyRequest,
+  LibraryShareCopyResult,
   LandingRenderPointer,
   RenderArtifactRef,
+  TeamDownloadGrantResult,
   TeamPreviewResult,
   TeamTaskAttachmentSummary
 } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
+import { Modal } from '../../components/Modal';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
 import { thumbnailRelayUrl } from '../library/thumbnailRelay';
@@ -27,6 +31,12 @@ export interface TaskAttachmentPreviewClient {
     preset: string
   ): Promise<LandingRenderPointer[]>;
   landingRenderImageUrl(artifact: RenderArtifactRef, segment?: number): string;
+  requestDownload(
+    teamId: string,
+    materialId: string,
+    consumer: 'browser'
+  ): Promise<TeamDownloadGrantResult>;
+  shareLibraryMaterial(request: LibraryShareCopyRequest): Promise<LibraryShareCopyResult>;
 }
 
 const defaultClient: TaskAttachmentPreviewClient = teamApi;
@@ -48,6 +58,10 @@ export function TaskAttachmentTile({
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [videoReady, setVideoReady] = useState(false);
   const [unavailable, setUnavailable] = useState(attachment.availability !== 'ready');
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [action, setAction] = useState<'download' | 'copy-link' | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [actionFailed, setActionFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -120,6 +134,50 @@ export function TaskAttachmentTile({
     setThumbnailUrl(null);
   };
 
+  const download = async () => {
+    setAction('download');
+    setActionFailed(false);
+    try {
+      const grant = await client.requestDownload(teamId, attachment.materialId, 'browser');
+      if (grant.kind !== 'browser') throw new Error('AGENT_REQUIRED');
+      const anchor = document.createElement('a');
+      anchor.href = grant.rangeUrl;
+      anchor.download = attachment.name;
+      anchor.rel = 'noreferrer';
+      anchor.click();
+    } catch {
+      setActionFailed(true);
+    } finally {
+      setAction(null);
+    }
+  };
+
+  const copyLink = async () => {
+    setAction('copy-link');
+    setActionFailed(false);
+    try {
+      const result = await client.shareLibraryMaterial({
+        teamId,
+        materialId: attachment.materialId,
+        // This action deliberately provisions an "anyone with the link" reader
+        // permission when needed, then returns Drive's canonical webViewLink.
+        allowIfRestricted: true,
+        rememberChoice: false,
+        idempotencyKey: `task.attachment.share.${crypto.randomUUID()}`
+      });
+      if (result.state !== 'ready') throw new Error('SHARE_NOT_READY');
+      await navigator.clipboard.writeText(result.url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1_500);
+    } catch {
+      setActionFailed(true);
+    } finally {
+      setAction(null);
+    }
+  };
+
+  const viewerTitleId = `team-task-attachment-viewer-${attachment.id}`;
+
   return (
     <article className="team-task-attachment" data-availability={attachment.availability}>
       <div className="team-task-attachment-preview">
@@ -163,16 +221,77 @@ export function TaskAttachmentTile({
         )}
       </div>
       <div className="team-task-attachment-caption">
-        <div>
-          <strong title={attachment.name}>{attachment.name}</strong>
-          <small>{attachment.category ?? t('teamTaskAttachMedia')}</small>
+        <div className="team-task-attachment-caption-heading">
+          <div>
+            <strong title={attachment.name}>{attachment.name}</strong>
+            <small>{attachment.category ?? t('teamTaskAttachMedia')}</small>
+          </div>
+          {onDetach && (
+            <Button
+              type="button"
+              variant="ghost"
+              className="team-task-attachment-detach"
+              onClick={onDetach}
+            >
+              {t('teamTaskDetach')}
+            </Button>
+          )}
         </div>
-        {onDetach && (
-          <Button type="button" variant="ghost" onClick={onDetach}>
-            {t('teamTaskDetach')}
+        <div className="team-task-attachment-actions">
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={!rangeUrl || unavailable}
+            onClick={() => setPreviewOpen(true)}
+          >
+            {t('teamTaskAttachmentView')}
           </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            loading={action === 'download'}
+            onClick={() => void download()}
+          >
+            {t('teamTaskAttachmentDownload')}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            loading={action === 'copy-link'}
+            onClick={() => void copyLink()}
+          >
+            {copied ? t('teamTaskAttachmentLinkCopied') : t('teamTaskAttachmentCopyLink')}
+          </Button>
+        </div>
+        {actionFailed && (
+          <small className="team-task-attachment-action-error">
+            {t('teamTaskAttachmentActionFailed')}
+          </small>
         )}
       </div>
+      {previewOpen && rangeUrl && (
+        <Modal
+          nested
+          labelledBy={viewerTitleId}
+          onClose={() => setPreviewOpen(false)}
+          closeLabel={t('teamCancel')}
+          size="lg"
+        >
+          <div className="team-task-attachment-viewer">
+            <h2 id={viewerTitleId}>{attachment.name}</h2>
+            {attachment.category === 'video' ? (
+              <video
+                controls
+                preload="metadata"
+                src={rangeUrl}
+                ref={element => element?.setAttribute('referrerpolicy', 'no-referrer')}
+              />
+            ) : (
+              <img src={rangeUrl} alt={attachment.name} referrerPolicy="no-referrer" />
+            )}
+          </div>
+        </Modal>
+      )}
     </article>
   );
 }

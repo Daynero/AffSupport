@@ -1286,7 +1286,12 @@ const en = {
   teamTaskSelectMedia: 'Select {name} for dragging',
   teamTaskVideoPreview: 'Video preview for {name} at one second',
   teamTaskPreviewLoading: 'Preparing preview…',
-  teamTaskPreviewUnavailable: 'Preview unavailable'
+  teamTaskPreviewUnavailable: 'Preview unavailable',
+  teamTaskAttachmentView: 'View',
+  teamTaskAttachmentDownload: 'Download',
+  teamTaskAttachmentCopyLink: 'Copy link',
+  teamTaskAttachmentLinkCopied: 'Link copied',
+  teamTaskAttachmentActionFailed: 'Could not complete this attachment action.'
 } as const;
 
 const uk: Record<keyof typeof en, string> = {
@@ -2578,7 +2583,12 @@ const uk: Record<keyof typeof en, string> = {
   teamTaskSelectMedia: 'Вибрати {name} для перетягування',
   teamTaskVideoPreview: 'Превʼю відео {name} на першій секунді',
   teamTaskPreviewLoading: 'Готуємо превʼю…',
-  teamTaskPreviewUnavailable: 'Превʼю недоступне'
+  teamTaskPreviewUnavailable: 'Превʼю недоступне',
+  teamTaskAttachmentView: 'Переглянути',
+  teamTaskAttachmentDownload: 'Завантажити',
+  teamTaskAttachmentCopyLink: 'Копіювати посилання',
+  teamTaskAttachmentLinkCopied: 'Посилання скопійовано',
+  teamTaskAttachmentActionFailed: 'Не вдалося виконати дію з вкладенням.'
 };
 
 export type TranslationKey = keyof typeof en;

@@ -171,37 +171,33 @@ export function TaskEditor({
               onChange={event => setTitle(event.target.value)}
             />
           </label>
-          <div className="team-task-editor-fields">
-            <label>
-              <span>{t('teamTaskAssignee')}</span>
-              <select
-                value={assigneeId}
-                disabled={!canEdit}
-                onChange={event => setAssigneeId(event.target.value)}
-              >
-                <option value="">{t('teamTaskUnassigned')}</option>
-                {members.map(member => (
-                  <option key={member.userId} value={member.userId}>
-                    {member.displayName ?? member.email ?? member.userId}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <section className="team-task-editor-progress" aria-labelledby="team-task-progress-title">
-            <span id="team-task-progress-title">{t('teamTaskProgressScale')}</span>
-            <TaskProgressScale
-              value={progressValue}
-              max={progressMax}
+          <label className="team-task-assignee-field">
+            <span>{t('teamTaskAssignee')}</span>
+            <select
+              value={assigneeId}
               disabled={!canEdit}
-              label={t('teamTaskProgressScale')}
-              onChange={setProgressValue}
-            />
-          </section>
+              onChange={event => setAssigneeId(event.target.value)}
+            >
+              <option value="">{t('teamTaskUnassigned')}</option>
+              {members.map(member => (
+                <option key={member.userId} value={member.userId}>
+                  {member.displayName ?? member.email ?? member.userId}
+                </option>
+              ))}
+            </select>
+          </label>
+          <TaskProgressScale
+            value={progressValue}
+            max={progressMax}
+            disabled={!canEdit}
+            label={t('teamTaskProgressScale')}
+            onChange={setProgressValue}
+          />
           <label>
             <span>{t('teamTaskDescription')}</span>
             <textarea
               className="team-task-description-input"
+              rows={12}
               value={note}
               maxLength={2_000}
               disabled={!canEdit}
