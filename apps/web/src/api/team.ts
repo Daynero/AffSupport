@@ -254,6 +254,11 @@ export interface TeamMaterialSummary {
   previewState?: string;
 }
 
+/** Content-free indication that older landing candidates belong to a detached root. */
+export interface TeamLandingSourceStatus {
+  hasDetachedLandingCandidates: boolean;
+}
+
 export interface TeamOperationSnapshot {
   id: string;
   teamId: string;
@@ -626,6 +631,13 @@ function teamMaterial(value: unknown): TeamMaterialSummary | null {
         ? ((row.preview_state ?? row.previewState) as string)
         : undefined
   };
+}
+
+function teamLandingSourceStatus(value: unknown): TeamLandingSourceStatus | null {
+  const row = asRecord(value);
+  return row && typeof row.has_detached_landing_candidates === 'boolean'
+    ? { hasDetachedLandingCandidates: row.has_detached_landing_candidates }
+    : null;
 }
 
 function throwRpc(error: { message: string; code?: string } | null): void {
@@ -1359,6 +1371,16 @@ export const teamApi = {
       throw new TeamApiError('INVALID_RESPONSE', false);
     }
     return row as unknown as CatalogVocabulary;
+  },
+
+  async getLandingSourceStatus(teamId: string): Promise<TeamLandingSourceStatus> {
+    const { data, error } = await requireSupabaseClient().rpc('get_team_landing_source_status', {
+      p_team: teamId
+    });
+    throwRpc(error);
+    const status = teamLandingSourceStatus(data?.[0]);
+    if (!status) throw new TeamApiError('INVALID_RESPONSE', false);
+    return status;
   },
 
   async listLandingRenders(

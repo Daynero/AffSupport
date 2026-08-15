@@ -11262,6 +11262,15 @@ button.landing-tile:hover {
   display: grid;
   gap: var(--space-3, 12px);
 }
+.team-landings-recovery {
+  margin: 0;
+  border: 1px solid color-mix(in srgb, var(--color-warning, #b7791f) 50%, var(--color-border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-warning, #b7791f) 10%, var(--color-surface));
+  color: var(--color-text);
+  padding: var(--space-3, 12px);
+  line-height: 1.45;
+}
 .team-landings-heading-actions {
   display: flex;
   align-items: center;

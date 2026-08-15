@@ -947,6 +947,10 @@ const en = {
   teamLandingsError: 'Could not load the landings gallery.',
   teamLandingsEmpty:
     'No landings yet. Landings appear here automatically as they sync from the connected folder.',
+  teamLandingsDetachedSourceOwner:
+    'Some landing files are in a disconnected Google Drive folder and are hidden to prevent failed previews. In Space settings → Google Drive, select the correct root folder to restore them.',
+  teamLandingsDetachedSourceMember:
+    'Some landing files are in a disconnected Google Drive folder and are hidden to prevent failed previews. Ask the space owner to reconnect the correct folder.',
   teamLandingsCountOne: '1 landing',
   teamLandingsCountMany: '{count} landings',
   teamLandingOpen: 'Open landing',
@@ -2191,6 +2195,10 @@ const uk: Record<keyof typeof en, string> = {
   teamLandingsError: 'Не вдалося завантажити галерею лендінгів.',
   teamLandingsEmpty:
     'Лендінгів поки немає. Вони з’являться тут автоматично в міру синхронізації підключеної папки.',
+  teamLandingsDetachedSourceOwner:
+    'Частина лендингів лишилася у від’єднаній папці Google Drive й не показується, щоб не створювати хибні прев’ю. У «Налаштуваннях простору → Сховище Google Drive» оберіть коректну кореневу папку, щоб відновити їх.',
+  teamLandingsDetachedSourceMember:
+    'Частина лендингів лишилася у від’єднаній папці Google Drive й не показується, щоб не створювати хибні прев’ю. Зверніться до власника простору, щоб він повторно підключив потрібну папку.',
   teamLandingsCountOne: '1 лендінг',
   teamLandingsCountMany: '{count} лендінгів',
   teamLandingOpen: 'Відкрити лендінг',

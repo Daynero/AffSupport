@@ -1,6 +1,6 @@
 begin;
 
-select plan(251);
+select plan(253);
 
 select has_schema('private', 'private integration schema exists');
 select has_table('public', 'teams', 'teams table exists');
@@ -3288,6 +3288,18 @@ select is(
   ),
   0::bigint,
   'the landing gallery cannot surface a render for a detached-root material'
+);
+select has_function(
+  'public', 'get_team_landing_source_status', array['uuid'],
+  'the landing gallery has a caller-checked detached-source recovery signal'
+);
+select is(
+  (
+    select has_detached_landing_candidates
+    from public.get_team_landing_source_status((select id from pg_temp.us1_created_team))
+  ),
+  true,
+  'a detached landing candidate yields a content-free recovery instruction signal'
 );
 select is(
   (

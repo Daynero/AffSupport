@@ -1930,6 +1930,12 @@ export type Database = {
           state: string;
         }[];
       };
+      get_team_landing_source_status: {
+        Args: { p_team: string };
+        Returns: {
+          has_detached_landing_candidates: boolean;
+        }[];
+      };
       get_library_processing_context: {
         Args: { p_source: string; p_team: string };
         Returns: Json;

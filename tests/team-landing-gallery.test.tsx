@@ -160,6 +160,53 @@ describe('team landings gallery (presentational)', () => {
     expect(screen.queryByRole('button')).toBeNull();
   });
 
+  it('explains when hidden detached-root landings need owner recovery', async () => {
+    localStorage.setItem('wishly.active-team.v1', TEAM_ID);
+    const client = {
+      searchCatalog: vi.fn().mockResolvedValue({
+        items: [],
+        total: 0,
+        activeFilters: { category: ['landing', 'archive'] },
+        facets: {},
+        catalogFreshness: { state: 'ready' as const, lastSyncedAt: null }
+      }),
+      getCatalogVocabulary: vi.fn().mockResolvedValue({
+        geo: [],
+        languages: [],
+        offers: [],
+        tags: []
+      }),
+      getLandingSourceStatus: vi.fn().mockResolvedValue({ hasDetachedLandingCandidates: true })
+    };
+    render(
+      <TeamProvider
+        initialTeams={[
+          {
+            id: TEAM_ID,
+            name: 'Recovery team',
+            role: 'owner',
+            permissions: {
+              view: true,
+              download: true,
+              upload: true,
+              edit: true,
+              delete: true,
+              process: true,
+              manage_members: true,
+              manage_metadata: true
+            },
+            connectionState: 'connected'
+          }
+        ]}
+        realtime={false}
+      >
+        <TeamLandings teamId={TEAM_ID} client={client} />
+      </TeamProvider>
+    );
+    expect((await screen.findByRole('status')).textContent).toMatch(/disconnected Google Drive folder/i);
+    expect(client.getLandingSourceStatus).toHaveBeenCalledWith(TEAM_ID);
+  });
+
   it('renders an error state', () => {
     render(<LandingGallery items={[]} loading={false} error onOpen={vi.fn()} />);
     expect(screen.getByRole('alert')).toBeTruthy();

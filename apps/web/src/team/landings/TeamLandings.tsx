@@ -16,6 +16,7 @@ import {
 } from '../../analytics/service';
 import { renderTeamLanding } from '../../api/client';
 import { useOptionalAgent } from '../../AgentContext';
+import type { TeamLandingSourceStatus } from '../../api/team';
 import { CatalogFilters } from '../catalog/CatalogFilters';
 import { CatalogSearchBar } from '../catalog/CatalogSearchBar';
 import { Button } from '../../components/ui';
@@ -23,6 +24,7 @@ import { navigateTo } from '../../lib/navigation';
 import { LandingGallery } from './LandingGallery';
 import { LandingFullView } from './LandingFullView';
 import { useTeamLandings } from './useTeamLandings';
+import { useTeam } from '../TeamContext';
 
 // The paired agent enforces a three-minute render watchdog.  Give its terminal
 // callback a small buffer, then release the UI and load the server's stale-render
@@ -51,6 +53,7 @@ export interface TeamLandingsClient {
     materialId: string,
     preset?: string
   ) => Promise<RenderArtifactRef | null>;
+  getLandingSourceStatus?: (teamId: string) => Promise<TeamLandingSourceStatus>;
 }
 
 /** Shared gallery over the entered space's category-scoped catalog. */
@@ -65,7 +68,9 @@ export function TeamLandings({
 }) {
   const { t } = useI18n();
   const agent = useOptionalAgent();
+  const { activeTeam } = useTeam();
   const gallery = useTeamLandings({ teamId, client });
+  const [sourceStatus, setSourceStatus] = useState<TeamLandingSourceStatus | null>(null);
   const [previewing, setPreviewing] = useState<{
     material: CatalogMaterialItem;
     artifact?: RenderArtifactRef;
@@ -75,6 +80,35 @@ export function TeamLandings({
   } | null>(null);
   const measuredResult = useRef<CatalogSearchResponse | null>(null);
   const startedAt = useRef(Date.now());
+
+  useEffect(() => {
+    let active = true;
+    if (!client.getLandingSourceStatus) {
+      setSourceStatus(null);
+      return () => {
+        active = false;
+      };
+    }
+    void client
+      .getLandingSourceStatus(teamId)
+      .then(status => {
+        if (active) setSourceStatus(status);
+      })
+      .catch(() => {
+        if (active) setSourceStatus(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [client, teamId]);
+
+  const recoveryMessage = sourceStatus?.hasDetachedLandingCandidates
+    ? t(
+        activeTeam?.role === 'owner'
+          ? 'teamLandingsDetachedSourceOwner'
+          : 'teamLandingsDetachedSourceMember'
+      )
+    : null;
 
   useEffect(() => {
     if (!gallery.result || measuredResult.current === gallery.result) return;
@@ -103,6 +137,11 @@ export function TeamLandings({
           </Button>
         </div>
       </div>
+      {recoveryMessage && (
+        <p className="team-landings-recovery" role="status">
+          {recoveryMessage}
+        </p>
+      )}
       {(gallery.result?.total ?? 0) > 0 && (
         <div className="team-landings-discovery">
           <CatalogSearchBar value={gallery.query} onChange={gallery.setQuery} />
