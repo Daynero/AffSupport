@@ -93,8 +93,7 @@ describe('Creative Library workspace controls', () => {
   it('uses the short-lived thumbnail relay before downloading a video range for a card', async () => {
     const previewMaterial = vi.fn().mockResolvedValue({
       kind: 'media',
-      rangeUrl: 'https://preview.example/launch.mp4',
-      thumbnailUrl: 'https://preview.example/thumbnail.webp',
+      rangeUrl: 'https://preview.example/drive-transfer/range?grant=opaque-ticket',
       mimeType: 'video/mp4',
       expiresAt: '2026-08-15T12:00:00.000Z'
     });
@@ -107,7 +106,9 @@ describe('Creative Library workspace controls', () => {
       expect(element).toBeTruthy();
       return element as HTMLImageElement;
     });
-    expect(thumbnail.getAttribute('src')).toBe('https://preview.example/thumbnail.webp');
+    expect(thumbnail.getAttribute('src')).toBe(
+      'https://preview.example/drive-transfer/thumbnail?grant=opaque-ticket'
+    );
     fireEvent.load(thumbnail);
 
     expect(

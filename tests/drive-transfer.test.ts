@@ -162,29 +162,6 @@ describe('team preview transfer contract', () => {
     expect(issueGrant).toHaveBeenCalledTimes(2);
   });
 
-  it('returns a scoped thumbnail relay alongside the full media range URL', async () => {
-    const issueGrant = vi.fn().mockResolvedValue({
-      ticket: 'opaque-preview-ticket-with-enough-entropy',
-      purpose: 'preview_range' as const,
-      expiresAt: '2026-08-01T12:05:00.000Z',
-      maxRangeBytes: MAX_PREVIEW_RANGE_BYTES,
-      maxUses: 512
-    });
-    const preview = await buildPreviewResult(material(), 'media', issueGrant, {
-      rangeEndpoint: 'https://project.supabase.co/functions/v1/drive-transfer/range',
-      thumbnailEndpoint: 'https://project.supabase.co/functions/v1/drive-transfer/thumbnail'
-    });
-
-    expect(preview).toMatchObject({
-      kind: 'media',
-      rangeUrl:
-        'https://project.supabase.co/functions/v1/drive-transfer/range?grant=opaque-preview-ticket-with-enough-entropy',
-      thumbnailUrl:
-        'https://project.supabase.co/functions/v1/drive-transfer/thumbnail?grant=opaque-preview-ticket-with-enough-entropy'
-    });
-    expect(JSON.stringify(preview)).not.toMatch(/access_token|refresh_token|credential/i);
-  });
-
   it.each([
     {
       label: 'full TXT',

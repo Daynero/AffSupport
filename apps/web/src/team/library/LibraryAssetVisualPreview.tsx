@@ -27,6 +27,17 @@ function videoPreviewTime(durationSeconds: number): number {
   return Math.min(1, durationSeconds);
 }
 
+function thumbnailRelayUrl(rangeUrl: string): string | null {
+  try {
+    const url = new URL(rangeUrl);
+    if (!/^https?:$/u.test(url.protocol) || !url.pathname.endsWith('/range')) return null;
+    url.pathname = `${url.pathname.slice(0, -'/range'.length)}/thumbnail`;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Displays a real, ephemeral media frame only once the card is near the viewport.
  * The URL comes from the existing safe preview flow and is never persisted as a
@@ -86,7 +97,7 @@ export function LibraryAssetVisualPreview({
           return;
         }
         setPreviewUrl(result.rangeUrl);
-        setThumbnailUrl(result.thumbnailUrl ?? null);
+        setThumbnailUrl(thumbnailRelayUrl(result.rangeUrl));
       })
       .catch(() => {
         if (active) setState('unavailable');

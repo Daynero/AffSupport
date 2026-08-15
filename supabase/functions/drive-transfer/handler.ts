@@ -142,7 +142,6 @@ export type IssuePreviewGrant = (
 
 export interface PreviewBuildOptions {
   rangeEndpoint?: string;
-  thumbnailEndpoint?: string;
   operationId?: () => string;
 }
 
@@ -261,12 +260,9 @@ export async function buildPreviewResult(
     if (!endpoint) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
     const rangeUrl = new URL(endpoint);
     rangeUrl.searchParams.set('grant', grant.ticket);
-    const thumbnailUrl = options.thumbnailEndpoint ? new URL(options.thumbnailEndpoint) : null;
-    thumbnailUrl?.searchParams.set('grant', grant.ticket);
     return {
       kind: 'media',
       rangeUrl: rangeUrl.toString(),
-      ...(thumbnailUrl ? { thumbnailUrl: thumbnailUrl.toString() } : {}),
       mimeType: material.mimeType,
       expiresAt: grant.expiresAt
     };

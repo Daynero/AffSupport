@@ -329,16 +329,6 @@ function rangeEndpoint(request: Request) {
   return url.toString();
 }
 
-function thumbnailEndpoint(request: Request) {
-  const url = publicEndpointUrl(new URL(request.url));
-  url.search = '';
-  url.hash = '';
-  if (!url.pathname.endsWith('/thumbnail')) {
-    url.pathname = `${url.pathname.replace(/\/$/u, '')}/thumbnail`;
-  }
-  return url.toString();
-}
-
 function driveTransferEndpoint(request: Request): URL {
   const url = publicEndpointUrl(new URL(request.url));
   const marker = '/drive-transfer';
@@ -1301,10 +1291,7 @@ Deno.serve(async request => {
       material,
       mode.value as PreviewMode,
       (value, binding) => issueGrant(configured.service, value, userId, binding),
-      {
-        rangeEndpoint: rangeEndpoint(request),
-        thumbnailEndpoint: thumbnailEndpoint(request)
-      }
+      { rangeEndpoint: rangeEndpoint(request) }
     );
     return successResponse(result, cors);
   } catch (error) {
