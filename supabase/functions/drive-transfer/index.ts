@@ -45,6 +45,7 @@ import {
   landingArtifactGrantTool,
   parseBoundedRange,
   parseLandingArtifactGrantTool,
+  publicEndpointUrl,
   validateUpstreamRangeResponse,
   type PreviewGrantContext,
   type PreviewMaterialRecord,
@@ -313,7 +314,7 @@ function byteaHex(value: Uint8Array): string {
 }
 
 function rangeEndpoint(request: Request) {
-  const url = new URL(request.url);
+  const url = publicEndpointUrl(new URL(request.url));
   url.search = '';
   url.hash = '';
   if (!url.pathname.endsWith('/range')) url.pathname = `${url.pathname.replace(/\/$/u, '')}/range`;
@@ -321,7 +322,7 @@ function rangeEndpoint(request: Request) {
 }
 
 function driveTransferEndpoint(request: Request): URL {
-  const url = new URL(request.url);
+  const url = publicEndpointUrl(new URL(request.url));
   const marker = '/drive-transfer';
   const markerIndex = url.pathname.indexOf(marker);
   if (markerIndex < 0) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });

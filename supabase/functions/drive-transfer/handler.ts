@@ -12,6 +12,20 @@ export const MAX_BROWSER_DOWNLOAD_BYTES = 100 * 1024 * 1024;
 export const MAX_LANDING_RENDER_SEGMENTS = 64;
 const MAX_EDITABLE_TEXT_BYTES = 1024 * 1024;
 
+/**
+ * Supabase's edge runtime can expose the internal hop as `http:` even when
+ * the public function is served over HTTPS. Browser and Agent transfer URLs
+ * must use the public scheme or Chromium blocks them as mixed content before
+ * the scoped range grant can be consumed. Keep local loopback endpoints on
+ * HTTP for the local stack and agent tests.
+ */
+export function publicEndpointUrl(input: URL): URL {
+  const url = new URL(input);
+  const loopback = ['localhost', '127.0.0.1', '[::1]', '::1'].includes(url.hostname);
+  if (url.protocol === 'http:' && !loopback) url.protocol = 'https:';
+  return url;
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder';
 

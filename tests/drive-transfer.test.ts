@@ -10,6 +10,7 @@ import {
   landingArtifactGrantTool,
   parseLandingArtifactGrantTool,
   parseBoundedRange,
+  publicEndpointUrl,
   summarizePreviewMeasurements,
   validateUpstreamRangeResponse,
   type PreviewMaterialRecord
@@ -52,6 +53,17 @@ function material(overrides: Partial<PreviewMaterialRecord> = {}): PreviewMateri
 }
 
 describe('team preview transfer contract', () => {
+  it('uses HTTPS for public transfer endpoints while preserving local loopback', () => {
+    expect(
+      publicEndpointUrl(
+        new URL('http://project.supabase.co/functions/v1/drive-transfer/range?grant=opaque')
+      ).toString()
+    ).toBe('https://project.supabase.co/functions/v1/drive-transfer/range?grant=opaque');
+    expect(
+      publicEndpointUrl(new URL('http://127.0.0.1:54321/functions/v1/drive-transfer/range')).toString()
+    ).toBe('http://127.0.0.1:54321/functions/v1/drive-transfer/range');
+  });
+
   it('binds opaque landing artifact grants to one render and segment', () => {
     const renderId = '41000000-0000-4000-8000-000000000010';
     const operationId = '41000000-0000-4000-8000-000000000011';
