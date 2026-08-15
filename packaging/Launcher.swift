@@ -22,6 +22,74 @@ private let launcherLogger = Logger(
   subsystem: Bundle.main.bundleIdentifier ?? "WishlyAgent",
   category: "finder-actions"
 )
+private let updateHandoffExitStatus: Int32 = 76
+
+/// The Finder bridge token changes every time the native host starts, so it
+/// cannot be used by a newly installed host to reach an older Agent. Keep a
+/// separate, user-private token in Application Support for the narrow update
+/// drain endpoint. It has no filesystem or tool privileges.
+private func validUpdateHandoffToken(_ raw: String) -> String? {
+  let token = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+  guard
+    token.count >= 64,
+    token.count <= 160,
+    token.allSatisfy({ character in
+      character.isASCII && (character.isLetter || character.isNumber || character == "-")
+    })
+  else { return nil }
+  return token
+}
+
+private func readUpdateHandoffToken(at url: URL) -> String? {
+  guard let raw = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+  return validUpdateHandoffToken(raw)
+}
+
+private func createUpdateHandoffToken(_ token: String, at url: URL) -> Bool {
+  let descriptor = url.path.withCString {
+    Darwin.open($0, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, S_IRUSR | S_IWUSR)
+  }
+  guard descriptor >= 0 else { return false }
+  let bytes = Array((token + "\n").utf8)
+  let wroteAll = bytes.withUnsafeBytes { buffer -> Bool in
+    guard let base = buffer.baseAddress else { return false }
+    var offset = 0
+    while offset < buffer.count {
+      let written = Darwin.write(descriptor, base.advanced(by: offset), buffer.count - offset)
+      guard written > 0 else { return false }
+      offset += Int(written)
+    }
+    return true
+  }
+  Darwin.close(descriptor)
+  if !wroteAll { _ = Darwin.unlink(url.path) }
+  return wroteAll
+}
+
+private func loadOrCreateUpdateHandoffToken() -> String? {
+  let manager = FileManager.default
+  guard
+    let root = manager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+  else { return nil }
+  let directory = root.appendingPathComponent(supportDirectoryName, isDirectory: true)
+  do {
+    try manager.createDirectory(
+      at: directory,
+      withIntermediateDirectories: true,
+      attributes: [.posixPermissions: 0o700]
+    )
+  } catch {
+    return nil
+  }
+  let tokenURL = directory.appendingPathComponent("agent-update-handoff-token")
+  if let token = readUpdateHandoffToken(at: tokenURL) { return token }
+  let token = [UUID(), UUID()].map(\.uuidString).joined()
+  if createUpdateHandoffToken(token, at: tokenURL) { return token }
+  // A second launcher may have created the token between our read and O_EXCL.
+  return readUpdateHandoffToken(at: tokenURL)
+}
+
+private let updateHandoffToken = loadOrCreateUpdateHandoffToken()
 
 /// A compact, monochrome honeycomb mark for the macOS menu bar.  Template
 /// images let AppKit choose the correct foreground colour for light and dark
@@ -74,8 +142,6 @@ private func honeycombStatusImage(accessibilityDescription: String) -> NSImage {
 private struct AgentHealth: Decodable {
   let product: String
   let ready: Bool
-  let version: String?
-  let buildNumber: String?
   let buildId: String?
   let apiVersion: Int?
   let sourceRevision: String?
@@ -119,15 +185,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var readinessTimer: Timer?
   private var handoffTimer: Timer?
   private var updateMonitorTimer: Timer?
+  private var updateWaitTimer: Timer?
   private var readinessAttempts = 0
   private var handoffAttempts = 0
   private var portWaitAttempts = 0
-  private var replacementRequestedForPortOwner = false
+  private var waitingForPreviousAgent = false
+  private var portOwnerStopRequested = false
+  private var updateDrainRequestInFlight = false
+  private var installedUpdatePending = false
   private var statusItem: NSStatusItem?
   private var lockFD: Int32 = -1
   private var isTerminating = false
   private var restartingIntoInstalledBuild = false
-  private var warnedInstalledBuildID: String?
   private var runtimeRestartAttempts = 0
   private var pendingFinderActions: [FinderActionPayload] = []
   private var agentReady = false
@@ -138,6 +207,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var lastFinderFailure: String?
   private weak var finderStatusItem: NSMenuItem?
   private weak var finderIntegrationItem: NSMenuItem?
+  private weak var updateStatusItem: NSMenuItem?
+  private weak var restartUpdateItem: NSMenuItem?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     guard installedLocationAllowed() else {
@@ -175,6 +246,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     readinessTimer?.invalidate()
     handoffTimer?.invalidate()
     updateMonitorTimer?.invalidate()
+    updateWaitTimer?.invalidate()
     NSApp.servicesProvider = nil
     if let process, process.isRunning {
       process.terminate()
@@ -228,6 +300,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       keyEquivalent: ""
     )
     versionItem.isEnabled = false
+    let updateItem = menu.addItem(
+      withTitle: "",
+      action: nil,
+      keyEquivalent: ""
+    )
+    updateItem.isEnabled = false
+    updateItem.isHidden = true
+    updateStatusItem = updateItem
+    let restartItem = menu.addItem(
+      withTitle: "Restart Soty now…",
+      action: #selector(restartSotyNow),
+      keyEquivalent: ""
+    )
+    restartItem.target = self
+    restartItem.isHidden = true
+    restartUpdateItem = restartItem
     let integrationItem = menu.addItem(
       withTitle: "Enable Finder Conversion…",
       action: #selector(manageFinderIntegration),
@@ -255,20 +343,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     statusItem = item
   }
 
+  private func showUpdateStatus(_ message: String, canRestartNow: Bool) {
+    updateStatusItem?.title = message
+    updateStatusItem?.isHidden = false
+    restartUpdateItem?.isHidden = !canRestartNow
+  }
+
+  private func clearUpdateStatus() {
+    guard !installedUpdatePending, !waitingForPreviousAgent else { return }
+    updateStatusItem?.isHidden = true
+    restartUpdateItem?.isHidden = true
+  }
+
+  @objc private func restartSotyNow() {
+    NSApp.activate(ignoringOtherApps: true)
+    let alert = NSAlert()
+    alert.alertStyle = .informational
+    alert.messageText = "Restart Soty now?"
+    alert.informativeText =
+      "Soty will close the previous local session. Any task still running will be marked as interrupted and can be retried safely."
+    alert.addButton(withTitle: "Restart Now")
+    alert.addButton(withTitle: "Keep Working")
+    guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+    if installedUpdatePending {
+      restartIntoInstalledBuild()
+      return
+    }
+    waitingForPreviousAgent = true
+    showUpdateStatus("Finishing the Soty update…", canRestartNow: true)
+    forceStopPreviousAgent()
+  }
+
   private func handleExistingInstance(attempt: Int = 0) {
     probeHealth(timeout: 0.5) { [weak self] health in
-      guard let self else { return }
+      guard let self, !self.isTerminating else { return }
       guard let health else {
         if attempt < 20 {
           DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
             self.handleExistingInstance(attempt: attempt + 1)
           }
-          return
+        } else {
+          self.waitingForPreviousAgent = true
+          self.showUpdateStatus(
+            "Soty is waiting for a previous session to close…",
+            canRestartNow: false
+          )
+          self.beginHandoff()
         }
-        self.showFailure(
-          "Another copy owns the Agent lock but is not responding.",
-          details: "Quit the existing menu bar Agent and open version \(expectedVersion) again."
-        )
         return
       }
       if self.matchesExpectedBuild(health) {
@@ -279,35 +401,95 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.handleExistingInstance(attempt: attempt + 1)
           }
         } else {
-          self.showFailure(
-            "The existing Agent did not become ready.",
-            details: "Running: \(self.describe(health))."
-          )
+          self.showUpdateStatus("Soty is getting ready…", canRestartNow: false)
+          DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            self.handleExistingInstance(attempt: 0)
+          }
         }
         return
       }
-      self.offerRunningVersionRestart(health)
+      if self.shouldReplaceWithExpectedBuild(health) {
+        self.waitForPreviousAgent(health)
+      } else {
+        NSApp.terminate(nil)
+      }
     }
   }
 
-  private func offerRunningVersionRestart(_ health: AgentHealth) {
-    NSApp.activate(ignoringOtherApps: true)
-    let alert = NSAlert()
-    alert.alertStyle = .warning
-    alert.messageText = "Restart the updated Agent?"
-    alert.informativeText = """
-      A different Agent build is still running (\(describe(health))).
-      Installed: \(expectedVersion), build \(expectedBuildNumber), API \(expectedAPIVersion).
-
-      Restarting activates the installed update. An active compression would be marked interrupted and can be retried safely.
-      """
-    alert.addButton(withTitle: "Restart Agent")
-    alert.addButton(withTitle: "Cancel")
-    guard alert.runModal() == .alertFirstButtonReturn else {
-      NSApp.terminate(nil)
+  /// A legacy Agent can outlive its menu-bar host after a force quit. Never
+  /// interrupt a task automatically: first ask a current Agent to drain using
+  /// the private handoff protocol, then use the verified legacy fallback only
+  /// once `/health` confirms it is idle.
+  private func waitForPreviousAgent(_ health: AgentHealth) {
+    waitingForPreviousAgent = true
+    if health.busy != false {
+      showUpdateStatus(
+        health.busy == true
+          ? "Soty will finish updating after the current task."
+          : "Soty is preparing an update…",
+        canRestartNow: true
+      )
+      // Current Agents understand a drain request even while work is active:
+      // they finish it, refuse new tasks, and exit when every module is idle.
+      // Older Agents simply reject the request, which leaves them untouched.
+      requestPreviousAgentDrain(fallbackWhenIdle: false)
+      beginPreviousAgentWait()
       return
     }
 
+    showUpdateStatus("Finishing the Soty update…", canRestartNow: true)
+    requestPreviousAgentDrain(fallbackWhenIdle: true)
+  }
+
+  private func requestPreviousAgentDrain(fallbackWhenIdle: Bool) {
+    guard !portOwnerStopRequested, !updateDrainRequestInFlight else { return }
+    guard let updateHandoffToken else {
+      if fallbackWhenIdle { stopPreviousAgentAfterIdle() }
+      return
+    }
+    updateDrainRequestInFlight = true
+    var request = URLRequest(
+      url: agentBaseURL.appendingPathComponent("native/update/drain")
+    )
+    request.httpMethod = "POST"
+    request.timeoutInterval = 1
+    request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue(updateHandoffToken, forHTTPHeaderField: "X-Wishly-Update-Token")
+    request.httpBody = try? JSONSerialization.data(withJSONObject: ["targetBuildId": expectedBuildID])
+    URLSession.shared.dataTask(with: request) { [weak self] _, response, _ in
+      let accepted = (response as? HTTPURLResponse)?.statusCode == 202
+      DispatchQueue.main.async {
+        guard let self, !self.isTerminating else { return }
+        self.updateDrainRequestInFlight = false
+        if accepted {
+          self.portOwnerStopRequested = true
+          self.beginPreviousAgentWait()
+        } else if fallbackWhenIdle {
+          self.stopPreviousAgentAfterIdle()
+        }
+      }
+    }.resume()
+  }
+
+  private func stopPreviousAgentAfterIdle() {
+    guard !portOwnerStopRequested else { return }
+    portOwnerStopRequested = true
+    terminateOtherHostInstances()
+    // A legacy force-quit can leave only its Node child behind. It is safe to
+    // stop only after both product health and the packaged command line match.
+    _ = terminateVerifiedAgentListeningOnPort()
+    beginPreviousAgentWait()
+  }
+
+  private func forceStopPreviousAgent() {
+    portOwnerStopRequested = true
+    terminateOtherHostInstances()
+    _ = terminateVerifiedAgentListeningOnPort()
+    beginPreviousAgentWait()
+  }
+
+  private func terminateOtherHostInstances() {
     let ownPID = ProcessInfo.processInfo.processIdentifier
     let others =
       NSRunningApplication
@@ -316,13 +498,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       )
       .filter { $0.processIdentifier != ownPID }
     for application in others { _ = application.terminate() }
-    // An interrupted/force-quit legacy launcher may have already vanished, so
-    // NSRunningApplication cannot reach its orphaned Node child. The user just
-    // explicitly chose Restart Agent; identify the listener by both its local
-    // health response and bundled command line before sending SIGTERM. This is
-    // intentionally not a blind "free the port" kill.
-    _ = terminateVerifiedAgentListeningOnPort()
-    beginHandoff()
   }
 
   private func terminateVerifiedAgentListeningOnPort() -> Bool {
@@ -340,20 +515,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     return stopped
   }
 
-  private func agentListenerPID() -> Int32? {
+  private func portListenerPIDs() -> Set<Int32> {
     guard
       let output = commandOutput(
         executable: "/usr/sbin/lsof",
         arguments: ["-nP", "-t", "-iTCP:\(agentPort)", "-sTCP:LISTEN"]
       )
-    else { return nil }
-    let pids = Set(
+    else { return [] }
+    return Set(
       output
         .split(whereSeparator: { $0.isWhitespace })
         .compactMap { Int32(String($0)) }
         .filter { $0 > 1 }
     )
+  }
+
+  private func agentListenerPID() -> Int32? {
+    let pids = portListenerPIDs()
     return pids.count == 1 ? pids.first : nil
+  }
+
+  private func portIsOccupied() -> Bool {
+    !portListenerPIDs().isEmpty
   }
 
   private func isBundledAgentProcess(_ pid: Int32) -> Bool {
@@ -403,46 +586,100 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       portWaitAttempts = 0
       startAgentWhenPortIsFree()
     } else if handoffAttempts >= 48 {
-      handoffTimer?.invalidate()
-      showFailure(
-        "The previous Agent did not stop.",
-        details:
-          "Quit it from the menu bar (or Force Quit), then open version \(expectedVersion) again."
-      )
+      // Keep waiting rather than converting an ordinary update race into a
+      // fatal technical alert. The menu item provides an explicit restart for
+      // the rare case where the previous session never returns.
+      handoffAttempts = 0
+      showUpdateStatus("Soty is waiting for a previous session to close…", canRestartNow: true)
     }
   }
 
   private func startAgentWhenPortIsFree() {
     probeHealth(timeout: 0.35) { [weak self] health in
       guard let self, !self.isTerminating else { return }
-      guard let health else {
-        self.spawnAgent()
-        return
-      }
-      // A launcher can acquire the lock while an orphaned legacy Node process
-      // still owns the port. Offer the same deliberate update handoff used for
-      // a live older app instead of waiting six seconds and showing a dead end.
-      if !self.matchesExpectedBuild(health), !self.replacementRequestedForPortOwner {
-        self.replacementRequestedForPortOwner = true
-        self.offerRunningVersionRestart(health)
-        return
-      }
-      if self.matchesExpectedBuild(health), health.ready {
-        // An exact-build orphan is still safe to use. Do not spawn a duplicate
-        // just because its old menu-bar host vanished.
-        NSApp.terminate(nil)
-        return
-      }
-      self.portWaitAttempts += 1
-      if self.portWaitAttempts < 24 {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-          self.startAgentWhenPortIsFree()
+      if let health {
+        if self.matchesExpectedBuild(health), health.ready {
+          // An exact-build orphan is still safe to use. Do not spawn a
+          // duplicate just because its old menu-bar host vanished.
+          NSApp.terminate(nil)
+          return
         }
+        if !self.matchesExpectedBuild(health) {
+          if self.shouldReplaceWithExpectedBuild(health) {
+            self.waitForPreviousAgent(health)
+          } else {
+            NSApp.terminate(nil)
+          }
+          return
+        }
+        self.waitForPortToBecomeAvailable()
+        return
+      }
+      if self.portIsOccupied() {
+        self.waitForPortToBecomeAvailable()
+        return
+      }
+      self.waitingForPreviousAgent = false
+      self.portOwnerStopRequested = false
+      self.updateDrainRequestInFlight = false
+      self.updateWaitTimer?.invalidate()
+      self.updateWaitTimer = nil
+      self.clearUpdateStatus()
+      self.spawnAgent()
+    }
+  }
+
+  private func waitForPortToBecomeAvailable() {
+    waitingForPreviousAgent = true
+    let canRestartNow = agentListenerPID().map { isBundledAgentProcess($0) } ?? false
+    showUpdateStatus(
+      "Soty is waiting for a previous local session to close…",
+      canRestartNow: canRestartNow
+    )
+    beginPreviousAgentWait()
+  }
+
+  private func beginPreviousAgentWait() {
+    guard !isTerminating else { return }
+    if updateWaitTimer == nil {
+      updateWaitTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+        self?.checkPreviousAgentForHandoff()
+      }
+    }
+    checkPreviousAgentForHandoff()
+  }
+
+  private func checkPreviousAgentForHandoff() {
+    probeHealth(timeout: 0.5) { [weak self] health in
+      guard let self, !self.isTerminating else { return }
+      if let health {
+        if self.matchesExpectedBuild(health), health.ready {
+          // The Agent became current while we were waiting; one healthy owner
+          // is enough, so this duplicate host can disappear quietly.
+          NSApp.terminate(nil)
+          return
+        }
+        if self.shouldReplaceWithExpectedBuild(health) {
+          self.waitForPreviousAgent(health)
+        } else {
+          NSApp.terminate(nil)
+        }
+        return
+      }
+      if self.portIsOccupied() {
+        self.waitForPortToBecomeAvailable()
+        return
+      }
+      self.updateWaitTimer?.invalidate()
+      self.updateWaitTimer = nil
+      self.waitingForPreviousAgent = false
+      self.portOwnerStopRequested = false
+      self.updateDrainRequestInFlight = false
+      self.clearUpdateStatus()
+      if self.acquireInstanceLock() {
+        self.startAgentWhenPortIsFree()
       } else {
-        self.showFailure(
-          "An old Agent process is still using port 43120.",
-          details: "Running: \(self.describe(health)). Quit the old Agent and try again."
-        )
+        self.beginHandoff()
       }
     }
   }
@@ -470,12 +707,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       && health.sourceRevision == sourceRevision
   }
 
-  private func describe(_ health: AgentHealth) -> String {
-    let version = health.version ?? "legacy version"
-    let build = health.buildNumber.map { "build \($0)" } ?? "unknown build"
-    let api = health.apiVersion.map(String.init) ?? "unknown"
-    let revision = health.sourceRevision.map { String($0.prefix(12)) } ?? "unknown source"
-    return "\(version), \(build), API \(api), source \(revision)"
+  private func shouldReplaceWithExpectedBuild(_ health: AgentHealth) -> Bool {
+    guard
+      let currentBuildID = health.buildId,
+      let comparison = compareBuildIDs(expectedBuildID, currentBuildID)
+    else {
+      // A pre-handoff legacy Agent does not expose a parseable build identity;
+      // treat it as older, while still requiring its idle health before the
+      // verified fallback ever stops it.
+      return true
+    }
+    return comparison == .orderedDescending
+  }
+
+  private func compareBuildIDs(_ left: String, _ right: String) -> ComparisonResult? {
+    func identity(_ buildID: String) -> (version: [Int], prerelease: String?, build: [Int])? {
+      let parts = buildID.split(separator: "+", maxSplits: 1, omittingEmptySubsequences: false)
+      guard parts.count == 2 else { return nil }
+      let versionParts = parts[0].split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
+      let version = versionParts[0].split(separator: ".").compactMap { Int($0) }
+      let build = parts[1].split(separator: ".").compactMap { Int($0) }
+      guard version.count == 3, build.count == parts[1].split(separator: ".").count,
+        !build.isEmpty
+      else { return nil }
+      let prerelease = versionParts.count == 2 ? String(versionParts[1]) : nil
+      return (version, prerelease, build)
+    }
+    func compareNumbers(_ first: [Int], _ second: [Int]) -> ComparisonResult {
+      for index in 0..<max(first.count, second.count) {
+        let difference = (first.indices.contains(index) ? first[index] : 0)
+          - (second.indices.contains(index) ? second[index] : 0)
+        if difference < 0 { return .orderedAscending }
+        if difference > 0 { return .orderedDescending }
+      }
+      return .orderedSame
+    }
+    guard let first = identity(left), let second = identity(right) else { return nil }
+    let version = compareNumbers(first.version, second.version)
+    if version != .orderedSame { return version }
+    if first.prerelease != second.prerelease {
+      if first.prerelease == nil { return .orderedDescending }
+      if second.prerelease == nil { return .orderedAscending }
+      return first.prerelease!.compare(second.prerelease!)
+    }
+    return compareNumbers(first.build, second.build)
   }
 
   private func spawnAgent() {
@@ -505,7 +780,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     child.currentDirectoryURL = agentDirectory
     child.standardOutput = output
     child.standardError = output
-    child.environment = ProcessInfo.processInfo.environment.merging([
+    var packagedEnvironment = [
       "PACKAGED_APP": "1",
       "NO_OPEN": "1",
       "AGENT_PORT": String(agentPort),
@@ -520,7 +795,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       "AGENT_INSTALLED_RELEASE_PATH": resources.appendingPathComponent("release.json").path,
       "AGENT_NATIVE_TOKEN": nativeToken,
       "AGENT_ENTITLEMENT_PUBLIC_KEY": "__AGENT_ENTITLEMENT_PUBLIC_KEY__",
-    ]) { _, packaged in packaged }
+    ]
+    if let updateHandoffToken {
+      packagedEnvironment["AGENT_UPDATE_HANDOFF_TOKEN"] = updateHandoffToken
+    }
+    child.environment = ProcessInfo.processInfo.environment.merging(packagedEnvironment) {
+      _, packaged in packaged
+    }
     output.fileHandleForReading.readabilityHandler = { [weak self] handle in
       guard let text = String(data: handle.availableData, encoding: .utf8), !text.isEmpty else {
         return
@@ -534,14 +815,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let self, !self.isTerminating else { return }
         self.agentReady = false
         self.readinessTimer?.invalidate()
+        self.process = nil
+        if finished.terminationStatus == updateHandoffExitStatus {
+          // The Agent accepted a coordinated update drain. When this app was
+          // updated in place, reopen the new payload; when a newer launcher is
+          // already waiting, simply release our lock for it.
+          if self.installedReleaseAwaitingActivation() != nil {
+            self.restartIntoInstalledBuild()
+          } else {
+            NSApp.terminate(nil)
+          }
+          return
+        }
         if finished.terminationStatus == 75 && self.runtimeRestartAttempts < 2 {
           self.runtimeRestartAttempts += 1
-          self.process = nil
           self.portWaitAttempts = 0
           DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
             guard !self.isTerminating else { return }
             self.startAgentWhenPortIsFree()
           }
+          return
+        }
+        if self.portIsOccupied() {
+          self.waitForPortToBecomeAvailable()
           return
         }
         self.showFailure(
@@ -580,13 +876,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.scheduleFinderIntegrationOffer()
       } else if let health, !self.matchesExpectedBuild(health) {
         self.readinessTimer?.invalidate()
-        self.showFailure(
-          "A different Agent answered the readiness check.",
-          details: "Running: \(self.describe(health)); expected build \(expectedBuildID)."
-        )
+        if self.shouldReplaceWithExpectedBuild(health) {
+          self.waitForPreviousAgent(health)
+        } else {
+          NSApp.terminate(nil)
+        }
       } else if self.readinessAttempts >= 60 {
         self.readinessTimer?.invalidate()
-        self.showFailure("The local agent did not become ready.", details: self.stderrText)
+        if self.portIsOccupied() {
+          self.waitForPortToBecomeAvailable()
+        } else {
+          self.showFailure("The local agent did not become ready.", details: self.stderrText)
+        }
       }
     }
   }
@@ -599,36 +900,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   private func checkInstalledBuild() {
     guard !isTerminating, !restartingIntoInstalledBuild,
-      let releaseURL = Bundle.main.resourceURL?.appendingPathComponent("release.json"),
-      let data = try? Data(contentsOf: releaseURL),
-      let installed = try? JSONDecoder().decode(InstalledRelease.self, from: data),
-      installed.buildId != expectedBuildID || installed.sourceRevision != sourceRevision
+      installedReleaseAwaitingActivation() != nil
     else { return }
+    installedUpdatePending = true
 
     probeHealth(timeout: 1) { [weak self] health in
       guard let self, !self.isTerminating, !self.restartingIntoInstalledBuild else { return }
-      if health?.busy == false {
+      if health == nil || health?.busy == false {
         self.restartIntoInstalledBuild()
       } else {
-        let installedIdentity = "\(installed.buildId) · \(installed.sourceRevision.prefix(12))"
-        if self.warnedInstalledBuildID != installedIdentity {
-          self.warnedInstalledBuildID = installedIdentity
-          self.offerInstalledBuildRestart(installedIdentity)
-        }
+        self.showUpdateStatus(
+          "Soty will finish updating after the current task.",
+          canRestartNow: true
+        )
       }
     }
   }
 
-  private func offerInstalledBuildRestart(_ installedBuildID: String) {
-    NSApp.activate(ignoringOtherApps: true)
-    let alert = NSAlert()
-    alert.alertStyle = .informational
-    alert.messageText = "An Agent update was installed"
-    alert.informativeText =
-      "Restart now to activate build \(installedBuildID). If compression is active, you can finish it first; the Agent will restart automatically afterward."
-    alert.addButton(withTitle: "Restart Now")
-    alert.addButton(withTitle: "After Compression")
-    if alert.runModal() == .alertFirstButtonReturn { restartIntoInstalledBuild() }
+  private func installedReleaseAwaitingActivation() -> InstalledRelease? {
+    guard
+      let releaseURL = Bundle.main.resourceURL?.appendingPathComponent("release.json"),
+      let data = try? Data(contentsOf: releaseURL),
+      let installed = try? JSONDecoder().decode(InstalledRelease.self, from: data),
+      installed.buildId != expectedBuildID || installed.sourceRevision != sourceRevision
+    else { return nil }
+    return installed
   }
 
   private func restartIntoInstalledBuild() {
@@ -647,8 +943,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let self else { return }
         if let error {
           self.restartingIntoInstalledBuild = false
-          self.showFailure(
-            "The installed update could not be restarted.", details: error.localizedDescription)
+          self.installedUpdatePending = true
+          self.showUpdateStatus(
+            "Soty could not finish the update. Try again from the menu.",
+            canRestartNow: true
+          )
+          launcherLogger.error("Could not restart installed update: \(error.localizedDescription, privacy: .public)")
         } else {
           NSApp.terminate(nil)
         }

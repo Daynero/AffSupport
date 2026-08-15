@@ -33,6 +33,15 @@ export interface ServerDeps {
   token: string;
   /** Shared secret for the Finder/native bridge, or null when not launched natively. */
   nativeToken: string | null;
+  /**
+   * Stable, per-user secret used only by a newer native launcher to ask an
+   * older local Agent to drain work before an update handoff. It is separate
+   * from the per-boot Finder token because the requesting launcher belongs to
+   * a different app process.
+   */
+  updateHandoffToken: string | null;
+  /** Starts the agent-wide update drain after the handoff secret is verified. */
+  requestUpdateDrain: (targetBuildId: string) => void;
   allowedOrigins: ReadonlySet<string>;
   entitlementGate: EntitlementGate;
   config: ServerConfig;
@@ -57,14 +66,23 @@ const ENTITLEMENT_EXEMPT_ROUTES = new Set(['/api/health', '/api/diagnostics', '/
  * minimal deps and drive it with `app.inject()`.
  */
 export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
-  const { token, nativeToken, allowedOrigins, entitlementGate, config, tools, queue, modules } =
-    deps;
+  const {
+    token,
+    nativeToken,
+    updateHandoffToken,
+    allowedOrigins,
+    entitlementGate,
+    config,
+    tools,
+    queue,
+    modules
+  } = deps;
   const app = Fastify({ logger: deps.logger ?? true, bodyLimit: 16_384 });
 
   await app.register(cors, {
     origin: (origin, callback) => callback(null, !origin || allowedOrigins.has(origin)),
     methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['content-type', 'x-session-token']
+    allowedHeaders: ['content-type', 'x-session-token', 'x-wishly-update-token']
   });
   await app.register(fastifyMultipart, {
     limits: { files: 1, fields: 4, fileSize: 100 * 1024 * 1024 * 1024 }
@@ -95,6 +113,18 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     return payload;
   });
   app.addHook('preHandler', async (request, reply) => {
+    const route = request.url.split('?')[0];
+    if (route === '/native/update/drain') {
+      const supplied = request.headers['x-wishly-update-token'];
+      if (
+        !updateHandoffToken ||
+        typeof supplied !== 'string' ||
+        !tokensMatch(updateHandoffToken, supplied)
+      ) {
+        return reply.code(401).send({ error: 'Invalid update handoff token.' });
+      }
+      return;
+    }
     if (request.url.startsWith('/native/')) {
       const supplied = request.headers['x-wishly-native-token'];
       if (!nativeToken || typeof supplied !== 'string' || !tokensMatch(nativeToken, supplied)) {
@@ -106,7 +136,6 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     const supplied =
       request.headers['x-session-token'] ?? (request.query as { token?: string }).token;
     if (supplied !== token) return reply.code(401).send({ error: 'Invalid session token.' });
-    const route = request.url.split('?')[0];
     if (
       !ENTITLEMENT_EXEMPT_ROUTES.has(route) &&
       entitlementGate.enforced &&
@@ -126,6 +155,18 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     } catch {
       return reply.code(403).send({ error: 'ENTITLEMENT_TOKEN_INVALID' });
     }
+  });
+
+  app.post('/native/update/drain', async (request, reply) => {
+    const targetBuildId = (request.body as { targetBuildId?: unknown } | null)?.targetBuildId;
+    if (typeof targetBuildId !== 'string' || !/^[A-Za-z0-9._+-]{1,160}$/u.test(targetBuildId)) {
+      return reply.code(400).send({ error: 'UPDATE_TARGET_INVALID' });
+    }
+    if (!isStrictlyNewerBuildId(targetBuildId, config.buildId)) {
+      return reply.code(409).send({ error: 'UPDATE_TARGET_NOT_NEWER' });
+    }
+    deps.requestUpdateDrain(targetBuildId);
+    return reply.code(202).send({ accepted: true });
   });
 
   app.get('/api/health', async () => ({
@@ -219,4 +260,43 @@ function tokensMatch(expected: string, supplied: string) {
   const left = Buffer.from(expected);
   const right = Buffer.from(supplied);
   return left.byteLength === right.byteLength && timingSafeEqual(left, right);
+}
+
+interface BuildIdentity {
+  version: number[];
+  prerelease: string | null;
+  build: number[];
+}
+
+function parseBuildIdentity(value: string): BuildIdentity | null {
+  const matched = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?\+(\d+(?:\.\d+)*)$/u.exec(value);
+  if (!matched) return null;
+  return {
+    version: matched.slice(1, 4).map(Number),
+    prerelease: matched[4] ?? null,
+    build: matched[5].split('.').map(Number)
+  };
+}
+
+function compareNumberComponents(left: number[], right: number[]) {
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+    const difference = (left[index] ?? 0) - (right[index] ?? 0);
+    if (difference !== 0) return Math.sign(difference);
+  }
+  return 0;
+}
+
+/** Only a newer installed build may ask this Agent to make way for it. */
+function isStrictlyNewerBuildId(candidate: string, current: string) {
+  const next = parseBuildIdentity(candidate);
+  const active = parseBuildIdentity(current);
+  if (!next || !active) return false;
+  const version = compareNumberComponents(next.version, active.version);
+  if (version !== 0) return version > 0;
+  if (next.prerelease !== active.prerelease) {
+    if (next.prerelease === null) return true;
+    if (active.prerelease === null) return false;
+    return next.prerelease.localeCompare(active.prerelease, 'en') > 0;
+  }
+  return compareNumberComponents(next.build, active.build) > 0;
 }

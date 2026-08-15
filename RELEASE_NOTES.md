@@ -1,3 +1,9 @@
+# v0.9.19
+
+- Finish active local work before handing an update to the new Soty Agent, while refusing new work on the retiring Agent so the handoff completes automatically.
+- Replace technical startup errors from legacy background Agents with a clear menu-bar update state and an optional safe restart.
+- Prevent an older Soty app from displacing a newer local Agent during an update handoff.
+
 # v0.9.18
 
 - Let an installed Soty update recover from a verified orphaned older Agent after you explicitly confirm the restart, instead of leaving port 43120 permanently occupied.

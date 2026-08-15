@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.9.18",
-  "buildNumber": "54",
-  "buildId": "0.9.18+54",
+  "version": "0.9.19",
+  "buildNumber": "55",
+  "buildId": "0.9.19+55",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-08-15T21:26:15.000Z",
+  "publishedAt": "2026-08-15T21:56:09.000Z",
   "summary": {
-    "en": "Safely recovers from orphaned older Soty Agents during updates, keeps landing scans responsive, and shows live Google Drive sync progress.",
-    "uk": "Безпечно відновлюється після осиротілих старих Agent Soty під час оновлення, зберігає чуйність сканування лендінгів і показує живий прогрес Google Drive."
+    "en": "Updates Soty safely after active work finishes, recovers older background Agents without technical startup errors, and prevents an older app from replacing a newer one.",
+    "uk": "Безпечно оновлює Soty після завершення активної роботи, відновлює застарілі фонові Agent без технічних помилок запуску та не дозволяє старій версії замінити новішу."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.18/Soty-v0.9.18-macOS-arm64.dmg",
-      "sha256": "fd85cf31daa109b775def6b9e66d9678ac6382495b787b449dc2e03d4887b229"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.19/Soty-v0.9.19-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -35,5 +35,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "m8mB2Xk3Rt8B-gY84yoaB5DR1_fCVkN8ckL1lqQm_lHhqeSPkou2UTC7bz_yZCzz2Mwb-CBEUFuSogJpuaR5TA"
+  "signature": "sickYJ3RN_sHbsA4XuJn_er6v7-y_CtDDNOpn9sAapCEvW_CXeuHnaNi7_jZ6dwa8ppbEIHSKuGhtwT8ElBvBA"
 }

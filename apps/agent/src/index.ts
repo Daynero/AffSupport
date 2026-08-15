@@ -50,6 +50,11 @@ import { whisperAvailable } from './whisper/tools.js';
 
 const token = randomBytes(32).toString('hex');
 const nativeToken = process.env.AGENT_NATIVE_TOKEN?.trim() || null;
+const updateHandoffToken = process.env.AGENT_UPDATE_HANDOFF_TOKEN?.trim() || null;
+// Distinguishes an intentional update handoff from an unexpected clean exit
+// in the native launcher. The launcher then either opens the installed build
+// or releases its instance lock for the waiting newer launcher.
+const UPDATE_HANDOFF_EXIT_CODE = 76;
 // Server-issued account entitlement. Packaged production builds embed the
 // public key via the launcher; without it (development) nothing is enforced.
 const entitlementGate = new EntitlementGate({
@@ -79,6 +84,7 @@ let runtimeRestartRequested = false;
 let mediaToolsCheckInFlight = false;
 let mediaToolsTimer: ReturnType<typeof setInterval> | null = null;
 let installedReleaseTimer: ReturnType<typeof setInterval> | null = null;
+let updateDrainTimer: ReturnType<typeof setInterval> | null = null;
 
 const landingEvents = new EventChannel<LandingEvent>(allowedOrigins, () => ({
   type: 'landing:state',
@@ -260,10 +266,40 @@ const modules = createToolModules({
   }
 });
 
+/**
+ * Stops accepting new work across every tool, then exits only after the
+ * canonical module list reports that all current work has settled. This lets a
+ * replacement launcher take over without interrupting a user's active task.
+ */
+function requestUpdateDrain(targetBuildId: string) {
+  queue.requestUpdateDrain(targetBuildId);
+  if (shuttingDown || updateDrainTimer) return;
+
+  const finishWhenIdle = () => {
+    if (shuttingDown) {
+      if (updateDrainTimer) clearInterval(updateDrainTimer);
+      updateDrainTimer = null;
+      return;
+    }
+    if (modules.some(module => module.busy())) return;
+    if (updateDrainTimer) clearInterval(updateDrainTimer);
+    updateDrainTimer = null;
+    // Preserve the latest queue state before the native host releases its
+    // lock. The next Agent can then restore exactly the same durable queue.
+    void saveChain.finally(() => shutdown(UPDATE_HANDOFF_EXIT_CODE));
+  };
+
+  updateDrainTimer = setInterval(finishWhenIdle, 250);
+  updateDrainTimer.unref();
+  finishWhenIdle();
+}
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = await buildServer({
   token,
   nativeToken,
+  updateHandoffToken,
+  requestUpdateDrain,
   allowedOrigins,
   entitlementGate,
   config,
@@ -286,7 +322,7 @@ if (config.installedReleasePath) {
       .then(raw => JSON.parse(raw) as { buildId?: unknown })
       .then(installed => {
         if (typeof installed.buildId === 'string' && installed.buildId !== config.buildId) {
-          queue.requestUpdateDrain(installed.buildId);
+          requestUpdateDrain(installed.buildId);
         }
       })
       .catch(() => undefined);
@@ -298,6 +334,7 @@ async function shutdown(code = 0) {
   shuttingDown = true;
   if (mediaToolsTimer) clearInterval(mediaToolsTimer);
   if (installedReleaseTimer) clearInterval(installedReleaseTimer);
+  if (updateDrainTimer) clearInterval(updateDrainTimer);
   try {
     await saveChain;
     await transcriptionSaveChain;

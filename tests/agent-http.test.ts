@@ -41,6 +41,7 @@ import { optimalSettings } from './helpers.js';
 
 const TOKEN = 'test-session-token';
 const NATIVE_TOKEN = 'test-native-token';
+const UPDATE_HANDOFF_TOKEN = 'test-update-handoff-token';
 const ALLOWED_ORIGIN = 'http://127.0.0.1:5173';
 
 interface ServerHandle {
@@ -171,10 +172,13 @@ async function makeServer(options: { entitlementPublicKey?: string } = {}) {
     stateFile: path.join(dir, 'entitlement.json')
   });
 
+  const requestedUpdateBuilds: string[] = [];
   const app = await buildServer({
     logger: false,
     token: TOKEN,
     nativeToken: NATIVE_TOKEN,
+    updateHandoffToken: UPDATE_HANDOFF_TOKEN,
+    requestUpdateDrain: targetBuildId => requestedUpdateBuilds.push(targetBuildId),
     allowedOrigins,
     entitlementGate,
     config: {
@@ -182,9 +186,9 @@ async function makeServer(options: { entitlementPublicKey?: string } = {}) {
       port: 43120,
       publicOrigin: null,
       devOrigin: ALLOWED_ORIGIN,
-      version: '0.0.0-test',
-      buildNumber: '0',
-      buildId: 'test-build',
+      version: '0.9.18',
+      buildNumber: '54',
+      buildId: '0.9.18+54',
       channel: 'test',
       sourceRevision: 'development'
     },
@@ -211,7 +215,8 @@ async function makeServer(options: { entitlementPublicKey?: string } = {}) {
   });
   await app.ready();
   handles.push({ app, dir });
-  return app;
+  Object.defineProperty(app, 'requestedUpdateBuilds', { value: requestedUpdateBuilds });
+  return app as FastifyInstance & { requestedUpdateBuilds: string[] };
 }
 
 function entitlementKit() {
@@ -452,6 +457,53 @@ describe('agent HTTP surface', () => {
     });
     expect(valid.statusCode).toBe(200);
     expect(valid.json()).toEqual({ jobs: [] });
+  });
+
+  it('accepts an authenticated update drain without exposing the Finder bridge token', async () => {
+    const app = await makeServer();
+
+    const missing = await app.inject({
+      method: 'POST',
+      url: '/native/update/drain',
+      payload: { targetBuildId: '0.9.19+55' }
+    });
+    expect(missing.statusCode).toBe(401);
+    expect(missing.json()).toEqual({ error: 'Invalid update handoff token.' });
+
+    const wrongBridgeToken = await app.inject({
+      method: 'POST',
+      url: '/native/update/drain',
+      headers: { 'x-wishly-native-token': NATIVE_TOKEN },
+      payload: { targetBuildId: '0.9.19+55' }
+    });
+    expect(wrongBridgeToken.statusCode).toBe(401);
+
+    const malformed = await app.inject({
+      method: 'POST',
+      url: '/native/update/drain',
+      headers: { 'x-wishly-update-token': UPDATE_HANDOFF_TOKEN },
+      payload: { targetBuildId: 'not a build id' }
+    });
+    expect(malformed.statusCode).toBe(400);
+
+    const older = await app.inject({
+      method: 'POST',
+      url: '/native/update/drain',
+      headers: { 'x-wishly-update-token': UPDATE_HANDOFF_TOKEN },
+      payload: { targetBuildId: '0.9.17+53' }
+    });
+    expect(older.statusCode).toBe(409);
+    expect(older.json()).toEqual({ error: 'UPDATE_TARGET_NOT_NEWER' });
+
+    const accepted = await app.inject({
+      method: 'POST',
+      url: '/native/update/drain',
+      headers: { 'x-wishly-update-token': UPDATE_HANDOFF_TOKEN },
+      payload: { targetBuildId: '0.9.19+55' }
+    });
+    expect(accepted.statusCode).toBe(202);
+    expect(accepted.json()).toEqual({ accepted: true });
+    expect(app.requestedUpdateBuilds).toEqual(['0.9.19+55']);
   });
 
   it('applies a valid settings patch and rejects an invalid one with the same error code', async () => {

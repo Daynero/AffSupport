@@ -71,20 +71,32 @@ describe('Wishly product launcher', () => {
     expect(launcher).toContain('action: #selector(openInterface)');
     const existingInstance = launcher.slice(
       launcher.indexOf('private func handleExistingInstance'),
-      launcher.indexOf('private func offerRunningVersionRestart')
+      launcher.indexOf('private func waitForPreviousAgent')
     );
     expect(existingInstance).not.toContain('openInterface()');
     expect(agent).not.toContain("import open from 'open'");
     expect(agent).not.toContain('Could not open Wishly in the browser');
   });
 
-  it('hands a verified orphaned Agent over to an installed update after confirmation', async () => {
-    const launcher = await readFile('packaging/Launcher.swift', 'utf8');
-    expect(launcher).toContain('replacementRequestedForPortOwner');
+  it('drains an older Agent without exposing a port error to the user', async () => {
+    const [launcher, agent] = await Promise.all([
+      readFile('packaging/Launcher.swift', 'utf8'),
+      readFile('apps/agent/src/index.ts', 'utf8')
+    ]);
+    expect(launcher).toContain('Soty will finish updating after the current task.');
+    expect(launcher).toContain('Restart Soty now…');
+    expect(launcher).not.toContain('An old Agent process is still using port 43120.');
+    expect(launcher).toContain('requestPreviousAgentDrain(fallbackWhenIdle: false)');
+    expect(launcher).toContain('X-Wishly-Update-Token');
+    expect(launcher).toContain('AGENT_UPDATE_HANDOFF_TOKEN');
+    expect(launcher).toContain('updateHandoffExitStatus');
     expect(launcher).toContain('terminateVerifiedAgentListeningOnPort');
     expect(launcher).toContain('Darwin.kill(pid, SIGTERM)');
     expect(launcher).toContain('/Contents/Resources/runtime/node');
     expect(launcher).toContain('/Contents/Resources/agent/dist/index.js');
     expect(launcher).toContain('AGENT_LAUNCHER_PID');
+    expect(agent).toContain('UPDATE_HANDOFF_EXIT_CODE = 76');
+    expect(agent).toContain('modules.some(module => module.busy())');
+    expect(agent).toContain('requestUpdateDrain(targetBuildId)');
   });
 });
