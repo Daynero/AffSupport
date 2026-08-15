@@ -201,7 +201,61 @@ Supabase автоматично надає функції її server-side proje
 
 Функція приймає поточний Supabase JWT, перевіряє його на сервері й видаляє тільки цього користувача. JWT не передається Soty Agent і не логуються.
 
-## 9. Production variables
+## 9. Розгорніть Drive/Team Edge Functions і каталог-синк
+
+Командний простір і Creative Library працюють через набір Edge Functions. **Поки вони не
+задеплоєні, підключення Drive та рекурсивний аналіз папки не працюють — підключена папка
+показує порожньо.**
+
+Задеплойте всі командні функції:
+
+```bash
+for fn in team-invitations drive-connect drive-oauth-callback catalog-sync drive-transfer drive-ops library-ops; do
+  npx supabase functions deploy "$fn" --project-ref YOUR_PROJECT_REF --use-api
+done
+```
+
+### Каталог-синк (рекурсивний аналіз Drive)
+
+Рекурсивний обхід підключеної папки виконує обмежений воркер, який **щохвилини** запускає
+глобальний `pg_cron` через `private.invoke_catalog_sync_worker()`. Ця функція викликає Edge
+Function `catalog-sync` за HTTP і **свідомо нічого не робить (safe no-op)**, якщо не задані два
+Vault-секрети. Без них `public.team_materials` лишається порожньою, і каталог та Library
+показують порожньо, хоча в Drive є вміст.
+
+1. Секрет воркера (той самий рядок використаєте нижче), ≥32 символи:
+
+```bash
+SECRET=$(openssl rand -hex 32)
+npx supabase secrets set CATALOG_SYNC_SECRET="$SECRET" --project-ref YOUR_PROJECT_REF
+echo "$SECRET"
+```
+
+2. Два named Vault-секрети в БД (SQL editor проєкту) — endpoint і той самий секрет:
+
+```sql
+select vault.create_secret(
+  'https://YOUR_PROJECT_REF.supabase.co/functions/v1/catalog-sync',
+  'wishly_catalog_sync_url', 'catalog sync worker endpoint');
+select vault.create_secret(
+  'PASTE_THE_SAME_SECRET',
+  'wishly_catalog_sync_secret', 'catalog sync worker secret');
+```
+
+`wishly_catalog_sync_secret` MUST точно збігатися з `CATALOG_SYNC_SECRET`; відсутність або
+неповний (`< 32` символи) будь-який із двох секретів робить синк тихим no-op.
+
+3. Перевірка:
+
+```sql
+select private.invoke_catalog_sync_worker();          -- має повернути request_id, не null
+-- зачекайте ≤1 хв (cron або цей ручний виклик), тоді:
+select state, phase, attempts, last_error_code
+  from private.catalog_sync_jobs order by created_at desc limit 5;
+select count(*) from public.team_materials;           -- має зростати після підключення папки
+```
+
+## 10. Production variables
 
 Для production build задайте:
 
@@ -224,7 +278,7 @@ VITE_AGENT_URL=http://127.0.0.1:43120
 
 Повний production checklist є в [PRODUCTION.md](./PRODUCTION.md).
 
-## 10. Database types і RLS tests
+## 11. Database types і RLS tests
 
 Після зміни schema згенеруйте TypeScript types і порівняйте їх з `apps/web/src/lib/database.types.ts`:
 
@@ -243,7 +297,7 @@ npx supabase stop
 
 Тести лежать у `supabase/tests/database/rls.test.sql`. Вони перевіряють ізоляцію профілів, заборону зміни plan/status, ownership analytics, admin membership і доступ до aggregates.
 
-## 11. Що Soty навмисно не робить
+## 12. Що Soty навмисно не робить
 
 - не має власних паролів;
 - не зберігає Google access/refresh tokens;

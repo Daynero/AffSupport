@@ -1,3 +1,9 @@
+# v0.9.14
+
+- Keep long task descriptions readable inside Team Workspace cards instead of letting unbroken text overflow the layout.
+- Restore localized update notes in the signed stable release manifest so the updater can validate and show the release correctly.
+- Document the complete production deployment and catalog-sync setup for Team Workspace and Creative Library Edge Functions.
+
 # v0.9.12
 
 - Rebuild video transcription on Whisper’s native voice-activity long-form pass for noticeably more accurate results, especially on ads with long trailing silence.
