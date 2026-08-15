@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
@@ -69,6 +71,20 @@ function item(id: string, name: string, tile: LandingTileState): LandingGalleryI
 }
 
 describe('team landings gallery (presentational)', () => {
+  it('keeps long names inside semantic, theme-aware cards', () => {
+    const styles = readFileSync(resolve(process.cwd(), 'apps/web/src/styles.css'), 'utf8');
+    const rule = (selector: string) =>
+      styles.match(new RegExp(`${selector}\\s*\\{([\\s\\S]*?)\\n\\}`, 'u'))?.[1] ?? '';
+
+    expect(rule('\\.landing-tile-shell')).toContain('min-width: 0;');
+    expect(rule('\\.landing-tile')).toContain('min-width: 0;');
+    expect(rule('\\.landing-tile')).toContain('max-width: 100%;');
+    expect(rule('\\.landing-tile')).toContain('background: var(--color-surface);');
+    expect(rule('\\.landing-tile')).toContain('color: var(--color-text);');
+    expect(rule('\\.landing-tile-name')).toContain('max-width: 100%;');
+    expect(rule('\\.landing-gallery-count')).toContain('color: var(--color-text-muted);');
+  });
+
   it('renders each landing as an openable tile and fires onOpen', () => {
     const onOpen = vi.fn();
     render(

@@ -227,9 +227,7 @@ export interface LandingTileContext {
 export function resolveLandingTileState(ctx: LandingTileContext): LandingTileState {
   if (ctx.hasValidReadyRender) return 'ready';
   if (ctx.renderState === 'rendering') return 'rendering';
-  if (ctx.renderState === 'failed' && ctx.failureReason && ctx.failureReason !== 'render_error') {
-    return 'error';
-  }
+  if (ctx.renderState === 'failed') return 'error';
   if (ctx.isCandidate && !ctx.agentPaired) return 'candidate';
   if (ctx.agentPaired && !ctx.agentCompatible) return 'agent_outdated';
   if (!ctx.agentPaired) return 'needs_agent';

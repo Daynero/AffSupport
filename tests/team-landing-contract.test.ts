@@ -104,6 +104,14 @@ describe('landing gallery contract', () => {
     ).toBe('error');
     expect(
       resolveLandingTileState({
+        ...base,
+        hasValidReadyRender: false,
+        renderState: 'failed',
+        failureReason: 'render_error'
+      })
+    ).toBe('error');
+    expect(
+      resolveLandingTileState({
         isCandidate: false,
         hasValidReadyRender: false,
         agentPaired: false,

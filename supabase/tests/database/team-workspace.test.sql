@@ -1,6 +1,6 @@
 begin;
 
-select plan(242);
+select plan(243);
 
 select has_schema('private', 'private integration schema exists');
 select has_table('public', 'teams', 'teams table exists');
@@ -3148,6 +3148,28 @@ select is(
   ),
   'failed|render_error|1',
   'render failure becomes terminal and emits one shared gallery refetch event'
+);
+
+select public.service_start_landing_render(
+  (select id from pg_temp.us1_created_team),
+  (select id from pg_temp.us4_landing_archive),
+  '10000000-0000-4000-8000-000000000001',
+  'default', '19', 'landing-checksum-19'
+);
+update public.team_landing_renders
+set updated_at = pg_catalog.now() - interval '6 minutes'
+where id = (select id from pg_temp.us6_landing_render);
+select is(
+  (
+    select render_state || '|' || coalesce(failure_reason, '<null>')
+    from public.list_landing_renders(
+      (select id from pg_temp.us1_created_team),
+      array[(select id from pg_temp.us4_landing_archive)],
+      'default'
+    )
+  ),
+  'failed|render_error',
+  'an abandoned rendering row becomes a clear retryable error instead of a permanent spinner'
 );
 
 select * from finish();
