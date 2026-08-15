@@ -13,6 +13,19 @@ export interface CreativeLibraryListClient {
 
 const defaultClient: CreativeLibraryListClient = teamApi;
 
+const NON_CREATIVE_FILENAMES = new Set([
+  '.ds_store',
+  'thumbs.db',
+  'desktop.ini',
+  '_organize_log.json'
+]);
+
+/** Excludes OS/tooling artefacts while retaining ordinary JSON and other useful team files. */
+export function isCreativeLibraryAssetVisible(asset: LibraryAssetSummary): boolean {
+  const name = asset.name.trim().toLocaleLowerCase('en-US');
+  return !NON_CREATIVE_FILENAMES.has(name) && !name.startsWith('._');
+}
+
 function mergeAssets(
   current: LibraryAssetSummary[],
   incoming: LibraryAssetSummary[],
@@ -44,6 +57,7 @@ export function useCreativeLibrary({
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
+  const [cursor, setCursor] = useState<string | null>(null);
   const generation = useRef(0);
 
   const loadFirstPage = useCallback(async () => {
@@ -52,7 +66,8 @@ export function useCreativeLibrary({
     try {
       const next = await client.listLibraryMaterials({ teamId, stage, pageSize });
       if (requestGeneration !== generation.current) return;
-      setItems(next);
+      setItems(next.filter(isCreativeLibraryAssetVisible));
+      setCursor(next.at(-1)?.id ?? null);
       setHasMore(next.length === pageSize);
       setError(null);
     } catch (cause) {
@@ -73,12 +88,12 @@ export function useCreativeLibrary({
   }, [loadFirstPage, revision]);
 
   const loadMore = useCallback(async () => {
-    const cursor = items.at(-1)?.id;
     if (!cursor || loading || loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
       const next = await client.listLibraryMaterials({ teamId, stage, cursor, pageSize });
-      setItems(current => mergeAssets(current, next));
+      setItems(current => mergeAssets(current, next.filter(isCreativeLibraryAssetVisible)));
+      setCursor(next.at(-1)?.id ?? cursor);
       setHasMore(next.length === pageSize);
       setError(null);
     } catch (cause) {
@@ -86,9 +101,10 @@ export function useCreativeLibrary({
     } finally {
       setLoadingMore(false);
     }
-  }, [client, hasMore, items, loading, loadingMore, pageSize, stage, teamId]);
+  }, [client, cursor, hasMore, loading, loadingMore, pageSize, stage, teamId]);
 
   const insertOptimistic = useCallback((asset: LibraryAssetSummary) => {
+    if (!isCreativeLibraryAssetVisible(asset)) return;
     setItems(current => mergeAssets(current, [asset], true));
   }, []);
 

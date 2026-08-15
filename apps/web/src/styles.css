@@ -10827,6 +10827,13 @@ body {
 .creative-library-card-state {
   margin: 0;
 }
+.creative-library-heading-hint {
+  max-width: 58ch;
+  margin-top: var(--space-1) !important;
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
 .creative-library-heading-actions,
 .creative-library-card-actions {
   flex-wrap: wrap;
@@ -10839,10 +10846,12 @@ body {
 }
 .creative-library-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: var(--space-3);
 }
 .creative-library-card {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--color-border);
@@ -10856,10 +10865,15 @@ body {
 }
 .creative-library-card-preview {
   aspect-ratio: 16 / 9;
+  position: relative;
   display: grid;
   place-items: center;
   align-content: center;
   gap: var(--space-2);
+  width: 100%;
+  overflow: hidden;
+  border: 0;
+  padding: 0;
   background:
     radial-gradient(
       circle at 30% 20%,
@@ -10868,15 +10882,60 @@ body {
     ),
     var(--color-surface-muted);
   color: var(--color-text-muted);
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
 }
-.creative-library-card-preview > span {
+.creative-library-card-preview:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: -3px;
+}
+.creative-library-card-preview:disabled {
+  cursor: default;
+}
+.creative-library-card-preview-media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-standard);
+}
+.creative-library-card-preview[data-preview-state='ready'] .creative-library-card-preview-media {
+  opacity: 1;
+}
+.creative-library-card-preview-fallback {
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  max-width: calc(100% - var(--space-4));
+  transition: opacity var(--dur-fast) var(--ease-standard);
+}
+.creative-library-card-preview[data-preview-state='ready'] .creative-library-card-preview-fallback {
+  opacity: 0;
+}
+.creative-library-card-preview-fallback > span {
   font-size: 2rem;
 }
-.creative-library-card-preview small {
+.creative-library-card-preview-fallback small {
   max-width: calc(100% - var(--space-4));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.creative-library-card-preview-cta {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  z-index: 2;
+  border-radius: 999px;
+  background: color-mix(in oklab, #000 68%, transparent);
+  padding: 4px 9px;
+  color: #fff;
+  font-size: 0.76rem;
+  line-height: 1.2;
 }
 .creative-library-card-body {
   display: grid;
@@ -10907,9 +10966,30 @@ body {
   font-size: 0.72rem;
   white-space: nowrap;
 }
+.creative-library-card-tags .creative-library-card-needs-metadata {
+  background: color-mix(in oklab, var(--color-warning) 14%, var(--color-surface-muted));
+  color: var(--color-text);
+}
 .creative-library-card-state {
   color: var(--color-text-muted);
   font-size: 0.78rem;
+}
+.creative-library-card-state[data-placement-state='unplaced'] {
+  color: var(--color-warning);
+}
+.creative-library-card-primary-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+.creative-library-card-primary-actions .button {
+  min-width: 0;
+  flex: 1 1 0;
+}
+.creative-library-card-more-actions {
+  display: grid;
+  gap: var(--space-2);
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--color-border);
 }
 .creative-library-empty {
   display: grid;
@@ -10992,7 +11072,7 @@ body {
 .creative-library-share-actions .team-inline-error {
   flex-basis: 100%;
 }
-.creative-library-card .creative-library-card-actions,
+.creative-library-card .creative-library-card-more-actions,
 .creative-library-card .creative-library-text-actions,
 .creative-library-card .creative-library-share-actions {
   display: grid;
@@ -11000,7 +11080,7 @@ body {
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
 }
-.creative-library-card .creative-library-card-actions .button,
+.creative-library-card .creative-library-card-more-actions .button,
 .creative-library-card .creative-library-text-actions .button,
 .creative-library-card .creative-library-share-actions .button {
   min-width: 0;

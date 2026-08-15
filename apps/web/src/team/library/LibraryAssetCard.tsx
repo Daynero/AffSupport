@@ -1,8 +1,13 @@
+import { useState } from 'react';
 import type { LibraryAssetSummary } from '@video-compressor/shared';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
 import { VideoTextActions } from './VideoTextActions';
 import { LibraryShareActions } from './LibraryShareActions';
+import {
+  LibraryAssetVisualPreview,
+  type LibraryAssetVisualPreviewClient
+} from './LibraryAssetVisualPreview';
 
 function sizeLabel(sizeBytes: number | null): string | null {
   if (sizeBytes === null) return null;
@@ -12,13 +17,11 @@ function sizeLabel(sizeBytes: number | null): string | null {
   return `${(sizeBytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
 }
 
-function categoryGlyph(asset: LibraryAssetSummary): string {
-  if (asset.category === 'video') return '▶';
-  if (asset.category === 'image') return '▧';
-  if (asset.category === 'landing') return '◇';
-  if (asset.category === 'transcript') return '≡';
-  if (asset.category === 'archive') return '▦';
-  return '▤';
+function isUsefulMetadata(value: string): boolean {
+  const normalized = value.trim().toLocaleLowerCase('en-US');
+  return (
+    normalized.length > 0 && normalized !== 'unknown' && normalized !== 'n/a' && normalized !== '-'
+  );
 }
 
 export function LibraryAssetCard({
@@ -29,7 +32,8 @@ export function LibraryAssetCard({
   onPreview,
   onCreateTask,
   onEditPlacement,
-  onTranscribe
+  onTranscribe,
+  previewClient
 }: {
   asset: LibraryAssetSummary;
   selected?: boolean;
@@ -39,29 +43,25 @@ export function LibraryAssetCard({
   onCreateTask?: (asset: LibraryAssetSummary) => void;
   onEditPlacement?: (asset: LibraryAssetSummary) => void;
   onTranscribe?: (asset: LibraryAssetSummary) => void;
+  previewClient?: LibraryAssetVisualPreviewClient;
 }) {
   const { t } = useI18n();
+  const [actionsOpen, setActionsOpen] = useState(false);
   const size = sizeLabel(asset.sizeBytes);
-  const thumbnailLabel =
-    asset.thumbnailState === 'ready'
-      ? asset.category === 'video'
-        ? t('creativeLibraryVideoFrame', { seconds: (asset.thumbnailTimeMs ?? 1_000) / 1_000 })
-        : t('creativeLibraryPreviewReady')
-      : asset.thumbnailState === 'running'
-        ? t('creativeLibraryEnrichmentPending')
-        : asset.thumbnailState === 'pending'
-          ? t('creativeLibraryPreviewPending')
-          : t('creativeLibraryPreviewUnavailable');
+  const metadata = [asset.offer, asset.language, asset.type].filter(isUsefulMetadata);
+  const placementLabel =
+    asset.placementState === 'ready'
+      ? t('creativeLibraryPlacementReady')
+      : asset.placementState === 'unplaced'
+        ? t('creativeLibraryPlacementNeedsAttention')
+        : t('creativeLibraryPlacementState', { state: asset.placementState });
 
   return (
     <article
       className={`creative-library-card ${selected ? 'is-selected' : ''}`.trim()}
       data-placement-state={asset.placementState}
     >
-      <div className="creative-library-card-preview" data-thumbnail-state={asset.thumbnailState}>
-        <span aria-hidden="true">{categoryGlyph(asset)}</span>
-        <small>{thumbnailLabel}</small>
-      </div>
+      <LibraryAssetVisualPreview asset={asset} onPreview={onPreview} client={previewClient} />
       <div className="creative-library-card-body">
         <div className="creative-library-card-title">
           {selectable && (
@@ -75,48 +75,50 @@ export function LibraryAssetCard({
           <strong title={asset.name}>{asset.name}</strong>
         </div>
         <div className="creative-library-card-tags">
-          <span>{asset.offer}</span>
-          <span>{asset.language || 'unknown'}</span>
-          <span>{asset.type}</span>
+          {metadata.length > 0 ? (
+            metadata.map((value, index) => <span key={`${value}-${index}`}>{value}</span>)
+          ) : (
+            <span className="creative-library-card-needs-metadata">
+              {t('creativeLibraryMetadataMissing')}
+            </span>
+          )}
           {size && <span>{size}</span>}
         </div>
-        <p className="creative-library-card-state">
-          {asset.placementState === 'ready'
-            ? t('creativeLibraryPlacementReady')
-            : t('creativeLibraryPlacementState', { state: asset.placementState })}
+        <p className="creative-library-card-state" data-placement-state={asset.placementState}>
+          {placementLabel}
         </p>
-        {(onPreview || onCreateTask || onEditPlacement) && (
-          <div className="creative-library-card-actions">
-            {onPreview && (
-              <Button
-                type="button"
-                variant="ghost"
-                aria-label={t('teamCatalogPreviewFor', { name: asset.name })}
-                onClick={() => onPreview(asset)}
-              >
-                {t('teamCatalogPreview')}
-              </Button>
-            )}
-            {onCreateTask && (
-              <Button type="button" variant="ghost" onClick={() => onCreateTask(asset)}>
-                {t('creativeLibraryCreateTask')}
-              </Button>
-            )}
+        <div className="creative-library-card-primary-actions">
+          {onCreateTask && (
+            <Button type="button" variant="secondary" onClick={() => onCreateTask(asset)}>
+              {t('creativeLibraryCreateTask')}
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            aria-expanded={actionsOpen}
+            onClick={() => setActionsOpen(current => !current)}
+          >
+            {actionsOpen ? t('creativeLibraryLessActions') : t('creativeLibraryMoreActions')}
+          </Button>
+        </div>
+        {actionsOpen && (
+          <div className="creative-library-card-more-actions">
             {onEditPlacement && (
               <Button type="button" variant="ghost" onClick={() => onEditPlacement(asset)}>
                 {t('creativeLibraryEditPlacement')}
               </Button>
             )}
+            {asset.category === 'video' && onTranscribe && (
+              <VideoTextActions
+                teamId={asset.teamId}
+                videoId={asset.id}
+                onTranscribe={() => onTranscribe(asset)}
+              />
+            )}
+            <LibraryShareActions teamId={asset.teamId} materialId={asset.id} />
           </div>
         )}
-        {asset.category === 'video' && onTranscribe && (
-          <VideoTextActions
-            teamId={asset.teamId}
-            videoId={asset.id}
-            onTranscribe={() => onTranscribe(asset)}
-          />
-        )}
-        <LibraryShareActions teamId={asset.teamId} materialId={asset.id} />
       </div>
     </article>
   );

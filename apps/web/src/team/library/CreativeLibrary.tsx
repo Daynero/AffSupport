@@ -168,6 +168,9 @@ export function CreativeLibrary({
           <h2 id="creative-library-title">
             {stage === 'library' ? t('creativeLibraryTitle') : t('creativeLibraryFinds')}
           </h2>
+          <p className="creative-library-heading-hint">
+            {stage === 'library' ? t('creativeLibraryLibraryHint') : t('creativeLibraryFindsHint')}
+          </p>
         </div>
         <div className="creative-library-heading-actions">
           <Button

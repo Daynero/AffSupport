@@ -8,6 +8,7 @@ import { DEFAULT_ROLE_PERMISSIONS, type LibraryAssetSummary } from '@video-compr
 import { MaterialBrowser } from '../apps/web/src/team/catalog/MaterialBrowser';
 import { CreativeLibrary } from '../apps/web/src/team/library/CreativeLibrary';
 import { LibraryAssetCard } from '../apps/web/src/team/library/LibraryAssetCard';
+import { isCreativeLibraryAssetVisible } from '../apps/web/src/team/library/useCreativeLibrary';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { teamApi } from '../apps/web/src/api/team';
 import { TaskDateFilterControl } from '../apps/web/src/team/tasks/TaskDateFilter';
@@ -40,22 +41,53 @@ afterEach(() => {
 });
 
 describe('Creative Library workspace controls', () => {
-  it('wraps narrow-card actions instead of clipping their labels', () => {
+  it('keeps secondary card actions collapsed instead of turning every card into a button stack', () => {
     const styles = readFileSync(resolve(process.cwd(), 'apps/web/src/styles.css'), 'utf8');
 
-    expect(styles).toContain('.creative-library-card .creative-library-card-actions,');
+    expect(styles).toContain('.creative-library-card .creative-library-card-more-actions,');
     expect(styles).toContain('grid-template-columns: minmax(0, 1fr);');
-    expect(styles).toContain('.creative-library-card .creative-library-card-actions .button,');
+    expect(styles).toContain('.creative-library-card .creative-library-card-more-actions .button,');
     expect(styles).toContain('box-sizing: border-box;');
     expect(styles).toContain('white-space: normal;');
     expect(styles).toContain('overflow-wrap: anywhere;');
   });
 
-  it('distinguishes a queued thumbnail from an actively running preview', () => {
+  it('uses a real preview request rather than telling the user to wait for an absent thumbnail job', () => {
     render(<LibraryAssetCard asset={{ ...asset, thumbnailState: 'pending' }} />);
 
-    expect(screen.getByText('Preview not created yet')).toBeTruthy();
+    expect(screen.getByText('Loading preview…')).toBeTruthy();
+    expect(screen.queryByText('Preview not created yet')).toBeNull();
     expect(screen.queryByText('Preparing preview…')).toBeNull();
+  });
+
+  it('loads a safe video URL only for the visible card and seeks a real frame at one second', async () => {
+    const previewMaterial = vi.fn().mockResolvedValue({
+      kind: 'media',
+      rangeUrl: 'https://preview.example/launch.mp4',
+      mimeType: 'video/mp4',
+      expiresAt: '2026-08-15T12:00:00.000Z'
+    });
+    render(
+      <LibraryAssetCard asset={asset} onPreview={vi.fn()} previewClient={{ previewMaterial }} />
+    );
+
+    const video = await waitFor(() => {
+      const element = document.querySelector('video');
+      expect(element).toBeTruthy();
+      return element as HTMLVideoElement;
+    });
+    const setCurrentTime = vi.fn();
+    Object.defineProperty(video, 'duration', { configurable: true, value: 15 });
+    Object.defineProperty(video, 'currentTime', { configurable: true, set: setCurrentTime });
+    fireEvent.loadedMetadata(video);
+    fireEvent.seeked(video);
+
+    expect(previewMaterial).toHaveBeenCalledWith(asset.teamId, asset.id, 'media');
+    expect(video.getAttribute('src')).toBe('https://preview.example/launch.mp4');
+    expect(setCurrentTime).toHaveBeenCalledWith(1);
+    expect(
+      video.closest('.creative-library-card-preview')?.getAttribute('data-preview-state')
+    ).toBe('ready');
   });
 
   it('offers selection, task creation, placement correction and a one-second video preview', async () => {
@@ -75,10 +107,11 @@ describe('Creative Library workspace controls', () => {
         onTranscribe={onTranscribe}
       />
     );
-    expect(screen.getByText('Frame at 1s')).toBeTruthy();
+    expect(screen.getByText('Loading preview…')).toBeTruthy();
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select launch.mp4' }));
     fireEvent.click(screen.getByRole('button', { name: 'Preview launch.mp4' }));
     fireEvent.click(screen.getByRole('button', { name: 'Create task' }));
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
     fireEvent.click(screen.getByRole('button', { name: 'Edit Drive placement' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Transcribe' }));
     expect(onSelect).toHaveBeenCalledWith(true);
@@ -86,6 +119,13 @@ describe('Creative Library workspace controls', () => {
     expect(onCreateTask).toHaveBeenCalledWith(asset);
     expect(onEditPlacement).toHaveBeenCalledWith(asset);
     expect(onTranscribe).toHaveBeenCalledWith(asset);
+  });
+
+  it('hides operating-system and organizer artefacts without hiding normal creative files', () => {
+    expect(isCreativeLibraryAssetVisible({ ...asset, name: '.DS_Store' })).toBe(false);
+    expect(isCreativeLibraryAssetVisible({ ...asset, name: '._launch.mp4' })).toBe(false);
+    expect(isCreativeLibraryAssetVisible({ ...asset, name: '_organize_log.json' })).toBe(false);
+    expect(isCreativeLibraryAssetVisible({ ...asset, name: 'landing-config.json' })).toBe(true);
   });
 
   it('keeps calendar, Today, Yesterday and All Time as accessible explicit filters', () => {
@@ -221,7 +261,9 @@ describe('Creative Library workspace controls', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Preview launch.mp4' }));
     expect(await screen.findByRole('dialog', { name: 'launch.mp4' })).toBeTruthy();
-    await waitFor(() => expect(previewMaterial).toHaveBeenCalledWith(asset.teamId, asset.id, 'media'));
+    await waitFor(() =>
+      expect(previewMaterial).toHaveBeenCalledWith(asset.teamId, asset.id, 'media')
+    );
     expect(document.querySelector('video')?.getAttribute('src')).toBe(
       'https://preview.example/launch.mp4'
     );
@@ -265,6 +307,7 @@ describe('Creative Library workspace controls', () => {
         />
       </TeamProvider>
     );
+    fireEvent.click(await screen.findByRole('button', { name: 'More actions' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Edit Drive placement' }));
     fireEvent.change(screen.getByLabelText('Media language'), { target: { value: 'en' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save task' }));
