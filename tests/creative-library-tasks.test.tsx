@@ -170,6 +170,34 @@ describe('Creative Library task workflows', () => {
     expect(screen.queryByLabelText('Video preview for launch.mp4 at one second')).toBeNull();
   });
 
+  it('keeps the attachment count after an inline progress update', async () => {
+    localStorage.setItem('wishly.active-team.v1', TEAM_ID);
+    const api = client();
+    api.listTasks = vi.fn().mockResolvedValue([task()]);
+    // update_team_task returns a team_tasks row, so its RPC shape has no
+    // derived attachment_count field.
+    api.updateTask = vi.fn().mockResolvedValue({ ...task(), progressValue: 1, attachmentCount: 0 });
+    const team = {
+      id: TEAM_ID,
+      name: 'Creative team',
+      role: 'editor' as const,
+      permissions: DEFAULT_ROLE_PERMISSIONS.editor,
+      connectionState: 'connected' as const
+    };
+    render(
+      <TeamProvider initialTeams={[team]} realtime={false}>
+        <TaskSpace teamId={TEAM_ID} client={api} />
+      </TeamProvider>
+    );
+
+    await screen.findByText('1 attachments');
+    fireEvent.keyDown(screen.getByRole('slider', { name: 'Progress scale' }), {
+      key: 'ArrowRight'
+    });
+    await waitFor(() => expect(api.updateTask).toHaveBeenCalledOnce());
+    expect(screen.getByText('1 attachments')).toBeTruthy();
+  });
+
   it('creates a task from an asset reference and opens it immediately', async () => {
     localStorage.setItem('wishly.active-team.v1', TEAM_ID);
     const api = client();

@@ -151,8 +151,12 @@ export function useTasks({
         ...patch,
         expectedUpdatedAt: task.updatedAt
       });
-      setTasks(current => current.map(item => (item.id === updated.id ? updated : item)));
-      return updated;
+      // update_team_task returns a team_tasks row, which deliberately does not
+      // include the derived attachment count. A quick status/progress edit must
+      // not make an otherwise attached card briefly look empty.
+      const next = { ...updated, attachmentCount: task.attachmentCount };
+      setTasks(current => current.map(item => (item.id === next.id ? next : item)));
+      return next;
     },
     [client, teamId]
   );
