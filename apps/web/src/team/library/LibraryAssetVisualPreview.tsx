@@ -48,10 +48,12 @@ export function LibraryAssetVisualPreview({
   const [visible, setVisible] = useState(false);
   const [state, setState] = useState<'idle' | 'loading' | 'ready' | 'unavailable'>('idle');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
 
   useEffect(() => {
     setVisible(false);
     setPreviewUrl(null);
+    setThumbnailUrl(null);
     setState('idle');
     if (!visualMedia || !onPreview) return;
     const element = root.current;
@@ -84,6 +86,7 @@ export function LibraryAssetVisualPreview({
           return;
         }
         setPreviewUrl(result.rangeUrl);
+        setThumbnailUrl(result.thumbnailUrl ?? null);
       })
       .catch(() => {
         if (active) setState('unavailable');
@@ -94,6 +97,7 @@ export function LibraryAssetVisualPreview({
   }, [asset.id, asset.teamId, client, visible, visualMedia]);
 
   const markUnavailable = () => setState('unavailable');
+  const fallBackToRangePreview = () => setThumbnailUrl(null);
   const seekVideoFrame = () => {
     const element = video.current;
     if (!element) return;
@@ -130,7 +134,17 @@ export function LibraryAssetVisualPreview({
       disabled={!onPreview}
       onClick={() => onPreview?.(asset)}
     >
-      {asset.category === 'video' && previewUrl && (
+      {thumbnailUrl && (
+        <img
+          className="creative-library-card-preview-media"
+          src={thumbnailUrl}
+          alt=""
+          referrerPolicy="no-referrer"
+          onLoad={() => setState('ready')}
+          onError={fallBackToRangePreview}
+        />
+      )}
+      {asset.category === 'video' && previewUrl && !thumbnailUrl && (
         <video
           ref={element => {
             video.current = element;
@@ -148,7 +162,7 @@ export function LibraryAssetVisualPreview({
           onError={markUnavailable}
         />
       )}
-      {asset.category === 'image' && previewUrl && (
+      {asset.category === 'image' && previewUrl && !thumbnailUrl && (
         <img
           className="creative-library-card-preview-media"
           src={previewUrl}

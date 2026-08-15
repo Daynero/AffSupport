@@ -121,6 +121,8 @@ export type TeamPreviewResult =
   | {
       kind: 'media';
       rangeUrl: string;
+      /** A short-lived, server-proxied Drive thumbnail for collection cards. */
+      thumbnailUrl?: string;
       mimeType: string;
       expiresAt: string;
     }
@@ -372,9 +374,12 @@ export function parseTeamTransferGrant(value: unknown): TeamTransferGrant | null
 export function parseTeamPreviewResult(value: unknown): TeamPreviewResult | null {
   if (!isRecord(value)) return null;
   if (value.kind === 'media') {
+    const thumbnailUrl = value.thumbnailUrl;
     if (
       typeof value.rangeUrl !== 'string' ||
       !/^https?:\/\//u.test(value.rangeUrl) ||
+      (thumbnailUrl !== undefined &&
+        (typeof thumbnailUrl !== 'string' || !/^https?:\/\//u.test(thumbnailUrl))) ||
       typeof value.mimeType !== 'string' ||
       value.mimeType.length < 3 ||
       typeof value.expiresAt !== 'string' ||
@@ -385,6 +390,7 @@ export function parseTeamPreviewResult(value: unknown): TeamPreviewResult | null
     return {
       kind: 'media',
       rangeUrl: value.rangeUrl,
+      ...(typeof thumbnailUrl === 'string' ? { thumbnailUrl } : {}),
       mimeType: value.mimeType,
       expiresAt: value.expiresAt
     };

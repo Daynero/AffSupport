@@ -90,6 +90,32 @@ describe('Creative Library workspace controls', () => {
     ).toBe('ready');
   });
 
+  it('uses the short-lived thumbnail relay before downloading a video range for a card', async () => {
+    const previewMaterial = vi.fn().mockResolvedValue({
+      kind: 'media',
+      rangeUrl: 'https://preview.example/launch.mp4',
+      thumbnailUrl: 'https://preview.example/thumbnail.webp',
+      mimeType: 'video/mp4',
+      expiresAt: '2026-08-15T12:00:00.000Z'
+    });
+    render(
+      <LibraryAssetCard asset={asset} onPreview={vi.fn()} previewClient={{ previewMaterial }} />
+    );
+
+    const thumbnail = await waitFor(() => {
+      const element = document.querySelector('img.creative-library-card-preview-media');
+      expect(element).toBeTruthy();
+      return element as HTMLImageElement;
+    });
+    expect(thumbnail.getAttribute('src')).toBe('https://preview.example/thumbnail.webp');
+    fireEvent.load(thumbnail);
+
+    expect(
+      thumbnail.closest('.creative-library-card-preview')?.getAttribute('data-preview-state')
+    ).toBe('ready');
+    expect(document.querySelector('.creative-library-card-preview video')).toBeNull();
+  });
+
   it('offers selection, task creation, placement correction and a one-second video preview', async () => {
     const onSelect = vi.fn();
     const onPreview = vi.fn();

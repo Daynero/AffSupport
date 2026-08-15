@@ -54,6 +54,14 @@ import {
 
 const WEBP_MIME_TYPE = 'image/webp';
 const LANDING_RENDER_GRANT_TTL_MS = 20 * 60 * 1000;
+const MAX_THUMBNAIL_BYTES = 4 * 1024 * 1024;
+const THUMBNAIL_MIME_TYPES = new Set([
+  'image/avif',
+  'image/gif',
+  'image/jpeg',
+  'image/png',
+  'image/webp'
+]);
 
 interface RpcFailure {
   code?: string;
@@ -318,6 +326,16 @@ function rangeEndpoint(request: Request) {
   url.search = '';
   url.hash = '';
   if (!url.pathname.endsWith('/range')) url.pathname = `${url.pathname.replace(/\/$/u, '')}/range`;
+  return url.toString();
+}
+
+function thumbnailEndpoint(request: Request) {
+  const url = publicEndpointUrl(new URL(request.url));
+  url.search = '';
+  url.hash = '';
+  if (!url.pathname.endsWith('/thumbnail')) {
+    url.pathname = `${url.pathname.replace(/\/$/u, '')}/thumbnail`;
+  }
   return url.toString();
 }
 
@@ -631,6 +649,70 @@ async function handleRange(request: Request, service: RpcClient, cors: Record<st
   for (const [name, value] of Object.entries(cors)) headers.set(name, value);
   return new Response(boundedResponseBody(upstream.body, contentLength), {
     status: upstream.status === 206 ? 206 : 200,
+    headers
+  });
+}
+
+/**
+ * Proxies only the provider-generated still image used in a collection card.
+ * It repeats the grant, live-ancestry and Drive-capability checks from the
+ * range relay, so the thumbnail never turns into a durable public Drive URL.
+ */
+async function handleThumbnail(request: Request, service: RpcClient, cors: Record<string, string>) {
+  const url = new URL(request.url);
+  const ticket = url.searchParams.get('grant') ?? '';
+  const grant = await consumeGrant(service, ticket, 'preview_range');
+  if (!grant) throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+  const context = transferContext(
+    await rpcValue(service, 'service_get_material_transfer_context', {
+      p_team: grant.teamId,
+      p_material: grant.materialId,
+      p_actor: grant.actorId
+    })
+  );
+  if (!context) throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+  const drive = await driveClient(service, context.credentialId, request);
+  const live = await proveLiveAncestry({
+    client: drive,
+    fileId: context.driveFileId,
+    rootFolderId: context.rootFolderId,
+    resourceKey: context.resourceKey
+  });
+  requireDriveCapability(live, 'canDownload');
+  if (
+    (!live.mimeType.startsWith('video/') && !live.mimeType.startsWith('image/')) ||
+    !live.thumbnailLink
+  ) {
+    throw new TeamFunctionError('UNSUPPORTED_MEDIA', { retryable: false });
+  }
+  const upstream = await drive.fetchThumbnail({
+    thumbnailLink: live.thumbnailLink,
+    signal: request.signal
+  });
+  const mimeType =
+    upstream.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase() ?? '';
+  const rawLength = upstream.headers.get('content-length');
+  const contentLength = rawLength && /^\d+$/u.test(rawLength) ? Number(rawLength) : Number.NaN;
+  if (
+    !THUMBNAIL_MIME_TYPES.has(mimeType) ||
+    !Number.isSafeInteger(contentLength) ||
+    contentLength < 1 ||
+    contentLength > MAX_THUMBNAIL_BYTES
+  ) {
+    await upstream.body?.cancel().catch(() => undefined);
+    throw new TeamFunctionError(
+      Number.isSafeInteger(contentLength) && contentLength > MAX_THUMBNAIL_BYTES
+        ? 'TOO_LARGE'
+        : 'INVALID_RESPONSE',
+      { retryable: false }
+    );
+  }
+  const headers = forwardedRangeHeaders(upstream.headers, mimeType, 'inline');
+  headers.delete('accept-ranges');
+  headers.delete('content-range');
+  for (const [name, value] of Object.entries(cors)) headers.set(name, value);
+  return new Response(boundedResponseBody(upstream.body, contentLength), {
+    status: 200,
     headers
   });
 }
@@ -1105,6 +1187,9 @@ Deno.serve(async request => {
     if (request.method === 'GET' && url.pathname.endsWith('/render-range')) {
       return await handleLandingRenderRange(request, configured.service, cors);
     }
+    if (request.method === 'GET' && url.pathname.endsWith('/thumbnail')) {
+      return await handleThumbnail(request, configured.service, cors);
+    }
     if (request.method === 'GET' && url.pathname.endsWith('/range')) {
       return await handleRange(request, configured.service, cors);
     }
@@ -1216,7 +1301,10 @@ Deno.serve(async request => {
       material,
       mode.value as PreviewMode,
       (value, binding) => issueGrant(configured.service, value, userId, binding),
-      { rangeEndpoint: rangeEndpoint(request) }
+      {
+        rangeEndpoint: rangeEndpoint(request),
+        thumbnailEndpoint: thumbnailEndpoint(request)
+      }
     );
     return successResponse(result, cors);
   } catch (error) {

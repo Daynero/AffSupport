@@ -30,6 +30,7 @@ export interface DriveFileMetadata {
   version: string | null;
   checksum: string | null;
   webViewLink?: string | null;
+  thumbnailLink?: string | null;
 }
 
 export interface DriveChange {
@@ -52,7 +53,8 @@ const FILE_FIELDS = [
   'modifiedTime',
   'version',
   'md5Checksum',
-  'webViewLink'
+  'webViewLink',
+  'thumbnailLink'
 ].join(',');
 
 function parseCapabilities(value: unknown): DriveCapabilities | null {
@@ -107,7 +109,8 @@ function parseMetadata(value: unknown): DriveFileMetadata | null {
     modifiedAt: typeof value.modifiedTime === 'string' ? value.modifiedTime : null,
     version: typeof value.version === 'string' ? value.version : null,
     checksum: typeof value.md5Checksum === 'string' ? value.md5Checksum : null,
-    webViewLink: typeof value.webViewLink === 'string' ? value.webViewLink : null
+    webViewLink: typeof value.webViewLink === 'string' ? value.webViewLink : null,
+    thumbnailLink: typeof value.thumbnailLink === 'string' ? value.thumbnailLink : null
   };
 }
 
@@ -396,6 +399,33 @@ export class GoogleDriveClient {
     });
   }
 
+  /**
+   * Reads the provider-generated visual thumbnail without exposing the provider
+   * URL or the shared Drive credential to the browser.  Drive owns this URL;
+   * we still restrict it to Google's image hosts before requesting it.
+   */
+  async fetchThumbnail(input: { thumbnailLink: string; signal?: AbortSignal }): Promise<Response> {
+    let url: URL;
+    try {
+      url = new URL(input.thumbnailLink);
+    } catch {
+      throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+    }
+    if (
+      url.protocol !== 'https:' ||
+      url.username ||
+      url.password ||
+      url.hash ||
+      !isGoogleThumbnailHost(url.hostname)
+    ) {
+      throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+    }
+    return this.#request(url, {
+      headers: { accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8' },
+      signal: input.signal
+    });
+  }
+
   async startResumableUpload(input: {
     name: string;
     mimeType: string;
@@ -581,6 +611,16 @@ export class GoogleDriveClient {
     if (response.status === 429) throw new TeamFunctionError('RATE_LIMITED', { retryable: true });
     throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: response.status >= 500 });
   }
+}
+
+function isGoogleThumbnailHost(hostname: string): boolean {
+  const host = hostname.toLocaleLowerCase('en-US');
+  return (
+    host === 'drive.google.com' ||
+    host === 'docs.google.com' ||
+    host === 'googleusercontent.com' ||
+    host.endsWith('.googleusercontent.com')
+  );
 }
 
 export async function proveLiveAncestry(input: {
