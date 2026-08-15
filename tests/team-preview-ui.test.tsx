@@ -78,6 +78,9 @@ describe('team material preview UI', () => {
     const media = container.querySelector(tag);
     expect(media?.getAttribute('src')).toContain('grant=opaque');
     expect(media?.getAttribute('referrerpolicy')).toBe('no-referrer');
+    if (category === 'video') fireEvent.loadedData(media!);
+    else fireEvent.load(media!);
+    await waitFor(() => expect(screen.queryByText('Preparing preview…')).toBeNull());
     expect(previewClient.requestPreview).toHaveBeenCalledWith(
       TEAM_ID,
       `material-${category}`,

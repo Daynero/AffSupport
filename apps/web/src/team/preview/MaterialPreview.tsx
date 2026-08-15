@@ -107,6 +107,8 @@ export function MaterialPreview({
 }) {
   const { t } = useI18n();
   const [state, setState] = useState<DisplayState>({ kind: 'loading' });
+  const [loadedMediaKey, setLoadedMediaKey] = useState<string | null>(null);
+  const [failedMediaKey, setFailedMediaKey] = useState<string | null>(null);
   const operationId = useRef<string | null>(null);
   const closed = useRef(new Set<string>());
 
@@ -182,6 +184,15 @@ export function MaterialPreview({
   const download = () => client.downloadMaterial?.(teamId, material.id);
   const edit = () => client.editText?.(teamId, material.id);
   const createVersion = () => client.createVersion?.(teamId, material.id);
+  const mediaKey = state.kind === 'media' ? `${material.id}:${state.rangeUrl}` : null;
+  const mediaLoading = mediaKey !== null && mediaKey !== loadedMediaKey && mediaKey !== failedMediaKey;
+  const mediaFailed = mediaKey !== null && mediaKey === failedMediaKey;
+  const markMediaReady = () => {
+    if (mediaKey) setLoadedMediaKey(mediaKey);
+  };
+  const markMediaFailed = () => {
+    if (mediaKey) setFailedMediaKey(mediaKey);
+  };
 
   return (
     <div className="team-preview-backdrop" role="presentation">
@@ -217,16 +228,39 @@ export function MaterialPreview({
                     : t('teamPreviewLoadFailed')}
             </p>
           )}
-          {state.kind === 'media' && material.category === 'video' && (
-            <video
-              ref={element => element?.setAttribute('referrerpolicy', 'no-referrer')}
-              controls
-              preload="metadata"
-              src={state.rangeUrl}
-            />
-          )}
-          {state.kind === 'media' && material.category === 'image' && (
-            <img src={state.rangeUrl} alt={material.name} referrerPolicy="no-referrer" />
+          {state.kind === 'media' && (
+            <>
+              {mediaLoading && (
+                <p className="team-preview-media-status" aria-live="polite">
+                  {t('teamPreviewLoading')}
+                </p>
+              )}
+              {mediaFailed && (
+                <p className="team-inline-error" role="alert">
+                  {t('teamPreviewLoadFailed')}
+                </p>
+              )}
+              {!mediaFailed && material.category === 'video' && (
+                <video
+                  ref={element => element?.setAttribute('referrerpolicy', 'no-referrer')}
+                  controls
+                  preload="metadata"
+                  src={state.rangeUrl}
+                  onLoadedData={markMediaReady}
+                  onCanPlay={markMediaReady}
+                  onError={markMediaFailed}
+                />
+              )}
+              {!mediaFailed && material.category === 'image' && (
+                <img
+                  src={state.rangeUrl}
+                  alt={material.name}
+                  referrerPolicy="no-referrer"
+                  onLoad={markMediaReady}
+                  onError={markMediaFailed}
+                />
+              )}
+            </>
           )}
           {state.kind === 'transcript' && (
             <TranscriptPreview
