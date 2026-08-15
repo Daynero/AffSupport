@@ -10,6 +10,48 @@ import { inspectZip } from './archive.js';
 
 const IGNORED_DIRECTORIES = new Set(['.git', '.hg', '.svn', 'node_modules', '__MACOSX']);
 const IGNORED_FILES = new Set(['.DS_Store', 'Thumbs.db']);
+/** A single readdir/stat this slow means a stuck or offline mount (e.g. a
+ *  removed cloud-synced folder); abandon it so a scan can never wedge. */
+const FS_OP_TIMEOUT_MS = 15_000;
+
+/**
+ * Runs a filesystem operation so it can ALWAYS be abandoned. Node's fs calls
+ * ignore AbortSignal, so a blocking syscall on a removed/offline path would
+ * otherwise pin the whole scan and make cancellation a no-op. This races the
+ * operation against the abort signal (rejects the instant cancel is requested,
+ * letting the orphaned syscall settle in the background) and against a timeout
+ * (so a path that never returns can't hang the run forever).
+ */
+export async function guardedFs<T>(
+  operation: () => Promise<T>,
+  signal?: AbortSignal,
+  timeoutMs: number = FS_OP_TIMEOUT_MS
+): Promise<T> {
+  if (signal?.aborted) throw signal.reason ?? new Error('Operation cancelled.');
+  return await new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const finish = (action: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+      action();
+    };
+    const onAbort = () => finish(() => reject(signal?.reason ?? new Error('Operation cancelled.')));
+    const timer = setTimeout(
+      () =>
+        finish(() =>
+          reject(new Error('Timed out reading from disk — the folder may be offline or removed.'))
+        ),
+      timeoutMs
+    );
+    signal?.addEventListener('abort', onAbort, { once: true });
+    operation().then(
+      value => finish(() => resolve(value)),
+      error => finish(() => reject(error))
+    );
+  });
+}
 const TEAM_SNAPSHOT_STATES = new Set<TeamLandingPreviewSnapshotState>([
   'ready',
   'candidate',
@@ -114,8 +156,9 @@ export async function discoverLandings(
     throwIfAborted(signal);
     let entries;
     try {
-      entries = await readdir(directory, { withFileTypes: true });
+      entries = await guardedFs(() => readdir(directory, { withFileTypes: true }), signal);
     } catch (error) {
+      if (signal?.aborted) throw error;
       warnings.push(`${displayPath(relativeDirectory)}: ${errorMessage(error)}`);
       return;
     }
@@ -147,7 +190,7 @@ export async function discoverLandings(
       );
       try {
         const [archiveStat, inspection] = await Promise.all([
-          stat(archivePath),
+          guardedFs(() => stat(archivePath), signal),
           inspectZip(archivePath, signal)
         ]);
         if (!inspection.landingRoots.length) continue;
@@ -211,7 +254,15 @@ async function fingerprintDirectory(directory: string, signal?: AbortSignal): Pr
   const parts: string[] = [];
   async function walk(current: string, relative: string): Promise<void> {
     throwIfAborted(signal);
-    const entries = await readdir(current, { withFileTypes: true });
+    let entries;
+    try {
+      entries = await guardedFs(() => readdir(current, { withFileTypes: true }), signal);
+    } catch (error) {
+      // A folder removed mid-scan (or an offline mount) contributes nothing to
+      // the fingerprint rather than failing the whole run.
+      if (signal?.aborted) throw error;
+      return;
+    }
     entries.sort((left, right) => left.name.localeCompare(right.name));
     for (const entry of entries) {
       throwIfAborted(signal);
@@ -222,7 +273,13 @@ async function fingerprintDirectory(directory: string, signal?: AbortSignal): Pr
         parts.push(`d\0${childRelative}`);
         await walk(child, childRelative);
       } else if (entry.isFile()) {
-        const details = await stat(child);
+        let details;
+        try {
+          details = await guardedFs(() => stat(child), signal);
+        } catch (error) {
+          if (signal?.aborted) throw error;
+          continue; // a file removed mid-scan is simply skipped
+        }
         parts.push(`f\0${childRelative}\0${details.size}\0${Math.round(details.mtimeMs)}`);
       }
     }

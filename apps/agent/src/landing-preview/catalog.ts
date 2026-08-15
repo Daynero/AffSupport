@@ -26,6 +26,7 @@ import { extractZipSafely } from './archive.js';
 import { LandingPageRenderer, type LandingRenderResult } from './renderer.js';
 import {
   discoverLandings,
+  guardedFs,
   normalizeTeamLandingSnapshot,
   type DiscoveredLanding
 } from './scanner.js';
@@ -339,6 +340,16 @@ export class LandingPreviewCatalog {
   cancel() {
     if (!this.controller) return false;
     this.controller.abort(new Error('Preview generation cancelled.'));
+    // Surface the cancellation immediately rather than waiting for the run to
+    // unwind: even with abortable filesystem access a syscall already in flight
+    // may take a moment to settle, and the UI must never stay pinned in a
+    // running state. The orphaned run's `finally` is a no-op once detached (it
+    // checks that it is still the active run), so this can't clobber a fresh run
+    // the user starts next.
+    this.controller = null;
+    this.running = false;
+    this.progress.phase = 'cancelled';
+    this.notify();
     return true;
   }
 
@@ -441,8 +452,14 @@ export class LandingPreviewCatalog {
         }
       })
       .finally(async () => {
-        if (this.controller === controller) this.controller = null;
-        if (this.activeRun === task) this.activeRun = null;
+        // If this run was cancelled or superseded, ownership has already moved
+        // on — do not touch shared state or we could clobber a fresh run.
+        if (this.activeRun !== task) {
+          await this.persist().catch(() => {});
+          return;
+        }
+        this.controller = null;
+        this.activeRun = null;
         this.running = false;
         if (controller.signal.aborted) this.progress.phase = 'cancelled';
         await this.persist().catch(() => {});
@@ -466,7 +483,7 @@ export class LandingPreviewCatalog {
     this.notify('landing-preview:progress');
     let discovery;
     try {
-      await access(catalog.rootPath);
+      await guardedFs(() => access(catalog.rootPath!), signal);
       catalog.sourceAvailable = true;
       discovery = await discoverLandings(catalog.rootPath, signal);
     } catch (error) {
