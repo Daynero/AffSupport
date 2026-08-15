@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS, type LibraryAssetSummary } from '@video-compressor/shared';
@@ -37,6 +39,17 @@ afterEach(() => {
 });
 
 describe('Creative Library workspace controls', () => {
+  it('wraps narrow-card actions instead of clipping their labels', () => {
+    const styles = readFileSync(resolve(process.cwd(), 'apps/web/src/styles.css'), 'utf8');
+
+    expect(styles).toContain('.creative-library-card .creative-library-card-actions,');
+    expect(styles).toContain('grid-template-columns: minmax(0, 1fr);');
+    expect(styles).toContain('.creative-library-card .creative-library-card-actions .button,');
+    expect(styles).toContain('box-sizing: border-box;');
+    expect(styles).toContain('white-space: normal;');
+    expect(styles).toContain('overflow-wrap: anywhere;');
+  });
+
   it('offers selection, task creation, placement correction and a one-second video preview', async () => {
     const onSelect = vi.fn();
     const onCreateTask = vi.fn();
