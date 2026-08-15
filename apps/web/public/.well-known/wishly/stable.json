@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.9.16",
-  "buildNumber": "52",
-  "buildId": "0.9.16+52",
+  "version": "0.9.17",
+  "buildNumber": "53",
+  "buildId": "0.9.17+53",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-08-15T20:31:12.000Z",
+  "publishedAt": "2026-08-15T21:04:23.000Z",
   "summary": {
-    "en": "Shows live Google Drive sync progress across Team Workspace and keeps optimized dropped landing archives beside their originals.",
-    "uk": "Показує живий прогрес синхронізації Google Drive у Team Workspace і зберігає оптимізовані ZIP-лендінги поруч з оригіналами."
+    "en": "Keeps landing preview scans responsive when folders disappear and shows live Google Drive sync progress across Team Workspace.",
+    "uk": "Зберігає чуйність сканування лендінгів, коли папки зникають, і показує живий прогрес синхронізації Google Drive у Team Workspace."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.16/Soty-v0.9.16-macOS-arm64.dmg",
-      "sha256": "712676370c18bdf6b0af5004032a131f31b16abcdc86ce67548c226e3ff51a72"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.17/Soty-v0.9.17-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -35,5 +35,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "vB7ar3cm2GREr18Vr9Kf1A8-EkMtgVvyN-fz7hTh30wqPorLoMt4CllfPMJ0WY4t2R---9RhmxBv_Hw-xeTenQ"
+  "signature": "ZNeeGsTBFXt4ghckaNDC589Q8lQCBdONZm3duMSdtFB9cwavK5KZ8rzbabf__1YwXuoDLnjLHz_YrHOROzfEeQ"
 }

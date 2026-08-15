@@ -1,3 +1,8 @@
+# v0.9.17
+
+- Make Landing Preview scans cancel immediately and time out safely when a selected folder is unavailable, so the interface never remains stuck scanning.
+- Show live Google Drive catalog-sync progress across Team Workspace and keep optimized dropped ZIP landing archives beside their originals.
+
 # v0.9.16
 
 - Show live Google Drive catalog-sync progress across Team Workspace, including found items, queued folders, recent activity, and clear guidance if a scan stalls.
