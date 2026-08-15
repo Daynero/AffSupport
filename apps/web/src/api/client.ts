@@ -311,15 +311,18 @@ export function teamLandingEventUrl() {
 }
 
 export async function renderTeamLanding(
-  input: TeamLandingRenderJob
+  input: TeamLandingRenderJob,
+  signal?: AbortSignal
 ): Promise<TeamLandingAgentRenderResult> {
-  const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
+  const health = await request<Partial<HealthResponse>>('/api/health', 'GET', signal);
   if ((health.toolContracts?.teamWorkspace ?? 0) < AGENT_TOOL_CONTRACTS.teamWorkspace) {
     throw new Error('AGENT_UPDATE_REQUIRED');
   }
   const value = await requestBody<Partial<TeamLandingAgentRenderResult>>(
     '/api/team/landings/render',
-    input
+    input,
+    'POST',
+    signal
   );
   if (
     value.renderId !== input.renderId ||

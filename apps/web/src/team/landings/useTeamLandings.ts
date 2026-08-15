@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AGENT_TOOL_CONTRACTS,
   resolveLandingTileState,
@@ -92,35 +92,42 @@ export function useTeamLandings(input: { teamId: string; client: TeamLandingsDat
     operationId: string | null;
     progress: number;
   } | null>(null);
+  const renderRequestSequence = useRef(0);
 
   const materialIds = useMemo(
     () => (catalog.result?.items ?? []).map(material => material.id),
     [catalog.result?.items]
   );
 
-  useEffect(() => {
-    let active = true;
+  const refetchRenders = useCallback(async () => {
+    const sequence = ++renderRequestSequence.current;
     if (!client.listLandingRenders || materialIds.length === 0) {
-      setRenders([]);
-      setRendersLoading(false);
+      if (sequence === renderRequestSequence.current) {
+        setRenders([]);
+        setRendersLoading(false);
+      }
       return;
     }
     setRendersLoading(true);
-    void client
-      .listLandingRenders(teamId, materialIds, 'default')
-      .then(value => {
-        if (active) setRenders(value.filter(render => materialIds.includes(render.materialId)));
-      })
-      .catch(() => {
-        if (active) setRenders([]);
-      })
-      .finally(() => {
-        if (active) setRendersLoading(false);
-      });
-    return () => {
-      active = false;
-    };
+    try {
+      const value = await client.listLandingRenders(teamId, materialIds, 'default');
+      if (sequence === renderRequestSequence.current) {
+        setRenders(value.filter(render => materialIds.includes(render.materialId)));
+      }
+    } catch {
+      if (sequence === renderRequestSequence.current) setRenders([]);
+    } finally {
+      if (sequence === renderRequestSequence.current) setRendersLoading(false);
+    }
   }, [client, materialIds, teamId]);
+
+  useEffect(() => {
+    void refetchRenders();
+  }, [refetchRenders]);
+
+  const refetch = useCallback(async () => {
+    await Promise.all([catalog.refetch(), refetchRenders()]);
+  }, [catalog.refetch, refetchRenders]);
 
   const agentPaired = agent?.connectedOnce === true;
   const agentCompatible =
@@ -158,7 +165,12 @@ export function useTeamLandings(input: { teamId: string; client: TeamLandingsDat
           ? { ...current, progress: Math.min(100, Math.max(0, progress.progress)) }
           : current
       );
-      if (progress.state !== 'running') void catalog.refetch();
+      if (progress.state !== 'running') {
+        setActiveRender(current =>
+          current?.operationId === progress.operationId ? null : current
+        );
+        void refetch();
+      }
     }
   });
 
@@ -172,6 +184,7 @@ export function useTeamLandings(input: { teamId: string; client: TeamLandingsDat
 
   return {
     ...catalog,
+    refetch,
     items,
     rendersLoading,
     resolveThumbnail,

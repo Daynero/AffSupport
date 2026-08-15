@@ -1,7 +1,6 @@
--- A render is agent-bounded to three minutes.  If the paired app crashes or its
--- failure callback cannot reach the API, a row must not leave the gallery in a
--- perpetual "rendering" state.  Four minutes retains safe headroom while
--- turning abandoned work into an explicit, retryable render error.
+-- Keep the live database aligned with the four-minute browser recovery window.
+-- The paired agent has a three-minute watchdog, so any row older than this
+-- buffer cannot still represent a usable shared render.
 with expired as (
   update public.team_landing_renders as render
   set render_state = 'failed',
@@ -17,9 +16,6 @@ insert into public.team_catalog_events (team_id, material_id, event_kind)
 select expired.team_id, expired.material_id, 'upserted'
 from expired;
 
--- Project the same bounded terminal state for any future interrupted render.
--- This is a read-only, caller-checked projection; retrying the render resets
--- its own service-owned row through service_start_landing_render.
 create or replace function public.list_landing_renders(
   p_team uuid,
   p_material_ids uuid[],

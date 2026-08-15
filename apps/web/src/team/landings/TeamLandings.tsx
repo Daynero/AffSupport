@@ -24,6 +24,11 @@ import { LandingGallery } from './LandingGallery';
 import { LandingFullView } from './LandingFullView';
 import { useTeamLandings } from './useTeamLandings';
 
+// The paired agent enforces a three-minute render watchdog.  Give its terminal
+// callback a small buffer, then release the UI and load the server's stale-render
+// projection instead of leaving the clicked tile in a permanent busy state.
+const LANDING_RENDER_REQUEST_TIMEOUT_MS = 4 * 60 * 1000 + 5_000;
+
 export interface TeamLandingsClient {
   searchCatalog: (
     teamId: string,
@@ -129,12 +134,29 @@ export function TeamLandings({
             ? item => {
                 if (gallery.activeRender) return;
                 const renderStartedAt = Date.now();
+                const controller = new AbortController();
+                const timeout = window.setTimeout(
+                  () => controller.abort(new Error('TIMEOUT')),
+                  LANDING_RENDER_REQUEST_TIMEOUT_MS
+                );
+                const deadline = new Promise<never>((_resolve, reject) => {
+                  controller.signal.addEventListener(
+                    'abort',
+                    () => reject(controller.signal.reason ?? new Error('TIMEOUT')),
+                    { once: true }
+                  );
+                });
                 gallery.beginRender(item.material.id);
-                void client.startLandingRender!(teamId, item.material.id, 'default')
-                  .then(job => {
+                const render = client.startLandingRender!(teamId, item.material.id, 'default').then(
+                  job => {
+                    if (controller.signal.aborted) {
+                      throw controller.signal.reason ?? new Error('TIMEOUT');
+                    }
                     gallery.bindRenderOperation(job.operationId);
-                    return renderTeamLanding(job);
-                  })
+                    return renderTeamLanding(job, controller.signal);
+                  }
+                );
+                void Promise.race([render, deadline])
                   .then(async () => {
                     trackTeamLandingRender({
                       outcome: 'ready',
@@ -149,7 +171,10 @@ export function TeamLandings({
                     });
                     await gallery.refetch();
                   })
-                  .finally(gallery.finishRender);
+                  .finally(() => {
+                    window.clearTimeout(timeout);
+                    gallery.finishRender();
+                  });
               }
             : undefined
         }
