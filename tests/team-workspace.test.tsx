@@ -3,7 +3,7 @@ import React from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { TeamInvitationSummary } from '../apps/web/src/api/team';
+import { teamApi, type TeamInvitationSummary } from '../apps/web/src/api/team';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { TeamSpace } from '../apps/web/src/team/TeamSpace';
 import { makeClient, makeTeam } from './team-space-fixtures';
@@ -55,6 +55,16 @@ describe('guided team space workspace', () => {
     // Enter the space from the lobby → content-first shell shows the folder.
     await user.click(await screen.findByRole('button', { name: /Media buyers/ }));
     expect(await screen.findByText('launch.mp4')).toBeTruthy();
+    const previewMaterial = vi.spyOn(teamApi, 'previewMaterial').mockResolvedValue({
+      kind: 'media',
+      rangeUrl: 'https://preview.example/launch.mp4',
+      mimeType: 'video/mp4',
+      expiresAt: '2026-08-15T12:00:00.000Z'
+    });
+    await user.click(screen.getByRole('button', { name: 'Preview launch.mp4' }));
+    expect(await screen.findByRole('dialog', { name: 'launch.mp4' })).toBeTruthy();
+    await waitFor(() => expect(previewMaterial).toHaveBeenCalledWith(team.id, 'material-visible', 'media'));
+    await user.click(screen.getByRole('button', { name: 'Close preview' }));
     // The old all-panels grid is gone: management is not shown beside the content.
     expect(screen.queryByRole('heading', { name: 'Google Drive storage' })).toBeNull();
 

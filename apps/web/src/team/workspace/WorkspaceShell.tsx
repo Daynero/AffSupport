@@ -3,10 +3,12 @@ import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
 import { trackTeamWorkspaceSession } from '../../analytics/service';
 import { useTeam } from '../TeamContext';
+import { type TeamMaterialSummary } from '../../api/team';
 import { MaterialBrowser, type MaterialBrowserClient } from '../catalog/MaterialBrowser';
 import { TeamCatalog, type TeamCatalogClient } from '../catalog/TeamCatalog';
 import { TeamLandings, type TeamLandingsClient } from '../landings/TeamLandings';
 import { CreativeLibrary } from '../library';
+import { MaterialPreview } from '../preview/MaterialPreview';
 import { TaskSpace } from '../tasks';
 import { SpaceSettings, type SpaceSettingsClient } from './SpaceSettings';
 
@@ -40,12 +42,14 @@ export function WorkspaceShell({
   const [view, setView] = useState<ShellView>('content');
   const [hasContent, setHasContent] = useState(false);
   const [taskAsset, setTaskAsset] = useState<{ id: string; name: string } | null>(null);
+  const [previewing, setPreviewing] = useState<TeamMaterialSummary | null>(null);
   const sessionTeam = useRef<string | null>(null);
 
   useEffect(() => {
     setView('content');
     setHasContent(false);
     setTaskAsset(null);
+    setPreviewing(null);
   }, [teamId]);
 
   useEffect(() => {
@@ -169,10 +173,18 @@ export function WorkspaceShell({
               setTaskAsset(asset);
               setView('tasks');
             }}
+            onPreview={setPreviewing}
             syncLabel={activeTeam?.connectionState === 'connected' ? t('teamSyncFresh') : null}
           />
         )}
       </div>
+      {previewing && (
+        <MaterialPreview
+          teamId={teamId}
+          material={previewing}
+          onClose={() => setPreviewing(null)}
+        />
+      )}
     </section>
   );
 }

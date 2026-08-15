@@ -26,6 +26,7 @@ export function LibraryAssetCard({
   selected = false,
   selectable = false,
   onSelect,
+  onPreview,
   onCreateTask,
   onEditPlacement,
   onTranscribe
@@ -34,6 +35,7 @@ export function LibraryAssetCard({
   selected?: boolean;
   selectable?: boolean;
   onSelect?: (selected: boolean) => void;
+  onPreview?: (asset: LibraryAssetSummary) => void;
   onCreateTask?: (asset: LibraryAssetSummary) => void;
   onEditPlacement?: (asset: LibraryAssetSummary) => void;
   onTranscribe?: (asset: LibraryAssetSummary) => void;
@@ -83,8 +85,18 @@ export function LibraryAssetCard({
             ? t('creativeLibraryPlacementReady')
             : t('creativeLibraryPlacementState', { state: asset.placementState })}
         </p>
-        {(onCreateTask || onEditPlacement) && (
+        {(onPreview || onCreateTask || onEditPlacement) && (
           <div className="creative-library-card-actions">
+            {onPreview && (
+              <Button
+                type="button"
+                variant="ghost"
+                aria-label={t('teamCatalogPreviewFor', { name: asset.name })}
+                onClick={() => onPreview(asset)}
+              >
+                {t('teamCatalogPreview')}
+              </Button>
+            )}
             {onCreateTask && (
               <Button type="button" variant="ghost" onClick={() => onCreateTask(asset)}>
                 {t('creativeLibraryCreateTask')}

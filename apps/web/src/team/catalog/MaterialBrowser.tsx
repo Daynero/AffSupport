@@ -15,6 +15,7 @@ export function MaterialBrowser({
   syncLabel,
   onLoaded,
   onCreateTask,
+  onPreview,
   taskDragSelection
 }: {
   teamId: string;
@@ -25,6 +26,8 @@ export function MaterialBrowser({
   onLoaded?: (count: number) => void;
   /** Convenient reverse flow: create and immediately open a task for this stable material. */
   onCreateTask?: (material: { id: string; name: string }) => void;
+  /** Opens the same safe viewer used by catalog search for a file in the tree. */
+  onPreview?: (material: TeamMaterialSummary) => void;
   taskDragSelection?: {
     selectedIds: ReadonlySet<string>;
     onChange: (selectedIds: Set<string>) => void;
@@ -127,6 +130,16 @@ export function MaterialBrowser({
                   <span aria-hidden="true">{material.kind === 'shortcut' ? '↗' : '▤'}</span>{' '}
                   {material.name}
                 </span>
+                {onPreview && material.kind === 'file' && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    aria-label={t('teamCatalogPreviewFor', { name: material.name })}
+                    onClick={() => onPreview(material)}
+                  >
+                    {t('teamCatalogPreview')}
+                  </Button>
+                )}
                 {onCreateTask && (
                   <Button
                     type="button"

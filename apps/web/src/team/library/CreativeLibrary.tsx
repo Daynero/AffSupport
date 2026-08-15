@@ -16,6 +16,7 @@ import { BulkUploadDialog, type CreativeLibraryUploadClient } from './BulkUpload
 import { LibraryAssetCard } from './LibraryAssetCard';
 import { ProcessLibraryDialog } from './ProcessLibraryDialog';
 import { useCreativeLibrary, type CreativeLibraryListClient } from './useCreativeLibrary';
+import { MaterialPreview } from '../preview/MaterialPreview';
 
 export type CreativeLibraryClient = CreativeLibraryListClient &
   CreativeLibraryUploadClient & {
@@ -84,6 +85,7 @@ export function CreativeLibrary({
   const [moving, setMoving] = useState(false);
   const [placementError, setPlacementError] = useState(false);
   const [processingSource, setProcessingSource] = useState<string | null | undefined>(undefined);
+  const [previewing, setPreviewing] = useState<LibraryAssetSummary | null>(null);
   const [placementDraft, setPlacementDraft] = useState<{
     asset: LibraryAssetSummary;
     offer: string;
@@ -262,6 +264,7 @@ export function CreativeLibrary({
                 return next;
               })
             }
+            onPreview={setPreviewing}
             onCreateTask={onCreateTask}
             onEditPlacement={
               can('manage_metadata')
@@ -308,6 +311,13 @@ export function CreativeLibrary({
           toolContracts={agent?.toolContracts ?? {}}
           onClose={() => setProcessingSource(undefined)}
           onChanged={() => void library.refetch()}
+        />
+      )}
+      {previewing && (
+        <MaterialPreview
+          teamId={teamId}
+          material={previewing}
+          onClose={() => setPreviewing(null)}
         />
       )}
       {placementDraft && (

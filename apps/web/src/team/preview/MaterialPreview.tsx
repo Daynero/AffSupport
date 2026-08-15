@@ -21,6 +21,19 @@ type AgentRequest = Extract<TeamPreviewResult, { kind: 'agent' }>;
 type AgentUnavailable = Extract<TeamAgentPreviewResult, { kind: 'unavailable' }>;
 type ArchiveView = Extract<TeamAgentPreviewResult, { kind: 'archive' }>;
 
+/**
+ * The preview transport only needs a stable material identity and enough type
+ * information to choose a safe viewer. Keep this deliberately smaller than a
+ * catalog result so the same verified viewer can be opened from the material
+ * tree and the Creative Library as well.
+ */
+export interface PreviewableMaterial {
+  id: string;
+  name: string;
+  category: CatalogMaterialItem['category'];
+  fileExtension?: CatalogMaterialItem['fileExtension'];
+}
+
 export interface MaterialPreviewClient {
   requestPreview: (
     teamId: string,
@@ -86,7 +99,7 @@ export function MaterialPreview({
   onClose
 }: {
   teamId: string;
-  material: CatalogMaterialItem;
+  material: PreviewableMaterial;
   client?: MaterialPreviewClient;
   landingPreset?: LandingViewerPreset;
   toolbar?: ReactNode;
@@ -250,7 +263,7 @@ function TranscriptPreview({
   onDownload,
   onEdit
 }: {
-  material: CatalogMaterialItem;
+  material: PreviewableMaterial;
   preview: Extract<TeamPreviewResult, { kind: 'transcript' }>;
   onDownload: () => void;
   onEdit: () => void;
@@ -312,7 +325,7 @@ function ArchiveManifest({
   );
 }
 
-function previewMode(material: CatalogMaterialItem) {
+function previewMode(material: PreviewableMaterial) {
   if (material.category === 'video' || material.category === 'image') return 'media' as const;
   if (material.category === 'transcript') return 'transcript' as const;
   if (material.category === 'archive') return 'archive' as const;

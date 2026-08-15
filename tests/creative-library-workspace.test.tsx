@@ -9,6 +9,7 @@ import { MaterialBrowser } from '../apps/web/src/team/catalog/MaterialBrowser';
 import { CreativeLibrary } from '../apps/web/src/team/library/CreativeLibrary';
 import { LibraryAssetCard } from '../apps/web/src/team/library/LibraryAssetCard';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
+import { teamApi } from '../apps/web/src/api/team';
 import { TaskDateFilterControl } from '../apps/web/src/team/tasks/TaskDateFilter';
 
 const asset: LibraryAssetSummary = {
@@ -59,6 +60,7 @@ describe('Creative Library workspace controls', () => {
 
   it('offers selection, task creation, placement correction and a one-second video preview', async () => {
     const onSelect = vi.fn();
+    const onPreview = vi.fn();
     const onCreateTask = vi.fn();
     const onEditPlacement = vi.fn();
     const onTranscribe = vi.fn();
@@ -67,6 +69,7 @@ describe('Creative Library workspace controls', () => {
         asset={asset}
         selectable
         onSelect={onSelect}
+        onPreview={onPreview}
         onCreateTask={onCreateTask}
         onEditPlacement={onEditPlacement}
         onTranscribe={onTranscribe}
@@ -74,10 +77,12 @@ describe('Creative Library workspace controls', () => {
     );
     expect(screen.getByText('Frame at 1s')).toBeTruthy();
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select launch.mp4' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Preview launch.mp4' }));
     fireEvent.click(screen.getByRole('button', { name: 'Create task' }));
     fireEvent.click(screen.getByRole('button', { name: 'Edit Drive placement' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Transcribe' }));
     expect(onSelect).toHaveBeenCalledWith(true);
+    expect(onPreview).toHaveBeenCalledWith(asset);
     expect(onCreateTask).toHaveBeenCalledWith(asset);
     expect(onEditPlacement).toHaveBeenCalledWith(asset);
     expect(onTranscribe).toHaveBeenCalledWith(asset);
@@ -99,6 +104,7 @@ describe('Creative Library workspace controls', () => {
 
   it('creates a task directly from a file in the default media tree', async () => {
     const onCreateTask = vi.fn();
+    const onPreview = vi.fn();
     render(
       <MaterialBrowser
         teamId={asset.teamId}
@@ -114,9 +120,14 @@ describe('Creative Library workspace controls', () => {
           ])
         }}
         onCreateTask={onCreateTask}
+        onPreview={onPreview}
       />
     );
+    fireEvent.click(await screen.findByRole('button', { name: 'Preview launch.mp4' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Create task' }));
+    expect(onPreview).toHaveBeenCalledWith(
+      expect.objectContaining({ id: asset.id, name: asset.name, kind: 'file' })
+    );
     expect(onCreateTask).toHaveBeenCalledWith({ id: asset.id, name: asset.name });
   });
 
@@ -173,6 +184,47 @@ describe('Creative Library workspace controls', () => {
     expect(
       (screen.getByRole('checkbox', { name: 'Select find.png' }) as HTMLInputElement).checked
     ).toBe(true);
+  });
+
+  it('opens the safe media viewer from a Creative Library card', async () => {
+    localStorage.setItem('wishly.active-team.v1', asset.teamId);
+    const previewMaterial = vi.spyOn(teamApi, 'previewMaterial').mockResolvedValue({
+      kind: 'media',
+      rangeUrl: 'https://preview.example/launch.mp4',
+      mimeType: 'video/mp4',
+      expiresAt: '2026-08-15T12:00:00.000Z'
+    });
+    render(
+      <TeamProvider
+        initialTeams={[
+          {
+            id: asset.teamId,
+            name: 'Creative team',
+            role: 'editor',
+            permissions: DEFAULT_ROLE_PERMISSIONS.editor,
+            connectionState: 'connected'
+          }
+        ]}
+        realtime={false}
+      >
+        <CreativeLibrary
+          teamId={asset.teamId}
+          client={
+            {
+              listLibraryMaterials: vi.fn().mockResolvedValue([asset]),
+              moveLibraryMaterials: vi.fn()
+            } as never
+          }
+        />
+      </TeamProvider>
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Preview launch.mp4' }));
+    expect(await screen.findByRole('dialog', { name: 'launch.mp4' })).toBeTruthy();
+    await waitFor(() => expect(previewMaterial).toHaveBeenCalledWith(asset.teamId, asset.id, 'media'));
+    expect(document.querySelector('video')?.getAttribute('src')).toBe(
+      'https://preview.example/launch.mp4'
+    );
   });
 
   it('sends manual Offer/Language/Type correction as one structural group move', async () => {
