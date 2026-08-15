@@ -1,6 +1,6 @@
 begin;
 
-select plan(243);
+select plan(251);
 
 select has_schema('private', 'private integration schema exists');
 select has_table('public', 'teams', 'teams table exists');
@@ -3170,6 +3170,135 @@ select is(
   ),
   'failed|render_error',
   'an abandoned rendering row becomes a clear retryable error instead of a permanent spinner'
+);
+
+-- A replaced Drive root leaves historical catalog rows behind for audit and
+-- reconciliation, but those rows must never reappear in a browse or preview
+-- surface. They no longer have readable provider authority.
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000001', true);
+create temporary table us7_detached_connection as
+with inserted as (
+  insert into public.team_drive_connections (
+    team_id, credential_id, root_folder_id, root_folder_name,
+    drive_kind, state, initial_sync_state, detached_at
+  )
+  select (select id from pg_temp.us1_created_team),
+         (select credential_id from public.team_drive_connections
+          where id = (select connection_id from pg_temp.us1_connection)),
+         'detached-root-us7', 'Detached historical root',
+         'my_drive', 'detached', 'ready', clock_timestamp()
+  returning id
+)
+select id from inserted;
+
+create temporary table us7_detached_material as
+with inserted as (
+  insert into public.team_materials (
+    team_id, connection_id, drive_file_id, parent_folder_id, name,
+    mime_type, file_extension, kind, category, offer, tags,
+    drive_version, checksum, library_stage
+  )
+  values (
+    (select id from pg_temp.us1_created_team),
+    (select id from pg_temp.us7_detached_connection),
+    'detached-only-us7', 'root-folder-us1', 'Detached only landing.zip',
+    'application/zip', 'zip', 'file', 'archive', 'Detached only offer', array['detached-only-tag'],
+    'detached-version-us7', 'detached-checksum-us7', 'finds'
+  )
+  returning id
+)
+select id from inserted;
+
+select is(
+  (
+    select count(*)
+    from public.list_team_materials((select id from pg_temp.us1_created_team), null) as material
+    where material.id = (select id from pg_temp.us7_detached_material)
+  ),
+  0::bigint,
+  'the workspace tree excludes a detached-root material even when its parent id collides'
+);
+select is(
+  (
+    public.search_materials(
+      (select id from pg_temp.us1_created_team), 'Detached only landing', '{}'::jsonb, 1, 50
+    ) ->> 'total'
+  )::integer,
+  0,
+  'catalog search excludes a detached-root landing candidate'
+);
+select ok(
+  pg_catalog.strpos(
+    public.get_team_vocab_and_facets((select id from pg_temp.us1_created_team))::text,
+    'Detached only offer'
+  ) = 0,
+  'detached-root metadata does not leak into catalog vocabulary'
+);
+select is(
+  (
+    select count(*)
+    from public.get_material_preview(
+      (select id from pg_temp.us1_created_team),
+      (select id from pg_temp.us7_detached_material)
+    )
+  ),
+  0::bigint,
+  'a detached-root file cannot mint a caller preview context'
+);
+select is(
+  (
+    select count(*)
+    from public.list_library_materials(
+      (select id from pg_temp.us1_created_team), 'finds', null, 50
+    ) as material
+    where material.id = (select id from pg_temp.us7_detached_material)
+  ),
+  0::bigint,
+  'Creative Library excludes a detached-root file'
+);
+select is(
+  (
+    select count(*)
+    from public.service_get_library_asset_placement(
+      (select id from pg_temp.us1_created_team),
+      '10000000-0000-4000-8000-000000000001',
+      (select id from pg_temp.us7_detached_material)
+    )
+  ),
+  0::bigint,
+  'a detached-root file cannot enter a placement mutation'
+);
+insert into public.team_landing_renders (
+  team_id, material_id, preset, source_version, source_checksum,
+  render_state, failure_reason, segment_count, rendered_by
+)
+values (
+  (select id from pg_temp.us1_created_team),
+  (select id from pg_temp.us7_detached_material),
+  'default', 'detached-version-us7', 'detached-checksum-us7',
+  'failed', 'render_error', 0, '10000000-0000-4000-8000-000000000001'
+);
+select is(
+  (
+    select count(*)
+    from public.list_landing_renders(
+      (select id from pg_temp.us1_created_team),
+      array[(select id from pg_temp.us7_detached_material)], 'default'
+    )
+  ),
+  0::bigint,
+  'the landing gallery cannot surface a render for a detached-root material'
+);
+select is(
+  (
+    select count(*)
+    from public.get_material_preview(
+      (select id from pg_temp.us1_created_team),
+      (select id from pg_temp.us4_landing_archive)
+    )
+  ),
+  1::bigint,
+  'a material in the connected root remains previewable'
 );
 
 select * from finish();
