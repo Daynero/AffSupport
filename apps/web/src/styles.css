@@ -4194,7 +4194,11 @@ input.is-invalid {
   top: calc(100% + 8px);
   right: calc(-44.2px - 6px);
   display: grid;
-  width: min(300px, calc(100vw - 24px));
+  /* Grow to fit the widest segment row (the 3-option device toggle) so its labels never spill,
+     while keeping the previous 300px as a comfortable floor and never exceeding the viewport. */
+  width: max-content;
+  min-width: min(300px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
   gap: 12px;
   padding: 12px;
   border: 1px solid var(--color-border);
@@ -4246,6 +4250,16 @@ input.is-invalid {
   color: var(--color-accent-hover);
   background: var(--color-accent-soft);
   box-shadow: var(--shadow-sm);
+}
+
+/* In the settings menu the device toggle's longest label ("Комп'ютер") overflowed its equal-width
+   third and spilled over the neighbouring option's highlight. Size each button to its own label
+   (it may not shrink below it) and let it grow to fill — combined with the panel's `max-content`
+   width above, the row always fits and options never overlap, in any language. */
+.landing-gallery-settings .landing-gallery-segment button {
+  flex: 1 1 auto;
+  min-width: max-content;
+  white-space: nowrap;
 }
 
 .landing-gallery-canvas.is-grid {
