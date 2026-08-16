@@ -1,3 +1,8 @@
+# v0.9.21
+
+- Open a dropped landing folder directly in Landing Gallery, with the local Agent resolving it safely before previewing it.
+- Keep the Soty app, Finder extension, and Windows components consistently named in packaged builds.
+
 # v0.9.20
 
 - Rename the native Soty app and Finder extension executables consistently, so diagnostics and bundled components use the current product identity.
