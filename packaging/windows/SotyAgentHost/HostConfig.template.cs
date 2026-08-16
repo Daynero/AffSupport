@@ -5,7 +5,7 @@
 // The renderer escapes backslashes and double quotes for string literals, so every
 // placeholder that receives text must sit inside a regular "..." literal (never @"...").
 // AGENT_PORT and API_VERSION are rendered as bare integers, exactly like the Swift template.
-namespace Wishly.AgentHost;
+namespace Soty.AgentHost;
 
 internal static class HostConfig
 {

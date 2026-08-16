@@ -8,8 +8,8 @@ import { AgentContextOverride, type AgentContextValue } from '../apps/web/src/Ag
 import LocalAppDialog from '../apps/web/src/components/LocalAppDialog';
 import { emptyQueueState } from './web-auth-helpers';
 
-const WINDOWS_ARTIFACT_URL = 'https://example.com/Wishly-Agent-v0.9.0-Windows-x64.exe';
-const MAC_ARTIFACT_URL = 'https://example.com/Wishly-Agent-v0.9.0-macOS-arm64.dmg';
+const WINDOWS_ARTIFACT_URL = 'https://example.com/Soty-Agent-v0.9.0-Windows-x64.exe';
+const MAC_ARTIFACT_URL = 'https://example.com/Soty-Agent-v0.9.0-macOS-arm64.dmg';
 
 function manifestWith(artifacts: StableReleaseManifest['artifacts']): StableReleaseManifest {
   return {

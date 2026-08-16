@@ -630,7 +630,7 @@ const en = {
   landingGalleryDropActive: 'Release to open this folder',
   landingGalleryDropHint: 'Local folders and Google Drive folders from Finder or Explorer',
   landingGalleryDropNeedsPicker:
-    'The browser did not provide this folder’s local path. Choose it through the system folder picker.',
+    'Couldn’t locate this folder on disk. Choose it through the system folder picker instead.',
   landingGalleryLocalNote:
     'Landings are rendered and cached on this computer. Nothing is uploaded.',
   landingGalleryRecent: 'Recent folders',
@@ -1967,7 +1967,7 @@ const uk: Record<keyof typeof en, string> = {
   landingGalleryDropActive: 'Відпустіть, щоб відкрити папку',
   landingGalleryDropHint: 'Локальні папки та Google Drive із Finder або Провідника',
   landingGalleryDropNeedsPicker:
-    'Браузер не передав локальний шлях цієї папки. Оберіть її через системне вікно.',
+    'Не вдалося знайти цю папку на диску. Оберіть її через системне вікно вибору.',
   landingGalleryLocalNote:
     'Лендінги рендеряться й кешуються на цьому комп’ютері. Нічого не завантажується на сервер.',
   landingGalleryRecent: 'Недавні папки',

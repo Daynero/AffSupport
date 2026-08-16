@@ -21,6 +21,7 @@ const client = vi.hoisted(() => ({
   openExtracted: vi.fn(),
   refresh: vi.fn(),
   removeCatalog: vi.fn(),
+  resolveDrop: vi.fn(),
   reveal: vi.fn(),
   select: vi.fn(),
   settings: vi.fn()
@@ -37,6 +38,7 @@ vi.mock('../apps/web/src/api/client.js', () => ({
   landingGalleryOpenExtracted: client.openExtracted,
   landingGalleryRefresh: client.refresh,
   landingGalleryRemoveCatalog: client.removeCatalog,
+  landingGalleryResolveDrop: client.resolveDrop,
   landingGalleryReveal: client.reveal,
   landingGallerySelect: client.select,
   landingGallerySettings: client.settings
@@ -170,6 +172,15 @@ describe('agentLandingSource', () => {
     expect(client.refresh).toHaveBeenCalledWith('all');
     source.reveal?.('landing-a');
     expect(client.reveal).toHaveBeenCalledWith('landing-a');
+    const sample = {
+      folderName: 'Promo',
+      relPath: 'index.html',
+      fileName: 'index.html',
+      size: 10,
+      lastModified: 0
+    };
+    source.resolveDroppedFolder?.(sample);
+    expect(client.resolveDrop).toHaveBeenCalledWith(sample);
     source.imageUrl(landing, 2);
     expect(client.imageUrl).toHaveBeenCalledWith('landing-a', 10, 2);
   });

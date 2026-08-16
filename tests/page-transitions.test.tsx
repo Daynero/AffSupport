@@ -43,7 +43,7 @@ vi.mock('../apps/web/src/analytics/service.js', () => ({
   analytics: { track: vi.fn(), setLocale: vi.fn() }
 }));
 
-import ProtectedWishly from '../apps/web/src/ProtectedWishly';
+import ProtectedSoty from '../apps/web/src/ProtectedSoty';
 import { navigateTo, useBrowserRoute, usePageEntrance } from '../apps/web/src/lib/navigation';
 
 function installViewTransitionStub() {
@@ -99,23 +99,23 @@ afterEach(() => {
 
 describe('persistent shell', () => {
   it('keeps the same header DOM node across page navigations', () => {
-    const { rerender } = render(<ProtectedWishly path="/" />);
+    const { rerender } = render(<ProtectedSoty path="/" />);
     const header = document.querySelector('header.topbar');
     expect(header).not.toBeNull();
     expect(screen.getByRole('heading', { name: 'Soty Tools' })).toBeTruthy();
 
-    rerender(<ProtectedWishly path="/compressor" />);
+    rerender(<ProtectedSoty path="/compressor" />);
     expect(screen.getByTestId('compressor-page')).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'Soty Tools' })).toBeNull();
     expect(document.querySelector('header.topbar')).toBe(header);
 
-    rerender(<ProtectedWishly path="/account" />);
+    rerender(<ProtectedSoty path="/account" />);
     expect(screen.getByTestId('account-page')).toBeTruthy();
     expect(document.querySelector('header.topbar')).toBe(header);
   });
 
   it('renders exactly one header inside the shell around the page viewport', () => {
-    render(<ProtectedWishly path="/compressor" />);
+    render(<ProtectedSoty path="/compressor" />);
     expect(document.querySelectorAll('header').length).toBe(1);
     const viewport = document.querySelector('.app-shell > .page-viewport');
     expect(viewport?.querySelector('[data-testid="compressor-page"]')).toBeTruthy();

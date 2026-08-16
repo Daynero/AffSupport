@@ -16,6 +16,7 @@ const api = vi.hoisted(() => ({
   refresh: vi.fn(),
   reveal: vi.fn(),
   removeCatalog: vi.fn(),
+  resolveDrop: vi.fn(),
   select: vi.fn(),
   settings: vi.fn()
 }));
@@ -32,6 +33,7 @@ vi.mock('../apps/web/src/api/client.js', () => ({
   landingGalleryOpenExtracted: api.openExtracted,
   landingGalleryRefresh: api.refresh,
   landingGalleryRemoveCatalog: api.removeCatalog,
+  landingGalleryResolveDrop: api.resolveDrop,
   landingGalleryReveal: api.reveal,
   landingGallerySelect: api.select,
   landingGallerySettings: api.settings

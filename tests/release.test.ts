@@ -67,11 +67,11 @@ describe('release identity', () => {
       ...manifest,
       artifacts: {
         ...manifest.artifacts,
-        'windows-x64': { url: 'https://example.com/Wishly-Agent-Windows-x64.exe', sha256: null }
+        'windows-x64': { url: 'https://example.com/Soty-Agent-Windows-x64.exe', sha256: null }
       }
     };
     expect(downloadUrlForPlatform(withWindows, 'windows-x64')).toEqual({
-      url: 'https://example.com/Wishly-Agent-Windows-x64.exe',
+      url: 'https://example.com/Soty-Agent-Windows-x64.exe',
       available: true
     });
 

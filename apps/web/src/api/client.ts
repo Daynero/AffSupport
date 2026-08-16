@@ -29,6 +29,7 @@ import {
 } from '@video-compressor/shared';
 import { agentFetchOptions, pairingPath, probeAgent, versionState } from '../connection';
 import { publicConfig } from '../lib/config';
+import type { DroppedFolderSample } from '../components/DropZone';
 
 const configured = import.meta.env.VITE_AGENT_URL || 'http://127.0.0.1:43120';
 export const agentUrl =
@@ -463,6 +464,17 @@ export function landingGallerySelect(): Promise<LandingPreviewState> {
 
 export function landingGalleryOpen(paths: string[]): Promise<LandingPreviewState> {
   return requestBody<LandingPreviewState>('/api/landing-preview/open', { paths });
+}
+
+/**
+ * Recover a dropped folder's local path from a sample file inside it (browsers hide the path). The
+ * caller opens the returned path through {@link landingGalleryOpen}, so drag-and-drop lands on the
+ * same catalogue the picker would. Resolves to `null` when the folder can't be located on disk.
+ */
+export function landingGalleryResolveDrop(sample: DroppedFolderSample): Promise<string | null> {
+  return requestBody<{ path: string | null }>('/api/landing-preview/resolve-drop', sample).then(
+    result => result.path
+  );
 }
 
 export async function landingGalleryOpenTeamSpace(

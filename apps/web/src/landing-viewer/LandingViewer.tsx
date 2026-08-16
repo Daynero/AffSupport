@@ -10,7 +10,7 @@ import {
 import { Button, ProgressBar, Spinner } from '../components/ui';
 import { useI18n } from '../i18n';
 import { navigateTo } from '../lib/navigation';
-import { droppedFilePaths } from '../components/DropZone';
+import { droppedFilePaths, firstDroppedDirectory, sampleDroppedFolder } from '../components/DropZone';
 import { emptyState } from './types';
 import { readViewerPreferences, writeViewerPreferences } from './viewerPreferences';
 import { useLandingViewport } from './useLandingViewport';
@@ -163,16 +163,40 @@ export function LandingViewer({
     dragDepth.current = Math.max(0, dragDepth.current - 1);
     if (!dragDepth.current) setDragging(false);
   };
+  // Resolve a dropped folder the browser wouldn't give us a path for: read a sample file from it and
+  // let the agent match it back to disk, then open it exactly like the picker. Falls back to the
+  // picker only when the folder genuinely can't be located.
+  const openDroppedFolder = useCallback(
+    async (dir: FileSystemDirectoryEntry | null) => {
+      if (!dir || !source.resolveDroppedFolder) {
+        setMessage(t('landingGalleryDropNeedsPicker'));
+        return;
+      }
+      try {
+        const sample = await sampleDroppedFolder(dir);
+        const resolved = sample ? await source.resolveDroppedFolder(sample) : null;
+        if (resolved) openPaths([resolved]);
+        else setMessage(t('landingGalleryDropNeedsPicker'));
+      } catch {
+        setMessage(t('landingGalleryDropNeedsPicker'));
+      }
+    },
+    [source, openPaths, setMessage, t]
+  );
+
   const handleDrop = (event: DragEvent) => {
     event.preventDefault();
     dragDepth.current = 0;
     setDragging(false);
+    // Fast path: some contexts expose the OS path directly via the URI list.
     const paths = droppedFilePaths(event.dataTransfer);
-    if (!paths.length) {
-      setMessage(t('landingGalleryDropNeedsPicker'));
+    if (paths.length) {
+      openPaths([paths[0]]);
       return;
     }
-    openPaths([paths[0]]);
+    // Otherwise grab the directory entry synchronously (only valid during the event) and recover its
+    // path on the agent.
+    void openDroppedFolder(firstDroppedDirectory(event.dataTransfer));
   };
 
   const selectAndScroll = (id: string) => {

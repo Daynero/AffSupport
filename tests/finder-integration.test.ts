@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { AGENT_CAPABILITIES } from '../packages/shared/src/types.js';
 
-describe('Wishly Finder image conversion integration', () => {
+describe('Soty Finder image conversion integration', () => {
   const extension = readFileSync('packaging/FinderExtension/FinderSync.swift', 'utf8');
   const launcher = readFileSync('packaging/Launcher.swift', 'utf8');
   // The native bridge is split between the server factory (auth preHandler)

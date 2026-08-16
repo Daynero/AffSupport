@@ -26,11 +26,11 @@ Deferred TODOs: none. RATIFICATION_DATE set to first adoption (2026-08-01) since
 adoption date is recorded in git or docs.
 -->
 
-# Wishly (local-video-compressor) Constitution
+# Soty (local-video-compressor) Constitution
 
-This constitution governs the Wishly monorepo — a local, privacy-first media toolkit.
+This constitution governs the Soty monorepo — a local, privacy-first media toolkit.
 Identity spans three names on purpose: the npm root package is `local-video-compressor`,
-the workspace scope is `@video-compressor/*`, the product brand is **Wishly**, and the
+the workspace scope is `@video-compressor/*`, the product brand is **Soty**, and the
 GitHub repo is `AffSupport`. Newcomers MUST expect all four and MUST NOT "unify" them.
 
 The system is an npm-workspaces monorepo: a local Fastify **agent** (`apps/agent`), a

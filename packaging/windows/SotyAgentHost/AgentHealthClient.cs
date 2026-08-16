@@ -3,7 +3,7 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Wishly.AgentHost;
+namespace Soty.AgentHost;
 
 // Mirrors the AgentHealth / InstalledRelease structs in packaging/Launcher.swift.
 internal sealed record AgentHealth
@@ -41,7 +41,7 @@ internal sealed class AgentHealthClient
   };
 
   /// <summary>
-  /// GET /health with a short timeout. Returns the parsed payload only when a Wishly
+  /// GET /health with a short timeout. Returns the parsed payload only when a Soty
   /// agent answered with HTTP 200; any error, timeout, or foreign responder yields null
   /// (same contract as probeHealth in Launcher.swift). /health is unauthenticated;
   /// X-Wishly-Native-Token is only required by the /native/* routes.

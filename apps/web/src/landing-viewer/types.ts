@@ -3,6 +3,7 @@ import type {
   LandingPreviewRenderSettings,
   LandingPreviewState
 } from '@video-compressor/shared';
+import type { DroppedFolderSample } from '../components/DropZone';
 
 export type {
   LandingPreviewCatalogSummary,
@@ -66,6 +67,13 @@ export interface LandingViewerSource {
   // ---- capability-gated (present iff the matching capability flag is true) ----
   chooseFolder?(): Promise<LandingPreviewState>;
   openPaths?(paths: string[]): Promise<LandingPreviewState>;
+  /**
+   * Recover a dropped folder's local path from a sample file inside it (browsers hide the path), so
+   * drag-and-drop can open the same folder the picker would via {@link openPaths}. Resolves to
+   * `null` when the folder can't be located, letting the UI fall back to the picker. Present iff
+   * {@link LandingViewerSourceCapabilities.openPaths} is `true`.
+   */
+  resolveDroppedFolder?(sample: DroppedFolderSample): Promise<string | null>;
   refresh?(mode: 'changed' | 'all' | 'current', landingId?: string): Promise<LandingPreviewState>;
   cancel?(): Promise<LandingPreviewState>;
   reveal?(landingId: string): Promise<LandingPreviewState>;

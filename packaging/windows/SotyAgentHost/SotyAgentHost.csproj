@@ -4,8 +4,8 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
-    <RootNamespace>Wishly.AgentHost</RootNamespace>
-    <AssemblyName>WishlyAgentHost</AssemblyName>
+    <RootNamespace>Soty.AgentHost</RootNamespace>
+    <AssemblyName>SotyAgentHost</AssemblyName>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <!-- Allows building the Windows host from macOS/Linux CI and dev machines. -->
@@ -32,7 +32,7 @@
   <Target Name="EnsureHostConfigRendered" BeforeTargets="BeforeCompile">
     <Error
       Condition="!Exists('$(MSBuildProjectDirectory)/HostConfig.cs')"
-      Text="HostConfig.cs is missing. Render it first: node scripts/render-launcher.mjs packaging/windows/WishlyAgentHost/HostConfig.template.cs packaging/windows/WishlyAgentHost/HostConfig.cs TOKEN=value ... (see packaging/windows/README.md)." />
+      Text="HostConfig.cs is missing. Render it first: node scripts/render-launcher.mjs packaging/windows/SotyAgentHost/HostConfig.template.cs packaging/windows/SotyAgentHost/HostConfig.cs TOKEN=value ... (see packaging/windows/README.md)." />
   </Target>
 
 </Project>

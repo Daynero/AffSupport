@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 
-namespace Wishly.AgentHost;
+namespace Soty.AgentHost;
 
 internal static class NativeToken
 {

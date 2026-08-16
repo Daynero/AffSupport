@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace Wishly.AgentHost;
+namespace Soty.AgentHost;
 
 /// <summary>
 /// Windows port of packaging/Launcher.swift: tray icon, single-instance lock, agent
@@ -492,7 +492,7 @@ internal sealed class TrayApplication : ApplicationContext
     if (health?.Busy == true)
     {
       var choice = MessageBox.Show(
-        "Wishly is still processing media. Quitting now marks the active job as interrupted; it can be retried safely later.\n\nQuit anyway?",
+        "Soty is still processing media. Quitting now marks the active job as interrupted; it can be retried safely later.\n\nQuit anyway?",
         $"Quit {HostConfig.ApplicationName}?",
         MessageBoxButtons.YesNo,
         MessageBoxIcon.Warning

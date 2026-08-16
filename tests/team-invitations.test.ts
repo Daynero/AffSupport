@@ -8,12 +8,12 @@ import { executeInvitationCommand } from '../supabase/functions/team-invitations
 describe('team invitation delivery', () => {
   it('builds a safe bilingual deep-link message without raw HTML injection', () => {
     const message = buildInvitationEmail({
-      teamName: '<Wishly & Friends>',
+      teamName: '<Soty & Friends>',
       inviterName: 'Owner <script>',
       inviteUrl: 'https://soty.pp.ua/account?invite=opaque-token'
     });
     expect(message.subject).toContain('in Soty');
-    expect(message.html).toContain('&lt;Wishly &amp; Friends&gt;');
+    expect(message.html).toContain('&lt;Soty &amp; Friends&gt;');
     expect(message.html).not.toContain('<script>');
     expect(message.html).toContain('https://soty.pp.ua/account?invite=opaque-token');
     expect(message.text).not.toContain('<script>');
@@ -206,7 +206,7 @@ describe('team invitation delivery', () => {
     ).rejects.toMatchObject({ code: 'PERMISSION_DENIED', retryable: false });
   });
 
-  it('directly adds a confirmed Wishly account only after the caller-scoped lookup gate', async () => {
+  it('directly adds a confirmed Soty account only after the caller-scoped lookup gate', async () => {
     const calls: Array<{ name: string; parameters: Record<string, unknown> }> = [];
     const deliver = vi.fn();
     const createToken = vi.fn();

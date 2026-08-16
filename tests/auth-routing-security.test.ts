@@ -8,7 +8,7 @@ import { routeKind } from '../apps/web/src/lib/tool-registry';
 import { translate } from '../apps/web/src/i18n';
 
 describe('protected routing and safe OAuth returns', () => {
-  it('preserves only known internal Wishly routes', () => {
+  it('preserves only known internal Soty routes', () => {
     expect(safeReturnPath('/compressor')).toBe('/compressor');
     expect(safeReturnPath('/account?tab=privacy')).toBe('/account?tab=privacy');
     expect(safeReturnPath('/admin#users')).toBe('/admin#users');
@@ -67,15 +67,15 @@ describe('protected routing and safe OAuth returns', () => {
   it('starts the local Agent provider only inside the authenticated application', async () => {
     const [root, protectedApplication] = await Promise.all([
       readFile('apps/web/src/Root.tsx', 'utf8'),
-      readFile('apps/web/src/ProtectedWishly.tsx', 'utf8')
+      readFile('apps/web/src/ProtectedSoty.tsx', 'utf8')
     ]);
-    expect(root).toContain("lazy(() => import('./ProtectedWishly'))");
+    expect(root).toContain("lazy(() => import('./ProtectedSoty'))");
     expect(root).not.toContain('<AgentProvider>');
     expect(protectedApplication).toContain('<AgentProvider>');
     expect(protectedApplication).toContain('toolByPath(path)');
   });
 
-  it('keeps the public Wishly purpose visible at the root before sign-in', async () => {
+  it('keeps the public Soty purpose visible at the root before sign-in', async () => {
     const [root, publicHome] = await Promise.all([
       readFile('apps/web/src/Root.tsx', 'utf8'),
       readFile('apps/web/src/PublicHomePage.tsx', 'utf8')

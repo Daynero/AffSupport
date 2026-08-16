@@ -99,7 +99,7 @@ describe('Drive OAuth release gate', () => {
       GOOGLE_CLIENT_SECRET: 'google-client-secret',
       GOOGLE_REDIRECT_URI: 'https://project.supabase.co/functions/v1/drive-oauth-callback',
       RESEND_API_KEY: 'resend-api-key',
-      INVITE_EMAIL_FROM: 'Wishly <team@example.test>',
+      INVITE_EMAIL_FROM: 'Soty <team@example.test>',
       CATALOG_SYNC_SECRET: 'c'.repeat(32)
     };
 

@@ -5,7 +5,7 @@ import { routeKind, webTools } from '../apps/web/src/lib/tool-registry';
 import { translate } from '../apps/web/src/i18n';
 import { isProtected } from '../apps/web/src/lib/feature-flags';
 
-describe('Wishly product launcher', () => {
+describe('Soty product launcher', () => {
   it('maps the root and direct tool URLs to separate product screens', () => {
     expect(routeKind('/')).toBe('home');
     expect(routeKind('/compressor')).toBe('compressor');
@@ -34,7 +34,7 @@ describe('Wishly product launcher', () => {
     expect(webTools.find(tool => tool.id === 'landingPreview')?.capability).toBe('landing-preview');
   });
 
-  it('opens the landing optimizer to every Wishly user without a developer pass', () => {
+  it('opens the landing optimizer to every Soty user without a developer pass', () => {
     expect(isProtected('landingOptimizer')).toBe(false);
     expect(isProtected('landingPreview')).toBe(false);
   });
@@ -60,7 +60,7 @@ describe('Wishly product launcher', () => {
     expect(redirects).toContain('/* /index.html 200');
   });
 
-  it('starts the Agent quietly and leaves opening Wishly to the user', async () => {
+  it('starts the Agent quietly and leaves opening Soty to the user', async () => {
     const [launcher, entrypoint, serverFactory] = await Promise.all([
       readFile('packaging/Launcher.swift', 'utf8'),
       readFile('apps/agent/src/index.ts', 'utf8'),
@@ -75,7 +75,7 @@ describe('Wishly product launcher', () => {
     );
     expect(existingInstance).not.toContain('openInterface()');
     expect(agent).not.toContain("import open from 'open'");
-    expect(agent).not.toContain('Could not open Wishly in the browser');
+    expect(agent).not.toContain('Could not open Soty in the browser');
   });
 
   it('drains an older Agent without exposing a port error to the user', async () => {

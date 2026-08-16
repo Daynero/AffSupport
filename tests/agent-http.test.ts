@@ -63,7 +63,7 @@ async function makeServer(options: { entitlementPublicKey?: string } = {}) {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'wishly-agent-http-'));
   const webRoot = path.join(dir, 'web');
   await mkdir(webRoot, { recursive: true });
-  await writeFile(path.join(webRoot, 'index.html'), '<!doctype html><title>Wishly test</title>');
+  await writeFile(path.join(webRoot, 'index.html'), '<!doctype html><title>Soty test</title>');
 
   const allowedOrigins = new Set([ALLOWED_ORIGIN]);
   const tools = { ffmpeg: true, ffprobe: true };

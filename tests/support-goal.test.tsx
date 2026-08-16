@@ -13,9 +13,9 @@ const goalState = vi.hoisted(() => ({
     raised_cents: 2400,
     title_en: 'Get rid of reinstalls',
     title_uk: 'Позбутися перевстановлень',
-    description_en: 'The Apple Developer Program enables signed builds and safer Wishly updates.',
+    description_en: 'The Apple Developer Program enables signed builds and safer Soty updates.',
     description_uk:
-      'Apple Developer Program дає змогу підписувати збірки та безпечніше оновлювати Wishly.',
+      'Apple Developer Program дає змогу підписувати збірки та безпечніше оновлювати Soty.',
     status: 'active',
     created_at: '2026-07-31T00:00:00.000Z',
     updated_at: '2026-07-31T00:00:00.000Z'

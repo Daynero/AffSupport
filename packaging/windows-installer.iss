@@ -14,12 +14,12 @@
 ;        release\windows\installer.generated.iss
 ;
 ;   StageDir — output of scripts/stage-windows-runtime.mjs
-;   HostDir  — `dotnet publish` output containing WishlyAgentHost.exe (tray host)
+;   HostDir  — `dotnet publish` output containing SotyAgentHost.exe (tray host)
 ;
 ; Authenticode: sign both the host exe (before iscc) and the produced installer
 ; (after iscc), otherwise SmartScreen flags the download:
 ;   signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 ^
-;     /a <HostDir>\WishlyAgentHost.exe
+;     /a <HostDir>\SotyAgentHost.exe
 ;   signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 ^
 ;     /a Output\Soty-Agent-v__PRODUCT_VERSION__-Windows-x64.exe
 ; Inno can also sign intermediate files itself via SignTool=... if configured.
@@ -28,7 +28,7 @@
   #error Pass /DStageDir=<path to release/windows/stage> to iscc
 #endif
 #ifndef HostDir
-  #error Pass /DHostDir=<path to the WishlyAgentHost dotnet publish directory> to iscc
+  #error Pass /DHostDir=<path to the SotyAgentHost dotnet publish directory> to iscc
 #endif
 
 [Setup]
@@ -68,18 +68,18 @@ Source: "{#HostDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs
 ; Autostart for the current user; uninsdeletevalue removes it on uninstall.
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; \
   ValueType: string; ValueName: "Soty"; \
-  ValueData: """{app}\WishlyAgentHost.exe"""; Flags: uninsdeletevalue
+  ValueData: """{app}\SotyAgentHost.exe"""; Flags: uninsdeletevalue
 
 [Run]
 ; Start the tray host right after installation finishes.
-Filename: "{app}\WishlyAgentHost.exe"; Description: "Start Soty"; \
+Filename: "{app}\SotyAgentHost.exe"; Description: "Start Soty"; \
   Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
 ; Stop the tray host before files are removed. The host is responsible for
 ; terminating the node agent it supervises when it exits.
-Filename: "{cmd}"; Parameters: "/C taskkill /IM WishlyAgentHost.exe /F"; \
-  Flags: runhidden; RunOnceId: "StopWishlyAgentHost"
+Filename: "{cmd}"; Parameters: "/C taskkill /IM SotyAgentHost.exe /F"; \
+  Flags: runhidden; RunOnceId: "StopSotyAgentHost"
 
 [Code]
 // An upgrade must not copy over a running host; stop it before install too.
@@ -87,7 +87,7 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   ResultCode: Integer;
 begin
-  Exec(ExpandConstant('{cmd}'), '/C taskkill /IM WishlyAgentHost.exe /F', '',
+  Exec(ExpandConstant('{cmd}'), '/C taskkill /IM SotyAgentHost.exe /F', '',
     SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Result := '';
 end;

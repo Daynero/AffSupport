@@ -13,7 +13,7 @@ import PublicHomePage from './PublicHomePage';
 import { loginUrl } from './lib/redirects';
 import { navigateTo, useBrowserRoute } from './lib/navigation';
 
-const ProtectedWishly = lazy(() => import('./ProtectedWishly'));
+const ProtectedSoty = lazy(() => import('./ProtectedSoty'));
 const PrivacyPage = lazy(() =>
   import('./pages/LegalPages').then(module => ({ default: module.PrivacyPage }))
 );
@@ -68,7 +68,7 @@ function Routes() {
 
   return (
     <Suspense fallback={<AuthLoadingScreen />}>
-      <ProtectedWishly path={path} />
+      <ProtectedSoty path={path} />
     </Suspense>
   );
 }
@@ -88,7 +88,7 @@ function RedirectToLogin({ route }: { route: string }) {
 
 // Tool-path classification (routeKind) lives in lib/tool-registry.ts. Root must
 // not import the registry: it would pull every tool page into the eager entry
-// chunk, defeating the lazy ProtectedWishly split above.
+// chunk, defeating the lazy ProtectedSoty split above.
 
 export function protectedRouteDecision(input: {
   status: ReturnType<typeof useAuth>['status'];

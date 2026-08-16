@@ -34,7 +34,7 @@ export function prefersReducedMotion(): boolean {
  * snapshots), or another route transition is already running.
  *
  * Lazy chunks: every in-app page (home, tools, account, admin) lives inside
- * the one lazily loaded ProtectedWishly chunk, so in-app route swaps are
+ * the one lazily loaded ProtectedSoty chunk, so in-app route swaps are
  * synchronous and the transition never captures an empty fallback. The only
  * lazy boundary crossed by navigation is the rarely visited legal chunk; if
  * it suspends, the transition crossfades to a loading screen painted on the

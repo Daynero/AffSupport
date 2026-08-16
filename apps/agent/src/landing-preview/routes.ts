@@ -3,6 +3,7 @@ import { access } from 'node:fs/promises';
 import type { FastifyInstance } from 'fastify';
 import type { LandingPreviewEvent } from '@video-compressor/shared';
 import { selectLandingPreviewFolder } from '../files/picker.js';
+import { findDroppedFolder } from '../files/dropped-source.js';
 import { capabilities, openPath, revealInFileManager } from '../platform/platform.js';
 import type { EventChannel } from '../server/sse.js';
 import type { LandingPreviewCatalog } from './catalog.js';
@@ -66,6 +67,28 @@ export function registerLandingPreviewRoutes(
         return reply.code(409).send({ error: 'Preview generation is already running.' });
       }
       return catalog.state();
+    } catch (error) {
+      return failure(reply, error);
+    }
+  });
+
+  // Browsers hide a dropped folder's absolute path, so the client sends a sample file from inside it
+  // and we recover the folder on disk here. Resolve-only: the client then opens it through the same
+  // `/open` → `openRoot` path as the picker, so drag-and-drop and the picker converge exactly.
+  app.post<{ Body?: unknown }>('/api/landing-preview/resolve-drop', async (request, reply) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const sample = {
+      folderName: typeof body.folderName === 'string' ? body.folderName : '',
+      relPath: typeof body.relPath === 'string' ? body.relPath : '',
+      fileName: typeof body.fileName === 'string' ? body.fileName : '',
+      size: typeof body.size === 'number' ? body.size : Number.NaN,
+      lastModified: typeof body.lastModified === 'number' ? body.lastModified : Number.NaN
+    };
+    if (!sample.folderName || !sample.relPath || !sample.fileName) {
+      return reply.code(400).send({ error: 'Invalid dropped folder details.' });
+    }
+    try {
+      return { path: await findDroppedFolder(sample) };
     } catch (error) {
       return failure(reply, error);
     }

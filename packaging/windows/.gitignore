@@ -1,4 +1,4 @@
 # Rendered from HostConfig.template.cs by scripts/render-launcher.mjs.
-WishlyAgentHost/HostConfig.cs
-WishlyAgentHost/bin/
-WishlyAgentHost/obj/
+SotyAgentHost/HostConfig.cs
+SotyAgentHost/bin/
+SotyAgentHost/obj/

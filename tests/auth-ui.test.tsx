@@ -46,7 +46,7 @@ const session = { user, access_token: 'test', refresh_token: 'test', expires_in:
 const profile: Profile = {
   id: user.id,
   email: user.email ?? null,
-  display_name: 'Wishly Owner',
+  display_name: 'Soty Owner',
   avatar_url: null,
   language: 'en',
   plan: 'free',

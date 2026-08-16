@@ -11,7 +11,7 @@ import { activeWordIndex, flattenWords } from '../apps/web/src/transcription/kar
 import { defaultTranslationTarget, isRtlLanguage } from '../apps/web/src/transcription/language.js';
 
 describe('translation language defaults and direction', () => {
-  it('defaults to the Wishly UI language when it differs from the source', () => {
+  it('defaults to the Soty UI language when it differs from the source', () => {
     expect(defaultTranslationTarget('en-US', 'uk')).toBe('uk');
     expect(defaultTranslationTarget('uk-UA', 'en')).toBe('en');
   });

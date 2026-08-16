@@ -6,7 +6,7 @@ Pinned revision: 614241f622f53c4eeff9890bdc4f31cfecc418b3
 The upstream model-card metadata at that revision declares `license: mit`.
 The model repository does not provide a separate LICENSE file or a copyright
 holder line. The standard MIT license text is reproduced below; no copyright
-holder has been invented by Wishly.
+holder has been invented by Soty.
 
 MIT License
 

@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 
-namespace Wishly.AgentHost;
+namespace Soty.AgentHost;
 
 /// <summary>
 /// Owns the bundled Node agent child process: spawn with the packaged environment,

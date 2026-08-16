@@ -18,7 +18,7 @@ import { teamApi } from './api/team';
 import { TeamProvider } from './team/TeamContext';
 import TeamSpace from './team/TeamSpace';
 
-export default function ProtectedWishly({ path }: { path: string }) {
+export default function ProtectedSoty({ path }: { path: string }) {
   return (
     <AgentProvider>
       <SupportGoalProvider>
