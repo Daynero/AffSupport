@@ -4809,6 +4809,42 @@ input.is-invalid {
   }
 }
 
+/* The zoom stepper, fit-width/fit-page and the rest of the actions cluster are
+   wide enough that a single row squeezes the page selector hard against the
+   leading controls (and, once a filename is shown, paints over it). Below this
+   width drop the selector onto its own centered row: it can never be crowded and
+   no control has to be hidden. Kept above the fit-label / identity breakpoints so
+   the reflow happens before the overlap does. */
+@media (max-width: 1280px) {
+  .landing-gallery-viewer {
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
+  .landing-gallery-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'leading actions'
+      'navigation navigation';
+    row-gap: 6px;
+    min-height: 0;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .landing-gallery-toolbar-group.is-leading {
+    grid-area: leading;
+  }
+
+  .landing-gallery-toolbar-group.is-actions {
+    grid-area: actions;
+  }
+
+  .landing-gallery-toolbar-group.is-navigation {
+    grid-area: navigation;
+    justify-content: center;
+  }
+}
+
 @media (max-width: 1024px) {
   .landing-gallery-toolbar-group.is-actions .landing-gallery-zoom {
     display: none;
@@ -4825,9 +4861,16 @@ input.is-invalid {
       minmax(0, 1fr);
   }
 
+  /* Mobile-stacked layout: the sidebar becomes a top: 70px overlay, so keep the
+     toolbar a single 70px row here and fall back to the edge-nav arrows for
+     paging (undo the 821–1280px two-row reflow). */
   .landing-gallery-toolbar {
     min-height: 70px;
     grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'leading actions';
+    row-gap: 0;
+    padding-top: 0;
+    padding-bottom: 0;
   }
 
   .landing-gallery-toolbar-group.is-navigation {

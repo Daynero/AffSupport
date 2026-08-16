@@ -1,3 +1,9 @@
+# v0.9.20
+
+- Rename the native Soty app and Finder extension executables consistently, so diagnostics and bundled components use the current product identity.
+- Keep Landing Gallery toolbar controls clear and reachable across narrower desktop and mobile layouts.
+- Isolate Team Workspace transfer staging under the Soty name.
+
 # v0.9.19
 
 - Finish active local work before handing an update to the new Soty Agent, while refusing new work on the retiring Agent so the handoff completes automatically.

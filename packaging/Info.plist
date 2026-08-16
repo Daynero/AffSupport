@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
   <key>CFBundleExecutable</key>
-  <string>WishlyAgent</string>
+  <string>SotyAgent</string>
   <key>CFBundleIdentifier</key>
   <string>local.video.compressor.test</string>
   <key>CFBundleName</key>

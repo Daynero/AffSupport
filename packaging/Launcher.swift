@@ -19,7 +19,7 @@ private let nativeToken = [UUID(), UUID()].map(\.uuidString).joined()
 private let finderActionPasteboardType = NSPasteboard.PasteboardType("com.wishly.finder-action")
 private let finderIntegrationOfferKey = "didOfferFinderImageConversionV1"
 private let launcherLogger = Logger(
-  subsystem: Bundle.main.bundleIdentifier ?? "WishlyAgent",
+  subsystem: Bundle.main.bundleIdentifier ?? "SotyAgent",
   category: "finder-actions"
 )
 private let updateHandoffExitStatus: Int32 = 76

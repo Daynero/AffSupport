@@ -73,7 +73,7 @@ describe('Wishly Finder image conversion integration', () => {
     expect(development).toContain('com.wishly.dev.finder-extension');
     expect(development).toContain('Soty Dev Finder Action');
     expect(development).toContain('— Soty Dev');
-    expect(development).toContain('Contents/MacOS/WishlyDevAgent');
+    expect(development).toContain('Contents/MacOS/SotyDevAgent');
   });
 
   it('advertises the native capability for future media-action expansion', () => {

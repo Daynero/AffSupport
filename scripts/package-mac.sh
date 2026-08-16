@@ -50,7 +50,7 @@ node scripts/render-launcher.mjs packaging/Launcher.swift "$root/Launcher.genera
   "SOURCE_REVISION=$source_revision" \
   "AGENT_ENTITLEMENT_PUBLIC_KEY=$AGENT_ENTITLEMENT_PUBLIC_KEY"
 swiftc "$root/Launcher.generated.swift" \
-  -o "$app/Contents/MacOS/WishlyAgent" \
+  -o "$app/Contents/MacOS/SotyAgent" \
   -target arm64-apple-macos13.0 \
   -framework AppKit \
   -framework FinderSync

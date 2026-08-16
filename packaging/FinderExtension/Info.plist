@@ -7,7 +7,7 @@
   <key>CFBundleDisplayName</key>
   <string>Soty Finder</string>
   <key>CFBundleExecutable</key>
-  <string>WishlyFinderExtension</string>
+  <string>SotyFinderExtension</string>
   <key>CFBundleIdentifier</key>
   <string>local.video.compressor.test.finder-extension</string>
   <key>CFBundleName</key>
@@ -25,7 +25,7 @@
     <key>NSExtensionPointIdentifier</key>
     <string>com.apple.FinderSync</string>
     <key>NSExtensionPrincipalClass</key>
-    <string>WishlyFinderSync</string>
+    <string>SotyFinderSync</string>
   </dict>
 </dict>
 </plist>

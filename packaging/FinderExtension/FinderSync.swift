@@ -11,7 +11,7 @@ private let finderActionPasteboardType = NSPasteboard.PasteboardType(
 )
 private let maximumSelectionCount = 100
 private let finderLogger = Logger(
-  subsystem: Bundle.main.bundleIdentifier ?? "WishlyFinderExtension",
+  subsystem: Bundle.main.bundleIdentifier ?? "SotyFinderExtension",
   category: "finder-actions"
 )
 
@@ -58,8 +58,8 @@ private struct FinderActionPayload: Codable {
   let paths: [String]
 }
 
-@objc(WishlyFinderSync)
-final class WishlyFinderSync: FIFinderSync {
+@objc(SotyFinderSync)
+final class SotyFinderSync: FIFinderSync {
   private var menuPathsByFormat: [TargetFormat: [String]] = [:]
 
   override init() {

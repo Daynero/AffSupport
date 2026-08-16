@@ -54,7 +54,7 @@ export class TeamTransferClient {
     validateTransferGrant(request.grant, ['process_input', 'download_range']);
     const endpoint = transferUrl(request.transferUrl);
     await mkdir(this.#temporaryRoot, { recursive: true });
-    const workspace = await mkdtemp(path.join(this.#temporaryRoot, 'wishly-team-process-'));
+    const workspace = await mkdtemp(path.join(this.#temporaryRoot, 'soty-team-process-'));
     const file = path.join(workspace, 'source.bin');
     const handle = await open(file, 'wx', 0o600);
     let offset = 0;

@@ -10,8 +10,8 @@ build_number="${6:?Pass CFBundleVersion}"
 generated_source="${7:?Pass a generated Swift source path}"
 menu_suffix="${8-}"
 
-extension="$app/Contents/PlugIns/WishlyFinderExtension.appex"
-executable="$extension/Contents/MacOS/WishlyFinderExtension"
+extension="$app/Contents/PlugIns/SotyFinderExtension.appex"
+executable="$extension/Contents/MacOS/SotyFinderExtension"
 mkdir -p "$extension/Contents/MacOS" \
   "$extension/Contents/Resources/en.lproj" \
   "$extension/Contents/Resources/uk.lproj"
@@ -24,7 +24,7 @@ node scripts/render-launcher.mjs \
 swiftc "$generated_source" \
   -o "$executable" \
   -target arm64-apple-macos13.0 \
-  -module-name WishlyFinderExtension \
+  -module-name SotyFinderExtension \
   -parse-as-library \
   -application-extension \
   -Xlinker -e \

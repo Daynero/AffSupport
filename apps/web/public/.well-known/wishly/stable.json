@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.9.19",
-  "buildNumber": "55",
-  "buildId": "0.9.19+55",
+  "version": "0.9.20",
+  "buildNumber": "56",
+  "buildId": "0.9.20+56",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-08-15T21:56:09.000Z",
+  "publishedAt": "2026-08-16T06:27:58.000Z",
   "summary": {
-    "en": "Updates Soty safely after active work finishes, recovers older background Agents without technical startup errors, and prevents an older app from replacing a newer one.",
-    "uk": "Безпечно оновлює Soty після завершення активної роботи, відновлює застарілі фонові Agent без технічних помилок запуску та не дозволяє старій версії замінити новішу."
+    "en": "Renames native Soty and Finder components consistently, keeps the Landing Gallery toolbar clear on narrow screens, and improves team-transfer isolation.",
+    "uk": "Послідовно перейменовує нативні компоненти Soty і Finder, зберігає панель Landing Gallery зрозумілою на вузьких екранах та покращує ізоляцію командних передач."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.19/Soty-v0.9.19-macOS-arm64.dmg",
-      "sha256": "0b3d4dc389c04acdd0e550ef6904e5b662d926f65e540250c9688f4f76846c3a"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.20/Soty-v0.9.20-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -35,5 +35,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "kftmG4ScELFy5vJ7GiU5dqKnBUgBaRzcDcOp4x3wJ4VuaONLd3cHPPIOojzsf7gwm9bWMhBWcwfSIsHtg5SX2Q"
+  "signature": "j8J2zb4RD3CK_WWeI9TcT2mn_rgZIyUtdBn-CrIpjflXklq1VhZh3oKGnWMfbBNB4TQFXeaoO0YdljQ7jjke2g"
 }

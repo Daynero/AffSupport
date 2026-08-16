@@ -11,8 +11,8 @@ attach=$(hdiutil attach -readonly -nobrowse "$dmg"); mount=$(print -r -- "$attac
 [[ -d "$mount/Soty.app" && -L "$mount/Applications" && -f "$mount/.background/background.png" ]]
 ditto "$mount/Soty.app" "$work/Soty.app"
 app="$work/Soty.app"; [[ -f "$app/Contents/Resources/AppIcon.icns" ]]
-finder_extension="$app/Contents/PlugIns/WishlyFinderExtension.appex"
-finder_binary="$finder_extension/Contents/MacOS/WishlyFinderExtension"
+finder_extension="$app/Contents/PlugIns/SotyFinderExtension.appex"
+finder_binary="$finder_extension/Contents/MacOS/SotyFinderExtension"
 [[ -x "$finder_binary" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionPointIdentifier' "$finder_extension/Contents/Info.plist")" == "com.apple.FinderSync" ]]
 codesign --verify --strict "$finder_extension"
@@ -28,7 +28,7 @@ env -i PATH=/usr/bin:/bin /usr/bin/open -n --env NO_OPEN=1 --env WISHLY_ALLOW_UN
 for i in {1..40}; do /usr/bin/curl -fsS --max-time 1 http://127.0.0.1:43120/health -o /dev/null 2>/dev/null && break; sleep .25; done
 listener_pid=$(lsof -tiTCP:43120 -sTCP:LISTEN); [[ -n "$listener_pid" ]]
 agent_pid=$(ps -o ppid= -p "$listener_pid" | tr -d ' '); [[ -n "$agent_pid" ]]
-[[ "$(ps -o command= -p "$agent_pid")" == *"$app/Contents/MacOS/WishlyAgent"* ]]
+[[ "$(ps -o command= -p "$agent_pid")" == *"$app/Contents/MacOS/SotyAgent"* ]]
 [[ "$(ps -o command= -p "$listener_pid")" == *"$app/Contents/Resources/runtime/node"* ]]
 headers="$work/pair.headers"; /usr/bin/curl -sS -D "$headers" -o /dev/null --max-redirs 0 http://127.0.0.1:43120/pair
 token=$(sed -n 's/^[Ll]ocation: .*#agentToken=\([a-f0-9]*\).*/\1/p' "$headers" | tr -d '\r'); [[ ${#token} -eq 64 ]]

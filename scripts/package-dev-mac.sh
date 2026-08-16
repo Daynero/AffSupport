@@ -68,7 +68,7 @@ node scripts/render-launcher.mjs packaging/Launcher.swift "$root/Launcher.genera
   "SOURCE_REVISION=$source_revision" \
   "AGENT_ENTITLEMENT_PUBLIC_KEY="
 swiftc "$root/Launcher.generated.swift" \
-  -o "$app/Contents/MacOS/WishlyDevAgent" \
+  -o "$app/Contents/MacOS/SotyDevAgent" \
   -target arm64-apple-macos13.0 \
   -framework AppKit \
   -framework FinderSync
@@ -93,7 +93,7 @@ cp packaging/licenses/multilingual-e5-small-MIT.txt "$app/Contents/Resources/lic
 cp packaging/Info.plist "$app/Contents/Info.plist"
 cp THIRD_PARTY_NOTICES.md "$app/Contents/Resources/"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.wishly.dev" "$app/Contents/Info.plist"
-/usr/libexec/PlistBuddy -c "Set :CFBundleExecutable WishlyDevAgent" "$app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleExecutable SotyDevAgent" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleName Soty Dev" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Soty Dev" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :NSServices:0:NSMenuItem:default Soty Dev Finder Action" "$app/Contents/Info.plist"
