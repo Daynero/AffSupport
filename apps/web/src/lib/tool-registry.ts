@@ -24,7 +24,7 @@ import TranscriptionPage from '../transcription/TranscriptionPage';
 // from eagerly loaded code (Root, main) would pull all tool pages into the
 // entry bundle; keep such code off the registry.
 
-export type WebToolStatus = 'available' | 'coming-soon' | 'in-development';
+export type WebToolStatus = 'available' | 'beta' | 'coming-soon' | 'in-development';
 
 export type WebTool = {
   /** Canonical id, aligned with the SotyToolId agent contract. */
@@ -105,7 +105,7 @@ export const webTools: readonly WebTool[] = [
     descriptionKey: 'transcriptionDescription',
     icon: TranscriptionIcon,
     featureFlag: 'transcription',
-    status: statusFor('transcription'),
+    status: 'beta',
     capability: null,
     page: TranscriptionPage
   }

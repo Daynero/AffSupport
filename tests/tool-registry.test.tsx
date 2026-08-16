@@ -77,10 +77,12 @@ describe('web tool registry', () => {
     expect(toolByPath('/unknown')).toBeUndefined();
   });
 
-  it('derives the in-development status from the feature flags', () => {
+  it('keeps beta availability independent from the development-warning flag', () => {
     for (const tool of webTools) {
       const protectedFlag = tool.featureFlag ? featureFlags[tool.featureFlag].protected : false;
-      expect(tool.status).toBe(protectedFlag ? 'in-development' : 'available');
+      const expectedStatus =
+        tool.id === 'transcription' ? 'beta' : protectedFlag ? 'in-development' : 'available';
+      expect(tool.status).toBe(expectedStatus);
     }
   });
 

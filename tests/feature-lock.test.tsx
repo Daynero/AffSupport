@@ -4,7 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import FeatureLockDialog from '../apps/web/src/components/FeatureLockDialog';
-import { isLocked, isUnlocked, unlockFeature } from '../apps/web/src/lib/feature-flags';
+import {
+  featureFlags,
+  isLocked,
+  isUnlocked,
+  unlockFeature
+} from '../apps/web/src/lib/feature-flags';
 
 beforeEach(() => {
   localStorage.clear();
@@ -15,10 +20,12 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  featureFlags.transcription.protected = false;
 });
 
 describe('feature acknowledgment gate', () => {
   it('locks protected features until the browser acknowledges them', () => {
+    featureFlags.transcription.protected = true;
     expect(isLocked('transcription')).toBe(true);
     expect(isUnlocked('transcription')).toBe(false);
 
@@ -41,6 +48,7 @@ describe('feature acknowledgment gate', () => {
 
 describe('FeatureLockDialog', () => {
   it('warns about the work-in-progress feature and unlocks it on confirmation', async () => {
+    featureFlags.transcription.protected = true;
     const onUnlocked = vi.fn();
     const onClose = vi.fn();
     render(<FeatureLockDialog feature="transcription" onUnlocked={onUnlocked} onClose={onClose} />);
@@ -59,6 +67,7 @@ describe('FeatureLockDialog', () => {
   });
 
   it('keeps the feature locked when the user declines', async () => {
+    featureFlags.transcription.protected = true;
     const onUnlocked = vi.fn();
     const onClose = vi.fn();
     render(<FeatureLockDialog feature="transcription" onUnlocked={onUnlocked} onClose={onClose} />);

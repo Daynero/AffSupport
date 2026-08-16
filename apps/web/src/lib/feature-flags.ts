@@ -19,7 +19,9 @@ export const featureFlags: Record<FeatureId, FeatureFlag> = {
   videoCompressor: { protected: false },
   landingOptimizer: { protected: false },
   landingPreview: { protected: false },
-  transcription: { protected: true },
+  // Transcription is available to beta testers without a development-warning
+  // acknowledgment. Its beta label is presentation-only in the tool registry.
+  transcription: { protected: false },
   // Team workspace is controlled by membership authorization, not a
   // browser-local development acknowledgement.
   teamWorkspace: { protected: false }

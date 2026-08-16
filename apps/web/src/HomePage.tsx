@@ -134,6 +134,7 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
           {webTools.map(tool => {
             const openable = tool.status !== 'coming-soon';
             const underDevelopment = tool.status === 'in-development';
+            const beta = tool.status === 'beta';
             const available = openable && connected && toolAvailable(tool.id);
             return (
               <Card
@@ -168,8 +169,10 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
                 {openable && (
                   <div className="tool-action-row">
                     {!underDevelopment && (
-                      <span className={`tool-readiness ${connected ? 'ready' : ''}`}>
-                        {t(connected ? 'readyToWork' : 'agentRequired')}
+                      <span
+                        className={`tool-readiness ${beta ? 'beta' : connected ? 'ready' : ''}`}
+                      >
+                        {t(beta ? 'betaTesting' : connected ? 'readyToWork' : 'agentRequired')}
                       </span>
                     )}
                     <span className={`button button-primary ${available ? '' : 'is-disabled'}`}>

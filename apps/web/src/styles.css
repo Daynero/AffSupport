@@ -665,6 +665,9 @@ a {
 .tool-readiness.ready {
   color: var(--color-success);
 }
+.tool-readiness.beta {
+  color: var(--color-action-hover);
+}
 .button.is-disabled {
   opacity: 0.58;
   pointer-events: none;

@@ -18,7 +18,7 @@ describe('Soty product launcher', () => {
       { id: 'compressor', path: '/compressor', status: 'available' },
       { id: 'landingOptimizer', path: '/landing-optimizer', status: 'available' },
       { id: 'landingPreview', path: '/landing-preview', status: 'available' },
-      { id: 'transcription', path: '/transcription', status: 'in-development' }
+      { id: 'transcription', path: '/transcription', status: 'beta' }
     ]);
   });
 
@@ -46,6 +46,8 @@ describe('Soty product launcher', () => {
     expect(translate('uk', 'comingSoon')).toBe('Незабаром');
     expect(translate('en', 'inDevelopment')).toBe('In development');
     expect(translate('uk', 'inDevelopment')).toBe('В розробці');
+    expect(translate('en', 'betaTesting')).toBe('Beta testing');
+    expect(translate('uk', 'betaTesting')).toBe('Бета-тестування');
   });
 
   it('keeps keyboard focus, responsive layout, reduced motion and hosting fallback', async () => {
