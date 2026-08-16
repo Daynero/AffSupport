@@ -47,6 +47,7 @@ type DailyActivity = { activity_date: string; active_users: number; event_count:
 type UsageRow = { category: string; label: string; total: number };
 type AgentVersionRow = { agent_version: string; total: number };
 type TeamWorkspaceWaitlistRow = { user_id: string; email: string; created_at: string };
+type WindowsAppWaitlistRow = { user_id: string; email: string; created_at: string };
 
 const overviewKeys: (keyof AdminOverview)[] = [
   'total_users',
@@ -150,6 +151,7 @@ export default function AdminPage() {
   const [teamWorkspaceWaitlist, setTeamWorkspaceWaitlist] = useState<TeamWorkspaceWaitlistRow[]>(
     []
   );
+  const [windowsAppWaitlist, setWindowsAppWaitlist] = useState<WindowsAppWaitlistRow[]>([]);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [consentFilter, setConsentFilter] = useState('');
@@ -195,7 +197,8 @@ export default function AdminPage() {
       versionsResult,
       usersResult,
       supportGoalResult,
-      waitlistResult
+      waitlistResult,
+      windowsWaitlistResult
     ] = await Promise.all([
       supabase.rpc('admin_overview', args),
       supabase.rpc('admin_daily_activity', args),
@@ -209,7 +212,8 @@ export default function AdminPage() {
         p_offset: page * pageSize
       }),
       supabase.rpc('admin_active_support_goal'),
-      supabase.rpc('admin_list_team_workspace_waitlist')
+      supabase.rpc('admin_list_team_workspace_waitlist'),
+      supabase.rpc('admin_list_windows_app_waitlist')
     ]);
     const failed = [overviewResult, dailyResult, usageResult, versionsResult, usersResult].some(
       result => result.error
@@ -224,6 +228,7 @@ export default function AdminPage() {
       setVersions(versionsResult.data ?? []);
       setUsers(usersResult.data ?? []);
       setTeamWorkspaceWaitlist(waitlistResult?.data ?? []);
+      setWindowsAppWaitlist(windowsWaitlistResult?.data ?? []);
     }
     if (supportGoalResult.error) {
       setSupportGoalState('error');
@@ -397,6 +402,41 @@ export default function AdminPage() {
               </div>
             ) : (
               <p className="admin-empty">{t('adminTeamWaitlistEmpty')}</p>
+            )}
+          </Card>
+
+          <Card className="admin-card" aria-labelledby="windows-waitlist-heading">
+            <div className="admin-card-heading">
+              <div>
+                <h3 id="windows-waitlist-heading">{t('adminWindowsWaitlistTitle')}</h3>
+                <p>{t('adminWindowsWaitlistSubtitle', { count: windowsAppWaitlist.length })}</p>
+              </div>
+            </div>
+            {windowsAppWaitlist.length ? (
+              <div className="admin-table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>{t('email')}</th>
+                      <th>{t('joined')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {windowsAppWaitlist.map(entry => (
+                      <tr key={entry.user_id}>
+                        <td>{entry.email}</td>
+                        <td>
+                          {new Date(entry.created_at).toLocaleString(
+                            language === 'uk' ? 'uk-UA' : 'en-US'
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="admin-empty">{t('adminWindowsWaitlistEmpty')}</p>
             )}
           </Card>
 

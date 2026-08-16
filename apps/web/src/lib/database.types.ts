@@ -1602,6 +1602,39 @@ export type Database = {
         };
         Relationships: [];
       };
+      windows_app_waitlist: {
+        Row: {
+          created_at: string;
+          email: string;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          email: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          email?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'windows_app_waitlist_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: true;
+            referencedRelation: 'analytics_users';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'windows_app_waitlist_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: true;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
     };
     Views: {
       analytics_team_workspace: {
@@ -1711,6 +1744,14 @@ export type Database = {
           marketing_consent_at: string;
           plan: string;
           total_count: number;
+        }[];
+      };
+      admin_list_windows_app_waitlist: {
+        Args: never;
+        Returns: {
+          created_at: string;
+          email: string;
+          user_id: string;
         }[];
       };
       admin_marketing_export: {
@@ -2051,6 +2092,7 @@ export type Database = {
         Returns: string;
       };
       join_team_workspace_waitlist: { Args: never; Returns: boolean };
+      join_windows_app_waitlist: { Args: never; Returns: boolean };
       list_landing_renders: {
         Args: { p_material_ids: string[]; p_preset: string; p_team: string };
         Returns: {

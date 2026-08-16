@@ -4,6 +4,7 @@ import { useAgent } from '../AgentContext';
 import { agentUrl, markAgentInstallStarted } from '../api/client';
 import type { ConnectionState } from '../connection';
 import { useI18n } from '../i18n';
+import { requireSupabaseClient } from '../lib/supabase';
 import { downloadUrlForPlatform, macAppleSiliconDownloadUrl } from '../release-manifest';
 import { currentBrowserPlatform } from '../lib/platform';
 import { analytics } from '../analytics/service';
@@ -150,6 +151,14 @@ export default function LocalAppDialog({
 function WindowsComingSoonDialog({ onClose }: { onClose: () => void }) {
   const { t } = useI18n();
   const titleId = useId();
+  const [waitlistState, setWaitlistState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+  const joinWaitlist = async () => {
+    if (waitlistState === 'saving' || waitlistState === 'saved') return;
+    setWaitlistState('saving');
+    const { error } = await requireSupabaseClient().rpc('join_windows_app_waitlist');
+    setWaitlistState(error ? 'error' : 'saved');
+  };
 
   return (
     <Modal
@@ -167,9 +176,19 @@ function WindowsComingSoonDialog({ onClose }: { onClose: () => void }) {
       <h2 id={titleId}>{t('windowsComingSoonTitle')}</h2>
       <p>{t('windowsComingSoonBody')}</p>
       <div className="dialog-actions">
-        <Button variant="primary" onClick={onClose}>
-          {t('supportClose')}
+        <Button
+          variant="primary"
+          loading={waitlistState === 'saving'}
+          disabled={waitlistState === 'saved'}
+          onClick={() => void joinWaitlist()}
+        >
+          {t(waitlistState === 'saved' ? 'windowsAppWaitlistSaved' : 'windowsAppWaitlist')}
         </Button>
+        {waitlistState === 'error' && (
+          <p className="support-error" role="alert">
+            {t('windowsAppWaitlistError')}
+          </p>
+        )}
       </div>
     </Modal>
   );
