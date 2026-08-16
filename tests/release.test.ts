@@ -99,9 +99,13 @@ describe('release identity', () => {
     const manifest = JSON.parse(
       readFileSync('apps/web/public/.well-known/wishly/stable.json', 'utf8')
     );
-    expect(localizedReleaseSummary(manifest, 'en')).toBe(manifest.summary.en);
-    expect(localizedReleaseSummary(manifest, 'uk')).toBe(manifest.summary.uk);
-    expect(localizedReleaseSummary({ ...manifest, summary: undefined }, 'uk')).toBeNull();
+    const withSummary = {
+      ...manifest,
+      summary: { en: 'Maintenance update', uk: 'Оновлення обслуговування' }
+    };
+    expect(localizedReleaseSummary(withSummary, 'en')).toBe(withSummary.summary.en);
+    expect(localizedReleaseSummary(withSummary, 'uk')).toBe(withSummary.summary.uk);
+    expect(localizedReleaseSummary(manifest, 'uk')).toBeNull();
   });
 
   it('keeps every workspace package on the product version', () => {

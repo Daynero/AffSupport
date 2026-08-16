@@ -6,9 +6,9 @@
  * contract is incompatible, while the supported range lets a web release keep
  * working with older compatible agents.
  */
-export const PRODUCT_VERSION = '0.9.21';
-export const BUNDLE_VERSION = '0.9.21';
-export const BUILD_NUMBER = '57';
+export const PRODUCT_VERSION = '1.0.0';
+export const BUNDLE_VERSION = '1.0.0';
+export const BUILD_NUMBER = '58';
 export const RELEASE_CHANNEL = 'stable';
 
 /**
@@ -92,7 +92,7 @@ export interface ReleaseArtifact {
  * whoever controls the hosting alone cannot redirect updates.
  */
 export const RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64 =
-  'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE0GBtAFmq7/ChYlC7tqBrlK/ayW+FGymCs+HRrl0Dn8JqcBIKyfe0R5C8xmoayssCad94Qm+z4JI0lv4gqiusqQ==';
+  'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEs8USlWYC6IRAqs1oXnraBppaXG4/bN5qk3DGEPblz8UylOwDxtk1U/ROt2mMCA6DbM4ll6A0aP5qDTQvfb7pDg==';
 
 /**
  * Canonical bytes covered by the manifest signature: the manifest without its

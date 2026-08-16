@@ -1,20 +1,16 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "0.9.21",
-  "buildNumber": "57",
-  "buildId": "0.9.21+57",
+  "version": "1.0.0",
+  "buildNumber": "58",
+  "buildId": "1.0.0+58",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-08-16T09:00:00.000Z",
-  "summary": {
-    "en": "Lets you open a dropped landing folder directly in Landing Gallery and keeps the Soty app, Finder, and Windows components consistently named.",
-    "uk": "Дозволяє відкрити перетягнуту папку лендингу безпосередньо в Landing Gallery та узгоджує назви компонентів Soty, Finder і Windows."
-  },
+  "publishedAt": "2026-08-16T20:03:08.000Z",
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v0.9.21/Soty-v0.9.21-macOS-arm64.dmg",
-      "sha256": "6c5f1d0eba3052661452d19dbe15906b956c4c51e8525bd56ca0c74bf0f5e614"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.0.0/Soty-v1.0.0-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -35,5 +31,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "NC3BsmSjrLFzXE5fQvw6_Y4cdaC_mx7TxgDWsFscYW74a4uvzyVxtdynbPEcwW6T1Ksvq1e1U0Q8hF8f_sUPUw"
+  "signature": "uXgFZLr3VLnvr3eMdQBG03H9JzhPfqCD1F69c-dtO0mNQ4hxuv9WLly844uCXeeU-7vum916l8G-4cGBBhuFOw"
 }
