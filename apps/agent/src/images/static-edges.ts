@@ -31,11 +31,11 @@ export async function detectStaticEdgeTrims(
     return { startSeconds: 0, endSeconds: 0 };
   }
 
-  const totalFrames = Math.max(1, Math.floor(durationSeconds * frameRate));
-  if (totalFrames < 3) return { startSeconds: 0, endSeconds: 0 };
-  const cache = new Map<number, Promise<Buffer>>();
+  const nominalFrames = Math.max(1, Math.floor(durationSeconds * frameRate));
+  if (nominalFrames < 3) return { startSeconds: 0, endSeconds: 0 };
+  const cache = new Map<number, Promise<Buffer | null>>();
   const sample = (index: number) => {
-    const safeIndex = Math.min(totalFrames - 1, Math.max(0, index));
+    const safeIndex = Math.min(nominalFrames - 1, Math.max(0, index));
     let value = cache.get(safeIndex);
     if (!value) {
       const time = Math.min(Math.max(0, durationSeconds - 1 / frameRate), safeIndex / frameRate);
@@ -45,11 +45,25 @@ export async function detectStaticEdgeTrims(
     return value;
   };
 
+  // `durationSeconds` comes from the container, which reports the longest
+  // stream: a soundtrack that outlives the picture (very common) pushes the
+  // nominal frame count past the last real video frame. Seeking there decodes
+  // nothing, and an empty sample compares as "different" against everything —
+  // which would report a single static trailing frame and leave a previously
+  // embedded still image in place. Anchor the tail on a frame that decodes.
+  const lastIndex = await lastDecodableIndex(nominalFrames - 1, sample);
+  if (lastIndex === null || lastIndex < 2) return { startSeconds: 0, endSeconds: 0 };
+  const totalFrames = lastIndex + 1;
+  // Whatever the container counts beyond the last picture is audio-only tail.
+  // It plays over a frozen frame, so it belongs to the trailing run that is
+  // being replaced rather than to the moving source that is being kept.
+  const audioOnlyTailSeconds = Math.max(0, durationSeconds - totalFrames / frameRate);
+
   const leadingFrames = await matchingEdgeFrames(totalFrames, distance => distance, sample);
   const remainingAfterStart = Math.max(2, totalFrames - leadingFrames);
   const trailingFrames = await matchingEdgeFrames(
     remainingAfterStart,
-    distance => totalFrames - 1 - distance,
+    distance => lastIndex - distance,
     sample
   );
   const safeLeading = Math.min(leadingFrames, totalFrames - 2);
@@ -57,17 +71,56 @@ export async function detectStaticEdgeTrims(
 
   return {
     startSeconds: roundSeconds(safeLeading / frameRate),
-    endSeconds: roundSeconds(safeTrailing / frameRate)
+    endSeconds: roundSeconds(safeTrailing / frameRate + audioOnlyTailSeconds)
   };
+}
+
+/**
+ * Highest index that still decodes to a frame, starting from `nominalLast`.
+ * Steps back exponentially to land inside the picture, then narrows forward so
+ * the anchor is the real last frame rather than an arbitrary earlier one.
+ */
+async function lastDecodableIndex(
+  nominalLast: number,
+  sample: (index: number) => Promise<Buffer | null>
+) {
+  if (await decodes(sample(nominalLast))) return nominalLast;
+  let step = 1;
+  let decodable = -1;
+  let missing = nominalLast;
+  while (nominalLast - step >= 0) {
+    const index = nominalLast - step;
+    if (await decodes(sample(index))) {
+      decodable = index;
+      break;
+    }
+    missing = index;
+    step *= 2;
+  }
+  // The exponential walk can step over index 0 entirely; it is the one frame
+  // every readable video has, so check it before giving up.
+  if (decodable < 0 && missing > 0 && (await decodes(sample(0)))) decodable = 0;
+  if (decodable < 0) return null;
+  while (missing - decodable > 1) {
+    const middle = Math.floor((decodable + missing) / 2);
+    if (await decodes(sample(middle))) decodable = middle;
+    else missing = middle;
+  }
+  return decodable;
+}
+
+async function decodes(frame: Promise<Buffer | null>) {
+  return (await frame) !== null;
 }
 
 async function matchingEdgeFrames(
   availableFrames: number,
   indexAtDistance: (distance: number) => number,
-  sample: (index: number) => Promise<Buffer>
+  sample: (index: number) => Promise<Buffer | null>
 ) {
   if (availableFrames < 2) return 0;
   const baseline = await sample(indexAtDistance(0));
+  if (!baseline) return 0;
   let matchingDistance = 0;
   let probeDistance = 1;
 
@@ -93,7 +146,7 @@ async function firstDifferentDistance(
   low: number,
   high: number,
   indexAtDistance: (distance: number) => number,
-  sample: (index: number) => Promise<Buffer>
+  sample: (index: number) => Promise<Buffer | null>
 ) {
   let left = low;
   let right = high;
@@ -105,9 +158,9 @@ async function firstDifferentDistance(
   return left;
 }
 
-async function visuallyMatches(left: Buffer, right: Promise<Buffer>) {
+async function visuallyMatches(left: Buffer, right: Promise<Buffer | null>) {
   const resolved = await right;
-  if (left.length !== SAMPLE_BYTES || resolved.length !== SAMPLE_BYTES) return false;
+  if (!resolved || left.length !== SAMPLE_BYTES || resolved.length !== SAMPLE_BYTES) return false;
   let difference = 0;
   for (let index = 0; index < SAMPLE_BYTES; index += 1) {
     difference += Math.abs(left[index] - resolved[index]);
@@ -115,8 +168,9 @@ async function visuallyMatches(left: Buffer, right: Promise<Buffer>) {
   return difference / SAMPLE_BYTES <= STATIC_MEAN_DIFFERENCE;
 }
 
+/** Resolves `null` when the seek lands past the last frame and nothing decodes. */
 function sampleFrame(input: string, seconds: number, signal?: AbortSignal) {
-  return new Promise<Buffer>((resolve, reject) => {
+  return new Promise<Buffer | null>((resolve, reject) => {
     // Abort before spawning: nothing to launch if the caller already gave up.
     if (signal?.aborted) {
       reject(edgeDetectionAborted());
@@ -168,8 +222,12 @@ function sampleFrame(input: string, seconds: number, signal?: AbortSignal) {
         reject(edgeDetectionAborted());
         return;
       }
-      if (code === 0) resolve(Buffer.concat(chunks).subarray(0, SAMPLE_BYTES));
-      else reject(new Error(stderr || 'Could not inspect static video edges.'));
+      if (code !== 0) {
+        reject(new Error(stderr || 'Could not inspect static video edges.'));
+        return;
+      }
+      const frame = Buffer.concat(chunks).subarray(0, SAMPLE_BYTES);
+      resolve(frame.length === SAMPLE_BYTES ? frame : null);
     });
   });
 }

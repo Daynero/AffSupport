@@ -15,6 +15,7 @@ import {
 import { isSupportedVideoPath } from '../apps/agent/src/queue/queue.js';
 import {
   batchMetrics,
+  compressBlock,
   elapsedMilliseconds,
   isValidIntegerInput,
   newestJobsFirst,
@@ -185,6 +186,37 @@ describe('drop zone and list selection', () => {
     expect(readySelectedIds(jobs, all)).toEqual(['one']);
     expect(startableSelectedIds(jobs, all)).toEqual(['one', 'three']);
     expect(removableSelectedIds(jobs, all)).toEqual(['one', 'three']);
+  });
+});
+
+describe('why the compress action is unavailable', () => {
+  const ready = {
+    running: false,
+    embeddingEnabled: false,
+    embeddingHasImages: false,
+    embeddingFormValid: true,
+    selectedCount: 1,
+    startableCount: 1
+  };
+
+  it('reports nothing blocking a ready selection', () => {
+    expect(compressBlock(ready)).toBeNull();
+  });
+
+  it('names every blocking reason so the button never greys out silently', () => {
+    expect(compressBlock({ ...ready, running: true })).toBe('running');
+    expect(compressBlock({ ...ready, embeddingEnabled: true })).toBe('embedding-needs-image');
+    expect(compressBlock({ ...ready, embeddingFormValid: false })).toBe('invalid-image-duration');
+    expect(compressBlock({ ...ready, selectedCount: 0, startableCount: 0 })).toBe(
+      'nothing-selected'
+    );
+    expect(compressBlock({ ...ready, startableCount: 0 })).toBe('nothing-startable');
+  });
+
+  it('does not block when image embedding is configured with images', () => {
+    expect(
+      compressBlock({ ...ready, embeddingEnabled: true, embeddingHasImages: true })
+    ).toBeNull();
   });
 });
 

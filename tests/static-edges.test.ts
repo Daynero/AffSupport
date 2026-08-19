@@ -35,6 +35,23 @@ describe('re-embedding static edge removal', () => {
     expect(trims.endSeconds).toBeLessThanOrEqual(0.5);
   }, 15_000);
 
+  it('finds the static tail when the soundtrack outlives the picture', async () => {
+    if (!(await commandExists('ffmpeg'))) return;
+    directory = await mkdtemp(path.join(os.tmpdir(), 'static-video-edges-long-audio-'));
+    const input = path.join(directory, 'previously-embedded-with-audio.mp4');
+    expect(await createEdgedVideoWithLongerAudio(input)).toBe(0);
+    const media = await probeMedia(input);
+    // The container reports the soundtrack, which runs 0.3s past the last frame.
+    expect(media.duration!).toBeGreaterThan(media.videoDuration!);
+    const trims = await detectStaticEdgeTrims(input, media.duration!, media.frameRate!);
+
+    expect(trims.startSeconds).toBeGreaterThanOrEqual(0.2);
+    expect(trims.startSeconds).toBeLessThanOrEqual(0.3);
+    // The blue tail (0.3-0.4s) plus the 0.3s of audio-only padding behind it.
+    expect(trims.endSeconds).toBeGreaterThanOrEqual(0.55);
+    expect(trims.endSeconds).toBeLessThanOrEqual(0.75);
+  }, 15_000);
+
   it('trims the detected edges before embedding the new image', async () => {
     if (!(await commandExists('ffmpeg'))) return;
     directory = await mkdtemp(path.join(os.tmpdir(), 'replace-static-video-edges-'));
@@ -126,6 +143,44 @@ function createEdgedVideo(output: string) {
     'libx264',
     '-pix_fmt',
     'yuv420p',
+    output
+  ]);
+}
+
+function createEdgedVideoWithLongerAudio(output: string) {
+  return run('ffmpeg', [
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-y',
+    '-f',
+    'lavfi',
+    '-i',
+    'color=c=red:size=160x90:rate=10:duration=0.3',
+    '-f',
+    'lavfi',
+    '-i',
+    'testsrc2=size=160x90:rate=10:duration=0.6',
+    '-f',
+    'lavfi',
+    '-i',
+    'color=c=blue:size=160x90:rate=10:duration=0.4',
+    '-f',
+    'lavfi',
+    '-i',
+    'sine=frequency=440:duration=1.6:sample_rate=48000',
+    '-filter_complex',
+    '[0:v][1:v][2:v]concat=n=3:v=1:a=0[v]',
+    '-map',
+    '[v]',
+    '-map',
+    '3:a',
+    '-c:v',
+    'libx264',
+    '-pix_fmt',
+    'yuv420p',
+    '-c:a',
+    'aac',
     output
   ]);
 }

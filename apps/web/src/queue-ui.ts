@@ -52,6 +52,36 @@ export function startableSelectedIds(jobs: CompressionJob[], selected: ReadonlyS
     .map(job => job.id);
 }
 
+/** Why the compress action is unavailable, or null when it can run. */
+export type CompressBlock =
+  | 'running'
+  | 'embedding-needs-image'
+  | 'invalid-image-duration'
+  | 'nothing-selected'
+  | 'nothing-startable'
+  | null;
+
+/**
+ * Single source of truth for the primary action's disabled state. It used to
+ * live inline in the button, so a stuck reason left the user with a grey
+ * button and nothing on screen to explain it.
+ */
+export function compressBlock(input: {
+  running: boolean;
+  embeddingEnabled: boolean;
+  embeddingHasImages: boolean;
+  embeddingFormValid: boolean;
+  selectedCount: number;
+  startableCount: number;
+}): CompressBlock {
+  if (input.running) return 'running';
+  if (input.embeddingEnabled && !input.embeddingHasImages) return 'embedding-needs-image';
+  if (!input.embeddingFormValid) return 'invalid-image-duration';
+  if (!input.selectedCount) return 'nothing-selected';
+  if (!input.startableCount) return 'nothing-startable';
+  return null;
+}
+
 export function removableSelectedIds(jobs: CompressionJob[], selected: ReadonlySet<string>) {
   return jobs
     .filter(job => selected.has(job.id) && !['processing', 'queued'].includes(job.status))

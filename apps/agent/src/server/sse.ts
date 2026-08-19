@@ -17,7 +17,16 @@ export class EventChannel<TEvent> {
 
   broadcast(event: TEvent): void {
     const payload = `data: ${JSON.stringify(event)}\n\n`;
-    for (const client of this.clients) client.write(payload);
+    for (const client of this.clients) {
+      // A socket that died between the 'close' event and this write must not
+      // throw back into the caller: `broadcast` runs inside the queue's drain
+      // loop, where a rejection would strand the remaining jobs.
+      try {
+        client.write(payload);
+      } catch {
+        this.clients.delete(client);
+      }
+    }
   }
 
   /** Fastify route handler; bound so it can be passed to `app.get` directly. */

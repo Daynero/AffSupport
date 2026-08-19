@@ -94,6 +94,7 @@ export class JobQueue {
   private compressionInFlight = false;
   private compressionPausedForEstimates = false;
   private prioritizingEstimates = false;
+  private drainRevivalScheduled = false;
   private nextEstimatePriorityOrder = 1;
   private warning: string | null = null;
   private estimateHooks: EstimatorHooks | null = null;
@@ -146,13 +147,18 @@ export class JobQueue {
   }
 
   state(): QueueState {
-    const running =
-      this.compressionInFlight ||
-      this.prioritizingEstimates ||
-      Boolean(
-        this.batch &&
-        this.jobs.some(job => job.batchId === this.batch!.id && job.status === 'queued')
-      );
+    const queuedInBatch = Boolean(
+      this.batch && this.jobs.some(job => job.batchId === this.batch!.id && job.status === 'queued')
+    );
+    // A queued job with nothing in flight means the drain loop was dropped —
+    // by a rejected handoff, a tool outage, or a team job left behind. That
+    // used to keep `running` (and therefore the whole compressor UI) wedged
+    // until the agent restarted, so re-drive the pump instead of reporting a
+    // queue nobody is working on.
+    if (queuedInBatch && !this.compressionInFlight && !this.prioritizingEstimates) {
+      this.reviveDrain();
+    }
+    const running = this.compressionInFlight || this.prioritizingEstimates || queuedInBatch;
     return {
       jobs: this.jobs.filter(job => !this.teamJobSettings.has(job.id)).map(job => cloneJob(job)),
       running,
@@ -603,6 +609,19 @@ export class JobQueue {
     return true;
   }
 
+  /**
+   * Drops a team job whatever state it is in. Team work is invisible to the
+   * compressor UI and is never persisted, so a queued or processing leftover
+   * would keep `running` true — greying out the whole tool — with nothing on
+   * screen to explain it and no way back short of restarting the agent.
+   */
+  async discardTeamJob(id: string) {
+    const job = this.jobs.find(candidate => candidate.id === id);
+    if (!job) return false;
+    if (job.status === 'processing' || job.status === 'queued') await this.cancel(id);
+    return this.remove(id);
+  }
+
   removeMany(ids: string[]) {
     const selected = new Set(ids);
     const removable = this.jobs.filter(
@@ -896,6 +915,16 @@ export class JobQueue {
     return null;
   }
 
+  /** Re-drives a stranded queue once per tick, however the drain was dropped. */
+  private reviveDrain() {
+    if (this.drainRevivalScheduled) return;
+    this.drainRevivalScheduled = true;
+    queueMicrotask(() => {
+      this.drainRevivalScheduled = false;
+      void this.pump();
+    });
+  }
+
   private async pump() {
     if (
       this.compressionInFlight ||
@@ -1002,9 +1031,12 @@ export class JobQueue {
       this.active = null;
       this.compressionInFlight = false;
       this.compressionPausedForEstimates = false;
+      // Queue the next drain first: a throw from `notify` or from the estimate
+      // handoff below must never drop the loop and leave the rest of the batch
+      // queued forever. `pump` bails on its own if either takes the queue over.
+      queueMicrotask(() => void this.pump());
       this.notify();
       await this.runPrioritizedEstimates();
-      queueMicrotask(() => void this.pump());
     }
   }
 
@@ -1167,8 +1199,8 @@ export class JobQueue {
       if (pausedChild && this.active === pausedChild) resumeProcess(pausedChild);
       this.compressionPausedForEstimates = false;
       this.prioritizingEstimates = false;
-      this.notify();
       if (!this.compressionInFlight) queueMicrotask(() => void this.pump());
+      this.notify();
     }
   }
 

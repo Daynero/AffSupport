@@ -24,11 +24,13 @@ import { mergeSettingsPatches } from './settings-patch';
 import { preferredDownload } from './release-manifest';
 import {
   batchMetrics,
+  compressBlock,
   newestJobsFirst,
   removableSelectedIds,
   selectableJobIds,
   startableSelectedIds,
-  toggleSelection
+  toggleSelection,
+  type CompressBlock
 } from './queue-ui';
 import { DropZone } from './components/DropZone';
 import { JobRow } from './components/JobRow';
@@ -357,6 +359,17 @@ export default function CompressorPage() {
   const selectedLabel = selected.size
     ? t(selectedCountKey(language, selected.size), { count: selected.size })
     : t('noSelection');
+  const blocked = compressBlock({
+    running: state.running,
+    embeddingEnabled: state.settings.imageEmbedding.enabled,
+    embeddingHasImages: Boolean(
+      state.settings.imageEmbedding.startImages.length ||
+      state.settings.imageEmbedding.endImages.length
+    ),
+    embeddingFormValid,
+    selectedCount: selected.size,
+    startableCount: selectedStartable.length
+  });
 
   if (connection === 'checking') {
     return (
@@ -457,19 +470,16 @@ export default function CompressorPage() {
               <div className="primary-actions">
                 <Button
                   variant="primary"
-                  disabled={
-                    !connected ||
-                    state.running ||
-                    selectedStartable.length === 0 ||
-                    !embeddingFormValid ||
-                    (state.settings.imageEmbedding.enabled &&
-                      !state.settings.imageEmbedding.startImages.length &&
-                      !state.settings.imageEmbedding.endImages.length)
-                  }
+                  disabled={!connected || blocked !== null}
                   onClick={() => void startSelected()}
                 >
                   {t('compressSelected')}
                 </Button>
+                {connected && blockedReasonKey(blocked) && (
+                  <span className="compress-blocked-reason" role="status">
+                    {t(blockedReasonKey(blocked)!)}
+                  </span>
+                )}
                 <Button
                   variant="danger"
                   disabled={!connected || selectedRemovable.length === 0}
@@ -881,6 +891,21 @@ function warningText(warning: SelectionWarning, t: Translate) {
     inaccessible: 'inaccessibleFile'
   };
   return t(keys[warning.reason]);
+}
+
+/**
+ * Text for a disabled compress button. "Nothing selected" is left out: the
+ * selection counter next to the button already says exactly that.
+ */
+function blockedReasonKey(block: CompressBlock): TranslationKey | null {
+  const reasons: Record<NonNullable<CompressBlock>, TranslationKey | null> = {
+    running: 'compressBusy',
+    'embedding-needs-image': 'embeddingNeedsImage',
+    'invalid-image-duration': 'compressFixImageDuration',
+    'nothing-startable': 'compressNothingReady',
+    'nothing-selected': null
+  };
+  return block ? reasons[block] : null;
 }
 
 function selectNewJobs(

@@ -288,6 +288,59 @@ describe('selected batch behavior', () => {
   }, 20_000);
 });
 
+describe('stranded queue recovery', () => {
+  it('resumes on its own when a batch is left queued with nothing draining', async () => {
+    const batch = {
+      id: 'batch-stranded',
+      jobIds: ['job-stranded'],
+      startedAt: Date.now(),
+      finishedAt: null
+    };
+    const job = makeJob('job-stranded', 'queued', { batchId: batch.id });
+    const queue = new JobQueue(
+      { ffmpeg: true, ffprobe: true },
+      () => {},
+      [job],
+      optimalSettings,
+      batch
+    );
+
+    // Nothing is in flight, so this is the shape that used to grey out the
+    // whole compressor until the agent was restarted.
+    expect(queue.state().running).toBe(true);
+    await until(() => !queue.state().running);
+    expect(queue.state().jobs[0].status).toBe('failed');
+  });
+
+  it('discards a team job that never reached a terminal state', async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), 'queue-team-leftover-'));
+    const video = path.join(directory, 'team-source.mp4');
+    expect(await makeVideo(video, 2, '640x360', 30)).toBe(0);
+    const settings = {
+      ...optimalSettings,
+      outputMode: 'chosen-folder' as const,
+      outputFolder: directory
+    };
+    const queue = new JobQueue({ ffmpeg: true, ffprobe: true }, () => {}, [], settings);
+    expect(await queue.addTeamUploaded(video, 'team-source.mp4', 'team:op-1', settings)).toEqual(
+      []
+    );
+    const job = queue.teamJob('team:op-1');
+    expect(job).not.toBeNull();
+    expect(await queue.start([job!.id])).toBe(true);
+
+    // Team work is hidden from the compressor list but still counts as running.
+    expect(queue.state().jobs).toHaveLength(0);
+    expect(queue.state().running).toBe(true);
+    // The plain removal the bridge used to call gives up on an active job.
+    expect(queue.remove(job!.id)).toBe(false);
+
+    expect(await queue.discardTeamJob(job!.id)).toBe(true);
+    await until(() => !queue.state().running);
+    expect(queue.teamJob('team:op-1')).toBeNull();
+  }, 20_000);
+});
+
 function makeVideo(file: string, duration: number, size: string, rate: number) {
   return new Promise<number | null>((resolve, reject) => {
     const process = spawn(

@@ -293,11 +293,11 @@ function compressionDelegate(queue: JobQueue, embedding: boolean): TeamProcessDe
         mimeType: 'video/mp4',
         sizeBytes: output.size,
         cleanup: async () => {
-          queue.remove(job!.id);
+          await queue.discardTeamJob(job!.id);
         }
       };
     } finally {
-      if (!handoff && job) queue.remove(job.id);
+      if (!handoff && job) await queue.discardTeamJob(job.id);
     }
   };
 }

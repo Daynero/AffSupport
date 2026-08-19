@@ -1943,6 +1943,12 @@ input.is-invalid {
   flex-wrap: wrap;
 }
 
+.compress-blocked-reason {
+  align-self: center;
+  color: var(--color-text-muted);
+  font-size: 15px;
+}
+
 .selected-count {
   padding: 0 6px;
   color: var(--color-text-muted);
