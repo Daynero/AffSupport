@@ -479,15 +479,23 @@ export interface HealthResponse {
   entitlement?: AgentEntitlementStatus;
 }
 
-/** Optional capabilities advertised by the local agent. */
+/**
+ * Closed set of capabilities an agent may advertise. A given agent publishes a
+ * *subset*: entries gated on what the host operating system can actually do are
+ * omitted where it cannot (the agent derives its list from its platform layer),
+ * so a Windows agent never claims a macOS-only mechanism. Clients must treat an
+ * absent entry as "not offered" and an unknown entry as harmless.
+ */
 export const AGENT_CAPABILITIES = [
   'finder-image-conversion',
   'landing',
   'landing-preview',
   'local-file-paths',
+  'native-file-picker',
   'team-workspace',
   'transcription'
 ] as const;
+export type AgentCapability = (typeof AGENT_CAPABILITIES)[number];
 export interface SessionResponse {
   token: string;
 }

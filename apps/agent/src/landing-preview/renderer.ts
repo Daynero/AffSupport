@@ -4,6 +4,7 @@ import { createServer, type Server } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright-core';
+import { installedBrowserCandidates } from '../platform/platform.js';
 
 const VIEWPORT = { width: 1440, height: 900 };
 const NAVIGATION_TIMEOUT_MS = 20_000;
@@ -474,31 +475,7 @@ async function resolveChromiumExecutable(): Promise<string> {
   } catch {
     // Fall through to common browser installations for a friendlier dev setup.
   }
-  const candidates =
-    process.platform === 'darwin'
-      ? [
-          '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-          '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
-          '/Applications/Chromium.app/Contents/MacOS/Chromium'
-        ]
-      : process.platform === 'win32'
-        ? [
-            path.join(
-              process.env.PROGRAMFILES ?? '',
-              'Google',
-              'Chrome',
-              'Application',
-              'chrome.exe'
-            ),
-            path.join(
-              process.env['PROGRAMFILES(X86)'] ?? '',
-              'Microsoft',
-              'Edge',
-              'Application',
-              'msedge.exe'
-            )
-          ]
-        : ['/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
+  const candidates = installedBrowserCandidates();
   for (const candidate of candidates) {
     if (!candidate) continue;
     try {

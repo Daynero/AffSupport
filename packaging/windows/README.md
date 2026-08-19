@@ -74,7 +74,7 @@ valid C# escaping too — keep every placeholder inside a regular `"..."` litera
 template (never a verbatim `@"..."` string). `AGENT_PORT` and `API_VERSION` render as
 bare integers.
 
-## Building
+## Building the host by hand (compile check)
 
 Compiles on any OS thanks to `<EnableWindowsTargeting>true</EnableWindowsTargeting>`
 (running it requires Windows). No NuGet dependencies beyond the BCL/WinForms SDK packs.
@@ -118,23 +118,25 @@ dotnet publish packaging/windows/SotyAgentHost -c Release -r win-x64 \
   the other bundle instances to terminate; Windows kills sibling `SotyAgentHost.exe`
   processes started from the same path, then enters the same 12-second handoff loop.
 
-## Not done yet — checklist for the first run on a Windows machine
+## Building the installer
 
-- [ ] Produce `SotyAgentHost.ico` from `assets/AppIcon.png`, reference it via
-      `<ApplicationIcon>` in the .csproj, and load it for the `NotifyIcon`
-      (currently `SystemIcons.Application`).
-- [ ] Authenticode signing of `SotyAgentHost.exe`, `node.exe`, `ffmpeg.exe`,
-      `ffprobe.exe`, `whisper-cli.exe` (SmartScreen will flag unsigned binaries).
-- [ ] An installer (MSIX/Inno/WiX) that produces the layout above, stops the host
-      before upgrading, and starts it afterwards; decide on an autostart Run key.
-- [ ] Approved **win-x64** builds of Node, FFmpeg/FFprobe (static), and whisper-cli;
-      the macOS `package-mac.sh` portability checks (`otool -L`) need a Windows
-      equivalent (`dumpbin /dependents`).
-- [ ] A `package-windows` script that renders `HostConfig.cs` from release metadata,
-      publishes the host, and runs `scripts/stage-agent-runtime.mjs` into
-      `<staging>/agent` (the script itself is platform-neutral).
-- [ ] Smoke test on Windows: single-instance lock, agent spawn/readiness, crash restart
-      (exit 75), quit-while-busy confirmation, update handoff, and that the agent's
-      ppid watchdog exits the Node process when the host is killed from Task Manager.
-- [ ] Verify no firewall prompt appears for loopback-only listening (the agent binds
-      127.0.0.1; Windows Firewall normally stays silent for loopback).
+The installer is built entirely by `.github/workflows/release-windows.yml` on a
+`windows-2022` runner — see `docs/WINDOWS.md`. Nothing here needs a Windows
+machine, and no file is uploaded from a maintainer's computer.
+
+The workflow renders `HostConfig.cs`, publishes this project, stages the
+runtime payload, compiles the Inno Setup installer, verifies the package and
+runs the unattended smoke harness.
+
+**Authenticode signing is a deliberate non-goal** for this release: the build
+ships unsigned, matching the macOS build's ad-hoc signature with no
+notarization. SmartScreen warnings are handled by on-screen guidance in the
+download dialog, not by a certificate.
+
+## Still open
+
+- [ ] FFmpeg/FFprobe win64 inputs are unresolved — see `docs/WINDOWS.md` and
+      `specs/006-windows-release-rollout/research.md` R3. The build refuses
+      until they are pinned.
+- [ ] The five behaviours in the unverified-risk table (`docs/WINDOWS.md`) need
+      one human pass on real Windows before the first public release.

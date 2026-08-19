@@ -23,7 +23,7 @@ describe('per-platform llama.cpp runtime descriptors', () => {
     });
   });
 
-  it('selects the official Windows x64 CPU zip for win32-x64, checksum not yet pinned', () => {
+  it('selects the pinned official Windows x64 CPU zip for win32-x64', () => {
     const descriptor = selectTranslationRuntimeDescriptor('win32', 'x64');
     expect(descriptor).toBe(TRANSLATION_RUNTIME_DESCRIPTORS['win32-x64']);
     expect(descriptor).toMatchObject({
@@ -33,13 +33,20 @@ describe('per-platform llama.cpp runtime descriptors', () => {
       // Windows release zips are flat: llama-server.exe sits at the root.
       extractedDirectory: null,
       executableName: 'llama-server',
-      sha256: null,
-      sizeBytes: 0
+      sha256: 'c842fa7dc90e32b327c62903f4310ef251a902c90ef5b3a6c01c6b675dce078e',
+      sizeBytes: 18_021_876
     });
     expect(descriptor?.url).toBe(
       'https://github.com/ggml-org/llama.cpp/releases/download/b10092/' +
         'llama-b10092-bin-win-cpu-x64.zip'
     );
+  });
+
+  it('pins every supported platform to a complete checksum so translation can install', () => {
+    for (const [key, descriptor] of Object.entries(TRANSLATION_RUNTIME_DESCRIPTORS)) {
+      expect(descriptor.sha256, `${key} must pin a sha256`).toMatch(/^[a-f0-9]{64}$/u);
+      expect(descriptor.sizeBytes, `${key} must pin a positive size`).toBeGreaterThan(0);
+    }
   });
 
   it('pins both platforms to the same upstream tag and revision', () => {
@@ -67,6 +74,16 @@ describe('downloader refusal for unpinned checksums', () => {
     vi.unstubAllGlobals();
   });
 
+  // Every shipped descriptor is pinned (asserted above), so the refusal path is
+  // exercised through a synthetic descriptor. It stays covered because an
+  // unpinned runtime must never reach the network on a future platform.
+  const unpinned = {
+    ...TRANSLATION_RUNTIME_DESCRIPTORS['win32-x64'],
+    label: 'llama.cpp b10092 (Windows x64, CPU)',
+    sha256: null,
+    sizeBytes: 0
+  };
+
   it('refuses to download when sha256 is null instead of fetching unverifiable bytes', async () => {
     const fetchSpy = vi.fn(() => {
       throw new Error('network must not be touched');
@@ -75,7 +92,7 @@ describe('downloader refusal for unpinned checksums', () => {
 
     const notify = vi.fn();
     const downloader = new ModelDownloader(
-      TRANSLATION_RUNTIME_DESCRIPTORS['win32-x64'],
+      unpinned,
       () => path.join(os.tmpdir(), 'wishly-test-never-written.zip'),
       () => false,
       notify,

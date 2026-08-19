@@ -1,163 +1,138 @@
-# Windows port — status and first-build guide
+# Windows release pipeline
 
-This document tracks the Windows x64 port of Soty Agent: what is already
-portable in the codebase, what can only be finished on a real Windows machine,
-and the step-by-step packaging pipeline.
+Soty ships on Windows x64 from the same codebase as macOS. The installer is
+produced entirely by GitHub Actions on a `windows-2022` runner — **no Windows
+machine is required**, which is the whole point: the maintainer does not own
+one.
 
-## What is already in place (works from this repo today)
+The build is intentionally **unsigned**, matching the macOS build (ad-hoc
+signature, no notarization). SmartScreen will warn every early downloader; the
+download page tells them exactly what to click.
 
-- **Platform layer** — `apps/agent/src/platform/platform.ts` isolates every
-  OS-specific mechanism: `%APPDATA%` support root, `.exe` executable names,
-  `explorer.exe` reveal/open, bsdtar-based tar.gz/zip archive handling
-  (`tar.exe` ships with Windows 10 1803+), pause/resume gated off on win32
-  (no SIGSTOP), and uniform `sanitizeFileName`.
-- **Native file pickers** — `apps/agent/src/files/picker.ts` has a win32
-  branch using PowerShell WinForms dialogs (`OpenFileDialog` with
-  multi-select + video/audio filters, `FolderBrowserDialog` for folders),
-  spawned as `powershell.exe -NoProfile -NonInteractive -STA -Command …`.
-  `capabilities().nativeFilePicker` is `true` on win32. Covered by unit tests
-  with a stubbed spawn; the dialogs themselves still need a live check
-  (see below).
-- **Local translation (llama.cpp over loopback TCP)** — the runtime descriptor
-  in `apps/agent/src/translation/tools.ts` is a per-platform table
-  (`darwin-arm64`, `win32-x64`). The Windows entry points at the official
-  `llama-b10092-bin-win-cpu-x64.zip` release asset (flat zip, extracted via
-  the platform zip path) but its **sha256 is intentionally `null`** until
-  pinned — the downloader refuses to fetch it (see "Pinning the llama.cpp
-  checksum").
-- **Multiplatform release manifest** — `ReleasePlatform` includes
-  `'windows-x64'`, `stable.json` has an `artifacts` map, and
-  `scripts/sign-release-manifest.mjs` accepts `--platform windows-x64`.
-  `packages/shared/src/release.ts` exports `RELEASE_ARTIFACT_NAME_WINDOWS`
-  and `RELEASE_DOWNLOAD_URL_WINDOWS`. The macOS DMG remains the primary,
-  release-gating artifact.
-- **Staging** — `scripts/stage-windows-runtime.mjs` builds the installer
-  payload mirroring the mac `Contents/Resources` layout (the agent's relative
-  `../../../runtime` lookups work unchanged). It shares the lockfile-exact
-  dependency staging with the mac pipeline via `scripts/lib/agent-staging.mjs`.
-  The same step copies Playwright's platform-matched Chromium Headless Shell,
-  its complete license file, and an exact `browser-runtime.json` executable
-  descriptor used by Landing Preview.
-- **Installer template** — `packaging/windows-installer.iss` (Inno Setup):
-  installs to `{autopf}\Soty`, HKCU Run-key autostart of the tray host,
-  post-install launch, uninstall stops the host, version/AppId rendered by
-  `scripts/render-launcher.mjs`.
+## The short version
 
-## What requires a Windows machine
+```sh
+# 1. Check the pinned third-party inputs (works from macOS)
+node scripts/fetch-windows-inputs.mjs --verify-only
 
-1. **Pin the llama.cpp Windows sha256** (and exact size) — see below.
-2. **Live-test the PowerShell pickers** — the unit tests only verify spawn
-   arguments and output parsing; PowerShell does not run on macOS. Verify:
-   multi-select, unicode paths, Cancel returning no output/exit 0, and that
-   the dialog appears in the foreground.
-3. **Tray host** — build/publish `SotyAgentHost` (`packaging/windows/`,
-   `dotnet publish`), verify it supervises `runtime\node.exe agent\dist\…`
-   and stops it on exit.
-4. **Compile + sign the installer** (Inno Setup `iscc`, Authenticode
-   `signtool`).
-5. **Full end-to-end pass** — install, pair with the hosted page, compress,
-   render folder and multi-landing ZIP previews, transcribe, translate (after
-   the checksum pin), uninstall cleanly.
-6. **Verify the Windows zip layout assumption** — the descriptor assumes the
-   official Windows zip is flat (`llama-server.exe` + DLLs at the archive
-   root). If b10092's zip has a top-level directory instead, set
-   `extractedDirectory` in `TRANSLATION_RUNTIME_DESCRIPTORS['win32-x64']`
-   accordingly.
+# 2. Build the installer in CI
+gh workflow run release-windows.yml --ref <branch>
+gh run watch
 
-## Binaries to obtain (all x64, static/portable)
+# 3. Download and inspect the artifact
+gh run download <run-id> --name windows-installer
+```
 
-| Input                                                                  | Env var (staging)                                      | Notes                                                                                        |
-| ---------------------------------------------------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
-| Portable Node.js `node.exe`                                            | `NODE_BINARY_WIN`                                      | From the official nodejs.org "Windows Binary (.zip)"; same major version as the mac package. |
-| Static FFmpeg `ffmpeg.exe`                                             | `FFMPEG_BINARY_WIN`                                    | Fully static build (e.g. gyan.dev / BtbN "static"); no external DLLs.                        |
-| Static FFprobe `ffprobe.exe`                                           | `FFPROBE_BINARY_WIN`                                   | Must come from the same build as ffmpeg.                                                     |
-| whisper.cpp `whisper-cli.exe`                                          | `WHISPER_BINARY_WIN`                                   | Static/portable win-x64 build of the pinned whisper.cpp version.                             |
-| Silero VAD model                                                       | `WHISPER_VAD_MODEL`                                    | `ggml-silero-v5.1.2.bin` (same file the mac package uses).                                   |
-| Whisper large-v3 model (optional)                                      | `WHISPER_MODEL`                                        | Omit to keep the installer small; downloaded on first use.                                   |
-| FFmpeg/x264 source archives (optional but required for GPL compliance) | `FFMPEG_SOURCE_ARCHIVE_WIN`, `X264_SOURCE_ARCHIVE_WIN` | Must match the exact ffmpeg build being bundled.                                             |
+Publishing (attaching to the release tag) is the `publish: true` input on the
+same workflow. Recording the checksum into the signed manifest happens **on the
+maintainer's Mac**, never in CI — see "Signing" below.
 
-**THIRD_PARTY_NOTICES.md reminder:** the Windows binaries are different builds
-from the mac ones. Record their exact versions/build provenance (and the
-FFmpeg build's source offer) in `THIRD_PARTY_NOTICES.md` before shipping the
-first Windows release.
+## Pieces and where they live
 
-## Pinning the llama.cpp checksum
+| Piece                     | Path                                          | Notes                                                             |
+| ------------------------- | --------------------------------------------- | ----------------------------------------------------------------- |
+| Pinned third-party inputs | `packaging/windows/inputs.json`               | sha256 + size for every bundled file                              |
+| Input downloader          | `scripts/fetch-windows-inputs.mjs`            | verifies before use; `--verify-only` needs no network writes      |
+| Input mirroring           | `.github/workflows/mirror-windows-inputs.yml` | snapshots upstream into an immutable `windows-inputs-<n>` release |
+| Payload staging           | `scripts/stage-windows-runtime.mjs`           | mirrors the macOS `Contents/Resources` layout                     |
+| Tray host                 | `packaging/windows/SotyAgentHost`             | .NET 8 WinForms, supervises the Node agent                        |
+| Installer template        | `packaging/windows-installer.iss`             | Inno Setup 6, `iscc` is preinstalled on the runner                |
+| Package checks            | `scripts/verify-windows-package.mjs`          | layout, PE architecture, release identity                         |
+| Unattended smoke          | `scripts/windows-smoke.mjs`                   | install → use → uninstall, the CI gate                            |
+| Build workflow            | `.github/workflows/release-windows.yml`       | the whole pipeline                                                |
 
-`TRANSLATION_RUNTIME_DESCRIPTORS['win32-x64']` in
-`apps/agent/src/translation/tools.ts` ships with `sha256: null` and
-`sizeBytes: 0`. Until both are pinned, the in-app "install translation
-runtime" download refuses with _"checksum not pinned for this platform yet"_.
-To pin:
+## Pinned inputs
 
-1. Download the exact asset on a trusted machine:
-   `https://github.com/ggml-org/llama.cpp/releases/download/b10092/llama-b10092-bin-win-cpu-x64.zip`
-2. Compute the hash and size:
-   - Windows: `certutil -hashfile llama-b10092-bin-win-cpu-x64.zip SHA256`
-   - macOS/Linux: `shasum -a 256 …` and `stat -f %z …`
-3. Confirm the zip contains `llama-server.exe` (see layout note above), then
-   set `sha256` (lowercase hex) and `sizeBytes` in the `win32-x64` descriptor.
-4. Update the pinned expectations in `tests/translation-runtime-platforms.test.ts`
-   and run the suite.
+Every third-party file is pinned by exact sha256 and byte size. The downloader
+verifies size, then hash, then archive-member presence, and aborts the build on
+any mismatch — an unverifiable byte never reaches an installer.
 
-## First Windows build — step-by-step
+Currently pinned:
 
-On a Windows x64 machine with git, Node.js (repo's version), .NET SDK,
-Inno Setup 6 (`iscc` on PATH) and `signtool` (Windows SDK):
+| Input                                                    | Version                      | Why this version                                                                |
+| -------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------- |
+| Node.js                                                  | 24.13.0 win-x64              | the version the shipped macOS package bundles                                   |
+| whisper.cpp                                              | v1.9.1 `whisper-bin-x64.zip` | same upstream version as macOS                                                  |
+| Silero VAD model                                         | v5.1.2                       | hashed from the shipped macOS package, so both platforms bundle identical bytes |
+| llama.cpp (translation runtime, downloaded on first use) | b10092 win-cpu-x64           | same tag/revision as macOS                                                      |
+| FFmpeg + FFprobe (built in CI)                           | 7.1.1 + x264 `0480cb05`      | identical version and x264 revision to the macOS build                          |
 
-1. **Build**
-   ```
-   git clone … && cd AffSupport
-   npm ci
-   npm run build
-   ```
-2. **Stage the runtime payload** (set the env vars from the table above):
-   ```
-   set NODE_BINARY_WIN=C:\soty-deps\node.exe
-   set FFMPEG_BINARY_WIN=C:\soty-deps\ffmpeg.exe
-   set FFPROBE_BINARY_WIN=C:\soty-deps\ffprobe.exe
-   set WHISPER_BINARY_WIN=C:\soty-deps\whisper-cli.exe
-   set WHISPER_VAD_MODEL=C:\soty-deps\ggml-silero-v5.1.2.bin
-   node scripts\stage-windows-runtime.mjs
-   ```
-   (Use `--dry-run` anywhere, including macOS, to preview the plan.)
-3. **Publish the tray host** (project maintained in `packaging/windows/`):
-   ```
-   dotnet publish packaging\windows\SotyAgentHost -c Release -r win-x64 -o release\windows\host
-   signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /a release\windows\host\SotyAgentHost.exe
-   ```
-4. **Render the installer script** (same replacer as the mac launcher):
-   ```
-   node scripts\render-launcher.mjs packaging\windows-installer.iss release\windows\installer.generated.iss "PRODUCT_VERSION=<ver>" "BUILD_ID=<ver>+<build>"
-   ```
-   (`node scripts\release-meta.mjs product-version` / `build-id` print the values.)
-5. **Compile the installer**:
-   ```
-   iscc /DStageDir=%CD%\release\windows\stage /DHostDir=%CD%\release\windows\host release\windows\installer.generated.iss
-   ```
-   Output: `Output\Soty-Agent-v<ver>-Windows-x64.exe` (matches
-   `RELEASE_ARTIFACT_NAME_WINDOWS`).
-6. **Sign the installer**:
-   ```
-   signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /a Output\Soty-Agent-v<ver>-Windows-x64.exe
-   ```
-7. **Checksum**: `certutil -hashfile Output\Soty-Agent-v<ver>-Windows-x64.exe SHA256`
-8. **Publish**: upload the exe as a release asset on the same immutable
-   `v<ver>` tag as the DMG, then add to
-   `apps/web/public/.well-known/soty/stable.json`:
-   ```json
-   "artifacts": {
-     "macos-arm64": { … },
-     "windows-x64": {
-       "url": "https://github.com/Daynero/AffSupport/releases/download/v<ver>/Soty-Agent-v<ver>-Windows-x64.exe",
-       "sha256": null
-     }
-   }
-   ```
-9. **Sign the manifest** (records the sha256 and re-signs in one step; run on
-   the release machine that holds the private key):
-   ```
-   node scripts/sign-release-manifest.mjs --dmg <path to installer.exe> --platform windows-x64
-   ```
-10. Deploy the web app as usual; `scripts/verify-release.mjs` still gates on
-    the macOS artifact and additionally checks that every listed artifact has
-    an https URL and a complete sha256.
+**FFmpeg is compiled, not downloaded.** No static win64 GPL build of the 7.1.x
+line the macOS package uses is still published — BtbN dropped the 7.1 line and
+prunes old builds, gyan.dev 404s on every 7.1 package — and bundling a newer
+third-party build would put Windows encoding out of step with macOS _and_ oblige
+us to offer that builder's exact corresponding source. So the pipeline builds
+FFmpeg 7.1.1 + x264 `0480cb05` itself, in MSYS2, with the same configure flags
+the macOS binary uses. The result is cached on the pinned source revisions, so it
+compiles once and every later release restores it.
+
+A GPL binary may only ship with its complete corresponding source: the manifest
+enforces that every copyleft input has a pinned `sourceArchiveFor` companion,
+and the build refuses otherwise.
+
+### Pinning a checksum (from macOS)
+
+GitHub's release API exposes a per-asset digest, so nothing here needs Windows:
+
+```sh
+gh api repos/ggml-org/whisper.cpp/releases/tags/v1.9.1 \
+  --jq '.assets[] | select(.name=="whisper-bin-x64.zip") | [.name,.size,.digest]|@tsv'
+```
+
+For non-GitHub sources, download once on a trusted machine and use
+`shasum -a 256` plus `stat -f %z`.
+
+### Why inputs are mirrored
+
+Upstream retention is not guaranteed — BtbN keeps only about two weeks of daily
+builds. `mirror-windows-inputs.yml` copies each verified input into an immutable
+`windows-inputs-<n>` release of this repository, and the manifest's `mirrorUrl`
+then points there. That keeps a released commit rebuildable years later. Mirror
+releases are never edited: bundling different bytes means minting a new
+`windows-inputs-<n+1>`.
+
+## Release gating
+
+`REQUIRED_RELEASE_PLATFORMS` in `packages/shared/src/release.ts` is the single
+list of platforms a stable release must ship. It currently contains
+`macos-arm64` only. Adding `'windows-x64'`:
+
+- makes `scripts/verify-release.mjs` demand the Windows artifact in
+  `apps/web/public/.well-known/wishly/stable.json`, and
+- makes `scripts/verify-published-release.mjs` demand it be downloadable.
+
+From that moment a missing or broken Windows build blocks the macOS release and
+the web deploy too. That is the intended end state — **flip it last**, once the
+pipeline reliably produces an installer.
+
+Note the manifest path is `.well-known/wishly/`, not `soty/`.
+
+## Signing the manifest
+
+`scripts/sign-release-manifest.mjs` reads the private key from
+`config/keys/release-manifest.private.pem`. That key **must never enter CI**.
+After the workflow attaches the installer to the release tag, download it and,
+on the maintainer's Mac:
+
+```sh
+node scripts/sign-release-manifest.mjs --dmg <installer path> --platform windows-x64
+node scripts/verify-release.mjs && node scripts/verify-published-release.mjs
+```
+
+## What CI cannot verify
+
+`scripts/windows-smoke.mjs` prints this list on every run, and the release is
+blocked while any check is skipped. These need a human with Windows access
+**once**, before the first public release — a recruited waitlist tester or a
+rented cloud Windows desktop:
+
+| id                      | Behaviour                                                                                    | Why automation cannot cover it               | Checked by |
+| ----------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------- | ---------- |
+| `native-chooser-dialog` | PowerShell file/folder dialogs come to the foreground; multi-select and non-Latin paths work | needs an interactive desktop and a human eye | _pending_  |
+| `smartscreen-flow`      | wording of the unknown-publisher warning; "More info" → "Run anyway" completes               | reputation-driven, not reproducible in CI    | _pending_  |
+| `antivirus-quarantine`  | how security products treat a freshly published unsigned binary                              | depends on the end user's product            | _pending_  |
+| `firewall-prompt`       | loopback-only listening raises no prompt                                                     | policy-dependent                             | _pending_  |
+| `reboot-survival`       | the app starts again after a real reboot                                                     | the Run key is asserted, the reboot is not   | _pending_  |
+
+The list is closed: anything else discovered to be unverifiable must be added
+here rather than left implicit.

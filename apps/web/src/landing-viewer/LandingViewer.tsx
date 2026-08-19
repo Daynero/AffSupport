@@ -10,7 +10,11 @@ import {
 import { Button, ProgressBar, Spinner } from '../components/ui';
 import { useI18n } from '../i18n';
 import { navigateTo } from '../lib/navigation';
-import { droppedFilePaths, firstDroppedDirectory, sampleDroppedFolder } from '../components/DropZone';
+import {
+  droppedFilePaths,
+  firstDroppedDirectory,
+  sampleDroppedFolder
+} from '../components/DropZone';
 import { emptyState } from './types';
 import { readViewerPreferences, writeViewerPreferences } from './viewerPreferences';
 import { useLandingViewport } from './useLandingViewport';

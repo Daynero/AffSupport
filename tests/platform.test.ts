@@ -85,7 +85,9 @@ describe('capabilities', () => {
     expect(capabilities()).toEqual({
       nativeFilePicker: true,
       revealInFileManager: true,
-      spotlightSearch: true
+      spotlightSearch: true,
+      shellContextMenuIntegration: true,
+      processPause: true
     });
   });
 
@@ -94,7 +96,10 @@ describe('capabilities', () => {
     expect(capabilities()).toEqual({
       nativeFilePicker: true,
       revealInFileManager: true,
-      spotlightSearch: false
+      spotlightSearch: false,
+      // No Explorer shell extension ships, and Windows has no SIGSTOP.
+      shellContextMenuIntegration: false,
+      processPause: false
     });
   });
 
@@ -103,7 +108,9 @@ describe('capabilities', () => {
     expect(capabilities()).toEqual({
       nativeFilePicker: false,
       revealInFileManager: true,
-      spotlightSearch: false
+      spotlightSearch: false,
+      shellContextMenuIntegration: false,
+      processPause: true
     });
   });
 });

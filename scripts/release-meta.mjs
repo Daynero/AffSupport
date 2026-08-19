@@ -7,8 +7,10 @@ import {
   MIN_SUPPORTED_AGENT_API_VERSION,
   PRODUCT_VERSION,
   RELEASE_ARTIFACT_NAME,
+  RELEASE_ARTIFACT_NAME_WINDOWS,
   RELEASE_CHANNEL,
   RELEASE_DOWNLOAD_URL,
+  RELEASE_DOWNLOAD_URL_WINDOWS,
   RELEASE_TAG
 } from '../packages/shared/dist/release.js';
 
@@ -23,7 +25,9 @@ const values = {
   'min-api-version': String(MIN_SUPPORTED_AGENT_API_VERSION),
   'product-version': PRODUCT_VERSION,
   'release-channel': RELEASE_CHANNEL,
-  'release-tag': RELEASE_TAG
+  'release-tag': RELEASE_TAG,
+  'windows-artifact-name': RELEASE_ARTIFACT_NAME_WINDOWS,
+  'windows-download-url': RELEASE_DOWNLOAD_URL_WINDOWS
 };
 
 const key = process.argv[2];
@@ -45,6 +49,8 @@ if (key === '--json') {
         tag: RELEASE_TAG,
         artifact: RELEASE_ARTIFACT_NAME,
         downloadUrl: RELEASE_DOWNLOAD_URL,
+        windowsArtifact: RELEASE_ARTIFACT_NAME_WINDOWS,
+        windowsDownloadUrl: RELEASE_DOWNLOAD_URL_WINDOWS,
         sourceRevision
       },
       null,

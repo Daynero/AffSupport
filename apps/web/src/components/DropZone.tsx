@@ -169,14 +169,17 @@ function readAllEntries(reader: FileSystemDirectoryReader): Promise<FileSystemEn
   const all: FileSystemEntry[] = [];
   return new Promise(resolve => {
     const step = () =>
-      reader.readEntries(batch => {
-        if (!batch.length) {
-          resolve(all);
-          return;
-        }
-        all.push(...batch);
-        step();
-      }, () => resolve(all));
+      reader.readEntries(
+        batch => {
+          if (!batch.length) {
+            resolve(all);
+            return;
+          }
+          all.push(...batch);
+          step();
+        },
+        () => resolve(all)
+      );
     step();
   });
 }

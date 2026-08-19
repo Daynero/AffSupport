@@ -1,6 +1,6 @@
 import { existsSync, renameSync } from 'node:fs';
 import path from 'node:path';
-import { appSupportRoot } from '../platform/platform.js';
+import { appSupportRoot, legacySupportDirectoryMigration } from '../platform/platform.js';
 
 const CURRENT_DIR_NAME = 'Soty';
 const LEGACY_DIR_NAMES = ['Wishly', 'Local Video Compressor'];
@@ -21,7 +21,7 @@ export function applicationSupportRoot() {
   const configured = process.env.AGENT_SUPPORT_DIRECTORY_NAME?.trim();
   const current = path.join(base, configured || CURRENT_DIR_NAME);
   if (configured && configured !== CURRENT_DIR_NAME) return current;
-  if (process.platform === 'darwin') {
+  if (legacySupportDirectoryMigration()) {
     const legacy = LEGACY_DIR_NAMES.map(name => path.join(base, name)).find(candidate =>
       existsSync(candidate)
     );

@@ -51,6 +51,35 @@ npm run deploy:web
 використовуйте `npm run deploy:web:identity`. Вона не декларує готовність Drive; повний
 `npm run deploy:web` як і раніше вимагає verified Drive integration.
 
+## Реліз на дві платформи
+
+Одна процедура публікує macOS і Windows під однією незмінною версією. Усе
+запускається з Mac — Windows-машина не потрібна.
+
+1. **Підняти версію** в `packages/shared/src/release.ts` (єдине джерело; більше
+   ніде версію руками не пишемо) і закомітити.
+2. **macOS**: `npm run package:mac` → `npm run package:dmg`, потім прикріпити DMG
+   до тегу `v<версія>`.
+3. **Windows**: `gh workflow run release-windows.yml --ref <branch>`.
+   Збірка сама тягне запінені інпути, компілює FFmpeg 7.1.1 (кешується),
+   збирає інсталятор, перевіряє пакет і проганяє unattended smoke.
+   Коли потрібно опублікувати — той самий workflow з `publish: true`.
+4. **Записати контрольні суми** (на Mac — приватний ключ ніколи не потрапляє в CI):
+
+   ```bash
+   node scripts/sign-release-manifest.mjs --dmg <шлях до .dmg> --platform macos-arm64
+   node scripts/sign-release-manifest.mjs --dmg <шлях до .exe> --platform windows-x64
+   ```
+
+5. **Перевірити й задеплоїти**: `npm run deploy:web` (сам викликає
+   `verify-release` і `verify-published-release`).
+
+Які платформи є обовʼязковими, визначає `REQUIRED_RELEASE_PLATFORMS` у
+`packages/shared/src/release.ts`. Зараз там лише `macos-arm64`. Додавання
+`'windows-x64'` робить Windows блокуючим: без валідного Windows-артефакта не
+виїде і macOS. Перемикати це треба **останнім кроком** розкатки, коли пайплайн
+стабільно віддає інсталятор. Деталі — `docs/WINDOWS.md`.
+
 ## SPA routing
 
 `apps/web/public/_redirects` містить:

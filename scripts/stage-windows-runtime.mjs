@@ -20,7 +20,7 @@
 //
 //   node scripts/stage-windows-runtime.mjs [--dry-run] [destination]
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { cp, mkdir, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { repositoryRoot, stageAgentRuntime } from './lib/agent-staging.mjs';
@@ -36,6 +36,7 @@ const DRY_RUN_DEFAULTS = {
   FFMPEG_BINARY_WIN: 'C:\\wishly-deps\\ffmpeg.exe',
   FFPROBE_BINARY_WIN: 'C:\\wishly-deps\\ffprobe.exe',
   WHISPER_BINARY_WIN: 'C:\\wishly-deps\\whisper-cli.exe',
+  WHISPER_LIBS_WIN: 'C:\\wishly-deps\\whisper-libs',
   WHISPER_VAD_MODEL: 'C:\\wishly-deps\\ggml-silero-v5.1.2.bin'
 };
 
@@ -44,6 +45,17 @@ const inputs = [
   { env: 'FFMPEG_BINARY_WIN', target: 'runtime/bin/ffmpeg.exe', mustBeExe: true },
   { env: 'FFPROBE_BINARY_WIN', target: 'runtime/bin/ffprobe.exe', mustBeExe: true },
   { env: 'WHISPER_BINARY_WIN', target: 'runtime/bin/whisper-cli.exe', mustBeExe: true },
+  // The official whisper.cpp Windows build links against whisper.dll/ggml*.dll
+  // rather than being statically linked like the macOS binary, so the shared
+  // libraries next to whisper-cli.exe must be staged beside it. Optional so a
+  // future fully static build can simply omit it.
+  {
+    env: 'WHISPER_LIBS_WIN',
+    target: 'runtime/bin',
+    mustBeExe: false,
+    optional: true,
+    directory: true
+  },
   { env: 'WHISPER_VAD_MODEL', target: 'runtime/models/ggml-silero-v5.1.2.bin', mustBeExe: false },
   // Optional exactly like the mac pipeline: omit to ship a small installer and
   // let the agent download ggml-large-v3 on first use.
@@ -94,6 +106,9 @@ for (const input of inputs) {
   }
   if (!dryRun && !existsSync(source)) {
     fail(`${input.env} does not exist: ${source}`);
+  }
+  if (input.directory && !dryRun && !statSync(source).isDirectory()) {
+    fail(`${input.env} must point at a directory, got: ${source}`);
   }
   const target = input.intoSources
     ? path.posix.join('licenses/sources', path.basename(source))

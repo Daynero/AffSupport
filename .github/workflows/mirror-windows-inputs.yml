@@ -1,0 +1,94 @@
+name: Mirror Windows build inputs
+
+# Snapshots every third-party file the Windows installer bundles into an
+# immutable release of THIS repository, so a released commit can always be
+# rebuilt from the exact bytes it shipped with.
+#
+# This exists because upstream retention is not guaranteed: BtbN prunes its
+# FFmpeg builds after roughly two weeks of dailies, and gyan.dev no longer
+# serves the 7.1 line at all (specs/006-windows-release-rollout/research.md R2).
+#
+# Everything is fetched and uploaded by this runner. No file is ever uploaded
+# from a maintainer's machine, which is what lets the Windows artifact be
+# produced without owning Windows hardware.
+on:
+  workflow_dispatch:
+    inputs:
+      mirror_tag:
+        description: 'Mirror release tag (must match mirrorRelease in packaging/windows/inputs.json)'
+        required: true
+        default: 'windows-inputs-1'
+
+permissions:
+  contents: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Verify every pinned input before mirroring
+        run: node scripts/fetch-windows-inputs.mjs --verify-only
+
+      - name: Download and checksum the pinned inputs
+        run: |
+          set -euo pipefail
+          mkdir -p mirror
+          node - <<'NODE'
+          import { createHash } from 'node:crypto';
+          import { readFile, writeFile } from 'node:fs/promises';
+          import { parseInputsManifest } from './scripts/lib/windows-inputs.mjs';
+
+          const parsed = parseInputsManifest(
+            JSON.parse(await readFile('packaging/windows/inputs.json', 'utf8'))
+          );
+          if (!parsed.ok) {
+            process.stderr.write(`Manifest invalid: ${parsed.error}\n`);
+            process.exit(1);
+          }
+          for (const entry of parsed.value.inputs.filter(i => i.status === 'pinned')) {
+            const url = entry.upstreamUrl;
+            const response = await fetch(url, { redirect: 'follow' });
+            if (!response.ok) {
+              process.stderr.write(`${entry.id}: ${response.status} for ${url}\n`);
+              process.exit(1);
+            }
+            const bytes = Buffer.from(await response.arrayBuffer());
+            const digest = createHash('sha256').update(bytes).digest('hex');
+            if (bytes.byteLength !== entry.sizeBytes || digest !== entry.sha256) {
+              process.stderr.write(
+                `${entry.id}: upstream bytes do not match the pinned checksum/size. ` +
+                  `Refusing to mirror unverified bytes.\n`
+              );
+              process.exit(1);
+            }
+            const name = new URL(url).pathname.split('/').pop();
+            await writeFile(`mirror/${name}`, bytes);
+            process.stdout.write(`mirrored ${entry.id} -> ${name} (${digest})\n`);
+          }
+          NODE
+
+      - name: Publish the immutable mirror release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MIRROR_TAG: ${{ inputs.mirror_tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "$MIRROR_TAG" >/dev/null 2>&1; then
+            echo "::error::$MIRROR_TAG already exists. Mirror releases are immutable —" \
+                 "bundling different bytes means minting a new windows-inputs-<n>."
+            exit 1
+          fi
+          gh release create "$MIRROR_TAG" mirror/* \
+            --title "Windows build inputs ($MIRROR_TAG)" \
+            --notes "Snapshot of the third-party files packaging/windows/inputs.json pins. Mirrored so a released commit stays reproducible when upstream prunes its assets. Do not edit or delete."
+
+      - name: Next step
+        run: |
+          echo "Set each pinned input's mirrorUrl in packaging/windows/inputs.json to the"
+          echo "asset URLs under the ${{ inputs.mirror_tag }} release, then commit."

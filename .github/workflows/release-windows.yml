@@ -1,0 +1,246 @@
+name: Build Windows installer
+
+# Produces the Windows x64 installer entirely on a hosted runner, because the
+# maintainer owns no Windows machine. Every step is triggered from the
+# repository; nothing is uploaded from a local machine.
+#
+# The runner image already ships everything needed — Inno Setup 6 (iscc), the
+# .NET 8 SDK, Node and 7-Zip — so there is no toolchain installation step.
+#
+# The installer is intentionally UNSIGNED, matching the macOS build's ad-hoc
+# signature and no notarization. Users are warned by SmartScreen; the download
+# page tells them exactly what to click.
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Attach the installer to the release tag (leave off for a build-only run)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-2022
+    # The first run compiles FFmpeg from source; later runs restore it from cache.
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The local gates the constitution requires. A Windows installer must
+      # never be produced from a tree that fails them.
+      - name: Format, lint and test
+        run: |
+          npm run format:check
+          npm run lint
+          npm test
+
+      - name: Build web, shared and agent
+        run: |
+          npm run build
+          npm run build -w @video-compressor/agent
+
+      - name: Fetch and verify the pinned third-party inputs
+        run: node scripts/fetch-windows-inputs.mjs release/windows/inputs
+
+      - name: Export the staging variables the inputs resolved to
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS='=' read -r key value; do
+            [ -n "$key" ] && echo "$key=$value" >> "$GITHUB_ENV"
+          done < release/windows/inputs/env.txt
+          cat release/windows/inputs/env.txt
+
+      # FFmpeg is compiled here rather than taken from a third party. No static
+      # win64 GPL build of the 7.1.x line macOS uses is still published anywhere,
+      # and a different version would put Windows output out of step with macOS.
+      # Building it ourselves also makes the GPL source offer trivially correct:
+      # we ship the exact archives we built from, exactly as the macOS package
+      # already does. The result is cached on the pinned source revisions, so it
+      # is compiled once and reused by every later release.
+      - name: Resolve the FFmpeg build key
+        id: ffmpeg-key
+        shell: bash
+        run: |
+          set -euo pipefail
+          key=$(node -e "
+            const m = require('./packaging/windows/inputs.json');
+            const by = id => m.inputs.find(i => i.id === id);
+            process.stdout.write(by('ffmpeg-source').sha256.slice(0, 16) + '-' + by('x264-source').gitRevision.slice(0, 16));
+          ")
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the compiled FFmpeg
+        id: ffmpeg-cache
+        uses: actions/cache@v4
+        with:
+          path: release/windows/ffmpeg
+          key: ffmpeg-win64-${{ steps.ffmpeg-key.outputs.key }}
+
+      - name: Set up MSYS2
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            base-devel git make diffutils nasm yasm pkgconf
+            mingw-w64-x86_64-toolchain
+
+      - name: Build x264 and FFmpeg 7.1.1 (static, GPL)
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        shell: msys2 {0}
+        env:
+          FFMPEG_SOURCE_ARCHIVE_WIN: ${{ env.FFMPEG_SOURCE_ARCHIVE_WIN }}
+        run: |
+          set -euo pipefail
+          root="$(pwd)"
+          prefix="$root/release/windows/ffmpeg-prefix"
+          out="$root/release/windows/ffmpeg"
+          mkdir -p "$prefix" "$out" "$root/release/windows/build"
+          cd "$root/release/windows/build"
+
+          x264_rev=$(node -e "
+            const m = require('$root/packaging/windows/inputs.json');
+            process.stdout.write(m.inputs.find(i => i.id === 'x264-source').gitRevision);
+          ")
+          git clone https://code.videolan.org/videolan/x264.git x264
+          git -C x264 checkout --detach "$x264_rev"
+          # The commit hash is the pin; refuse anything else.
+          test "$(git -C x264 rev-parse HEAD)" = "$x264_rev"
+          # Archive the exact checkout as the GPL corresponding source.
+          git -C x264 archive --format=tar.gz --prefix="x264-$x264_rev/" HEAD \
+            -o "$out/x264-$x264_rev.tar.gz"
+
+          (cd x264 && ./configure --prefix="$prefix" --enable-static --disable-cli \
+            --disable-opencl --host=x86_64-w64-mingw32 && make -j"$(nproc)" && make install)
+
+          tar -xf "$FFMPEG_SOURCE_ARCHIVE_WIN"
+          cd ffmpeg-7.1.1
+          # Same configuration the macOS build uses, so both platforms encode identically.
+          PKG_CONFIG_PATH="$prefix/lib/pkgconfig" ./configure \
+            --prefix="$prefix" \
+            --arch=x86_64 \
+            --target-os=mingw32 \
+            --enable-gpl \
+            --enable-libx264 \
+            --disable-shared \
+            --enable-static \
+            --disable-doc \
+            --disable-debug \
+            --disable-ffplay \
+            --disable-sdl2 \
+            --pkg-config-flags=--static \
+            --extra-cflags="-I$prefix/include" \
+            --extra-ldflags="-L$prefix/lib -static"
+          make -j"$(nproc)"
+          cp ffmpeg.exe ffprobe.exe "$out/"
+          "$out/ffmpeg.exe" -version | head -1
+
+      - name: Export the built FFmpeg
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$(pwd)/release/windows/ffmpeg"
+          test -f "$out/ffmpeg.exe" && test -f "$out/ffprobe.exe"
+          echo "FFMPEG_BINARY_WIN=$out/ffmpeg.exe" >> "$GITHUB_ENV"
+          echo "FFPROBE_BINARY_WIN=$out/ffprobe.exe" >> "$GITHUB_ENV"
+          echo "X264_SOURCE_ARCHIVE_WIN=$(ls "$out"/x264-*.tar.gz)" >> "$GITHUB_ENV"
+
+      - name: Run the runtime stager
+        run: node scripts/stage-windows-runtime.mjs release/windows/stage
+
+      - name: Render the tray host configuration
+        shell: bash
+        env:
+          PUBLIC_SITE_ORIGIN: ${{ vars.PUBLIC_SITE_ORIGIN }}
+          AGENT_ENTITLEMENT_PUBLIC_KEY: ${{ vars.AGENT_ENTITLEMENT_PUBLIC_KEY }}
+        run: |
+          set -euo pipefail
+          node scripts/render-launcher.mjs \
+            packaging/windows/SotyAgentHost/HostConfig.template.cs \
+            packaging/windows/SotyAgentHost/HostConfig.cs \
+            "AGENT_PORT=43120" \
+            "APP_NAME=Soty" \
+            "INSTANCE_LOCK_NAME=local-video-compressor-agent.lock" \
+            "SUPPORT_DIRECTORY_NAME=Soty" \
+            "PUBLIC_SITE_ORIGIN=$PUBLIC_SITE_ORIGIN" \
+            "APP_VERSION=$(node scripts/release-meta.mjs product-version)" \
+            "BUILD_NUMBER=$(node scripts/release-meta.mjs build-number)" \
+            "BUILD_ID=$(node scripts/release-meta.mjs build-id)" \
+            "API_VERSION=$(node scripts/release-meta.mjs api-version)" \
+            "RELEASE_CHANNEL=$(node scripts/release-meta.mjs release-channel)" \
+            "SOURCE_REVISION=$(git rev-parse HEAD)" \
+            "AGENT_ENTITLEMENT_PUBLIC_KEY=$AGENT_ENTITLEMENT_PUBLIC_KEY"
+
+      - name: Publish the tray host
+        run: >
+          dotnet publish packaging/windows/SotyAgentHost
+          -c Release -r win-x64 --self-contained false
+          -o release/windows/host
+
+      - name: Render the installer script
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release/windows
+          node scripts/render-launcher.mjs \
+            packaging/windows-installer.iss \
+            release/windows/installer.generated.iss \
+            "PRODUCT_VERSION=$(node scripts/release-meta.mjs product-version)" \
+            "BUILD_ID=$(node scripts/release-meta.mjs build-id)" \
+            "AGENT_PORT=43120"
+
+      # Filesystem paths arrive as ISCC defines, not template placeholders:
+      # render-launcher.mjs escapes backslashes for string literals and would
+      # corrupt Windows paths.
+      - name: Compile the installer
+        shell: cmd
+        run: >
+          iscc /DStageDir=%CD%\release\windows\stage
+          /DHostDir=%CD%\release\windows\host
+          release\windows\installer.generated.iss
+
+      - name: Verify the produced package
+        run: node scripts/verify-windows-package.mjs release/windows/stage release/windows/Output
+
+      - name: Unattended install, use and uninstall
+        run: node scripts/windows-smoke.mjs release/windows/Output
+
+      - name: Upload the installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: release/windows/Output/*.exe
+          if-no-files-found: error
+
+      # Publishing attaches the artifact to the existing immutable release tag.
+      # A tag is never rebuilt and an existing asset is never overwritten.
+      - name: Attach to the release tag
+        if: ${{ inputs.publish }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="v$(node scripts/release-meta.mjs product-version)"
+          artifact="$(node scripts/release-meta.mjs windows-artifact-name)"
+          if gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fxq "$artifact"; then
+            echo "::error::$artifact is already published on $tag. Published releases are never rebuilt."
+            exit 1
+          fi
+          gh release upload "$tag" "release/windows/Output/$artifact"
+          echo "Attached $artifact to $tag."
+          echo "Next, on the maintainer's machine (the release signing key never enters CI):"
+          echo "  node scripts/sign-release-manifest.mjs --dmg <downloaded installer> --platform windows-x64"

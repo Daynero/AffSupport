@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { platformFromUserAgent } from '../apps/web/src/lib/platform';
+import { platformFromUserAgent, windowsX64Supported } from '../apps/web/src/lib/platform';
 
 describe('browser platform detection', () => {
   it('classifies Windows user agents', () => {
@@ -27,5 +27,32 @@ describe('browser platform detection', () => {
 
   it('falls back to "other" for unrecognized agents', () => {
     expect(platformFromUserAgent('Mozilla/5.0 (PlayStation; PlayStation 5/2.26)')).toBe('other');
+  });
+});
+
+describe('windows architecture support', () => {
+  it('accepts the ordinary 64-bit Windows markers', () => {
+    for (const agent of [
+      'Win32 Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+      'Win32 Mozilla/5.0 (Windows NT 6.1; WOW64)',
+      'Win32 Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/140.0'
+    ]) {
+      expect(windowsX64Supported(agent)).toBe(true);
+    }
+  });
+
+  it('accepts ARM64 Windows, which runs the x64 build under emulation', () => {
+    expect(windowsX64Supported('Win32 Mozilla/5.0 (Windows NT 10.0; ARM64)')).toBe(true);
+  });
+
+  it('rejects only a Windows agent with no 64-bit marker at all', () => {
+    expect(windowsX64Supported('Win32 Mozilla/5.0 (Windows NT 10.0)')).toBe(false);
+  });
+
+  it('never blocks a non-Windows visitor', () => {
+    expect(windowsX64Supported('MacIntel Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)')).toBe(
+      true
+    );
+    expect(windowsX64Supported('Linux x86_64 Mozilla/5.0 (X11; Linux x86_64)')).toBe(true);
   });
 });

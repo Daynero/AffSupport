@@ -13,8 +13,10 @@ import {
   PRODUCTION_SITE_ORIGIN,
   RELEASE_ARTIFACT_NAME,
   RELEASE_DOWNLOAD_URL,
+  RELEASE_DOWNLOAD_URLS,
   RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64,
   RELEASE_TAG,
+  REQUIRED_RELEASE_PLATFORMS,
   WEB_TOOL_REQUIREMENTS,
   releaseManifestSigningPayload,
   toolContractCompatible
@@ -86,9 +88,20 @@ if (stableManifest.summary !== undefined) {
     }
   }
 }
-const primaryArtifact = stableManifest.artifacts?.['macos-arm64'];
-if (!primaryArtifact || primaryArtifact.url !== RELEASE_DOWNLOAD_URL) {
-  fail('stable release manifest does not point at the immutable primary artifact');
+// Every platform the release must ship (REQUIRED_RELEASE_PLATFORMS in the
+// shared contract) has to be present and point at its own immutable artifact.
+for (const platform of REQUIRED_RELEASE_PLATFORMS) {
+  const artifact = stableManifest.artifacts?.[platform];
+  if (!artifact) {
+    fail(`stable release manifest is missing the required ${platform} artifact`);
+  }
+  const expectedUrl = RELEASE_DOWNLOAD_URLS[platform];
+  if (expectedUrl && artifact.url !== expectedUrl) {
+    fail(
+      `stable release manifest ${platform} artifact does not point at the immutable release ` +
+        `(expected ${expectedUrl})`
+    );
+  }
 }
 for (const [platform, artifact] of Object.entries(stableManifest.artifacts ?? {})) {
   if (!['macos-arm64', 'macos-x64', 'windows-x64'].includes(platform)) {

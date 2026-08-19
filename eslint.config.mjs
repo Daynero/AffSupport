@@ -47,6 +47,30 @@ export default tseslint.config(
     }
   },
   {
+    // Every OS-specific mechanism the agent relies on must be reachable only
+    // through the platform layer, so a tool is written once and works on both
+    // platforms. Without this rule the intent lived only in a doc comment, and
+    // route guards had already drifted to hard-coded `darwin` checks that
+    // disabled working Windows code paths.
+    files: ['apps/agent/src/**/*.ts'],
+    ignores: [
+      // The platform layer itself, and the native file/folder dialogs, which are
+      // the platform implementation of the pickers (osascript vs PowerShell).
+      'apps/agent/src/platform/**/*.ts',
+      'apps/agent/src/files/picker.ts'
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "MemberExpression[object.name='process'][property.name=/^(platform|arch)$/]",
+          message:
+            'Read the host platform through apps/agent/src/platform/platform.ts (capabilities(), currentPlatform(), executableName(), …) so tools stay portable.'
+        }
+      ]
+    }
+  },
+  {
     files: ['apps/web/src/**/*.{ts,tsx}'],
     languageOptions: {
       globals: globals.browser

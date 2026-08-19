@@ -96,3 +96,18 @@ Releases, push Supabase migrations, or deploy Cloudflare. Return the generated
 path under `release/dev/`. The build is isolated as Soty Dev on port 43130
 with local dev auth and analytics disabled. If packaging reports that Soty Dev
 is busy, do not kill it; tell the user to finish the active work first.
+
+## Cross-platform agent code
+
+Soty ships on macOS and Windows from one codebase. Every OS-specific mechanism —
+data locations, executable names, archive handling, file-manager actions, process
+suspension, name sanitization — lives in `apps/agent/src/platform/platform.ts`,
+and nothing else under `apps/agent/src` may read `process.platform` or
+`process.arch` (enforced by `no-restricted-syntax` in `eslint.config.mjs`; the
+only other exception is `files/picker.ts`, the native-dialog implementation).
+
+When a feature exists on one platform only, declare it as a capability rather
+than branching: add the flag to `PlatformCapabilities`, map it in
+`apps/agent/src/server/capabilities.ts`, and gate the route with
+`hasCapability(...)` returning `501` and a stable machine code. The agent then
+advertises only what the host can actually serve, and the web UI hides the rest.

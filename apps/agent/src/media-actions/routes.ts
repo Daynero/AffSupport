@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
+import { hasCapability } from '../server/capabilities.js';
 import { isImageConversionFormat, type ImageConversionFormat } from './image-converter.js';
 import type { MediaActionQueue } from './queue.js';
 
@@ -18,8 +19,8 @@ export function registerMediaActionRoutes(app: FastifyInstance, ctx: MediaAction
   app.post<{
     Body: { paths?: unknown; format?: unknown };
   }>('/native/media-actions/images/convert', { bodyLimit: 512 * 1024 }, async (request, reply) => {
-    if (process.platform !== 'darwin') {
-      return reply.code(501).send({ error: 'Finder image conversion is available only on macOS.' });
+    if (!hasCapability('finder-image-conversion')) {
+      return reply.code(501).send({ error: 'FINDER_IMAGE_CONVERSION_UNSUPPORTED' });
     }
     if (!acceptingNewTasks()) {
       return reply.code(409).send({ error: 'Soty is preparing to install an update.' });

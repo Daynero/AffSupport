@@ -4,7 +4,8 @@
 ;   node scripts/render-launcher.mjs packaging/windows-installer.iss \
 ;     release/windows/installer.generated.iss \
 ;     "PRODUCT_VERSION=$(node scripts/release-meta.mjs product-version)" \
-;     "BUILD_ID=$(node scripts/release-meta.mjs build-id)"
+;     "BUILD_ID=$(node scripts/release-meta.mjs build-id)" \
+;     "AGENT_PORT=43120"
 ;
 ; Filesystem inputs deliberately arrive as ISCC preprocessor defines instead of
 ; placeholders: render-launcher.mjs escapes backslashes (it targets Swift string
@@ -16,13 +17,13 @@
 ;   StageDir — output of scripts/stage-windows-runtime.mjs
 ;   HostDir  — `dotnet publish` output containing SotyAgentHost.exe (tray host)
 ;
-; Authenticode: sign both the host exe (before iscc) and the produced installer
-; (after iscc), otherwise SmartScreen flags the download:
-;   signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 ^
-;     /a <HostDir>\SotyAgentHost.exe
-;   signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 ^
-;     /a Output\Soty-Agent-v__PRODUCT_VERSION__-Windows-x64.exe
-; Inno can also sign intermediate files itself via SignTool=... if configured.
+; Authenticode signing is a deliberate non-goal: the build ships unsigned,
+; matching the macOS build's ad-hoc signature and no notarization. SmartScreen
+; warnings are handled by first-run guidance on the download page.
+;
+; The output file name must equal RELEASE_ARTIFACT_NAME_WINDOWS in
+; packages/shared/src/release.ts (Soty-v<version>-Windows-x64.exe); CI fails the
+; build otherwise.
 
 #ifndef StageDir
   #error Pass /DStageDir=<path to release/windows/stage> to iscc
@@ -82,11 +83,44 @@ Filename: "{cmd}"; Parameters: "/C taskkill /IM SotyAgentHost.exe /F"; \
   Flags: runhidden; RunOnceId: "StopSotyAgentHost"
 
 [Code]
-// An upgrade must not copy over a running host; stop it before install too.
+// Asks the running agent whether it is mid-job. Returns True only when it
+// positively reports busy; an unreachable agent means nothing is running.
+function AgentIsBusy(): Boolean;
+var
+  WinHttp: Variant;
+  Body: String;
+begin
+  Result := False;
+  try
+    WinHttp := CreateOleObject('WinHttp.WinHttpRequest.5.1');
+    WinHttp.SetTimeouts(2000, 2000, 2000, 2000);
+    WinHttp.Open('GET', 'http://127.0.0.1:__AGENT_PORT__/health', False);
+    WinHttp.Send();
+    if WinHttp.Status = 200 then
+    begin
+      Body := WinHttp.ResponseText;
+      Result := Pos('"busy":true', Body) > 0;
+    end;
+  except
+    // No agent listening, or it answered nothing usable: nothing to interrupt.
+    Result := False;
+  end;
+end;
+
+// An upgrade must not replace files under a running host — and must never
+// interrupt work in progress. If the agent reports a job in flight, the install
+// stops with an explanation instead of killing it.
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   ResultCode: Integer;
 begin
+  if AgentIsBusy() then
+  begin
+    Result :=
+      'Soty is still working on something. Let the current job finish (or cancel it' +
+      ' from the Soty window), then run this installer again.';
+    Exit;
+  end;
   Exec(ExpandConstant('{cmd}'), '/C taskkill /IM SotyAgentHost.exe /F', '',
     SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Result := '';

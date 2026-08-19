@@ -91,6 +91,18 @@ describe('Windows video picker', () => {
     expect(script).toContain('[Console]::OutputEncoding = [System.Text.Encoding]::UTF8');
   });
 
+  it('keeps paths containing spaces intact', async () => {
+    stubPickerRun({ stdout: 'C:\\Users\\Ада Сміт\\My Videos\\final cut.mp4\r\n' });
+    await expect(selectVideos()).resolves.toEqual([
+      'C:\\Users\\Ада Сміт\\My Videos\\final cut.mp4'
+    ]);
+  });
+
+  it('ignores blank lines rather than returning empty selections', async () => {
+    stubPickerRun({ stdout: '\r\nC:\\Videos\\a.mp4\r\n\r\n' });
+    await expect(selectVideos()).resolves.toEqual(['C:\\Videos\\a.mp4']);
+  });
+
   it('resolves to an empty list when the user cancels (no output, exit 0)', async () => {
     stubPickerRun({ stdout: '' });
     await expect(selectVideos()).resolves.toEqual([]);

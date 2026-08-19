@@ -6149,6 +6149,14 @@ body:has(.public-home) {
   width: 100%;
 }
 
+.platform-install-notice {
+  margin: 14px 0 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
 .platform-download-button {
   min-height: 58px;
   border: 2px solid color-mix(in srgb, var(--color-accent) 34%, var(--color-border));

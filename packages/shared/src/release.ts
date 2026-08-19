@@ -40,12 +40,32 @@ export const RELEASE_TAG = `v${PRODUCT_VERSION}`;
 export const RELEASE_ARTIFACT_NAME = `Soty-v${PRODUCT_VERSION}-macOS-arm64.dmg`;
 export const RELEASE_DOWNLOAD_URL = `https://github.com/Daynero/AffSupport/releases/download/${RELEASE_TAG}/${RELEASE_ARTIFACT_NAME}`;
 /**
- * Windows installer produced by packaging/windows-installer.iss. The macOS DMG
- * remains the primary (release-gating) artifact; the Windows one is attached
- * to the same immutable tag when a Windows build ships (docs/WINDOWS.md).
+ * Windows installer produced by packaging/windows-installer.iss, attached to the
+ * same immutable tag as the DMG (docs/WINDOWS.md).
  */
 export const RELEASE_ARTIFACT_NAME_WINDOWS = `Soty-v${PRODUCT_VERSION}-Windows-x64.exe`;
 export const RELEASE_DOWNLOAD_URL_WINDOWS = `https://github.com/Daynero/AffSupport/releases/download/${RELEASE_TAG}/${RELEASE_ARTIFACT_NAME_WINDOWS}`;
+
+/**
+ * Platforms a stable release MUST ship. Every gate reads this list, so making a
+ * platform release-blocking is a single edit here rather than a change spread
+ * across the verification scripts.
+ *
+ * Windows is deliberately NOT in this list yet: the CI pipeline that produces
+ * the installer must be proven first. Adding `'windows-x64'` flips the whole
+ * chain at once — `verify-release.mjs` then demands the artifact in
+ * stable.json, and `verify-published-release.mjs` demands it be downloadable —
+ * and from that moment a missing or broken Windows build blocks the macOS
+ * release and the web deploy too. That is the intended end state; the flip is
+ * the last step of the Windows rollout, not the first.
+ */
+export const REQUIRED_RELEASE_PLATFORMS: readonly ReleasePlatform[] = ['macos-arm64'];
+
+/** Download URL for each platform, derived so no gate hard-codes a link. */
+export const RELEASE_DOWNLOAD_URLS: Partial<Record<ReleasePlatform, string>> = {
+  'macos-arm64': RELEASE_DOWNLOAD_URL,
+  'windows-x64': RELEASE_DOWNLOAD_URL_WINDOWS
+};
 
 /**
  * Product versions identify immutable binaries. Contracts identify whether a

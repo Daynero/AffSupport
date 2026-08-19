@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "mirrorRelease": "windows-inputs-1",
+  "readme": "Third-party files the Windows installer bundles. Downloaded inputs are pinned by exact sha256 and size (git sources by commit hash); scripts/fetch-windows-inputs.mjs verifies before use and refuses on any mismatch. Inputs with status 'built' are compiled in CI from the pinned sources they name, so both platforms run identical versions and the GPL source offer is an archive we ship ourselves. Never edit an entry in place: bundling different bytes means a new windows-inputs-<n> mirror release and a new entry.",
+  "inputs": [
+    {
+      "id": "node",
+      "status": "pinned",
+      "mirrorUrl": null,
+      "upstreamUrl": "https://nodejs.org/dist/v24.13.0/node-v24.13.0-win-x64.zip",
+      "sha256": "ca2742695be8de44027d71b3f53a4bdb36009b95575fe1ae6f7f0b5ce091cb88",
+      "sizeBytes": 36363905,
+      "archiveKind": "zip",
+      "staging": [
+        {
+          "env": "NODE_BINARY_WIN",
+          "memberPath": "node-v24.13.0-win-x64/node.exe"
+        }
+      ],
+      "license": "MIT",
+      "provenance": "Node.js 24.13.0 official Windows x64 binary distribution (nodejs.org). Matches the Node version the shipped macOS package bundles. sha256 taken from the official SHASUMS256.txt.",
+      "sourceArchiveFor": null
+    },
+    {
+      "id": "whisper",
+      "status": "pinned",
+      "mirrorUrl": null,
+      "upstreamUrl": "https://github.com/ggml-org/whisper.cpp/releases/download/v1.9.1/whisper-bin-x64.zip",
+      "sha256": "7d8be46ecd31828e1eb7a2ecdd0d6b314feafd82163038ab6092594b0a063539",
+      "sizeBytes": 7982101,
+      "archiveKind": "zip",
+      "staging": [
+        {
+          "env": "WHISPER_BINARY_WIN",
+          "memberPath": "Release/whisper-cli.exe"
+        },
+        {
+          "env": "WHISPER_LIBS_WIN",
+          "memberPath": "Release/",
+          "kind": "directory"
+        }
+      ],
+      "license": "MIT",
+      "provenance": "whisper.cpp v1.9.1 official Windows x64 CPU release build (ggml-org/whisper.cpp). Same upstream version as the macOS package, which bundles a local statically linked build; this one links whisper.dll/ggml*.dll, so the whole Release/ directory is staged next to the executable.",
+      "sourceArchiveFor": null
+    },
+    {
+      "id": "whisper-vad-model",
+      "status": "pinned",
+      "mirrorUrl": null,
+      "upstreamUrl": "https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin",
+      "sha256": "29940d98d42b91fbd05ce489f3ecf7c72f0a42f027e4875919a28fb4c04ea2cf",
+      "sizeBytes": 885098,
+      "archiveKind": "raw",
+      "staging": [
+        {
+          "env": "WHISPER_VAD_MODEL",
+          "memberPath": null
+        }
+      ],
+      "license": "MIT",
+      "provenance": "Silero VAD v5.1.2 ggml model. The sha256 and size were taken from the file inside the shipped macOS package, so both platforms provably bundle identical bytes.",
+      "sourceArchiveFor": null
+    },
+    {
+      "id": "ffmpeg",
+      "status": "built",
+      "builtFrom": [
+        "ffmpeg-source",
+        "x264-source"
+      ],
+      "mirrorUrl": null,
+      "upstreamUrl": null,
+      "sha256": null,
+      "sizeBytes": 0,
+      "archiveKind": "none",
+      "staging": [
+        {
+          "env": "FFMPEG_BINARY_WIN",
+          "memberPath": null
+        },
+        {
+          "env": "FFPROBE_BINARY_WIN",
+          "memberPath": null
+        }
+      ],
+      "license": "GPL-2.0-or-later",
+      "provenance": "FFmpeg 7.1.1 with libx264, compiled for win64 by .github/workflows/release-windows.yml from the pinned sources below, using the same configuration as the macOS build (--enable-gpl --enable-libx264 --disable-shared --enable-static). Built rather than taken from a third party so both platforms run the identical FFmpeg version, and so the GPL source offer is the archive we ship ourselves.",
+      "sourceArchiveFor": null
+    },
+    {
+      "id": "ffmpeg-source",
+      "status": "pinned",
+      "mirrorUrl": null,
+      "upstreamUrl": "https://ffmpeg.org/releases/ffmpeg-7.1.1.tar.xz",
+      "sha256": "733984395e0dbbe5c046abda2dc49a5544e7e0e1e2366bba849222ae9e3a03b1",
+      "sizeBytes": 11019500,
+      "archiveKind": "raw",
+      "staging": [
+        {
+          "env": "FFMPEG_SOURCE_ARCHIVE_WIN",
+          "memberPath": null
+        }
+      ],
+      "license": "GPL-2.0-or-later",
+      "provenance": "Official FFmpeg 7.1.1 release tarball, the exact version the macOS package is built from. Staged into licenses/sources/ as the complete corresponding source.",
+      "sourceArchiveFor": "ffmpeg"
+    },
+    {
+      "id": "x264-source",
+      "status": "pinned",
+      "mirrorUrl": null,
+      "upstreamUrl": "https://code.videolan.org/videolan/x264.git",
+      "gitRevision": "0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee",
+      "sha256": null,
+      "sizeBytes": 0,
+      "archiveKind": "git",
+      "staging": [
+        {
+          "env": "X264_SOURCE_ARCHIVE_WIN",
+          "memberPath": null
+        }
+      ],
+      "license": "GPL-2.0-or-later",
+      "provenance": "VideoLAN x264 at commit 0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee, the same revision recorded in THIRD_PARTY_NOTICES.md for the macOS build. Pinned by commit hash, which is itself cryptographic. The build archives this checkout into licenses/sources/ as the complete corresponding source.",
+      "sourceArchiveFor": "ffmpeg"
+    }
+  ]
+}

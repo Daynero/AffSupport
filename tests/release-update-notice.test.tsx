@@ -119,3 +119,50 @@ describe('release update notice', () => {
     expect(screen.queryByRole('region')).toBeNull();
   });
 });
+
+describe('update notice on Windows', () => {
+  function mockNavigator(platform: string, userAgent: string) {
+    vi.spyOn(window.navigator, 'platform', 'get').mockReturnValue(platform);
+    vi.spyOn(window.navigator, 'userAgent', 'get').mockReturnValue(userAgent);
+  }
+
+  function withWindowsArtifact(version = '0.6.2') {
+    const manifest = releaseManifest(version);
+    manifest.artifacts['windows-x64'] = {
+      url: `https://example.test/Soty-v${version}-Windows-x64.exe`,
+      sha256: 'b'.repeat(64)
+    };
+    return manifest;
+  }
+
+  it('offers a Windows visitor the Windows build of the new version', () => {
+    mockNavigator('Win32', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+    const manifest = withWindowsArtifact();
+    renderNotice(agentValue(manifest));
+
+    expect(screen.getByRole('link', { name: 'Завантажити оновлення' }).getAttribute('href')).toBe(
+      manifest.artifacts['windows-x64']?.url
+    );
+  });
+
+  it('still offers macOS to a Mac visitor when both builds are published', () => {
+    mockNavigator('MacIntel', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)');
+    const manifest = withWindowsArtifact();
+    renderNotice(agentValue(manifest));
+
+    expect(screen.getByRole('link', { name: 'Завантажити оновлення' }).getAttribute('href')).toBe(
+      manifest.artifacts['macos-arm64']?.url
+    );
+  });
+
+  it('falls back to the macOS artifact for a Windows visitor on a macOS-only release', () => {
+    // A release that never shipped Windows must not hand out a dead link.
+    mockNavigator('Win32', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+    const manifest = releaseManifest();
+    renderNotice(agentValue(manifest));
+
+    expect(screen.getByRole('link', { name: 'Завантажити оновлення' }).getAttribute('href')).toBe(
+      manifest.artifacts['macos-arm64']?.url
+    );
+  });
+});

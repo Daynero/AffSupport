@@ -4,6 +4,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applicationSupportRoot } from '../files/support-dir.js';
 import {
+  currentArch,
+  currentPlatform,
   executableName,
   extractTarGz,
   listTarGzEntries,
@@ -83,11 +85,11 @@ export const TRANSLATION_RUNTIME_DESCRIPTORS: Record<
     url:
       'https://github.com/ggml-org/llama.cpp/releases/download/b10092/' +
       'llama-b10092-bin-win-cpu-x64.zip',
-    // Not pinned yet — must be recorded from the real release asset on a
-    // Windows machine (docs/WINDOWS.md, "Pinning the llama.cpp checksum").
-    // A null hash makes ModelDownloader refuse the download outright.
-    sha256: null,
-    sizeBytes: 0
+    // Recorded from the published release asset (GitHub's release API exposes
+    // a per-asset digest, cross-checked against the macOS asset whose hash was
+    // already pinned here). No Windows machine is needed to pin this.
+    sha256: 'c842fa7dc90e32b327c62903f4310ef251a902c90ef5b3a6c01c6b675dce078e',
+    sizeBytes: 18_021_876
   }
 };
 
@@ -97,8 +99,8 @@ export const TRANSLATION_RUNTIME_DESCRIPTORS: Record<
  * exercise every branch without stubbing process.
  */
 export function selectTranslationRuntimeDescriptor(
-  platform: NodeJS.Platform = process.platform,
-  arch: string = process.arch
+  platform: NodeJS.Platform = currentPlatform(),
+  arch: string = currentArch()
 ): TranslationRuntimeDescriptor | null {
   const key = `${platform}-${arch}`;
   return key in TRANSLATION_RUNTIME_DESCRIPTORS
@@ -267,7 +269,7 @@ export function translationRuntimeArchiveDownloadPath(): string {
 export async function installTranslationRuntimeArchive(archivePath: string): Promise<void> {
   if (!activeRuntimeDescriptor) {
     throw new Error(
-      `The local translation runtime is not available for ${process.platform}-${process.arch} yet.`
+      `The local translation runtime is not available for ${currentPlatform()}-${currentArch()} yet.`
     );
   }
   const descriptor = activeRuntimeDescriptor;

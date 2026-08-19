@@ -17,6 +17,7 @@ import { uploadIntakeMeta } from '../files/upload-intake.js';
 import { ImageAssetError, MAX_IMAGE_BYTES, type ImageAssetStore } from '../images/store.js';
 import { openPath, revealInFileManager } from '../platform/platform.js';
 import { isSupportedVideoPath, type JobQueue } from '../queue/queue.js';
+import { hasCapability } from '../server/capabilities.js';
 import type { EventChannel } from '../server/sse.js';
 import { parseSettingsPatch } from './settings-validation.js';
 
@@ -45,10 +46,8 @@ export function registerCompressorRoutes(app: FastifyInstance, ctx: CompressorCo
   app.get('/api/events', events.handler);
 
   app.post('/api/files/select', async (_request, reply) => {
-    if (process.platform !== 'darwin') {
-      return reply
-        .code(501)
-        .send({ error: 'The native file picker is unavailable on this system.' });
+    if (!hasCapability('native-file-picker')) {
+      return reply.code(501).send({ error: 'NATIVE_FILE_PICKER_UNSUPPORTED' });
     }
     const paths = await selectVideos();
     const warnings = await queue.add(paths);

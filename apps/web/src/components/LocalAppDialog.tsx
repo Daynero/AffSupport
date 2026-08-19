@@ -6,7 +6,7 @@ import type { ConnectionState } from '../connection';
 import { useI18n } from '../i18n';
 import { requireSupabaseClient } from '../lib/supabase';
 import { downloadUrlForPlatform, macAppleSiliconDownloadUrl } from '../release-manifest';
-import { currentBrowserPlatform } from '../lib/platform';
+import { currentBrowserPlatform, currentWindowsX64Supported } from '../lib/platform';
 import { analytics } from '../analytics/service';
 import { Modal } from './Modal';
 import { SotyMark } from './SotyLogo';
@@ -31,7 +31,18 @@ export default function LocalAppDialog({
   const needsUpdate = incompatible || connection === 'agent_update_required';
   const macDownloadUrl = macAppleSiliconDownloadUrl(releaseManifest.manifest);
   const windowsDownload = downloadUrlForPlatform(releaseManifest.manifest, 'windows-x64');
-  const windowsFirst = windowsDownload.available && currentBrowserPlatform() === 'windows';
+  const browserPlatform = currentBrowserPlatform();
+  const windowsFirst = windowsDownload.available && browserPlatform === 'windows';
+  // Both builds ship unsigned, so every first launch meets an OS warning. The
+  // guidance has to be here, at the moment of download, rather than in a help
+  // page the user has not opened yet.
+  const installNotice = windowsFirst
+    ? currentWindowsX64Supported()
+      ? t('windowsUnsignedNotice')
+      : t('windowsUnsupportedArchitecture')
+    : browserPlatform === 'macos'
+      ? t('macUnsignedNotice')
+      : null;
   const toolIdentifier =
     tool === 'landingOptimizer'
       ? 'landing-optimizer'
@@ -130,6 +141,12 @@ export default function LocalAppDialog({
             </>
           )}
         </div>
+        {installNotice && (
+          <p className="platform-install-notice">
+            {installNotice}
+            {windowsFirst && ` ${t('windowsRequirements')}`}
+          </p>
+        )}
         <div className="inline-actions">
           {connection === 'pairing_required' && (
             <a className="button button-secondary" href={`${agentUrl}/local`}>

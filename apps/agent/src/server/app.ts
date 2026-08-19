@@ -8,9 +8,9 @@ import fastifyStatic from '@fastify/static';
 import {
   AGENT_TOOL_CONTRACTS,
   CORE_CONTRACT_VERSION,
-  AGENT_API_VERSION,
-  AGENT_CAPABILITIES
+  AGENT_API_VERSION
 } from '@video-compressor/shared';
+import { advertisedCapabilities } from './capabilities.js';
 import type { EntitlementGate } from '../entitlement/entitlement.js';
 import type { JobQueue } from '../queue/queue.js';
 import type { ToolContext, ToolModule } from './tools.js';
@@ -178,7 +178,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     apiVersion: AGENT_API_VERSION,
     channel: config.channel,
     sourceRevision: config.sourceRevision,
-    capabilities: [...AGENT_CAPABILITIES],
+    capabilities: advertisedCapabilities(),
     coreContractVersion: CORE_CONTRACT_VERSION,
     toolContracts: { ...AGENT_TOOL_CONTRACTS },
     update: queue.state().update,
@@ -193,7 +193,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     apiVersion: AGENT_API_VERSION,
     channel: config.channel,
     sourceRevision: config.sourceRevision,
-    capabilities: [...AGENT_CAPABILITIES],
+    capabilities: advertisedCapabilities(),
     coreContractVersion: CORE_CONTRACT_VERSION,
     toolContracts: { ...AGENT_TOOL_CONTRACTS },
     update: queue.state().update,

@@ -251,6 +251,16 @@ const en = {
   windowsAppWaitlist: 'Notify me when it’s ready',
   windowsAppWaitlistSaved: 'You’re on the list',
   windowsAppWaitlistError: 'Could not add you to the list. Please try again.',
+  windowsUnsignedNotice:
+    'Windows may show a blue “Windows protected your PC” screen because the app is not signed. ' +
+    'Click “More info”, then “Run anyway” to continue.',
+  macUnsignedNotice:
+    'macOS may say the app cannot be opened because the developer cannot be verified. ' +
+    'Open System Settings → Privacy & Security and click “Open Anyway”.',
+  windowsRequirements: 'Requires 64-bit Windows 10 or 11.',
+  windowsUnsupportedArchitecture:
+    'Soty for Windows needs a 64-bit (x64) version of Windows 10 or 11. ' +
+    'It will not run on this system.',
   localAppVersion: 'Local Soty app version',
   versionCheckUnavailable: 'could not check for updates',
   updateAvailable: 'update available',
@@ -1596,6 +1606,16 @@ const uk: Record<keyof typeof en, string> = {
   windowsAppWaitlist: 'Сповістити коли з’явиться',
   windowsAppWaitlistSaved: 'Ви у списку',
   windowsAppWaitlistError: 'Не вдалося додати вас до списку. Спробуйте ще раз.',
+  windowsUnsignedNotice:
+    'Windows може показати синій екран «Система Windows захистила ваш ПК», бо застосунок не ' +
+    'підписано. Натисніть «Докладніше», а потім «Виконати в будь-якому разі».',
+  macUnsignedNotice:
+    'macOS може написати, що не вдається перевірити розробника. Відкрийте «Системні ' +
+    'параметри» → «Конфіденційність і безпека» і натисніть «Усе одно відкрити».',
+  windowsRequirements: 'Потрібна 64-бітна Windows 10 або 11.',
+  windowsUnsupportedArchitecture:
+    'Soty для Windows потребує 64-бітної (x64) Windows 10 або 11. ' +
+    'На цій системі застосунок не запуститься.',
   localAppVersion: 'Версія локального застосунку Soty',
   versionCheckUnavailable: 'не вдалося перевірити оновлення',
   updateAvailable: 'доступне оновлення',

@@ -8,6 +8,12 @@ import { promisify } from 'node:util';
  * these pure functions so the rest of the codebase stays portable. On macOS the
  * behavior is exactly what the agent always did; win32/linux branches exist so
  * a port only has to touch this module.
+ *
+ * This is now enforced, not just intended: the `no-restricted-syntax` rule in
+ * eslint.config.mjs rejects `process.platform`/`process.arch` anywhere under
+ * apps/agent/src except this module and files/picker.ts (the native-dialog
+ * implementation). Add a helper or a capability flag here rather than a branch
+ * in a tool — a tool is written once and must run on both platforms.
  */
 
 /** Feature switches for behavior that only some platforms can offer. */
@@ -18,17 +24,47 @@ export interface PlatformCapabilities {
   revealInFileManager: boolean;
   /** Content-indexed file search (Spotlight's mdfind on macOS). */
   spotlightSearch: boolean;
+  /**
+   * File-manager context-menu integration that calls back into the agent (the
+   * macOS Finder Sync extension and image-conversion Services provider, which
+   * drive `/native/media-actions/*`). A Windows counterpart would be an Explorer
+   * shell extension and is deliberately not shipped.
+   */
+  shellContextMenuIntegration: boolean;
+  /**
+   * Suspending and resuming a running child process. Windows has no SIGSTOP, so
+   * callers must be prepared to continue with the process still running.
+   */
+  processPause: boolean;
 }
 
 export function capabilities(): PlatformCapabilities {
   switch (process.platform) {
     case 'darwin':
-      return { nativeFilePicker: true, revealInFileManager: true, spotlightSearch: true };
+      return {
+        nativeFilePicker: true,
+        revealInFileManager: true,
+        spotlightSearch: true,
+        shellContextMenuIntegration: true,
+        processPause: true
+      };
     case 'win32':
       // Pickers are PowerShell WinForms dialogs (files/picker.ts).
-      return { nativeFilePicker: true, revealInFileManager: true, spotlightSearch: false };
+      return {
+        nativeFilePicker: true,
+        revealInFileManager: true,
+        spotlightSearch: false,
+        shellContextMenuIntegration: false,
+        processPause: false
+      };
     default:
-      return { nativeFilePicker: false, revealInFileManager: true, spotlightSearch: false };
+      return {
+        nativeFilePicker: false,
+        revealInFileManager: true,
+        spotlightSearch: false,
+        shellContextMenuIntegration: false,
+        processPause: true
+      };
   }
 }
 
@@ -50,6 +86,57 @@ export function appSupportRoot(): string {
 /** Appends the platform executable suffix (`.exe` on Windows). */
 export function executableName(base: string): string {
   return process.platform === 'win32' ? `${base}.exe` : base;
+}
+
+/**
+ * The host platform/arch pair, for descriptor lookups and diagnostics. Exposed
+ * here so callers never read `process.platform` directly — this module is the
+ * only place allowed to (enforced by the `no-restricted-syntax` rule in
+ * eslint.config.mjs).
+ */
+export function currentPlatform(): NodeJS.Platform {
+  return process.platform;
+}
+
+export function currentArch(): string {
+  return process.arch;
+}
+
+/**
+ * True when the pre-rebrand support directories may exist and be adopted. That
+ * history only ever happened on macOS, so the one-time rename stays there.
+ */
+export function legacySupportDirectoryMigration(): boolean {
+  return process.platform === 'darwin';
+}
+
+/**
+ * Well-known Chromium/Chrome/Edge installations to fall back on when the
+ * Playwright-managed browser is absent (a friendlier developer setup; packaged
+ * builds always ship their own). Ordered by preference.
+ */
+export function installedBrowserCandidates(): string[] {
+  switch (process.platform) {
+    case 'darwin':
+      return [
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+        '/Applications/Chromium.app/Contents/MacOS/Chromium'
+      ];
+    case 'win32': {
+      // Skip an entry entirely when its Program Files root is not set, rather
+      // than probing a relative path.
+      const programFiles = process.env.PROGRAMFILES?.trim();
+      const programFilesX86 = process.env['PROGRAMFILES(X86)']?.trim();
+      return [
+        programFiles && path.join(programFiles, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+        programFilesX86 &&
+          path.join(programFilesX86, 'Microsoft', 'Edge', 'Application', 'msedge.exe')
+      ].filter((candidate): candidate is string => Boolean(candidate));
+    }
+    default:
+      return ['/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
+  }
 }
 
 /** Fire-and-forget spawn for desktop shell actions (never blocks the agent). */
@@ -176,7 +263,7 @@ export async function unzipArchive(zipPath: string, destination: string): Promis
 
 /** True when the platform can suspend/resume a child process (POSIX signals). */
 export function processPauseSupported(): boolean {
-  return process.platform !== 'win32';
+  return capabilities().processPause;
 }
 
 /**
