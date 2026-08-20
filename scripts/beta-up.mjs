@@ -10,9 +10,20 @@
  * applied to the orchestrator.
  */
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { copyFileSync, existsSync, readFileSync, realpathSync } from 'node:fs';
 import { BETA_PROFILE } from '../packages/shared/dist/environment.js';
 import { parseEnvFile } from './verify-beta-env.mjs';
+
+// Colima is the documented macOS runtime. Starting an existing instance is
+// idempotent and turns the common "Docker is installed but not running" case
+// into a normal beta startup instead of a manual recovery step.
+const docker = spawnSync('docker', ['info'], { shell: false, stdio: 'ignore' });
+if (docker.status !== 0) {
+  const colima = spawnSync('colima', ['start'], { shell: false, stdio: 'inherit' });
+  if (colima.error?.code === 'ENOENT') {
+    // The doctor below reports the platform-neutral prerequisite and remedy.
+  }
+}
 
 function fail(message) {
   process.stderr.write(`Beta start failed: ${message}\n`);
@@ -38,7 +49,10 @@ const environment = {
   ...profile,
   SOTY_ENVIRONMENT: 'beta',
   AGENT_RELEASE_CHANNEL: 'beta',
-  AGENT_SOURCE_REVISION: sourceRevision
+  AGENT_SOURCE_REVISION: sourceRevision,
+  // This command serves the beta UI from Vite. Pairing must return to that
+  // origin; `.env.beta` keeps the Agent's own origin for packaged-beta builds.
+  PUBLIC_SITE_ORIGIN: profile.VITE_SITE_URL
 };
 
 const children = [];
@@ -79,21 +93,27 @@ function shutdown(code) {
 process.on('SIGINT', () => shutdown(0));
 process.on('SIGTERM', () => shutdown(0));
 
+// Supabase's local edge runtime reads `supabase/functions/.env`, while the
+// beta setup deliberately keeps local secrets in `.env.local`. Mirror the
+// latter immediately before startup so entitlement and other Functions always
+// receive the same beta-only configuration. Both paths are git-ignored.
+const functionsLocalEnv = 'supabase/functions/.env.local';
+const functionsRuntimeEnv = 'supabase/functions/.env';
+if (existsSync(functionsLocalEnv)) {
+  const alreadySameFile =
+    existsSync(functionsRuntimeEnv) &&
+    realpathSync(functionsRuntimeEnv) === realpathSync(functionsLocalEnv);
+  if (!alreadySameFile) copyFileSync(functionsLocalEnv, functionsRuntimeEnv);
+}
+
 const stack = spawnSync('npx', ['supabase', 'start'], { shell: false, stdio: 'inherit' });
 if (stack.status !== 0) fail('the local Supabase stack did not start.');
 
 start('agent', process.execPath, ['apps/agent/dist/index.js']);
-start('web', 'npx', [
-  'vite',
-  '--mode',
-  'beta',
-  '--host',
-  '127.0.0.1',
-  '--port',
-  String(BETA_PROFILE.webPort),
-  '--strictPort',
-  'apps/web'
-]);
+// Run through the web workspace so npm resolves that workspace's pinned Vite
+// version. Invoking `npx vite` from the repository root can pick Vitest's
+// transitive Vite instead, which is incompatible with the web React plugin.
+start('web', 'npm', ['run', 'dev:beta', '--workspace', '@video-compressor/web']);
 
 process.stdout.write(
   `\nBeta is up.\n` +

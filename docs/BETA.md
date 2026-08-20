@@ -68,6 +68,11 @@ guard are known good. On success the command prints the source revision the copy
 far the `beta` line trails `main` — a stale beta produces false conclusions, so it says so rather than
 letting you assume otherwise.
 
+On macOS, `beta:up` starts an installed Colima instance automatically when Docker is not reachable.
+It also mirrors the git-ignored `supabase/functions/.env.local` to the filename consumed by the local
+Supabase edge runtime. A normal restart therefore needs only this one command; no Docker, Functions,
+agent, or Vite preparation is manual.
+
 - Web: <http://127.0.0.1:5175>
 - Agent: <http://127.0.0.1:43140>
 - Local Supabase Studio: <http://127.0.0.1:54323>
@@ -128,9 +133,19 @@ npm run beta:reset
 ```
 
 Re-applies every migration (which exercises the migration chain as a side effect), seeds the
-fixtures, and clears the `Soty Beta` Application Support directory — agent queue state, caches, and
-entitlement state live on disk, not in the database, so a reset that left them behind would produce a
-confusingly half-clean environment.
+fixtures, and clears resettable state from the `Soty Beta` Application Support directory. Agent queue
+state, previews, pairing, and entitlement are reset; downloaded models and runtimes under `models/`
+and `runtime/` are preserved. Incomplete `.part` files are preserved too, and the downloader resumes
+them with HTTP Range rather than restarting multi-gigabyte downloads.
+
+On macOS those reusable assets live at:
+
+```text
+~/Library/Application Support/Soty Beta/models/
+~/Library/Application Support/Soty Beta/runtime/
+```
+
+They are beta-only and never shared with production or Soty Dev.
 
 The safety check runs **before** the first destructive step: a non-local database target fails with
 `BETA_RESET_TARGET_UNSAFE` and nothing is touched. An unparseable target is treated as remote, not
@@ -154,6 +169,18 @@ by merge from `beta`, never by a direct commit that skips verification.
 ```
 feature branch ──▶ beta ──▶ verify ──▶ merge into main ──▶ release
 ```
+
+Recommended daily flow:
+
+1. Develop and review on a feature/fix branch.
+2. Merge the accepted branch into `beta` and push `beta`.
+3. Check out `beta`, run `npm run beta:up`, and test the source beta.
+4. Run `npm run beta:package` and `npm run beta:verify` for the exact clean commit.
+5. Only after verification, merge that `beta` commit into `main`; production gates reject an
+   unverified or different revision.
+
+Branch merging stays explicit. `beta:up` never switches branches, merges code, commits changes, or
+pushes on its own, so starting a test environment cannot rewrite source history.
 
 Before promoting, verify on the **packaged** build, not just from source. Run-from-source misses a
 whole class of bugs — bundled tool resolution, packaged-mode paths, entitlement gating, update checks
@@ -193,18 +220,18 @@ release for a setting that cannot reach production.
 
 Every failure names a machine code and a remedy. The common ones:
 
-| Code                               | What happened                                                         | Fix                                                                                                         |
-| ---------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `BETA_ENV_MISSING`                 | `.env.beta` is absent, or a required key is unset or is not `beta`    | `cp .env.beta.example .env.beta` and fill in what the doctor names                                          |
-| `BETA_PREREQUISITE_MISSING`        | The container runtime, Supabase CLI, FFmpeg, or FFprobe was not found | Start Docker Desktop; install the missing tool. `docker info` must succeed — the binary alone is not enough |
-| `BETA_PORT_IN_USE`                 | 43140, 5175, or a local-stack port is held                            | `npm run beta:down`; if that is not enough, find the holder with `lsof -tiTCP:<port> -sTCP:LISTEN`          |
-| `BETA_PRODUCTION_ENDPOINT`         | A URL or key in the beta profile points off this machine              | Point it at `127.0.0.1`. If it is the entitlement key, run `node scripts/generate-signing-keys.mjs --beta`  |
-| `BETA_LOCAL_AUTH_FORBIDDEN`        | `VITE_LOCAL_DEV_AUTH=true`                                            | Set it to `false`. Beta exists to exercise real authentication; that flag is a Soty Dev setting             |
-| `BETA_DELIVERY_PROVIDER_FORBIDDEN` | A delivery credential is configured                                   | Leave `RESEND_API_KEY` and `INVITE_EMAIL_FROM` empty; invitations are surfaced locally instead              |
-| `BETA_RESET_TARGET_UNSAFE`         | The reset target is not local                                         | Unset `SUPABASE_DB_URL`, or point it at `127.0.0.1`                                                         |
-| `RELEASE_BETA_IDENTITY`            | A beta artifact or channel reached the release path                   | Release from `main`, not from a beta build                                                                  |
-| `RELEASE_BETA_CONFIG`              | A beta value is in a production-feeding file or the built bundle      | Remove it; beta config belongs only in the git-ignored `.env.beta`                                          |
-| `RELEASE_BETA_UNVERIFIED`          | The commit is not in `beta`, or has no matching verification record   | Merge to `beta`, run `npm run beta:package && npm run beta:verify`, then promote                            |
+| Code                               | What happened                                                                      | Fix                                                                                                                                 |
+| ---------------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `BETA_ENV_MISSING`                 | `.env.beta` is absent, or a required key is unset or is not `beta`                 | `cp .env.beta.example .env.beta` and fill in what the doctor names                                                                  |
+| `BETA_PREREQUISITE_MISSING`        | The container runtime, Supabase CLI, FFmpeg, FFprobe, or whisper-cli was not found | Install the named tool. On macOS `beta:up` starts existing Colima automatically and `brew install whisper-cpp` provides whisper-cli |
+| `BETA_PORT_IN_USE`                 | 43140, 5175, or a local-stack port is held                                         | `npm run beta:down`; if that is not enough, find the holder with `lsof -tiTCP:<port> -sTCP:LISTEN`                                  |
+| `BETA_PRODUCTION_ENDPOINT`         | A URL or key in the beta profile points off this machine                           | Point it at `127.0.0.1`. If it is the entitlement key, run `node scripts/generate-signing-keys.mjs --beta`                          |
+| `BETA_LOCAL_AUTH_FORBIDDEN`        | `VITE_LOCAL_DEV_AUTH=true`                                                         | Set it to `false`. Beta exists to exercise real authentication; that flag is a Soty Dev setting                                     |
+| `BETA_DELIVERY_PROVIDER_FORBIDDEN` | A delivery credential is configured                                                | Leave `RESEND_API_KEY` and `INVITE_EMAIL_FROM` empty; invitations are surfaced locally instead                                      |
+| `BETA_RESET_TARGET_UNSAFE`         | The reset target is not local                                                      | Unset `SUPABASE_DB_URL`, or point it at `127.0.0.1`                                                                                 |
+| `RELEASE_BETA_IDENTITY`            | A beta artifact or channel reached the release path                                | Release from `main`, not from a beta build                                                                                          |
+| `RELEASE_BETA_CONFIG`              | A beta value is in a production-feeding file or the built bundle                   | Remove it; beta config belongs only in the git-ignored `.env.beta`                                                                  |
+| `RELEASE_BETA_UNVERIFIED`          | The commit is not in `beta`, or has no matching verification record                | Merge to `beta`, run `npm run beta:package && npm run beta:verify`, then promote                                                    |
 
 **Sign-in redirects fail.** The local stack allowlists redirect URLs from `supabase/config.toml`
 only. If you changed the beta ports, add the new origins there and restart the stack.

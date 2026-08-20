@@ -6,12 +6,13 @@
  * misconfigured profile must cost nothing rather than cause partial damage.
  *
  * Database state is not the whole story — the agent keeps queue state, caches,
- * and entitlement state on disk — so the beta Application Support directory is
- * cleared too. A reset that left it behind would produce a confusingly
- * half-clean environment.
+ * and entitlement state on disk — so resettable entries in beta Application
+ * Support are cleared too. Multi-gigabyte models and downloaded runtimes are
+ * installation assets, not test state, and survive so reset never redownloads
+ * them; resumable `.part` files survive for the same reason.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import pg from 'pg';
@@ -78,15 +79,20 @@ function applicationSupportRoot() {
 // Named from the shared profile so this can never point at the production or
 // dev directory by a typo.
 const supportDirectory = path.join(applicationSupportRoot(), BETA_PROFILE.supportDirectoryName);
-let clearedSupport = false;
+const preservedSupportEntries = new Set(['models', 'runtime']);
+let clearedSupportEntries = 0;
 if (existsSync(supportDirectory)) {
-  rmSync(supportDirectory, { recursive: true, force: true });
-  clearedSupport = true;
+  for (const entry of readdirSync(supportDirectory)) {
+    if (preservedSupportEntries.has(entry)) continue;
+    rmSync(path.join(supportDirectory, entry), { recursive: true, force: true });
+    clearedSupportEntries += 1;
+  }
 }
 
 process.stdout.write(
   `Beta reset complete.\n` +
     `  Database: migrations re-applied, fixtures seeded from ${seed}\n` +
     `  Baseline: account beta@soty.local (password beta-password), workspace "Beta Workspace"\n` +
-    `  Local state: ${clearedSupport ? `cleared ${supportDirectory}` : `${supportDirectory} was already absent`}\n`
+    `  Local state: cleared ${clearedSupportEntries} resettable entr${clearedSupportEntries === 1 ? 'y' : 'ies'} in ${supportDirectory}\n` +
+    `  Cached assets: preserved models/ and runtime/ (including resumable .part downloads)\n`
 );
