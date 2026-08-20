@@ -97,6 +97,34 @@ path under `release/dev/`. The build is isolated as Soty Dev on port 43130
 with local dev auth and analytics disabled. If packaging reports that Soty Dev
 is busy, do not kill it; tell the user to finish the active work first.
 
+## Soty beta staging environment
+
+Beta is not the same thing as a dev build, and the difference matters. **Soty Dev**
+is for working on the app: it fakes sign-in (`VITE_LOCAL_DEV_AUTH=true`) and
+leaves the entitlement gate unenforced. **Beta** is for verifying the app before
+release: it authenticates for real against a local Supabase stack and enforces
+the entitlement gate with its own keypair. Never copy the dev script's auth flag
+into anything beta — it would silently make the environment useless for the one
+job it exists to do.
+
+```bash
+npm run beta:doctor   # prerequisites + isolation, all problems in one pass
+npm run beta:up       # local stack + agent (43140) + web (5175), loopback only
+npm run beta:down
+npm run beta:reset    # clean baseline + fixtures; refuses a non-local target
+npm run beta:package  # packaged beta build; refuses production side effects
+npm run beta:verify   # packaged smoke; writes the promotion record on success
+```
+
+Beta never writes `stable.json`, never creates a tag, and never touches
+production versions, migrations, or Cloudflare. Nothing reaches production
+without a packaged-beta verification record for that exact commit — the
+promotion gate is chained into `deploy:web*` and `package:mac`.
+
+Invitations are **not** delivered in beta: they bypass the local mail catcher
+and would reach real recipients, so no delivery credential may be configured and
+the invitation link is surfaced in the UI instead. Full details in `docs/BETA.md`.
+
 ## Cross-platform agent code
 
 Soty ships on macOS and Windows from one codebase. Every OS-specific mechanism —

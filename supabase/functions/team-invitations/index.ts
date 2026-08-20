@@ -178,7 +178,8 @@ Deno.serve(async request => {
       createToken: randomToken,
       siteUrl: Deno.env.get('WISHLY_SITE_URL') ?? 'http://127.0.0.1:5173',
       actorId: identity.userId,
-      directAddMode: Deno.env.get('TEAM_DIRECT_ADD_MODE')
+      directAddMode: Deno.env.get('TEAM_DIRECT_ADD_MODE'),
+      environment: Deno.env.get('SOTY_ENVIRONMENT') === 'beta' ? 'beta' : 'production'
     });
     return successResponse(value, cors);
   } catch (error) {

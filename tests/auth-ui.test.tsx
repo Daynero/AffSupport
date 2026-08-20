@@ -10,6 +10,7 @@ vi.mock('../apps/web/src/lib/config', () => ({
     ok: true,
     errors: [],
     value: {
+      environment: 'production',
       supabaseUrl: 'https://project.supabase.co',
       supabasePublishableKey: 'sb_publishable_test_value_for_unit_tests',
       siteUrl: 'http://127.0.0.1:5173',
@@ -17,7 +18,8 @@ vi.mock('../apps/web/src/lib/config', () => ({
       legalContactEmail: null,
       productOperator: null
     }
-  }
+  },
+  configuredEnvironment: () => 'production'
 }));
 
 import { AuthContextOverride, type AuthContextValue } from '../apps/web/src/auth/AuthContext';

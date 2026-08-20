@@ -42,6 +42,12 @@ export interface InvitationCommandDependencies {
   siteUrl: string;
   actorId?: string;
   directAddMode?: unknown;
+  /**
+   * Which environment this function serves. In `beta` no delivery is attempted
+   * and the invitation link is returned to the caller instead — see
+   * deliverAndRecord.
+   */
+  environment?: 'production' | 'beta';
 }
 
 interface InvitationDeliverySnapshot {
@@ -126,14 +132,29 @@ async function deliverAndRecord(
   token: string,
   dependencies: InvitationCommandDependencies
 ) {
-  const delivery = await dependencies.deliver({
-    to: snapshot.targetEmail,
-    message: buildInvitationEmail({
-      teamName: snapshot.teamName,
-      inviterName: snapshot.inviterName,
-      inviteUrl: inviteUrl(dependencies.siteUrl, snapshot.id, token)
-    })
-  });
+  const url = inviteUrl(dependencies.siteUrl, snapshot.id, token);
+  const beta = dependencies.environment === 'beta';
+
+  /**
+   * Invitation mail is the one message type that does not travel through the
+   * local mail catcher: delivery goes straight to a third-party API. A beta
+   * environment must not send it, so no delivery is attempted at all — not even
+   * a request that would fail — and the link is handed back to the caller
+   * instead, which keeps the invitation flow fully exercisable offline.
+   *
+   * The recorded delivery state is the same one an unconfigured provider
+   * already produces, so nothing about the database contract changes.
+   */
+  const delivery: InvitationDeliveryResult = beta
+    ? { state: 'failed', errorCode: 'DELIVERY_UNAVAILABLE' }
+    : await dependencies.deliver({
+        to: snapshot.targetEmail,
+        message: buildInvitationEmail({
+          teamName: snapshot.teamName,
+          inviterName: snapshot.inviterName,
+          inviteUrl: url
+        })
+      });
   unwrap(
     await dependencies.rpc('set_invitation_delivery_state', {
       p_invitation: snapshot.id,
@@ -148,7 +169,10 @@ async function deliverAndRecord(
     state: snapshot.state,
     expiresAt: snapshot.expiresAt,
     deliveryState: delivery.state,
-    deliveryErrorCode: delivery.errorCode
+    deliveryErrorCode: delivery.errorCode,
+    // Only ever populated in beta: in production this would hand a live
+    // invitation token back over the wire for no reason.
+    ...(beta ? { inviteUrl: url } : {})
   };
 }
 

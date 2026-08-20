@@ -17,10 +17,28 @@ import path from 'node:path';
 const keysDir = path.join(process.cwd(), 'config', 'keys');
 mkdirSync(keysDir, { recursive: true });
 
-const targets = [
-  { name: 'agent-entitlement', purpose: 'issue-agent-token Edge Function (Supabase secret)' },
-  { name: 'release-manifest', purpose: 'sign-release-manifest.mjs (kept on the release machine)' }
-];
+// `--beta` generates the separate keypair the beta staging environment signs
+// entitlement tokens with. Beta MUST NOT reuse the production key: a distinct
+// keypair is what makes a production-issued token cryptographically invalid in
+// beta and a beta-issued token invalid in production, with no configuration to
+// get wrong. The release-manifest key has no beta counterpart on purpose —
+// beta never writes stable.json, so it never signs a manifest.
+const beta = process.argv.includes('--beta');
+
+const targets = beta
+  ? [
+      {
+        name: 'beta-agent-entitlement',
+        purpose: 'the beta issue-agent-token function (supabase/functions/.env.local)'
+      }
+    ]
+  : [
+      { name: 'agent-entitlement', purpose: 'issue-agent-token Edge Function (Supabase secret)' },
+      {
+        name: 'release-manifest',
+        purpose: 'sign-release-manifest.mjs (kept on the release machine)'
+      }
+    ];
 
 for (const target of targets) {
   const privatePath = path.join(keysDir, `${target.name}.private.pem`);

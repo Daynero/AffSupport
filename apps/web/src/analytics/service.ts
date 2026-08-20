@@ -12,7 +12,8 @@ import {
   type CreativeLibraryContribution,
   type LandingRenderFailureReason,
   type LandingTileState,
-  type ToolContracts
+  type ToolContracts,
+  appEnvironmentOrProduction
 } from '@video-compressor/shared';
 import { getSupabaseClient } from '../lib/supabase';
 import type { Json } from '../lib/database.types';
@@ -33,7 +34,24 @@ const MAX_QUEUE_SIZE = 40;
 const BATCH_SIZE = 25;
 const MAX_ATTEMPTS = 3;
 const WEB_BUILD_ID = import.meta.env.VITE_WEB_BUILD_ID || PRODUCT_VERSION;
-const ANALYTICS_ENABLED = import.meta.env.VITE_ANALYTICS_ENABLED !== 'false';
+/**
+ * Telemetry is off in beta by construction, not by configuration.
+ *
+ * The flag alone would leave a single mistyped or missing value between beta
+ * activity and the production analytics store, and that failure is silent —
+ * discovered only later, as polluted product metrics. Treating the environment
+ * as an independent, non-overridable condition means the guarantee survives a
+ * bad env file. Exported so the rule is testable without loading the module's
+ * browser-bound state.
+ */
+export function analyticsEnabled(
+  env: Readonly<Record<string, string | undefined>> = import.meta.env
+): boolean {
+  if (appEnvironmentOrProduction(env.VITE_APP_ENVIRONMENT) === 'beta') return false;
+  return env.VITE_ANALYTICS_ENABLED !== 'false';
+}
+
+const ANALYTICS_ENABLED = analyticsEnabled(import.meta.env);
 
 export type PendingAnalyticsEvent = {
   event_id: string;

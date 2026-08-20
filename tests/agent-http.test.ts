@@ -182,6 +182,7 @@ async function makeServer(options: { entitlementPublicKey?: string } = {}) {
     allowedOrigins,
     entitlementGate,
     config: {
+      environment: 'production' as const,
       host: '127.0.0.1',
       port: 43120,
       publicOrigin: null,

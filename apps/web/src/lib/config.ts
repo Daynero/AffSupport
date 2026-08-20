@@ -1,4 +1,11 @@
+import {
+  isProductionEndpoint,
+  parseAppEnvironment,
+  type AppEnvironment
+} from '@video-compressor/shared';
+
 export type PublicConfig = {
+  environment: AppEnvironment;
   supabaseUrl: string;
   supabasePublishableKey: string;
   siteUrl: string;
@@ -56,6 +63,15 @@ export function validatePublicConfig(env: Env): ConfigResult {
   const directAddMode = value(env, 'VITE_TEAM_DIRECT_ADD_MODE');
   const errors: string[] = [];
 
+  // Which environment this bundle belongs to decides which origins are legal.
+  // Absent means production, so a build that forgets the value gets the
+  // stricter rules rather than silently behaving like beta.
+  const parsedEnvironment = parseAppEnvironment(env.VITE_APP_ENVIRONMENT);
+  if (!parsedEnvironment.ok)
+    errors.push(`VITE_APP_ENVIRONMENT is invalid: ${parsedEnvironment.error}`);
+  const environment: AppEnvironment = parsedEnvironment.ok ? parsedEnvironment.value : 'production';
+  const beta = environment === 'beta';
+
   if (!supabaseUrl) errors.push('VITE_SUPABASE_URL is missing.');
   else if (!validSiteUrl(supabaseUrl, true)) errors.push('VITE_SUPABASE_URL must be a valid URL.');
 
@@ -68,11 +84,35 @@ export function validatePublicConfig(env: Env): ConfigResult {
   if (!siteUrl) errors.push('VITE_SITE_URL is missing.');
   else if (!validSiteUrl(siteUrl))
     errors.push('VITE_SITE_URL must be an HTTPS origin (localhost may use HTTP).');
-  else if (env.PROD === true && ['localhost', '127.0.0.1'].includes(new URL(siteUrl).hostname))
+  else if (
+    env.PROD === true &&
+    !beta &&
+    ['localhost', '127.0.0.1'].includes(new URL(siteUrl).hostname)
+  )
     errors.push('VITE_SITE_URL must use the production HTTPS origin in a production build.');
 
   if (directAddMode && !['disabled', 'testing'].includes(directAddMode)) {
     errors.push('VITE_TEAM_DIRECT_ADD_MODE must be disabled or testing.');
+  }
+
+  // A beta bundle that could reach production is worse than one that will not
+  // load: it would quietly read and write real data while looking like a test
+  // environment. Fail the configuration instead.
+  if (beta) {
+    for (const [key, candidate] of [
+      ['VITE_SUPABASE_URL', supabaseUrl],
+      ['VITE_SITE_URL', siteUrl],
+      ['VITE_AGENT_URL', value(env, 'VITE_AGENT_URL')]
+    ] as const) {
+      if (candidate && isProductionEndpoint(candidate)) {
+        errors.push(`BETA_PRODUCTION_ENDPOINT: ${key} points at ${candidate}, which is not local.`);
+      }
+    }
+    if (value(env, 'VITE_LOCAL_DEV_AUTH') === 'true') {
+      errors.push(
+        'BETA_LOCAL_AUTH_FORBIDDEN: VITE_LOCAL_DEV_AUTH=true would bypass real authentication.'
+      );
+    }
   }
 
   if (errors.length) return { ok: false, value: null, errors };
@@ -81,6 +121,7 @@ export function validatePublicConfig(env: Env): ConfigResult {
     ok: true,
     errors: [],
     value: {
+      environment,
       supabaseUrl: supabaseUrl.replace(/\/$/, ''),
       supabasePublishableKey,
       siteUrl: siteUrl.replace(/\/$/, ''),
@@ -99,4 +140,8 @@ export function configuredTeamDirectAddMode(env: Env = import.meta.env): TeamDir
 
 export function configuredSiteUrl() {
   return publicConfig.ok ? publicConfig.value.siteUrl : window.location.origin;
+}
+
+export function configuredEnvironment(): AppEnvironment {
+  return publicConfig.ok ? publicConfig.value.environment : 'production';
 }

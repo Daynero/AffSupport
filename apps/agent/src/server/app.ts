@@ -8,7 +8,8 @@ import fastifyStatic from '@fastify/static';
 import {
   AGENT_TOOL_CONTRACTS,
   CORE_CONTRACT_VERSION,
-  AGENT_API_VERSION
+  AGENT_API_VERSION,
+  type AppEnvironment
 } from '@video-compressor/shared';
 import { advertisedCapabilities } from './capabilities.js';
 import type { EntitlementGate } from '../entitlement/entitlement.js';
@@ -16,6 +17,8 @@ import type { JobQueue } from '../queue/queue.js';
 import type { ToolContext, ToolModule } from './tools.js';
 
 export interface ServerConfig {
+  /** Which environment this process belongs to; surfaced on the health snapshot. */
+  environment: AppEnvironment;
   host: string;
   port: number;
   publicOrigin: string | null;
@@ -172,6 +175,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   app.get('/api/health', async () => ({
     ok: tools.ffmpeg && tools.ffprobe,
     tools,
+    environment: config.environment,
     version: config.version,
     buildNumber: config.buildNumber,
     buildId: config.buildId,
@@ -187,6 +191,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   app.get('/health', async () => ({
     product: 'local-video-compressor-agent',
     ready: tools.ffmpeg && tools.ffprobe,
+    environment: config.environment,
     version: config.version,
     buildNumber: config.buildNumber,
     buildId: config.buildId,
@@ -202,6 +207,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     busy: modules.some(module => module.busy())
   }));
   app.get('/api/diagnostics', async () => ({
+    environment: config.environment,
     version: config.version,
     buildNumber: config.buildNumber,
     buildId: config.buildId,

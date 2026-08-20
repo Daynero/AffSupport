@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { HoneycombField } from './components/HoneycombField';
+import { EnvironmentBadge } from './components/EnvironmentBadge';
 import {
   AuthCallbackPage,
   AuthLoadingScreen,
@@ -25,6 +26,7 @@ export default function Root() {
   return (
     <AuthProvider>
       <HoneycombField />
+      <EnvironmentBadge />
       <Routes />
     </AuthProvider>
   );

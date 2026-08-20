@@ -5,7 +5,18 @@ major_version = 17
 
 [auth]
 site_url = "http://127.0.0.1:5173"
-additional_redirect_urls = ["http://127.0.0.1:5173/auth/callback"]
+# The beta staging environment signs in for real against this local stack, so
+# its loopback origins must be allowlisted here: the CLI reads redirect URLs
+# only from this file. These are local-only addresses and never reach the
+# hosted project, which is why scripts/verify-release.mjs deliberately excludes
+# this file from its beta-marker scan (see docs/BETA.md).
+additional_redirect_urls = [
+  "http://127.0.0.1:5173/auth/callback",
+  "http://127.0.0.1:5175",
+  "http://127.0.0.1:5175/auth/callback",
+  "http://127.0.0.1:43140",
+  "http://127.0.0.1:43140/auth/callback"
+]
 
 [functions.delete-account]
 verify_jwt = true

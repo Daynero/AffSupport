@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { DriveFolderPage, DriveFolderSummary, DriveRootResult } from '../../api/team';
 import { TeamApiError } from '../../api/team';
 import { Button } from '../../components/ui';
+import { BetaStorageNotice } from '../drive/BetaStorageNotice';
 import { useI18n } from '../../i18n';
 import { DriveFolderBrowser } from '../drive/DriveFolderBrowser';
 import type { DrivePanelClient } from '../drive/DriveConnectionPanel';
@@ -126,6 +127,7 @@ export function ConnectFolderStep({
       <div className="team-create-step-copy">
         <h2 id="connect-folder-title">{t('teamCreateStepFolderTitle')}</h2>
         <p>{t('teamCreateStepFolderHint')}</p>
+        <BetaStorageNotice />
       </div>
 
       {!folders && !authorizationUrl && (

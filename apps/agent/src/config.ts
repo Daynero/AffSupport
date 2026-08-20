@@ -1,4 +1,12 @@
-import { BUILD_ID, BUILD_NUMBER, PRODUCT_VERSION, RELEASE_CHANNEL } from '@video-compressor/shared';
+import {
+  BUILD_ID,
+  BUILD_NUMBER,
+  PRODUCT_VERSION,
+  RELEASE_CHANNEL,
+  evaluateBetaEnvironment,
+  parseAppEnvironment,
+  type AppEnvironment
+} from '@video-compressor/shared';
 
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 43120;
@@ -6,6 +14,12 @@ const DEFAULT_PORT = 43120;
 function releaseValue(name: string, fallback: string): string {
   const value = process.env[name]?.trim();
   return value || fallback;
+}
+
+function appEnvironment(): AppEnvironment {
+  const parsed = parseAppEnvironment(process.env.SOTY_ENVIRONMENT);
+  if (!parsed.ok) throw new Error(`SOTY_ENVIRONMENT is invalid: ${parsed.error}`);
+  return parsed.value;
 }
 
 function validOrigin(value: string, label: string): string {
@@ -21,6 +35,7 @@ function validOrigin(value: string, label: string): string {
 }
 
 export const config = {
+  environment: appEnvironment(),
   host: DEFAULT_HOST,
   port: Number(process.env.AGENT_PORT ?? DEFAULT_PORT),
   publicOrigin: process.env.PUBLIC_SITE_ORIGIN
@@ -36,6 +51,32 @@ export const config = {
 };
 if (!Number.isInteger(config.port) || config.port < 1024 || config.port > 65535)
   throw new Error('AGENT_PORT must be a port from 1024 to 65535.');
+
+/**
+ * A beta agent must never reach production. The check runs here, at module
+ * load, so a misconfigured beta process fails before `buildServer` — it never
+ * binds a port and never accepts a request. Only the settings this process
+ * actually owns are checked; the doctor script covers the rest of the profile.
+ */
+if (config.environment === 'beta') {
+  const problems = evaluateBetaEnvironment(
+    {
+      SOTY_ENVIRONMENT: 'beta',
+      PUBLIC_SITE_ORIGIN: config.publicOrigin ?? '',
+      DEV_SITE_ORIGIN: config.devOrigin,
+      AGENT_ENTITLEMENT_PUBLIC_KEY: process.env.AGENT_ENTITLEMENT_PUBLIC_KEY ?? ''
+    },
+    {}
+  ).filter(problem =>
+    ['PUBLIC_SITE_ORIGIN', 'DEV_SITE_ORIGIN', 'AGENT_ENTITLEMENT_PUBLIC_KEY'].includes(
+      problem.subject
+    )
+  );
+  if (problems.length) {
+    const detail = problems.map(problem => `${problem.code}: ${problem.message}`).join(' ');
+    throw new Error(`The beta agent refuses to start. ${detail}`);
+  }
+}
 export const allowedOrigins = new Set(
   [config.devOrigin, config.publicOrigin, `http://${config.host}:${config.port}`].filter(
     (value): value is string => Boolean(value)

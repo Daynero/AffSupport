@@ -6,6 +6,7 @@ import { Card } from '../components/Card';
 import { Button, Checkbox, type Translate } from '../components/ui';
 import { UserAvatar } from '../components/UserAvatar';
 import { useI18n, type Language } from '../i18n';
+import { configuredEnvironment } from '../lib/config';
 import type { Profile } from '../lib/database.types';
 import { navigateTo, usePageEntrance } from '../lib/navigation';
 import { installedReleaseStatus, preferredDownload } from '../release-manifest';
@@ -209,6 +210,12 @@ function AccountContent({
           <h3 id="account-details-heading">{t('account')}</h3>
           <dl className="account-details">
             <Detail label={t('email')} value={profile.email ?? t('notAvailable')} />
+            {configuredEnvironment() === 'beta' && (
+              <Detail
+                label={t('betaEnvironmentLabel')}
+                value={`${t('betaEnvironmentValue')} · ${import.meta.env.VITE_WEB_REVISION ?? 'unknown'}`}
+              />
+            )}
             <div className="account-version-detail">
               <dt>{t('localAppVersion')}</dt>
               <dd>

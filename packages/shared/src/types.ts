@@ -62,6 +62,7 @@ export type {
 } from './release.js';
 
 export * from './team/index.js';
+export * from './environment.js';
 
 export const FRAME_RATE_MIN = 1;
 export const FRAME_RATE_MAX = 240;

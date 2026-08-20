@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { createPublicKey, verify as cryptoVerify } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import path from 'node:path';
 import {
   AGENT_API_VERSION,
   AGENT_TOOL_CONTRACTS,
@@ -21,6 +22,7 @@ import {
   releaseManifestSigningPayload,
   toolContractCompatible
 } from '../packages/shared/dist/release.js';
+import { BETA_MARKERS, BETA_PROFILE } from '../packages/shared/dist/environment.js';
 
 function fail(message) {
   process.stderr.write(`Release check failed: ${message}\n`);
@@ -176,6 +178,78 @@ for (const file of [
     fail(`${file} depends on a different shared release`);
   }
 }
+
+/* -------------------------------------------------------------------------
+ * Guard B — a production release must never carry a beta identity or a beta
+ * setting.
+ *
+ * Both directions of leakage in this feature are silent by nature, so the check
+ * lives in the gate that already cannot be bypassed rather than in a new one
+ * somebody has to remember to run.
+ * ---------------------------------------------------------------------- */
+
+if (RELEASE_CHANNEL_IS_BETA()) {
+  fail(`RELEASE_BETA_IDENTITY: release channel is "${BETA_PROFILE.releaseChannel}"`);
+}
+function RELEASE_CHANNEL_IS_BETA() {
+  return (
+    stableManifest.channel === BETA_PROFILE.releaseChannel ||
+    /-beta\./.test(PRODUCT_VERSION) ||
+    /-beta\./.test(BUILD_ID)
+  );
+}
+
+/**
+ * Files that feed a production build or deploy. This list — and not the whole
+ * tree — is the scope of the "no beta value in a tracked file" rule.
+ *
+ * supabase/config.toml is deliberately absent. It allowlists the beta loopback
+ * redirect URLs that real sign-in against the local stack needs, it is read
+ * only by a locally-run stack, and it never travels into a production
+ * artifact. Scanning it would fail every release for a setting that cannot
+ * reach production — and the fix under time pressure would be to weaken this
+ * guard rather than to scope it. The exemption is written down here so the
+ * scope can neither widen by accident nor produce a false failure.
+ */
+const PRODUCTION_FEEDING_PATHS = [
+  '.env',
+  '.env.production',
+  'apps/web/.env.production',
+  'config/production.env',
+  'packages/shared/src/release.ts',
+  'apps/web/public/.well-known/wishly/stable.json',
+  'packaging'
+];
+
+function filesUnder(target) {
+  if (!existsSync(target)) return [];
+  if (!statSync(target).isDirectory()) return [target];
+  return readdirSync(target, { withFileTypes: true }).flatMap(entry =>
+    filesUnder(path.join(target, entry.name))
+  );
+}
+
+function scanForBetaMarkers(targets, label) {
+  for (const file of targets.flatMap(target => filesUnder(target))) {
+    let contents;
+    try {
+      contents = readFileSync(file, 'utf8');
+    } catch {
+      continue; // Binary or unreadable assets carry no configuration.
+    }
+    for (const marker of BETA_MARKERS) {
+      // The bare port number appears in ordinary prose often enough to be a
+      // poor signal on its own; require it to look like a beta address.
+      const needle = marker === String(BETA_PROFILE.agentPort) ? `127.0.0.1:${marker}` : marker;
+      if (contents.includes(needle)) {
+        fail(`RELEASE_BETA_CONFIG: ${label} file ${file} contains the beta marker "${needle}"`);
+      }
+    }
+  }
+}
+
+scanForBetaMarkers(PRODUCTION_FEEDING_PATHS, 'production-feeding');
+if (existsSync('apps/web/dist')) scanForBetaMarkers(['apps/web/dist'], 'built web bundle');
 
 const packageMode = process.argv.includes('--package');
 const deployMode = process.argv.includes('--deploy');

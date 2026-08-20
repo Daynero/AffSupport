@@ -11,6 +11,7 @@ interface ImportMetaEnv {
   readonly VITE_AGENT_URL?: string;
   readonly VITE_ANALYTICS_ENABLED?: string;
   readonly VITE_LOCAL_DEV_AUTH?: string;
+  readonly VITE_APP_ENVIRONMENT?: string;
   readonly VITE_WEB_REVISION?: string;
 }
 

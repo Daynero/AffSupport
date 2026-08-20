@@ -1353,7 +1353,19 @@ const en = {
   teamTaskAttachmentDownload: 'Download',
   teamTaskAttachmentCopyLink: 'Copy link',
   teamTaskAttachmentLinkCopied: 'Link copied',
-  teamTaskAttachmentActionFailed: 'Could not complete this attachment action.'
+  teamTaskAttachmentActionFailed: 'Could not complete this attachment action.',
+
+  // Beta staging environment. Present in every environment so the keys stay
+  // compile-checked; only rendered when the build is a beta build.
+  betaBadge: 'BETA',
+  betaBadgeTitle: 'Beta environment — separate database, no production data',
+  betaEnvironmentLabel: 'Environment',
+  betaEnvironmentValue: 'Beta (local)',
+  betaExternalStorageUnavailable: 'Not available in beta',
+  betaExternalStorageUnavailableHint:
+    'Connecting external storage needs a Google test client, which is an optional one-time setup for beta. See docs/BETA.md.',
+  betaInviteNotSent: 'Invitation not sent — beta does not deliver messages',
+  betaInviteLinkHint: 'Copy this link and open it yourself to accept the invitation.'
 } as const;
 
 const uk: Record<keyof typeof en, string> = {
@@ -2712,7 +2724,17 @@ const uk: Record<keyof typeof en, string> = {
   teamTaskAttachmentDownload: 'Завантажити',
   teamTaskAttachmentCopyLink: 'Копіювати посилання',
   teamTaskAttachmentLinkCopied: 'Посилання скопійовано',
-  teamTaskAttachmentActionFailed: 'Не вдалося виконати дію з вкладенням.'
+  teamTaskAttachmentActionFailed: 'Не вдалося виконати дію з вкладенням.',
+
+  betaBadge: 'БЕТА',
+  betaBadgeTitle: 'Бета-середовище — окрема база, жодних продових даних',
+  betaEnvironmentLabel: 'Середовище',
+  betaEnvironmentValue: 'Бета (локальне)',
+  betaExternalStorageUnavailable: 'Недоступно в беті',
+  betaExternalStorageUnavailableHint:
+    'Підключення зовнішнього сховища потребує тестового клієнта Google — це необовʼязкове разове налаштування для бети. Див. docs/BETA.md.',
+  betaInviteNotSent: 'Запрошення не надіслано — бета не доставляє повідомлення',
+  betaInviteLinkHint: 'Скопіюй це посилання й відкрий сам, щоб прийняти запрошення.'
 };
 
 export type TranslationKey = keyof typeof en;

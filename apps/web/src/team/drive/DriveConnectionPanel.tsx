@@ -10,6 +10,7 @@ import { TeamApiError } from '../../api/team';
 import { useI18n } from '../../i18n';
 import { Button } from '../../components/ui';
 import { DriveFolderBrowser } from './DriveFolderBrowser';
+import { BetaStorageNotice, externalStorageUnavailableInBeta } from './BetaStorageNotice';
 
 type SafeConnectionStatus = Partial<DriveConnectionStatus> & {
   state: DriveConnectionStatus['state'];
@@ -235,7 +236,8 @@ export function DriveConnectionPanel({
         </span>
       </div>
       {status.rootFolderName && <p>{status.rootFolderName}</p>}
-      {!connected && !folders && (
+      <BetaStorageNotice state={status.state} />
+      {!connected && !folders && !externalStorageUnavailableInBeta(status.state) && (
         <Button type="button" variant="primary" loading={busy} onClick={() => void connect()}>
           {t('teamDriveConnect')}
         </Button>

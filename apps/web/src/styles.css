@@ -12545,3 +12545,33 @@ button.team-landing-tile:hover {
     max-width: 100%;
   }
 }
+
+/* Beta staging environment — the indicator and the external-storage notice.
+   Both use the existing theme custom properties so they stay legible in light
+   and dark without a second palette. */
+.team-beta-storage-notice {
+  margin: 0.75rem 0 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px dashed var(--border-strong, var(--border));
+  border-radius: 0.5rem;
+  color: var(--text-muted, var(--text));
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.environment-badge {
+  position: fixed;
+  top: 0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2000;
+  padding: 0.2rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong, var(--border));
+  background: var(--surface-raised, var(--surface));
+  color: var(--text);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  pointer-events: none;
+}

@@ -6,9 +6,11 @@ import {
   compareProductVersions,
   releaseManifestSigningPayload,
   type ReleaseSummaryLanguage,
+  type AppEnvironment,
   type StableReleaseManifest
 } from '@video-compressor/shared';
 import { currentBrowserPlatform } from './lib/platform';
+import { configuredEnvironment } from './lib/config';
 
 export type ReleaseManifestState =
   | { status: 'checking'; manifest: null }
@@ -20,10 +22,23 @@ export type InstalledReleaseStatus =
 
 export const RELEASE_MANIFEST_URL = `${PRODUCTION_SITE_ORIGIN}/.well-known/wishly/stable.json`;
 
+/**
+ * Beta never consults the production update channel.
+ *
+ * The manifest URL is derived from the production origin, so an unmodified beta
+ * build would query the real channel and could offer a production download to a
+ * beta install. The reverse direction — a beta artifact appearing in the channel
+ * — is guaranteed by construction, because beta packaging never writes or signs
+ * stable.json.
+ */
+export const RELEASE_MANIFEST_UNAVAILABLE_IN_BETA = 'RELEASE_MANIFEST_BETA';
+
 export async function loadStableReleaseManifest(
   fetcher: typeof fetch = fetch,
-  publicKeySpkiBase64: string = RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64
+  publicKeySpkiBase64: string = RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64,
+  environment: AppEnvironment = configuredEnvironment()
 ): Promise<StableReleaseManifest> {
+  if (environment === 'beta') throw new Error(RELEASE_MANIFEST_UNAVAILABLE_IN_BETA);
   const response = await fetcher(RELEASE_MANIFEST_URL, { cache: 'no-store' });
   if (!response.ok) throw new Error(`RELEASE_MANIFEST_${response.status}`);
   const value = (await response.json()) as unknown;
