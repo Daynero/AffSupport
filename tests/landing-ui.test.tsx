@@ -130,6 +130,31 @@ describe('landing optimizer batch card', () => {
     await user.click(screen.getByRole('button', { name: 'Discard' }));
     expect(onReset).toHaveBeenCalledOnce();
   });
+
+  it('shows a stopped landing as cancelled with removal as the only action', async () => {
+    const user = userEvent.setup();
+    const onReset = vi.fn();
+    const job = makeJob('cancelled', [asset('hero.jpg', 'pending')]);
+    job.phase = 'cancelled';
+    render(
+      <LandingJobCard
+        job={job}
+        connected
+        running={false}
+        language="en"
+        onStart={vi.fn()}
+        onReset={onReset}
+        onReveal={vi.fn()}
+        t={t}
+      />
+    );
+
+    expect(screen.getByText('Cancelled')).toBeTruthy();
+    // The working copy is gone with the run, so restarting is not on offer.
+    expect(screen.queryByRole('button', { name: 'Optimize landing' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
+    expect(onReset).toHaveBeenCalledOnce();
+  });
 });
 
 function renderCard(job: LandingJob) {

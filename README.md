@@ -224,6 +224,7 @@ These routes are not part of the browser contract.
 | POST         | `/api/queue/start`                                             | Start selected ready jobs as a sequential batch                      |
 | POST, DELETE | `/api/jobs/:id/estimate-priority`                              | Queue or cancel an immediate size estimate during compression        |
 | POST         | `/api/jobs/:id/cancel`, `/retry`, `/reveal`, `/open`           | Manage one job                                                       |
+| POST         | `/api/queue/cancel-all`                                        | Stop every running and queued job of the visible tool at once        |
 | POST, DELETE | `/api/jobs/remove`, `/api/jobs/:id`, `/api/jobs/completed`     | Remove selected rows or clear finished rows without deleting outputs |
 | POST         | `/api/output/reveal`                                           | Open an available output folder                                      |
 | GET          | `/api/transcription/state`, `/events`                          | Read compact transcription queue state and SSE status                |
@@ -231,6 +232,7 @@ These routes are not part of the browser contract.
 | POST, GET    | `/api/transcription/jobs/:id/translations[/:language]`         | Queue or read a cached fully local translation                       |
 | POST, GET    | `/api/transcription/jobs/:id/media/prepare`, `/status`         | Prepare or inspect a local browser-compatible preview                |
 | GET          | `/api/transcription/jobs/:id/media`                            | Token-gated source/proxy streaming with HTTP Range                   |
+| POST         | `/api/transcription/cancel-all`, `/api/landing/cancel-all`     | Stop the whole transcription or landing queue at once                |
 | GET          | `/api/landing-preview/state`, `/events`                        | Read the persistent landing catalogue and live generation progress   |
 | POST         | `/api/landing-preview/select`, `/open`, `/refresh`, `/cancel`  | Choose, scan, rebuild, or cancel a local landing catalogue           |
 | GET          | `/api/landing-preview/landings/:id/image`                      | Stream one authenticated cached WebP preview                         |

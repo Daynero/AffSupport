@@ -650,6 +650,9 @@ export function transcriptionCancel(id: string): Promise<TranscriptionState> {
     'POST'
   );
 }
+export function transcriptionCancelAll(): Promise<TranscriptionState> {
+  return request<TranscriptionState>('/api/transcription/cancel-all', 'POST');
+}
 export function transcriptionRetry(id: string): Promise<TranscriptionState> {
   return request<TranscriptionState>(
     `/api/transcription/jobs/${encodeURIComponent(id)}/retry`,

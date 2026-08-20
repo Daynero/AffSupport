@@ -16,6 +16,7 @@ import {
   type CompressionJob,
   type ImageAsset,
   type ImageSlot,
+  type JobStatus,
   type QueueBatch,
   type QueueState,
   type SelectionWarning,
@@ -54,11 +55,20 @@ import { detectStaticEdgeTrims } from '../images/static-edges.js';
  */
 export interface QueuePowerGovernor {
   hold(child: ChildProcessWithoutNullStreams, reason: string): () => void;
+  /** Whether the child is stopped right now — a hold can fail to land. */
+  isSuspended(child: ChildProcessWithoutNullStreams): boolean;
   resumeForTermination(child: ChildProcessWithoutNullStreams): void;
   throttlingSupported(): boolean;
   scaleTimeout(milliseconds: number): number;
 }
 import { selectionWarning } from './shared.js';
+
+/**
+ * How often the drain watchdog looks for a stranded batch. Slow on purpose:
+ * this is a safety net for a loop that should never be dropped, not the
+ * mechanism that drives it.
+ */
+const DRAIN_WATCHDOG_MS = 2_000;
 import { defaultSettings } from './store.js';
 
 type EstimatorHooks = {
@@ -111,7 +121,7 @@ export class JobQueue {
   private compressionInFlight = false;
   private compressionPausedForEstimates = false;
   private prioritizingEstimates = false;
-  private drainRevivalScheduled = false;
+  private drainWatchdog: NodeJS.Timeout | null = null;
   private nextEstimatePriorityOrder = 1;
   private warning: string | null = null;
   private estimateHooks: EstimatorHooks | null = null;
@@ -142,6 +152,9 @@ export class JobQueue {
   ) {
     this.nextEstimatePriorityOrder =
       Math.max(0, ...jobs.map(job => job.estimatePriorityOrder ?? 0)) + 1;
+    // A batch restored from disk is the case the watchdog exists for: the agent
+    // died mid-drain, so nothing is in flight and nothing will call `start()`.
+    if (this.batch && !this.batch.finishedAt) this.startDrainWatchdog();
   }
 
   attachEstimator(hooks: EstimatorHooks) {
@@ -164,13 +177,24 @@ export class JobQueue {
   }
 
   /**
-   * Asks the governor to hold the encode while prioritized estimates run.
-   * Falls back to the platform capability when no governor is attached (bare
-   * test assemblies), so behaviour is unchanged there.
+   * Asks the governor to hold the encode while prioritized estimates run, and
+   * reports whether the encode is actually stopped now.
+   *
+   * The answer must come from the governor, not from the fact that one is
+   * attached: a hold can fail to land — the process is already gone, or the
+   * Windows helper could not start — and a caller that assumed success would
+   * run estimates alongside a still-running encode while believing it had the
+   * machine to itself. The hold is dropped again when it did not take, so
+   * nothing is left holding a child down for a handoff that was abandoned.
    */
   private holdForEstimates(child: ChildProcessWithoutNullStreams): boolean {
     if (!this.power) return false;
-    this.estimateHoldRelease = this.power.hold(child, 'estimate-priority');
+    const release = this.power.hold(child, 'estimate-priority');
+    if (!this.power.isSuspended(child)) {
+      release();
+      return false;
+    }
+    this.estimateHoldRelease = release;
     return true;
   }
 
@@ -202,27 +226,36 @@ export class JobQueue {
   }
 
   state(): QueueState {
-    const queuedInBatch = Boolean(
-      this.batch && this.jobs.some(job => job.batchId === this.batch!.id && job.status === 'queued')
-    );
-    // A queued job with nothing in flight means the drain loop was dropped —
-    // by a rejected handoff, a tool outage, or a team job left behind. That
-    // used to keep `running` (and therefore the whole compressor UI) wedged
-    // until the agent restarted, so re-drive the pump instead of reporting a
-    // queue nobody is working on.
-    if (queuedInBatch && !this.compressionInFlight && !this.prioritizingEstimates) {
-      this.reviveDrain();
-    }
-    const running = this.compressionInFlight || this.prioritizingEstimates || queuedInBatch;
     return {
       jobs: this.jobs.filter(job => !this.teamJobSettings.has(job.id)).map(job => cloneJob(job)),
-      running,
+      running: this.running(),
       tools: this.tools,
       settings: cloneSettings(this.settings),
       batch: this.batch ? { ...this.batch, jobIds: [...this.batch.jobIds] } : null,
       warning: this.warning,
-      update: { ...this.updateState }
+      update: this.updateStatus()
     };
+  }
+
+  /**
+   * The three cheap reads `state()` is otherwise asked for.
+   *
+   * `state()` clones every job. The health endpoints want only the update
+   * status, the diagnostics endpoint only the last warning, and callers like
+   * `workActive()` only a boolean — and `/health` is polled once a second by
+   * the launcher, so cloning a two-hundred-file queue to answer any of them is
+   * pure waste.
+   */
+  running(): boolean {
+    return this.compressionInFlight || this.prioritizingEstimates || this.queuedInBatch();
+  }
+
+  updateStatus(): NonNullable<QueueState['update']> {
+    return { ...this.updateState };
+  }
+
+  warningMessage(): string | null {
+    return this.warning;
   }
 
   compressionActive() {
@@ -230,7 +263,7 @@ export class JobQueue {
   }
 
   workActive() {
-    return this.state().running;
+    return this.running();
   }
 
   acceptingNewTasks() {
@@ -571,6 +604,7 @@ export class JobQueue {
     }
 
     this.batch = batch;
+    this.startDrainWatchdog();
     this.warning = warning;
     for (const { job, imageEmbedding, outputPath } of prepared) {
       const draftKey = jobConfigurationKey(job.encoding, job.imageEmbedding);
@@ -597,6 +631,13 @@ export class JobQueue {
   }
 
   async cancel(id: string) {
+    const cancelled = await this.cancelJob(id);
+    if (cancelled) this.notify('estimate:queued');
+    return cancelled;
+  }
+
+  /** Cancels one job without broadcasting; the caller decides when to notify. */
+  private async cancelJob(id: string) {
     const job = this.jobs.find(candidate => candidate.id === id);
     if (!job || (job.status !== 'processing' && job.status !== 'queued')) return false;
     const wasProcessing = job.status === 'processing';
@@ -617,8 +658,35 @@ export class JobQueue {
       if (this.active) this.power?.resumeForTermination(this.active);
       if (this.active) this.active.kill('SIGTERM');
     }
-    this.notify('estimate:queued');
     return true;
+  }
+
+  /**
+   * Stops the whole visible batch in one action. Queued jobs are cancelled
+   * first so the pump cannot pick another one up while the active encode is
+   * still being torn down, and team jobs are skipped: they never appear in the
+   * compressor UI, so a "stop all" there must not kill Team Workspace work.
+   */
+  async cancelAll(): Promise<number> {
+    const stoppable = (status: JobStatus) =>
+      this.jobs
+        .filter(job => job.status === status && !this.teamJobSettings.has(job.id))
+        .map(job => job.id);
+    const ids = [...stoppable('queued'), ...stoppable('processing')];
+    let stopped = 0;
+    // One broadcast at the end, not one per job: cancelling a hundred-file
+    // queue would otherwise push a hundred full `QueueState` frames — each a
+    // clone of every job — down every open SSE connection.
+    for (const id of ids) if (await this.cancelJob(id)) stopped += 1;
+    if (!stopped) return 0;
+    // Close the batch out. Nothing else will when only queued jobs were
+    // stopped: the drain loop has no work left to finish on, so the batch would
+    // keep its null `finishedAt` and the watchdog would tick for the rest of
+    // the session looking for a queue that is already empty. When a running
+    // encode was cancelled the batch closes on its way out instead.
+    this.closeBatchIfDrained();
+    this.notify('estimate:queued');
+    return stopped;
   }
 
   prioritizeEstimate(id: string) {
@@ -980,14 +1048,67 @@ export class JobQueue {
     return null;
   }
 
-  /** Re-drives a stranded queue once per tick, however the drain was dropped. */
-  private reviveDrain() {
-    if (this.drainRevivalScheduled) return;
-    this.drainRevivalScheduled = true;
-    queueMicrotask(() => {
-      this.drainRevivalScheduled = false;
-      void this.pump();
-    });
+  /** True while the current batch still has work nobody has picked up. */
+  private queuedInBatch(): boolean {
+    return Boolean(
+      this.batch && this.jobs.some(job => job.batchId === this.batch!.id && job.status === 'queued')
+    );
+  }
+
+  /**
+   * Watches for a drain loop that was dropped — by a rejected handoff, a tool
+   * outage, or a team job left behind — and re-drives it.
+   *
+   * A queued job with nothing in flight used to keep `running` (and therefore
+   * the whole compressor UI) wedged until the agent restarted. The check lived
+   * in `state()` for a while, which read cheaply but meant every SSE broadcast
+   * could schedule a pump, and a pump that notified on a bail-out path would
+   * have looped `state → pump → notify → state` through microtasks with no turn
+   * of the event loop in between. A recovery mechanism should not be able to
+   * hang the process it is recovering, so it runs on its own slow timer.
+   */
+  private startDrainWatchdog() {
+    if (this.drainWatchdog) return;
+    const timer = setInterval(() => {
+      if (!this.batch || this.batch.finishedAt) {
+        this.stopDrainWatchdog();
+        return;
+      }
+      if (this.compressionInFlight || this.prioritizingEstimates) return;
+      if (this.queuedInBatch()) {
+        void this.pump();
+        return;
+      }
+      // A batch with nothing queued and nothing in flight is over, whatever
+      // ended it. Closing it here is what lets this timer retire: a safety net
+      // that cannot stop looking is itself a leak.
+      this.closeBatchIfDrained();
+      this.notify();
+    }, DRAIN_WATCHDOG_MS);
+    // Never hold the process open for a safety net.
+    timer.unref();
+    this.drainWatchdog = timer;
+  }
+
+  private stopDrainWatchdog() {
+    if (!this.drainWatchdog) return;
+    clearInterval(this.drainWatchdog);
+    this.drainWatchdog = null;
+  }
+
+  /**
+   * Marks the batch finished once nothing is left to do.
+   *
+   * `pump()` does this on its way out of a normal drain, but it also bails
+   * early when a media tool is missing — and a batch the user stopped has to
+   * close either way, or the queue keeps reporting a batch that will never
+   * finish.
+   */
+  private closeBatchIfDrained() {
+    if (!this.batch || this.batch.finishedAt) return;
+    if (this.compressionInFlight || this.prioritizingEstimates || this.queuedInBatch()) return;
+    this.batch.finishedAt = Date.now();
+    this.stopDrainWatchdog();
   }
 
   private async pump() {
@@ -1004,6 +1125,7 @@ export class JobQueue {
     );
     if (!job) {
       if (!this.batch.finishedAt) this.batch.finishedAt = Date.now();
+      this.stopDrainWatchdog();
       if (this.updateState.state === 'draining') this.updateState.state = 'pending';
       this.notify();
       this.estimateHooks?.resume();
@@ -1152,6 +1274,7 @@ export class JobQueue {
         queued.estimatePriorityOrder = null;
       }
       this.batch.finishedAt ??= Date.now();
+      this.stopDrainWatchdog();
     }
     this.notify();
     try {

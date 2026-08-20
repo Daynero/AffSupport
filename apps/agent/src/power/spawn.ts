@@ -32,6 +32,8 @@ export interface ManagedSpawnGovernor {
   budget(): CpuBudget;
   /** Stretches a wall-clock deadline to match the limit in force. */
   scaleTimeout(milliseconds: number): number;
+  /** Resumes a child and pins it resumed, so a termination signal reaches it. */
+  resumeForTermination(child: ChildProcess): void;
 }
 
 export interface ManagedSpawnOptions extends SpawnOptions {
@@ -73,6 +75,7 @@ export function spawnManaged(
 
   governor.register(child, { toolId });
   applyPriority(governor, child);
+  guardTermination(governor, child);
 
   let released = false;
   const release = () => {
@@ -105,6 +108,39 @@ function applyPriority(governor: ManagedSpawnGovernor, child: ChildProcess): voi
     // Priority is an optimisation, never a requirement: a platform or policy
     // that refuses it must not fail the job.
   }
+}
+
+/**
+ * Signals the duty cycler must never be allowed to fight over.
+ *
+ * SIGSTOP/SIGCONT *are* the throttle. Everything else is a caller trying to end
+ * the process, and a stopped process does not receive a terminable signal until
+ * something resumes it.
+ */
+const THROTTLE_SIGNALS = new Set<NodeJS.Signals>(['SIGSTOP', 'SIGCONT']);
+
+/**
+ * Makes every termination signal reach a throttled child, whoever sends it.
+ *
+ * SIGTERM is queued, not delivered, while a process is stopped — so a cancel
+ * that lands in a duty cycle's off-window is simply ignored until the next
+ * on-window, and a caller that escalates to SIGKILL on a fixed grace period can
+ * lose the race outright. The tool then never finalizes its output.
+ *
+ * This is wrapped at the spawn seam rather than fixed at the ~fifteen `kill`
+ * sites for the same reason spawning is: "resume before you signal" is a
+ * convention every future tool would have to remember, and the one that forgets
+ * fails intermittently and only under a reduced limit. Playwright's browser is
+ * the one managed child that does not come through here, so
+ * `landing-preview/renderer.ts` makes the same call explicitly.
+ */
+function guardTermination(governor: ManagedSpawnGovernor, child: ChildProcess): void {
+  const nativeKill = child.kill.bind(child);
+  child.kill = (signal?: NodeJS.Signals | number): boolean => {
+    if (typeof signal !== 'string' || !THROTTLE_SIGNALS.has(signal))
+      governor.resumeForTermination(child);
+    return nativeKill(signal as NodeJS.Signals | number | undefined);
+  };
 }
 
 /**

@@ -28,6 +28,19 @@ export const REQUIRED_STAGE_ENTRIES = [
   { path: 'release.json' }
 ];
 
+/**
+ * What the tray host's own publish directory must contain.
+ *
+ * The installer copies that directory with a wildcard (`Source: "{#HostDir}\*"`),
+ * so a missing or wrong-architecture host does not fail the compile — it
+ * produces an installer that installs cleanly and then does nothing, with an
+ * autostart entry pointing at a file that is not there. The one binary the whole
+ * package exists to run has to be checked like the other four.
+ */
+export const REQUIRED_HOST_ENTRIES = [
+  { path: 'SotyAgentHost.exe', x64Executable: true, minBytes: 10_000 }
+];
+
 /** Shared libraries the DLL-linked whisper.cpp Windows build needs beside it. */
 export const WHISPER_COMPANION_DLLS = ['whisper.dll', 'ggml.dll', 'ggml-base.dll'];
 

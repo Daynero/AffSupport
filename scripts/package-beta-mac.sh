@@ -21,8 +21,6 @@ set -euo pipefail
 root="$PWD/release/beta"
 app="$root/Soty Beta.app"
 source_app="${BETA_RUNTIME_SOURCE_APP:-$PWD/release/Soty.app}"
-port="${BETA_AGENT_PORT:-43140}"
-web_port="${BETA_WEB_PORT:-5175}"
 
 # Files that carry production release identity. The constitution requires dev
 # and test builds to leave versions, the stable manifest, git tags, Supabase
@@ -40,6 +38,19 @@ protected_state() {
 }
 before_state=$(protected_state)
 before_tags=$(git tag --list | sort)
+
+# The shared package is built first because everything below reads beta's
+# identity out of it. Those slots — port, app name, bundle id, support
+# directory, lock file — are never retyped here: beta's whole purpose is that
+# it cannot collide with production, and a second spelling of any of them is
+# exactly how it would.
+npm run build -w @video-compressor/shared
+app_name=$(node scripts/environment-meta.mjs beta app-name)
+port="${BETA_AGENT_PORT:-$(node scripts/environment-meta.mjs beta agent-port)}"
+web_port="${BETA_WEB_PORT:-$(node scripts/environment-meta.mjs beta web-port)}"
+instance_lock_name=$(node scripts/environment-meta.mjs beta instance-lock-name)
+support_directory_name=$(node scripts/environment-meta.mjs beta support-directory-name)
+bundle_id=$(node scripts/environment-meta.mjs beta bundle-id)
 
 [[ "$port" == <1024-65535> ]] || { print -u2 "BETA_AGENT_PORT must be between 1024 and 65535."; exit 1; }
 [[ -f .env.beta ]] || { print -u2 "No .env.beta found. Run: cp .env.beta.example .env.beta"; exit 1; }
@@ -67,12 +78,10 @@ if listener=$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null); then
     print -u2 "Soty Beta is using port $port and may be busy. Finish its work and quit it before rebuilding."
     exit 1
   }
-  /usr/bin/osascript -e 'tell application id "com.wishly.beta" to quit' >/dev/null 2>&1 || kill $listener 2>/dev/null || true
+  /usr/bin/osascript -e "tell application id \"$bundle_id\" to quit" >/dev/null 2>&1 || kill $listener 2>/dev/null || true
   for _ in {1..40}; do lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 || break; sleep .1; done
   lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 && { print -u2 "Soty Beta did not quit cleanly."; exit 1; }
 fi
-
-npm run build -w @video-compressor/shared
 
 base_version=$(node scripts/release-meta.mjs product-version)
 bundle_version=$(node scripts/release-meta.mjs bundle-version)
@@ -102,9 +111,9 @@ rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/runtime/bin" "$app/Contents/Resources/runtime/models" "$app/Contents/Resources/agent"
 node scripts/render-launcher.mjs packaging/Launcher.swift "$root/Launcher.generated.swift" \
   "AGENT_PORT=$port" \
-  "APP_NAME=Soty Beta" \
-  "INSTANCE_LOCK_NAME=wishly-beta-agent.lock" \
-  "SUPPORT_DIRECTORY_NAME=Soty Beta" \
+  "APP_NAME=$app_name" \
+  "INSTANCE_LOCK_NAME=$instance_lock_name" \
+  "SUPPORT_DIRECTORY_NAME=$support_directory_name" \
   "PUBLIC_SITE_ORIGIN=http://127.0.0.1:$port" \
   "APP_VERSION=$version" \
   "BUILD_NUMBER=$build_number" \
@@ -136,9 +145,9 @@ for notice in llama.cpp-LICENSE GEMMA_TERMS.md GEMMA_PROHIBITED_USE_POLICY.md NO
 done
 cp packaging/Info.plist "$app/Contents/Info.plist"
 cp THIRD_PARTY_NOTICES.md "$app/Contents/Resources/"
-/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.wishly.beta" "$app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $bundle_id" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable SotyBetaAgent" "$app/Contents/Info.plist"
-/usr/libexec/PlistBuddy -c "Set :CFBundleName Soty Beta" "$app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleName $app_name" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Soty Beta" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :NSServices:0:NSMenuItem:default Soty Beta Finder Action" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :NSServices:0:NSPortName Soty Beta" "$app/Contents/Info.plist"
@@ -146,7 +155,7 @@ cp THIRD_PARTY_NOTICES.md "$app/Contents/Resources/"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $build_number" "$app/Contents/Info.plist"
 zsh scripts/build-finder-extension.sh \
   "$app" \
-  "com.wishly.beta.finder-extension" \
+  "$bundle_id.finder-extension" \
   "Soty Beta Finder" \
   "Soty Beta Finder Action" \
   "$bundle_version" \

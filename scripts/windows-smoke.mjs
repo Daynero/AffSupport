@@ -15,10 +15,11 @@
 // A skipped check is a FAILED gate, never a silent pass.
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PRODUCTION_PROFILE } from '../packages/shared/dist/environment.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(here, '..');
@@ -100,7 +101,10 @@ function releaseMeta() {
   );
 }
 
-const ORIGIN = 'http://127.0.0.1:43120';
+// Read from the shared environment profile, never retyped: this harness proves
+// an installer whose port comes from the same place.
+const AGENT_PORT = PRODUCTION_PROFILE.agentPort;
+const ORIGIN = `http://127.0.0.1:${AGENT_PORT}`;
 
 /**
  * Pairs with the running agent exactly as the hosted page does: /local redirects
@@ -113,10 +117,17 @@ async function pair() {
   const token = new URL(location, ORIGIN).hash.replace('#agentToken=', '');
   if (!/^[a-f0-9]{64}$/u.test(token)) throw new Error('pairing token is malformed');
   return async (route, init = {}) => {
+    const { raw = false, ...rest } = init;
     const result = await fetch(`${ORIGIN}${route}`, {
-      ...init,
+      ...rest,
       headers: { 'x-session-token': token, ...(init.headers ?? {}) }
     });
+    // `raw` returns the response itself, for endpoints that answer with bytes
+    // rather than JSON — the rendered preview image is one.
+    if (raw) {
+      if (!result.ok) throw new Error(`${route}: ${result.status}`);
+      return result;
+    }
     const body = await result.json();
     if (!result.ok) throw new Error(`${route}: ${body.error ?? result.status}`);
     return body;
@@ -156,14 +167,14 @@ async function waitFor(probe, { timeoutMs = 120_000, everyMs = 1000 } = {}) {
 async function agentHealth({ retries = 60, delayMs = 1000 } = {}) {
   for (let attempt = 0; attempt < retries; attempt += 1) {
     try {
-      const response = await fetch('http://127.0.0.1:43120/health');
+      const response = await fetch(`${ORIGIN}/health`);
       if (response.ok) return await response.json();
     } catch {
       // The host is still starting the agent; retry until the budget runs out.
     }
     await new Promise(resolve => setTimeout(resolve, delayMs));
   }
-  throw new Error('agent did not become reachable on 127.0.0.1:43120');
+  throw new Error(`agent did not become reachable on 127.0.0.1:${AGENT_PORT}`);
 }
 
 // ---- run -------------------------------------------------------------------
@@ -189,11 +200,15 @@ try {
   });
 
   await check('installed-layout', () => {
-    execFileSync(process.execPath, [path.join(here, 'verify-windows-package.mjs'), installDir], {
-      encoding: 'utf8',
-      cwd: repositoryRoot
-    });
-    return 'payload matches the expected layout';
+    // The installed tree carries the tray host at its root, so the same check CI
+    // runs on the publish directory also runs on what actually landed on disk —
+    // an installer that failed to copy it would otherwise look fine here.
+    execFileSync(
+      process.execPath,
+      [path.join(here, 'verify-windows-package.mjs'), installDir, '--host', installDir],
+      { encoding: 'utf8', cwd: repositoryRoot }
+    );
+    return 'payload and tray host match the expected layout';
   });
 
   await check('autostart-run-key', () => {
@@ -237,7 +252,7 @@ try {
   });
 
   await check('finder-bridge-refused', async () => {
-    const response = await fetch('http://127.0.0.1:43120/native/media-actions/images/convert', {
+    const response = await fetch(`${ORIGIN}/native/media-actions/images/convert`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ paths: ['C:\\tmp\\a.png'], format: 'jpeg' })
@@ -297,12 +312,14 @@ try {
     const bytes = readFileSync(clip);
     const form = new FormData();
     form.append('file', new Blob([bytes], { type: 'video/mp4' }), 'speech.mp4');
-    const started = await api('/api/transcription/upload', { method: 'POST', body: form });
-    const id = started.state?.jobs?.at(-1)?.id ?? started.job?.id;
+    const started = await api('/api/transcription/files/upload', { method: 'POST', body: form });
+    // Matched by name, like the compressor gate: "the last job in the list" is
+    // right only until something else queues one alongside it.
+    const id = started.state?.jobs?.find(candidate => candidate.fileName === 'speech.mp4')?.id;
     if (!id) throw new Error('transcription job was not queued');
     const done = await waitFor(
       async () => {
-        const state = await api('/api/transcription');
+        const state = await api('/api/transcription/state');
         const current = state.jobs?.find(candidate => candidate.id === id);
         return current && ['completed', 'failed'].includes(current.status) ? current : null;
       },
@@ -313,37 +330,68 @@ try {
   });
 
   await check('render-landing-preview', async () => {
-    const page = path.join(workDir, 'landing');
-    execFileSync('cmd', ['/c', 'mkdir', page], { shell: false });
-    await writeFile(path.join(page, 'index.html'), '<!doctype html><h1>Soty</h1>');
-    const result = await api('/api/landing-preview/folder', {
+    // A catalogue is a folder OF landings, so the fixture is one level deep.
+    const catalog = path.join(workDir, 'catalog');
+    const page = path.join(catalog, 'site');
+    await mkdir(page, { recursive: true });
+    await writeFile(
+      path.join(page, 'index.html'),
+      '<!doctype html><html><body style="background:#0b6c77"><h1>Soty</h1></body></html>'
+    );
+
+    const opened = await api('/api/landing-preview/open', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ path: page })
+      body: JSON.stringify({ paths: [catalog] })
     });
-    if (!result) throw new Error('preview request returned nothing');
-    return 'rendered with the bundled browser, no extra download';
+    if (opened.renderer?.available === false) {
+      throw new Error(`the bundled browser is unavailable: ${opened.renderer.error ?? 'unknown'}`);
+    }
+
+    // Wait for a rendered landing, not for the request to be accepted. The
+    // previous version of this gate posted to a route that does not exist and
+    // asserted the response was truthy — it could neither pass nor prove
+    // anything, which is why no Windows installer has ever been produced.
+    const landing = await waitFor(
+      async () => {
+        const state = await api('/api/landing-preview/state');
+        const item = state.landings?.[0];
+        if (!item) return null;
+        if (item.error) throw new Error(`preview failed: ${item.error}`);
+        return item.previewAvailable ? item : null;
+      },
+      { timeoutMs: 180_000 }
+    );
+
+    const image = await api(`/api/landing-preview/landings/${landing.id}/image`, { raw: true });
+    const bytes = Buffer.from(await image.arrayBuffer());
+    if (bytes.length < 1024) throw new Error(`preview image is only ${bytes.length} bytes`);
+    if (bytes.subarray(0, 4).toString('ascii') !== 'RIFF') {
+      throw new Error('preview image is not the WebP the renderer produces');
+    }
+    return `rendered ${landing.previewWidth}x${landing.previewHeight} with the bundled browser`;
   });
 
   await check('translation-runtime-installs', async () => {
-    const state = await api('/api/transcription/translation');
+    const state = await api('/api/transcription/state');
     // The runtime downloads on first use; what must not happen is a refusal
-    // because the Windows checksum was never pinned.
-    if (JSON.stringify(state).includes('not pinned')) {
-      throw new Error('translation refused: the Windows runtime checksum is unpinned');
+    // because the Windows checksum was never pinned. `translatorRuntime` is the
+    // agent's own diagnostic view of that pin, so ask it directly rather than
+    // grepping the whole payload for a phrase that could be reworded.
+    const runtime = state.translatorRuntime;
+    if (!runtime) throw new Error('the agent reports no translation runtime state at all');
+    if (runtime.error) throw new Error(`translation runtime unavailable: ${runtime.error}`);
+    if (typeof runtime.sizeBytes !== 'number' || runtime.sizeBytes <= 0) {
+      throw new Error('the translation runtime has no pinned download size on Windows');
     }
-    return 'translation runtime is installable';
+    return `translation runtime is installable (${runtime.sizeBytes} bytes pinned)`;
   });
 
   await check('reveal-in-explorer', async () => {
     const state = await api('/api/queue');
     const completed = state.jobs.find(job => job.status === 'completed');
     if (!completed) throw new Error('no completed job to reveal');
-    await api('/api/files/reveal', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ path: completed.outputPath })
-    });
+    await api(`/api/jobs/${completed.id}/reveal`, { method: 'POST' });
     return 'Explorer reveal accepted';
   });
 
@@ -364,7 +412,7 @@ try {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ ids: [job.id] })
     });
-    await api(`/api/queue/${job.id}/cancel`, { method: 'POST' });
+    await api(`/api/jobs/${job.id}/cancel`, { method: 'POST' });
     const after = readdirSync(os.tmpdir()).filter(name => name.startsWith('soty-')).length;
     if (after > before) throw new Error('cancelling left temporary directories behind');
     return 'cancel is clean';
@@ -423,10 +471,11 @@ try {
     // The second host must hand off and exit rather than start a rival agent.
     if (second.status === null) throw new Error('a second host instance kept running');
     const listeners = powershell(
-      '(Get-NetTCPConnection -LocalPort 43120 -State Listen -ErrorAction SilentlyContinue |' +
+      `(Get-NetTCPConnection -LocalPort ${AGENT_PORT} -State Listen -ErrorAction SilentlyContinue |` +
         ' Measure-Object).Count'
     );
-    if (Number(listeners) > 1) throw new Error(`${listeners} agents are listening on 43120`);
+    if (Number(listeners) > 1)
+      throw new Error(`${listeners} agents are listening on ${AGENT_PORT}`);
     return 'one instance holds the port';
   });
 
@@ -461,10 +510,15 @@ try {
 
   await check('kill-host-stops-agent', async () => {
     if (!host) throw new Error('host was never started');
-    execFileSync('taskkill', ['/PID', String(host.pid), '/T', '/F'], { shell: false });
+    // Deliberately WITHOUT /T. Killing the tree kills the agent directly, so the
+    // gate passed whatever the watchdog did — and it did nothing at all on
+    // Windows for a while, because the host was not passing AGENT_LAUNCHER_PID
+    // and Windows never reparents an orphan. Killing only the host is what makes
+    // this check the thing its name claims.
+    execFileSync('taskkill', ['/PID', String(host.pid), '/F'], { shell: false });
     for (let attempt = 0; attempt < 30; attempt += 1) {
       try {
-        await fetch('http://127.0.0.1:43120/health');
+        await fetch(`${ORIGIN}/health`);
       } catch {
         host = null;
         return 'agent exited with its parent';

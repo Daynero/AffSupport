@@ -261,6 +261,49 @@ describe('hold protocol', () => {
     // to SIGKILL and the tool never finalizes its output.
     expect(signals).not.toContain('SIGSTOP');
   });
+
+  it('takes a child that survived its own termination back under the limit', async () => {
+    vi.useFakeTimers();
+    const power = governor();
+    const { child, signals } = fakeChild();
+    power.register(child, { toolId: 'compressor' });
+    await power.setLimit(20);
+    power.resumeForTermination(child);
+
+    signals.length = 0;
+    // A process can outlive the signal meant to end it: SIGTERM handled, an
+    // encode still flushing, a kill that never landed. Pinning it resumed
+    // forever would quietly exempt it from the limit for the rest of the
+    // session, and the lever would look like it had stopped working.
+    vi.advanceTimersByTime(60_000);
+    expect(signals).toContain('SIGSTOP');
+  });
+
+  it('reports whether a hold actually stopped the child', () => {
+    const power = governor();
+    const { child } = fakeChild();
+    expect(power.isSuspended(child)).toBe(false);
+
+    power.register(child, { toolId: 'compressor' });
+    const release = power.hold(child, 'estimate-priority');
+    expect(power.isSuspended(child)).toBe(true);
+    release();
+    expect(power.isSuspended(child)).toBe(false);
+  });
+
+  it('reports a hold that could not be delivered as not suspended', () => {
+    // The compressor hands the machine to prioritized estimates only when the
+    // encode is genuinely stopped. A process that has already gone cannot be —
+    // and answering "held" there would run both at once while believing one of
+    // them was paused.
+    const power = governor();
+    const { child } = fakeChild();
+    power.register(child, { toolId: 'compressor' });
+    (child.kill as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => false);
+
+    power.hold(child, 'estimate-priority');
+    expect(power.isSuspended(child)).toBe(false);
+  });
 });
 
 describe('state snapshot', () => {

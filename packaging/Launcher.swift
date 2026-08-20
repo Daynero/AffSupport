@@ -1138,13 +1138,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   /// is true instead of teaching the launcher about individual tools.
   private func beginBusyMonitoring() {
     guard busyPollTimer == nil else { return }
-    let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+    scheduleBusyPoll()
+    checkBusyState()
+  }
+
+  /// Polls quickly while a tool is working, slowly while nothing is.
+  ///
+  /// The equalizer has to stop within a beat of the work stopping, so the busy
+  /// cadence is tight.  Idle is the overwhelmingly common case and every poll
+  /// costs the agent a health snapshot, so paying that once a second forever —
+  /// to learn a boolean that has not changed since launch — is waste the user
+  /// pays for in battery.
+  private func scheduleBusyPoll() {
+    busyPollTimer?.invalidate()
+    let timer = Timer(timeInterval: agentBusy ? 1 : 3, repeats: true) { [weak self] _ in
       self?.checkBusyState()
     }
     // .common keeps the poll and the animation running while a menu is open.
     RunLoop.main.add(timer, forMode: .common)
     busyPollTimer = timer
-    checkBusyState()
   }
 
   private func stopBusyMonitoring() {
@@ -1167,6 +1179,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private func setAgentBusy(_ busy: Bool) {
     guard busy != agentBusy else { return }
     agentBusy = busy
+    // The poll rate follows the state it is polling for.
+    if busyPollTimer != nil { scheduleBusyPoll() }
     equalizerTimer?.invalidate()
     equalizerTimer = nil
     if busy {

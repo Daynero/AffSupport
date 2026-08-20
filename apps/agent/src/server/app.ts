@@ -191,7 +191,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     capabilities: advertisedCapabilities(),
     coreContractVersion: CORE_CONTRACT_VERSION,
     toolContracts: { ...AGENT_TOOL_CONTRACTS },
-    update: queue.state().update,
+    update: queue.updateStatus(),
     entitlement: entitlementGate.status()
   }));
   app.get('/health', async () => ({
@@ -207,7 +207,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     capabilities: advertisedCapabilities(),
     coreContractVersion: CORE_CONTRACT_VERSION,
     toolContracts: { ...AGENT_TOOL_CONTRACTS },
-    update: queue.state().update,
+    update: queue.updateStatus(),
     instanceId: deps.instanceId,
     startedAt: deps.startedAt,
     busy: modules.some(module => module.busy())
@@ -225,7 +225,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     system: `${os.platform()} ${os.release()}`,
     architecture: os.arch(),
     ffmpeg: tools.ffmpeg && tools.ffprobe ? 'ready' : 'unavailable',
-    lastError: queue.state().warning ?? null
+    lastError: queue.warningMessage()
   }));
 
   // The power throttle is server-wide infrastructure, not a tool: it is passed

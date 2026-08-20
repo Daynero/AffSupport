@@ -4,7 +4,17 @@ set -euo pipefail
 root="$PWD/release/dev"
 app="$root/Soty Dev.app"
 source_app="${DEV_RUNTIME_SOURCE_APP:-$PWD/release/Soty.app}"
-port="${DEV_AGENT_PORT:-43130}"
+
+# The shared package is built first because everything below reads dev's
+# identity out of it. Those slots — port, app name, bundle id, support
+# directory, lock file — are never retyped here: a second spelling of a lock
+# name is how two builds end up fighting over one.
+npm run build -w @video-compressor/shared
+app_name=$(node scripts/environment-meta.mjs dev app-name)
+port="${DEV_AGENT_PORT:-$(node scripts/environment-meta.mjs dev agent-port)}"
+instance_lock_name=$(node scripts/environment-meta.mjs dev instance-lock-name)
+support_directory_name=$(node scripts/environment-meta.mjs dev support-directory-name)
+bundle_id=$(node scripts/environment-meta.mjs dev bundle-id)
 
 [[ "$port" == <1024-65535> ]] || { print -u2 "DEV_AGENT_PORT must be between 1024 and 65535."; exit 1; }
 [[ -x "$source_app/Contents/Resources/runtime/node" ]] || {
@@ -26,7 +36,7 @@ if listener=$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null); then
     print -u2 "Soty Dev is using port $port and may be busy. Finish its work and quit it before rebuilding."
     exit 1
   }
-  /usr/bin/osascript -e 'tell application id "com.wishly.dev" to quit' >/dev/null 2>&1 || kill $listener 2>/dev/null || true
+  /usr/bin/osascript -e "tell application id \"$bundle_id\" to quit" >/dev/null 2>&1 || kill $listener 2>/dev/null || true
   for _ in {1..40}; do lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 || break; sleep .1; done
   lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 && { print -u2 "Soty Dev did not quit cleanly."; exit 1; }
 fi
@@ -43,7 +53,6 @@ build_number=$(date -u +%s)
 build_id="$version+$build_number"
 archive_name="Soty-Dev-$version-macOS-arm64.zip"
 
-npm run build -w @video-compressor/shared
 VITE_AGENT_URL="http://127.0.0.1:$port" \
 VITE_ANALYTICS_ENABLED=false \
 VITE_LOCAL_DEV_AUTH=true \
@@ -56,9 +65,9 @@ rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/runtime/bin" "$app/Contents/Resources/runtime/models" "$app/Contents/Resources/agent"
 node scripts/render-launcher.mjs packaging/Launcher.swift "$root/Launcher.generated.swift" \
   "AGENT_PORT=$port" \
-  "APP_NAME=Soty Dev" \
-  "INSTANCE_LOCK_NAME=wishly-dev-agent.lock" \
-  "SUPPORT_DIRECTORY_NAME=Soty Dev" \
+  "APP_NAME=$app_name" \
+  "INSTANCE_LOCK_NAME=$instance_lock_name" \
+  "SUPPORT_DIRECTORY_NAME=$support_directory_name" \
   "PUBLIC_SITE_ORIGIN=http://127.0.0.1:$port" \
   "APP_VERSION=$version" \
   "BUILD_NUMBER=$build_number" \
@@ -92,9 +101,9 @@ cp packaging/licenses/NOTICE-Gemma.txt "$app/Contents/Resources/licenses/"
 cp packaging/licenses/multilingual-e5-small-MIT.txt "$app/Contents/Resources/licenses/"
 cp packaging/Info.plist "$app/Contents/Info.plist"
 cp THIRD_PARTY_NOTICES.md "$app/Contents/Resources/"
-/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.wishly.dev" "$app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $bundle_id" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable SotyDevAgent" "$app/Contents/Info.plist"
-/usr/libexec/PlistBuddy -c "Set :CFBundleName Soty Dev" "$app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleName $app_name" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Soty Dev" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :NSServices:0:NSMenuItem:default Soty Dev Finder Action" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :NSServices:0:NSPortName Soty Dev" "$app/Contents/Info.plist"
@@ -102,7 +111,7 @@ cp THIRD_PARTY_NOTICES.md "$app/Contents/Resources/"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $build_number" "$app/Contents/Info.plist"
 zsh scripts/build-finder-extension.sh \
   "$app" \
-  "com.wishly.dev.finder-extension" \
+  "$bundle_id.finder-extension" \
   "Soty Dev Finder" \
   "Soty Dev Finder Action" \
   "$bundle_version" \

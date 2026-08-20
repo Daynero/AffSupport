@@ -218,6 +218,11 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
     }
   );
 
+  app.post('/api/landing/cancel-all', async () => {
+    await optimizer.cancelAll();
+    return optimizer.state();
+  });
+
   app.delete<{ Params: { jobId: string } }>('/api/landing/jobs/:jobId', async (request, reply) => {
     const removed = await optimizer.remove(request.params.jobId);
     return removed

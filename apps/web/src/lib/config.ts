@@ -1,4 +1,5 @@
 import {
+  appEnvironmentOrProduction,
   isProductionEndpoint,
   parseAppEnvironment,
   type AppEnvironment
@@ -144,4 +145,18 @@ export function configuredSiteUrl() {
 
 export function configuredEnvironment(): AppEnvironment {
   return publicConfig.ok ? publicConfig.value.environment : 'production';
+}
+
+/**
+ * The environment this bundle was built for, whatever else is wrong with the
+ * configuration.
+ *
+ * Every *rule* keyed on the environment fails closed to production, which is
+ * right: a bundle that cannot prove it is beta must not be granted beta's
+ * relaxed origin checks. The beta *indicator* is the one thing that must not,
+ * because a broken `.env.beta` would then hide the badge on exactly the build
+ * most likely to be mistaken for production.
+ */
+export function builtForEnvironment(env: Env = import.meta.env): AppEnvironment {
+  return appEnvironmentOrProduction(value(env, 'VITE_APP_ENVIRONMENT'));
 }

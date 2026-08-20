@@ -245,8 +245,12 @@ export function registerCompressorRoutes(app: FastifyInstance, ctx: CompressorCo
   app.post<{ Params: { id: string } }>('/api/jobs/:id/cancel', async (request, reply) =>
     (await queue.cancel(request.params.id))
       ? queue.state()
-      : reply.code(409).send({ error: 'Only the current job can be cancelled.' })
+      : reply.code(409).send({ error: 'This job is not running or waiting.' })
   );
+  app.post('/api/queue/cancel-all', async () => {
+    await queue.cancelAll();
+    return queue.state();
+  });
   app.delete<{ Params: { id: string } }>('/api/jobs/:id', async (request, reply) =>
     queue.remove(request.params.id)
       ? queue.state()

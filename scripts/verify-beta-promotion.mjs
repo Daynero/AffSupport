@@ -106,9 +106,15 @@ if (record.sourceRevision !== head) {
       `but the release commit is ${head.slice(0, 12)}. A pass on other code proves nothing about this one.`
   );
 }
-if (record.dirty === true) {
+// Required to be exactly `false`, not merely "not true". The record's whole
+// claim is that this build corresponds to this commit, and a record that does
+// not say whether the tree was clean has not made that claim — a hand-written
+// or truncated one would otherwise satisfy the gate by omission.
+if (record.dirty !== false) {
   fail(
-    'the packaged beta was built from a dirty worktree, so it does not correspond to any commit.'
+    record.dirty === true
+      ? 'the packaged beta was built from a dirty worktree, so it does not correspond to any commit.'
+      : 'the beta verification record does not state whether the worktree was clean.'
   );
 }
 if (typeof record.verifiedAt !== 'string' || !record.verifiedAt) {

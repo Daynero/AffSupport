@@ -10,6 +10,7 @@ import type {
 import { parseSettingsPatch } from '../compressor/settings-validation.js';
 import type { LandingOptimizer } from '../landing/optimizer.js';
 import type { JobQueue } from '../queue/queue.js';
+import { activeGovernorOrNull } from '../power/spawn.js';
 import type { TranscriptionQueue } from '../queue/transcription-queue.js';
 import type { TeamOperationEvents } from './events.js';
 import type {
@@ -154,9 +155,17 @@ export class TeamProcessBridge {
   ): Promise<TeamFileOperationResult> {
     let downloaded: DownloadedTeamSource | null = null;
     let cleanupOutput: (() => Promise<void>) | null = null;
-    const watchdog = setTimeout(() => {
-      controller.abort(new Error('PROCESS_TIMEOUT'));
-    }, this.#watchdogMs);
+    // Scaled, not fixed — the same rule the landing bridge already follows.
+    // This ceiling covers a compression or transcription that runs as a managed
+    // child, so at a 20% limit the work legitimately takes roughly five times as
+    // long, and an unscaled six-hour budget would abort a job for honouring the
+    // user's own limit.
+    const watchdog = setTimeout(
+      () => {
+        controller.abort(new Error('PROCESS_TIMEOUT'));
+      },
+      activeGovernorOrNull()?.scaleTimeout(this.#watchdogMs) ?? this.#watchdogMs
+    );
     watchdog.unref();
 
     try {

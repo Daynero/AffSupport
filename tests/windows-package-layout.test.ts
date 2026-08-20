@@ -5,6 +5,7 @@ import {
   isX64Executable,
   peMachine,
   PE_MACHINE_AMD64,
+  REQUIRED_HOST_ENTRIES,
   REQUIRED_STAGE_ENTRIES,
   WHISPER_COMPANION_DLLS
 } from '../scripts/lib/windows-package-layout.mjs';
@@ -102,6 +103,23 @@ describe('required stage layout', () => {
       'runtime/bin/ffprobe.exe',
       'runtime/bin/whisper-cli.exe'
     ]);
+  });
+
+  it('PE-checks the tray host too, which the installer copies by wildcard', () => {
+    // `Source: "{#HostDir}\\*"` copies whatever is there, so a missing or 32-bit
+    // host compiles into a valid installer that installs an autostart entry
+    // pointing at a file which is not present. Nothing else in the pipeline
+    // looks at this binary.
+    const host = REQUIRED_HOST_ENTRIES.map((entry: { path: string }) => entry.path);
+    expect(host).toEqual(['SotyAgentHost.exe']);
+    expect(
+      REQUIRED_HOST_ENTRIES.every((entry: { x64Executable?: boolean }) => entry.x64Executable)
+    ).toBe(true);
+
+    const verifier = readFileSync('scripts/verify-windows-package.mjs', 'utf8');
+    expect(verifier).toContain('REQUIRED_HOST_ENTRIES');
+    const workflow = readFileSync('.github/workflows/release-windows.yml', 'utf8');
+    expect(workflow).toMatch(/verify-windows-package\.mjs[\s\S]{0,120}release\/windows\/host/u);
   });
 
   it('knows whisper needs its shared libraries staged beside it', () => {

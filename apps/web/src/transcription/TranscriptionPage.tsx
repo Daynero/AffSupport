@@ -1,5 +1,9 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import type { TranscriptionJob, TranscriptionState } from '@video-compressor/shared';
+import type {
+  TranscriptionDocument,
+  TranscriptionJob,
+  TranscriptionState
+} from '@video-compressor/shared';
 import {
   TRANSCRIPTION_LANGUAGE_CODES,
   TRANSLATEGEMMA_LANGUAGE_CODES
@@ -8,6 +12,7 @@ import {
   request,
   transcriptionAddLocalFiles,
   transcriptionCancel,
+  transcriptionCancelAll,
   transcriptionClearFinished,
   transcriptionDocument,
   transcriptionEventUrl,
@@ -31,6 +36,7 @@ import { DropZone } from '../components/DropZone';
 import { Modal } from '../components/Modal';
 import {
   Button,
+  Checkbox,
   ProgressBar,
   Spinner,
   StatusBadge,
@@ -38,12 +44,20 @@ import {
   type Translate
 } from '../components/ui';
 import { formatSize } from '../format';
-import { useI18n, type Language } from '../i18n';
+import { toggleSelection } from '../queue-ui';
+import { selectedCountKey, useI18n, type Language } from '../i18n';
 import { usePageEntrance } from '../lib/navigation';
 import { analytics } from '../analytics/service';
 import { languageDisplayName } from './language';
 import { TranscriptTextModal } from './TranscriptTextModal';
-import { formatTranscriptionBatch } from './copy';
+import {
+  formatTranscriptionBatch,
+  hasCopyContent,
+  type TranscriptionCopyContent,
+  type TranscriptionCopyEntry,
+  type TranscriptionCopyScope
+} from './copy';
+import { TranscriptionCopyMenu } from './TranscriptionCopyMenu';
 
 type TranscriptionModelInfo = NonNullable<TranscriptionState['model']>;
 
@@ -83,6 +97,58 @@ function combineModelInfo(
   };
 }
 
+/**
+ * Which translation belongs on the clipboard when a file has more than one.
+ *
+ * The job carries the language the reader currently has selected, so that is
+ * the one to copy. Taking whichever key happened to come first in the sidecar
+ * would hand over a language nobody is looking at — and a different one from
+ * run to run, since key order is storage order.
+ */
+function selectedTranslation(document: TranscriptionDocument, job: TranscriptionJob) {
+  const completed = Object.values(document.translations).filter(
+    translation => translation.status === 'completed'
+  );
+  const selected = job.translation?.targetLanguage;
+  return (
+    completed.find(translation => translation.targetLanguage === selected) ??
+    // Nothing selected — a sidecar older than the selection, or a job restored
+    // without one. Sorting keeps the choice stable rather than incidental.
+    [...completed].sort((left, right) =>
+      left.targetLanguage.localeCompare(right.targetLanguage)
+    )[0] ??
+    null
+  );
+}
+
+/**
+ * Flattens one stored document into clipboard-ready text. The translation is
+ * walked in source-segment order — the sidecar keys translated segments by
+ * source id, and pasting them in storage order would scramble long files.
+ */
+function copyEntry(
+  document: TranscriptionDocument,
+  job: TranscriptionJob,
+  languageName: (code: string) => string
+): TranscriptionCopyEntry {
+  const completed = selectedTranslation(document, job);
+  const translatedById = new Map(
+    completed?.segments.map(segment => [segment.sourceSegmentId, segment.translatedText]) ?? []
+  );
+  const translated = document.segments
+    .map(segment => translatedById.get(segment.id) ?? '')
+    .filter(Boolean)
+    .join('\n');
+  return {
+    fileName: job.fileName,
+    transcript: document.segments.map(segment => segment.sourceText).join('\n'),
+    translation:
+      completed && translated
+        ? { languageName: languageName(completed.targetLanguage), text: translated }
+        : null
+  };
+}
+
 interface ToastMessage {
   id: number;
   text: string;
@@ -100,8 +166,12 @@ export default function TranscriptionPage() {
     null
   );
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
   const [confirmingDownload, setConfirmingDownload] = useState(false);
   const [copyingAll, setCopyingAll] = useState(false);
+  const [copyScope, setCopyScope] = useState<TranscriptionCopyScope>('finished');
+  const [copyContent, setCopyContent] = useState<TranscriptionCopyContent>('both');
   const toastId = useRef(0);
   // Job ids the user asked to transcribe before the model was present; started
   // automatically once the download completes.
@@ -187,10 +257,35 @@ export default function TranscriptionPage() {
   const finishedJobs = jobs.filter(
     job => job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled'
   );
+  // Anything already transcribed can be transcribed again, so a completed job
+  // is startable too — that is what makes "Transcribe selected" a re-run.
+  const selectableIds = visibleJobs.filter(job => job.status !== 'analyzing').map(job => job.id);
+  const startableSelected = jobs
+    .filter(
+      job =>
+        selected.has(job.id) && ['ready', 'cancelled', 'failed', 'completed'].includes(job.status)
+    )
+    .map(job => job.id);
+  const stoppable = jobs.some(job => job.status === 'processing' || job.status === 'queued');
+  const selectedLabel = selected.size
+    ? t(selectedCountKey(language, selected.size), { count: selected.size })
+    : t('noSelection');
   const copyableJobs = visibleJobs.filter(
     job => job.status === 'completed' && (job.characters ?? 0) > 0
   );
+  const selectedCopyableJobs = copyableJobs.filter(job => selected.has(job.id));
+  const copyJobs = copyScope === 'selected' ? selectedCopyableJobs : copyableJobs;
   const previewJob = preview ? jobs.find(job => job.id === preview.jobId) : null;
+
+  const jobIdsKey = jobs.map(job => job.id).join('|');
+  useEffect(() => {
+    if (!stateReady) return;
+    const existing = new Set(jobs.map(job => job.id));
+    setSelected(current => {
+      const next = new Set([...current].filter(id => existing.has(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [jobIdsKey, stateReady]);
 
   const updateLanguage = async (value: string) => {
     try {
@@ -352,17 +447,52 @@ export default function TranscriptionPage() {
     }
   };
 
-  const copyAllTranscripts = async () => {
-    if (!copyableJobs.length || copyingAll) return;
+  /**
+   * Stops the queue and says how much was stopped. The count is taken from what
+   * this window could see before the call, so a click that lands just after the
+   * last file finished reports honestly instead of implying it did something.
+   */
+  const stopAll = async () => {
+    const stopping = jobs.filter(
+      job => job.status === 'processing' || job.status === 'queued'
+    ).length;
+    try {
+      setState(await transcriptionCancelAll());
+      if (stopping) addToast(t('stoppedCount', { count: stopping }), 'neutral');
+    } catch (error) {
+      handleError(error);
+    }
+  };
+
+  const copyBatch = async () => {
+    if (!copyJobs.length || copyingAll) return;
     setCopyingAll(true);
     try {
-      const documents = await Promise.all(copyableJobs.map(job => transcriptionDocument(job.id)));
-      const text = formatTranscriptionBatch(
-        documents.map(document => document.segments.map(segment => segment.sourceText).join('\n')),
-        number => t('transcriptionBatchHeading', { number })
+      const documents = await Promise.all(copyJobs.map(job => transcriptionDocument(job.id)));
+      const entries = documents.map((document, index) =>
+        copyEntry(document, copyJobs[index], code => languageDisplayName(code, language))
       );
-      await navigator.clipboard.writeText(text);
-      addToast(t('transcriptionCopiedTranscripts'), 'success');
+      const included = entries.filter(entry => hasCopyContent(entry, copyContent));
+      if (!included.length) {
+        addToast(t('transcriptionCopyEmpty'), 'warning');
+        return;
+      }
+      await navigator.clipboard.writeText(
+        formatTranscriptionBatch(entries, copyContent, {
+          heading: number => t('transcriptionBatchHeading', { number }),
+          transcript: t('transcriptionCopyTranscriptLabel'),
+          translation: t('transcriptionCopyTranslationLabel')
+        })
+      );
+      // "Translation only" skips files that have none yet, so the toast names
+      // both numbers instead of quietly copying fewer than the button promised.
+      addToast(
+        t('transcriptionCopiedTranscripts', {
+          count: included.length,
+          total: entries.length
+        }),
+        'success'
+      );
     } catch {
       addToast(t('transcriptionFailedTitle'), 'error');
     } finally {
@@ -468,6 +598,28 @@ export default function TranscriptionPage() {
               <strong>{t('transcriptionQueueTitle')}</strong>
               <span>{t('transcriptionQueueCount', { count: jobs.length })}</span>
             </div>
+            <div className="selection-actions">
+              <Button
+                variant="ghost"
+                disabled={!connected || selectableIds.length === 0}
+                onClick={() => setSelected(new Set(selectableIds))}
+              >
+                {t('selectAll')}
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={!connected || selected.size === 0}
+                onClick={() => {
+                  setSelected(new Set());
+                  setLastSelectedIndex(null);
+                }}
+              >
+                {t('clearSelection')}
+              </Button>
+              <span className="selected-count" aria-live="polite">
+                {selectedLabel}
+              </span>
+            </div>
             <div className="batch-toolbar-actions">
               <Button
                 variant="primary"
@@ -476,6 +628,37 @@ export default function TranscriptionPage() {
               >
                 {t('transcriptionStartAll')}
               </Button>
+              <Button
+                variant="secondary"
+                disabled={
+                  !connected || !binaryReady || model.downloading || startableSelected.length === 0
+                }
+                onClick={() => requestStart(startableSelected)}
+              >
+                {t('transcriptionStartSelected')}
+              </Button>
+              {stoppable && (
+                <Button
+                  variant="danger"
+                  disabled={!connected}
+                  title={t('stopAllHint')}
+                  onClick={() => void stopAll()}
+                >
+                  {t('stopAll')}
+                </Button>
+              )}
+              <TranscriptionCopyMenu
+                scope={copyScope}
+                content={copyContent}
+                finishedCount={copyableJobs.length}
+                selectedCount={selectedCopyableJobs.length}
+                busy={copyingAll}
+                disabled={!connected || copyJobs.length === 0}
+                onScopeChange={setCopyScope}
+                onContentChange={setCopyContent}
+                onCopy={() => void copyBatch()}
+                t={t}
+              />
               <Button
                 variant="ghost"
                 disabled={!connected || finishedJobs.length === 0}
@@ -494,12 +677,25 @@ export default function TranscriptionPage() {
               <span>{t('transcriptionEmptyBody')}</span>
             </div>
           ) : (
-            visibleJobs.map(job => (
+            visibleJobs.map((job, index) => (
               <TranscriptionRow
                 key={job.id}
                 job={job}
                 language={language}
                 connected={connected}
+                selected={selected.has(job.id)}
+                onSelected={(checked, shiftKey) => {
+                  const update = toggleSelection(
+                    selected,
+                    job.id,
+                    checked,
+                    selectableIds,
+                    lastSelectedIndex,
+                    shiftKey
+                  );
+                  setSelected(update.selected);
+                  setLastSelectedIndex(update.lastIndex ?? index);
+                }}
                 onStart={() => requestStart([job.id])}
                 onCancel={() => void run(() => transcriptionCancel(job.id))}
                 onRetry={() => void run(() => transcriptionRetry(job.id))}
@@ -513,18 +709,6 @@ export default function TranscriptionPage() {
             ))
           )}
         </section>
-        {jobs.length > 0 && (
-          <div className="transcription-list-actions">
-            <Button
-              variant="secondary"
-              loading={copyingAll}
-              disabled={!connected || copyableJobs.length === 0}
-              onClick={() => void copyAllTranscripts()}
-            >
-              {t('transcriptionCopyAllTranscripts')}
-            </Button>
-          </div>
-        )}
       </main>
       <ToastRegion toasts={toasts} />
       {previewJob && (
@@ -702,6 +886,8 @@ function TranscriptionRow({
   job,
   language,
   connected,
+  selected,
+  onSelected,
   onStart,
   onCancel,
   onRetry,
@@ -715,6 +901,8 @@ function TranscriptionRow({
   job: TranscriptionJob;
   language: Language;
   connected: boolean;
+  selected: boolean;
+  onSelected: (checked: boolean, shiftKey: boolean) => void;
   onStart: () => void;
   onCancel: () => void;
   onRetry: () => void;
@@ -807,8 +995,20 @@ function TranscriptionRow({
           : t('transcriptionRowTranslating');
 
   return (
-    <article className={`job-row ${job.status === 'processing' ? 'is-processing' : ''}`.trim()}>
+    <article
+      className={`job-row ${selected ? 'is-selected' : ''} ${
+        job.status === 'processing' ? 'is-processing' : ''
+      }`.trim()}
+    >
       <div className="job-row-header">
+        <Checkbox
+          checked={selected}
+          disabled={job.status === 'analyzing'}
+          aria-label={t('fileSelection', { name: job.fileName })}
+          label={<span className="sr-only">{t('fileSelection', { name: job.fileName })}</span>}
+          onChange={() => {}}
+          onClick={event => onSelected(!selected, event.shiftKey)}
+        />
         <span className="job-row-name" title={job.fileName}>
           {job.fileName}
         </span>
@@ -827,6 +1027,9 @@ function TranscriptionRow({
               </Button>
               <Button variant="success" onClick={onReveal}>
                 {t('transcriptionReveal')}
+              </Button>
+              <Button variant="ghost" disabled={!connected} onClick={onStart}>
+                {t('transcriptionRepeat')}
               </Button>
             </>
           )}

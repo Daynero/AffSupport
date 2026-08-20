@@ -47,6 +47,13 @@ export function appEnvironmentOrProduction(value: unknown): AppEnvironment {
  * so no script, launcher, or test re-derives a port or a directory name; the
  * distinctness of these slots is what lets production, dev, and beta run side
  * by side on one machine.
+ *
+ * "Declared once" is load-bearing rather than aspirational: every packaging
+ * entry point reads these through `scripts/environment-meta.mjs`, and
+ * `tests/environment-packaging.test.ts` fails if one starts spelling a value
+ * out again. A profile that nothing consumed would drift from the artifacts it
+ * claims to describe, and the drift would surface as two copies of Soty
+ * fighting over one lock file.
  */
 export interface EnvironmentProfile {
   /** Which environment identity this profile carries. `dev` is a production-identity build. */
@@ -66,9 +73,16 @@ export const PRODUCTION_PROFILE: EnvironmentProfile = {
   agentPort: 43120,
   webPort: null,
   appName: 'Soty',
-  bundleId: 'com.wishly',
+  // These are the identities the shipped app already carries, not tidier ones
+  // this file would prefer. They predate the rebrand and cannot be changed
+  // without orphaning every installed copy: the bundle id is what macOS keys
+  // permissions and login items on, and the lock name is how a running agent
+  // recognises itself during an update handoff. `scripts/environment-meta.mjs`
+  // feeds them straight into packaging, so a "cleanup" here would silently
+  // become a breaking change there.
+  bundleId: 'local.video.compressor.test',
   supportDirectoryName: 'Soty',
-  instanceLockName: 'wishly-agent.lock',
+  instanceLockName: 'local-video-compressor-agent.lock',
   releaseChannel: 'stable'
 };
 

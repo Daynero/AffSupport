@@ -4,9 +4,22 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 
 const environment = vi.hoisted(() => ({ current: 'production' as 'production' | 'beta' }));
+/**
+ * What the *validated* config resolves to. Normally the same as the build, but
+ * a beta profile with a mistake in it fails validation and falls back to
+ * production — which is the case the badge has to survive.
+ */
+const configuredOverride = vi.hoisted(() => ({
+  current: null as 'production' | 'beta' | null
+}));
 
 vi.mock('../apps/web/src/lib/config', () => ({
-  configuredEnvironment: () => environment.current,
+  // `builtForEnvironment` is what the badge reads: it answers from the build's
+  // own value rather than the validated config, so a beta build with a mistake
+  // in its profile still looks like beta. The rest of the app keeps using
+  // `configuredEnvironment`, which fails closed to production.
+  builtForEnvironment: () => environment.current,
+  configuredEnvironment: () => configuredOverride.current ?? environment.current,
   configuredSiteUrl: () => 'http://127.0.0.1:5175',
   publicConfig: { ok: false, value: null, errors: [] }
 }));
@@ -18,6 +31,7 @@ const { BetaStorageNotice, externalStorageUnavailableInBeta } =
 afterEach(() => {
   cleanup();
   environment.current = 'production';
+  configuredOverride.current = null;
 });
 
 describe('EnvironmentBadge', () => {
@@ -25,6 +39,16 @@ describe('EnvironmentBadge', () => {
     // A mirror that looks identical to production is a hazard: the indicator
     // must be on screen without scrolling or opening a menu.
     environment.current = 'beta';
+    render(<EnvironmentBadge />);
+    expect(screen.getByRole('note').textContent ?? '').toMatch(/beta|бета/i);
+  });
+
+  it('still shows in a beta build whose configuration failed validation', () => {
+    // Fail-closed is right for every rule keyed on the environment, and wrong
+    // for the indicator: a broken .env.beta would otherwise hide the badge on
+    // exactly the build most likely to be mistaken for production.
+    environment.current = 'beta';
+    configuredOverride.current = 'production';
     render(<EnvironmentBadge />);
     expect(screen.getByRole('note').textContent ?? '').toMatch(/beta|бета/i);
   });

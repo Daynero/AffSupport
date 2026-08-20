@@ -54,7 +54,12 @@ codesign --verify --deep --strict "$app"
 source_revision=$(git rev-parse HEAD)
 build_id=$(/usr/bin/plutil -extract buildId raw "$app/Contents/Resources/release.json" 2>/dev/null \
   || grep -o '"buildId": *"[^"]*"' "$app/Contents/Resources/release.json" | head -1 | cut -d'"' -f4)
-if git diff --quiet && git diff --cached --quiet; then dirty=false; else dirty=true; fi
+# Untracked files count, exactly as they do in verify-release.mjs. A new source
+# file that is in the build but not in the commit is the clearest case of a
+# package that corresponds to no revision, and `git diff` alone never sees it.
+# Ignored paths (.env.*, release/) are not untracked, so this stays quiet in
+# ordinary use.
+if [[ -z "$(git status --porcelain)" ]]; then dirty=false; else dirty=true; fi
 verified_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 mkdir -p "$record_dir"

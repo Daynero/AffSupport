@@ -13,6 +13,7 @@ import {
   type TranscriptionDocument,
   type TranscriptionEventType,
   type TranscriptionJob,
+  type TranscriptionJobStatus,
   type TranscriptionModelInfo,
   type TranscriptionMediaPreview,
   type TranscriptionSettings,
@@ -1285,14 +1286,29 @@ export class TranscriptionQueue {
   async start(ids: string[]): Promise<boolean> {
     // 'failed' is startable so retry() actually restarts a failed job —
     // including one restored as failed/INTERRUPTED after an agent restart.
+    // 'completed' is startable so a finished file can be transcribed again.
     const startable = this.jobs.filter(
       job =>
         ids.includes(job.id) &&
-        (job.status === 'ready' || job.status === 'cancelled' || job.status === 'failed')
+        (job.status === 'ready' ||
+          job.status === 'cancelled' ||
+          job.status === 'failed' ||
+          job.status === 'completed')
     );
     if (!startable.length) return false;
     const batchId = randomUUID();
     for (const job of startable) {
+      // A re-run cancels any translation still in flight: it belongs to text
+      // that is about to be replaced.
+      //
+      // The stored document is deliberately NOT deleted here. Doing so made
+      // "Transcribe again" destructive the moment it was pressed — a run that
+      // then failed, was cancelled, or died with the agent left the user with
+      // no transcript at all. The sidecar is written atomically on completion,
+      // so the previous one simply stays readable until a new one replaces it,
+      // and nothing shows it in the meantime because the job is no longer
+      // `completed`.
+      if (job.status === 'completed') this.cancelTranslationsForJob(job.id);
       job.status = 'queued';
       job.batchId = batchId;
       job.progress = null;
@@ -1312,21 +1328,46 @@ export class TranscriptionQueue {
   }
 
   cancel(id: string): boolean {
+    const cancelled = this.cancelJob(id);
+    if (cancelled) this.notify();
+    return cancelled;
+  }
+
+  /** Cancels one job without broadcasting; the caller decides when to notify. */
+  private cancelJob(id: string): boolean {
     const job = this.jobs.find(item => item.id === id);
     if (!job) return false;
     if (job.status === 'queued') {
       job.status = 'cancelled';
-      this.notify();
       queueMicrotask(() => void this.pumpTranslations());
       return true;
     }
     if (job.status === 'processing') {
       job.status = 'cancelled';
       this.active?.cancel();
-      this.notify();
       return true;
     }
     return false;
+  }
+
+  /**
+   * Stops everything the user can see in one action. Queued jobs go first so
+   * the pump cannot start another one while the active job is torn down, and
+   * team jobs are skipped: they are invisible here, so a "stop all" in the
+   * transcription tool must not kill Team Workspace work.
+   */
+  cancelAll(): number {
+    const stoppable = (status: TranscriptionJobStatus) =>
+      this.jobs
+        .filter(job => job.status === status && !this.teamJobIds.has(job.id))
+        .map(job => job.id);
+    const ids = [...stoppable('queued'), ...stoppable('processing')];
+    let stopped = 0;
+    // One broadcast at the end: cancelling a long queue job by job would push a
+    // full state frame per file down every open SSE connection.
+    for (const id of ids) if (this.cancelJob(id)) stopped += 1;
+    if (stopped) this.notify();
+    return stopped;
   }
 
   async remove(id: string): Promise<boolean> {
@@ -1502,7 +1543,14 @@ export class TranscriptionQueue {
               result.englishWords
             )
           )
-        ).catch(() => {});
+        ).catch(async () => {
+          // The job now reports text that the stored document does not contain.
+          // On a re-run that stored document is the PREVIOUS transcript, and
+          // handing it to the reader beside the new job state would be worse
+          // than handing back nothing — so drop it rather than let the two
+          // disagree.
+          await this.withDocumentLock(job.id, () => this.documents.remove(job.id)).catch(() => {});
+        });
         // Queue the preferred local translation without delaying the next
         // Whisper job. Inference remains blocked until the transcription queue
         // is empty and is served instantly when already cached.

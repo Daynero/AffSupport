@@ -6,7 +6,7 @@
 // (spec FR-030). Runs on any OS — the layout and PE checks are pure file
 // inspection — so a staged tree can also be checked from macOS.
 //
-//   node scripts/verify-windows-package.mjs [stageDir] [outputDir]
+//   node scripts/verify-windows-package.mjs [stageDir] [outputDir] [--host <dir>]
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
@@ -15,6 +15,7 @@ import {
   peMachine,
   PE_MACHINE_AMD64,
   RELEASE_IDENTITY_FIELDS,
+  REQUIRED_HOST_ENTRIES,
   REQUIRED_STAGE_ENTRIES,
   WHISPER_COMPANION_DLLS
 } from './lib/windows-package-layout.mjs';
@@ -23,8 +24,15 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(here, '..');
 
 const args = process.argv.slice(2);
-const stageDir = path.resolve(args[0] ?? path.join(repositoryRoot, 'release', 'windows', 'stage'));
-const outputDir = args[1] ? path.resolve(args[1]) : null;
+const hostFlag = args.indexOf('--host');
+const hostDir = hostFlag === -1 ? null : path.resolve(args[hostFlag + 1] ?? '');
+const positional = args.filter(
+  (argument, index) => !argument.startsWith('--') && index !== hostFlag + 1 && index !== hostFlag
+);
+const stageDir = path.resolve(
+  positional[0] ?? path.join(repositoryRoot, 'release', 'windows', 'stage')
+);
+const outputDir = positional[1] ? path.resolve(positional[1]) : null;
 
 const problems = [];
 
@@ -37,25 +45,37 @@ if (!existsSync(stageDir)) fail(`stage directory not found: ${stageDir}`);
 
 // ---- Layout the tray host and the agent both depend on --------------------
 
-for (const entry of REQUIRED_STAGE_ENTRIES) {
-  const target = path.join(stageDir, ...entry.path.split('/'));
-  if (!existsSync(target)) {
-    problems.push(`missing ${entry.path}`);
-    continue;
-  }
-  const stats = statSync(target);
-  if (stats.isFile() && entry.minBytes && stats.size < entry.minBytes) {
-    problems.push(`${entry.path} is only ${stats.size} bytes`);
-    continue;
-  }
-  if (entry.x64Executable) {
-    const machine = peMachine(readFileSync(target));
-    if (!machine.ok) {
-      problems.push(`${entry.path}: ${machine.error}`);
-    } else if (machine.value !== PE_MACHINE_AMD64) {
-      problems.push(`${entry.path} is not x64 (machine 0x${machine.value.toString(16)})`);
+function checkEntries(root, entries, label) {
+  for (const entry of entries) {
+    const target = path.join(root, ...entry.path.split('/'));
+    if (!existsSync(target)) {
+      problems.push(`missing ${label}${entry.path}`);
+      continue;
+    }
+    const stats = statSync(target);
+    if (stats.isFile() && entry.minBytes && stats.size < entry.minBytes) {
+      problems.push(`${label}${entry.path} is only ${stats.size} bytes`);
+      continue;
+    }
+    if (entry.x64Executable) {
+      const machine = peMachine(readFileSync(target));
+      if (!machine.ok) {
+        problems.push(`${label}${entry.path}: ${machine.error}`);
+      } else if (machine.value !== PE_MACHINE_AMD64) {
+        problems.push(`${label}${entry.path} is not x64 (machine 0x${machine.value.toString(16)})`);
+      }
     }
   }
+}
+
+checkEntries(stageDir, REQUIRED_STAGE_ENTRIES, '');
+
+// The tray host lives beside the stage rather than inside it, and the installer
+// copies its directory with a wildcard — so a missing or 32-bit host compiles
+// into a perfectly valid installer that installs nothing that runs.
+if (hostDir) {
+  if (!existsSync(hostDir)) problems.push(`tray host directory not found: ${hostDir}`);
+  else checkEntries(hostDir, REQUIRED_HOST_ENTRIES, 'host/');
 }
 
 // The official whisper.cpp Windows build is DLL-linked (unlike the statically
@@ -115,5 +135,7 @@ if (existsSync(releaseJsonPath)) {
 if (problems.length > 0) fail(`\n  ${problems.join('\n  ')}`);
 
 process.stdout.write(
-  `Windows package verified: ${stageDir}${outputDir ? ` and installer in ${outputDir}` : ''}\n`
+  `Windows package verified: ${stageDir}` +
+    `${hostDir ? `, tray host in ${hostDir}` : ''}` +
+    `${outputDir ? ` and installer in ${outputDir}` : ''}\n`
 );

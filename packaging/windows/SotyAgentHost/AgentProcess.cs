@@ -77,6 +77,16 @@ internal sealed class AgentProcess
     startInfo.Environment["AGENT_BUILD_ID"] = HostConfig.ExpectedBuildId;
     startInfo.Environment["AGENT_RELEASE_CHANNEL"] = HostConfig.ReleaseChannel;
     startInfo.Environment["AGENT_SOURCE_REVISION"] = HostConfig.SourceRevision;
+    // The agent's orphan watchdog needs this, and on Windows it is the ONLY
+    // thing that works. Its other test — did my parent PID change? — detects a
+    // dead parent on macOS because the OS reparents an orphan to launchd.
+    // Windows never reparents: the recorded parent PID stays pointing at a
+    // process that no longer exists, so without this the watchdog can never
+    // fire. A host that crashed, or a sibling killed during an update handoff,
+    // would leave its agent running forever, holding the port and blocking the
+    // very update that killed it.
+    startInfo.Environment["AGENT_LAUNCHER_PID"] =
+      Environment.ProcessId.ToString(CultureInfo.InvariantCulture);
     startInfo.Environment["AGENT_INSTALLED_RELEASE_PATH"] = Path.Combine(resourceRoot, "release.json");
     startInfo.Environment["AGENT_NATIVE_TOKEN"] = nativeToken;
     startInfo.Environment["AGENT_ENTITLEMENT_PUBLIC_KEY"] = HostConfig.EntitlementPublicKey;

@@ -115,8 +115,49 @@ describe('helper protocol', () => {
       },
       onError
     });
+    // Reported on the FIRST failure, not only once the retries are exhausted:
+    // a power limit that quietly does nothing is the symptom nobody can
+    // diagnose, and the retry ceiling already caps this at three messages.
     expect(helper.suspend(1)).toBe(false);
-    expect(onError).toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives up on suspending after repeated failed starts, but never on resuming', () => {
+    const onError = vi.fn();
+    const spawnHelper = vi.fn(() => {
+      throw new Error('ENOENT');
+    });
+    const helper = new WindowsSuspendHelper({ spawnHelper, onError });
+
+    for (let attempt = 0; attempt < 3; attempt += 1)
+      expect(helper.suspend(attempt + 1)).toBe(false);
+    expect(helper.disabled()).toBe(true);
+    // Retrying a helper that cannot run would spawn PowerShell several times a
+    // second forever, so suspension stops asking.
+    helper.suspend(9);
+    expect(spawnHelper).toHaveBeenCalledTimes(3);
+
+    // Resume is different in kind. NtSuspendProcess outlives the process that
+    // called it, so anything already stopped stays stopped until something
+    // resumes it — refusing to even try would strand it for the session.
+    helper.resume(9);
+    expect(spawnHelper).toHaveBeenCalledTimes(4);
+  });
+
+  it('treats a backpressured write as delivered, not as a failed suspend', () => {
+    const { child, written } = fakeHelperProcess();
+    // A full stdin buffer means "queued, not yet flushed" — the command is not
+    // lost. Reporting it as a failure would leave the governor believing a
+    // process it did stop is still running, and nothing would resume it.
+    (child.stdin!.write as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+      (chunk: string) => {
+        written.push(chunk);
+        return false;
+      }
+    );
+    const helper = new WindowsSuspendHelper({ spawnHelper: () => child });
+    expect(helper.suspend(4242)).toBe(true);
+    expect(written).toEqual(['s 4242\n']);
   });
 
   it('ends the helper cleanly on shutdown', async () => {

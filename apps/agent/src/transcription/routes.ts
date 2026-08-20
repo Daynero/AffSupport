@@ -176,6 +176,11 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
     }
   );
 
+  app.post('/api/transcription/cancel-all', async () => {
+    queue.cancelAll();
+    return queue.state();
+  });
+
   app.post<{ Params: { id: string } }>(
     '/api/transcription/jobs/:id/retry',
     async (request, reply) => {

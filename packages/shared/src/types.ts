@@ -558,7 +558,7 @@ export type LandingSourceKind = 'zip' | 'folder';
 export type LandingAssetType = 'image' | 'video';
 export type LandingAssetStatus = 'pending' | 'processing' | 'optimized' | 'skipped' | 'failed';
 export type LandingJobStatus =
-  'preparing' | 'ready' | 'queued' | 'processing' | 'completed' | 'failed';
+  'preparing' | 'ready' | 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
 export type LandingJobPhase =
   | 'preparing'
   | 'ready'
@@ -567,7 +567,8 @@ export type LandingJobPhase =
   | 'rewriting'
   | 'packaging'
   | 'completed'
-  | 'failed';
+  | 'failed'
+  | 'cancelled';
 
 /** High Quality re-encode: keep resolution and frame rate, compress gently. */
 export const LANDING_HIGH_QUALITY_CRF = 20;

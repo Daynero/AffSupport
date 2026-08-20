@@ -18,6 +18,7 @@ import {
   compareProductVersions,
   toolContractCompatible
 } from '../packages/shared/src/release';
+import { DEV_PROFILE, PRODUCTION_PROFILE } from '../packages/shared/src/environment.js';
 import {
   downloadUrlForPlatform,
   installedReleaseStatus,
@@ -242,8 +243,15 @@ describe('release identity', () => {
     expect(packageScript).toContain('VITE_ANALYTICS_ENABLED=false');
     expect(packageScript).toContain('VITE_LOCAL_DEV_AUTH=true');
     expect(packageScript).toContain('AGENT_PORT=$port');
-    expect(packageScript).toContain('SUPPORT_DIRECTORY_NAME=Soty Dev');
-    expect(packageScript).toContain('INSTANCE_LOCK_NAME=wishly-dev-agent.lock');
+    // Isolation is a property of the profile the build renders from, so both
+    // halves are asserted: the values are distinct from production's, and the
+    // script takes them from there instead of restating them.
+    expect(DEV_PROFILE.supportDirectoryName).toBe('Soty Dev');
+    expect(DEV_PROFILE.instanceLockName).toBe('wishly-dev-agent.lock');
+    expect(DEV_PROFILE.supportDirectoryName).not.toBe(PRODUCTION_PROFILE.supportDirectoryName);
+    expect(DEV_PROFILE.instanceLockName).not.toBe(PRODUCTION_PROFILE.instanceLockName);
+    expect(packageScript).toContain('SUPPORT_DIRECTORY_NAME=$support_directory_name');
+    expect(packageScript).toContain('INSTANCE_LOCK_NAME=$instance_lock_name');
     expect(packageScript).not.toMatch(/git (tag|push)|supabase|wrangler/);
     for (const script of [packageScript, productionPackageScript]) {
       expect(script).toContain('scripts/stage-agent-runtime.mjs');

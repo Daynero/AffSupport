@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import type { ChildProcess } from 'node:child_process';
-import { spawnTracked } from '../power/spawn.js';
+import { activeGovernorOrNull, spawnTracked } from '../power/spawn.js';
 import http from 'node:http';
 import net from 'node:net';
 import type { AlignmentLink } from '@video-compressor/shared';
@@ -62,6 +62,16 @@ interface CompletionResponse {
   stopped_limit?: unknown;
 }
 
+/**
+ * How long a cold model load may take before it is called a failure.
+ *
+ * Scaled by the resource limit at the moment of the load, never used raw. The
+ * runtime is a managed child like any other, so at a 20% limit it is being
+ * duty-cycled while it loads and takes roughly five times as long — an unscaled
+ * deadline would abort translation for obeying the user's own setting, and the
+ * error ("the model took too long to load") points nowhere near the lever that
+ * caused it.
+ */
 const START_TIMEOUT_MS = 120_000;
 // Killing the server frees ~2.5 GB of RAM but makes the next translation pay a
 // full cold model load (up to two minutes). Five minutes proved far too eager —
@@ -305,7 +315,7 @@ export class LlamaTranslator implements Translator {
       if (this.child === child) this.child = null;
     });
 
-    const deadline = Date.now() + START_TIMEOUT_MS;
+    const deadline = Date.now() + scaled(START_TIMEOUT_MS);
     while (Date.now() < deadline) {
       if (spawnError) throw new Error('The local translation runtime could not start.');
       if (child.exitCode !== null) {
@@ -566,6 +576,11 @@ export function reserveLoopbackPort(): Promise<number> {
       );
     });
   });
+}
+
+/** A wall-clock budget stretched to match the resource limit in force. */
+function scaled(milliseconds: number): number {
+  return activeGovernorOrNull()?.scaleTimeout(milliseconds) ?? milliseconds;
 }
 
 export function localLlamaHttpRequest(

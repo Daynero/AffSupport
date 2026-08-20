@@ -92,7 +92,10 @@ export default function LandingOptimizerPage() {
     archive: false
   };
   const readyJobs = jobs.filter(job => job.status === 'ready');
-  const finishedJobs = jobs.filter(job => job.status === 'completed' || job.status === 'failed');
+  const finishedJobs = jobs.filter(job =>
+    ['completed', 'failed', 'cancelled'].includes(job.status)
+  );
+  const stoppable = jobs.some(job => ['processing', 'queued'].includes(job.status));
 
   const updateSettings = async (patch: Partial<LandingSettings>) => {
     try {
@@ -190,6 +193,21 @@ export default function LandingOptimizerPage() {
     }
   };
 
+  /**
+   * Stops every landing this tool shows and says how many. The count comes from
+   * what this window could see before the call, so a click that lands just
+   * after the last one finished reports honestly.
+   */
+  const stopAll = async () => {
+    const stopping = jobs.filter(job => ['processing', 'queued'].includes(job.status)).length;
+    try {
+      setState(await request<LandingState>('/api/landing/cancel-all', 'POST'));
+      if (stopping) addToast(t('stoppedCount', { count: stopping }));
+    } catch (error) {
+      handleError(error);
+    }
+  };
+
   const clearFinished = async () => {
     try {
       setState(await request<LandingState>('/api/landing/completed', 'DELETE'));
@@ -282,6 +300,16 @@ export default function LandingOptimizerPage() {
               >
                 {t('landingOptimizeAll')}
               </Button>
+              {stoppable && (
+                <Button
+                  variant="danger"
+                  disabled={!connected}
+                  title={t('stopAllHint')}
+                  onClick={() => void stopAll()}
+                >
+                  {t('stopAll')}
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 disabled={!connected || finishedJobs.length === 0}

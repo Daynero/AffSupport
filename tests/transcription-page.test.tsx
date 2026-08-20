@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   TranscriptionDocument,
@@ -14,6 +14,7 @@ const api = vi.hoisted(() => ({
   request: vi.fn(),
   transcriptionAddLocalFiles: vi.fn(),
   transcriptionCancel: vi.fn(),
+  transcriptionCancelAll: vi.fn(),
   transcriptionClearFinished: vi.fn(),
   transcriptionDocument: vi.fn(),
   transcriptionEventUrl: vi.fn(() => '/events'),
@@ -94,21 +95,36 @@ function job(id: string, createdAt: number, status: TranscriptionJob['status']):
   };
 }
 
-function transcript(jobId: string, text: string): TranscriptionDocument {
+function transcript(
+  jobId: string,
+  text: string,
+  translated: string | null = null
+): TranscriptionDocument {
+  const segmentId = `${jobId}-segment`;
   return {
     jobId,
     sourceLanguage: 'uk',
     modelVersion: 'test',
     segments: [
       {
-        id: `${jobId}-segment`,
+        id: segmentId,
         startMs: 0,
         endMs: 1,
         sourceText: text,
         words: []
       }
     ],
-    translations: {}
+    translations: translated
+      ? {
+          en: {
+            targetLanguage: 'en',
+            modelVersion: 'test',
+            status: 'completed',
+            segments: [{ sourceSegmentId: segmentId, translatedText: translated, alignments: [] }],
+            error: null
+          }
+        }
+      : {}
   };
 }
 
@@ -137,10 +153,16 @@ beforeEach(() => {
   localStorage.setItem('language', 'uk');
   vi.stubGlobal('EventSource', EventSourceStub);
   api.request.mockReset().mockResolvedValue(state);
+  api.transcriptionStart.mockReset().mockResolvedValue(state);
+  api.transcriptionCancelAll.mockReset().mockResolvedValue(state);
   api.transcriptionDocument
     .mockReset()
     .mockImplementation((id: string) =>
-      Promise.resolve(transcript(id, id === 'newer' ? 'Новіший текст.' : 'Старіший текст.'))
+      Promise.resolve(
+        id === 'newer'
+          ? transcript(id, 'Новіший текст.', 'Newer text.')
+          : transcript(id, 'Старіший текст.')
+      )
     );
   api.transcriptionSettings.mockReset().mockResolvedValue(state);
   api.transcriptionTranslate.mockReset().mockResolvedValue({
@@ -165,24 +187,59 @@ afterEach(() => {
 });
 
 describe('transcription page batch copy', () => {
-  it('places Copy all below the list and copies only completed transcripts in display order', async () => {
+  it('copies finished transcripts with their translations from the toolbar', async () => {
     render(<TranscriptionPage />);
 
-    const button = await screen.findByRole('button', { name: 'Копіювати всі' });
-    const list = document.querySelector('.video-list');
-    expect(list?.nextElementSibling?.classList.contains('transcription-list-actions')).toBe(true);
+    const button = await screen.findByRole('button', { name: 'Копіювати всі завершені (2)' });
+    // The control belongs to the queue toolbar above the list, not below it.
+    expect(button.closest('.batch-toolbar')).not.toBeNull();
+    expect(document.querySelector('.transcription-list-actions')).toBeNull();
     expect(screen.getByText(/вашому комп’ютері/)).toBeTruthy();
 
     fireEvent.click(button);
 
     await waitFor(() =>
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-        'Транскрибування 1:\nНовіший текст.\n\n' + 'Транскрибування 2:\nСтаріший текст.'
+        'Транскрибування 1: newer.mp4\n' +
+          'Транскрипція:\nНовіший текст.\n\n' +
+          'Переклад (Англійська):\nNewer text.\n\n' +
+          'Транскрибування 2: older.mp4\n' +
+          'Транскрипція:\nСтаріший текст.'
       )
     );
     expect(api.transcriptionDocument).toHaveBeenCalledTimes(2);
     expect(api.transcriptionDocument).not.toHaveBeenCalledWith('waiting');
     expect(api.transcriptionDocument).not.toHaveBeenCalledWith('silent');
+  });
+
+  it('switches the copy scope and content through the dropdown', async () => {
+    render(<TranscriptionPage />);
+
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Вибрати newer.mp4' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Параметри копіювання' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Вибрані (1)' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Лише переклад' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Копіювати вибрані (1)' }));
+
+    await waitFor(() =>
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+        'Транскрибування 1: newer.mp4 · Переклад (Англійська)\nNewer text.'
+      )
+    );
+    expect(api.transcriptionDocument).toHaveBeenCalledTimes(1);
+  });
+
+  it('warns instead of copying when the chosen content is missing everywhere', async () => {
+    api.request.mockResolvedValue({ ...state, jobs: [job('older', 1, 'completed')] });
+    render(<TranscriptionPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Параметри копіювання' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Лише переклад' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Копіювати всі завершені (1)' }));
+
+    expect(await screen.findByText('З цими параметрами копіювати нічого')).toBeTruthy();
+    expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
   });
 
   it('shows subtle translation progress and restarts it when the row language changes', async () => {
@@ -218,5 +275,47 @@ describe('transcription page batch copy', () => {
     await waitFor(() =>
       expect(api.transcriptionTranslate).toHaveBeenCalledWith('translated', 'de')
     );
+  });
+});
+
+describe('re-transcribing and stopping the queue', () => {
+  it('transcribes a finished file again from its row', async () => {
+    render(<TranscriptionPage />);
+
+    const rows = await screen.findAllByRole('article');
+    const repeat = within(rows[0]).getByRole('button', { name: 'Транскрибувати знову' });
+    fireEvent.click(repeat);
+
+    await waitFor(() => expect(api.transcriptionStart).toHaveBeenCalledWith(['silent']));
+  });
+
+  it('transcribes the selected files, finished ones included', async () => {
+    render(<TranscriptionPage />);
+
+    const selected = await screen.findByRole('checkbox', { name: 'Вибрати newer.mp4' });
+    fireEvent.click(selected);
+    expect(screen.getByText('Вибрано 1 файл')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Транскрибувати вибрані' }));
+
+    await waitFor(() => expect(api.transcriptionStart).toHaveBeenCalledWith(['newer']));
+  });
+
+  it('offers Stop all only while something is running and stops the whole queue', async () => {
+    render(<TranscriptionPage />);
+
+    await screen.findByRole('button', { name: 'Транскрибувати все' });
+    expect(screen.queryByRole('button', { name: 'Зупинити все' })).toBeNull();
+
+    cleanup();
+    api.request.mockResolvedValue({
+      ...state,
+      running: true,
+      jobs: [job('running', 6, 'processing'), job('waiting', 7, 'queued')]
+    });
+    render(<TranscriptionPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Зупинити все' }));
+    await waitFor(() => expect(api.transcriptionCancelAll).toHaveBeenCalled());
   });
 });

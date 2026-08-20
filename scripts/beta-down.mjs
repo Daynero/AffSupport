@@ -9,12 +9,27 @@
 import { spawnSync } from 'node:child_process';
 import { BETA_LOCAL_STACK_PORTS, BETA_PROFILE } from '../packages/shared/dist/environment.js';
 
+/**
+ * PIDs listening on `port`.
+ *
+ * An `lsof` that could not run is NOT the same answer as "nothing is
+ * listening", and conflating them is how this script would report a clean stop
+ * on a host where it had checked nothing at all — the exact outcome its own
+ * contract rules out. `lsof` exiting 1 with no output is the ordinary "no
+ * match" case; a spawn error is not.
+ */
 function listeners(port) {
   const result = spawnSync('lsof', ['-tiTCP:' + port, '-sTCP:LISTEN'], {
     shell: false,
     encoding: 'utf8'
   });
-  if (result.error || !result.stdout) return [];
+  if (result.error) {
+    process.stderr.write(
+      `Beta stop cannot verify port ${port}: lsof is unavailable (${result.error.message}).\n`
+    );
+    process.exit(1);
+  }
+  if (!result.stdout) return [];
   return result.stdout
     .split('\n')
     .map(line => Number(line.trim()))

@@ -1,4 +1,5 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -298,6 +299,11 @@ export async function shutdownProcessPause(): Promise<void> {
  * Suspends a child process. Returns false when the signal could not be
  * delivered; callers must be prepared to continue with the process still
  * running.
+ *
+ * Takes the `ChildProcess` rather than its PID wherever one is available:
+ * `child.kill` refuses to signal a process that has already been reaped, which
+ * is the only cheap protection against a recycled PID landing our SIGSTOP on
+ * something unrelated.
  */
 export function pauseProcess(child: ChildProcess): boolean {
   if (!processPauseSupported()) return false;
@@ -317,6 +323,40 @@ export function resumeProcess(child: ChildProcess): boolean {
     if (process.platform === 'win32')
       return typeof child.pid === 'number' && windowsSuspendHelper().resume(child.pid);
     return child.kill('SIGCONT');
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Suspends a process we did not spawn, by PID.
+ *
+ * This exists for descendants — Chromium's renderers under Playwright, and any
+ * other tool that fans out — which have no `ChildProcess` on this side. Only
+ * ever called with a PID that a recent process-table snapshot reported as a
+ * descendant of one of our own children, because unlike `pauseProcess` there is
+ * no reaped-child guard here to catch a PID the OS has recycled.
+ */
+export function pauseProcessId(pid: number): boolean {
+  if (!processPauseSupported() || !Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    if (process.platform === 'win32') return windowsSuspendHelper().suspend(pid);
+    process.kill(pid, 'SIGSTOP');
+    return true;
+  } catch {
+    // ESRCH is the normal case: the descendant finished between the snapshot
+    // and the signal.
+    return false;
+  }
+}
+
+/** Resumes a process previously paused with `pauseProcessId`. */
+export function resumeProcessId(pid: number): boolean {
+  if (!processPauseSupported() || !Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    if (process.platform === 'win32') return windowsSuspendHelper().resume(pid);
+    process.kill(pid, 'SIGCONT');
+    return true;
   } catch {
     return false;
   }
@@ -356,9 +396,19 @@ export interface ProcessTableRow {
   ppid: number;
 }
 
-/** True when this host can report per-process CPU time at all. */
+/**
+ * True when this host can report per-process CPU time at all.
+ *
+ * Probed once rather than assumed. `PowerSample` models "unavailable" as a
+ * union member precisely so the readout can say *why* it has no figure, and
+ * answering `true` unconditionally collapsed that: a host without the tool
+ * would fail the first probe and be reported as an error — "something broke" —
+ * rather than as a machine that simply cannot measure this.
+ */
+let metricsSupported: boolean | null = null;
 export function processMetricsSupported(): boolean {
-  return true;
+  metricsSupported ??= process.platform === 'win32' || existsSync('/bin/ps');
+  return metricsSupported;
 }
 
 function usesPowerShellMetrics(): boolean {

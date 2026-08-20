@@ -10,10 +10,15 @@ import {
 } from '@video-compressor/shared';
 import {
   pauseProcess,
+  pauseProcessId,
   processPauseSupported,
+  processTableSnapshot,
   resumeProcess,
-  shutdownProcessPause
+  resumeProcessId,
+  shutdownProcessPause,
+  type ProcessTableRow
 } from '../platform/platform.js';
+import { descendantsByRoot } from './process-tree.js';
 
 /**
  * The single authority over how much of the machine Soty's local tools may use.
@@ -34,7 +39,11 @@ import {
  * `resumeForTermination()`.
  */
 
-/** How often the duty cycler toggles a limited child. */
+/**
+ * The shortest duty period. The cycler stretches it when the limit is low
+ * enough that `MIN_DUTY_ON_MS` would not fit inside the on-share — see
+ * `dutyWindows`.
+ */
 const DUTY_PERIOD_MS = 200;
 
 /**
@@ -43,6 +52,50 @@ const DUTY_PERIOD_MS = 200;
  * scheduled, which would make throughput zero at the floor.
  */
 const MIN_DUTY_ON_MS = 50;
+
+/**
+ * How often the descendant tree is re-walked while it is being tracked.
+ *
+ * The tree only changes when a tool forks, so this is deliberately far slower
+ * than the duty cycle. A walk shells out to the process table — `/bin/ps` on
+ * POSIX, a full `Win32_Process` enumeration through PowerShell on Windows —
+ * and that is expensive enough that the measurement must not become a
+ * meaningful share of the load it reports.
+ *
+ * It also bounds the PID-recycling window: a descendant PID is only ever
+ * signalled if a snapshot no older than this reported it under one of our own
+ * children. Three seconds is still far shorter than any realistic recycling of
+ * a PID on either platform.
+ */
+const TREE_REFRESH_MS = 3_000;
+
+/**
+ * How many duty periods a child stays pinned resumed once a termination has
+ * been requested.
+ *
+ * Long enough to cover the queue's SIGTERM→SIGKILL escalation (2 s, itself
+ * scaled by the limit) plus a tool that needs a moment to finalize its output.
+ * After that the pin expires on purpose: a process that survived its own kill —
+ * SIGTERM handled, the signal lost, an encode still flushing — would otherwise
+ * be exempt from the limit for the rest of the session, and the user would see
+ * a lever that had quietly stopped applying.
+ */
+const TERMINATION_PIN_CYCLES = 50;
+
+/**
+ * The on/off split for a duty fraction.
+ *
+ * The period stretches rather than the on-window shrinking below
+ * `MIN_DUTY_ON_MS`. Clamping the on-window inside a fixed period was the
+ * obvious approach and it silently lies: at the 20% floor a 50 ms floor inside
+ * a 200 ms period delivers 25%, so the lever would promise a quarter less
+ * machine than it actually gives back.
+ */
+export function dutyWindows(fraction: number): { onMs: number; offMs: number } {
+  const onMs = Math.max(MIN_DUTY_ON_MS, Math.round(DUTY_PERIOD_MS * fraction));
+  const periodMs = Math.max(DUTY_PERIOD_MS, Math.round(onMs / fraction));
+  return { onMs, offMs: Math.max(1, periodMs - onMs) };
+}
 
 export interface ManagedChildOptions {
   /** Which tool spawned it. Diagnostics and tests only; never affects the budget. */
@@ -53,13 +106,19 @@ interface ManagedChild {
   child: ChildProcess;
   pid: number;
   toolId: string;
-  /** Descendant PIDs, for trees like Playwright's. Filled in by the sampler. */
+  /** Descendant PIDs, for trees like Playwright's. Filled in by the tree tracker. */
   descendants: number[];
+  /** Descendants this governor actually stopped, so resume touches only those. */
+  suspendedDescendants: Set<number>;
+  /** Descendants already given the below-normal priority, so it is set once. */
+  deprioritized: Set<number>;
   suspended: boolean;
   /** Outstanding hold reasons. While non-empty the cycler leaves it suspended. */
   holds: Set<symbol>;
-  /** Pinned resumed for termination; the cycler must not touch it again. */
+  /** Pinned resumed for a termination in progress; the cycler leaves it alone. */
   terminating: boolean;
+  /** Duty periods the pin has survived, so it can age out. */
+  terminationPinCycles: number;
   live: boolean;
 }
 
@@ -84,6 +143,14 @@ export interface PowerGovernorOptions {
   cpuCount?: number;
   /** Injectable for tests; defaults to the platform capability. */
   pauseSupported?: boolean;
+  /** Injectable for tests, which must never read the real process table. */
+  probeProcessTable?: () => Promise<ProcessTableRow[]>;
+  /** Injectable for tests; the real signals, keyed by PID, for descendants. */
+  descendantSignals?: {
+    pause: (pid: number) => boolean;
+    resume: (pid: number) => boolean;
+    setPriority: (pid: number, priority: number) => void;
+  };
   /** Reports whether any tool is busy, so `activity` is not child-only. */
   busy?: () => boolean;
   onError?: (error: unknown, message: string) => void;
@@ -105,6 +172,12 @@ export class PowerGovernor {
   private readonly persist: ((limitPercent: number) => Promise<void>) | null;
   private cycleTimer: NodeJS.Timeout | null = null;
   private latestSample: PowerSample | null = null;
+  private readonly probeProcessTable: () => Promise<ProcessTableRow[]>;
+  private readonly descendantSignals: NonNullable<PowerGovernorOptions['descendantSignals']>;
+  private treeTimer: NodeJS.Timeout | null = null;
+  private treeInFlight = false;
+  /** Consumers that need the tree walked for measurement rather than control. */
+  private treeWatchers = 0;
 
   constructor(options: PowerGovernorOptions = {}) {
     this.cpuCount = Math.max(1, options.cpuCount ?? os.cpus().length);
@@ -113,6 +186,12 @@ export class PowerGovernor {
     this.onError = options.onError ?? (() => {});
     this.onChange = options.onChange ?? null;
     this.persist = options.persist ?? null;
+    this.probeProcessTable = options.probeProcessTable ?? processTableSnapshot;
+    this.descendantSignals = options.descendantSignals ?? {
+      pause: pauseProcessId,
+      resume: resumeProcessId,
+      setPriority: (pid, priority) => os.setPriority(pid, priority)
+    };
   }
 
   /** Wired after construction, once the SSE channel exists. */
@@ -188,9 +267,12 @@ export class PowerGovernor {
       pid,
       toolId: options.toolId,
       descendants: [],
+      suspendedDescendants: new Set(),
+      deprioritized: new Set(),
       suspended: false,
       holds: new Set(),
       terminating: false,
+      terminationPinCycles: 0,
       live: true
     });
     this.retune();
@@ -208,7 +290,7 @@ export class PowerGovernor {
     const entry = this.children.get(pid);
     if (!entry) return;
     entry.live = false;
-    if (entry.suspended) this.resume(entry);
+    if (this.isStopped(entry)) this.resume(entry);
     this.children.delete(pid);
     this.retune();
     this.onChange?.();
@@ -249,8 +331,33 @@ export class PowerGovernor {
     const entry = typeof pid === 'number' ? this.children.get(pid) : undefined;
     if (!entry) return;
     entry.terminating = true;
+    entry.terminationPinCycles = 0;
     entry.holds.clear();
-    if (entry.suspended) this.resume(entry);
+    if (this.isStopped(entry)) this.resume(entry);
+  }
+
+  /**
+   * True when this child is stopped on our account right now.
+   *
+   * Callers that ask a child to be held need to know whether the request
+   * actually landed: the signal can fail (the process is already gone, the
+   * Windows helper could not start), and a caller that assumes success would
+   * carry on as if the machine had been freed up when it has not.
+   */
+  isSuspended(child: ChildProcess): boolean {
+    const pid = child.pid;
+    const entry = typeof pid === 'number' ? this.children.get(pid) : undefined;
+    return entry ? this.isStopped(entry) : false;
+  }
+
+  /**
+   * True when any part of this child's tree is stopped on our account. The root
+   * and its descendants can disagree: `suspend` still stops the descendants when
+   * the root's own signal did not land, so asking only about the root would
+   * strand them.
+   */
+  private isStopped(entry: ManagedChild): boolean {
+    return entry.suspended || entry.suspendedDescendants.size > 0;
   }
 
   /** PIDs the sampler should measure: every managed child plus its descendants. */
@@ -263,9 +370,26 @@ export class PowerGovernor {
     return pids;
   }
 
+  /**
+   * Replaces a child's descendant list. The tree tracker calls this on every
+   * walk; it is also the seam a test uses to place a tree without a real
+   * process table. Newly listed descendants immediately inherit whatever is
+   * already in force for their root.
+   */
   setDescendants(pid: number, descendants: number[]): void {
     const entry = this.children.get(pid);
-    if (entry) entry.descendants = descendants;
+    if (!entry) return;
+    entry.descendants = descendants;
+    // Forget PIDs that have left the tree. `suspendedDescendants` must NOT be
+    // pruned the same way — a descendant that was reparented away is still
+    // stopped on our account and we are the only thing that knows it — but
+    // `deprioritized` is only a "already done" marker, and keeping every PID a
+    // long-lived Chromium ever spawned would grow without bound.
+    const current = new Set(descendants);
+    for (const known of entry.deprioritized) {
+      if (!current.has(known)) entry.deprioritized.delete(known);
+    }
+    this.adoptDescendants(entry);
   }
 
   /** Registered child PIDs, without descendants. */
@@ -283,7 +407,10 @@ export class PowerGovernor {
   }
 
   state(): PowerState {
-    const activity = this.activeChildren() > 0 || this.busy() ? 'active' : 'idle';
+    // Counted once. `state()` is rebuilt on every child starting or finishing,
+    // which during a batch is several times a second.
+    const activeChildren = this.activeChildren();
+    const activity = activeChildren > 0 || this.busy() ? 'active' : 'idle';
     const sample: PowerSample = this.latestSample
       ? { ...this.latestSample, activity }
       : {
@@ -297,17 +424,20 @@ export class PowerGovernor {
       mode: powerModeFor(this.limit),
       sample,
       throttlingSupported: this.pauseSupported,
-      activeChildren: this.activeChildren(),
+      activeChildren,
       updatedAt: this.updatedAt
     };
   }
 
   async shutdown(): Promise<void> {
     this.stopCycle();
-    // Resume everything before the process exits. A child left stopped here
-    // would survive the agent and never make progress again.
+    this.stopTreeTracking();
+    this.treeWatchers = 0;
+    // Resume everything before the process exits. A child left stopped here —
+    // or a descendant of one — would survive the agent and never make progress
+    // again.
     for (const entry of this.children.values()) {
-      if (entry.suspended) this.resume(entry);
+      if (this.isStopped(entry)) this.resume(entry);
     }
     this.children.clear();
     // Only after everything is resumed: on Windows the helper IS the resume
@@ -325,10 +455,12 @@ export class PowerGovernor {
       // Leaving the limit means nothing stays stopped on our account, but a
       // caller's hold still stands.
       for (const entry of this.children.values()) {
-        if (entry.suspended && entry.holds.size === 0) this.resume(entry);
+        if (this.isStopped(entry) && entry.holds.size === 0) this.resume(entry);
       }
+      this.updateTreeTracking();
       return;
     }
+    this.updateTreeTracking();
     if (!this.cycleTimer) this.startCycle();
   }
 
@@ -339,12 +471,7 @@ export class PowerGovernor {
         this.stopCycle();
         return;
       }
-      const onMs = Math.max(MIN_DUTY_ON_MS, Math.round(DUTY_PERIOD_MS * dutyOnFraction));
-      const offMs = Math.max(0, DUTY_PERIOD_MS - onMs);
-      if (offMs === 0) {
-        this.schedule(tick, DUTY_PERIOD_MS);
-        return;
-      }
+      const { onMs, offMs } = dutyWindows(dutyOnFraction);
       this.resumeAll();
       this.schedule(() => {
         this.suspendAll();
@@ -374,34 +501,205 @@ export class PowerGovernor {
   private resumeAll(): void {
     for (const entry of this.children.values()) {
       if (entry.holds.size > 0 || entry.terminating) continue;
-      if (entry.suspended) this.resume(entry);
+      if (this.isStopped(entry)) this.resume(entry);
     }
   }
 
   private suspendAll(): void {
     for (const entry of this.children.values()) {
-      if (entry.terminating) continue;
-      if (!entry.suspended) this.suspend(entry);
+      if (this.holdsTerminationPin(entry)) continue;
+      // Re-entering `suspend` on an already-stopped root is what catches
+      // descendants that appeared during the on-window; it is a no-op for the
+      // ones already held.
+      this.suspend(entry);
     }
   }
 
+  /**
+   * True while a child is still pinned resumed for a termination in flight.
+   *
+   * The pin ages out here, on the cycler's own tick, so no clock is involved:
+   * a child that outlives `TERMINATION_PIN_CYCLES` periods clearly survived the
+   * signal that was meant to end it, and must come back under the limit.
+   */
+  private holdsTerminationPin(entry: ManagedChild): boolean {
+    if (!entry.terminating) return false;
+    entry.terminationPinCycles += 1;
+    if (entry.terminationPinCycles <= TERMINATION_PIN_CYCLES) return true;
+    entry.terminating = false;
+    return false;
+  }
+
+  /**
+   * Stops a managed child AND the descendants it has fanned out to.
+   *
+   * The root alone is not enough. Playwright's Chromium is a broker that does
+   * almost no work itself: stopping it leaves every renderer running at full
+   * speed, so the limit would be honoured on paper while the machine stayed
+   * pinned — and the readout, which *does* count descendants, would show it.
+   *
+   * The root goes first so it cannot fork more children into the gap; anything
+   * it manages to start anyway is caught by the next tree refresh.
+   */
   private suspend(entry: ManagedChild): void {
     // Never signal a PID whose process has already gone: the OS may have
     // recycled it onto something unrelated.
     if (!entry.live) return;
+    if (entry.terminating) return;
     try {
-      if (pauseProcess(entry.child)) entry.suspended = true;
+      if (!entry.suspended && pauseProcess(entry.child)) entry.suspended = true;
     } catch (error) {
       this.onError(error, 'Could not suspend a managed child process');
     }
+    this.suspendDescendants(entry, entry.descendants);
   }
 
+  /**
+   * Stops `pids` on `entry`'s behalf. Only ever called with PIDs a snapshot no
+   * older than `TREE_REFRESH_MS` reported beneath this child — there is no
+   * reaped-child guard on a bare PID, so recency is the whole protection
+   * against signalling a recycled one.
+   */
+  private suspendDescendants(entry: ManagedChild, pids: readonly number[]): void {
+    for (const pid of pids) {
+      if (entry.suspendedDescendants.has(pid)) continue;
+      try {
+        if (this.descendantSignals.pause(pid)) entry.suspendedDescendants.add(pid);
+      } catch (error) {
+        this.onError(error, 'Could not suspend a descendant of a managed child process');
+      }
+    }
+  }
+
+  /**
+   * Resumes the tree, descendants first so none of them is left stopped behind
+   * a root that has already been let go.
+   *
+   * Every PID we ever stopped is resumed, not just the ones still in the tree:
+   * a descendant that has been reparented away is still stopped, and we are the
+   * only thing that knows it. SIGCONT to a PID that has since been recycled is
+   * harmless — it is a no-op against a process that is not stopped.
+   */
   private resume(entry: ManagedChild): void {
+    for (const pid of entry.suspendedDescendants) {
+      try {
+        this.descendantSignals.resume(pid);
+      } catch (error) {
+        this.onError(error, 'Could not resume a descendant of a managed child process');
+      }
+    }
+    entry.suspendedDescendants.clear();
     try {
       resumeProcess(entry.child);
     } catch (error) {
       this.onError(error, 'Could not resume a managed child process');
     }
     entry.suspended = false;
+  }
+
+  /* ── descendant tracking ──────────────────────────────────────────────── */
+
+  /**
+   * Keeps the descendant tree fresh for a consumer that needs it for
+   * measurement rather than control; the returned teardown releases it.
+   *
+   * Control-side tracking turns itself on and off with the duty cycler, so this
+   * exists only for the sampler: at 100% nothing is being suspended, but the
+   * readout must still count Chromium's renderers when someone is watching.
+   */
+  retainTree(): () => void {
+    this.treeWatchers += 1;
+    this.updateTreeTracking();
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this.treeWatchers = Math.max(0, this.treeWatchers - 1);
+      this.updateTreeTracking();
+    };
+  }
+
+  /**
+   * Runs the tree walk exactly when someone needs it: while the cycler has
+   * children to hold down, or while a viewer is measuring. A walk shells out to
+   * the process table, so leaving it running for an agent nobody is watching
+   * would be a cost with no reader.
+   */
+  private updateTreeTracking(): void {
+    if (!this.treeTrackingNeeded()) return;
+    if (this.treeTimer) return;
+    const timer = setInterval(() => {
+      // Whether tracking is still wanted is decided HERE rather than at every
+      // register/release. Short-lived tools — the estimator fires off
+      // sub-second `ffprobe` calls one after another — would otherwise tear the
+      // timer down between spawns and rebuild it on the next one, and every
+      // rebuild walks the process table immediately. Letting the timer outlive
+      // one interval collapses a walk-per-spawn back to a walk-per-period.
+      if (!this.treeTrackingNeeded()) {
+        this.stopTreeTracking();
+        return;
+      }
+      void this.refreshTree();
+    }, TREE_REFRESH_MS);
+    // Never hold the process open on the tree tracker's account.
+    timer.unref();
+    this.treeTimer = timer;
+    void this.refreshTree();
+  }
+
+  private treeTrackingNeeded(): boolean {
+    return (
+      this.children.size > 0 &&
+      (this.treeWatchers > 0 || (this.pauseSupported && this.budget().dutyOnFraction < 1))
+    );
+  }
+
+  private stopTreeTracking(): void {
+    if (!this.treeTimer) return;
+    clearInterval(this.treeTimer);
+    this.treeTimer = null;
+  }
+
+  /** Exposed for tests; the interval calls it. */
+  async refreshTree(): Promise<void> {
+    // A slow process table must not stack walks on top of each other.
+    if (this.treeInFlight) return;
+    const roots = this.childPids();
+    if (roots.length === 0) return;
+    this.treeInFlight = true;
+    try {
+      const rows = await this.probeProcessTable();
+      // One index over the whole table, then one walk per root. Calling
+      // `descendantsOf` per child would rebuild that index — hundreds of rows —
+      // once for every managed process on every refresh.
+      const byRoot = descendantsByRoot(rows, roots);
+      for (const root of roots) this.setDescendants(root, byRoot.get(root) ?? []);
+    } catch (error) {
+      this.onError(error, 'Could not walk the process tree of a managed child');
+    } finally {
+      this.treeInFlight = false;
+    }
+  }
+
+  /**
+   * Brings newly discovered descendants under the rules already in force for
+   * their root: stopped if the root is currently stopped, and de-prioritised if
+   * a limit is set. Without this a tool that forks during an off-window would
+   * run unthrottled until the root's next full suspend.
+   */
+  private adoptDescendants(entry: ManagedChild): void {
+    const { priority } = this.budget();
+    if (priority !== null) {
+      for (const pid of entry.descendants) {
+        if (entry.deprioritized.has(pid)) continue;
+        entry.deprioritized.add(pid);
+        try {
+          this.descendantSignals.setPriority(pid, priority);
+        } catch {
+          // Priority is politeness, never a requirement.
+        }
+      }
+    }
+    if (entry.suspended && !entry.terminating) this.suspendDescendants(entry, entry.descendants);
   }
 }

@@ -30,6 +30,15 @@ build_number=$(node scripts/release-meta.mjs build-number)
 build_id=$(node scripts/release-meta.mjs build-id)
 api_version=$(node scripts/release-meta.mjs api-version)
 release_channel=$(node scripts/release-meta.mjs release-channel)
+# Identity slots come from the shared environment profile, never retyped here:
+# the bundle id, lock name, and support directory are what an installed copy is
+# recognised by, and a second spelling of them is how two builds end up
+# fighting over one lock file.
+agent_port=$(node scripts/environment-meta.mjs production agent-port)
+app_name=$(node scripts/environment-meta.mjs production app-name)
+instance_lock_name=$(node scripts/environment-meta.mjs production instance-lock-name)
+support_directory_name=$(node scripts/environment-meta.mjs production support-directory-name)
+bundle_id=$(node scripts/environment-meta.mjs production bundle-id)
 dmg_name=$(node scripts/release-meta.mjs artifact-name)
 source_revision=$(git rev-parse HEAD)
 root="$PWD/release"; app="$root/Soty.app"; archive="$root/${dmg_name%.dmg}.zip"
@@ -37,10 +46,10 @@ mkdir -p "$root"
 [[ ! -e "$archive" ]] || { print -u2 "$archive already exists. Published build identities are immutable; bump PRODUCT_VERSION and BUILD_NUMBER."; exit 1; }
 rm -rf "$app"; mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/runtime/bin" "$app/Contents/Resources/runtime/models" "$app/Contents/Resources/agent"
 node scripts/render-launcher.mjs packaging/Launcher.swift "$root/Launcher.generated.swift" \
-  "AGENT_PORT=43120" \
-  "APP_NAME=Soty" \
-  "INSTANCE_LOCK_NAME=local-video-compressor-agent.lock" \
-  "SUPPORT_DIRECTORY_NAME=Soty" \
+  "AGENT_PORT=$agent_port" \
+  "APP_NAME=$app_name" \
+  "INSTANCE_LOCK_NAME=$instance_lock_name" \
+  "SUPPORT_DIRECTORY_NAME=$support_directory_name" \
   "PUBLIC_SITE_ORIGIN=$PUBLIC_SITE_ORIGIN" \
   "APP_VERSION=$product_version" \
   "BUILD_NUMBER=$build_number" \
@@ -74,7 +83,7 @@ cp packaging/Info.plist "$app/Contents/Info.plist"; cp THIRD_PARTY_NOTICES.md "$
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $build_number" "$app/Contents/Info.plist"
 zsh scripts/build-finder-extension.sh \
   "$app" \
-  "local.video.compressor.test.finder-extension" \
+  "$bundle_id.finder-extension" \
   "Soty Finder" \
   "Soty Finder Action" \
   "$bundle_version" \

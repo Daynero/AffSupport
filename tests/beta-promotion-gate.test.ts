@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64 } from '../packages/shared/src/release.js';
+import { BETA_PROFILE } from '../packages/shared/src/environment.js';
 
 /**
  * The gate calls process.exit, so its rules are re-expressed here as pure
@@ -24,7 +25,11 @@ function recordRejection(head: string, contained: boolean, record: Record_): str
     return 'record names no source revision';
   }
   if (record.sourceRevision !== head) return 'record is for a different revision';
-  if (record.dirty === true) return 'record is from a dirty worktree';
+  if (record.dirty !== false) {
+    return record.dirty === true
+      ? 'record is from a dirty worktree'
+      : 'record does not state whether the worktree was clean';
+  }
   if (typeof record.verifiedAt !== 'string' || !record.verifiedAt) return 'record has no timestamp';
   return null;
 }
@@ -51,6 +56,19 @@ describe('promotion gate', () => {
     // must not be reusable.
     expect(recordRejection(HEAD, true, { ...GOOD, sourceRevision: OTHER })).toBe(
       'record is for a different revision'
+    );
+  });
+
+  it('refuses a record that does not say whether the worktree was clean', () => {
+    // Absence of the flag is not evidence of cleanliness. A record that never
+    // made the claim would otherwise pass the one gate whose job is to prove the
+    // build corresponds to this commit.
+    const withoutFlag: Record_ = {
+      sourceRevision: GOOD.sourceRevision,
+      verifiedAt: GOOD.verifiedAt
+    };
+    expect(recordRejection(HEAD, true, withoutFlag)).toBe(
+      'record does not state whether the worktree was clean'
     );
   });
 
@@ -103,14 +121,25 @@ describe('packaged beta build', () => {
   });
 
   it('carries a beta identity in every slot', () => {
-    for (const marker of [
-      'com.wishly.beta',
-      'Soty Beta',
-      'wishly-beta-agent.lock',
-      'RELEASE_CHANNEL=beta',
-      '43140'
+    // Asserted at the source rather than as a string in the script: the values
+    // live in the shared profile and packaging reads them from there, so this
+    // is the identity that actually reaches the bundle. A second spelling in
+    // the script is exactly what used to let the two drift apart.
+    expect(BETA_PROFILE).toMatchObject({
+      bundleId: 'com.wishly.beta',
+      appName: 'Soty Beta',
+      instanceLockName: 'wishly-beta-agent.lock',
+      agentPort: 43140,
+      releaseChannel: 'beta'
+    });
+    for (const wiring of [
+      'environment-meta.mjs beta bundle-id',
+      'environment-meta.mjs beta app-name',
+      'environment-meta.mjs beta instance-lock-name',
+      'environment-meta.mjs beta agent-port',
+      'RELEASE_CHANNEL=beta'
     ]) {
-      expect(PACKAGING).toContain(marker);
+      expect(PACKAGING).toContain(wiring);
     }
   });
 

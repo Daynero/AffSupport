@@ -194,6 +194,7 @@ export class LandingPageRenderer {
   async shutdown() {
     const browser = this.browser;
     this.browser = null;
+    if (browser) releaseBrowserProcess(browser);
     await browser?.close().catch(() => {});
   }
 
@@ -526,11 +527,33 @@ function throwIfAborted(signal?: AbortSignal) {
 function registerBrowserProcess(browser: Browser): void {
   const governor = activeGovernorOrNull();
   if (!governor) return;
-  // `process()` is not part of the public Browser type but is present on a
-  // locally launched browser; a remote connection has none, and skipping it is
-  // correct there — a remote browser is not consuming this machine.
-  const child = (browser as unknown as { process?: () => ChildProcess | null }).process?.();
+  const child = browserProcess(browser);
   if (!child) return;
   governor.register(child, { toolId: 'landing-preview' });
   browser.on('disconnected', () => governor.release(child));
+}
+
+/**
+ * Lets the browser go before closing it.
+ *
+ * `browser.close()` is a protocol conversation, not a signal: a Chromium
+ * suspended in a duty cycle's off-window cannot read the request, so the close
+ * would hang until Playwright gave up and killed the tree — losing the graceful
+ * shutdown for as long as the limit is set. Every other managed child gets this
+ * for free from the `kill` guard in power/spawn.ts; Playwright owns this spawn,
+ * so this is where the same promise is kept.
+ */
+function releaseBrowserProcess(browser: Browser): void {
+  const governor = activeGovernorOrNull();
+  const child = governor ? browserProcess(browser) : null;
+  if (governor && child) governor.resumeForTermination(child);
+}
+
+/**
+ * `process()` is not part of the public Browser type but is present on a
+ * locally launched browser; a remote connection has none, and skipping it is
+ * correct there — a remote browser is not consuming this machine.
+ */
+function browserProcess(browser: Browser): ChildProcess | null {
+  return (browser as unknown as { process?: () => ChildProcess | null }).process?.() ?? null;
 }

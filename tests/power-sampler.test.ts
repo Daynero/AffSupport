@@ -33,7 +33,6 @@ function samplerWith(script: ProbeScript, governor = new PowerGovernor({ cpuCoun
         if (script.throws) throw new Error('probe failed');
         return new Map([[1, script.cpuSeconds[Math.min(call, script.cpuSeconds.length - 1)]]]);
       },
-      processTable: async () => script.table ?? [],
       selfCpuSeconds: () => {
         call += 1;
         return 0;
@@ -101,6 +100,84 @@ describe('share calculation', () => {
 
     const sample = governor.state().sample;
     if (sample.availability === 'ok') expect(sample.systemSharePercent).toBeLessThanOrEqual(100);
+  });
+});
+
+describe('a changing set of processes', () => {
+  /** A sampler whose probe answers from a mutable per-PID table. */
+  function perPidSampler() {
+    const times = new Map<number, number>();
+    const governor = new PowerGovernor({ cpuCount: 10 });
+    const sampler = new PowerSampler({
+      governor,
+      cpuCount: 10,
+      probes: {
+        supported: () => true,
+        cpuSeconds: async () => new Map(times),
+        selfCpuSeconds: () => 0
+      }
+    });
+    return { sampler, governor, times };
+  }
+
+  it('does not spike when a long-running descendant is discovered late', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-20T09:00:00.000Z'));
+    const { sampler, governor, times } = perPidSampler();
+    times.set(1, 0);
+    await sampler.sample();
+
+    vi.setSystemTime(new Date('2026-08-20T09:00:01.000Z'));
+    // Chromium's renderers are found by the tree walk seconds after they
+    // started, carrying every CPU-second they have ever used. Differencing the
+    // totals would drop that whole lifetime into one tick and paint the readout
+    // at 100% for a machine that is barely working.
+    times.set(1, 0.05);
+    times.set(4242, 30);
+    await sampler.sample();
+
+    const sample = governor.state().sample;
+    expect(sample.availability).toBe('ok');
+    if (sample.availability === 'ok') expect(sample.systemSharePercent).toBeLessThan(1);
+  });
+
+  it('counts a newly tracked process from its next tick onwards', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-20T09:00:00.000Z'));
+    const { sampler, governor, times } = perPidSampler();
+    times.set(1, 0);
+    await sampler.sample();
+
+    vi.setSystemTime(new Date('2026-08-20T09:00:01.000Z'));
+    times.set(4242, 30);
+    await sampler.sample();
+
+    vi.setSystemTime(new Date('2026-08-20T09:00:02.000Z'));
+    times.set(4242, 35);
+    await sampler.sample();
+
+    const sample = governor.state().sample;
+    // 5 CPU-seconds over 1 wall-second on 10 cores.
+    if (sample.availability === 'ok') expect(sample.systemSharePercent).toBeCloseTo(50, 1);
+  });
+
+  it('keeps reporting the rest of the tree when one process exits', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-20T09:00:00.000Z'));
+    const { sampler, governor, times } = perPidSampler();
+    times.set(1, 100);
+    times.set(2, 4);
+    await sampler.sample();
+
+    vi.setSystemTime(new Date('2026-08-20T09:00:01.000Z'));
+    // PID 1 finished and left the table. Differencing the totals turned that
+    // drop into a flat 0% for the tick, hiding the work PID 2 was still doing.
+    times.delete(1);
+    times.set(2, 7);
+    await sampler.sample();
+
+    const sample = governor.state().sample;
+    if (sample.availability === 'ok') expect(sample.systemSharePercent).toBeCloseTo(30, 1);
   });
 });
 

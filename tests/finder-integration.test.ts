@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { AGENT_CAPABILITIES } from '../packages/shared/src/types.js';
+import { DEV_PROFILE, PRODUCTION_PROFILE } from '../packages/shared/src/environment.js';
 
 describe('Soty Finder image conversion integration', () => {
   const extension = readFileSync('packaging/FinderExtension/FinderSync.swift', 'utf8');
@@ -69,8 +70,15 @@ describe('Soty Finder image conversion integration', () => {
       expect(script).toContain('-target arm64-apple-macos13.0');
       expect(script).toContain('--preserve-metadata=entitlements');
     }
-    expect(production).toContain('local.video.compressor.test.finder-extension');
-    expect(development).toContain('com.wishly.dev.finder-extension');
+    // The extension id is the app's bundle id plus a suffix, and the bundle id
+    // comes from the shared profile — which is what keeps the two variants'
+    // extensions from ever claiming the same identity.
+    expect(PRODUCTION_PROFILE.bundleId).toBe('local.video.compressor.test');
+    expect(DEV_PROFILE.bundleId).toBe('com.wishly.dev');
+    expect(PRODUCTION_PROFILE.bundleId).not.toBe(DEV_PROFILE.bundleId);
+    for (const script of [production, development]) {
+      expect(script).toContain('"$bundle_id.finder-extension"');
+    }
     expect(development).toContain('Soty Dev Finder Action');
     expect(development).toContain('— Soty Dev');
     expect(development).toContain('Contents/MacOS/SotyDevAgent');

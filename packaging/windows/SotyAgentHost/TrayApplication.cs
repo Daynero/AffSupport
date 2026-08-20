@@ -18,6 +18,9 @@ internal sealed class TrayApplication : ApplicationContext
   private const int MaxRuntimeRestarts = 2;
   // The agent exits with 75 (EX_TEMPFAIL) when a transient runtime fault warrants a restart.
   private const int RestartableExitCode = 75;
+  // ...and with 76 when it has drained its work for a coordinated update handoff.
+  // Both codes are the agent's, not this host's: Launcher.swift reads the same two.
+  private const int UpdateHandoffExitCode = 76;
 
   private readonly NotifyIcon notifyIcon;
   private readonly AgentHealthClient healthClient = new();
@@ -206,7 +209,10 @@ internal sealed class TrayApplication : ApplicationContext
   /// <summary>
   /// macOS asks other bundle instances to terminate gracefully; Windows has no such
   /// channel for a windowless tray process, so this kills sibling hosts started from
-  /// the same executable path. Their agent children exit via the ppid watchdog.
+  /// the same executable path — and their agent children with them.
+  /// The agent's own watchdog would also notice (AgentProcess passes
+  /// AGENT_LAUNCHER_PID for exactly that), but it polls once a second, and until it
+  /// fires the orphan still holds the port this instance is about to wait for.
   /// </summary>
   private static void TerminateOtherHostInstances()
   {
@@ -226,7 +232,7 @@ internal sealed class TrayApplication : ApplicationContext
                 StringComparison.OrdinalIgnoreCase
               ))
           {
-            candidate.Kill();
+            candidate.Kill(entireProcessTree: true);
           }
         }
         catch
@@ -322,11 +328,27 @@ internal sealed class TrayApplication : ApplicationContext
     BeginReadinessChecks();
   }
 
+  /// <summary>
+  /// Mirrors the terminationHandler in Launcher.swift, branch for branch. An exit code
+  /// the agent uses to say something specific must not be read here as a crash.
+  /// </summary>
   private async void OnAgentExited(int exitCode)
   {
     if (isTerminating) return;
     agentReady = false;
     readinessTimer.Stop();
+
+    if (exitCode == UpdateHandoffExitCode)
+    {
+      // The agent accepted a coordinated update drain — it finished its work and
+      // stepped aside on purpose. Reporting that as "exited with status 76" showed
+      // the user a crash dialog and quit, in the middle of a successful update.
+      agent = null;
+      if (InstalledBuildDiffers(await ReadInstalledReleaseAsync())) RestartIntoInstalledBuild();
+      else ExitHost();
+      return;
+    }
+
     if (exitCode == RestartableExitCode && runtimeRestartAttempts < MaxRuntimeRestarts)
     {
       runtimeRestartAttempts += 1;
@@ -336,11 +358,46 @@ internal sealed class TrayApplication : ApplicationContext
       if (!isTerminating) await StartAgentWhenPortIsFreeAsync();
       return;
     }
+
+    // Something is still answering on the port, so this agent did not so much fail as
+    // lose the port to another copy. Waiting for it to go is what macOS does, and the
+    // wait below is bounded — it gives up with a failure of its own.
+    var occupant = await healthClient.ProbeAsync(TimeSpan.FromMilliseconds(350));
+    if (isTerminating) return;
+    if (occupant is not null)
+    {
+      agent = null;
+      portWaitAttempts = 0;
+      await StartAgentWhenPortIsFreeAsync();
+      return;
+    }
+
     ShowFailure(
       $"The local agent exited with status {exitCode}.",
       agent?.OutputTail ?? string.Empty
     );
   }
+
+  /// <summary>The staged release.json beside this host, or null when unreadable.</summary>
+  private async Task<InstalledRelease?> ReadInstalledReleaseAsync()
+  {
+    try
+    {
+      var payload = await File.ReadAllTextAsync(Path.Combine(resourceRoot, "release.json"));
+      return System.Text.Json.JsonSerializer.Deserialize<InstalledRelease>(payload);
+    }
+    catch
+    {
+      return null;
+    }
+  }
+
+  /// <summary>True when a different build is staged next to this host, waiting to run.</summary>
+  private static bool InstalledBuildDiffers(InstalledRelease? installed) =>
+    installed?.BuildId is not null
+    && installed.SourceRevision is not null
+    && (installed.BuildId != HostConfig.ExpectedBuildId
+      || installed.SourceRevision != HostConfig.SourceRevision);
 
   private void BeginReadinessChecks()
   {
@@ -387,24 +444,8 @@ internal sealed class TrayApplication : ApplicationContext
   private async Task CheckInstalledBuildAsync()
   {
     if (isTerminating || restartingIntoInstalledBuild) return;
-    InstalledRelease? installed;
-    try
-    {
-      var payload = await File.ReadAllTextAsync(Path.Combine(resourceRoot, "release.json"));
-      installed = System.Text.Json.JsonSerializer.Deserialize<InstalledRelease>(payload);
-    }
-    catch
-    {
-      return;
-    }
-    if (installed?.BuildId is null || installed.SourceRevision is null) return;
-    if (
-      installed.BuildId == HostConfig.ExpectedBuildId
-      && installed.SourceRevision == HostConfig.SourceRevision
-    )
-    {
-      return;
-    }
+    var installed = await ReadInstalledReleaseAsync();
+    if (!InstalledBuildDiffers(installed) || installed?.SourceRevision is null) return;
 
     var health = await healthClient.ProbeAsync(TimeSpan.FromSeconds(1));
     if (isTerminating || restartingIntoInstalledBuild) return;

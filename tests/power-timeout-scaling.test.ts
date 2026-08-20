@@ -69,8 +69,39 @@ describe('managed-work deadlines are wired to the budget', () => {
     },
     { file: 'landing-preview/scanner.ts', constants: ['FS_OP_TIMEOUT_MS'] },
     { file: 'team-bridge/landing-gallery.ts', constants: ['#watchdogMs'] },
-    { file: 'queue/queue.ts', constants: ['2000'] }
+    { file: 'queue/queue.ts', constants: ['2000'] },
+    // The llama.cpp servers are managed children too, so a cold model load is
+    // duty-cycled while it happens. These two deadlines were left raw when the
+    // rest were wired up: at a 20% limit the load blows a fixed 120 s budget and
+    // translation stops working, blaming the model rather than the lever.
+    { file: 'translation/translator.ts', constants: ['START_TIMEOUT_MS'] },
+    { file: 'translation/aligner.ts', constants: ['ALIGNER_START_TIMEOUT_MS'] },
+    // Whisper's inactivity watchdog measures the gap between progress lines,
+    // and a throttled decoder legitimately produces them further apart. Left
+    // fixed, it ends a healthy transcription and reports a stalled engine.
+    { file: 'whisper/transcriber.ts', constants: ['WHISPER_INACTIVITY_TIMEOUT_MS'] },
+    // The team bridge's own six-hour ceiling. Its sibling in landing-gallery.ts
+    // was wired to the budget; this one, which covers compression and
+    // transcription, was not.
+    { file: 'team-bridge/process.ts', constants: ['#watchdogMs'] }
   ];
+
+  it('covers every module that spawns a managed child and then waits on it', async () => {
+    // The list above is only as good as its coverage. A module that starts a
+    // long-lived tool and then enforces a wall-clock deadline on it belongs in
+    // it; this is the check that notices the next one.
+    const suspects = [
+      'translation/translator.ts',
+      'translation/aligner.ts',
+      'landing-preview/renderer.ts',
+      'whisper/transcriber.ts',
+      'team-bridge/process.ts',
+      'team-bridge/landing-gallery.ts'
+    ];
+    for (const file of suspects) {
+      expect(wired.map(entry => entry.file)).toContain(file);
+    }
+  });
 
   it.each(wired)('scales the deadlines in $file', async ({ file, constants }) => {
     const source = await readFile(path.join(AGENT_SRC, file), 'utf8');

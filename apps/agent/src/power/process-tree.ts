@@ -12,6 +12,27 @@ export function descendantsOf(
   rows: readonly ProcessTableRow[],
   roots: readonly number[]
 ): number[] {
+  return walk(childIndex(rows), roots);
+}
+
+/**
+ * The same walk, once per root, over ONE index of the table.
+ *
+ * The governor tracks several children at a time and needs each one's own
+ * descendants. Calling `descendantsOf` in a loop would rebuild the index —
+ * every row of the process table — for each of them, on every refresh.
+ */
+export function descendantsByRoot(
+  rows: readonly ProcessTableRow[],
+  roots: readonly number[]
+): Map<number, number[]> {
+  const index = childIndex(rows);
+  const result = new Map<number, number[]>();
+  for (const root of roots) result.set(root, walk(index, [root]));
+  return result;
+}
+
+function childIndex(rows: readonly ProcessTableRow[]): Map<number, number[]> {
   const childrenByParent = new Map<number, number[]>();
   for (const row of rows) {
     // A process is never its own parent in a sane table, but a malformed row
@@ -21,7 +42,10 @@ export function descendantsOf(
     if (siblings) siblings.push(row.pid);
     else childrenByParent.set(row.ppid, [row.pid]);
   }
+  return childrenByParent;
+}
 
+function walk(childrenByParent: Map<number, number[]>, roots: readonly number[]): number[] {
   const found = new Set<number>();
   const queue = [...roots];
   while (queue.length > 0) {

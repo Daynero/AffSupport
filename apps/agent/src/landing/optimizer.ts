@@ -52,6 +52,8 @@ class LandingJobOptimizer {
   private pendingName = 'landing';
   private running = false;
   private controller: AbortController | null = null;
+  /** Set by cancel() so the aborted run reports "cancelled", not "failed". */
+  private cancelling = false;
   private idleWaiters: Array<() => void> = [];
   private previews = new LandingPreviewStore();
 
@@ -113,8 +115,24 @@ class LandingJobOptimizer {
 
   async cancel(): Promise<boolean> {
     if (!this.running || !this.controller) return false;
+    this.cancelling = true;
     this.controller.abort(new Error('PROCESS_CANCELED'));
     await new Promise<void>(resolve => this.idleWaiters.push(resolve));
+    return true;
+  }
+
+  /**
+   * Drops a job that is waiting its turn; the pump then skips it. Silent on
+   * purpose — "stop all" cancels every waiting landing at once and broadcasts
+   * once at the end, rather than a full state frame per card.
+   */
+  cancelQueued(): boolean {
+    if (this.running || this.job?.status !== 'queued') return false;
+    this.job.status = 'cancelled';
+    this.job.phase = 'cancelled';
+    this.job.progress = null;
+    this.job.currentAssetId = null;
+    this.job.finishedAt = Date.now();
     return true;
   }
 
@@ -241,6 +259,7 @@ class LandingJobOptimizer {
     if (!this.landingRoot || !this.destinationDir) return false;
     if (!this.tools.ffmpeg || !this.tools.ffprobe) return false;
     this.running = true;
+    this.cancelling = false;
     const controller = new AbortController();
     this.controller = controller;
     this.job.status = 'processing';
@@ -270,12 +289,18 @@ class LandingJobOptimizer {
       this.job.phase = 'completed';
       this.job.progress = 100;
     } catch (error) {
-      this.job.status = 'failed';
-      this.job.phase = 'failed';
+      // A user-requested stop aborts the same signal a real failure would, so
+      // the flag — not the error — decides which state the card ends up in.
+      this.job.status = this.cancelling ? 'cancelled' : 'failed';
+      this.job.phase = this.cancelling ? 'cancelled' : 'failed';
       this.job.currentAssetId = null;
-      this.job.error =
-        error instanceof Error ? error.message : 'The landing could not be optimized.';
+      this.job.error = this.cancelling
+        ? null
+        : error instanceof Error
+          ? error.message
+          : 'The landing could not be optimized.';
     } finally {
+      this.cancelling = false;
       applySummary(this.job);
       this.job.finishedAt = Date.now();
       this.running = false;
@@ -625,10 +650,30 @@ export class LandingOptimizer {
     return canceled;
   }
 
+  /**
+   * Stops every landing the user can see. Queued ones are dropped first so the
+   * pump cannot pick another one up while the running landing is torn down,
+   * and team landings are skipped: they are invisible in this tool, so a
+   * "stop all" here must not kill Team Workspace work.
+   */
+  async cancelAll(): Promise<number> {
+    const own = this.workers.filter(worker => !this.teamWorkers.has(worker));
+    let stopped = 0;
+    for (const worker of own) {
+      if (!worker.cancelQueued()) continue;
+      const jobId = worker.state().job?.id;
+      if (jobId) this.pendingJobIds = this.pendingJobIds.filter(id => id !== jobId);
+      stopped += 1;
+    }
+    for (const worker of own) if (await worker.cancel()) stopped += 1;
+    this.notify();
+    return stopped;
+  }
+
   async clearFinished() {
     const removable = this.workers.filter(worker => {
       const status = worker.state().job?.status;
-      return status === 'completed' || status === 'failed';
+      return status === 'completed' || status === 'failed' || status === 'cancelled';
     });
     for (const worker of removable) await this.discardWorker(worker);
   }

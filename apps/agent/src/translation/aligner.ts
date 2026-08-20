@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import type { ChildProcess } from 'node:child_process';
-import { spawnTracked } from '../power/spawn.js';
+import { activeGovernorOrNull, spawnTracked } from '../power/spawn.js';
 import type { AlignmentLink, TranscriptSegment, TranscriptWord } from '@video-compressor/shared';
 import {
   ALIGNMENT_MODEL_DESCRIPTOR,
@@ -45,6 +45,13 @@ const ALIGNER_IDLE_MS = 60_000;
  * many-to-one links, and reports confidence derived from cosine similarity and
  * nearest-neighbour margin.
  */
+const ALIGNER_START_TIMEOUT_MS = 45_000;
+
+/** A wall-clock budget stretched to match the resource limit in force. */
+function scaled(milliseconds: number): number {
+  return activeGovernorOrNull()?.scaleTimeout(milliseconds) ?? milliseconds;
+}
+
 export class E5Aligner implements Aligner {
   private child: ChildProcess | null = null;
   private port: number | null = null;
@@ -175,7 +182,10 @@ export class E5Aligner implements Aligner {
       if (this.child === child) this.child = null;
     });
 
-    const deadline = Date.now() + 45_000;
+    // Scaled, never raw: the embedding runtime is duty-cycled like every other
+    // managed child, so at a 20% limit a cold load takes roughly five times as
+    // long and a fixed budget would fail it for honouring the user's setting.
+    const deadline = Date.now() + scaled(ALIGNER_START_TIMEOUT_MS);
     while (Date.now() < deadline) {
       if (child.exitCode !== null) throw new Error('The local alignment engine could not start.');
       const health = await localLlamaHttpRequest(port, apiKey, 'GET', '/health').catch(() => null);

@@ -48,6 +48,7 @@ export function LandingJobCard({
     : null;
   const completed = job.status === 'completed';
   const failed = job.status === 'failed';
+  const cancelled = job.status === 'cancelled';
   const ready = job.status === 'ready';
   const queued = job.status === 'queued';
   const progress = landingJobProgress(job);
@@ -98,7 +99,7 @@ export function LandingJobCard({
               {totalAssets > 0 && <span aria-hidden="true">·</span>}
               {totalAssets > 0 && (
                 <span>
-                  {running || completed || failed
+                  {running || completed || failed || cancelled
                     ? t('landingProcessedCount', {
                         done: completedAssets,
                         total: totalAssets
@@ -145,7 +146,7 @@ export function LandingJobCard({
               </Button>
             </>
           )}
-          {(completed || failed) && (
+          {(completed || failed || cancelled) && (
             <Button variant="danger" disabled={!connected} onClick={onReset}>
               {t('landingRemove')}
             </Button>
@@ -444,19 +445,23 @@ function LandingBatchStatus({
             ? t('landingResultTitle')
             : job.status === 'failed'
               ? t('landingStatusFailed')
-              : finalizing
-                ? t('landingStatusFinalizing')
-                : t('landingStatusProcessing');
+              : job.status === 'cancelled'
+                ? t('statusCancelled')
+                : finalizing
+                  ? t('landingStatusFinalizing')
+                  : t('landingStatusProcessing');
   const statusClass =
     job.status === 'completed'
       ? 'status-completed'
       : job.status === 'failed'
         ? 'status-failed'
-        : job.status === 'ready'
-          ? 'status-ready'
-          : job.status === 'queued'
-            ? 'status-queued'
-            : 'status-processing';
+        : job.status === 'cancelled'
+          ? 'status-cancelled'
+          : job.status === 'ready'
+            ? 'status-ready'
+            : job.status === 'queued'
+              ? 'status-queued'
+              : 'status-processing';
   return (
     <span className={`status-badge ${statusClass}`}>
       {running && <SotyLoader size={15} />}

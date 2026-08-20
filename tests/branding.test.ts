@@ -7,6 +7,7 @@ import {
   RELEASE_ARTIFACT_NAME,
   RELEASE_DOWNLOAD_URL
 } from '../packages/shared/src/release';
+import { PRODUCTION_PROFILE } from '../packages/shared/src/environment';
 import { translate, translationKeys } from '../apps/web/src/i18n';
 
 const OLD_BRAND = /Local Video Compressor/;
@@ -94,7 +95,11 @@ describe('Soty brand identity', () => {
 
     const launcher = readFileSync('packaging/Launcher.swift', 'utf8');
     expect(launcher).toContain('__APP_NAME__');
-    expect(readFileSync('scripts/package-mac.sh', 'utf8')).toContain('APP_NAME=Soty');
+    // The name is passed through from the shared profile, so assert both ends:
+    // the profile carries the brand, and packaging wires that slot rather than
+    // spelling it out a second time.
+    expect(PRODUCTION_PROFILE.appName).toBe('Soty');
+    expect(readFileSync('scripts/package-mac.sh', 'utf8')).toContain('APP_NAME=$app_name');
     // The health handshake identifier is a compatibility constant, not a brand.
     expect(launcher).toContain('local-video-compressor-agent');
     expect(launcher).not.toMatch(/"[^"]*Local Video Compressor[^"]*"/);

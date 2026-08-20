@@ -171,6 +171,21 @@ export default function CompressorPage() {
     }
   };
 
+  /**
+   * Stops the batch and says how much was stopped. The count comes from what
+   * this window could see before the call, so a click that lands just after the
+   * last file finished reports honestly instead of implying it did something.
+   */
+  const stopAll = async () => {
+    const stopping = state.jobs.filter(job => ['processing', 'queued'].includes(job.status)).length;
+    try {
+      setState(await request<QueueState>('/api/queue/cancel-all', 'POST'));
+      if (stopping) addToast(t('stoppedCount', { count: stopping }), 'neutral');
+    } catch (error) {
+      handleError(error);
+    }
+  };
+
   const sendSettings = async (patch: AgentSettingsPatch) => {
     try {
       setState(await requestBody<QueueState>('/api/settings', patch));
@@ -355,6 +370,7 @@ export default function CompressorPage() {
   const selectableIds = useMemo(() => selectableJobIds(visibleJobs), [visibleJobs]);
   const selectedStartable = startableSelectedIds(state.jobs, selected);
   const selectedRemovable = removableSelectedIds(state.jobs, selected);
+  const stoppable = state.jobs.some(job => ['processing', 'queued'].includes(job.status));
   const metrics = useMemo(() => batchMetrics(state.jobs, state.batch), [state.jobs, state.batch]);
   const summary = useMemo(() => calculateQueueSummary(state.jobs), [state.jobs]);
   const selectedLabel = selected.size
@@ -480,6 +496,16 @@ export default function CompressorPage() {
                   <span className="compress-blocked-reason" role="status">
                     {t(blockedReasonKey(blocked)!)}
                   </span>
+                )}
+                {stoppable && (
+                  <Button
+                    variant="danger"
+                    disabled={!connected}
+                    title={t('stopAllHint')}
+                    onClick={() => void stopAll()}
+                  >
+                    {t('stopAll')}
+                  </Button>
                 )}
                 <Button
                   variant="danger"

@@ -1,5 +1,5 @@
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
-import { activeThreadBudget, spawnTracked } from '../power/spawn.js';
+import { activeGovernorOrNull, activeThreadBudget, spawnTracked } from '../power/spawn.js';
 import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
@@ -58,6 +58,11 @@ const PIVOT_END = 99;
 // without a watchdog it would block the single shared inference queue forever.
 const WHISPER_INACTIVITY_TIMEOUT_MS = 10 * 60_000;
 
+/** A wall-clock budget stretched to match the resource limit in force. */
+function scaled(milliseconds: number): number {
+  return activeGovernorOrNull()?.scaleTimeout(milliseconds) ?? milliseconds;
+}
+
 /**
  * Inactivity watchdog: re-armed on every stdout/stderr chunk; on expiry the
  * child gets SIGTERM, escalating to SIGKILL when it ignores that too.
@@ -73,7 +78,12 @@ function attachInactivityWatchdog(child: ChildProcessWithoutNullStreams): {
       const force = setTimeout(() => child.kill('SIGKILL'), 10_000);
       force.unref();
       child.once('close', () => clearTimeout(force));
-    }, WHISPER_INACTIVITY_TIMEOUT_MS);
+      // Read on every arm, not once: whisper is a managed child, so at a
+      // reduced limit it is suspended for most of every duty period and the gap
+      // between two progress lines stretches with it. A fixed window would end
+      // a healthy transcription for obeying the user's own setting — and the
+      // job would be reported as a stalled engine, blaming the wrong thing.
+    }, scaled(WHISPER_INACTIVITY_TIMEOUT_MS));
     timer.unref();
   };
   arm();

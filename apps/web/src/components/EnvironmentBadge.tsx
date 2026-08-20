@@ -1,4 +1,4 @@
-import { configuredEnvironment } from '../lib/config';
+import { builtForEnvironment } from '../lib/config';
 import { useI18n } from '../i18n';
 
 /**
@@ -9,10 +9,14 @@ import { useI18n } from '../i18n';
  * the reverse. The badge is therefore always on screen in a beta build — no
  * scrolling, no menu — and renders nothing at all in production, so it costs
  * the shipped app one boolean check.
+ *
+ * It reads the build's own environment value rather than the validated config:
+ * a beta profile with a mistake in it still has to look like beta, and that is
+ * precisely the build someone is most likely to mistake for production.
  */
 export function EnvironmentBadge() {
   const { t } = useI18n();
-  if (configuredEnvironment() !== 'beta') return null;
+  if (builtForEnvironment() !== 'beta') return null;
   return (
     <div className="environment-badge" role="note" title={t('betaBadgeTitle')}>
       {t('betaBadge')}
