@@ -94,7 +94,13 @@ private let updateHandoffToken = loadOrCreateUpdateHandoffToken()
 /// A compact, monochrome honeycomb mark for the macOS menu bar.  Template
 /// images let AppKit choose the correct foreground colour for light and dark
 /// menu bars while retaining the intentionally uneven half-fill.
-private func honeycombStatusImage(accessibilityDescription: String) -> NSImage {
+///
+/// While a tool is working the static fill is replaced by an equalizer: thin
+/// bars inside the same cell whose heights come from `levels` (each 0...1).
+private func honeycombStatusImage(
+  accessibilityDescription: String,
+  levels: [CGFloat]? = nil
+) -> NSImage {
   let image = NSImage(size: NSSize(width: 18, height: 18))
   image.lockFocus()
   defer { image.unlockFocus() }
@@ -108,25 +114,43 @@ private func honeycombStatusImage(accessibilityDescription: String) -> NSImage {
   hexagon.line(to: NSPoint(x: 2.5, y: 4.95))
   hexagon.close()
 
-  // Keep the lower portion visibly organic rather than splitting the cell
-  // along a perfectly level line.
-  let fill = NSBezierPath()
-  fill.move(to: NSPoint(x: 2.5, y: 9.35))
-  fill.line(to: NSPoint(x: 4.75, y: 8.85))
-  fill.line(to: NSPoint(x: 6.7, y: 9.6))
-  fill.line(to: NSPoint(x: 8.8, y: 7.95))
-  fill.line(to: NSPoint(x: 11, y: 8.75))
-  fill.line(to: NSPoint(x: 12.65, y: 8.15))
-  fill.line(to: NSPoint(x: 15.5, y: 10.5))
-  fill.line(to: NSPoint(x: 15.5, y: 13.05))
-  fill.line(to: NSPoint(x: 9, y: 16.8))
-  fill.line(to: NSPoint(x: 2.5, y: 13.05))
-  fill.close()
-
   NSGraphicsContext.saveGraphicsState()
   hexagon.addClip()
   NSColor.black.setFill()
-  fill.fill()
+  if let levels, !levels.isEmpty {
+    let barWidth: CGFloat = 1.5
+    let gap: CGFloat = 1.05
+    let span = CGFloat(levels.count) * barWidth + CGFloat(levels.count - 1) * gap
+    let baseline: CGFloat = 5.1
+    let shortest: CGFloat = 2.1
+    let tallest: CGFloat = 7.9
+    var x = 9 - span / 2
+    for level in levels {
+      let height = shortest + (tallest - shortest) * min(max(level, 0), 1)
+      NSBezierPath(
+        roundedRect: NSRect(x: x, y: baseline, width: barWidth, height: height),
+        xRadius: barWidth / 2,
+        yRadius: barWidth / 2
+      ).fill()
+      x += barWidth + gap
+    }
+  } else {
+    // Keep the lower portion visibly organic rather than splitting the cell
+    // along a perfectly level line.
+    let fill = NSBezierPath()
+    fill.move(to: NSPoint(x: 2.5, y: 9.35))
+    fill.line(to: NSPoint(x: 4.75, y: 8.85))
+    fill.line(to: NSPoint(x: 6.7, y: 9.6))
+    fill.line(to: NSPoint(x: 8.8, y: 7.95))
+    fill.line(to: NSPoint(x: 11, y: 8.75))
+    fill.line(to: NSPoint(x: 12.65, y: 8.15))
+    fill.line(to: NSPoint(x: 15.5, y: 10.5))
+    fill.line(to: NSPoint(x: 15.5, y: 13.05))
+    fill.line(to: NSPoint(x: 9, y: 16.8))
+    fill.line(to: NSPoint(x: 2.5, y: 13.05))
+    fill.close()
+    fill.fill()
+  }
   NSGraphicsContext.restoreGraphicsState()
 
   hexagon.lineWidth = 1.35
@@ -205,6 +229,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var finderPollInFlight = false
   private var finderPollAttempts = 0
   private var lastFinderFailure: String?
+  private var busyPollTimer: Timer?
+  private var busyPollInFlight = false
+  private var equalizerTimer: Timer?
+  private var equalizerPhase: Double = 0
+  private var agentBusy = false
   private weak var finderStatusItem: NSMenuItem?
   private weak var finderIntegrationItem: NSMenuItem?
   private weak var updateStatusItem: NSMenuItem?
@@ -247,6 +276,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     handoffTimer?.invalidate()
     updateMonitorTimer?.invalidate()
     updateWaitTimer?.invalidate()
+    busyPollTimer?.invalidate()
+    equalizerTimer?.invalidate()
     NSApp.servicesProvider = nil
     if let process, process.isRunning {
       process.terminate()
@@ -814,6 +845,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       DispatchQueue.main.async {
         guard let self, !self.isTerminating else { return }
         self.agentReady = false
+        self.stopBusyMonitoring()
         self.readinessTimer?.invalidate()
         self.process = nil
         if finished.terminationStatus == updateHandoffExitStatus {
@@ -872,6 +904,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       if let health, self.matchesExpectedBuild(health), health.ready {
         self.readinessTimer?.invalidate()
         self.agentReady = true
+        self.beginBusyMonitoring()
         self.flushFinderActions()
         self.scheduleFinderIntegrationOffer()
       } else if let health, !self.matchesExpectedBuild(health) {
@@ -1100,9 +1133,84 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }.resume()
   }
 
+  /// Menu-bar feedback for "a tool is running". `/health` already collapses
+  /// every module into one busy flag, so poll it and animate the cell while it
+  /// is true instead of teaching the launcher about individual tools.
+  private func beginBusyMonitoring() {
+    guard busyPollTimer == nil else { return }
+    let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+      self?.checkBusyState()
+    }
+    // .common keeps the poll and the animation running while a menu is open.
+    RunLoop.main.add(timer, forMode: .common)
+    busyPollTimer = timer
+    checkBusyState()
+  }
+
+  private func stopBusyMonitoring() {
+    busyPollTimer?.invalidate()
+    busyPollTimer = nil
+    setAgentBusy(false)
+  }
+
+  private func checkBusyState() {
+    guard !isTerminating, agentReady, !busyPollInFlight else { return }
+    busyPollInFlight = true
+    probeHealth(timeout: 0.75) { [weak self] health in
+      guard let self else { return }
+      self.busyPollInFlight = false
+      guard !self.isTerminating, self.agentReady else { return }
+      self.setAgentBusy(health?.busy == true)
+    }
+  }
+
+  private func setAgentBusy(_ busy: Bool) {
+    guard busy != agentBusy else { return }
+    agentBusy = busy
+    equalizerTimer?.invalidate()
+    equalizerTimer = nil
+    if busy {
+      equalizerPhase = 0
+      let timer = Timer(timeInterval: 1.0 / 12.0, repeats: true) { [weak self] _ in
+        self?.advanceEqualizer()
+      }
+      RunLoop.main.add(timer, forMode: .common)
+      equalizerTimer = timer
+    }
+    refreshStatusIcon()
+  }
+
+  private func advanceEqualizer() {
+    equalizerPhase += 1
+    refreshStatusIcon()
+  }
+
+  /// Each bar rides two sines of different periods so the group reads as an
+  /// equalizer rather than one marching wave, and never loops visibly.
+  private func equalizerLevels() -> [CGFloat] {
+    let bars: [(speed: Double, offset: Double)] = [
+      (0.62, 0), (0.83, 1.9), (0.47, 3.4), (0.71, 5.1),
+    ]
+    return bars.map { bar in
+      let slow = sin(equalizerPhase * bar.speed + bar.offset)
+      let fast = sin(equalizerPhase * bar.speed * 1.7 + bar.offset * 2)
+      return CGFloat((slow * 0.65 + fast * 0.35 + 1) / 2)
+    }
+  }
+
+  /// A Finder failure owns the icon until the user dismisses it, so never let
+  /// the animation paint over that warning.
+  private func refreshStatusIcon() {
+    guard lastFinderFailure == nil else { return }
+    statusItem?.button?.image = honeycombStatusImage(
+      accessibilityDescription: agentBusy ? "\(applicationName) — working" : applicationName,
+      levels: agentBusy ? equalizerLevels() : nil
+    )
+  }
+
   private func clearFinderActionFailure() {
     lastFinderFailure = nil
-    statusItem?.button?.image = honeycombStatusImage(accessibilityDescription: applicationName)
+    refreshStatusIcon()
     finderStatusItem?.isHidden = true
   }
 
