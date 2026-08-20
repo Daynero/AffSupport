@@ -120,7 +120,7 @@ straight from the analytics migration and `apps/web/src/analytics/`.
 
 Read access is layered so writes are impossible:
 
-1. **Dedicated role.** A least-privilege `soty_analytics_ro` Postgres role with
+1. **Dedicated role.** A least-privilege `wishly_analytics_ro` Postgres role with
    `LOGIN`, no superuser/createdb/createrole, and only `SELECT` on
    `analytics_events`, `analytics_users`, and the privacy-scoped
    `analytics_team_workspace` view. It has **no** INSERT/UPDATE/DELETE
@@ -151,7 +151,7 @@ npx supabase link --project-ref <your-project-ref>
 npm run analytics:migrate   # == npx supabase db push
 ```
 
-This creates the `analytics_users` view, the `soty_analytics_ro` role, its
+This creates the `analytics_users` view, the `wishly_analytics_ro` role, its
 grants, and the read-only RLS policy on `analytics_events`. The role is created
 **without a password**, so it cannot log in until you set one.
 
@@ -161,10 +161,10 @@ Pick a strong password and set it once. Easiest path — Supabase Dashboard →
 **SQL Editor**:
 
 ```sql
-alter role soty_analytics_ro with password 'PUT-A-STRONG-PASSWORD-HERE';
+alter role wishly_analytics_ro with password 'PUT-A-STRONG-PASSWORD-HERE';
 ```
 
-(Or Dashboard → **Database → Roles → soty_analytics_ro → set password**.)
+(Or Dashboard → **Database → Roles → wishly_analytics_ro → set password**.)
 
 ### 3. Build the connection string
 
@@ -179,20 +179,20 @@ Replace the user and password with the read-only role and the password you just
 set (note the `.<project-ref>` suffix is required by the pooler):
 
 ```
-postgresql://soty_analytics_ro.<project-ref>:<your-password>@aws-0-<region>.pooler.supabase.com:5432/postgres
+postgresql://wishly_analytics_ro.<project-ref>:<your-password>@aws-0-<region>.pooler.supabase.com:5432/postgres
 ```
 
 ### 4. Add it to `.env`
 
 ```bash
-ANALYTICS_DATABASE_URL=postgresql://soty_analytics_ro.<project-ref>:<your-password>@aws-0-<region>.pooler.supabase.com:5432/postgres
+ANALYTICS_DATABASE_URL=postgresql://wishly_analytics_ro.<project-ref>:<your-password>@aws-0-<region>.pooler.supabase.com:5432/postgres
 ```
 
 `.env` is gitignored. That's it — `npm run analytics -- overview` now works.
 
 > If your network can reach IPv6, the **Direct connection**
 > (`db.<project-ref>.supabase.co:5432`) also works; there the username is just
-> `soty_analytics_ro` (no `.<project-ref>` suffix). The Session pooler is
+> `wishly_analytics_ro` (no `.<project-ref>` suffix). The Session pooler is
 > recommended because it is IPv4-friendly.
 
 ## Adding a new metric
