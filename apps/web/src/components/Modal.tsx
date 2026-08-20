@@ -38,7 +38,13 @@ export interface ModalProps {
    * backdrop click, no close button (e.g. onboarding, install gate).
    */
   onClose?: () => void;
-  /** Surface width: sm 552px, md 576px, lg 624px, xl 880px. Ignored when `bare`. */
+  /**
+   * Rung of the dialog width ladder (`--dialog-sm` … `--dialog-xl` in
+   * styles.css). Each rung is a pixel floor that holds on a laptop plus a `vw`
+   * share that takes over on a large display, so a dialog keeps its proportion
+   * of a 4K screen. Callers pick a rung; they never set a width of their own.
+   * Ignored when `bare`.
+   */
   size?: ModalSize;
   /** Extra class(es) for the dialog surface. */
   className?: string;

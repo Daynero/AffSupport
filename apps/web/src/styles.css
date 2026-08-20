@@ -94,6 +94,32 @@
   --app-header-logo-height: 55.2px;
   --app-header-control-icon-size: 23px;
 
+  /* Page shell measure. Up to roughly 1800px the pixel cap wins and the shell
+     keeps the near edge-to-edge look it has on a laptop; past that the shell
+     tracks the viewport instead of freezing, so a 4K display shows a workspace
+     rather than a phone-sized column stranded in the middle of the screen.
+     Every full-page container derives its width from one of these two, so the
+     rule can only be changed in one place. */
+  --shell-width: max(1440px, 80vw);
+  --shell-width-narrow: max(1120px, 80vw);
+  /* Gutter that keeps a full-bleed header on the same axis as the shell below
+     it: the header padding on narrow screens, the shell margin once the shell
+     stops filling the viewport. */
+  --shell-gutter: max(var(--app-header-padding-inline), calc((100% - var(--shell-width)) / 2));
+
+  /* Dialog measure ladder. Same trade as the shell: the pixel value is the
+     width on a laptop, the vw value takes over on a large display so a dialog
+     keeps its share of a 4K screen instead of shrinking to a stamp. Every
+     dialog surface picks a rung here — the Modal primitive through
+     --modal-width, the hand-rolled surfaces directly — so a dialog is never
+     sized by a number of its own. */
+  --dialog-sm: max(552px, 18vw);
+  --dialog-md: max(576px, 20vw);
+  --dialog-lg: max(624px, 22vw);
+  --dialog-xl: max(880px, 30vw);
+  --dialog-wide: max(1180px, 56vw);
+  --dialog-full: var(--shell-width);
+
   /* Ink tints (the rgba(36,27,58,α) family) and overlays */
   --tint-soft: rgba(36, 27, 58, 0.06);
   --tint-medium: rgba(36, 27, 58, 0.14);
@@ -264,7 +290,7 @@ a {
   justify-content: space-between;
   height: var(--topbar-h);
   min-height: var(--topbar-h);
-  padding: 0 var(--app-header-padding-inline);
+  padding: 0 var(--shell-gutter);
   border-bottom: 1px solid var(--color-border);
   background: color-mix(in srgb, var(--color-surface) 94%, transparent);
   backdrop-filter: blur(12px);
@@ -430,7 +456,7 @@ a {
 
 /* Product launcher */
 .launcher {
-  width: min(80%, 1440px);
+  width: min(80%, var(--shell-width));
   margin: 0 auto;
   padding: clamp(28px, 5vh, 48px) 0 64px;
 }
@@ -806,7 +832,7 @@ a {
 
 .workspace {
   display: grid;
-  width: min(1440px, 100%);
+  width: min(100%, var(--shell-width));
   margin: 0 auto;
   gap: var(--space-3);
   padding: var(--space-4);
@@ -3140,10 +3166,6 @@ input.is-invalid {
     --app-header-logo-height: 47.15px;
   }
 
-  .topbar {
-    padding: 0 var(--app-header-padding-inline);
-  }
-
   .topbar-lead .brand-link .soty-wordmark-img {
     height: var(--app-header-logo-height);
   }
@@ -3335,10 +3357,6 @@ input.is-invalid {
 @media (max-width: 500px) {
   :root {
     --app-header-padding-inline: 10px;
-  }
-
-  .topbar {
-    padding-inline: var(--app-header-padding-inline);
   }
 
   .topbar-lead {
@@ -3568,7 +3586,7 @@ input.is-invalid {
 }
 
 .landing-gallery-welcome {
-  width: min(80%, 1440px);
+  width: min(80%, var(--shell-width));
   margin: 0 auto;
   padding: 42px 0 80px;
 }
@@ -5064,7 +5082,7 @@ body:has(.public-home) {
   top: 0;
   right: 0;
   width: 100%;
-  padding-inline: var(--app-header-padding-inline);
+  padding-inline: var(--shell-gutter);
 }
 
 .public-home-content {
@@ -5072,7 +5090,7 @@ body:has(.public-home) {
   display: grid;
   grid-row: 2;
   align-items: center;
-  width: min(80%, 1440px);
+  width: min(80%, var(--shell-width));
   margin: 0 auto;
   padding: 32px 0;
 }
@@ -5271,7 +5289,7 @@ body:has(.public-home) {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  width: min(1120px, calc(100% - 40px));
+  width: min(calc(100% - 40px), var(--shell-width-narrow));
   margin: 0 auto;
   padding: 28px 0 36px;
   border-top: 1px solid var(--color-border);
@@ -5658,12 +5676,19 @@ body:has(.public-home) {
   z-index: 110;
 }
 
-/* Shared dialog surface for the Modal primitive. */
+/* Shared dialog surface for the Modal primitive. The size classes below set
+   --modal-width to a rung of the ladder; nothing else here is a width. The
+   `minmax(0, 1fr)` column is the half of the fit rules that only applies to a
+   grid surface — it lets long content (button rows, file names, URLs) shrink
+   inside the dialog instead of pushing it wider than its own box, which is
+   what turns `overflow-y: auto` into a horizontal scrollbar. The rest of the
+   fit rules are shared with every other dialog further down. */
 .modal {
   position: relative;
   display: grid;
   gap: 24px;
-  width: min(576px, 100%);
+  grid-template-columns: minmax(0, 1fr);
+  width: min(100%, var(--modal-width, var(--dialog-md)));
   max-height: calc(100vh - 48px);
   overflow-y: auto;
   padding: 36px;
@@ -5674,16 +5699,36 @@ body:has(.public-home) {
   animation: modal-rise var(--dur-layout) var(--ease-enter);
 }
 
+/* The same fit guarantees for every other dialog surface. Matching the role
+   rather than a list of classes means a dialog added later is covered without
+   anyone remembering this rule; the three team overlays are named because they
+   are positioned panels that never took a dialog role. */
+:is(dialog, [role='dialog'], .team-operation-overlay, .team-text-editor, .team-process-dialog) {
+  overflow-wrap: break-word;
+}
+
+:is(dialog, [role='dialog'], .team-operation-overlay, .team-text-editor, .team-process-dialog) > * {
+  min-width: 0;
+}
+
+/* Button rows in a dialog wrap onto a second line rather than overflowing:
+   button labels are `white-space: nowrap`, so a two-action row of translated
+   labels can otherwise be wider than the dialog it sits in. */
+:is(dialog, [role='dialog'], .team-operation-overlay, .team-text-editor, .team-process-dialog)
+  :is(.inline-actions, .dialog-actions, .team-dialog-actions) {
+  flex-wrap: wrap;
+}
+
 .modal-sm {
-  width: min(552px, 100%);
+  --modal-width: var(--dialog-sm);
 }
 
 .modal-lg {
-  width: min(624px, 100%);
+  --modal-width: var(--dialog-lg);
 }
 
 .modal-xl {
-  width: min(880px, 100%);
+  --modal-width: var(--dialog-xl);
 }
 
 .onboarding-modal > div:first-of-type {
@@ -6190,7 +6235,7 @@ body:has(.public-home) {
 }
 
 .windows-coming-soon-modal {
-  width: min(528px, 100%);
+  --modal-width: var(--dialog-sm);
 }
 
 .local-app-mark {
@@ -6251,7 +6296,7 @@ body:has(.public-home) {
 }
 
 .page-container {
-  width: min(1120px, calc(100% - 32px));
+  width: min(calc(100% - 32px), var(--shell-width-narrow));
   margin: 0 auto;
   padding: 34px 0 64px;
 }
@@ -6425,7 +6470,7 @@ body:has(.public-home) {
 }
 
 .confirm-dialog {
-  width: min(480px, calc(100% - 32px));
+  width: min(calc(100% - 32px), var(--dialog-sm));
   padding: 0;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -7713,7 +7758,7 @@ body:has(.public-home) {
 
 .landing-compare-modal {
   display: grid;
-  width: min(1180px, 100%);
+  width: min(100%, var(--dialog-wide));
   max-height: calc(100dvh - 40px);
   grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
@@ -8727,9 +8772,6 @@ body:has(.public-home) {
 .transcription-model-error {
   color: var(--color-error) !important;
 }
-.transcription-confirm-modal {
-  max-width: 460px;
-}
 .transcription-confirm-modal .inline-actions {
   margin-top: var(--space-4);
   justify-content: flex-end;
@@ -8767,7 +8809,7 @@ body:has(.public-home) {
   position: relative;
   display: flex;
   flex-direction: column;
-  width: min(860px, 100%);
+  width: min(100%, var(--dialog-xl));
   min-height: min(90vh, 880px);
   max-height: 92vh;
   border: 1px solid var(--color-border);
@@ -8884,7 +8926,7 @@ body:has(.public-home) {
 /* Split-screen bilingual transcript viewer                                   */
 /* -------------------------------------------------------------------------- */
 .transcript-modal.transcript-split {
-  width: min(96vw, 1440px);
+  width: min(96vw, var(--dialog-full));
   height: 90vh;
   max-height: 90vh;
 }
@@ -10148,7 +10190,8 @@ button,
 .team-preview-dialog {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  width: min(1100px, 100%);
+  grid-template-columns: minmax(0, 1fr);
+  width: min(100%, var(--dialog-wide));
   max-height: min(90vh, 900px);
   overflow: hidden;
   border: 1px solid var(--color-border);
@@ -10447,7 +10490,7 @@ button,
   position: fixed;
   z-index: 45;
   inset: 50% auto auto 50%;
-  width: min(680px, calc(100vw - 32px));
+  width: min(calc(100vw - 32px), var(--dialog-lg));
   max-height: min(86vh, 820px);
   overflow: auto;
   transform: translate(-50%, -50%);

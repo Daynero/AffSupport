@@ -150,9 +150,12 @@ describe('Soty design system', () => {
     expect(css).toMatch(
       /\.login-topbar,\s*\.legal-topbar\s*{[\s\S]*?min-height: var\(--app-header-height\);[\s\S]*?padding: 0 var\(--app-header-padding-inline\)/
     );
+    // The public header follows the shell gutter, which is itself the header
+    // padding until the shell stops filling the viewport (see --shell-gutter).
     expect(css).toMatch(
-      /\.login-topbar\.public-topbar\s*{[\s\S]*?padding-inline: var\(--app-header-padding-inline\)/
+      /\.login-topbar\.public-topbar\s*{[\s\S]*?padding-inline: var\(--shell-gutter\)/
     );
+    expect(css).toMatch(/--shell-gutter: max\(var\(--app-header-padding-inline\)/);
   });
 
   it('reserves tabular numbers for timers, progress and metrics', () => {
