@@ -9,7 +9,7 @@
  * PID, and torn down together — the agent's own orchestration discipline
  * applied to the orchestrator.
  */
-import { spawn, spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { BETA_PROFILE } from '../packages/shared/dist/environment.js';
 import { parseEnvFile } from './verify-beta-env.mjs';
@@ -26,7 +26,20 @@ const doctor = spawnSync(process.execPath, ['scripts/verify-beta-env.mjs'], {
 if (doctor.status !== 0) fail('the environment check did not pass; nothing was started.');
 
 const profile = existsSync('.env.beta') ? parseEnvFile(readFileSync('.env.beta', 'utf8')) : {};
-const environment = { ...process.env, ...profile, SOTY_ENVIRONMENT: 'beta' };
+const sourceRevision = execFileSync('git', ['rev-parse', 'HEAD'], {
+  encoding: 'utf8',
+  stdio: ['ignore', 'pipe', 'ignore']
+}).trim();
+// The shared package's compiled release constants intentionally describe the
+// stable product. Override the runtime handshake here so a source-run beta
+// cannot identify itself as stable or report the development placeholder.
+const environment = {
+  ...process.env,
+  ...profile,
+  SOTY_ENVIRONMENT: 'beta',
+  AGENT_RELEASE_CHANNEL: 'beta',
+  AGENT_SOURCE_REVISION: sourceRevision
+};
 
 const children = [];
 

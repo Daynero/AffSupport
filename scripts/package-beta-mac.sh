@@ -67,6 +67,21 @@ production_key=$(grep -E '^AGENT_ENTITLEMENT_PUBLIC_KEY=' config/production.env 
   exit 1
 }
 
+# Vite loads apps/web/.env.production for a production build, not the
+# repository-root beta profile. Pass the beta's public local-stack values
+# explicitly or a packaged beta silently embeds production Supabase settings.
+beta_supabase_url=$(grep -E '^VITE_SUPABASE_URL=' .env.beta | head -1 | cut -d= -f2-)
+beta_supabase_publishable_key=$(grep -E '^VITE_SUPABASE_PUBLISHABLE_KEY=' .env.beta | head -1 | cut -d= -f2-)
+beta_direct_add_mode=$(grep -E '^VITE_TEAM_DIRECT_ADD_MODE=' .env.beta | head -1 | cut -d= -f2-)
+[[ "$beta_supabase_url" == http://127.0.0.1:* ]] || {
+  print -u2 "VITE_SUPABASE_URL in .env.beta must point to the local stack."
+  exit 1
+}
+[[ -n "$beta_supabase_publishable_key" ]] || {
+  print -u2 "VITE_SUPABASE_PUBLISHABLE_KEY is empty in .env.beta."
+  exit 1
+}
+
 [[ -x "$source_app/Contents/Resources/runtime/node" ]] || {
   print -u2 "No verified packaged runtime at $source_app. Build production locally once, or set BETA_RUNTIME_SOURCE_APP."
   exit 1
@@ -99,9 +114,12 @@ archive_name="Soty-Beta-$version-macOS-arm64.zip"
 
 VITE_APP_ENVIRONMENT=beta \
 VITE_AGENT_URL="http://127.0.0.1:$port" \
+VITE_SUPABASE_URL="$beta_supabase_url" \
+VITE_SUPABASE_PUBLISHABLE_KEY="$beta_supabase_publishable_key" \
 VITE_SITE_URL="http://127.0.0.1:$port" \
 VITE_ANALYTICS_ENABLED=false \
 VITE_LOCAL_DEV_AUTH=false \
+VITE_TEAM_DIRECT_ADD_MODE="$beta_direct_add_mode" \
 VITE_WEB_BUILD_ID="$build_id" \
   npm run build -w @video-compressor/web
 npm run build -w @video-compressor/agent

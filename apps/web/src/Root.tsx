@@ -1,15 +1,22 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { HoneycombField } from './components/HoneycombField';
 import { EnvironmentBadge } from './components/EnvironmentBadge';
 import {
   AuthCallbackPage,
+  AuthHandoffPage,
   AuthLoadingScreen,
   AuthRecoveryScreen,
   BlockedAccountScreen,
   ConfigErrorScreen,
   LoginPage
 } from './auth/AuthScreens';
+import {
+  HANDOFF_PATH,
+  claimHandoffAttempt,
+  handoffRequestUrl,
+  sessionHandoffOrigin
+} from './auth/session-handoff';
 import PublicHomePage from './PublicHomePage';
 import { loginUrl } from './lib/redirects';
 import { navigateTo, useBrowserRoute } from './lib/navigation';
@@ -50,6 +57,7 @@ function Routes() {
       </Suspense>
     );
   if (path === '/auth/callback') return <AuthCallbackPage />;
+  if (path === HANDOFF_PATH) return <AuthHandoffPage />;
   if (path === '/login') return <LoginPage />;
 
   const decision = protectedRouteDecision({
@@ -60,6 +68,10 @@ function Routes() {
     configurationError: auth.error === 'configuration'
   });
   if (decision === 'loading') return <AuthLoadingScreen />;
+  // In the Agent's copy of the app, a missing session is usually a session that
+  // simply lives on the other origin. Ask for it before showing anything that
+  // looks like "sign in again"; the marketing page below is the website's job.
+  if (decision === 'login' && sessionHandoffOrigin()) return <AskWebsiteForSession route={route} />;
   if (path === '/' && (decision === 'configuration-error' || decision === 'login'))
     return <PublicHomePage />;
   if (decision === 'configuration-error') return <ConfigErrorScreen />;
@@ -86,6 +98,25 @@ function LegalLoadingScreen() {
 function RedirectToLogin({ route }: { route: string }) {
   useEffect(() => navigateTo(loginUrl(route), true), [route]);
   return <AuthLoadingScreen />;
+}
+
+/**
+ * Leaves for the website to fetch a session, or gives up and shows sign-in.
+ *
+ * The claim is made in an effect rather than during render: it is a counter, and
+ * a render may happen twice.
+ */
+function AskWebsiteForSession({ route }: { route: string }) {
+  const [asking, setAsking] = useState(true);
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    const url = handoffRequestUrl(route);
+    if (url && claimHandoffAttempt()) location.assign(url);
+    else setAsking(false);
+  }, [route]);
+  return asking ? <AuthLoadingScreen /> : <RedirectToLogin route={route} />;
 }
 
 // Tool-path classification (routeKind) lives in lib/tool-registry.ts. Root must

@@ -814,6 +814,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var packagedEnvironment = [
       "PACKAGED_APP": "1",
       "NO_OPEN": "1",
+      // Release channel and application environment are distinct at build time,
+      // but every packaged channel must supply its runtime environment explicitly.
+      // Without this, a beta bundle falls back to production defaults.
+      "SOTY_ENVIRONMENT": releaseChannel == "beta" ? "beta" : (releaseChannel == "development" ? "dev" : "production"),
       "AGENT_PORT": String(agentPort),
       "AGENT_SUPPORT_DIRECTORY_NAME": supportDirectoryName,
       "PUBLIC_SITE_ORIGIN": "__PUBLIC_SITE_ORIGIN__",

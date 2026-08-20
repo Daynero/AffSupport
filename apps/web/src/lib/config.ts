@@ -147,6 +147,32 @@ export function configuredEnvironment(): AppEnvironment {
   return publicConfig.ok ? publicConfig.value.environment : 'production';
 }
 
+const DEFAULT_AGENT_ORIGIN = 'http://127.0.0.1:43120';
+
+/** The Agent's loopback origin as this bundle was configured to reach it. */
+export function configuredAgentOrigin(env: Env = import.meta.env): string {
+  return (value(env, 'VITE_AGENT_URL') || DEFAULT_AGENT_ORIGIN).replace(/\/$/, '');
+}
+
+/**
+ * True when this page is the copy the Agent serves on loopback — what the
+ * tray's "Open Soty" opens — rather than the hosted site.
+ *
+ * Two origins, two storage areas: the Agent's copy has its own Supabase
+ * session, its own pairing token, and its own analytics installation id. Code
+ * that must not assume the hosted origin asks this instead of re-deriving the
+ * loopback address, which is how the port drifted out of sync with beta before.
+ */
+export function servedByAgent(origin: string = location.origin, env: Env = import.meta.env) {
+  if (origin === configuredAgentOrigin(env)) return true;
+  try {
+    const url = new URL(origin);
+    return url.hostname === '127.0.0.1' && url.port === new URL(DEFAULT_AGENT_ORIGIN).port;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * The environment this bundle was built for, whatever else is wrong with the
  * configuration.

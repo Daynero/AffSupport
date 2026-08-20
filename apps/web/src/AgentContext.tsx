@@ -22,11 +22,14 @@ import {
 } from '@video-compressor/shared';
 import {
   agentInstallAwaitingPairing,
+  agentProvenAlive,
+  claimAutomaticPairing,
   connect,
   consumePairingToken,
   eventUrl,
   onPairingToken,
-  pairWithAgent
+  pairWithAgent,
+  releaseAutomaticPairing
 } from './api/client';
 import { ensureAgentEntitlement } from './api/entitlement';
 import { useAgentEventStream } from './api/useAgentEventStream';
@@ -145,12 +148,26 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         setState(result.state);
         setConnectedOnce(true);
         connectedOnceRef.current = true;
+        releaseAutomaticPairing();
       } catch (error) {
         window.clearTimeout(timer);
         if (!mounted.current) return;
         if (error instanceof Error && error.message === 'PAIRING_REQUIRED') {
-          setConnection(mode === 'connecting' ? 'connecting' : 'pairing_required');
-          if (mode === 'connecting' || agentInstallAwaitingPairing()) pairWithAgent();
+          // Re-pair without asking whenever the Agent has proved it is running:
+          // it answered 401 with a token this browser no longer shares, or it
+          // served this very page. Making the user hunt for a "find the agent"
+          // button after every Agent restart was the single most common way to
+          // get stuck, and the budget keeps a rejected token from spinning.
+          const canPairSilently =
+            mode === 'connecting' || agentProvenAlive(error) || agentInstallAwaitingPairing();
+          if (canPairSilently && claimAutomaticPairing()) {
+            setConnection('connecting');
+            pairWithAgent();
+          } else {
+            // Not a dead end: the Agent may still be starting, so keep looking.
+            setConnection('pairing_required');
+            retryTimer.current = setTimeout(() => void establish('retry'), 4000);
+          }
         } else if (error instanceof Error && error.message.startsWith('ENTITLEMENT')) {
           // No automatic retry: the fix is user-side (sign in / go online) and
           // hammering the Edge Function every few seconds helps nobody.
@@ -266,7 +283,13 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         toolAvailable: tool => toolContractCompatible(tool, toolContracts),
         teamWorkspaceAvailable:
           connection === 'connected' && toolContractCompatible('teamWorkspace', toolContracts),
-        reconnect: () => void establish('connecting')
+        reconnect: () => {
+          // An explicit ask is never held back by the automatic budget: that
+          // budget exists to stop the page navigating in a loop on its own, not
+          // to stop the user from trying again.
+          releaseAutomaticPairing();
+          void establish('connecting');
+        }
       }}
     >
       {children}

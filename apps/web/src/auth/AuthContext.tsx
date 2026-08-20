@@ -13,6 +13,12 @@ import { publicConfig } from '../lib/config';
 import type { Database, Profile } from '../lib/database.types';
 import { getSupabaseClient } from '../lib/supabase';
 import { rememberReturnPath } from '../lib/redirects';
+import {
+  declineHandoff,
+  handoffRequestUrl,
+  releaseHandoffAttempts,
+  sessionHandoffOrigin
+} from './session-handoff';
 import { syncProfileLanguage } from '../i18n';
 
 export type AuthStatus =
@@ -44,7 +50,9 @@ export type AuthSnapshot = {
 export type AuthContextValue = AuthSnapshot & {
   loading: boolean;
   signInWithGoogle: (returnPath?: string | null) => Promise<void>;
+  signInWithBetaFixture: () => Promise<void>;
   completeOAuthCallback: (code: string) => Promise<void>;
+  adoptHandedOverSession: (accessToken: string, refreshToken: string) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (patch: EditableProfilePatch) => Promise<Profile>;
   refreshProfile: () => Promise<void>;
@@ -60,6 +68,7 @@ const initialSnapshot: AuthSnapshot = {
 };
 
 const LOCAL_DEV_AUTH = import.meta.env.VITE_LOCAL_DEV_AUTH === 'true';
+const BETA_AUTH = import.meta.env.VITE_APP_ENVIRONMENT === 'beta';
 const localDevUser = {
   id: '00000000-0000-4000-8000-000000000001',
   email: 'dev@wishly.local',
@@ -262,6 +271,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithGoogle = useCallback(async (returnPath?: string | null) => {
     if (LOCAL_DEV_AUTH) return;
+    // In the Agent's copy of the app the provider callback is registered against
+    // the website, so signing in here means signing in there and being handed the
+    // result back. Asking explicitly also lifts a previous sign-out's block.
+    const handoff = handoffRequestUrl(returnPath ?? location.pathname);
+    if (handoff) {
+      releaseHandoffAttempts();
+      setSnapshot(current => ({ ...current, status: 'authenticating', error: null }));
+      location.assign(handoff);
+      return;
+    }
     const supabase = getSupabaseClient();
     if (!supabase || !publicConfig.ok) {
       setSnapshot(current => ({ ...current, status: 'error', error: 'configuration' }));
@@ -284,6 +303,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         status: 'error',
         error: navigator.onLine ? 'oauth' : 'network'
       });
+    }
+  }, []);
+
+  // The local beta stack has no Google provider credentials. Its fixture is
+  // deliberately a password account so real Supabase authentication, session
+  // handling, and entitlement checks remain testable without leaving localhost.
+  const signInWithBetaFixture = useCallback(async () => {
+    if (!BETA_AUTH || LOCAL_DEV_AUTH) return;
+    const supabase = getSupabaseClient();
+    if (!supabase || !publicConfig.ok) {
+      setSnapshot(current => ({ ...current, status: 'error', error: 'configuration' }));
+      return;
+    }
+    setSnapshot(current => ({ ...current, status: 'authenticating', error: null }));
+    const { error } = await supabase.auth.signInWithPassword({
+      email: 'beta@soty.local',
+      password: 'beta-password'
+    });
+    if (error) setSnapshot({ ...initialSnapshot, status: 'error', error: 'oauth' });
+  }, []);
+
+  /**
+   * Installs a session the website handed over (see auth/session-handoff).
+   *
+   * `setSession` emits the same auth state change a fresh sign-in does, so the
+   * profile load, analytics identity and entitlement refresh all follow on their
+   * own — this is the same arrival, by a different door.
+   */
+  const adoptHandedOverSession = useCallback(async (accessToken: string, refreshToken: string) => {
+    if (LOCAL_DEV_AUTH) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new Error('SUPABASE_CONFIGURATION_MISSING');
+    setSnapshot(current => ({ ...current, status: 'initializing', error: null }));
+    const { error } = await supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken
+    });
+    if (error) {
+      setSnapshot({ ...initialSnapshot, status: 'error', error: 'callback' });
+      throw new Error('SESSION_HANDOFF_FAILED');
     }
   }, []);
 
@@ -319,6 +378,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     analytics.setUser(null);
     sessionStorage.removeItem('wishly.auth.analytics-user.v1');
+    // Otherwise the next automatic ask would find the website's session still
+    // live and sign the user straight back in.
+    if (sessionHandoffOrigin()) declineHandoff();
     setSnapshot({ ...initialSnapshot, status: 'unauthenticated' });
   }, []);
 
@@ -379,7 +441,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ...snapshot,
         loading,
         signInWithGoogle,
+        signInWithBetaFixture,
         completeOAuthCallback,
+        adoptHandedOverSession,
         signOut,
         updateProfile,
         refreshProfile
