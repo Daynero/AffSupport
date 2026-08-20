@@ -6,6 +6,7 @@ import type {
 } from '@video-compressor/shared';
 import type { TeamOperationEvents } from './events.js';
 import type { TeamPreviewBridge } from './preview.js';
+import { activeGovernorOrNull } from '../power/spawn.js';
 
 const MAX_SEGMENTS = 64;
 const MAX_SEGMENT_BYTES = 32 * 1024 * 1024;
@@ -49,10 +50,15 @@ export class TeamLandingRenderBridge {
     if (this.#active.has(job.operationId)) throw new Error('WRONG_STATE');
     const controller = new AbortController();
     this.#active.set(job.operationId, controller);
-    const watchdog = setTimeout(() => {
-      controller.abort(new Error('RENDER_TIMEOUT'));
-      void this.#preview.close(job.operationId);
-    }, this.#watchdogMs);
+    const watchdog = setTimeout(
+      () => {
+        controller.abort(new Error('RENDER_TIMEOUT'));
+        void this.#preview.close(job.operationId);
+        // Scaled, not fixed: a throttled render is meant to take longer, and an
+        // unscaled watchdog would abort it for obeying the user's own limit.
+      },
+      activeGovernorOrNull()?.scaleTimeout(this.#watchdogMs) ?? this.#watchdogMs
+    );
     watchdog.unref();
     this.#events.update(job.operationId, {
       state: 'running',

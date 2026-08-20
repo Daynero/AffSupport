@@ -22,6 +22,7 @@ import {
   type LandingRenderer
 } from '../apps/agent/src/landing-preview/catalog.js';
 import { MediaActionQueue } from '../apps/agent/src/media-actions/queue.js';
+import { PowerGovernor } from '../apps/agent/src/power/governor.js';
 import { JobQueue } from '../apps/agent/src/queue/queue.js';
 import { TranscriptionQueue } from '../apps/agent/src/queue/transcription-queue.js';
 import { buildServer } from '../apps/agent/src/server/app.js';
@@ -197,6 +198,7 @@ async function makeServer(options: { entitlementPublicKey?: string } = {}) {
     startedAt: new Date().toISOString(),
     tools,
     queue,
+    power: new PowerGovernor({ pauseSupported: false }),
     modules: createToolModules({
       compressor: { queue, estimator, imageStore, events: agentEvents, tools },
       mediaActions,
@@ -363,6 +365,45 @@ describe('agent HTTP surface', () => {
 
     const viaQuery = await app.inject({ url: `/api/queue?token=${TOKEN}` });
     expect(viaQuery.statusCode).toBe(200);
+  });
+
+  it('guards the power throttle exactly like every other tool route', async () => {
+    const kit = entitlementKit();
+
+    const open = await makeServer();
+    const snapshot = await open.inject({
+      url: '/api/power',
+      headers: { 'x-session-token': TOKEN }
+    });
+    expect(snapshot.statusCode).toBe(200);
+    expect(snapshot.json()).toMatchObject({ limitPercent: 100, mode: 'unrestricted' });
+
+    // No token, foreign origin, and no entitlement must all be refused. The
+    // power routes are deliberately NOT in the entitlement-exempt set: that set
+    // is the routes needed to establish a session, and a settings control is
+    // not one of them.
+    expect((await open.inject({ url: '/api/power' })).statusCode).toBe(401);
+    const foreign = await open.inject({
+      url: '/api/power',
+      headers: { 'x-session-token': TOKEN, origin: 'https://evil.example' }
+    });
+    expect(foreign.statusCode).toBe(403);
+
+    const gated = await makeServer({ entitlementPublicKey: kit.publicKeyBase64 });
+    const blocked = await gated.inject({
+      url: '/api/power',
+      headers: { 'x-session-token': TOKEN }
+    });
+    expect(blocked.statusCode).toBe(403);
+    expect(blocked.json()).toEqual({ error: 'ENTITLEMENT_REQUIRED' });
+  });
+
+  it('advertises the power contract so an older agent reads as unsupported', async () => {
+    const app = await makeServer();
+    const health = await app.inject({ url: '/health' });
+    // This is the whole mechanism behind "your agent is too old to honour the
+    // limit" — no version sniffing anywhere.
+    expect(health.json().toolContracts.power).toBe(1);
   });
 
   it('refuses /api requests from a foreign origin even with a valid token', async () => {

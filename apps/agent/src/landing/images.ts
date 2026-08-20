@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawnTracked } from '../power/spawn.js';
 import { ffmpegPath } from '../ffmpeg/tools.js';
 import { decodePng, encodeWebp, type WebpQualityProfile } from './webp.js';
 
@@ -9,7 +9,7 @@ import { decodePng, encodeWebp, type WebpQualityProfile } from './webp.js';
  */
 function decodeToPng(inputPath: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const child = spawn(
+    const child = spawnTracked(
       ffmpegPath,
       [
         '-nostdin',
@@ -28,7 +28,7 @@ function decodeToPng(inputPath: string): Promise<Buffer> {
         'image2pipe',
         'pipe:1'
       ],
-      { shell: false }
+      { toolId: 'landing' }
     );
     const chunks: Buffer[] = [];
     let stderr = '';

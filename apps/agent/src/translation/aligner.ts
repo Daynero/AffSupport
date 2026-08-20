@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
+import { spawnTracked } from '../power/spawn.js';
 import type { AlignmentLink, TranscriptSegment, TranscriptWord } from '@video-compressor/shared';
 import {
   ALIGNMENT_MODEL_DESCRIPTOR,
@@ -136,7 +137,7 @@ export class E5Aligner implements Aligner {
     await this.close();
     const port = await reserveLoopbackPort();
     const apiKey = randomBytes(32).toString('hex');
-    const child = spawn(
+    const child = spawnTracked(
       translationRuntimePath(),
       [
         '--model',
@@ -165,7 +166,7 @@ export class E5Aligner implements Aligner {
         '--no-webui',
         '--log-disable'
       ],
-      { shell: false, stdio: ['ignore', 'ignore', 'ignore'] }
+      { toolId: 'translation-align', stdio: ['ignore', 'ignore', 'ignore'] }
     );
     this.child = child;
     this.port = port;

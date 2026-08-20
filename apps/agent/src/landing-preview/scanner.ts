@@ -7,12 +7,22 @@ import type {
   TeamLandingPreviewSnapshotState
 } from '@video-compressor/shared';
 import { inspectZip } from './archive.js';
+import { activeGovernorOrNull } from '../power/spawn.js';
 
 const IGNORED_DIRECTORIES = new Set(['.git', '.hg', '.svn', 'node_modules', '__MACOSX']);
 const IGNORED_FILES = new Set(['.DS_Store', 'Thumbs.db']);
 /** A single readdir/stat this slow means a stuck or offline mount (e.g. a
  *  removed cloud-synced folder); abandon it so a scan can never wedge. */
 const FS_OP_TIMEOUT_MS = 15_000;
+
+/**
+ * Filesystem work behind a throttled render shares its stretched wall clock, so
+ * the deadline has to stretch with it or a limit turns a slow scan into a
+ * failed one.
+ */
+function scaledFsTimeout(): number {
+  return activeGovernorOrNull()?.scaleTimeout(FS_OP_TIMEOUT_MS) ?? FS_OP_TIMEOUT_MS;
+}
 
 /**
  * Runs a filesystem operation so it can ALWAYS be abandoned. Node's fs calls
@@ -25,7 +35,7 @@ const FS_OP_TIMEOUT_MS = 15_000;
 export async function guardedFs<T>(
   operation: () => Promise<T>,
   signal?: AbortSignal,
-  timeoutMs: number = FS_OP_TIMEOUT_MS
+  timeoutMs: number = scaledFsTimeout()
 ): Promise<T> {
   if (signal?.aborted) throw signal.reason ?? new Error('Operation cancelled.');
   return await new Promise<T>((resolve, reject) => {

@@ -97,9 +97,12 @@ describe('capabilities', () => {
       nativeFilePicker: true,
       revealInFileManager: true,
       spotlightSearch: false,
-      // No Explorer shell extension ships, and Windows has no SIGSTOP.
+      // No Explorer shell extension ships.
       shellContextMenuIntegration: false,
-      processPause: false
+      // Windows has no SIGSTOP, but it does have NtSuspendProcess: the power
+      // throttle drives it through a resident PowerShell helper, so suspension
+      // is genuinely available here now.
+      processPause: true
     });
   });
 
@@ -213,12 +216,15 @@ describe('process pause and resume', () => {
     expect(resumeProcess(throwing)).toBe(false);
   });
 
-  it('declines to pause on Windows without touching the process', () => {
+  it('pauses on Windows through the helper rather than a signal', () => {
     setPlatform('win32');
-    expect(processPauseSupported()).toBe(false);
+    expect(processPauseSupported()).toBe(true);
     const child = fakeChild(true);
-    expect(pauseProcess(child)).toBe(false);
-    expect(resumeProcess(child)).toBe(false);
+    // Windows never receives SIGSTOP — the signal simply does not exist there,
+    // so delivering one would be a silent no-op. See
+    // tests/power-windows-suspend.test.ts for the helper protocol itself.
+    pauseProcess(child);
+    resumeProcess(child);
     expect(child.kill).not.toHaveBeenCalled();
   });
 });

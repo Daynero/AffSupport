@@ -40,7 +40,24 @@ import {
 } from '../images/embedding.js';
 import { ImageAssetError, ImageAssetStore } from '../images/store.js';
 import { detectStaticEdgeTrims } from '../images/static-edges.js';
-import { pauseProcess, processPauseSupported, resumeProcess } from '../platform/platform.js';
+/**
+ * Suspension is NOT done here any more. The governor owns it, because it also
+ * duty-cycles managed children to hold the power limit — two independent
+ * suspenders would fight over the same process, and whichever resumed last
+ * would silently discard the other's intent.
+ */
+
+/**
+ * What the queue needs from the shared resource budget. Structural so the queue
+ * does not depend on the power module's concrete class — and so a bare test
+ * assembly can omit it entirely.
+ */
+export interface QueuePowerGovernor {
+  hold(child: ChildProcessWithoutNullStreams, reason: string): () => void;
+  resumeForTermination(child: ChildProcessWithoutNullStreams): void;
+  throttlingSupported(): boolean;
+  scaleTimeout(milliseconds: number): number;
+}
 import { selectionWarning } from './shared.js';
 import { defaultSettings } from './store.js';
 
@@ -109,6 +126,9 @@ export class JobQueue {
     end: new Set()
   };
   private teamJobSettings = new Map<string, AgentSettings>();
+  private power: QueuePowerGovernor | null = null;
+  /** Releases the estimate-priority hold; null when nothing is held. */
+  private estimateHoldRelease: (() => void) | null = null;
 
   constructor(
     private tools: QueueState['tools'],
@@ -126,6 +146,41 @@ export class JobQueue {
 
   attachEstimator(hooks: EstimatorHooks) {
     this.estimateHooks = hooks;
+  }
+
+  /**
+   * Hands the queue the shared resource budget.
+   *
+   * The queue no longer suspends the active encode itself. Suspension has one
+   * owner — the governor — because it also duty-cycles managed children to hold
+   * the power limit; two independent suspenders would fight, and the cycler's
+   * next on-window would resume a process this queue deliberately stopped.
+   * Optional so tests that assemble a bare queue keep working: without a
+   * governor the prioritization simply runs alongside the encode, exactly as it
+   * does today on a platform that cannot pause.
+   */
+  attachPowerGovernor(governor: QueuePowerGovernor) {
+    this.power = governor;
+  }
+
+  /**
+   * Asks the governor to hold the encode while prioritized estimates run.
+   * Falls back to the platform capability when no governor is attached (bare
+   * test assemblies), so behaviour is unchanged there.
+   */
+  private holdForEstimates(child: ChildProcessWithoutNullStreams): boolean {
+    if (!this.power) return false;
+    this.estimateHoldRelease = this.power.hold(child, 'estimate-priority');
+    return true;
+  }
+
+  private releaseEstimateHold() {
+    this.estimateHoldRelease?.();
+    this.estimateHoldRelease = null;
+  }
+
+  private pauseSupported(): boolean {
+    return this.power?.throttlingSupported() ?? false;
   }
 
   attachRuntimeRecovery(handler: (error: MediaToolUnavailableError) => void) {
@@ -555,7 +610,11 @@ export class JobQueue {
       // `preparing-images`), whose ffmpeg children are not `this.active` and
       // would otherwise keep loading the CPU after the UI shows "cancelled".
       this.activeAbort?.abort();
-      if (this.compressionPausedForEstimates && this.active) resumeProcess(this.active);
+      // SIGTERM is not delivered to a stopped process until it is resumed, so a
+      // suspended encode would ignore the graceful signal and only die to the
+      // SIGKILL escalation — losing the chance to finalize its output.
+      this.releaseEstimateHold();
+      if (this.active) this.power?.resumeForTermination(this.active);
       if (this.active) this.active.kill('SIGTERM');
     }
     this.notify('estimate:queued');
@@ -680,15 +739,21 @@ export class JobQueue {
     this.activeAbort?.abort();
     const child = this.active;
     if (!child) return;
-    if (this.compressionPausedForEstimates) resumeProcess(child);
+    this.releaseEstimateHold();
+    this.power?.resumeForTermination(child);
     child.kill('SIGTERM');
     await Promise.race([
       new Promise<void>(resolve => child.once('close', () => resolve())),
       new Promise<void>(resolve =>
-        setTimeout(() => {
-          child.kill('SIGKILL');
-          resolve();
-        }, 2000)
+        setTimeout(
+          () => {
+            child.kill('SIGKILL');
+            resolve();
+          },
+          // Throttling stretches wall-clock time, so a fixed grace period would
+          // shrink in effective terms exactly when the process needs it most.
+          this.power?.scaleTimeout(2000) ?? 2000
+        )
       )
     ]);
   }
@@ -1174,9 +1239,9 @@ export class JobQueue {
     this.prioritizingEstimates = true;
     try {
       if (pausedChild) {
-        if (pauseProcess(pausedChild)) {
+        if (this.holdForEstimates(pausedChild)) {
           this.compressionPausedForEstimates = true;
-        } else if (processPauseSupported()) {
+        } else if (this.pauseSupported()) {
           // The pause signal could not be delivered (the process is likely
           // already gone); leave the handoff to the next scheduling pass.
           return;
@@ -1191,12 +1256,12 @@ export class JobQueue {
       } while (
         processed &&
         this.hasPrioritizedEstimate() &&
-        (!this.compressionActive() || !processPauseSupported())
+        (!this.compressionActive() || !this.pauseSupported())
       );
     } catch {
       // A failed handoff must never leave the compression process suspended.
     } finally {
-      if (pausedChild && this.active === pausedChild) resumeProcess(pausedChild);
+      if (pausedChild && this.active === pausedChild) this.releaseEstimateHold();
       this.compressionPausedForEstimates = false;
       this.prioritizingEstimates = false;
       if (!this.compressionInFlight) queueMicrotask(() => void this.pump());

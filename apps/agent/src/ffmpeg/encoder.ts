@@ -1,5 +1,6 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import type { EncodingSettings, JobImageEmbedding } from '@video-compressor/shared';
+import { spawnManaged, type ManagedSpawnGovernor } from '../power/spawn.js';
 import { buildEmbeddedFfmpegArgs, buildFfmpegArgs } from './presets.js';
 import { ffmpegPath } from './tools.js';
 
@@ -34,12 +35,19 @@ export function encodeVideo(
   settings: EncodingSettings,
   transcodeAudio: boolean,
   onProgress: (value: number | null) => void,
-  embedding?: EncodeEmbeddingOptions
+  embedding?: EncodeEmbeddingOptions,
+  // Optional so bare test assemblies keep the previous, unmanaged behaviour.
+  // Production always supplies it, which is what puts the encode inside the
+  // shared resource budget.
+  governor?: ManagedSpawnGovernor | null
 ): { child: ChildProcessWithoutNullStreams; done: Promise<EncodeResult> } {
+  const threads = governor?.budget().threadBudget ?? null;
   const args = embedding
-    ? buildEmbeddedFfmpegArgs({ input, output, settings, ...embedding })
-    : buildFfmpegArgs(input, output, settings, transcodeAudio);
-  const child = spawn(ffmpegPath, args, { shell: false });
+    ? buildEmbeddedFfmpegArgs({ input, output, settings, threads, ...embedding })
+    : buildFfmpegArgs(input, output, settings, transcodeAudio, threads);
+  const child = spawnManaged(governor ?? null, ffmpegPath, args, {
+    toolId: 'compressor'
+  }) as ChildProcessWithoutNullStreams;
   let stderr = '';
   let buffer = '';
   let cancelled = false;

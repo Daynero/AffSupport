@@ -14,6 +14,8 @@ import {
 import { advertisedCapabilities } from './capabilities.js';
 import type { EntitlementGate } from '../entitlement/entitlement.js';
 import type { JobQueue } from '../queue/queue.js';
+import type { PowerGovernor } from '../power/governor.js';
+import { registerPowerRoutes, type PowerSamplerHandle } from '../power/routes.js';
 import type { ToolContext, ToolModule } from './tools.js';
 
 export interface ServerConfig {
@@ -55,6 +57,10 @@ export interface ServerDeps {
   /** The compressor queue also carries the agent-wide update/warning state. */
   queue: JobQueue;
   modules: ToolModule[];
+  /** The shared local-resource budget every tool spawns through. */
+  power: PowerGovernor;
+  /** Live consumption measurement; absent when the agent runs without it. */
+  powerSampler?: PowerSamplerHandle;
   /** Directory with the built web bundle served as the local fallback UI. */
   webRoot: string;
 }
@@ -222,9 +228,20 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     lastError: queue.state().warning ?? null
   }));
 
+  // The power throttle is server-wide infrastructure, not a tool: it is passed
+  // through ToolContext rather than added to the module list, so it never shows
+  // up in the /health busy flag.
+  registerPowerRoutes(app, {
+    governor: deps.power,
+    allowedOrigins,
+    sampler: deps.powerSampler,
+    onError: (error, message) => app.log.error(error, message)
+  });
+
   const toolContext: ToolContext = {
     allowedOrigins,
-    acceptingNewTasks: () => queue.acceptingNewTasks()
+    acceptingNewTasks: () => queue.acceptingNewTasks(),
+    power: deps.power
   };
   for (const module of modules) module.register(app, toolContext);
 

@@ -1,4 +1,5 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import type { ChildProcessWithoutNullStreams } from 'node:child_process';
+import { spawnTracked } from '../power/spawn.js';
 import { createHash } from 'node:crypto';
 import { access, chmod, mkdir, rename, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -228,7 +229,9 @@ export class MediaPreviewManager {
       partial
     ];
 
-    const child = spawn(ffmpegPath, args, { shell: false });
+    const child = spawnTracked(ffmpegPath, args, {
+      toolId: 'transcription-preview'
+    }) as ChildProcessWithoutNullStreams;
     entry.child = child;
     let progressBuffer = '';
     child.stdout.on('data', chunk => {

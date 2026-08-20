@@ -96,6 +96,8 @@ export const analyticsEventNames = [
   'support_donation_clicked',
   'support_feedback_started',
   'diagnostics_copied',
+  'power_panel_opened',
+  'power_limit_changed',
   'error_occurred',
   ...TEAM_ANALYTICS_EVENT_NAMES
 ] as const;
@@ -144,6 +146,8 @@ export type AnalyticsProperties = {
   height?: number;
   mode?: CompressionMode;
   crf?: number;
+  /** Settled power-limit percentage, never an intermediate drag position. */
+  limit_percent?: number;
   rate_control?: RateControl;
   output_fps?: number;
   target_resolution?: number;
@@ -252,6 +256,7 @@ const allowedPropertyKeys = new Set<keyof AnalyticsProperties>([
   'height',
   'mode',
   'crf',
+  'limit_percent',
   'rate_control',
   'output_fps',
   'target_resolution',
@@ -292,6 +297,7 @@ const numericRanges: Partial<Record<keyof AnalyticsProperties, readonly [number,
   width: [0, 131_072],
   height: [0, 131_072],
   crf: [0, 63],
+  limit_percent: [20, 100],
   output_fps: [1, 1000],
   target_resolution: [16, 32_768]
 };

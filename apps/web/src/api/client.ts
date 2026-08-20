@@ -6,6 +6,7 @@ import {
   type LandingPreviewRenderSettings,
   type LandingPreviewState,
   type LandingState,
+  type PowerState,
   type LibraryJobKind,
   type QueueState,
   type SelectionResponse,
@@ -131,6 +132,25 @@ export function submitEntitlementToken(entitlementToken: string): Promise<AgentE
 }
 export function eventUrl() {
   return `${agentUrl}/api/events?token=${encodeURIComponent(token)}`;
+}
+
+/* ── Local resource budget ────────────────────────────────────────────────── */
+
+export function fetchPowerState(signal?: AbortSignal): Promise<PowerState> {
+  return request<PowerState>('/api/power', 'GET', signal);
+}
+
+/**
+ * Sets the ceiling. The returned state is authoritative — an out-of-range value
+ * comes back clamped, which is how the lever corrects itself without the client
+ * needing to know the bounds.
+ */
+export function setPowerLimit(limitPercent: number): Promise<PowerState> {
+  return requestBody<PowerState>('/api/power/limit', { limitPercent });
+}
+
+export function powerEventsUrl() {
+  return `${agentUrl}/api/power/events?token=${encodeURIComponent(token)}`;
 }
 export async function request<T>(url: string, method = 'GET', signal?: AbortSignal): Promise<T> {
   if (!token) throw new Error('PAIRING_REQUIRED');

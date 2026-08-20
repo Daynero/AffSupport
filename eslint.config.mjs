@@ -71,6 +71,42 @@ export default tseslint.config(
     }
   },
   {
+    // Every heavy child process must go through the shared resource budget, so
+    // a power limit covers all local tools at once and a tool added later is
+    // covered by default rather than by remembering. Without this the intent
+    // would live only in a doc comment, and the twenty-first spawn site would
+    // silently escape the ceiling.
+    files: ['apps/agent/src/**/*.ts'],
+    ignores: [
+      // The platform layer and the power module implement the mechanism.
+      'apps/agent/src/platform/**/*.ts',
+      'apps/agent/src/power/**/*.ts',
+      // Sub-second probes and native dialogs: managing them would cost more
+      // than it saves, and they are not sustained work.
+      'apps/agent/src/ffmpeg/tools.ts',
+      'apps/agent/src/whisper/tools.ts',
+      'apps/agent/src/files/picker.ts',
+      'apps/agent/src/files/dropped-source.ts'
+    ],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'node:child_process',
+              // Type-only imports are fine: the compressor queue holds a
+              // ChildProcessWithoutNullStreams reference without spawning one.
+              allowTypeImports: true,
+              message:
+                'Spawn heavy children through apps/agent/src/power/spawn.ts (spawnManaged/spawnTracked) so every local tool shares one resource budget.'
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
     files: ['apps/web/src/**/*.{ts,tsx}'],
     languageOptions: {
       globals: globals.browser

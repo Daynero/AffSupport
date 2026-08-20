@@ -1,4 +1,5 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import type { ChildProcessWithoutNullStreams } from 'node:child_process';
+import { spawnTracked } from '../power/spawn.js';
 import { mkdtemp, rm, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -428,7 +429,7 @@ export class EstimationWorker {
 
   private runFfmpeg(args: string[]) {
     return new Promise<number | null>(resolve => {
-      const child = spawn(ffmpegPath, args, { shell: false });
+      const child = spawnTracked(ffmpegPath, args, { toolId: 'estimate' });
       this.child = child;
       child.on('error', () => resolve(null));
       child.on('close', resolve);
@@ -473,7 +474,10 @@ function probe(input: string, signal?: AbortSignal) {
         reject(probeAborted());
         return;
       }
-      const process = spawn(
+      // ffprobe reads container metadata and exits; managing a sub-second probe
+      // would cost more than it saves. It goes through the same seam so the
+      // import ban stays enforceable.
+      const process = spawnTracked(
         ffprobePath,
         [
           '-v',
@@ -484,7 +488,7 @@ function probe(input: string, signal?: AbortSignal) {
           'json',
           input
         ],
-        { shell: false }
+        { toolId: 'estimate-probe' }
       );
       const onAbort = () => process.kill('SIGKILL');
       signal?.addEventListener('abort', onAbort, { once: true });

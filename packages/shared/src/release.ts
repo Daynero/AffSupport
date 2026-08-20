@@ -80,7 +80,13 @@ export const AGENT_TOOL_CONTRACTS = {
   landingOptimizer: 2,
   landingPreview: 2,
   transcription: 5,
-  teamWorkspace: 2
+  teamWorkspace: 2,
+  // Server-wide power throttle. Deliberately absent from WEB_TOOL_REQUIREMENTS:
+  // that map is the set of user-facing *tool pages*, and it is byte-compared
+  // against the signed, published stable.json by verify-release.mjs. The power
+  // control is not a tool page, so support is detected by reading this contract
+  // directly (see powerThrottleSupported in apps/web).
+  power: 1
 } as const;
 
 export const WEB_TOOL_REQUIREMENTS = {
@@ -220,4 +226,17 @@ export function compareProductVersions(left: string, right: string): -1 | 0 | 1 
     return x < y ? -1 : 1;
   }
   return 0;
+}
+
+/** Minimum `power` tool contract a web client needs to drive the throttle. */
+export const MIN_POWER_CONTRACT = 1;
+
+/**
+ * True when the connected agent can honour a power limit. Read directly from
+ * the advertised contracts rather than through `toolContractCompatible`, because
+ * the power throttle is a server-wide facility, not one of the tool pages in
+ * WEB_TOOL_REQUIREMENTS (which is byte-compared against the signed manifest).
+ */
+export function powerThrottleSupported(contracts: ToolContracts): boolean {
+  return (contracts.power ?? 0) >= MIN_POWER_CONTRACT;
 }

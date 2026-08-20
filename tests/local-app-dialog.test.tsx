@@ -82,7 +82,9 @@ describe('local app platform choices', () => {
     expect(screen.getByRole('heading', { name: 'Soty для Windows' })).toBeTruthy();
     expect(screen.getByText('На жаль, версія Soty для Windows ще в розробці.')).toBeTruthy();
 
-    await userEvent.click(screen.getByText('Закрити', { selector: 'button' }));
+    // The close control is an icon button: "Закрити" is its accessible name,
+    // not its text content, so it has to be queried by role.
+    await userEvent.click(screen.getByRole('button', { name: 'Закрити' }));
     expect(screen.queryByText('На жаль, версія Soty для Windows ще в розробці.')).toBeNull();
   });
 

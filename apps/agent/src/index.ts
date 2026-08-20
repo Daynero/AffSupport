@@ -34,6 +34,10 @@ import {
   parseLauncherPid,
   processIsAlive
 } from './runtime/launcher-watchdog.js';
+import { PowerGovernor } from './power/governor.js';
+import { loadPowerState, savePowerLimit } from './power/store.js';
+import { PowerSampler } from './power/sampler.js';
+import { setActiveGovernor } from './power/spawn.js';
 import { buildServer } from './server/app.js';
 import { EventChannel } from './server/sse.js';
 import { createToolModules } from './server/tools.js';
@@ -195,6 +199,34 @@ async function refreshMediaTools() {
 }
 
 const restored = await loadState();
+
+/**
+ * The shared local-resource budget. Constructed before any tool because every
+ * heavy child process is spawned through it, and because the compressor queue
+ * asks it to hold the active encode while prioritized estimates run — the
+ * governor is the single owner of suspend state, so nothing else may stop a
+ * managed child.
+ *
+ * `busy` is read lazily so it can reference the module list defined further
+ * down; without it a job that is preparing images (no child process yet) would
+ * report as idle while the UI shows it running.
+ */
+const powerGovernor = new PowerGovernor({
+  busy: () => modules.some(module => module.busy()),
+  onError: (error, message) => logError(error, message),
+  persist: limitPercent => savePowerLimit(limitPercent)
+});
+const restoredPower = await loadPowerState();
+if (restoredPower)
+  powerGovernor.adoptPersistedLimit(restoredPower.limitPercent, restoredPower.updatedAt);
+// Deep spawn sites resolve the budget through this rather than threading a
+// governor through every intermediate signature.
+setActiveGovernor(powerGovernor);
+const powerSampler = new PowerSampler({
+  governor: powerGovernor,
+  onError: (error, message) => logError(error, message)
+});
+
 const queue = new JobQueue(
   tools,
   broadcast,
@@ -203,6 +235,7 @@ const queue = new JobQueue(
   restored.batch,
   imageStore
 );
+queue.attachPowerGovernor(powerGovernor);
 await queue.revalidateSettingsImages();
 const estimator = new EstimationWorker(
   () => queue.estimationJobs(),
@@ -308,6 +341,8 @@ const app = await buildServer({
   tools,
   queue,
   modules,
+  power: powerGovernor,
+  powerSampler,
   webRoot: path.resolve(here, '../../web/dist')
 });
 logError = (error, message) => app.log.error(error, message);
@@ -339,6 +374,9 @@ async function shutdown(code = 0) {
     await saveChain;
     await transcriptionSaveChain;
     for (const module of modules) await module.shutdown();
+    // Resume anything the duty cycler left stopped before the process exits: a
+    // suspended child would outlive the agent and never make progress again.
+    await powerGovernor.shutdown();
     await app.close();
   } catch (error) {
     logError(error, 'Shutdown failed');

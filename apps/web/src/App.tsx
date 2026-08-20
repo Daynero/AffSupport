@@ -37,6 +37,7 @@ import { JobRow } from './components/JobRow';
 import { SettingsPanel } from './components/SettingsPanel';
 import { Button, ProgressBar, Spinner, type Translate } from './components/ui';
 import { SotyLogo, SotyMark } from './components/SotyLogo';
+import { PowerThrottle } from './components/PowerThrottle';
 import { ThemeToggle } from './components/ThemeToggle';
 import { useAgent } from './AgentContext';
 import { internalLink, usePageEntrance } from './lib/navigation';
@@ -606,6 +607,7 @@ export function Header({
         <SupportButton />
       </div>
       <div className="topbar-actions">
+        <PowerThrottle />
         <ThemeToggle />
         <div className="language-switch" aria-label={t('language')}>
           <button

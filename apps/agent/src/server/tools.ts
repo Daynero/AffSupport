@@ -20,6 +20,7 @@ import type { TeamProcessBridge } from '../team-bridge/process.js';
 import { registerTeamBridgeRoutes } from '../team-bridge/routes.js';
 import { registerLandingRoutes } from '../landing/routes.js';
 import { registerTranscriptionRoutes } from '../transcription/routes.js';
+import type { PowerGovernor } from '../power/governor.js';
 import type { EventChannel } from './sse.js';
 
 /** Server-wide facilities every tool module may rely on. */
@@ -27,6 +28,12 @@ export interface ToolContext {
   allowedOrigins: ReadonlySet<string>;
   /** False while a pending update drains work; tools must refuse new tasks. */
   acceptingNewTasks: () => boolean;
+  /**
+   * The shared CPU budget. Tools read it for thread counts and timeout scaling,
+   * and spawn heavy children through `spawnManaged` so the ceiling covers every
+   * tool at once rather than each separately.
+   */
+  power: PowerGovernor;
 }
 
 /**

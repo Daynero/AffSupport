@@ -24,11 +24,14 @@ function fakeChild(killResult: boolean | Error = true) {
 }
 
 /**
- * Windows has no SIGSTOP, so the estimator cannot be suspended while a
- * prioritized compression runs. The queue is written to fall through in that
- * case rather than wedge, and no user-facing pause control exists — these tests
- * hold that contract, which is what lets the capability simply be absent on
- * Windows instead of failing at call time.
+ * Suspension used to be macOS-only: Windows has no SIGSTOP, so the encode could
+ * not be paused while prioritized estimates ran, and the queue fell through
+ * rather than wedging.
+ *
+ * The power throttle needed the same primitive to hold running work to a limit,
+ * so Windows now goes through a resident PowerShell helper calling
+ * NtSuspendProcess. These tests hold the remaining platform contract: whatever
+ * the mechanism, a raw SIGSTOP is never delivered on Windows.
  */
 afterEach(() => {
   setPlatform(realPlatform);
@@ -36,15 +39,16 @@ afterEach(() => {
 });
 
 describe('process pause across platforms', () => {
-  it('is unavailable on Windows and refuses cleanly', () => {
+  it('is available on Windows and never delivers a POSIX signal', () => {
     setPlatform('win32');
-    expect(capabilities().processPause).toBe(false);
-    expect(processPauseSupported()).toBe(false);
+    expect(capabilities().processPause).toBe(true);
+    expect(processPauseSupported()).toBe(true);
 
     const child = fakeChild();
-    expect(pauseProcess(child)).toBe(false);
-    expect(resumeProcess(child)).toBe(false);
-    // Crucially it must not even attempt to deliver a signal Windows lacks.
+    pauseProcess(child);
+    resumeProcess(child);
+    // Crucially it must not attempt to deliver a signal Windows lacks; the
+    // helper does the work instead.
     expect(child.kill).not.toHaveBeenCalled();
   });
 

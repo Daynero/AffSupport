@@ -39,17 +39,36 @@ export function videoArgs(settings: EncodingSettings): string[] {
   return args;
 }
 
+/**
+ * Thread arguments for the current resource budget.
+ *
+ * Returns nothing when unrestricted. That is deliberate, not an oversight: with
+ * no limit set the command line must be byte-identical to the one this agent
+ * shipped before the power throttle existed, and FFmpeg has never received a
+ * `-threads` flag here. Injecting one — even `-threads <all cores>` — replaces
+ * FFmpeg's own per-codec auto-detection and changes behaviour for every user
+ * who never touches the control.
+ */
+export function threadArgs(threads: number | null): string[] {
+  if (threads === null) return [];
+  return ['-threads', String(threads), '-filter_threads', String(threads)];
+}
+
 export function buildFfmpegArgs(
   input: string,
   output: string,
   settings: EncodingSettings,
-  forceAac = false
+  forceAac = false,
+  threads: number | null = null
 ): string[] {
   const audio = forceAac ? ['-c:a', 'aac', '-b:a', '96k'] : ['-c:a', 'copy'];
   return [
     '-hide_banner',
     '-nostdin',
     '-n',
+    ...threadArgs(threads),
+    '-hwaccel',
+    'none',
     '-i',
     input,
     ...videoArgs(settings),
@@ -65,6 +84,8 @@ export function buildFfmpegArgs(
 }
 
 export interface EmbeddedFfmpegOptions {
+  /** Shared resource budget; null (the default) means unrestricted. */
+  threads?: number | null;
   input: string;
   output: string;
   sourceStartSeconds?: number;
@@ -142,6 +163,9 @@ export function buildEmbeddedFfmpegArgs(options: EmbeddedFfmpegOptions): string[
     '-hide_banner',
     '-nostdin',
     '-n',
+    ...threadArgs(options.threads ?? null),
+    '-hwaccel',
+    'none',
     ...inputs,
     '-filter_complex',
     filters.join(';'),
@@ -181,6 +205,8 @@ export function buildEstimateArgs(
     '-hide_banner',
     '-nostdin',
     '-y',
+    '-hwaccel',
+    'none',
     '-ss',
     start.toFixed(3),
     '-i',

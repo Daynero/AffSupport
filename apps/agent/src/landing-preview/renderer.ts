@@ -1,10 +1,25 @@
 import { createReadStream } from 'node:fs';
 import { access, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
+import type { ChildProcess } from 'node:child_process';
 import { createServer, type Server } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright-core';
 import { installedBrowserCandidates } from '../platform/platform.js';
+import { activeGovernorOrNull } from '../power/spawn.js';
+
+/**
+ * Stretches a wall-clock budget to match the resource limit in force.
+ *
+ * These budgets are real-time deadlines, but throttling deliberately slows work
+ * down — at a 20% limit a render takes roughly five times as long. Leaving them
+ * fixed would make the power lever manufacture RENDER_TIMEOUT failures, and the
+ * symptom ("previews sometimes fail on this machine") points nowhere near the
+ * control that caused it.
+ */
+function scaled(milliseconds: number): number {
+  return activeGovernorOrNull()?.scaleTimeout(milliseconds) ?? milliseconds;
+}
 
 const VIEWPORT = { width: 1440, height: 900 };
 const NAVIGATION_TIMEOUT_MS = 20_000;
@@ -86,7 +101,7 @@ export class LandingPageRenderer {
     if (!this.executable) throw new Error(this.availability().error ?? 'Renderer unavailable.');
     // Combine the caller's cancellation with a hard render budget so a page that
     // never settles is abandoned at the next checkpoint instead of stalling the pool.
-    const budget = AbortSignal.timeout(RENDER_TIMEOUT_MS);
+    const budget = AbortSignal.timeout(scaled(RENDER_TIMEOUT_MS));
     const signal = input.signal ? AbortSignal.any([input.signal, budget]) : budget;
     throwIfAborted(signal);
     const browser = await this.getBrowser();
@@ -109,8 +124,8 @@ export class LandingPageRenderer {
       // exactly as published; nothing is proxied or captured beyond the screenshot.
       const blockedExternalRequests = 0;
       const page = await context.newPage();
-      page.setDefaultNavigationTimeout(NAVIGATION_TIMEOUT_MS);
-      page.setDefaultTimeout(NAVIGATION_TIMEOUT_MS);
+      page.setDefaultNavigationTimeout(scaled(NAVIGATION_TIMEOUT_MS));
+      page.setDefaultTimeout(scaled(NAVIGATION_TIMEOUT_MS));
       page.on('dialog', dialog => void dialog.dismiss());
       page.on('download', download => void download.cancel());
       page.on('popup', popup => void popup.close());
@@ -198,6 +213,10 @@ export class LandingPageRenderer {
           '--no-first-run'
         ]
       });
+      // Chromium spawns a renderer tree of its own. Registering the browser
+      // process puts that whole tree inside the shared budget; measuring or
+      // throttling only the top process would miss where the work happens.
+      registerBrowserProcess(this.browser);
       return this.browser;
     } catch (error) {
       this.availabilityError = `Chromium could not start: ${message(error)}`;
@@ -494,4 +513,24 @@ function message(error: unknown) {
 
 function throwIfAborted(signal?: AbortSignal) {
   if (signal?.aborted) throw signal.reason ?? new Error('Operation cancelled.');
+}
+
+/**
+ * Puts a launched Chromium inside the shared resource budget.
+ *
+ * Playwright owns the spawn, so the browser cannot go through `spawnManaged`.
+ * Registering it by its ChildProcess achieves the same thing: the governor
+ * tracks it, the sampler walks its renderer tree, and the duty cycler holds it
+ * to the limit alongside every other tool.
+ */
+function registerBrowserProcess(browser: Browser): void {
+  const governor = activeGovernorOrNull();
+  if (!governor) return;
+  // `process()` is not part of the public Browser type but is present on a
+  // locally launched browser; a remote connection has none, and skipping it is
+  // correct there — a remote browser is not consuming this machine.
+  const child = (browser as unknown as { process?: () => ChildProcess | null }).process?.();
+  if (!child) return;
+  governor.register(child, { toolId: 'landing-preview' });
+  browser.on('disconnected', () => governor.release(child));
 }

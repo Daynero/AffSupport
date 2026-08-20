@@ -15,19 +15,22 @@ import LocalAppDialog from './components/LocalAppDialog';
 import ReleaseUpdateNotice from './components/ReleaseUpdateNotice';
 import { SupportGoalProvider } from './support/SupportGoalContext';
 import { teamApi } from './api/team';
+import { PowerProvider } from './lib/power';
 import { TeamProvider } from './team/TeamContext';
 import TeamSpace from './team/TeamSpace';
 
 export default function ProtectedSoty({ path }: { path: string }) {
   return (
     <AgentProvider>
-      <SupportGoalProvider>
-        <TeamProvider client={teamApi}>
-          <ApplicationShell path={path} />
-        </TeamProvider>
-        <ReleaseUpdateNotice />
-        <ProfileOnboarding />
-      </SupportGoalProvider>
+      <PowerProvider>
+        <SupportGoalProvider>
+          <TeamProvider client={teamApi}>
+            <ApplicationShell path={path} />
+          </TeamProvider>
+          <ReleaseUpdateNotice />
+          <ProfileOnboarding />
+        </SupportGoalProvider>
+      </PowerProvider>
     </AgentProvider>
   );
 }

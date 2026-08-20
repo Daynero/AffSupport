@@ -1,4 +1,5 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import type { ChildProcessWithoutNullStreams } from 'node:child_process';
+import { activeThreadBudget, spawnTracked } from '../power/spawn.js';
 import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
@@ -266,7 +267,9 @@ function runExtract(
     wavPath
   ];
   return new Promise(resolve => {
-    const child = spawn(ffmpegPath, args, { shell: false });
+    const child = spawnTracked(ffmpegPath, args, {
+      toolId: 'transcription'
+    }) as ChildProcessWithoutNullStreams;
     onChild(child);
     let stderr = '';
     let spawnErrorCode: string | null = null;
@@ -293,7 +296,9 @@ function runWhisper(
 }> {
   const args = buildWhisperArgs(params);
   return new Promise(resolve => {
-    const child = spawn(whisperPath, args, { shell: false });
+    const child = spawnTracked(whisperPath, args, {
+      toolId: 'transcription'
+    }) as ChildProcessWithoutNullStreams;
     onChild(child);
     const watchdog = attachInactivityWatchdog(child);
     let stderr = '';
@@ -330,7 +335,11 @@ export function buildWhisperArgs(
   },
   options: { threads?: number; vadModelPath?: string | null } = {}
 ): string[] {
-  const threads = options.threads ?? Math.max(4, os.cpus().length - 2);
+  // The shared budget wins when a limit is in force; otherwise the historical
+  // default stands. Deriving a value from the budget at 100% would push this
+  // from 8 threads to a full core count on a 10-core machine — making
+  // transcription hotter by default than it was before the throttle existed.
+  const threads = options.threads ?? activeThreadBudget() ?? Math.max(4, os.cpus().length - 2);
   const vadModelPath =
     options.vadModelPath === undefined
       ? existsSync(whisperVadModelPath)

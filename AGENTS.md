@@ -139,3 +139,48 @@ than branching: add the flag to `PlatformCapabilities`, map it in
 `apps/agent/src/server/capabilities.ts`, and gate the route with
 `hasCapability(...)` returning `501` and a stable machine code. The agent then
 advertises only what the host can actually serve, and the web UI hides the rest.
+
+## Local resource budget (power throttle)
+
+Every heavy child process the agent spawns runs inside one shared CPU budget,
+owned by `PowerGovernor` (`apps/agent/src/power/governor.ts`). The user sets a
+single ceiling — 20–100% of the machine, default 100% — from the power control
+in the web header, and it applies to **all** local tools at once rather than to
+each separately.
+
+**Adding a local tool.** Spawn through `apps/agent/src/power/spawn.ts`
+(`spawnManaged` when you hold a governor, `spawnTracked` for a deep call site),
+never `node:child_process` directly. `@typescript-eslint/no-restricted-imports`
+in `eslint.config.mjs` enforces this; the allowlist is the platform and power
+modules plus four files that spawn sub-second probes and native dialogs. A tool
+that goes through the seam is inside the budget with no further work — that is
+the whole point, because the twentieth spawn site is where a convention gets
+forgotten.
+
+**Never suspend a child yourself.** The governor duty-cycles managed children
+(suspend/resume on a 200 ms period) to hold the limit, so a second suspender
+would fight it and whichever resumed last would silently win. If you need a
+child stopped for your own reason, take `governor.hold(child, reason)` and
+release it. Before terminating a child — every cancel and shutdown path — call
+`governor.resumeForTermination(child)`: `SIGTERM` is not delivered to a stopped
+process, so skipping this turns a graceful stop into a `SIGKILL` and loses the
+tool's output. The compressor queue's estimate-prioritization pause is the
+worked example.
+
+**Scale wall-clock deadlines.** Throttling deliberately makes work take longer.
+Any real-time budget covering managed work must go through
+`governor.scaleTimeout(ms)`, or a limit manufactures timeout failures whose
+symptom points nowhere near the control that caused them. Already wired:
+`landing-preview/renderer.ts`, `landing-preview/scanner.ts`,
+`team-bridge/landing-gallery.ts`, and the queue's `SIGKILL` escalation.
+
+**100% must mean "exactly as before".** At the maximum setting the budget yields
+`null` for threads and priority, and `scaleTimeout` is the identity. Never
+derive an "equivalent" value there: it would hand FFmpeg a `-threads` flag it has
+never received and push whisper from `max(4, cores - 2)` to a full core count,
+changing behaviour for every user who never opens the control.
+
+**Windows.** `capabilities().processPause` is now true on win32, backed by a
+resident PowerShell helper calling `NtSuspendProcess`/`NtResumeProcess`
+(`apps/agent/src/platform/windows-suspend.ts`). It starts lazily on the first
+suspend, so a machine that never throttles never spawns it.

@@ -36,7 +36,10 @@ vi.mock('../apps/web/src/AgentContext.js', async () => {
       reconnect: vi.fn(),
       capabilities: ['landing'],
       toolAvailable: () => true
-    })
+    }),
+    // The header's power throttle reads the agent optionally, so it can render
+    // its "not connected" state instead of throwing outside a provider.
+    useOptionalAgent: () => null
   };
 });
 vi.mock('../apps/web/src/analytics/service.js', () => ({

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { constants, type Stats } from 'node:fs';
 import { access, copyFile, link, stat, unlink, writeFile } from 'node:fs/promises';
-import { spawn } from 'node:child_process';
+import { spawnTracked } from '../power/spawn.js';
 import path from 'node:path';
 import { ffmpegPath, probeImage } from '../ffmpeg/tools.js';
 import { encodeImageToWebp } from '../landing/images.js';
@@ -192,7 +192,7 @@ function encodeWithFfmpeg(
         ];
 
   return new Promise<void>((resolve, reject) => {
-    const child = spawn(ffmpegPath, args, { shell: false });
+    const child = spawnTracked(ffmpegPath, args, { toolId: 'media-actions' });
     let stderr = '';
     child.stderr.on('data', chunk => {
       stderr = (stderr + chunk.toString()).slice(-4_000);

@@ -2,6 +2,7 @@ import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { WindowsSuspendHelper } from './windows-suspend.js';
 
 /**
  * Platform layer: every OS-specific mechanism the agent relies on lives behind
@@ -32,8 +33,9 @@ export interface PlatformCapabilities {
    */
   shellContextMenuIntegration: boolean;
   /**
-   * Suspending and resuming a running child process. Windows has no SIGSTOP, so
-   * callers must be prepared to continue with the process still running.
+   * Suspending and resuming a running child process. POSIX uses SIGSTOP/SIGCONT;
+   * Windows has neither, and goes through a resident PowerShell helper that
+   * calls NtSuspendProcess/NtResumeProcess (platform/windows-suspend.ts).
    */
   processPause: boolean;
 }
@@ -55,7 +57,10 @@ export function capabilities(): PlatformCapabilities {
         revealInFileManager: true,
         spotlightSearch: false,
         shellContextMenuIntegration: false,
-        processPause: false
+        // Real since the power throttle: NtSuspendProcess through a resident
+        // PowerShell helper. Before that this was false and every suspend was a
+        // silent no-op here.
+        processPause: true
       };
     default:
       return {
@@ -267,13 +272,38 @@ export function processPauseSupported(): boolean {
 }
 
 /**
- * Suspends a child process. Returns false when the platform cannot pause
- * (Windows has no SIGSTOP) or the signal could not be delivered; callers must
- * be prepared to continue with the process still running.
+ * The Windows suspend helper, created on first use so a machine that never
+ * throttles never spawns it.
+ */
+let windowsSuspend: WindowsSuspendHelper | null = null;
+
+function windowsSuspendHelper(): WindowsSuspendHelper {
+  windowsSuspend ??= new WindowsSuspendHelper();
+  return windowsSuspend;
+}
+
+/** Injectable for tests, which must never spawn a real PowerShell. */
+export function setWindowsSuspendHelper(helper: WindowsSuspendHelper | null): void {
+  windowsSuspend = helper;
+}
+
+/** Tears down the resident helper, if one was ever started. */
+export async function shutdownProcessPause(): Promise<void> {
+  const helper = windowsSuspend;
+  windowsSuspend = null;
+  await helper?.shutdown();
+}
+
+/**
+ * Suspends a child process. Returns false when the signal could not be
+ * delivered; callers must be prepared to continue with the process still
+ * running.
  */
 export function pauseProcess(child: ChildProcess): boolean {
   if (!processPauseSupported()) return false;
   try {
+    if (process.platform === 'win32')
+      return typeof child.pid === 'number' && windowsSuspendHelper().suspend(child.pid);
     return child.kill('SIGSTOP');
   } catch {
     return false;
@@ -284,6 +314,8 @@ export function pauseProcess(child: ChildProcess): boolean {
 export function resumeProcess(child: ChildProcess): boolean {
   if (!processPauseSupported()) return false;
   try {
+    if (process.platform === 'win32')
+      return typeof child.pid === 'number' && windowsSuspendHelper().resume(child.pid);
     return child.kill('SIGCONT');
   } catch {
     return false;
@@ -310,4 +342,125 @@ export function sanitizeFileName(name: string): string {
   // Windows reserves device names even with an extension (e.g. `con.txt`).
   const stem = cleaned.split('.', 1)[0];
   return WINDOWS_RESERVED_BASENAMES.test(stem) ? `_${cleaned}` : cleaned;
+}
+
+/* ── Local-resource measurement ──────────────────────────────────────────── */
+
+/**
+ * One row of the process table: a PID and its parent. Used to walk a tool's
+ * descendants, which matters for Playwright's Chromium (a renderer tree) —
+ * measuring only the direct child would under-report what Soty is consuming.
+ */
+export interface ProcessTableRow {
+  pid: number;
+  ppid: number;
+}
+
+/** True when this host can report per-process CPU time at all. */
+export function processMetricsSupported(): boolean {
+  return true;
+}
+
+function usesPowerShellMetrics(): boolean {
+  return process.platform === 'win32';
+}
+
+/**
+ * Snapshot of every process's PID and parent PID.
+ *
+ * Deliberately one batched call rather than per-PID probing: the sampler runs
+ * once a second while a viewer is watching, and the measurement must not itself
+ * become a meaningful share of the load it reports.
+ */
+export async function processTableSnapshot(): Promise<ProcessTableRow[]> {
+  const { stdout } = usesPowerShellMetrics()
+    ? await promisify(execFile)(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId) $($_.ParentProcessId)" }'
+        ],
+        { maxBuffer: 8 * 1024 * 1024, windowsHide: true }
+      )
+    : await promisify(execFile)('/bin/ps', ['-axo', 'pid=,ppid='], {
+        maxBuffer: 8 * 1024 * 1024
+      });
+  const rows: ProcessTableRow[] = [];
+  for (const line of stdout.split('\n')) {
+    const [pid, ppid] = line.trim().split(/\s+/u);
+    const parsedPid = Number(pid);
+    const parsedPpid = Number(ppid);
+    if (Number.isInteger(parsedPid) && Number.isInteger(parsedPpid))
+      rows.push({ pid: parsedPid, ppid: parsedPpid });
+  }
+  return rows;
+}
+
+/**
+ * Cumulative CPU time consumed by each of `pids`, in seconds.
+ *
+ * Cumulative time, never `ps %cpu`: on macOS that column is a decaying
+ * lifetime average, so a readout built on it would lag the lever by tens of
+ * seconds. Differencing two cumulative readings gives a true instantaneous
+ * rate.
+ */
+export async function processCpuSeconds(pids: readonly number[]): Promise<Map<number, number>> {
+  // Only integers ever reach a command line here, and they are filtered on this
+  // side rather than trusted from the caller.
+  const usable = pids.filter(pid => Number.isInteger(pid) && pid > 0);
+  if (usable.length === 0) return new Map();
+
+  if (usesPowerShellMetrics()) {
+    const { stdout } = await promisify(execFile)(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        `Get-Process -Id ${usable.join(',')} -ErrorAction SilentlyContinue | ForEach-Object { "$($_.Id) $($_.TotalProcessorTime.TotalSeconds)" }`
+      ],
+      { maxBuffer: 4 * 1024 * 1024, windowsHide: true }
+    );
+    const times = new Map<number, number>();
+    for (const line of stdout.split('\n')) {
+      const [pid, seconds] = line.trim().split(/\s+/u);
+      const parsedPid = Number(pid);
+      const parsedSeconds = Number(seconds);
+      if (Number.isInteger(parsedPid) && Number.isFinite(parsedSeconds))
+        times.set(parsedPid, parsedSeconds);
+    }
+    return times;
+  }
+
+  const { stdout } = await promisify(execFile)(
+    '/bin/ps',
+    ['-o', 'pid=,time=', '-p', usable.join(',')],
+    { maxBuffer: 4 * 1024 * 1024 }
+  );
+  const times = new Map<number, number>();
+  for (const line of stdout.split('\n')) {
+    const [pid, time] = line.trim().split(/\s+/u);
+    const parsedPid = Number(pid);
+    const seconds = parseCpuTime(time);
+    if (Number.isInteger(parsedPid) && seconds !== null) times.set(parsedPid, seconds);
+  }
+  return times;
+}
+
+/** Parses `ps` elapsed-CPU notation: `[[dd-]hh:]mm:ss[.ff]`. */
+export function parseCpuTime(value: string | undefined): number | null {
+  if (!value) return null;
+  const [days, rest] = value.includes('-') ? value.split('-', 2) : [null, value];
+  const parts = rest.split(':').map(Number);
+  if (parts.some(part => !Number.isFinite(part))) return null;
+  let seconds = 0;
+  for (const part of parts) seconds = seconds * 60 + part;
+  if (days !== null) {
+    const parsedDays = Number(days);
+    if (!Number.isFinite(parsedDays)) return null;
+    seconds += parsedDays * 86_400;
+  }
+  return seconds;
 }

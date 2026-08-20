@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawnTracked } from '../power/spawn.js';
 import { ffmpegPath, MediaToolUnavailableError } from '../ffmpeg/tools.js';
 
 const SAMPLE_WIDTH = 32;
@@ -176,7 +176,7 @@ function sampleFrame(input: string, seconds: number, signal?: AbortSignal) {
       reject(edgeDetectionAborted());
       return;
     }
-    const child = spawn(
+    const child = spawnTracked(
       ffmpegPath,
       [
         '-hide_banner',
@@ -197,7 +197,7 @@ function sampleFrame(input: string, seconds: number, signal?: AbortSignal) {
         '1',
         'pipe:1'
       ],
-      { shell: false }
+      { toolId: 'compressor-edges' }
     );
     // Kill the decode as soon as the caller aborts so a cancelled compression or
     // a superseded estimate stops burning CPU instead of running to completion.

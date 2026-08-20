@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawnTracked } from '../power/spawn.js';
 import { access, cp, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -13,7 +13,7 @@ export interface CommandResult {
 /** Runs a system command without a shell and collects its exit code/stderr. */
 export function runCommand(command: string, args: string[]): Promise<CommandResult> {
   return new Promise(resolve => {
-    const child = spawn(command, args, { shell: false });
+    const child = spawnTracked(command, args, { toolId: 'landing' });
     let stderr = '';
     child.stderr.on('data', chunk => {
       stderr = (stderr + chunk.toString()).slice(-8_000);

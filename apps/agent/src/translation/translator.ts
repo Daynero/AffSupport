@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
+import { spawnTracked } from '../power/spawn.js';
 import http from 'node:http';
 import net from 'node:net';
 import type { AlignmentLink } from '@video-compressor/shared';
@@ -254,7 +255,7 @@ export class LlamaTranslator implements Translator {
     await this.close();
     const port = await reserveLoopbackPort();
     const apiKey = randomBytes(32).toString('hex');
-    const child = spawn(
+    const child = spawnTracked(
       translationRuntimePath(),
       [
         '--model',
@@ -287,7 +288,7 @@ export class LlamaTranslator implements Translator {
         String(MODEL_SLEEP_SECONDS)
       ],
       {
-        shell: false,
+        toolId: 'translation',
         // Prompts and translations must never be copied into Soty logs.
         stdio: ['ignore', 'ignore', 'ignore']
       }

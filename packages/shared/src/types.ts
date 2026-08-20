@@ -46,8 +46,10 @@ export {
 export {
   compareProductVersions,
   normalizeToolContracts,
+  powerThrottleSupported,
   releaseManifestSigningPayload,
   toolContractCompatible,
+  MIN_POWER_CONTRACT,
   RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64,
   WEB_TOOL_REQUIREMENTS
 } from './release.js';
@@ -1287,4 +1289,126 @@ export function translationCacheKey(parts: {
     parts.targetLanguage,
     parts.translatorModelVersion
   ].join('\0');
+}
+
+/* ── Local Agent power throttle ─────────────────────────────────────────── */
+
+/**
+ * The user-facing ceiling on how much of the machine Soty's local tools may
+ * use, as a share of total system CPU capacity. `POWER_LIMIT_MAX` means
+ * unrestricted: at that setting the agent must behave exactly as it did before
+ * the throttle existed — no thread arguments, no priority change, no signals.
+ *
+ * Nothing below `POWER_LIMIT_MIN` is offered because a smaller share risks
+ * stalling work outright on a low-core machine.
+ */
+export const POWER_LIMIT_MIN = 20;
+export const POWER_LIMIT_MAX = 100;
+export const DEFAULT_POWER_LIMIT = POWER_LIMIT_MAX;
+
+/**
+ * The single authority for a valid limit. Every entry point — HTTP body,
+ * persisted file, governor setter — goes through this, so the bounds live in
+ * exactly one place. Anything that is not already a finite number yields the
+ * default rather than throwing: the safe failure direction is "Soty runs at
+ * full speed", never "Soty is mysteriously stuck at 20%".
+ *
+ * This deliberately does NOT use the loose `Number(value)` idiom the other
+ * clamp helpers share. `Number(null)` is 0 and `Number('')` is 0, which that
+ * idiom would clamp to the *minimum* — turning a missing value into the most
+ * restrictive setting, the exact opposite of the safe direction.
+ */
+export function clampPowerLimit(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_POWER_LIMIT;
+  return Math.min(POWER_LIMIT_MAX, Math.max(POWER_LIMIT_MIN, Math.round(value)));
+}
+
+export type PowerMode = 'unrestricted' | 'limited';
+export type PowerActivity = 'idle' | 'active';
+
+/** Why a consumption figure is missing, when one is. */
+export type PowerSampleUnavailable = 'warming-up' | 'unsupported' | 'error';
+
+/**
+ * A consumption reading. Modelled as a discriminated union rather than a
+ * nullable number so a caller cannot render "unavailable" as 0% — showing a
+ * fabricated zero is exactly what the readout must never do.
+ */
+export type PowerSample =
+  | {
+      availability: 'ok';
+      /** Soty's share of total system capacity, 0–100, one decimal. */
+      systemSharePercent: number;
+      activity: PowerActivity;
+      cpuCount: number;
+      sampledAt: string;
+    }
+  | {
+      availability: PowerSampleUnavailable;
+      activity: PowerActivity;
+      cpuCount: number;
+      sampledAt: string;
+    };
+
+/** Snapshot returned by both power routes and carried by every SSE frame. */
+export interface PowerState {
+  limitPercent: number;
+  mode: PowerMode;
+  sample: PowerSample;
+  /** False when this host cannot throttle work that is already running. */
+  throttlingSupported: boolean;
+  activeChildren: number;
+  updatedAt: string;
+}
+
+export type PowerEvent = PowerState;
+
+export function powerModeFor(limitPercent: number): PowerMode {
+  return limitPercent >= POWER_LIMIT_MAX ? 'unrestricted' : 'limited';
+}
+
+export interface PowerLimitRequest {
+  limitPercent: number;
+}
+
+/**
+ * Narrows an untrusted request body. A finite but out-of-range number is
+ * accepted and clamped by the caller — a client sending 150 means "maximum",
+ * and failing that request would be pedantic. Only a body that carries no
+ * usable number at all is rejected.
+ */
+export function parsePowerLimitRequest(
+  input: unknown
+): { ok: true; value: PowerLimitRequest } | { ok: false; error: string } {
+  if (typeof input !== 'object' || input === null || Array.isArray(input))
+    return { ok: false, error: 'POWER_LIMIT_INVALID' };
+  const raw = (input as Record<string, unknown>).limitPercent;
+  if (typeof raw !== 'number' || !Number.isFinite(raw))
+    return { ok: false, error: 'POWER_LIMIT_INVALID' };
+  return { ok: true, value: { limitPercent: raw } };
+}
+
+/** On-disk shape of power.json. Read as `unknown` and parsed, never trusted. */
+export interface PersistedPowerState {
+  limitPercent: number;
+  updatedAt: string;
+}
+
+export function parsePersistedPowerState(
+  input: unknown
+): { ok: true; value: PersistedPowerState } | { ok: false; error: string } {
+  if (typeof input !== 'object' || input === null || Array.isArray(input))
+    return { ok: false, error: 'POWER_STATE_INVALID' };
+  const record = input as Record<string, unknown>;
+  if (typeof record.limitPercent !== 'number' || !Number.isFinite(record.limitPercent))
+    return { ok: false, error: 'POWER_STATE_INVALID' };
+  if (record.limitPercent < POWER_LIMIT_MIN || record.limitPercent > POWER_LIMIT_MAX)
+    return { ok: false, error: 'POWER_STATE_OUT_OF_RANGE' };
+  return {
+    ok: true,
+    value: {
+      limitPercent: Math.round(record.limitPercent),
+      updatedAt: typeof record.updatedAt === 'string' ? record.updatedAt : new Date(0).toISOString()
+    }
+  };
 }
