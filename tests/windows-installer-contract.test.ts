@@ -47,18 +47,16 @@ describe('the tray host is a launcher, on the same contract as the macOS one', (
     expect(agentProcess).toContain('Environment.ProcessId');
   });
 
-  it('reads the same agent exit codes the macOS launcher does', () => {
-    // The agent uses exit codes to say specific things: 75 means "restart me",
-    // 76 means "I drained for an update handoff". A host that knows only 75
-    // reports the other as a crash — and 76 arrives in the middle of a
-    // successful update, so the user sees a failure dialog for something that
-    // worked.
+  it('handles the agent exit codes the macOS launcher uses', () => {
+    // The agent uses 75 to request a restart and 76 to signal a drained update
+    // handoff. Windows can also report native termination statuses, so every
+    // non-handoff exit gets the same bounded restart budget as 75.
     for (const code of ['75', '76']) {
       expect(launcher, `Launcher.swift should handle exit ${code}`).toContain(code);
       expect(trayApplication, `TrayApplication.cs should handle exit ${code}`).toContain(code);
     }
     expect(trayApplication).toContain('UpdateHandoffExitCode');
-    expect(trayApplication).toContain('RestartableExitCode');
+    expect(trayApplication).toContain('runtimeRestartAttempts < MaxRuntimeRestarts');
   });
 
   it('waits for a port another copy took over, rather than calling it a crash', () => {
@@ -240,6 +238,16 @@ describe('smoke harness covers the gates the release depends on', () => {
     const kill = gate.slice(0, gate.indexOf('for (let attempt'));
     expect(kill).toContain('taskkill');
     expect(kill, 'the host must be killed alone, without /T').not.toContain("'/T'");
+  });
+
+  it('restarts the agent after any unexpected Windows process exit', () => {
+    const exitHandler = trayApplication.slice(
+      trayApplication.indexOf('private async void OnAgentExited'),
+      trayApplication.indexOf('private async Task<InstalledRelease?>')
+    );
+    expect(exitHandler).toContain('exitCode == UpdateHandoffExitCode');
+    expect(exitHandler).toContain('runtimeRestartAttempts < MaxRuntimeRestarts');
+    expect(exitHandler).not.toContain('exitCode == RestartableExitCode');
   });
 
   it('treats a skipped check as a failed gate', () => {
