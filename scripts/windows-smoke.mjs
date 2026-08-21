@@ -499,8 +499,10 @@ try {
   });
 
   await check('crash-restart', async () => {
+    const installedNode = path.join(installDir, 'runtime', 'node.exe').replaceAll("'", "''");
     const agentPid = powershell(
       '(Get-CimInstance Win32_Process -Filter "Name=\'node.exe\'" |' +
+        ` Where-Object { $_.ExecutablePath -eq '${installedNode}' } |` +
         ' Select-Object -First 1).ProcessId'
     );
     if (!agentPid) throw new Error('could not find the agent process');
