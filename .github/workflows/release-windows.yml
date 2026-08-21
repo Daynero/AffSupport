@@ -11,6 +11,13 @@ name: Build Windows installer
 # signature and no notarization. Users are warned by SmartScreen; the download
 # page tells them exactly what to click.
 on:
+  # The workflow is introduced before it reaches the default branch, so GitHub
+  # cannot dispatch it by filename yet. This isolated beta branch provides a
+  # build-only path for validating the first installer; `inputs.publish` is
+  # absent on push and the release-upload step therefore remains disabled.
+  push:
+    branches:
+      - windows-beta-build
   workflow_dispatch:
     inputs:
       publish:

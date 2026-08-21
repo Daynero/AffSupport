@@ -1382,8 +1382,10 @@ export class JobQueue {
           // already gone); leave the handoff to the next scheduling pass.
           return;
         }
-        // Platforms without pause support (Windows) fall through: prioritized
-        // estimates simply run alongside the active compression.
+        // A platform that cannot pause, or whose pause mechanism is currently
+        // unavailable, falls through: prioritized estimates simply run
+        // alongside the active compression. Windows normally pauses through
+        // the resident NtSuspendProcess helper.
       }
       this.notify();
       let processed: boolean;

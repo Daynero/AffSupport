@@ -12760,7 +12760,11 @@ button.team-landing-tile:hover {
   border: 1px solid var(--color-border);
   border-radius: 18px;
   background:
-    radial-gradient(circle at 50% 26%, color-mix(in srgb, var(--power-level-color) 11%, transparent), transparent 48%),
+    radial-gradient(
+      circle at 50% 26%,
+      color-mix(in srgb, var(--power-level-color) 11%, transparent),
+      transparent 48%
+    ),
     var(--color-surface);
   box-shadow: 0 22px 54px rgb(0 0 0 / 24%);
 }

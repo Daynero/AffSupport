@@ -24,8 +24,7 @@ export function PowerThrottle() {
 
   const limited = limitPercent < POWER_LIMIT_MAX;
   const disabled = status === 'unsupported';
-  const powerTravel =
-    (limitPercent - POWER_LIMIT_MIN) / (POWER_LIMIT_MAX - POWER_LIMIT_MIN);
+  const powerTravel = (limitPercent - POWER_LIMIT_MIN) / (POWER_LIMIT_MAX - POWER_LIMIT_MIN);
   // Purple at minimum, warming continuously through magenta/red into Soty
   // honey at full power. Keeping this on the parent makes every visual signal
   // share exactly the same live colour.
@@ -87,7 +86,10 @@ export function PowerThrottle() {
         <div className="power-panel" id={panelId} role="dialog" aria-label={t('powerControl')}>
           <div className="power-panel__heading">
             <p className="power-panel__title">{t('powerPanelTitle')}</p>
-            <p className="power-panel__value" aria-label={t('powerLimitAt', { percent: limitPercent })}>
+            <p
+              className="power-panel__value"
+              aria-label={t('powerLimitAt', { percent: limitPercent })}
+            >
               <strong>{limitPercent}</strong>
               <span>%</span>
             </p>

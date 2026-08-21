@@ -112,8 +112,6 @@ describe('managed spawn coverage', () => {
 
   it('gives other encoder callers the process-wide governor by default', async () => {
     const encoder = await readFile(path.join(AGENT_SRC, 'ffmpeg/encoder.ts'), 'utf8');
-    expect(encoder).toMatch(
-      /governor:\s*ManagedSpawnGovernor \| null = activeGovernorOrNull\(\)/
-    );
+    expect(encoder).toMatch(/governor:\s*ManagedSpawnGovernor \| null = activeGovernorOrNull\(\)/);
   });
 });

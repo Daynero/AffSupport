@@ -1,10 +1,6 @@
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import type { EncodingSettings, JobImageEmbedding } from '@video-compressor/shared';
-import {
-  activeGovernorOrNull,
-  spawnManaged,
-  type ManagedSpawnGovernor
-} from '../power/spawn.js';
+import { activeGovernorOrNull, spawnManaged, type ManagedSpawnGovernor } from '../power/spawn.js';
 import { buildEmbeddedFfmpegArgs, buildFfmpegArgs } from './presets.js';
 import { ffmpegPath } from './tools.js';
 
