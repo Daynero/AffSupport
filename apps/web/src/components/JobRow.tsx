@@ -459,7 +459,10 @@ function JobActions({
         </Button>
       )}
       {['failed', 'cancelled', 'interrupted'].includes(job.status) && (
-        <Button disabled={disabled} onClick={() => action(`/api/jobs/${job.id}/retry`)}>
+        <Button
+          disabled={disabled || compressionRunning}
+          onClick={() => action(`/api/jobs/${job.id}/retry`)}
+        >
           {t('retry')}
         </Button>
       )}

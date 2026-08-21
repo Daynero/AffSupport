@@ -271,11 +271,17 @@ export function registerCompressorRoutes(app: FastifyInstance, ctx: CompressorCo
     queue.clearCompleted();
     return queue.state();
   });
-  app.post<{ Params: { id: string } }>('/api/jobs/:id/retry', async (request, reply) =>
-    (await queue.retry(request.params.id))
-      ? queue.state()
-      : reply.code(409).send({ error: 'This job cannot be retried.' })
-  );
+  app.post<{ Params: { id: string } }>('/api/jobs/:id/retry', async (request, reply) => {
+    if (await queue.revalidateSettingsImages()) {
+      return reply.code(400).send({ error: 'IMAGE_UNAVAILABLE' });
+    }
+    const embeddingError = queue.embeddingConfigurationError();
+    if (embeddingError) return reply.code(400).send({ error: embeddingError });
+    await estimator.pause();
+    if (await queue.retry(request.params.id)) return queue.state();
+    estimator.resume();
+    return reply.code(409).send({ error: 'This job cannot be retried right now.' });
+  });
   app.post<{ Params: { id: string } }>('/api/jobs/:id/repeat', async (request, reply) => {
     if (await queue.revalidateSettingsImages()) {
       return reply.code(400).send({ error: 'IMAGE_UNAVAILABLE' });

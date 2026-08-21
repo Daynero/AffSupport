@@ -12681,18 +12681,30 @@ button.team-landing-tile:hover {
 
 /* ── Local Agent power throttle ─────────────────────────────────────────── */
 
+@property --power-level-color {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #7c59e0;
+}
+
 .power-throttle {
   position: relative;
   display: inline-flex;
+  transition: --power-level-color 180ms var(--ease-standard);
 }
 
 /* Matches the theme toggle's footprint so the header cluster stays even. */
 .power-toggle {
   position: relative;
-  display: inline-grid;
-  place-items: center;
-  width: 37px;
-  height: 37px;
+  display: inline-flex;
+  flex: 0 0 44.2px;
+  align-items: center;
+  justify-content: center;
+  inline-size: 44.2px;
+  block-size: 44.2px;
+  min-inline-size: 44.2px;
+  min-block-size: 44.2px;
+  aspect-ratio: 1;
   padding: 0;
   border: 1px solid var(--color-border);
   border-radius: 50%;
@@ -12713,7 +12725,7 @@ button.team-landing-tile:hover {
 /* A reduced limit has to be legible without opening anything, or a setting made
    weeks ago reads as "Soty has become slow". */
 .power-toggle[data-limited='true'] {
-  color: var(--color-accent, #7557e8);
+  color: var(--power-level-color, var(--color-accent));
   border-color: currentColor;
 }
 
@@ -12721,14 +12733,16 @@ button.team-landing-tile:hover {
   position: absolute;
   right: -2px;
   bottom: -2px;
-  min-width: 17px;
-  padding: 0 3px;
-  border-radius: 9px;
-  background: var(--color-accent, #7557e8);
+  display: grid;
+  width: 17px;
+  height: 17px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--power-level-color, var(--color-accent));
   color: #fff;
   font-size: 9px;
   font-weight: 600;
-  line-height: 15px;
+  line-height: 1;
   text-align: center;
 }
 
@@ -12740,29 +12754,56 @@ button.team-landing-tile:hover {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  width: 208px;
-  padding: 16px;
+  gap: 14px;
+  width: 244px;
+  padding: 18px 20px 20px;
   border: 1px solid var(--color-border);
-  border-radius: 14px;
-  background: var(--color-surface);
-  box-shadow: 0 18px 44px rgb(0 0 0 / 18%);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 50% 26%, color-mix(in srgb, var(--power-level-color) 11%, transparent), transparent 48%),
+    var(--color-surface);
+  box-shadow: 0 22px 54px rgb(0 0 0 / 24%);
+}
+
+.power-panel__heading {
+  display: flex;
+  width: 100%;
+  align-items: end;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
 }
 
 .power-panel__title {
   margin: 0;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  padding-bottom: 5px;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--color-text-muted);
 }
 
 .power-panel__value {
+  display: flex;
+  align-items: baseline;
   margin: 0;
-  font-size: 13px;
-  color: var(--color-text);
-  text-align: center;
+  color: var(--power-level-color);
+  font-variant-numeric: tabular-nums;
+  line-height: 0.8;
+  text-shadow: 0 0 18px color-mix(in srgb, var(--power-level-color) 34%, transparent);
+}
+
+.power-panel__value strong {
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.06em;
+}
+
+.power-panel__value span {
+  margin-left: 3px;
+  font-size: 14px;
+  font-weight: 750;
 }
 
 .power-panel__error {
@@ -12772,34 +12813,58 @@ button.team-landing-tile:hover {
   text-align: center;
 }
 
-/* The lever: a vertical throttle with a marked scale beside it. */
+/* A quiet vertical rail with a precise thumb. The 44px hit area stays generous
+   while the visible control remains light and avoids edge-overlap artefacts. */
 .power-lever {
   display: flex;
-  align-items: stretch;
-  gap: 10px;
-  height: 168px;
-  padding: 4px 0;
+  align-items: center;
+  gap: 8px;
+  height: 190px;
 }
 
 .power-lever__scale {
   display: flex;
+  align-self: stretch;
   flex-direction: column;
   justify-content: space-between;
-  font-size: 10px;
+  width: 42px;
+  padding: 20px 0;
   font-variant-numeric: tabular-nums;
-  color: var(--color-text-muted);
 }
 
 .power-lever__mark {
+  position: relative;
+  display: flex;
+  height: 1px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.power-lever__mark i {
+  order: 2;
+  width: 8px;
+  height: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-text-muted) 45%, transparent);
+}
+
+.power-lever__mark b {
+  min-width: 24px;
+  color: color-mix(in srgb, var(--color-text-muted) 78%, transparent);
+  font-size: 9px;
+  font-weight: 700;
   line-height: 1;
+  text-align: right;
 }
 
 .power-lever__track {
   position: relative;
-  width: 44px;
-  border: 1px solid var(--color-border);
-  border-radius: 22px;
-  background: var(--color-surface-muted);
+  flex: 0 0 58px;
+  width: 58px;
+  height: 190px;
+  border-radius: 999px;
+  background: transparent;
   cursor: ns-resize;
   touch-action: none;
 }
@@ -12814,44 +12879,80 @@ button.team-landing-tile:hover {
   cursor: default;
 }
 
+.power-lever__rail,
 .power-lever__fill {
   position: absolute;
-  inset: auto 3px 3px;
-  /* --power-travel is 0 at the minimum and 1 at full power. */
-  height: calc(3px + (100% - 6px) * var(--power-travel));
-  border-radius: 20px;
+  left: 50%;
+  width: 18px;
+  border-radius: 999px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.power-lever__rail {
+  top: 20px;
+  bottom: 20px;
+  border: 1px solid color-mix(in srgb, var(--color-border) 88%, transparent);
+  background: color-mix(in srgb, var(--color-surface-muted) 90%, transparent);
+  box-shadow:
+    inset 0 2px 5px rgb(0 0 0 / 18%),
+    0 0 0 5px color-mix(in srgb, var(--color-border) 12%, transparent);
+}
+
+.power-lever__fill {
+  bottom: 20px;
+  height: calc((100% - 40px) * var(--power-travel));
   background: linear-gradient(
     to top,
-    var(--color-accent, #7557e8),
-    var(--color-accent-strong, #9b7bff)
+    color-mix(in srgb, var(--power-level-color) 82%, #000),
+    color-mix(in srgb, var(--power-level-color) 78%, #fff)
   );
-  opacity: 0.35;
-  pointer-events: none;
+  box-shadow:
+    inset 3px 0 5px rgb(255 255 255 / 24%),
+    0 0 18px color-mix(in srgb, var(--power-level-color) 52%, transparent);
 }
 
-.power-lever__handle {
+.power-lever__thumb {
   position: absolute;
-  left: 3px;
-  right: 3px;
-  height: 30px;
-  bottom: calc((100% - 36px) * var(--power-travel) + 3px);
+  top: var(--power-thumb-offset);
+  left: 9px;
+  width: 40px;
+  height: 40px;
   display: grid;
   place-items: center;
-  border-radius: 16px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  box-shadow: 0 3px 8px rgb(0 0 0 / 20%);
+  border: 2px solid color-mix(in srgb, var(--power-level-color) 70%, #fff);
+  border-radius: 50%;
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--power-level-color) 70%, #fff),
+    color-mix(in srgb, var(--power-level-color) 86%, #000)
+  );
+  box-shadow:
+    0 6px 16px rgb(0 0 0 / 28%),
+    0 0 0 4px color-mix(in srgb, var(--power-level-color) 15%, transparent),
+    0 0 22px color-mix(in srgb, var(--power-level-color) 45%, transparent);
   pointer-events: none;
+  transition:
+    border-color var(--dur-control) var(--ease-standard),
+    box-shadow var(--dur-control) var(--ease-standard);
 }
 
-.power-lever__grip {
-  width: 20px;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--color-text-muted);
+.power-lever__track:hover .power-lever__thumb {
+  border-color: color-mix(in srgb, var(--power-level-color) 58%, #fff);
   box-shadow:
-    0 -5px 0 var(--color-text-muted),
-    0 5px 0 var(--color-text-muted);
+    0 7px 18px rgb(0 0 0 / 30%),
+    0 0 0 6px color-mix(in srgb, var(--power-level-color) 18%, transparent),
+    0 0 28px color-mix(in srgb, var(--power-level-color) 58%, transparent);
+}
+
+.power-lever__thumb-icon {
+  width: 19px;
+  height: 19px;
+  stroke: color-mix(in srgb, var(--power-level-color) 28%, #000);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 1px 0 rgb(255 255 255 / 26%));
 }
 
 .power-readout,

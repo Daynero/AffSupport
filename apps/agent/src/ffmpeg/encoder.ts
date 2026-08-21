@@ -1,6 +1,10 @@
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import type { EncodingSettings, JobImageEmbedding } from '@video-compressor/shared';
-import { spawnManaged, type ManagedSpawnGovernor } from '../power/spawn.js';
+import {
+  activeGovernorOrNull,
+  spawnManaged,
+  type ManagedSpawnGovernor
+} from '../power/spawn.js';
 import { buildEmbeddedFfmpegArgs, buildFfmpegArgs } from './presets.js';
 import { ffmpegPath } from './tools.js';
 
@@ -36,10 +40,11 @@ export function encodeVideo(
   transcodeAudio: boolean,
   onProgress: (value: number | null) => void,
   embedding?: EncodeEmbeddingOptions,
-  // Optional so bare test assemblies keep the previous, unmanaged behaviour.
-  // Production always supplies it, which is what puts the encode inside the
-  // shared resource budget.
-  governor?: ManagedSpawnGovernor | null
+  // The explicit governor keeps assembled queues isolated in tests. Deep
+  // callers may omit it and inherit the process-wide budget, so no encode can
+  // silently escape measurement and throttling merely because an intermediate
+  // call site forgot to thread the dependency through.
+  governor: ManagedSpawnGovernor | null = activeGovernorOrNull()
 ): { child: ChildProcessWithoutNullStreams; done: Promise<EncodeResult> } {
   const threads = governor?.budget().threadBudget ?? null;
   const args = embedding
