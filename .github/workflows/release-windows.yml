@@ -119,7 +119,12 @@ jobs:
             const by = id => m.inputs.find(i => i.id === id);
             process.stdout.write(by('ffmpeg-source').sha256.slice(0, 16) + '-' + by('x264-source').gitRevision.slice(0, 16));
           ")
+          x264_revision=$(node -e "
+            const m = require('./packaging/windows/inputs.json');
+            process.stdout.write(m.inputs.find(i => i.id === 'x264-source').gitRevision);
+          ")
           echo "key=$key" >> "$GITHUB_OUTPUT"
+          echo "X264_REVISION=$x264_revision" >> "$GITHUB_ENV"
 
       - name: Restore the compiled FFmpeg
         id: ffmpeg-cache
@@ -143,6 +148,7 @@ jobs:
         shell: msys2 {0}
         env:
           FFMPEG_SOURCE_ARCHIVE_WIN: ${{ env.FFMPEG_SOURCE_ARCHIVE_WIN }}
+          X264_REVISION: ${{ env.X264_REVISION }}
         run: |
           set -euo pipefail
           root="$(pwd)"
@@ -151,17 +157,13 @@ jobs:
           mkdir -p "$prefix" "$out" "$root/release/windows/build"
           cd "$root/release/windows/build"
 
-          x264_rev=$(node -e "
-            const m = require('$root/packaging/windows/inputs.json');
-            process.stdout.write(m.inputs.find(i => i.id === 'x264-source').gitRevision);
-          ")
           git clone https://code.videolan.org/videolan/x264.git x264
-          git -C x264 checkout --detach "$x264_rev"
+          git -C x264 checkout --detach "$X264_REVISION"
           # The commit hash is the pin; refuse anything else.
-          test "$(git -C x264 rev-parse HEAD)" = "$x264_rev"
+          test "$(git -C x264 rev-parse HEAD)" = "$X264_REVISION"
           # Archive the exact checkout as the GPL corresponding source.
-          git -C x264 archive --format=tar.gz --prefix="x264-$x264_rev/" HEAD \
-            -o "$out/x264-$x264_rev.tar.gz"
+          git -C x264 archive --format=tar.gz --prefix="x264-$X264_REVISION/" HEAD \
+            -o "$out/x264-$X264_REVISION.tar.gz"
 
           (cd x264 && ./configure --prefix="$prefix" --enable-static --disable-cli \
             --disable-opencl --host=x86_64-w64-mingw32 && make -j"$(nproc)" && make install)
