@@ -168,7 +168,8 @@ jobs:
           (cd x264 && ./configure --prefix="$prefix" --enable-static --disable-cli \
             --disable-opencl --host=x86_64-w64-mingw32 && make -j"$(nproc)" && make install)
 
-          tar -xf "$FFMPEG_SOURCE_ARCHIVE_WIN"
+          ffmpeg_source_archive=$(cygpath -u "$FFMPEG_SOURCE_ARCHIVE_WIN")
+          tar -xf "$ffmpeg_source_archive"
           cd ffmpeg-7.1.1
           # Same configuration the macOS build uses, so both platforms encode identically.
           PKG_CONFIG_PATH="$prefix/lib/pkgconfig" ./configure \
