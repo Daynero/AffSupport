@@ -44,9 +44,32 @@ function fail(message) {
   process.exit(1);
 }
 
+const DOWNLOAD_ATTEMPTS = 4;
+
+async function fetchWithRetry(id, url) {
+  let lastError;
+  for (let attempt = 1; attempt <= DOWNLOAD_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetch(url, { redirect: 'follow' });
+      if (response.ok || response.status < 500) return response;
+      lastError = new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+    if (attempt < DOWNLOAD_ATTEMPTS) {
+      const delayMs = 1_000 * 2 ** (attempt - 1);
+      process.stderr.write(
+        `${id}: download attempt ${attempt}/${DOWNLOAD_ATTEMPTS} failed; retrying in ${delayMs / 1_000}s\n`
+      );
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+  throw lastError ?? new Error('download failed');
+}
+
 async function downloadVerified(entry, into) {
   const url = entry.mirrorUrl ?? entry.upstreamUrl;
-  const response = await fetch(url, { redirect: 'follow' }).catch(error => {
+  const response = await fetchWithRetry(entry.id, url).catch(error => {
     fail(`${entry.id}: could not reach ${url} (${error.message})`);
   });
   if (!response.ok) fail(`${entry.id}: ${response.status} for ${url}`);
