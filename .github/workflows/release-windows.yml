@@ -29,7 +29,32 @@ permissions:
   contents: write
 
 jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Run the repository-wide suite on its canonical Unix test host. Tests
+      # that assert POSIX signal delivery intentionally use SIGSTOP/SIGCONT;
+      # the Windows implementation is covered separately by the package and
+      # unattended Windows smoke checks below.
+      - name: Format, lint and test
+        run: |
+          npm run format:check
+          npm run lint
+          npm test
+
   build:
+    needs: validate
     runs-on: windows-2022
     # The first run compiles FFmpeg from source; later runs restore it from cache.
     timeout-minutes: 120
@@ -43,14 +68,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      # The local gates the constitution requires. A Windows installer must
-      # never be produced from a tree that fails them.
-      - name: Format, lint and test
-        run: |
-          npm run format:check
-          npm run lint
-          npm test
 
       - name: Build web, shared and agent
         run: |
