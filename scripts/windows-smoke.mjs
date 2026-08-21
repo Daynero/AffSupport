@@ -305,6 +305,20 @@ try {
   });
 
   await check('transcribe-media', async () => {
+    let transcriptionState = await api('/api/transcription/state');
+    if (!transcriptionState.tools?.model) {
+      await api('/api/transcription/model/download', { method: 'POST' });
+      transcriptionState = await waitFor(
+        async () => {
+          const state = await api('/api/transcription/state');
+          if (state.model?.error) throw new Error(`model download failed: ${state.model.error}`);
+          return state.tools?.model ? state : null;
+        },
+        { timeoutMs: 600_000 }
+      );
+    }
+    if (!transcriptionState.tools?.model) throw new Error('speech model is unavailable');
+
     const clip = makeClip(
       path.join(installDir, 'runtime', 'bin', 'ffmpeg.exe'),
       path.join(workDir, 'speech.mp4')
