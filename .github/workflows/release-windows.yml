@@ -43,15 +43,31 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Run the repository-wide suite on its canonical Unix test host. Tests
-      # that assert POSIX signal delivery intentionally use SIGSTOP/SIGCONT;
-      # the Windows implementation is covered separately by the package and
-      # unattended Windows smoke checks below.
-      - name: Format, lint and test
+      # The full repository suite includes macOS-package fixtures and real
+      # media-tool tests, so it is not a portable release gate. Run the static
+      # gates and the platform/package contracts here; the produced Windows
+      # payload gets its real install/use/uninstall smoke in the build job.
+      - name: Format, lint and Windows contracts
         run: |
           npm run format:check
           npm run lint
-          npm test
+          npm run build -w @video-compressor/shared
+          npx vitest run \
+            tests/agent-capabilities.test.ts \
+            tests/agent-capability-guards.test.ts \
+            tests/local-app-dialog-windows.test.tsx \
+            tests/power-contract.test.ts \
+            tests/power-spawn-coverage.test.ts \
+            tests/power-windows-suspend.test.ts \
+            tests/queue-pause-platform.test.ts \
+            tests/release-gates-windows.test.ts \
+            tests/translation-runtime-platforms.test.ts \
+            tests/windows-archive.test.ts \
+            tests/windows-attribution.test.ts \
+            tests/windows-inputs-manifest.test.ts \
+            tests/windows-installer-contract.test.ts \
+            tests/windows-picker.test.ts \
+            tests/windows-rollout-observability.test.ts
 
   build:
     needs: validate
