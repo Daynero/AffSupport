@@ -317,6 +317,11 @@ try {
     // right only until something else queues one alongside it.
     const id = started.state?.jobs?.find(candidate => candidate.fileName === 'speech.mp4')?.id;
     if (!id) throw new Error('transcription job was not queued');
+    await api('/api/transcription/start', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ids: [id] })
+    });
     const done = await waitFor(
       async () => {
         const state = await api('/api/transcription/state');
