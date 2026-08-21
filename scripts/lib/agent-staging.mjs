@@ -80,7 +80,8 @@ export async function stageAgentRuntime(destination) {
     }))
     .filter(
       ({ relativePath }) =>
-        relativePath !== '@video-compressor/agent' && relativePath !== '@video-compressor/shared'
+        relativePath !== path.join('@video-compressor', 'agent') &&
+        relativePath !== path.join('@video-compressor', 'shared')
     )
     .sort((left, right) => {
       const depthDifference =
