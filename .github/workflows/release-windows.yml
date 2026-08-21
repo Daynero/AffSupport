@@ -128,7 +128,7 @@ jobs:
 
       - name: Restore the compiled FFmpeg
         id: ffmpeg-cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: release/windows/ffmpeg
           key: ffmpeg-win64-${{ steps.ffmpeg-key.outputs.key }}
@@ -191,15 +191,23 @@ jobs:
           cp ffmpeg.exe ffprobe.exe "$out/"
           "$out/ffmpeg.exe" -version | head -1
 
+      - name: Save the compiled FFmpeg
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: release/windows/ffmpeg
+          key: ffmpeg-win64-${{ steps.ffmpeg-key.outputs.key }}
+
       - name: Export the built FFmpeg
         shell: bash
         run: |
           set -euo pipefail
           out="$(pwd)/release/windows/ffmpeg"
           test -f "$out/ffmpeg.exe" && test -f "$out/ffprobe.exe"
-          echo "FFMPEG_BINARY_WIN=$out/ffmpeg.exe" >> "$GITHUB_ENV"
-          echo "FFPROBE_BINARY_WIN=$out/ffprobe.exe" >> "$GITHUB_ENV"
-          echo "X264_SOURCE_ARCHIVE_WIN=$(ls "$out"/x264-*.tar.gz)" >> "$GITHUB_ENV"
+          echo "FFMPEG_BINARY_WIN=$(cygpath -w "$out/ffmpeg.exe")" >> "$GITHUB_ENV"
+          echo "FFPROBE_BINARY_WIN=$(cygpath -w "$out/ffprobe.exe")" >> "$GITHUB_ENV"
+          x264_source=$(ls "$out"/x264-*.tar.gz)
+          echo "X264_SOURCE_ARCHIVE_WIN=$(cygpath -w "$x264_source")" >> "$GITHUB_ENV"
 
       - name: Run the runtime stager
         run: node scripts/stage-windows-runtime.mjs release/windows/stage
