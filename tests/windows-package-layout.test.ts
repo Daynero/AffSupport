@@ -117,6 +117,8 @@ describe('required stage layout', () => {
     ).toBe(true);
 
     const verifier = readFileSync('scripts/verify-windows-package.mjs', 'utf8');
+    expect(verifier).toContain('VITE_SUPABASE_URL');
+    expect(verifier).toContain('VITE_SUPABASE_PUBLISHABLE_KEY');
     expect(verifier).toContain('REQUIRED_HOST_ENTRIES');
     const workflow = readFileSync('.github/workflows/release-windows.yml', 'utf8');
     expect(workflow).toMatch(/verify-windows-package\.mjs[\s\S]{0,120}release\/windows\/host/u);

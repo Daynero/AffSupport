@@ -193,6 +193,26 @@ describe('installer upgrade path', () => {
 });
 
 describe('every rendered placeholder is supplied', () => {
+  it('loads and validates the tracked production web environment before building', () => {
+    const environmentStep = workflow.indexOf('apps/web/.env.production');
+    const agentEnvironment = workflow.indexOf('config/production.env');
+    const validation = workflow.indexOf('node scripts/verify-web-env.mjs');
+    const build = workflow.indexOf('npm run build', validation);
+
+    expect(environmentStep).toBeGreaterThan(-1);
+    expect(agentEnvironment).toBeGreaterThan(environmentStep);
+    expect(validation).toBeGreaterThan(environmentStep);
+    expect(build).toBeGreaterThan(validation);
+  });
+
+  it('renders the hosted origin from tracked production config, not optional repository variables', () => {
+    const render = workflow.slice(workflow.indexOf('Render the tray host configuration'));
+    expect(render).toContain('test -n "$PUBLIC_SITE_ORIGIN"');
+    expect(render).toContain('"PUBLIC_SITE_ORIGIN=$PUBLIC_SITE_ORIGIN"');
+    expect(workflow).not.toContain('vars.PUBLIC_SITE_ORIGIN');
+    expect(workflow).not.toContain('vars.AGENT_ENTITLEMENT_PUBLIC_KEY');
+  });
+
   it('renders each __TOKEN__ the installer declares', () => {
     const tokens = new Set(installer.match(/__[A-Z0-9_]+__/gu) ?? []);
     expect(tokens.size).toBeGreaterThan(0);

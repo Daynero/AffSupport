@@ -85,6 +85,26 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Both files contain public production configuration committed for the
+      # release. Expose them explicitly on a clean runner: Vite resolves env
+      # from the repository root, while the Windows host needs the public site
+      # origin in its CORS allowlist. Missing either half produces an installer
+      # that compiles but cannot connect from the already-open hosted Soty tab.
+      - name: Load and verify the production environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in apps/web/.env.production config/production.env; do
+            while IFS= read -r line; do
+              case "$line" in
+                ''|'#'*) continue ;;
+              esac
+              echo "$line" >> "$GITHUB_ENV"
+              export "$line"
+            done < "$file"
+          done
+          node scripts/verify-web-env.mjs
+
       - name: Build web, shared and agent
         run: |
           npm run build
@@ -214,11 +234,10 @@ jobs:
 
       - name: Render the tray host configuration
         shell: bash
-        env:
-          PUBLIC_SITE_ORIGIN: ${{ vars.PUBLIC_SITE_ORIGIN }}
-          AGENT_ENTITLEMENT_PUBLIC_KEY: ${{ vars.AGENT_ENTITLEMENT_PUBLIC_KEY }}
         run: |
           set -euo pipefail
+          test -n "$PUBLIC_SITE_ORIGIN"
+          test -n "$AGENT_ENTITLEMENT_PUBLIC_KEY"
           # Identity slots come from the shared environment profile, never
           # retyped here: the Windows host has to answer to the same lock file
           # and support directory as the macOS build of the same release.

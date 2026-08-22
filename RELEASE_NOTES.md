@@ -1,3 +1,8 @@
+# v1.0.3
+
+- Fix the Windows production bundle so Supabase configuration is included instead of showing a development configuration error.
+- Let an already-open hosted Soty page discover and securely pair with the Windows Agent without opening a second interface from the tray.
+
 # v1.0.2
 
 - Bundle the .NET Desktop Runtime into the Windows app so Soty starts immediately after installation without sending users to a separate Microsoft download.

@@ -1,6 +1,6 @@
 {
   "name": "@video-compressor/web",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.7",
-    "@video-compressor/shared": "1.0.2",
+    "@video-compressor/shared": "1.0.3",
     "@vitejs/plugin-react": "6.0.3",
     "qrcode": "^1.5.4",
     "react": "19.2.7",
