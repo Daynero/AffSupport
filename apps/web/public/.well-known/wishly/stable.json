@@ -14,11 +14,11 @@
   "artifacts": {
     "macos-arm64": {
       "url": "https://github.com/Daynero/AffSupport/releases/download/v1.0.1/Soty-v1.0.1-macOS-arm64.dmg",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      "sha256": "a7b5f4394d1aeebee69afeb9962e104732164827d91b42642609ad23cee12701"
     },
     "windows-x64": {
       "url": "https://github.com/Daynero/AffSupport/releases/download/v1.0.1/Soty-v1.0.1-Windows-x64.exe",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      "sha256": "4955f2d56004e133faeafcf66c66ef24fb84ed231c5eb95786844104c147ca9a"
     }
   },
   "toolRequirements": {
@@ -39,5 +39,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "gleAbnya-3zH0Hl39hV8TC7RkcRGHqBtd_nqWDh87okJKGIdL97cMKdwgbOxY_NCjCqzhXSa--ITUQQfTxGtVg"
+  "signature": "NO7tjn9mOodL0pDK7HyNeXV8h1ZTvAeJ4YmPNXJMurTwbaJ77TK2bzaUoqEj-oMQdBUzL7tDuNE5HQyDM4ZIHg"
 }
