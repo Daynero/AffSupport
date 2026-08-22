@@ -348,7 +348,7 @@ jobs:
             "AGENT_ENTITLEMENT_PUBLIC_KEY=$AGENT_ENTITLEMENT_PUBLIC_KEY"
           dotnet publish packaging/windows/SotyAgentHost \
             -c Release -r win-x64 --self-contained true \
-            /p:PublishSingleFile=true \
+            -p:PublishSingleFile=true \
             -o release/windows/host
           rm -f release/windows/Output/*.exe
           cmd.exe /d /s /c \
