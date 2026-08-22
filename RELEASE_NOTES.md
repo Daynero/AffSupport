@@ -1,3 +1,8 @@
+# v1.0.2
+
+- Bundle the .NET Desktop Runtime into the Windows app so Soty starts immediately after installation without sending users to a separate Microsoft download.
+- Add a release contract test that prevents future Windows builds from accidentally restoring the external .NET prerequisite.
+
 # v1.0.1
 
 - Release the first test version of Soty for Windows alongside a fully rebuilt macOS app.
