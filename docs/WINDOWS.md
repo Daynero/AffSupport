@@ -17,7 +17,8 @@ node scripts/fetch-windows-inputs.mjs --verify-only
 
 # 2. Build the installer in CI
 gh workflow run release-windows.yml --ref <branch>
-gh run watch
+gh run list --workflow release-windows.yml --branch <branch> --limit 3
+npm run release:watch -- <run-id>
 
 # 3. Download and inspect the artifact
 gh run download <run-id> --name windows-installer

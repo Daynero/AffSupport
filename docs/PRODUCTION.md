@@ -60,26 +60,148 @@ npm run deploy:web
 
 ## Реліз на дві платформи
 
-Одна процедура публікує macOS і Windows під однією незмінною версією. Усе
-запускається з Mac — Windows-машина не потрібна.
+### Canonical agent runbook
 
-1. **Підняти версію** в `packages/shared/src/release.ts` (єдине джерело; більше
-   ніде версію руками не пишемо) і закомітити.
-2. **macOS**: `npm run package:mac` → `npm run package:dmg`, потім прикріпити DMG
-   до тегу `v<версія>`.
-3. **Windows**: `gh workflow run release-windows.yml --ref <branch>`.
-   Збірка сама тягне запінені інпути, компілює FFmpeg 7.1.1 (кешується),
-   збирає інсталятор, перевіряє пакет і проганяє unattended smoke.
-   Коли потрібно опублікувати — той самий workflow з `publish: true`.
-4. **Записати контрольні суми** (на Mac — приватний ключ ніколи не потрапляє в CI):
+Це єдина дозволена production-процедура. Один `<release-sha>` породжує обидва
+бінарні артефакти; пізніший `<manifest-sha>` лише підписує їх і деплоїть web.
+Не перебудовуйте артефакти після manifest-only commit.
+
+Перед початком задайте `<version>` без `v` (наприклад, `1.0.3`) і не змінюйте її
+посеред релізу. Важкі локальні команди запускайте послідовно через `nice -n 15`.
+
+#### Phase 1 — freeze and exact-SHA beta gate
+
+1. Змініть версію тільки в `packages/shared/src/release.ts`, виконайте штатні
+   перевірки, закомітьте всі заплановані зміни та push у `main`.
+2. Зафіксуйте SHA: `release_sha=$(git rev-parse HEAD)`. Робоче дерево має бути
+   чистим.
+3. Синхронізуйте beta з цим самим SHA:
 
    ```bash
-   node scripts/sign-release-manifest.mjs --dmg <шлях до .dmg> --platform macos-arm64
-   node scripts/sign-release-manifest.mjs --dmg <шлях до .exe> --platform windows-x64
+   git push origin main:beta
+   git fetch origin beta
+   git branch -f beta origin/beta
    ```
 
-5. **Перевірити й задеплоїти**: `npm run deploy:web` (сам викликає
-   `verify-release` і `verify-published-release`).
+4. Створіть promotion record саме для `<release-sha>`:
+
+   ```bash
+   nice -n 15 npm run beta:package
+   nice -n 15 npm run beta:verify
+   nice -n 15 npm run release:check
+   ```
+
+Якщо HEAD змінився після цього кроку, gate застарів: синхронізуйте `beta` і
+повторіть `beta:package` та `beta:verify`. Не копіюйте старий promotion record.
+
+#### Phase 2 — build immutable artifacts
+
+Завантажте production environment без виведення секретів:
+
+```bash
+set -a
+source apps/web/.env.production
+source config/production.env
+set +a
+```
+
+`package:mac` також вимагає схвалені portable inputs у `NODE_BINARY`,
+`FFMPEG_BINARY`, `FFPROBE_BINARY`, `FFMPEG_SOURCE_ARCHIVE`,
+`X264_SOURCE_ARCHIVE`, `WHISPER_BINARY` і `WHISPER_VAD_MODEL`. Використовуйте
+лише вже перевірені файли поза майбутнім `release/Soty.app`: пакувальник видаляє
+цю директорію на старті. Не завантажуйте випадкові заміни і не генеруйте ключі.
+
+```bash
+nice -n 15 npm run package:mac
+nice -n 15 npm run package:dmg
+(cd release && shasum -a 256 -c Soty-v<version>-macOS-arm64.zip.sha256)
+(cd release && shasum -a 256 -c Soty-v<version>-macOS-arm64.dmg.sha256)
+```
+
+Windows спершу проходить build-only gate. Команда `gh workflow run` повертає не
+run id, тому знайдіть щойно створений run через `gh run list`, а потім стежте за
+ним компактним watcher'ом:
+
+```bash
+gh workflow run release-windows.yml --ref main -f publish=false
+gh run list --workflow release-windows.yml --branch main --limit 3
+npm run release:watch -- <run-id>
+```
+
+Не створюйте tag, доки цей run не завершився успішно. Не використовуйте
+`gh run watch`: він повторює великий лог і марнує контекст.
+
+#### Phase 3 — publish the same artifacts
+
+Створіть GitHub Release на `<release-sha>` і прикріпіть DMG:
+
+```bash
+gh release create v<version> release/Soty-v<version>-macOS-arm64.dmg \
+  --target <release-sha> --title "Soty <version>" --notes-file RELEASE_NOTES.md
+gh release view v<version> --json isDraft,assets,targetCommitish,url
+```
+
+Дочекайтеся `isDraft: false` і завершеного upload. Далі publish workflow є
+єдиним дозволеним джерелом Windows installer:
+
+```bash
+gh workflow run release-windows.yml --ref main -f publish=true
+gh run list --workflow release-windows.yml --branch main --limit 3
+npm run release:watch -- <run-id>
+```
+
+Не завантажуйте `.exe` вручну. Publish-run повторно збирає і smoke-тестує пакет,
+тому для manifest треба скачати саме опубліковані bytes, а не artifact з
+build-only run:
+
+```bash
+mkdir -p release/windows/download-<version>
+gh release download v<version> --pattern 'Soty-v<version>-Windows-x64.exe' \
+  --dir release/windows/download-<version>
+```
+
+#### Phase 4 — sign, commit, deploy
+
+Приватний ключ release manifest залишається тільки на maintainer Mac:
+
+```bash
+node scripts/sign-release-manifest.mjs \
+  --dmg release/Soty-v<version>-macOS-arm64.dmg --platform macos-arm64
+node scripts/sign-release-manifest.mjs \
+  --dmg release/windows/download-<version>/Soty-v<version>-Windows-x64.exe \
+  --platform windows-x64
+node scripts/verify-release.mjs
+node scripts/verify-published-release.mjs
+```
+
+Закомітьте тільки підписаний manifest і push у `main` та `beta`. Це створює
+`<manifest-sha>`, тому перед deploy обов'язково повторіть exact-SHA beta gate,
+але **не** перебудовуйте вже опубліковані production artifacts:
+
+```bash
+git push origin main
+git push origin main:beta
+nice -n 15 npm run beta:package
+nice -n 15 npm run beta:verify
+git fetch origin tag v<version>
+git rev-list -n 1 v<version> # має дорівнювати <release-sha>
+nice -n 15 npm run deploy:web
+```
+
+Завершення означає одночасно: release не draft; DMG і EXE мають стан uploaded;
+tag вказує на `<release-sha>`; `main` і `beta` вказують на `<manifest-sha>`;
+live `https://soty.pp.ua/.well-known/wishly/stable.json` містить нову версію та
+обидва опубліковані digest; робоче дерево чисте.
+
+#### Keys and failure policy
+
+Production entitlement private key навмисно відсутній у CI та може бути
+відсутній локально. Не створюйте і не замінюйте його заради `verify:dmg`.
+Windows workflow smoke-тестує installer з ephemeral isolated key, а після smoke
+перебудовує фінальний host/installer з tracked production public key. Якщо
+будь-який gate падає, виправте pipeline і повторіть лише фазу від першого
+невдалого gate; не рухайте tag, не підміняйте asset і не запускайте збірку через
+проблему моніторингу.
 
 Які платформи є обовʼязковими, визначає `REQUIRED_RELEASE_PLATFORMS` у
 `packages/shared/src/release.ts`. Зараз там лише `macos-arm64`. Додавання

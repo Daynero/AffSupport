@@ -125,6 +125,38 @@ Invitations are **not** delivered in beta: they bypass the local mail catcher
 and would reach real recipients, so no delivery credential may be configured and
 the invitation link is surfaced in the UI instead. Full details in `docs/BETA.md`.
 
+## Soty production releases
+
+Production releases are a fixed, two-platform procedure. Follow the **Canonical
+agent runbook** in `docs/PRODUCTION.md` in order; do not substitute commands,
+skip gates, or invent a parallel release flow. If a canonical command fails,
+fix the command or pipeline, repeat the affected gate, and record the fix. Do
+not bypass it with a manual artifact.
+
+Non-negotiable rules:
+
+- The commit packaged for release must already be on both `main` and `beta`, and
+  `beta:package` plus `beta:verify` must have succeeded for that exact SHA.
+- Run heavy local build/package commands with `nice -n 15`, one at a time. The
+  machine may be thermally constrained; never launch macOS and Windows-local
+  build work concurrently.
+- Run Windows `publish=false` and wait for its full smoke test **before** making
+  the tag/release. Use `npm run release:watch -- <run-id>`; never use
+  `gh run watch` or rapid polling because repeated logs waste context and do not
+  make the workflow faster.
+- Windows `publish=true` is the only canonical way to attach the `.exe`. Never
+  upload a locally assembled or build-only Windows artifact.
+- The production entitlement private key must not enter CI and must never be
+  regenerated as a workaround. Windows smoke uses an ephemeral isolated key;
+  the workflow then rebuilds the published installer with the tracked
+  production public key.
+- Sign `stable.json` from the exact assets downloaded/published on GitHub. A
+  manifest-only commit does not justify rebuilding release binaries, but it
+  does require a new exact-SHA beta package/verify before web deployment.
+- Do not move the tag, replace published assets, change the version, or rerun a
+  heavy build merely to troubleshoot monitoring. Stop and inspect the failed
+  job or command first.
+
 ## Cross-platform agent code
 
 Soty ships on macOS and Windows from one codebase. Every OS-specific mechanism —

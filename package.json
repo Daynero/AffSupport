@@ -15,6 +15,7 @@
     "deploy:web:member-pilot": "node scripts/verify-web-env.mjs --member-pilot && npm run verify:team-member-pilot && npm run build:web && node scripts/verify-release.mjs --deploy && node scripts/verify-beta-promotion.mjs && node scripts/verify-published-release.mjs && npx --yes wrangler@4.112.0 pages deploy apps/web/dist --project-name wishly-app --branch main",
     "release:info": "npm run build -w @video-compressor/shared && node scripts/release-meta.mjs --json",
     "release:check": "npm run build && node scripts/verify-release.mjs && npm run verify:team-production",
+    "release:watch": "node scripts/watch-github-run.mjs",
     "package:mac": "npm run build && node scripts/verify-release.mjs --package && npm run verify:team-production && node scripts/verify-beta-promotion.mjs && zsh scripts/package-mac.sh",
     "package:dmg": "node scripts/verify-release.mjs --package && npm run verify:team-production && zsh scripts/package-dmg.sh",
     "package:dev": "zsh scripts/package-dev-mac.sh",
