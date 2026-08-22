@@ -429,15 +429,44 @@ export class PowerGovernor {
     };
   }
 
+  /**
+   * The last thing that runs before the agent exits, and the only guarantee
+   * that nothing it started outlives it.
+   *
+   * Every tool has already had its own graceful shutdown by the time this is
+   * reached — the module list is drained first, on purpose. So a child still
+   * registered here is one that ignored a SIGTERM, or one whose owner never
+   * signalled it at all, and there is nothing left to wait for: once this
+   * process exits, nothing reaps its children, nothing can find them, and a
+   * full-speed whisper or FFmpeg would keep the machine hot behind an app that
+   * is no longer running. That is the failure this exists to make impossible,
+   * and it is the same failure at the other end of an update handoff, where the
+   * replacement agent reports itself idle over a machine the old one is still
+   * pinning.
+   *
+   * Killed outright rather than asked politely: a graceful signal would need a
+   * grace period to mean anything, and holding an exiting process open on the
+   * chance that an already-unresponsive child changes its mind trades a certain
+   * fix for a possible hang.
+   */
   async shutdown(): Promise<void> {
     this.stopCycle();
     this.stopTreeTracking();
     this.treeWatchers = 0;
-    // Resume everything before the process exits. A child left stopped here —
-    // or a descendant of one — would survive the agent and never make progress
-    // again.
     for (const entry of this.children.values()) {
+      // Resume first: SIGKILL reaches a stopped process, but its descendants
+      // are signalled by bare PID and a tree left half-stopped behind a killed
+      // root is exactly what nothing else can clean up.
       if (this.isStopped(entry)) this.resume(entry);
+      if (!entry.live) continue;
+      try {
+        // Through the ChildProcess handle, never the raw PID: Node drops the
+        // handle once the child is reaped, so this can never signal a PID the
+        // OS has since recycled onto something unrelated.
+        entry.child.kill('SIGKILL');
+      } catch (error) {
+        this.onError(error, 'Could not stop a managed child process during shutdown');
+      }
     }
     this.children.clear();
     // Only after everything is resumed: on Windows the helper IS the resume

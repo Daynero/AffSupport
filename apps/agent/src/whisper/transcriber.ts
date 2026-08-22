@@ -109,7 +109,25 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
 
   const kill = () => {
     cancelled = true;
+    // SIGTERM alone is enough for a healthy child; the spawn seam escalates it
+    // to SIGKILL if this one has stopped listening.
     activeChild?.kill('SIGTERM');
+  };
+
+  /**
+   * Adopts a freshly spawned child, killing it immediately when the cancel
+   * already arrived.
+   *
+   * A cancel that lands between two stages has no child to signal: it only sets
+   * the flag, and the flag is not read again until the stage that is about to
+   * start has finished. Without this the user's stop would spawn — and then
+   * wait out — a full FFmpeg extract or a whole whisper pass, which is exactly
+   * the "I pressed stop and the machine stayed busy" the flag exists to
+   * prevent.
+   */
+  const adopt = (child: ChildProcessWithoutNullStreams) => {
+    activeChild = child;
+    if (cancelled) child.kill('SIGTERM');
   };
 
   const done = (async (): Promise<TranscribeResult> => {
@@ -118,9 +136,10 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
     const cleanup = () => void rm(tmpDir, { recursive: true, force: true }).catch(() => {});
     try {
       onProgress(0);
-      const extract = await runExtract(inputPath, wavPath, child => {
-        activeChild = child;
-      });
+      // Cancelled while the temp directory was being created: never start the
+      // work at all.
+      if (cancelled) return result(null, true, '', null, '', null, null);
+      const extract = await runExtract(inputPath, wavPath, adopt);
       if (cancelled) return result(null, true, '', null, extract.stderr, null, null);
       if (extract.spawnErrorCode) {
         return result(null, false, '', null, extract.stderr, 'extract', extract.spawnErrorCode);
@@ -132,15 +151,10 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
 
       // Source transcription: one long-form pass over the whole file.
       const sourceBase = path.join(tmpDir, 'transcript');
-      const source = await runWhisper(
-        { wavPath, outputBase: sourceBase, language },
-        child => {
-          activeChild = child;
-        },
-        value =>
-          onProgress(
-            value === null ? null : EXTRACT_SHARE + (value * (SOURCE_END - EXTRACT_SHARE)) / 100
-          )
+      const source = await runWhisper({ wavPath, outputBase: sourceBase, language }, adopt, value =>
+        onProgress(
+          value === null ? null : EXTRACT_SHARE + (value * (SOURCE_END - EXTRACT_SHARE)) / 100
+        )
       );
       if (cancelled)
         return result(null, true, '', source.detectedLanguage, source.stderr, null, null);
@@ -186,9 +200,7 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
             language: detectedLanguage ?? language,
             translateToEnglish: true
           },
-          child => {
-            activeChild = child;
-          },
+          adopt,
           value =>
             onProgress(
               value === null ? null : SOURCE_END + (value * (PIVOT_END - SOURCE_END)) / 100

@@ -188,8 +188,20 @@ export class LandingPreviewCatalog {
     };
   }
 
+  /**
+   * Whether this tool is still holding the machine — which is not the same
+   * question as whether the UI shows a run in progress.
+   *
+   * `cancel()` reports the stop to the user immediately, before the run has
+   * unwound, so the card never stays pinned in a running state while an
+   * in-flight render settles. `running` therefore goes false while Chromium is
+   * still working. This is read by `/health` and by the power readout's
+   * activity flag, and both must describe the machine, not the screen: an agent
+   * that calls itself idle here is one an update handoff will exit out from
+   * under, orphaning the browser it left behind.
+   */
   busy() {
-    return this.running;
+    return this.running || this.activeRun !== null;
   }
 
   private renderProfile() {

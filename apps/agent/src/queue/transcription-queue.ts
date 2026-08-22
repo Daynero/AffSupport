@@ -23,6 +23,7 @@ import {
 } from '@video-compressor/shared';
 export { isValidTargetLanguage, normalizeTargetLanguage } from '@video-compressor/shared';
 import { probeDuration } from '../ffmpeg/tools.js';
+import { activeGovernorOrNull } from '../power/spawn.js';
 import { applicationSupportRoot } from '../files/support-dir.js';
 import { selectionWarning } from './shared.js';
 import { transcribe, type TranscribeHandle } from '../whisper/transcriber.js';
@@ -55,6 +56,28 @@ import { saveWithTranslation as exportWithTranslation } from '../transcription/e
 import { MediaPreviewManager, type PreviewSource } from '../transcription/media-preview.js';
 import type { TranslationOutputSegment, Translator } from '../translation/translator.js';
 import type { Aligner } from '../translation/aligner.js';
+
+/**
+ * How long shutdown waits for the active transcription to actually exit.
+ *
+ * Scaled by the resource limit, like every other wall-clock budget that covers
+ * managed work: a throttled child needs proportionally longer to reach its own
+ * exit path.
+ */
+const SHUTDOWN_GRACE_MS = 3_000;
+
+/** Resolves when `work` settles, or when the (scaled) budget runs out. */
+function settledWithin(work: Promise<unknown>, milliseconds: number): Promise<unknown> {
+  const budget = activeGovernorOrNull()?.scaleTimeout(milliseconds) ?? milliseconds;
+  return Promise.race([
+    work.catch(() => undefined),
+    new Promise(resolve => {
+      const timer = setTimeout(resolve, budget);
+      // A shutdown must never be held open by its own deadline.
+      timer.unref();
+    })
+  ]);
+}
 
 /** A pending translation request; `generation` guards against stale results. */
 interface TranslationTask {
@@ -1333,21 +1356,36 @@ export class TranscriptionQueue {
     return cancelled;
   }
 
-  /** Cancels one job without broadcasting; the caller decides when to notify. */
+  /**
+   * Cancels one job without broadcasting; the caller decides when to notify.
+   *
+   * Everything the job owns stops, not just whisper. A job also drives a proxy
+   * transcode for the player and a local translation pass, and both are heavy
+   * enough to hold the machine at full load on their own — a stop that left
+   * either running is a stop the user cannot see the effect of.
+   */
   private cancelJob(id: string): boolean {
     const job = this.jobs.find(item => item.id === id);
     if (!job) return false;
     if (job.status === 'queued') {
       job.status = 'cancelled';
+      this.stopJobSideWork(id);
       queueMicrotask(() => void this.pumpTranslations());
       return true;
     }
     if (job.status === 'processing') {
       job.status = 'cancelled';
       this.active?.cancel();
+      this.stopJobSideWork(id);
       return true;
     }
     return false;
+  }
+
+  /** The non-whisper work a single job owns: its proxy transcode and translation. */
+  private stopJobSideWork(id: string): void {
+    this.mediaPreviews.cancel(id);
+    this.cancelTranslationsForJob(id);
   }
 
   /**
@@ -1366,8 +1404,38 @@ export class TranscriptionQueue {
     // One broadcast at the end: cancelling a long queue job by job would push a
     // full state frame per file down every open SSE connection.
     for (const id of ids) if (this.cancelJob(id)) stopped += 1;
+    // "Stop everything" has to mean the tool goes quiet, and transcription is
+    // only half of what this tool runs. A translation belongs to a job that has
+    // already finished transcribing, so it is never in `ids` — yet it holds the
+    // machine exactly as hard as whisper does, and leaving it running is what
+    // makes a stopped queue still read as busy.
+    stopped += this.cancelVisibleTranslations();
     if (stopped) this.notify();
     return stopped;
+  }
+
+  /**
+   * Stops every translation the transcription tool shows: the running one and
+   * everything still waiting behind it. Team jobs are skipped for the same
+   * reason they are skipped above — they are invisible here, so a stop in this
+   * tool must not reach into Team Workspace.
+   *
+   * Partial segments already persisted are kept, so a retry resumes rather than
+   * restarting; this is the same outcome as the per-job translation stop.
+   */
+  private cancelVisibleTranslations(): number {
+    const owned = this.jobs
+      .filter(job => !this.teamJobIds.has(job.id))
+      .map(job => job.id)
+      .filter(id => this.hasTranslationWork(id));
+    for (const id of owned) void this.cancelTranslation(id);
+    return owned.length;
+  }
+
+  /** True when a job has a translation running or waiting in the local queue. */
+  private hasTranslationWork(jobId: string): boolean {
+    if (this.translationTasks.some(task => task.jobId === jobId)) return true;
+    return this.activeTranslation?.key.startsWith(`${jobId}|`) === true;
   }
 
   async remove(id: string): Promise<boolean> {
@@ -1481,9 +1549,18 @@ export class TranscriptionQueue {
 
   async shutdown(): Promise<void> {
     this.cancelModelDownload();
-    this.active?.cancel();
+    const active = this.active;
+    active?.cancel();
     this.active = null;
     this.activeTranslation?.controller.abort();
+    // Wait for whisper to actually be gone before the agent exits. Nothing
+    // reaps a child of a process that has already left: an update handoff that
+    // did not wait would strand a full-speed inference the replacement agent
+    // has no handle on and no way to find, and the user would be left with a
+    // hot machine and an app that reports itself idle. Bounded, because a
+    // shutdown that hangs is its own failure — the spawn seam's SIGKILL
+    // escalation is what makes the wait terminate.
+    if (active) await settledWithin(active.done, SHUTDOWN_GRACE_MS);
     await this.translator?.close?.();
     await this.aligner?.close?.();
     await this.mediaPreviews.close();

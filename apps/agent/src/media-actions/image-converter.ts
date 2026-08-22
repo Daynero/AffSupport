@@ -47,8 +47,10 @@ export function sourceAlreadyUsesFormat(inputPath: string, format: ImageConversi
 export async function convertImage(
   inputPath: string,
   outputPath: string,
-  format: ImageConversionFormat
+  format: ImageConversionFormat,
+  signal?: AbortSignal
 ) {
+  if (signal?.aborted) throw conversionCancelled();
   let details: Stats;
   try {
     details = await stat(inputPath);
@@ -91,10 +93,14 @@ export async function convertImage(
   const temporary = temporaryOutputPath(outputPath);
   try {
     if (format === 'webp') {
+      // WebP encoding is in-process and has no signal to hand it, so the stop
+      // lands on either side of it rather than inside. One image is bounded
+      // work; a queue of them is not, and the queue is what the stop is for.
       const encoded = await encodeImageToWebp(inputPath, 'conversion');
+      if (signal?.aborted) throw conversionCancelled();
       await writeFile(temporary, encoded.webp, { flag: 'wx' });
     } else {
-      await encodeWithFfmpeg(inputPath, temporary, format, source.width, source.height);
+      await encodeWithFfmpeg(inputPath, temporary, format, source.width, source.height, signal);
     }
 
     const output = await probeImage(temporary);
@@ -137,12 +143,17 @@ function temporaryOutputPath(outputPath: string) {
   return path.join(parsed.dir, `.${parsed.name}.soty-${randomUUID()}${parsed.ext}`);
 }
 
+export function conversionCancelled() {
+  return new ImageConversionError('CONVERSION_CANCELLED', 'The image conversion was stopped.');
+}
+
 function encodeWithFfmpeg(
   inputPath: string,
   outputPath: string,
   format: Exclude<ImageConversionFormat, 'webp'>,
   width: number,
-  height: number
+  height: number,
+  signal?: AbortSignal
 ) {
   const args =
     format === 'png'
@@ -193,10 +204,19 @@ function encodeWithFfmpeg(
 
   return new Promise<void>((resolve, reject) => {
     const child = spawnTracked(ffmpegPath, args, { toolId: 'media-actions' });
+    // A stop has to reach the encoder itself, not just the promise waiting on
+    // it: FFmpeg is the part actually holding the machine, and one left running
+    // behind a queue that reports itself stopped is invisible to everything
+    // except the power readout. The spawn seam escalates to SIGKILL if it does
+    // not go quietly.
+    const abort = () => child.kill('SIGTERM');
+    if (signal?.aborted) abort();
+    else signal?.addEventListener('abort', abort, { once: true });
     let stderr = '';
     child.stderr.on('data', chunk => {
       stderr = (stderr + chunk.toString()).slice(-4_000);
     });
+    child.once('close', () => signal?.removeEventListener('abort', abort));
     child.once('error', error => {
       reject(
         new ImageConversionError(
@@ -207,6 +227,10 @@ function encodeWithFfmpeg(
     });
     child.once('close', code => {
       if (code === 0) resolve();
+      // A killed encoder is a stop, not a failure: reporting the signal as an
+      // encoding error would put a red row in front of the user for doing
+      // exactly what they asked.
+      else if (signal?.aborted) reject(conversionCancelled());
       else {
         reject(
           new ImageConversionError(

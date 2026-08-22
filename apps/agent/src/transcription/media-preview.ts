@@ -98,10 +98,16 @@ export class MediaPreviewManager {
     return { ...entry.status };
   }
 
+  /**
+   * Stops the proxy transcode for one job.
+   *
+   * Keyed on the child rather than on `status.state`: the status is set before
+   * the transcode starts and rewritten after it ends, so a stop that landed in
+   * either gap was silently dropped and left a full-speed FFmpeg running behind
+   * a job the user had already stopped.
+   */
   cancel(jobId: string): void {
-    const entry = this.entries.get(jobId);
-    if (!entry?.child || entry.status.state !== 'preparing') return;
-    entry.child.kill('SIGTERM');
+    this.entries.get(jobId)?.child?.kill('SIGTERM');
   }
 
   async prepared(jobId: string, source: PreviewSource): Promise<PreparedMedia | null> {

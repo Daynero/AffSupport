@@ -120,26 +120,74 @@ function applyPriority(governor: ManagedSpawnGovernor, child: ChildProcess): voi
 const THROTTLE_SIGNALS = new Set<NodeJS.Signals>(['SIGSTOP', 'SIGCONT']);
 
 /**
- * Makes every termination signal reach a throttled child, whoever sends it.
+ * How long a managed child may take to honour a graceful termination before it
+ * is killed outright.
  *
- * SIGTERM is queued, not delivered, while a process is stopped — so a cancel
- * that lands in a duty cycle's off-window is simply ignored until the next
- * on-window, and a caller that escalates to SIGKILL on a fixed grace period can
- * lose the race outright. The tool then never finalizes its output.
+ * Scaled by the limit in force, never used raw: a throttled child is only
+ * scheduled for a fraction of every duty period, so a fixed budget would shrink
+ * in effective terms exactly when the process needs it most. Two seconds is the
+ * grace the compressor queue already used for its own shutdown escalation, and
+ * it comfortably fits inside the governor's termination pin.
+ */
+const TERMINATION_GRACE_MS = 2_000;
+
+/** Signals that end a process outright; nothing to escalate to. */
+function isForceSignal(signal: NodeJS.Signals | number | undefined): boolean {
+  return signal === 'SIGKILL' || signal === 9;
+}
+
+/**
+ * Makes every termination request actually end a managed child, whoever sends
+ * it and whatever the child does about it.
  *
- * This is wrapped at the spawn seam rather than fixed at the ~fifteen `kill`
- * sites for the same reason spawning is: "resume before you signal" is a
- * convention every future tool would have to remember, and the one that forgets
- * fails intermittently and only under a reduced limit. Playwright's browser is
- * the one managed child that does not come through here, so
- * `landing-preview/renderer.ts` makes the same call explicitly.
+ * Two things are guaranteed here. First, the signal REACHES the child: SIGTERM
+ * is queued, not delivered, while a process is stopped, so a cancel that lands
+ * in a duty cycle's off-window would simply be ignored until the next
+ * on-window. Second, the signal WORKS: a child that handles SIGTERM and then
+ * carries on — or one wedged inside a native inference loop that never returns
+ * to its signal handler — is killed outright once the grace period expires.
+ *
+ * The second guarantee is why "the UI says stopped but the machine stays at
+ * 60%" was possible at all. Most call sites paired SIGTERM with their own
+ * escalation; the ones that forgot leaked a full-speed FFmpeg or whisper into a
+ * session that believed it was idle, and the leak was invisible until someone
+ * looked at the power readout.
+ *
+ * Both are wrapped at the spawn seam rather than fixed at the ~fifteen `kill`
+ * sites for the same reason spawning is: "resume, then signal, then escalate"
+ * is a convention every future tool would have to remember, and the one that
+ * forgets fails intermittently and only under load. Playwright's browser is the
+ * one managed child that does not come through here, so
+ * `landing-preview/renderer.ts` makes the same calls explicitly.
  */
 function guardTermination(governor: ManagedSpawnGovernor, child: ChildProcess): void {
   const nativeKill = child.kill.bind(child);
+  let escalation: NodeJS.Timeout | null = null;
+  const cancelEscalation = () => {
+    if (escalation) clearTimeout(escalation);
+    escalation = null;
+  };
+  child.once('close', cancelEscalation);
+  child.once('error', cancelEscalation);
+
   child.kill = (signal?: NodeJS.Signals | number): boolean => {
-    if (typeof signal !== 'string' || !THROTTLE_SIGNALS.has(signal))
-      governor.resumeForTermination(child);
-    return nativeKill(signal as NodeJS.Signals | number | undefined);
+    if (typeof signal === 'string' && THROTTLE_SIGNALS.has(signal)) return nativeKill(signal);
+    governor.resumeForTermination(child);
+    const delivered = nativeKill(signal as NodeJS.Signals | number | undefined);
+    // One escalation per child, armed by the first graceful signal. Re-arming
+    // on every repeated SIGTERM would push the deadline out indefinitely for a
+    // caller that retries, which is the opposite of what it is asking for.
+    if (!isForceSignal(signal) && !escalation && child.exitCode === null) {
+      escalation = setTimeout(() => {
+        escalation = null;
+        // A no-op once the child has been reaped: Node drops the handle on
+        // exit, so this can never signal a PID the OS has recycled.
+        nativeKill('SIGKILL');
+      }, governor.scaleTimeout(TERMINATION_GRACE_MS));
+      // Never hold the process open for a kill nobody is waiting on.
+      escalation.unref();
+    }
+    return delivered;
   };
 }
 

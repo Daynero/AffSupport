@@ -146,7 +146,7 @@ describe('duty cycling', () => {
 });
 
 describe('safety invariants', () => {
-  it('resumes every suspended child on shutdown', async () => {
+  it('resumes and then kills every child still registered at shutdown', async () => {
     vi.useFakeTimers();
     const power = governor();
     const { child, signals } = fakeChild();
@@ -155,9 +155,12 @@ describe('safety invariants', () => {
     vi.advanceTimersByTime(600);
 
     await power.shutdown();
-    // A child left stopped here outlives the agent and never makes progress
-    // again — the worst failure this design can produce.
-    expect(signals.at(-1)).toBe('SIGCONT');
+    // Both halves matter, and in this order. A child left stopped outlives the
+    // agent and never makes progress again; a child left *running* outlives it
+    // holding the machine at full speed, with nothing attached to it that could
+    // report or stop it — every tool has already had its graceful shutdown by
+    // the time this runs, so anything still here is a leak.
+    expect(signals.slice(-2)).toEqual(['SIGCONT', 'SIGKILL']);
   });
 
   it('resumes a suspended child when it is released', async () => {
