@@ -16,10 +16,9 @@ internal sealed class TrayApplication : ApplicationContext
   private const int MaxPortWaitAttempts = 24;
   private const int MaxReadinessAttempts = 60;
   private const int MaxRuntimeRestarts = 2;
-  // The agent exits with 75 (EX_TEMPFAIL) when a transient runtime fault warrants a restart.
-  private const int RestartableExitCode = 75;
-  // ...and with 76 when it has drained its work for a coordinated update handoff.
-  // Both codes are the agent's, not this host's: Launcher.swift reads the same two.
+  // The agent exits with 76 when it has drained its work for a coordinated update handoff.
+  // Every other unexpected exit gets the bounded crash-restart budget below, including
+  // Windows termination statuses that cannot be expressed as the agent's EX_TEMPFAIL (75).
   private const int UpdateHandoffExitCode = 76;
 
   private readonly NotifyIcon notifyIcon;
@@ -349,7 +348,7 @@ internal sealed class TrayApplication : ApplicationContext
       return;
     }
 
-    if (exitCode == RestartableExitCode && runtimeRestartAttempts < MaxRuntimeRestarts)
+    if (runtimeRestartAttempts < MaxRuntimeRestarts)
     {
       runtimeRestartAttempts += 1;
       agent = null;

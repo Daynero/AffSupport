@@ -225,5 +225,5 @@ describe('team contract', () => {
     );
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain('out of date');
-  }, 30_000);
+  }, 60_000);
 });

@@ -29,63 +29,57 @@ import {
   toolContractCompatible
 } from '@video-compressor/shared';
 import { agentFetchOptions, pairingPath, probeAgent, versionState } from '../connection';
-import { publicConfig } from '../lib/config';
+import { configuredAgentOrigin, publicConfig, servedByAgent } from '../lib/config';
+import { pairingToken } from './pairing-token';
 import type { DroppedFolderSample } from '../components/DropZone';
 
-const configured = import.meta.env.VITE_AGENT_URL || 'http://127.0.0.1:43120';
-export const agentUrl =
-  location.hostname === '127.0.0.1' && location.port === '43120' ? location.origin : configured;
+export const agentUrl = servedByAgent() ? location.origin : configuredAgentOrigin();
 const privateNetworkInit = agentFetchOptions(agentUrl, location.origin);
-const channel =
-  typeof BroadcastChannel === 'undefined'
-    ? null
-    : new BroadcastChannel('local-video-compressor-pairing');
-let token = localStorage.getItem('agentToken') ?? '';
-let tokenListener: (() => void) | null = null;
-const INSTALL_STARTED_KEY = 'wishly.agent-install-started.v1';
-const INSTALL_PAIRING_WINDOW_MS = 15 * 60 * 1000;
 
-channel?.addEventListener('message', event => {
-  if (typeof event.data === 'string' && /^[a-f0-9]{64}$/.test(event.data)) {
-    token = event.data;
-    localStorage.setItem('agentToken', token);
-    tokenListener?.();
-  }
-});
+// Storage, arrival and the re-pairing budget live in api/pairing-token: the token
+// reaches the browser before authentication does, so it cannot wait for this
+// module. Re-exported here because this is where the rest of the app expects it.
+export {
+  agentInstallAwaitingPairing,
+  claimAutomaticPairing,
+  consumePairingToken,
+  hasPairingToken,
+  markAgentInstallStarted,
+  onPairingToken,
+  releaseAutomaticPairing
+} from './pairing-token';
 
-export function onPairingToken(listener: () => void) {
-  tokenListener = listener;
-  return () => {
-    tokenListener = null;
-  };
-}
-export function consumePairingToken() {
-  const value = new URLSearchParams(location.hash.slice(1)).get('agentToken');
-  if (value && /^[a-f0-9]{64}$/.test(value)) {
-    token = value;
-    localStorage.setItem('agentToken', value);
-    sessionStorage.removeItem(INSTALL_STARTED_KEY);
-    channel?.postMessage(value);
-    history.replaceState(null, '', location.pathname + location.search);
+/**
+ * Pairing is needed before the Agent will answer.
+ *
+ * `agentAlive` records whether the Agent proved it is running while we found
+ * out — a 401 is an answer, and so is a successful unauthenticated health
+ * probe. The distinction decides whether re-pairing may happen on its own:
+ * navigating to the pairing endpoint of an Agent that is not there replaces a
+ * useful page with a dead loopback URL, which is why it is not done blind.
+ *
+ * The message stays `PAIRING_REQUIRED` so every existing `error.message`
+ * comparison keeps working.
+ */
+export class PairingRequiredError extends Error {
+  readonly agentAlive: boolean;
+  constructor(agentAlive: boolean) {
+    super('PAIRING_REQUIRED');
+    this.name = 'PairingRequiredError';
+    this.agentAlive = agentAlive;
   }
 }
-export function markAgentInstallStarted() {
-  sessionStorage.setItem(INSTALL_STARTED_KEY, String(Date.now()));
+
+/** True when the Agent proved it is running as this failure was produced. */
+export function agentProvenAlive(error: unknown) {
+  // The Agent serves its own copy of this page, so reaching it proves as much.
+  return servedByAgent() || (error instanceof PairingRequiredError && error.agentAlive);
 }
-export function agentInstallAwaitingPairing() {
-  const started = Number(sessionStorage.getItem(INSTALL_STARTED_KEY));
-  if (!Number.isFinite(started) || Date.now() - started > INSTALL_PAIRING_WINDOW_MS) {
-    sessionStorage.removeItem(INSTALL_STARTED_KEY);
-    return false;
-  }
-  return true;
-}
-export function hasPairingToken() {
-  return Boolean(token);
-}
+
 export function pairWithAgent() {
   location.assign(`${agentUrl}${pairingPath(agentUrl, location.origin)}`);
 }
+
 export async function connect(signal?: AbortSignal): Promise<{
   state: QueueState | null;
   version: string;
@@ -96,9 +90,10 @@ export async function connect(signal?: AbortSignal): Promise<{
   toolContracts: ToolContracts;
   entitlement: AgentEntitlementStatus | null;
 }> {
-  if (!token) {
+  if (!pairingToken()) {
+    // Health answered, so the Agent is running and only the token is missing.
     await probeAgent(agentUrl, location.origin, signal);
-    throw new Error('PAIRING_REQUIRED');
+    throw new PairingRequiredError(true);
   }
   const health = await request<Partial<HealthResponse> & { version: string }>(
     '/api/health',
@@ -131,7 +126,7 @@ export function submitEntitlementToken(entitlementToken: string): Promise<AgentE
   return requestBody<AgentEntitlementStatus>('/api/entitlement', { token: entitlementToken });
 }
 export function eventUrl() {
-  return `${agentUrl}/api/events?token=${encodeURIComponent(token)}`;
+  return `${agentUrl}/api/events?token=${encodeURIComponent(pairingToken())}`;
 }
 
 /* ── Local resource budget ────────────────────────────────────────────────── */
@@ -150,17 +145,17 @@ export function setPowerLimit(limitPercent: number): Promise<PowerState> {
 }
 
 export function powerEventsUrl() {
-  return `${agentUrl}/api/power/events?token=${encodeURIComponent(token)}`;
+  return `${agentUrl}/api/power/events?token=${encodeURIComponent(pairingToken())}`;
 }
 export async function request<T>(url: string, method = 'GET', signal?: AbortSignal): Promise<T> {
-  if (!token) throw new Error('PAIRING_REQUIRED');
+  if (!pairingToken()) throw new PairingRequiredError(false);
   let response: Response;
   try {
     response = await fetch(agentUrl + url, {
       method,
       signal,
       cache: 'no-store',
-      headers: { 'x-session-token': token },
+      headers: { 'x-session-token': pairingToken() },
       ...privateNetworkInit
     });
   } catch (error) {
@@ -175,12 +170,12 @@ export async function requestBody<T>(
   method = 'POST',
   signal?: AbortSignal
 ): Promise<T> {
-  if (!token) throw new Error('PAIRING_REQUIRED');
+  if (!pairingToken()) throw new PairingRequiredError(false);
   let response: Response;
   try {
     response = await fetch(agentUrl + url, {
       method,
-      headers: { 'x-session-token': token, 'content-type': 'application/json' },
+      headers: { 'x-session-token': pairingToken(), 'content-type': 'application/json' },
       body: JSON.stringify(body),
       signal,
       cache: 'no-store',
@@ -202,7 +197,7 @@ export async function uploadFile(file: File): Promise<SelectionResponse> {
   try {
     response = await fetch(agentUrl + '/api/files/upload', {
       method: 'POST',
-      headers: { 'x-session-token': token },
+      headers: { 'x-session-token': pairingToken() },
       body,
       ...privateNetworkInit
     });
@@ -226,7 +221,7 @@ export async function uploadImage(slot: ImageSlot, file: File): Promise<QueueSta
   try {
     response = await fetch(`${agentUrl}/api/images/${slot}`, {
       method: 'POST',
-      headers: { 'x-session-token': token },
+      headers: { 'x-session-token': pairingToken() },
       body,
       ...privateNetworkInit
     });
@@ -236,10 +231,10 @@ export async function uploadImage(slot: ImageSlot, file: File): Promise<QueueSta
   return assertOk(response) as Promise<QueueState>;
 }
 export function imageContentUrl(id: string) {
-  return `${agentUrl}/api/images/${encodeURIComponent(id)}/content?token=${encodeURIComponent(token)}`;
+  return `${agentUrl}/api/images/${encodeURIComponent(id)}/content?token=${encodeURIComponent(pairingToken())}`;
 }
 export function landingEventUrl() {
-  return `${agentUrl}/api/landing/events?token=${encodeURIComponent(token)}`;
+  return `${agentUrl}/api/landing/events?token=${encodeURIComponent(pairingToken())}`;
 }
 export function landingPreviewUrl(
   jobId: string,
@@ -250,18 +245,18 @@ export function landingPreviewUrl(
   const path = `/api/landing/jobs/${encodeURIComponent(jobId)}/assets/${encodeURIComponent(
     assetId
   )}/preview/${side}`;
-  return `${agentUrl}${path}?variant=${variant}&token=${encodeURIComponent(token)}`;
+  return `${agentUrl}${path}?variant=${variant}&token=${encodeURIComponent(pairingToken())}`;
 }
 
 export function landingGalleryEventUrl() {
-  return `${agentUrl}/api/landing-preview/events?token=${encodeURIComponent(token)}`;
+  return `${agentUrl}/api/landing-preview/events?token=${encodeURIComponent(pairingToken())}`;
 }
 
 export function landingGalleryImageUrl(landingId: string, revision: number | null, segment = 0) {
   const suffix = revision ? `&v=${encodeURIComponent(revision)}` : '';
   return `${agentUrl}/api/landing-preview/landings/${encodeURIComponent(
     landingId
-  )}/image?token=${encodeURIComponent(token)}&segment=${encodeURIComponent(segment)}${suffix}`;
+  )}/image?token=${encodeURIComponent(pairingToken())}&segment=${encodeURIComponent(segment)}${suffix}`;
 }
 
 function teamTransferRangeUrl() {
@@ -312,7 +307,7 @@ export function openTeamLandingPreview(
 export function teamLandingScreenshotUrl(operationId: string, segment = 0) {
   return `${agentUrl}/api/team/preview/${encodeURIComponent(
     operationId
-  )}/screenshot?token=${encodeURIComponent(token)}&segment=${encodeURIComponent(segment)}`;
+  )}/screenshot?token=${encodeURIComponent(pairingToken())}&segment=${encodeURIComponent(segment)}`;
 }
 
 export async function closeTeamPreview(operationId: string): Promise<boolean> {
@@ -324,11 +319,11 @@ export async function closeTeamPreview(operationId: string): Promise<boolean> {
 }
 
 export function teamEventUrl() {
-  return `${agentUrl}/api/team/events?token=${encodeURIComponent(token)}`;
+  return `${agentUrl}/api/team/events?token=${encodeURIComponent(pairingToken())}`;
 }
 
 export function teamLandingEventUrl() {
-  return `${agentUrl}/api/team/landings/events?token=${encodeURIComponent(token)}`;
+  return `${agentUrl}/api/team/landings/events?token=${encodeURIComponent(pairingToken())}`;
 }
 
 export async function renderTeamLanding(
@@ -563,7 +558,7 @@ async function uploadForm<T>(url: string, body: FormData): Promise<T> {
   try {
     response = await fetch(agentUrl + url, {
       method: 'POST',
-      headers: { 'x-session-token': token },
+      headers: { 'x-session-token': pairingToken() },
       body,
       ...privateNetworkInit
     });
@@ -601,7 +596,7 @@ export interface TranscriptionSelectionResponse {
   warnings: SelectionWarning[];
 }
 export function transcriptionEventUrl() {
-  return `${agentUrl}/api/transcription/events?token=${encodeURIComponent(token)}`;
+  return `${agentUrl}/api/transcription/events?token=${encodeURIComponent(pairingToken())}`;
 }
 export function transcriptionSettings(
   patch: Partial<TranscriptionSettings>
@@ -744,11 +739,15 @@ export function transcriptionMediaCancel(id: string): Promise<{ ok: boolean }> {
 }
 /** URL for the local, token-gated, range-capable source media (for the player). */
 export function transcriptionMediaUrl(id: string): string {
-  return `${agentUrl}/api/transcription/jobs/${encodeURIComponent(id)}/media?token=${encodeURIComponent(token)}`;
+  return `${agentUrl}/api/transcription/jobs/${encodeURIComponent(id)}/media?token=${encodeURIComponent(pairingToken())}`;
 }
 async function assertOk(response: Response) {
+  // Decided before the body is read: a 401 came *from* the Agent, so it is
+  // running and only this token is stale — the normal state after a restart
+  // minted a new one. Parsing first would turn an unparseable 401 body into a
+  // generic failure and cost us that fact.
+  if (response.status === 401) throw new PairingRequiredError(true);
   const body = await response.json();
-  if (!response.ok)
-    throw new Error(response.status === 401 ? 'PAIRING_REQUIRED' : body.error || 'AGENT_ERROR');
+  if (!response.ok) throw new Error(body.error || 'AGENT_ERROR');
   return body;
 }

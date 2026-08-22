@@ -39,6 +39,7 @@ import { loadPowerState, savePowerLimit } from './power/store.js';
 import { PowerSampler } from './power/sampler.js';
 import { setActiveGovernor } from './power/spawn.js';
 import { buildServer } from './server/app.js';
+import { resolveSessionToken } from './server/session-token.js';
 import { EventChannel } from './server/sse.js';
 import { createToolModules } from './server/tools.js';
 import { TeamPreviewBridge } from './team-bridge/preview.js';
@@ -52,7 +53,9 @@ import { createAligner } from './translation/aligner.js';
 import { createTranslator } from './translation/translator.js';
 import { whisperAvailable } from './whisper/tools.js';
 
-const token = randomBytes(32).toString('hex');
+// Persisted across restarts on purpose: a per-boot token silently unpairs
+// every browser that already holds one (see server/session-token.ts).
+const token = await resolveSessionToken();
 const nativeToken = process.env.AGENT_NATIVE_TOKEN?.trim() || null;
 const updateHandoffToken = process.env.AGENT_UPDATE_HANDOFF_TOKEN?.trim() || null;
 // Distinguishes an intentional update handoff from an unexpected clean exit

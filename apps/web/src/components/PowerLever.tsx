@@ -9,9 +9,8 @@ import { POWER_LIMIT_MAX, POWER_LIMIT_MIN } from '@video-compressor/shared';
 import { useI18n } from '../i18n';
 
 /**
- * A vertical throttle, drawn as an aircraft thrust lever: full travel forward
- * is full power, pulled back is the minimum. The marked scale is what makes the
- * position readable at a glance without opening anything.
+ * A vertical power slider: full travel forward is full power, pulled back is
+ * the minimum. The marked scale makes the position readable at a glance.
  *
  * It is a slider to assistive technology, not just to the eye — the whole
  * control is useless to a keyboard or screen-reader user otherwise.
@@ -20,6 +19,9 @@ import { useI18n } from '../i18n';
 const SCALE_MARKS = [100, 80, 60, 40, 20];
 const STEP = 1;
 const PAGE_STEP = 10;
+const TRACK_HEIGHT = 190;
+const THUMB_SIZE = 40;
+const THUMB_RADIUS = THUMB_SIZE / 2;
 
 export function PowerLever({
   value,
@@ -42,7 +44,10 @@ export function PowerLever({
     if (!track) return null;
     const bounds = track.getBoundingClientRect();
     if (bounds.height === 0) return null;
-    const travelled = 1 - (clientY - bounds.top) / bounds.height;
+    // The thumb centre stops at the rail ends instead of travelling into the
+    // rounded caps. Pointer input follows that same geometry.
+    const railHeight = Math.max(1, bounds.height - THUMB_SIZE);
+    const travelled = 1 - (clientY - bounds.top - THUMB_RADIUS) / railHeight;
     return clamp(POWER_LIMIT_MIN + travelled * (POWER_LIMIT_MAX - POWER_LIMIT_MIN));
   }, []);
 
@@ -88,13 +93,17 @@ export function PowerLever({
 
   // The one computed value that has to be inline: everything else is a class.
   const travel = (value - POWER_LIMIT_MIN) / (POWER_LIMIT_MAX - POWER_LIMIT_MIN);
+  const thumbOffset = (1 - travel) * (TRACK_HEIGHT - THUMB_SIZE);
 
   return (
     <div className="power-lever">
       <div className="power-lever__scale" aria-hidden="true">
         {SCALE_MARKS.map(mark => (
           <span key={mark} className="power-lever__mark">
-            {t('powerScaleMark', { percent: mark })}
+            <i />
+            {mark === 100 || mark === 60 || mark === 20 ? (
+              <b>{t('powerScaleMark', { percent: mark })}</b>
+            ) : null}
           </span>
         ))}
       </div>
@@ -110,16 +119,24 @@ export function PowerLever({
         aria-valuetext={`${value}%`}
         aria-label={t('powerLeverLabel')}
         aria-disabled={disabled}
-        style={{ '--power-travel': String(travel) } as CSSProperties}
+        style={
+          {
+            '--power-travel': String(travel),
+            '--power-thumb-offset': `${thumbOffset}px`
+          } as CSSProperties
+        }
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onKeyDown={handleKeyDown}
       >
+        <span className="power-lever__rail" aria-hidden="true" />
         <span className="power-lever__fill" aria-hidden="true" />
-        <span className="power-lever__handle" aria-hidden="true">
-          <span className="power-lever__grip" />
+        <span className="power-lever__thumb" aria-hidden="true">
+          <svg className="power-lever__thumb-icon" viewBox="0 0 24 24" fill="none">
+            <path d="m13.1 2.5-8 11h6.4l-.6 8 8-11h-6.4l.6-8Z" />
+          </svg>
         </span>
       </div>
     </div>

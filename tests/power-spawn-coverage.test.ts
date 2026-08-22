@@ -99,4 +99,19 @@ describe('managed spawn coverage', () => {
       );
     }
   });
+
+  it('connects the compressor queue to the governor used by its FFmpeg encode', async () => {
+    const queue = await readFile(path.join(AGENT_SRC, 'queue/queue.ts'), 'utf8');
+    const runMethod = queue.slice(queue.indexOf('  private run('));
+
+    // Going through spawnManaged is insufficient if its governor argument is
+    // null. This exact omission made the UI measure only the lightweight agent
+    // (~0.1%) while libx264 saturated the machine outside the limit.
+    expect(runMethod).toMatch(/encodeVideo\([\s\S]*?embedding,\s*this\.power\s*\)/);
+  });
+
+  it('gives other encoder callers the process-wide governor by default', async () => {
+    const encoder = await readFile(path.join(AGENT_SRC, 'ffmpeg/encoder.ts'), 'utf8');
+    expect(encoder).toMatch(/governor:\s*ManagedSpawnGovernor \| null = activeGovernorOrNull\(\)/);
+  });
 });

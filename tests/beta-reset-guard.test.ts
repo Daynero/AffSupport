@@ -32,13 +32,19 @@ describe('beta reset safety', () => {
     expect(resetIndex).toBeGreaterThan(guardIndex);
   });
 
-  it('clears only the beta application-support directory, named from the shared profile', () => {
+  it('clears resettable state only inside beta application support', () => {
     expect(RESET).toContain('BETA_PROFILE.supportDirectoryName');
     expect(BETA_PROFILE.supportDirectoryName).toBe('Soty Beta');
     // A hardcoded directory name here is one typo away from wiping production
     // or dev state.
     expect(RESET).not.toContain("'Soty'");
     expect(RESET).not.toContain("'Soty Dev'");
+  });
+
+  it('preserves downloaded models, runtimes and resumable partial downloads', () => {
+    expect(RESET).toContain("new Set(['models', 'runtime'])");
+    expect(RESET).toContain('including resumable .part downloads');
+    expect(RESET).not.toContain('rmSync(supportDirectory');
   });
 
   it('applies the fixtures explicitly rather than as a shared seed', () => {

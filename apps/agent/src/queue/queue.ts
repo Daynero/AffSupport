@@ -41,6 +41,7 @@ import {
 } from '../images/embedding.js';
 import { ImageAssetError, ImageAssetStore } from '../images/store.js';
 import { detectStaticEdgeTrims } from '../images/static-edges.js';
+import type { ManagedSpawnGovernor } from '../power/spawn.js';
 /**
  * Suspension is NOT done here any more. The governor owns it, because it also
  * duty-cycles managed children to hold the power limit — two independent
@@ -53,7 +54,7 @@ import { detectStaticEdgeTrims } from '../images/static-edges.js';
  * does not depend on the power module's concrete class — and so a bare test
  * assembly can omit it entirely.
  */
-export interface QueuePowerGovernor {
+export interface QueuePowerGovernor extends ManagedSpawnGovernor {
   hold(child: ChildProcessWithoutNullStreams, reason: string): () => void;
   /** Whether the child is stopped right now — a hold can fail to land. */
   isSuspended(child: ChildProcessWithoutNullStreams): boolean;
@@ -641,11 +642,22 @@ export class JobQueue {
     const job = this.jobs.find(candidate => candidate.id === id);
     if (!job || (job.status !== 'processing' && job.status !== 'queued')) return false;
     const wasProcessing = job.status === 'processing';
+    if (job.estimatePriorityOrder !== null) this.estimateHooks?.cancelPrioritized?.(job.id);
     job.status = 'cancelled';
     job.error = 'Compression was cancelled.';
     job.finishedAt = finishTimestamp(job);
     job.processingStage = null;
-    resetEstimate(job);
+    job.estimatePriorityOrder = null;
+    // An estimate describes the current encoding configuration, not a specific
+    // compression attempt. Keep a completed, current estimate on cancellation;
+    // otherwise mark unfinished estimate work as paused. Resetting everything
+    // to `waiting` made a stopped row flash as if estimation had restarted,
+    // even though terminal jobs are deliberately ignored by the estimator.
+    if (job.estimateStatus !== 'estimated') {
+      job.estimateStatus = 'cancelled';
+      job.estimateProgress = null;
+      job.estimateError = null;
+    }
     if (wasProcessing) {
       // Stop untracked background work too (static-edge detection during
       // `preparing-images`), whose ffmpeg children are not `this.active` and
@@ -771,10 +783,11 @@ export class JobQueue {
   async retry(id: string) {
     const job = this.jobs.find(candidate => candidate.id === id);
     if (!job || !['failed', 'interrupted', 'cancelled'].includes(job.status)) return false;
-    await this.resetForRerun(job);
-    this.notify('estimate:queued');
-    this.estimateHooks?.schedule();
-    return true;
+    // A row-level retry is an explicit request to run the compression again,
+    // just like repeat on a completed row. `start` owns the complete transition
+    // through ready -> queued and prevents a transient ready state from waking
+    // the background estimator instead of the compressor.
+    return this.start([id]);
   }
 
   async repeat(id: string) {
@@ -1381,8 +1394,10 @@ export class JobQueue {
           // already gone); leave the handoff to the next scheduling pass.
           return;
         }
-        // Platforms without pause support (Windows) fall through: prioritized
-        // estimates simply run alongside the active compression.
+        // A platform that cannot pause, or whose pause mechanism is currently
+        // unavailable, falls through: prioritized estimates simply run
+        // alongside the active compression. Windows normally pauses through
+        // the resident NtSuspendProcess helper.
       }
       this.notify();
       let processed: boolean;
@@ -1423,7 +1438,8 @@ export class JobQueue {
         job.progress = value;
         this.notify();
       },
-      embedding
+      embedding,
+      this.power
     );
     this.active = operation.child;
     void this.runPrioritizedEstimates();

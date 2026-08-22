@@ -111,6 +111,16 @@ async function main() {
   for (const tool of ['ffmpeg', 'ffprobe']) {
     if (!commandAvailable(tool, ['-version'])) missingPrerequisites.push(tool);
   }
+  const executableLookup = spawnSync(
+    process.platform === 'win32' ? 'where' : 'which',
+    [process.platform === 'win32' ? 'whisper-cli.exe' : 'whisper-cli'],
+    { shell: false, stdio: 'ignore' }
+  );
+  if (executableLookup.error || executableLookup.status !== 0) {
+    missingPrerequisites.push(
+      'whisper-cli (install whisper-cpp; on macOS: brew install whisper-cpp)'
+    );
+  }
 
   const ports = [BETA_PROFILE.agentPort, BETA_PROFILE.webPort, ...BETA_LOCAL_STACK_PORTS];
   const portsInUse = [];
@@ -123,6 +133,47 @@ async function main() {
     missingPrerequisites,
     productionEntitlementKey: productionEntitlementKey()
   });
+
+  const functionsEnvFile = existsSync('supabase/functions/.env.local')
+    ? 'supabase/functions/.env.local'
+    : existsSync('supabase/functions/.env')
+      ? 'supabase/functions/.env'
+      : null;
+  const functionsEnv = functionsEnvFile ? parseEnvFile(readFileSync(functionsEnvFile, 'utf8')) : {};
+  if (!functionsEnvFile) {
+    problems.push({
+      code: 'BETA_ENV_MISSING',
+      subject: 'supabase/functions/.env.local',
+      message: 'the local Functions environment is missing.',
+      remedy:
+        'Copy supabase/functions/.env.example to supabase/functions/.env.local and add the beta signing key.'
+    });
+  } else {
+    if (functionsEnv.SOTY_ENVIRONMENT !== 'beta') {
+      problems.push({
+        code: 'BETA_ENV_MISSING',
+        subject: 'SOTY_ENVIRONMENT',
+        message: `${functionsEnvFile} must identify itself as beta.`,
+        remedy: `Set SOTY_ENVIRONMENT=beta in ${functionsEnvFile}.`
+      });
+    }
+    if (functionsEnv.WISHLY_SITE_URL !== profile.VITE_SITE_URL) {
+      problems.push({
+        code: 'BETA_PRODUCTION_ENDPOINT',
+        subject: 'WISHLY_SITE_URL',
+        message: `the Functions origin must match the beta web origin ${profile.VITE_SITE_URL}.`,
+        remedy: `Set WISHLY_SITE_URL=${profile.VITE_SITE_URL} in ${functionsEnvFile}.`
+      });
+    }
+    if (!functionsEnv.AGENT_TOKEN_PRIVATE_KEY) {
+      problems.push({
+        code: 'BETA_ENV_MISSING',
+        subject: 'AGENT_TOKEN_PRIVATE_KEY',
+        message: 'the beta entitlement signing key is missing.',
+        remedy: 'Run node scripts/generate-signing-keys.mjs --beta.'
+      });
+    }
+  }
 
   if (problems.length) {
     process.stderr.write('Beta environment check failed:\n');
@@ -137,12 +188,15 @@ async function main() {
   // the beta line trails production, so a stale beta cannot be mistaken for a
   // current one and produce false conclusions.
   const revision = git(['rev-parse', '--short=12', 'HEAD'], 'unknown');
+  const branch = git(['branch', '--show-current'], 'detached HEAD') || 'detached HEAD';
   const dirty = git(['status', '--porcelain'], '') ? ' (uncommitted changes present)' : '';
   const behind = git(['rev-list', '--count', 'HEAD..main'], null);
+  const outsideBeta = branch === 'beta' ? '0' : git(['rev-list', '--count', 'beta..HEAD'], null);
 
   process.stdout.write(
     `Beta environment ready.\n` +
       `  Source revision: ${revision}${dirty}\n` +
+      `  Source branch: ${branch}${outsideBeta && outsideBeta !== '0' ? ` (${outsideBeta} commit(s) not yet in beta)` : ''}\n` +
       `  Behind main: ${behind === null ? 'unknown (no main branch found)' : `${behind} commit(s)`}\n` +
       `  Agent: http://127.0.0.1:${BETA_PROFILE.agentPort}  Web: http://127.0.0.1:${BETA_PROFILE.webPort}\n` +
       `  Loopback only — nothing is bound to an externally reachable address.\n`

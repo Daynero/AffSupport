@@ -135,8 +135,9 @@ download dialog, not by a certificate.
 
 ## Still open
 
-- [ ] FFmpeg/FFprobe win64 inputs are unresolved — see `docs/WINDOWS.md` and
-      `specs/006-windows-release-rollout/research.md` R3. The build refuses
-      until they are pinned.
 - [ ] The five behaviours in the unverified-risk table (`docs/WINDOWS.md`) need
       one human pass on real Windows before the first public release.
+
+FFmpeg 7.1.1 and x264 are now built from pinned sources in CI. Run
+`node scripts/fetch-windows-inputs.mjs --verify-only` from any supported build
+host to verify every downloadable input before starting the Windows workflow.

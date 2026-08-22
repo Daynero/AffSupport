@@ -264,7 +264,9 @@ describe('selected batch behavior', () => {
     );
     expect(queue.state().jobs[1].status).toBe('completed');
     expect(await queue.retry(badJob.id)).toBe(true);
-    expect(queue.state().jobs[0].status).toBe('ready');
+    expect(['queued', 'processing']).toContain(queue.state().jobs[0].status);
+    expect(queue.state().batch?.jobIds).toEqual([badJob.id]);
+    await until(() => !queue.state().running);
   }, 15_000);
 
   it('cancels the active FFmpeg job without completing it', async () => {

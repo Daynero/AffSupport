@@ -8,7 +8,7 @@
 
 **Input**: User description: "Потрібно створити спеку повної розкатки на віндовс юзерів, всі інструменти мають працювати аналогічно, при подальшій розробці я хочу просто добавляти або фіксити інструменти в одному місці і має працювати все на 2 платформах. головне щоб можна було після всіх змін релізити на віндовс юзерів. Уточнюю що поки без всяких підписів чи чогось такого, просто як є додаток збираємо безкоштовно, як по суті і на мак зараз"
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - A Windows user installs Soty and compresses their first video (Priority: P1)
 
@@ -64,7 +64,7 @@ with a stated reason.
 **Acceptance Scenarios**:
 
 1. **Given** a paired Windows install, **When** the user opens each advertised tool, **Then** every
-   tool either performs its full job or is presented as unavailable-on-this-system *before* the user
+   tool either performs its full job or is presented as unavailable-on-this-system _before_ the user
    invests any work in it.
 2. **Given** a Windows install, **When** the user picks files or a folder through the app's own
    file/folder chooser, **Then** a native chooser opens in the foreground, supports multi-select and
@@ -189,7 +189,7 @@ user is informed, can update, keeps their data, and ends up on N+1.
 ### Edge Cases
 
 - **Unsigned-binary warnings**: the operating system's reputation warning appears for a brand-new
-  unsigned installer *and* possibly for the bundled helper programs. The product must tell users what
+  unsigned installer _and_ possibly for the bundled helper programs. The product must tell users what
   to expect and what to click; it must not silently look broken.
 - **Missing bundled prerequisite**: an installation where a bundled helper program is missing or
   blocked (antivirus quarantine) must surface a specific, actionable message rather than an endless
@@ -222,7 +222,7 @@ user is informed, can update, keeps their data, and ends up on N+1.
 - **Automated verification cannot cover a behaviour**: it must appear on the written unverified-risk
   list rather than being quietly assumed to work.
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
@@ -373,7 +373,7 @@ user is informed, can update, keeps their data, and ends up on N+1.
 - **Local application install**: an installation on a user's machine with a version, a data location,
   an autostart registration, and a pairing relationship to the hosted page.
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 
@@ -419,8 +419,9 @@ user is informed, can update, keeps their data, and ends up on N+1.
   macOS-only.** It is an operating-system extension, not one of the product's tools; Windows users
   reach the same functionality through the app itself. This is documented as a deliberate,
   advertised difference rather than a gap to close.
-- **Suspending a running job is unavailable on Windows** because the platform offers no equivalent
-  mechanism; cancellation covers the user need and the interface reflects the difference.
+- **Suspending a running job is available on Windows** through the resident PowerShell helper added
+  by the power-throttle feature. It calls `NtSuspendProcess`/`NtResumeProcess`; if the helper cannot
+  start, the agent degrades safely to spawn-time limits and continues to support cancellation.
 - **Windows is a mandatory, release-gating artifact** (confirmed by the maintainer): from the first
   Windows release onward, a stable release that cannot produce a valid Windows artifact does not
   ship at all, including macOS. The consequence is accepted: a broken Windows build blocks macOS

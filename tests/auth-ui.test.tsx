@@ -19,6 +19,9 @@ vi.mock('../apps/web/src/lib/config', () => ({
       productOperator: null
     }
   },
+  configuredSiteUrl: () => 'http://127.0.0.1:5173',
+  configuredAgentOrigin: () => 'http://127.0.0.1:43120',
+  servedByAgent: (origin: string = location.origin) => origin === 'http://127.0.0.1:43120',
   configuredEnvironment: () => 'production'
 }));
 

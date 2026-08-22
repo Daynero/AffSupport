@@ -11,6 +11,13 @@ name: Build Windows installer
 # signature and no notarization. Users are warned by SmartScreen; the download
 # page tells them exactly what to click.
 on:
+  # The workflow is introduced before it reaches the default branch, so GitHub
+  # cannot dispatch it by filename yet. This isolated beta branch provides a
+  # build-only path for validating the first installer; `inputs.publish` is
+  # absent on push and the release-upload step therefore remains disabled.
+  push:
+    branches:
+      - windows-beta-build
   workflow_dispatch:
     inputs:
       publish:
@@ -22,7 +29,48 @@ permissions:
   contents: write
 
 jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The full repository suite includes macOS-package fixtures and real
+      # media-tool tests, so it is not a portable release gate. Run the static
+      # gates and the platform/package contracts here; the produced Windows
+      # payload gets its real install/use/uninstall smoke in the build job.
+      - name: Format, lint and Windows contracts
+        run: |
+          npm run format:check
+          npm run lint
+          npm run build -w @video-compressor/shared
+          npx vitest run \
+            tests/agent-capabilities.test.ts \
+            tests/agent-capability-guards.test.ts \
+            tests/local-app-dialog-windows.test.tsx \
+            tests/power-contract.test.ts \
+            tests/power-spawn-coverage.test.ts \
+            tests/power-windows-suspend.test.ts \
+            tests/queue-pause-platform.test.ts \
+            tests/release-gates-windows.test.ts \
+            tests/translation-runtime-platforms.test.ts \
+            tests/windows-archive.test.ts \
+            tests/windows-attribution.test.ts \
+            tests/windows-inputs-manifest.test.ts \
+            tests/windows-installer-contract.test.ts \
+            tests/windows-picker.test.ts \
+            tests/windows-rollout-observability.test.ts
+
   build:
+    needs: validate
     runs-on: windows-2022
     # The first run compiles FFmpeg from source; later runs restore it from cache.
     timeout-minutes: 120
@@ -36,14 +84,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      # The local gates the constitution requires. A Windows installer must
-      # never be produced from a tree that fails them.
-      - name: Format, lint and test
-        run: |
-          npm run format:check
-          npm run lint
-          npm test
 
       - name: Build web, shared and agent
         run: |
@@ -79,11 +119,16 @@ jobs:
             const by = id => m.inputs.find(i => i.id === id);
             process.stdout.write(by('ffmpeg-source').sha256.slice(0, 16) + '-' + by('x264-source').gitRevision.slice(0, 16));
           ")
+          x264_revision=$(node -e "
+            const m = require('./packaging/windows/inputs.json');
+            process.stdout.write(m.inputs.find(i => i.id === 'x264-source').gitRevision);
+          ")
           echo "key=$key" >> "$GITHUB_OUTPUT"
+          echo "X264_REVISION=$x264_revision" >> "$GITHUB_ENV"
 
       - name: Restore the compiled FFmpeg
         id: ffmpeg-cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: release/windows/ffmpeg
           key: ffmpeg-win64-${{ steps.ffmpeg-key.outputs.key }}
@@ -103,6 +148,7 @@ jobs:
         shell: msys2 {0}
         env:
           FFMPEG_SOURCE_ARCHIVE_WIN: ${{ env.FFMPEG_SOURCE_ARCHIVE_WIN }}
+          X264_REVISION: ${{ env.X264_REVISION }}
         run: |
           set -euo pipefail
           root="$(pwd)"
@@ -111,22 +157,19 @@ jobs:
           mkdir -p "$prefix" "$out" "$root/release/windows/build"
           cd "$root/release/windows/build"
 
-          x264_rev=$(node -e "
-            const m = require('$root/packaging/windows/inputs.json');
-            process.stdout.write(m.inputs.find(i => i.id === 'x264-source').gitRevision);
-          ")
           git clone https://code.videolan.org/videolan/x264.git x264
-          git -C x264 checkout --detach "$x264_rev"
+          git -C x264 checkout --detach "$X264_REVISION"
           # The commit hash is the pin; refuse anything else.
-          test "$(git -C x264 rev-parse HEAD)" = "$x264_rev"
+          test "$(git -C x264 rev-parse HEAD)" = "$X264_REVISION"
           # Archive the exact checkout as the GPL corresponding source.
-          git -C x264 archive --format=tar.gz --prefix="x264-$x264_rev/" HEAD \
-            -o "$out/x264-$x264_rev.tar.gz"
+          git -C x264 archive --format=tar.gz --prefix="x264-$X264_REVISION/" HEAD \
+            -o "$out/x264-$X264_REVISION.tar.gz"
 
           (cd x264 && ./configure --prefix="$prefix" --enable-static --disable-cli \
             --disable-opencl --host=x86_64-w64-mingw32 && make -j"$(nproc)" && make install)
 
-          tar -xf "$FFMPEG_SOURCE_ARCHIVE_WIN"
+          ffmpeg_source_archive=$(cygpath -u "$FFMPEG_SOURCE_ARCHIVE_WIN")
+          tar -xf "$ffmpeg_source_archive"
           cd ffmpeg-7.1.1
           # Same configuration the macOS build uses, so both platforms encode identically.
           PKG_CONFIG_PATH="$prefix/lib/pkgconfig" ./configure \
@@ -148,15 +191,23 @@ jobs:
           cp ffmpeg.exe ffprobe.exe "$out/"
           "$out/ffmpeg.exe" -version | head -1
 
+      - name: Save the compiled FFmpeg
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: release/windows/ffmpeg
+          key: ffmpeg-win64-${{ steps.ffmpeg-key.outputs.key }}
+
       - name: Export the built FFmpeg
         shell: bash
         run: |
           set -euo pipefail
           out="$(pwd)/release/windows/ffmpeg"
           test -f "$out/ffmpeg.exe" && test -f "$out/ffprobe.exe"
-          echo "FFMPEG_BINARY_WIN=$out/ffmpeg.exe" >> "$GITHUB_ENV"
-          echo "FFPROBE_BINARY_WIN=$out/ffprobe.exe" >> "$GITHUB_ENV"
-          echo "X264_SOURCE_ARCHIVE_WIN=$(ls "$out"/x264-*.tar.gz)" >> "$GITHUB_ENV"
+          echo "FFMPEG_BINARY_WIN=$(cygpath -w "$out/ffmpeg.exe")" >> "$GITHUB_ENV"
+          echo "FFPROBE_BINARY_WIN=$(cygpath -w "$out/ffprobe.exe")" >> "$GITHUB_ENV"
+          x264_source=$(ls "$out"/x264-*.tar.gz)
+          echo "X264_SOURCE_ARCHIVE_WIN=$(cygpath -w "$x264_source")" >> "$GITHUB_ENV"
 
       - name: Run the runtime stager
         run: node scripts/stage-windows-runtime.mjs release/windows/stage

@@ -1,7 +1,15 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useAuth } from './AuthContext';
 import { publicConfig } from '../lib/config';
-import { clearReturnPath, safeReturnPath, takeReturnPath } from '../lib/redirects';
+import { clearReturnPath, loginUrl, safeReturnPath, takeReturnPath } from '../lib/redirects';
+import {
+  HANDOFF_PATH,
+  allowedHandoffReturn,
+  handoffDeliveryUrl,
+  safeNext,
+  sessionHandoffOrigin,
+  takeDeliveredSession
+} from './session-handoff';
 import { internalLink, navigateTo } from '../lib/navigation';
 import { useI18n } from '../i18n';
 import { Card } from '../components/Card';
@@ -51,7 +59,7 @@ function queryErrorMessage(t: ReturnType<typeof useI18n>['t']) {
 }
 
 export function LoginPage() {
-  const { status, error, signInWithGoogle } = useAuth();
+  const { status, error, signInWithGoogle, signInWithBetaFixture } = useAuth();
   const { t } = useI18n();
   const returnPath = safeReturnPath(new URLSearchParams(location.search).get('returnTo'));
   const queryError = queryErrorMessage(t);
@@ -78,6 +86,7 @@ export function LoginPage() {
           ? t('callbackError')
           : null);
   const authenticating = status === 'authenticating';
+  const beta = import.meta.env.VITE_APP_ENVIRONMENT === 'beta';
 
   return (
     <main className="login-page">
@@ -117,6 +126,16 @@ export function LoginPage() {
             </span>
           )}
         </button>
+        {beta && (
+          <button
+            type="button"
+            className={`google-sign-in ${authenticating ? 'is-loading' : ''}`}
+            disabled={authenticating}
+            onClick={() => void signInWithBetaFixture()}
+          >
+            <span>Увійти тестовим beta-акаунтом</span>
+          </button>
+        )}
         <p className="login-legal">
           {t('loginFooterPrefix')}
           <a href="/terms" onClick={event => internalLink(event, '/terms')}>
@@ -168,6 +187,68 @@ export function AuthCallbackPage() {
         navigateTo('/login?error=callback', true);
       });
   }, [completeOAuthCallback]);
+
+  return <AuthLoadingScreen callback />;
+}
+
+/**
+ * `/auth/handoff` — the same path on both origins, playing whichever half of the
+ * exchange belongs to the origin it is loaded on (see auth/session-handoff).
+ */
+export function AuthHandoffPage() {
+  return sessionHandoffOrigin() ? <HandoffArrival /> : <HandoffDeparture />;
+}
+
+/** The Agent's copy of the app, installing the session the website sent back. */
+function HandoffArrival() {
+  const { adoptHandedOverSession } = useAuth();
+  const started = useRef(false);
+
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    const delivered = takeDeliveredSession();
+    // No session in the fragment means the website had none to give. The sign-in
+    // screen here sends the user back to sign in there, deliberately this time.
+    if (!delivered) {
+      navigateTo(loginUrl('/'), true);
+      return;
+    }
+    void adoptHandedOverSession(delivered.accessToken, delivered.refreshToken)
+      .then(() => navigateTo(delivered.next, true))
+      .catch(() => navigateTo('/login?error=callback', true));
+  }, [adoptHandedOverSession]);
+
+  return <AuthLoadingScreen callback />;
+}
+
+/** The website, handing its session to this installation's Agent origin. */
+function HandoffDeparture() {
+  const { status, session } = useAuth();
+  const sent = useRef(false);
+  const query = new URLSearchParams(location.search);
+  const returnTo = allowedHandoffReturn(query.get('returnTo'));
+  const next = safeNext(query.get('next'));
+
+  useEffect(() => {
+    if (sent.current) return;
+    // An unrecognised returnTo is never repaired into a working one: it decides
+    // who receives a live session.
+    if (!returnTo) {
+      sent.current = true;
+      navigateTo('/', true);
+      return;
+    }
+    if (status === 'initializing' || status === 'authenticating' || status === 'signing-out')
+      return;
+    sent.current = true;
+    if (session) {
+      location.assign(handoffDeliveryUrl(returnTo, session, next));
+      return;
+    }
+    // Nothing to hand over yet: sign in here, then this page runs again and does.
+    navigateTo(loginUrl(`${HANDOFF_PATH}${location.search}`), true);
+  }, [next, returnTo, session, status]);
 
   return <AuthLoadingScreen callback />;
 }

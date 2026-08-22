@@ -305,6 +305,20 @@ try {
   });
 
   await check('transcribe-media', async () => {
+    let transcriptionState = await api('/api/transcription/state');
+    if (!transcriptionState.tools?.model) {
+      await api('/api/transcription/model/download', { method: 'POST' });
+      transcriptionState = await waitFor(
+        async () => {
+          const state = await api('/api/transcription/state');
+          if (state.model?.error) throw new Error(`model download failed: ${state.model.error}`);
+          return state.tools?.model ? state : null;
+        },
+        { timeoutMs: 600_000 }
+      );
+    }
+    if (!transcriptionState.tools?.model) throw new Error('speech model is unavailable');
+
     const clip = makeClip(
       path.join(installDir, 'runtime', 'bin', 'ffmpeg.exe'),
       path.join(workDir, 'speech.mp4')
@@ -317,6 +331,11 @@ try {
     // right only until something else queues one alongside it.
     const id = started.state?.jobs?.find(candidate => candidate.fileName === 'speech.mp4')?.id;
     if (!id) throw new Error('transcription job was not queued');
+    await api('/api/transcription/start', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ids: [id] })
+    });
     const done = await waitFor(
       async () => {
         const state = await api('/api/transcription/state');
@@ -480,8 +499,10 @@ try {
   });
 
   await check('crash-restart', async () => {
+    const installedNode = path.join(installDir, 'runtime', 'node.exe').replaceAll("'", "''");
     const agentPid = powershell(
       '(Get-CimInstance Win32_Process -Filter "Name=\'node.exe\'" |' +
+        ` Where-Object { $_.ExecutablePath -eq '${installedNode}' } |` +
         ' Select-Object -First 1).ProcessId'
     );
     if (!agentPid) throw new Error('could not find the agent process');

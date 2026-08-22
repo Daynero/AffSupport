@@ -1,4 +1,9 @@
-export const protectedPaths = ['/', '/compressor', '/account', '/admin'] as const;
+/**
+ * Where a completed sign-in may return to. `/auth/handoff` is on the list because
+ * the website signs in *on behalf of* the Agent's copy of the app: the sign-in it
+ * is sent to must be able to come back and finish handing the session over.
+ */
+export const protectedPaths = ['/', '/compressor', '/account', '/admin', '/auth/handoff'] as const;
 export type ProtectedPath = (typeof protectedPaths)[number];
 
 const RETURN_PATH_KEY = 'wishly.auth.return-path.v1';

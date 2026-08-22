@@ -23,6 +23,7 @@ grep -q '"channel": "beta"' "$app/Contents/Resources/release.json"
 grep -q 'private let agentPort = 43140' "$record_dir/Launcher.generated.swift"
 grep -q 'private let instanceLockName = "wishly-beta-agent.lock"' "$record_dir/Launcher.generated.swift"
 grep -q 'private let supportDirectoryName = "Soty Beta"' "$record_dir/Launcher.generated.swift"
+grep -q '"SOTY_ENVIRONMENT": releaseChannel == "beta" ? "beta"' "$record_dir/Launcher.generated.swift"
 
 # FR-009a: the agent binds loopback only; nothing may reach it from the network.
 grep -q 'private let agentHost = "127.0.0.1"' "$record_dir/Launcher.generated.swift" \
@@ -37,10 +38,17 @@ production_key=$(grep -E '^AGENT_ENTITLEMENT_PUBLIC_KEY=' "$PWD/config/productio
 grep -q "$beta_key" "$record_dir/Launcher.generated.swift"
 
 # The divergence from Soty Dev that matters most: beta authenticates for real.
-if grep -rq 'VITE_LOCAL_DEV_AUTH' "$app/Contents/Resources/web/dist" 2>/dev/null; then
-  print -u2 "The beta bundle references VITE_LOCAL_DEV_AUTH; beta must authenticate for real."
+# Vite keeps the variable name in the bundle for the beta configuration guard,
+# so its presence alone does not mean local auth is enabled. Verify the emitted
+# beta value instead.
+if ! grep -rq 'VITE_LOCAL_DEV_AUTH:`false`' "$app/Contents/Resources/web/dist" 2>/dev/null; then
+  print -u2 "The beta bundle does not set VITE_LOCAL_DEV_AUTH=false; beta must authenticate for real."
   exit 1
 fi
+beta_supabase_url=$(grep -E '^VITE_SUPABASE_URL=' "$PWD/.env.beta" | head -1 | cut -d= -f2-)
+production_supabase_url=$(grep -E '^VITE_SUPABASE_URL=' "$PWD/apps/web/.env.production" | head -1 | cut -d= -f2-)
+grep -rq "$beta_supabase_url" "$app/Contents/Resources/web/dist"
+! grep -rq "$production_supabase_url" "$app/Contents/Resources/web/dist"
 grep -q 'VITE_LOCAL_DEV_AUTH=false' "$PWD/scripts/package-beta-mac.sh"
 grep -q 'VITE_APP_ENVIRONMENT=beta' "$PWD/scripts/package-beta-mac.sh"
 

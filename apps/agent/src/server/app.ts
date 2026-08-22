@@ -34,7 +34,10 @@ export interface ServerConfig {
 
 export interface ServerDeps {
   logger?: boolean;
-  /** Per-boot session token; the web app obtains it through /pair. */
+  /**
+   * Session token the web app obtains through /pair (or /local). It outlives
+   * a restart, so an already-paired browser stays paired.
+   */
   token: string;
   /** Shared secret for the Finder/native bridge, or null when not launched natively. */
   nativeToken: string | null;

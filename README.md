@@ -201,11 +201,15 @@ Closing or reloading the browser does not stop processing. Restarting the agent 
 
 Before starting, the agent conservatively compares free space in every relevant output folder with the original sizes. An obvious shortage produces a warning but never changes the originals.
 
-Supabase sessions use the SDK's browser persistence and never enter the Agent. Product analytics accepts only named events and an explicit property allowlist; it excludes filenames, local paths, media, thumbnails, transcription text, raw FFmpeg commands, full logs, Google tokens, IP collection, and device fingerprints. Failed analytics delivery is non-blocking and uses a bounded session queue.
+Supabase sessions use the SDK's browser persistence and never enter the Agent.
+
+The Agent's loopback copy of the app is a second origin, and therefore a second storage area: it cannot see the website's session. The website stays the only origin that signs in — one registered OAuth callback, one place a session lives — and the app asks it for a copy over `/auth/handoff`, which returns the session in the URL fragment and is accepted only when the request names this installation's own Agent origin. Signing in on the website is therefore enough for **Open Soty**, and signing out in the app stays signed out rather than being undone by the next automatic ask. No additional Supabase redirect URL is involved; deploy the web app before shipping an app build that expects the route.
+
+Product analytics accepts only named events and an explicit property allowlist; it excludes filenames, local paths, media, thumbnails, transcription text, raw FFmpeg commands, full logs, Google tokens, IP collection, and device fingerprints. Failed analytics delivery is non-blocking and uses a bounded session queue.
 
 ## Local API
 
-Every `/api/*` route requires a random per-process 256-bit token. The token is issued only through the `/pair` redirect (production origin) or `/local` (bundled loopback UI), which place it in the page URL fragment. The unauthenticated `/health` route exposes only readiness, release/API identity, instance start time, and busy state so the packaged launcher can perform safe handoff. CORS permits only the production page and fixed local development origin. Request bodies are structurally validated, encoding parameters are defined only in the agent, and every external process uses argument arrays with `shell: false`.
+Every `/api/*` route requires a random 256-bit token. The token is issued only through the `/pair` redirect (production origin) or `/local` (bundled loopback UI), which place it in the page URL fragment; the browser reads it out of the fragment before the first render, so a page that opens on the sign-in screen does not lose it. It is minted once and kept in the Agent's own support directory at mode 0600, because a per-boot token silently unpaired every browser that already held one and made the user re-pair by hand after each restart. An unwritable directory falls back to a per-boot token: the Agent still starts and still pairs. The unauthenticated `/health` route exposes only readiness, release/API identity, instance start time, and busy state so the packaged launcher can perform safe handoff. CORS permits only the production page and fixed local development origin. Request bodies are structurally validated, encoding parameters are defined only in the agent, and every external process uses argument arrays with `shell: false`.
 
 Finder actions use a separate `/native/media-actions/*` surface protected by a
 different random token passed only from the native launcher to its child Agent.
@@ -214,7 +218,7 @@ These routes are not part of the browser contract.
 | Method       | Path                                                           | Purpose                                                              |
 | ------------ | -------------------------------------------------------------- | -------------------------------------------------------------------- |
 | GET          | `/health`                                                      | Unauthenticated readiness probe used by the launcher                 |
-| GET          | `/pair`, `/local`                                              | Redirect to the site with a fresh session token                      |
+| GET          | `/pair`, `/local`                                              | Redirect to the site with the session token in the URL fragment      |
 | GET          | `/api/health`, `/api/queue`, `/api/diagnostics`                | Obtain current state and diagnostics                                 |
 | GET          | `/api/events`                                                  | Live SSE queue snapshots                                             |
 | POST         | `/api/files/select`, `/api/files/confirm`, `/api/files/upload` | Native selection, drop upload, and explicit warning confirmation     |
