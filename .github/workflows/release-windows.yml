@@ -351,10 +351,18 @@ jobs:
             -p:PublishSingleFile=true \
             -o release/windows/host
           rm -f release/windows/Output/*.exe
-          cmd.exe /d /s /c \
-            "iscc /DStageDir=%CD%\\release\\windows\\stage /DHostDir=%CD%\\release\\windows\\host release\\windows\\installer.generated.iss"
-          node scripts/verify-windows-package.mjs \
-            release/windows/stage release/windows/Output --host release/windows/host
+
+      - name: Compile the publishable production installer
+        shell: cmd
+        run: >
+          iscc /DStageDir=%CD%\release\windows\stage
+          /DHostDir=%CD%\release\windows\host
+          release\windows\installer.generated.iss
+
+      - name: Verify the publishable production package
+        run: >
+          node scripts/verify-windows-package.mjs
+          release/windows/stage release/windows/Output --host release/windows/host
 
       - name: Upload the installer
         uses: actions/upload-artifact@v4
