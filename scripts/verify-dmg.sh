@@ -2,6 +2,7 @@
 set -euo pipefail
 dmg="$PWD/release/$(node scripts/release-meta.mjs artifact-name)"
 build_id=$(node scripts/release-meta.mjs build-id); api_version=$(node scripts/release-meta.mjs api-version)
+support_directory_name=$(node scripts/environment-meta.mjs production support-directory-name)
 [[ -f "$dmg" ]] || { print -u2 "DMG not found"; exit 1; }
 [[ -z "$(lsof -tiTCP:43120 -sTCP:LISTEN 2>/dev/null)" ]] || { print -u2 "Quit the currently running Soty before DMG verification."; exit 1; }
 work=$(mktemp -d /tmp/wishly-dmg-verify.XXXXXX); mount=''; agent_pid=''; listener_pid=''
@@ -17,11 +18,12 @@ finder_binary="$finder_extension/Contents/MacOS/SotyFinderExtension"
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionPointIdentifier' "$finder_extension/Contents/Info.plist")" == "com.apple.FinderSync" ]]
 codesign --verify --strict "$finder_extension"
 for binary in "$app/Contents/Resources/runtime/bin/ffmpeg" "$app/Contents/Resources/runtime/bin/ffprobe" "$app/Contents/Resources/runtime/node"; do [[ "$(file "$binary")" == *arm64* ]]; done
-mkdir -p "$work/home/Library/Application Support/Wishly" "$work/video"
+support_root="$work/home/Library/Application Support/$support_directory_name"
+mkdir -p "$support_root" "$work/video"
 ffmpeg="$app/Contents/Resources/runtime/bin/ffmpeg"; ffprobe="$app/Contents/Resources/runtime/bin/ffprobe"
 "$ffmpeg" -hide_banner -loglevel error -f lavfi -i testsrc2=size=640x360:rate=24 -f lavfi -i sine=frequency=440 -t 3 -c:v libx264 -c:a aac -shortest "$work/video/test input.mp4"
 size=$(stat -f '%z' "$work/video/test input.mp4")
-cat > "$work/home/Library/Application Support/Wishly/state.json" <<JSON
+cat > "$support_root/state.json" <<JSON
 {"jobs":[{"id":"dmg-e2e","inputPath":"$work/video/test input.mp4","outputPath":"$work/video/test output.mp4","fileName":"test input.mp4","durationSeconds":3,"originalSize":$size,"finalSize":null,"progress":0,"status":"queued","error":null,"preset":"balanced","estimateStatus":"waiting","estimatePreset":"balanced"}],"settings":{"preset":"balanced","outputMode":"next-to-originals","outputFolder":null}}
 JSON
 env -i PATH=/usr/bin:/bin /usr/bin/open -n --env NO_OPEN=1 --env WISHLY_ALLOW_UNINSTALLED_AGENT=1 --env TMPDIR=/tmp --env HOME="$work/home" --stdout "$work/agent.log" --stderr "$work/agent.log" "$app"
