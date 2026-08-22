@@ -103,6 +103,7 @@ jobs:
               export "$line"
             done < "$file"
           done
+          npm run build -w @video-compressor/shared
           node scripts/verify-web-env.mjs
 
       - name: Build web, shared and agent

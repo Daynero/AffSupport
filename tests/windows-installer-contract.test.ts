@@ -196,11 +196,17 @@ describe('every rendered placeholder is supplied', () => {
   it('loads and validates the tracked production web environment before building', () => {
     const environmentStep = workflow.indexOf('apps/web/.env.production');
     const agentEnvironment = workflow.indexOf('config/production.env');
+    const sharedBuild = workflow.indexOf(
+      'npm run build -w @video-compressor/shared',
+      environmentStep
+    );
     const validation = workflow.indexOf('node scripts/verify-web-env.mjs');
     const build = workflow.indexOf('npm run build', validation);
 
     expect(environmentStep).toBeGreaterThan(-1);
     expect(agentEnvironment).toBeGreaterThan(environmentStep);
+    expect(sharedBuild).toBeGreaterThan(environmentStep);
+    expect(validation).toBeGreaterThan(sharedBuild);
     expect(validation).toBeGreaterThan(environmentStep);
     expect(build).toBeGreaterThan(validation);
   });
