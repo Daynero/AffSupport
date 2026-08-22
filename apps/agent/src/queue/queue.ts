@@ -1109,6 +1109,17 @@ export class JobQueue {
     if (this.compressionInFlight || this.prioritizingEstimates || this.queuedInBatch()) return;
     this.batch.finishedAt = Date.now();
     this.stopDrainWatchdog();
+    this.resumeEstimatorWhenIdle();
+  }
+
+  /**
+   * Compression pauses background size estimates so they cannot compete for
+   * FFmpeg or CPU. Do not rely solely on the next queue pump to resume them:
+   * a cancelled final job can close the batch before that pass runs.
+   */
+  private resumeEstimatorWhenIdle() {
+    if (this.compressionInFlight || this.prioritizingEstimates || this.queuedInBatch()) return;
+    this.estimateHooks?.resume();
   }
 
   private async pump() {
@@ -1218,6 +1229,7 @@ export class JobQueue {
       this.active = null;
       this.compressionInFlight = false;
       this.compressionPausedForEstimates = false;
+      this.resumeEstimatorWhenIdle();
       // Queue the next drain first: a throw from `notify` or from the estimate
       // handoff below must never drop the loop and leave the rest of the batch
       // queued forever. `pump` bails on its own if either takes the queue over.

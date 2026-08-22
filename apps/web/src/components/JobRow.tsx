@@ -77,7 +77,7 @@ export function JobRow({
             <h3 title={job.fileName}>{job.fileName}</h3>
             <StatusBadge status={job.status} t={t} />
           </div>
-          <JobTimer job={job} t={t} />
+          <JobTimer job={job} t={t} showRunning={false} />
         </div>
         <JobActions
           job={job}
@@ -100,6 +100,7 @@ export function JobRow({
           />
           <div className="job-progress-meta">
             {job.processingStage && <span>{processingStage(job, t)}</span>}
+            <JobTimer job={job} t={t} />
             <strong>{job.status === 'queued' ? '0%' : `${Math.round(job.progress ?? 0)}%`}</strong>
           </div>
         </div>
@@ -344,6 +345,7 @@ function EstimatePanel({
         items={[
           [t('videoResolution'), output ? dimensions(output.width, output.height) : '—'],
           [t('videoFps'), `${formatFps(fps, language)} FPS`],
+          [t('duration'), formatDuration(expectedOutputDurationSeconds(job))],
           [t('qualityMode'), qualityMode(job, t)],
           ...(job.encoding.rateControl === 'bitrate' && job.encoding.videoBitrateKbps
             ? [
@@ -501,16 +503,24 @@ function JobActions({
   );
 }
 
-function JobTimer({ job, t }: { job: CompressionJob; t: Translate }) {
+function JobTimer({
+  job,
+  t,
+  showRunning = true
+}: {
+  job: CompressionJob;
+  t: Translate;
+  showRunning?: boolean;
+}) {
   const [, setTick] = useState(0);
   useEffect(() => {
-    if (job.status !== 'processing' || !job.startedAt) return;
+    if (job.status !== 'processing' || job.startedAt === null) return;
     const timer = window.setInterval(() => setTick(value => value + 1), 1000);
     return () => window.clearInterval(timer);
   }, [job.status, job.startedAt]);
-  if (!job.startedAt) return null;
+  if (job.startedAt === null) return null;
   const state = timerState(job);
-  if (!state) return null;
+  if (!state || (state === 'running' && !showRunning)) return null;
   const keys = {
     running: 'ongoingTimer',
     completed: 'completedTimer',
@@ -556,15 +566,6 @@ function EmbeddingDetails({
   const fps = expectedFrameRate(job.sourceFrameRate, job.encoding.frameRate) ?? 30;
   const endDuration = estimatedFinalImageDurationSeconds(embedding);
   const startDuration = embedding.startImage ? startImageDurationSeconds(embedding, fps) : 0;
-  const totalDuration =
-    Math.max(
-      0,
-      (job.durationSeconds ?? 0) -
-        (embedding.sourceTrimStartSeconds ?? 0) -
-        (embedding.sourceTrimEndSeconds ?? 0)
-    ) +
-    startDuration +
-    endDuration;
   const fitKeys = {
     cover: 'fitCover',
     contain: 'fitContain',
@@ -594,10 +595,27 @@ function EmbeddingDetails({
         {embedding.endImage && <span>{t('embeddingFinalImage', { duration: endLabel })}</span>}
         {embedding.replaceExisting && <span>{t('replaceExistingImages')}</span>}
         <span>{t('embeddingFitMode', { mode: t(fitKeys[embedding.fitMode]) })}</span>
-        <span>{t('expectedTotalDuration', { duration: formatDuration(totalDuration) })}</span>
+        <span>{t('expectedTotalDuration', { duration: formatDuration(expectedOutputDurationSeconds(job)) })}</span>
       </div>
     </div>
   );
+}
+
+/** Mirrors the agent's outputDurationSeconds calculation so the duration shown
+ * while encoding is the duration that FFmpeg is actually asked to produce. */
+function expectedOutputDurationSeconds(job: CompressionJob): number | null {
+  if (job.durationSeconds === null) return null;
+  const embedding = job.imageEmbedding;
+  if (!embedding) return job.durationSeconds;
+  const source = embedding.replaceExisting
+    ? Math.max(
+        0,
+        job.durationSeconds - embedding.sourceTrimStartSeconds - embedding.sourceTrimEndSeconds
+      )
+    : job.durationSeconds;
+  const fps = expectedFrameRate(job.sourceFrameRate, job.encoding.frameRate) ?? 30;
+  const start = embedding.startImage ? 1 / fps : 0;
+  return source + start + estimatedFinalImageDurationSeconds(embedding);
 }
 
 function processingStage(job: CompressionJob, t: Translate) {
