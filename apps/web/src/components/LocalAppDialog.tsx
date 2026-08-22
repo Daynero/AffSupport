@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { SotyToolId } from '@video-compressor/shared';
 import { useAgent } from '../AgentContext';
-import { agentUrl, markAgentInstallStarted } from '../api/client';
+import { agentKnown, agentLocalUrl, markAgentInstallStarted } from '../api/client';
 import type { ConnectionState } from '../connection';
 import { useI18n } from '../i18n';
 import { requireSupabaseClient } from '../lib/supabase';
@@ -51,16 +51,40 @@ export default function LocalAppDialog({
         : tool === 'transcription'
           ? 'transcription'
           : 'compressor';
+  /**
+   * Whether opening the Agent's own copy of the app is the way out of here.
+   *
+   * True for every disconnected state except the two that opening cannot fix:
+   * a build too old for this tool needs a download, and one already installing
+   * an update needs neither.
+   *
+   * This used to be offered only for `pairing_required`, which is the one case
+   * where the page had already proved the Agent was reachable. The cases where
+   * it is NOT reachable are exactly the cases where this link is the only way
+   * through — the page cannot see the Agent, so it cannot tell "not installed"
+   * apart from "installed, and the browser will not let me look".
+   */
+  const openingHelps = !updatePending && !needsUpdate && connection !== 'connected';
+  // Evidence that Soty is already on this computer — a token, a past
+  // connection, or an installer fetched from here. It is the difference between
+  // "you need Soty" and "you have Soty — open it", and it decides which action
+  // leads. The installers stay on screen either way, so guessing wrong here
+  // never strands anyone.
+  const installed = openingHelps && agentKnown();
   const title = updatePending
     ? t('localAppBusyUpdateTitle')
     : needsUpdate
       ? t('localAppUpdateTitle')
-      : t('localAppDialogTitle');
+      : installed
+        ? t('localAppOpenTitle')
+        : t('localAppDialogTitle');
   const body = updatePending
     ? t('localAppBusyUpdateBody')
     : needsUpdate
       ? t('localAppUpdateBody')
-      : t('localAppDialogBody');
+      : installed
+        ? t('localAppOpenBody')
+        : t('localAppDialogBody');
 
   useEffect(() => {
     analytics.track('setup_prompt_shown', {
@@ -128,6 +152,17 @@ export default function LocalAppDialog({
         </div>
         <h2 id={titleId}>{title}</h2>
         <p>{body}</p>
+        {installed && (
+          // Above the installers, not beside them: someone who already has Soty
+          // and is being shown a download button reads the whole dialog as "it
+          // did not work", and downloading it a second time does not help them.
+          // One click from here is the whole remaining journey — the link
+          // carries this tool along, so the Agent opens on it rather than on its
+          // home screen.
+          <a className="button button-primary local-app-open" href={agentLocalUrl()}>
+            {t('openSoty')}
+          </a>
+        )}
         <div className="platform-download-actions">
           {windowsFirst ? (
             <>
@@ -148,8 +183,8 @@ export default function LocalAppDialog({
           </p>
         )}
         <div className="inline-actions">
-          {connection === 'pairing_required' && (
-            <a className="button button-secondary" href={`${agentUrl}/local`}>
+          {openingHelps && !installed && (
+            <a className="button button-secondary" href={agentLocalUrl()}>
               {t('openSoty')}
             </a>
           )}

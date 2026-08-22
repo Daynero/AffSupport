@@ -18,7 +18,41 @@
 const TOKEN_PATTERN = /^[a-f0-9]{64}$/;
 const STORAGE_KEY = 'agentToken';
 const INSTALL_STARTED_KEY = 'wishly.agent-install-started.v1';
-const INSTALL_PAIRING_WINDOW_MS = 15 * 60 * 1000;
+/**
+ * How long a fetched installer counts as "this person has Soty".
+ *
+ * A day, in `localStorage`, because of what the answer is used for. It decides
+ * whether a page that cannot see the Agent offers "Open Soty" or "Download
+ * Soty", and downloading is the wrong answer for anyone who already has it —
+ * they read the whole screen as a failure and have nowhere to go.
+ *
+ * The old fifteen minutes in `sessionStorage` was scoped to re-pairing, where
+ * being wrong costs one extra click. It is far too tight for this: an unsigned
+ * build on Windows means an unzip, a SmartScreen warning and a first launch,
+ * and the tab that started the download is often closed along the way. Both
+ * limits threw away a true answer.
+ *
+ * Nothing is risked by the wider window. The flag never grants access — it
+ * chooses which button leads, and permits an automatic re-pair that is itself
+ * budgeted to two attempts a minute.
+ */
+const INSTALL_PAIRING_WINDOW_MS = 24 * 60 * 60 * 1000;
+/**
+ * Set the first time this browser sees the Agent, and never cleared.
+ *
+ * The hosted page cannot tell "Soty is not installed" apart from "Soty is
+ * installed and this browser refuses to look at loopback" — Safari, Firefox's
+ * tracking protection and a denied Chrome local-network prompt all produce the
+ * same failed fetch. Once the Agent has answered even once, the second reading
+ * is overwhelmingly the likelier one, and the install screen is the wrong
+ * screen to show.
+ *
+ * Kept forever on purpose: the browsers that block the probe block it every
+ * time, so an expiring flag would send the same person back to the download
+ * button a day later. Uninstalling costs one click on the download that stays
+ * on every one of these screens.
+ */
+const AGENT_SEEN_KEY = 'wishly.agent-seen.v1';
 const AUTOPAIR_KEY = 'wishly.agent-autopair.v1';
 const AUTOPAIR_WINDOW_MS = 60_000;
 const AUTOPAIR_LIMIT = 2;
@@ -37,7 +71,12 @@ function readStored() {
 }
 
 function adopt(value: string) {
-  if (!TOKEN_PATTERN.test(value) || value === current) return false;
+  if (!TOKEN_PATTERN.test(value)) return false;
+  // Marked even when the token is unchanged: only the Agent mints one, so its
+  // arrival is proof the Agent exists on this computer regardless of whether
+  // this browser already held the same value.
+  markAgentSeen();
+  if (value === current) return false;
   current = value;
   localStorage.setItem(STORAGE_KEY, value);
   return true;
@@ -83,20 +122,42 @@ export function consumePairingToken() {
   const value = new URLSearchParams(location.hash.slice(1)).get('agentToken');
   if (!value || !TOKEN_PATTERN.test(value)) return false;
   adopt(value);
-  sessionStorage.removeItem(INSTALL_STARTED_KEY);
+  localStorage.removeItem(INSTALL_STARTED_KEY);
   channel?.postMessage(value);
   history.replaceState(null, '', location.pathname + location.search);
   return true;
 }
 
 export function markAgentInstallStarted() {
-  sessionStorage.setItem(INSTALL_STARTED_KEY, String(Date.now()));
+  localStorage.setItem(INSTALL_STARTED_KEY, String(Date.now()));
+}
+
+/** Records that the Agent has proved it exists on this computer. */
+export function markAgentSeen() {
+  localStorage.setItem(AGENT_SEEN_KEY, '1');
+}
+
+/**
+ * Whether this browser has any evidence that Soty is on this computer.
+ *
+ * The question every "we cannot reach the Agent" screen has to answer before
+ * it picks a headline. True means the leading action is "Open Soty"; false
+ * means it is "Download Soty". Being wrong in the first direction costs one
+ * extra click on a download that is still on screen — being wrong in the other
+ * tells someone who already installed Soty to install it again.
+ */
+export function agentKnown() {
+  return (
+    localStorage.getItem(AGENT_SEEN_KEY) === '1' ||
+    hasPairingToken() ||
+    agentInstallAwaitingPairing()
+  );
 }
 
 export function agentInstallAwaitingPairing() {
-  const started = Number(sessionStorage.getItem(INSTALL_STARTED_KEY));
+  const started = Number(localStorage.getItem(INSTALL_STARTED_KEY));
   if (!Number.isFinite(started) || Date.now() - started > INSTALL_PAIRING_WINDOW_MS) {
-    sessionStorage.removeItem(INSTALL_STARTED_KEY);
+    localStorage.removeItem(INSTALL_STARTED_KEY);
     return false;
   }
   return true;

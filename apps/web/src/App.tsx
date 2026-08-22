@@ -8,7 +8,8 @@ import {
   type SelectionWarning
 } from '@video-compressor/shared';
 import {
-  agentUrl,
+  agentKnown,
+  agentLocalUrl,
   imageContentUrl,
   markAgentInstallStarted,
   request,
@@ -716,7 +717,7 @@ export function Onboarding({
         body={t('updateBody')}
         action={
           <div className="inline-actions">
-            <a className="button button-primary" href={`${agentUrl}/local`}>
+            <a className="button button-primary" href={agentLocalUrl()}>
               {t('openInstalledVersion')}
             </a>
             <a className="button button-secondary" href={downloadUrl}>
@@ -754,41 +755,72 @@ export function Onboarding({
     );
   }
   if (state === 'connection_blocked') {
+    // The browser has refused this page permission to reach loopback, so
+    // "try again" is the one action guaranteed not to work — it asks for the
+    // same denied permission. Opening the copy the Agent serves itself sidesteps
+    // the permission entirely, and it leads. Same tab: this is a way onward, not
+    // a detour, and a new tab leaves a dead page behind for the user to tidy up.
     return (
       <BlockingMessage
         title={t('blockedTitle')}
         body={t('blockedBody')}
         action={
           <div className="inline-actions">
-            <Button variant="primary" onClick={connect}>
-              {t('tryAgain')}
-            </Button>
-            <a
-              className="button button-secondary"
-              href={`${agentUrl}/local`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {t('openLocal')}
+            <a className="button button-primary" href={agentLocalUrl()}>
+              {t('openSoty')}
             </a>
+            <Button onClick={connect}>{t('tryAgain')}</Button>
           </div>
         }
       />
     );
   }
+  // Someone whose browser has already met the Agent is not looking at an
+  // onboarding problem, and telling them to install it again reads as "it did
+  // not work". Opening the Agent's own copy is the whole remaining step, and it
+  // is the only one that works when the browser will not let this page look for
+  // the Agent at all — which is precisely the case this page cannot detect.
+  const known = agentKnown();
   return (
     <section className="onboarding-panel">
       <SotyMark size={40} />
-      <h2>{t('onboardingTitle')}</h2>
-      <p>{t('onboardingBody')}</p>
+      <h2>{t(known ? 'localAppOpenTitle' : 'onboardingTitle')}</h2>
+      <p>{t(known ? 'localAppOpenBody' : 'onboardingBody')}</p>
       <div className="inline-actions">
-        <a className="button button-primary" href={downloadUrl} onClick={markAgentInstallStarted}>
-          {t('downloadAgent')}
-        </a>
-        <Button onClick={connect} loading={busy}>
-          {t('connectAgent')}
-        </Button>
+        {known ? (
+          <>
+            <a className="button button-primary" href={agentLocalUrl()}>
+              {t('openSoty')}
+            </a>
+            <Button onClick={connect} loading={busy}>
+              {t('checkAgain')}
+            </Button>
+          </>
+        ) : (
+          <>
+            <a
+              className="button button-primary"
+              href={downloadUrl}
+              onClick={markAgentInstallStarted}
+            >
+              {t('downloadAgent')}
+            </a>
+            <Button onClick={connect} loading={busy}>
+              {t('connectAgent')}
+            </Button>
+          </>
+        )}
       </div>
+      {known && (
+        // The way out for the one person this screen guesses wrong about: the
+        // flag is never cleared, so someone who has uninstalled Soty would
+        // otherwise be offered nothing but a link to an app that is gone.
+        <p className="onboarding-alternative">
+          <a href={downloadUrl} onClick={markAgentInstallStarted}>
+            {t('downloadAgentAgain')}
+          </a>
+        </p>
+      )}
       <p className={`agent-search ${busy ? 'is-active' : ''}`.trim()} role="status">
         <span className="agent-search-dot" aria-hidden="true" />
         {t('lookingForAgent')}

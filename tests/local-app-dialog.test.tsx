@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event';
 import { RELEASE_DOWNLOAD_URL, type StableReleaseManifest } from '../packages/shared/src/release';
 import { AgentContextOverride, type AgentContextValue } from '../apps/web/src/AgentContext';
 import LocalAppDialog from '../apps/web/src/components/LocalAppDialog';
+import { markAgentSeen } from '../apps/web/src/api/client';
 import { emptyQueueState } from './web-auth-helpers';
 
 const WINDOWS_ARTIFACT_URL = 'https://example.com/Soty-Agent-v0.9.0-Windows-x64.exe';
@@ -138,5 +139,63 @@ describe('local app platform choices', () => {
     const windowsLink = screen.getByRole('link', { name: 'Windows' });
     expect(windowsLink.getAttribute('href')).toBe(WINDOWS_ARTIFACT_URL);
     expect(windowsLink.className).toContain('platform-download-button');
+  });
+});
+
+describe('a browser that cannot see an Agent it has met before', () => {
+  // Safari, Firefox's tracking protection and a declined Chrome local-network
+  // prompt all fail the loopback probe the same way an absent Agent does. The
+  // dialog cannot tell them apart, so what it remembers decides the wording.
+  it('leads with the download when nothing suggests Soty is installed', () => {
+    mockNavigator('MacIntel', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)');
+
+    render(
+      <AgentContextOverride value={agentValue()}>
+        <LocalAppDialog tool="compressor" connection="not_installed_or_not_running" />
+      </AgentContextOverride>
+    );
+
+    expect(screen.getByRole('heading', { name: 'Підготуємо Soty до роботи' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Відкрити Soty' }).className).toContain(
+      'button-secondary'
+    );
+  });
+
+  it('leads with opening Soty, on the tool that was asked for, once it has answered once', () => {
+    mockNavigator('MacIntel', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)');
+    history.replaceState(null, '', '/tools/transcription');
+    markAgentSeen();
+
+    render(
+      <AgentContextOverride value={agentValue()}>
+        <LocalAppDialog tool="transcription" connection="not_installed_or_not_running" />
+      </AgentContextOverride>
+    );
+
+    expect(screen.getByRole('heading', { name: 'Відкрийте Soty, щоб продовжити' })).toBeTruthy();
+    const open = screen.getByRole('link', { name: 'Відкрити Soty' });
+    expect(open.className).toContain('button-primary');
+    expect(open.getAttribute('href')).toBe(
+      'http://127.0.0.1:43120/local?to=%2Ftools%2Ftranscription'
+    );
+    // The installers stay on screen: this is a guess, and someone who really
+    // has uninstalled Soty must not be cornered by it.
+    expect(screen.getByRole('link', { name: 'Mac (Apple Silicon)' })).toBeTruthy();
+  });
+
+  it('still asks for a download when the installed build is too old for the tool', () => {
+    mockNavigator('MacIntel', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)');
+    markAgentSeen();
+
+    render(
+      <AgentContextOverride value={agentValue()}>
+        <LocalAppDialog tool="compressor" connection="agent_update_required" />
+      </AgentContextOverride>
+    );
+
+    // Opening an Agent that cannot run this tool would just bounce the user
+    // back, so the update copy wins over what we remember.
+    expect(screen.getByRole('heading', { name: 'Потрібно оновити Soty' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Відкрити Soty' })).toBeNull();
   });
 });

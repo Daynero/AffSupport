@@ -23,6 +23,7 @@ import {
 import {
   agentInstallAwaitingPairing,
   agentProvenAlive,
+  markAgentSeen,
   claimAutomaticPairing,
   connect,
   consumePairingToken,
@@ -127,6 +128,11 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           }
         }
         if (!mounted.current) return;
+        // The Agent answered, whatever it answered. Remembered here rather than
+        // only on a full connection, because a version mismatch or a failed
+        // entitlement check still proves Soty is installed — and those are the
+        // states whose screens have to choose between "open" and "download".
+        markAgentSeen();
         setEntitlement(result.entitlement);
         const next = versionState(result.apiVersion);
         setAgentVersion(result.version || null);
@@ -158,6 +164,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           // served this very page. Making the user hunt for a "find the agent"
           // button after every Agent restart was the single most common way to
           // get stuck, and the budget keeps a rejected token from spinning.
+          if (agentProvenAlive(error)) markAgentSeen();
           const canPairSilently =
             mode === 'connecting' || agentProvenAlive(error) || agentInstallAwaitingPairing();
           if (canPairSilently && claimAutomaticPairing()) {

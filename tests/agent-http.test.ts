@@ -406,6 +406,45 @@ describe('agent HTTP surface', () => {
     expect(health.json().toolContracts.power).toBe(1);
   });
 
+  describe('/local hands the browser back to the page it came from', () => {
+    // The hosted site cannot tell "Soty is not installed" apart from "Soty is
+    // installed and this browser will not look at loopback", so every one of
+    // those screens offers this link. Carrying the destination is what keeps
+    // that recovery to a single click.
+    it('opens the tool the site asked for, with a pairing token attached', async () => {
+      const app = await makeServer();
+
+      const response = await app.inject({ url: '/local?to=%2Ftools%2Ftranscription' });
+
+      expect(response.statusCode).toBe(302);
+      expect(response.headers.location).toBe(
+        `http://127.0.0.1:43120/tools/transcription#agentToken=${TOKEN}`
+      );
+    });
+
+    it('opens the home screen when the site asks for nothing in particular', async () => {
+      const app = await makeServer();
+
+      const response = await app.inject({ url: '/local' });
+
+      expect(response.headers.location).toBe(`http://127.0.0.1:43120/#agentToken=${TOKEN}`);
+    });
+
+    it.each([
+      ['a protocol-relative host', '//evil.example'],
+      ['an absolute URL', 'https://evil.example/x'],
+      ['a relative path', 'tools/compressor'],
+      ['a fragment of its own', '/tools/compressor%23agentToken=stolen']
+    ])('will not be turned into a redirector by %s', async (_case, to) => {
+      const app = await makeServer();
+
+      const response = await app.inject({ url: `/local?to=${encodeURIComponent(to)}` });
+
+      // Losing the destination costs one click. Following it costs the token.
+      expect(response.headers.location).toBe(`http://127.0.0.1:43120/#agentToken=${TOKEN}`);
+    });
+  });
+
   it('refuses /api requests from a foreign origin even with a valid token', async () => {
     const app = await makeServer();
 

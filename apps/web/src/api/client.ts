@@ -42,13 +42,39 @@ const privateNetworkInit = agentFetchOptions(agentUrl, location.origin);
 // module. Re-exported here because this is where the rest of the app expects it.
 export {
   agentInstallAwaitingPairing,
+  agentKnown,
   claimAutomaticPairing,
   consumePairingToken,
   hasPairingToken,
   markAgentInstallStarted,
+  markAgentSeen,
   onPairingToken,
   releaseAutomaticPairing
 } from './pairing-token';
+
+/**
+ * The Agent's own copy of the app, carrying the page the user was trying to reach.
+ *
+ * Every screen that says "we cannot reach Soty" offers this link, and for the
+ * browsers that block loopback outright it is the only way through. Landing on
+ * the Agent's home screen instead of the tool that was asked for turns one
+ * click into three, so the destination travels in `?to=`; the Agent redirects
+ * through it on the way to handing back a pairing token.
+ *
+ * Older Agents ignore the parameter and open their home screen, which is
+ * exactly what they did before — the link never has to know which build is
+ * installed.
+ *
+ * Only a same-origin path is ever forwarded. The Agent validates this again on
+ * its side; a caller cannot be the only thing standing between a crafted URL
+ * and a redirect.
+ */
+export function agentLocalUrl(to: string = location.pathname + location.search) {
+  const internal = to.startsWith('/') && !to.startsWith('//') && !to.includes('#');
+  return internal && to !== '/'
+    ? `${agentUrl}/local?to=${encodeURIComponent(to)}`
+    : `${agentUrl}/local`;
+}
 
 /**
  * Pairing is needed before the Agent will answer.

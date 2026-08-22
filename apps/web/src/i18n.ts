@@ -221,7 +221,11 @@ const en = {
   keepAgentOpen: 'Keep Soty open while reconnecting.',
   agentConnected: 'Soty connected',
   agentDisconnected: 'Soty disconnected',
-  agentNotRunning: 'Soty is not running',
+  // Deliberately not "Soty is not running": this page cannot tell that apart
+  // from "Soty is running and the browser will not let me look", and it is the
+  // second one whenever someone has the app open on another tab. Claiming the
+  // app is off sends people to download one they already have.
+  agentNotRunning: 'Soty not connected',
   agentReady: 'Soty found',
   agentUpdateRequired: 'Soty update required',
   webUpdateRequired: 'Page update required',
@@ -236,24 +240,33 @@ const en = {
   webUpdateTitle: 'This page is older than your Soty application',
   webUpdateBody: 'Reload the page to get the compatible interface. Your local queue is safe.',
   reloadPage: 'Reload page',
-  blockedTitle: 'The browser blocked the local connection',
-  blockedBody: 'Allow local network access for this page, then try again.',
+  // No "local network access", no "loopback": the person reading this wants to
+  // get back to work, and the one action that always works is opening the app.
+  blockedTitle: 'Open Soty to continue',
+  blockedBody: 'This page cannot reach Soty on your computer. Open the app — your tools are there.',
   entitlementBlocked: 'Account check required',
   entitlementBlockedTitle: 'Soty could not confirm your account',
   entitlementBlockedBody:
     'The local app needs an occasional online account check. Make sure you are signed in and online, then try again. If your account was blocked, contact support.',
   tryAgain: 'Try again',
-  openLocal: 'Open local interface',
   pairingTitle: 'Soty is ready',
   pairingBody: 'Connect this browser securely to continue.',
   onboardingTitle: 'Get Soty ready',
   onboardingBody:
     'Soty works locally on your computer. Install the local Soty app once to use its tools.',
   downloadAgent: 'Install Soty',
+  // The escape hatch on a screen that has decided this computer already has
+  // Soty. Quiet, and phrased so it does not read as a second attempt at
+  // something that failed.
+  downloadAgentAgain: 'Do not have Soty on this computer? Install it',
   connectAgent: 'Soty is open — check again',
   localAppDialogTitle: 'Get Soty ready',
   localAppDialogBody:
     'Soty works locally on your computer. Install the local Soty app once to use this tool.',
+  // Shown instead of the install copy once this session has already fetched an
+  // installer. Same screen, different person in front of it.
+  localAppOpenTitle: 'Open Soty to continue',
+  localAppOpenBody: 'Soty is installed on this computer. Open it — your tools work there.',
   localAppUpdateTitle: 'Soty needs an update',
   localAppUpdateBody:
     'This tool has changed and no longer supports the installed local version. Update Soty to continue. Your files and settings stay on this computer.',
@@ -1617,7 +1630,7 @@ const uk: Record<keyof typeof en, string> = {
   keepAgentOpen: 'Не закривайте Soty під час повторного підключення.',
   agentConnected: 'Soty підключено',
   agentDisconnected: 'Soty від’єднано',
-  agentNotRunning: 'Soty не запущено',
+  agentNotRunning: 'Soty не підключено',
   agentReady: 'Soty знайдено',
   agentUpdateRequired: 'Потрібне оновлення Soty',
   webUpdateRequired: 'Потрібне оновлення сторінки',
@@ -1633,24 +1646,28 @@ const uk: Record<keyof typeof en, string> = {
   webUpdateBody:
     'Оновіть сторінку, щоб отримати сумісний інтерфейс. Локальну чергу буде збережено.',
   reloadPage: 'Оновити сторінку',
-  blockedTitle: 'Браузер заблокував локальне підключення',
-  blockedBody: 'Дозвольте цій сторінці доступ до локальної мережі та повторіть спробу.',
+  blockedTitle: 'Відкрийте Soty, щоб продовжити',
+  blockedBody:
+    'Ця сторінка не бачить Soty на вашому комп’ютері. Відкрийте застосунок — інструменти працюють у ньому.',
   entitlementBlocked: 'Потрібна перевірка акаунта',
   entitlementBlockedTitle: 'Soty не зміг підтвердити ваш акаунт',
   entitlementBlockedBody:
     'Локальному додатку періодично потрібна онлайн-перевірка акаунта. Переконайтеся, що ви увійшли та маєте інтернет, і спробуйте ще раз. Якщо ваш акаунт заблоковано, зверніться в підтримку.',
   tryAgain: 'Спробувати знову',
-  openLocal: 'Відкрити локальний інтерфейс',
   pairingTitle: 'Soty готовий',
   pairingBody: 'Безпечно підключіть цей браузер, щоб продовжити.',
   onboardingTitle: 'Підготуємо Soty до роботи',
   onboardingBody:
     'Soty працює локально на вашому комп’ютері. Щоб використовувати його інструменти, встановіть локальний застосунок Soty один раз.',
   downloadAgent: 'Встановити Soty',
+  downloadAgentAgain: 'Немає Soty на цьому комп’ютері? Встановити',
   connectAgent: 'Soty відкрито — перевірити',
   localAppDialogTitle: 'Підготуємо Soty до роботи',
   localAppDialogBody:
     'Soty працює локально на вашому комп’ютері. Щоб використовувати цей інструмент, встановіть локальний застосунок Soty один раз.',
+  localAppOpenTitle: 'Відкрийте Soty, щоб продовжити',
+  localAppOpenBody:
+    'Soty вже встановлено на цьому комп’ютері. Відкрийте застосунок — інструменти працюють у ньому.',
   localAppUpdateTitle: 'Потрібно оновити Soty',
   localAppUpdateBody:
     'Цей інструмент отримав оновлення і більше не підтримує встановлену локальну версію. Оновіть Soty, щоб продовжити. Ваші файли та налаштування залишаться на цьому комп’ютері.',

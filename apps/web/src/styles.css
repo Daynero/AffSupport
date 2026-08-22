@@ -2768,6 +2768,14 @@ input.is-invalid {
   margin-bottom: var(--space-1);
 }
 
+/* The quiet counter-offer under the main actions. The panel has decided this
+   computer already has Soty and leads with "open it"; this is where the one
+   person it guessed wrong about goes, without competing for attention. */
+.onboarding-alternative {
+  margin: calc(var(--space-2) * -1) 0 0;
+  font-size: 0.9rem;
+}
+
 /* Quiet "still looking" indicator so background reconnect attempts pulse gently
    instead of swapping the whole panel. */
 .agent-search {
@@ -6177,6 +6185,12 @@ body:has(.public-home) {
 .local-app-modal p,
 .local-app-modal small {
   color: var(--color-text-muted);
+}
+
+/* Sized like the installers it sits above, not like the quiet actions at the
+   bottom: for someone who already has Soty this is the whole remaining step. */
+.local-app-open {
+  min-height: 58px;
 }
 
 .platform-download-actions {

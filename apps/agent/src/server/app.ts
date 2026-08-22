@@ -270,8 +270,9 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   app.get('/pair', async (_request, reply) => {
     return reply.redirect(`${pairOrigin}/#agentToken=${token}`);
   });
-  app.get('/local', async (_request, reply) => {
-    return reply.redirect(`http://${config.host}:${config.port}/#agentToken=${token}`);
+  app.get('/local', async (request, reply) => {
+    const path = localRedirectPath((request.query as { to?: unknown }).to);
+    return reply.redirect(`http://${config.host}:${config.port}${path}#agentToken=${token}`);
   });
   app.setNotFoundHandler((request, reply) =>
     request.url.startsWith('/api/')
@@ -280,6 +281,27 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   );
 
   return app;
+}
+
+/**
+ * Where `/local?to=…` is allowed to send the browser.
+ *
+ * The hosted site forwards the page the user was trying to open, so that a
+ * browser which refuses to reach loopback costs one click rather than a click
+ * and then a hunt through the menu for the tool they already asked for.
+ *
+ * The value arrives from a browser and is treated as hostile. Anything that is
+ * not a single-slash path over a conservative character set collapses to the
+ * home screen — losing the destination is a small cost, and the alternative is
+ * a redirector. `//host` is the case worth naming: it reads as a path and
+ * navigates to another site entirely.
+ */
+const LOCAL_REDIRECT_PATH = /^\/[A-Za-z0-9\-._~/]*(?:\?[A-Za-z0-9\-._~/=&%]*)?$/u;
+
+function localRedirectPath(value: unknown) {
+  if (typeof value !== 'string' || value.length > 512) return '/';
+  if (value.startsWith('//') || !LOCAL_REDIRECT_PATH.test(value)) return '/';
+  return value;
 }
 
 function tokensMatch(expected: string, supplied: string) {

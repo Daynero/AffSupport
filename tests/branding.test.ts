@@ -23,7 +23,11 @@ describe('Soty brand identity', () => {
   it('uses Soty in connection and install strings in both languages', () => {
     expect(translate('en', 'agentConnected')).toBe('Soty connected');
     expect(translate('uk', 'agentConnected')).toBe('Soty підключено');
-    expect(translate('uk', 'agentNotRunning')).toBe('Soty не запущено');
+    // Not "не запущено": this page cannot tell a missing Agent apart from a
+    // browser that refuses to look at loopback, and claiming the app is off
+    // sends people to reinstall one they already have.
+    expect(translate('uk', 'agentNotRunning')).toBe('Soty не підключено');
+    expect(translate('en', 'agentNotRunning')).toBe('Soty not connected');
     expect(translate('uk', 'agentUpdateRequired')).toBe('Потрібне оновлення Soty');
     expect(translate('uk', 'downloadAgent')).toBe('Встановити Soty');
     expect(translate('en', 'downloadAgent')).toBe('Install Soty');
