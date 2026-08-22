@@ -13,6 +13,7 @@
 //   node scripts/windows-smoke.mjs <installerDir> [--keep]
 //
 // A skipped check is a FAILED gate, never a silent pass.
+import { createPrivateKey, sign } from 'node:crypto';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -116,7 +117,7 @@ async function pair() {
   if (!location) throw new Error('pairing redirect is missing');
   const token = new URL(location, ORIGIN).hash.replace('#agentToken=', '');
   if (!/^[a-f0-9]{64}$/u.test(token)) throw new Error('pairing token is malformed');
-  return async (route, init = {}) => {
+  const request = async (route, init = {}) => {
     const { raw = false, ...rest } = init;
     const result = await fetch(`${ORIGIN}${route}`, {
       ...rest,
@@ -132,6 +133,25 @@ async function pair() {
     if (!result.ok) throw new Error(`${route}: ${body.error ?? result.status}`);
     return body;
   };
+  const privateKeyPath = process.env.SMOKE_ENTITLEMENT_PRIVATE_KEY?.trim();
+  if (privateKeyPath) {
+    const key = createPrivateKey(readFileSync(privateKeyPath));
+    const now = Math.floor(Date.now() / 1000);
+    const payload = Buffer.from(
+      JSON.stringify({ v: 1, sub: 'windows-smoke', plan: 'pro', iat: now, exp: now + 3600 })
+    ).toString('base64url');
+    const signature = sign('sha256', Buffer.from(`wat1.${payload}`), {
+      key,
+      dsaEncoding: 'ieee-p1363'
+    }).toString('base64url');
+    const entitlement = await request('/api/entitlement', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token: `wat1.${payload}.${signature}` })
+    });
+    if (!entitlement.entitled) throw new Error('smoke entitlement token was not accepted');
+  }
+  return request;
 }
 
 /** Builds a tiny synthetic clip with the bundled FFmpeg, like the macOS harness. */

@@ -219,6 +219,22 @@ describe('every rendered placeholder is supplied', () => {
     expect(workflow).not.toContain('vars.AGENT_ENTITLEMENT_PUBLIC_KEY');
   });
 
+  it('uses an isolated entitlement key for smoke and rebuilds with the production public key', () => {
+    const generate = workflow.indexOf('Generate the isolated smoke entitlement key');
+    const smoke = workflow.indexOf('SMOKE_ENTITLEMENT_PRIVATE_KEY');
+    const rebuild = workflow.indexOf(
+      'Rebuild the publishable installer with the production entitlement key'
+    );
+    const upload = workflow.indexOf('Upload the installer');
+
+    expect(generate).toBeGreaterThan(-1);
+    expect(smoke).toBeGreaterThan(generate);
+    expect(rebuild).toBeGreaterThan(smoke);
+    expect(upload).toBeGreaterThan(rebuild);
+    expect(workflow.slice(rebuild, upload)).toContain('PRODUCTION_AGENT_ENTITLEMENT_PUBLIC_KEY');
+    expect(workflow.slice(rebuild, upload)).toContain('verify-windows-package.mjs');
+  });
+
   it('renders each __TOKEN__ the installer declares', () => {
     const tokens = new Set(installer.match(/__[A-Z0-9_]+__/gu) ?? []);
     expect(tokens.size).toBeGreaterThan(0);

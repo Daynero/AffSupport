@@ -103,6 +103,7 @@ jobs:
               export "$line"
             done < "$file"
           done
+          echo "PRODUCTION_AGENT_ENTITLEMENT_PUBLIC_KEY=$AGENT_ENTITLEMENT_PUBLIC_KEY" >> "$GITHUB_ENV"
           npm run build -w @video-compressor/shared
           node scripts/verify-web-env.mjs
 
@@ -233,6 +234,34 @@ jobs:
       - name: Run the runtime stager
         run: node scripts/stage-windows-runtime.mjs release/windows/stage
 
+      # Exercise every gated tool with a short-lived key that exists only on
+      # this runner. The production private key never enters CI. After the
+      # smoke, the host and installer are rebuilt with the tracked production
+      # public key before anything can be uploaded.
+      - name: Generate the isolated smoke entitlement key
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const { generateKeyPairSync } = require('node:crypto');
+          const { mkdirSync, writeFileSync } = require('node:fs');
+          const { privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+          mkdirSync('release/windows', { recursive: true });
+          writeFileSync(
+            'release/windows/smoke-entitlement.private.pem',
+            privateKey.export({ type: 'pkcs8', format: 'pem' }),
+            { mode: 0o600 }
+          );
+          NODE
+          node - <<'NODE' >> "$GITHUB_ENV"
+          const { createPublicKey } = require('node:crypto');
+          const { readFileSync } = require('node:fs');
+          const key = createPublicKey(readFileSync('release/windows/smoke-entitlement.private.pem'));
+          process.stdout.write(
+            `AGENT_ENTITLEMENT_PUBLIC_KEY=${key.export({ type: 'spki', format: 'der' }).toString('base64')}\n`
+          );
+          NODE
+
       - name: Render the tray host configuration
         shell: bash
         run: |
@@ -293,7 +322,39 @@ jobs:
           release/windows/stage release/windows/Output --host release/windows/host
 
       - name: Unattended install, use and uninstall
+        env:
+          SMOKE_ENTITLEMENT_PRIVATE_KEY: release/windows/smoke-entitlement.private.pem
         run: node scripts/windows-smoke.mjs release/windows/Output
+
+      - name: Rebuild the publishable installer with the production entitlement key
+        shell: bash
+        run: |
+          set -euo pipefail
+          export AGENT_ENTITLEMENT_PUBLIC_KEY="$PRODUCTION_AGENT_ENTITLEMENT_PUBLIC_KEY"
+          node scripts/render-launcher.mjs \
+            packaging/windows/SotyAgentHost/HostConfig.template.cs \
+            packaging/windows/SotyAgentHost/HostConfig.cs \
+            "AGENT_PORT=$(node scripts/environment-meta.mjs production agent-port)" \
+            "APP_NAME=$(node scripts/environment-meta.mjs production app-name)" \
+            "INSTANCE_LOCK_NAME=$(node scripts/environment-meta.mjs production instance-lock-name)" \
+            "SUPPORT_DIRECTORY_NAME=$(node scripts/environment-meta.mjs production support-directory-name)" \
+            "PUBLIC_SITE_ORIGIN=$PUBLIC_SITE_ORIGIN" \
+            "APP_VERSION=$(node scripts/release-meta.mjs product-version)" \
+            "BUILD_NUMBER=$(node scripts/release-meta.mjs build-number)" \
+            "BUILD_ID=$(node scripts/release-meta.mjs build-id)" \
+            "API_VERSION=$(node scripts/release-meta.mjs api-version)" \
+            "RELEASE_CHANNEL=$(node scripts/release-meta.mjs release-channel)" \
+            "SOURCE_REVISION=$(git rev-parse HEAD)" \
+            "AGENT_ENTITLEMENT_PUBLIC_KEY=$AGENT_ENTITLEMENT_PUBLIC_KEY"
+          dotnet publish packaging/windows/SotyAgentHost \
+            -c Release -r win-x64 --self-contained true \
+            /p:PublishSingleFile=true \
+            -o release/windows/host
+          rm -f release/windows/Output/*.exe
+          cmd.exe /d /s /c \
+            "iscc /DStageDir=%CD%\\release\\windows\\stage /DHostDir=%CD%\\release\\windows\\host release\\windows\\installer.generated.iss"
+          node scripts/verify-windows-package.mjs \
+            release/windows/stage release/windows/Output --host release/windows/host
 
       - name: Upload the installer
         uses: actions/upload-artifact@v4
