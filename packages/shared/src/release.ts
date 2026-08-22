@@ -6,9 +6,9 @@
  * contract is incompatible, while the supported range lets a web release keep
  * working with older compatible agents.
  */
-export const PRODUCT_VERSION = '1.0.0';
-export const BUNDLE_VERSION = '1.0.0';
-export const BUILD_NUMBER = '58';
+export const PRODUCT_VERSION = '1.0.1';
+export const BUNDLE_VERSION = '1.0.1';
+export const BUILD_NUMBER = '59';
 export const RELEASE_CHANNEL = 'stable';
 
 /**
@@ -51,15 +51,15 @@ export const RELEASE_DOWNLOAD_URL_WINDOWS = `https://github.com/Daynero/AffSuppo
  * platform release-blocking is a single edit here rather than a change spread
  * across the verification scripts.
  *
- * Windows is deliberately NOT in this list yet: the CI pipeline that produces
- * the installer must be proven first. Adding `'windows-x64'` flips the whole
- * chain at once — `verify-release.mjs` then demands the artifact in
- * stable.json, and `verify-published-release.mjs` demands it be downloadable —
- * and from that moment a missing or broken Windows build blocks the macOS
- * release and the web deploy too. That is the intended end state; the flip is
- * the last step of the Windows rollout, not the first.
+ * Windows became release-blocking in 1.0.1 after the hosted pipeline passed its
+ * install/use/uninstall smoke. A missing artifact on either supported platform
+ * now blocks the web deploy and the other package from being presented as a
+ * complete stable release.
  */
-export const REQUIRED_RELEASE_PLATFORMS: readonly ReleasePlatform[] = ['macos-arm64'];
+export const REQUIRED_RELEASE_PLATFORMS: readonly ReleasePlatform[] = [
+  'macos-arm64',
+  'windows-x64'
+];
 
 /** Download URL for each platform, derived so no gate hard-codes a link. */
 export const RELEASE_DOWNLOAD_URLS: Partial<Record<ReleasePlatform, string>> = {

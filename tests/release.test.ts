@@ -106,7 +106,7 @@ describe('release identity', () => {
     };
     expect(localizedReleaseSummary(withSummary, 'en')).toBe(withSummary.summary.en);
     expect(localizedReleaseSummary(withSummary, 'uk')).toBe(withSummary.summary.uk);
-    expect(localizedReleaseSummary(manifest, 'uk')).toBeNull();
+    expect(localizedReleaseSummary({ ...manifest, summary: undefined }, 'uk')).toBeNull();
   });
 
   it('keeps every workspace package on the product version', () => {

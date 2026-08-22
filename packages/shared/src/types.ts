@@ -64,6 +64,14 @@ export type {
 } from './release.js';
 
 export * from './team/index.js';
+export {
+  APP_ENVIRONMENTS,
+  appEnvironmentOrProduction,
+  isLoopbackOrigin,
+  isProductionEndpoint,
+  parseAppEnvironment
+} from './environment-runtime.js';
+export type { AppEnvironment, ParsedAppEnvironment } from './environment-runtime.js';
 export * from './environment.js';
 
 export const FRAME_RATE_MIN = 1;

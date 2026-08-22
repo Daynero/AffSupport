@@ -567,7 +567,6 @@ function EmbeddingDetails({
   const embedding = job.imageEmbedding;
   if (!embedding) return null;
   const fps = expectedFrameRate(job.sourceFrameRate, job.encoding.frameRate) ?? 30;
-  const endDuration = estimatedFinalImageDurationSeconds(embedding);
   const startDuration = embedding.startImage ? startImageDurationSeconds(embedding, fps) : 0;
   const fitKeys = {
     cover: 'fitCover',
@@ -598,7 +597,11 @@ function EmbeddingDetails({
         {embedding.endImage && <span>{t('embeddingFinalImage', { duration: endLabel })}</span>}
         {embedding.replaceExisting && <span>{t('replaceExistingImages')}</span>}
         <span>{t('embeddingFitMode', { mode: t(fitKeys[embedding.fitMode]) })}</span>
-        <span>{t('expectedTotalDuration', { duration: formatDuration(expectedOutputDurationSeconds(job)) })}</span>
+        <span>
+          {t('expectedTotalDuration', {
+            duration: formatDuration(expectedOutputDurationSeconds(job))
+          })}
+        </span>
       </div>
     </div>
   );

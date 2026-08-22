@@ -24,6 +24,7 @@ import {
   type TeamLandingPreviewCatalogRequest,
   type TeamLandingRenderJob,
   type TeamTransferGrant,
+  normalizeToolContracts,
   parseTeamAgentPreviewResult,
   parseTeamFileOperationResult,
   toolContractCompatible
@@ -102,7 +103,6 @@ export async function connect(signal?: AbortSignal): Promise<{
   );
   const apiVersion = health.apiVersion ?? 0;
   const capabilities = Array.isArray(health.capabilities) ? health.capabilities : [];
-  const { normalizeToolContracts } = await import('@video-compressor/shared');
   const toolContracts = normalizeToolContracts(health.toolContracts, capabilities, apiVersion);
   const entitlement = health.entitlement ?? null;
   // An enforced agent without a valid token rejects every tool route, so the

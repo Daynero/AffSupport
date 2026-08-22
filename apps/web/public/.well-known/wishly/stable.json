@@ -1,16 +1,24 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "1.0.0",
-  "buildNumber": "58",
-  "buildId": "1.0.0+58",
+  "version": "1.0.1",
+  "buildNumber": "59",
+  "buildId": "1.0.1+59",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-08-16T20:03:08.000Z",
+  "publishedAt": "2026-08-22T09:41:54.000Z",
+  "summary": {
+    "en": "The test version for Windows is now available, with a fully rebuilt macOS app and several reliability fixes.",
+    "uk": "Випущено тестову версію для Windows, повністю оновлену збірку для macOS і виправлено кілька помилок надійності."
+  },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.0.0/Soty-v1.0.0-macOS-arm64.dmg",
-      "sha256": "cd6af96b53cd12b9b827f7e734ec43c9cde4bcc891f896202f0a131f99a90ae8"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.0.1/Soty-v1.0.1-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "windows-x64": {
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.0.1/Soty-v1.0.1-Windows-x64.exe",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -31,5 +39,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "B-uXe__lGoB56i7_8Z6u_mFHwB4fy-UeuzTqUPdOdJAsfZZDwzmevO5WxmcfTGywIPXPTYVcFVxNqdZSfylw8w"
+  "signature": "gleAbnya-3zH0Hl39hV8TC7RkcRGHqBtd_nqWDh87okJKGIdL97cMKdwgbOxY_NCjCqzhXSa--ITUQQfTxGtVg"
 }

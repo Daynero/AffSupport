@@ -13,34 +13,17 @@
  * build. The beta tooling asserts the value explicitly rather than relying on
  * this default.
  */
+import { isLoopbackOrigin, isProductionEndpoint } from './environment-runtime.js';
+import type { AppEnvironment } from './environment-runtime.js';
 
-export type AppEnvironment = 'production' | 'beta';
-
-export const APP_ENVIRONMENTS: readonly AppEnvironment[] = ['production', 'beta'];
-
-export type ParsedAppEnvironment =
-  { ok: true; value: AppEnvironment } | { ok: false; error: string };
-
-/**
- * Parses an untrusted environment value. Comparison is exact and
- * case-sensitive: `'Beta'` is an error, not a match, because a near-miss that
- * silently resolved to `production` would disable every beta guard while the
- * environment still looked configured.
- */
-export function parseAppEnvironment(value: unknown): ParsedAppEnvironment {
-  if (value === undefined || value === null) return { ok: true, value: 'production' };
-  if (typeof value !== 'string') return { ok: false, error: 'environment must be a string' };
-  const trimmed = value.trim();
-  if (!trimmed) return { ok: true, value: 'production' };
-  if (trimmed === 'production' || trimmed === 'beta') return { ok: true, value: trimmed };
-  return { ok: false, error: `unknown environment ${JSON.stringify(trimmed)}` };
-}
-
-/** Convenience for call sites that must fail closed without branching. */
-export function appEnvironmentOrProduction(value: unknown): AppEnvironment {
-  const parsed = parseAppEnvironment(value);
-  return parsed.ok ? parsed.value : 'production';
-}
+export {
+  APP_ENVIRONMENTS,
+  appEnvironmentOrProduction,
+  isLoopbackOrigin,
+  isProductionEndpoint,
+  parseAppEnvironment
+} from './environment-runtime.js';
+export type { AppEnvironment, ParsedAppEnvironment } from './environment-runtime.js';
 
 /**
  * Everything that distinguishes one running copy from another. Declared once
@@ -140,29 +123,6 @@ export const BETA_MARKERS: readonly string[] = [
   BETA_SITE_ORIGIN,
   BETA_AGENT_ORIGIN
 ];
-
-const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
-
-/** True when the value is an absolute URL served from this machine only. */
-export function isLoopbackOrigin(value: string): boolean {
-  try {
-    return LOOPBACK_HOSTS.has(new URL(value).hostname);
-  } catch {
-    return false;
-  }
-}
-
-/**
- * True when the value points anywhere off this machine. Used by the beta
- * guards, which must fail on a production endpoint rather than quietly talk to
- * it. An unparseable value counts as production: a guard that cannot prove a
- * value is local must not treat it as local.
- */
-export function isProductionEndpoint(value: string): boolean {
-  const trimmed = value.trim();
-  if (!trimmed) return false;
-  return !isLoopbackOrigin(trimmed);
-}
 
 /* -------------------------------------------------------------------------
  * Beta isolation guard
@@ -362,7 +322,7 @@ export function evaluateResetTarget(target: string | undefined | null): BetaGuar
       remedy: 'Unset SUPABASE_DB_URL so the reset uses the local stack, or point it at 127.0.0.1.'
     };
   }
-  if (LOOPBACK_HOSTS.has(hostname)) return null;
+  if (isLoopbackOrigin(value)) return null;
   return {
     code: 'BETA_RESET_TARGET_UNSAFE',
     subject: 'SUPABASE_DB_URL',

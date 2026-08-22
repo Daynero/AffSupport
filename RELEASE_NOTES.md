@@ -1,3 +1,8 @@
+# v1.0.1
+
+- Release the first test version of Soty for Windows alongside a fully rebuilt macOS app.
+- Fix several reliability issues, including Windows Agent recovery after a native crash and compression queue recovery after cancellation.
+
 # v0.9.21
 
 - Open a dropped landing folder directly in Landing Gallery, with the local Agent resolving it safely before previewing it.
