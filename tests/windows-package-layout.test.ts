@@ -122,6 +122,18 @@ describe('required stage layout', () => {
     expect(workflow).toMatch(/verify-windows-package\.mjs[\s\S]{0,120}release\/windows\/host/u);
   });
 
+  it('publishes a self-contained single-file host with no .NET prerequisite', () => {
+    const workflow = readFileSync('.github/workflows/release-windows.yml', 'utf8');
+    const publishStep = workflow.slice(
+      workflow.indexOf('- name: Publish the tray host'),
+      workflow.indexOf('- name: Render the installer script')
+    );
+
+    expect(publishStep).toContain('--self-contained true');
+    expect(publishStep).toContain('/p:PublishSingleFile=true');
+    expect(publishStep).not.toContain('--self-contained false');
+  });
+
   it('knows whisper needs its shared libraries staged beside it', () => {
     // macOS bundles a statically linked whisper-cli; the official Windows build
     // is DLL-linked, so the .exe alone would fail with a missing-DLL dialog.

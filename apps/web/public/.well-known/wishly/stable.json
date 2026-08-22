@@ -1,24 +1,24 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "1.0.1",
-  "buildNumber": "59",
-  "buildId": "1.0.1+59",
+  "version": "1.0.2",
+  "buildNumber": "60",
+  "buildId": "1.0.2+60",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-08-22T09:41:54.000Z",
+  "publishedAt": "2026-08-22T11:10:42.000Z",
   "summary": {
-    "en": "The test version for Windows is now available, with a fully rebuilt macOS app and several reliability fixes.",
-    "uk": "Випущено тестову версію для Windows, повністю оновлену збірку для macOS і виправлено кілька помилок надійності."
+    "en": "Windows now includes everything Soty needs to start, with no separate .NET Runtime installation.",
+    "uk": "Windows-версія тепер містить усе необхідне для запуску Soty — окремо встановлювати .NET Runtime не потрібно."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.0.1/Soty-v1.0.1-macOS-arm64.dmg",
-      "sha256": "a7b5f4394d1aeebee69afeb9962e104732164827d91b42642609ad23cee12701"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.0.2/Soty-v1.0.2-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "windows-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.0.1/Soty-v1.0.1-Windows-x64.exe",
-      "sha256": "4955f2d56004e133faeafcf66c66ef24fb84ed231c5eb95786844104c147ca9a"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.0.2/Soty-v1.0.2-Windows-x64.exe",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -39,5 +39,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "NO7tjn9mOodL0pDK7HyNeXV8h1ZTvAeJ4YmPNXJMurTwbaJ77TK2bzaUoqEj-oMQdBUzL7tDuNE5HQyDM4ZIHg"
+  "signature": "GxfSGSv3pNM6gPz3EPx8YoR6HI0E7A1Tv34Da7Lu8V7IuqDZ5msovV8DcBxi7Qu1JtyKyk9lhTySDqdNzWP1Fw"
 }

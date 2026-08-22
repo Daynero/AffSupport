@@ -241,7 +241,8 @@ jobs:
       - name: Publish the tray host
         run: >
           dotnet publish packaging/windows/SotyAgentHost
-          -c Release -r win-x64 --self-contained false
+          -c Release -r win-x64 --self-contained true
+          /p:PublishSingleFile=true
           -o release/windows/host
 
       - name: Render the installer script
