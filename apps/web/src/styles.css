@@ -13694,3 +13694,13 @@ button.team-landing-tile:hover {
   font-size: 0.8125rem;
   color: var(--color-text-muted);
 }
+
+/* The background-work chip is a control, so it needs a pointer and a hover
+   state that a plain status chip does not. */
+.team-background-chip {
+  cursor: pointer;
+}
+
+.team-background-chip:hover {
+  border-color: var(--color-accent);
+}

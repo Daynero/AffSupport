@@ -365,12 +365,9 @@ export function CreativeLibrary({
       )}
       {processingSource !== undefined && (
         <ProcessLibraryDialog
-          teamId={teamId}
           sourceMaterialId={processingSource ?? undefined}
           agentCompatible={agent?.teamWorkspaceAvailable === true}
-          toolContracts={agent?.toolContracts ?? {}}
           onClose={() => setProcessingSource(undefined)}
-          onChanged={() => void library.refetch()}
         />
       )}
       {previewing && (

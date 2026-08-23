@@ -162,10 +162,10 @@
 
 **Independent Test**: spec US7 — start batch, close dialog, chip counts on, reopen, summary toast on completion (partial failure listed), explicit confirmed cancel.
 
-- [ ] T057 [US7] Lift the claim loop into `LibraryProcessingProvider` (context idiom + test override; state machine idle/running/complete/failed/canceled per data-model §6; claim → context → heartbeat → complete/fail; lease release only on provider unmount; explicit `cancel()`), mounted per entered space — new apps/web/src/team/library/LibraryProcessingProvider.tsx, wired in apps/web/src/team/workspace/WorkspaceShell.tsx
-- [ ] T058 [US7] Turn `ProcessLibraryDialog` into a viewer over the provider (start/cancel-with-confirm/retry + progress; closing the dialog changes nothing about the run) in apps/web/src/team/library/ProcessLibraryDialog.tsx
-- [ ] T059 [US7] Background-work chip in the shell header (spinner + done/total, click opens the dialog) and the completion summary toast (successes, failures, failed items; partial failure never reads as success) in apps/web/src/team/workspace/WorkspaceShell.tsx and apps/web/src/styles.css
-- [ ] T060 [P] [US7] Suite: run continues across dialog close (mocked client), chip reflects progress, summary on NO_WORK, explicit cancel releases the attempt, provider unmount releases the lease — in tests/team-ux-background.test.tsx
+- [X] T057 [US7] Lift the claim loop into `LibraryProcessingProvider` (context idiom + test override; state machine idle/running/complete/failed/canceled per data-model §6; claim → context → heartbeat → complete/fail; lease release only on provider unmount; explicit `cancel()`), mounted per entered space — new apps/web/src/team/library/LibraryProcessingProvider.tsx, wired in apps/web/src/team/workspace/WorkspaceShell.tsx
+- [X] T058 [US7] Turn `ProcessLibraryDialog` into a viewer over the provider (start/cancel-with-confirm/retry + progress; closing the dialog changes nothing about the run) in apps/web/src/team/library/ProcessLibraryDialog.tsx
+- [X] T059 [US7] Background-work chip in the shell header (spinner + done/total, click opens the dialog) and the completion summary toast (successes, failures, failed items; partial failure never reads as success) in apps/web/src/team/workspace/WorkspaceShell.tsx and apps/web/src/styles.css
+- [X] T060 [P] [US7] Suite: run continues across dialog close (mocked client), chip reflects progress, summary on NO_WORK, explicit cancel releases the attempt, provider unmount releases the lease — in tests/team-ux-background.test.tsx
 
 **Checkpoint**: background work is background.
 

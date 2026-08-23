@@ -2,12 +2,14 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ProcessLibraryDialog } from '../apps/web/src/team/library/ProcessLibraryDialog';
+import { LibraryProcessingProvider } from '../apps/web/src/team/library/LibraryProcessingProvider';
 import {
-  ProcessLibraryDialog,
   stableLibraryAgentInstanceId,
   type ProcessLibraryAgent,
   type ProcessLibraryClient
-} from '../apps/web/src/team/library/ProcessLibraryDialog';
+} from '../apps/web/src/team/library/process-library-contract';
+import { ToastProvider } from '../apps/web/src/components/toast';
 
 const TEAM_ID = '43000000-0000-4000-8000-000000000001';
 const SOURCE_ID = '43000000-0000-4000-8000-000000000002';
@@ -99,18 +101,23 @@ describe('Process Library confirmation UI', () => {
       cancel: vi.fn().mockResolvedValue(true)
     };
     const changed = vi.fn();
+    // The run belongs to the space now, so the provider is what the dialog
+    // views — closing the dialog no longer touches the work.
     render(
-      <ProcessLibraryDialog
-        teamId={TEAM_ID}
-        sourceMaterialId={SOURCE_ID}
-        agentCompatible
-        toolContracts={{ teamWorkspace: 1, transcription: 5 }}
-        client={client}
-        agent={agent}
-        agentInstanceId={AGENT_ID}
-        onClose={vi.fn()}
-        onChanged={changed}
-      />
+      <ToastProvider>
+        <LibraryProcessingProvider
+          teamId={TEAM_ID}
+          sourceMaterialId={SOURCE_ID}
+          agentCompatible
+          toolContracts={{ teamWorkspace: 1, transcription: 5 }}
+          client={client}
+          agent={agent}
+          agentInstanceId={AGENT_ID}
+          onChanged={changed}
+        >
+          <ProcessLibraryDialog sourceMaterialId={SOURCE_ID} agentCompatible onClose={vi.fn()} />
+        </LibraryProcessingProvider>
+      </ToastProvider>
     );
 
     expect(
