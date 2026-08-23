@@ -190,11 +190,11 @@ describe('create wizard', () => {
     renderSpace(client);
 
     await user.click(await screen.findByRole('button', { name: 'Create your first space' }));
-    await user.type(screen.getByLabelText('Team name'), 'Media buyers');
+    await user.type(screen.getByLabelText('Space name'), 'Media buyers');
     await user.click(screen.getByRole('button', { name: 'Continue' }));
 
     await user.click(await screen.findByRole('button', { name: 'Back' }));
-    expect(await screen.findByLabelText('Team name')).toHaveProperty('value', 'Media buyers');
+    expect(await screen.findByLabelText('Space name')).toHaveProperty('value', 'Media buyers');
 
     // Continuing with the same name reuses the draft rather than colliding with
     // it — `create_team` refuses a duplicate name among your own spaces.

@@ -291,7 +291,7 @@ export function TaskAttachmentPicker({
                 ))}
               </nav>
             </div>
-            {loading && <p aria-live="polite">{t('teamTaskLoading')}</p>}
+            {loading && <p aria-live="polite">{t('teamTaskLoadingPickable')}</p>}
             {error && <p className="team-inline-error">{t('teamTaskSearchFailed')}</p>}
             {!loading && !error && materials.length === 0 && (
               <p className="team-task-picker-empty">{t('teamTaskFolderEmpty')}</p>

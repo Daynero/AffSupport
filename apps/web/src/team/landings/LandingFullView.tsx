@@ -11,6 +11,7 @@ import { useI18n } from '../../i18n';
 import { MaterialPreview, type MaterialPreviewClient } from '../preview/MaterialPreview';
 import { LandingViewerControls } from './LandingViewerControls';
 import { LANDING_VIEWER_PRESET_STORAGE_KEY } from './index';
+import { Modal } from '../../components/Modal';
 
 function storedPreset(): LandingViewerPreset {
   if (typeof window === 'undefined') return { ...DEFAULT_LANDING_VIEWER_PRESET };
@@ -76,53 +77,55 @@ export function LandingFullView({
 
   if (artifact && artifactClient) {
     return (
-      <div className="team-preview-backdrop" role="presentation">
-        <section
-          className="team-preview-dialog landing-full-view"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="team-preview-title"
-          data-landing-device={preset.device}
-          data-landing-scheme={preset.colorScheme}
-          data-landing-zoom={preset.zoom}
-        >
-          <header className="team-preview-heading">
-            <div>
-              <p>{t('teamPreviewEyebrow')}</p>
-              <h2 id="team-preview-title">{material.name}</h2>
+      /* Same primitive as every other dialog — see MaterialPreview. */
+      <Modal
+        labelledBy="team-preview-title"
+        bare
+        backdropClassName="team-preview-backdrop"
+        className="team-preview-dialog landing-full-view"
+        onClose={onClose}
+        data={{
+          'data-landing-device': preset.device,
+          'data-landing-scheme': preset.colorScheme,
+          'data-landing-zoom': String(preset.zoom)
+        }}
+      >
+        <header className="team-preview-heading">
+          <div>
+            <p>{t('teamPreviewEyebrow')}</p>
+            <h2 id="team-preview-title">{material.name}</h2>
+          </div>
+          <Button type="button" variant="ghost" onClick={onClose}>
+            {t('teamPreviewClose')}
+          </Button>
+        </header>
+        <div className="landing-full-view-toolbar">
+          <LandingViewerControls preset={preset} onChange={updatePreset} />
+        </div>
+        <div className="team-preview-content">
+          {!cachedArtifact && !cachedError && <p aria-live="polite">{t('teamPreviewLoading')}</p>}
+          {cachedError && (
+            <p className="team-inline-error" role="alert">
+              {t('teamLandingNeedsRerender')}
+            </p>
+          )}
+          {cachedArtifact?.segmentTokens && (
+            <div
+              className="team-landing-preview team-landing-cached"
+              style={{ '--landing-viewer-zoom': String(preset.zoom) } as CSSProperties}
+            >
+              {cachedArtifact.segmentTokens.map((_, segment) => (
+                <img
+                  key={segment}
+                  src={artifactClient.landingRenderImageUrl(cachedArtifact, segment)}
+                  alt={segment === 0 ? material.name : ''}
+                  referrerPolicy="no-referrer"
+                />
+              ))}
             </div>
-            <Button type="button" variant="ghost" onClick={onClose}>
-              {t('teamPreviewClose')}
-            </Button>
-          </header>
-          <div className="landing-full-view-toolbar">
-            <LandingViewerControls preset={preset} onChange={updatePreset} />
-          </div>
-          <div className="team-preview-content">
-            {!cachedArtifact && !cachedError && <p aria-live="polite">{t('teamPreviewLoading')}</p>}
-            {cachedError && (
-              <p className="team-inline-error" role="alert">
-                {t('teamLandingNeedsRerender')}
-              </p>
-            )}
-            {cachedArtifact?.segmentTokens && (
-              <div
-                className="team-landing-preview team-landing-cached"
-                style={{ '--landing-viewer-zoom': String(preset.zoom) } as CSSProperties}
-              >
-                {cachedArtifact.segmentTokens.map((_, segment) => (
-                  <img
-                    key={segment}
-                    src={artifactClient.landingRenderImageUrl(cachedArtifact, segment)}
-                    alt={segment === 0 ? material.name : ''}
-                    referrerPolicy="no-referrer"
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
-      </div>
+          )}
+        </div>
+      </Modal>
     );
   }
 

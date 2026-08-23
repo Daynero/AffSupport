@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
@@ -91,6 +91,20 @@ afterEach(() => {
 });
 
 const browseClient = { listMaterials: vi.fn().mockResolvedValue([]) };
+
+/**
+ * Waits for a dialog's opening focus move to land.
+ *
+ * `Modal` places the caret on its initial field in a `requestAnimationFrame`,
+ * which in a browser happens long before anyone can type. In jsdom the frame
+ * can fall between two of a test's keystrokes, and the focus move then eats the
+ * rest of the word — so tests wait for that frame before they start typing.
+ */
+async function modalFocusSettled() {
+  await act(async () => {
+    await new Promise(resolve => requestAnimationFrame(() => resolve(null)));
+  });
+}
 
 /**
  * Renders the row menu and opens it.
@@ -281,6 +295,7 @@ describe('team file operations', () => {
       </ToastProvider>
     );
     const editor = screen.getByRole('textbox', { name: 'Text file contents' });
+    await modalFocusSettled();
     await userEvent.clear(editor);
     await userEvent.type(editor, 'Повний UTF-8 текст 🌻');
     await userEvent.click(screen.getByRole('button', { name: 'Save text' }));
@@ -388,7 +403,7 @@ describe('team file operations', () => {
         />
       </ToastProvider>
     );
-    expect(screen.getByText('Update Soty to process team files.')).toBeTruthy();
+    expect(screen.getByText('Update Soty to process these files.')).toBeTruthy();
     expect(
       (screen.getByRole('button', { name: 'Start processing' }) as HTMLButtonElement).disabled
     ).toBe(true);
@@ -408,6 +423,9 @@ describe('team file operations', () => {
         />
       </ToastProvider>
     );
+    // The dialog puts the caret in the output name on open; wait for that to
+    // land before typing, or the focus move arrives mid-word.
+    await modalFocusSettled();
     await userEvent.clear(screen.getByLabelText('Output name'));
     await userEvent.type(screen.getByLabelText('Output name'), 'creative-optimized.mp4');
     await userEvent.click(screen.getByRole('button', { name: 'Start processing' }));

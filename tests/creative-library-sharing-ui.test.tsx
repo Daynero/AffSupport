@@ -62,7 +62,7 @@ describe('Creative Library sharing UI', () => {
         rememberChoice: false
       })
     );
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Remember my choice for this team' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Remember my choice for this space' }));
     fireEvent.click(screen.getByRole('button', { name: 'Allow and copy' }));
     await waitFor(() =>
       expect(writeText).toHaveBeenCalledWith('https://drive.google.com/file/d/exact/view')

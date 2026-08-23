@@ -126,6 +126,9 @@ export function TaskSpace({
     onConsumedCreateFromAsset?.();
   }, [can, createFromAsset, creatingAssetId, onConsumedCreateFromAsset, t]);
 
+  /** True when a filter is what is hiding the tasks, rather than there being none. */
+  const filtered = tasks.statusFilter !== 'all' || tasks.filter.kind !== 'all';
+
   const cancelCreate = () => {
     setCreating(false);
     setTitle('');
@@ -190,10 +193,27 @@ export function TaskSpace({
       />
       {error && <p className="team-inline-error">{t('teamTaskCreateFailed')}</p>}
       {tasks.loading && tasks.tasks.length === 0 && (
-        <p aria-live="polite">{t('teamTaskLoading')}</p>
+        <p aria-live="polite">{t('teamTasksLoadingList')}</p>
       )}
       {tasks.error && <p className="team-inline-error">{t('teamTasksLoadFailed')}</p>}
-      {!tasks.loading && !tasks.error && tasks.tasks.length === 0 && <p>{t('teamTasksEmpty')}</p>}
+      {/* Three distinguishable answers, not one: still loading, nothing here
+          at all, or nothing matching the filter in force (FR-020). */}
+      {!tasks.loading && !tasks.error && tasks.tasks.length === 0 && (
+        <div className="team-empty-state">
+          {filtered ? (
+            <p>{t('teamTasksEmptyFiltered')}</p>
+          ) : (
+            <>
+              <p>{t('teamTasksEmpty')}</p>
+              {can('edit') && (
+                <Button type="button" variant="primary" onClick={() => setCreating(true)}>
+                  {t('teamTasksEmptyAction')}
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+      )}
       <div className="team-task-grid">
         {tasks.tasks.map(task => (
           <TaskCard

@@ -71,7 +71,7 @@ describe('create space wizard', () => {
     // Name step: Continue is blocked until a valid name is entered.
     const continueButton = screen.getByRole('button', { name: 'Continue' });
     expect(continueButton).toHaveProperty('disabled', true);
-    await user.type(screen.getByLabelText('Team name'), 'Media buyers');
+    await user.type(screen.getByLabelText('Space name'), 'Media buyers');
     await user.click(screen.getByRole('button', { name: 'Continue' }));
 
     // Folder step: cannot finish until a root is connected.
@@ -122,7 +122,7 @@ describe('create space wizard', () => {
     renderSpace(client);
 
     await user.click(await screen.findByRole('button', { name: 'Create your first space' }));
-    await user.type(screen.getByLabelText('Team name'), 'Media buyers');
+    await user.type(screen.getByLabelText('Space name'), 'Media buyers');
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await user.click(await screen.findByRole('button', { name: 'Connect Google Drive' }));
 
@@ -149,7 +149,7 @@ describe('create space wizard', () => {
     renderSpace(client);
 
     await user.click(await screen.findByRole('button', { name: 'Create your first space' }));
-    await user.type(screen.getByLabelText('Team name'), 'Media buyers');
+    await user.type(screen.getByLabelText('Space name'), 'Media buyers');
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect(
       await screen.findByRole('heading', { name: 'Connect a Google Drive folder' })

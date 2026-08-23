@@ -49,6 +49,12 @@ export interface ModalProps {
   /** Extra class(es) for the dialog surface. */
   className?: string;
   /**
+   * `data-*` attributes for the surface. Full-bleed viewers style themselves
+   * from these (device, colour scheme, zoom), and they have to land on the
+   * element the stylesheet already targets rather than on a wrapper.
+   */
+  data?: Record<string, string | undefined>;
+  /**
    * Escape hatch for fully custom modals (transcript viewer, image compare):
    * skips the `.modal`/`.modal-backdrop` base classes so the caller's own
    * classes define all styling. Behavior (portal, focus trap, scroll lock,
@@ -100,6 +106,7 @@ export function Modal({
   size = 'md',
   className = '',
   bare = false,
+  data,
   backdropClassName = '',
   nested = false,
   backdropAriaHidden = false,
@@ -198,6 +205,7 @@ export function Modal({
         aria-modal="true"
         aria-labelledby={labelledBy}
         style={style}
+        {...data}
       >
         {onClose && closeLabel && (
           <button type="button" className="modal-close" aria-label={closeLabel} onClick={onClose}>

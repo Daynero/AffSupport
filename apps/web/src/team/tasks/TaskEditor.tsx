@@ -468,7 +468,7 @@ export function TaskEditor({
               </div>
               <span>{t('teamTaskAttachmentsCount', { count: attachmentCount })}</span>
             </div>
-            {loading && <p aria-live="polite">{t('teamTaskLoading')}</p>}
+            {loading && <p aria-live="polite">{t('teamTaskLoadingAttachments')}</p>}
             <div className="team-task-attachment-grid">
               {visibleAttachments.map(attachment => (
                 <TaskAttachmentTile

@@ -205,7 +205,7 @@ export function ConnectFolderStep({
           {t('teamCreateBack')}
         </Button>
         <Button type="button" variant="ghost" onClick={onCancel}>
-          {t('teamCreateCancel')}
+          {t('teamCancel')}
         </Button>
       </div>
     </section>

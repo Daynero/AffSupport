@@ -4504,7 +4504,7 @@ input.is-invalid {
 
 .landing-gallery-delayed-tooltip::after {
   position: absolute;
-  z-index: 80;
+  z-index: var(--layer-popover);
   top: calc(100% + 8px);
   left: 50%;
   width: max-content;
@@ -8707,7 +8707,7 @@ body:has(.public-home) {
 }
 .transcription-copy-popover {
   position: absolute;
-  z-index: 80;
+  z-index: var(--layer-popover);
   top: calc(100% + 8px);
   right: 0;
   display: grid;
@@ -10414,7 +10414,7 @@ button,
 }
 .team-preview-backdrop {
   position: fixed;
-  z-index: 80;
+  z-index: var(--layer-fullbleed);
   inset: 0;
   display: grid;
   place-items: center;
@@ -10436,10 +10436,20 @@ button,
 .team-preview-dialog.landing-full-view {
   grid-template-rows: auto auto minmax(0, 1fr);
 }
+/* `min-width: 0` is what actually lets the controls inside wrap: without it the
+   toolbar takes its content's intrinsic width and the row runs off the edge on a
+   narrow screen, whatever `flex-wrap` says (finding P3). */
 .landing-full-view-toolbar {
+  min-width: 0;
   padding: var(--space-3) var(--space-5);
   border-bottom: 1px solid var(--color-border);
   background: var(--color-surface-subtle);
+}
+
+@media (max-width: 720px) {
+  .landing-full-view-toolbar {
+    padding: var(--space-2) var(--space-3);
+  }
 }
 .landing-full-view[data-landing-device='tablet'] .team-landing-preview,
 .landing-full-view[data-landing-device='tablet'] .team-landing-preview-fallback {
@@ -10718,21 +10728,13 @@ button,
 .team-text-stale p {
   margin: 0 0 var(--space-2);
 }
+/* These three are `Modal` surfaces now, so the primitive owns their placement,
+   backdrop and layer. What is left is what is theirs: how much they may grow. */
 .team-operation-overlay,
 .team-text-editor,
 .team-process-dialog {
-  position: fixed;
-  z-index: 45;
-  inset: 50% auto auto 50%;
-  width: min(calc(100vw - 32px), var(--dialog-lg));
   max-height: min(86vh, 820px);
   overflow: auto;
-  transform: translate(-50%, -50%);
-  padding: var(--space-5);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-xl);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-lg);
 }
 .team-operation-status-heading {
   display: flex;
@@ -11358,7 +11360,9 @@ body {
 .team-task-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  grid-auto-rows: 278px;
+  /* `min-content` rather than a fixed 278px: the old height clipped a long
+     title or note instead of letting the card grow (finding P3). */
+  grid-auto-rows: minmax(278px, min-content);
   align-items: stretch;
   gap: var(--space-3);
 }

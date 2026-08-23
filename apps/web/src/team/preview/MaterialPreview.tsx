@@ -16,6 +16,7 @@ import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
 import { LandingPreviewFrame, type LandingPreviewView } from './LandingPreviewFrame';
 import { PreviewUnavailable } from './PreviewUnavailable';
+import { Modal } from '../../components/Modal';
 
 type AgentRequest = Extract<TeamPreviewResult, { kind: 'agent' }>;
 type AgentUnavailable = Extract<TeamAgentPreviewResult, { kind: 'unavailable' }>;
@@ -196,99 +197,103 @@ export function MaterialPreview({
   };
 
   return (
-    <div className="team-preview-backdrop" role="presentation">
-      <section
-        className={`team-preview-dialog${landingPreset ? ' landing-full-view' : ''}`}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="team-preview-title"
-        data-landing-device={landingPreset?.device}
-        data-landing-scheme={landingPreset?.colorScheme}
-        data-landing-zoom={landingPreset?.zoom}
-      >
-        <header className="team-preview-heading">
-          <div>
-            <p>{t('teamPreviewEyebrow')}</p>
-            <h2 id="team-preview-title">{material.name}</h2>
-          </div>
-          <Button type="button" variant="ghost" onClick={close}>
-            {t('teamPreviewClose')}
-          </Button>
-        </header>
-        {toolbar && <div className="landing-full-view-toolbar">{toolbar}</div>}
-        <div className="team-preview-content">
-          {state.kind === 'loading' && <p aria-live="polite">{t('teamPreviewLoading')}</p>}
-          {state.kind === 'error' && (
-            <p className="team-inline-error" role="alert">
-              {state.code === 'PERMISSION_DENIED'
-                ? t('teamPreviewPermissionLost')
-                : state.code === 'AGENT_UPDATE_REQUIRED'
-                  ? t('teamPreviewAgentUpdateRequired')
-                  : state.code === 'PAIRING_REQUIRED' || state.code === 'CONNECTION_FAILED'
-                    ? t('teamPreviewAgentRequired')
-                    : t('teamPreviewLoadFailed')}
-            </p>
-          )}
-          {state.kind === 'media' && (
-            <>
-              {mediaLoading && (
-                <p className="team-preview-media-status" aria-live="polite">
-                  {t('teamPreviewLoading')}
-                </p>
-              )}
-              {mediaFailed && (
-                <p className="team-inline-error" role="alert">
-                  {t('teamPreviewLoadFailed')}
-                </p>
-              )}
-              {!mediaFailed && material.category === 'video' && (
-                <video
-                  ref={element => element?.setAttribute('referrerpolicy', 'no-referrer')}
-                  controls
-                  preload="metadata"
-                  src={state.rangeUrl}
-                  onLoadedData={markMediaReady}
-                  onCanPlay={markMediaReady}
-                  onError={markMediaFailed}
-                />
-              )}
-              {!mediaFailed && material.category === 'image' && (
-                <img
-                  src={state.rangeUrl}
-                  alt={material.name}
-                  referrerPolicy="no-referrer"
-                  onLoad={markMediaReady}
-                  onError={markMediaFailed}
-                />
-              )}
-            </>
-          )}
-          {state.kind === 'transcript' && (
-            <TranscriptPreview
-              material={material}
-              preview={state}
-              onDownload={download}
-              onEdit={edit}
-            />
-          )}
-          {state.kind === 'archive' && (
-            <ArchiveManifest entries={state.entries} truncated={state.truncated} />
-          )}
-          {state.kind === 'landing' && (
-            <LandingPreviewFrame preview={state} preset={landingPreset} />
-          )}
-          {state.kind === 'unavailable' && (
-            <PreviewUnavailable
-              reason={state.reason}
-              allowedActions={state.allowedActions}
-              variant={landingPreset ? 'landing' : 'default'}
-              onDownload={download}
-              onNewVersion={createVersion}
-            />
-          )}
+    /* On the one dialog primitive: this used to claim `aria-modal` while
+       implementing none of it, and sat on a z-index band *below* the real
+       modals — so a preview opened over a dialog rendered underneath it
+       (finding C1). */
+    <Modal
+      labelledBy="team-preview-title"
+      bare
+      backdropClassName="team-preview-backdrop"
+      className={`team-preview-dialog${landingPreset ? ' landing-full-view' : ''}`}
+      onClose={close}
+      data={{
+        'data-landing-device': landingPreset?.device,
+        'data-landing-scheme': landingPreset?.colorScheme,
+        'data-landing-zoom':
+          landingPreset?.zoom === undefined ? undefined : String(landingPreset.zoom)
+      }}
+    >
+      <header className="team-preview-heading">
+        <div>
+          <p>{t('teamPreviewEyebrow')}</p>
+          <h2 id="team-preview-title">{material.name}</h2>
         </div>
-      </section>
-    </div>
+        <Button type="button" variant="ghost" onClick={close}>
+          {t('teamPreviewClose')}
+        </Button>
+      </header>
+      {toolbar && <div className="landing-full-view-toolbar">{toolbar}</div>}
+      <div className="team-preview-content">
+        {state.kind === 'loading' && <p aria-live="polite">{t('teamPreviewLoading')}</p>}
+        {state.kind === 'error' && (
+          <p className="team-inline-error" role="alert">
+            {state.code === 'PERMISSION_DENIED'
+              ? t('teamPreviewPermissionLost')
+              : state.code === 'AGENT_UPDATE_REQUIRED'
+                ? t('teamPreviewAgentUpdateRequired')
+                : state.code === 'PAIRING_REQUIRED' || state.code === 'CONNECTION_FAILED'
+                  ? t('teamPreviewAgentRequired')
+                  : t('teamPreviewLoadFailed')}
+          </p>
+        )}
+        {state.kind === 'media' && (
+          <>
+            {mediaLoading && (
+              <p className="team-preview-media-status" aria-live="polite">
+                {t('teamPreviewLoading')}
+              </p>
+            )}
+            {mediaFailed && (
+              <p className="team-inline-error" role="alert">
+                {t('teamPreviewLoadFailed')}
+              </p>
+            )}
+            {!mediaFailed && material.category === 'video' && (
+              <video
+                ref={element => element?.setAttribute('referrerpolicy', 'no-referrer')}
+                controls
+                preload="metadata"
+                src={state.rangeUrl}
+                onLoadedData={markMediaReady}
+                onCanPlay={markMediaReady}
+                onError={markMediaFailed}
+              />
+            )}
+            {!mediaFailed && material.category === 'image' && (
+              <img
+                src={state.rangeUrl}
+                alt={material.name}
+                referrerPolicy="no-referrer"
+                onLoad={markMediaReady}
+                onError={markMediaFailed}
+              />
+            )}
+          </>
+        )}
+        {state.kind === 'transcript' && (
+          <TranscriptPreview
+            material={material}
+            preview={state}
+            onDownload={download}
+            onEdit={edit}
+          />
+        )}
+        {state.kind === 'archive' && (
+          <ArchiveManifest entries={state.entries} truncated={state.truncated} />
+        )}
+        {state.kind === 'landing' && <LandingPreviewFrame preview={state} preset={landingPreset} />}
+        {state.kind === 'unavailable' && (
+          <PreviewUnavailable
+            reason={state.reason}
+            allowedActions={state.allowedActions}
+            variant={landingPreset ? 'landing' : 'default'}
+            onDownload={download}
+            onNewVersion={createVersion}
+          />
+        )}
+      </div>
+    </Modal>
   );
 }
 

@@ -88,7 +88,7 @@ describe('invitation link fallback', () => {
     await invite(client);
 
     expect(
-      await screen.findByText('This email already has a pending invitation to this team.')
+      await screen.findByText('This email already has a pending invitation to this space.')
     ).toBeTruthy();
     expect(screen.queryByText('Delivery failed')).toBeNull();
   });

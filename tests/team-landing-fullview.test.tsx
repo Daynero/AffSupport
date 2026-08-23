@@ -63,7 +63,7 @@ describe('team landing full view', () => {
         (_value: RenderArtifactRef, segment: number) => `https://example.test/render/${segment}`
       )
     };
-    const { container } = render(
+    render(
       <LandingFullView
         teamId="team-1"
         material={material}
@@ -74,7 +74,7 @@ describe('team landing full view', () => {
     );
 
     await waitFor(() =>
-      expect(container.querySelectorAll('.team-landing-cached img')).toHaveLength(2)
+      expect(document.body.querySelectorAll('.team-landing-cached img')).toHaveLength(2)
     );
     expect(artifactClient.getLandingRenderArtifact).toHaveBeenCalledWith(
       'team-1',

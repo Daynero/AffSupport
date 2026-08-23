@@ -96,8 +96,8 @@ describe('team catalog search UI', () => {
     );
 
     expect(await screen.findByText('launch.mp4')).toBeTruthy();
-    expect(screen.getByText('1 material')).toBeTruthy();
-    await user.type(screen.getByLabelText('Search materials'), 'launch');
+    expect(screen.getByText('1 file')).toBeTruthy();
+    await user.type(screen.getByLabelText('Search files'), 'launch');
     await user.selectOptions(screen.getByLabelText('GEO'), 'UA');
     await user.selectOptions(screen.getByLabelText('Category'), 'video');
     await waitFor(() =>
@@ -127,7 +127,7 @@ describe('team catalog search UI', () => {
     expect(await screen.findByText('launch.mp4')).toBeTruthy();
     await user.selectOptions(screen.getByLabelText('Missing metadata'), 'geo');
     await user.click(screen.getByRole('button', { name: 'Edit metadata for launch.mp4' }));
-    await user.selectOptions(screen.getByLabelText('Material GEO'), 'UA');
+    await user.selectOptions(screen.getByLabelText('File GEO'), 'UA');
     await user.click(screen.getByRole('button', { name: 'Save metadata' }));
     await waitFor(() =>
       expect(api.updateMaterialMetadata).toHaveBeenCalledWith(
@@ -190,9 +190,9 @@ describe('team catalog search UI', () => {
         </ToastProvider>
       </TeamProvider>
     );
-    expect(await screen.findByText('No materials match these filters.')).toBeTruthy();
+    expect(await screen.findByText('No files match these filters.')).toBeTruthy();
     expect(screen.queryByText('Secret competitor creative')).toBeNull();
-    await user.type(screen.getByLabelText('Search materials'), 'hidden exact name');
+    await user.type(screen.getByLabelText('Search files'), 'hidden exact name');
     expect(await screen.findByText('Could not load catalog results.')).toBeTruthy();
     expect(screen.queryByText('Secret competitor creative')).toBeNull();
   });

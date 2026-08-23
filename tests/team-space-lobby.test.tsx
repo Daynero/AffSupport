@@ -50,7 +50,9 @@ describe('team space lobby', () => {
     const client = makeClient({ listTeams: vi.fn().mockResolvedValue([]) });
     renderSpace(client);
 
-    expect(await screen.findByRole('heading', { name: 'ДОНТ ПУШ ЗЕ ХОРСИС' })).toBeTruthy();
+    expect(
+      await screen.findByRole('heading', { name: 'Team spaces are still in closed beta' })
+    ).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Notify me when it’s ready' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Speed up development' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Create your first space' })).toBeNull();
@@ -64,7 +66,9 @@ describe('team space lobby', () => {
     const dialog = await screen.findByRole('dialog');
     fireEvent.pointerDown(dialog.parentElement!);
 
-    expect(screen.queryByRole('heading', { name: 'ДОНТ ПУШ ЗЕ ХОРСИС' })).toBeNull();
+    expect(
+      screen.queryByRole('heading', { name: 'Team spaces are still in closed beta' })
+    ).toBeNull();
     expect(location.pathname).toBe('/');
   });
 
@@ -75,7 +79,9 @@ describe('team space lobby', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Speed up development' }));
 
-    expect(screen.queryByRole('heading', { name: 'ДОНТ ПУШ ЗЕ ХОРСИС' })).toBeNull();
+    expect(
+      screen.queryByRole('heading', { name: 'Team spaces are still in closed beta' })
+    ).toBeNull();
     expect(screen.getByRole('heading', { name: 'Support the project' })).toBeTruthy();
   });
 });

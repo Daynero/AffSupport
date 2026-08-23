@@ -125,11 +125,12 @@ describe('dialog width ladder', () => {
   });
 
   // The surfaces that style themselves instead of using the Modal primitive
-  // are the ones that used to drift; they read the same rungs.
+  // are the ones that used to drift; they read the same rungs. The team
+  // dialogs left this list when they moved onto `Modal`, which picks their rung
+  // through `size` — one fewer place a width can be invented.
   it.each([
     ['.windows-coming-soon-modal', '--dialog-sm'],
     ['.confirm-dialog', '--dialog-sm'],
-    ['.team-process-dialog', '--dialog-lg'],
     ['.transcript-modal', '--dialog-xl'],
     ['.team-preview-dialog', '--dialog-wide'],
     ['.landing-compare-modal', '--dialog-wide'],

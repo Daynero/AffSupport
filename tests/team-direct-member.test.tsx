@@ -61,7 +61,7 @@ describe('temporary registered-member direct add', () => {
       })
     );
     expect(createInvitation).not.toHaveBeenCalled();
-    expect(await screen.findByText('Member added to the team.')).toBeTruthy();
+    expect(await screen.findByText('Member added to the space.')).toBeTruthy();
     expect(onChanged).toHaveBeenCalledTimes(1);
   });
 

@@ -66,7 +66,7 @@ describe('Creative Library workspace controls', () => {
 
     expect(screen.getByText('Loading preview…')).toBeTruthy();
     expect(screen.queryByText('Preview not created yet')).toBeNull();
-    expect(screen.queryByText('Preparing preview…')).toBeNull();
+    expect(screen.queryByText('Preparing the file preview…')).toBeNull();
   });
 
   it('loads a safe video URL only for the visible card and seeks a real frame at one second', async () => {
@@ -272,7 +272,7 @@ describe('Creative Library workspace controls', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Move to Library' }));
     expect(
       await screen.findByText(
-        'Some media could not be moved. The unresolved group remains marked for safe retry.'
+        'Some files could not be moved. The unresolved group stays marked for a safe retry.'
       )
     ).toBeTruthy();
     expect(moveLibraryMaterials).toHaveBeenCalledWith(
@@ -366,7 +366,7 @@ describe('Creative Library workspace controls', () => {
     );
     fireEvent.click(await screen.findByRole('button', { name: 'More actions' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Edit Drive placement' }));
-    fireEvent.change(screen.getByLabelText('Media language'), { target: { value: 'en' } });
+    fireEvent.change(screen.getByLabelText('File language'), { target: { value: 'en' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save task' }));
     await waitFor(() => expect(moveLibraryMaterials).toHaveBeenCalledTimes(1));
     expect(moveLibraryMaterials).toHaveBeenCalledWith(

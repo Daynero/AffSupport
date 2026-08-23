@@ -36,7 +36,7 @@ describe('content-first workspace shell', () => {
 
     // Content-first: the folder browser is the default, showing the empty state.
     expect(await screen.findByRole('heading', { name: 'Media buyers' })).toBeTruthy();
-    expect(await screen.findByText('No visible materials in this folder yet.')).toBeTruthy();
+    expect(await screen.findByText('No visible files in this folder yet.')).toBeTruthy();
 
     // Empty space → zero filter controls and no revealed search affordance.
     expect(screen.queryByText('GEO')).toBeNull();

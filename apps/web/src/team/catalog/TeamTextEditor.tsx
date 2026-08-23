@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { CatalogMaterialItem } from '@video-compressor/shared';
 import { Button } from '../../components/ui';
+import { Modal } from '../../components/Modal';
 import { useI18n } from '../../i18n';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessage } from '../errors';
@@ -38,6 +39,17 @@ export function TeamTextEditor({
   const [text, setText] = useState(initialText);
   const [saving, setSaving] = useState(false);
   const [stale, setStale] = useState(false);
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+
+  /**
+   * Escape and the close control go through here, so an edited draft is never
+   * thrown away by a stray keypress. An untouched editor just closes — a prompt
+   * with nothing to lose is noise.
+   */
+  const requestClose = () => {
+    if (text === initialText) onClose();
+    else setConfirmingDiscard(true);
+  };
   const bytes = useMemo(() => new TextEncoder().encode(text).byteLength, [text]);
   const eligible =
     material.fileExtension?.toLowerCase() === 'txt' &&
@@ -68,14 +80,21 @@ export function TeamTextEditor({
   };
 
   return (
-    <section className="team-text-editor" aria-labelledby="team-text-editor-title">
+    <Modal
+      labelledBy="team-text-editor-title"
+      size="lg"
+      className="team-text-editor"
+      // Straight into the text: this dialog exists to be typed in.
+      initialFocus="#team-text-editor-body"
+      onClose={requestClose}
+    >
       <div className="team-panel-heading">
         <div>
           <p className="team-workspace-eyebrow">{t('teamTextEditorEyebrow')}</p>
           <h3 id="team-text-editor-title">{material.name}</h3>
         </div>
-        <Button type="button" variant="ghost" onClick={onClose}>
-          {t('teamFileCancel')}
+        <Button type="button" variant="ghost" onClick={requestClose}>
+          {t('teamCancel')}
         </Button>
       </div>
       {!eligible ? (
@@ -85,6 +104,7 @@ export function TeamTextEditor({
           <label>
             {t('teamTextEditorContents')}
             <textarea
+              id="team-text-editor-body"
               aria-label={t('teamTextEditorContents')}
               value={text}
               onChange={event => setText(event.target.value)}
@@ -120,6 +140,25 @@ export function TeamTextEditor({
           </div>
         </>
       )}
-    </section>
+      {confirmingDiscard && (
+        <Modal
+          nested
+          labelledBy="team-text-editor-discard-title"
+          size="sm"
+          onClose={() => setConfirmingDiscard(false)}
+        >
+          <h3 id="team-text-editor-discard-title">{t('teamTextEditorDiscardTitle')}</h3>
+          <p>{t('teamTextEditorDiscardBody')}</p>
+          <div className="team-dialog-actions">
+            <Button type="button" variant="danger" onClick={onClose}>
+              {t('teamTextEditorDiscardAction')}
+            </Button>
+            <Button type="button" variant="ghost" onClick={() => setConfirmingDiscard(false)}>
+              {t('teamCancel')}
+            </Button>
+          </div>
+        </Modal>
+      )}
+    </Modal>
   );
 }

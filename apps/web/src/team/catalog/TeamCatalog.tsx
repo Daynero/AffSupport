@@ -28,6 +28,7 @@ import { CatalogFilters } from './CatalogFilters';
 import { CatalogSearchBar } from './CatalogSearchBar';
 import { MaterialMetadataEditor } from './MaterialMetadataEditor';
 import { MaterialResults } from './MaterialResults';
+import { Modal } from '../../components/Modal';
 import { FolderPicker, type FolderPickerClient } from './FolderPicker';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessage, teamErrorMessageFor } from '../errors';
@@ -79,29 +80,16 @@ export function TeamCatalog({
   const agent = useOptionalAgent();
   const catalog = useCatalogSearch({ teamId, client, initialQuery, initialFilters, onSearched });
   const [storageKind, setStorageKind] = useState<TeamAnalyticsStorage | null>(null);
-  const [editing, setEditing] = useState<CatalogMaterialItem | null>(null);
-  const [previewing, setPreviewing] = useState<CatalogMaterialItem | null>(null);
-  const [textEditor, setTextEditor] = useState<{
-    material: CatalogMaterialItem;
-    text: string;
-    sourceVersion: string;
-  } | null>(null);
-  const [processing, setProcessing] = useState<CatalogMaterialItem | null>(null);
-  const [activeOperation, setActiveOperation] = useState<{
-    id: string;
-    source: CatalogMaterialItem;
-    workflow: TeamWorkflowFlow;
-    /** Set when the local run failed before the server could record why. */
-    failureCode?: string;
-  } | null>(null);
-  const [provenance, setProvenance] = useState<{
-    material: CatalogMaterialItem;
-    entries: TeamMaterialProvenanceEntry[];
-  } | null>(null);
-  const [versionDraft, setVersionDraft] = useState<{
-    material: CatalogMaterialItem;
-    text: string;
-  } | null>(null);
+  /**
+   * The one overlay this surface is showing, if any.
+   *
+   * Seven independent booleans used to hold this, so "two dialogs at once" was
+   * not just possible but easy — and the page behind them stayed scrollable and
+   * clickable (finding C1). A discriminated union makes the stacked state
+   * unrepresentable: opening one closes the last.
+   */
+  const [overlay, setOverlay] = useState<CatalogOverlay>(null);
+  const closeOverlay = () => setOverlay(null);
 
   useEffect(() => {
     let active = true;
@@ -129,7 +117,12 @@ export function TeamCatalog({
     ) {
       return;
     }
-    setTextEditor({ material, text: preview.text, sourceVersion: preview.sourceVersion });
+    setOverlay({
+      kind: 'text',
+      material,
+      text: preview.text,
+      sourceVersion: preview.sourceVersion
+    });
   };
 
   const startLocalProcess = (
@@ -143,8 +136,7 @@ export function TeamCatalog({
       attemptNumber: 1,
       stage: 'downloading'
     });
-    setActiveOperation({ id: result.operationId, source, workflow });
-    setProcessing(null);
+    setOverlay({ kind: 'operation', id: result.operationId, source, workflow });
     void startTeamAgentProcess({
       operationId: result.operationId,
       toolId: input.toolId,
@@ -156,8 +148,10 @@ export function TeamCatalog({
       // The server-side operation is released either way, but the person is
       // told it failed — not that it was canceled, which is what the release
       // used to be mistaken for (finding S6).
-      setActiveOperation(current =>
-        current && current.id === result.operationId ? { ...current, failureCode: code } : current
+      setOverlay(current =>
+        current?.kind === 'operation' && current.id === result.operationId
+          ? { ...current, failureCode: code }
+          : current
       );
       push({ tone: 'error', text: teamErrorMessage(code, t) });
       await teamApi.cancelOperation(teamId, result.operationId).catch(() => undefined);
@@ -186,14 +180,14 @@ export function TeamCatalog({
         canManageMetadata={can('manage_metadata')}
         permissions={permissions!}
         storageKind={storageKind}
-        onEditMetadata={setEditing}
-        onPreview={setPreviewing}
+        onEditMetadata={material => setOverlay({ kind: 'metadata', material })}
+        onPreview={material => setOverlay({ kind: 'preview', material })}
         onEditText={material => void openTextEditor(material)}
-        onProcess={setProcessing}
+        onProcess={material => setOverlay({ kind: 'process', material })}
         onShowProvenance={material => {
           void teamApi
             .getMaterialProvenance(teamId, material.id)
-            .then(entries => setProvenance({ material, entries }))
+            .then(entries => setOverlay({ kind: 'provenance', material, entries }))
             // A failed read used to open nothing at all: the button looked
             // broken rather than the request looking failed (finding S2).
             .catch((cause: unknown) => {
@@ -206,111 +200,142 @@ export function TeamCatalog({
         page={catalog.page}
         onPageChange={catalog.setPage}
       />
-      {editing && (
+      {overlay?.kind === 'metadata' && (
         <MaterialMetadataEditor
-          material={editing}
+          material={overlay.material}
           vocabulary={catalog.vocabulary}
-          onClose={() => setEditing(null)}
+          onClose={closeOverlay}
           onSave={async patch => {
-            await client.updateMaterialMetadata(teamId, editing.id, patch);
+            await client.updateMaterialMetadata(teamId, overlay.material.id, patch);
             await catalog.refetch();
           }}
         />
       )}
-      {previewing && (
-        <MaterialPreview
-          teamId={teamId}
-          material={previewing}
-          onClose={() => setPreviewing(null)}
-        />
+      {overlay?.kind === 'preview' && (
+        <MaterialPreview teamId={teamId} material={overlay.material} onClose={closeOverlay} />
       )}
-      {textEditor && (
+      {overlay?.kind === 'text' && (
         <TeamTextEditor
-          material={textEditor.material}
-          initialText={textEditor.text}
-          expectedDriveVersion={textEditor.sourceVersion}
-          onClose={() => setTextEditor(null)}
+          material={overlay.material}
+          initialText={overlay.text}
+          expectedDriveVersion={overlay.sourceVersion}
+          onClose={closeOverlay}
           onReload={() => {
-            const material = textEditor.material;
-            setTextEditor(null);
+            const material = overlay.material;
+            closeOverlay();
             return openTextEditor(material);
           }}
-          onCreateVersion={text => {
-            setVersionDraft({ material: textEditor.material, text });
-            setTextEditor(null);
-          }}
+          onCreateVersion={text =>
+            setOverlay({ kind: 'textVersion', material: overlay.material, text })
+          }
           onSave={async input => {
-            await teamApi.editText({
-              teamId,
-              materialId: textEditor.material.id,
-              ...input
-            });
+            await teamApi.editText({ teamId, materialId: overlay.material.id, ...input });
             await catalog.refetch();
           }}
         />
       )}
-      {processing && (
+      {overlay?.kind === 'process' && (
         <ProcessMaterialDialog
           teamId={teamId}
-          material={processing}
-          destinationFolderId={processing.parentFolderId ?? null}
+          material={overlay.material}
+          destinationFolderId={overlay.material.parentFolderId ?? null}
           browseClient={client}
           agentCompatible={agent?.teamWorkspaceAvailable === true}
           toolContracts={agent?.toolContracts ?? {}}
-          onClose={() => setProcessing(null)}
-          onStarted={(result, input) => startLocalProcess(result, input, processing)}
+          onClose={closeOverlay}
+          onStarted={(result, input) => startLocalProcess(result, input, overlay.material)}
         />
       )}
-      {activeOperation && (
+      {overlay?.kind === 'operation' && (
         <ActiveOperation
           teamId={teamId}
-          operationId={activeOperation.id}
-          workflow={activeOperation.workflow}
-          localFailureCode={activeOperation.failureCode ?? null}
+          operationId={overlay.id}
+          workflow={overlay.workflow}
+          localFailureCode={overlay.failureCode ?? null}
           agentEnabled={agent?.teamWorkspaceAvailable === true}
-          onClose={() => setActiveOperation(null)}
-          onRetry={() => {
-            setProcessing(activeOperation.source);
-            setActiveOperation(null);
+          onClose={closeOverlay}
+          onRetry={() => setOverlay({ kind: 'process', material: overlay.source })}
+        />
+      )}
+      {overlay?.kind === 'provenance' && (
+        <ProvenanceDialog
+          entries={overlay.entries}
+          material={overlay.material}
+          onClose={closeOverlay}
+          onNavigate={materialId => {
+            const entry = overlay.entries.find(
+              candidate =>
+                candidate.sourceMaterialId === materialId ||
+                candidate.derivativeMaterialId === materialId
+            );
+            const name =
+              entry?.sourceMaterialId === materialId ? entry.sourceName : entry?.derivativeName;
+            if (name) catalog.setQuery(name);
+            closeOverlay();
           }}
         />
       )}
-      {provenance && (
-        <div className="team-operation-overlay">
-          <Button type="button" variant="ghost" onClick={() => setProvenance(null)}>
-            {t('teamFileCancel')}
-          </Button>
-          <ProvenancePanel
-            materialId={provenance.material.id}
-            entries={provenance.entries}
-            inheritedMetadata={provenance.material}
-            onNavigate={materialId => {
-              const entry = provenance.entries.find(
-                candidate =>
-                  candidate.sourceMaterialId === materialId ||
-                  candidate.derivativeMaterialId === materialId
-              );
-              const name =
-                entry?.sourceMaterialId === materialId ? entry.sourceName : entry?.derivativeName;
-              if (name) catalog.setQuery(name);
-              setProvenance(null);
-            }}
-          />
-        </div>
-      )}
-      {versionDraft && (
+      {overlay?.kind === 'textVersion' && (
         <TextVersionDialog
           teamId={teamId}
-          draft={versionDraft}
+          draft={overlay}
           browseClient={client}
-          onClose={() => setVersionDraft(null)}
+          onClose={closeOverlay}
           onSaved={async () => {
-            setVersionDraft(null);
+            closeOverlay();
             await catalog.refetch();
           }}
         />
       )}
     </section>
+  );
+}
+
+/** Every overlay this surface can show — exactly one at a time. */
+type CatalogOverlay =
+  | null
+  | { kind: 'metadata'; material: CatalogMaterialItem }
+  | { kind: 'preview'; material: CatalogMaterialItem }
+  | { kind: 'text'; material: CatalogMaterialItem; text: string; sourceVersion: string }
+  | { kind: 'process'; material: CatalogMaterialItem }
+  | {
+      kind: 'operation';
+      id: string;
+      source: CatalogMaterialItem;
+      workflow: TeamWorkflowFlow;
+      /** Set when the local run failed before the server could record why. */
+      failureCode?: string;
+    }
+  | { kind: 'provenance'; material: CatalogMaterialItem; entries: TeamMaterialProvenanceEntry[] }
+  | { kind: 'textVersion'; material: CatalogMaterialItem; text: string };
+
+/** The provenance panel, on the one dialog primitive like everything else. */
+function ProvenanceDialog({
+  material,
+  entries,
+  onClose,
+  onNavigate
+}: {
+  material: CatalogMaterialItem;
+  entries: TeamMaterialProvenanceEntry[];
+  onClose: () => void;
+  onNavigate: (materialId: string) => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <Modal labelledBy="team-provenance-title" size="md" onClose={onClose}>
+      <ProvenancePanel
+        materialId={material.id}
+        entries={entries}
+        inheritedMetadata={material}
+        onNavigate={onNavigate}
+      />
+      <div className="team-dialog-actions">
+        <Button type="button" variant="ghost" onClick={onClose}>
+          {t('teamClose')}
+        </Button>
+      </div>
+    </Modal>
   );
 }
 
@@ -442,7 +467,7 @@ function TextVersionDialog({
         {t('teamTextEditorSave')}
       </Button>
       <Button type="button" variant="ghost" onClick={onClose}>
-        {t('teamFileCancel')}
+        {t('teamCancel')}
       </Button>
     </section>
   );

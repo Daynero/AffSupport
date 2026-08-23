@@ -75,7 +75,9 @@ describe('team workspace launch gate', () => {
       </AuthContextOverride>
     );
 
-    expect(await screen.findByRole('heading', { name: 'ДОНТ ПУШ ЗЕ ХОРСИС' })).toBeTruthy();
+    expect(
+      await screen.findByRole('heading', { name: 'Team spaces are still in closed beta' })
+    ).toBeTruthy();
     expect(
       screen.getByRole('dialog').parentElement?.classList.contains('team-workspace-gate-backdrop')
     ).toBe(true);

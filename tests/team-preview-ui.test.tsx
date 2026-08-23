@@ -65,7 +65,7 @@ describe('team material preview UI', () => {
       mimeType: category === 'video' ? 'video/mp4' : 'image/png',
       expiresAt: '2026-08-01T12:05:00.000Z'
     });
-    const { container } = render(
+    render(
       <MaterialPreview
         teamId={TEAM_ID}
         material={item(category)}
@@ -73,14 +73,14 @@ describe('team material preview UI', () => {
         onClose={vi.fn()}
       />
     );
-    expect(screen.getByText('Preparing preview…')).toBeTruthy();
-    await waitFor(() => expect(container.querySelector(tag)).not.toBeNull());
-    const media = container.querySelector(tag);
+    expect(screen.getByText('Preparing the file preview…')).toBeTruthy();
+    await waitFor(() => expect(document.body.querySelector(tag)).not.toBeNull());
+    const media = document.body.querySelector(tag);
     expect(media?.getAttribute('src')).toContain('grant=opaque');
     expect(media?.getAttribute('referrerpolicy')).toBe('no-referrer');
     if (category === 'video') fireEvent.loadedData(media!);
     else fireEvent.load(media!);
-    await waitFor(() => expect(screen.queryByText('Preparing preview…')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('Preparing the file preview…')).toBeNull());
     expect(previewClient.requestPreview).toHaveBeenCalledWith(
       TEAM_ID,
       `material-${category}`,
@@ -98,7 +98,7 @@ describe('team material preview UI', () => {
       sourceVersion: '17',
       allowedActions: ['download']
     });
-    const { container } = render(
+    render(
       <MaterialPreview
         teamId={TEAM_ID}
         material={item('transcript')}
@@ -107,7 +107,7 @@ describe('team material preview UI', () => {
       />
     );
     expect(await screen.findByText(/Readable cue/u)).toBeTruthy();
-    expect(container.querySelector('script')).toBeNull();
+    expect(document.body.querySelector('script')).toBeNull();
     expect(screen.getByText(/first 1 MiB/u)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Download full file' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Edit text' })).toBeNull();
@@ -173,7 +173,7 @@ describe('team material preview UI', () => {
       warning: 'external_navigation_blocked',
       screenshotUrl: 'http://127.0.0.1:43120/api/team/preview/landing-operation/screenshot'
     });
-    const { container } = render(
+    render(
       <MaterialPreview
         teamId={TEAM_ID}
         material={item('landing')}
@@ -181,8 +181,8 @@ describe('team material preview UI', () => {
         onClose={vi.fn()}
       />
     );
-    await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull());
-    const frame = container.querySelector('iframe');
+    await waitFor(() => expect(document.body.querySelector('iframe')).not.toBeNull());
+    const frame = document.body.querySelector('iframe');
     expect(frame?.getAttribute('sandbox')).toBe('allow-scripts');
     expect(frame?.getAttribute('src')).toContain('127.0.0.1:54321');
     expect(screen.getByText(/External navigation is blocked/u)).toBeTruthy();
@@ -198,7 +198,7 @@ describe('team material preview UI', () => {
     ['agent_required', 'Open or update the Soty app to preview this file.']
   ] as const)('shows the %s fallback without a false-ready surface', async (reason, copy) => {
     const previewClient = client({ kind: 'unavailable', reason, allowedActions: ['download'] });
-    const { container } = render(
+    render(
       <MaterialPreview
         teamId={TEAM_ID}
         material={item('other')}
@@ -208,7 +208,7 @@ describe('team material preview UI', () => {
     );
     expect(await screen.findByText(copy)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Download file' })).toBeTruthy();
-    expect(container.querySelector('video,img,iframe')).toBeNull();
+    expect(document.body.querySelector('video,img,iframe')).toBeNull();
   });
 
   it('turns permission loss into an explicit error and closes without retaining content', async () => {
@@ -227,8 +227,8 @@ describe('team material preview UI', () => {
       />
     );
     expect(
-      await screen.findByText('You no longer have permission to preview this material.')
+      await screen.findByText('You no longer have permission to preview this file.')
     ).toBeTruthy();
-    expect(screen.queryByText('Preparing preview…')).toBeNull();
+    expect(screen.queryByText('Preparing the file preview…')).toBeNull();
   });
 });

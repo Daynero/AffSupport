@@ -8,6 +8,7 @@ import type { TeamProcessStartInput } from '../../api/team';
 import { teamApi } from '../../api/team';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
+import { Modal } from '../../components/Modal';
 import { FolderPicker, type FolderPickerClient } from '../catalog/FolderPicker';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessage } from '../errors';
@@ -97,14 +98,19 @@ export function ProcessMaterialDialog({
   };
 
   return (
-    <section className="team-process-dialog" aria-labelledby="team-process-title">
+    <Modal
+      labelledBy="team-process-title"
+      size="lg"
+      className="team-process-dialog"
+      onClose={onClose}
+    >
       <div className="team-panel-heading">
         <div>
           <p className="team-workspace-eyebrow">{t('teamProcessEyebrow')}</p>
           <h3 id="team-process-title">{t('teamProcessTitle', { name: material.name })}</h3>
         </div>
         <Button type="button" variant="ghost" onClick={onClose}>
-          {t('teamFileCancel')}
+          {t('teamCancel')}
         </Button>
       </div>
 
@@ -154,7 +160,11 @@ export function ProcessMaterialDialog({
       )}
       <label>
         {t('teamProcessOutputName')}
-        <input value={outputName} onChange={event => setOutputName(event.target.value)} />
+        <input
+          id="team-process-output-name"
+          value={outputName}
+          onChange={event => setOutputName(event.target.value)}
+        />
       </label>
 
       {conflict && (
@@ -176,7 +186,7 @@ export function ProcessMaterialDialog({
           {t('teamProcessStart')}
         </Button>
       </div>
-    </section>
+    </Modal>
   );
 }
 

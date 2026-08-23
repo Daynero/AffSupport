@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { TeamAuditEventSummary } from '../../api/team';
 import { useI18n } from '../../i18n';
+import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 
 export interface TeamAuditClient {
   listAuditEvents: (
@@ -20,10 +21,12 @@ export function TeamAuditPanel({
 }) {
   const { t, language } = useI18n();
   const [events, setEvents] = useState<TeamAuditEventSummary[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
+    setLoading(true);
     void client
       .listAuditEvents(teamId, { limit: 50 })
       .then(value => {
@@ -34,6 +37,9 @@ export function TeamAuditPanel({
       })
       .catch(() => {
         if (active) setError(t('teamAuditLoadFailed'));
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
     return () => {
       active = false;
@@ -44,7 +50,10 @@ export function TeamAuditPanel({
     <section className="team-panel team-audit-panel" aria-labelledby="team-audit-title">
       <h2 id="team-audit-title">{t('teamAuditTitle')}</h2>
       {error && <p className="team-inline-error">{error}</p>}
-      {!error && events.length === 0 && <p>{t('teamAuditEmpty')}</p>}
+      {/* Loading and empty are different answers: the panel used to give the
+          second one while it was still waiting for the first (finding S9). */}
+      {loading && !error && <LabeledSkeleton label="teamAuditLoading" rows={3} />}
+      {!loading && !error && events.length === 0 && <p>{t('teamAuditEmpty')}</p>}
       <ol className="team-audit-list">
         {events.map(event => {
           const safeDetail =

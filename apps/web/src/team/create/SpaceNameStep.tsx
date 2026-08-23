@@ -67,7 +67,7 @@ export function SpaceNameStep({
       {error && <p className="team-inline-error">{error}</p>}
       <div className="team-create-actions">
         <Button type="button" variant="ghost" onClick={onCancel}>
-          {t('teamCreateCancel')}
+          {t('teamCancel')}
         </Button>
         <Button type="submit" variant="primary" loading={submitting} disabled={!name.trim()}>
           {t('teamCreateContinue')}
