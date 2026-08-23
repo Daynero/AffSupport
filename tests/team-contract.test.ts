@@ -1,4 +1,4 @@
-import { execFileSync, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -199,7 +199,10 @@ describe('team contract', () => {
     expect(toolContractCompatible('compressor', { compressor: 3, imageEmbedding: 2 })).toBe(true);
   });
 
-  it('rebuilds shared before checking generated SQL and detects stale output', () => {
+  it('keeps the committed SQL current and detects stale output', () => {
+    // The npm script is what guarantees `shared` is rebuilt before the contract is read,
+    // so the generator never validates against a stale dist. Assert the wiring; do not
+    // run it.
     const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as {
       scripts: Record<string, string>;
     };
@@ -207,8 +210,25 @@ describe('team contract', () => {
       'npm run build -w @video-compressor/shared && node scripts/generate-team-contract-sql.mjs'
     );
 
-    execFileSync('npm', ['run', 'generate:team-contract'], { stdio: 'pipe' });
-    execFileSync('npm', ['run', 'generate:team-contract', '--', '--check'], { stdio: 'pipe' });
+    // This used to run `npm run generate:team-contract` and then the same script with
+    // `--check`. Two things were wrong with that. It rewrote a tracked migration and
+    // rebuilt `packages/shared/dist` in the middle of a suite run, so every other gate
+    // was reading artefacts this test had just changed underneath them. And regenerating
+    // immediately before checking made the check vacuous — it could never detect the
+    // staleness it was written to detect.
+    //
+    // Checking the committed file directly is both non-destructive and the assertion the
+    // test claims to make. `npm test` builds shared first, so the contract read here is
+    // current.
+    const committed = spawnSync(
+      process.execPath,
+      ['scripts/generate-team-contract-sql.mjs', '--check'],
+      { encoding: 'utf8' }
+    );
+    expect(
+      committed.status,
+      `The committed team contract SQL is out of date. Run \`npm run generate:team-contract\`.\n${committed.stderr}`
+    ).toBe(0);
 
     const fixture = mkdtempSync(join(tmpdir(), 'wishly-team-contract-'));
     temporaryPaths.push(fixture);

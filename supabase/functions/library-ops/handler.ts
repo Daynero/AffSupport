@@ -1,10 +1,13 @@
 import type {
   LibraryPlacementMutationRequest,
-  LibraryJobFinalizeRequest,
   LibraryShareCopyRequest,
   UploadBatchItemInput,
   UploadBatchRequest
 } from '../../../packages/shared/dist/team/creative-library.js';
+// Declared in library-processing, not creative-library. The wrong module was silently
+// tolerated because this is an `import type` — erased at build time, so it never failed at
+// runtime and nothing type-checked this directory.
+import type { LibraryJobFinalizeRequest } from '../../../packages/shared/dist/team/library-processing.js';
 import { TeamFunctionError } from '../_shared/errors.ts';
 import { isRecord } from '../_shared/validation.ts';
 
@@ -271,10 +274,14 @@ export async function executeLibraryOpsCommand(
       destinationFolderId: placement?.destinationFolderId ?? null
     };
   }
+  // Captured after the guard above. Reading `deps.startItem` inside the closure re-widens
+  // it to possibly-undefined — the guard does not survive into a callback, and nothing
+  // stops the property being reassigned between the two.
+  const startItem = deps.startItem;
   const coordinator = createBatchUploadCoordinator({
     concurrency: 4,
     upload: async item => {
-      const session = await deps.startItem({
+      const session = await startItem({
         batchId,
         destinationFolderId: placement?.destinationFolderId ?? null,
         item

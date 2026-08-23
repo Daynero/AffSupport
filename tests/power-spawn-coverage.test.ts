@@ -14,7 +14,9 @@ import { describe, expect, it } from 'vitest';
  * always work".
  */
 
-const AGENT_SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../apps/agent/src');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const AGENT_SRC = path.join(ROOT, 'apps/agent/src');
+const SUPPORT = path.join(ROOT, 'tests/support');
 
 /**
  * Files allowed to import `node:child_process` for a value import. Anything
@@ -113,5 +115,92 @@ describe('managed spawn coverage', () => {
   it('gives other encoder callers the process-wide governor by default', async () => {
     const encoder = await readFile(path.join(AGENT_SRC, 'ffmpeg/encoder.ts'), 'utf8');
     expect(encoder).toMatch(/governor:\s*ManagedSpawnGovernor \| null = activeGovernorOrNull\(\)/);
+  });
+});
+
+/**
+ * The ban only means anything while everything that spawns is inside its scope.
+ *
+ * This feature adds three kinds of module that sit **outside** `apps/agent/src` and are
+ * therefore outside the rule above: the machine probe, the out-of-process agent harness,
+ * and the stub tools. Each of them legitimately starts a process, and each of them could
+ * quietly become a second, ungoverned way to run the real encoder — at which point the
+ * power assertions would be measuring work no governor owns, and passing.
+ *
+ * So the scope is stated here rather than assumed: exactly which test-side files may spawn,
+ * and what they are allowed to spawn.
+ */
+describe('the governed seam still bounds everything that spawns', () => {
+  /** The only test-side files permitted to start a process, and why. */
+  const SUPPORT_SPAWN_ALLOWLIST: Record<string, string> = {
+    'machine-probe.ts': 'observes the machine with ps and PowerShell; starts no tool',
+    'agent-process.ts': 'boots the agent under test, which owns its own governor',
+    'requires.ts': 'asks a binary for its version at collection time'
+  };
+
+  async function supportSources(): Promise<{ relative: string; source: string }[]> {
+    const files: { relative: string; source: string }[] = [];
+    const walk = async (directory: string) => {
+      for (const entry of await readdir(directory, { withFileTypes: true })) {
+        const absolute = path.join(directory, entry.name);
+        if (entry.isDirectory()) await walk(absolute);
+        else if (entry.name.endsWith('.ts'))
+          files.push({
+            relative: path.relative(SUPPORT, absolute),
+            source: await readFile(absolute, 'utf8')
+          });
+      }
+    };
+    await walk(SUPPORT);
+    return files;
+  }
+
+  it('lets only the named support modules start a process', async () => {
+    const offenders = (await supportSources())
+      .filter(({ relative }) => !(relative in SUPPORT_SPAWN_ALLOWLIST))
+      .filter(({ source }) =>
+        /^import\s+(?!type\s)[^;]*from\s+'node:child_process';/m.test(source)
+      )
+      .map(({ relative }) => relative);
+
+    // A fixture that spawns is a fixture that can outlive the test that made it. Keeping
+    // the list short is what makes "did the stop leave anything running?" answerable.
+    expect(offenders).toEqual([]);
+  });
+
+  it('never starts a heavy tool from the test side', async () => {
+    const offenders: string[] = [];
+    for (const { relative, source } of await supportSources()) {
+      if (!(relative in SUPPORT_SPAWN_ALLOWLIST)) continue;
+      // Reaching the encoder or the transcriber directly would put a real, unmeasured load
+      // on the machine outside every budget — and the power tests would still pass, because
+      // what they measure is the tree rooted at the agent.
+      if (/\b(spawn|execFile|exec)\w*\([^)]*['"`](ffmpeg|ffprobe|whisper)/.test(source))
+        offenders.push(relative);
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('makes the stub tools reachable only by redirecting the agent’s own tool paths', async () => {
+    const factory = await readFile(path.join(SUPPORT, 'stub-tools/index.ts'), 'utf8');
+
+    // The factory writes a file and returns its path; the agent runs it through
+    // `power/spawn.ts` exactly as it runs the real encoder. If the factory launched the
+    // stub itself, the stub would run outside the budget and every throttling assertion
+    // built on it would be measuring nothing.
+    expect(factory).not.toMatch(/from 'node:child_process'/);
+    expect(factory).toContain('writeStubTool');
+  });
+
+  it('keeps the machine probe out of the spawn seam it is checking', async () => {
+    const probe = await readFile(path.join(SUPPORT, 'machine-probe.ts'), 'utf8');
+
+    // Doubled from tests/machine-probe-independence.test.ts on purpose: that file guards
+    // independence, this one guards the spawn budget, and the same import would break both.
+    // Matched against import specifiers rather than the whole file — the module's own
+    // comments name those directories precisely because it must not import from them.
+    const imported = [...probe.matchAll(/from\s+'([^']+)'/g)].map(match => match[1] as string);
+    expect(imported.filter(specifier => /apps\/agent\/src\/(power|platform)\//.test(specifier))).toEqual([]);
+    expect(probe).toMatch(/'\/bin\/ps'/);
   });
 });

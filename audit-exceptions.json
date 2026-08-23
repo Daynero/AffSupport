@@ -1,0 +1,19 @@
+{
+  "$comment": [
+    "Dependency advisories deliberately not fixed yet, each with a review date.",
+    "",
+    "The verification command blocks on any high or critical advisory in a shipped",
+    "dependency. An entry here suppresses one — but only until its `expires` date, after",
+    "which the gate fails on the exception itself. That is the point: a deferral becomes a",
+    "decision with a review date rather than a permanent hole nobody revisits.",
+    "",
+    "Add an entry only when the advisory is genuinely unreachable from how this project",
+    "uses the package, and say why in `rationale` — 'not exploitable here' is not a",
+    "rationale, it is a claim. Name the code path.",
+    "",
+    "The list is empty because the tree is clean: `npm audit` reports zero vulnerabilities",
+    "including devDependencies. Keep it that way; an empty list is the goal state, not a",
+    "placeholder."
+  ],
+  "exceptions": []
+}

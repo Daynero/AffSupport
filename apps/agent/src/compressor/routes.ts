@@ -15,6 +15,7 @@ import { selectOutputFolder, selectVideos } from '../files/picker.js';
 import { applicationSupportRoot } from '../files/support-dir.js';
 import { uploadIntakeMeta } from '../files/upload-intake.js';
 import { ImageAssetError, MAX_IMAGE_BYTES, type ImageAssetStore } from '../images/store.js';
+import { MAX_MEDIA_UPLOAD_BYTES } from '../server/upload-limits.js';
 import { openPath, revealInFileManager } from '../platform/platform.js';
 import { isSupportedVideoPath, type JobQueue } from '../queue/queue.js';
 import { hasCapability } from '../server/capabilities.js';
@@ -81,7 +82,7 @@ export function registerCompressorRoutes(app: FastifyInstance, ctx: CompressorCo
   });
 
   app.post('/api/files/upload', async (request, reply) => {
-    const part = await request.file();
+    const part = await request.file({ limits: { fileSize: MAX_MEDIA_UPLOAD_BYTES } });
     if (!part) return reply.code(400).send({ error: 'No file was provided.' });
     const { fileName, signature, sourceSize, sourceModifiedAt } = uploadIntakeMeta(part, 'video');
     if (!isSupportedVideoPath(fileName)) {
@@ -225,7 +226,10 @@ export function registerCompressorRoutes(app: FastifyInstance, ctx: CompressorCo
     const started = await queue.start(request.body.ids);
     if (!started) {
       estimator.resume();
-      return reply.code(409).send({ error: 'No selected videos are ready to start.' });
+      // The lifecycle refused it: nothing in the selection is in a state a start may
+      // leave. One code for every cause, so the interface can gate the affordance from the
+      // same table the agent enforces rather than by matching a sentence.
+      return reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' });
     }
     return queue.state();
   });
@@ -245,7 +249,7 @@ export function registerCompressorRoutes(app: FastifyInstance, ctx: CompressorCo
   app.post<{ Params: { id: string } }>('/api/jobs/:id/cancel', async (request, reply) =>
     (await queue.cancel(request.params.id))
       ? queue.state()
-      : reply.code(409).send({ error: 'This job is not running or waiting.' })
+      : reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' })
   );
   app.post('/api/queue/cancel-all', async () => {
     await queue.cancelAll();

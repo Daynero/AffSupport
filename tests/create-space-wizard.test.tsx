@@ -79,7 +79,7 @@ describe('create space wizard', () => {
       await screen.findByRole('heading', { name: 'Connect a Google Drive folder' })
     ).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Connect Google Drive' }));
-    await user.click(await screen.findByRole('button', { name: 'Team media' }));
+    await user.click(await screen.findByRole('button', { name: 'Team media — Use this folder' }));
     await user.click(await screen.findByRole('button', { name: 'Confirm folder' }));
 
     // Completion lands in the new space's workspace shell.
@@ -88,6 +88,57 @@ describe('create space wizard', () => {
       expect(client.createTeam).toHaveBeenCalledWith('Media buyers');
       expect(client.confirmDriveRoot).toHaveBeenLastCalledWith(
         expect.objectContaining({ teamId: NEW_ID, folderId: 'root-folder', confirmed: true })
+      );
+    });
+  });
+
+  it('connects a nested folder and lets a wrong pick be taken back', async () => {
+    // The folder a team actually wants is rarely at the account root.
+    const tree: Record<string, { id: string; name: string; driveKind: 'my_drive' }[]> = {
+      root: [{ id: 'work', name: 'Work', driveKind: 'my_drive' }],
+      work: [{ id: 'creatives', name: 'Creatives', driveKind: 'my_drive' }]
+    };
+    const client = makeClient({
+      listTeams: vi.fn().mockResolvedValue([]),
+      createTeam: vi
+        .fn()
+        .mockResolvedValue(makeTeam({ id: NEW_ID, name: 'Media buyers', connectionState: 'none' })),
+      listFolders: vi.fn(async (_team: string, parentId = 'root') => ({
+        folders: tree[parentId] ?? [],
+        nextPageToken: null
+      })),
+      confirmDriveRoot: vi.fn(async (input: { folderId: string; confirmed: boolean }) =>
+        input.confirmed
+          ? { state: 'connected', folder: tree.work[0], syncState: 'queued' }
+          : {
+              state: 'confirmation_required',
+              folder: { id: input.folderId, name: input.folderId, driveKind: 'my_drive' },
+              account: 'owner@example.test',
+              independentAclWarning: true
+            }
+      )
+    });
+    const user = userEvent.setup();
+    renderSpace(client);
+
+    await user.click(await screen.findByRole('button', { name: 'Create your first space' }));
+    await user.type(screen.getByLabelText('Team name'), 'Media buyers');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(await screen.findByRole('button', { name: 'Connect Google Drive' }));
+
+    // Pick the wrong folder first, then take it back without abandoning setup.
+    await user.click(await screen.findByRole('button', { name: 'Work — Use this folder' }));
+    await user.click(await screen.findByRole('button', { name: 'Choose a different folder' }));
+
+    // Descend and connect the folder that is actually wanted.
+    await user.click(await screen.findByRole('button', { name: 'Work — Open' }));
+    await user.click(await screen.findByRole('button', { name: 'Creatives — Use this folder' }));
+    await user.click(await screen.findByRole('button', { name: 'Confirm folder' }));
+
+    expect(await screen.findByRole('heading', { name: 'Media buyers' })).toBeTruthy();
+    await waitFor(() => {
+      expect(client.confirmDriveRoot).toHaveBeenLastCalledWith(
+        expect.objectContaining({ teamId: NEW_ID, folderId: 'creatives', confirmed: true })
       );
     });
   });

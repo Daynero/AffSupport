@@ -100,6 +100,27 @@ export interface TeamContextSnapshot {
 
 export type UnknownGuard<T> = (value: unknown) => value is T;
 
+/**
+ * Recovers the team error envelope from a failed `functions.invoke`.
+ *
+ * Every team function answers a refusal with a real HTTP status (409 for
+ * ALREADY_INVITED, 403 for PERMISSION_DENIED, and so on) *and* a structured
+ * `{ ok: false, error: { code } }` body. supabase-js treats any non-2xx as a
+ * thrown error and hands back `data: null`, so reading only `data` threw the
+ * code away and every refusal in the product surfaced as the same generic
+ * "Drive unavailable" — the wrong cause, and unactionable. The response itself
+ * is still attached to the error and still unread, so parse it.
+ */
+async function envelopeFromInvokeError(error: unknown): Promise<unknown> {
+  const response = (error as { context?: unknown } | null)?.context;
+  if (!(response instanceof Response)) return null;
+  try {
+    return await response.clone().json();
+  } catch {
+    return null;
+  }
+}
+
 export async function invokeTeamFunction<T>(
   functionName: string,
   body: Record<string, unknown>,
@@ -107,8 +128,13 @@ export async function invokeTeamFunction<T>(
 ): Promise<T> {
   const supabase = requireSupabaseClient();
   const { data, error } = await supabase.functions.invoke(functionName, { body });
-  if (error && data === null) throw new TeamApiError('DRIVE_UNAVAILABLE', true);
-  const parsed = parseTeamEdgeResult(data);
+  let payload = data;
+  if (error && data === null) {
+    payload = await envelopeFromInvokeError(error);
+    // A transport failure carries no envelope at all; that alone is retryable.
+    if (payload === null) throw new TeamApiError('DRIVE_UNAVAILABLE', true);
+  }
+  const parsed = parseTeamEdgeResult(payload);
   if (!parsed.ok) {
     throw new TeamApiError(parsed.error.code, parsed.error.retryable, parsed.error.details);
   }
@@ -163,6 +189,12 @@ export interface TeamInvitationSummary {
   expiresAt: string;
   createdAt?: string;
   lastSentAt?: string;
+  /**
+   * The acceptance link, returned only by an environment that deliberately does
+   * not deliver invitation mail (beta). Production never populates it, so the
+   * UI showing it is exactly as safe as the server deciding not to send.
+   */
+  inviteUrl?: string;
 }
 
 export type TeamPermissionOverrides = Partial<Record<TeamPermissionFlag, boolean>>;
@@ -431,6 +463,9 @@ function mapInvitation(value: unknown): TeamInvitationSummary | null {
       : {}),
     ...(typeof (row.last_sent_at ?? row.lastSentAt) === 'string'
       ? { lastSentAt: (row.last_sent_at ?? row.lastSentAt) as string }
+      : {}),
+    ...(typeof (row.invite_url ?? row.inviteUrl) === 'string'
+      ? { inviteUrl: (row.invite_url ?? row.inviteUrl) as string }
       : {})
   };
 }

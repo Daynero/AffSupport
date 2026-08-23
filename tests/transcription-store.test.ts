@@ -128,7 +128,7 @@ describe('persistent transcription state', () => {
     expect(corrupt.settings).toEqual({ language: 'auto', translationLanguage: 'uk' });
   });
 
-  it('restores an interrupted transcription as a retryable failed job', async () => {
+  it('restores an interrupted transcription as interrupted, not failed', async () => {
     const source = path.join(directory, 'interview.mp3');
     await writeFile(source, 'media');
     await saveTranscriptionState(
@@ -150,7 +150,10 @@ describe('persistent transcription state', () => {
     const restored = await loadTranscriptionState(stateFile);
     expect(restored.jobs).toHaveLength(1);
     const job = restored.jobs[0];
-    expect(job.status).toBe('failed');
+    // A12: the compressor has always called this `interrupted` and transcription called it
+    // `failed`, so the same event — the agent stopping mid-run — told the user their work had
+    // broken in one tool and had been interrupted in the other.
+    expect(job.status).toBe('interrupted');
     expect(job.errorDetails).toBe(TRANSCRIPTION_INTERRUPTED_CODE);
     expect(job.error).toContain('interrupted');
     expect(job.finishedAt).toBeTypeOf('number');
@@ -160,6 +163,33 @@ describe('persistent transcription state', () => {
     expect(await queue.retry('mid-run')).toBe(true);
     expect(queue.state().jobs[0].status).toBe('queued');
   });
+
+  it('leaves a record already persisted as failed exactly as it is', async () => {
+    const source = path.join(directory, 'broken.mp3');
+    await writeFile(source, 'media');
+    await saveTranscriptionState(
+      {
+        settings: { language: 'auto', translationLanguage: 'uk' },
+        jobs: [
+          makeJob({
+            id: 'really-failed',
+            inputPath: source,
+            status: 'failed',
+            error: 'The transcription was interrupted when the agent stopped.'
+          })
+        ]
+      },
+      stateFile
+    );
+
+    const restored = await loadTranscriptionState(stateFile);
+
+    // Only a run that was still `processing` when the agent stopped gets the new state.
+    // Rewriting history would relabel genuine failures — including ones whose message happens
+    // to read like an interruption — as something the user could simply resume.
+    expect(restored.jobs[0].status).toBe('failed');
+  });
+
 
   it('keeps restored queued jobs waiting for an explicit start', async () => {
     const source = path.join(directory, 'queued.mp3');

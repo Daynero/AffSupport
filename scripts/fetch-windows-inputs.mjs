@@ -39,6 +39,13 @@ const destination = path.resolve(
   positional[0] ?? path.join(repositoryRoot, 'release', 'windows', 'inputs')
 );
 
+/**
+ * Terminates the process. Annotated `never` so callers that use it inside a `.catch()`
+ * narrow correctly — without this, `await fetchWithRetry(...).catch(error => fail(...))`
+ * has type `void | Response` and every property read after it is unchecked.
+ * @param {string} message
+ * @returns {never}
+ */
 function fail(message) {
   process.stderr.write(`Windows inputs failed: ${message}\n`);
   process.exit(1);

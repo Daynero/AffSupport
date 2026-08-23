@@ -2,6 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { access, constants, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import {
+  TRANSCRIPTION_LIFECYCLE,
+  TRANSLATION_LIFECYCLE,
+  canTransition,
   defaultTranscriptionSettings,
   isTranscribableFileName,
   isValidTargetLanguage,
@@ -19,13 +22,15 @@ import {
   type TranscriptionSettings,
   type TranscriptionState,
   type TranscriptionTranslationSummary,
-  type TranslationDocument
+  type TranslationDocument,
+  type TranslationStatus
 } from '@video-compressor/shared';
 export { isValidTargetLanguage, normalizeTargetLanguage } from '@video-compressor/shared';
 import { probeDuration } from '../ffmpeg/tools.js';
 import { activeGovernorOrNull } from '../power/spawn.js';
 import { applicationSupportRoot } from '../files/support-dir.js';
 import { selectionWarning } from './shared.js';
+import { decideTransition } from './transitions.js';
 import { transcribe, type TranscribeHandle } from '../whisper/transcriber.js';
 import { ModelDownloader } from '../whisper/downloader.js';
 import { downloadedModelPath, MODEL_DESCRIPTOR, modelPresent } from '../whisper/tools.js';
@@ -56,6 +61,52 @@ import { saveWithTranslation as exportWithTranslation } from '../transcription/e
 import { MediaPreviewManager, type PreviewSource } from '../transcription/media-preview.js';
 import type { TranslationOutputSegment, Translator } from '../translation/translator.js';
 import type { Aligner } from '../translation/aligner.js';
+
+/**
+ * The one place a transcription's status changes.
+ *
+ * Nine sites wrote it directly and none of them agreed on what was legal from where — which
+ * is how a run interrupted by a restart came to be recorded as `failed` here while the
+ * compressor recorded the identical situation as `interrupted` (A12).
+ *
+ * A refusal leaves the job exactly as it was and answers false. The mechanism shipped
+ * permissive and was switched to strict only after a full suite run reconciled the tables
+ * against the edges the code actually takes; see `apps/agent/src/queue/transitions.ts`.
+ */
+function transitionJob(job: TranscriptionJob, next: TranscriptionJobStatus): boolean {
+  if (!decideTransition(TRANSCRIPTION_LIFECYCLE, job.status, next)) return false;
+  job.status = next;
+  return true;
+}
+
+/** The same, for a translation — a sub-run of a transcription. */
+function transitionTranslation(translation: TranslationDocument, next: TranslationStatus): boolean {
+  if (!decideTransition(TRANSLATION_LIFECYCLE, translation.status, next)) return false;
+  translation.status = next;
+  return true;
+}
+
+/**
+ * Installs a translation document, deciding the move from the one it replaces.
+ *
+ * A translation finishes, fails, or is re-requested by building a **new** document and
+ * dropping it into the map — never by editing the old one. That meant three of the four
+ * transitions in its lifecycle happened without the decision ever being consulted: the
+ * enforcement was live and the tool it was supposed to govern simply went around it. Deciding
+ * against the document being replaced is what puts them back inside.
+ */
+function replaceTranslation(
+  translations: Record<string, TranslationDocument>,
+  language: string,
+  next: TranslationDocument
+): void {
+  const previous = translations[language];
+  // A language with no translation yet is a creation, not a transition; there is no state to
+  // move from.
+  if (previous) transitionTranslation(previous, next.status);
+  translations[language] = next;
+}
+
 
 /**
  * How long shutdown waits for the active transcription to actually exit.
@@ -628,7 +679,7 @@ export class TranscriptionQueue {
           previousTranslation = cached;
         } else {
           const saved = await this.mutateDocument(id, fresh => {
-            fresh.translations[lang] = rebound;
+            replaceTranslation(fresh.translations, lang, rebound);
             return true;
           });
           if (!saved) return { outcome: 'no-document' };
@@ -689,7 +740,7 @@ export class TranscriptionQueue {
       error: null
     };
     const saved = await this.mutateDocument(id, fresh => {
-      fresh.translations[lang] = pending;
+      replaceTranslation(fresh.translations, lang, pending);
       return true;
     });
     if (!saved) return { outcome: 'no-document' };
@@ -724,7 +775,7 @@ export class TranscriptionQueue {
         ) {
           return null;
         }
-        translation.status = 'failed';
+        transitionTranslation(translation, 'failed');
         translation.error = 'TRANSLATION_CANCELLED';
         return translation;
       });
@@ -787,7 +838,7 @@ export class TranscriptionQueue {
       if ((this.translationGenerations.get(key) ?? 0) !== task.generation) return null;
       const translation = document.translations[task.language];
       if (!translation || translation.status === 'completed') return null;
-      translation.status = 'queued';
+      transitionTranslation(translation, 'queued');
       // Segments persisted incrementally before the preemption stay counted;
       // the resumed run skips them, so the bar must not fall back to zero.
       const resumed = this.resumedProgress(document, translation);
@@ -846,7 +897,7 @@ export class TranscriptionQueue {
         if ((this.translationGenerations.get(key) ?? 0) !== task.generation) return null;
         const processing = document.translations[task.language];
         if (!processing) return null;
-        processing.status = 'processing';
+        transitionTranslation(processing, 'processing');
         // First inference start only; a resumed run keeps the original stamp so
         // elapsed/ETA stay continuous across preemption and surfaces.
         processing.startedAt = processing.startedAt ?? Date.now();
@@ -1016,7 +1067,7 @@ export class TranscriptionQueue {
           segments: alignedOutput,
           error: null
         };
-        fresh.translations[task.language] = completed;
+        replaceTranslation(fresh.translations, task.language, completed);
         completedForCache = completed;
         return true;
       });
@@ -1055,7 +1106,7 @@ export class TranscriptionQueue {
             segments: previous?.segments ?? [],
             error: error instanceof Error ? error.message : 'TRANSLATION_FAILED'
           };
-          fresh.translations[task.language] = failure;
+          replaceTranslation(fresh.translations, task.language, failure);
           return failure;
         });
         if (failed) this.setTranslationSummary(task.jobId, failed);
@@ -1301,22 +1352,18 @@ export class TranscriptionQueue {
     // Probe duration so the progress bar has a denominator; a probe failure is
     // not fatal — whisper can still run, the bar just stays indeterminate.
     job.durationSeconds = await probeDuration(inputPath).catch(() => null);
-    job.status = 'ready';
+    transitionJob(job, 'ready');
     this.notify();
     return null;
   }
 
   async start(ids: string[]): Promise<boolean> {
-    // 'failed' is startable so retry() actually restarts a failed job —
-    // including one restored as failed/INTERRUPTED after an agent restart.
-    // 'completed' is startable so a finished file can be transcribed again.
+    // Asked of the table rather than listed here. The list this replaces named four states
+    // and, the moment `interrupted` existed, was wrong by one: a run cut short by a restart
+    // could not be started again, and the retry button reported a refusal with no way past.
+    // `queued` is the question because that is where starting takes a job.
     const startable = this.jobs.filter(
-      job =>
-        ids.includes(job.id) &&
-        (job.status === 'ready' ||
-          job.status === 'cancelled' ||
-          job.status === 'failed' ||
-          job.status === 'completed')
+      job => ids.includes(job.id) && canTransition(TRANSCRIPTION_LIFECYCLE, job.status, 'queued')
     );
     if (!startable.length) return false;
     const batchId = randomUUID();
@@ -1332,7 +1379,7 @@ export class TranscriptionQueue {
       // and nothing shows it in the meantime because the job is no longer
       // `completed`.
       if (job.status === 'completed') this.cancelTranslationsForJob(job.id);
-      job.status = 'queued';
+      transitionJob(job, 'queued');
       job.batchId = batchId;
       job.progress = null;
       job.error = null;
@@ -1368,13 +1415,13 @@ export class TranscriptionQueue {
     const job = this.jobs.find(item => item.id === id);
     if (!job) return false;
     if (job.status === 'queued') {
-      job.status = 'cancelled';
+      transitionJob(job, 'cancelled');
       this.stopJobSideWork(id);
       queueMicrotask(() => void this.pumpTranslations());
       return true;
     }
     if (job.status === 'processing') {
-      job.status = 'cancelled';
+      transitionJob(job, 'cancelled');
       this.active?.cancel();
       this.stopJobSideWork(id);
       return true;
@@ -1485,7 +1532,8 @@ export class TranscriptionQueue {
 
   async retry(id: string): Promise<boolean> {
     const job = this.jobs.find(item => item.id === id);
-    if (!job || (job.status !== 'failed' && job.status !== 'cancelled')) return false;
+    // Same question, same table. A retry is a start that the interface labels differently.
+    if (!job || !canTransition(TRANSCRIPTION_LIFECYCLE, job.status, 'queued')) return false;
     return this.start([id]);
   }
 
@@ -1574,7 +1622,7 @@ export class TranscriptionQueue {
     if (!job) return;
 
     this.inFlight = true;
-    job.status = 'processing';
+    transitionJob(job, 'processing');
     job.startedAt = Date.now();
     job.progress = null;
     this.notify();
@@ -1599,10 +1647,10 @@ export class TranscriptionQueue {
       // resurrect a cancelled job into completed/failed.
       const cancelledMidRun = (job.status as string) === 'cancelled';
       if (cancelledMidRun || result.cancelled) {
-        job.status = 'cancelled';
+        transitionJob(job, 'cancelled');
         job.progress = null;
       } else if (result.code === 0) {
-        job.status = 'completed';
+        transitionJob(job, 'completed');
         job.progress = 100;
         job.text = result.text;
         job.characters = result.text.length;
@@ -1633,7 +1681,7 @@ export class TranscriptionQueue {
         // is empty and is served instantly when already cached.
         void this.requestAutomaticTranslation(job.id).catch(() => {});
       } else {
-        job.status = 'failed';
+        transitionJob(job, 'failed');
         job.progress = null;
         job.error =
           result.failedStage === 'extract'
@@ -1644,7 +1692,7 @@ export class TranscriptionQueue {
       }
     } catch (error) {
       this.active = null;
-      job.status = 'failed';
+      transitionJob(job, 'failed');
       job.progress = null;
       job.error = 'The transcription could not be completed.';
       job.errorDetails = error instanceof Error ? error.message : String(error);

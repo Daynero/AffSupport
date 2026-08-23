@@ -118,7 +118,7 @@ insert into public.team_contract_settings (key, value) values
 ${values(settingRows)};
 
 insert into public.team_roles (role, is_base_role) values
-${values(TEAM_ROLES.map(role => [sqlLiteral(role), TEAM_BASE_ROLES.includes(role) ? 'true' : 'false']))};
+${values(TEAM_ROLES.map(role => [sqlLiteral(role), /** @type {readonly string[]} */ (TEAM_BASE_ROLES).includes(role) ? 'true' : 'false']))};
 
 insert into public.team_permissions (permission) values
 ${values(TEAM_PERMISSION_FLAGS.map(permission => [sqlLiteral(permission)]))};

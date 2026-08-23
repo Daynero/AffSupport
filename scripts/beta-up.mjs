@@ -11,7 +11,7 @@
  */
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, readFileSync, realpathSync } from 'node:fs';
-import { BETA_PROFILE } from '../packages/shared/dist/environment.js';
+import { BETA_LOCAL_STACK_PORTS, BETA_PROFILE } from '../packages/shared/dist/environment.js';
 import { parseEnvFile } from './verify-beta-env.mjs';
 
 // Colima is the documented macOS runtime. Starting an existing instance is
@@ -90,6 +90,60 @@ function shutdown(code) {
   process.exit(code);
 }
 
+// `supabase start` exits 0 even when it gave up on a service that failed its
+// health check, printing "Stopped services: [...]" and carrying on. When that
+// service is the edge runtime, every server-side team feature -- Drive connect,
+// Drive ops, library ops, invitations, catalog sync, entitlement -- answers 503
+// while beta still reports itself up, which is the worst possible outcome for a
+// verification environment: the product looks broken rather than unstarted.
+//
+// So prove the runtime is serving before claiming beta is up, and restart it
+// once if the CLI stopped it. The probe asks for a function that does not exist:
+// a served runtime answers it (404/401/403), a dead one is unreachable through
+// Kong.
+const [functionsPort] = BETA_LOCAL_STACK_PORTS;
+
+async function edgeRuntimeServing() {
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:${functionsPort}/functions/v1/beta-readiness-probe`,
+      { method: 'POST', signal: AbortSignal.timeout(5000) }
+    );
+    // 503 is Kong reporting it cannot reach the runtime at all. Anything else
+    // means an isolate answered, which is all this probe needs to establish.
+    return response.status !== 503;
+  } catch {
+    return false;
+  }
+}
+
+async function requireEdgeFunctions() {
+  const deadline = Date.now() + 60_000;
+  let restarted = false;
+  while (Date.now() < deadline) {
+    if (await edgeRuntimeServing()) return;
+    if (!restarted) {
+      restarted = true;
+      process.stdout.write('Edge runtime is not serving; restarting it.\n');
+      spawnSync('docker', ['start', `supabase_edge_runtime_${projectId()}`], {
+        shell: false,
+        stdio: 'ignore'
+      });
+    }
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }
+  fail(
+    'the local Supabase edge runtime is not serving, so every server-side team ' +
+      'feature would answer 503. Check `docker logs supabase_edge_runtime_' +
+      `${projectId()}\`.`
+  );
+}
+
+function projectId() {
+  const config = readFileSync('supabase/config.toml', 'utf8');
+  return /^project_id\s*=\s*"([^"]+)"/m.exec(config)?.[1] ?? 'wishly';
+}
+
 process.on('SIGINT', () => shutdown(0));
 process.on('SIGTERM', () => shutdown(0));
 
@@ -108,6 +162,7 @@ if (existsSync(functionsLocalEnv)) {
 
 const stack = spawnSync('npx', ['supabase', 'start'], { shell: false, stdio: 'inherit' });
 if (stack.status !== 0) fail('the local Supabase stack did not start.');
+await requireEdgeFunctions();
 
 start('agent', process.execPath, ['apps/agent/dist/index.js']);
 // Run through the web workspace so npm resolves that workspace's pinned Vite

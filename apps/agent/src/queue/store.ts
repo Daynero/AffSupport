@@ -62,10 +62,22 @@ export async function loadState(file = defaultStatePath()): Promise<PersistedSta
           const pathToCheck = job.status === 'completed' ? job.outputPath : job.inputPath;
           try {
             await access(pathToCheck);
-            return job;
           } catch {
             return null;
           }
+          // A2(ii). A record still saying `processing` is one whose agent died mid-encode:
+          // nothing got the chance to clean up, so a truncated file is sitting next to the
+          // user's source and every quit mid-batch leaves another one. This is the point at
+          // which the code has already concluded the run died — `migrateJob` just turned it
+          // into `interrupted` — so it is the point to remove the partial.
+          //
+          // Only `processing`. A record already saying `interrupted` was written by the
+          // runtime-recovery path, and when its phase is output-validation the encode had
+          // actually finished: that file is a complete output the recovery re-probes and
+          // completes. Unlinking it would destroy finished work and force a re-encode.
+          if ((value as Record<string, unknown>).status === 'processing' && job.outputPath)
+            await unlink(job.outputPath).catch(() => {});
+          return job;
         })
       )
     ).filter((job): job is CompressionJob => Boolean(job));
@@ -79,7 +91,18 @@ export async function loadState(file = defaultStatePath()): Promise<PersistedSta
               (id): id is string => typeof id === 'string' && jobs.some(job => job.id === id)
             ),
             startedAt: Number(rawBatch.startedAt) || Date.now(),
-            finishedAt: Number(rawBatch.finishedAt) || Date.now()
+            // A8. `Number(null) || Date.now()` made this always truthy, so the drain
+            // watchdog's `!batch.finishedAt` guard could never be true for a restored batch
+            // and the documented "agent died mid-drain" recovery was unreachable. An
+            // unfinished batch comes back unfinished, which is what the watchdog is for.
+            // `Number(null)` is 0, not NaN, so a finiteness check alone would turn an
+            // unfinished batch into one that finished at the epoch.
+            finishedAt:
+              rawBatch.finishedAt === null ||
+              rawBatch.finishedAt === undefined ||
+              !Number.isFinite(Number(rawBatch.finishedAt))
+                ? null
+                : Number(rawBatch.finishedAt)
           }
         : null;
     return { jobs, settings, batch };

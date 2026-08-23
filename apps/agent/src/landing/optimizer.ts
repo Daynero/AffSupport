@@ -2,17 +2,23 @@ import { randomUUID } from 'node:crypto';
 import { access, mkdir, readFile, rename, rm, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
+  LANDING_ASSET_LIFECYCLE,
+  LANDING_JOB_LIFECYCLE,
   calculateLandingSummary,
+  phaseOf,
   defaultLandingSettings,
   type LandingAsset,
+  type LandingAssetStatus,
   type LandingEventType,
   type LandingJob,
   type LandingJobStatus,
+  type LandingStep,
   type LandingSettings,
   type LandingSourceKind,
   type LandingState
 } from '@video-compressor/shared';
 import { fileSize } from '../files/paths.js';
+import { decideTransition } from '../queue/transitions.js';
 import { encodeImageToWebp } from './images.js';
 import { isRewritableFile, rewriteReferences, type RenameMap } from './references.js';
 import { classifyAsset, detectLandingRoot, walkFiles } from './scan.js';
@@ -32,6 +38,48 @@ import {
   writeFolderOutput,
   writeZipOutput
 } from './workspace.js';
+
+/**
+ * The one place a landing job's status changes.
+ *
+ * A refusal leaves it exactly as it was and answers false — see
+ * `apps/agent/src/queue/transitions.ts` for how the tables were reconciled before this
+ * became strict.
+ */
+/**
+ * Moves a landing job and re-derives its phase.
+ *
+ * `phase` was assigned beside `status` at six sites, and the two could disagree — a job
+ * could report `phase: 'optimizing'` while its status already said `cancelled`, because the
+ * teardown wrote them at different moments. Six of the nine phases were only ever the status
+ * spelled a second time; the other three are steps *within* `processing`, and those are what
+ * `step` records now.
+ */
+function transitionJob(job: LandingJob, next: LandingJobStatus, step: LandingStep | null = null): boolean {
+  if (!decideTransition(LANDING_JOB_LIFECYCLE, job.status, next)) return false;
+  job.status = next;
+  job.phase = phaseOf(next, step);
+  return true;
+}
+
+/** Advances the step inside `processing`, re-deriving the phase from it. */
+function advanceStep(job: LandingJob, step: LandingStep): void {
+  job.phase = phaseOf(job.status, step);
+}
+
+/**
+ * The same, for one asset inside a job.
+ *
+ * `skipped` is a real outcome here, not an absence of one: an asset already small enough to
+ * leave alone has been dealt with, and recording it as anything else would make the summary
+ * count it as work still to do.
+ */
+function transitionAsset(item: LandingAsset, next: LandingAssetStatus): boolean {
+  if (!decideTransition(LANDING_ASSET_LIFECYCLE, item.status, next)) return false;
+  item.status = next;
+  return true;
+}
+
 
 type Notify = (type?: LandingEventType) => void;
 
@@ -85,8 +133,7 @@ class LandingJobOptimizer {
 
   queue(): boolean {
     if (!this.job || this.job.status !== 'ready') return false;
-    this.job.status = 'queued';
-    this.job.phase = 'queued';
+    transitionJob(this.job, 'queued');
     this.job.progress = 0;
     this.job.settings = { ...this.settings };
     this.job.outputIsArchive = this.settings.archive;
@@ -128,8 +175,7 @@ class LandingJobOptimizer {
    */
   cancelQueued(): boolean {
     if (this.running || this.job?.status !== 'queued') return false;
-    this.job.status = 'cancelled';
-    this.job.phase = 'cancelled';
+    transitionJob(this.job, 'cancelled');
     this.job.progress = null;
     this.job.currentAssetId = null;
     this.job.finishedAt = Date.now();
@@ -235,8 +281,7 @@ class LandingJobOptimizer {
     }
     assets.sort((a, b) => a.relPath.localeCompare(b.relPath));
     const job = preparingJob(this.job?.sourceKind ?? 'zip', this.settings, this.pendingName);
-    job.status = 'ready';
-    job.phase = 'ready';
+    transitionJob(job, 'ready');
     job.progress = 0;
     job.assets = assets;
     job.totalAssets = assets.length;
@@ -262,8 +307,7 @@ class LandingJobOptimizer {
     this.cancelling = false;
     const controller = new AbortController();
     this.controller = controller;
-    this.job.status = 'processing';
-    this.job.phase = 'optimizing';
+    transitionJob(this.job, 'processing', 'optimizing');
     this.job.progress = 0;
     this.job.totalAssets = this.job.assets.length;
     this.job.completedAssets = terminalAssetCount(this.job.assets);
@@ -274,25 +318,23 @@ class LandingJobOptimizer {
     try {
       await this.processAssets(controller.signal);
       throwIfAborted(controller.signal);
-      this.job.phase = 'rewriting';
+      advanceStep(this.job, 'rewriting');
       this.job.progress = Math.max(this.job.progress ?? 0, 91);
       this.job.currentAssetId = null;
       this.notify();
       await this.rewriteAndClean(controller.signal);
       throwIfAborted(controller.signal);
-      this.job.phase = 'packaging';
+      advanceStep(this.job, 'packaging');
       this.job.progress = Math.max(this.job.progress ?? 0, 96);
       this.notify();
       await this.produceOutput();
       throwIfAborted(controller.signal);
-      this.job.status = 'completed';
-      this.job.phase = 'completed';
+      transitionJob(this.job, 'completed');
       this.job.progress = 100;
     } catch (error) {
       // A user-requested stop aborts the same signal a real failure would, so
       // the flag — not the error — decides which state the card ends up in.
-      this.job.status = this.cancelling ? 'cancelled' : 'failed';
-      this.job.phase = this.cancelling ? 'cancelled' : 'failed';
+      transitionJob(this.job, this.cancelling ? 'cancelled' : 'failed');
       this.job.currentAssetId = null;
       this.job.error = this.cancelling
         ? null
@@ -322,7 +364,7 @@ class LandingJobOptimizer {
     for (const item of this.job!.assets) {
       throwIfAborted(signal);
       if (item.status !== 'pending') continue;
-      item.status = 'processing';
+      transitionAsset(item, 'processing');
       this.job!.currentAssetId = item.id;
       applyJobProgress(this.job!);
       this.notify();
@@ -333,7 +375,7 @@ class LandingJobOptimizer {
       } catch (error) {
         await this.previews.remove(item.id);
         item.preview = null;
-        item.status = 'failed';
+        transitionAsset(item, 'failed');
         item.progress = null;
         item.note = error instanceof Error ? error.message : 'processing-failed';
         if (item.type === 'image') {
@@ -642,12 +684,32 @@ export class LandingOptimizer {
     return true;
   }
 
+  /**
+   * Stops one landing (FR-005).
+   *
+   * The team half of this existed and the user-visible half did not: a landing the user can
+   * see could only be stopped by stopping *every* landing, so someone who queued four and
+   * wanted to abandon the second had no way to say so. `cancelAll` was the whole vocabulary.
+   *
+   * Team jobs keep their existing behaviour of being discarded once stopped — they have no
+   * row to return to. A user's landing stays in the list as `cancelled`, which is what makes
+   * re-running it possible.
+   */
   async cancel(jobId: string): Promise<boolean> {
     const worker = this.findWorker(jobId);
-    if (!worker || !this.teamJobIds.has(jobId)) return false;
-    const canceled = await worker.cancel();
-    if (!worker.state().running) await this.discardWorker(worker);
-    return canceled;
+    if (!worker) return false;
+
+    // Queued first, then running — the same ordering `cancelAll` uses, and for the same
+    // reason: dropping it from the pending list before tearing anything down means the pump
+    // cannot pick it up on its way past.
+    const wasQueued = worker.cancelQueued();
+    if (wasQueued) this.pendingJobIds = this.pendingJobIds.filter(id => id !== jobId);
+    const cancelled = wasQueued || (await worker.cancel());
+    if (!cancelled) return false;
+
+    if (this.teamJobIds.has(jobId) && !worker.state().running) await this.discardWorker(worker);
+    this.notify();
+    return true;
   }
 
   /**
@@ -758,7 +820,8 @@ function preparingJob(
     name,
     sourceKind,
     status: 'preparing' as LandingJobStatus,
-    phase: 'preparing',
+    // Derived here too, so the initial value cannot be the one place the two disagree.
+    phase: phaseOf('preparing', null),
     progress: null,
     completedAssets: 0,
     totalAssets: 0,
@@ -809,7 +872,7 @@ function asset(
 }
 
 function markOptimized(item: LandingAsset, optimizedSize: number, newRelPath: string | null) {
-  item.status = 'optimized';
+  transitionAsset(item, 'optimized');
   item.optimizedSize = optimizedSize;
   item.savedBytes = Math.max(0, item.originalSize - optimizedSize);
   item.savedPercent = item.originalSize
@@ -821,7 +884,7 @@ function markOptimized(item: LandingAsset, optimizedSize: number, newRelPath: st
 }
 
 function markSkipped(item: LandingAsset, note: string) {
-  item.status = 'skipped';
+  transitionAsset(item, 'skipped');
   item.optimizedSize = item.originalSize;
   item.savedBytes = 0;
   item.savedPercent = 0;

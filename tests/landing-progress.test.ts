@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { LandingAsset } from '../packages/shared/src/types.js';
+import { phaseOf, type LandingAsset } from '../packages/shared/src/types.js';
 import { landingOptimizationProgress } from '../apps/agent/src/landing/optimizer.js';
 
 describe('landing optimizer aggregate progress', () => {
@@ -46,3 +46,30 @@ function asset(status: LandingAsset['status'], progress: number | null): Landing
     preview: null
   };
 }
+
+describe('a landing job’s phase', () => {
+  it('is the status itself for every state but processing', () => {
+    // Six of the nine phases were only ever the status spelled a second time, assigned at a
+    // different moment and therefore able to disagree with it.
+    for (const status of ['preparing', 'ready', 'queued', 'completed', 'failed', 'cancelled'] as const)
+      expect(phaseOf(status, null)).toBe(status);
+  });
+
+  it('names the step inside processing', () => {
+    expect(phaseOf('processing', 'optimizing')).toBe('optimizing');
+    expect(phaseOf('processing', 'rewriting')).toBe('rewriting');
+    expect(phaseOf('processing', 'packaging')).toBe('packaging');
+  });
+
+  it('ignores a step recorded against a job that is no longer processing', () => {
+    // Stale bookkeeping must not outrank the status. A job that reported `packaging` while
+    // its status said `cancelled` is exactly the disagreement deriving the phase removes.
+    expect(phaseOf('cancelled', 'packaging')).toBe('cancelled');
+    expect(phaseOf('failed', 'rewriting')).toBe('failed');
+    expect(phaseOf('completed', 'optimizing')).toBe('completed');
+  });
+
+  it('falls back to the first step when processing has not recorded one', () => {
+    expect(phaseOf('processing', null)).toBe('optimizing');
+  });
+});

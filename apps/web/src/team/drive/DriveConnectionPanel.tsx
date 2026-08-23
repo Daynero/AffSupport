@@ -55,6 +55,7 @@ export function DriveConnectionPanel({
   const { t } = useI18n();
   const [status, setStatus] = useState<SafeConnectionStatus>({ state: 'none' });
   const [folders, setFolders] = useState<DriveFolderPage | null>(null);
+  const [trail, setTrail] = useState<DriveFolderSummary[]>([]);
   const [selected, setSelected] = useState<DriveFolderSummary | null>(null);
   const [confirmation, setConfirmation] = useState<DriveRootResult | null>(null);
   const [authorizationUrl, setAuthorizationUrl] = useState<string | null>(null);
@@ -86,11 +87,11 @@ export function DriveConnectionPanel({
     // The callback query is read once for this mounted team panel.
   }, [teamId]);
 
-  const loadFolders = async (pageToken?: string | null) => {
+  const loadFolders = async (pageToken?: string | null, parentId = 'root') => {
     setBusy(true);
     setError(null);
     try {
-      const page = await client.listFolders(teamId, 'root', pageToken);
+      const page = await client.listFolders(teamId, parentId, pageToken);
       setFolders(current =>
         current && pageToken
           ? { folders: [...current.folders, ...page.folders], nextPageToken: page.nextPageToken }
@@ -126,6 +127,26 @@ export function DriveConnectionPanel({
     } finally {
       setBusy(false);
     }
+  };
+
+  /**
+   * Steps into a folder (or back to the account root when given null) and
+   * rewrites the trail so the crumbs always describe the listing on screen.
+   * Navigating never selects: choosing a root is a separate, explicit act.
+   */
+  const openFolder = async (folder: DriveFolderSummary | null) => {
+    if (!folder) {
+      setTrail([]);
+      setFolders(null);
+      await loadFolders(null, 'root');
+      return;
+    }
+    setTrail(current => {
+      const seen = current.findIndex(entry => entry.id === folder.id);
+      return seen >= 0 ? current.slice(0, seen + 1) : [...current, folder];
+    });
+    setFolders(null);
+    await loadFolders(null, folder.id);
   };
 
   const choose = async (folder: DriveFolderSummary) => {
@@ -182,6 +203,7 @@ export function DriveConnectionPanel({
         rootFolderName: selected.name
       }));
       setFolders(null);
+      setTrail([]);
       setReplaceMode(false);
       onConnected?.();
     } catch {
@@ -282,8 +304,10 @@ export function DriveConnectionPanel({
         <DriveFolderBrowser
           folders={folders.folders}
           nextPageToken={folders.nextPageToken}
+          trail={trail}
+          onOpen={folder => void openFolder(folder)}
           onChoose={folder => void choose(folder)}
-          onLoadMore={() => void loadFolders(folders.nextPageToken)}
+          onLoadMore={() => void loadFolders(folders.nextPageToken, trail.at(-1)?.id ?? 'root')}
         />
       )}
       {confirmation?.state === 'confirmation_required' && (

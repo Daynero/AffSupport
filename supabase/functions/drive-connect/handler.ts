@@ -33,7 +33,14 @@ export function validateRootCandidate(metadata: DriveFileMetadata): RootCandidat
 }
 
 export type DriveConnectCommand =
-  | { action: 'start' | 'reauth'; teamId: string; reuseCredentialId?: string }
+  // 'start' and 'reauth' are two members carrying one shape rather than one member with a
+  // union discriminant. They are otherwise identical, and writing them as
+  // `action: 'start' | 'reauth'` reads better — but TypeScript will not eliminate such a
+  // member when the discriminant is negated, so `if (action === 'start' || action ===
+  // 'reauth') return` left both alive for the rest of the function and every later
+  // property access on the narrowed command was unchecked.
+  | { action: 'start'; teamId: string; reuseCredentialId?: string }
+  | { action: 'reauth'; teamId: string; reuseCredentialId?: string }
   | {
       action: 'confirm';
       teamId: string;

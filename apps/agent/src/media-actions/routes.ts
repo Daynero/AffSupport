@@ -54,6 +54,33 @@ export function registerMediaActionRoutes(app: FastifyInstance, ctx: MediaAction
     });
   });
 
+  /**
+   * Stopping a Finder-initiated conversion from the browser.
+   *
+   * Under `/api/` rather than `/native/` on purpose: the person who wants to stop this is
+   * looking at the interface, not at Finder. A conversion started from the file manager has
+   * no window of its own, so before these routes existed the only way to stop a wedged one
+   * was to quit the application (A3).
+   */
+  app.post<{ Params: { id: string } }>(
+    '/api/media-actions/:id/cancel',
+    async (request, reply) => {
+      const cancelled = await mediaActions.cancel(request.params.id);
+      return cancelled
+        ? { state: mediaActions.state() }
+        : reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' });
+    }
+  );
+
+  app.post('/api/media-actions/cancel-all', async () => ({
+    // A count, not a boolean: "stopped nothing" and "stopped three" are different answers,
+    // and the interface reports the second one to the user.
+    stopped: await mediaActions.cancelAll(),
+    state: mediaActions.state()
+  }));
+
+  app.get('/api/media-actions', async () => ({ state: mediaActions.state() }));
+
   app.get('/native/media-actions', async () => ({
     jobs: mediaActions.state().jobs.map(job => ({
       id: job.id,

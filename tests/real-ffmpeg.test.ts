@@ -1,21 +1,22 @@
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { encodeVideo } from '../apps/agent/src/ffmpeg/encoder.js';
-import { commandExists, probeDuration, probeMedia } from '../apps/agent/src/ffmpeg/tools.js';
+import { probeDuration, probeMedia } from '../apps/agent/src/ffmpeg/tools.js';
 import { customEncoding, optimalEncoding } from './helpers.js';
+import { describeRequiring } from './support/requires.js';
+import { ffmpegBinaries } from './support/toolchain.js';
 
 let temporaryDirectory = '';
 afterAll(async () => {
   if (temporaryDirectory) await rm(temporaryDirectory, { recursive: true, force: true });
 });
 
-describe('real FFmpeg end to end', () => {
+describeRequiring(ffmpegBinaries, 'real FFmpeg end to end', () => {
   it('runs Optimal mode at 30 FPS and up to 720p without changing the source', async () => {
-    if (!(await toolsAvailable())) return;
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'optimal відео '));
     const input = path.join(temporaryDirectory, 'коротке відео.mov');
     const output = path.join(temporaryDirectory, 'коротке відео_compressed.mp4');
@@ -58,7 +59,6 @@ describe('real FFmpeg end to end', () => {
   }, 20_000);
 
   it('runs Custom mode with real FPS and resolution filters without changing the original', async () => {
-    if (!(await toolsAvailable())) return;
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'custom video '));
     const input = path.join(temporaryDirectory, 'vertical source.mp4');
     const output = path.join(temporaryDirectory, 'vertical custom.mp4');
@@ -104,10 +104,6 @@ describe('real FFmpeg end to end', () => {
     ).toBe(before);
   }, 20_000);
 });
-
-async function toolsAvailable() {
-  return (await commandExists('ffmpeg')) && (await commandExists('ffprobe'));
-}
 
 const run = (command: string, args: string[]) =>
   new Promise<number | null>((resolve, reject) => {

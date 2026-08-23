@@ -1,8 +1,14 @@
 import type { FastifyInstance } from 'fastify';
-import type {
-  LandingEvent,
-  LandingPreviewEvent,
-  TranscriptionEvent
+import {
+  COMPRESSION_LIFECYCLE,
+  LANDING_JOB_LIFECYCLE,
+  LANDING_PREVIEW_ITEM_LIFECYCLE,
+  MEDIA_ACTION_LIFECYCLE,
+  TRANSCRIPTION_LIFECYCLE,
+  type AnyLifecycle,
+  type LandingEvent,
+  type LandingPreviewEvent,
+  type TranscriptionEvent
 } from '@video-compressor/shared';
 import { registerCompressorRoutes, type CompressorContext } from '../compressor/routes.js';
 import type { LandingOptimizer } from '../landing/optimizer.js';
@@ -44,8 +50,29 @@ export interface ToolContext {
  */
 export interface ToolModule {
   id: string;
+  /**
+   * The lifecycle this tool's runs follow, or `null` for a module that owns no runs.
+   *
+   * Declaring it here is what makes the table and the enforcement the same object. Before
+   * this, each queue decided legality from its own `if` chains and the interface decided it
+   * again from status literals, and the audit found several places where the two had
+   * drifted. `null` is only for the team bridge, which relays operations rather than owning
+   * a queue of its own.
+   */
+  lifecycle: AnyLifecycle | null;
   register(app: FastifyInstance, ctx: ToolContext): void;
   busy(): boolean;
+  /**
+   * Stop one run. Resolves false when there is no such run, or it has already finished.
+   *
+   * Required rather than optional, so "this tool cannot be stopped" is a compile error
+   * rather than something a user discovers. Every tool that can start work can stop it —
+   * that is FR-005, and making it structural is the only way it stays true for the tool
+   * somebody adds next year.
+   */
+  cancel(id: string): Promise<boolean>;
+  /** Stop everything this tool is running, and report how many runs that was (FR-007). */
+  cancelAll(): Promise<number>;
   shutdown(): Promise<void>;
 }
 
@@ -78,8 +105,11 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
   return [
     {
       id: 'compressor',
+      lifecycle: COMPRESSION_LIFECYCLE,
       register: app => registerCompressorRoutes(app, compressor),
       busy: () => compressor.queue.workActive(),
+      cancel: id => compressor.queue.cancel(id),
+      cancelAll: () => compressor.queue.cancelAll(),
       shutdown: async () => {
         await compressor.estimator.shutdown();
         await compressor.queue.shutdown();
@@ -87,13 +117,17 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
     },
     {
       id: 'media-actions',
+      lifecycle: MEDIA_ACTION_LIFECYCLE,
       register: (app, ctx) =>
         registerMediaActionRoutes(app, { mediaActions, acceptingNewTasks: ctx.acceptingNewTasks }),
       busy: () => mediaActions.workActive(),
+      cancel: id => mediaActions.cancel(id),
+      cancelAll: () => mediaActions.cancelAll(),
       shutdown: () => mediaActions.shutdown()
     },
     {
       id: 'landing',
+      lifecycle: LANDING_JOB_LIFECYCLE,
       register: (app, ctx) =>
         registerLandingRoutes(app, {
           optimizer: landing.optimizer,
@@ -101,10 +135,13 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
           acceptingNewTasks: ctx.acceptingNewTasks
         }),
       busy: () => landing.optimizer.state().running,
+      cancel: id => landing.optimizer.cancel(id),
+      cancelAll: () => landing.optimizer.cancelAll(),
       shutdown: () => landing.optimizer.shutdown()
     },
     {
       id: 'landing-preview',
+      lifecycle: LANDING_PREVIEW_ITEM_LIFECYCLE,
       register: (app, ctx) =>
         registerLandingPreviewRoutes(app, {
           catalog: landingPreview.catalog,
@@ -112,10 +149,16 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
           acceptingNewTasks: ctx.acceptingNewTasks
         }),
       busy: () => landingPreview.catalog.busy(),
+      // A preview run is a single render of the whole catalog, so stopping one item and
+      // stopping the run are the same act. Reporting the count keeps `cancelAll` honest
+      // about whether anything was actually stopped.
+      cancel: async () => landingPreview.catalog.cancel(),
+      cancelAll: async () => (landingPreview.catalog.cancel() ? 1 : 0),
       shutdown: () => landingPreview.catalog.shutdown()
     },
     {
       id: 'transcription',
+      lifecycle: TRANSCRIPTION_LIFECYCLE,
       register: (app, ctx) =>
         registerTranscriptionRoutes(app, {
           queue: transcription.queue,
@@ -123,10 +166,16 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
           acceptingNewTasks: ctx.acceptingNewTasks
         }),
       busy: () => transcription.queue.workActive(),
+      cancel: async id => transcription.queue.cancel(id),
+      cancelAll: async () => transcription.queue.cancelAll(),
       shutdown: () => transcription.queue.shutdown()
     },
     {
       id: 'team-workspace',
+      // No queue of its own: the bridge relays operations to the tools above, and each of
+      // those enforces its own lifecycle. A lifecycle here would be a second, redundant
+      // declaration of the same runs.
+      lifecycle: null,
       register: (app, ctx) =>
         registerTeamBridgeRoutes(app, {
           preview: teamWorkspace.preview,
@@ -143,6 +192,10 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
         teamWorkspace.download.busy() ||
         teamWorkspace.landings.busy() ||
         teamWorkspace.library.busy(),
+      // Cancellation belongs to whichever tool is doing the work; the bridge holds nothing
+      // to stop. Reported as "no such run" rather than pretended away.
+      cancel: async () => false,
+      cancelAll: async () => 0,
       shutdown: async () => {
         await teamWorkspace.library.shutdown();
         await teamWorkspace.landings.shutdown();

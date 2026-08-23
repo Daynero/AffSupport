@@ -105,7 +105,10 @@ describe('space settings surface', () => {
     await screen.findByRole('heading', { name: 'Media buyers' });
     await user.click(screen.getByRole('button', { name: 'Space settings' }));
     await user.click(await screen.findByRole('button', { name: 'Connect Google Drive' }));
-    await user.click(await screen.findByRole('button', { name: /Campaign root/ }));
+    // Opening and selecting are separate actions now, so name the select one.
+    await user.click(
+      await screen.findByRole('button', { name: 'Campaign root — Use this folder' })
+    );
     await user.click(await screen.findByRole('button', { name: 'Confirm folder' }));
     await user.click(screen.getByRole('button', { name: 'Back to space' }));
     await user.click(screen.getByRole('button', { name: 'Landings' }));
@@ -161,7 +164,7 @@ describe('space settings surface', () => {
 
       await screen.findByRole('heading', { name: 'Media buyers' });
       await user.click(screen.getByRole('button', { name: 'Space settings' }));
-      await screen.findByRole('button', { name: 'Current root' });
+      await screen.findByRole('button', { name: 'Current root — Open' });
       await user.click(screen.getByRole('button', { name: 'Sync now' }));
 
       expect(resyncDrive).toHaveBeenCalledWith(team.id);

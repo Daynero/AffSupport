@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it } from 'vitest';
 import { spawn } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
@@ -9,45 +9,43 @@ import type {
   StartImageDurationMode
 } from '../packages/shared/src/types.js';
 import { encodeVideo } from '../apps/agent/src/ffmpeg/encoder.js';
-import { commandExists, probeMedia } from '../apps/agent/src/ffmpeg/tools.js';
+import { probeMedia } from '../apps/agent/src/ffmpeg/tools.js';
 import { optimalEncoding } from './helpers.js';
+import { describeRequiring } from './support/requires.js';
+import { ffmpegBinaries } from './support/toolchain.js';
 
 let directory = '';
-let available = false;
 let startImagePath = '';
 
-beforeAll(async () => {
-  available = (await commandExists('ffmpeg')) && (await commandExists('ffprobe'));
-  if (!available) return;
-  directory = await mkdtemp(path.join(os.tmpdir(), 'embedded ffmpeg '));
-  startImagePath = path.join(directory, 'початок & кадр.png');
-  expect(
-    await run('ffmpeg', [
-      '-hide_banner',
-      '-loglevel',
-      'error',
-      '-y',
-      '-f',
-      'lavfi',
-      '-i',
-      'color=c=red:size=120x120',
-      '-frames:v',
-      '1',
-      '-threads',
-      '1',
-      startImagePath
-    ])
-  ).toBe(0);
-});
+describeRequiring(ffmpegBinaries, 'real image embedding filter graph', () => {
+  beforeAll(async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), 'embedded ffmpeg '));
+    startImagePath = path.join(directory, 'початок & кадр.png');
+    expect(
+      await run('ffmpeg', [
+        '-hide_banner',
+        '-loglevel',
+        'error',
+        '-y',
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=red:size=120x120',
+        '-frames:v',
+        '1',
+        '-threads',
+        '1',
+        startImagePath
+      ])
+    ).toBe(0);
+  });
 
-afterAll(async () => {
-  if (directory) await rm(directory, { recursive: true, force: true });
-});
+  afterAll(async () => {
+    if (directory) await rm(directory, { recursive: true, force: true });
+  });
 
-describe('real image embedding filter graph', () => {
   for (const fps of [24, 30, 60]) {
     it(`adds exactly one opening frame at ${fps} FPS with matching silence`, async () => {
-      if (!available) return;
       const input = path.join(directory, `source ${fps}.mp4`);
       const output = path.join(directory, `result ${fps}.mp4`);
       expect(await createVideo(input, fps, true)).toBe(0);
@@ -94,7 +92,6 @@ describe('real image embedding filter graph', () => {
   }
 
   it('uses the original fractional FPS in optimal mode for the one-frame opening', async () => {
-    if (!available) return;
     const input = path.join(directory, 'source 29.97.mp4');
     const output = path.join(directory, 'result 29.97.mp4');
     expect(await createVideo(input, '30000/1001', true)).toBe(0);
@@ -139,7 +136,6 @@ describe('real image embedding filter graph', () => {
     ['ms-10', 10]
   ] as [StartImageDurationMode, number][]) {
     it(`embeds a sub-frame ${ms}ms opening at 30 FPS without hanging`, async () => {
-      if (!available) return;
       const input = path.join(directory, `sub ${mode}.mp4`);
       const output = path.join(directory, `sub ${mode} out.mp4`);
       expect(await createVideo(input, 30, true)).toBe(0);
@@ -182,7 +178,6 @@ describe('real image embedding filter graph', () => {
   }
 
   it('creates full-length stereo silence for a source without audio and a final image', async () => {
-    if (!available) return;
     const input = path.join(directory, 'silent source.mp4');
     const output = path.join(directory, 'silent source embedded.mp4');
     expect(await createVideo(input, 30, false)).toBe(0);
@@ -221,7 +216,6 @@ describe('real image embedding filter graph', () => {
   }, 20_000);
 
   it('encodes the stretch adaptation mode at the exact output size', async () => {
-    if (!available) return;
     const input = path.join(directory, 'stretch source.mp4');
     const output = path.join(directory, 'stretch result.mp4');
     expect(await createVideo(input, 24, true)).toBe(0);

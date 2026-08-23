@@ -6,7 +6,9 @@ import type {
 } from '@video-compressor/shared';
 import {
   TRANSCRIPTION_LANGUAGE_CODES,
-  TRANSLATEGEMMA_LANGUAGE_CODES
+  TRANSCRIPTION_LIFECYCLE,
+  TRANSLATEGEMMA_LANGUAGE_CODES,
+  canTransition
 } from '@video-compressor/shared';
 import {
   request,
@@ -253,18 +255,25 @@ export default function TranscriptionPage() {
   // separate, on-demand download handled by its own gate.
   const binaryReady = tools.ffmpeg && tools.whisper;
   const modelReady = tools.model;
+  // Asked of the shared table rather than matched against a list of status names. The lists
+  // that used to be here were the interface's own second opinion about the lifecycle, and
+  // they were already wrong: none of them mentioned `interrupted`, so a run cut short by a
+  // restart would have been unstartable, unselectable and invisible in every group.
+  const startable = (job: TranscriptionJob) =>
+    canTransition(TRANSCRIPTION_LIFECYCLE, job.status, 'queued');
   const readyJobs = jobs.filter(job => job.status === 'ready' || job.status === 'cancelled');
   const finishedJobs = jobs.filter(
-    job => job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled'
+    job =>
+      job.status === 'completed' ||
+      job.status === 'failed' ||
+      job.status === 'cancelled' ||
+      job.status === 'interrupted'
   );
   // Anything already transcribed can be transcribed again, so a completed job
   // is startable too — that is what makes "Transcribe selected" a re-run.
   const selectableIds = visibleJobs.filter(job => job.status !== 'analyzing').map(job => job.id);
   const startableSelected = jobs
-    .filter(
-      job =>
-        selected.has(job.id) && ['ready', 'cancelled', 'failed', 'completed'].includes(job.status)
-    )
+    .filter(job => selected.has(job.id) && startable(job))
     .map(job => job.id);
   const stoppable = jobs.some(job => job.status === 'processing' || job.status === 'queued');
   const selectedLabel = selected.size
@@ -1043,7 +1052,9 @@ function TranscriptionRow({
               {t('transcriptionCancel')}
             </Button>
           )}
-          {(job.status === 'failed' || job.status === 'cancelled') && (
+          {(job.status === 'failed' ||
+            job.status === 'cancelled' ||
+            job.status === 'interrupted') && (
             <Button variant="primary" disabled={!connected} onClick={onRetry}>
               {t('transcriptionRetry')}
             </Button>

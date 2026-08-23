@@ -71,11 +71,18 @@ export function spawnManaged(
   // `shell: false` is not negotiable: a filename interpolated into a shell
   // string is a command-injection hole.
   const child = spawn(command, args as string[], { ...spawnOptions, shell: false });
+
+  // Before the governor check, and deliberately so. Escalation is about *stopping*, not
+  // about throttling, and tying it to whether a resource budget happens to be attached made
+  // the guarantee conditional on something unrelated: a child spawned with no governor —
+  // before one is installed, or in any assembly that omits it — handled SIGTERM, carried on,
+  // and nothing ever killed it. That is the exact leak the guard was written to prevent,
+  // reachable through the one branch that skipped it.
+  guardTermination(governor, child);
   if (!governor) return child;
 
   governor.register(child, { toolId });
   applyPriority(governor, child);
-  guardTermination(governor, child);
 
   let released = false;
   const release = () => {
@@ -160,7 +167,7 @@ function isForceSignal(signal: NodeJS.Signals | number | undefined): boolean {
  * one managed child that does not come through here, so
  * `landing-preview/renderer.ts` makes the same calls explicitly.
  */
-function guardTermination(governor: ManagedSpawnGovernor, child: ChildProcess): void {
+function guardTermination(governor: ManagedSpawnGovernor | null, child: ChildProcess): void {
   const nativeKill = child.kill.bind(child);
   let escalation: NodeJS.Timeout | null = null;
   const cancelEscalation = () => {
@@ -172,7 +179,9 @@ function guardTermination(governor: ManagedSpawnGovernor, child: ChildProcess): 
 
   child.kill = (signal?: NodeJS.Signals | number): boolean => {
     if (typeof signal === 'string' && THROTTLE_SIGNALS.has(signal)) return nativeKill(signal);
-    governor.resumeForTermination(child);
+    // Resuming is the governor's job and only matters if there is one — a child nobody
+    // suspended is already able to receive the signal.
+    governor?.resumeForTermination(child);
     const delivered = nativeKill(signal as NodeJS.Signals | number | undefined);
     // One escalation per child, armed by the first graceful signal. Re-arming
     // on every repeated SIGTERM would push the deadline out indefinitely for a
@@ -183,7 +192,9 @@ function guardTermination(governor: ManagedSpawnGovernor, child: ChildProcess): 
         // A no-op once the child has been reaped: Node drops the handle on
         // exit, so this can never signal a PID the OS has recycled.
         nativeKill('SIGKILL');
-      }, governor.scaleTimeout(TERMINATION_GRACE_MS));
+        // Throttling stretches wall-clock time, so the grace period stretches with it. With
+        // no governor there is no throttling and the raw period is the right one.
+      }, governor?.scaleTimeout(TERMINATION_GRACE_MS) ?? TERMINATION_GRACE_MS);
       // Never hold the process open for a kill nobody is waiting on.
       escalation.unref();
     }

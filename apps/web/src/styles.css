@@ -98,10 +98,11 @@
      keeps the near edge-to-edge look it has on a laptop; past that the shell
      tracks the viewport instead of freezing, so a 4K display shows a workspace
      rather than a phone-sized column stranded in the middle of the screen.
-     Every full-page container derives its width from one of these two, so the
-     rule can only be changed in one place. */
+     Every full-page container derives its width from one of these three, so
+     the rule can only be changed in one place. */
   --shell-width: max(1440px, 80vw);
   --shell-width-narrow: max(1120px, 80vw);
+  --shell-width-team: max(1240px, 80vw);
   /* Gutter that keeps a full-bleed header on the same axis as the shell below
      it: the header padding on narrow screens, the shell margin once the shell
      stops filling the viewport. */
@@ -112,12 +113,20 @@
      keeps its share of a 4K screen instead of shrinking to a stamp. Every
      dialog surface picks a rung here — the Modal primitive through
      --modal-width, the hand-rolled surfaces directly — so a dialog is never
-     sized by a number of its own. */
-  --dialog-sm: max(552px, 18vw);
-  --dialog-md: max(576px, 20vw);
-  --dialog-lg: max(624px, 22vw);
-  --dialog-xl: max(880px, 30vw);
-  --dialog-wide: max(1180px, 56vw);
+     sized by a number of its own.
+
+     Each rung is a clamp, and the vw share is set so it equals the pixel floor
+     at a 1440px laptop: the laptop keeps exactly the width it had, and every
+     display wider than that grows the dialog instead of leaving it frozen.
+     (A `max()` of the two only engaged past ~2900px, so every dialog was in
+     practice a fixed pixel width on a 1920 or 2560 display.) The third value
+     is a reading measure — past it a dialog would be a wide band of text
+     rather than a dialog. */
+  --dialog-sm: clamp(552px, 38vw, 760px);
+  --dialog-md: clamp(576px, 40vw, 820px);
+  --dialog-lg: clamp(624px, 43vw, 900px);
+  --dialog-xl: clamp(880px, 61vw, 1240px);
+  --dialog-wide: clamp(1180px, 72vw, 1600px);
   --dialog-full: var(--shell-width);
 
   /* Ink tints (the rgba(36,27,58,α) family) and overlays */
@@ -5715,15 +5724,31 @@ body:has(.public-home) {
   overflow-wrap: break-word;
 }
 
-:is(dialog, [role='dialog'], .team-operation-overlay, .team-text-editor, .team-process-dialog) > * {
+/* Every descendant, not just the direct children: a `1fr` track or a flex item
+   keeps its min-content width unless it is told it may shrink, so one nested
+   grid or button row deep inside the dialog is enough to push the surface past
+   its own box — which is what turns `overflow-y: auto` into a horizontal
+   scrollbar. Anything that genuinely needs a floor (icon buttons, the language
+   switch) sets one through a class, which outranks this. */
+:is(dialog, [role='dialog'], .team-operation-overlay, .team-text-editor, .team-process-dialog) * {
   min-width: 0;
+}
+
+/* Replaced content is the other thing that ignores its container: an image or
+   a video renders at its intrinsic size unless capped, and one frame wider
+   than the surface is another sideways scrollbar. */
+:is(dialog, [role='dialog'], .team-operation-overlay, .team-text-editor, .team-process-dialog)
+  :is(img, video, canvas, svg, iframe) {
+  max-width: 100%;
 }
 
 /* Button rows in a dialog wrap onto a second line rather than overflowing:
    button labels are `white-space: nowrap`, so a two-action row of translated
-   labels can otherwise be wider than the dialog it sits in. */
+   labels can otherwise be wider than the dialog it sits in. Matched on the
+   name rather than a list, so a row added later is covered without anyone
+   remembering this rule. */
 :is(dialog, [role='dialog'], .team-operation-overlay, .team-text-editor, .team-process-dialog)
-  :is(.inline-actions, .dialog-actions, .team-dialog-actions) {
+  [class*='actions'] {
   flex-wrap: wrap;
 }
 
@@ -9323,7 +9348,7 @@ body:has(.public-home) {
 
 /* Team media workspace */
 .team-workspace-page {
-  width: min(1240px, 100%);
+  width: min(calc(100% - 32px), var(--shell-width-team));
   margin-inline: auto;
 }
 .team-workspace-header,
@@ -9512,6 +9537,71 @@ body:has(.public-home) {
   display: grid;
   gap: var(--space-3);
 }
+/* The trail wraps rather than scrolling: a deep path must stay fully readable
+   on a narrow window, where a folder name is the only way to tell two sibling
+   folders apart. */
+.team-folder-trail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.team-folder-crumb-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.team-folder-crumb-separator {
+  color: var(--color-text-muted);
+}
+.team-folder-trail .button {
+  padding-inline: var(--space-2);
+}
+.team-folder-trail .button:disabled {
+  opacity: 1;
+  color: var(--color-text);
+  cursor: default;
+}
+.team-folder-select-current {
+  justify-self: start;
+}
+/* The folder name takes the row and pushes the drive-kind label to the end,
+   leaving the select control at a predictable position in every row. */
+.team-folder-browser li > .team-folder-open {
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-start;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.team-folder-browser li > .team-folder-select {
+  flex: 0 0 auto;
+}
+.team-folder-empty {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+/* Shown only where invitation mail is deliberately not delivered, so the link
+   has to be readable and selectable in full rather than truncated. */
+.team-invitation-link {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  margin-top: var(--space-3);
+  border-radius: var(--radius-lg);
+  background: var(--color-accent-softer);
+  padding: var(--space-4);
+}
+.team-invitation-link p {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+.team-invitation-link input {
+  width: 100%;
+  font-family: var(--font-mono, monospace);
+}
 .team-drive-confirmation {
   margin-top: var(--space-3);
   border-radius: var(--radius-lg);
@@ -9545,7 +9635,7 @@ body:has(.public-home) {
 
 /* --- Guided team space: lobby, create wizard, content-first shell --- */
 .team-space-page {
-  width: min(1240px, 100%);
+  width: min(calc(100% - 32px), var(--shell-width-team));
   margin-inline: auto;
   min-width: 0;
 }
@@ -12323,12 +12413,27 @@ body {
 .team-material-browser .team-material-list li {
   flex-wrap: wrap;
 }
+/* The name takes the row, so every row's action group starts at the same place
+   and the category reads as a real column. Without this the base list rule
+   splits the free space between two auto margins, and the actions land at a
+   different x in every row -- the ragged look the catalog had. */
+.team-material-browser .team-material-list li > :first-child {
+  flex: 1 1 12rem;
+  margin-right: 0;
+}
+.team-material-browser .team-material-list small {
+  flex: 0 0 5rem;
+  margin-left: var(--space-3);
+  text-align: right;
+}
 .team-material-row-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-1);
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 
 /* Library card (View B): a larger, stylised selection cell overlaid on the tile,

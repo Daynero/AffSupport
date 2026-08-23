@@ -113,3 +113,105 @@ describe('native media action queue', () => {
     });
   });
 });
+
+describe('stopping a native media action', () => {
+  it('records a stopped conversion as cancelled rather than failed', async () => {
+    root = await mkdtemp(path.join(os.tmpdir(), 'wishly media cancel '));
+    const source = path.join(root, 'photo.png');
+    await writeFile(source, 'source');
+    let started!: () => void;
+    const running = new Promise<void>(resolve => {
+      started = resolve;
+    });
+
+    const queue = new MediaActionQueue(
+      () => {},
+      (_input, _output, _format, signal) =>
+        new Promise((_resolve, reject) => {
+          started();
+          // A real converter surfaces an abort as a rejection, which is exactly why the
+          // queue cannot read "threw" as "failed".
+          signal?.addEventListener('abort', () => reject(new Error('aborted')));
+        })
+    );
+
+    const [job] = await queue.addImageConversions([source], 'jpeg');
+    await running;
+
+    expect(await queue.cancel(job.id)).toBe(true);
+    const stopped = queue.state().jobs.find(candidate => candidate.id === job.id);
+    // The distinction A3 is about: the user stopped this, nothing broke. Reporting it as
+    // failed sends them looking for a problem with their file.
+    expect(stopped?.status).toBe('cancelled');
+    expect(stopped?.error).toBeNull();
+    await queue.shutdown();
+  });
+
+  it('never starts a conversion stopped while it was still queued', async () => {
+    root = await mkdtemp(path.join(os.tmpdir(), 'wishly media queued cancel '));
+    const first = path.join(root, 'first.png');
+    const second = path.join(root, 'second.png');
+    await writeFile(first, 'source');
+    await writeFile(second, 'source');
+    const converted: string[] = [];
+    let release!: () => void;
+    const holding = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    let firstStarted!: () => void;
+    const firstRunning = new Promise<void>(resolve => {
+      firstStarted = resolve;
+    });
+
+    const queue = new MediaActionQueue(() => {}, async (inputPath, outputPath) => {
+      if (inputPath === first) {
+        firstStarted();
+        await holding;
+      }
+      converted.push(path.basename(inputPath));
+      await writeFile(outputPath, 'converted', { flag: 'wx' });
+      return { outputPath, width: 1, height: 1, size: 1 };
+    });
+
+    const [, queuedJob] = await queue.addImageConversions([first, second], 'jpeg');
+    await firstRunning;
+
+    expect(await queue.cancel(queuedJob.id)).toBe(true);
+    release();
+    await queue.shutdown();
+
+    // Spawning after a stop is the same defect as spawning after a cancel between stages:
+    // the user's stop is followed by a full conversion at full speed.
+    expect(converted).toEqual(['first.png']);
+    expect(queue.state().jobs.find(job => job.id === queuedJob.id)?.status).toBe('cancelled');
+  });
+
+  it('reports how many runs a stop-everything actually stopped', async () => {
+    root = await mkdtemp(path.join(os.tmpdir(), 'wishly media cancel all '));
+    const source = path.join(root, 'photo.png');
+    await writeFile(source, 'source');
+    let started!: () => void;
+    const running = new Promise<void>(resolve => {
+      started = resolve;
+    });
+
+    const queue = new MediaActionQueue(
+      () => {},
+      (_input, _output, _format, signal) =>
+        new Promise((_resolve, reject) => {
+          started();
+          signal?.addEventListener('abort', () => reject(new Error('aborted')));
+        })
+    );
+
+    await queue.addImageConversions([source, source, source], 'jpeg');
+    await running;
+
+    // One running plus two queued. A count rather than a boolean, because "stop everything"
+    // that stopped nothing and "stop everything" that stopped three are different answers.
+    expect(await queue.cancelAll()).toBe(3);
+    expect(queue.state().jobs.every(job => job.status === 'cancelled')).toBe(true);
+    expect(queue.workActive()).toBe(false);
+    await queue.shutdown();
+  });
+});

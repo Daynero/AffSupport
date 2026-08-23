@@ -324,7 +324,7 @@ export class GoogleDriveClient {
     fileId: string;
     resourceKey?: string | null;
     maximumBytes: number;
-  }): Promise<{ bytes: Uint8Array; totalBytes: number | null }> {
+  }): Promise<{ bytes: Uint8Array<ArrayBuffer>; totalBytes: number | null }> {
     const maximumBytes = Math.min(Math.max(Math.trunc(input.maximumBytes), 1), 32 * 1024 * 1024);
     const url = new URL(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(input.fileId)}`
@@ -570,7 +570,10 @@ export class GoogleDriveClient {
     fileId: string;
     resourceKey?: string | null;
     mimeType: string;
-    bytes: Uint8Array;
+    // Explicitly backed by an ArrayBuffer, not the default ArrayBufferLike. A plain
+    // `Uint8Array` also admits a SharedArrayBuffer backing, which is not a valid request
+    // body — so the upload below would not type-check, and the imprecision hid that.
+    bytes: Uint8Array<ArrayBuffer>;
   }): Promise<DriveFileMetadata> {
     if (input.bytes.byteLength > 1024 * 1024) {
       throw new TeamFunctionError('TOO_LARGE', { retryable: false });

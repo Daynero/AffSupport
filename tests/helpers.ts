@@ -44,7 +44,11 @@ export const optimalSettings: AgentSettings = {
 };
 
 export function makeJob(
-  id = crypto.randomUUID(),
+  // Annotated `string` on purpose. Without it TypeScript infers the branded template
+  // literal type of `crypto.randomUUID()`, and every call site passing a readable id
+  // ("job", "done", "secret-file") fails to compile. The identifier is opaque to this
+  // factory; a real UUID is only the convenient default.
+  id: string = crypto.randomUUID(),
   status: JobStatus = 'ready',
   patch: Partial<CompressionJob> = {}
 ): CompressionJob {

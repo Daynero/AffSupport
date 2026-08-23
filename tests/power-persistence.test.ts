@@ -44,8 +44,12 @@ describe('power.json', () => {
   });
 
   it('honours the test path override', () => {
-    process.env.AGENT_POWER_STATE_PATH = '/tmp/soty-power-override.json';
-    expect(powerStatePath()).toBe('/tmp/soty-power-override.json');
+    // Was a hardcoded '/tmp/soty-power-override.json': shared by every concurrent run on
+    // the machine, and not a path that exists on Windows at all — so this assertion could
+    // never have run on the platform the feature has to work on.
+    const override = path.join(os.tmpdir(), `soty-power-override-${process.pid}.json`);
+    process.env.AGENT_POWER_STATE_PATH = override;
+    expect(powerStatePath()).toBe(override);
   });
 
   it('lives in its own file, not the compressor queue state', () => {

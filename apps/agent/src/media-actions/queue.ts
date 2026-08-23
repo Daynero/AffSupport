@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
+import { MEDIA_ACTION_LIFECYCLE, type MediaActionStatus } from '@video-compressor/shared';
 import { nextConvertedImagePath } from '../files/paths.js';
 import { activeGovernorOrNull } from '../power/spawn.js';
+import { decideTransition } from '../queue/transitions.js';
 import {
   IMAGE_CONVERSION_EXTENSIONS,
   ImageConversionError,
@@ -10,7 +12,21 @@ import {
   type ImageConversionFormat
 } from './image-converter.js';
 
-export type MediaActionStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'skipped';
+export type { MediaActionStatus };
+
+/**
+ * The one place a conversion's status changes.
+ *
+ * Wired late, and the reconciliation is how that showed: every other tool's transitions were
+ * being recorded and checked while this one's were invisible, so the lifecycle declared six
+ * edges that nothing could be shown to take. A tool the declaration does not reach is a tool
+ * the interface cannot gate an action on.
+ */
+function transitionAction(job: ImageConversionJob, next: MediaActionStatus): boolean {
+  if (!decideTransition(MEDIA_ACTION_LIFECYCLE, job.status, next)) return false;
+  job.status = next;
+  return true;
+}
 
 export interface ImageConversionJob {
   id: string;
@@ -45,6 +61,17 @@ type ImageConverter = typeof convertImage;
  */
 const SHUTDOWN_DRAIN_MS = 15_000;
 
+/**
+ * How long `cancel` waits for a conversion to actually stop before returning.
+ *
+ * A stop must never be able to block the caller indefinitely. The abort has already been
+ * delivered and the managed spawn escalates on its own, so waiting past this buys nothing —
+ * and A3 is precisely the case where it costs everything: a Finder-initiated conversion has
+ * no window of its own, so a stop that hangs leaves the machine working with nothing on
+ * screen to explain why. Scaled like every other wall-clock budget over managed work.
+ */
+const CANCEL_DEADLINE_MS = 10_000;
+
 /** A wall-clock budget stretched to match the resource limit in force. */
 function scaledTimeout(milliseconds: number): number {
   return activeGovernorOrNull()?.scaleTimeout(milliseconds) ?? milliseconds;
@@ -58,6 +85,17 @@ export class MediaActionQueue {
   private abandoning = false;
   /** Aborts the conversion running right now; null between jobs. */
   private activeConversion: AbortController | null = null;
+  /** Which job `activeConversion` belongs to, so a stop cannot abort the wrong one. */
+  private activeJobId: string | null = null;
+  /**
+   * Jobs the user asked to stop.
+   *
+   * Needed because aborting makes the converter throw, and a throw is otherwise recorded as
+   * `failed` — telling the user their conversion broke when in fact they stopped it.
+   */
+  private readonly cancelling = new Set<string>();
+  /** Resolved when a job reaches a terminal state, so `cancel` can wait without polling. */
+  private readonly settleWaiters = new Map<string, Array<() => void>>();
   private additionsInFlight = 0;
   private additionsDrained: Array<() => void> = [];
 
@@ -105,7 +143,7 @@ export class MediaActionQueue {
           finishedAt: null
         };
         if (sourceAlreadyUsesFormat(inputPath, targetFormat)) {
-          job.status = 'skipped';
+          transitionAction(job, 'skipped');
           job.errorCode = 'ALREADY_TARGET_FORMAT';
           job.error = 'The image already uses the selected format.';
           job.finishedAt = now;
@@ -170,6 +208,73 @@ export class MediaActionQueue {
     await this.pumpPromise;
   }
 
+  /**
+   * Stop one conversion (FR-005).
+   *
+   * Resolves true only when the job really ended up cancelled. A conversion that finished
+   * in the moment between the ask and the abort is reported as what it is — completed —
+   * rather than as a stop that did not happen.
+   */
+  async cancel(id: string): Promise<boolean> {
+    const job = this.jobs.find(candidate => candidate.id === id);
+    if (!job) return false;
+
+    if (job.status === 'queued') {
+      transitionAction(job, 'cancelled');
+      job.finishedAt = Date.now();
+      this.notify();
+      return true;
+    }
+    if (job.status !== 'processing') return false;
+
+    this.cancelling.add(id);
+    // Only if it is still this job's conversion. Between reading the status and getting
+    // here the pump may have moved on, and aborting the next job would stop work the user
+    // never asked to stop.
+    if (this.activeJobId === id) this.activeConversion?.abort();
+    await this.awaitSettled(id);
+    this.cancelling.delete(id);
+    // Re-read rather than reusing the reference above: the pump mutates the status while
+    // this waits, and the narrowing from the guard is stale by the time it resolves.
+    return this.jobs.find(candidate => candidate.id === id)?.status === 'cancelled';
+  }
+
+  /** Stop everything, and report how many runs that was (FR-007). */
+  async cancelAll(): Promise<number> {
+    const stoppable = this.jobs
+      .filter(job => job.status === 'queued' || job.status === 'processing')
+      .map(job => job.id);
+    // Sequential, not concurrent: only one conversion runs at a time, so the queued ones
+    // resolve immediately and the single running one is the only thing anybody waits for.
+    let stopped = 0;
+    for (const id of stoppable) if (await this.cancel(id)) stopped += 1;
+    return stopped;
+  }
+
+  /** Waits for a job to reach a terminal state, or for the deadline — whichever is first. */
+  private awaitSettled(id: string): Promise<void> {
+    return new Promise<void>(resolve => {
+      const waiters = this.settleWaiters.get(id) ?? [];
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        resolve();
+      };
+      const timer = setTimeout(finish, scaledTimeout(CANCEL_DEADLINE_MS));
+      // A stop must never hold the process open on its own deadline.
+      timer.unref();
+      waiters.push(finish);
+      this.settleWaiters.set(id, waiters);
+    });
+  }
+
+  private releaseSettled(id: string) {
+    for (const waiter of this.settleWaiters.get(id) ?? []) waiter();
+    this.settleWaiters.delete(id);
+  }
+
   private schedule(allowWhileStopping = false) {
     if (
       this.pumpPromise ||
@@ -193,19 +298,36 @@ export class MediaActionQueue {
       if (this.abandoning) return;
       const job = this.jobs.find(candidate => candidate.status === 'queued');
       if (!job) return;
-      job.status = 'processing';
+      // Asked to stop while it was still waiting its turn. Starting it anyway would be the
+      // same bug as spawning after a cancel between two stages.
+      if (this.cancelling.has(job.id)) {
+        transitionAction(job, 'cancelled');
+        job.finishedAt = Date.now();
+        this.releaseSettled(job.id);
+        this.notify();
+        continue;
+      }
+      transitionAction(job, 'processing');
       job.startedAt = Date.now();
       this.notify();
       try {
         await this.process(job);
-        job.status = 'completed';
+        transitionAction(job, 'completed');
       } catch (error) {
-        job.status = 'failed';
-        job.errorCode =
-          error instanceof ImageConversionError ? error.code : 'IMAGE_CONVERSION_FAILED';
-        job.error = error instanceof Error ? error.message : 'The image could not be converted.';
+        // A cancel reaches the converter as an abort, and an abort surfaces as a throw. Read
+        // as failure it would tell the user their conversion broke, when what happened is
+        // that they stopped it.
+        if (this.cancelling.has(job.id)) {
+          transitionAction(job, 'cancelled');
+        } else {
+          transitionAction(job, 'failed');
+          job.errorCode =
+            error instanceof ImageConversionError ? error.code : 'IMAGE_CONVERSION_FAILED';
+          job.error = error instanceof Error ? error.message : 'The image could not be converted.';
+        }
       } finally {
         job.finishedAt = Date.now();
+        this.releaseSettled(job.id);
         this.notify();
       }
     }
@@ -214,6 +336,7 @@ export class MediaActionQueue {
   private async process(job: ImageConversionJob) {
     const conversion = new AbortController();
     this.activeConversion = conversion;
+    this.activeJobId = job.id;
     // An abandon that arrived while this job was being picked up must not be
     // outrun by it.
     if (this.abandoning) conversion.abort();
@@ -236,7 +359,10 @@ export class MediaActionQueue {
         }
       }
     } finally {
-      if (this.activeConversion === conversion) this.activeConversion = null;
+      if (this.activeConversion === conversion) {
+        this.activeConversion = null;
+        this.activeJobId = null;
+      }
     }
     throw new ImageConversionError(
       'OUTPUT_COLLISION',

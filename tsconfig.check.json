@@ -1,0 +1,77 @@
+{
+  // Type-checks the test tree, which no other tsconfig covers.
+  //
+  // `moduleResolution: Bundler` is deliberate and does NOT relax the repo's rule that
+  // source imports carry explicit `.js` specifiers. That rule is enforced where it
+  // matters — on source — by packages/shared/tsconfig.json, apps/agent/tsconfig.json
+  // and apps/web's `tsc -b`, none of which this file touches.
+  //
+  // Bundler resolution is required because tests/ imports three mutually incompatible
+  // worlds in the same file tree:
+  //   ../apps/agent/src/*.js   NodeNext-style specifiers
+  //   ../apps/web/src/*        extensionless — only Bundler resolves these
+  //   ../supabase/functions/*  .ts specifiers — needs allowImportingTsExtensions
+  // No single NodeNext configuration spans all three, and it does not need to.
+  //
+  // `types: ["node", "vite/client"]` is load-bearing: without vite/client, import.meta.env
+  // and asset imports reached through apps/web produce spurious errors.
+  //
+  // The `exclude` list is a ratchet, not a permanent allowance. tests/typecheck-ratchet.test.ts
+  // asserts it never grows; empty it file by file.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "allowImportingTsExtensions": true,
+    // Tests import `.mjs` helpers out of scripts/lib and apps/soty-review/scripts.
+    // allowJs lets TypeScript read and infer from them instead of failing with TS7016;
+    // checkJs stays off here because scripts have their own gate (tsconfig.scripts.json).
+    "allowJs": true,
+    "checkJs": false,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["node", "vite/client"]
+  },
+  "include": ["tests/**/*.ts", "tests/**/*.tsx", "tests/types/*.d.ts"],
+  // RATCHET — 30 of 205 test files, 57 errors. Empty this list file by file (T240).
+  // tests/typecheck-ratchet.test.ts fails if it grows.
+  "exclude": [
+    "tests/admin-ui.test.tsx",
+    "tests/auth-ui.test.tsx",
+    "tests/create-space-wizard.test.tsx",
+    "tests/creative-library-security.test.ts",
+    "tests/creative-library-tasks.test.tsx",
+    "tests/delete-account-team.test.ts",
+    "tests/drive-connect.test.ts",
+    "tests/embedded-ffmpeg.test.ts",
+    "tests/embedding-estimate.test.ts",
+    "tests/estimate-cancelled.test.ts",
+    "tests/image-embedding-ui.test.tsx",
+    "tests/image-embedding.test.ts",
+    "tests/landing-drop.test.tsx",
+    "tests/loading-skeletons.test.tsx",
+    "tests/local-app-dialog-windows.test.tsx",
+    "tests/local-app-dialog.test.tsx",
+    "tests/long-embedding.manual.test.ts",
+    "tests/release-manifest-signature.test.ts",
+    "tests/release-update-notice.test.tsx",
+    "tests/team-bridge.test.ts",
+    "tests/team-catalog.test.tsx",
+    "tests/team-landing-previewer-interop.test.ts",
+    "tests/team-landing-render-bridge.test.ts",
+    "tests/team-landing-render-timeout.test.tsx",
+    "tests/team-preview-sandbox.test.tsx",
+    "tests/team-workspace-gate.test.tsx",
+    "tests/ui-workflow.test.tsx",
+    "tests/windows-attribution.test.ts",
+    "tests/windows-inputs-manifest.test.ts",
+    "tests/windows-package-layout.test.ts"
+  ]
+}

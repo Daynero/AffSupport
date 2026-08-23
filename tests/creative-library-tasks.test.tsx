@@ -454,6 +454,27 @@ describe('Creative Library task workflows', () => {
     ]);
   });
 
+  it('offers exactly one root control, and it is the one focus opens on', async () => {
+    // The picker used to render "Root" twice -- a standalone action and the
+    // first crumb -- and the dialog focused the standalone one, which is
+    // disabled while already at the root.
+    const api = client();
+    render(
+      <TaskAttachmentPicker
+        teamId={TEAM_ID}
+        client={api}
+        attachedMaterialIds={new Set()}
+        onAdd={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Attach media/ }));
+    const roots = await screen.findAllByRole('button', { name: 'Root' });
+    expect(roots).toHaveLength(1);
+    expect((roots[0] as HTMLButtonElement).disabled).toBe(false);
+    expect(roots[0].id).toBe('team-task-picker-root');
+  });
+
   it('creates a task from an asset reference and opens it immediately', async () => {
     localStorage.setItem('wishly.active-team.v1', TEAM_ID);
     const api = client();

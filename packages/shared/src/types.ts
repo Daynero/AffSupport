@@ -73,6 +73,7 @@ export {
 } from './environment-runtime.js';
 export type { AppEnvironment, ParsedAppEnvironment } from './environment-runtime.js';
 export * from './environment.js';
+export * from './lifecycle.js';
 
 export const FRAME_RATE_MIN = 1;
 export const FRAME_RATE_MAX = 240;
@@ -578,6 +579,32 @@ export type LandingJobPhase =
   | 'failed'
   | 'cancelled';
 
+/**
+ * The three parts of `processing`, and the only thing a landing job's phase adds to its
+ * status.
+ *
+ * Six of the nine phases are just the status spelled again. Keeping them independently
+ * assignable meant nine more states for the lifecycle to cover and six more ways for the two
+ * to disagree — and they did: a job could report `phase: 'optimizing'` while its status said
+ * `cancelled`, because the two were written at different points in the same teardown.
+ */
+export type LandingStep = 'optimizing' | 'rewriting' | 'packaging';
+
+/**
+ * The phase a job in this status and step is in.
+ *
+ * `phase` stays on the wire exactly as it was — this is not a contract change. What changes
+ * is that it is derived rather than assigned, so it cannot drift from the status it is
+ * supposed to describe.
+ */
+export function phaseOf(status: LandingJobStatus, step: LandingStep | null): LandingJobPhase {
+  // Only `processing` has sub-steps; every other status names its own phase. A step recorded
+  // against a finished job is stale bookkeeping, not a phase, and is ignored here rather
+  // than allowed to outrank the status.
+  if (status === 'processing') return step ?? 'optimizing';
+  return status;
+}
+
 /** High Quality re-encode: keep resolution and frame rate, compress gently. */
 export const LANDING_HIGH_QUALITY_CRF = 20;
 
@@ -722,6 +749,23 @@ export function calculateLandingSummary(assets: LandingAsset[]): LandingSummary 
 /* -------------------------------------------------------------------------- */
 
 export type LandingPreviewSourceKind = 'folder' | 'zip' | 'team';
+/**
+ * A conversion started from the native file manager.
+ *
+ * `skipped` means the output already existed; `cancelled` means the user stopped it. They
+ * shared one state until A3, which made a stop indistinguishable from a no-op in the list.
+ *
+ * Lives here rather than beside the queue because the interface has to render it, and a
+ * status the two processes describe separately is a status they will eventually disagree on.
+ */
+export type MediaActionStatus =
+  | 'queued'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+  | 'skipped'
+  | 'cancelled';
+
 export type LandingPreviewItemStatus = 'queued' | 'rendering' | 'ready' | 'failed';
 export type LandingPreviewPhase =
   | 'idle'
@@ -839,8 +883,23 @@ export interface LandingPreviewEvent {
 /* design system with the Video Compressor but keeps its own state.           */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * The same eight states as a compression.
+ *
+ * `interrupted` closes A12: a run cut short by a restart used to be recorded as `failed`
+ * here and as `interrupted` in the compressor, so one tool told the user their work had
+ * broken and the other told them it had been interrupted. Existing persisted records are
+ * left alone — only new interruptions use it.
+ */
 export type TranscriptionJobStatus =
-  'analyzing' | 'ready' | 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  | 'analyzing'
+  | 'ready'
+  | 'queued'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'interrupted';
 
 /** File extensions the transcriber accepts (audio + video containers). */
 export const TRANSCRIBE_EXTENSIONS = [

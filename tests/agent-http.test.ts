@@ -652,4 +652,194 @@ describe('agent HTTP surface', () => {
       await new Promise(resolve => setTimeout(resolve, 20));
     }
   });
+  describe('request admission', () => {
+    // These guard two holes that were confirmed by probing a running Agent, not inferred:
+    // `curl -H "Host: evil.example.com" http://127.0.0.1:<port>/health` answered 200, and
+    // the browser session token was compared with `!==` while /native/* twelve lines away
+    // already used a constant-time compare.
+    //
+    // The prize behind the Host check is not /health leaking a build id. It is /pair,
+    // which hands the session token to anyone who follows its redirect — so a page rebound
+    // to loopback that follows it and reads its own fragment would be fully paired. After
+    // rebinding the request is same-origin and carries no Origin header at all, so the
+    // origin check cannot see it. Only the Host can.
+
+    it('refuses a request whose Host is not this machine', async () => {
+      const app = await makeServer();
+      for (const url of ['/health', '/api/health', '/pair', '/local', '/']) {
+        const response = await app.inject({
+          url,
+          headers: { host: 'evil.example.com', 'x-session-token': TOKEN }
+        });
+        expect(response.statusCode, `${url} accepted a spoofed Host`).toBe(403);
+        expect(response.json()).toEqual({ error: 'HOST_NOT_ALLOWED' });
+      }
+    });
+
+    it("refuses a rebound Host that carries this machine's port", async () => {
+      const app = await makeServer();
+      const response = await app.inject({
+        url: '/pair',
+        headers: { host: 'evil.example.com:43127' }
+      });
+      expect(response.statusCode).toBe(403);
+    });
+
+    it('refuses duplicate Host headers, which arrive joined by a comma', async () => {
+      const app = await makeServer();
+      const response = await app.inject({
+        url: '/health',
+        headers: { host: '127.0.0.1, evil.example.com' }
+      });
+      expect(response.statusCode).toBe(403);
+    });
+
+    it("accepts every form of this machine's own loopback address", async () => {
+      const app = await makeServer();
+      for (const host of ['127.0.0.1', '127.0.0.1:43127', 'localhost', 'localhost:5175']) {
+        const response = await app.inject({ url: '/health', headers: { host } });
+        expect(response.statusCode, `${host} was refused`).toBe(200);
+      }
+    });
+
+    it('rejects a repeated token query parameter instead of comparing an array', async () => {
+      // Fastify parses `?token=a&token=b` into an array. That value used to reach a raw
+      // `!==`, which is neither a string comparison nor a constant-time one.
+      const app = await makeServer();
+      const response = await app.inject({
+        url: `/api/health?token=${TOKEN}&token=${TOKEN}`
+      });
+      expect(response.statusCode).toBe(401);
+      expect(response.json()).toEqual({ error: 'Invalid session token.' });
+    });
+
+    it('rejects a token of the wrong length without leaking how far it matched', async () => {
+      const app = await makeServer();
+      for (const supplied of ['', TOKEN.slice(0, -1), `${TOKEN}x`, `${TOKEN} `]) {
+        const response = await app.inject({
+          url: '/api/health',
+          headers: { 'x-session-token': supplied }
+        });
+        expect(response.statusCode, `accepted "${supplied}"`).toBe(401);
+      }
+    });
+
+    it('still accepts the correct token by header and by query', async () => {
+      const app = await makeServer();
+      expect(
+        (await app.inject({ url: '/api/health', headers: { 'x-session-token': TOKEN } })).statusCode
+      ).toBe(200);
+      expect((await app.inject({ url: `/api/health?token=${TOKEN}` })).statusCode).toBe(200);
+    });
+  });
+});
+
+describe('a refused transition answers with one code', () => {
+  /**
+   * The interface has to be able to tell "you cannot do that from here" apart from "that
+   * broke". Before this it could not: each route answered 409 with its own sentence, so the
+   * only way to distinguish them was to match English prose — which is how eleven other
+   * messages ended up being translated by wording rather than by code (F13).
+   *
+   * One code, from the same tables the agent enforces, is also what lets the interface gate
+   * the affordance instead of offering an action and reporting a refusal afterwards.
+   */
+  it('refuses a start when nothing in the selection is in a startable state', async () => {
+    const app = await makeServer();
+    const started = await app.inject({
+      method: 'POST',
+      url: '/api/queue/start',
+      headers: { 'x-session-token': TOKEN, 'content-type': 'application/json' },
+      payload: { ids: ['no-such-job'] }
+    });
+
+    expect(started.statusCode).toBe(409);
+    expect(started.json()).toEqual({ error: 'TRANSITION_NOT_ALLOWED' });
+  });
+
+  it('refuses a stop for a job that is not running or waiting', async () => {
+    const app = await makeServer();
+    const cancelled = await app.inject({
+      method: 'POST',
+      url: '/api/jobs/no-such-job/cancel',
+      headers: { 'x-session-token': TOKEN }
+    });
+
+    expect(cancelled.statusCode).toBe(409);
+    expect(cancelled.json()).toEqual({ error: 'TRANSITION_NOT_ALLOWED' });
+  });
+
+  it('answers with the same code from the transcription and landing tools', async () => {
+    const app = await makeServer();
+
+    // The point of a shared table is that every tool answers the same way. A per-tool code
+    // would leave the interface with four refusal vocabularies to learn.
+    const transcription = await app.inject({
+      method: 'POST',
+      url: '/api/transcription/jobs/no-such-job/cancel',
+      headers: { 'x-session-token': TOKEN }
+    });
+    expect(transcription.statusCode).toBe(409);
+    expect(transcription.json()).toEqual({ error: 'TRANSITION_NOT_ALLOWED' });
+
+    const landing = await app.inject({
+      method: 'POST',
+      url: '/api/landing/start',
+      headers: { 'x-session-token': TOKEN, 'content-type': 'application/json' },
+      payload: {}
+    });
+    expect(landing.statusCode).toBe(409);
+    expect(landing.json()).toEqual({ error: 'TRANSITION_NOT_ALLOWED' });
+  });
+});
+
+describe('stopping work from the interface', () => {
+  it('stops one Finder-initiated conversion through the session-authenticated route', async () => {
+    const app = await makeServer();
+
+    // Under /api/ rather than /native/: the person who wants to stop this is looking at the
+    // interface, not at Finder. A conversion started from the file manager has no window of
+    // its own, so before this the only way to stop a wedged one was to quit (A3).
+    const unauthenticated = await app.inject({
+      method: 'POST',
+      url: '/api/media-actions/no-such-job/cancel'
+    });
+    expect(unauthenticated.statusCode).toBe(401);
+
+    const refused = await app.inject({
+      method: 'POST',
+      url: '/api/media-actions/no-such-job/cancel',
+      headers: { 'x-session-token': TOKEN }
+    });
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json()).toEqual({ error: 'TRANSITION_NOT_ALLOWED' });
+
+    const all = await app.inject({
+      method: 'POST',
+      url: '/api/media-actions/cancel-all',
+      headers: { 'x-session-token': TOKEN }
+    });
+    expect(all.statusCode).toBe(200);
+    expect(all.json()).toMatchObject({ stopped: 0 });
+  });
+
+  it('stops one landing without stopping the others', async () => {
+    const app = await makeServer();
+
+    // The only stop this tool offered was "stop everything", so abandoning the second of
+    // four landings meant losing the other three too.
+    const unauthenticated = await app.inject({
+      method: 'POST',
+      url: '/api/landing/jobs/no-such-job/cancel'
+    });
+    expect(unauthenticated.statusCode).toBe(401);
+
+    const refused = await app.inject({
+      method: 'POST',
+      url: '/api/landing/jobs/no-such-job/cancel',
+      headers: { 'x-session-token': TOKEN }
+    });
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json()).toEqual({ error: 'TRANSITION_NOT_ALLOWED' });
+  });
 });

@@ -2,6 +2,9 @@
   "name": "local-video-compressor",
   "private": true,
   "version": "1.0.3",
+  "engines": {
+    "node": ">=22.12 <25"
+  },
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -41,6 +44,10 @@
     "format": "prettier --write apps packages tests scripts docs supabase/functions README.md TESTER_GUIDE.md RELEASE_NOTES.md THIRD_PARTY_NOTICES.md package.json",
     "format:check": "prettier --check apps packages tests scripts docs supabase/functions README.md TESTER_GUIDE.md RELEASE_NOTES.md THIRD_PARTY_NOTICES.md package.json",
     "lint": "eslint apps packages tests scripts",
+    "typecheck": "npm run build -w @video-compressor/shared && npm run typecheck:projects && npm run typecheck:tests && npm run typecheck:scripts",
+    "typecheck:projects": "tsc -p apps/agent/tsconfig.json --noEmit && tsc -b apps/web && tsc -b apps/soty-review",
+    "typecheck:tests": "tsc -p tsconfig.check.json --noEmit",
+    "typecheck:scripts": "tsc -p tsconfig.scripts.json --noEmit",
     "test": "npm run build -w @video-compressor/shared && vitest run",
     "test:agent:e2e": "npm run build && node scripts/real-agent-check.mjs",
     "test:db": "npx supabase test db",

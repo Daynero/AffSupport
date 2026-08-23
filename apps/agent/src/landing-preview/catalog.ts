@@ -13,15 +13,18 @@ import {
 } from 'node:fs/promises';
 import { availableParallelism } from 'node:os';
 import path from 'node:path';
-import type {
-  LandingPreviewEventType,
-  LandingPreviewItem,
-  LandingPreviewRenderSettings,
-  LandingPreviewState,
-  TeamLandingPreviewCatalogRequest,
-  TeamLandingPreviewSnapshotItem
+import {
+  LANDING_PREVIEW_ITEM_LIFECYCLE,
+  type LandingPreviewEventType,
+  type LandingPreviewItem,
+  type LandingPreviewItemStatus,
+  type LandingPreviewRenderSettings,
+  type LandingPreviewState,
+  type TeamLandingPreviewCatalogRequest,
+  type TeamLandingPreviewSnapshotItem
 } from '@video-compressor/shared';
 import { applicationSupportRoot } from '../files/support-dir.js';
+import { decideTransition } from '../queue/transitions.js';
 import { extractZipSafely } from './archive.js';
 import { LandingPageRenderer, type LandingRenderResult } from './renderer.js';
 import {
@@ -30,6 +33,20 @@ import {
   normalizeTeamLandingSnapshot,
   type DiscoveredLanding
 } from './scanner.js';
+
+/**
+ * The one place a preview item's status changes.
+ *
+ * A refusal leaves it exactly as it was and answers false — see
+ * `apps/agent/src/queue/transitions.ts` for how the tables were reconciled before this
+ * became strict.
+ */
+function transitionItem(item: LandingPreviewItem, next: LandingPreviewItemStatus): boolean {
+  if (!decideTransition(LANDING_PREVIEW_ITEM_LIFECYCLE, item.status, next)) return false;
+  item.status = next;
+  return true;
+}
+
 
 const STATE_VERSION = 1;
 /** Bumped whenever the capture pipeline changes in a way that invalidates caches. */
@@ -433,7 +450,7 @@ export class LandingPreviewCatalog {
       landing.previewHeight = null;
       landing.renderedAt = null;
       landing.extractedAvailable = false;
-      landing.status = 'queued';
+      transitionItem(landing, 'queued');
       landing.stale = false;
     }
     catalog.updatedAt = null;
@@ -552,7 +569,7 @@ export class LandingPreviewCatalog {
     const renderer = this.renderer.availability();
     if (!renderer.available) {
       for (const landing of queued) {
-        landing.status = 'failed';
+        transitionItem(landing, 'failed');
         landing.error = renderer.error;
       }
       throw new Error(renderer.error ?? 'Chromium renderer is unavailable.');
@@ -592,7 +609,7 @@ export class LandingPreviewCatalog {
     let obsoletePreviewFiles: string[] = [];
     let generatedPreviewFiles: string[] = [];
     this.progress.currentLandingId = landing.id;
-    landing.status = 'rendering';
+    transitionItem(landing, 'rendering');
     landing.error = null;
     this.notify('landing-preview:progress');
     try {
@@ -634,7 +651,7 @@ export class LandingPreviewCatalog {
       landing.blockedExternalRequests = result.blockedExternalRequests;
       landing.warning = result.warning;
       landing.renderedAt = Date.now();
-      landing.status = 'ready';
+      transitionItem(landing, 'ready');
       landing.stale = false;
       landing.error = null;
       landing.renderProfile = this.renderProfile();
@@ -644,10 +661,10 @@ export class LandingPreviewCatalog {
         generatedPreviewFiles.map(file => rm(file, { force: true }).catch(() => {}))
       );
       if (signal.aborted) {
-        landing.status = 'queued';
+        transitionItem(landing, 'queued');
         throw error;
       }
-      landing.status = 'failed';
+      transitionItem(landing, 'failed');
       landing.error = errorMessage(error);
     }
     this.progress.completed += 1;
@@ -828,16 +845,16 @@ export class LandingPreviewCatalog {
           landing.previewWidth = null;
           landing.previewHeight = null;
           landing.renderedAt = null;
-          landing.status = landing.status === 'failed' ? 'failed' : 'queued';
+          transitionItem(landing, landing.status === 'failed' ? 'failed' : 'queued');
         } else if (landing.status === 'rendering') {
-          landing.status = 'ready';
+          transitionItem(landing, 'ready');
         }
         if (
           catalog.sourceKind === 'local' &&
           landing.previewAvailable &&
           landing.renderProfile !== this.renderProfile()
         ) {
-          landing.status = 'queued';
+          transitionItem(landing, 'queued');
           landing.stale = true;
         }
         if (landing.sourceKind === 'zip') {

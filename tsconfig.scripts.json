@@ -1,0 +1,53 @@
+{
+  // Type-checks scripts/, which no other tsconfig covers.
+  //
+  // The scripts are `.mjs` and stay that way — the constitution reserves `.mjs` for
+  // anything importing the shared contract or doing crypto/git, and converting them to
+  // TypeScript would add a transpile step to every release path. `checkJs` gets the
+  // checking without the rewrite.
+  //
+  // `noImplicitAny: false` is a deliberate trade. Under full strictness this surfaces
+  // ~250 errors, of which ~118 are untyped-parameter noise on scripts that were never
+  // annotated. With implicit any allowed the remaining findings are overwhelmingly real
+  // defects — a fetch result used without narrowing, a union value passed into a
+  // parameter that excludes it.
+  //
+  // `strictNullChecks` stays ON. Roughly a third of the real findings are
+  // possibly-undefined, which is exactly the class of bug that makes a release script
+  // fail halfway through.
+  //
+  // The `exclude` list is a ratchet. tests/typecheck-ratchet.test.ts asserts it never grows.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "allowJs": true,
+    "checkJs": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["scripts/**/*.mjs"],
+  // RATCHET — 12 scripts, 81 errors, overwhelmingly possibly-undefined and unknown-typed
+  // catch bindings. Empty this list file by file (T240).
+  // tests/typecheck-ratchet.test.ts fails if it grows.
+  "exclude": [
+    "scripts/beta-up.mjs",
+    "scripts/fetch-windows-inputs.mjs",
+    "scripts/real-agent-check.mjs",
+    "scripts/stage-windows-runtime.mjs",
+    "scripts/validate-team-migrations.mjs",
+    "scripts/verify-beta-env.mjs",
+    "scripts/verify-beta-promotion.mjs",
+    "scripts/verify-published-release.mjs",
+    "scripts/verify-release.mjs",
+    "scripts/verify-team-production.mjs",
+    "scripts/watch-github-run.mjs",
+    "scripts/windows-smoke.mjs"
+  ]
+}

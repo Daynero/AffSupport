@@ -59,9 +59,10 @@ describe('page shell width', () => {
     const root = block(':root');
     expect(root).toMatch(/--shell-width:\s*max\(1440px,\s*80vw\)/);
     expect(root).toMatch(/--shell-width-narrow:\s*max\(1120px,\s*80vw\)/);
+    expect(root).toMatch(/--shell-width-team:\s*max\(1240px,\s*80vw\)/);
   });
 
-  // Every full-page container reads one of the two shell tokens, so the shell
+  // Every full-page container reads one of the three shell tokens, so the shell
   // measure can only ever be changed in one place.
   it.each([
     ['.workspace', '--shell-width'],
@@ -69,11 +70,13 @@ describe('page shell width', () => {
     ['.landing-gallery-welcome', '--shell-width'],
     ['.public-home-content', '--shell-width'],
     ['.page-container', '--shell-width-narrow'],
-    ['.public-footer', '--shell-width-narrow']
+    ['.public-footer', '--shell-width-narrow'],
+    ['.team-space-page', '--shell-width-team'],
+    ['.team-workspace-page', '--shell-width-team']
   ])('sizes %s from var(%s)', (selector, token) => {
     const rule = block(selector);
     expect(rule).toMatch(new RegExp(`width:\\s*min\\([^;]*var\\(${token}\\)`));
-    expect(rule).not.toMatch(/width:\s*min\((1440|1120)px/);
+    expect(rule).not.toMatch(/width:\s*min\((1440|1240|1120)px/);
   });
 
   it('keeps the topbar controls on the shell axis on wide displays', () => {
@@ -88,12 +91,28 @@ describe('page shell width', () => {
 describe('dialog width ladder', () => {
   it('defines every rung once, each scaling with the viewport', () => {
     const root = block(':root');
-    expect(root).toMatch(/--dialog-sm:\s*max\(552px, 18vw\)/);
-    expect(root).toMatch(/--dialog-md:\s*max\(576px, 20vw\)/);
-    expect(root).toMatch(/--dialog-lg:\s*max\(624px, 22vw\)/);
-    expect(root).toMatch(/--dialog-xl:\s*max\(880px, 30vw\)/);
-    expect(root).toMatch(/--dialog-wide:\s*max\(1180px, 56vw\)/);
+    expect(root).toMatch(/--dialog-sm:\s*clamp\(552px, 38vw, 760px\)/);
+    expect(root).toMatch(/--dialog-md:\s*clamp\(576px, 40vw, 820px\)/);
+    expect(root).toMatch(/--dialog-lg:\s*clamp\(624px, 43vw, 900px\)/);
+    expect(root).toMatch(/--dialog-xl:\s*clamp\(880px, 61vw, 1240px\)/);
+    expect(root).toMatch(/--dialog-wide:\s*clamp\(1180px, 72vw, 1600px\)/);
     expect(root).toMatch(/--dialog-full:\s*var\(--shell-width\)/);
+  });
+
+  // A `max()` of a pixel floor and a vw share only engages once the viewport
+  // passes floor / share — which for the old rungs was ~2900px, so every
+  // dialog was a fixed width on any display anyone actually owns. Each rung
+  // must reach its vw share by the time a laptop is plugged into a monitor.
+  it('starts growing before the viewport reaches a laptop-plus-monitor width', () => {
+    const root = block(':root');
+    const rungs = [...root.matchAll(/--dialog-(\w+):\s*clamp\((\d+)px,\s*(\d+)vw/g)];
+    expect(rungs.length).toBe(5);
+    for (const [, name, floor, share] of rungs) {
+      const engagesAt = Number(floor) / (Number(share) / 100);
+      expect(engagesAt, `--dialog-${name} only grows past ${Math.round(engagesAt)}px`).toBeLessThan(
+        1700
+      );
+    }
   });
 
   it('sizes the Modal primitive from the ladder', () => {
@@ -152,10 +171,10 @@ describe('dialog fit', () => {
     expect(block('.modal')).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\)/);
     expect(block('.team-preview-dialog')).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\)/);
     expect(block(SURFACES)).toMatch(/overflow-wrap:\s*break-word/);
-    expect(block(`${SURFACES} > *`)).toMatch(/min-width:\s*0/);
-    expect(
-      block(`${SURFACES} :is(.inline-actions, .dialog-actions, .team-dialog-actions)`)
-    ).toMatch(/flex-wrap:\s*wrap/);
+    expect(block(`${SURFACES} *`)).toMatch(/min-width:\s*0/);
+    // Matched by name, not by a list: the list is what left every row added
+    // later (the transcript column head, the library heading) overflowing.
+    expect(block(`${SURFACES} [class*='actions']`)).toMatch(/flex-wrap:\s*wrap/);
   });
 
   // A per-dialog width that fights the size class is what made the model

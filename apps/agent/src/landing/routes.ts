@@ -9,6 +9,7 @@ import { selectLandingFolders, selectLandingZips } from '../files/picker.js';
 import { uploadIntakeMeta } from '../files/upload-intake.js';
 import { capabilities, openPath, revealInFileManager } from '../platform/platform.js';
 import type { EventChannel } from '../server/sse.js';
+import { MAX_LANDING_ARCHIVE_BYTES, MAX_LANDING_ASSET_BYTES } from '../server/upload-limits.js';
 import type { LandingOptimizer } from './optimizer.js';
 import { sanitizeRelPath } from './workspace.js';
 
@@ -105,7 +106,7 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
   });
 
   app.post('/api/landing/upload/zip', async (request, reply) => {
-    const part = await request.file();
+    const part = await request.file({ limits: { fileSize: MAX_LANDING_ARCHIVE_BYTES } });
     if (!part) return reply.code(400).send({ error: 'No archive was provided.' });
     const meta = uploadIntakeMeta(part, 'landing.zip');
     if (!/\.zip$/i.test(meta.fileName)) {
@@ -144,7 +145,7 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
   });
 
   app.post('/api/landing/upload/folder/file', async (request, reply) => {
-    const part = await request.file();
+    const part = await request.file({ limits: { fileSize: MAX_LANDING_ASSET_BYTES } });
     if (!part) return reply.code(400).send({ error: 'No file was provided.' });
     const relField = part.fields.relPath;
     const rawRel =
@@ -202,7 +203,7 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
     const started = await optimizer.start(rawIds as string[] | undefined);
     return started
       ? optimizer.state()
-      : reply.code(409).send({ error: 'No landing is ready to optimize.' });
+      : reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' });
   });
 
   app.post<{ Params: { jobId: string } }>(
@@ -214,7 +215,20 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
       const started = await optimizer.start([request.params.jobId]);
       return started
         ? optimizer.state()
-        : reply.code(409).send({ error: 'The landing is not ready to optimize.' });
+        : reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' });
+    }
+  );
+
+  app.post<{ Params: { jobId: string } }>(
+    '/api/landing/jobs/:jobId/cancel',
+    async (request, reply) => {
+      // Stopping one landing rather than all of them. Without this the only stop the tool
+      // offered was "stop everything", so abandoning the second of four meant losing the
+      // other three as well.
+      const cancelled = await optimizer.cancel(request.params.jobId);
+      return cancelled
+        ? optimizer.state()
+        : reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' });
     }
   );
 

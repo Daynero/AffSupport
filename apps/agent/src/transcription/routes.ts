@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, stat } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
+import { MAX_MEDIA_UPLOAD_BYTES } from '../server/upload-limits.js';
 import {
   isTranscribableFileName,
   isValidTargetLanguage,
@@ -86,7 +87,7 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
   );
 
   app.post('/api/transcription/files/upload', async (request, reply) => {
-    const part = await request.file();
+    const part = await request.file({ limits: { fileSize: MAX_MEDIA_UPLOAD_BYTES } });
     if (!part) return reply.code(400).send({ error: 'No file was provided.' });
     const { fileName, signature, sourceSize, sourceModifiedAt } = uploadIntakeMeta(part, 'audio');
     if (!isTranscribableFileName(fileName)) {
@@ -163,7 +164,7 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
     const started = await queue.start(rawIds as string[]);
     return started
       ? queue.state()
-      : reply.code(409).send({ error: 'No file is ready to transcribe.' });
+      : reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' });
   });
 
   app.post<{ Params: { id: string } }>(
@@ -172,7 +173,7 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
       const cancelled = queue.cancel(request.params.id);
       return cancelled
         ? queue.state()
-        : reply.code(409).send({ error: 'The job cannot be cancelled.' });
+        : reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' });
     }
   );
 
@@ -187,7 +188,7 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
       const retried = await queue.retry(request.params.id);
       return retried
         ? queue.state()
-        : reply.code(409).send({ error: 'The job cannot be retried.' });
+        : reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' });
     }
   );
 

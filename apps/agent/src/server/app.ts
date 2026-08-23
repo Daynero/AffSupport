@@ -17,6 +17,7 @@ import type { JobQueue } from '../queue/queue.js';
 import type { PowerGovernor } from '../power/governor.js';
 import { registerPowerRoutes, type PowerSamplerHandle } from '../power/routes.js';
 import type { ToolContext, ToolModule } from './tools.js';
+import { DEFAULT_UPLOAD_BYTES } from './upload-limits.js';
 
 export interface ServerConfig {
   /** Which environment this process belongs to; surfaced on the health snapshot. */
@@ -89,7 +90,39 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     queue,
     modules
   } = deps;
-  const app = Fastify({ logger: deps.logger ?? true, bodyLimit: 16_384 });
+  const app = Fastify({
+    // The default logger prints `req.url`, which carries `?token=<64 hex>` on roughly a
+    // dozen client call sites, plus path-shaped identifiers. Emitting the *route pattern*
+    // instead removes both in one change, and a pattern is more useful for diagnostics
+    // than a raw URL anyway. Redaction covers the headers and — the one that matters for
+    // /pair — the redirect Location, which carries the session token.
+    logger:
+      deps.logger === undefined || deps.logger === true
+        ? {
+            serializers: {
+              req(request: { method: string; routeOptions?: { url?: string }; url: string }) {
+                return {
+                  method: request.method,
+                  // Never `request.url`: it carries the query string and every id.
+                  route: request.routeOptions?.url ?? '(unrouted)'
+                };
+              }
+            },
+            redact: {
+              paths: [
+                'req.headers["x-session-token"]',
+                'req.headers["x-wishly-native-token"]',
+                'req.headers["x-wishly-update-token"]',
+                'req.headers.authorization',
+                'req.headers.cookie',
+                'res.headers.location'
+              ],
+              remove: true
+            }
+          }
+        : deps.logger,
+    bodyLimit: 16_384
+  });
 
   await app.register(cors, {
     origin: (origin, callback) => callback(null, !origin || allowedOrigins.has(origin)),
@@ -97,10 +130,49 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     allowedHeaders: ['content-type', 'x-session-token', 'x-wishly-update-token']
   });
   await app.register(fastifyMultipart, {
-    limits: { files: 1, fields: 4, fileSize: 100 * 1024 * 1024 * 1024 }
+    // A restrictive default on purpose. This value applies to any route that does not
+    // state its own limit, so forgetting to specify is safe rather than unbounded. Routes
+    // handling real media opt in explicitly — see MAX_MEDIA_UPLOAD_BYTES and friends.
+    limits: { files: 1, fields: 4, fileSize: DEFAULT_UPLOAD_BYTES }
   });
 
+  const LOOPBACK_HOSTNAMES = new Set(['127.0.0.1', 'localhost', '[::1]', '::1']);
+
+  /**
+   * True when the Host header names this machine's loopback interface.
+   *
+   * The hostname is the security property; the port is not. A page rebound from
+   * evil.example to 127.0.0.1 still sends `Host: evil.example`, so the hostname check
+   * catches it whatever port it targets. Pinning the port as well would add nothing and
+   * would break every caller that reaches the agent on a port this process did not read
+   * from configuration — an ephemeral port in tests, or a launcher that picked one.
+   */
+  function isLoopbackHost(value: string): boolean {
+    // Duplicate Host headers arrive joined by Node as "a, b" and are always hostile.
+    if (value.includes(',')) return false;
+    const bracketed = value.startsWith('[');
+    const hostname = bracketed
+      ? value.slice(0, value.indexOf(']') + 1)
+      : (value.split(':')[0] ?? '');
+    return LOOPBACK_HOSTNAMES.has(hostname);
+  }
+
   app.addHook('onRequest', async (request, reply) => {
+    // Host first, and on every path — not just /api/*.
+    //
+    // This is the DNS-rebinding guard, and the prize it protects is not /health leaking a
+    // build id. It is /pair, which hands the session token to anyone who follows its
+    // redirect: a page rebound to 127.0.0.1 that follows it and reads its own fragment is
+    // fully paired. The origin check below cannot stop that, because after rebinding the
+    // request is same-origin and carries no Origin header at all.
+    //
+    // Running in `onRequest` matters: it is before body parsing, so a rejected request
+    // never causes a byte of a multipart upload to be read.
+    const host = request.headers.host;
+    if (typeof host !== 'string' || !isLoopbackHost(host)) {
+      return reply.code(403).send({ error: 'HOST_NOT_ALLOWED' });
+    }
+
     const origin = request.headers.origin;
     if (request.url.startsWith('/api/') && origin && !allowedOrigins.has(origin)) {
       return reply.code(403).send({ error: 'Origin is not allowed.' });
@@ -145,9 +217,15 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
       return;
     }
     if (!request.url.startsWith('/api/')) return;
+    // `!==` here was both timing-unsafe and type-unsafe. Fastify parses a repeated
+    // `?token=a&token=b` into an array, which reached the raw comparison as a non-string;
+    // the guard rejects that before it can be compared. /native/* twelve lines above has
+    // always used tokensMatch — this brings the browser token to the same standard.
     const supplied =
-      request.headers['x-session-token'] ?? (request.query as { token?: string }).token;
-    if (supplied !== token) return reply.code(401).send({ error: 'Invalid session token.' });
+      request.headers['x-session-token'] ?? (request.query as { token?: unknown }).token;
+    if (typeof supplied !== 'string' || !tokensMatch(token, supplied)) {
+      return reply.code(401).send({ error: 'Invalid session token.' });
+    }
     if (
       !ENTITLEMENT_EXEMPT_ROUTES.has(route) &&
       entitlementGate.enforced &&

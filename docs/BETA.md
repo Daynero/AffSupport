@@ -73,6 +73,12 @@ It also mirrors the git-ignored `supabase/functions/.env.local` to the filename 
 Supabase edge runtime. A normal restart therefore needs only this one command; no Docker, Functions,
 agent, or Vite preparation is manual.
 
+`beta:up` also proves the local edge runtime is actually serving before it reports beta up, and
+restarts it once if it is not. `supabase start` exits 0 even when it has given up on a service that
+failed its health check; when that service is the edge runtime, every server-side team feature —
+Drive connect, Drive ops, library ops, invitations, catalog sync, entitlement — answers 503 while
+beta still claims to be running, which makes the product look broken rather than unstarted.
+
 - Web: <http://127.0.0.1:5175>
 - Agent: <http://127.0.0.1:43140>
 - Local Supabase Studio: <http://127.0.0.1:54323>
@@ -153,10 +159,17 @@ assumed local.
 
 The baseline after a reset:
 
-| Fixture   | Value                                                                                  |
-| --------- | -------------------------------------------------------------------------------------- |
-| Account   | `beta@soty.local` / `beta-password`, confirmed, `account_status = active`, plan `team` |
-| Workspace | "Beta Workspace", owned by that account, with it as admin                              |
+| Fixture    | Value                                                                                  |
+| ---------- | -------------------------------------------------------------------------------------- |
+| Account    | `beta@soty.local` / `beta-password`, confirmed, `account_status = active`, plan `team` |
+| Workspace  | "Beta Workspace", owned by that account, with it as admin                              |
+| Pilot gate | that account is also in `public.admin_users`, which is what unlocks the workspace      |
+
+The pilot gate is easy to overlook and total in its effect: `private.team_workspace_allowed`
+unlocks a space only when one of its active members is also a product admin. Without that row the
+fixture workspace exists but `list_my_teams` returns nothing and `can_access_team_workspace` is
+false, so `/team` shows the "in development" gate and **no team flow is exercisable at all**. It is
+the product's own allowlist applied to a local-only account, and it never reaches production.
 
 Fixtures are applied explicitly rather than wired in as `config.toml`'s shared seed, so ordinary local
 development keeps its own behaviour.

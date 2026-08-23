@@ -144,5 +144,57 @@ export default tseslint.config(
         { name: 'indexedDB', message: 'Review data must remain immutable fixtures.' }
       ]
     }
+  },
+  {
+    // A skip has to be visible. Fourteen sites across five test files opened with
+    // `if (!available) return;` inside the test body, which reports as **passed** —
+    // so a runner missing FFmpeg produced a green tick for tests that asserted
+    // nothing. `describeRequiring` in tests/support/requires.ts is the replacement:
+    // it decides at collection time and names what is absent in the title. Without
+    // a rule the pattern comes back the next time someone writes a test that needs
+    // a binary, because it is the shortest thing to type.
+    files: ['tests/**/*.{ts,tsx}'],
+    rules: {
+      // Three shapes reach a test callback: `it(…)`, `it.only(…)`, and the
+      // double-call `it.skipIf(x)(…)`. Missing any one of them leaves the pattern
+      // a rename away from being legal again.
+      'no-restricted-syntax': [
+        'error',
+        ...[
+          'CallExpression[callee.name=/^(it|test|beforeAll|beforeEach|afterAll|afterEach)$/]',
+          'CallExpression[callee.object.name=/^(it|test)$/]',
+          'CallExpression[callee.callee.object.name=/^(it|test)$/]'
+        ].map(call => ({
+          selector: `${call} IfStatement > ReturnStatement.consequent[argument=null]`,
+          message:
+            'A bare early return inside a test callback reports as passed, not skipped. Declare the requirement with describeRequiring() from tests/support/requires.js so the skip is visible and counted.'
+        }))
+      ]
+    }
+  },
+  {
+    // The machine probe must not be able to agree with the code it is checking.
+    //
+    // Its whole value is that it reads the operating system with its own flags, its own
+    // parser and its own tree walk. One `import { processTableSnapshot }` and the stop test
+    // is once again asserting that the agent agrees with itself — which is precisely the
+    // weakness (A14) this feature exists to remove. The restriction is doubled by a source
+    // scan in tests/machine-probe-independence.test.ts, because a lint rule is only enforced
+    // where lint is run.
+    files: ['tests/support/machine-probe.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/apps/agent/src/platform/**', '**/apps/agent/src/power/**'],
+              message:
+                'The machine probe observes the machine independently of the app. Reimplement what it needs here rather than importing the code under test.'
+            }
+          ]
+        }
+      ]
+    }
   }
 );

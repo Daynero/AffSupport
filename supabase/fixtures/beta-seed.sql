@@ -108,4 +108,14 @@ values (
 )
 on conflict (id) do nothing;
 
+-- The pilot gate (private.team_workspace_allowed) unlocks a space only when one
+-- of its active members is also in public.admin_users. Without this row the
+-- fixture workspace exists but list_my_teams returns nothing and
+-- can_access_team_workspace is false, so beta cannot exercise any team flow --
+-- which is precisely what beta is for. This is the product's own allowlist,
+-- applied to a local-only account, and never reaches production.
+insert into public.admin_users (user_id)
+values ('11111111-1111-4111-8111-111111111111')
+on conflict (user_id) do nothing;
+
 commit;

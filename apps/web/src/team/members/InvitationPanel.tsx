@@ -56,6 +56,8 @@ export function InvitationPanel({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const directAdd = directAddMode === 'testing';
 
   useEffect(() => {
@@ -80,6 +82,7 @@ export function InvitationPanel({
     setSubmitting(true);
     setError(null);
     setSuccess(null);
+    setInviteUrl(null);
     try {
       if (directAdd) {
         if (!client.directAddMember) {
@@ -93,6 +96,11 @@ export function InvitationPanel({
           role
         );
         setInvitations(current => [created, ...current.filter(item => item.id !== created.id)]);
+        // An environment that does not deliver invitation mail hands the link
+        // back instead. Showing it is the difference between "delivery failed"
+        // being a dead end and the invitation flow staying walkable.
+        setInviteUrl(created.inviteUrl ?? null);
+        setLinkCopied(false);
       }
       setEmail('');
       onChanged?.();
@@ -103,8 +111,18 @@ export function InvitationPanel({
         else if (caught.code === 'TEAM_MEMBER_LIMIT') setError(t('teamDirectAddLimit'));
         else if (caught.code === 'WRONG_STATE') setError(t('teamDirectAddDisabled'));
         else setError(t('teamDirectAddFailed'));
+      } else if (caught instanceof TeamApiError) {
+        // The server already distinguishes why an invitation was refused. Saying
+        // "Delivery failed" for all of them is doubly wrong: it names the wrong
+        // cause, and no delivery was even attempted.
+        if (caught.code === 'ALREADY_INVITED') setError(t('teamInviteAlreadyInvited'));
+        else if (caught.code === 'ALREADY_MEMBER') setError(t('teamInviteAlreadyMember'));
+        else if (caught.code === 'TEAM_MEMBER_LIMIT') setError(t('teamInviteLimit'));
+        else if (caught.code === 'PERMISSION_DENIED' || caught.code === 'NOT_A_MEMBER')
+          setError(t('teamInviteNotAllowed'));
+        else setError(t('teamInviteCreateFailed'));
       } else {
-        setError(directAdd ? t('teamDirectAddFailed') : t('teamInvitationFailed'));
+        setError(directAdd ? t('teamDirectAddFailed') : t('teamInviteCreateFailed'));
       }
     } finally {
       setSubmitting(false);
@@ -162,6 +180,25 @@ export function InvitationPanel({
         <p className="team-inline-success" role="status">
           {success}
         </p>
+      )}
+      {inviteUrl && (
+        <div className="team-invitation-link" role="status">
+          <strong>{t('teamInvitationLinkTitle')}</strong>
+          <p>{t('teamInvitationLinkHint')}</p>
+          <input type="text" readOnly value={inviteUrl} aria-label={t('teamInvitationLinkTitle')} />
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              void navigator.clipboard?.writeText(inviteUrl).then(
+                () => setLinkCopied(true),
+                () => setLinkCopied(false)
+              );
+            }}
+          >
+            {linkCopied ? t('teamInvitationLinkCopied') : t('teamInvitationLinkCopy')}
+          </Button>
+        </div>
       )}
       <ul className="team-invitation-list">
         {invitations.map(invitation => (

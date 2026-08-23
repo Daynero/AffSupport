@@ -3,13 +3,15 @@ import { spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it } from 'vitest';
 import {
   defaultImageEmbeddingSettings,
   type AgentSettings,
   type ImageAsset
 } from '../packages/shared/src/types.js';
 import { encodeVideo } from '../apps/agent/src/ffmpeg/encoder.js';
+import { describeRequiring } from './support/requires.js';
+import { ffmpegBinaries } from './support/toolchain.js';
 import {
   commandExists,
   ffmpegPath,
@@ -33,11 +35,10 @@ afterAll(async () => {
   if (directory) await rm(directory, { recursive: true, force: true });
 });
 
-describe('manual long static embedding verification', () => {
+describeRequiring(ffmpegBinaries, 'manual long static embedding verification', () => {
   runLong(
     'encodes a real 30-minute final image with matching silent audio',
     async () => {
-      if (!available) return;
       const input = path.join(directory, 'original.mp4');
       const image = path.join(directory, 'final.png');
       const output = path.join(directory, 'long_embedded_compressed.mp4');
@@ -128,7 +129,6 @@ describe('manual long static embedding verification', () => {
   runLong(
     'freezes and encodes different 40–50 minute durations for two jobs',
     async () => {
-      if (!available) return;
       const imageRoot = path.join(directory, 'random-images');
       const outputFolder = path.join(directory, 'random-results');
       await mkdir(imageRoot, { recursive: true });

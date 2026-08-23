@@ -11,6 +11,7 @@ import {
   encodingFromSettings,
   imageEmbeddingKey,
   jobConfigurationKey,
+  COMPRESSION_LIFECYCLE,
   type AgentEventType,
   type AgentSettings,
   type CompressionJob,
@@ -63,6 +64,7 @@ export interface QueuePowerGovernor extends ManagedSpawnGovernor {
   scaleTimeout(milliseconds: number): number;
 }
 import { selectionWarning } from './shared.js';
+import { decideTransition } from './transitions.js';
 
 /**
  * How often the drain watchdog looks for a stranded batch. Slow on purpose:
@@ -79,6 +81,56 @@ type EstimatorHooks = {
   runPrioritized?: () => Promise<boolean>;
   cancelPrioritized?: (id: string) => void;
 };
+
+/**
+ * What the compressor is doing, as one value.
+ *
+ * The queue has kept this in five independent booleans and handles — `compressionInFlight`,
+ * `prioritizingEstimates`, `compressionPausedForEstimates`, `activeAbort`, `active` — and
+ * every wedged-queue defence in this file exists because of that (A4). Five flags describe
+ * thirty-two states, of which four are real; the other twenty-eight are the ones the
+ * watchdog, the drain check and the in-flight-flag-first ordering all exist to survive.
+ *
+ * Two things follow from making it one value rather than five. `release` living **only** in
+ * `encoding-held` turns "a hold is always released by its taker" into something the compiler
+ * checks rather than something a guard remembers, which is A5. And `jobId` gives the
+ * shutdown path the identity it needs to remove the partial output it currently leaves
+ * behind, which is half of A2.
+ *
+ * Private, and never on the wire: `QueueState.running` keeps exactly the shape it had.
+ */
+type CompressorActivity =
+  | { kind: 'idle' }
+  | { kind: 'estimating' }
+  | {
+      kind: 'encoding';
+      jobId: string;
+      abort: AbortController;
+      child: ChildProcessWithoutNullStreams | null;
+      /**
+       * Estimates running **alongside** this encode rather than instead of it.
+       *
+       * A platform that cannot suspend a process — or a queue with no governor attached —
+       * falls through the handoff and runs prioritised estimates next to the encode. That is
+       * a second concurrent activity, so a strictly one-at-a-time union cannot describe it,
+       * and dropping it would have silently changed behaviour on exactly the platform the
+       * handoff was written to accommodate.
+       */
+      estimating: boolean;
+    }
+  | {
+      kind: 'encoding-held';
+      jobId: string;
+      abort: AbortController;
+      /** Non-null by construction: a hold cannot exist without a child to hold. */
+      child: ChildProcessWithoutNullStreams;
+      /**
+       * Present **only** here, which is what closes A5: the token that releases the hold
+       * lives in the same value as the hold itself, so it cannot be overwritten by the next
+       * holder without having been called. Not a guard to remember — a shape.
+       */
+      release: () => void;
+    };
 
 type RuntimeRecoveryPhase = 'input-analysis' | 'encoding' | 'output-validation';
 export type QueueMediaRuntime = { probeMedia: typeof probeMedia };
@@ -114,14 +166,42 @@ export function isSupportedVideoPath(filePath: string) {
 }
 
 export class JobQueue {
-  private active: ChildProcessWithoutNullStreams | null = null;
   // Aborts background media work for the current job (static-edge detection in
   // `preparing-images`) whose ffmpeg children are not the tracked `active`
   // encoder, so cancel/shutdown can actually stop them.
-  private activeAbort: AbortController | null = null;
-  private compressionInFlight = false;
-  private compressionPausedForEstimates = false;
-  private prioritizingEstimates = false;
+  /**
+   * The stored activity. Five fields collapsed into the one value they always described.
+   *
+   * The five names below survive as read-only views so the rest of the file — and the tests
+   * that cross-check them — keep working through the change. They are deleted next; until
+   * then, an assignment to one of them is a compile error, which is how every write site was
+   * found rather than remembered.
+   */
+  private current: CompressorActivity = { kind: 'idle' };
+  /**
+   * Encoders that have been told to stop and have not finished doing so.
+   *
+   * Freeing the queue slot the moment a stop is signalled (FR-004) means the next job starts
+   * while the stopped one is still unwinding — which is the whole point, and which also
+   * means the queue no longer holds a reference to it. Kept here so a quit still waits for
+   * them: an agent that exited during that window would leave a child with nothing left to
+   * escalate its termination, and a child that ignores SIGTERM would simply carry on.
+   */
+  private readonly terminating = new Set<ChildProcessWithoutNullStreams>();
+  /**
+   * Serialises `start`, so two requests can never both pass its guard.
+   *
+   * `start` checks whether the queue is already running and then **awaits** — the disk
+   * warning, then one output-path resolution per job. Every one of those is a turn of the
+   * event loop in which a second request runs the same check against the same "not running"
+   * answer, and both go on to build a batch. The second overwrites `this.batch`, so the
+   * first batch's jobs are queued against a batch nothing will ever drain.
+   *
+   * A double-click produces exactly that, which is why the fix is not "check again after the
+   * awaits": the two would still interleave. The gate makes the whole of `start` atomic with
+   * respect to itself.
+   */
+  private startGate: Promise<void> = Promise.resolve();
   private drainWatchdog: NodeJS.Timeout | null = null;
   private nextEstimatePriorityOrder = 1;
   private warning: string | null = null;
@@ -139,7 +219,6 @@ export class JobQueue {
   private teamJobSettings = new Map<string, AgentSettings>();
   private power: QueuePowerGovernor | null = null;
   /** Releases the estimate-priority hold; null when nothing is held. */
-  private estimateHoldRelease: (() => void) | null = null;
 
   constructor(
     private tools: QueueState['tools'],
@@ -178,6 +257,43 @@ export class JobQueue {
   }
 
   /**
+   * The five fields, read as the one value they were always describing.
+   *
+   * **Derived, not stored — for now.** This is the shadow half of the collapse: every
+   * consumer moves onto this getter first, tests assert it agrees with the fields at every
+   * broadcast, and only then is the representation inverted. Doing it the other way round
+   * would put the estimate-priority handoff — the subtlest concurrency in the agent — on an
+   * un-cross-checked representation from the first commit.
+   *
+   * `jobId` and `abort` are nullable here and will not be once the value is stored: a
+   * derived view cannot promise more than the fields it derives from, and the point of the
+   * inversion is that the three are created together or not at all.
+   */
+  private get activity(): CompressorActivity {
+    return this.current;
+  }
+
+  /**
+   * The one place a job's status changes.
+   *
+   * Fifteen sites wrote `job.status` directly, and between them they were the complete —
+   * undeclared, unenumerable — definition of what a compression may do next. The interface
+   * then re-derived the same rules from status literals of its own. One method consulting
+   * one shared table replaces both.
+   *
+   * Returns whether the change was applied. A refusal **leaves the job exactly as it was**
+   * and answers false — it never throws and never half-applies; routes map false to
+   * `409 TRANSITION_NOT_ALLOWED`. The mechanism shipped permissive and was switched to
+   * strict only after a full suite run reconciled the tables against the edges the code
+   * actually takes; see `apps/agent/src/queue/transitions.ts`.
+   */
+  private transition(job: CompressionJob, next: JobStatus): boolean {
+    if (!decideTransition(COMPRESSION_LIFECYCLE, job.status, next)) return false;
+    job.status = next;
+    return true;
+  }
+
+  /**
    * Asks the governor to hold the encode while prioritized estimates run, and
    * reports whether the encode is actually stopped now.
    *
@@ -195,13 +311,29 @@ export class JobQueue {
       release();
       return false;
     }
-    this.estimateHoldRelease = release;
+    // Held *is* the activity now, so taking the hold and recording it are one write. There
+    // is no window in which a hold exists with nowhere to record its token — which is A5.
+    if (this.current.kind !== 'encoding') {
+      release();
+      return false;
+    }
+    this.current = {
+      kind: 'encoding-held',
+      jobId: this.current.jobId,
+      abort: this.current.abort,
+      child,
+      release
+    };
     return true;
   }
 
   private releaseEstimateHold() {
-    this.estimateHoldRelease?.();
-    this.estimateHoldRelease = null;
+    if (this.current.kind !== 'encoding-held') return;
+    const { jobId, abort, child, release } = this.current;
+    // Step out of the held variant before calling, so a throwing release cannot leave the
+    // queue claiming a hold it no longer owns.
+    this.current = { kind: 'encoding', jobId, abort, child, estimating: true };
+    release();
   }
 
   private pauseSupported(): boolean {
@@ -223,7 +355,7 @@ export class JobQueue {
     // A transient tool outage can make `pump` bail while a batch still has
     // queued jobs; once the tools return, resume draining it so those jobs do
     // not stay wedged as "running" until the agent restarts.
-    if (becameAvailable && !this.compressionInFlight) queueMicrotask(() => void this.pump());
+    if (becameAvailable && this.activity.kind === 'idle') queueMicrotask(() => void this.pump());
   }
 
   state(): QueueState {
@@ -248,7 +380,7 @@ export class JobQueue {
    * pure waste.
    */
   running(): boolean {
-    return this.compressionInFlight || this.prioritizingEstimates || this.queuedInBatch();
+    return this.activity.kind !== 'idle' || this.queuedInBatch();
   }
 
   updateStatus(): NonNullable<QueueState['update']> {
@@ -260,7 +392,11 @@ export class JobQueue {
   }
 
   compressionActive() {
-    return this.compressionInFlight && !this.compressionPausedForEstimates;
+    // `encoding-held` is deliberately not active: the encode exists but the governor has it
+    // stopped so prioritised estimates can have the machine. Held and encoding are now two
+    // values rather than two flags, so this is the whole condition — the extra term the
+    // five-field version needed existed only to cover the window where they disagreed.
+    return this.activity.kind === 'encoding';
   }
 
   workActive() {
@@ -445,14 +581,14 @@ export class JobQueue {
         if (recovery.phase === 'input-analysis') {
           const media = await this.mediaRuntime.probeMedia(job.inputPath);
           if (!validSourceMedia(media)) {
-            job.status = 'failed';
+            this.transition(job, 'failed');
             job.error = 'This video format is not supported or the file is damaged.';
             job.errorDetails = null;
             job.finishedAt = finishTimestamp(job);
             continue;
           }
           applySourceMedia(job, media);
-          job.status = 'ready';
+          this.transition(job, 'ready');
           job.error = null;
           job.errorDetails = null;
           job.finishedAt = null;
@@ -467,7 +603,7 @@ export class JobQueue {
           continue;
         }
 
-        job.status = 'interrupted';
+        this.transition(job, 'interrupted');
         job.error = 'Compression was interrupted when the media engine stopped.';
         job.errorDetails = null;
         job.processingStage = null;
@@ -477,7 +613,7 @@ export class JobQueue {
           await this.pauseForRuntimeFailure(job, error, recovery.phase);
           return false;
         }
-        job.status = 'failed';
+        this.transition(job, 'failed');
         job.error = processingError(error);
         job.errorDetails = error instanceof Error ? error.message : null;
         job.processingStage = null;
@@ -538,6 +674,25 @@ export class JobQueue {
   }
 
   async start(ids: string[]) {
+    // Claimed synchronously, before the first await, so the queue is single-threaded with
+    // respect to starting. A caller that arrives while another start is in flight waits for
+    // it and then runs the guard below against the state that start actually produced —
+    // which is how a hundred simultaneous double-starts become one run and ninety-nine
+    // honest refusals (FR-009c).
+    const previous = this.startGate;
+    let release = () => {};
+    this.startGate = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    await previous;
+    try {
+      return await this.startExclusively(ids);
+    } finally {
+      release();
+    }
+  }
+
+  private async startExclusively(ids: string[]) {
     if (
       !this.tools.ffmpeg ||
       !this.tools.ffprobe ||
@@ -617,7 +772,7 @@ export class JobQueue {
       ) {
         resetEstimate(job);
       }
-      job.status = 'queued';
+      this.transition(job, 'queued');
       job.batchId = batch.id;
       job.error = null;
       job.errorDetails = null;
@@ -643,7 +798,7 @@ export class JobQueue {
     if (!job || (job.status !== 'processing' && job.status !== 'queued')) return false;
     const wasProcessing = job.status === 'processing';
     if (job.estimatePriorityOrder !== null) this.estimateHooks?.cancelPrioritized?.(job.id);
-    job.status = 'cancelled';
+    this.transition(job, 'cancelled');
     job.error = 'Compression was cancelled.';
     job.finishedAt = finishTimestamp(job);
     job.processingStage = null;
@@ -659,16 +814,38 @@ export class JobQueue {
       job.estimateError = null;
     }
     if (wasProcessing) {
+      const activity = this.activity;
+      const encoding = activity.kind === 'encoding' || activity.kind === 'encoding-held';
       // Stop untracked background work too (static-edge detection during
-      // `preparing-images`), whose ffmpeg children are not `this.active` and
+      // `preparing-images`), whose ffmpeg children are not the tracked encoder and
       // would otherwise keep loading the CPU after the UI shows "cancelled".
-      this.activeAbort?.abort();
+      if (encoding) activity.abort.abort();
+      // Captured before the release, which swaps the activity out of its held variant.
+      const child = encoding ? activity.child : null;
       // SIGTERM is not delivered to a stopped process until it is resumed, so a
       // suspended encode would ignore the graceful signal and only die to the
       // SIGKILL escalation — losing the chance to finalize its output.
       this.releaseEstimateHold();
-      if (this.active) this.power?.resumeForTermination(this.active);
-      if (this.active) this.active.kill('SIGTERM');
+      if (child) {
+        this.power?.resumeForTermination(child);
+        this.terminating.add(child);
+        child.once('close', () => this.terminating.delete(child));
+        child.kill('SIGTERM');
+      }
+
+      // FR-004. The place in the queue is released now, not when the child finally exits.
+      // Unwinding a stopped encode takes as long as the child takes to honour a signal — up
+      // to the escalation deadline for one that ignores it — and making the user wait that
+      // long before the next file starts is the stop appearing not to have worked.
+      //
+      // Safe because nothing else depends on holding the slot: the child carries its own
+      // termination escalation, `terminating` keeps a quit from outrunning it, and this
+      // encode's own `finally` checks whether the activity is still its own before touching
+      // it.
+      if (encoding) {
+        this.current = { kind: 'idle' };
+        queueMicrotask(() => void this.pump());
+      }
     }
     return true;
   }
@@ -814,12 +991,27 @@ export class JobQueue {
   }
 
   async shutdown() {
+    const activity = this.activity;
+    if (activity.kind !== 'encoding' && activity.kind !== 'encoding-held') {
+      // No encode of its own, but a stop may have freed the slot moments ago and left a
+      // child still going. Returning here would be the quit outrunning the termination it
+      // started — which is the orphan this feature exists to prevent.
+      await this.awaitTerminating();
+      return;
+    }
     // Abort background media work first: static-edge detection runs its own
-    // ffmpeg children that are not `this.active`, so without this a shutdown
+    // ffmpeg children that are not the tracked encoder, so without this a shutdown
     // during `preparing-images` would leave them running.
-    this.activeAbort?.abort();
-    const child = this.active;
-    if (!child) return;
+    activity.abort.abort();
+    // The identity the five-field version did not have, and the reason a quit mid-batch left
+    // a truncated file next to the user's source every time (A2(i)). Every *cancel* path
+    // unlinks; shutdown could not, because nothing recorded which job the child belonged to.
+    const { jobId } = activity;
+    const child = activity.child;
+    if (!child) {
+      await this.unlinkPartialOutput(jobId);
+      return;
+    }
     this.releaseEstimateHold();
     this.power?.resumeForTermination(child);
     child.kill('SIGTERM');
@@ -837,6 +1029,62 @@ export class JobQueue {
         )
       )
     ]);
+    await this.unlinkPartialOutput(jobId);
+    await this.awaitTerminating();
+
+    // Leave the queue saying what is true. The encode's own `finally` clears the activity,
+    // but it runs a turn or two later — after the child's close has travelled back through
+    // the encoder's promise — so `shutdown()` used to return while `compressionActive()` was
+    // still true. In production the process exits before anyone notices; anywhere else it is
+    // the same "says stopped, still running" mismatch this whole area exists to remove.
+    const settled: CompressorActivity = this.current;
+    const stillOurs =
+      (settled.kind === 'encoding' || settled.kind === 'encoding-held') &&
+      settled.abort === activity.abort;
+    if (stillOurs) this.current = { kind: 'idle' };
+  }
+
+  /**
+   * Waits for encoders that were stopped but have not exited yet.
+   *
+   * The window FR-004 opens: between signalling a stop and the child actually going, the
+   * queue has already moved on. A quit that did not wait here would leave those children
+   * with no process left to escalate their termination.
+   */
+  private async awaitTerminating(): Promise<void> {
+    const children = [...this.terminating];
+    if (children.length === 0) return;
+    await Promise.all(
+      children.map(
+        child =>
+          new Promise<void>(resolve => {
+            if (child.exitCode !== null || child.signalCode !== null) return resolve();
+            child.once('close', () => resolve());
+            // The escalation the spawn seam armed is already running; this is only the
+            // deadline for waiting on it, and a quit must never be held open past it.
+            const giveUp = setTimeout(() => {
+              child.kill('SIGKILL');
+              resolve();
+            }, this.power?.scaleTimeout(3_000) ?? 3_000);
+            giveUp.unref();
+          })
+      )
+    );
+    this.terminating.clear();
+  }
+
+  /**
+   * Removes the half-written output of a run that was stopped, if it wrote one.
+   *
+   * A partial `.mp4` is not a smaller video — it is a file the user's player may open and
+   * show as broken, sitting next to the source with a name that says it is the result. The
+   * job keeps saying `processing` on purpose, so the next launch can tell a quit apart from
+   * a crash; what must not survive is the artefact.
+   */
+  private async unlinkPartialOutput(jobId: string) {
+    const job = this.jobs.find(candidate => candidate.id === jobId);
+    if (!job?.outputPath) return;
+    await unlink(job.outputPath).catch(() => {});
   }
 
   updateEstimate(id: string, patch: Partial<CompressionJob>, event: AgentEventType) {
@@ -947,14 +1195,14 @@ export class JobQueue {
         throw error;
       }
       if (!validSourceMedia(media)) {
-        job.status = 'failed';
+        this.transition(job, 'failed');
         job.error = 'This video format is not supported or the file is damaged.';
         this.notify();
         return null;
       }
       applySourceMedia(job, media);
       job.progress = 0;
-      job.status = 'ready';
+      this.transition(job, 'ready');
       this.notify('estimate:queued');
       this.estimateHooks?.schedule();
       return null;
@@ -966,7 +1214,7 @@ export class JobQueue {
   private async resetForRerun(job: CompressionJob) {
     const jobSettings = this.teamJobSettings.get(job.id) ?? this.settings;
     const previousImages = jobImages(job);
-    job.status = 'ready';
+    this.transition(job, 'ready');
     job.error = null;
     job.errorDetails = null;
     job.progress = job.durationSeconds ? 0 : null;
@@ -1087,7 +1335,7 @@ export class JobQueue {
         this.stopDrainWatchdog();
         return;
       }
-      if (this.compressionInFlight || this.prioritizingEstimates) return;
+      if (this.activity.kind !== 'idle') return;
       if (this.queuedInBatch()) {
         void this.pump();
         return;
@@ -1119,7 +1367,7 @@ export class JobQueue {
    */
   private closeBatchIfDrained() {
     if (!this.batch || this.batch.finishedAt) return;
-    if (this.compressionInFlight || this.prioritizingEstimates || this.queuedInBatch()) return;
+    if (this.running()) return;
     this.batch.finishedAt = Date.now();
     this.stopDrainWatchdog();
     this.resumeEstimatorWhenIdle();
@@ -1131,18 +1379,12 @@ export class JobQueue {
    * a cancelled final job can close the batch before that pass runs.
    */
   private resumeEstimatorWhenIdle() {
-    if (this.compressionInFlight || this.prioritizingEstimates || this.queuedInBatch()) return;
+    if (this.running()) return;
     this.estimateHooks?.resume();
   }
 
   private async pump() {
-    if (
-      this.compressionInFlight ||
-      this.prioritizingEstimates ||
-      !this.batch ||
-      !this.tools.ffmpeg ||
-      !this.tools.ffprobe
-    )
+    if (this.activity.kind !== 'idle' || !this.batch || !this.tools.ffmpeg || !this.tools.ffprobe)
       return;
     const job = this.jobs.find(
       candidate => candidate.batchId === this.batch!.id && candidate.status === 'queued'
@@ -1156,15 +1398,20 @@ export class JobQueue {
       return;
     }
 
-    // Set the in-flight flag and the abort handle as the very first statements
-    // inside the guarded region so a throw from `notify()` (or anywhere below)
-    // can never strand `compressionInFlight=true` — which would wedge the queue
-    // as permanently "running" until the agent restarts.
+    // Claim the activity as the very first statement inside the guarded region so a throw
+    // from `notify()` (or anywhere below) can never strand it — which would wedge the queue
+    // as permanently "running" until the agent restarts. One write now, where it used to be
+    // two fields that a throw could land between.
     const abort = new AbortController();
     try {
-      this.compressionInFlight = true;
-      this.activeAbort = abort;
-      job.status = 'processing';
+      this.current = {
+        kind: 'encoding',
+        jobId: job.id,
+        abort,
+        child: null,
+        estimating: this.current.kind === 'estimating'
+      };
+      this.transition(job, 'processing');
       job.error = null;
       job.errorDetails = null;
       job.estimatePriorityOrder = null;
@@ -1210,7 +1457,7 @@ export class JobQueue {
         const media = await this.mediaRuntime.probeMedia(job.outputPath);
         await this.completeJob(job, media);
       } else {
-        job.status = 'failed';
+        this.transition(job, 'failed');
         job.error = friendlyError(result.stderr);
         job.errorDetails = result.stderr || null;
         job.processingStage = null;
@@ -1231,17 +1478,33 @@ export class JobQueue {
         await this.pauseForRuntimeFailure(job, error, phase);
         return;
       }
-      job.status = 'failed';
+      this.transition(job, 'failed');
       job.error = processingError(error);
       job.errorDetails = error instanceof Error ? error.message : null;
       job.processingStage = null;
       job.finishedAt = finishTimestamp(job);
       await unlink(job.outputPath).catch(() => {});
     } finally {
-      if (this.activeAbort === abort) this.activeAbort = null;
-      this.active = null;
-      this.compressionInFlight = false;
-      this.compressionPausedForEstimates = false;
+      // Only if this is still *our* encode. A later run claiming the activity while this one
+      // unwinds must not be cleared by it.
+      //
+      // Annotated, and read from the field rather than the getter, on purpose: `pump` opens
+      // by narrowing `this.activity` to `idle`, and TypeScript keeps that narrowing across
+      // the assignment in the `try` because the assignment goes through a different
+      // reference path. Without the annotation this reads as `idle`, every branch below is
+      // dead, and the activity is never cleared — a wedged queue. The compiler reported it;
+      // the annotation is what keeps it reporting the next one.
+      const ending: CompressorActivity = this.current;
+      const stillOurs =
+        (ending.kind === 'encoding' || ending.kind === 'encoding-held') && ending.abort === abort;
+      if (stillOurs) {
+        // Estimates that were running alongside keep running: ending the encode is not
+        // ending them, and reporting idle here would let the pump start the next job while
+        // the estimate loop still believed it had the machine.
+        const estimatesStillRunning =
+          ending.kind === 'encoding-held' || (ending.kind === 'encoding' && ending.estimating);
+        this.current = estimatesStillRunning ? { kind: 'estimating' } : { kind: 'idle' };
+      }
       this.resumeEstimatorWhenIdle();
       // Queue the next drain first: a throw from `notify` or from the estimate
       // handoff below must never drop the loop and leave the rest of the batch
@@ -1254,7 +1517,7 @@ export class JobQueue {
 
   private async completeJob(job: CompressionJob, media: MediaInfo) {
     validateCompletedOutput(job, media);
-    job.status = 'completed';
+    this.transition(job, 'completed');
     job.progress = 100;
     job.processingStage = null;
     job.finalSize = await fileSize(job.outputPath);
@@ -1278,7 +1541,7 @@ export class JobQueue {
   ) {
     this.tools[error.tool] = false;
     this.warning = RUNTIME_WARNING;
-    job.status = phase === 'input-analysis' ? 'analyzing' : 'interrupted';
+    this.transition(job, phase === 'input-analysis' ? 'analyzing' : 'interrupted');
     job.error = RUNTIME_JOB_ERROR;
     job.errorDetails = runtimeRecoveryDetails(error, phase);
     job.processingStage = null;
@@ -1293,7 +1556,7 @@ export class JobQueue {
     if (this.batch) {
       for (const queued of this.jobs) {
         if (queued.batchId !== this.batch.id || queued.status !== 'queued') continue;
-        queued.status = 'ready';
+        this.transition(queued, 'ready');
         queued.batchId = null;
         queued.processingStage = null;
         queued.estimatePriorityOrder = null;
@@ -1371,24 +1634,28 @@ export class JobQueue {
 
   private async runPrioritizedEstimates() {
     const runPrioritized = this.estimateHooks?.runPrioritized;
-    if (
-      !runPrioritized ||
-      this.prioritizingEstimates ||
-      !this.batch ||
-      !this.hasPrioritizedEstimate()
-    ) {
+    const activity = this.activity;
+    const alreadyEstimating =
+      activity.kind === 'estimating' ||
+      activity.kind === 'encoding-held' ||
+      (activity.kind === 'encoding' && activity.estimating);
+    if (!runPrioritized || alreadyEstimating || !this.batch || !this.hasPrioritizedEstimate())
       return;
-    }
-    if (this.compressionInFlight && !this.active) return;
-    const pausedChild = this.active;
-    // Claim the flag before any awaited/notifying work so the `finally` below
-    // always resets it; a throw here must never strand `prioritizingEstimates`
-    // (which would wedge `running=true`) or leave `pausedChild` suspended.
-    this.prioritizingEstimates = true;
+    // An encode whose child has not been spawned yet: starting the handoff now would suspend
+    // nothing and the estimates would run against a compression that is about to begin.
+    if (activity.kind === 'encoding' && !activity.child) return;
+    const pausedChild = activity.kind === 'encoding' ? activity.child : null;
+    // Claim the activity before any awaited/notifying work so the `finally` below always
+    // resets it; a throw here must never strand the queue as running or leave `pausedChild`
+    // suspended.
+    const wasEncoding = this.current.kind === 'encoding';
+    if (this.current.kind === 'encoding') this.current = { ...this.current, estimating: true };
+    else if (this.current.kind === 'idle') this.current = { kind: 'estimating' };
     try {
       if (pausedChild) {
         if (this.holdForEstimates(pausedChild)) {
-          this.compressionPausedForEstimates = true;
+          // `holdForEstimates` moved the activity into `encoding-held` itself — the hold and
+          // the record of it are the same write.
         } else if (this.pauseSupported()) {
           // The pause signal could not be delivered (the process is likely
           // already gone); leave the handoff to the next scheduling pass.
@@ -1411,10 +1678,14 @@ export class JobQueue {
     } catch {
       // A failed handoff must never leave the compression process suspended.
     } finally {
-      if (pausedChild && this.active === pausedChild) this.releaseEstimateHold();
-      this.compressionPausedForEstimates = false;
-      this.prioritizingEstimates = false;
-      if (!this.compressionInFlight) queueMicrotask(() => void this.pump());
+      // Unconditional, where it used to depend on the child still matching. That condition
+      // is A5: if the encode's `finally` had cleared the child while this loop was unwinding,
+      // the hold was never released and the token was overwritten by the next holder. The
+      // token now lives in the held variant, so releasing it is simply leaving that variant.
+      this.releaseEstimateHold();
+      if (this.current.kind === 'encoding') this.current = { ...this.current, estimating: false };
+      else if (this.current.kind === 'estimating') this.current = { kind: 'idle' };
+      if (!wasEncoding && this.current.kind === 'idle') queueMicrotask(() => void this.pump());
       this.notify();
     }
   }
@@ -1441,7 +1712,10 @@ export class JobQueue {
       embedding,
       this.power
     );
-    this.active = operation.child;
+    // Attached to the activity that already exists for this job. Reaching here with anything
+    // other than an encode would mean `run()` was called outside the guarded region, and
+    // hanging a child off an unrelated activity is how it would be lost.
+    if (this.current.kind === 'encoding') this.current = { ...this.current, child: operation.child };
     void this.runPrioritizedEstimates();
     return operation.done;
   }

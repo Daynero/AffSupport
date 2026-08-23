@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, expect, it } from 'vitest';
 import { spawn } from 'node:child_process';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
@@ -9,9 +9,11 @@ import {
   type ImageAsset
 } from '../packages/shared/src/types.js';
 import { detectStaticEdgeTrims } from '../apps/agent/src/images/static-edges.js';
-import { commandExists, probeMedia } from '../apps/agent/src/ffmpeg/tools.js';
+import { probeMedia } from '../apps/agent/src/ffmpeg/tools.js';
 import { ImageAssetStore } from '../apps/agent/src/images/store.js';
 import { JobQueue } from '../apps/agent/src/queue/queue.js';
+import { describeRequiring } from './support/requires.js';
+import { ffmpegBinaries } from './support/toolchain.js';
 import { optimalSettings } from './helpers.js';
 
 let directory = '';
@@ -20,9 +22,8 @@ afterEach(async () => {
   directory = '';
 });
 
-describe('re-embedding static edge removal', () => {
+describeRequiring(ffmpegBinaries, 're-embedding static edge removal', () => {
   it('finds static runs at the beginning and end of a video', async () => {
-    if (!(await commandExists('ffmpeg'))) return;
     directory = await mkdtemp(path.join(os.tmpdir(), 'static-video-edges-'));
     const input = path.join(directory, 'previously-embedded.mp4');
     expect(await createEdgedVideo(input)).toBe(0);
@@ -36,7 +37,6 @@ describe('re-embedding static edge removal', () => {
   }, 15_000);
 
   it('finds the static tail when the soundtrack outlives the picture', async () => {
-    if (!(await commandExists('ffmpeg'))) return;
     directory = await mkdtemp(path.join(os.tmpdir(), 'static-video-edges-long-audio-'));
     const input = path.join(directory, 'previously-embedded-with-audio.mp4');
     expect(await createEdgedVideoWithLongerAudio(input)).toBe(0);
@@ -53,7 +53,6 @@ describe('re-embedding static edge removal', () => {
   }, 15_000);
 
   it('trims the detected edges before embedding the new image', async () => {
-    if (!(await commandExists('ffmpeg'))) return;
     directory = await mkdtemp(path.join(os.tmpdir(), 'replace-static-video-edges-'));
     const input = path.join(directory, 'previously-embedded.mp4');
     const imageRoot = path.join(directory, 'images');

@@ -258,17 +258,11 @@ export function TaskAttachmentPicker({
               <small>{t('teamTaskAttachmentAddDraftHint')}</small>
             </div>
             <div className="team-task-picker-path" aria-label={t('teamTaskAttachmentPickerTitle')}>
-              <Button
-                id="team-task-picker-root"
-                type="button"
-                variant="ghost"
-                className="team-task-picker-path-action"
-                disabled={path.length === 0}
-                onClick={() => setPath([])}
-              >
-                <ArrowLeftIcon />
-                {t('teamTaskFolderRoot')}
-              </Button>
+              {/* "Root" used to appear twice: once as a standalone action and
+                  again as the first crumb. The standalone one was also the
+                  dialog's initial-focus target while being disabled at the
+                  root, so opening the picker focused nothing. One root, in the
+                  trail, where a path reads. */}
               {path.length > 0 && (
                 <Button
                   type="button"
@@ -281,7 +275,7 @@ export function TaskAttachmentPicker({
                 </Button>
               )}
               <nav aria-label={t('teamTaskAttachmentPickerTitle')}>
-                <button type="button" onClick={() => setPath([])}>
+                <button id="team-task-picker-root" type="button" onClick={() => setPath([])}>
                   {t('teamTaskFolderRoot')}
                 </button>
                 {path.map((folder, index) => (

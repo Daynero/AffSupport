@@ -28,6 +28,7 @@ export function ConnectFolderStep({
   const [folders, setFolders] = useState<DriveFolderPage | null>(null);
   const [selected, setSelected] = useState<DriveFolderSummary | null>(null);
   const [confirmation, setConfirmation] = useState<DriveRootResult | null>(null);
+  const [trail, setTrail] = useState<DriveFolderSummary[]>([]);
   const [authorizationUrl, setAuthorizationUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,11 +40,11 @@ export function ConnectFolderStep({
         : t('teamDriveUnavailable')
     );
 
-  const loadFolders = async (pageToken?: string | null) => {
+  const loadFolders = async (pageToken?: string | null, parentId = 'root') => {
     setBusy(true);
     setError(null);
     try {
-      const page = await client.listFolders(teamId, 'root', pageToken);
+      const page = await client.listFolders(teamId, parentId, pageToken);
       setFolders(current =>
         current && pageToken
           ? { folders: [...current.folders, ...page.folders], nextPageToken: page.nextPageToken }
@@ -79,6 +80,26 @@ export function ConnectFolderStep({
     } finally {
       setBusy(false);
     }
+  };
+
+  /**
+   * Steps into a folder, or back to the account root when given null. The
+   * materials a team wants are usually nested, so browsing has to descend;
+   * committing a root stays a separate, explicit act.
+   */
+  const openFolder = async (folder: DriveFolderSummary | null) => {
+    if (!folder) {
+      setTrail([]);
+      setFolders(null);
+      await loadFolders(null, 'root');
+      return;
+    }
+    setTrail(current => {
+      const seen = current.findIndex(entry => entry.id === folder.id);
+      return seen >= 0 ? current.slice(0, seen + 1) : [...current, folder];
+    });
+    setFolders(null);
+    await loadFolders(null, folder.id);
   };
 
   const choose = async (folder: DriveFolderSummary) => {
@@ -146,8 +167,10 @@ export function ConnectFolderStep({
         <DriveFolderBrowser
           folders={folders.folders}
           nextPageToken={folders.nextPageToken}
+          trail={trail}
+          onOpen={folder => void openFolder(folder)}
           onChoose={folder => void choose(folder)}
-          onLoadMore={() => void loadFolders(folders.nextPageToken)}
+          onLoadMore={() => void loadFolders(folders.nextPageToken, trail.at(-1)?.id ?? 'root')}
         />
       )}
 
@@ -158,6 +181,16 @@ export function ConnectFolderStep({
           <p>{t('teamDriveIndependentAcl')}</p>
           <Button type="button" variant="primary" loading={busy} onClick={() => void confirm()}>
             {t('teamDriveConfirmFolder')}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              setConfirmation(null);
+              setSelected(null);
+            }}
+          >
+            {t('teamFolderChooseAnother')}
           </Button>
         </div>
       )}

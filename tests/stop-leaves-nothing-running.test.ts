@@ -302,3 +302,27 @@ describe('quitting while Finder image conversions are queued', () => {
     expect(queue.state().jobs.map(job => job.status)).toEqual(['failed', 'queued']);
   }, 15_000);
 });
+
+describe('the termination guarantee without a resource budget', () => {
+  it('still kills a child that swallows SIGTERM when no governor is attached', async () => {
+    // The guarantee used to be skipped entirely on this branch: `spawnManaged` returned
+    // early when it had no governor, so the child never got the escalation wrapper. A
+    // process spawned before a governor is installed — or in any assembly that omits one —
+    // could handle SIGTERM, carry on, and nothing would ever kill it. Escalation is about
+    // stopping, not about throttling, so it must not depend on a budget being present.
+    const stubborn = [
+      "process.on('SIGTERM', () => {});",
+      'setInterval(() => {}, 1000);',
+      "process.stdout.write('ready\\n');"
+    ].join('');
+    const child = spawnManaged(null, process.execPath, ['-e', stubborn], { toolId: 'test' });
+    const exit = new Promise<NodeJS.Signals | null>(resolve => {
+      child.once('close', (_code, signal) => resolve(signal));
+    });
+    await new Promise<void>(resolve => child.stdout.once('data', () => resolve()));
+
+    child.kill('SIGTERM');
+
+    expect(await exit).toBe('SIGKILL');
+  }, 15_000);
+});

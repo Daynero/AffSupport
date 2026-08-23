@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { access, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
+  TRANSCRIPTION_LIFECYCLE,
   defaultTranscriptionSettings,
   isValidTargetLanguage,
   normalizeTargetLanguage,
@@ -10,6 +11,7 @@ import {
   type TranscriptionTranslationSummary
 } from '@video-compressor/shared';
 import { applicationSupportRoot } from '../files/support-dir.js';
+import { decideTransition } from './transitions.js';
 import {
   transcriptionDocumentFile,
   transcriptionDocumentsRoot
@@ -124,8 +126,13 @@ function migrateJob(value: unknown, settings: TranscriptionSettings): Transcript
   // the list and hands the start decision back to the user, matching how the
   // compressor store migrates 'queued' to 'ready'.
   const interrupted = legacyStatus === 'processing';
+  // `interrupted`, not `failed`. The compressor has always distinguished the two and
+  // transcription did not (A12), so the same event — the agent stopping mid-run — told the
+  // user their work had broken in one tool and had been interrupted in the other. Nothing
+  // rewrites records already on disk: a job persisted as `failed` stays `failed`, and only
+  // a run that was still `processing` when the agent stopped gets the new state.
   const status: TranscriptionJob['status'] = interrupted
-    ? 'failed'
+    ? 'processing'
     : legacyStatus === 'completed' || legacyStatus === 'failed' || legacyStatus === 'cancelled'
       ? legacyStatus
       : 'ready';
@@ -134,7 +141,7 @@ function migrateJob(value: unknown, settings: TranscriptionSettings): Transcript
     const number = Number(input);
     return Number.isFinite(number) ? number : null;
   };
-  return {
+  const restored: TranscriptionJob = {
     id: raw.id,
     inputPath: raw.inputPath,
     fileName: raw.fileName,
@@ -168,6 +175,16 @@ function migrateJob(value: unknown, settings: TranscriptionSettings): Transcript
     startedAt: numberOrNull(raw.startedAt),
     finishedAt: interrupted ? Date.now() : numberOrNull(raw.finishedAt)
   };
+
+  // Restored as `processing` and then moved, rather than reconstructed as `interrupted`.
+  // The run really did go from one to the other — the restart is just where it happened —
+  // and routing it through the same decision as every other transition is what keeps the
+  // state the interface most needs to explain inside the declaration that governs the rest.
+  if (interrupted && !decideTransition(TRANSCRIPTION_LIFECYCLE, 'processing', 'interrupted')) {
+    return restored;
+  }
+  if (interrupted) restored.status = 'interrupted';
+  return restored;
 }
 
 /**
