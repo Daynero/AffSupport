@@ -9,10 +9,8 @@ import type {
   TeamMaterialProvenanceEntry,
   TeamPermissions
 } from '@video-compressor/shared';
-import {
-  MaterialActions,
-  type MaterialActionsClient
-} from '../apps/web/src/team/catalog/MaterialActions.js';
+import { MaterialRowMenu } from '../apps/web/src/team/catalog/MaterialRowMenu.js';
+import type { MaterialActionsClient } from '../apps/web/src/team/catalog/material-actions-client.js';
 import { TeamTextEditor } from '../apps/web/src/team/catalog/TeamTextEditor.js';
 import { OperationStatus } from '../apps/web/src/team/processing/OperationStatus.js';
 import {
@@ -91,6 +89,21 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+const browseClient = { listMaterials: vi.fn().mockResolvedValue([]) };
+
+/**
+ * Renders the row menu and opens it.
+ *
+ * Opening is a real step now, not test ceremony: the menu mounts its contents
+ * only while it is open, which is what keeps a fifty-row page from mounting
+ * fifty copies of this state (SC-009).
+ */
+async function openMenu(element: React.ReactElement) {
+  const result = render(element);
+  await userEvent.click(screen.getByRole('button', { name: /^Actions for / }));
+  return result;
+}
+
 describe('team file operations', () => {
   it('requires an explicit upload conflict choice and can keep both without implicit replace', async () => {
     const client = actionsClient();
@@ -103,8 +116,8 @@ describe('team file operations', () => {
         reused: false
       });
     const changed = vi.fn();
-    render(
-      <MaterialActions
+    await openMenu(
+      <MaterialRowMenu
         teamId={TEAM_ID}
         material={material({
           id: 'folder-1',
@@ -116,6 +129,7 @@ describe('team file operations', () => {
         })}
         permissions={permissions({ upload: true, edit: true })}
         client={client}
+        browseClient={browseClient}
         onChanged={changed}
       />
     );
@@ -134,14 +148,15 @@ describe('team file operations', () => {
     expect(changed).toHaveBeenCalledOnce();
   });
 
-  it('keeps download, edit, delete, and process permissions independent', () => {
+  it('keeps download, edit, delete, and process permissions independent', async () => {
     const client = actionsClient();
-    const { rerender } = render(
-      <MaterialActions
+    const { rerender } = await openMenu(
+      <MaterialRowMenu
         teamId={TEAM_ID}
         material={material()}
         permissions={permissions()}
         client={client}
+        browseClient={browseClient}
         onChanged={vi.fn()}
       />
     );
@@ -152,11 +167,12 @@ describe('team file operations', () => {
     expect(screen.queryByRole('button', { name: 'Process' })).toBeNull();
 
     rerender(
-      <MaterialActions
+      <MaterialRowMenu
         teamId={TEAM_ID}
         material={material()}
         permissions={permissions({ edit: true, delete: true, process: true })}
         client={client}
+        browseClient={browseClient}
         onChanged={vi.fn()}
       />
     );
@@ -181,12 +197,13 @@ describe('team file operations', () => {
           maxUses: 8
         }
       });
-    render(
-      <MaterialActions
+    await openMenu(
+      <MaterialRowMenu
         teamId={TEAM_ID}
         material={material({ sizeBytes: 101 * 1024 * 1024 })}
         permissions={permissions()}
         client={client}
+        browseClient={browseClient}
         onChanged={vi.fn()}
       />
     );
@@ -205,13 +222,14 @@ describe('team file operations', () => {
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
     const track = vi.spyOn(analytics, 'track');
     const client = actionsClient();
-    render(
-      <MaterialActions
+    await openMenu(
+      <MaterialRowMenu
         teamId={TEAM_ID}
         material={material({ sizeBytes: 24 * 1024 * 1024 })}
         permissions={permissions()}
         storageKind="shared_drive"
         client={client}
+        browseClient={browseClient}
         onChanged={vi.fn()}
       />
     );

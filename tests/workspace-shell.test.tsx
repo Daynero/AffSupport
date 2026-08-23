@@ -46,7 +46,7 @@ describe('content-first workspace shell', () => {
     expect(screen.queryByRole('heading', { name: 'Google Drive storage' })).toBeNull();
 
     // It is one click away behind the single "Space settings" entry.
-    await user.click(screen.getByRole('button', { name: 'Space settings' }));
+    await user.click(screen.getByRole('link', { name: 'Space settings' }));
     expect(await screen.findByRole('heading', { name: 'Google Drive storage' })).toBeTruthy();
   });
 });

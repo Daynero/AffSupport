@@ -28,7 +28,9 @@ const emptySearch = {
 export function makeClient(overrides: Partial<TeamSpaceClient> = {}): TeamSpaceClient {
   return {
     listTeams: vi.fn().mockResolvedValue([]),
+    listMyInvitations: vi.fn().mockResolvedValue([]),
     createTeam: vi.fn(),
+    deleteDraftTeam: vi.fn().mockResolvedValue(true),
     listMembers: vi.fn().mockResolvedValue([]),
     updateMembership: vi.fn(),
     removeMember: vi.fn(),

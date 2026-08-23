@@ -52,8 +52,8 @@ describe('guided team space workspace', () => {
       </TeamProvider>
     );
 
-    // Enter the space from the lobby → content-first shell shows the folder.
-    await user.click(await screen.findByRole('button', { name: /Media buyers/ }));
+    // One ready space is not a choice: the resolver enters it directly, and the
+    // content-first shell shows the folder without a lobby step (FR-005).
     expect(await screen.findByText('launch.mp4')).toBeTruthy();
     const previewMaterial = vi.spyOn(teamApi, 'previewMaterial').mockResolvedValue({
       kind: 'media',
@@ -70,8 +70,9 @@ describe('guided team space workspace', () => {
     // The old all-panels grid is gone: management is not shown beside the content.
     expect(screen.queryByRole('heading', { name: 'Google Drive storage' })).toBeNull();
 
-    // Management lives behind a single "Space settings" entry.
-    await user.click(screen.getByRole('button', { name: 'Space settings' }));
+    // Management lives behind a single "Space settings" entry — a link now, so
+    // it is addressable and can be opened in a new tab.
+    await user.click(screen.getByRole('link', { name: 'Space settings' }));
     await user.type(await screen.findByLabelText('Invite by email'), 'new.member@example.test');
     await user.click(screen.getByRole('button', { name: 'Send invitation' }));
     expect(await screen.findByText('new.member@example.test')).toBeTruthy();

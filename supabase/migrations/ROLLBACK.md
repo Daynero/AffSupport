@@ -20,6 +20,18 @@ These are forward-only production migrations. Prefer a backup plus a forward fix
 team has connected storage. For an empty isolated development database, reverse the
 feature group in this exact order:
 
+0. `20260823120000_team_ux_lifecycle.sql`: revoke and drop
+   `public.list_team_trashed_materials(uuid, int, timestamptz)`,
+   `public.delete_team_task(uuid, uuid)`, `public.delete_draft_team(uuid)`, and
+   `public.leave_team(uuid)`. Then restore `private.record_team_audit`'s target key
+   whitelist by re-running the definition from
+   `20260801094000_team_security_foundation.sql` — do this *after* dropping
+   `delete_team_task`, and only once no `task.deleted` row remains, because the
+   narrower whitelist rejects the `task_id`/`task_title` keys those rows carry.
+   Nothing here is data: no team, task, material, or Drive file is removed by
+   this rollback. Memberships already ended through `leave_team` stay ended, and
+   draft teams already deleted are not recoverable — restore them from a backup
+   if that matters.
 0. `20260815117000_request_catalog_resync.sql`: revoke and drop
    `public.request_team_catalog_resync(uuid)`. Do not delete or cancel the
    resulting catalog jobs or Drive files during production recovery; allow an

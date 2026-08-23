@@ -18,14 +18,15 @@ import { teamApi } from './api/team';
 import { PowerProvider } from './lib/power';
 import { TeamProvider } from './team/TeamContext';
 import TeamSpace from './team/TeamSpace';
+import { parseTeamRoute } from './team/routes';
 
-export default function ProtectedSoty({ path }: { path: string }) {
+export default function ProtectedSoty({ path, route = path }: { path: string; route?: string }) {
   return (
     <AgentProvider>
       <PowerProvider>
         <SupportGoalProvider>
           <TeamProvider client={teamApi}>
-            <ApplicationShell path={path} />
+            <ApplicationShell path={path} route={route} />
           </TeamProvider>
           <ReleaseUpdateNotice />
           <ProfileOnboarding />
@@ -42,25 +43,30 @@ export default function ProtectedSoty({ path }: { path: string }) {
  * view-transition group while a route transition runs (navigation.ts +
  * styles.css), so the header never crossfades with the page content.
  */
-function ApplicationShell({ path }: { path: string }) {
+function ApplicationShell({ path, route }: { path: string; route: string }) {
   const { language, setLanguage, t } = useI18n();
   const { connection } = useAgent();
   return (
     <div className="app-shell">
       <Header language={language} setLanguage={setLanguage} connection={connection} t={t} />
       <div className="page-viewport">
-        <ProtectedApplication path={path} />
+        <ProtectedApplication path={path} route={route} />
       </div>
     </div>
   );
 }
 
-function ProtectedApplication({ path }: { path: string }) {
+function ProtectedApplication({ path, route }: { path: string; route: string }) {
   const tool = toolByPath(path);
   if (tool) return <ToolRoute tool={tool} />;
   if (path === '/account') return <AccountPage />;
   if (path === '/admin') return <AdminPage />;
-  if (path === '/team') return <TeamSpace />;
+  // Team mode owns everything under /team: the space id and section live in the
+  // path, so an exact match would have made every addressable section a 404.
+  // The full route (not just the pathname) is parsed because the query half —
+  // search, filters, open task, folder position — is part of the address.
+  const teamRoute = parseTeamRoute(route);
+  if (teamRoute) return <TeamSpace route={teamRoute} />;
   return <HomePage navigate={navigateTo} />;
 }
 

@@ -36,17 +36,22 @@ export function TaskSpace({
   teamId,
   client = defaultClient,
   createFromAsset = null,
-  onConsumedCreateFromAsset
+  onConsumedCreateFromAsset,
+  openTaskId = null,
+  onOpenTaskChange
 }: {
   teamId: string;
   client?: TaskSpaceClient;
   createFromAsset?: TaskSourceAsset | null;
   onConsumedCreateFromAsset?: () => void;
+  /** The task the address says is open, so a shared link lands on that task. */
+  openTaskId?: string | null;
+  /** Reports which task is open so the address can follow it. */
+  onOpenTaskChange?: (taskId: string | null) => void;
 }) {
   const { t } = useI18n();
   const { can, revision } = useTeam();
   const tasks = useTasks({ teamId, revision, client });
-  const [openTask, setOpenTask] = useState<TeamTaskSummary | null>(null);
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState('');
   const [note, setNote] = useState('');
@@ -54,6 +59,25 @@ export function TaskSpace({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const [creatingAssetId, setCreatingAssetId] = useState<string | null>(null);
+
+  /**
+   * Which task the editor is showing.
+   *
+   * Controlled by the address when the shell supplies `onOpenTaskChange` — that
+   * is what makes `?task=` survive a refresh and lets Back close the editor
+   * instead of leaving the section. Mounted on its own (a preview, a test) it
+   * falls back to local state, so opening a task still works.
+   */
+  const [localOpenId, setLocalOpenId] = useState<string | null>(null);
+  const controlled = Boolean(onOpenTaskChange);
+  const effectiveOpenId = controlled ? openTaskId : localOpenId;
+  const openTask = effectiveOpenId
+    ? (tasks.tasks.find(task => task.id === effectiveOpenId) ?? null)
+    : null;
+  const setOpenTask = (task: TeamTaskSummary | null) => {
+    if (controlled) onOpenTaskChange?.(task?.id ?? null);
+    else setLocalOpenId(task?.id ?? null);
+  };
 
   useEffect(() => {
     let active = true;
@@ -223,8 +247,7 @@ export function TaskSpace({
           canEdit={can('edit')}
           client={client}
           onClose={() => setOpenTask(null)}
-          onChanged={updated => {
-            setOpenTask(updated);
+          onChanged={() => {
             void tasks.refetch();
           }}
         />

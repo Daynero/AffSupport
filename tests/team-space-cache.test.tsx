@@ -33,12 +33,26 @@ describe('team space entered-selection cache', () => {
     expect(screen.queryByRole('heading', { name: 'Choose a space' })).toBeNull();
   });
 
-  it('falls back to the lobby and clears an invalid cached selection', async () => {
+  it('ignores an invalid cached selection and enters the one ready space', async () => {
+    // The cache names a space this account cannot see. It is not a route into
+    // anything, so the resolver falls through it — and with exactly one ready
+    // space left, that space is not a choice worth presenting (FR-005).
     localStorage.setItem(STORAGE_KEY, '20000000-0000-4000-8000-0000000000ff');
-    const client = makeClient({ listTeams: vi.fn().mockResolvedValue([makeTeam()]) });
+    const team = makeTeam();
+    const client = makeClient({ listTeams: vi.fn().mockResolvedValue([team]) });
+    renderSpace(client);
+
+    expect(await screen.findByRole('heading', { name: 'Media buyers' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Choose a space' })).toBeNull();
+    // The stale id is replaced rather than left to be retried on every visit.
+    await waitFor(() => expect(localStorage.getItem(STORAGE_KEY)).toBe(team.id));
+  });
+
+  it('shows the lobby when more than one space is ready and none is remembered', async () => {
+    const other = makeTeam({ id: '20000000-0000-4000-8000-0000000000aa', name: 'Archive team' });
+    const client = makeClient({ listTeams: vi.fn().mockResolvedValue([makeTeam(), other]) });
     renderSpace(client);
 
     expect(await screen.findByRole('heading', { name: 'Choose a space' })).toBeTruthy();
-    await waitFor(() => expect(localStorage.getItem(STORAGE_KEY)).toBeNull());
   });
 });

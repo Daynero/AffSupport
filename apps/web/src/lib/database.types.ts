@@ -1942,6 +1942,18 @@ export type Database = {
         Args: { p_invitation: string; p_plain_token?: string };
         Returns: boolean;
       };
+      delete_draft_team: {
+        Args: { p_team: string };
+        Returns: {
+          ok: boolean;
+        }[];
+      };
+      delete_team_task: {
+        Args: { p_task: string; p_team: string };
+        Returns: {
+          ok: boolean;
+        }[];
+      };
       detach_team_task_material: {
         Args: { p_material: string; p_task: string; p_team: string };
         Returns: boolean;
@@ -2093,6 +2105,13 @@ export type Database = {
       };
       join_team_workspace_waitlist: { Args: never; Returns: boolean };
       join_windows_app_waitlist: { Args: never; Returns: boolean };
+      leave_team: {
+        Args: { p_team: string };
+        Returns: {
+          ok: boolean;
+          warning_code: string;
+        }[];
+      };
       list_landing_renders: {
         Args: { p_material_ids: string[]; p_preset: string; p_team: string };
         Returns: {
@@ -2253,6 +2272,16 @@ export type Database = {
           team_id: string;
           title: string;
           updated_at: string;
+        }[];
+      };
+      list_team_trashed_materials: {
+        Args: { p_before?: string; p_limit?: number; p_team: string };
+        Returns: {
+          id: string;
+          kind: string;
+          name: string;
+          parent_path_hint: string;
+          trashed_at: string;
         }[];
       };
       list_video_text_variants: {

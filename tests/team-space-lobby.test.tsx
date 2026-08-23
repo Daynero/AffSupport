@@ -39,8 +39,10 @@ describe('team space lobby', () => {
     expect(await screen.findByRole('heading', { name: 'Media buyers' })).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'Choose a space' })).toBeNull();
 
-    // Change space → back to the lobby.
-    await user.click(screen.getByRole('button', { name: 'Change space' }));
+    // Changing space now hangs off the space name itself: open the switcher and
+    // take the "all spaces" way back to the lobby.
+    await user.click(screen.getByRole('button', { name: /Media buyers/ }));
+    await user.click(await screen.findByRole('link', { name: 'All spaces' }));
     expect(await screen.findByRole('heading', { name: 'Choose a space' })).toBeTruthy();
   });
 

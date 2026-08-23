@@ -81,3 +81,22 @@
 - 002's own success criteria promised: one obvious entry (SC-001), one-action repeat entry (SC-003), nothing removed only relocated with every 001 capability ≤2 actions away (FR-019/SC-005), no filters on empty spaces (FR-017). F1/F2 show the implementation drifted from that promise — the refresh realigns with 002's spirit, then supersedes it in the three points listed in `spec.md` Assumptions.
 - All four team specs' moderated UX validations (001 T051/T079/T091/T113/T123) were never run — headline usability claims are unverified. The SC list in `spec.md` re-states the measurable bar for this pass.
 - Team mode sits behind an admin allowlist (`supabase/migrations/20260809150000_team_workspace_access_gate.sql`; `docs/BETA.md`), invitations in beta are copy-the-link (`docs/BETA.md`), and Drive OAuth is gated externally (`docs/TEAM_WORKSPACE_OPERATIONS.md`) — all out of scope here and unchanged.
+
+---
+
+## T001 — audit confirmation pass (2026-08-23)
+
+Re-verified against the working tree at implementation start. The beta stack was not
+launched for this pass (weak reference machine); each claim was confirmed at source level
+by re-reading the cited code. The runtime walkthrough stays scheduled as T065 (quickstart
+manual pass), which is where a runtime *correction* would be recorded if one appears.
+
+| ID | Claim | Verdict | Evidence re-read |
+|---|---|---|---|
+| C1 | Two dialog systems; hand-rolled overlays lack portal/backdrop/focus trap; preview renders under a modal | **Confirmed** | `styles.css:10647-10651` — `.team-operation-overlay, .team-text-editor, .team-process-dialog` are `position: fixed; z-index: 45` with no backdrop rule; `ProcessMaterialDialog.tsx:89` and `TeamTextEditor.tsx:65` return a bare `<section>` (no `Modal`); `MaterialPreview.tsx:203` and `LandingFullView.tsx:83` set `aria-modal="true"` without modality, at `z-index: 80` (`styles.css:10343`) below `Modal`'s `100` (`styles.css:5738`); `TeamCatalog.tsx:67-84` holds seven independent overlay states (`editing`, `previewing`, `textEditor`, `processing`, `activeOperation`, `provenance`, `versionDraft`). |
+| S4 | Contradictory sync label | **Confirmed** | `WorkspaceShell.tsx:194` passes `syncLabel={activeTeam?.connectionState === 'connected' ? t('teamSyncFresh') : null}` — keyed on the *Drive connection* state, never on freshness; `MaterialBrowser.tsx:80` renders it verbatim beneath the banner. `SyncProgress.tsx:13-18` maps only `scanning`/`replaying`/`not_started` to a heading and returns `null` for everything else, so `failed`/`unavailable` render nothing. |
+| S5 | Freshness freezes on dropped realtime | **Confirmed** | `useCatalogFreshness.ts:34-57` — a single effect keyed on `[client, enabled, revision, teamId]`, no timer, no polling; a dropped channel stops `revision` from advancing so the last `scanning` snapshot persists. The `.catch` silently sets `null` (banner vanishes, no error surface). `realtimeState` is read only by `useCatalogSearch.ts:41,135` for refetch-on-reconnect and is rendered nowhere. |
+| B1 | Closing the batch dialog cancels the run | **Confirmed** | `ProcessLibraryDialog.tsx:206-211` — an unmount effect calls `releaseActive()` whenever an attempt is live; `releaseActive` (`:185-204`) cancels the agent attempt, the library job lease and the operation. The claim loop (`run`, `:213-348`) is a `useCallback` inside the dialog component, so it cannot outlive the window. |
+
+No corrections required — the four claims stand as written, and T002+ proceed against them
+unchanged.

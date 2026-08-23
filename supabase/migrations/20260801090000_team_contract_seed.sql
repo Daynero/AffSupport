@@ -147,7 +147,9 @@ insert into public.team_error_codes (code) values
   ('ALREADY_COMPLETED'),
   ('STALE_RESULT'),
   ('GROUP_RECONCILING'),
-  ('SHARE_NOT_ALLOWED');
+  ('SHARE_NOT_ALLOWED'),
+  ('OWNER_TRANSFER_REQUIRED'),
+  ('TEAM_NOT_DRAFT');
 
 insert into public.geo_options (code) values
   ('AD'),

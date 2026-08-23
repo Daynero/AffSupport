@@ -36,6 +36,7 @@ import {
   type CatalogVocabulary,
   type MaterialMetadataPatch,
   type MaterialCategory,
+  type MaterialKind,
   type TeamErrorCode,
   type TeamInvitationDeliveryState,
   type TeamInvitationState,
@@ -801,6 +802,45 @@ function mapOperation(value: unknown): TeamOperationSnapshot | null {
     retryable: row.retryable,
     createdAt: row.created_at,
     updatedAt: row.updated_at
+  };
+}
+
+/**
+ * One row of the trash view. Local to the web client rather than in the shared
+ * contract package: nothing outside this UI reads it, and `parent_path_hint` is
+ * a presentation aid (the folder a file was in) rather than a protocol fact.
+ */
+export interface TeamTrashedMaterial {
+  id: string;
+  name: string;
+  kind: MaterialKind;
+  trashedAt: string;
+  /** Name of the folder the material sat in, or null when it can no longer be resolved. */
+  parentPathHint: string | null;
+}
+
+function isMaterialKind(value: unknown): value is MaterialKind {
+  return value === 'file' || value === 'folder' || value === 'shortcut';
+}
+
+function mapTrashedMaterial(value: unknown): TeamTrashedMaterial | null {
+  const row = asRecord(value);
+  if (
+    !row ||
+    typeof row.id !== 'string' ||
+    typeof row.name !== 'string' ||
+    !isMaterialKind(row.kind) ||
+    typeof row.trashed_at !== 'string' ||
+    (row.parent_path_hint !== null && typeof row.parent_path_hint !== 'string')
+  ) {
+    return null;
+  }
+  return {
+    id: row.id,
+    name: row.name,
+    kind: row.kind,
+    trashedAt: row.trashed_at,
+    parentPathHint: row.parent_path_hint
   };
 }
 
@@ -2159,5 +2199,70 @@ export const teamApi = {
         typeof asRecord(candidate)?.validated === 'boolean'
     );
     return value.validated;
+  },
+
+  /**
+   * Self-service exit from a space. Succeeds with the standing warning that
+   * Google Drive's own sharing ACL is not revoked by leaving — the caller is
+   * expected to show it, not to swallow it.
+   */
+  async leaveTeam(
+    teamId: string
+  ): Promise<{ ok: true; warningCode: 'EXTERNAL_DRIVE_ACCESS_REMAINS' }> {
+    const { data, error } = await requireSupabaseClient().rpc('leave_team', {
+      p_team: teamId
+    });
+    throwRpc(error);
+    const row = data?.[0];
+    if (!row?.ok || row.warning_code !== 'EXTERNAL_DRIVE_ACCESS_REMAINS') {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return { ok: true, warningCode: row.warning_code };
+  },
+
+  /**
+   * Delete a space that never completed setup. The server decides what "draft"
+   * means (a space that has never had a drive connection) and answers
+   * `TEAM_NOT_DRAFT` when the lobby's presentation was out of date.
+   */
+  async deleteDraftTeam(teamId: string): Promise<true> {
+    const { data, error } = await requireSupabaseClient().rpc('delete_draft_team', {
+      p_team: teamId
+    });
+    throwRpc(error);
+    if (data?.[0]?.ok !== true) throw new TeamApiError('INVALID_RESPONSE', false);
+    return true;
+  },
+
+  /** Delete a saved task. Attachment links go with it; the materials do not. */
+  async deleteTask(input: { teamId: string; taskId: string }): Promise<true> {
+    const { data, error } = await requireSupabaseClient().rpc('delete_team_task', {
+      p_team: input.teamId,
+      p_task: input.taskId
+    });
+    throwRpc(error);
+    if (data?.[0]?.ok !== true) throw new TeamApiError('INVALID_RESPONSE', false);
+    return true;
+  },
+
+  /**
+   * Newest-first page of trashed materials. `before` is the `trashedAt` of the
+   * last row already shown — keyset paging, so a restore happening mid-scroll
+   * cannot shift the window and hide a row.
+   */
+  async listTrashedMaterials(input: {
+    teamId: string;
+    limit?: number;
+    before?: string | null;
+  }): Promise<TeamTrashedMaterial[]> {
+    const { data, error } = await requireSupabaseClient().rpc('list_team_trashed_materials', {
+      p_team: input.teamId,
+      p_limit: input.limit ?? 50,
+      p_before: input.before ?? undefined
+    });
+    throwRpc(error);
+    const rows = (data ?? []).map(mapTrashedMaterial);
+    if (rows.some(row => row === null)) throw new TeamApiError('INVALID_RESPONSE', false);
+    return rows.filter((row): row is TeamTrashedMaterial => row !== null);
   }
 };

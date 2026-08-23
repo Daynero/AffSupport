@@ -40,7 +40,15 @@ export const TEAM_ERROR_CODES = [
   'ALREADY_COMPLETED',
   'STALE_RESULT',
   'GROUP_RECONCILING',
-  'SHARE_NOT_ALLOWED'
+  'SHARE_NOT_ALLOWED',
+  // `remove_member` has raised OWNER_TRANSFER_REQUIRED since 001 while only the
+  // longer OWNERSHIP_TRANSFER_REQUIRED (the Edge Function's spelling) was
+  // registered here — so the raised code fell through every consumer's mapping
+  // as unknown. `leave_team` raises the same code, so it is registered rather
+  // than renamed: the string on the wire is the contract.
+  'OWNER_TRANSFER_REQUIRED',
+  // `delete_draft_team` on a team that has ever had a drive connection.
+  'TEAM_NOT_DRAFT'
 ] as const;
 export type TeamErrorCode = (typeof TEAM_ERROR_CODES)[number];
 

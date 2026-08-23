@@ -6,7 +6,11 @@ import type {
 } from '@video-compressor/shared';
 import { Button } from '../../components/ui';
 import { useI18n, type TranslationKey } from '../../i18n';
-import { MaterialActions } from './MaterialActions';
+import { MaterialRowMenu } from './MaterialRowMenu';
+import type { FolderPickerClient } from './FolderPicker';
+
+/** Matches the page size `useCatalogSearch` requests. */
+const PAGE_SIZE = 50;
 
 const FRESHNESS_COPY: Record<CatalogSearchResponse['catalogFreshness']['state'], TranslationKey> = {
   not_started: 'teamCatalogFreshnessNotStarted',
@@ -30,7 +34,11 @@ export function MaterialResults({
   onProcess,
   onShowProvenance,
   onCreateTask,
-  onChanged
+  onChanged,
+  browseClient,
+  destinationFolderId = null,
+  page,
+  onPageChange
 }: {
   result: CatalogSearchResponse | null;
   loading: boolean;
@@ -45,11 +53,21 @@ export function MaterialResults({
   onShowProvenance: (material: CatalogMaterialItem) => void;
   onCreateTask?: (material: CatalogMaterialItem) => void;
   onChanged: () => void;
+  /** Reads the folder tree for the row menu's destination picker. */
+  browseClient: FolderPickerClient;
+  /** Folder these results sit in, when there is one; where a new version lands. */
+  destinationFolderId?: string | null;
+  /** 1-based page currently shown. */
+  page: number;
+  onPageChange: (page: number) => void;
 }) {
   const { t } = useI18n();
   if (error) return <p className="team-inline-error">{t('teamCatalogLoadFailed')}</p>;
   if (loading && !result) return <p aria-live="polite">…</p>;
   if (!result || result.items.length === 0) return <p>{t('teamCatalogEmpty')}</p>;
+
+  // The request always asks for fifty; the envelope carries the true total.
+  const pageCount = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
 
   return (
     <>
@@ -159,24 +177,51 @@ export function MaterialResults({
                 )}
               </div>
               {hasSecondaryActions && (
-                <details className="team-catalog-secondary-actions">
-                  <summary>{t('teamCatalogMoreActions')}</summary>
-                  <MaterialActions
+                <div className="team-catalog-secondary-actions">
+                  <MaterialRowMenu
                     teamId={material.teamId}
                     material={material}
                     permissions={permissions}
+                    browseClient={browseClient}
                     storageKind={storageKind}
                     onChanged={onChanged}
                     onEditText={() => onEditText(material)}
                     onProcess={() => onProcess(material)}
+                    destinationFolderId={destinationFolderId ?? material.parentFolderId ?? null}
+                    replaceMaterialId={material.id}
                     folderUploadLabel={t('teamCatalogAddFileToFolder')}
                   />
-                </details>
+                </div>
               )}
             </li>
           );
         })}
       </ul>
+      {/* Results were capped at fifty with nothing to press: everything past the
+          first page was simply unreachable (finding F5). */}
+      {pageCount > 1 && (
+        <nav className="team-catalog-pager" aria-label={t('teamCatalogPagerLabel')}>
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={page <= 1}
+            onClick={() => onPageChange(page - 1)}
+          >
+            {t('teamCatalogPagerPrevious')}
+          </Button>
+          <span aria-live="polite">
+            {t('teamCatalogPagerPosition', { page, total: pageCount })}
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={page >= pageCount}
+            onClick={() => onPageChange(page + 1)}
+          >
+            {t('teamCatalogPagerNext')}
+          </Button>
+        </nav>
+      )}
     </>
   );
 }

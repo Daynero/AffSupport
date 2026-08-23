@@ -20,8 +20,8 @@
 
 **Purpose**: Confirm the evidence base and prepare shared visual groundwork. No dependencies to install — the plan adds zero runtime dependencies.
 
-- [ ] T001 Confirm the behavioral audit claims in a running beta app before building against them (findings confidence note): dialog stacking/under-modal rendering (C1), sync-banner freeze on dropped realtime (S5), contradictory sync label (S4), batch cancel-on-close (B1); append confirmations (or corrections) to specs/010-team-ux-refresh/findings.md
-- [ ] T002 [P] Add shared layer tokens (`--layer-modal`, `--layer-toast`, retirement plan for the 45/80 z-index bands) and base skeleton/chip utility classes in apps/web/src/styles.css
+- [X] T001 Confirm the behavioral audit claims in a running beta app before building against them (findings confidence note): dialog stacking/under-modal rendering (C1), sync-banner freeze on dropped realtime (S5), contradictory sync label (S4), batch cancel-on-close (B1); append confirmations (or corrections) to specs/010-team-ux-refresh/findings.md
+- [X] T002 [P] Add shared layer tokens (`--layer-modal`, `--layer-toast`, retirement plan for the 45/80 z-index bands) and base skeleton/chip utility classes in apps/web/src/styles.css
 
 ---
 
@@ -31,15 +31,15 @@
 
 **⚠️ CRITICAL**: complete before any user story phase.
 
-- [ ] T003 Create `ToastProvider`/`useToasts`/`ToastContextOverride` (context idiom, `aria-live="polite"`, tones success/error/info, optional one-shot action, `sticky` support, auto-dismiss) in apps/web/src/components/toast.tsx and mount it in the team shell tree (apps/web/src/team/TeamSpace.tsx)
-- [ ] T004 [P] Toast visual styles (stack, tones, action button, reduced-motion) in apps/web/src/styles.css
-- [ ] T005 [P] Create `teamErrorMessage(code, t)` mapping every known `TeamErrorCode` to a `TranslationKey` with a generic-unknown fallback in apps/web/src/team/errors.ts, plus the error-copy keys for both locales in apps/web/src/i18n.ts (contracts/ui-conventions.md)
-- [ ] T006 [P] Create the route model `parseTeamRoute`/`buildTeamRoute` (sections files|tasks|creatives|landings|settings|trash; query q/task/folder; total parsing per contracts/routes-and-navigation.md) in apps/web/src/team/routes.ts with unit tests in tests/team-routes.test.ts
-- [ ] T007 Switch `/team` exact match to prefix matching and pass the parsed route into `TeamSpace` (behavior-compatible until US1 consumes it) in apps/web/src/ProtectedSoty.tsx
-- [ ] T008 Write the forward-only migration adding `leave_team`, `delete_draft_team` (guard: refuses teams that ever had a drive connection → `TEAM_NOT_DRAFT`), `delete_team_task`, `list_team_trashed_materials` — all `security definer` + `set search_path = ''`, narrow grants, audit rows `membership.left`/`team.draft_deleted`/`task.deleted` — in supabase/migrations/, with reverse steps documented in ROLLBACK.md (contracts/rpc-and-backend.md)
-- [ ] T009 Regenerate DB types (`npm run types:supabase`) and the PGlite contract SQL (`node scripts/generate-team-contract-sql.mjs`) so the harness sees the new functions; commit both outputs
-- [ ] T010 Add typed client wrappers `leaveTeam`, `deleteDraftTeam`, `deleteTask`, `listTrashedMaterials` (rpc → throwRpc → unknown-narrowing guard, no `as`) in apps/web/src/api/team.ts
-- [ ] T011 [P] PGlite contract tests for the four functions (owner cannot leave; member leave revokes reads; draft-delete refuses ever-connected teams and cascades; task delete honors edit permission and detaches links; trash listing honors view + keyset paging; audit rows written) in tests/team-lifecycle-rpc.test.ts
+- [X] T003 Create `ToastProvider`/`useToasts`/`ToastContextOverride` (context idiom, `aria-live="polite"`, tones success/error/info, optional one-shot action, `sticky` support, auto-dismiss) in apps/web/src/components/toast.tsx and mount it in the team shell tree (apps/web/src/team/TeamSpace.tsx)
+- [X] T004 [P] Toast visual styles (stack, tones, action button, reduced-motion) in apps/web/src/styles.css
+- [X] T005 [P] Create `teamErrorMessage(code, t)` mapping every known `TeamErrorCode` to a `TranslationKey` with a generic-unknown fallback in apps/web/src/team/errors.ts, plus the error-copy keys for both locales in apps/web/src/i18n.ts (contracts/ui-conventions.md)
+- [X] T006 [P] Create the route model `parseTeamRoute`/`buildTeamRoute` (sections files|tasks|creatives|landings|settings|trash; query q/task/folder; total parsing per contracts/routes-and-navigation.md) in apps/web/src/team/routes.ts with unit tests in tests/team-routes.test.ts
+- [X] T007 Switch `/team` exact match to prefix matching and pass the parsed route into `TeamSpace` (behavior-compatible until US1 consumes it) in apps/web/src/ProtectedSoty.tsx
+- [X] T008 Write the forward-only migration adding `leave_team`, `delete_draft_team` (guard: refuses teams that ever had a drive connection → `TEAM_NOT_DRAFT`), `delete_team_task`, `list_team_trashed_materials` — all `security definer` + `set search_path = ''`, narrow grants, audit rows `membership.left`/`team.draft_deleted`/`task.deleted` — in supabase/migrations/, with reverse steps documented in ROLLBACK.md (contracts/rpc-and-backend.md)
+- [X] T009 Regenerate DB types (`npm run types:supabase`) and the PGlite contract SQL (`node scripts/generate-team-contract-sql.mjs`) so the harness sees the new functions; commit both outputs
+- [X] T010 Add typed client wrappers `leaveTeam`, `deleteDraftTeam`, `deleteTask`, `listTrashedMaterials` (rpc → throwRpc → unknown-narrowing guard, no `as`) in apps/web/src/api/team.ts
+- [X] T011 [P] PGlite contract tests for the four functions (owner cannot leave; member leave revokes reads; draft-delete refuses ever-connected teams and cascades; task delete honors edit permission and detaches links; trash listing honors view + keyset paging; audit rows written) in tests/team-lifecycle-rpc.test.ts
 
 **Checkpoint**: toasts, error mapper, routes, and backend lifecycle functions exist — story phases can start (and can proceed in parallel).
 
@@ -51,14 +51,14 @@
 
 **Independent Test**: spec US1 — walk tabs, refresh, use Back, switch space via its name, share a section link (member vs non-member), enter with one ready space, wizard round-trip.
 
-- [ ] T012 [US1] Make `TeamSpace` URL-driven: resolver order `?drive=` resume → URL space → pending invitations ⇒ lobby → exactly one `ready` space ⇒ `replace`-redirect into it → remembered space ⇒ redirect → lobby; `enterSpace` navigates to `/team/<id>`; URL always beats the localStorage cache; neutral no-access screen (identical for absent/denied) in apps/web/src/team/TeamSpace.tsx (research D14, contracts/routes-and-navigation.md)
-- [ ] T013 [US1] Replace the six toggle buttons with a `<nav>` of section links (Файли · Завдання · Креативи · Лендінги) using `internalLink()` + `aria-current="page"`, render the active section from the route, and separate utilities (settings link, switcher) from content tabs in apps/web/src/team/workspace/WorkspaceShell.tsx
-- [ ] T014 [P] [US1] Space switcher on the space name (current space + list of other spaces + "усі простори" → lobby) in apps/web/src/team/workspace/SpaceSwitcher.tsx, wired into the shell header
-- [ ] T015 [US1] Restore view state from query params: `?folder=` re-opens the Files browser position, `?task=` opens the task editor over Tasks, `?q=`+filters restore search state; navigating sections updates the URL in apps/web/src/team/workspace/WorkspaceShell.tsx, apps/web/src/team/catalog/MaterialBrowser.tsx, apps/web/src/team/tasks/TaskSpace.tsx
-- [ ] T016 [P] [US1] Wizard: add Back from the folder step to the name step preserving entered state (reuse the existing `teamCreateBack` key) in apps/web/src/team/create/ConnectFolderStep.tsx and apps/web/src/team/create/CreateSpaceWizard.tsx
-- [ ] T017 [P] [US1] Tab-bar and header styles: tab affordance with clear active state, utilities cluster, fix the 560–860 px ragged wrap (findings P3) in apps/web/src/styles.css
-- [ ] T018 [US1] Lobby: entering a card navigates to `/team/<id>`; the remembered-space redirect lives in the resolver only (no double-entry paths) in apps/web/src/team/lobby/SpaceLobby.tsx and apps/web/src/team/lobby/SpaceCard.tsx
-- [ ] T019 [P] [US1] jsdom suite: tabs render + active marking, direct-action return to Files, refresh restores space+section, Back walks sections before leaving, single-ready-space direct entry (suppressed by pending invitations), neutral no-access screen, wizard Back keeps the name — in tests/team-ux-navigation.test.tsx
+- [X] T012 [US1] Make `TeamSpace` URL-driven: resolver order `?drive=` resume → URL space → pending invitations ⇒ lobby → exactly one `ready` space ⇒ `replace`-redirect into it → remembered space ⇒ redirect → lobby; `enterSpace` navigates to `/team/<id>`; URL always beats the localStorage cache; neutral no-access screen (identical for absent/denied) in apps/web/src/team/TeamSpace.tsx (research D14, contracts/routes-and-navigation.md)
+- [X] T013 [US1] Replace the six toggle buttons with a `<nav>` of section links (Файли · Завдання · Креативи · Лендінги) using `internalLink()` + `aria-current="page"`, render the active section from the route, and separate utilities (settings link, switcher) from content tabs in apps/web/src/team/workspace/WorkspaceShell.tsx
+- [X] T014 [P] [US1] Space switcher on the space name (current space + list of other spaces + "усі простори" → lobby) in apps/web/src/team/workspace/SpaceSwitcher.tsx, wired into the shell header
+- [X] T015 [US1] Restore view state from query params: `?folder=` re-opens the Files browser position, `?task=` opens the task editor over Tasks, `?q=`+filters restore search state; navigating sections updates the URL in apps/web/src/team/workspace/WorkspaceShell.tsx, apps/web/src/team/catalog/MaterialBrowser.tsx, apps/web/src/team/tasks/TaskSpace.tsx
+- [X] T016 [P] [US1] Wizard: add Back from the folder step to the name step preserving entered state (reuse the existing `teamCreateBack` key) in apps/web/src/team/create/ConnectFolderStep.tsx and apps/web/src/team/create/CreateSpaceWizard.tsx
+- [X] T017 [P] [US1] Tab-bar and header styles: tab affordance with clear active state, utilities cluster, fix the 560–860 px ragged wrap (findings P3) in apps/web/src/styles.css
+- [X] T018 [US1] Lobby: entering a card navigates to `/team/<id>`; the remembered-space redirect lives in the resolver only (no double-entry paths) in apps/web/src/team/lobby/SpaceLobby.tsx and apps/web/src/team/lobby/SpaceCard.tsx
+- [X] T019 [P] [US1] jsdom suite: tabs render + active marking, direct-action return to Files, refresh restores space+section, Back walks sections before leaving, single-ready-space direct entry (suppressed by pending invitations), neutral no-access screen, wizard Back keeps the name — in tests/team-ux-navigation.test.tsx
 
 **Checkpoint**: US1 fully functional — navigation skeleton delivered (MVP).
 
@@ -70,14 +70,14 @@
 
 **Independent Test**: spec US2 — in a space with a folder-only root: find search, rename/move a file from its row via the picker in ≤3 actions, page past 50 results, watch a teammate's change appear, press `/`.
 
-- [ ] T020 [US2] Split `MaterialActions` into a headless `useMaterialActions` hook (operation calls, busy/error, idempotency keys) in apps/web/src/team/catalog/useMaterialActions.ts and a lazily-mounted `MaterialRowMenu` (renders content only when opened — kills the 50-live-instances problem) in apps/web/src/team/catalog/MaterialRowMenu.tsx
-- [ ] T021 [US2] Adopt `MaterialRowMenu` in the Files browser rows with `destinationFolderId` = current folder (revives the dead "Upload new version" and conflict-replace branches — wire, don't delete), pass the realtime `revision` so the tree refreshes live, in apps/web/src/team/catalog/MaterialBrowser.tsx and apps/web/src/team/workspace/WorkspaceShell.tsx; reuse the same menu in apps/web/src/team/catalog/MaterialResults.tsx
-- [ ] T022 [P] [US2] Build `FolderPicker` — a Modal navigating catalog folders via `listMaterials(teamId, parent)` filtered to `kind === 'folder'`, breadcrumb + "Select current folder" — in apps/web/src/team/catalog/FolderPicker.tsx
-- [ ] T023 [US2] Replace all three raw-ID destination inputs with `FolderPicker`: move (apps/web/src/team/catalog/MaterialRowMenu.tsx), process output (apps/web/src/team/processing/ProcessMaterialDialog.tsx — no more pre-shown error), save-text-as-new-version (apps/web/src/team/catalog/TeamCatalog.tsx)
-- [ ] T024 [US2] Derive content availability from the space-wide freshness probe (`discoveredCount > 0 || total > 0`), never from the open folder; search/filters follow FR-008 (truly empty space stays clean), file actions are never gated by it — in apps/web/src/team/workspace/WorkspaceShell.tsx and apps/web/src/team/useCatalogFreshness.ts
-- [ ] T025 [US2] Search lives under Files: `?q=`/filter sync with the URL and a load-more/pager control over the existing `page` state so results past 50 are reachable, in apps/web/src/team/catalog/TeamCatalog.tsx and apps/web/src/team/catalog/useCatalogSearch.ts
-- [ ] T026 [P] [US2] `/` focuses the search field in sections that have one (small hook, no global shortcut system) in apps/web/src/team/catalog/CatalogSearchBar.tsx
-- [ ] T027 [P] [US2] jsdom suite: row menu offers the full permission-shaped set, folder-only root keeps search available, picker replaces ID inputs, pager reaches page 2, revision prop refreshes the tree, `/` focuses search — in tests/team-ux-files.test.tsx
+- [X] T020 [US2] Split `MaterialActions` into a headless `useMaterialActions` hook (operation calls, busy/error, idempotency keys) in apps/web/src/team/catalog/useMaterialActions.ts and a lazily-mounted `MaterialRowMenu` (renders content only when opened — kills the 50-live-instances problem) in apps/web/src/team/catalog/MaterialRowMenu.tsx
+- [X] T021 [US2] Adopt `MaterialRowMenu` in the Files browser rows with `destinationFolderId` = current folder (revives the dead "Upload new version" and conflict-replace branches — wire, don't delete), pass the realtime `revision` so the tree refreshes live, in apps/web/src/team/catalog/MaterialBrowser.tsx and apps/web/src/team/workspace/WorkspaceShell.tsx; reuse the same menu in apps/web/src/team/catalog/MaterialResults.tsx
+- [X] T022 [P] [US2] Build `FolderPicker` — a Modal navigating catalog folders via `listMaterials(teamId, parent)` filtered to `kind === 'folder'`, breadcrumb + "Select current folder" — in apps/web/src/team/catalog/FolderPicker.tsx
+- [X] T023 [US2] Replace all three raw-ID destination inputs with `FolderPicker`: move (apps/web/src/team/catalog/MaterialRowMenu.tsx), process output (apps/web/src/team/processing/ProcessMaterialDialog.tsx — no more pre-shown error), save-text-as-new-version (apps/web/src/team/catalog/TeamCatalog.tsx)
+- [X] T024 [US2] Derive content availability from the space-wide freshness probe (`discoveredCount > 0 || total > 0`), never from the open folder; search/filters follow FR-008 (truly empty space stays clean), file actions are never gated by it — in apps/web/src/team/workspace/WorkspaceShell.tsx and apps/web/src/team/useCatalogFreshness.ts
+- [X] T025 [US2] Search lives under Files: `?q=`/filter sync with the URL and a load-more/pager control over the existing `page` state so results past 50 are reachable, in apps/web/src/team/catalog/TeamCatalog.tsx and apps/web/src/team/catalog/useCatalogSearch.ts
+- [X] T026 [P] [US2] `/` focuses the search field in sections that have one (small hook, no global shortcut system) in apps/web/src/team/catalog/CatalogSearchBar.tsx
+- [X] T027 [P] [US2] jsdom suite: row menu offers the full permission-shaped set, folder-only root keeps search available, picker replaces ID inputs, pager reaches page 2, revision prop refreshes the tree, `/` focuses search — in tests/team-ux-files.test.tsx
 
 **Checkpoint**: file management is where the files are; search cannot disappear.
 

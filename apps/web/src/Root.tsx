@@ -82,7 +82,7 @@ function Routes() {
 
   return (
     <Suspense fallback={<AuthLoadingScreen />}>
-      <ProtectedSoty path={path} />
+      <ProtectedSoty path={path} route={route} />
     </Suspense>
   );
 }

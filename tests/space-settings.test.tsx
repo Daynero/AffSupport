@@ -38,7 +38,7 @@ describe('space settings surface', () => {
 
     await screen.findByRole('heading', { name: 'Media buyers' });
     // Action 1 (entering the space) is the cached open; action 2 opens settings.
-    await user.click(screen.getByRole('button', { name: 'Space settings' }));
+    await user.click(screen.getByRole('link', { name: 'Space settings' }));
 
     expect(await screen.findByRole('heading', { name: 'Google Drive storage' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Team audit history' })).toBeTruthy();
@@ -54,7 +54,7 @@ describe('space settings surface', () => {
     renderEnteredSpace(client, team.id);
 
     await screen.findByRole('heading', { name: 'Media buyers' });
-    await user.click(screen.getByRole('button', { name: 'Space settings' }));
+    await user.click(screen.getByRole('link', { name: 'Space settings' }));
     await screen.findByRole('heading', { name: 'Space settings' });
 
     // Drive connection (owner) and audit (owner/admin) are not shown to a viewer.
@@ -103,7 +103,7 @@ describe('space settings surface', () => {
     renderEnteredSpace(client, disconnectedTeam.id, client);
 
     await screen.findByRole('heading', { name: 'Media buyers' });
-    await user.click(screen.getByRole('button', { name: 'Space settings' }));
+    await user.click(screen.getByRole('link', { name: 'Space settings' }));
     await user.click(await screen.findByRole('button', { name: 'Connect Google Drive' }));
     // Opening and selecting are separate actions now, so name the select one.
     await user.click(
@@ -111,7 +111,7 @@ describe('space settings surface', () => {
     );
     await user.click(await screen.findByRole('button', { name: 'Confirm folder' }));
     await user.click(screen.getByRole('button', { name: 'Back to space' }));
-    await user.click(screen.getByRole('button', { name: 'Landings' }));
+    await user.click(screen.getByRole('link', { name: 'Landings' }));
 
     expect(await screen.findByText(/Scanning the connected Google Drive folder/i)).toBeTruthy();
     expect(screen.queryByText(/Google Drive is not connected for this space/i)).toBeNull();
@@ -131,7 +131,7 @@ describe('space settings surface', () => {
     renderEnteredSpace(client, team.id);
 
     await screen.findByRole('heading', { name: 'Media buyers' });
-    await user.click(screen.getByRole('button', { name: 'Space settings' }));
+    await user.click(screen.getByRole('link', { name: 'Space settings' }));
     await user.click(await screen.findByRole('button', { name: 'Sync now' }));
 
     expect(resyncDrive).toHaveBeenCalledWith(team.id);
@@ -163,7 +163,7 @@ describe('space settings surface', () => {
       renderEnteredSpace(client, team.id);
 
       await screen.findByRole('heading', { name: 'Media buyers' });
-      await user.click(screen.getByRole('button', { name: 'Space settings' }));
+      await user.click(screen.getByRole('link', { name: 'Space settings' }));
       await screen.findByRole('button', { name: 'Current root — Open' });
       await user.click(screen.getByRole('button', { name: 'Sync now' }));
 

@@ -13,6 +13,14 @@ import { ConnectFolderStep } from './ConnectFolderStep';
 
 export type CreateSpaceWizardClient = {
   createTeam: (name: string) => Promise<TeamContextSnapshot>;
+  /**
+   * Used only by the Back path: there is no rename RPC, so correcting the name
+   * of an already-created draft means replacing the draft rather than leaving
+   * an abandoned one behind. The server refuses this for anything that has ever
+   * had a drive connection, which is exactly the case where replacing would be
+   * destructive.
+   */
+  deleteDraftTeam: (teamId: string) => Promise<true>;
 } & DrivePanelClient;
 
 type Step = { kind: 'name' } | { kind: 'folder'; teamId: string };
@@ -41,6 +49,9 @@ export function CreateSpaceWizard({
     resumeTeamId ? { kind: 'folder', teamId: resumeTeamId } : { kind: 'name' }
   );
   const onboarding = useRef<TeamOnboardingFlow>(startTeamOnboardingFlow());
+  // The draft this flow created, so Back can restore what was typed and a
+  // corrected name can replace it instead of piling up abandoned spaces.
+  const [draft, setDraft] = useState<TeamContextSnapshot | null>(null);
 
   const stepNumber = step.kind === 'name' ? 1 : 2;
   const resumeName = useMemo(
@@ -48,7 +59,22 @@ export function CreateSpaceWizard({
     [resumeTeamId, teams]
   );
 
+  /**
+   * Commit the name. An unchanged name on a second pass reuses the draft that
+   * already exists — re-submitting it would otherwise collide with itself
+   * (`create_team` refuses a duplicate name among your own spaces).
+   */
+  const submitName = async (name: string): Promise<TeamContextSnapshot> => {
+    if (draft && draft.name === name) return draft;
+    if (draft) {
+      await client.deleteDraftTeam(draft.id);
+      replaceTeams(teams.filter(team => team.id !== draft.id));
+    }
+    return client.createTeam(name);
+  };
+
   const handleCreated = (created: TeamContextSnapshot) => {
+    setDraft(created);
     replaceTeams([...teams.filter(team => team.id !== created.id), created]);
     setStep({ kind: 'folder', teamId: created.id });
   };
@@ -79,9 +105,10 @@ export function CreateSpaceWizard({
 
       {step.kind === 'name' ? (
         <SpaceNameStep
-          createTeam={client.createTeam}
+          createTeam={submitName}
           onCreated={handleCreated}
           onCancel={onCancel}
+          initialName={draft?.name ?? ''}
         />
       ) : (
         <>
@@ -90,7 +117,8 @@ export function CreateSpaceWizard({
             teamId={step.teamId}
             client={client}
             onConnected={() => handleConnected(step.teamId)}
-            onBack={onCancel}
+            onBack={() => setStep({ kind: 'name' })}
+            onCancel={onCancel}
           />
         </>
       )}

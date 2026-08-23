@@ -36,11 +36,28 @@ export function useCatalogSearch(input: {
   client: CatalogSearchClient;
   debounceMs?: number;
   fixedFilters?: Partial<CatalogSearchFilters>;
+  /** Search state carried in by the address, so a refresh restores the view. */
+  initialQuery?: string;
+  initialFilters?: CatalogSearchFilters;
+  /**
+   * Called with the state that actually produced a request — debounced, not
+   * per keystroke, because the caller writes it back into the URL and every
+   * write re-renders the application shell.
+   */
+  onSearched?: (state: { query: string; filters: CatalogSearchFilters }) => void;
 }) {
-  const { teamId, client, debounceMs = 180, fixedFilters } = input;
+  const {
+    teamId,
+    client,
+    debounceMs = 180,
+    fixedFilters,
+    initialQuery = '',
+    initialFilters,
+    onSearched
+  } = input;
   const { revision, realtimeState } = useTeam();
-  const [query, setQuery] = useState('');
-  const [filters, setFilters] = useState<CatalogSearchFilters>(EMPTY_FILTERS);
+  const [query, setQuery] = useState(initialQuery);
+  const [filters, setFilters] = useState<CatalogSearchFilters>(initialFilters ?? EMPTY_FILTERS);
   const [page, setPage] = useState(1);
   const [result, setResult] = useState<CatalogSearchResponse | null>(null);
   const [vocabulary, setVocabulary] = useState<CatalogVocabulary>({
@@ -53,6 +70,10 @@ export function useCatalogSearch(input: {
   const [error, setError] = useState(false);
   const requestSequence = useRef(0);
   const lastRealtimeState = useRef(realtimeState);
+  // Held in a ref, not a dependency: an inline callback would change identity
+  // every render and restart the debounced fetch forever.
+  const onSearchedRef = useRef(onSearched);
+  onSearchedRef.current = onSearched;
   const findFlow = useRef<TeamFindFlow | null>(null);
 
   useEffect(() => {
@@ -61,6 +82,8 @@ export function useCatalogSearch(input: {
     setPage(1);
     setResult(null);
     setError(false);
+    // Changing space is not a search: the address for the new space carries no
+    // query, so the fields start empty rather than inheriting the old one's.
   }, [teamId]);
 
   useEffect(() => {
@@ -100,6 +123,9 @@ export function useCatalogSearch(input: {
     try {
       const next = await client.searchCatalog(teamId, request);
       if (sequence !== requestSequence.current) return;
+      // Reports the *user's* filters, not the merged request: a surface with
+      // fixed filters (landings, library) must not write them into the address.
+      onSearchedRef.current?.({ query: request.query, filters });
       // The shared decoder normally enforces this at the API boundary. Keep a
       // second UI boundary so injected test clients cannot render foreign rows.
       if (next.items.some(material => material.teamId !== teamId))
@@ -124,7 +150,7 @@ export function useCatalogSearch(input: {
     } finally {
       if (sequence === requestSequence.current) setLoading(false);
     }
-  }, [client, request, teamId]);
+  }, [client, filters, request, teamId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void refetch(), debounceMs);

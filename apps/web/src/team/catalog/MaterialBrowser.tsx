@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { TeamMaterialSummary } from '../../api/team';
+import type { TeamPermissions } from '@video-compressor/shared';
 import { useI18n } from '../../i18n';
 import { Button } from '../../components/ui';
 import { CopyDriveLinkButton } from '../library/CopyDriveLinkButton';
@@ -9,6 +10,7 @@ import {
   TASK_MATERIAL_DRAG_TYPE,
   type TaskMaterialDragItem
 } from '../tasks/task-drag';
+import { MaterialRowMenu } from './MaterialRowMenu';
 
 export interface MaterialBrowserClient {
   listMaterials: (teamId: string, parentFolderId: string | null) => Promise<TeamMaterialSummary[]>;
@@ -19,7 +21,11 @@ export function MaterialBrowser({
   client,
   revision = 0,
   syncLabel,
+  folderId = null,
+  onFolderChange,
+  permissions = null,
   onLoaded,
+  onChanged,
   onCreateTask,
   onPreview,
   taskDragSelection
@@ -28,8 +34,23 @@ export function MaterialBrowser({
   client: MaterialBrowserClient;
   revision?: number;
   syncLabel?: string | null;
+  /**
+   * The folder the address says is open. Only one level is addressable, so a
+   * restored position shows a generic way back to the top rather than a
+   * breadcrumb it cannot reconstruct.
+   */
+  folderId?: string | null;
+  /** Reports each move through the tree so the address can follow it. */
+  onFolderChange?: (folderId: string | null) => void;
+  /**
+   * Enables the per-row actions menu. Without permissions there is nothing to
+   * offer, so the menu is absent rather than empty.
+   */
+  permissions?: TeamPermissions | null;
   /** Reports the count of items in the currently viewed folder after each load. */
   onLoaded?: (count: number) => void;
+  /** Re-read the folder after a row action changed something in it. */
+  onChanged?: () => void;
   /** Convenient reverse flow: create and immediately open a task for this stable material. */
   onCreateTask?: (material: { id: string; name: string }) => void;
   /** Opens the same safe viewer used by catalog search for a file in the tree. */
@@ -40,7 +61,9 @@ export function MaterialBrowser({
   };
 }) {
   const { t } = useI18n();
-  const [path, setPath] = useState<{ id: string; name: string }[]>([]);
+  const [path, setPath] = useState<{ id: string; name: string }[]>(() =>
+    folderId ? [{ id: folderId, name: '' }] : []
+  );
   const [materials, setMaterials] = useState<TeamMaterialSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +72,17 @@ export function MaterialBrowser({
   useEffect(() => {
     setPath([]);
   }, [teamId]);
+
+  // Follow the address when it moves under us — a Back press, or a link opened
+  // into an already-mounted browser. Comparing against the current position
+  // keeps this from fighting the click handlers that caused the change.
+  useEffect(() => {
+    setPath(current => {
+      const currentId = current.at(-1)?.id ?? null;
+      if (currentId === folderId) return current;
+      return folderId ? [{ id: folderId, name: '' }] : [];
+    });
+  }, [folderId]);
 
   useEffect(() => {
     let active = true;
@@ -83,7 +117,11 @@ export function MaterialBrowser({
         <Button
           type="button"
           variant="ghost"
-          onClick={() => setPath(current => current.slice(0, -1))}
+          onClick={() => {
+            const next = path.slice(0, -1);
+            setPath(next);
+            onFolderChange?.(next.at(-1)?.id ?? null);
+          }}
         >
           ← {path.length === 1 ? t('teamMaterialsBack') : path.at(-2)?.name}
         </Button>
@@ -98,12 +136,11 @@ export function MaterialBrowser({
               <Button
                 type="button"
                 variant="ghost"
-                onClick={() =>
-                  setPath(current => [
-                    ...current,
-                    { id: material.providerId ?? material.id, name: material.name }
-                  ])
-                }
+                onClick={() => {
+                  const id = material.providerId ?? material.id;
+                  setPath(current => [...current, { id, name: material.name }]);
+                  onFolderChange?.(id);
+                }}
               >
                 <span aria-hidden="true">📁</span> {material.name}
               </Button>
@@ -177,6 +214,20 @@ export function MaterialBrowser({
                       <MediaActionIcon kind="task" />
                       <span>{t('creativeLibraryCreateTask')}</span>
                     </Button>
+                  )}
+                  {/* File management belongs where the files are. Until now it
+                      lived only in the search results, so managing a file meant
+                      first finding a way to search for it (finding F1). */}
+                  {permissions && (
+                    <MaterialRowMenu
+                      teamId={material.teamId}
+                      material={material}
+                      permissions={permissions}
+                      browseClient={client}
+                      onChanged={onChanged ?? (() => undefined)}
+                      destinationFolderId={parentId}
+                      replaceMaterialId={material.id}
+                    />
                   )}
                 </div>
               </>

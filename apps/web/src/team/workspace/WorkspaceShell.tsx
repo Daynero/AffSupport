@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '../../components/ui';
-import { useI18n } from '../../i18n';
+import { useI18n, type TranslationKey } from '../../i18n';
+import { internalLink, navigateTo } from '../../lib/navigation';
 import { trackTeamWorkspaceSession } from '../../analytics/service';
 import { useTeam } from '../TeamContext';
 import { type TeamMaterialSummary } from '../../api/team';
@@ -13,13 +14,27 @@ import { TaskSpace } from '../tasks';
 import { SyncProgress } from '../SyncProgress';
 import { useCatalogFreshness } from '../useCatalogFreshness';
 import { SpaceSettings, type SpaceSettingsClient } from './SpaceSettings';
+import { SpaceSwitcher } from './SpaceSwitcher';
+import { buildTeamRoute, type TeamRouteQuery, type TeamSection } from '../routes';
+import type { CatalogSearchFilters } from '@video-compressor/shared';
 
 export type WorkspaceShellClient = MaterialBrowserClient &
   TeamCatalogClient &
   TeamLandingsClient &
   SpaceSettingsClient;
 
-type ShellView = 'content' | 'settings' | 'search' | 'landings' | 'library' | 'tasks';
+/**
+ * The content tabs, in the order they appear. Settings and Trash are also
+ * sections but are not tabs: they are utilities reached from the header and the
+ * Files toolbar, and mixing them into the same row is what made the old header
+ * a wall of six identical buttons.
+ */
+const CONTENT_TABS: { section: TeamSection; label: TranslationKey }[] = [
+  { section: 'files', label: 'teamSectionFiles' },
+  { section: 'tasks', label: 'teamSectionTasks' },
+  { section: 'creatives', label: 'teamSectionCreatives' },
+  { section: 'landings', label: 'teamSectionLandings' }
+];
 
 /**
  * Content-first workspace for a single entered space. The connected folder's
@@ -32,29 +47,38 @@ export function WorkspaceShell({
   teamId,
   client,
   directAddMode = 'disabled',
-  onChangeSpace
+  section = 'files',
+  query
 }: {
   teamId: string;
   client: WorkspaceShellClient;
   directAddMode?: 'disabled' | 'testing';
-  onChangeSpace: () => void;
+  /** Which section the address names; the shell renders exactly this one. */
+  section?: TeamSection;
+  /** View state carried by the address (search, filters, open task, folder). */
+  query?: TeamRouteQuery;
 }) {
   const { t } = useI18n();
-  const { activeTeam } = useTeam();
+  const { activeTeam, teams, permissions, revision } = useTeam();
   const connectedToDrive = activeTeam?.connectionState === 'connected';
   // Space-wide sync status: visible above every tab so a member who just entered
   // (or who just connected the folder) can see the scan is alive without having
   // to open the tab whose filtered view still reads empty.
-  const freshness = useCatalogFreshness({ teamId, client, enabled: connectedToDrive });
-  const [view, setView] = useState<ShellView>('content');
-  const [hasContent, setHasContent] = useState(false);
+  const { freshness, hasContent } = useCatalogFreshness({
+    teamId,
+    client,
+    enabled: connectedToDrive
+  });
+  // Arriving on an address that carries a search opens the search view; the
+  // toggle then owns it for the rest of the visit.
+  const [searchOpen, setSearchOpen] = useState(() => Boolean(query?.q));
+  const [browserRevision, setBrowserRevision] = useState(0);
   const [taskAsset, setTaskAsset] = useState<{ ids: string[]; name: string } | null>(null);
   const [previewing, setPreviewing] = useState<TeamMaterialSummary | null>(null);
   const sessionTeam = useRef<string | null>(null);
 
   useEffect(() => {
-    setView('content');
-    setHasContent(false);
+    setSearchOpen(false);
     setTaskAsset(null);
     setPreviewing(null);
   }, [teamId]);
@@ -65,131 +89,171 @@ export function WorkspaceShell({
     trackTeamWorkspaceSession();
   }, [teamId]);
 
-  const onLoaded = useCallback((count: number) => {
-    if (count > 0) setHasContent(true);
-  }, []);
+  const sectionRoute = useCallback(
+    (target: TeamSection) => buildTeamRoute({ spaceId: teamId, section: target }),
+    [teamId]
+  );
+
+  /**
+   * Write a piece of view state into the address.
+   *
+   * `replace` throughout: moving through folders, refining a search or opening
+   * a task are adjustments to where you already are, and pushing each one would
+   * make Back a slow rewind of your own typing instead of a way out of the
+   * section (SC-003).
+   */
+  const updateQuery = useCallback(
+    (target: TeamSection, patch: Partial<TeamRouteQuery>) => {
+      navigateTo(
+        buildTeamRoute({ spaceId: teamId, section: target, query: { ...query, ...patch } }),
+        true
+      );
+    },
+    [query, teamId]
+  );
+
+  const onFolderChange = useCallback(
+    (folderId: string | null) => updateQuery('files', { folderId }),
+    [updateQuery]
+  );
+
+  const onSearched = useCallback(
+    (state: { query: string; filters: CatalogSearchFilters }) =>
+      updateQuery('files', { q: state.query, filters: state.filters }),
+    [updateQuery]
+  );
+
+  const onOpenTaskChange = useCallback(
+    (taskId: string | null) => updateQuery('tasks', { taskId }),
+    [updateQuery]
+  );
+
+  /**
+   * Sending an asset to the task editor is a section change, so it goes through
+   * the address like every other one. The shell stays mounted across it, which
+   * is what lets the staged asset survive the navigation.
+   */
+  const createTaskFrom = useCallback(
+    (asset: { ids: string[]; name: string }) => {
+      setTaskAsset(asset);
+      navigateTo(sectionRoute('tasks'));
+    },
+    [sectionRoute]
+  );
 
   return (
     <section className="team-space-shell" aria-labelledby="team-space-shell-title">
       <header className="team-space-shell-header">
-        <div>
+        <div className="team-space-shell-identity">
           <p className="team-workspace-eyebrow">{t('teamWorkspace')}</p>
-          <h1 id="team-space-shell-title">{activeTeam?.name ?? ''}</h1>
+          <SpaceSwitcher activeTeam={activeTeam} teams={teams} headingId="team-space-shell-title" />
         </div>
-        <div className="team-space-shell-actions">
-          <Button
-            type="button"
-            variant="secondary"
-            aria-pressed={view === 'tasks'}
-            onClick={() => setView(current => (current === 'tasks' ? 'content' : 'tasks'))}
-          >
-            {t('teamTasksTitle')}
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            aria-pressed={view === 'library'}
-            onClick={() => setView(current => (current === 'library' ? 'content' : 'library'))}
-          >
-            {t('creativeLibraryNav')}
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            aria-pressed={view === 'landings'}
-            onClick={() => setView(current => (current === 'landings' ? 'content' : 'landings'))}
-          >
-            {t('teamLandingsTitle')}
-          </Button>
-          {hasContent && (
+        <div className="team-space-shell-utilities">
+          {hasContent && section === 'files' && (
             <Button
               type="button"
               variant="secondary"
-              aria-pressed={view === 'search'}
-              onClick={() => setView(current => (current === 'search' ? 'content' : 'search'))}
+              aria-pressed={searchOpen}
+              onClick={() => setSearchOpen(open => !open)}
             >
-              {view === 'search' ? t('teamSpaceSearchClose') : t('teamSpaceSearchToggle')}
+              {searchOpen ? t('teamSpaceSearchClose') : t('teamSpaceSearchToggle')}
             </Button>
           )}
-          <Button
-            type="button"
-            variant="secondary"
-            aria-pressed={view === 'settings'}
-            onClick={() => setView(current => (current === 'settings' ? 'content' : 'settings'))}
+          <a
+            className="team-space-shell-utility-link"
+            href={sectionRoute('settings')}
+            aria-current={section === 'settings' ? 'page' : undefined}
+            onClick={event => internalLink(event, sectionRoute('settings'))}
           >
             {t('teamSpaceSettings')}
-          </Button>
-          <Button type="button" variant="secondary" onClick={onChangeSpace}>
-            {t('teamSpaceChange')}
-          </Button>
+          </a>
         </div>
       </header>
+
+      {/* Real links, not toggles: middle-click, copy-link and Back all work, and
+          the active one is announced rather than merely coloured. */}
+      <nav className="team-space-tabs" aria-label={t('teamSectionsNavLabel')}>
+        {CONTENT_TABS.map(tab => {
+          const href = sectionRoute(tab.section);
+          const active = section === tab.section;
+          return (
+            <a
+              key={tab.section}
+              className={`team-space-tab${active ? ' is-active' : ''}`}
+              href={href}
+              aria-current={active ? 'page' : undefined}
+              onClick={event => internalLink(event, href)}
+            >
+              {t(tab.label)}
+            </a>
+          );
+        })}
+      </nav>
 
       {connectedToDrive && freshness && <SyncProgress variant="banner" freshness={freshness} />}
 
       <div className="team-space-shell-body">
-        {view === 'settings' ? (
+        {section === 'settings' ? (
           <SpaceSettings
             key={`settings:${teamId}`}
             teamId={teamId}
             client={client}
             directAddMode={directAddMode}
-            onBack={() => setView('content')}
+            onBack={() => navigateTo(sectionRoute('files'))}
           />
-        ) : view === 'search' ? (
-          <TeamCatalog
-            key={`search:${teamId}`}
-            teamId={teamId}
-            client={client}
-            onCreateTask={asset => {
-              setTaskAsset({ ids: [asset.id], name: asset.name });
-              setView('tasks');
-            }}
-          />
-        ) : view === 'landings' ? (
+        ) : section === 'landings' ? (
           <TeamLandings
             key={`landings:${teamId}`}
             teamId={teamId}
             client={client}
-            onCreateTask={asset => {
-              setTaskAsset({ ids: [asset.id], name: asset.name });
-              setView('tasks');
-            }}
+            onCreateTask={asset => createTaskFrom({ ids: [asset.id], name: asset.name })}
           />
-        ) : view === 'library' ? (
+        ) : section === 'creatives' ? (
           <CreativeLibrary
             key={`library:${teamId}`}
             teamId={teamId}
-            onCreateTask={asset => {
-              setTaskAsset({ ids: [asset.id], name: asset.name });
-              setView('tasks');
-            }}
+            onCreateTask={asset => createTaskFrom({ ids: [asset.id], name: asset.name })}
             onCreateTaskFromSelection={assets => {
               if (assets.length === 0) return;
-              setTaskAsset({
+              createTaskFrom({
                 ids: assets.map(asset => asset.id),
                 name: t('creativeLibrarySelectionSummary', { count: assets.length })
               });
-              setView('tasks');
             }}
           />
-        ) : view === 'tasks' ? (
+        ) : section === 'tasks' ? (
           <TaskSpace
             key={`tasks:${teamId}`}
             teamId={teamId}
             createFromAsset={taskAsset}
             onConsumedCreateFromAsset={() => setTaskAsset(null)}
+            openTaskId={query?.taskId ?? null}
+            onOpenTaskChange={onOpenTaskChange}
+          />
+        ) : searchOpen ? (
+          <TeamCatalog
+            key={`search:${teamId}`}
+            teamId={teamId}
+            client={client}
+            onCreateTask={asset => createTaskFrom({ ids: [asset.id], name: asset.name })}
+            initialQuery={query?.q}
+            initialFilters={query?.filters}
+            onSearched={onSearched}
           />
         ) : (
           <MaterialBrowser
             key={`materials:${teamId}`}
             teamId={teamId}
             client={client}
-            onLoaded={onLoaded}
-            onCreateTask={asset => {
-              setTaskAsset({ ids: [asset.id], name: asset.name });
-              setView('tasks');
-            }}
+            folderId={query?.folderId ?? null}
+            onFolderChange={onFolderChange}
+            permissions={permissions}
+            onChanged={() => setBrowserRevision(value => value + 1)}
+            // A teammate's change arrives as a realtime revision bump; adding a
+            // local counter means a row action refreshes the tree too, without
+            // waiting for the round trip through the channel.
+            revision={revision + browserRevision}
+            onCreateTask={asset => createTaskFrom({ ids: [asset.id], name: asset.name })}
             onPreview={setPreviewing}
             syncLabel={activeTeam?.connectionState === 'connected' ? t('teamSyncFresh') : null}
           />

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type {
   CatalogMaterialItem,
+  CatalogSearchFilters,
   CatalogSearchRequestInput,
   CatalogSearchResponse,
   CatalogVocabulary,
@@ -21,22 +22,25 @@ import {
   startTeamWorkflow,
   type TeamWorkflowFlow
 } from '../../analytics/service';
-import type { DriveConnectionStatus } from '../../api/team';
+import type { DriveConnectionStatus, TeamMaterialSummary } from '../../api/team';
 import { useTeam } from '../TeamContext';
 import { CatalogFilters } from './CatalogFilters';
 import { CatalogSearchBar } from './CatalogSearchBar';
 import { MaterialMetadataEditor } from './MaterialMetadataEditor';
 import { MaterialResults } from './MaterialResults';
+import { FolderPicker, type FolderPickerClient } from './FolderPicker';
 import { useCatalogSearch } from './useCatalogSearch';
 import { MaterialPreview } from '../preview/MaterialPreview';
 import { TeamTextEditor } from './TeamTextEditor';
-import { uploadTeamFile } from './MaterialActions';
+import { uploadTeamFile } from './material-actions-client';
 import { ProcessMaterialDialog } from '../processing/ProcessMaterialDialog';
 import { OperationStatus } from '../processing/OperationStatus';
 import { useTeamOperation } from '../processing/useTeamOperation';
 import { ProvenancePanel } from './ProvenancePanel';
 
 export interface TeamCatalogClient {
+  /** Reads the folder tree behind the row menu's destination picker. */
+  listMaterials: (teamId: string, parentFolderId: string | null) => Promise<TeamMaterialSummary[]>;
   searchCatalog: (
     teamId: string,
     request: CatalogSearchRequestInput
@@ -53,16 +57,24 @@ export interface TeamCatalogClient {
 export function TeamCatalog({
   teamId,
   client,
-  onCreateTask
+  onCreateTask,
+  initialQuery,
+  initialFilters,
+  onSearched
 }: {
   teamId: string;
   client: TeamCatalogClient;
   onCreateTask?: (asset: { id: string; name: string }) => void;
+  /** Search state restored from the address. */
+  initialQuery?: string;
+  initialFilters?: CatalogSearchFilters;
+  /** Reports the state behind each executed search so it can be addressed. */
+  onSearched?: (state: { query: string; filters: CatalogSearchFilters }) => void;
 }) {
   const { t } = useI18n();
   const { can, permissions } = useTeam();
   const agent = useOptionalAgent();
-  const catalog = useCatalogSearch({ teamId, client });
+  const catalog = useCatalogSearch({ teamId, client, initialQuery, initialFilters, onSearched });
   const [storageKind, setStorageKind] = useState<TeamAnalyticsStorage | null>(null);
   const [editing, setEditing] = useState<CatalogMaterialItem | null>(null);
   const [previewing, setPreviewing] = useState<CatalogMaterialItem | null>(null);
@@ -172,6 +184,9 @@ export function TeamCatalog({
         }}
         onCreateTask={onCreateTask}
         onChanged={() => void catalog.refetch()}
+        browseClient={client}
+        page={catalog.page}
+        onPageChange={catalog.setPage}
       />
       {editing && (
         <MaterialMetadataEditor
@@ -220,7 +235,8 @@ export function TeamCatalog({
         <ProcessMaterialDialog
           teamId={teamId}
           material={processing}
-          destinationFolderId={null}
+          destinationFolderId={processing.parentFolderId ?? null}
+          browseClient={client}
           agentCompatible={agent?.teamWorkspaceAvailable === true}
           toolContracts={agent?.toolContracts ?? {}}
           onClose={() => setProcessing(null)}
@@ -267,6 +283,7 @@ export function TeamCatalog({
         <TextVersionDialog
           teamId={teamId}
           draft={versionDraft}
+          browseClient={client}
           onClose={() => setVersionDraft(null)}
           onSaved={async () => {
             setVersionDraft(null);
@@ -338,23 +355,26 @@ function operationStage(stage: string | null): TeamAnalyticsStage {
 function TextVersionDialog({
   teamId,
   draft,
+  browseClient,
   onClose,
   onSaved
 }: {
   teamId: string;
   draft: { material: CatalogMaterialItem; text: string };
+  browseClient: FolderPickerClient;
   onClose: () => void;
   onSaved: () => void | Promise<void>;
 }) {
   const { t } = useI18n();
-  const [destination, setDestination] = useState('');
+  const [destination, setDestination] = useState<{ id: string; name: string } | null>(null);
+  const [pickingFolder, setPickingFolder] = useState(false);
   const [name, setName] = useState(() => draft.material.name.replace(/\.txt$/iu, '-v2.txt'));
   const [error, setError] = useState<string | null>(null);
   const save = async () => {
     try {
       await uploadTeamFile({
         teamId,
-        destinationFolderId: destination,
+        destinationFolderId: destination?.id ?? '',
         file: new File([draft.text], name, { type: 'text/plain' }),
         conflictMode: 'cancel',
         replaceMaterialId: null,
@@ -368,10 +388,24 @@ function TextVersionDialog({
   return (
     <section className="team-operation-overlay">
       <h3>{t('teamTextEditorSeparateVersion')}</h3>
-      <label>
-        {t('teamFileDestination')}
-        <input value={destination} onChange={event => setDestination(event.target.value)} />
-      </label>
+      <div className="team-process-destination">
+        <span className="team-field-label">{t('teamFileDestination')}</span>
+        <Button type="button" variant="secondary" onClick={() => setPickingFolder(true)}>
+          {destination?.name ?? t('teamFolderPickerChoose')}
+        </Button>
+      </div>
+      {pickingFolder && (
+        <FolderPicker
+          teamId={teamId}
+          client={browseClient}
+          title={t('teamTextEditorSeparateVersion')}
+          onClose={() => setPickingFolder(false)}
+          onSelect={folder => {
+            setDestination(folder);
+            setPickingFolder(false);
+          }}
+        />
+      )}
       <label>
         {t('teamFileNewName')}
         <input value={name} onChange={event => setName(event.target.value)} />

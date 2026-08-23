@@ -17,12 +17,15 @@ export function ConnectFolderStep({
   teamId,
   client,
   onConnected,
-  onBack
+  onBack,
+  onCancel
 }: {
   teamId: string;
   client: DrivePanelClient;
   onConnected: () => void;
+  /** Return to the name step with what was typed still there. */
   onBack: () => void;
+  onCancel: () => void;
 }) {
   const { t } = useI18n();
   const [folders, setFolders] = useState<DriveFolderPage | null>(null);
@@ -199,6 +202,9 @@ export function ConnectFolderStep({
       <p className="team-create-hint">{t('teamCreateFinishHint')}</p>
       <div className="team-create-actions">
         <Button type="button" variant="ghost" onClick={onBack}>
+          {t('teamCreateBack')}
+        </Button>
+        <Button type="button" variant="ghost" onClick={onCancel}>
           {t('teamCreateCancel')}
         </Button>
       </div>

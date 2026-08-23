@@ -8,6 +8,7 @@ import type { TeamProcessStartInput } from '../../api/team';
 import { teamApi } from '../../api/team';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
+import { FolderPicker, type FolderPickerClient } from '../catalog/FolderPicker';
 
 type TeamProcessTool = 'compressor' | 'imageEmbedding' | 'transcription' | 'landingOptimizer';
 
@@ -33,12 +34,15 @@ export function ProcessMaterialDialog({
   agentCompatible,
   toolContracts,
   client = defaultClient,
+  browseClient,
   onStarted,
   onClose
 }: {
   teamId: string;
   material: CatalogMaterialItem;
   destinationFolderId: string | null;
+  /** Reads the folder tree for the destination picker. */
+  browseClient: FolderPickerClient;
   agentCompatible: boolean;
   toolContracts: ToolContracts;
   client?: ProcessMaterialClient;
@@ -50,6 +54,10 @@ export function ProcessMaterialDialog({
   const [toolId, setToolId] = useState<TeamProcessTool>(tools[0] ?? 'compressor');
   const [outputName, setOutputName] = useState(() => suggestedOutputName(material, tools[0]));
   const [destination, setDestination] = useState(destinationFolderId ?? '');
+  const [destinationName, setDestinationName] = useState<string | null>(
+    destinationFolderId ? t('teamFolderPickerCurrentFolder') : null
+  );
+  const [pickingFolder, setPickingFolder] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
@@ -101,8 +109,6 @@ export function ProcessMaterialDialog({
       {agentCompatible && !compatible && (
         <p className="team-inline-error">{t('teamProcessToolUpdate')}</p>
       )}
-      {!destination && <p className="team-inline-error">{t('teamProcessDestinationMissing')}</p>}
-
       <label>
         {t('teamProcessTool')}
         <select
@@ -120,10 +126,29 @@ export function ProcessMaterialDialog({
           ))}
         </select>
       </label>
-      <label>
-        {t('teamFileDestination')}
-        <input value={destination} onChange={event => setDestination(event.target.value)} />
-      </label>
+      {/* A destination is chosen by looking at the folders, not by typing a
+          Drive id nothing in the interface ever shows. The old field also
+          pre-rendered "no destination" as an error before anyone had done
+          anything wrong; the button carries that state instead now. */}
+      <div className="team-process-destination">
+        <span className="team-field-label">{t('teamFileDestination')}</span>
+        <Button type="button" variant="secondary" onClick={() => setPickingFolder(true)}>
+          {destinationName ?? t('teamFolderPickerChoose')}
+        </Button>
+      </div>
+      {pickingFolder && (
+        <FolderPicker
+          teamId={teamId}
+          client={browseClient}
+          title={t('teamProcessDestinationTitle')}
+          onClose={() => setPickingFolder(false)}
+          onSelect={folder => {
+            setDestination(folder.id);
+            setDestinationName(folder.name);
+            setPickingFolder(false);
+          }}
+        />
+      )}
       <label>
         {t('teamProcessOutputName')}
         <input value={outputName} onChange={event => setOutputName(event.target.value)} />

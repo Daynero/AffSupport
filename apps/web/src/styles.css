@@ -129,6 +129,28 @@
   --dialog-wide: clamp(1180px, 72vw, 1600px);
   --dialog-full: var(--shell-width);
 
+  /* Layer scale — one ladder every floating surface picks a rung from, so
+     "which thing covers which" is a token comparison rather than a hunt through
+     the file. The rungs below are the ones already in use; naming them is what
+     lets the 010 refresh retire the two ad-hoc bands:
+
+       z-index: 45  — the hand-rolled team overlays (process dialog, text editor,
+                      operation overlay). They become `components/Modal`
+                      children, so they inherit --layer-modal and the band goes.
+       z-index: 80  — the team preview and landing full view, which claimed
+                      modality while sitting *below* --layer-modal. They become
+                      full-bleed Modal variants; 80 survives only as the
+                      popover rung (user menu, row menus), which is what it
+                      always meant.
+
+     Toasts sit above every dialog on purpose: an Undo offered by a dialog's own
+     action must stay reachable while that dialog is up. */
+  --layer-popover: 80;
+  --layer-modal: 100;
+  --layer-modal-nested: 110;
+  --layer-fullbleed: 120;
+  --layer-toast: 130;
+
   /* Ink tints (the rgba(36,27,58,α) family) and overlays */
   --tint-soft: rgba(36, 27, 58, 0.06);
   --tint-medium: rgba(36, 27, 58, 0.14);
@@ -2730,6 +2752,62 @@ input.is-invalid {
   font-size: 17.94px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.media-actions {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  padding: var(--space-3) var(--space-4);
+}
+
+.media-actions-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.media-actions-header h2 {
+  margin-right: auto;
+}
+
+.media-actions-hint {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font-size: 14.95px;
+}
+
+.media-actions ul {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.media-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.media-action-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-action-status {
+  color: var(--color-text-muted);
+  font-size: 14.95px;
+}
+
+.media-action-failed .media-action-status {
+  color: var(--color-danger, #d64545);
 }
 
 .blocking-message {
@@ -5622,7 +5700,7 @@ body:has(.public-home) {
 
 .user-menu-popover {
   position: absolute;
-  z-index: 80;
+  z-index: var(--layer-popover);
   top: calc(100% + 8px);
   right: 0;
   display: grid;
@@ -5679,7 +5757,7 @@ body:has(.public-home) {
 
 .modal-backdrop {
   position: fixed;
-  z-index: 100;
+  z-index: var(--layer-modal);
   inset: 0;
   display: grid;
   place-items: center;
@@ -5690,7 +5768,7 @@ body:has(.public-home) {
 }
 
 .modal-backdrop-nested {
-  z-index: 110;
+  z-index: var(--layer-modal-nested);
 }
 
 /* Shared dialog surface for the Modal primitive. The size classes below set
@@ -7785,7 +7863,7 @@ body:has(.public-home) {
 /* Full-screen image comparison */
 .landing-compare-backdrop {
   position: fixed;
-  z-index: 120;
+  z-index: var(--layer-fullbleed);
   inset: 0;
   display: grid;
   place-items: center;
@@ -9841,12 +9919,64 @@ body:has(.public-home) {
   margin: 0;
   line-height: 1.15;
 }
-.team-space-shell-actions {
+.team-space-shell-identity {
+  min-width: 0;
+}
+/* Utilities only — the content tabs live in their own row below. Splitting the
+   two is what fixed the ragged 560–860 px wrap: six same-weight buttons in one
+   flex row had no sensible break point, so they broke everywhere. */
+.team-space-shell-utilities {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+.team-space-shell-utility-link {
+  padding: 6px var(--space-2);
+  font-size: 0.9375rem;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+}
+.team-space-shell-utility-link:hover {
+  color: var(--color-text);
+  background: var(--color-surface-muted);
+}
+.team-space-shell-utility-link[aria-current='page'] {
+  color: var(--color-accent);
+  background: var(--color-accent-softer);
+}
+
+/* The tab bar. Horizontal scroll rather than wrapping: a second row of tabs
+   reads as a second, unrelated navigation, and at these widths there are only
+   four of them. */
+.team-space-tabs {
+  display: flex;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--color-border);
+  scrollbar-width: thin;
+}
+.team-space-tab {
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  /* Overlap the container's border so the active underline replaces it rather
+     than stacking a second line under it. */
+  margin-bottom: -1px;
+}
+.team-space-tab:hover {
+  color: var(--color-text);
+}
+.team-space-tab.is-active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
 }
 .team-space-shell-body {
   display: grid;
@@ -10460,7 +10590,7 @@ button,
     align-items: stretch;
     flex-direction: column;
   }
-  .team-space-shell-actions {
+  .team-space-shell-utilities {
     justify-content: flex-start;
   }
 }
@@ -10491,7 +10621,7 @@ button,
     grid-template-columns: minmax(0, 1fr);
   }
   .team-space-lobby-header .button,
-  .team-space-shell-actions .button,
+  .team-space-shell-utilities .button,
   .team-space-settings-header .button,
   .team-create-actions .button,
   .team-dialog-actions .button,
@@ -10499,7 +10629,7 @@ button,
   .team-material-action-buttons .button {
     width: 100%;
   }
-  .team-space-shell-actions,
+  .team-space-shell-utilities,
   .team-create-actions,
   .team-dialog-actions,
   .team-catalog-material-actions,
@@ -13085,4 +13215,394 @@ button.team-landing-tile:hover {
   line-height: 1.35;
   color: var(--color-text-muted);
   text-align: center;
+}
+
+/* ============================================================
+   Shared status utilities (010 team UX refresh)
+   ============================================================ */
+
+/* Chip — a compact, quiet status pill. Team mode uses it for the two signals
+   that must be visible without stealing the header: degraded realtime and a
+   running background batch. It is deliberately low-contrast: a chip that only
+   appears when something is off should read as information, not as an alarm. */
+.ui-chip {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  padding: 2px var(--space-2);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  white-space: nowrap;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+}
+
+.ui-chip-warn {
+  border-color: color-mix(in srgb, var(--color-warning) 40%, var(--color-border));
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.ui-chip-busy {
+  border-color: color-mix(in srgb, var(--color-accent) 35%, var(--color-border));
+  background: var(--color-accent-softer);
+  color: var(--color-accent-active);
+}
+
+/* The chip's own spinner: a 10px ring, small enough to sit on a text baseline
+   without changing the header's line box. */
+.ui-chip-spinner {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border: 2px solid color-mix(in srgb, currentcolor 30%, transparent);
+  border-top-color: currentcolor;
+  border-radius: 50%;
+  animation: spin 900ms linear infinite;
+}
+
+/* Labeled skeleton — the contract bans a bare "…", so a placeholder always
+   carries a caption naming what is loading. The caption is the accessible
+   text; the shimmering bars are decoration and are hidden from the tree. */
+.ui-skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ui-skeleton-label {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.ui-skeleton-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ui-skeleton-row {
+  display: block;
+  width: 100%;
+  height: 34px;
+  border-radius: var(--radius-sm);
+}
+
+/* Successive rows fade out so the list reads as "more below", not as a wall of
+   fake content. */
+.ui-skeleton-row:nth-child(2) {
+  opacity: 0.75;
+}
+
+.ui-skeleton-row:nth-child(3) {
+  opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-chip-spinner {
+    animation: none;
+  }
+}
+
+/* Team-mode toast stack (010). Kept separate from the compressor page's
+   `.toast-region` while that surface still owns its local `addToast`; the two
+   converge when the compressor migrates onto ToastProvider. This stack sits on
+   --layer-toast, above every dialog, because a dialog's own Undo has to stay
+   reachable while the dialog is up. */
+.ui-toast-region {
+  position: fixed;
+  z-index: var(--layer-toast);
+  right: var(--space-4);
+  bottom: var(--space-4);
+  display: grid;
+  width: min(380px, calc(100vw - 32px));
+  gap: var(--space-2);
+  pointer-events: none;
+}
+
+.ui-toast {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border-strong);
+  border-left-width: 3px;
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-menu);
+  pointer-events: auto;
+  animation: fade-rise var(--dur-pop) var(--ease-enter);
+}
+
+/* Tone lives on the left edge only. A full-bleed colour would make every
+   routine confirmation shout as loudly as a failure. */
+.ui-toast-success {
+  border-left-color: var(--color-success);
+}
+
+.ui-toast-error {
+  border-left-color: var(--color-error);
+}
+
+.ui-toast-info {
+  border-left-color: var(--color-accent);
+}
+
+.ui-toast-text {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+}
+
+.ui-toast-controls {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+.ui-toast-action {
+  padding: 4px var(--space-2);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-accent);
+  white-space: nowrap;
+  cursor: pointer;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+}
+
+.ui-toast-action:hover {
+  background: var(--color-accent-softer);
+}
+
+.ui-toast-dismiss {
+  padding: 0 var(--space-1);
+  font: inherit;
+  font-size: 1.125rem;
+  line-height: 1;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+
+.ui-toast-dismiss:hover {
+  color: var(--color-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-toast {
+    animation: none;
+  }
+}
+
+/* Space switcher (010 US1). The space name is the control, so the trigger has
+   to look like the heading it replaces — no button chrome until hover. */
+.team-space-switcher {
+  position: relative;
+  min-width: 0;
+}
+
+.team-space-shell-title {
+  margin: 0;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.team-space-switcher-trigger {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  max-width: 100%;
+  padding: 2px var(--space-2);
+  margin-left: calc(var(--space-2) * -1);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+}
+
+.team-space-switcher-trigger:hover {
+  background: var(--color-surface-muted);
+}
+
+.team-space-switcher-caret {
+  flex: 0 0 auto;
+  font-size: 0.6em;
+  color: var(--color-text-muted);
+}
+
+.team-space-switcher-menu {
+  position: absolute;
+  z-index: var(--layer-popover);
+  top: calc(100% + var(--space-1));
+  left: 0;
+  width: max(240px, 100%);
+  max-height: 60vh;
+  padding: var(--space-2);
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-menu);
+}
+
+.team-space-switcher-menu ul {
+  display: grid;
+  gap: 2px;
+  padding: 0;
+  margin: 0 0 var(--space-2);
+  list-style: none;
+}
+
+.team-space-switcher-label {
+  padding: var(--space-1) var(--space-2);
+  margin: 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.team-space-switcher-item,
+.team-space-switcher-all {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+  justify-content: space-between;
+  padding: var(--space-2);
+  font-size: 0.9375rem;
+  color: var(--color-text);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+}
+
+.team-space-switcher-item:hover,
+.team-space-switcher-all:hover {
+  background: var(--color-surface-muted);
+}
+
+.team-space-switcher-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team-space-switcher-state {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.team-space-switcher-all {
+  color: var(--color-accent);
+  border-top: 1px solid var(--color-border);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+
+/* Row actions menu, folder picker and result pager (010 US2). */
+.team-row-menu {
+  position: relative;
+}
+
+.team-row-menu-panel {
+  position: absolute;
+  z-index: var(--layer-popover);
+  top: calc(100% + var(--space-1));
+  right: 0;
+  width: max(240px, 100%);
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-menu);
+}
+
+.team-row-menu-panel .team-material-action-buttons {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.team-folder-picker-trail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  align-items: center;
+  margin-bottom: var(--space-3);
+  font-size: 0.8125rem;
+}
+
+.team-folder-picker-trail button {
+  padding: 2px var(--space-1);
+  font: inherit;
+  color: var(--color-accent);
+  cursor: pointer;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+}
+
+/* The separator lives in CSS so the trail is one continuous line of text for a
+   reader, without a stray glyph in the accessible name of each crumb. */
+.team-folder-picker-trail button + button::before {
+  content: '/ ';
+  color: var(--color-text-muted);
+}
+
+.team-folder-picker-list {
+  display: grid;
+  gap: 2px;
+  max-height: 40vh;
+  padding: 0;
+  margin: 0 0 var(--space-4);
+  overflow-y: auto;
+  list-style: none;
+}
+
+.team-folder-picker-list button {
+  display: block;
+  width: 100%;
+  padding: var(--space-2);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+}
+
+.team-folder-picker-list button:hover {
+  background: var(--color-surface-muted);
+}
+
+.team-process-destination {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.team-field-label {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+.team-catalog-pager {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: center;
+  margin-top: var(--space-4);
+  font-size: 0.875rem;
 }

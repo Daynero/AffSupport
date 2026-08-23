@@ -12,14 +12,17 @@ import { useI18n } from '../../i18n';
 export function SpaceNameStep({
   createTeam,
   onCreated,
-  onCancel
+  onCancel,
+  initialName = ''
 }: {
   createTeam: (name: string) => Promise<TeamContextSnapshot>;
   onCreated: (team: TeamContextSnapshot) => void;
   onCancel: () => void;
+  /** What was typed before stepping forward, restored when stepping back. */
+  initialName?: string;
 }) {
   const { t } = useI18n();
-  const [name, setName] = useState('');
+  const [name, setName] = useState(initialName);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

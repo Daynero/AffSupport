@@ -9,6 +9,8 @@ import {
 } from 'react';
 import type { TeamPermissionFlag, TeamPermissions } from '@video-compressor/shared';
 import type { TeamContextSnapshot } from '../api/team';
+import { navigateTo } from '../lib/navigation';
+import { buildTeamRoute, teamResolverRoute } from './routes';
 import { useTeamRealtime, type TeamRealtimeState } from './useTeamRealtime';
 
 const ACTIVE_TEAM_STORAGE_KEY = 'wishly.active-team.v1';
@@ -41,6 +43,16 @@ function persistedTeamId(): string | null {
   if (typeof window === 'undefined') return null;
   const value = window.localStorage.getItem(ACTIVE_TEAM_STORAGE_KEY);
   return value && /^[0-9a-f-]{36}$/i.test(value) ? value : null;
+}
+
+/**
+ * The device-local "space you were last in", read as it stood before this
+ * session started changing it. The entry resolver needs the *remembered* value,
+ * not the live one, or entering a space by URL would immediately look like a
+ * remembered preference and the two rules would be indistinguishable.
+ */
+export function readRememberedSpaceId(): string | null {
+  return persistedTeamId();
 }
 
 export function TeamProvider({
@@ -86,8 +98,16 @@ export function TeamProvider({
     if (teamId === null || /^[0-9a-f-]{36}$/i.test(teamId)) setActiveTeamIdState(teamId);
   }, []);
 
-  const enterSpace = useCallback((teamId: string) => setActiveTeamId(teamId), [setActiveTeamId]);
-  const leaveSpace = useCallback(() => setActiveTeamId(null), [setActiveTeamId]);
+  // Entering and leaving are address changes, not state changes: the URL is the
+  // truth about which space is open, and `setActiveTeamId` exists so the
+  // resolver can reflect that address back into context — not as a second way in.
+  const enterSpace = useCallback((teamId: string) => {
+    navigateTo(buildTeamRoute({ spaceId: teamId }));
+  }, []);
+  const leaveSpace = useCallback(() => {
+    setActiveTeamId(null);
+    navigateTo(teamResolverRoute());
+  }, [setActiveTeamId]);
 
   const replaceTeams = useCallback((nextTeams: TeamContextSnapshot[]) => {
     setTeams(nextTeams);

@@ -165,7 +165,9 @@ describe('team catalog search UI', () => {
     expect(screen.getByText('Folder')).toBeTruthy();
     expect(screen.getByText('Metadata needs attention')).toBeTruthy();
     expect(screen.queryByText('application/vnd.google-apps.folder')).toBeNull();
-    expect(screen.getByText('More actions')).toBeTruthy();
+    // The disclosure is a real menu button now, and its contents mount only
+    // while it is open — which is what keeps a fifty-row page cheap.
+    expect(screen.getByRole('button', { name: 'Actions for Creative source' })).toBeTruthy();
   });
 
   it('uses a neutral empty state and never renders a foreign-team payload', async () => {
