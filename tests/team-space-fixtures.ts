@@ -31,6 +31,9 @@ export function makeClient(overrides: Partial<TeamSpaceClient> = {}): TeamSpaceC
     listMyInvitations: vi.fn().mockResolvedValue([]),
     createTeam: vi.fn(),
     deleteDraftTeam: vi.fn().mockResolvedValue(true),
+    leaveTeam: vi
+      .fn()
+      .mockResolvedValue({ ok: true, warningCode: 'EXTERNAL_DRIVE_ACCESS_REMAINS' }),
     listMembers: vi.fn().mockResolvedValue([]),
     updateMembership: vi.fn(),
     removeMember: vi.fn(),

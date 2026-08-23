@@ -3,14 +3,15 @@ import { useAuth } from '../auth/AuthContext';
 import { analytics } from '../analytics/service';
 import { useAgent } from '../AgentContext';
 import { Card } from '../components/Card';
+import { ToastProvider } from '../components/toast';
+import { InvitationList } from '../team/lobby/InvitationList';
 import { Button, Checkbox, type Translate } from '../components/ui';
 import { UserAvatar } from '../components/UserAvatar';
 import { useI18n, type Language } from '../i18n';
 import { configuredEnvironment } from '../lib/config';
 import type { Profile } from '../lib/database.types';
-import { navigateTo, usePageEntrance } from '../lib/navigation';
+import { usePageEntrance } from '../lib/navigation';
 import { installedReleaseStatus, preferredDownload } from '../release-manifest';
-import { teamApi, TeamApiError, type TeamInvitationSummary } from '../api/team';
 
 export default function AccountPage() {
   const { profile, user } = useAuth();
@@ -237,78 +238,24 @@ function AccountContent({
   );
 }
 
+/**
+ * The account page's copy of the invitation inbox.
+ *
+ * A thin wrapper now: the list itself is shared with the lobby (finding I1), so
+ * accepting from either place behaves identically. The link parameters stay
+ * here because an invitation link lands on this page.
+ */
 function InvitationInbox() {
-  const { t } = useI18n();
-  const [invitations, setInvitations] = useState<TeamInvitationSummary[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const query = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search);
-  const linkedInvitationId = query?.get('invitation') ?? null;
-  const linkedToken = query?.get('invite') ?? undefined;
-
-  useEffect(() => {
-    let active = true;
-    void teamApi
-      .listMyInvitations()
-      .then(value => {
-        if (active) setInvitations(value.filter(invitation => invitation.state === 'pending'));
-      })
-      .catch(() => {
-        // Account settings remain usable when team RPCs are unavailable.
-      })
-      .finally(() => {
-        if (active) setLoaded(true);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  if (loaded && invitations.length === 0 && !linkedInvitationId) return null;
-
-  const respond = async (invitation: TeamInvitationSummary, action: 'accept' | 'decline') => {
-    setError(null);
-    try {
-      const token = invitation.id === linkedInvitationId ? linkedToken : undefined;
-      if (action === 'accept') {
-        await teamApi.acceptInvitation(invitation.id, token);
-        navigateTo('/team');
-      } else {
-        await teamApi.declineInvitation(invitation.id, token);
-        setInvitations(current => current.filter(item => item.id !== invitation.id));
-      }
-    } catch (cause) {
-      setError(
-        cause instanceof TeamApiError && cause.code === 'PERMISSION_DENIED'
-          ? t('teamInvitationIdentityError')
-          : t('teamLoadFailed')
-      );
-    }
-  };
-
   return (
     <Card className="account-card team-invitation-inbox" aria-labelledby="invitation-inbox-heading">
-      <h3 id="invitation-inbox-heading">{t('teamInvitationInbox')}</h3>
-      {loaded && invitations.length === 0 && <p>{t('teamInvitationEmpty')}</p>}
-      <ul>
-        {invitations.map(invitation => (
-          <li key={invitation.id}>
-            <div>
-              <strong>{invitation.teamName}</strong>
-              <span>{invitation.inviterName}</span>
-            </div>
-            <div className="team-inline-actions">
-              <Button variant="primary" onClick={() => void respond(invitation, 'accept')}>
-                {t('teamInvitationAccept')}
-              </Button>
-              <Button variant="ghost" onClick={() => void respond(invitation, 'decline')}>
-                {t('teamInvitationDecline')}
-              </Button>
-            </div>
-          </li>
-        ))}
-      </ul>
-      {error && <p className="team-inline-error">{error}</p>}
+      <ToastProvider>
+        <InvitationList
+          headingId="invitation-inbox-heading"
+          linkedInvitationId={query?.get('invitation') ?? null}
+          linkedToken={query?.get('invite') ?? undefined}
+        />
+      </ToastProvider>
     </Card>
   );
 }

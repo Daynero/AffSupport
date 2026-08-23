@@ -19,7 +19,16 @@ export function ProvenancePanel({
   onNavigate: (materialId: string) => void;
 }) {
   const { t } = useI18n();
-  if (!entries.length) return null;
+  // Rendering nothing was indistinguishable from the panel failing to open, so
+  // an empty history says so instead of vanishing (finding S2, FR-020).
+  if (!entries.length) {
+    return (
+      <section className="team-provenance" aria-labelledby="team-provenance-title">
+        <h3 id="team-provenance-title">{t('teamProvenanceTitle')}</h3>
+        <p>{t('teamProvenanceNone')}</p>
+      </section>
+    );
+  }
   return (
     <section className="team-provenance" aria-labelledby="team-provenance-title">
       <h3 id="team-provenance-title">{t('teamProvenanceTitle')}</h3>

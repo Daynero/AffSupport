@@ -11,6 +11,7 @@ import {
   type TaskMaterialDragItem
 } from '../tasks/task-drag';
 import { MaterialRowMenu } from './MaterialRowMenu';
+import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 
 export interface MaterialBrowserClient {
   listMaterials: (teamId: string, parentFolderId: string | null) => Promise<TeamMaterialSummary[]>;
@@ -20,7 +21,6 @@ export function MaterialBrowser({
   teamId,
   client,
   revision = 0,
-  syncLabel,
   folderId = null,
   onFolderChange,
   permissions = null,
@@ -33,7 +33,6 @@ export function MaterialBrowser({
   teamId: string;
   client: MaterialBrowserClient;
   revision?: number;
-  syncLabel?: string | null;
   /**
    * The folder the address says is open. Only one level is addressable, so a
    * restored position shows a generic way back to the top rather than a
@@ -109,9 +108,12 @@ export function MaterialBrowser({
 
   return (
     <section className="team-panel team-material-browser" aria-labelledby="team-materials-title">
+      {/* No sibling status line here any more: it was hardcoded from the Drive
+          connection state, so it announced "catalog is up to date" over a banner
+          that said the scan was still running (finding S4). The banner is the
+          single source of sync truth. */}
       <div className="team-panel-heading">
         <h2 id="team-materials-title">{t('teamMaterials')}</h2>
-        {syncLabel && <small>{syncLabel}</small>}
       </div>
       {path.length > 0 && (
         <Button
@@ -126,7 +128,7 @@ export function MaterialBrowser({
           ← {path.length === 1 ? t('teamMaterialsBack') : path.at(-2)?.name}
         </Button>
       )}
-      {loading && <p aria-live="polite">…</p>}
+      {loading && <LabeledSkeleton label="teamMaterialsLoading" rows={4} />}
       {error && <p className="team-inline-error">{error}</p>}
       {!loading && !error && materials.length === 0 && <p>{t('teamMaterialsEmpty')}</p>}
       <ul className="team-material-list">

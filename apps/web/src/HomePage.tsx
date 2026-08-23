@@ -10,6 +10,7 @@ import { usePageEntrance } from './lib/navigation';
 import LocalAppDialog from './components/LocalAppDialog';
 import { TeamWorkspaceIcon } from './components/tool-icons';
 import { webTools, type WebTool } from './lib/tool-registry';
+import { teamApi } from './api/team';
 
 export default function HomePage({ navigate }: { navigate: (path: string) => void }) {
   const { t } = useI18n();
@@ -70,6 +71,33 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
     navigate('/team');
   };
 
+  /**
+   * Unanswered invitations, counted for the entry card's badge.
+   *
+   * Strictly non-blocking: the home screen must render for people with no team
+   * access at all, so a failed or forbidden probe simply means no badge rather
+   * than an error anywhere (finding I1).
+   */
+  const [pendingInvitations, setPendingInvitations] = useState(0);
+  useEffect(() => {
+    let active = true;
+    void teamApi
+      .listMyInvitations()
+      .then(invitations => {
+        if (active) {
+          setPendingInvitations(
+            invitations.filter(invitation => invitation.state === 'pending').length
+          );
+        }
+      })
+      .catch(() => {
+        if (active) setPendingInvitations(0);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <>
       <main className={entering ? 'launcher page-enter' : 'launcher'}>
@@ -97,7 +125,11 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
           }}
           role="button"
           tabIndex={0}
-          aria-label={t('teamWorkspace')}
+          aria-label={
+            pendingInvitations > 0
+              ? t('teamWorkspaceWithInvitations', { count: pendingInvitations })
+              : t('teamWorkspace')
+          }
         >
           <div className="team-workspace-launcher-copy">
             <span className="tool-icon" aria-hidden="true">
@@ -106,6 +138,11 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
             <div>
               <div className="team-workspace-launcher-title">
                 <h3>{t('teamWorkspace')}</h3>
+                {pendingInvitations > 0 && (
+                  <span className="ui-chip ui-chip-busy">
+                    {t('teamInvitationBadge', { count: pendingInvitations })}
+                  </span>
+                )}
                 <span className="soon-badge">{t('inDevelopment')}</span>
               </div>
               <p>{t('teamWorkspaceDescription')}</p>

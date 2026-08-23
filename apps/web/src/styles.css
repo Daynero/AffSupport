@@ -13606,3 +13606,45 @@ button.team-landing-tile:hover {
   margin-top: var(--space-4);
   font-size: 0.875rem;
 }
+
+/* The access check happens over a dimmed backdrop, so its caption sits above
+   that layer rather than behind it. */
+.team-workspace-gate-checking {
+  position: fixed;
+  z-index: var(--layer-modal);
+  inset: 50% auto auto 50%;
+  margin: 0;
+  color: var(--color-on-accent);
+  transform: translate(-50%, -50%);
+}
+
+/* Discard control on an unfinished space card (010 US4). Quiet by default so a
+   destructive action does not compete with "continue setup", which is what the
+   owner usually wants. */
+.team-space-card-discard {
+  padding: var(--space-1) var(--space-2);
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+}
+
+.team-space-card-discard:hover {
+  color: var(--color-error);
+  background: var(--color-error-soft);
+}
+
+/* Invitations at the top of the lobby. */
+.team-invitation-identity {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.team-invitation-identity span {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}

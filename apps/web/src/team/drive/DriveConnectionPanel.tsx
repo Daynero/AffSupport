@@ -8,6 +8,8 @@ import type {
 } from '../../api/team';
 import { TeamApiError } from '../../api/team';
 import { useI18n } from '../../i18n';
+import { useToasts } from '../../components/toast';
+import { teamErrorMessageFor } from '../errors';
 import { Button } from '../../components/ui';
 import { DriveFolderBrowser } from './DriveFolderBrowser';
 import { BetaStorageNotice, externalStorageUnavailableInBeta } from './BetaStorageNotice';
@@ -53,6 +55,7 @@ export function DriveConnectionPanel({
   onConnected?: () => void;
 }) {
   const { t } = useI18n();
+  const { push } = useToasts();
   const [status, setStatus] = useState<SafeConnectionStatus>({ state: 'none' });
   const [folders, setFolders] = useState<DriveFolderPage | null>(null);
   const [trail, setTrail] = useState<DriveFolderSummary[]>([]);
@@ -213,11 +216,18 @@ export function DriveConnectionPanel({
     }
   };
 
+  // Detaching used to be an unguarded await behind `void`: a failure left the
+  // panel claiming the folder was still connected, with nothing said (S3).
   const detach = async () => {
     if (!client.detachDrive || !status.connectionId) return;
-    await client.detachDrive(teamId, status.connectionId);
-    setStatus({ state: 'detached' });
-    setConfirmation(null);
+    try {
+      await client.detachDrive(teamId, status.connectionId);
+      setStatus({ state: 'detached' });
+      setConfirmation(null);
+      push({ tone: 'success', text: t('teamToastDriveDetached') });
+    } catch (cause) {
+      push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+    }
   };
 
   const resync = async () => {

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { TeamCatalog, type TeamCatalogClient } from '../apps/web/src/team/catalog/TeamCatalog';
+import { ToastProvider } from '../apps/web/src/components/toast';
 
 const TEAM_ID = '22000000-0000-4000-8000-000000000001';
 const team = {
@@ -88,7 +89,9 @@ describe('team catalog search UI', () => {
     const user = userEvent.setup();
     render(
       <TeamProvider initialTeams={[team]} realtime={false}>
-        <TeamCatalog teamId={TEAM_ID} client={api} />
+        <ToastProvider>
+          <TeamCatalog teamId={TEAM_ID} client={api} />
+        </ToastProvider>
       </TeamProvider>
     );
 
@@ -116,7 +119,9 @@ describe('team catalog search UI', () => {
     const user = userEvent.setup();
     render(
       <TeamProvider initialTeams={[team]} realtime={false}>
-        <TeamCatalog teamId={TEAM_ID} client={api} />
+        <ToastProvider>
+          <TeamCatalog teamId={TEAM_ID} client={api} />
+        </ToastProvider>
       </TeamProvider>
     );
     expect(await screen.findByText('launch.mp4')).toBeTruthy();
@@ -157,7 +162,9 @@ describe('team catalog search UI', () => {
     );
     render(
       <TeamProvider initialTeams={[team]} realtime={false}>
-        <TeamCatalog teamId={TEAM_ID} client={api} />
+        <ToastProvider>
+          <TeamCatalog teamId={TEAM_ID} client={api} />
+        </ToastProvider>
       </TeamProvider>
     );
 
@@ -178,7 +185,9 @@ describe('team catalog search UI', () => {
     const user = userEvent.setup();
     render(
       <TeamProvider initialTeams={[team]} realtime={false}>
-        <TeamCatalog teamId={TEAM_ID} client={api} />
+        <ToastProvider>
+          <TeamCatalog teamId={TEAM_ID} client={api} />
+        </ToastProvider>
       </TeamProvider>
     );
     expect(await screen.findByText('No materials match these filters.')).toBeTruthy();

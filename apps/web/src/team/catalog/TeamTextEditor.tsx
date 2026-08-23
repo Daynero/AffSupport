@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import type { CatalogMaterialItem } from '@video-compressor/shared';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
+import { useToasts } from '../../components/toast';
+import { teamErrorMessage } from '../errors';
 
 const MAX_TEXT_BYTES = 1024 * 1024;
 
@@ -32,10 +34,10 @@ export function TeamTextEditor({
   onClose: () => void;
 }) {
   const { t } = useI18n();
+  const { push } = useToasts();
   const [text, setText] = useState(initialText);
   const [saving, setSaving] = useState(false);
   const [stale, setStale] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const bytes = useMemo(() => new TextEncoder().encode(text).byteLength, [text]);
   const eligible =
     material.fileExtension?.toLowerCase() === 'txt' &&
@@ -45,7 +47,6 @@ export function TeamTextEditor({
     if (!eligible || bytes > MAX_TEXT_BYTES) return;
     setSaving(true);
     setStale(false);
-    setError(null);
     try {
       await onSave({
         text,
@@ -53,10 +54,14 @@ export function TeamTextEditor({
         ...(expectedChecksum ? { expectedChecksum } : {}),
         idempotencyKey: crypto.randomUUID()
       });
+      push({ tone: 'success', text: t('teamToastTextSaved') });
       onClose();
     } catch (caught) {
-      if (caught instanceof Error && caught.message === 'SOURCE_CHANGED') setStale(true);
-      else setError(caught instanceof Error ? caught.message : 'PROCESS_FAILED');
+      const code = caught instanceof Error ? caught.message : 'PROCESS_FAILED';
+      // A stale source is a decision to offer, not a dead end: the editor keeps
+      // the text and explains. Everything else is announced and the draft stays.
+      if (code === 'SOURCE_CHANGED') setStale(true);
+      else push({ tone: 'error', text: teamErrorMessage(code, t) });
     } finally {
       setSaving(false);
     }
@@ -101,11 +106,6 @@ export function TeamTextEditor({
                 {t('teamTextEditorSeparateVersion')}
               </Button>
             </div>
-          )}
-          {error && (
-            <p className="team-inline-error" role="alert">
-              {error}
-            </p>
           )}
           <div className="team-dialog-actions">
             <Button

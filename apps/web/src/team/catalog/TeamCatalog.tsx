@@ -29,6 +29,8 @@ import { CatalogSearchBar } from './CatalogSearchBar';
 import { MaterialMetadataEditor } from './MaterialMetadataEditor';
 import { MaterialResults } from './MaterialResults';
 import { FolderPicker, type FolderPickerClient } from './FolderPicker';
+import { useToasts } from '../../components/toast';
+import { teamErrorMessage, teamErrorMessageFor } from '../errors';
 import { useCatalogSearch } from './useCatalogSearch';
 import { MaterialPreview } from '../preview/MaterialPreview';
 import { TeamTextEditor } from './TeamTextEditor';
@@ -72,6 +74,7 @@ export function TeamCatalog({
   onSearched?: (state: { query: string; filters: CatalogSearchFilters }) => void;
 }) {
   const { t } = useI18n();
+  const { push } = useToasts();
   const { can, permissions } = useTeam();
   const agent = useOptionalAgent();
   const catalog = useCatalogSearch({ teamId, client, initialQuery, initialFilters, onSearched });
@@ -88,6 +91,8 @@ export function TeamCatalog({
     id: string;
     source: CatalogMaterialItem;
     workflow: TeamWorkflowFlow;
+    /** Set when the local run failed before the server could record why. */
+    failureCode?: string;
   } | null>(null);
   const [provenance, setProvenance] = useState<{
     material: CatalogMaterialItem;
@@ -146,7 +151,15 @@ export function TeamCatalog({
       options: {},
       sourceGrant: result.sourceGrant,
       finalizeGrant: result.finalizeGrant
-    }).catch(async () => {
+    }).catch(async (cause: unknown) => {
+      const code = cause instanceof Error ? cause.message : 'PROCESS_FAILED';
+      // The server-side operation is released either way, but the person is
+      // told it failed — not that it was canceled, which is what the release
+      // used to be mistaken for (finding S6).
+      setActiveOperation(current =>
+        current && current.id === result.operationId ? { ...current, failureCode: code } : current
+      );
+      push({ tone: 'error', text: teamErrorMessage(code, t) });
       await teamApi.cancelOperation(teamId, result.operationId).catch(() => undefined);
     });
   };
@@ -180,7 +193,12 @@ export function TeamCatalog({
         onShowProvenance={material => {
           void teamApi
             .getMaterialProvenance(teamId, material.id)
-            .then(entries => setProvenance({ material, entries }));
+            .then(entries => setProvenance({ material, entries }))
+            // A failed read used to open nothing at all: the button looked
+            // broken rather than the request looking failed (finding S2).
+            .catch((cause: unknown) => {
+              push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+            });
         }}
         onCreateTask={onCreateTask}
         onChanged={() => void catalog.refetch()}
@@ -248,6 +266,7 @@ export function TeamCatalog({
           teamId={teamId}
           operationId={activeOperation.id}
           workflow={activeOperation.workflow}
+          localFailureCode={activeOperation.failureCode ?? null}
           agentEnabled={agent?.teamWorkspaceAvailable === true}
           onClose={() => setActiveOperation(null)}
           onRetry={() => {
@@ -300,6 +319,7 @@ function ActiveOperation({
   operationId,
   workflow,
   agentEnabled,
+  localFailureCode = null,
   onClose,
   onRetry
 }: {
@@ -307,6 +327,7 @@ function ActiveOperation({
   operationId: string;
   workflow: TeamWorkflowFlow;
   agentEnabled: boolean;
+  localFailureCode?: string | null;
   onClose: () => void;
   onRetry: () => void;
 }) {
@@ -326,16 +347,17 @@ function ActiveOperation({
       stage: operationStage(operation.stage)
     });
   }, [state.operation, workflow]);
-  if (!state.operation) return <p aria-live="polite">…</p>;
+  if (!state.operation) return <p aria-live="polite">{t('teamOperationLoading')}</p>;
   return (
     <div className="team-operation-overlay">
       <OperationStatus
         operation={state.operation}
         localProgress={state.localProgress}
+        localFailureCode={localFailureCode}
         onCancel={state.cancel}
         onRetry={onRetry}
       />
-      {!['pending', 'running'].includes(state.operation.state) && (
+      {(localFailureCode !== null || !['pending', 'running'].includes(state.operation.state)) && (
         <Button type="button" variant="ghost" onClick={onClose}>
           {t('teamOperationClose')}
         </Button>

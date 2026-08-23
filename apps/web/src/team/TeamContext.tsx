@@ -24,6 +24,13 @@ export interface TeamContextValue {
   error: string | null;
   revision: number;
   realtimeState: TeamRealtimeState;
+  /**
+   * Set when a realtime event says this membership ended mid-session. The
+   * surface reacts by explaining and returning to the lobby; a silent bounce is
+   * what this replaces (FR-019).
+   */
+  membershipLostTeamId: string | null;
+  acknowledgeMembershipLoss: () => void;
   /** True once the user has an explicitly entered, still-valid space. */
   hasEnteredSpace: boolean;
   setActiveTeamId: (teamId: string | null) => void;
@@ -140,10 +147,13 @@ export function TeamProvider({
     setRevision(value => value + 1);
   }, [refreshTeams]);
 
+  const [membershipLostTeamId, setMembershipLostTeamId] = useState<string | null>(null);
   const handleMembershipLost = useCallback(() => {
     setTeams(current => current.filter(team => team.id !== activeTeamId));
+    setMembershipLostTeamId(activeTeamId);
     setRevision(value => value + 1);
   }, [activeTeamId]);
+  const acknowledgeMembershipLoss = useCallback(() => setMembershipLostTeamId(null), []);
 
   const realtimeState = useTeamRealtime({
     teamId: activeTeam?.id ?? null,
@@ -167,6 +177,8 @@ export function TeamProvider({
       error,
       revision,
       realtimeState,
+      membershipLostTeamId,
+      acknowledgeMembershipLoss,
       hasEnteredSpace: activeTeam !== null,
       setActiveTeamId,
       enterSpace,
@@ -177,6 +189,7 @@ export function TeamProvider({
       can
     }),
     [
+      acknowledgeMembershipLoss,
       activeTeam,
       can,
       enterSpace,
@@ -184,6 +197,7 @@ export function TeamProvider({
       leaveSpace,
       loading,
       loadingTeams,
+      membershipLostTeamId,
       notifyStateChanged,
       realtimeState,
       refreshTeams,

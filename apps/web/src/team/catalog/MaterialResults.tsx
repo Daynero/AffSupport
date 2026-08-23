@@ -8,6 +8,7 @@ import { Button } from '../../components/ui';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { MaterialRowMenu } from './MaterialRowMenu';
 import type { FolderPickerClient } from './FolderPicker';
+import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 
 /** Matches the page size `useCatalogSearch` requests. */
 const PAGE_SIZE = 50;
@@ -63,7 +64,7 @@ export function MaterialResults({
 }) {
   const { t } = useI18n();
   if (error) return <p className="team-inline-error">{t('teamCatalogLoadFailed')}</p>;
-  if (loading && !result) return <p aria-live="polite">…</p>;
+  if (loading && !result) return <LabeledSkeleton label="teamCatalogLoadingResults" />;
   if (!result || result.items.length === 0) return <p>{t('teamCatalogEmpty')}</p>;
 
   // The request always asks for fifty; the envelope carries the true total.

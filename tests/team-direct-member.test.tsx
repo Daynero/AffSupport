@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
 import { TeamApiError } from '../apps/web/src/api/team';
 import { InvitationPanel } from '../apps/web/src/team/members/InvitationPanel';
+import { ToastProvider } from '../apps/web/src/components/toast';
 
 const TEAM_ID = '20000000-0000-4000-8000-000000000001';
 
@@ -32,17 +33,19 @@ describe('temporary registered-member direct add', () => {
     const user = userEvent.setup();
 
     render(
-      <InvitationPanel
-        teamId={TEAM_ID}
-        canManage
-        directAddMode="testing"
-        onChanged={onChanged}
-        client={{
-          listInvitations: vi.fn().mockResolvedValue([]),
-          createInvitation,
-          directAddMember
-        }}
-      />
+      <ToastProvider>
+        <InvitationPanel
+          teamId={TEAM_ID}
+          canManage
+          directAddMode="testing"
+          onChanged={onChanged}
+          client={{
+            listInvitations: vi.fn().mockResolvedValue([]),
+            createInvitation,
+            directAddMember
+          }}
+        />
+      </ToastProvider>
     );
 
     expect(screen.getByText(/test mode/i)).toBeTruthy();
@@ -65,16 +68,18 @@ describe('temporary registered-member direct add', () => {
   it('shows that no registered Soty account exists for an unknown email', async () => {
     const user = userEvent.setup();
     render(
-      <InvitationPanel
-        teamId={TEAM_ID}
-        canManage
-        directAddMode="testing"
-        client={{
-          listInvitations: vi.fn().mockResolvedValue([]),
-          createInvitation: vi.fn(),
-          directAddMember: vi.fn().mockRejectedValue(new TeamApiError('NOT_FOUND', false))
-        }}
-      />
+      <ToastProvider>
+        <InvitationPanel
+          teamId={TEAM_ID}
+          canManage
+          directAddMode="testing"
+          client={{
+            listInvitations: vi.fn().mockResolvedValue([]),
+            createInvitation: vi.fn(),
+            directAddMember: vi.fn().mockRejectedValue(new TeamApiError('NOT_FOUND', false))
+          }}
+        />
+      </ToastProvider>
     );
 
     await user.type(screen.getByLabelText('Registered Soty email'), 'missing@example.test');

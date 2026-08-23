@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DriveConnectionPanel } from '../apps/web/src/team/drive/DriveConnectionPanel';
 import type { DrivePanelClient } from '../apps/web/src/team/drive/DriveConnectionPanel';
+import { ToastProvider } from '../apps/web/src/components/toast';
 
 afterEach(() => {
   cleanup();
@@ -56,7 +57,11 @@ describe('drive folder navigation', () => {
   it('reaches a nested folder and connects it as the space root', async () => {
     const client = makePanelClient();
     const user = userEvent.setup();
-    render(<DriveConnectionPanel teamId={TEAM} client={client} />);
+    render(
+      <ToastProvider>
+        <DriveConnectionPanel teamId={TEAM} client={client} />
+      </ToastProvider>
+    );
 
     // No startDriveOAuth on this client, so connecting lists the root directly.
     await user.click(await screen.findByRole('button', { name: 'Connect Google Drive' }));
@@ -84,7 +89,11 @@ describe('drive folder navigation', () => {
   it('walks back up the trail and can select the folder currently open', async () => {
     const client = makePanelClient();
     const user = userEvent.setup();
-    render(<DriveConnectionPanel teamId={TEAM} client={client} />);
+    render(
+      <ToastProvider>
+        <DriveConnectionPanel teamId={TEAM} client={client} />
+      </ToastProvider>
+    );
 
     await user.click(await screen.findByRole('button', { name: 'Connect Google Drive' }));
     await user.click(await screen.findByRole('button', { name: 'Work — Open' }));

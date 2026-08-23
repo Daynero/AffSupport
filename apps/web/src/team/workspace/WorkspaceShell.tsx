@@ -15,7 +15,11 @@ import { SyncProgress } from '../SyncProgress';
 import { useCatalogFreshness } from '../useCatalogFreshness';
 import { SpaceSettings, type SpaceSettingsClient } from './SpaceSettings';
 import { SpaceSwitcher } from './SpaceSwitcher';
+import { RealtimeChip } from './RealtimeChip';
+import { SpaceStatePanel } from './SpaceStatePanel';
 import { buildTeamRoute, type TeamRouteQuery, type TeamSection } from '../routes';
+import { useToasts } from '../../components/toast';
+import { teamErrorMessageFor } from '../errors';
 import type { CatalogSearchFilters } from '@video-compressor/shared';
 
 export type WorkspaceShellClient = MaterialBrowserClient &
@@ -59,6 +63,7 @@ export function WorkspaceShell({
   query?: TeamRouteQuery;
 }) {
   const { t } = useI18n();
+  const { push } = useToasts();
   const { activeTeam, teams, permissions, revision } = useTeam();
   const connectedToDrive = activeTeam?.connectionState === 'connected';
   // Space-wide sync status: visible above every tab so a member who just entered
@@ -149,6 +154,7 @@ export function WorkspaceShell({
           <SpaceSwitcher activeTeam={activeTeam} teams={teams} headingId="team-space-shell-title" />
         </div>
         <div className="team-space-shell-utilities">
+          <RealtimeChip />
           {hasContent && section === 'files' && (
             <Button
               type="button"
@@ -190,7 +196,20 @@ export function WorkspaceShell({
         })}
       </nav>
 
-      {connectedToDrive && freshness && <SyncProgress variant="banner" freshness={freshness} />}
+      {connectedToDrive && freshness && (
+        <SyncProgress
+          variant="banner"
+          freshness={freshness}
+          onRetry={async () => {
+            try {
+              await client.resyncDrive?.(teamId);
+              push({ tone: 'success', text: t('teamToastResyncQueued') });
+            } catch (cause) {
+              push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+            }
+          }}
+        />
+      )}
 
       <div className="team-space-shell-body">
         {section === 'settings' ? (
@@ -230,6 +249,10 @@ export function WorkspaceShell({
             openTaskId={query?.taskId ?? null}
             onOpenTaskChange={onOpenTaskChange}
           />
+        ) : !connectedToDrive && activeTeam ? (
+          /* The connection is the reason there are no files, so say that
+             instead of showing an empty tree (finding I4). */
+          <SpaceStatePanel space={activeTeam} canManageDrive={activeTeam.role === 'owner'} />
         ) : searchOpen ? (
           <TeamCatalog
             key={`search:${teamId}`}
@@ -255,7 +278,6 @@ export function WorkspaceShell({
             revision={revision + browserRevision}
             onCreateTask={asset => createTaskFrom({ ids: [asset.id], name: asset.name })}
             onPreview={setPreviewing}
-            syncLabel={activeTeam?.connectionState === 'connected' ? t('teamSyncFresh') : null}
           />
         )}
       </div>

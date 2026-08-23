@@ -137,9 +137,11 @@ describe('space settings surface', () => {
     expect(resyncDrive).toHaveBeenCalledWith(team.id);
     expect(client.listFolders).not.toHaveBeenCalled();
     expect(client.confirmDriveRoot).not.toHaveBeenCalled();
-    expect((await screen.findByRole('status')).textContent).toBe(
-      'A full scan of the connected folder has been queued.'
-    );
+    // By text, not by role: the shell header now carries its own status chip
+    // for a degraded realtime channel, so "the status element" is ambiguous.
+    expect(
+      await screen.findByText('A full scan of the connected folder has been queued.')
+    ).toBeTruthy();
   });
 
   it('keeps Sync now available while the Drive callback has opened folder selection', async () => {

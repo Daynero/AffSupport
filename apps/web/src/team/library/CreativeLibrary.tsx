@@ -11,6 +11,8 @@ import { teamApi, type LibraryPlacementMutationResult } from '../../api/team';
 import { Button } from '../../components/ui';
 import { Modal } from '../../components/Modal';
 import { useI18n } from '../../i18n';
+import { useToasts } from '../../components/toast';
+import { teamErrorMessageFor } from '../errors';
 import { useTeam } from '../TeamContext';
 import { BulkUploadDialog, type CreativeLibraryUploadClient } from './BulkUploadDialog';
 import { LibraryAssetCard } from './LibraryAssetCard';
@@ -79,6 +81,7 @@ export function CreativeLibrary({
   onCreateTaskFromSelection?: (assets: LibraryAssetSummary[]) => void;
 }) {
   const { t } = useI18n();
+  const { push } = useToasts();
   const { can, revision } = useTeam();
   const agent = useOptionalAgent();
   const [stage, setStage] = useState<LibraryStage>(initialStage);
@@ -131,8 +134,22 @@ export function CreativeLibrary({
       library.remove(result.succeeded.map(item => item.materialId));
       setSelected(new Set(result.failed.map(item => item.materialId)));
       setPlacementError(result.failed.length > 0);
-    } catch {
+      if (result.failed.length === 0) {
+        push({ tone: 'success', text: t('teamToastMoved') });
+      } else {
+        // A partial failure must not read as success, and "some failed" is not
+        // actionable without saying which ones (finding S3).
+        const names = result.failed
+          .map(
+            item =>
+              library.items.find(asset => asset.id === item.materialId)?.name ?? item.materialId
+          )
+          .join(', ');
+        push({ tone: 'error', text: t('teamToastBulkMovePartial', { names }) });
+      }
+    } catch (cause) {
       setPlacementError(true);
+      push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
     } finally {
       setMoving(false);
     }
@@ -157,13 +174,20 @@ export function CreativeLibrary({
         placement,
         idempotencyKey: crypto.randomUUID()
       });
-      if (result.failed.length > 0) setPlacementError(true);
-      else {
+      if (result.failed.length > 0) {
+        setPlacementError(true);
+        push({
+          tone: 'error',
+          text: t('teamToastBulkMovePartial', { names: placementDraft.asset.name })
+        });
+      } else {
         setPlacementDraft(null);
         await library.refetch();
+        push({ tone: 'success', text: t('teamToastMoved') });
       }
-    } catch {
+    } catch (cause) {
       setPlacementError(true);
+      push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
     } finally {
       setMoving(false);
     }

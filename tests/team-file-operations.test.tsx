@@ -10,6 +10,7 @@ import type {
   TeamPermissions
 } from '@video-compressor/shared';
 import { MaterialRowMenu } from '../apps/web/src/team/catalog/MaterialRowMenu.js';
+import { ToastProvider } from '../apps/web/src/components/toast.js';
 import type { MaterialActionsClient } from '../apps/web/src/team/catalog/material-actions-client.js';
 import { TeamTextEditor } from '../apps/web/src/team/catalog/TeamTextEditor.js';
 import { OperationStatus } from '../apps/web/src/team/processing/OperationStatus.js';
@@ -99,7 +100,9 @@ const browseClient = { listMaterials: vi.fn().mockResolvedValue([]) };
  * fifty copies of this state (SC-009).
  */
 async function openMenu(element: React.ReactElement) {
-  const result = render(element);
+  // The row actions report every outcome through the shared toast channel, so
+  // the provider is part of what they need to work — not test scaffolding.
+  const result = render(<ToastProvider>{element}</ToastProvider>);
   await userEvent.click(screen.getByRole('button', { name: /^Actions for / }));
   return result;
 }
@@ -167,14 +170,16 @@ describe('team file operations', () => {
     expect(screen.queryByRole('button', { name: 'Process' })).toBeNull();
 
     rerender(
-      <MaterialRowMenu
-        teamId={TEAM_ID}
-        material={material()}
-        permissions={permissions({ edit: true, delete: true, process: true })}
-        client={client}
-        browseClient={browseClient}
-        onChanged={vi.fn()}
-      />
+      <ToastProvider>
+        <MaterialRowMenu
+          teamId={TEAM_ID}
+          material={material()}
+          permissions={permissions({ edit: true, delete: true, process: true })}
+          client={client}
+          browseClient={browseClient}
+          onChanged={vi.fn()}
+        />
+      </ToastProvider>
     );
     expect(screen.getByRole('button', { name: 'Rename' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Move' })).toBeTruthy();
@@ -257,21 +262,23 @@ describe('team file operations', () => {
     const reload = vi.fn();
     const createVersion = vi.fn();
     render(
-      <TeamTextEditor
-        material={material({
-          name: 'copy.txt',
-          category: 'transcript',
-          mimeType: 'text/plain',
-          fileExtension: 'txt'
-        })}
-        initialText="Привіт"
-        expectedDriveVersion="7"
-        expectedChecksum="check-7"
-        onSave={save}
-        onReload={reload}
-        onCreateVersion={createVersion}
-        onClose={vi.fn()}
-      />
+      <ToastProvider>
+        <TeamTextEditor
+          material={material({
+            name: 'copy.txt',
+            category: 'transcript',
+            mimeType: 'text/plain',
+            fileExtension: 'txt'
+          })}
+          initialText="Привіт"
+          expectedDriveVersion="7"
+          expectedChecksum="check-7"
+          onSave={save}
+          onReload={reload}
+          onCreateVersion={createVersion}
+          onClose={vi.fn()}
+        />
+      </ToastProvider>
     );
     const editor = screen.getByRole('textbox', { name: 'Text file contents' });
     await userEvent.clear(editor);
@@ -367,16 +374,19 @@ describe('team file operations', () => {
       })
     };
     const { rerender } = render(
-      <ProcessMaterialDialog
-        teamId={TEAM_ID}
-        material={material()}
-        destinationFolderId="folder-1"
-        agentCompatible={false}
-        toolContracts={{}}
-        client={client}
-        onStarted={vi.fn()}
-        onClose={vi.fn()}
-      />
+      <ToastProvider>
+        <ProcessMaterialDialog
+          teamId={TEAM_ID}
+          material={material()}
+          destinationFolderId="folder-1"
+          browseClient={browseClient}
+          agentCompatible={false}
+          toolContracts={{}}
+          client={client}
+          onStarted={vi.fn()}
+          onClose={vi.fn()}
+        />
+      </ToastProvider>
     );
     expect(screen.getByText('Update Soty to process team files.')).toBeTruthy();
     expect(
@@ -384,16 +394,19 @@ describe('team file operations', () => {
     ).toBe(true);
 
     rerender(
-      <ProcessMaterialDialog
-        teamId={TEAM_ID}
-        material={material()}
-        destinationFolderId="folder-1"
-        agentCompatible
-        toolContracts={{ compressor: 3 }}
-        client={client}
-        onStarted={vi.fn()}
-        onClose={vi.fn()}
-      />
+      <ToastProvider>
+        <ProcessMaterialDialog
+          teamId={TEAM_ID}
+          material={material()}
+          destinationFolderId="folder-1"
+          browseClient={browseClient}
+          agentCompatible
+          toolContracts={{ compressor: 3 }}
+          client={client}
+          onStarted={vi.fn()}
+          onClose={vi.fn()}
+        />
+      </ToastProvider>
     );
     await userEvent.clear(screen.getByLabelText('Output name'));
     await userEvent.type(screen.getByLabelText('Output name'), 'creative-optimized.mp4');

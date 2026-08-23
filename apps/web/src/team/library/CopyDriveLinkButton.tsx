@@ -3,6 +3,7 @@ import type { LibraryShareCopyRequest, LibraryShareCopyResult } from '@video-com
 import { teamApi } from '../../api/team';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
+import { useToasts } from '../../components/toast';
 import { MediaActionIcon } from './mediaActionIcons';
 
 export interface CopyDriveLinkClient {
@@ -31,13 +32,12 @@ export function CopyDriveLinkButton({
   className?: string;
 }) {
   const { t } = useI18n();
+  const { push } = useToasts();
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [failed, setFailed] = useState(false);
 
   const copy = async () => {
     setBusy(true);
-    setFailed(false);
     try {
       const result = await client.shareLibraryMaterial({
         teamId,
@@ -51,7 +51,9 @@ export function CopyDriveLinkButton({
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1_500);
     } catch {
-      setFailed(true);
+      // The only trace of a failure used to be a `title` attribute — invisible
+      // to anyone not hovering, which is most people (finding S3).
+      push({ tone: 'error', text: t('teamToastLinkCopyFailed') });
     } finally {
       setBusy(false);
     }
@@ -64,7 +66,6 @@ export function CopyDriveLinkButton({
       className={`team-media-action is-copy-link ${className}`.trim()}
       loading={busy}
       aria-label={t('creativeLibraryCopyLinkFor', { name })}
-      title={failed ? t('teamTaskAttachmentActionFailed') : undefined}
       onClick={() => void copy()}
     >
       <MediaActionIcon kind="copy-link" />

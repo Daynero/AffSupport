@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { CatalogSearchResponse } from '@video-compressor/shared';
 import { useI18n, type TranslationKey } from '../i18n';
+import { Button } from '../components/ui';
 
 type Freshness = CatalogSearchResponse['catalogFreshness'];
 
@@ -30,10 +31,13 @@ function activeHeading(state: Freshness['state']): TranslationKey | null {
  */
 export function SyncProgress({
   freshness,
-  variant = 'panel'
+  variant = 'panel',
+  onRetry
 }: {
   freshness: Freshness;
   variant?: 'panel' | 'banner';
+  /** Queues a fresh scan; enables the retry action on a failed sync. */
+  onRetry?: () => void | Promise<void>;
 }) {
   const { t } = useI18n();
   const [now, setNow] = useState(() => Date.now());
@@ -45,6 +49,34 @@ export function SyncProgress({
     const timer = window.setInterval(() => setNow(Date.now()), 5_000);
     return () => window.clearInterval(timer);
   }, [active]);
+
+  /**
+   * The unhappy states used to render nothing at all, so a failed sync's only
+   * trace was a small string inside a view most people never opened, while a
+   * sibling label went on claiming the catalog was up to date (findings S4).
+   * They are not progress, so they get a plain block rather than the bar.
+   */
+  if (freshness.state === 'failed' || freshness.state === 'unavailable') {
+    const failed = freshness.state === 'failed';
+    return (
+      <section
+        className={`team-sync-progress team-sync-progress-${variant} is-${freshness.state}`}
+        role="status"
+      >
+        <p className="team-sync-progress-heading">
+          {t(failed ? 'teamSyncFailedTitle' : 'teamSyncUnavailableTitle')}
+        </p>
+        <p className="team-sync-progress-note">
+          {t(failed ? 'teamSyncFailedBody' : 'teamSyncUnavailableBody')}
+        </p>
+        {failed && onRetry && (
+          <Button type="button" variant="secondary" onClick={() => void onRetry()}>
+            {t('teamSyncRetry')}
+          </Button>
+        )}
+      </section>
+    );
+  }
 
   if (!headingKey) return null;
 

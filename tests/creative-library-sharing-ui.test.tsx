@@ -7,6 +7,7 @@ import {
   type LibraryShareClient
 } from '../apps/web/src/team/library/LibraryShareActions';
 import { SharePreferenceSettings } from '../apps/web/src/team/workspace/SpaceSettings';
+import { ToastProvider } from '../apps/web/src/components/toast';
 
 const TEAM_ID = '48000000-0000-4000-8000-000000000001';
 const MATERIAL_ID = '48000000-0000-4000-8000-000000000002';
@@ -45,7 +46,11 @@ describe('Creative Library sharing UI', () => {
       shareLibraryMaterial,
       requestDownload: vi.fn()
     };
-    render(<LibraryShareActions teamId={TEAM_ID} materialId={MATERIAL_ID} client={client} />);
+    render(
+      <ToastProvider>
+        <LibraryShareActions teamId={TEAM_ID} materialId={MATERIAL_ID} client={client} />
+      </ToastProvider>
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Copy link' }));
     expect(await screen.findByRole('heading', { name: 'Share this Drive item' })).toBeTruthy();
     expect(writeText).not.toHaveBeenCalled();
@@ -83,7 +88,11 @@ describe('Creative Library sharing UI', () => {
       }),
       requestDownload: vi.fn()
     };
-    render(<LibraryShareActions teamId={TEAM_ID} materialId={MATERIAL_ID} client={client} />);
+    render(
+      <ToastProvider>
+        <LibraryShareActions teamId={TEAM_ID} materialId={MATERIAL_ID} client={client} />
+      </ToastProvider>
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Copy link' }));
     expect(
       await screen.findByText('Your current Drive access cannot change sharing.')

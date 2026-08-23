@@ -10,6 +10,7 @@ import type {
   TeamMemberSummary
 } from '../apps/web/src/api/team';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
+import { ToastProvider } from '../apps/web/src/components/toast';
 import { MemberList, type MemberManagementClient } from '../apps/web/src/team/members/MemberList';
 import { TeamAuditPanel } from '../apps/web/src/team/members/TeamAuditPanel';
 
@@ -63,7 +64,9 @@ afterEach(() => {
 function renderMembers(client: MemberManagementClient) {
   return render(
     <TeamProvider initialTeams={[team]} realtime={false}>
-      <MemberList teamId={TEAM_ID} client={client} />
+      <ToastProvider>
+        <MemberList teamId={TEAM_ID} client={client} />
+      </ToastProvider>
     </TeamProvider>
   );
 }

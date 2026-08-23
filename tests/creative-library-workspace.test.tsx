@@ -2,7 +2,7 @@
 import React from 'react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render as renderRaw, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS, type LibraryAssetSummary } from '@video-compressor/shared';
 import { MaterialBrowser } from '../apps/web/src/team/catalog/MaterialBrowser';
@@ -13,6 +13,14 @@ import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { teamApi } from '../apps/web/src/api/team';
 import { TaskDateFilterControl } from '../apps/web/src/team/tasks/TaskDateFilter';
 import { localDateValue } from '../apps/web/src/team/tasks/useTasks';
+import { ToastProvider } from '../apps/web/src/components/toast';
+
+/**
+ * Every surface in this file reports its outcomes through the shared toast
+ * channel, so the provider is part of what they need to work rather than
+ * scaffolding each test has to remember.
+ */
+const render = (ui: React.ReactElement) => renderRaw(<ToastProvider>{ui}</ToastProvider>);
 
 const asset: LibraryAssetSummary = {
   id: '46000000-0000-4000-8000-000000000001',

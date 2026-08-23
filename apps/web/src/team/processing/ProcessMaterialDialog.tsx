@@ -9,6 +9,8 @@ import { teamApi } from '../../api/team';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
 import { FolderPicker, type FolderPickerClient } from '../catalog/FolderPicker';
+import { useToasts } from '../../components/toast';
+import { teamErrorMessage } from '../errors';
 
 type TeamProcessTool = 'compressor' | 'imageEmbedding' | 'transcription' | 'landingOptimizer';
 
@@ -50,6 +52,7 @@ export function ProcessMaterialDialog({
   onClose: () => void;
 }) {
   const { t } = useI18n();
+  const { push } = useToasts();
   const tools = useMemo(() => toolsForMaterial(material), [material]);
   const [toolId, setToolId] = useState<TeamProcessTool>(tools[0] ?? 'compressor');
   const [outputName, setOutputName] = useState(() => suggestedOutputName(material, tools[0]));
@@ -59,7 +62,6 @@ export function ProcessMaterialDialog({
   );
   const [pickingFolder, setPickingFolder] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
   const toolContractVersion = toolContracts[toolId] ?? 0;
   const compatible = agentCompatible && toolContractVersion >= CONTRACTS[toolId];
@@ -79,15 +81,16 @@ export function ProcessMaterialDialog({
       toolContractVersion
     };
     setBusy(true);
-    setError(null);
     try {
       const result = await client.start(input);
       setConflict(false);
+      push({ tone: 'success', text: t('teamToastProcessStarted') });
       onStarted(result, input);
     } catch (caught) {
       const code = caught instanceof Error ? caught.message : 'PROCESS_FAILED';
+      // A name clash asks a question; anything else is a failure to announce.
       if (code === 'NAME_CONFLICT') setConflict(true);
-      else setError(code);
+      else push({ tone: 'error', text: teamErrorMessage(code, t) });
     } finally {
       setBusy(false);
     }
@@ -161,11 +164,6 @@ export function ProcessMaterialDialog({
             {t('teamFileKeepBoth')}
           </Button>
         </div>
-      )}
-      {error && (
-        <p className="team-inline-error" role="alert">
-          {error}
-        </p>
       )}
       <div className="team-dialog-actions">
         <Button

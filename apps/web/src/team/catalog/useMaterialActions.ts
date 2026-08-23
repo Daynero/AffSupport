@@ -11,6 +11,9 @@ import {
   startTeamFileAttempt,
   teamAnalyticsSizeBucket
 } from '../../analytics/service';
+import { useToasts } from '../../components/toast';
+import { useI18n, type TranslationKey } from '../../i18n';
+import { teamErrorMessage } from '../errors';
 import {
   defaultMaterialActionsClient,
   type MaterialActionsClient,
@@ -49,6 +52,20 @@ export interface RowMaterial {
  * contract; turning it into human copy is the caller's job, through the one
  * mapper in `team/errors.ts` (constitution V, FR-014).
  */
+/**
+ * What a completed action says out loud.
+ *
+ * Every mutation confirms; `download` does not, because the file arriving is
+ * its own confirmation and a toast for it would be noise (FR-013 asks for one
+ * visible outcome per action, not one toast per call).
+ */
+const SUCCESS_COPY: Partial<Record<TeamAnalyticsAction, TranslationKey>> = {
+  upload: 'teamToastUploaded',
+  rename: 'teamToastRenamed',
+  move: 'teamToastMoved',
+  trash: 'teamToastTrashed'
+};
+
 export function useMaterialActions(input: {
   teamId: string;
   material: RowMaterial;
@@ -68,10 +85,31 @@ export function useMaterialActions(input: {
     onChanged
   } = input;
 
+  const { t } = useI18n();
+  const { push } = useToasts();
   const [busy, setBusy] = useState(false);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [conflictFile, setConflictFile] = useState<File | null>(null);
   const attemptNumbers = useRef<Partial<Record<TeamAnalyticsAction, number>>>({});
+
+  /**
+   * The single place an outcome becomes visible.
+   *
+   * The old component put `Error.message` — the raw machine code — straight
+   * into the page, and said nothing at all on success (findings S1, S2). Both
+   * now go through the one mapper and the one channel.
+   */
+  const report = useCallback(
+    (action: TeamAnalyticsAction, code: string | null) => {
+      if (code) {
+        push({ tone: 'error', text: teamErrorMessage(code, t) });
+        return;
+      }
+      const success = SUCCESS_COPY[action];
+      if (success) push({ tone: 'success', text: t(success) });
+    },
+    [push, t]
+  );
 
   const beginAttempt = useCallback(
     (action: TeamAnalyticsAction, sizeBytes = material.sizeBytes ?? null) => {
@@ -105,6 +143,7 @@ export function useMaterialActions(input: {
         await work();
         if (attempt) completeTeamFileAttempt(attempt, { outcome: 'success', retryable: false });
         onChanged();
+        report(action, null);
         return null;
       } catch (caught) {
         if (attempt) {
@@ -115,12 +154,13 @@ export function useMaterialActions(input: {
         }
         const code = errorCodeOf(caught);
         setErrorCode(code);
+        report(action, code);
         return code;
       } finally {
         setBusy(false);
       }
     },
-    [beginAttempt, onChanged]
+    [beginAttempt, onChanged, report]
   );
 
   const upload = useCallback(
@@ -150,6 +190,7 @@ export function useMaterialActions(input: {
         if (attempt) completeTeamFileAttempt(attempt, { outcome: 'success', retryable: false });
         setConflictFile(null);
         onChanged();
+        report('upload', null);
         return null;
       } catch (caught) {
         if (attempt) {
@@ -160,15 +201,28 @@ export function useMaterialActions(input: {
         }
         const code = errorCodeOf(caught);
         // A name clash is a question for the person, not a failure: hold the
-        // file so they can answer keep-both or replace.
-        if (code === 'NAME_CONFLICT') setConflictFile(file);
-        else setErrorCode(code);
+        // file so they can answer keep-both or replace, and say nothing yet.
+        if (code === 'NAME_CONFLICT') {
+          setConflictFile(file);
+        } else {
+          setErrorCode(code);
+          report('upload', code);
+        }
         return code;
       } finally {
         setBusy(false);
       }
     },
-    [beginAttempt, client, destinationFolderId, material.id, material.kind, onChanged, teamId]
+    [
+      beginAttempt,
+      client,
+      destinationFolderId,
+      material.id,
+      material.kind,
+      onChanged,
+      report,
+      teamId
+    ]
   );
 
   const download = useCallback(

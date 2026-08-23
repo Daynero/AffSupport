@@ -2,6 +2,8 @@ import type { TeamContextSnapshot } from '../../api/team';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
 import { SpaceCard } from './SpaceCard';
+import { InvitationList, type InvitationListClient } from './InvitationList';
+import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 
 /**
  * The space picker. Deliberately minimal: the user's teams as simple cards plus
@@ -14,7 +16,9 @@ export function SpaceLobby({
   error,
   onEnter,
   onResume,
-  onCreate
+  onCreate,
+  onDeleteDraft,
+  invitationClient
 }: {
   teams: TeamContextSnapshot[];
   loading: boolean;
@@ -22,13 +26,17 @@ export function SpaceLobby({
   onEnter: (teamId: string) => void;
   onResume: (teamId: string) => void;
   onCreate: () => void;
+  /** Discards an abandoned, never-connected space (finding I3). */
+  onDeleteDraft?: (space: TeamContextSnapshot) => void;
+  /** Reads and answers invitations; falls back to the live API. */
+  invitationClient?: InvitationListClient;
 }) {
   const { t } = useI18n();
 
   if (loading && teams.length === 0) {
     return (
       <section className="team-space-lobby" aria-busy="true">
-        <p aria-live="polite">…</p>
+        <LabeledSkeleton label="teamSpaceLobbyLoading" rows={2} />
       </section>
     );
   }
@@ -39,6 +47,13 @@ export function SpaceLobby({
         className="team-space-lobby team-space-lobby-empty"
         aria-labelledby="team-lobby-title"
       >
+        {/* Above the "create your first space" pitch: someone with a waiting
+            invitation does not need to create anything. */}
+        <InvitationList
+          headingId="team-lobby-invitations"
+          client={invitationClient}
+          hideWhenEmpty
+        />
         <div className="team-space-lobby-empty-copy">
           <h1 id="team-lobby-title">{t('teamSpaceEmptyTitle')}</h1>
           <p>{t('teamSpaceEmptyBody')}</p>
@@ -62,11 +77,17 @@ export function SpaceLobby({
           {t('teamSpaceCreateNew')}
         </Button>
       </header>
+      <InvitationList headingId="team-lobby-invitations" client={invitationClient} hideWhenEmpty />
       {error && <p className="team-inline-error">{error}</p>}
       <ul className="team-space-card-grid">
         {teams.map(space => (
           <li key={space.id}>
-            <SpaceCard space={space} onEnter={onEnter} onResume={onResume} />
+            <SpaceCard
+              space={space}
+              onEnter={onEnter}
+              onResume={onResume}
+              onDeleteDraft={onDeleteDraft}
+            />
           </li>
         ))}
       </ul>

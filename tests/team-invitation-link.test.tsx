@@ -8,6 +8,7 @@ import {
   InvitationPanel,
   type InvitationPanelClient
 } from '../apps/web/src/team/members/InvitationPanel';
+import { ToastProvider } from '../apps/web/src/components/toast';
 
 const TEAM_ID = '21000000-0000-4000-8000-000000000001';
 const LINK = 'http://127.0.0.1:5175/team/invitations/abc?token=secret';
@@ -34,7 +35,11 @@ function makeClient(extra: Record<string, unknown> = {}): InvitationPanelClient 
 
 async function invite(client: InvitationPanelClient) {
   const user = userEvent.setup();
-  render(<InvitationPanel teamId={TEAM_ID} client={client} canManage />);
+  render(
+    <ToastProvider>
+      <InvitationPanel teamId={TEAM_ID} client={client} canManage />
+    </ToastProvider>
+  );
   await user.type(await screen.findByLabelText('Invite by email'), 'teammate@example.test');
   await user.click(screen.getByRole('button', { name: 'Send invitation' }));
   return user;

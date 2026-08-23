@@ -32,11 +32,18 @@ function roleLabel(role: TeamContextSnapshot['role'], t: ReturnType<typeof useI1
 export function SpaceCard({
   space,
   onEnter,
-  onResume
+  onResume,
+  onDeleteDraft
 }: {
   space: TeamContextSnapshot;
   onEnter: (teamId: string) => void;
   onResume: (teamId: string) => void;
+  /**
+   * Offered only for an owner's never-finished space. The server has the final
+   * say on whether it really is a draft, so this is an affordance, not a
+   * guarantee.
+   */
+  onDeleteDraft?: (space: TeamContextSnapshot) => void;
 }) {
   const { t } = useI18n();
   const readiness = spaceReadiness(space);
@@ -81,6 +88,20 @@ export function SpaceCard({
         )}
       </div>
       <span className={`team-space-card-action is-${readiness}`}>{actionLabel}</span>
+      {readiness === 'setup_incomplete' && space.role === 'owner' && onDeleteDraft && (
+        <button
+          type="button"
+          className="team-space-card-discard"
+          // Stops the card's own activation: pressing "discard" must not also
+          // resume the setup it is discarding.
+          onClick={event => {
+            event.stopPropagation();
+            onDeleteDraft(space);
+          }}
+        >
+          {t('teamDraftDeleteAction')}
+        </button>
+      )}
     </Card>
   );
 }

@@ -2,15 +2,16 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useOptionalAuth } from '../auth/AuthContext';
 import { Modal, ModalBackdrop } from '../components/Modal';
 import { SupportDialog } from '../components/SupportDialog';
-import { ToastProvider } from '../components/toast';
+import { ToastProvider, useToasts } from '../components/toast';
 import { Button } from '../components/ui';
 import { requireSupabaseClient } from '../lib/supabase';
-import type { TeamContextSnapshot } from '../api/team';
+import type { TeamContextSnapshot, TeamInvitationSummary } from '../api/team';
 import { teamApi } from '../api/team';
 import { useI18n } from '../i18n';
 import { navigateTo, useBrowserRoute, usePageEntrance } from '../lib/navigation';
 import { configuredTeamDirectAddMode } from '../lib/config';
 import { readRememberedSpaceId, useTeam } from './TeamContext';
+import { teamErrorMessageFor } from './errors';
 import {
   buildTeamRoute,
   parseTeamRoute,
@@ -30,7 +31,9 @@ export type TeamSpaceClient = {
    * Only the count is used here — a person holding an unanswered invitation
    * must land in the lobby where they can see it, never be redirected past it.
    */
-  listMyInvitations: () => Promise<{ state: string }[]>;
+  listMyInvitations: () => Promise<TeamInvitationSummary[]>;
+  acceptInvitation: (invitationId: string, token?: string) => Promise<unknown>;
+  declineInvitation: (invitationId: string, token?: string) => Promise<unknown>;
 } & CreateSpaceWizardClient &
   WorkspaceShellClient;
 
@@ -150,6 +153,7 @@ export function TeamSpace({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [teamsLoaded, setTeamsLoaded] = useState(false);
   const [pendingInvitations, setPendingInvitations] = useState<number | null>(null);
+  const [discarding, setDiscarding] = useState<TeamContextSnapshot | null>(null);
   // Captured once: the resolver needs the value from before this session began
   // writing to it (see readRememberedSpaceId).
   const [rememberedTeamId] = useState(readRememberedSpaceId);
@@ -283,7 +287,10 @@ export function TeamSpace({
 
   const wrap = (node: React.ReactNode) => (
     <main className={`page-container team-space-page ${entering ? 'page-enter' : ''}`.trim()}>
-      <ToastProvider>{node}</ToastProvider>
+      <ToastProvider>
+        <MembershipLostNotice />
+        {node}
+      </ToastProvider>
     </main>
   );
 
@@ -310,10 +317,14 @@ export function TeamSpace({
   };
 
   if (workspaceAccess === 'checking') {
+    // Labeled: an unexplained dimmed screen is indistinguishable from a hang.
     return wrap(
       <>
         <div className="team-workspace-gate-background" aria-busy="true" />
         <ModalBackdrop className="team-workspace-gate-backdrop" />
+        <p className="team-workspace-gate-checking" aria-live="polite">
+          {t('teamAccessChecking')}
+        </p>
       </>
     );
   }
@@ -430,15 +441,107 @@ export function TeamSpace({
   }
 
   return wrap(
-    <SpaceLobby
-      teams={teams}
-      loading={loading}
-      error={loadError}
-      onEnter={teamId => navigateTo(buildTeamRoute({ spaceId: teamId }))}
-      onResume={teamId => setFlow({ mode: 'resume', teamId })}
-      onCreate={() => setFlow({ mode: 'create' })}
-    />
+    <>
+      <SpaceLobby
+        teams={teams}
+        loading={loading}
+        error={loadError}
+        onEnter={teamId => navigateTo(buildTeamRoute({ spaceId: teamId }))}
+        onResume={teamId => setFlow({ mode: 'resume', teamId })}
+        onCreate={() => setFlow({ mode: 'create' })}
+        onDeleteDraft={setDiscarding}
+        invitationClient={client}
+      />
+      {discarding && (
+        <DiscardDraftDialog
+          space={discarding}
+          client={client}
+          onClose={() => setDiscarding(null)}
+          onDiscarded={() => {
+            setDiscarding(null);
+            replaceTeams(teams.filter(team => team.id !== discarding.id));
+          }}
+        />
+      )}
+    </>
   );
+}
+
+/**
+ * Explains a membership that ended mid-session, then returns to the lobby.
+ *
+ * Lives inside the toast provider because that is where the explanation goes;
+ * the signal itself is raised by the realtime channel in TeamContext, one level
+ * above. Sticky, because a message that dismisses itself while the screen is
+ * also changing underneath is a message nobody reads (FR-019).
+ */
+/**
+ * Confirms discarding a space that never finished setup.
+ *
+ * The confirmation names what is lost rather than asking "are you sure?", and
+ * the server still decides whether the space really is a draft — a space that
+ * has ever had a drive connection is refused with `TEAM_NOT_DRAFT`, which is
+ * the case where discarding would actually destroy something.
+ */
+function DiscardDraftDialog({
+  space,
+  client,
+  onClose,
+  onDiscarded
+}: {
+  space: TeamContextSnapshot;
+  client: Pick<TeamSpaceClient, 'deleteDraftTeam'>;
+  onClose: () => void;
+  onDiscarded: () => void;
+}) {
+  const { t } = useI18n();
+  const { push } = useToasts();
+  const [busy, setBusy] = useState(false);
+  const titleId = useId();
+
+  const discard = async () => {
+    setBusy(true);
+    try {
+      await client.deleteDraftTeam(space.id);
+      push({ tone: 'success', text: t('teamDraftDeleteDone') });
+      onDiscarded();
+    } catch (cause) {
+      push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal labelledBy={titleId} size="sm" onClose={onClose}>
+      <h3 id={titleId}>{t('teamDraftDeleteConfirmTitle', { name: space.name })}</h3>
+      <p>{t('teamDraftDeleteConfirmBody')}</p>
+      <div className="team-dialog-actions">
+        <Button type="button" variant="danger" loading={busy} onClick={() => void discard()}>
+          {t('teamDraftDeleteAction')}
+        </Button>
+        <Button type="button" variant="ghost" onClick={onClose}>
+          {t('teamCancel')}
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
+export function MembershipLostNotice() {
+  const { t } = useI18n();
+  const { push } = useToasts();
+  const { membershipLostTeamId, acknowledgeMembershipLoss } = useTeam();
+
+  useEffect(() => {
+    if (!membershipLostTeamId) return;
+    push({ tone: 'error', text: t('teamMembershipLost'), sticky: true });
+    acknowledgeMembershipLoss();
+    navigateTo(teamResolverRoute(), true);
+  }, [acknowledgeMembershipLoss, membershipLostTeamId, push, t]);
+
+  return null;
 }
 
 export default TeamSpace;

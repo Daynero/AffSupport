@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import type { TeamAnalyticsStorage, TeamPermissions } from '@video-compressor/shared';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
-import { teamErrorMessage } from '../errors';
 import { FolderPicker, type FolderPickerClient } from './FolderPicker';
 import {
   useMaterialActions,
@@ -252,14 +251,6 @@ function MaterialRowMenuContent({
             </Button>
           </div>
         </div>
-      )}
-
-      {/* A machine code never reaches the page: the mapper turns it into a
-          sentence, with a generic one for codes it has not met (FR-014). */}
-      {actions.errorCode && (
-        <p className="team-inline-error" role="alert">
-          {teamErrorMessage(actions.errorCode, t)}
-        </p>
       )}
     </div>
   );

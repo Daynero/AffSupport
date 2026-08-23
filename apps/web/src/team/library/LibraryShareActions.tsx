@@ -8,6 +8,8 @@ import { teamApi } from '../../api/team';
 import { Modal } from '../../components/Modal';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
+import { useToasts } from '../../components/toast';
+import { teamErrorMessage } from '../errors';
 import { MediaActionIcon } from './mediaActionIcons';
 
 export interface LibraryShareClient {
@@ -35,6 +37,7 @@ export function LibraryShareActions({
   client?: LibraryShareClient;
 }) {
   const { t } = useI18n();
+  const { push } = useToasts();
   const [busy, setBusy] = useState<'copy' | 'open' | 'download' | 'approve' | null>(null);
   const [confirmation, setConfirmation] = useState<Extract<
     LibraryShareCopyResult,
@@ -54,9 +57,23 @@ export function LibraryShareActions({
     });
 
   const copyReady = async (result: Extract<LibraryShareCopyResult, { state: 'ready' }>) => {
-    await navigator.clipboard.writeText(result.url);
+    try {
+      await navigator.clipboard.writeText(result.url);
+    } catch {
+      // The share itself succeeded — only the clipboard refused. Reporting this
+      // as a Drive failure sent people to check the wrong thing (finding S3).
+      throw new Error('CLIPBOARD_UNAVAILABLE');
+    }
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1_500);
+  };
+
+  const report = (cause: unknown) => {
+    const code = cause instanceof Error ? cause.message : 'DRIVE_UNAVAILABLE';
+    const text =
+      code === 'CLIPBOARD_UNAVAILABLE' ? t('teamToastLinkCopyFailed') : teamErrorMessage(code, t);
+    setError(text);
+    push({ tone: 'error', text });
   };
 
   const copy = async () => {
@@ -68,7 +85,7 @@ export function LibraryShareActions({
       if (result.state === 'confirmation_required') setConfirmation(result);
       else await copyReady(result);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'DRIVE_UNAVAILABLE');
+      report(cause);
     } finally {
       setBusy(null);
     }
@@ -83,7 +100,7 @@ export function LibraryShareActions({
       await copyReady(result);
       setConfirmation(null);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'DRIVE_UNAVAILABLE');
+      report(cause);
     } finally {
       setBusy(null);
     }
@@ -96,7 +113,7 @@ export function LibraryShareActions({
       const result = await request(false);
       window.open(result.url, '_blank', 'noopener,noreferrer');
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'DRIVE_UNAVAILABLE');
+      report(cause);
     } finally {
       setBusy(null);
     }
@@ -110,7 +127,7 @@ export function LibraryShareActions({
       if (result.kind !== 'browser') throw new Error('INVALID_RESPONSE');
       window.location.assign(result.rangeUrl);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'DRIVE_UNAVAILABLE');
+      report(cause);
     } finally {
       setBusy(null);
     }

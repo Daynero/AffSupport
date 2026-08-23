@@ -2,6 +2,8 @@ import { useEffect, useState, type FormEvent } from 'react';
 import type { TeamBaseRole } from '@video-compressor/shared';
 import { TeamApiError, type TeamInvitationSummary, type TeamMemberSummary } from '../../api/team';
 import { useI18n } from '../../i18n';
+import { useToasts } from '../../components/toast';
+import { teamErrorMessageFor } from '../errors';
 import { Button } from '../../components/ui';
 
 export interface InvitationPanelClient {
@@ -50,6 +52,7 @@ export function InvitationPanel({
   onChanged?: () => void;
 }) {
   const { t } = useI18n();
+  const { push } = useToasts();
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<TeamBaseRole>('viewer');
   const [invitations, setInvitations] = useState<TeamInvitationSummary[]>([]);
@@ -129,20 +132,32 @@ export function InvitationPanel({
     }
   };
 
+  // Both of these used to be unguarded awaits behind `void`: a rejection became
+  // an unhandled promise and the row simply never changed (finding S3).
   const resend = async (invitationId: string) => {
     if (!client.resendInvitation) return;
-    const updated = await client.resendInvitation(invitationId);
-    setInvitations(current => current.map(item => (item.id === invitationId ? updated : item)));
-    onChanged?.();
+    try {
+      const updated = await client.resendInvitation(invitationId);
+      setInvitations(current => current.map(item => (item.id === invitationId ? updated : item)));
+      push({ tone: 'success', text: t('teamToastInvitationResent') });
+      onChanged?.();
+    } catch (cause) {
+      push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+    }
   };
 
   const revoke = async (invitationId: string) => {
     if (!client.revokeInvitation) return;
-    await client.revokeInvitation(invitationId);
-    setInvitations(current =>
-      current.map(item => (item.id === invitationId ? { ...item, state: 'revoked' } : item))
-    );
-    onChanged?.();
+    try {
+      await client.revokeInvitation(invitationId);
+      setInvitations(current =>
+        current.map(item => (item.id === invitationId ? { ...item, state: 'revoked' } : item))
+      );
+      push({ tone: 'success', text: t('teamToastInvitationRevoked') });
+      onChanged?.();
+    } catch (cause) {
+      push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+    }
   };
 
   return (

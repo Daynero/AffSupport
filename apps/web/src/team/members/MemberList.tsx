@@ -8,6 +8,8 @@ import type { TeamBaseRole } from '@video-compressor/shared';
 import { Modal } from '../../components/Modal';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
+import { useToasts } from '../../components/toast';
+import { teamErrorMessageFor } from '../errors';
 import { useTeam } from '../TeamContext';
 import { MemberPermissionsDialog } from './MemberPermissionsDialog';
 import { OwnershipTransferDialog } from './OwnershipTransferDialog';
@@ -49,6 +51,7 @@ export function MemberList({
   onChanged?: () => void;
 }) {
   const { t } = useI18n();
+  const { push } = useToasts();
   const { activeTeam } = useTeam();
   const [members, setMembers] = useState<TeamMemberSummary[]>([]);
   const [editing, setEditing] = useState<TeamMemberSummary | null>(null);
@@ -204,13 +207,21 @@ export function MemberList({
                 type="button"
                 variant="danger"
                 onClick={() =>
-                  void client.removeMember(teamId, removing.userId).then(() => {
-                    setMembers(current =>
-                      current.filter(member => member.userId !== removing.userId)
-                    );
-                    setRemoving(null);
-                    onChanged?.();
-                  })
+                  void client
+                    .removeMember(teamId, removing.userId)
+                    .then(() => {
+                      setMembers(current =>
+                        current.filter(member => member.userId !== removing.userId)
+                      );
+                      setRemoving(null);
+                      push({ tone: 'success', text: t('teamToastMemberRemoved') });
+                      onChanged?.();
+                    })
+                    // Without this the dialog simply stayed open on failure and
+                    // the person was left to guess whether it had worked.
+                    .catch((cause: unknown) => {
+                      push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+                    })
                 }
               >
                 {t('teamMemberRemoveAction')}
