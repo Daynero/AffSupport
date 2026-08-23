@@ -97,7 +97,6 @@ export function TaskAttachmentTile({
   const [action, setAction] = useState<'download' | 'copy-link' | null>(null);
   const [copied, setCopied] = useState(false);
   const [actionFailed, setActionFailed] = useState(false);
-  const [confirmDetach, setConfirmDetach] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -309,12 +308,15 @@ export function TaskAttachmentTile({
               {copied ? t('teamTaskAttachmentLinkCopied') : t('teamTaskAttachmentCopyLink')}
             </span>
           </Button>
+          {/* No dialog: detaching is reversible, and the Undo in the toast
+              costs one press to fix a mistake that the dialog charged a press
+              to prevent every single time (FR-028). */}
           {onDetach && (
             <Button
               type="button"
               variant="danger"
               className="team-task-attachment-action is-detach"
-              onClick={() => setConfirmDetach(true)}
+              onClick={() => onDetach()}
             >
               <AttachmentActionIcon action="detach" />
               <span>{t('teamTaskDetach')}</span>
@@ -347,38 +349,6 @@ export function TaskAttachmentTile({
             ) : (
               <img src={rangeUrl} alt={attachment.name} referrerPolicy="no-referrer" />
             )}
-          </div>
-        </Modal>
-      )}
-      {confirmDetach && onDetach && (
-        <Modal
-          nested
-          labelledBy={`team-task-detach-title-${attachment.id}`}
-          onClose={() => setConfirmDetach(false)}
-          closeLabel={t('teamCancel')}
-          size="sm"
-        >
-          <div className="team-task-detach-confirmation">
-            <h2 id={`team-task-detach-title-${attachment.id}`}>
-              {t('teamTaskDetachConfirmTitle')}
-            </h2>
-            <p>{t('teamTaskDetachConfirmDescription', { name: attachment.name })}</p>
-            <div className="team-dialog-actions">
-              <Button type="button" variant="ghost" onClick={() => setConfirmDetach(false)}>
-                {t('teamCancel')}
-              </Button>
-              <Button
-                type="button"
-                variant="danger"
-                onClick={() => {
-                  setConfirmDetach(false);
-                  onDetach();
-                }}
-              >
-                <AttachmentActionIcon action="detach" />
-                {t('teamTaskDetach')}
-              </Button>
-            </div>
           </div>
         </Modal>
       )}

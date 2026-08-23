@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import type {
   DriveCatalogResyncResult,
   DriveConnectionStatus,
@@ -9,6 +9,7 @@ import type {
 import { TeamApiError } from '../../api/team';
 import { useI18n } from '../../i18n';
 import { useToasts } from '../../components/toast';
+import { Modal } from '../../components/Modal';
 import { teamErrorMessageFor } from '../errors';
 import { Button } from '../../components/ui';
 import { DriveFolderBrowser } from './DriveFolderBrowser';
@@ -63,6 +64,8 @@ export function DriveConnectionPanel({
   const [confirmation, setConfirmation] = useState<DriveRootResult | null>(null);
   const [authorizationUrl, setAuthorizationUrl] = useState<string | null>(null);
   const [replaceMode, setReplaceMode] = useState(false);
+  const [confirmingDetach, setConfirmingDetach] = useState(false);
+  const detachTitleId = useId();
   const [resyncQueued, setResyncQueued] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -152,17 +155,16 @@ export function DriveConnectionPanel({
     await loadFolders(null, folder.id);
   };
 
+  /**
+   * Both connecting and replacing ask the server what this folder means before
+   * showing anything to confirm.
+   *
+   * Replace used to fabricate its own confirmation client-side — inventing the
+   * account and the ACL warning rather than reading them — so the dialog could
+   * assert facts the server had never checked (finding R3).
+   */
   const choose = async (folder: DriveFolderSummary) => {
     setSelected(folder);
-    if (replaceMode) {
-      setConfirmation({
-        state: 'confirmation_required',
-        folder,
-        account: status.connectedAccountEmail ?? '',
-        independentAclWarning: true
-      });
-      return;
-    }
     setBusy(true);
     try {
       setConfirmation(
@@ -224,6 +226,7 @@ export function DriveConnectionPanel({
       await client.detachDrive(teamId, status.connectionId);
       setStatus({ state: 'detached' });
       setConfirmation(null);
+      setConfirmingDetach(false);
       push({ tone: 'success', text: t('teamToastDriveDetached') });
     } catch (cause) {
       push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
@@ -304,7 +307,7 @@ export function DriveConnectionPanel({
             </Button>
           )}
           {!folders && client.detachDrive && (
-            <Button type="button" variant="danger" onClick={() => void detach()}>
+            <Button type="button" variant="danger" onClick={() => setConfirmingDetach(true)}>
               {t('teamDriveDetach')}
             </Button>
           )}
@@ -333,6 +336,21 @@ export function DriveConnectionPanel({
       {confirmation?.state === 'connected' && <p>{t('teamSyncQueued')}</p>}
       {resyncQueued && <p role="status">{t('teamDriveResyncQueued')}</p>}
       {error && <p className="team-inline-error">{error}</p>}
+      {confirmingDetach && (
+        <Modal labelledBy={detachTitleId} size="sm" onClose={() => setConfirmingDetach(false)}>
+          <h3 id={detachTitleId}>{t('teamDriveDetachConfirmTitle')}</h3>
+          {/* States what everyone loses, and what is untouched. */}
+          <p>{t('teamDriveDetachConfirmBody')}</p>
+          <div className="team-dialog-actions">
+            <Button type="button" variant="danger" onClick={() => void detach()}>
+              {t('teamDriveDetach')}
+            </Button>
+            <Button type="button" variant="ghost" onClick={() => setConfirmingDetach(false)}>
+              {t('teamCancel')}
+            </Button>
+          </div>
+        </Modal>
+      )}
     </section>
   );
 }

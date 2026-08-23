@@ -10,10 +10,13 @@ import { TaskCard } from './TaskCard';
 import { TaskDateFilterControl } from './TaskDateFilter';
 import { TaskEditor, type TaskEditorClient } from './TaskEditor';
 import { useTasks, type TasksClient } from './useTasks';
+import { useToasts } from '../../components/toast';
+import { teamErrorMessageFor } from '../errors';
 
 export type TaskSpaceClient = TasksClient &
   TaskEditorClient & {
     listMembers(teamId: string): Promise<TeamMemberSummary[]>;
+    deleteTask(input: { teamId: string; taskId: string }): Promise<true>;
   };
 
 export interface TaskSourceAsset {
@@ -50,6 +53,7 @@ export function TaskSpace({
   onOpenTaskChange?: (taskId: string | null) => void;
 }) {
   const { t } = useI18n();
+  const { push } = useToasts();
   const { can, revision } = useTeam();
   const tasks = useTasks({ teamId, revision, client });
   const [creating, setCreating] = useState(false);
@@ -59,6 +63,8 @@ export function TaskSpace({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const [creatingAssetId, setCreatingAssetId] = useState<string | null>(null);
+  /** Materials that will be attached when — and only when — the task is saved. */
+  const [stagedMaterialIds, setStagedMaterialIds] = useState<string[]>([]);
 
   /**
    * Which task the editor is showing.
@@ -94,6 +100,14 @@ export function TaskSpace({
     };
   }, [client, revision, teamId]);
 
+  /**
+   * A selection sent here from Files, Creatives or a landing.
+   *
+   * It opens the create form with the title prefilled and the materials
+   * *staged* — nothing is written yet. The old path called `create_team_task`
+   * the moment the button was pressed, so abandoning the editor left a stray
+   * empty task behind for someone to find later (finding R1, FR-026).
+   */
   useEffect(() => {
     const materialIds = sourceMaterialIds(createFromAsset);
     const selectionKey = materialIds.join(',') || null;
@@ -105,44 +119,48 @@ export function TaskSpace({
     )
       return;
     setCreatingAssetId(selectionKey);
-    setBusy(true);
-    const [firstId, ...restIds] = materialIds;
-    void tasks
-      .create({
-        title: t('teamTaskFromAssetTitle', { name: createFromAsset.name }).slice(0, 160),
-        initialMaterialId: firstId ?? null
-      })
-      .then(async created => {
-        // The first material seeds the task; any remaining selection is attached
-        // in one follow-up call, then the list is refetched so counts settle.
-        if (restIds.length > 0) {
-          await attachTaskMaterialsInChunks({
-            client,
-            teamId,
-            taskId: created.id,
-            materialIds: restIds
-          });
-          await tasks.refetch();
-        }
-        setOpenTask(created);
-        setError(false);
-      })
-      .catch(() => setError(true))
-      .finally(() => {
-        setBusy(false);
-        onConsumedCreateFromAsset?.();
-      });
-  }, [can, client, createFromAsset, creatingAssetId, onConsumedCreateFromAsset, t, tasks, teamId]);
+    setStagedMaterialIds(materialIds);
+    setTitle(t('teamTaskFromAssetTitle', { name: createFromAsset.name }).slice(0, 160));
+    setNote('');
+    setCreating(true);
+    onConsumedCreateFromAsset?.();
+  }, [can, createFromAsset, creatingAssetId, onConsumedCreateFromAsset, t]);
+
+  const cancelCreate = () => {
+    setCreating(false);
+    setTitle('');
+    setNote('');
+    setStagedMaterialIds([]);
+    setCreatingAssetId(null);
+  };
 
   const create = async (event: FormEvent) => {
     event.preventDefault();
     setBusy(true);
     setError(false);
     try {
-      const created = await tasks.create({ title, note: note || null });
+      const [firstId, ...restIds] = stagedMaterialIds;
+      const created = await tasks.create({
+        title,
+        note: note || null,
+        initialMaterialId: firstId ?? null
+      });
+      // The first material seeds the task; the rest attach in one follow-up
+      // call, then the list is refetched so counts settle.
+      if (restIds.length > 0) {
+        await attachTaskMaterialsInChunks({
+          client,
+          teamId,
+          taskId: created.id,
+          materialIds: restIds
+        });
+        await tasks.refetch();
+      }
       setCreating(false);
       setTitle('');
       setNote('');
+      setStagedMaterialIds([]);
+      setCreatingAssetId(null);
       setOpenTask(created);
     } catch {
       setError(true);
@@ -201,13 +219,19 @@ export function TaskSpace({
       {creating && (
         <Modal
           labelledBy="team-task-create-title"
-          onClose={() => setCreating(false)}
-          closeLabel={t('teamCancel')}
+          onClose={cancelCreate}
+          // No `closeLabel`: the form already carries one Cancel, and a second
+          // control with the same name is two ways to do one thing.
           initialFocus="#new-team-task-title"
           size="md"
         >
           <form className="team-dialog-form" onSubmit={event => void create(event)}>
             <h2 id="team-task-create-title">{t('teamTaskCreate')}</h2>
+            {stagedMaterialIds.length > 0 && (
+              <p className="team-task-staged-note">
+                {t('teamTaskStagedAttachments', { count: stagedMaterialIds.length })}
+              </p>
+            )}
             <label>
               <span>{t('teamTaskTitle')}</span>
               <input
@@ -228,7 +252,7 @@ export function TaskSpace({
               />
             </label>
             <div className="team-dialog-actions">
-              <Button type="button" variant="ghost" onClick={() => setCreating(false)}>
+              <Button type="button" variant="ghost" onClick={cancelCreate}>
                 {t('teamCancel')}
               </Button>
               <Button type="submit" variant="primary" loading={busy}>
@@ -250,6 +274,20 @@ export function TaskSpace({
           onChanged={() => {
             void tasks.refetch();
           }}
+          onDelete={
+            can('edit')
+              ? async task => {
+                  try {
+                    await client.deleteTask({ teamId, taskId: task.id });
+                    setOpenTask(null);
+                    await tasks.refetch();
+                    push({ tone: 'success', text: t('teamToastTaskDeleted') });
+                  } catch (cause) {
+                    push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+                  }
+                }
+              : undefined
+          }
         />
       )}
     </section>

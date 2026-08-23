@@ -17,6 +17,7 @@ import { SpaceSettings, type SpaceSettingsClient } from './SpaceSettings';
 import { SpaceSwitcher } from './SpaceSwitcher';
 import { RealtimeChip } from './RealtimeChip';
 import { SpaceStatePanel } from './SpaceStatePanel';
+import { TrashView } from '../catalog/TrashView';
 import { buildTeamRoute, type TeamRouteQuery, type TeamSection } from '../routes';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessageFor } from '../errors';
@@ -165,6 +166,18 @@ export function WorkspaceShell({
               {searchOpen ? t('teamSpaceSearchClose') : t('teamSpaceSearchToggle')}
             </Button>
           )}
+          {/* Trash is a utility, not a fifth content tab: it is reached from
+              where files are, and has its own address for a direct link. */}
+          {(section === 'files' || section === 'trash') && (
+            <a
+              className="team-space-shell-utility-link"
+              href={sectionRoute('trash')}
+              aria-current={section === 'trash' ? 'page' : undefined}
+              onClick={event => internalLink(event, sectionRoute('trash'))}
+            >
+              {t('teamTrashEntry')}
+            </a>
+          )}
           <a
             className="team-space-shell-utility-link"
             href={sectionRoute('settings')}
@@ -212,7 +225,9 @@ export function WorkspaceShell({
       )}
 
       <div className="team-space-shell-body">
-        {section === 'settings' ? (
+        {section === 'trash' ? (
+          <TrashView key={`trash:${teamId}`} teamId={teamId} />
+        ) : section === 'settings' ? (
           <SpaceSettings
             key={`settings:${teamId}`}
             teamId={teamId}

@@ -1,10 +1,11 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useId, useState, type FormEvent } from 'react';
 import type { TeamBaseRole } from '@video-compressor/shared';
 import { TeamApiError, type TeamInvitationSummary, type TeamMemberSummary } from '../../api/team';
 import { useI18n } from '../../i18n';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessageFor } from '../errors';
 import { Button } from '../../components/ui';
+import { Modal } from '../../components/Modal';
 
 export interface InvitationPanelClient {
   listInvitations: (teamId: string) => Promise<TeamInvitationSummary[]>;
@@ -53,6 +54,8 @@ export function InvitationPanel({
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
+  const [confirmingRevoke, setConfirmingRevoke] = useState<string | null>(null);
+  const revokeTitleId = useId();
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<TeamBaseRole>('viewer');
   const [invitations, setInvitations] = useState<TeamInvitationSummary[]>([]);
@@ -232,13 +235,40 @@ export function InvitationPanel({
               </Button>
             )}
             {invitation.state === 'pending' && client.revokeInvitation && (
-              <Button type="button" variant="danger" onClick={() => void revoke(invitation.id)}>
+              <Button
+                type="button"
+                variant="danger"
+                onClick={() => setConfirmingRevoke(invitation.id)}
+              >
                 {t('teamInvitationRevoke')}
               </Button>
             )}
           </li>
         ))}
       </ul>
+      {confirmingRevoke && (
+        <Modal labelledBy={revokeTitleId} size="sm" onClose={() => setConfirmingRevoke(null)}>
+          <h3 id={revokeTitleId}>{t('teamInvitationRevokeConfirmTitle')}</h3>
+          {/* Names the consequence: the link stops working for whoever has it. */}
+          <p>{t('teamInvitationRevokeConfirmBody')}</p>
+          <div className="team-dialog-actions">
+            <Button
+              type="button"
+              variant="danger"
+              onClick={() => {
+                const id = confirmingRevoke;
+                setConfirmingRevoke(null);
+                void revoke(id);
+              }}
+            >
+              {t('teamInvitationRevoke')}
+            </Button>
+            <Button type="button" variant="ghost" onClick={() => setConfirmingRevoke(null)}>
+              {t('teamCancel')}
+            </Button>
+          </div>
+        </Modal>
+      )}
     </section>
   );
 }

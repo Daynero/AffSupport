@@ -17,6 +17,7 @@ import {
 import { TaskAttachmentTile, type TaskAttachmentPreviewClient } from './TaskAttachmentTile';
 import { TaskProgressScale } from './TaskProgressScale';
 import { TaskStatusControl } from './TaskStatusControl';
+import { useToasts } from '../../components/toast';
 
 export interface TaskEditorClient extends TaskAttachmentPickerClient, TaskAttachmentPreviewClient {
   getTask(input: {
@@ -70,7 +71,8 @@ export function TaskEditor({
   canEdit,
   client = defaultClient,
   onClose,
-  onChanged
+  onChanged,
+  onDelete
 }: {
   teamId: string;
   task: TeamTaskSummary;
@@ -79,8 +81,11 @@ export function TaskEditor({
   client?: TaskEditorClient;
   onClose: () => void;
   onChanged: (task: TeamTaskSummary) => void;
+  /** Deletes the task; absent when the viewer may not. */
+  onDelete?: (task: TeamTaskSummary) => Promise<void>;
 }) {
   const { t } = useI18n();
+  const { push } = useToasts();
   const [task, setTask] = useState(initialTask);
   const [title, setTitle] = useState(initialTask.title);
   const [note, setNote] = useState(initialTask.note ?? '');
@@ -98,6 +103,8 @@ export function TaskEditor({
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(false);
   const [showUnsavedPrompt, setShowUnsavedPrompt] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const hydrateTask = (next: TeamTaskSummary) => {
     setTask(next);
@@ -216,14 +223,46 @@ export function TaskEditor({
     });
   };
 
+  /**
+   * Detaching is staged, not written — the change lands when the task is saved.
+   * The toast makes that reversibility visible, which is what the confirmation
+   * dialog was standing in for; a dialog guarding a staged, undoable change was
+   * friction charged twice over (finding R3, FR-028).
+   */
   const stageDetach = (attachment: TeamTaskAttachmentSummary) => {
     if (attachment.id.startsWith('draft:')) {
       setDraftAttachments(current =>
         current.filter(candidate => candidate.materialId !== attachment.materialId)
       );
+      push({
+        tone: 'info',
+        text: t('teamToastAttachmentDetached', { name: attachment.name }),
+        action: {
+          label: t('teamUndo'),
+          run: () =>
+            setDraftAttachments(current =>
+              current.some(candidate => candidate.materialId === attachment.materialId)
+                ? current
+                : [...current, attachment]
+            )
+        }
+      });
       return;
     }
     setDetachedMaterialIds(current => new Set(current).add(attachment.materialId));
+    push({
+      tone: 'info',
+      text: t('teamToastAttachmentDetached', { name: attachment.name }),
+      action: {
+        label: t('teamUndo'),
+        run: () =>
+          setDetachedMaterialIds(current => {
+            const next = new Set(current);
+            next.delete(attachment.materialId);
+            return next;
+          })
+      }
+    });
   };
 
   const updateProgressMax = (raw: string) => {
@@ -409,6 +448,14 @@ export function TaskEditor({
                 <Button type="submit" variant="primary" loading={saving} disabled={savingStatus}>
                   {t('teamTaskSave')}
                 </Button>
+                {/* Deleting a task was the one lifecycle step with no way to
+                    take it — a finished or mistaken task stayed on the board
+                    forever (finding R1). */}
+                {onDelete && (
+                  <Button type="button" variant="danger" onClick={() => setConfirmingDelete(true)}>
+                    {t('teamTaskDelete')}
+                  </Button>
+                )}
               </div>
             )}
           </form>
@@ -472,6 +519,36 @@ export function TaskEditor({
               </Button>
               <Button type="button" variant="primary" loading={saving} onClick={() => void save()}>
                 {t('teamTaskSave')}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {confirmingDelete && onDelete && (
+        <Modal
+          nested
+          labelledBy="team-task-delete-title"
+          onClose={() => setConfirmingDelete(false)}
+          size="sm"
+        >
+          <div className="team-task-unsaved-confirmation">
+            <h2 id="team-task-delete-title">{t('teamTaskDeleteConfirmTitle')}</h2>
+            {/* Names what goes and what stays: the files stay. */}
+            <p>{t('teamTaskDeleteConfirmBody')}</p>
+            <div className="team-dialog-actions">
+              <Button
+                type="button"
+                variant="danger"
+                loading={deleting}
+                onClick={() => {
+                  setDeleting(true);
+                  void onDelete(task).finally(() => setDeleting(false));
+                }}
+              >
+                {t('teamTaskDelete')}
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => setConfirmingDelete(false)}>
+                {t('teamCancel')}
               </Button>
             </div>
           </div>

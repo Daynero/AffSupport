@@ -100,12 +100,14 @@ export function useMaterialActions(input: {
    * now go through the one mapper and the one channel.
    */
   const report = useCallback(
-    (action: TeamAnalyticsAction, code: string | null) => {
+    (action: TeamAnalyticsAction, code: string | null, successKey?: TranslationKey | null) => {
       if (code) {
         push({ tone: 'error', text: teamErrorMessage(code, t) });
         return;
       }
-      const success = SUCCESS_COPY[action];
+      // `null` means the caller is raising its own confirmation — the trash
+      // path does, because its toast carries the Undo.
+      const success = successKey === undefined ? SUCCESS_COPY[action] : successKey;
       if (success) push({ tone: 'success', text: t(success) });
     },
     [push, t]
@@ -135,7 +137,11 @@ export function useMaterialActions(input: {
    * around every call site.
    */
   const run = useCallback(
-    async (action: TeamAnalyticsAction, work: () => Promise<unknown>): Promise<string | null> => {
+    async (
+      action: TeamAnalyticsAction,
+      work: () => Promise<unknown>,
+      successKey?: TranslationKey | null
+    ): Promise<string | null> => {
       const attempt = beginAttempt(action);
       setBusy(true);
       setErrorCode(null);
@@ -143,7 +149,7 @@ export function useMaterialActions(input: {
         await work();
         if (attempt) completeTeamFileAttempt(attempt, { outcome: 'success', retryable: false });
         onChanged();
-        report(action, null);
+        report(action, null, successKey);
         return null;
       } catch (caught) {
         if (attempt) {
@@ -287,29 +293,49 @@ export function useMaterialActions(input: {
     [client, material.id, run, teamId]
   );
 
-  const trash = useCallback(
+  const restore = useCallback(
     () =>
-      run('trash', () =>
-        client.trashMaterial({
-          teamId,
-          materialId: material.id,
-          idempotencyKey: crypto.randomUUID()
-        })
+      run(
+        'trash',
+        () =>
+          client.restoreMaterial({
+            teamId,
+            materialId: material.id,
+            idempotencyKey: crypto.randomUUID()
+          }),
+        'teamToastRestored'
       ),
     [client, material.id, run, teamId]
   );
 
-  const restore = useCallback(
-    () =>
-      run('trash', () =>
-        client.restoreMaterial({
+  /**
+   * Trashing asks nothing and offers Undo instead.
+   *
+   * A confirmation before a reversible action is friction charged for nothing:
+   * it costs a click every time to prevent a mistake that costs one click to
+   * fix (FR-028). The undo is a fresh operation with its own idempotency key,
+   * and a race — the item already restored, or purged from Drive — surfaces as
+   * the operation's own mapped code rather than as silence.
+   */
+  const trash = useCallback(async () => {
+    const code = await run(
+      'trash',
+      () =>
+        client.trashMaterial({
           teamId,
           materialId: material.id,
           idempotencyKey: crypto.randomUUID()
-        })
-      ),
-    [client, material.id, run, teamId]
-  );
+        }),
+      null
+    );
+    if (code) return code;
+    push({
+      tone: 'success',
+      text: t('teamToastTrashed'),
+      action: { label: t('teamUndo'), run: () => void restore() }
+    });
+    return null;
+  }, [client, material.id, push, restore, run, t, teamId]);
 
   return {
     busy,

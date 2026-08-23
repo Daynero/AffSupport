@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render as renderRaw,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react';
 import { DEFAULT_ROLE_PERMISSIONS, type TeamTaskAttachmentSummary } from '@video-compressor/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
@@ -15,6 +22,24 @@ import {
 } from '../apps/web/src/team/tasks/TaskAttachmentTile';
 import { TaskEditor } from '../apps/web/src/team/tasks/TaskEditor';
 import { TaskSpace, type TaskSpaceClient } from '../apps/web/src/team/tasks/TaskSpace';
+import userEvent from '@testing-library/user-event';
+import { ToastProvider } from '../apps/web/src/components/toast';
+
+/**
+ * Task surfaces report their outcomes through the shared toast channel, so the
+ * provider is part of what they need rather than per-test scaffolding.
+ *
+ * `rerender` re-wraps too: handing it a bare element would change the tree's
+ * shape, unmounting the provider and remounting everything under it — which
+ * looks exactly like a component re-fetching when it should not have.
+ */
+const render = (ui: React.ReactElement) => {
+  const result = renderRaw(<ToastProvider>{ui}</ToastProvider>);
+  return {
+    ...result,
+    rerender: (next: React.ReactElement) => result.rerender(<ToastProvider>{next}</ToastProvider>)
+  };
+};
 
 const TEAM_ID = '31000000-0000-4000-8000-000000000001';
 const ASSET_ID = '31000000-0000-4000-8000-000000000002';
@@ -475,7 +500,7 @@ describe('Creative Library task workflows', () => {
     expect(roots[0].id).toBe('team-task-picker-root');
   });
 
-  it('creates a task from an asset reference and opens it immediately', async () => {
+  it('stages an asset into the create form and writes nothing until it is saved', async () => {
     localStorage.setItem('wishly.active-team.v1', TEAM_ID);
     const api = client();
     const team = {
@@ -513,11 +538,48 @@ describe('Creative Library task workflows', () => {
         />
       </TeamProvider>
     );
+    // The form opens prefilled, and nothing has been written yet: abandoning
+    // here used to leave a stray empty task behind (finding R1).
+    const title = await screen.findByLabelText('Title');
+    expect((title as HTMLInputElement).value).toContain('launch.mp4');
+    expect(screen.getByText('1 file will be attached when you save')).toBeTruthy();
+    expect(api.createTask).not.toHaveBeenCalled();
+
+    // The dialog's own submit, not the header button that opened it.
+    await userEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Create task' })
+    );
     await waitFor(() =>
       expect(api.createTask).toHaveBeenCalledWith(
         expect.objectContaining({ teamId: TEAM_ID, initialMaterialId: ASSET_ID })
       )
     );
     expect(await screen.findByRole('heading', { name: 'Task details' })).toBeTruthy();
+  });
+
+  it('leaves nothing behind when the create form is cancelled', async () => {
+    localStorage.setItem('wishly.active-team.v1', TEAM_ID);
+    const api = client();
+    const team = {
+      id: TEAM_ID,
+      name: 'Creative team',
+      role: 'editor' as const,
+      permissions: DEFAULT_ROLE_PERMISSIONS.editor,
+      connectionState: 'connected' as const
+    };
+    render(
+      <TeamProvider initialTeams={[team]} realtime={false}>
+        <TaskSpace teamId={TEAM_ID} client={api} />
+      </TeamProvider>
+    );
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Create task' }));
+    await userEvent.type(await screen.findByLabelText('Title'), 'Abandoned');
+    await userEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' })
+    );
+
+    expect(api.createTask).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByLabelText('Title')).toBeNull());
   });
 });
