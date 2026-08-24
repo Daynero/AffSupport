@@ -176,3 +176,47 @@ feels like one product to a person using it.
 
 The stack was stopped again (`npm run beta:down`, then `colima stop`) rather than left
 running, so nothing is holding the machine.
+
+## Agent API pass on the running beta stack (2026-08-24)
+
+Not part of T065 — the manual pass still needs a browser. This is what could be checked
+without one, against the beta agent on `127.0.0.1:43140`, built from `b3c372d` (the commit
+above) and reporting `environment: beta`, `apiVersion: 5`, `entitlement.entitled: true`,
+`ffmpeg`/`ffprobe` both ready.
+
+**Authentication holds.** Every `/api/*` route answers `401` unpaired. The pairing redirect
+at `/local` issues a 64-hex token in the fragment, and the same routes answer `200` with it.
+`/health` stays public, as the unauthenticated liveness probe it is meant to be.
+
+**Method surface is honest.** `GET` on `/api/entitlement`, `/api/landing/settings`,
+`/api/transcription/settings`, `/api/landing-preview/settings` and `/api/jobs/completed`
+returns `404`, not `405`-shaped confusion or an empty `200` — those are `POST`/`DELETE`
+routes, confirmed at source. Read routes that should answer do: `/api/health`,
+`/api/diagnostics`, `/api/landing/state`, `/api/landing-preview/state`,
+`/api/transcription/state`, `/api/media-actions`.
+
+**The multiplexed stream behaves as its own comment claims.** `/api/stream` carries six
+channels over one connection — `compressor`, `landing`, `landing-preview`, `power`, `team`,
+`transcription` — replacing the per-tool sockets whose disagreement about reachability the
+module was written to end. The legacy `/api/events` still answers `200` and still opens with
+a full `state` frame, so a client that does not see the `event-stream` capability is not
+stranded. SSE headers are correct, `X-Accel-Buffering: no` included.
+
+Its guards were exercised rather than assumed:
+
+| Request                                         | Result                                          |
+| ----------------------------------------------- | ----------------------------------------------- |
+| no `channels`                                   | all six — the documented default                |
+| `channels=power`                                | power only                                      |
+| `channels=power,team`                           | both                                            |
+| `channels=power&channels=team` (repeated param) | both — the array case the code calls out        |
+| `channels=%20,%20power%20,%20` (padding)        | power only                                      |
+| `channels=bogus`                                | **400**, not a silent fallback to every channel |
+| 17 names with a real one past the cap           | dropped — `MAX_CHANNELS` is 16 and holds        |
+| no token                                        | 401                                             |
+
+The `bogus` case is the one worth naming: a filter that finds nothing could plausibly have
+been read as "nothing asked for, so send everything", which is how a guard becomes a
+firehose. It refuses instead.
+
+Nothing here touched a destructive route — no cancel, remove, reset or delete was called.
