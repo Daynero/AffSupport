@@ -49,6 +49,7 @@ function renderPanel(overrides: Partial<PowerContextValue> = {}) {
     setLimit,
     watch,
     error: null,
+    limitApplied: true,
     ...overrides
   };
   render(
@@ -243,5 +244,33 @@ describe('the readout', () => {
   it('surfaces a limit that could not be applied', async () => {
     const dialog = await openWith({ error: 'POWER_PERSIST_FAILED' });
     expect(dialog.textContent).toMatch(/could not apply/i);
+  });
+});
+
+describe('a limit that could not be applied', () => {
+  async function openPanel(overrides: Partial<PowerContextValue>) {
+    const user = userEvent.setup();
+    renderPanel(overrides);
+    await user.click(screen.getByRole('button', { name: /power limit/i }));
+  }
+
+  it('says the value is held rather than in force', async () => {
+    // D9. The lever moves the instant it is dragged, which is right while an
+    // agent is there to accept the value and misleading when there is not: the
+    // panel would otherwise show a number nothing is honouring.
+    await openPanel({ limitApplied: false, limitPercent: 40 });
+    expect(screen.getByText(/not in force|не діє/iu)).toBeTruthy();
+  });
+
+  it('says nothing of the kind once the limit is in force', async () => {
+    await openPanel({ limitApplied: true, limitPercent: 40 });
+    expect(screen.queryByText(/not in force|не діє/iu)).toBeNull();
+  });
+
+  it('lets a real failure speak instead of the held note', async () => {
+    // Both at once would be two explanations for one thing; a failed attempt is
+    // the more specific claim and wins.
+    await openPanel({ limitApplied: false, error: 'POWER_LIMIT_FAILED', limitPercent: 40 });
+    expect(screen.queryByText(/not in force|не діє/iu)).toBeNull();
   });
 });

@@ -296,3 +296,57 @@ describe('cpu time parsing', () => {
     for (const value of ['', undefined, 'nope', 'a:b']) expect(parseCpuTime(value)).toBeNull();
   });
 });
+
+describe('the readout returns to idle after the work stops', () => {
+  /**
+   * FR-012. The number the user watches has to come down within ten seconds of
+   * the last work ending, or a finished run looks like one still burning the
+   * machine — and the natural instinct is then to stop something that already
+   * stopped.
+   *
+   * The share is a difference between two readings, so what is asserted here is
+   * that a tool which accrued CPU and then stopped accruing it reads as idle on
+   * the next tick, rather than carrying its last busy figure forward.
+   */
+
+  it('falls to the idle bound on the first reading after work ends', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-20T09:00:00.000Z'));
+    // Ten seconds of CPU across one second of wall clock on a ten-core machine
+    // is the whole machine; then the counter stops moving, because the work
+    // ended.
+    const { sampler, governor } = samplerWith({ cpuSeconds: [0, 10, 10] });
+
+    await sampler.sample();
+    vi.setSystemTime(new Date('2026-08-20T09:00:01.000Z'));
+    await sampler.sample();
+    const busy = governor.state().sample;
+    expect(busy.availability).toBe('ok');
+    if (busy.availability === 'ok') expect(busy.systemSharePercent).toBeGreaterThan(50);
+
+    // One second later — well inside the ten the requirement allows.
+    vi.setSystemTime(new Date('2026-08-20T09:00:02.000Z'));
+    await sampler.sample();
+    const settled = governor.state().sample;
+    expect(settled.availability).toBe('ok');
+    if (settled.availability === 'ok') expect(settled.systemSharePercent).toBeLessThanOrEqual(2);
+  });
+
+  it('does not hold a stale busy figure across a gap in sampling', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-20T09:00:00.000Z'));
+    const { sampler, governor } = samplerWith({ cpuSeconds: [0, 10, 10] });
+
+    await sampler.sample();
+    vi.setSystemTime(new Date('2026-08-20T09:00:01.000Z'));
+    await sampler.sample();
+
+    // A ten-second gap with no CPU accrued: the longest the requirement
+    // tolerates, and the case where averaging over a stale window would keep
+    // the readout high.
+    vi.setSystemTime(new Date('2026-08-20T09:00:11.000Z'));
+    await sampler.sample();
+    const settled = governor.state().sample;
+    if (settled.availability === 'ok') expect(settled.systemSharePercent).toBeLessThanOrEqual(2);
+  });
+});

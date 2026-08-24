@@ -13070,6 +13070,15 @@ button.team-landing-tile:hover {
   text-align: center;
 }
 
+/* The held-but-not-in-force note. Muted rather than dangerous: nothing has
+   failed, the value simply has nowhere to apply yet. */
+.power-panel__pending {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-muted, #6b7280);
+  text-align: center;
+}
+
 /* A quiet vertical rail with a precise thumb. The 44px hit area stays generous
    while the visible control remains light and avoids edge-overlap artefacts. */
 .power-lever {

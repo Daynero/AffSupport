@@ -53,8 +53,17 @@ const RENDER_PIPELINE_VERSION = 'v2-segmented';
 const MAX_VISIBLE_WARNINGS = 8;
 const MAX_TEAM_PREVIEW_SEGMENTS = 64;
 const MAX_TEAM_PREVIEW_BYTES = 32 * 1024 * 1024;
-/** How many landings render at once. Kept low to bound Chromium memory. */
-const RENDER_CONCURRENCY = Math.min(4, Math.max(1, availableParallelism() - 2));
+/**
+ * The ceiling on how many landings render at once. Kept low to bound Chromium
+ * memory; the floor is one, so work always progresses.
+ *
+ * The actual number in use is derived per attempt from the live thread budget —
+ * see `renderSlots`. A power limit that did not reduce parallelism here was the
+ * clearest way for the lever to under-deliver: each render is a Chromium, and
+ * four of them throttled to a third of a core each is both slower and hotter
+ * than one of them given a whole core (A7).
+ */
+const MAX_RENDER_CONCURRENCY = Math.min(4, Math.max(1, availableParallelism() - 2));
 
 export const DEVICE_VIEWPORTS: Record<
   LandingPreviewRenderSettings['device'],
@@ -144,14 +153,42 @@ export class LandingPreviewCatalog {
   private running = false;
   private error: string | null = null;
   private settings: LandingPreviewRenderSettings = { ...DEFAULT_SETTINGS };
+  private readonly threadBudget: () => number | null;
 
   constructor(
-    options: { root?: string; renderer?: LandingRenderer; fetchImpl?: typeof fetch } = {}
+    options: {
+      root?: string;
+      renderer?: LandingRenderer;
+      fetchImpl?: typeof fetch;
+      /**
+       * The governor's live thread budget, or null while unrestricted.
+       *
+       * A function rather than a number so it is read at the moment it matters,
+       * which is what lets a limit lowered mid-run reach work already in
+       * flight. Injected rather than imported so this module keeps no opinion
+       * about where the budget comes from, and tests can drive it directly.
+       */
+      threadBudget?: () => number | null;
+    } = {}
   ) {
     this.root = options.root ?? path.join(applicationSupportRoot(), 'LandingPreviews');
     this.statePath = path.join(this.root, 'state.json');
     this.renderer = options.renderer ?? new LandingPageRenderer();
     this.fetchImpl = options.fetchImpl ?? fetch;
+    this.threadBudget = options.threadBudget ?? (() => null);
+  }
+
+  /**
+   * How many renders may run right now.
+   *
+   * Never zero — a budget that rounds to nothing would stall the queue rather
+   * than slow it — and never above the memory ceiling, however many threads the
+   * machine has.
+   */
+  private renderSlots(): number {
+    const budget = this.threadBudget();
+    if (budget === null) return MAX_RENDER_CONCURRENCY;
+    return Math.max(1, Math.min(MAX_RENDER_CONCURRENCY, budget));
   }
 
   setNotify(notify: (type?: LandingPreviewEventType) => void) {
@@ -586,22 +623,34 @@ export class LandingPreviewCatalog {
   private async renderQueue(catalog: StoredCatalog, queued: StoredLanding[], signal: AbortSignal) {
     let cursor = 0;
     const takeNext = () => (cursor < queued.length ? queued[cursor++] : null);
-    const worker = async () => {
-      for (let landing = takeNext(); landing; landing = takeNext()) {
+    // Each worker owns a slot number and re-checks it before taking more work,
+    // so lowering the limit retires the highest slots without interrupting the
+    // render already in that slot — a half-captured page would have to be
+    // redone, which costs more than letting it finish.
+    const worker = async (slot: number) => {
+      for (;;) {
+        if (slot >= this.renderSlots()) return;
+        const landing = takeNext();
+        if (!landing) return;
         throwIfAborted(signal);
         await this.renderOne(catalog, landing, signal);
       }
     };
-    const workers = Array.from({ length: Math.min(RENDER_CONCURRENCY, queued.length) }, () =>
-      worker()
-    );
-    const results = await Promise.allSettled(workers);
-    // Wait for every worker to unwind (cancellation, failures) before surfacing.
-    throwIfAborted(signal);
-    const failure = results.find(
-      (result): result is PromiseRejectedResult => result.status === 'rejected'
-    );
-    if (failure) throw failure.reason;
+    // Raising the limit mid-run must also be honoured, and a retired worker
+    // cannot un-retire itself; the pool is simply refilled while work remains.
+    // `cursor` is never rewound, so no landing renders twice.
+    while (cursor < queued.length) {
+      const width = Math.min(this.renderSlots(), queued.length - cursor);
+      const results = await Promise.allSettled(
+        Array.from({ length: width }, (_unused, slot) => worker(slot))
+      );
+      // Wait for every worker to unwind (cancellation, failures) before surfacing.
+      throwIfAborted(signal);
+      const failure = results.find(
+        (result): result is PromiseRejectedResult => result.status === 'rejected'
+      );
+      if (failure) throw failure.reason;
+    }
   }
 
   private async renderOne(catalog: StoredCatalog, landing: StoredLanding, signal: AbortSignal) {

@@ -47,6 +47,16 @@ export interface PowerContextValue {
   watch: () => () => void;
   /** Set when the last attempt to apply a limit failed. */
   error: string | null;
+  /**
+   * False while the displayed limit is not the one in force.
+   *
+   * The lever moves the moment it is dragged, because a control that waits for
+   * the network does not feel like one. That optimism is only honest while the
+   * agent is there to accept the value; with no agent reachable the same
+   * behaviour shows a number that nothing is honouring (D9). The lever says so
+   * rather than pretending.
+   */
+  limitApplied: boolean;
 }
 
 const PowerContext = createContext<PowerContextValue | null>(null);
@@ -65,6 +75,8 @@ export function PowerProvider({ children }: { children: ReactNode }) {
   const [pending, setPending] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [watchers, setWatchers] = useState(0);
+  /** True once a choice was made that no agent was there to accept. */
+  const [unapplied, setUnapplied] = useState(false);
 
   const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const desired = useRef<number | null>(null);
@@ -80,6 +92,7 @@ export function PowerProvider({ children }: { children: ReactNode }) {
       setState(next);
       setStatus('ready');
       setError(null);
+      setUnapplied(false);
       // The response is authoritative: a clamped value corrects the lever here
       // rather than leaving it pointing at a limit that is not in force.
       setPending(current => (current === percent ? null : current));
@@ -100,8 +113,10 @@ export function PowerProvider({ children }: { children: ReactNode }) {
 
       if (!connected || !supported) {
         // Keep it rather than dropping it — the user made a choice and expects
-        // it to hold once the agent comes back.
+        // it to hold once the agent comes back — but say that it is being held
+        // rather than applied.
         deferred.current = clamped;
+        setUnapplied(true);
         return;
       }
       if (commitTimer.current) clearTimeout(commitTimer.current);
@@ -132,7 +147,10 @@ export function PowerProvider({ children }: { children: ReactNode }) {
         setStatus('ready');
         const held = deferred.current;
         deferred.current = null;
+        // A held value is still unapplied until its own commit lands; one that
+        // matches what the agent already reports never needed applying.
         if (held !== null && held !== next.limitPercent) void commit(held);
+        else setUnapplied(false);
       })
       .catch(() => {
         if (active) setStatus('error');
@@ -181,9 +199,10 @@ export function PowerProvider({ children }: { children: ReactNode }) {
       limitPercent: pending ?? state?.limitPercent ?? deferred.current ?? DEFAULT_POWER_LIMIT,
       setLimit,
       watch,
-      error
+      error,
+      limitApplied: !unapplied
     }),
-    [error, pending, setLimit, state, status, watch]
+    [error, pending, setLimit, state, status, unapplied, watch]
   );
 
   return <PowerContext.Provider value={value}>{children}</PowerContext.Provider>;

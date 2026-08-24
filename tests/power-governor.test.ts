@@ -349,3 +349,76 @@ describe('persistence coupling', () => {
     expect(persist).not.toHaveBeenCalled();
   });
 });
+
+describe('the termination pin ages on the wall clock', () => {
+  /**
+   * A6. The pin used to be counted in duty periods, ticked by the cycler. The
+   * cycler stops for exactly the reasons that leave a pin outstanding — the
+   * limit going back to unrestricted, the last other child ending — so a pin
+   * could stop ageing at the moment nothing was left to age it, and a child
+   * that survived its own kill stayed exempt from the limit for the session.
+   *
+   * The two clocks here are separate on purpose: vitest's fake timers drive the
+   * cycler, and the injected `now` drives the pin. Advancing one without the
+   * other is precisely the situation the counter could not represent.
+   */
+
+  function clock(start = 1_000_000) {
+    let at = start;
+    return {
+      now: () => at,
+      advance: (ms: number) => {
+        at += ms;
+      }
+    };
+  }
+
+  it('lapses across a stretch when the cycler was not running', async () => {
+    vi.useFakeTimers();
+    const time = clock();
+    const power = governor({ now: time.now });
+    const { child, signals } = fakeChild();
+    power.register(child, { toolId: 'compressor' });
+    await power.setLimit(40);
+
+    power.resumeForTermination(child);
+    vi.advanceTimersByTime(600);
+    time.advance(600);
+    // Pinned: a tool being terminated must be left running so SIGTERM reaches
+    // it and it can finalize its output.
+    expect(signals).not.toContain('SIGSTOP');
+
+    // The lever goes back to unrestricted, which stops the cycler. Wall time
+    // passes; no duty period does. A pin counted in periods would not age at
+    // all here.
+    await power.setLimit(POWER_LIMIT_MAX);
+    time.advance(11_000);
+    await power.setLimit(40);
+
+    signals.length = 0;
+    vi.advanceTimersByTime(600);
+    // The child outlived the signal meant to end it, so it is back under the
+    // limit rather than exempt for the rest of the session.
+    expect(signals).toContain('SIGSTOP');
+  });
+
+  it('still holds inside the window', async () => {
+    vi.useFakeTimers();
+    const time = clock();
+    const power = governor({ now: time.now });
+    const { child, signals } = fakeChild();
+    power.register(child, { toolId: 'compressor' });
+    await power.setLimit(40);
+
+    power.resumeForTermination(child);
+    await power.setLimit(POWER_LIMIT_MAX);
+    time.advance(2_000);
+    await power.setLimit(40);
+
+    signals.length = 0;
+    vi.advanceTimersByTime(600);
+    // Two seconds is inside the escalation window; stopping the child here is
+    // the bug the pin exists to prevent.
+    expect(signals).not.toContain('SIGSTOP');
+  });
+});

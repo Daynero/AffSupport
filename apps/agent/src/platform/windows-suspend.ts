@@ -75,6 +75,16 @@ export interface WindowsSuspendHelperOptions {
   /** Injectable for tests; defaults to spawning the real PowerShell helper. */
   spawnHelper?: () => ChildProcess;
   onError?: (error: unknown, message: string) => void;
+  /**
+   * Called once, at the moment the helper is given up on for the session.
+   *
+   * Separate from `onError`, which fires for every failed start: this one says
+   * the capability itself is gone, which is a different claim and the only one
+   * the interface needs to hear. Announced from here rather than inferred by a
+   * caller polling `disabled()`, so the moment it changes is the moment it is
+   * reported.
+   */
+  onDisabled?: () => void;
   /** Injectable clock, so tests can age a helper without waiting. */
   now?: () => number;
 }
@@ -83,6 +93,7 @@ export class WindowsSuspendHelper {
   private helper: ChildProcess | null = null;
   private readonly spawnHelper: () => ChildProcess;
   private readonly onError: (error: unknown, message: string) => void;
+  private readonly onDisabled: () => void;
   private readonly now: () => number;
   private stopped = false;
   private failedStarts = 0;
@@ -91,6 +102,7 @@ export class WindowsSuspendHelper {
 
   constructor(options: WindowsSuspendHelperOptions = {}) {
     this.onError = options.onError ?? (() => {});
+    this.onDisabled = options.onDisabled ?? (() => {});
     this.now = options.now ?? (() => Date.now());
     this.spawnHelper =
       options.spawnHelper ??
@@ -223,6 +235,10 @@ export class WindowsSuspendHelper {
    */
   private noteFailedStart(error?: unknown): void {
     this.failedStarts += 1;
+    // Exactly at the threshold, never past it: `disabled()` stays true for
+    // every later failure, and a listener that heard "the capability is gone"
+    // three times would have to dedupe what this can simply not repeat.
+    const justDisabled = this.failedStarts === MAX_FAILED_STARTS;
     const detail = this.lastStderr ? `: ${this.lastStderr}` : '';
     this.onError(
       error ?? new Error(`The Windows suspend helper exited on start${detail}`),
@@ -230,5 +246,6 @@ export class WindowsSuspendHelper {
         ? 'The Windows suspend helper could not start; the power limit will apply at spawn time only'
         : 'The Windows suspend helper could not start; it will be retried'
     );
+    if (justDisabled) this.onDisabled();
   }
 }

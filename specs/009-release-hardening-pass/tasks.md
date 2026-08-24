@@ -182,22 +182,22 @@ These four close holes confirmed by **probing a running local app**, not inferre
 
 ### Tests for User Story 2
 
-- [ ] T081 [P] [US2] Create `tests/power-shared-budget.test.ts` asserting the 60-second average and 10-second worst-stretch bounds across tool combinations via the machine probe (SC-004, FR-010)
-- [ ] T082 [P] [US2] Add cases to `tests/power-windows-suspend.test.ts` asserting that once the suspend helper gives up, the reported support flag turns false and reaches the interface (A1, FR-011)
-- [ ] T083 [P] [US2] Add a case to `tests/power-governor.test.ts` asserting the termination pin ages out on wall clock even when the duty cycler is stopped (A6)
-- [ ] T084 [P] [US2] Create `tests/landing-preview-concurrency.test.ts` asserting the render slot count falls when the limit is lowered, including for work already running (A7, FR-012a)
-- [ ] T085 [P] [US2] Add a case to `tests/power-sampler.test.ts` asserting the reported share reaches the idle threshold within 10 seconds of the last work ending (FR-012)
-- [ ] T086 [P] [US2] Add a case to `tests/real-media-e2e.test.ts` asserting output equivalence between a throttled and an unthrottled run by decoded content, duration and dimensions — explicitly not by bytes
+- [X] T081 [P] [US2] Create `tests/power-shared-budget.test.ts` asserting the 60-second average and 10-second worst-stretch bounds across tool combinations via the machine probe (SC-004, FR-010)
+- [X] T082 [P] [US2] Add cases to `tests/power-windows-suspend.test.ts` asserting that once the suspend helper gives up, the reported support flag turns false and reaches the interface (A1, FR-011)
+- [X] T083 [P] [US2] Add a case to `tests/power-governor.test.ts` asserting the termination pin ages out on wall clock even when the duty cycler is stopped (A6)
+- [X] T084 [P] [US2] Create `tests/landing-preview-concurrency.test.ts` asserting the render slot count falls when the limit is lowered, including for work already running (A7, FR-012a)
+- [X] T085 [P] [US2] Add a case to `tests/power-sampler.test.ts` asserting the reported share reaches the idle threshold within 10 seconds of the last work ending (FR-012)
+- [X] T086 [P] [US2] Add a case to `tests/real-media-e2e.test.ts` asserting output equivalence between a throttled and an unthrottled run by decoded content, duration and dimensions — explicitly not by bytes
 
 ### Implementation for User Story 2
 
-- [ ] T087 [US2] Pass an error listener when constructing the suspend helper in `apps/agent/src/platform/platform.ts` and export a subscription for its permanent-failure signal
-- [ ] T088 [US2] Make `processPauseSupported()` in `apps/agent/src/platform/platform.ts` a live read of the helper's disabled state rather than a static per-platform constant
-- [ ] T089 [US2] Make the support flag in `apps/agent/src/power/governor.ts` mutable, driven by that subscription, and broadcast the change through the existing state channel so the already-built unsupported interface state becomes reachable (A1)
-- [ ] T090 [US2] Age the termination pin on wall clock in `apps/agent/src/power/governor.ts`, evaluating it in the retune and set-limit paths as well, so it survives a stopped cycler (A6)
-- [ ] T091 [US2] Derive the render slot count from the live thread budget in `apps/agent/src/landing-preview/catalog.ts` and re-evaluate it on the governor's change event (A7, FR-012a)
-- [ ] T092 [P] [US2] Show a pending-not-applied affordance on the lever in `apps/web/src/lib/power.tsx` when a limit change could not reach the local app, instead of displaying a limit that is not in force (D9)
-- [ ] T093 [P] [US2] Subscribe the consumption channel only while the power panel is watching in `apps/web/src/lib/power.tsx`, now that channels are multiplexed, so sampling does not run permanently
+- [X] T087 [US2] Pass an error listener when constructing the suspend helper in `apps/agent/src/platform/platform.ts` and export a subscription for its permanent-failure signal
+- [X] T088 [US2] Make `processPauseSupported()` in `apps/agent/src/platform/platform.ts` a live read of the helper's disabled state rather than a static per-platform constant
+- [X] T089 [US2] Make the support flag in `apps/agent/src/power/governor.ts` mutable, driven by that subscription, and broadcast the change through the existing state channel so the already-built unsupported interface state becomes reachable (A1)
+- [X] T090 [US2] Age the termination pin on wall clock in `apps/agent/src/power/governor.ts`, evaluating it in the retune and set-limit paths as well, so it survives a stopped cycler (A6)
+- [X] T091 [US2] Derive the render slot count from the live thread budget in `apps/agent/src/landing-preview/catalog.ts` and re-evaluate it on the governor's change event (A7, FR-012a)
+- [X] T092 [P] [US2] Show a pending-not-applied affordance on the lever in `apps/web/src/lib/power.tsx` when a limit change could not reach the local app, instead of displaying a limit that is not in force (D9)
+- [X] T093 [P] [US2] Subscribe the consumption channel only while the power panel is watching in `apps/web/src/lib/power.tsx`, now that channels are multiplexed, so sampling does not run permanently
 
 **Checkpoint**: The lever is one shared budget, it affects running work, it reduces parallelism where a user would expect it to, and it tells the truth when it cannot be enforced.
 

@@ -267,9 +267,54 @@ export async function unzipArchive(zipPath: string, destination: string): Promis
   }
 }
 
-/** True when the platform can suspend/resume a child process (POSIX signals). */
-export function processPauseSupported(): boolean {
+/**
+ * True when the platform *has* the mechanism, whether or not it still works.
+ *
+ * The gate for resuming, which must keep trying whatever the helper's history:
+ * suspension on Windows outlives the process that asked for it, so refusing a
+ * resume because the helper has been given up on would strand whatever is
+ * already frozen for the rest of the session.
+ */
+function platformCanPause(): boolean {
   return capabilities().processPause;
+}
+
+/**
+ * True when the platform can suspend a child process *right now*.
+ *
+ * A live read, not a per-platform constant. On Windows the mechanism is a
+ * helper process, and a helper that has given up on starting takes the
+ * capability with it — the throttle degrades to spawn-time limits. Reporting
+ * the constant instead is how the interface ends up showing a lever that does
+ * nothing (A1).
+ */
+export function processPauseSupported(): boolean {
+  if (!platformCanPause()) return false;
+  return !(process.platform === 'win32' && windowsSuspend?.disabled() === true);
+}
+
+/** Listeners for the moment the capability is lost, so the change can be broadcast. */
+const pauseSupportListeners = new Set<() => void>();
+
+/**
+ * Subscribes to changes in `processPauseSupported()`. Returns an unsubscribe.
+ *
+ * Only the loss is announced today, because that is the only transition the
+ * helper can make on its own: it gives up for the session and does not come
+ * back. Callers should re-read `processPauseSupported()` rather than assume a
+ * direction, so a future recovery needs no change here.
+ */
+export function onProcessPauseSupportChange(listener: () => void): () => void {
+  pauseSupportListeners.add(listener);
+  return () => {
+    pauseSupportListeners.delete(listener);
+  };
+}
+
+function announcePauseSupportChange(): void {
+  // Copied before iterating: a listener that unsubscribes itself while being
+  // called would otherwise mutate the set mid-walk.
+  for (const listener of [...pauseSupportListeners]) listener();
 }
 
 /**
@@ -279,13 +324,18 @@ export function processPauseSupported(): boolean {
 let windowsSuspend: WindowsSuspendHelper | null = null;
 
 function windowsSuspendHelper(): WindowsSuspendHelper {
-  windowsSuspend ??= new WindowsSuspendHelper();
+  windowsSuspend ??= new WindowsSuspendHelper({ onDisabled: announcePauseSupportChange });
   return windowsSuspend;
 }
 
 /** Injectable for tests, which must never spawn a real PowerShell. */
 export function setWindowsSuspendHelper(helper: WindowsSuspendHelper | null): void {
   windowsSuspend = helper;
+  // Swapping the helper can change the answer `processPauseSupported()` gives,
+  // so it is a support change like any other. An injected helper reports its
+  // own later give-up only if the caller wired `onDisabled`; the live read
+  // above covers it regardless.
+  announcePauseSupportChange();
 }
 
 /** Tears down the resident helper, if one was ever started. */
@@ -318,7 +368,7 @@ export function pauseProcess(child: ChildProcess): boolean {
 
 /** Resumes a process previously paused with pauseProcess. */
 export function resumeProcess(child: ChildProcess): boolean {
-  if (!processPauseSupported()) return false;
+  if (!platformCanPause()) return false;
   try {
     if (process.platform === 'win32')
       return typeof child.pid === 'number' && windowsSuspendHelper().resume(child.pid);
@@ -352,7 +402,7 @@ export function pauseProcessId(pid: number): boolean {
 
 /** Resumes a process previously paused with `pauseProcessId`. */
 export function resumeProcessId(pid: number): boolean {
-  if (!processPauseSupported() || !Number.isInteger(pid) || pid <= 0) return false;
+  if (!platformCanPause() || !Number.isInteger(pid) || pid <= 0) return false;
   try {
     if (process.platform === 'win32') return windowsSuspendHelper().resume(pid);
     process.kill(pid, 'SIGCONT');

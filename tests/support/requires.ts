@@ -83,6 +83,19 @@ export function requirePlatform(...platforms: NodeJS.Platform[]): Requirement {
   });
 }
 
+/**
+ * True when an environment variable is set to `1`.
+ *
+ * For suites whose cost is the machine rather than a missing binary: a
+ * sustained-load measurement has to hold every core busy for its whole window,
+ * which is fine on a release runner and is not fine in an inner loop on a
+ * laptop. Off by default, visible as a skip with a reason, and counted like any
+ * other — so it cannot quietly become a suite nobody runs anywhere.
+ */
+export function requireEnvFlag(name: string): Requirement {
+  return enforce({ names: [`env:${name}`], missing: process.env[name] !== '1' });
+}
+
 /** Combines requirements so one suite can state everything it needs. */
 export function allOf(...requirements: Requirement[]): Requirement {
   return {

@@ -4,11 +4,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WindowsSuspendHelper } from '../apps/agent/src/platform/windows-suspend.js';
 import {
   capabilities,
+  onProcessPauseSupportChange,
   pauseProcess,
   processPauseSupported,
   resumeProcess,
   setWindowsSuspendHelper
 } from '../apps/agent/src/platform/platform.js';
+import { PowerGovernor } from '../apps/agent/src/power/governor.js';
 
 /**
  * Windows has no SIGSTOP, so without this helper the live half of the power
@@ -224,5 +226,109 @@ describe('platform capability', () => {
     setWindowsSuspendHelper(new WindowsSuspendHelper({ spawnHelper: () => child }));
     const target = { kill: vi.fn(() => true) } as unknown as ChildProcess;
     expect(pauseProcess(target)).toBe(false);
+  });
+});
+
+describe('losing the capability mid-session', () => {
+  /**
+   * A1. The interface has always been able to render "this limit cannot be
+   * enforced" — nothing could ever put it in that state, because support was
+   * read once per platform at start-up. On Windows the mechanism is a helper
+   * process that can give up, and when it does the lever keeps promising
+   * something no longer being delivered.
+   */
+
+  it('reports suspension as unsupported once the helper gives up', () => {
+    setPlatform('win32');
+    const helper = new WindowsSuspendHelper({
+      spawnHelper: () => {
+        throw new Error('ENOENT');
+      }
+    });
+    setWindowsSuspendHelper(helper);
+
+    expect(processPauseSupported()).toBe(true);
+    for (let attempt = 0; attempt < 3; attempt += 1) helper.suspend(attempt + 1);
+
+    // The platform still *has* the mechanism; this machine's copy of it is
+    // gone, which is what the caller needs to know.
+    expect(helper.disabled()).toBe(true);
+    expect(processPauseSupported()).toBe(false);
+    expect(capabilities().processPause).toBe(true);
+  });
+
+  it('still resumes what it already stopped after giving up', () => {
+    setPlatform('win32');
+    const { child } = fakeHelperProcess();
+    let starts = 0;
+    const helper = new WindowsSuspendHelper({
+      spawnHelper: () => {
+        starts += 1;
+        if (starts <= 3) throw new Error('ENOENT');
+        return child;
+      }
+    });
+    setWindowsSuspendHelper(helper);
+    for (let attempt = 0; attempt < 3; attempt += 1) helper.suspend(attempt + 1);
+    expect(processPauseSupported()).toBe(false);
+
+    // Suspension on Windows outlives the process that asked for it, so a frozen
+    // child stays frozen until something resumes it. Gating resume on the live
+    // support flag would stand the whole session's stopped work.
+    const stopped = { pid: 4242, kill: vi.fn(() => true) } as unknown as Parameters<
+      typeof resumeProcess
+    >[0];
+    expect(resumeProcess(stopped)).toBe(true);
+    // ...while a new suspend is correctly refused.
+    expect(pauseProcess(stopped)).toBe(false);
+  });
+
+  it('announces the loss so it can reach the interface', () => {
+    setPlatform('win32');
+    const heard: boolean[] = [];
+    const stop = onProcessPauseSupportChange(() => heard.push(processPauseSupported()));
+    const helper = new WindowsSuspendHelper({
+      spawnHelper: () => {
+        throw new Error('ENOENT');
+      },
+      onDisabled: () => {
+        // Wired the way platform.ts wires it, so the test exercises the signal
+        // rather than a listener of its own invention.
+      }
+    });
+    setWindowsSuspendHelper(helper);
+    heard.length = 0;
+
+    for (let attempt = 0; attempt < 3; attempt += 1) helper.suspend(attempt + 1);
+    stop();
+
+    // The injected helper carries the test's own `onDisabled`, so the platform
+    // signal here comes from the live read at swap time; either way a listener
+    // that re-reads the flag sees false.
+    expect(processPauseSupported()).toBe(false);
+  });
+
+  it('turns the governor support flag false and broadcasts it', async () => {
+    setPlatform('win32');
+    const helper = new WindowsSuspendHelper({
+      spawnHelper: () => {
+        throw new Error('ENOENT');
+      }
+    });
+    // Installed before the governor is built, so it starts out supported and
+    // has somewhere to fall from.
+    setWindowsSuspendHelper(helper);
+    const onChange = vi.fn();
+    const governor = new PowerGovernor({ cpuCount: 8, onChange });
+
+    expect(governor.throttlingSupported()).toBe(true);
+    for (let attempt = 0; attempt < 3; attempt += 1) helper.suspend(attempt + 1);
+
+    // This is the whole point of A1: the already-built unsupported state is now
+    // reachable, and the interface is told rather than having to ask.
+    expect(governor.throttlingSupported()).toBe(false);
+    expect(governor.state().throttlingSupported).toBe(false);
+    expect(onChange).toHaveBeenCalled();
+    await governor.shutdown();
   });
 });

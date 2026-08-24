@@ -37,7 +37,7 @@ import {
 import { PowerGovernor } from './power/governor.js';
 import { loadPowerState, savePowerLimit } from './power/store.js';
 import { PowerSampler } from './power/sampler.js';
-import { setActiveGovernor } from './power/spawn.js';
+import { activeThreadBudget, setActiveGovernor } from './power/spawn.js';
 import { buildServer } from './server/app.js';
 import { hasCapability } from './server/capabilities.js';
 import { resolveSessionToken } from './server/session-token.js';
@@ -112,7 +112,12 @@ const landingOptimizer = new LandingOptimizer(tools, (type: LandingEventType = '
 );
 landingEvents.publishOn(channelHub, 'landing');
 
-const landingPreviewCatalog = new LandingPreviewCatalog();
+const landingPreviewCatalog = new LandingPreviewCatalog({
+  // Read through the process-wide governor rather than captured here: the
+  // governor is constructed further down, and the budget has to be the live one
+  // anyway so a limit lowered mid-render reaches the pool (A7).
+  threadBudget: activeThreadBudget
+});
 await landingPreviewCatalog.init();
 const landingPreviewEvents = new EventChannel<LandingPreviewEvent>(allowedOrigins, () => ({
   type: 'landing-preview:state',

@@ -9,6 +9,7 @@ import {
   type PowerState
 } from '@video-compressor/shared';
 import {
+  onProcessPauseSupportChange,
   pauseProcess,
   pauseProcessId,
   processPauseSupported,
@@ -79,8 +80,15 @@ const TREE_REFRESH_MS = 3_000;
  * SIGTERM handled, the signal lost, an encode still flushing — would otherwise
  * be exempt from the limit for the rest of the session, and the user would see
  * a lever that had quietly stopped applying.
+ *
+ * Measured on the wall clock rather than in duty periods (A6). Counting ticks
+ * made the pin's lifetime depend on the cycler still running, and the cycler
+ * stops for exactly the reasons that leave a pin outstanding — the limit
+ * returning to unrestricted, the last other child ending, suspension becoming
+ * unsupported. A pin that only ages while something else is happening does not
+ * expire at all when nothing is.
  */
-const TERMINATION_PIN_CYCLES = 50;
+const TERMINATION_PIN_MS = 10_000;
 
 /** How often the wake probe checks the wall clock while anything is managed. */
 const WAKE_PROBE_MS = 5_000;
@@ -129,8 +137,8 @@ interface ManagedChild {
   holds: Set<symbol>;
   /** Pinned resumed for a termination in progress; the cycler leaves it alone. */
   terminating: boolean;
-  /** Duty periods the pin has survived, so it can age out. */
-  terminationPinCycles: number;
+  /** When the termination pin lapses, in wall-clock milliseconds. */
+  terminationPinUntil: number;
   live: boolean;
 }
 
@@ -153,8 +161,16 @@ export interface CpuBudget {
 export interface PowerGovernorOptions {
   /** Injectable for tests; defaults to the real core count. */
   cpuCount?: number;
-  /** Injectable for tests; defaults to the platform capability. */
+  /**
+   * Injectable for tests; defaults to a live read of the platform capability.
+   *
+   * Supplying it pins the answer: a test that says `false` means `false`, and
+   * the subscription below is not wired. Leaving it out is the production
+   * path, where the capability can be lost mid-session (A1).
+   */
   pauseSupported?: boolean;
+  /** Injectable clock, so tests can age a termination pin without waiting. */
+  now?: () => number;
   /** Injectable for tests, which must never read the real process table. */
   probeProcessTable?: () => Promise<ProcessTableRow[]>;
   /** Injectable for tests; the real signals, keyed by PID, for descendants. */
@@ -177,7 +193,11 @@ export class PowerGovernor {
   private updatedAt = new Date(0).toISOString();
   private readonly children = new Map<number, ManagedChild>();
   private readonly cpuCount: number;
-  private readonly pauseSupported: boolean;
+  private pauseSupported: boolean;
+  /** Unset when the caller pinned the value, so nothing overrides a test's answer. */
+  private readonly pauseSupportIsLive: boolean;
+  private unsubscribePauseSupport: (() => void) | null = null;
+  private readonly now: () => number;
   private readonly busy: () => boolean;
   private readonly onError: (error: unknown, message: string) => void;
   private onChange: (() => void) | null;
@@ -197,7 +217,17 @@ export class PowerGovernor {
 
   constructor(options: PowerGovernorOptions = {}) {
     this.cpuCount = Math.max(1, options.cpuCount ?? os.cpus().length);
+    this.pauseSupportIsLive = options.pauseSupported === undefined;
     this.pauseSupported = options.pauseSupported ?? processPauseSupported();
+    this.now = options.now ?? (() => Date.now());
+    if (this.pauseSupportIsLive) {
+      // The interface already knows how to render an unenforceable limit; what
+      // was missing is anything that ever set the flag to false after start-up,
+      // which is why that state was unreachable (A1).
+      this.unsubscribePauseSupport = onProcessPauseSupportChange(() => {
+        this.refreshPauseSupport();
+      });
+    }
     this.busy = options.busy ?? (() => false);
     this.onError = options.onError ?? (() => {});
     this.onChange = options.onChange ?? null;
@@ -277,7 +307,32 @@ export class PowerGovernor {
 
   /** True while the host can throttle work that is already running. */
   throttlingSupported(): boolean {
+    this.refreshPauseSupport();
     return this.pauseSupported;
+  }
+
+  /**
+   * Re-reads the platform capability and broadcasts if it moved.
+   *
+   * Called from the subscription *and* from every read of the flag. The
+   * subscription alone would be enough only if this module owned the helper,
+   * and it does not: a helper installed from outside — a test, or any future
+   * caller of `setWindowsSuspendHelper` — gives up without anything here
+   * hearing about it. Re-reading where the answer is used means the flag cannot
+   * be stale at the moment it is reported, whatever wired the helper.
+   *
+   * Guarded on an actual change, so a read is cheap and only a real transition
+   * reaches the event channel. Skipped entirely when a test pinned the value.
+   */
+  private refreshPauseSupport(): void {
+    if (!this.pauseSupportIsLive) return;
+    const supported = processPauseSupported();
+    if (supported === this.pauseSupported) return;
+    this.pauseSupported = supported;
+    // The duty cycler is meaningless without suspension; retune decides that,
+    // and it also re-evaluates every pin against the clock on the way through.
+    this.retune();
+    this.onChange?.();
   }
 
   register(child: ChildProcess, options: ManagedChildOptions): void {
@@ -293,7 +348,7 @@ export class PowerGovernor {
       suspended: false,
       holds: new Set(),
       terminating: false,
-      terminationPinCycles: 0,
+      terminationPinUntil: 0,
       live: true
     });
     this.retune();
@@ -352,7 +407,7 @@ export class PowerGovernor {
     const entry = typeof pid === 'number' ? this.children.get(pid) : undefined;
     if (!entry) return;
     entry.terminating = true;
-    entry.terminationPinCycles = 0;
+    entry.terminationPinUntil = this.now() + TERMINATION_PIN_MS;
     entry.holds.clear();
     if (this.isStopped(entry)) this.resume(entry);
   }
@@ -444,7 +499,9 @@ export class PowerGovernor {
       limitPercent: this.limit,
       mode: powerModeFor(this.limit),
       sample,
-      throttlingSupported: this.pauseSupported,
+      // Read through the accessor, never the field: a snapshot is exactly where
+      // a stale capability would become a promise the lever cannot keep.
+      throttlingSupported: this.throttlingSupported(),
       activeChildren,
       updatedAt: this.updatedAt
     };
@@ -471,6 +528,8 @@ export class PowerGovernor {
    * fix for a possible hang.
    */
   async shutdown(): Promise<void> {
+    this.unsubscribePauseSupport?.();
+    this.unsubscribePauseSupport = null;
     this.stopCycle();
     this.stopTreeTracking();
     this.treeWatchers = 0;
@@ -498,6 +557,11 @@ export class PowerGovernor {
   /* ── duty cycling ─────────────────────────────────────────────────────── */
 
   private retune(): void {
+    // Before anything is decided: a pin that has outlived its deadline must not
+    // influence the decision. The cycler used to be the only thing that aged
+    // pins, so a limit raised to unrestricted — which stops the cycler — froze
+    // every outstanding pin exactly when nothing was left to expire it (A6).
+    this.expireTerminationPins();
     // Only while something is managed. An agent with nothing running has nothing to be
     // woken up for, and holding a timer at idle would be at odds with the whole point of
     // a governor.
@@ -623,14 +687,23 @@ export class PowerGovernor {
   /**
    * True while a child is still pinned resumed for a termination in flight.
    *
-   * The pin ages out here, on the cycler's own tick, so no clock is involved:
-   * a child that outlives `TERMINATION_PIN_CYCLES` periods clearly survived the
-   * signal that was meant to end it, and must come back under the limit.
+   * The pin ages out against the wall clock, so it lapses whether or not the
+   * cycler is still ticking: a child that outlives `TERMINATION_PIN_MS`
+   * clearly survived the signal that was meant to end it, and must come back
+   * under the limit. Called from the cycler, from `retune` and from
+   * `setLimit`, so the expiry is noticed by whichever runs first.
    */
+  /** Drops every pin whose deadline has passed, independently of the cycler. */
+  private expireTerminationPins(): void {
+    const at = this.now();
+    for (const entry of this.children.values()) {
+      if (entry.terminating && at >= entry.terminationPinUntil) entry.terminating = false;
+    }
+  }
+
   private holdsTerminationPin(entry: ManagedChild): boolean {
     if (!entry.terminating) return false;
-    entry.terminationPinCycles += 1;
-    if (entry.terminationPinCycles <= TERMINATION_PIN_CYCLES) return true;
+    if (this.now() < entry.terminationPinUntil) return true;
     entry.terminating = false;
     return false;
   }

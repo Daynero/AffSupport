@@ -16,7 +16,7 @@ import { PowerReadout, PowerThrottleNotice } from './PowerReadout';
  */
 export function PowerThrottle() {
   const { t } = useI18n();
-  const { limitPercent, setLimit, status, watch, error } = usePower();
+  const { limitPercent, setLimit, status, watch, error, limitApplied } = usePower();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
@@ -104,6 +104,9 @@ export function PowerThrottle() {
           />
           <PowerReadout />
           <PowerThrottleNotice />
+          {!limitApplied && !error ? (
+            <p className="power-panel__pending">{t('powerLimitNotApplied')}</p>
+          ) : null}
           {error ? <p className="power-panel__error">{t('powerLimitFailed')}</p> : null}
         </div>
       ) : null}
