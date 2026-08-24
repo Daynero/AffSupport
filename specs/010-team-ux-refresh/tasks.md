@@ -173,10 +173,10 @@
 
 ## Phase 10: Polish & Cross-Cutting
 
-- [ ] T061 [P] Session-scoped preview-URL cache (keyed by material id + variant) so re-renders stop re-fetching signed URLs in apps/web/src/team/library/LibraryAssetVisualPreview.tsx and apps/web/src/team/tasks/TaskAttachmentTile.tsx
-- [ ] T062 [P] Remove the dead drag-selection plumbing and its stale drop-target advertisement (spec keeps the full keyboard/drag model out of scope) in apps/web/src/team/catalog/MaterialBrowser.tsx, apps/web/src/team/tasks/TaskAttachmentPicker.tsx, and the orphaned i18n keys in apps/web/src/i18n.ts
-- [ ] T063 [P] Update docs/TEAM_WORKSPACE_OPERATIONS.md: leave/draft-delete/task-delete functions, trash view, background batch semantics, new audit action codes
-- [ ] T064 Run the full local gates and fix fallout: `npm run format:check`, `npm run lint`, `npm test`, `npm run build -w @video-compressor/web`, `npm run test:db`
+- [X] T061 [P] Session-scoped preview-URL cache (keyed by material id + variant) so re-renders stop re-fetching signed URLs in apps/web/src/team/library/LibraryAssetVisualPreview.tsx and apps/web/src/team/tasks/TaskAttachmentTile.tsx
+- [X] T062 [P] Remove the dead drag-selection plumbing and its stale drop-target advertisement (spec keeps the full keyboard/drag model out of scope) in apps/web/src/team/catalog/MaterialBrowser.tsx, apps/web/src/team/tasks/TaskAttachmentPicker.tsx, and the orphaned i18n keys in apps/web/src/i18n.ts
+- [X] T063 [P] Update docs/TEAM_WORKSPACE_OPERATIONS.md: leave/draft-delete/task-delete functions, trash view, background batch semantics, new audit action codes
+- [X] T064 Run the full local gates and fix fallout: `npm run format:check`, `npm run lint`, `npm test`, `npm run build -w @video-compressor/web`, `npm run test:db`
 - [ ] T065 Manual quickstart pass (specs/010-team-ux-refresh/quickstart.md) through US1–US7 on the beta stack, including the SC-009 responsiveness spot-check on the weak reference machine; record outcomes in specs/010-team-ux-refresh/findings.md
 - [ ] T066 Release precondition: confirm the web+Supabase deploy carries no unreleased `apps/agent`/`packages/shared` deltas (`npm run verify-release` preconditions) and the migration's reverse steps are in ROLLBACK.md
 

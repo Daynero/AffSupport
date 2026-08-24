@@ -114,7 +114,11 @@ async function runningEncoder(
 
 describe('a stop leaves nothing running', () => {
   it('removes every process the run spawned, within five seconds', async () => {
-    const { queue, job, marker } = await encodingQueue({ hang: true, burnCpu: true, burnFuseMs: 30_000 });
+    const { queue, job, marker } = await encodingQueue({
+      hang: true,
+      burnCpu: true,
+      burnFuseMs: 30_000
+    });
     expect(await queue.start([job.id])).toBe(true);
     const encoder = await runningEncoder(queue, marker);
 
@@ -139,7 +143,11 @@ describe('a stop leaves nothing running', () => {
   }, 60_000);
 
   it('brings consumption back to idle within ten seconds', async () => {
-    const { queue, job, marker } = await encodingQueue({ hang: true, burnCpu: true, burnFuseMs: 30_000 });
+    const { queue, job, marker } = await encodingQueue({
+      hang: true,
+      burnCpu: true,
+      burnFuseMs: 30_000
+    });
     expect(await queue.start([job.id])).toBe(true);
     await runningEncoder(queue, marker);
 
@@ -216,16 +224,21 @@ describe('a stop leaves nothing running', () => {
       grandchildren: 1,
       grandchildFuseMs: 20_000
     });
-    const before = new Set((await readProcessTable()).map(row => row.pid));
     expect(await queue.start([job.id])).toBe(true);
     const encoder = await runningEncoder(queue, marker);
 
-    // The grandchild detaches immediately, so it is no longer under this process. It is found
-    // the way the probe finds anything: by reading the whole table.
+    // The grandchild is found the way the probe finds anything: by reading the whole table.
+    // What identifies it there is parentage, not novelty — "a `node` that was not running a
+    // moment ago" also describes every stub another test file spawns while this one runs, and
+    // adopting one of those as the orphan makes the assertion below fail for a reason that has
+    // nothing to do with stopping. `detached: true` opens a new session but does not reparent,
+    // so while the encoder is alive its grandchild is exactly the row whose ppid is the
+    // encoder's pid. The abandonment this test is about happens later, when the encoder dies
+    // and the operating system moves the survivor to init — out of reach of any tree walk.
     const orphan = await waitForValue(
       async () => {
         const fresh = (await readProcessTable()).find(
-          row => !before.has(row.pid) && row.pid !== encoder.pid && /node/i.test(row.name)
+          row => row.ppid === encoder.pid && /node/i.test(row.name)
         );
         return fresh ? { pid: fresh.pid, createdAt: fresh.createdAt, name: fresh.name } : null;
       },

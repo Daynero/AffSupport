@@ -8,17 +8,23 @@ select has_table('public', 'profiles', 'profiles table exists');
 select has_table('public', 'admin_users', 'admin_users table exists');
 select has_table('public', 'analytics_events', 'analytics_events table exists');
 
+-- These ids live in an `f1000000-` space of their own rather than the obvious
+-- `11111111-`/`22222222-` pattern. `supabase/fixtures/beta-seed.sql` already claims the
+-- obvious one, and a developer who has run `npm run beta:reset` cannot insert these rows a
+-- second time: the run dies on `users_pkey` before a single assertion is reached. The
+-- transaction this file opens rolls its own rows back, so nothing but the literals had to
+-- change. Keep the two files' id spaces disjoint.
 insert into auth.users (id, email, raw_user_meta_data)
 values
-  ('11111111-1111-4111-8111-111111111111', 'one@example.test', '{"full_name":"One"}'::jsonb),
-  ('22222222-2222-4222-8222-222222222222', 'two@example.test', '{"full_name":"Two"}'::jsonb),
+  ('f1000000-0000-4000-8000-000000000001', 'one@example.test', '{"full_name":"One"}'::jsonb),
+  ('f1000000-0000-4000-8000-000000000002', 'two@example.test', '{"full_name":"Two"}'::jsonb),
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'admin@example.test', '{"full_name":"Admin"}'::jsonb);
 
 insert into public.analytics_events (user_id, event_name, properties)
-values ('22222222-2222-4222-8222-222222222222', 'home_viewed', '{}'::jsonb);
+values ('f1000000-0000-4000-8000-000000000002', 'home_viewed', '{}'::jsonb);
 
 set local role authenticated;
-set local request.jwt.claim.sub = '11111111-1111-4111-8111-111111111111';
+set local request.jwt.claim.sub = 'f1000000-0000-4000-8000-000000000001';
 
 select results_eq(
   'select count(*) from public.profiles',
@@ -44,13 +50,13 @@ select results_eq(
 
 select lives_ok(
   $$insert into public.analytics_events (user_id, event_name, properties)
-    values ('11111111-1111-4111-8111-111111111111', 'home_viewed', '{}'::jsonb)$$,
+    values ('f1000000-0000-4000-8000-000000000001', 'home_viewed', '{}'::jsonb)$$,
   'a user can insert an allowlisted event for themself'
 );
 
 select throws_ok(
   $$insert into public.analytics_events (user_id, event_name, properties)
-    values ('22222222-2222-4222-8222-222222222222', 'home_viewed', '{}'::jsonb)$$,
+    values ('f1000000-0000-4000-8000-000000000002', 'home_viewed', '{}'::jsonb)$$,
   '42501',
   'new row violates row-level security policy for table "analytics_events"',
   'a user cannot insert an event for another user'
@@ -60,7 +66,7 @@ select results_eq(
   $$select accepted
     from public.ingest_analytics_events(
       $events$[{
-        "event_id": "33333333-3333-4333-8333-333333333333",
+        "event_id": "f1000000-0000-4000-8000-000000000003",
         "event_name": "compression_started",
         "event_version": 2,
         "session_id": "44444444-4444-4444-8444-444444444444",
@@ -88,7 +94,7 @@ select results_eq(
   $$select accepted
     from public.ingest_analytics_events(
       '[{
-        "event_id": "33333333-3333-4333-8333-333333333333",
+        "event_id": "f1000000-0000-4000-8000-000000000003",
         "event_name": "compression_started",
         "properties": {}
       }]'::jsonb
@@ -102,7 +108,7 @@ reset role;
 select results_eq(
   $$select run_id, flow_id, properties
     from public.analytics_events
-    where event_id = '33333333-3333-4333-8333-333333333333'$$,
+    where event_id = 'f1000000-0000-4000-8000-000000000003'$$,
   $$values (
     '77777777-7777-4777-8777-777777777777'::uuid,
     '66666666-6666-4666-8666-666666666666'::uuid,
@@ -114,7 +120,7 @@ select results_eq(
 select results_eq(
   $$select count(*)
     from public.analytics_events
-    where event_id = '33333333-3333-4333-8333-333333333333'$$,
+    where event_id = 'f1000000-0000-4000-8000-000000000003'$$,
   array[1::bigint],
   'analytics v2 ingestion remains idempotent'
 );
