@@ -71,6 +71,25 @@ npm run verify:release   # повна: додає збірки, контракт
 живе в `scripts/verify-all.mjs`, і тест стежить, щоб кожен ідентифікатор гейта
 належав рівно одній формі.
 
+### Обов'язкові перевірки гілки
+
+Ці чотири джоби з `.github/workflows/verify.yml` мають бути **required checks**
+для гілки `main`:
+
+- `static`
+- `test-macos`
+- `test-windows`
+- `build`
+
+Джоба `e2e` навмисно не обов'язкова: вона потребує повної збірки й справжніх
+бінарників, а її падіння рідко стосується конкретної зміни. Вона йде на push у
+`main` і на pull request з міткою `e2e`.
+
+Налаштування живе в Settings → Branches → Branch protection rules, а не у файлі
+репозиторію — тому воно записане тут. Якщо перейменувати джобу у workflow, її
+треба перейменувати і в правилі: інакше захист мовчки перестане діяти, бо
+required check із неіснуючою назвою не блокує нічого.
+
 Поки командний простір і Google Drive ще не готові, для публікації лише homepage та Google Login
 використовуйте `npm run deploy:web:identity`. Вона не декларує готовність Drive; повний
 `npm run deploy:web` як і раніше вимагає verified Drive integration.

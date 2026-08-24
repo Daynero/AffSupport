@@ -11,7 +11,7 @@ Each finding carries an ID used by `spec.md` SC-019. Severity: **H** high, **M**
 
 - Findings quoting a `file:line` were read directly and can be checked by opening that line.
 - Findings quoting an approximate range (`~332-360`) or a count without a listing ("41 files", "72 unused keys", "31 tables", "197 functions", "24 `!important`") are **derived from searches whose exact commands were not preserved**. Reproduce the count as the first step of any task that depends on it; treat the number as an estimate, not a fact. Specifically: **A6** carries no line anchor at all, and **C1**'s central claim ("no code path ever checks `artifacts.*.sha256`") is a negative that was not exhaustively proven — it is the highest-priority security item, so prove it before designing around it.
-- **Section D, and the interface halves of E and F, were produced by reading source and probing the HTTP surface. No finding in them was observed in a browser** — the Chrome extension was unavailable during this audit (see G6). **D1 in particular — the loudest conclusion in this document — has never been seen happen.** Confirm D1–D6 by hand in a browser before building against them. The live HTTP probes in G5 *were* executed and their results are facts.
+- **Section D, and the interface halves of E and F, were produced by reading source and probing the HTTP surface. No finding in them was observed in a browser** — the Chrome extension was unavailable during this audit (see G6). **D1 in particular — the loudest conclusion in this document — has never been seen happen.** Confirm D1–D6 by hand in a browser before building against them. The live HTTP probes in G5 _were_ executed and their results are facts.
 - **D10 is a hypothesis, not an observation.** The endpoint count and the protocol version are facts; the causal link to the user's reported symptom is inference and is labelled as such where it appears.
 
 ---
@@ -22,14 +22,14 @@ Each finding carries an ID used by `spec.md` SC-019. Severity: **H** high, **M**
 
 There is no single job engine. Five independent in-memory state machines, each with its own live-update channel, plus one cross-cutting resource authority underneath all of them at the spawn seam.
 
-| Subsystem | File | Status type | Persisted | Live channel |
-|---|---|---|---|---|
-| Compressor | `apps/agent/src/queue/queue.ts` (1670 L) | `JobStatus` (8) | `state.json` | `/api/events` |
-| Transcription | `apps/agent/src/queue/transcription-queue.ts` (1723 L) | `TranscriptionJobStatus` (7) + `TranslationStatus` (4) | own store | `/api/transcription/events` |
-| Landing optimizer | `apps/agent/src/landing/optimizer.ts` | `LandingJobStatus` (7) + `LandingJobPhase` (9) + `LandingAssetStatus` (5) | no | `/api/landing/events` |
-| Landing preview | `apps/agent/src/landing-preview/catalog.ts` | `LandingPreviewItemStatus` (4) + `LandingPreviewPhase` (≥6) | own store | `/api/landing-preview/events` |
-| Media actions (Finder) | `apps/agent/src/media-actions/queue.ts` | own status (`:15-31`) | **no** | **none** (polled) |
-| Power | `apps/agent/src/power/governor.ts` | `PowerState` | `power.json` | `/api/power/events` |
+| Subsystem              | File                                                   | Status type                                                               | Persisted    | Live channel                  |
+| ---------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------- | ------------ | ----------------------------- |
+| Compressor             | `apps/agent/src/queue/queue.ts` (1670 L)               | `JobStatus` (8)                                                           | `state.json` | `/api/events`                 |
+| Transcription          | `apps/agent/src/queue/transcription-queue.ts` (1723 L) | `TranscriptionJobStatus` (7) + `TranslationStatus` (4)                    | own store    | `/api/transcription/events`   |
+| Landing optimizer      | `apps/agent/src/landing/optimizer.ts`                  | `LandingJobStatus` (7) + `LandingJobPhase` (9) + `LandingAssetStatus` (5) | no           | `/api/landing/events`         |
+| Landing preview        | `apps/agent/src/landing-preview/catalog.ts`            | `LandingPreviewItemStatus` (4) + `LandingPreviewPhase` (≥6)               | own store    | `/api/landing-preview/events` |
+| Media actions (Finder) | `apps/agent/src/media-actions/queue.ts`                | own status (`:15-31`)                                                     | **no**       | **none** (polled)             |
+| Power                  | `apps/agent/src/power/governor.ts`                     | `PowerState`                                                              | `power.json` | `/api/power/events`           |
 
 Compressor states — `packages/shared/src/types.ts:1-9`: `analyzing | ready | queued | processing | completed | failed | cancelled | interrupted`. Transitions are asserted at 16 sites in `queue.ts` (`:448,455,470,480,620,646,907,950,957,969,1167,1213,1234,1257,1281,1296`). Transcription has 17 assignment sites; landing 10; landing-preview 8; media-actions 5. **No machine has a single authoritative transition table**; states are assigned inline.
 
@@ -39,7 +39,7 @@ Compressor states — `packages/shared/src/types.ts:1-9`: `analyzing | ready | q
 
 - **A1 (H, FR-011)** — `throttlingSupported` can lie on Windows. `PowerGovernor.pauseSupported` is captured once at construction (`power/governor.ts:184`) from a static per-platform constant (`platform/platform.ts:44-65`). After the Windows suspend helper permanently disables itself at `MAX_FAILED_STARTS` (`platform/windows-suspend.ts:60-72`), three things go wrong silently: `PowerState.throttlingSupported` still reports `true`, so the panel claims a limit that is not applied; the duty cycler keeps calling `pauseProcess` 5×/s to no effect indefinitely; and `queue.pauseSupported()` (`queue.ts:205`) still returns `true`, so estimate prioritisation takes the early-return branch at `queue.ts:1397-1400` and **stops working for the rest of the session**. No plumbing exists for the helper to report degradation back to the governor. Spec 008 shipped the "unsupported" UI state (T078) but it is unreachable even when it should be reached.
 
-- **A2 (H, FR-003 / FR-003a)** — Quitting mid-encode leaks a partial output file. `queue.ts:816-840` signals and escalates but never unlinks `job.outputPath`, and `store.ts:52-92` only `access()`-checks `inputPath` on load — it never removes the orphan. Every *cancel* path does unlink (`queue.ts:1178,1183,1200,1218,1226,1237`); shutdown does not. A user who quits mid-batch accumulates truncated `.mp4` files next to their sources.
+- **A2 (H, FR-003 / FR-003a)** — Quitting mid-encode leaks a partial output file. `queue.ts:816-840` signals and escalates but never unlinks `job.outputPath`, and `store.ts:52-92` only `access()`-checks `inputPath` on load — it never removes the orphan. Every _cancel_ path does unlink (`queue.ts:1178,1183,1200,1218,1226,1237`); shutdown does not. A user who quits mid-batch accumulates truncated `.mp4` files next to their sources.
 
 - **A3 (H, FR-005)** — Media actions cannot be stopped by the user at all. `media-actions/routes.ts:21,57,67` exposes enqueue and read only. `MediaActionQueue` has `abandoning` + `activeConversion.abort()` but they are reachable **only from `shutdown()`** (`media-actions/queue.ts:145-167`). A wedged Finder-initiated conversion holds the machine with no way to stop it. It is also the only queue with no persistence, no `interrupted` status, and no live channel — jobs vanish on restart and its `processing → completed` transition is never pushed anywhere.
 
@@ -53,7 +53,7 @@ Compressor states — `packages/shared/src/types.ts:1-9`: `analyzing | ready | q
 
 - **A8 (L, FR-006)** — Restored-batch drain watchdog is dead code. `queue.ts:157` guards on `!this.batch.finishedAt`, but `store.ts:83` restores `finishedAt: Number(rawBatch.finishedAt) || Date.now()` — always truthy. The documented "agent died mid-drain" recovery can never fire from disk. Harmless today; the comment and the code disagree.
 
-- **A9 (L, FR-002)** — Descendant PID recycling. `governor.ts` refreshes the process tree every 3 s; recency ≤3 s is the *only* guard against signalling a recycled PID, and `pauseProcessId` (`platform.ts:~332-360`) has no reaped-child guard.
+- **A9 (L, FR-002)** — Descendant PID recycling. `governor.ts` refreshes the process tree every 3 s; recency ≤3 s is the _only_ guard against signalling a recycled PID, and `pauseProcessId` (`platform.ts:~332-360`) has no reaped-child guard.
 
 - **A10 (not a defect — a strength to preserve; FR-013)** — `eslint.config.mjs:97-102` bans value imports of `node:child_process` under `apps/agent/src` outside `platform/**`, `power/**`, and five named files, doubled by `tests/power-spawn-coverage.test.ts:55`. Playwright is the single hand-registered exception (`landing-preview/renderer.ts:521-534`). This is the mechanism FR-013 requires; the pass must keep and extend it, not weaken it.
 
@@ -139,7 +139,7 @@ Scripts: `beta-down.mjs`, `dev-release-meta.mjs`, `fetch-windows-inputs.mjs`, `g
 
 ### Findings
 
-- **C1 (H, FR-028) — verify the negative claim first** — **The shipped macOS app is ad-hoc signed and not notarized; the Windows installer is unsigned.** `scripts/package-mac.sh:67-69,95` does `codesign --remove-signature` then `codesign --force --sign -`. No `notarytool`/`stapler` anywhere; no `signtool`/Authenticode in `packaging/windows-installer.iss` or `.github/workflows/release-windows.yml`. The manifest signature protects *which URL* users are sent to; **nothing verifies the bytes that arrive** — `stable.json` records `artifacts.*.sha256` and no code path ever checks it. The chain terminates in "user right-click-opens an unsigned binary past Gatekeeper/SmartScreen", which trains users to bypass the one control that would catch a compromised release. Highest-leverage item in the security pass.
+- **C1 (H, FR-028) — verify the negative claim first** — **The shipped macOS app is ad-hoc signed and not notarized; the Windows installer is unsigned.** `scripts/package-mac.sh:67-69,95` does `codesign --remove-signature` then `codesign --force --sign -`. No `notarytool`/`stapler` anywhere; no `signtool`/Authenticode in `packaging/windows-installer.iss` or `.github/workflows/release-windows.yml`. The manifest signature protects _which URL_ users are sent to; **nothing verifies the bytes that arrive** — `stable.json` records `artifacts.*.sha256` and no code path ever checks it. The chain terminates in "user right-click-opens an unsigned binary past Gatekeeper/SmartScreen", which trains users to bypass the one control that would catch a compromised release. Highest-leverage item in the security pass.
 
 - **C2 (H, FR-025)** — **`apps/web/public/_headers` sets only `Cache-Control` and `X-Robots-Tag`.** No CSP, no `frame-ancestors`/`X-Frame-Options`, no HSTS, no `X-Content-Type-Options`, no `Referrer-Policy`, no `Permissions-Policy` — on the exact origin that stores the agent pairing token in `localStorage` (`apps/web/src/api/pairing-token.ts:19,81`) and the Supabase session. Any XSS or dependency compromise reads that token and, per C3, gets arbitrary local file access on every paired machine. `apps/web/index.html:29-46,52-90` ships two inline `<script>` blocks, so the CSP needs hashes or a nonce. Cheapest high-impact fix in this pass.
 
@@ -247,7 +247,7 @@ The token system is real — `apps/web/src/styles.css:5-160` defines primitive r
 
 - **F2 (M, FR-050)** — Scale drift. 441 token uses vs **345 raw-px** `gap`/`padding`/`margin` declarations, off the 4 px grid: 29× `gap: 6px`, 15× `padding: 6px`, 14× `padding: 3px`, 13× `gap: 5px`, 11× `padding: 9px`, 8× `padding: 7px`, plus 14/18/10 px. A third convention (`rem`) appears in the beta block (`:12775-12776`). Typography has no scale tokens and uses machine-generated fractional literals — `body 20.93px` (`:178`), `h1 25.42px`, `h2 22.43px`, `h3 20.93px`, `h4 16.45px` (`:224-249`), `min-height: 44.2px`, `padding-inline: 15.6px` (`:9982-9999`) — all in `px`, so browser font-size settings are ignored. **21 distinct breakpoints** including the near-duplicate pairs 1180/1179, 760/720, 520/500.
 
-- **F3 (M, FR-050)** — **Ad-hoc z-index: 58 raw values, no scale, no comments.** `.modal-backdrop` is 100 (`:5682`) / nested 110 (`:5693`), but `.environment-badge` is 2000 (`:12789`) — above every modal, with no comment saying why. Plus 1000 (`:1867`), 1150 (`:2836`), 1200 (`:2955`), a dense 1–12 band, a 20/30/40/45/60/80/100/110/120 band, and two `z-index: -1`. *Correction after review:* the `z-index: 10001` at `:8532` is **not** a defect — it is `::view-transition-group(theme-toggle)`, which lives in the view-transition overlay's own stacking context and is not comparable to page z-index. The comment at `:8528-8530` explains it. It is excluded from the scale.
+- **F3 (M, FR-050)** — **Ad-hoc z-index: 58 raw values, no scale, no comments.** `.modal-backdrop` is 100 (`:5682`) / nested 110 (`:5693`), but `.environment-badge` is 2000 (`:12789`) — above every modal, with no comment saying why. Plus 1000 (`:1867`), 1150 (`:2836`), 1200 (`:2955`), a dense 1–12 band, a 20/30/40/45/60/80/100/110/120 band, and two `z-index: -1`. _Correction after review:_ the `z-index: 10001` at `:8532` is **not** a defect — it is `::view-transition-group(theme-toggle)`, which lives in the view-transition overlay's own stacking context and is not comparable to page z-index. The comment at `:8528-8530` explains it. It is excluded from the scale.
 
   The requirement this motivates is that a **stacking scale be created** — there is none today — not merely that values be moved onto one.
 
@@ -269,7 +269,7 @@ The token system is real — `apps/web/src/styles.css:5-160` defines primitive r
 
 - **F12 (M, FR-054 / FR-056)** — Note before automating the unused-key check: `selectedCountKey` (`i18n.ts:2872-2878`) **builds key names at runtime**, so a purely static "unused" scan will produce false positives. Any check enforcing FR-056 must account for dynamically constructed keys. i18n is structurally sound but incomplete in practice. Two locales, **1,335 keys each, perfectly parallel** — 0 missing, 0 extra, enforced by `Record<keyof typeof en, string>` (`i18n.ts:1430`), and `TranslationKey = keyof typeof en` (`:2849`) makes a used-but-undefined key a compile error. But: **72 keys are defined and never referenced** (~5.4%), the largest cluster being 27 team keys suggesting a shipped-then-reworked flow. **Pluralization is ad-hoc and covers one string** — `selectedCountKey` (`:2872-2878`) hand-codes Ukrainian one/many for `selectedOne`/`selectedMany`; every other count (`stoppedCount`, `queuedCount`, `processingCount`, `completedCount`, `failedCount` — `App.tsx:184,890-893`) is a single form with `{count}`, which is wrong in Ukrainian. No `Intl.PluralRules` anywhere. Interpolation is `String.replaceAll` (`:2861-2870`) with no escaping and no missing-value warning.
 
-- **F13 (H, FR-055)** — **Agent messages are localized by regex-matching English text.** `App.tsx:1003-1007` (`localizedAgentText`) and `JobRow.tsx:633-649` (`localizedJobError`) run 11 regexes against the agent's English error strings. Any copy edit in `apps/agent` silently drops the Ukrainian translation and shows raw English. Error *codes* are handled correctly at `App.tsx:985-1001` — the agent should emit codes for these too.
+- **F13 (H, FR-055)** — **Agent messages are localized by regex-matching English text.** `App.tsx:1003-1007` (`localizedAgentText`) and `JobRow.tsx:633-649` (`localizedJobError`) run 11 regexes against the agent's English error strings. Any copy edit in `apps/agent` silently drops the Ukrainian translation and shows raw English. Error _codes_ are handled correctly at `App.tsx:985-1001` — the agent should emit codes for these too.
 
 - **F14 (L, FR-054)** — Untranslated literals: `team/library/CreativeLibrary.tsx:393` (`<option>Unknown</option>`), `pages/AccountPage.tsx:193` (`>English<`), `PublicHomePage.tsx:55` and `pages/LegalPages.tsx:267` (`aria-label="Legal"`), `pages/AdminPage.tsx:802`. Non-localized `document.title` on every page — `App.tsx:92`, `HomePage.tsx:26`, `TranscriptionPage.tsx:184`, `LandingOptimizerPage.tsx:50` — and `HomePage.tsx:27-29` writes an English `<meta name="description">`.
 
@@ -285,3 +285,29 @@ The token system is real — `apps/web/src/styles.css:5-160` defines primitive r
 4. **The ESLint child-process ban (A10) is the model** for every structural guarantee this spec asks for: prefer a rule that makes the wrong thing impossible over a test that notices it.
 5. **Live-probe evidence recorded 2026-08-23** against the running beta stack: hostile-origin preflight → 403; hostile origin on `/health` → 200 with no `Access-Control-Allow-Origin`; legitimate origin → correct echo; **`Host: evil.example.com` → 200** (C5); all `/api/*` correctly gated by `Invalid session token`.
 6. **Browser-driven manual testing was attempted and not possible** in this session (the Chrome extension was not connected). Interface findings in D/E/F are from source audit plus the live HTTP surface. The plan should schedule a real browser pass over D1–D6 to confirm observed behaviour matches the reading.
+
+---
+
+## T119 — the Windows suite run has no runner here (2026-08-25)
+
+T119 asks for one full-suite run on Windows, with every failure recorded and
+categorised, and T119a/T119b fix what it finds. None of the three could be done
+from this machine: it is macOS, and the failures being hunted — path separators,
+temp-directory semantics, process spawning, platform tool discovery — are
+precisely the ones that do not reproduce anywhere else. Running the suite here
+again would produce a green result that says nothing about Windows.
+
+What changed instead is that the run now exists and is mandatory.
+`.github/workflows/verify.yml` has a `test-windows` job that runs the **whole**
+suite on `windows-latest`, and `.github/workflows/release-windows.yml` no longer
+carries the hand-maintained fifteen-file list it used in place of one. So T119's
+discovery pass happens on the first push of this branch, in CI, with output
+categorised the same way for every failure — and T119a/T119b become work with a
+concrete list attached rather than speculation.
+
+The list that was deleted is worth recording as a lesson rather than a diff. It
+existed because there was no way to say "this test needs a macOS package
+fixture", so someone enumerated the tests that did not. A curated subset reports
+green for everything it forgot to include, and it forgets silently on every
+rename. The requirements mechanism states the dependency at the test, an
+unexplained skip fails the run, and the list's reason for existing is gone.

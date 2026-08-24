@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { appSupportRoot } from '../../apps/agent/src/platform/platform.js';
 import { handlesUnder, isAlive, survivorsOf, describeSurvivors } from './machine-probe.js';
 import { waitFor } from './wait.js';
+import { writeStubTool } from './stub-tools/index.js';
 
 /**
  * Boots a real, out-of-process local app for a test to drive.
@@ -78,6 +79,19 @@ export interface BootOptions {
   readyTimeoutMs?: number;
   /** Initial compressor settings, written to the state file before boot. */
   settings?: Record<string, unknown>;
+  /**
+   * Which tools the booted agent should find on its PATH.
+   *
+   * `lifecycle` — the default — points the media tools at the stubs in
+   * `tests/support/stub-tools/`, because a suite about starting, stopping and
+   * restarting work does not need a real encoder to prove anything, and a real
+   * encoder makes it slow and machine-dependent.
+   *
+   * `real-media` leaves the environment alone so the agent finds the real
+   * binaries. That is the only difference between the two harnesses, which is
+   * the point: one boot path, one place where a change to it can be wrong.
+   */
+  profile?: 'lifecycle' | 'real-media';
 }
 
 export interface AgentProcess {
@@ -208,11 +222,33 @@ function environmentFor(paths: AgentStatePaths, port: number, extra?: Record<str
   };
 }
 
+/**
+ * The tool environment for a profile.
+ *
+ * Kept here rather than in each suite so "which tools does this run use" has one
+ * answer, and so the real-media harness differs from the lifecycle one by a
+ * single named switch instead of by a divergent copy of the boot sequence.
+ */
+async function environmentForProfile(
+  profile: 'lifecycle' | 'real-media'
+): Promise<Record<string, string>> {
+  if (profile === 'real-media') return {};
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'wishly-stub-tools-'));
+  const ffmpeg = await writeStubTool(directory, 'ffmpeg', { writeOutput: true });
+  const ffprobe = await writeStubTool(directory, 'ffprobe', { writeOutput: true });
+  return { FFMPEG_PATH: ffmpeg, FFPROBE_PATH: ffprobe };
+}
+
 export async function bootAgent(options: BootOptions = {}): Promise<AgentProcess> {
   const nodeBinary = options.nodeBinary ?? process.execPath;
   const entry = options.entry ?? path.join(ROOT, 'apps/agent/dist/index.js');
   const readyTimeoutMs = options.readyTimeoutMs ?? 20_000;
   const paths = await createStateTree(options.settings);
+  // The profile only ever adds environment, and always *before* the caller's
+  // own `env`, so a test that wants one stub in an otherwise real run can still
+  // say so and be obeyed.
+  const profileEnv = await environmentForProfile(options.profile ?? 'lifecycle');
+  const env = { ...profileEnv, ...options.env };
 
   let child: AgentChild | null = null;
   let log = '';
@@ -229,7 +265,7 @@ export async function bootAgent(options: BootOptions = {}): Promise<AgentProcess
     origin = `http://127.0.0.1:${port}`;
     const started = spawn(nodeBinary, [entry], {
       cwd: ROOT,
-      env: environmentFor(paths, port, options.env),
+      env: environmentFor(paths, port, env),
       shell: false,
       stdio: ['ignore', 'pipe', 'pipe']
     });

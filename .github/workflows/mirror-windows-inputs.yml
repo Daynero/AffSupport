@@ -30,7 +30,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: .nvmrc
 
       - name: Verify every pinned input before mirroring
         run: node scripts/fetch-windows-inputs.mjs --verify-only

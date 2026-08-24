@@ -1,12 +1,22 @@
+# A dispatch wrapper over the release form.
+#
+# It used to spell out its own two commands, which meant the manual
+# "does a release build still work" check was a different set of gates from the
+# release itself — and the difference was invisible until the day it mattered.
 name: Build test release
 on: { workflow_dispatch: {} }
+
+permissions:
+  contents: read
+
 jobs:
   package:
     runs-on: macos-15
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm }
+        with: { node-version-file: .nvmrc, cache: npm }
       - run: npm ci
-      - run: npm test && npm run build:web
+      - run: node scripts/verify-all.mjs --form=release
       - run: echo "Packaging intentionally requires owner-approved FFmpeg/FFprobe artifacts and PUBLIC_SITE_ORIGIN; see README."

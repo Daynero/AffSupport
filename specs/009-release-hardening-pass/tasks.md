@@ -211,48 +211,48 @@ These four close holes confirmed by **probing a running local app**, not inferre
 
 ### Tests for User Story 3
 
-- [ ] T094 [P] [US3] Create `tests/verify-all.test.ts` asserting each gate id appears in exactly one form's list, that a stubbed failing gate surfaces its own id in `error`, and that the 20-line and 100-line output budgets hold with the subject in the first 10 lines
-- [ ] T095 [P] [US3] Create `tests/run-state-coverage.test.ts` walking the import graph from the run-state entry points and asserting every module reached appears in the critical-modules file (FR-018a)
-- [ ] T096 [P] [US3] Create `tests/workflow-contract.test.ts` asserting every workflow reads the Node version from the version file, pins no literal version, and names no test path that does not exist on disk (B11)
+- [X] T094 [P] [US3] Create `tests/verify-all.test.ts` asserting each gate id appears in exactly one form's list, that a stubbed failing gate surfaces its own id in `error`, and that the 20-line and 100-line output budgets hold with the subject in the first 10 lines
+- [X] T095 [P] [US3] Create `tests/run-state-coverage.test.ts` walking the import graph from the run-state entry points and asserting every module reached appears in the critical-modules file (FR-018a)
+- [X] T096 [P] [US3] Create `tests/workflow-contract.test.ts` asserting every workflow reads the Node version from the version file, pins no literal version, and names no test path that does not exist on disk (B11)
 
 ### Implementation — the aggregator
 
-- [ ] T097 [US3] Create `scripts/lib/gate.mjs` with the gate runner, bounded output ring buffer, per-gate timeout, and the per-gate excerpt extractors from [contracts/verification-cli.md](./contracts/verification-cli.md)
-- [ ] T098 [US3] Create `scripts/verify-all.mjs` implementing the four phases with parallelism inside a phase and a strict barrier between phases, with the suite phase exclusive (A17, FR-014)
-- [ ] T099 [US3] Implement the result envelope in `scripts/verify-all.mjs` — the existing analytics shape extended with `form`, without `period` — and write it to `verification-result.json` (FR-015)
-- [ ] T100 [US3] Implement the 20-line success and 100-line failure output budgets in `scripts/verify-all.mjs`, asserting the caps rather than hoping for them (SC-005)
-- [ ] T101 [US3] Invoke the suite from `scripts/verify-all.mjs` with passed-only silencing plus the dot and JSON reporters, capturing structure from the JSON report (B6)
-- [ ] T102 [US3] Read skip counts and requirement markers from the JSON report in `scripts/verify-all.mjs`, histogram them, and fail the run on any skipped test whose name carries no marker (SC-007)
-- [ ] T103 [US3] Add `verify` and `verify:release` scripts to `package.json` and add `verification-result.json` to `.gitignore` (FR-014a)
-- [ ] T104 [P] [US3] Replace the ten hand-typed release commands in `docs/PRODUCTION.md` and `docs/BETA.md` with the single command
+- [X] T097 [US3] Create `scripts/lib/gate.mjs` with the gate runner, bounded output ring buffer, per-gate timeout, and the per-gate excerpt extractors from [contracts/verification-cli.md](./contracts/verification-cli.md)
+- [X] T098 [US3] Create `scripts/verify-all.mjs` implementing the four phases with parallelism inside a phase and a strict barrier between phases, with the suite phase exclusive (A17, FR-014)
+- [X] T099 [US3] Implement the result envelope in `scripts/verify-all.mjs` — the existing analytics shape extended with `form`, without `period` — and write it to `verification-result.json` (FR-015)
+- [X] T100 [US3] Implement the 20-line success and 100-line failure output budgets in `scripts/verify-all.mjs`, asserting the caps rather than hoping for them (SC-005)
+- [X] T101 [US3] Invoke the suite from `scripts/verify-all.mjs` with passed-only silencing plus the dot and JSON reporters, capturing structure from the JSON report (B6)
+- [X] T102 [US3] Read skip counts and requirement markers from the JSON report in `scripts/verify-all.mjs`, histogram them, and fail the run on any skipped test whose name carries no marker (SC-007)
+- [X] T103 [US3] Add `verify` and `verify:release` scripts to `package.json` and add `verification-result.json` to `.gitignore` (FR-014a)
+- [X] T104 [P] [US3] Replace the ten hand-typed release commands in `docs/PRODUCTION.md` and `docs/BETA.md` with the single command
 
 ### Implementation — coverage
 
-- [ ] T105 [US3] Add the V8 coverage provider to `package.json` devDependencies and configure it in `vitest.config.ts` with `all: true` and the include/exclude sets from [research.md §R16](./research.md)
-- [ ] T106 [US3] Record the first measurement as `coverage-baseline.json` at the repository root
-- [ ] T107 [US3] Create `coverage-critical.json` at the repository root seeding the run-state modules with absolute floors
-- [ ] T108 [US3] Enforce critical floors first and the ratchet second in `scripts/verify-all.mjs`, so a falling global can never excuse an uncovered state module (FR-018)
-- [ ] T109 [US3] Add `--update-coverage-baseline` to `scripts/verify-all.mjs`
+- [X] T105 [US3] Add the V8 coverage provider to `package.json` devDependencies and configure it in `vitest.config.ts` with `all: true` and the include/exclude sets from [research.md §R16](./research.md)
+- [X] T106 [US3] Record the first measurement as `coverage-baseline.json` at the repository root
+- [X] T107 [US3] Create `coverage-critical.json` at the repository root seeding the run-state modules with absolute floors
+- [X] T108 [US3] Enforce critical floors first and the ratchet second in `scripts/verify-all.mjs`, so a falling global can never excuse an uncovered state module (FR-018)
+- [X] T109 [US3] Add `--update-coverage-baseline` to `scripts/verify-all.mjs`
 
 ### Implementation — the end-to-end harness
 
-- [ ] T110 [US3] Create `tests/real-media-e2e.test.ts` carrying the contract, compatibility-matrix and encode-fidelity assertions moved verbatim out of `scripts/real-agent-check.mjs`
-- [ ] T111 [US3] Shrink `scripts/real-agent-check.mjs` to a shim that runs the two end-to-end test files with the release profile, so exactly one boot path exists (B10)
-- [ ] T112 [US3] Add the `lifecycle` and `real-media` profile switches to `tests/support/agent-process.ts`, selecting stub or real tools
-- [ ] T113 [US3] Skip the transcription fidelity cases with a named absent-model reason in `tests/real-media-e2e.test.ts` rather than downloading a multi-gigabyte model in automation
+- [X] T110 [US3] Create `tests/real-media-e2e.test.ts` carrying the contract, compatibility-matrix and encode-fidelity assertions moved verbatim out of `scripts/real-agent-check.mjs`
+- [X] T111 [US3] Shrink `scripts/real-agent-check.mjs` to a shim that runs the two end-to-end test files with the release profile, so exactly one boot path exists (B10)
+- [X] T112 [US3] Add the `lifecycle` and `real-media` profile switches to `tests/support/agent-process.ts`, selecting stub or real tools
+- [X] T113 [US3] Skip the transcription fidelity cases with a named absent-model reason in `tests/real-media-e2e.test.ts` rather than downloading a multi-gigabyte model in automation
 
 ### Implementation — automation
 
-- [ ] T114 [US3] Create `.github/workflows/verify.yml` with pull-request and default-branch triggers, cancel-in-progress, and the five jobs from [contracts/verification-cli.md](./contracts/verification-cli.md, FR-017)
-- [ ] T115 [US3] Run the end-to-end job in `.github/workflows/verify.yml` only on default-branch pushes and labelled pull requests, with per-job timeouts and dependency caching
-- [ ] T116 [US3] Delete the hand-maintained fifteen-file test list from `.github/workflows/release-windows.yml` and run the whole suite there, relying on named skips (B11)
-- [ ] T117 [US3] Reduce the validate job in `.github/workflows/release-windows.yml` to depend on the shared workflow instead of duplicating formatting, lint and the suite
-- [ ] T118 [US3] Reduce `.github/workflows/release-test.yml` to a dispatch wrapper over the release form
-- [ ] T118a [US3] Configure branch protection so `static`, `test-macos`, `test-windows` and `build` from `.github/workflows/verify.yml` are required checks on the default branch, and record the setting in `docs/PRODUCTION.md`, since it lives in repository settings rather than in a file (SC-006)
+- [X] T114 [US3] Create `.github/workflows/verify.yml` with pull-request and default-branch triggers, cancel-in-progress, and the five jobs from [contracts/verification-cli.md](./contracts/verification-cli.md, FR-017)
+- [X] T115 [US3] Run the end-to-end job in `.github/workflows/verify.yml` only on default-branch pushes and labelled pull requests, with per-job timeouts and dependency caching
+- [X] T116 [US3] Delete the hand-maintained fifteen-file test list from `.github/workflows/release-windows.yml` and run the whole suite there, relying on named skips (B11)
+- [X] T117 [US3] Reduce the validate job in `.github/workflows/release-windows.yml` to depend on the shared workflow instead of duplicating formatting, lint and the suite
+- [X] T118 [US3] Reduce `.github/workflows/release-test.yml` to a dispatch wrapper over the release form
+- [X] T118a [US3] Configure branch protection so `static`, `test-macos`, `test-windows` and `build` from `.github/workflows/verify.yml` are required checks on the default branch, and record the setting in `docs/PRODUCTION.md`, since it lives in repository settings rather than in a file (SC-006)
 - [ ] T119 [US3] Run the full suite on a Windows runner once and record every failure as categorised entries in `specs/009-release-hardening-pass/findings.md` — discovery only, no fixes
 - [ ] T119a [US3] Fix the path-separator and temp-directory failures from T119's list, across the affected files in `tests/`
 - [ ] T119b [US3] Fix the process-spawn and platform-tool failures from T119's list, across the affected files in `tests/` and `apps/agent/src/platform/`
-- [ ] T120 [US3] Parse the dependency audit inside `scripts/verify-all.mjs`, blocking on production high or critical, counting development-only findings as informational, and failing on an **expired** exception — landing report-only and flipping to blocking in the same change, since T012 has already cleared the tree (FR-030)
+- [X] T120 [US3] Parse the dependency audit inside `scripts/verify-all.mjs`, blocking on production high or critical, counting development-only findings as informational, and failing on an **expired** exception — landing report-only and flipping to blocking in the same change, since T012 has already cleared the tree (FR-030)
 
 **Checkpoint**: One command verifies everything, reports machine-readably, and blocks merges on both platforms. Every later story is now cheap to keep true.
 

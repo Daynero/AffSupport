@@ -96,6 +96,23 @@ export function requireEnvFlag(name: string): Requirement {
   return enforce({ names: [`env:${name}`], missing: process.env[name] !== '1' });
 }
 
+/**
+ * True when the transcription model is present on this machine.
+ *
+ * The model is several gigabytes. Downloading it inside automation to satisfy a
+ * fidelity assertion would trade a named, visible skip for a multi-gigabyte
+ * download on every runner — so the cases that need it say so and skip, and the
+ * release form (SOTY_REQUIRE_ALL) turns that skip into a failure that names the
+ * model, on the one runner where it must be present.
+ */
+export function requireTranscriptionModel(): Requirement {
+  const configured = process.env.WHISPER_MODEL_PATH;
+  return enforce({
+    names: ['whisper-model'],
+    missing: !configured || !existsSync(configured)
+  });
+}
+
 /** Combines requirements so one suite can state everything it needs. */
 export function allOf(...requirements: Requirement[]): Requirement {
   return {

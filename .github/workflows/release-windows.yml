@@ -37,37 +37,22 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      # The full repository suite includes macOS-package fixtures and real
-      # media-tool tests, so it is not a portable release gate. Run the static
-      # gates and the platform/package contracts here; the produced Windows
-      # payload gets its real install/use/uninstall smoke in the build job.
-      - name: Format, lint and Windows contracts
-        run: |
-          npm run format:check
-          npm run lint
-          npm run build -w @video-compressor/shared
-          npx vitest run \
-            tests/agent-capabilities.test.ts \
-            tests/agent-capability-guards.test.ts \
-            tests/local-app-dialog-windows.test.tsx \
-            tests/power-contract.test.ts \
-            tests/power-spawn-coverage.test.ts \
-            tests/power-windows-suspend.test.ts \
-            tests/queue-pause-platform.test.ts \
-            tests/release-gates-windows.test.ts \
-            tests/translation-runtime-platforms.test.ts \
-            tests/windows-archive.test.ts \
-            tests/windows-attribution.test.ts \
-            tests/windows-inputs-manifest.test.ts \
-            tests/windows-installer-contract.test.ts \
-            tests/windows-picker.test.ts \
-            tests/windows-rollout-observability.test.ts
+      # The whole suite, not a list of fifteen files.
+      #
+      # That list existed because there was no way to say "this test needs a
+      # macOS package fixture" — so the workaround was to name the tests that
+      # did not. The requirements mechanism says it now, an unexplained skip
+      # fails the run, and the list's reason for being is gone. It is deleted
+      # rather than corrected: a curated subset reports green for everything it
+      # forgot to include.
+      - name: Verify
+        run: node scripts/verify-all.mjs --form=fast
 
   build:
     needs: validate
@@ -79,7 +64,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies

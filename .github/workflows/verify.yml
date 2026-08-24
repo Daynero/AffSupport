@@ -1,0 +1,109 @@
+# The verification workflow.
+#
+# Every job here is the same command with a different phase group, because the
+# thing being protected is that CI and a laptop run *the same* checks. A job
+# that spelled out its own steps would drift from `npm run verify` the first
+# time someone added a gate, and the drift would be invisible until a release.
+#
+# The Node version is read from `.nvmrc` rather than pinned here. Three
+# workflows previously pinned literals, two of which disagreed with the version
+# file and with each other; a test now fails any workflow that pins one.
+name: verify
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  static:
+    name: static
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: node scripts/verify-all.mjs --form=fast --gates=static
+
+  test-macos:
+    name: test-macos
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # Coverage is measured on one runner only: the figure is the same wherever
+      # it is taken, and taking it twice would double the slowest job for
+      # nothing.
+      - run: node scripts/verify-all.mjs --form=release --gates=suite
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verification-result-macos
+          path: verification-result.json
+          if-no-files-found: ignore
+
+  test-windows:
+    name: test-windows
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # The whole suite, not a hand-maintained list of files. Tests that cannot
+      # run here are named skips, and an unexplained skip fails the run.
+      - run: node scripts/verify-all.mjs --form=fast --gates=suite
+
+  build:
+    name: build
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: node scripts/verify-all.mjs --form=release --gates=build
+
+  e2e:
+    name: e2e
+    # The single biggest minutes lever: this harness needs a full build and real
+    # binaries, and its failures are rarely local to one change. So it runs on
+    # the default branch and on pull requests that ask for it by label, rather
+    # than on every push.
+    if: github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'e2e')
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: node scripts/verify-all.mjs --form=release --gates=e2e
