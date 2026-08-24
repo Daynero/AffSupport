@@ -268,24 +268,24 @@ These four close holes confirmed by **probing a running local app**, not inferre
 
 ### Tests for User Story 4
 
-- [ ] T121 [P] [US4] Create `tests/agent-disconnect-ui.test.tsx` asserting that a 2-second interruption produces no visible disconnect, that a 10-second one keeps the page mounted with input intact, and that no installation prompt appears to a previously connected user (FR-033, SC-012)
-- [ ] T122 [P] [US4] Create `tests/state-revision-guard.test.ts` asserting a stale response cannot overwrite a newer snapshot, and that a fresh connect after a restart correctly resets rather than being rejected as stale (FR-037, D3, SC-013)
+- [X] T121 [P] [US4] Create `tests/agent-disconnect-ui.test.tsx` asserting that a 2-second interruption produces no visible disconnect, that a 10-second one keeps the page mounted with input intact, and that no installation prompt appears to a previously connected user (FR-033, SC-012)
+- [X] T122 [P] [US4] Create `tests/state-revision-guard.test.ts` asserting a stale response cannot overwrite a newer snapshot, and that a fresh connect after a restart correctly resets rather than being rejected as stale (FR-037, D3, SC-013)
 - [ ] T123 [P] [US4] Create `tests/repair-handshake.test.ts` asserting a wrong origin is refused, a wrong nonce is refused, the timeout falls back to navigation, and two tabs produce exactly one handshake (D4)
 - [ ] T124 [P] [US4] Add cases to `tests/shell-and-modal-layout.test.ts` asserting no reachable state renders a dialog without a dismissal (FR-033)
 - [ ] T125 [P] [US4] Create `tests/frozen-progress.test.tsx` asserting the progress animation and elapsed timer stop while disconnected (FR-036, D6)
 
 ### Implementation for User Story 4
 
-- [ ] T126 [US4] Add a 3-second grace period and progressive backoff to `apps/web/src/api/useAgentEventStream.ts` so a short interruption never reaches the interface (FR-034)
-- [ ] T127 [US4] Stop treating a live message as proof of health in `apps/web/src/AgentContext.tsx`; derive connection state from the whole connection, not the stream alone (FR-035, D5)
-- [ ] T128 [US4] Gate the setup screen in `apps/web/src/ProtectedSoty.tsx` on connected-but-unsupported rather than on transport, so tool pages stay mounted through an interruption (D1, FR-039)
-- [ ] T129 [US4] Pass a close handler to the local-app dialog in `apps/web/src/ProtectedSoty.tsx` so it can never be un-closable (D1)
-- [ ] T130 [US4] Revive the in-page degradation at `apps/web/src/App.tsx` and give the disconnected state its own branch instead of letting it fall through to the generic onboarding panel (D2)
-- [ ] T131 [P] [US4] Distinguish never-connected from was-connected in `apps/web/src/HomePage.tsx` so a blip does not show download instructions (D2)
+- [X] T126 [US4] Add a 3-second grace period and progressive backoff to `apps/web/src/api/useAgentEventStream.ts` so a short interruption never reaches the interface (FR-034)
+- [X] T127 [US4] Stop treating a live message as proof of health in `apps/web/src/AgentContext.tsx`; derive connection state from the whole connection, not the stream alone (FR-035, D5)
+- [X] T128 [US4] Gate the setup screen in `apps/web/src/ProtectedSoty.tsx` on connected-but-unsupported rather than on transport, so tool pages stay mounted through an interruption (D1, FR-039)
+- [X] T129 [US4] Pass a close handler to the local-app dialog in `apps/web/src/ProtectedSoty.tsx` so it can never be un-closable (D1)
+- [X] T130 [US4] Revive the in-page degradation at `apps/web/src/App.tsx` and give the disconnected state its own branch instead of letting it fall through to the generic onboarding panel (D2)
+- [X] T131 [P] [US4] Distinguish never-connected from was-connected in `apps/web/src/HomePage.tsx` so a blip does not show download instructions (D2)
 - [ ] T132 [P] [US4] Pass connection state into `apps/web/src/components/JobRow.tsx` so the flowing animation and the elapsed interval both stop while disconnected (D6)
-- [ ] T133 [US4] Add a monotonic `revision` to `QueueState`, `TranscriptionState` and `LandingState` in `packages/shared/src/types.ts` with the comparison helper (data-model §3)
-- [ ] T134 [US4] Increment the revision by wrapping the injected notify callback once in each of `apps/agent/src/queue/queue.ts`, `apps/agent/src/queue/transcription-queue.ts` and `apps/agent/src/landing/optimizer.ts` — not at the thirty-plus call sites
-- [ ] T135 [US4] Apply the newer-wins guard in one place in `apps/web/src/AgentContext.tsx`, with a documented bypass for a fresh connect keyed on the reported instance identity
+- [X] T133 [US4] Add a monotonic `revision` to `QueueState`, `TranscriptionState` and `LandingState` in `packages/shared/src/types.ts` with the comparison helper (data-model §3)
+- [X] T134 [US4] Increment the revision by wrapping the injected notify callback once in each of `apps/agent/src/queue/queue.ts`, `apps/agent/src/queue/transcription-queue.ts` and `apps/agent/src/landing/optimizer.ts` — not at the thirty-plus call sites
+- [X] T135 [US4] Apply the newer-wins guard in one place in `apps/web/src/AgentContext.tsx`, with a documented bypass for a fresh connect keyed on the reported instance identity
 - [ ] T136 [P] [US4] Apply the same guard to the local state writers in `apps/web/src/transcription/TranscriptionPage.tsx` and `apps/web/src/landing/LandingOptimizerPage.tsx`
 - [ ] T137 [US4] Add a handshake route to `apps/agent/src/server/app.ts` serving a minimal document that posts the token to a server-chosen target origin, never a wildcard and never the requesting origin
 - [ ] T138 [US4] Implement the in-page handshake in `apps/web/src/api/pairing-token.ts` with nonce, origin and source verification, and a timeout fallback to the existing navigation

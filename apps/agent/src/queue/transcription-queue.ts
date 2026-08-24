@@ -258,14 +258,23 @@ export class TranscriptionQueue {
   private teamJobIds = new Set<string>();
   private teamJobLanguages = new Map<string, string>();
 
+  /** Bumped once per broadcast by the wrapper below, never at a call site. */
+  private revision = 0;
+  /** Every broadcast goes through here, so no site can forget the increment. */
+  private readonly notify: Notify;
+
   constructor(
     private tools: TranscriptionTooling,
-    private notify: Notify,
+    private notifyRaw: Notify,
     // Jobs/settings restored from the persisted transcription state (see
     // queue/transcription-store.ts), mirroring how JobQueue receives them.
     private jobs: TranscriptionJob[] = [],
     private settings: TranscriptionSettings = defaultTranscriptionSettings()
   ) {
+    this.notify = ((event?: Parameters<Notify>[0]) => {
+      this.revision += 1;
+      this.notifyRaw(event);
+    }) as Notify;
     this.downloader = new ModelDownloader(
       MODEL_DESCRIPTOR,
       downloadedModelPath,
@@ -1126,6 +1135,7 @@ export class TranscriptionQueue {
       this.translationDownloadBatchId
     );
     return {
+      revision: this.revision,
       // The browser operates exclusively on opaque job ids. Keep local source,
       // and diagnostic paths inside the agent process instead of exposing them
       // through state/SSE.

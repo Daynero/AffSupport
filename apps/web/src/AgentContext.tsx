@@ -13,6 +13,7 @@ import {
   DEFAULT_CRF,
   DEFAULT_VIDEO_BITRATE_KBPS,
   defaultImageEmbeddingSettings,
+  isNewerSnapshot,
   toolContractCompatible,
   type AgentEntitlementStatus,
   type AgentEvent,
@@ -83,6 +84,18 @@ const AgentContext = createContext<AgentContextValue | null>(null);
 export function AgentProvider({ children }: { children: ReactNode }) {
   const [connection, setConnection] = useState<ConnectionState>('checking');
   const [state, setState] = useState<QueueState>(emptyState);
+  /**
+   * The last revision shown, so a snapshot that lost a race cannot win.
+   *
+   * A request in flight when an event fires resolves *after* it and overwrites
+   * a newer snapshot with an older one — the interface then shows a job as
+   * running that has already finished, and nothing corrects it until the next
+   * event. Held in a ref rather than derived from `state` so the comparison
+   * does not depend on when React re-renders.
+   */
+  const shownRevision = useRef(0);
+  /** Which local-app run the shown revision belongs to. */
+  const knownInstance = useRef<string | null>(null);
   const [connectedOnce, setConnectedOnce] = useState(false);
   const [agentVersion, setAgentVersion] = useState<string | null>(null);
   const [agentBuildId, setAgentBuildId] = useState<string | null>(null);
@@ -154,7 +167,12 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         setConnection(next);
         if (next !== 'connected') return;
         if (!result.state) throw new Error('AGENT_STATE_MISSING');
-        setState(result.state);
+        // The documented bypass. A restarted local app resets its counter to
+        // zero, so the first snapshot of a new run looks stale by number and is
+        // not: keyed on identity — the build the agent reports — rather than on
+        // the number, because treating a lower revision as stale here would
+        // freeze the interface on the previous run's last state forever.
+        applyState(result.state, { freshConnect: true, instance: result.buildId || null });
         setConnectedOnce(true);
         connectedOnceRef.current = true;
         releaseAutomaticPairing();
@@ -193,6 +211,31 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  /**
+   * The one place a queue snapshot is written.
+   *
+   * Every other writer goes through here, so "newer wins" is a property of the
+   * context rather than a rule each caller has to remember. An equal revision
+   * is allowed through: a re-fetch of the same state is harmless, and refusing
+   * it would make a manual refresh appear to do nothing.
+   */
+  const applyState = useCallback(
+    (next: QueueState, options: { freshConnect?: boolean; instance?: string | null } = {}) => {
+      const instanceChanged =
+        options.instance !== undefined && options.instance !== knownInstance.current;
+      if (options.freshConnect && instanceChanged) {
+        knownInstance.current = options.instance ?? null;
+        shownRevision.current = next.revision ?? 0;
+        setState(next);
+        return;
+      }
+      if (!isNewerSnapshot(next, { revision: shownRevision.current })) return;
+      shownRevision.current = next.revision ?? 0;
+      setState(next);
+    },
+    []
+  );
+
   // One connection for every tool, when the agent offers one. The seven per-tool endpoints
   // remain the fallback, so an agent and an interface can be upgraded independently.
   const multiplexed = capabilities.includes('event-stream');
@@ -212,7 +255,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     multiplexed,
     enabled: connectedOnce,
     onMessage: update => {
-      setState(update.state);
+      applyState(update.state);
       setConnection('connected');
     },
     onDisconnect: () => setConnection('disconnected'),

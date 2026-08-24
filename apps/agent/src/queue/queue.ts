@@ -225,9 +225,21 @@ export class JobQueue {
   private power: QueuePowerGovernor | null = null;
   /** Releases the estimate-priority hold; null when nothing is held. */
 
+  /**
+   * Bumped once per broadcast, by the wrapper below and nowhere else.
+   *
+   * Wrapping `notify` rather than incrementing at each call site is the whole
+   * design: there are thirty-odd of them, a new one is added regularly, and the
+   * one somebody forgets would be an event that quietly cannot win against the
+   * snapshot it should replace.
+   */
+  private revision = 0;
+  /** Every broadcast goes through here, so the revision cannot be missed. */
+  private readonly notify: (event?: AgentEventType) => void;
+
   constructor(
     private tools: QueueState['tools'],
-    private notify: (event?: AgentEventType) => void,
+    private notifyRaw: (event?: AgentEventType) => void,
     private jobs: CompressionJob[] = [],
     private settings: AgentSettings = defaultSettings,
     private batch: QueueBatch | null = null,
@@ -235,6 +247,10 @@ export class JobQueue {
     private random = Math.random,
     private mediaRuntime: QueueMediaRuntime = defaultMediaRuntime
   ) {
+    this.notify = (event?: AgentEventType) => {
+      this.revision += 1;
+      this.notifyRaw(event);
+    };
     this.nextEstimatePriorityOrder =
       Math.max(0, ...jobs.map(job => job.estimatePriorityOrder ?? 0)) + 1;
     // A batch restored from disk is the case the watchdog exists for: the agent
@@ -399,6 +415,7 @@ export class JobQueue {
       batch: this.batch ? { ...this.batch, jobIds: [...this.batch.jobIds] } : null,
       warning: this.warning,
       update: this.updateStatus(),
+      revision: this.revision,
       ...(this.readMediaActions ? { mediaActions: this.readMediaActions() } : {})
     };
   }

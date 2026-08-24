@@ -538,10 +538,20 @@ export class LandingOptimizer {
   private pendingJobIds: string[] = [];
   private pumpPromise: Promise<void> | null = null;
 
+  /** Bumped once per broadcast by the wrapper below, never at a call site. */
+  private revision = 0;
+  /** Every broadcast goes through here, so no site can forget the increment. */
+  private readonly notify: Notify;
+
   constructor(
     private tools: { ffmpeg: boolean; ffprobe: boolean },
-    private notify: Notify
-  ) {}
+    private notifyRaw: Notify
+  ) {
+    this.notify = ((event?: Parameters<Notify>[0]) => {
+      this.revision += 1;
+      this.notifyRaw(event);
+    }) as Notify;
+  }
 
   state(): LandingState {
     const allJobs = this.workers
@@ -552,6 +562,7 @@ export class LandingOptimizer {
       .map(worker => worker.state().job)
       .filter((job): job is LandingJob => job !== null);
     return {
+      revision: this.revision,
       jobs,
       job: jobs.at(-1) ?? null,
       settings: { ...this.settings },

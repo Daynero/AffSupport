@@ -14,7 +14,7 @@ import { teamApi } from './api/team';
 
 export default function HomePage({ navigate }: { navigate: (path: string) => void }) {
   const { t } = useI18n();
-  const { connection, reconnect, toolAvailable } = useAgent();
+  const { connection, connectedOnce, reconnect, toolAvailable } = useAgent();
   const entering = usePageEntrance();
   const [help, setHelp] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -155,6 +155,14 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
           {connection === 'checking' ? (
             <div className="agent-checking" role="status">
               {t('connectingAgent')}
+            </div>
+          ) : !connected && connectedOnce ? (
+            /* D2. Someone who has connected before does not need download
+               instructions — they have the application; it is momentarily not
+               answering. Offering to install it reads as "your install is
+               broken", which is both wrong and alarming. */
+            <div className="agent-checking" role="status">
+              {t('agentReconnecting')}
             </div>
           ) : !connected ? (
             <Onboarding

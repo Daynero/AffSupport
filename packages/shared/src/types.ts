@@ -439,6 +439,21 @@ export interface QueueBatch {
 }
 
 export interface QueueState {
+  /**
+   * Monotonic within one local-app run, incremented on every broadcast.
+   *
+   * A snapshot can arrive after a newer one: a request in flight when an event
+   * fires resolves second and overwrites it, and the interface then shows a job
+   * as running that has already finished. Comparing revisions makes that
+   * impossible to miss — the older snapshot is simply dropped.
+   *
+   * **Resets to zero when the local app restarts**, so a client must key its
+   * reset on the reported instance identity rather than treating a lower number
+   * as stale; otherwise the first snapshot after a restart is rejected forever.
+   * Optional because an older agent omits it: absent normalises to zero and the
+   * guard degrades to the behaviour that existed before it.
+   */
+  revision?: number;
   jobs: CompressionJob[];
   running: boolean;
   tools: { ffmpeg: boolean; ffprobe: boolean };
@@ -692,6 +707,21 @@ export interface LandingJob {
 }
 
 export interface LandingState {
+  /**
+   * Monotonic within one local-app run, incremented on every broadcast.
+   *
+   * A snapshot can arrive after a newer one: a request in flight when an event
+   * fires resolves second and overwrites it, and the interface then shows a job
+   * as running that has already finished. Comparing revisions makes that
+   * impossible to miss — the older snapshot is simply dropped.
+   *
+   * **Resets to zero when the local app restarts**, so a client must key its
+   * reset on the reported instance identity rather than treating a lower number
+   * as stale; otherwise the first snapshot after a restart is rejected forever.
+   * Optional because an older agent omits it: absent normalises to zero and the
+   * guard degrades to the behaviour that existed before it.
+   */
+  revision?: number;
   /** Every landing currently prepared, queued, processing, or completed. */
   jobs: LandingJob[];
   /** Most recently added landing, retained for compatibility with older clients. */
@@ -1219,6 +1249,21 @@ export interface TranscriptionModelInfo {
 }
 
 export interface TranscriptionState {
+  /**
+   * Monotonic within one local-app run, incremented on every broadcast.
+   *
+   * A snapshot can arrive after a newer one: a request in flight when an event
+   * fires resolves second and overwrites it, and the interface then shows a job
+   * as running that has already finished. Comparing revisions makes that
+   * impossible to miss — the older snapshot is simply dropped.
+   *
+   * **Resets to zero when the local app restarts**, so a client must key its
+   * reset on the reported instance identity rather than treating a lower number
+   * as stale; otherwise the first snapshot after a restart is rejected forever.
+   * Optional because an older agent omits it: absent normalises to zero and the
+   * guard degrades to the behaviour that existed before it.
+   */
+  revision?: number;
   jobs: TranscriptionJob[];
   running: boolean;
   tools: TranscriptionTools;
@@ -1519,4 +1564,24 @@ export function parsePersistedPowerState(
       updatedAt: typeof record.updatedAt === 'string' ? record.updatedAt : new Date(0).toISOString()
     }
   };
+}
+
+/**
+ * Whether an arriving snapshot should replace the one already shown.
+ *
+ * The whole rule in one place, so the thirty-odd writers cannot each get it
+ * subtly different. Two cases are deliberately *not* stale: a snapshot from a
+ * different local-app instance (a restart resets the counter, and rejecting it
+ * would freeze the interface on the previous run's last state), and an equal
+ * revision (a re-fetch of the same state is harmless and refusing it would make
+ * a manual refresh do nothing).
+ */
+export function isNewerSnapshot(
+  next: { revision?: number },
+  current: { revision?: number } | null,
+  options: { sameInstance?: boolean } = {}
+): boolean {
+  if (!current) return true;
+  if (options.sameInstance === false) return true;
+  return (next.revision ?? 0) >= (current.revision ?? 0);
 }

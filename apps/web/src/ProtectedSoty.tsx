@@ -71,7 +71,7 @@ function ProtectedApplication({ path, route }: { path: string; route: string }) 
 }
 
 function ToolRoute({ tool }: { tool: WebTool }) {
-  const { connection, capabilities, toolAvailable } = useAgent();
+  const { connection, capabilities, connectedOnce, toolAvailable } = useAgent();
   // Web-only access gate — a protected tool must show the lock even on a
   // direct URL visit until this browser has acknowledged the warning.
   const locked = useToolLock(tool.featureFlag);
@@ -84,6 +84,13 @@ function ToolRoute({ tool }: { tool: WebTool }) {
     return <tool.page />;
   }
   if (connection === 'connected' && toolAvailable(tool.id)) return <tool.page />;
+  // D1/FR-039. The setup screen is for someone who has to *do* something —
+  // install the app, or update it. It is not for someone whose wifi dropped
+  // for two seconds: unmounting the tool page there throws away form input,
+  // scroll position and any dialog they had open, and then offers to install
+  // software they are already running. Anyone who has connected once keeps
+  // their page.
+  if (connectedOnce && connection !== 'agent_update_required') return <tool.page />;
   return <ToolSetupScreen tool={tool.id} connection={connection} />;
 }
 
@@ -110,7 +117,7 @@ function ToolSetupScreen({
   return (
     <>
       <main className={entering ? 'page-container page-enter' : 'page-container'} />
-      <LocalAppDialog tool={tool} connection={connection} />
+      <LocalAppDialog tool={tool} connection={connection} onClose={() => navigateTo('/', true)} />
     </>
   );
 }
