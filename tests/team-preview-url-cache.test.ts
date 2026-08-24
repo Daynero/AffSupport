@@ -86,7 +86,7 @@ describe('preview URL cache', () => {
 
   it('lets a failed request be retried', async () => {
     const fetcher = vi
-      .fn<[], Promise<TeamPreviewResult>>()
+      .fn<(...args: unknown[]) => Promise<TeamPreviewResult>>()
       .mockRejectedValueOnce(new Error('offline'))
       .mockResolvedValueOnce(media(10 * 60_000));
     await expect(cachedPreview(fetcher, TEAM_ID, MATERIAL_ID, 'media')).rejects.toThrow('offline');

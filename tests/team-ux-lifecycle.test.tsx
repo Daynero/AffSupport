@@ -4,12 +4,13 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
-import { AuthContextOverride, type AuthContextValue } from '../apps/web/src/auth/AuthContext';
+import { AuthContextOverride } from '../apps/web/src/auth/AuthContext';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { TeamSpace } from '../apps/web/src/team/TeamSpace';
 import { ToastProvider } from '../apps/web/src/components/toast';
 import { SpaceStatePanel } from '../apps/web/src/team/workspace/SpaceStatePanel';
 import { makeClient, makeTeam } from './team-space-fixtures';
+import { adminAuthStub } from './support/auth-stub';
 
 /**
  * US4 — the membership lifecycle has no dead ends.
@@ -27,20 +28,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const adminAuth = {
-  status: 'authenticated',
-  user: null,
-  session: null,
-  profile: null,
-  isAdmin: true,
-  error: null,
-  loading: false,
-  signInWithGoogle: vi.fn(),
-  completeOAuthCallback: vi.fn(),
-  signOut: vi.fn(),
-  updateProfile: vi.fn(),
-  refreshProfile: vi.fn()
-} as AuthContextValue;
+const adminAuth = adminAuthStub();
 
 function invitation(overrides: Record<string, unknown> = {}) {
   return {

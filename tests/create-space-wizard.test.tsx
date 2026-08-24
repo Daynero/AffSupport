@@ -3,10 +3,11 @@ import React from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AuthContextOverride, type AuthContextValue } from '../apps/web/src/auth/AuthContext';
+import { AuthContextOverride } from '../apps/web/src/auth/AuthContext';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { TeamSpace } from '../apps/web/src/team/TeamSpace';
 import { makeClient, makeTeam } from './team-space-fixtures';
+import { adminAuthStub } from './support/auth-stub';
 
 const NEW_ID = '20000000-0000-4000-8000-0000000000c2';
 const folder = { id: 'root-folder', name: 'Team media', driveKind: 'my_drive' as const };
@@ -37,20 +38,7 @@ function wizardClient() {
 }
 
 function renderSpace(client: ReturnType<typeof makeClient>) {
-  const adminAuth = {
-    status: 'authenticated',
-    user: null,
-    session: null,
-    profile: null,
-    isAdmin: true,
-    error: null,
-    loading: false,
-    signInWithGoogle: vi.fn(),
-    completeOAuthCallback: vi.fn(),
-    signOut: vi.fn(),
-    updateProfile: vi.fn(),
-    refreshProfile: vi.fn()
-  } as AuthContextValue;
+  const adminAuth = adminAuthStub();
   return render(
     <AuthContextOverride value={adminAuth}>
       <TeamProvider realtime={false}>

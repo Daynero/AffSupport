@@ -40,10 +40,12 @@ describe('forbidden vocabulary', () => {
 
   it.each(LOCALES)('does not use "media" or "asset" as a word for a file in %s', locale => {
     const pattern = locale === 'uk' ? /\bмедіа\b/iu : /\b(media|assets?)\b/iu;
-    const offenders = teamStrings(locale)
-      .filter(({ value }) => pattern.test(value))
-      // The bulk-upload surface names a physical file kind, not the content unit.
-      .filter(({ key }) => key !== 'teamTaskDropMediaTitle');
+    const offenders = teamStrings(locale).filter(({ value }) => pattern.test(value));
+    // The bulk-upload surface used to be excepted here for naming a physical
+    // file kind rather than the content unit. Its key went with the drag
+    // plumbing (010 T062), so the exception went too rather than lingering as a
+    // filter that can never match.
+
     expect(offenders).toEqual([]);
   });
 });

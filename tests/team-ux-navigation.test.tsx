@@ -3,10 +3,11 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AuthContextOverride, type AuthContextValue } from '../apps/web/src/auth/AuthContext';
+import { AuthContextOverride } from '../apps/web/src/auth/AuthContext';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { TeamSpace } from '../apps/web/src/team/TeamSpace';
 import { makeClient, makeTeam } from './team-space-fixtures';
+import { adminAuthStub } from './support/auth-stub';
 
 /**
  * US1 — orientation. The claim under test is that a person always knows where
@@ -23,20 +24,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const adminAuth = {
-  status: 'authenticated',
-  user: null,
-  session: null,
-  profile: null,
-  isAdmin: true,
-  error: null,
-  loading: false,
-  signInWithGoogle: vi.fn(),
-  completeOAuthCallback: vi.fn(),
-  signOut: vi.fn(),
-  updateProfile: vi.fn(),
-  refreshProfile: vi.fn()
-} as AuthContextValue;
+const adminAuth = adminAuthStub();
 
 function renderSpace(client: ReturnType<typeof makeClient>, address = '/team') {
   window.history.replaceState(null, '', address);

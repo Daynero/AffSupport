@@ -34,6 +34,40 @@ export default defineConfig({
     poolOptions: {
       forks: { singleFork: false }
     },
+
+    /**
+     * Coverage is measured, never enforced here.
+     *
+     * `all: true` is the load-bearing setting: without it the modules no test
+     * imports simply do not appear, and a baseline computed from only the files
+     * someone remembered to test is a number that can rise while coverage falls.
+     *
+     * The verdict belongs to `scripts/verify-all.mjs` rather than to a
+     * threshold, because the rule is not one floor — the global must not fall,
+     * no single file may fall beyond a tolerance, and a named set of run-state
+     * modules has an absolute floor whatever the global did. One place owns
+     * that decision; a runner threshold here could only disagree with it.
+     */
+    coverage: {
+      provider: 'v8',
+      all: true,
+      reporter: ['json-summary', 'json', 'text-summary'],
+      reportsDirectory: 'coverage',
+      include: [
+        'apps/agent/src/**/*.ts',
+        'apps/web/src/**/*.{ts,tsx}',
+        'packages/shared/src/**/*.ts'
+      ],
+      exclude: [
+        '**/node_modules/**',
+        '**/dist/**',
+        '**/*.d.ts',
+        // Generated, vendored, or entry shims with no branch of their own.
+        'apps/web/src/main.tsx',
+        'apps/web/src/vite-env.d.ts',
+        'packages/shared/src/index.ts'
+      ]
+    },
     projects: [
       {
         extends: true,

@@ -5,11 +5,12 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
 import type { CatalogSearchResponse } from '@video-compressor/shared';
-import { AuthContextOverride, type AuthContextValue } from '../apps/web/src/auth/AuthContext';
+import { AuthContextOverride } from '../apps/web/src/auth/AuthContext';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { TeamSpace } from '../apps/web/src/team/TeamSpace';
 import { CatalogSearchBar } from '../apps/web/src/team/catalog/CatalogSearchBar';
 import { makeClient, makeTeam } from './team-space-fixtures';
+import { adminAuthStub } from './support/auth-stub';
 
 /**
  * US2 — file management lives where the files are.
@@ -26,20 +27,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const adminAuth = {
-  status: 'authenticated',
-  user: null,
-  session: null,
-  profile: null,
-  isAdmin: true,
-  error: null,
-  loading: false,
-  signInWithGoogle: vi.fn(),
-  completeOAuthCallback: vi.fn(),
-  signOut: vi.fn(),
-  updateProfile: vi.fn(),
-  refreshProfile: vi.fn()
-} as AuthContextValue;
+const adminAuth = adminAuthStub();
 
 function searchResponse(overrides: Partial<CatalogSearchResponse> = {}): CatalogSearchResponse {
   return {

@@ -27,3 +27,7 @@ apps/agent/runtime/
 
 # Local signing keys — never commit private keys.
 config/keys/
+
+# Written by scripts/verify-all.mjs on every run; the result is machine-read, not committed.
+verification-result.json
+verification-suite.json

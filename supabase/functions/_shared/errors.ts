@@ -18,6 +18,13 @@ const STATUS_BY_CODE: Readonly<Record<TeamErrorCode, number>> = {
   EXPIRED: 409,
   TEAM_MEMBER_LIMIT: 409,
   OWNERSHIP_TRANSFER_REQUIRED: 409,
+  // The shorter spelling the database has actually raised since 001, and the
+  // one `leave_team` raises. Both are registered because the string on the wire
+  // is the contract; neither can be renamed away.
+  OWNER_TRANSFER_REQUIRED: 409,
+  // `delete_draft_team` against a team that has ever had a drive connection:
+  // the caller asked for something the team's state does not allow.
+  TEAM_NOT_DRAFT: 409,
   SOURCE_CHANGED: 409,
   AGENT_REQUIRED: 409,
   AGENT_UPDATE_REQUIRED: 409,
