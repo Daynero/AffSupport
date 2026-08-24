@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
+import type { QueueState } from '@video-compressor/shared';
 import { hasCapability } from '../server/capabilities.js';
 import { isImageConversionFormat, type ImageConversionFormat } from './image-converter.js';
 import type { MediaActionQueue } from './queue.js';
@@ -7,6 +8,14 @@ import type { MediaActionQueue } from './queue.js';
 export interface MediaActionsContext {
   mediaActions: MediaActionQueue;
   acceptingNewTasks: () => boolean;
+  /**
+   * The compressor's state, which carries the conversions (FR-009b).
+   *
+   * The stop routes reply with it rather than with the conversion list alone, so the
+   * interface applies the answer the same way it applies every other action's — one shape,
+   * one code path, and no chance of the two halves of the screen disagreeing.
+   */
+  compressorState: () => QueueState;
 }
 
 /**
@@ -14,7 +23,7 @@ export interface MediaActionsContext {
  * guarded by the x-wishly-native-token preHandler, not the browser session.
  */
 export function registerMediaActionRoutes(app: FastifyInstance, ctx: MediaActionsContext): void {
-  const { mediaActions, acceptingNewTasks } = ctx;
+  const { mediaActions, acceptingNewTasks, compressorState } = ctx;
 
   app.post<{
     Body: { paths?: unknown; format?: unknown };
@@ -62,24 +71,21 @@ export function registerMediaActionRoutes(app: FastifyInstance, ctx: MediaAction
    * no window of its own, so before these routes existed the only way to stop a wedged one
    * was to quit the application (A3).
    */
-  app.post<{ Params: { id: string } }>(
-    '/api/media-actions/:id/cancel',
-    async (request, reply) => {
-      const cancelled = await mediaActions.cancel(request.params.id);
-      return cancelled
-        ? { state: mediaActions.state() }
-        : reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' });
-    }
-  );
+  app.post<{ Params: { id: string } }>('/api/media-actions/:id/cancel', async (request, reply) => {
+    const cancelled = await mediaActions.cancel(request.params.id);
+    return cancelled
+      ? { state: compressorState() }
+      : reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' });
+  });
 
   app.post('/api/media-actions/cancel-all', async () => ({
     // A count, not a boolean: "stopped nothing" and "stopped three" are different answers,
     // and the interface reports the second one to the user.
     stopped: await mediaActions.cancelAll(),
-    state: mediaActions.state()
+    state: compressorState()
   }));
 
-  app.get('/api/media-actions', async () => ({ state: mediaActions.state() }));
+  app.get('/api/media-actions', async () => ({ state: compressorState() }));
 
   app.get('/native/media-actions', async () => ({
     jobs: mediaActions.state().jobs.map(job => ({

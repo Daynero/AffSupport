@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useOptionalAgent } from '../AgentContext';
 import { Button } from '../components/ui';
 import { useI18n } from '../i18n';
 import { analytics, trackTeamLandingRender } from '../analytics/service';
@@ -17,7 +18,12 @@ import { buildTeamPreviewCatalogSnapshot } from './team-catalog';
 export default function LandingPreviewPage() {
   const { t } = useI18n();
   const team = useOptionalTeam();
-  const source = useMemo(() => agentLandingSource(), []);
+  // Optional, not required: this page is rendered on its own in tests and reachable before
+  // a session exists, and a hook that throws without a provider would turn "no agent yet"
+  // into a blank screen.
+  const agent = useOptionalAgent();
+  const multiplexed = Boolean(agent?.capabilities?.includes('event-stream'));
+  const source = useMemo(() => agentLandingSource(multiplexed), [multiplexed]);
   const viewer = useLandingViewer({ source });
   const { pushState, setMessage, loaded, selected, activeCatalog } = viewer;
 

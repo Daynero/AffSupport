@@ -17,7 +17,7 @@ const api = vi.hoisted(() => ({
   transcriptionCancelAll: vi.fn(),
   transcriptionClearFinished: vi.fn(),
   transcriptionDocument: vi.fn(),
-  transcriptionEventUrl: vi.fn(() => '/events'),
+  toolEventUrl: vi.fn(() => '/events'),
   transcriptionMediaCancel: vi.fn(),
   transcriptionMediaPrepare: vi.fn(),
   transcriptionMediaStatus: vi.fn(),

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  COMPRESSION_LIFECYCLE,
   calculateQueueSummary,
+  isSettled,
   type AgentSettingsPatch,
   type CompressionJob,
   type QueueState,
@@ -30,11 +32,13 @@ import {
   removableSelectedIds,
   selectableJobIds,
   startableSelectedIds,
+  stoppable,
   toggleSelection,
   type CompressBlock
 } from './queue-ui';
 import { DropZone } from './components/DropZone';
 import { JobRow } from './components/JobRow';
+import { MediaActionsPanel } from './components/MediaActionsPanel';
 import { SettingsPanel } from './components/SettingsPanel';
 import { Button, ProgressBar, Spinner, type Translate } from './components/ui';
 import { SotyLogo, SotyMark } from './components/SotyLogo';
@@ -173,12 +177,28 @@ export default function CompressorPage() {
   };
 
   /**
+   * Stopping a conversion started from the file manager.
+   *
+   * Its reply wraps the compressor state rather than being it, because "stop everything"
+   * also answers how much it stopped. The state inside is the whole compressor state —
+   * the conversions ride it (FR-009b) — so applying it is the same as any other action.
+   */
+  const mediaAction = async (url: string) => {
+    try {
+      const reply = await request<{ state: QueueState }>(url, 'POST');
+      setState(reply.state);
+    } catch (error) {
+      handleError(error);
+    }
+  };
+
+  /**
    * Stops the batch and says how much was stopped. The count comes from what
    * this window could see before the call, so a click that lands just after the
    * last file finished reports honestly instead of implying it did something.
    */
   const stopAll = async () => {
-    const stopping = state.jobs.filter(job => ['processing', 'queued'].includes(job.status)).length;
+    const stopping = state.jobs.filter(stoppable).length;
     try {
       setState(await request<QueueState>('/api/queue/cancel-all', 'POST'));
       if (stopping) addToast(t('stoppedCount', { count: stopping }), 'neutral');
@@ -352,7 +372,7 @@ export default function CompressorPage() {
     const removable = removableSelectedIds(state.jobs, selected);
     if (!removable.length) return;
     const activeSelected = [...selected].some(id =>
-      state.jobs.some(job => job.id === id && ['processing', 'queued'].includes(job.status))
+      state.jobs.some(job => job.id === id && stoppable(job))
     );
     try {
       const next = await requestBody<QueueState>('/api/jobs/remove', { ids: [...selected] });
@@ -371,7 +391,7 @@ export default function CompressorPage() {
   const selectableIds = useMemo(() => selectableJobIds(visibleJobs), [visibleJobs]);
   const selectedStartable = startableSelectedIds(state.jobs, selected);
   const selectedRemovable = removableSelectedIds(state.jobs, selected);
-  const stoppable = state.jobs.some(job => ['processing', 'queued'].includes(job.status));
+  const anythingStoppable = state.jobs.some(stoppable);
   const metrics = useMemo(() => batchMetrics(state.jobs, state.batch), [state.jobs, state.batch]);
   const summary = useMemo(() => calculateQueueSummary(state.jobs), [state.jobs]);
   const selectedLabel = selected.size
@@ -498,7 +518,7 @@ export default function CompressorPage() {
                     {t(blockedReasonKey(blocked)!)}
                   </span>
                 )}
-                {stoppable && (
+                {anythingStoppable && (
                   <Button
                     variant="danger"
                     disabled={!connected}
@@ -515,9 +535,7 @@ export default function CompressorPage() {
                 >
                   {t('removeSelected')}
                 </Button>
-                {state.jobs.some(job =>
-                  ['completed', 'failed', 'cancelled', 'interrupted'].includes(job.status)
-                ) && (
+                {state.jobs.some(job => isSettled(COMPRESSION_LIFECYCLE, job.status)) && (
                   <Button
                     variant="ghost"
                     disabled={!connected}
@@ -566,6 +584,14 @@ export default function CompressorPage() {
             ))
           )}
         </section>
+
+        <MediaActionsPanel
+          mediaActions={state.mediaActions}
+          disabled={!connected}
+          onStop={id => void mediaAction(`/api/media-actions/${id}/cancel`)}
+          onStopAll={() => void mediaAction('/api/media-actions/cancel-all')}
+          t={t}
+        />
 
         {(summary.successful > 0 || summary.failed > 0) && (
           <section className="result-summary" aria-labelledby="summary-title">

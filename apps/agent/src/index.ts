@@ -39,8 +39,9 @@ import { loadPowerState, savePowerLimit } from './power/store.js';
 import { PowerSampler } from './power/sampler.js';
 import { setActiveGovernor } from './power/spawn.js';
 import { buildServer } from './server/app.js';
+import { hasCapability } from './server/capabilities.js';
 import { resolveSessionToken } from './server/session-token.js';
-import { EventChannel } from './server/sse.js';
+import { ChannelHub, EventChannel } from './server/sse.js';
 import { createToolModules } from './server/tools.js';
 import { TeamPreviewBridge } from './team-bridge/preview.js';
 import { TeamOperationEvents, type TeamOperationEvent } from './team-bridge/events.js';
@@ -82,7 +83,7 @@ const transcriptionTools = {
   whisper: await whisperAvailable()
 };
 const imageStore = new ImageAssetStore();
-const mediaActions = new MediaActionQueue();
+const mediaActions = new MediaActionQueue(() => broadcast());
 const teamPreviewBridge = new TeamPreviewBridge();
 await teamPreviewBridge.init();
 let saveChain = Promise.resolve();
@@ -93,6 +94,15 @@ let mediaToolsTimer: ReturnType<typeof setInterval> | null = null;
 let installedReleaseTimer: ReturnType<typeof setInterval> | null = null;
 let updateDrainTimer: ReturnType<typeof setInterval> | null = null;
 
+/**
+ * The one live-update fan-out, alongside the seven per-tool endpoints.
+ *
+ * Both, in this release. A client that has not been updated keeps its seven connections;
+ * one that sees the `event-stream` capability opens a single connection instead. Removing
+ * the endpoints would make the two halves have to ship together.
+ */
+const channelHub = new ChannelHub();
+
 const landingEvents = new EventChannel<LandingEvent>(allowedOrigins, () => ({
   type: 'landing:state',
   state: landingOptimizer.state()
@@ -100,6 +110,7 @@ const landingEvents = new EventChannel<LandingEvent>(allowedOrigins, () => ({
 const landingOptimizer = new LandingOptimizer(tools, (type: LandingEventType = 'landing:state') =>
   landingEvents.broadcast({ type, state: landingOptimizer.state() })
 );
+landingEvents.publishOn(channelHub, 'landing');
 
 const landingPreviewCatalog = new LandingPreviewCatalog();
 await landingPreviewCatalog.init();
@@ -113,6 +124,7 @@ landingPreviewCatalog.setNotify(type =>
     state: landingPreviewCatalog.state()
   })
 );
+landingPreviewEvents.publishOn(channelHub, 'landing-preview');
 
 const transcriptionEvents = new EventChannel<TranscriptionEvent>(allowedOrigins, () => ({
   type: 'transcription:state',
@@ -130,6 +142,7 @@ const transcriptionQueue = new TranscriptionQueue(
   restoredTranscription.jobs,
   restoredTranscription.settings
 );
+transcriptionEvents.publishOn(channelHub, 'transcription');
 transcriptionQueue.setTranslator(createTranslator());
 transcriptionQueue.setAligner(createAligner());
 
@@ -137,6 +150,7 @@ const agentEvents = new EventChannel<AgentEvent>(allowedOrigins, () => ({
   type: 'state',
   state: queue.state()
 }));
+agentEvents.publishOn(channelHub, 'compressor');
 
 function broadcast(type: AgentEventType = 'state') {
   agentEvents.broadcast({ type, state: queue.state() });
@@ -239,6 +253,15 @@ const queue = new JobQueue(
   imageStore
 );
 queue.attachPowerGovernor(powerGovernor);
+// The governor is what notices the machine slept; the queue is what knows whether the
+// encode it had running is still there (FR-009a).
+// It broadcasts on its own when it finds something to interrupt.
+powerGovernor.setWakeListener(() => queue.handleWake());
+// Conversions started from the file manager ride the compressor's channel rather than
+// opening an eighth one (FR-009b), so they reach the interface wherever its state does.
+if (hasCapability('finder-image-conversion')) {
+  queue.setMediaActionSource(() => mediaActions.state());
+}
 await queue.revalidateSettingsImages();
 const estimator = new EstimationWorker(
   () => queue.estimationJobs(),
@@ -266,6 +289,7 @@ const teamOperationEvents = new TeamOperationEvents();
 const teamEvents = new EventChannel<TeamOperationEvent>(allowedOrigins, () =>
   teamOperationEvents.snapshot()
 );
+teamEvents.publishOn(channelHub, 'team');
 teamOperationEvents.setNotify(event => teamEvents.broadcast(event));
 const teamTransfer = new TeamTransferClient();
 const teamProcessBridge = new TeamProcessBridge({
@@ -346,6 +370,7 @@ const app = await buildServer({
   modules,
   power: powerGovernor,
   powerSampler,
+  channelHub,
   webRoot: path.resolve(here, '../../web/dist')
 });
 logError = (error, message) => app.log.error(error, message);

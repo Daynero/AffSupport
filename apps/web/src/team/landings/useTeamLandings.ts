@@ -8,7 +8,7 @@ import {
   type LandingRenderPointer
 } from '@video-compressor/shared';
 import { useOptionalAgent } from '../../AgentContext';
-import { teamLandingEventUrl } from '../../api/client';
+import { toolEventUrl } from '../../api/client';
 import { useAgentEventStream } from '../../api/useAgentEventStream';
 import { useTeam } from '../TeamContext';
 import { useCatalogSearch, type CatalogSearchClient } from '../catalog/useCatalogSearch';
@@ -83,6 +83,7 @@ export function useTeamLandings(input: { teamId: string; client: TeamLandingsDat
   const { teamId, client } = input;
   const team = useTeam();
   const agent = useOptionalAgent();
+  const multiplexed = Boolean(agent?.capabilities?.includes('event-stream'));
   const fixedFilters = useMemo(() => LANDING_FILTER, []);
   const catalog = useCatalogSearch({ teamId, client, fixedFilters });
   const [renders, setRenders] = useState<LandingRenderPointer[]>([]);
@@ -152,7 +153,9 @@ export function useTeamLandings(input: { teamId: string; client: TeamLandingsDat
   };
 
   useAgentEventStream<TeamLandingProgressEvent>({
-    url: activeRender?.operationId ? teamLandingEventUrl() : null,
+    url: activeRender?.operationId ? toolEventUrl('team-landings') : null,
+    channel: 'team',
+    multiplexed,
     enabled: Boolean(activeRender?.operationId),
     onMessage: event => {
       if (event.type !== 'team:operations' || !activeRender?.operationId) return;

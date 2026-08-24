@@ -3,7 +3,7 @@ import {
   landingGalleryActivate,
   landingGalleryCancel,
   landingGalleryClearCache,
-  landingGalleryEventUrl,
+  toolEventUrl,
   landingGalleryImageUrl,
   landingGalleryOpen,
   landingGalleryOpenExtracted,
@@ -17,13 +17,15 @@ import {
 } from '../../api/client';
 import type { LandingViewerSource } from '../types';
 
+import { streamClient } from '../../api/stream-client';
+
 /**
  * The local, agent-backed {@link LandingViewerSource}: wraps the existing `api/client` landing
  * endpoints 1:1. It advertises every capability. The `subscribe` implementation intentionally
  * reproduces the original raw `EventSource` behaviour (no auto-reconnect; status flips to `open`
  * on connect and on every frame, `lost` on error) so the extraction is behaviour-preserving.
  */
-export function agentLandingSource(): LandingViewerSource {
+export function agentLandingSource(multiplexed = false): LandingViewerSource {
   return {
     capabilities: {
       chooseFolder: true,
@@ -38,7 +40,19 @@ export function agentLandingSource(): LandingViewerSource {
     },
     fetchState: signal => request<LandingPreviewState>('/api/landing-preview/state', 'GET', signal),
     subscribe: ({ onState, onStatus }) => {
-      const source = new EventSource(landingGalleryEventUrl());
+      // The shared connection when the agent offers one. This page opening a socket of its
+      // own is one of the seven the multiplexed stream replaces, and — because it is built
+      // outside React — the one place that cannot read the capability from context, so it is
+      // told instead.
+      if (multiplexed) {
+        onStatus?.('open');
+        return streamClient.subscribe('landing-preview', event => {
+          onStatus?.('open');
+          onState((event as LandingPreviewEvent).state);
+        });
+      }
+
+      const source = new EventSource(toolEventUrl('landing-preview'));
       source.onmessage = event => {
         onStatus?.('open');
         try {

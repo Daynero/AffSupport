@@ -59,7 +59,10 @@ describe('machine probe independence', () => {
 
   it('reads the process table with different flags from production', async () => {
     const probe = await probeSource();
-    const production = await readFile(path.join(ROOT, 'apps/agent/src/platform/platform.ts'), 'utf8');
+    const production = await readFile(
+      path.join(ROOT, 'apps/agent/src/platform/platform.ts'),
+      'utf8'
+    );
 
     // Not cosmetic. If the probe issued the identical query, a bug in how that query is
     // built — the wrong flag, a filtered table, a truncated buffer — would be present in

@@ -13,7 +13,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import {
   attachTaskMaterialsInChunks,
-  decodeTaskMaterialDrag,
   TaskAttachmentPicker
 } from '../apps/web/src/team/tasks/TaskAttachmentPicker';
 import {
@@ -155,13 +154,6 @@ describe('Creative Library task workflows', () => {
     });
     expect(attachTaskMaterials).toHaveBeenCalledTimes(3);
     expect(result.attached).toHaveLength(250);
-  });
-
-  it('accepts only unique UUIDs from the private multi-drag payload', () => {
-    expect(decodeTaskMaterialDrag(JSON.stringify([ASSET_ID, ASSET_ID, 'secret-path']))).toEqual([
-      ASSET_ID
-    ]);
-    expect(decodeTaskMaterialDrag('{broken')).toEqual([]);
   });
 
   it('keeps a video tile hidden until the exact one-second seek completes', async () => {

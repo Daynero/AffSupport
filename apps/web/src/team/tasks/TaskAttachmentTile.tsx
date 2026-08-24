@@ -13,6 +13,7 @@ import { Modal } from '../../components/Modal';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
 import { thumbnailRelayUrl } from '../library/thumbnailRelay';
+import { cachedPreview } from '../preview-url-cache';
 
 export function taskVideoPreviewTimeSeconds(durationSeconds: number): number {
   if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) return 0;
@@ -108,8 +109,12 @@ export function TaskAttachmentTile({
       return;
     }
     if (attachment.category === 'image' || attachment.category === 'video') {
-      void client
-        .previewMaterial(teamId, attachment.materialId, 'media')
+      void cachedPreview(
+        (id, materialId, mode) => client.previewMaterial(id, materialId, mode),
+        teamId,
+        attachment.materialId,
+        'media'
+      )
         .then(result => {
           if (!active) return;
           if (result.kind !== 'media') {

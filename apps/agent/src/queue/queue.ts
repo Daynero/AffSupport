@@ -12,12 +12,15 @@ import {
   imageEmbeddingKey,
   jobConfigurationKey,
   COMPRESSION_LIFECYCLE,
+  canTransition,
+  isSettled,
   type AgentEventType,
   type AgentSettings,
   type CompressionJob,
   type ImageAsset,
   type ImageSlot,
   type JobStatus,
+  type MediaActionState,
   type QueueBatch,
   type QueueState,
   type SelectionWarning,
@@ -188,6 +191,8 @@ export class JobQueue {
    * escalate its termination, and a child that ignores SIGTERM would simply carry on.
    */
   private readonly terminating = new Set<ChildProcessWithoutNullStreams>();
+  /** Null on an agent whose platform does not offer the file-manager bridge. */
+  private readMediaActions: (() => MediaActionState) | null = null;
   /**
    * Serialises `start`, so two requests can never both pass its guard.
    *
@@ -271,6 +276,22 @@ export class JobQueue {
    */
   private get activity(): CompressorActivity {
     return this.current;
+  }
+
+  /**
+   * Can this job be stopped right now?
+   *
+   * Asked of the shared table rather than matched against a list of status names. The lists
+   * this replaces existed in both processes and had already drifted: the interface decided
+   * which rows offered a Stop button from its own copy, and nothing made the two agree.
+   */
+  private stoppable(job: CompressionJob): boolean {
+    return canTransition(COMPRESSION_LIFECYCLE, job.status, 'cancelled');
+  }
+
+  /** Has this job finished, whatever the outcome? */
+  private finished(job: CompressionJob): boolean {
+    return isSettled(COMPRESSION_LIFECYCLE, job.status);
   }
 
   /**
@@ -358,6 +379,17 @@ export class JobQueue {
     if (becameAvailable && this.activity.kind === 'idle') queueMicrotask(() => void this.pump());
   }
 
+  /**
+   * Where the file-manager conversions are read from, when this agent offers them.
+   *
+   * Set here rather than composed at the broadcast because every one of the compressor's
+   * REST replies is a whole `QueueState` too: a reply that omitted the conversions would
+   * blank the list the stream had just filled, every time anything else was clicked.
+   */
+  setMediaActionSource(read: () => MediaActionState) {
+    this.readMediaActions = read;
+  }
+
   state(): QueueState {
     return {
       jobs: this.jobs.filter(job => !this.teamJobSettings.has(job.id)).map(job => cloneJob(job)),
@@ -366,7 +398,8 @@ export class JobQueue {
       settings: cloneSettings(this.settings),
       batch: this.batch ? { ...this.batch, jobIds: [...this.batch.jobIds] } : null,
       warning: this.warning,
-      update: this.updateStatus()
+      update: this.updateStatus(),
+      ...(this.readMediaActions ? { mediaActions: this.readMediaActions() } : {})
     };
   }
 
@@ -487,8 +520,9 @@ export class JobQueue {
       const imageEmbedding = draftImageEmbedding(this.settings.imageEmbedding);
       for (const job of this.jobs) {
         if (this.teamJobSettings.has(job.id)) continue;
-        if (!['analyzing', 'ready', 'failed', 'cancelled', 'interrupted'].includes(job.status))
-          continue;
+        // A completed job's encoding describes what was actually produced, so changing the
+        // settings must not rewrite it; a job in flight is already using them.
+        if (job.status === 'completed' || this.stoppable(job)) continue;
         if (encodingChanged) job.encoding = { ...encoding };
         if (imageEmbeddingChanged) job.imageEmbedding = cloneJobImageEmbedding(imageEmbedding);
         resetEstimate(job);
@@ -499,8 +533,7 @@ export class JobQueue {
     if (outputChanged || imageEmbeddingChanged) {
       for (const job of this.jobs) {
         if (this.teamJobSettings.has(job.id)) continue;
-        if (!['analyzing', 'ready', 'failed', 'cancelled', 'interrupted'].includes(job.status))
-          continue;
+        if (job.status === 'completed' || this.stoppable(job)) continue;
         job.outputPath = await this.outputPathFor(job.inputPath, job);
       }
     }
@@ -701,11 +734,7 @@ export class JobQueue {
     )
       return false;
     const requested = new Set(ids);
-    const rerunnable = this.jobs.filter(
-      job =>
-        requested.has(job.id) &&
-        ['completed', 'failed', 'cancelled', 'interrupted'].includes(job.status)
-    );
+    const rerunnable = this.jobs.filter(job => requested.has(job.id) && this.finished(job));
     for (const job of rerunnable) await this.resetForRerun(job);
     const jobs = this.jobs.filter(job => requested.has(job.id) && job.status === 'ready');
     if (!jobs.length) return false;
@@ -783,6 +812,48 @@ export class JobQueue {
     }
     this.notify();
     void this.pump();
+    return true;
+  }
+
+  /**
+   * The machine slept with an encode in flight, and has woken up (FR-009a).
+   *
+   * Ordinarily the encode simply carries on — a suspend freezes the child along with
+   * everything else, and Node delivers its exit if the system did end it. This is for the
+   * case that leaves the interface lying: a handle that still reads as running for a
+   * process that is no longer there. Nothing will ever settle that job, so the row would
+   * say "compressing" for the rest of the session while the machine did nothing.
+   *
+   * Presented as interrupted rather than cancelled or failed: the user did not stop it and
+   * nothing about it broke. Interrupted is the state that already means exactly this, and
+   * the row's re-run affordance follows from it.
+   *
+   * Returns whether anything was actually interrupted, which is what its test asserts.
+   */
+  handleWake(): boolean {
+    const activity = this.activity;
+    if (activity.kind !== 'encoding' && activity.kind !== 'encoding-held') return false;
+    const child = activity.child;
+    // No child yet means the work is still in this process — image preparation — and a
+    // suspend does not interrupt that any more than a busy moment does.
+    if (!child || !encoderVanished(child)) return false;
+    const job = this.jobs.find(candidate => candidate.id === activity.jobId);
+    if (!job || job.status !== 'processing') return false;
+
+    this.transition(job, 'interrupted');
+    job.error = 'Compression was interrupted while the computer was asleep.';
+    job.errorDetails = null;
+    job.processingStage = null;
+    job.finishedAt = finishTimestamp(job);
+    this.releaseEstimateHold();
+    // Whatever untracked work this encode started goes with it.
+    activity.abort.abort();
+    // The slot is freed here for the same reason a stop frees it (FR-004): there is
+    // nothing left to wait for, and the next job should not be held behind a process that
+    // no longer exists.
+    this.current = { kind: 'idle' };
+    queueMicrotask(() => void this.pump());
+    this.notify();
     return true;
   }
 
@@ -914,7 +985,9 @@ export class JobQueue {
 
   remove(id: string) {
     const job = this.jobs.find(candidate => candidate.id === id);
-    if (!job || ['processing', 'queued'].includes(job.status)) return false;
+    // Anything that cannot be stopped can be removed — the two are the same question asked
+    // from opposite sides.
+    if (!job || this.stoppable(job)) return false;
     if (job.estimatePriorityOrder !== null) this.estimateHooks?.cancelPrioritized?.(id);
     const images = jobImages(job);
     this.jobs = this.jobs.filter(candidate => candidate !== job);
@@ -940,9 +1013,7 @@ export class JobQueue {
 
   removeMany(ids: string[]) {
     const selected = new Set(ids);
-    const removable = this.jobs.filter(
-      job => selected.has(job.id) && !['processing', 'queued'].includes(job.status)
-    );
+    const removable = this.jobs.filter(job => selected.has(job.id) && !this.stoppable(job));
     if (!removable.length) return 0;
     for (const job of removable) {
       if (job.estimatePriorityOrder !== null) this.estimateHooks?.cancelPrioritized?.(job.id);
@@ -959,7 +1030,9 @@ export class JobQueue {
 
   async retry(id: string) {
     const job = this.jobs.find(candidate => candidate.id === id);
-    if (!job || !['failed', 'interrupted', 'cancelled'].includes(job.status)) return false;
+    // Finished, but not finished *well*. Repeating a completed job is its own action, and
+    // labelling it "retry" would tell the user something went wrong when nothing did.
+    if (!job || !this.finished(job) || job.status === 'completed') return false;
     // A row-level retry is an explicit request to run the compression again,
     // just like repeat on a completed row. `start` owns the complete transition
     // through ready -> queued and prevents a transient ready state from waking
@@ -974,9 +1047,7 @@ export class JobQueue {
   }
 
   clearCompleted() {
-    const removed = this.jobs.filter(job =>
-      ['completed', 'failed', 'cancelled', 'interrupted'].includes(job.status)
-    );
+    const removed = this.jobs.filter(job => this.finished(job));
     const images = removed.flatMap(jobImages);
     this.jobs = this.jobs.filter(job => !removed.includes(job));
     for (const job of removed) this.teamJobSettings.delete(job.id);
@@ -1062,10 +1133,13 @@ export class JobQueue {
             child.once('close', () => resolve());
             // The escalation the spawn seam armed is already running; this is only the
             // deadline for waiting on it, and a quit must never be held open past it.
-            const giveUp = setTimeout(() => {
-              child.kill('SIGKILL');
-              resolve();
-            }, this.power?.scaleTimeout(3_000) ?? 3_000);
+            const giveUp = setTimeout(
+              () => {
+                child.kill('SIGKILL');
+                resolve();
+              },
+              this.power?.scaleTimeout(3_000) ?? 3_000
+            );
             giveUp.unref();
           })
       )
@@ -1715,7 +1789,8 @@ export class JobQueue {
     // Attached to the activity that already exists for this job. Reaching here with anything
     // other than an encode would mean `run()` was called outside the guarded region, and
     // hanging a child off an unrelated activity is how it would be lost.
-    if (this.current.kind === 'encoding') this.current = { ...this.current, child: operation.child };
+    if (this.current.kind === 'encoding')
+      this.current = { ...this.current, child: operation.child };
     void this.runPrioritizedEstimates();
     return operation.done;
   }
@@ -1889,6 +1964,26 @@ function validateEmbeddedOutput(job: CompressionJob, media: MediaInfo) {
 
 function isCancelled(job: CompressionJob) {
   return job.status === 'cancelled';
+}
+
+/**
+ * Whether the encoder is gone without Node having noticed.
+ *
+ * `exitCode` or `signalCode` being set means Node reaped it and the encode's own teardown
+ * is already running — that path settles the job correctly and nothing here should touch
+ * it. What this is looking for is the other case: a handle that still reads as live for a
+ * process the operating system no longer has.
+ */
+function encoderVanished(child: ChildProcessWithoutNullStreams): boolean {
+  if (child.exitCode !== null || child.signalCode !== null) return false;
+  if (typeof child.pid !== 'number') return true;
+  try {
+    // Signal 0 checks for existence without delivering anything.
+    process.kill(child.pid, 0);
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 function finishTimestamp(job: CompressionJob) {

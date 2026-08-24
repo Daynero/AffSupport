@@ -107,7 +107,6 @@ function replaceTranslation(
   translations[language] = next;
 }
 
-
 /**
  * How long shutdown waits for the active transcription to actually exit.
  *

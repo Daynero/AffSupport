@@ -3,6 +3,7 @@ import type { LibraryAssetSummary, TeamPreviewResult } from '@video-compressor/s
 import { teamApi } from '../../api/team';
 import { useI18n } from '../../i18n';
 import { thumbnailRelayUrl } from './thumbnailRelay';
+import { cachedPreview } from '../preview-url-cache';
 
 export interface LibraryAssetVisualPreviewClient {
   previewMaterial(
@@ -78,8 +79,12 @@ export function LibraryAssetVisualPreview({
     let active = true;
     if (!visible || !visualMedia) return;
     setState('loading');
-    void client
-      .previewMaterial(asset.teamId, asset.id, 'media')
+    void cachedPreview(
+      (teamId, materialId, mode) => client.previewMaterial(teamId, materialId, mode),
+      asset.teamId,
+      asset.id,
+      'media'
+    )
       .then(result => {
         if (!active) return;
         if (result.kind !== 'media') {

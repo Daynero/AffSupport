@@ -69,7 +69,10 @@ async function mediaActionsApp(): Promise<FastifyInstance> {
   const app = Fastify();
   registerMediaActionRoutes(app, {
     mediaActions: new MediaActionQueue(),
-    acceptingNewTasks: () => true
+    acceptingNewTasks: () => true,
+    // Only the capability guard is under test here; the state the stop routes reply with
+    // is the compressor's, and this app has no compressor.
+    compressorState: () => ({}) as never
   });
   await app.ready();
   apps.push(app);

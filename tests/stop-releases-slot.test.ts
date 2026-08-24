@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { makeJob, optimalSettings } from './helpers.js';
-import { handleFor, isAlive, survivorsOf } from './support/machine-probe.js';
+import { handleFor, isAlive, survivorsOf, type ProcessHandle } from './support/machine-probe.js';
 import { writeStubTool } from './support/stub-tools/index.js';
 import { waitFor, waitForValue } from './support/wait.js';
 
@@ -23,14 +23,18 @@ import { waitFor, waitForValue } from './support/wait.js';
  */
 
 let directory = '';
-let started: number[] = [];
+let started: ProcessHandle[] = [];
 
 afterEach(async () => {
-  for (const pid of started) {
+  // By identity, never by bare pid. These encoders are expected to be gone by now, and the
+  // operating system is free to hand their numbers to something else the moment they are —
+  // including a test-runner worker. Signalling a recycled pid is exactly the hazard the
+  // machine probe carries a creation time to avoid, and cleanup code is not exempt from it.
+  for (const survivor of await survivorsOf(started)) {
     try {
-      process.kill(pid, 'SIGKILL');
+      process.kill(survivor.handle.pid, 'SIGKILL');
     } catch {
-      // Already gone, which is the expected case.
+      // Gone between the identity check and the signal.
     }
   }
   started = [];
@@ -85,6 +89,13 @@ async function currentEncoder(marker: string, notPid = -1): Promise<number> {
   );
 }
 
+/** Records an encoder by identity, so cleanup cannot signal a recycled pid. */
+async function remember(pid: number): Promise<ProcessHandle | null> {
+  const handle = await handleFor(pid);
+  if (handle) started.push(handle);
+  return handle;
+}
+
 async function readMarker(marker: string): Promise<string> {
   const { readFile } = await import('node:fs/promises');
   return readFile(marker, 'utf8');
@@ -103,7 +114,7 @@ describe('stopping one job', () => {
 
     expect(await queue.start(['first', 'second'])).toBe(true);
     const firstEncoder = await currentEncoder(marker);
-    started.push(firstEncoder);
+    await remember(firstEncoder);
     await waitFor(() => queue.state().jobs[0].status === 'processing', {
       describe: 'the first encode to start'
     });
@@ -117,7 +128,7 @@ describe('stopping one job', () => {
     // encoders alive at the same moment.
     const secondEncoder = await currentEncoder(marker, firstEncoder);
     const firstStillAlive = isAlive(firstEncoder);
-    started.push(secondEncoder);
+    await remember(secondEncoder);
 
     expect(secondEncoder).not.toBe(firstEncoder);
     expect(
@@ -147,8 +158,7 @@ describe('stopping one job', () => {
 
     expect(await queue.start(['first'])).toBe(true);
     const encoder = await currentEncoder(marker);
-    started.push(encoder);
-    const handle = await handleFor(encoder);
+    const handle = await remember(encoder);
     expect(handle).not.toBeNull();
 
     await queue.cancel('first');
@@ -175,8 +185,7 @@ describe('stopping one job', () => {
 
     expect(await queue.start(['first'])).toBe(true);
     const encoder = await currentEncoder(marker);
-    started.push(encoder);
-    const handle = await handleFor(encoder);
+    const handle = await remember(encoder);
 
     await queue.cancel('first');
     await queue.shutdown();

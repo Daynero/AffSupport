@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
-import { MEDIA_ACTION_LIFECYCLE, type MediaActionStatus } from '@video-compressor/shared';
+import {
+  MEDIA_ACTION_LIFECYCLE,
+  type MediaActionJob,
+  type MediaActionState,
+  type MediaActionStatus
+} from '@video-compressor/shared';
 import { nextConvertedImagePath } from '../files/paths.js';
 import { activeGovernorOrNull } from '../power/spawn.js';
 import { decideTransition } from '../queue/transitions.js';
@@ -8,11 +13,18 @@ import {
   IMAGE_CONVERSION_EXTENSIONS,
   ImageConversionError,
   convertImage,
+  removeConversionTemporaries,
   sourceAlreadyUsesFormat,
   type ImageConversionFormat
 } from './image-converter.js';
 
-export type { MediaActionStatus };
+export type { MediaActionStatus, MediaActionState };
+
+/**
+ * The queue's own name for a job. The shape is declared in the shared package because the
+ * interface renders it, and it reaches the interface on the compressor's state (FR-009b).
+ */
+export type ImageConversionJob = MediaActionJob;
 
 /**
  * The one place a conversion's status changes.
@@ -26,25 +38,6 @@ function transitionAction(job: ImageConversionJob, next: MediaActionStatus): boo
   if (!decideTransition(MEDIA_ACTION_LIFECYCLE, job.status, next)) return false;
   job.status = next;
   return true;
-}
-
-export interface ImageConversionJob {
-  id: string;
-  kind: 'image-conversion';
-  inputPath: string;
-  outputPath: string | null;
-  targetFormat: ImageConversionFormat;
-  status: MediaActionStatus;
-  errorCode: string | null;
-  error: string | null;
-  createdAt: number;
-  startedAt: number | null;
-  finishedAt: number | null;
-}
-
-export interface MediaActionState {
-  running: boolean;
-  jobs: ImageConversionJob[];
 }
 
 type Notify = () => void;
@@ -204,8 +197,46 @@ export class MediaActionQueue {
     // from picking up the next job, and the abort reaches the encoder itself —
     // the part that is actually holding the machine.
     this.abandoning = true;
+    // Taken before the abort, because the pump settles these while it unwinds and there is
+    // no telling afterwards which jobs the quit stopped and which had ended on their own.
+    const abandoned = this.jobs.filter(
+      job => job.status === 'queued' || job.status === 'processing'
+    );
     this.activeConversion?.abort();
     await this.pumpPromise;
+    await this.discardAbandoned(abandoned);
+  }
+
+  /**
+   * What the abandon left behind.
+   *
+   * The jobs it stopped become `cancelled`, not `failed`: nothing about them broke, the
+   * application simply ran out of time to finish them. Marking them at all — for a list
+   * that is about to be discarded with the process — is because the last broadcast before
+   * exit is the one still on screen if the window is open, and a quit that leaves three
+   * conversions reading "processing" describes work that is no longer happening (FR-003).
+   *
+   * Then the partial files. The converter clears its own temporary as it unwinds, so this
+   * covers the jobs that never got that far, and the sweep is by the converter's marker so
+   * it cannot reach anything the user put there.
+   */
+  private async discardAbandoned(abandoned: ImageConversionJob[]) {
+    if (abandoned.length === 0) return;
+    for (const job of abandoned) {
+      // The one that was running is already cancelled by the time the pump unwinds; this
+      // is for the queue behind it, which the pump never picked up at all.
+      if (job.status !== 'queued' && job.status !== 'processing') continue;
+      transitionAction(job, 'cancelled');
+      job.finishedAt = Date.now();
+      this.releaseSettled(job.id);
+    }
+    await Promise.all(
+      abandoned
+        .map(job => job.outputPath)
+        .filter((outputPath): outputPath is string => outputPath !== null)
+        .map(outputPath => removeConversionTemporaries(outputPath).catch(() => {}))
+    );
+    this.notify();
   }
 
   /**
@@ -316,8 +347,9 @@ export class MediaActionQueue {
       } catch (error) {
         // A cancel reaches the converter as an abort, and an abort surfaces as a throw. Read
         // as failure it would tell the user their conversion broke, when what happened is
-        // that they stopped it.
-        if (this.cancelling.has(job.id)) {
+        // that they stopped it — or that the application ran out of time to finish it and
+        // signalled the encoder on the way out, which is no more a failure than a stop is.
+        if (this.cancelling.has(job.id) || this.abandoning) {
           transitionAction(job, 'cancelled');
         } else {
           transitionAction(job, 'failed');

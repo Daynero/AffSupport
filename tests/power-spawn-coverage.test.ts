@@ -158,9 +158,7 @@ describe('the governed seam still bounds everything that spawns', () => {
   it('lets only the named support modules start a process', async () => {
     const offenders = (await supportSources())
       .filter(({ relative }) => !(relative in SUPPORT_SPAWN_ALLOWLIST))
-      .filter(({ source }) =>
-        /^import\s+(?!type\s)[^;]*from\s+'node:child_process';/m.test(source)
-      )
+      .filter(({ source }) => /^import\s+(?!type\s)[^;]*from\s+'node:child_process';/m.test(source))
       .map(({ relative }) => relative);
 
     // A fixture that spawns is a fixture that can outlive the test that made it. Keeping
@@ -200,7 +198,9 @@ describe('the governed seam still bounds everything that spawns', () => {
     // Matched against import specifiers rather than the whole file — the module's own
     // comments name those directories precisely because it must not import from them.
     const imported = [...probe.matchAll(/from\s+'([^']+)'/g)].map(match => match[1] as string);
-    expect(imported.filter(specifier => /apps\/agent\/src\/(power|platform)\//.test(specifier))).toEqual([]);
+    expect(
+      imported.filter(specifier => /apps\/agent\/src\/(power|platform)\//.test(specifier))
+    ).toEqual([]);
     expect(probe).toMatch(/'\/bin\/ps'/);
   });
 });

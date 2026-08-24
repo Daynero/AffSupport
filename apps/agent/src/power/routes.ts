@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { parsePowerLimitRequest, type PowerEvent } from '@video-compressor/shared';
-import { EventChannel } from '../server/sse.js';
+import { EventChannel, type ChannelHub } from '../server/sse.js';
 import type { PowerGovernor } from './governor.js';
 
 /**
@@ -18,6 +18,8 @@ export interface PowerRoutesDeps {
   /** Absent before measurement is wired; the routes still serve a snapshot. */
   sampler?: PowerSamplerHandle;
   onError?: (error: unknown, message: string) => void;
+  /** The multiplexed fan-out, when one is wired. */
+  channelHub?: ChannelHub;
 }
 
 /**
@@ -33,8 +35,24 @@ export function registerPowerRoutes(
   app: FastifyInstance,
   deps: PowerRoutesDeps
 ): EventChannel<PowerEvent> {
-  const { governor, allowedOrigins, sampler } = deps;
+  const { governor, allowedOrigins, sampler, channelHub } = deps;
   const events = new EventChannel<PowerEvent>(allowedOrigins, () => governor.state());
+
+  if (channelHub) {
+    // The one channel that costs something to produce. Sampling reads the process table on a
+    // timer, so it is refcounted to viewers here exactly as it is on the per-tool endpoint:
+    // nobody watching means no measurement at all, and a panel somebody opened once must not
+    // leave the machine doing work for nobody.
+    let stopSampling: (() => void) | undefined;
+    events.publishOn(channelHub, 'power', active => {
+      if (active) {
+        stopSampling = sampler?.watch();
+        return;
+      }
+      stopSampling?.();
+      stopSampling = undefined;
+    });
+  }
 
   // Any state change — a new limit, a child starting or finishing, a fresh
   // sample — reaches every open window through this one broadcast. That is what

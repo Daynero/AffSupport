@@ -146,9 +146,7 @@ export function registerLandingPreviewRoutes(
   );
 
   app.post('/api/landing-preview/cancel', async (_request, reply) =>
-    catalog.cancel()
-      ? catalog.state()
-      : reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' })
+    catalog.cancel() ? catalog.state() : reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' })
   );
 
   app.post<{

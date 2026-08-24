@@ -47,6 +47,21 @@ export interface Lifecycle<S extends string> {
   /** Must be a key of `transitions`. */
   readonly initial: S;
   readonly transitions: TransitionTable<S>;
+  /**
+   * The states in which the run is over: nothing further happens unless the user asks.
+   *
+   * **Declared, not derived, and that is a deliberate limitation of the transition table.**
+   * A finished compression is not terminal — every finished state has an edge back into the
+   * queue, which is re-running working as specified — so "has this finished?" cannot be read
+   * off the edges. Nor is "no outgoing edge" the answer: `interrupted → completed` is the
+   * recovery re-probing an output whose encode had already succeeded, and that is the
+   * application acting on its own from a state the user considers finished.
+   *
+   * It is the question roughly fifteen sites across the two processes were answering with a
+   * hand-written list of status names, and the lists had already drifted from each other.
+   * One declaration, two consumers.
+   */
+  readonly settled: readonly S[];
 }
 
 /**
@@ -59,6 +74,10 @@ export interface Lifecycle<S extends string> {
  */
 interface OpaqueView {
   readonly transitions: Readonly<Record<string, readonly string[] | undefined>>;
+}
+
+interface SettledView {
+  readonly settled: readonly string[];
 }
 
 /**
@@ -100,6 +119,19 @@ export function isTerminal(lifecycle: OpaqueView, state: string): boolean {
   return (lifecycle.transitions[state] ?? []).length === 0;
 }
 
+/**
+ * Is the run over?
+ *
+ * Not the same question as `isTerminal`. A finished compression can be run again, so it is
+ * never terminal — but it has finished, and that is what an interface needs to know before
+ * it offers to run it again or lets the row be cleared.
+ */
+export function isSettled<S extends string>(lifecycle: Lifecycle<S>, state: S): boolean;
+export function isSettled(lifecycle: AnyLifecycle, state: string): boolean;
+export function isSettled(lifecycle: SettledView, state: string): boolean {
+  return lifecycle.settled.includes(state);
+}
+
 export function statesOf<S extends string>(lifecycle: Lifecycle<S>): readonly S[];
 export function statesOf(lifecycle: AnyLifecycle): readonly string[];
 export function statesOf(lifecycle: OpaqueView): readonly string[] {
@@ -107,9 +139,7 @@ export function statesOf(lifecycle: OpaqueView): readonly string[] {
 }
 
 /** Every declared edge, as `[from, to]`. The enumeration the driver test iterates. */
-export function edgesOf<S extends string>(
-  lifecycle: Lifecycle<S>
-): readonly (readonly [S, S])[];
+export function edgesOf<S extends string>(lifecycle: Lifecycle<S>): readonly (readonly [S, S])[];
 export function edgesOf(lifecycle: AnyLifecycle): readonly (readonly [string, string])[];
 export function edgesOf(lifecycle: OpaqueView): readonly (readonly [string, string])[] {
   const edges: (readonly [string, string])[] = [];
@@ -152,7 +182,8 @@ export const COMPRESSION_LIFECYCLE: Lifecycle<JobStatus> = defineLifecycle({
     failed: ['ready'],
     cancelled: ['ready'],
     interrupted: ['ready', 'completed', 'failed']
-  }
+  },
+  settled: ['completed', 'failed', 'cancelled', 'interrupted']
 });
 
 /**
@@ -186,7 +217,8 @@ export const TRANSCRIPTION_LIFECYCLE: Lifecycle<TranscriptionJobStatus> = define
     failed: ['queued'],
     cancelled: ['queued'],
     interrupted: ['queued']
-  }
+  },
+  settled: ['completed', 'failed', 'cancelled', 'interrupted']
 });
 
 /**
@@ -215,7 +247,8 @@ export const TRANSLATION_LIFECYCLE: Lifecycle<TranslationStatus> = defineLifecyc
     // document rather than editing it — which is why it is a transition at all.
     completed: [],
     failed: ['queued']
-  }
+  },
+  settled: ['completed', 'failed']
 });
 
 /**
@@ -239,7 +272,8 @@ export const LANDING_JOB_LIFECYCLE: Lifecycle<LandingJobStatus> = defineLifecycl
     completed: [],
     failed: [],
     cancelled: []
-  }
+  },
+  settled: ['completed', 'failed', 'cancelled']
 });
 
 /** A sub-run of a landing job. `skipped` is a real outcome, not an absence of one. */
@@ -255,7 +289,8 @@ export const LANDING_ASSET_LIFECYCLE: Lifecycle<LandingAssetStatus> = defineLife
     optimized: [],
     skipped: [],
     failed: []
-  }
+  },
+  settled: ['optimized', 'skipped', 'failed']
 });
 
 /**
@@ -265,17 +300,17 @@ export const LANDING_ASSET_LIFECYCLE: Lifecycle<LandingAssetStatus> = defineLife
  * against new settings, goes round again. Declaring `ready` terminal would have made the
  * enforcement refuse the second render of any page.
  */
-export const LANDING_PREVIEW_ITEM_LIFECYCLE: Lifecycle<LandingPreviewItemStatus> =
-  defineLifecycle({
-    id: 'landing-preview-item',
-    initial: 'queued',
-    transitions: {
-      queued: ['rendering'],
-      rendering: ['ready', 'failed'],
-      ready: ['queued'],
-      failed: ['queued']
-    }
-  });
+export const LANDING_PREVIEW_ITEM_LIFECYCLE: Lifecycle<LandingPreviewItemStatus> = defineLifecycle({
+  id: 'landing-preview-item',
+  initial: 'queued',
+  transitions: {
+    queued: ['rendering'],
+    rendering: ['ready', 'failed'],
+    ready: ['queued'],
+    failed: ['queued']
+  },
+  settled: ['ready', 'failed']
+});
 
 /**
  * `skipped` and `cancelled` are different outcomes.
@@ -293,7 +328,8 @@ export const MEDIA_ACTION_LIFECYCLE: Lifecycle<MediaActionStatus> = defineLifecy
     failed: [],
     skipped: [],
     cancelled: []
-  }
+  },
+  settled: ['completed', 'failed', 'skipped', 'cancelled']
 });
 
 /**

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
+  COMPRESSION_LIFECYCLE,
+  isSettled,
   estimatedFinalImageDurationSeconds,
   expectedDimensions,
   expectedFrameRate,
@@ -20,7 +22,7 @@ import {
   formatSize
 } from '../format';
 import type { Language } from '../i18n';
-import { elapsedMilliseconds, timerState } from '../queue-ui';
+import { elapsedMilliseconds, stoppable, timerState } from '../queue-ui';
 import {
   Button,
   Checkbox,
@@ -460,7 +462,7 @@ function JobActions({
           {t(priority === 'cancel' ? 'cancelPriorityEstimate' : 'prioritizeEstimate')}
         </Button>
       )}
-      {['failed', 'cancelled', 'interrupted'].includes(job.status) && (
+      {isSettled(COMPRESSION_LIFECYCLE, job.status) && job.status !== 'completed' && (
         <Button
           disabled={disabled || compressionRunning}
           onClick={() => action(`/api/jobs/${job.id}/retry`)}
@@ -493,7 +495,7 @@ function JobActions({
           </Button>
         </>
       )}
-      {!['processing', 'queued', 'analyzing'].includes(job.status) && (
+      {!stoppable(job) && job.status !== 'analyzing' && (
         <Button
           variant="danger"
           disabled={disabled}

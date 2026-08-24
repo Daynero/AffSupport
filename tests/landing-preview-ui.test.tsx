@@ -26,7 +26,7 @@ vi.mock('../apps/web/src/api/client.js', () => ({
   landingGalleryActivate: api.activate,
   landingGalleryCancel: api.cancel,
   landingGalleryClearCache: api.clearCache,
-  landingGalleryEventUrl: () => 'http://127.0.0.1/events',
+  toolEventUrl: () => 'http://127.0.0.1/events',
   landingGalleryImageUrl: (id: string, revision: number | null, segment = 0) =>
     `http://127.0.0.1/preview/${id}?v=${revision ?? 0}&segment=${segment}`,
   landingGalleryOpen: api.open,

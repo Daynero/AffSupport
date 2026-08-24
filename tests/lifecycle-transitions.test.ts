@@ -110,17 +110,21 @@ describe('drivers end where the table says', () => {
       .map(([key, driver]) => [`${lifecycle.id} ${key}`, key, driver] as const)
   );
 
-  it.each(cases)('%s', async (_name, key, driver) => {
-    const [from, to] = key.split('->');
-    const observed = await driver();
+  it.each(cases)(
+    '%s',
+    async (_name, key, driver) => {
+      const [from, to] = key.split('->');
+      const observed = await driver();
 
-    // Read from the queue, not asserted by the driver. A driver that quietly started in the
-    // wrong state would otherwise pass while proving nothing about the edge it is named for.
-    expect(observed.before).toBe(from);
-    expect(observed.after).toBe(to);
-    // Generous, because a driver boots a real queue and a real child process to perform one
-    // transition. The alternative — faking the queue — would make the assertion meaningless.
-  }, 40_000);
+      // Read from the queue, not asserted by the driver. A driver that quietly started in the
+      // wrong state would otherwise pass while proving nothing about the edge it is named for.
+      expect(observed.before).toBe(from);
+      expect(observed.after).toBe(to);
+      // Generous, because a driver boots a real queue and a real child process to perform one
+      // transition. The alternative — faking the queue — would make the assertion meaningless.
+    },
+    40_000
+  );
 });
 
 describe('undeclared moves are refused', () => {
@@ -187,7 +191,11 @@ describe('the enforcement seam', () => {
     // "Leaves state unchanged and returns false" is a property of the shape, not of a test
     // case: the guard has to come before the assignment. Any direct `.status =` outside one
     // of these helpers is a write that escaped the decision entirely.
-    const guards = [...source.matchAll(/if \(!decideTransition\([^)]*\)\) return false;\n(\s*)(\w+)\.status = next;/g)];
+    const guards = [
+      ...source.matchAll(
+        /if \(!decideTransition\([^)]*\)\) return false;\n(\s*)(\w+)\.status = next;/g
+      )
+    ];
     expect(guards.length).toBeGreaterThan(0);
 
     const escaped = [...source.matchAll(/^\s*(?:this\.)?\w+\.status = (?!next;)[^;]+;$/gm)];
@@ -215,19 +223,20 @@ describe('observed edges match the declared tables', () => {
   const reportPath = process.env.SOTY_TRANSITION_REPORT?.trim() || '';
   const available = reportPath !== '' && existsSync(reportPath);
 
-  it.skipIf(!available)('records no edge the tables do not declare [needs: SOTY_TRANSITION_REPORT]', () => {
-    const declared = new Set(
-      LIFECYCLES.flatMap(lifecycle =>
-        edgeKeys(lifecycle).map(key => `${lifecycle.id}:${key}`)
-      )
-    );
-    const seen = new Set(
-      readFileSync(reportPath, 'utf8')
-        .split('\n')
-        .map(line => line.trim())
-        .filter(Boolean)
-    );
+  it.skipIf(!available)(
+    'records no edge the tables do not declare [needs: SOTY_TRANSITION_REPORT]',
+    () => {
+      const declared = new Set(
+        LIFECYCLES.flatMap(lifecycle => edgeKeys(lifecycle).map(key => `${lifecycle.id}:${key}`))
+      );
+      const seen = new Set(
+        readFileSync(reportPath, 'utf8')
+          .split('\n')
+          .map(line => line.trim())
+          .filter(Boolean)
+      );
 
-    expect([...seen].filter(edge => !declared.has(edge)).sort()).toEqual([]);
-  });
+      expect([...seen].filter(edge => !declared.has(edge)).sort()).toEqual([]);
+    }
+  );
 });

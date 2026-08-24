@@ -20,8 +20,13 @@ interface Lifecycle<S extends string> {
   readonly id: string;      // stable, matches the ToolModule id where one exists
   readonly initial: S;
   readonly transitions: TransitionTable<S>;
+  readonly settled: readonly S[];   // the run is over; see below
 }
 ```
+
+**`settled` was added during implementation**, and the reason is worth stating because it is a limitation of the transition table rather than an oversight. Roughly fifteen sites across the two processes were asking "has this run finished?" with a hand-written list of status names, and the lists had already drifted from each other — which is the whole class of bug this section exists to remove. But the answer cannot be read off the edges: a finished compression is not terminal, because every finished state has an edge back into the queue (re-running, working as specified), and "no outgoing edge" is not it either — `interrupted → completed` is the recovery re-probing an output whose encode had already succeeded, which is the application acting on its own from a state the user considers over.
+
+So it is declared, and the well-formedness rules below check it: every settled state is a real state, is reachable, and is never the initial one, and every terminal state is settled (the reverse does not hold).
 
 | Field | Rule |
 |---|---|
@@ -29,7 +34,7 @@ interface Lifecycle<S extends string> {
 | `initial` | Must be a key of `transitions`. |
 | `transitions` | Keyed on the **whole status union**, so a new state is a type error at the table. Every listed target must itself be a key. |
 
-Derived helpers, all pure: `canTransition(l, from, to)`, `isTerminal(l, s)` (empty target list), `statesOf(l)`, `edgesOf(l)`.
+Derived helpers, all pure: `canTransition(l, from, to)`, `isTerminal(l, s)` (empty target list), `isSettled(l, s)` (declared, see above), `statesOf(l)`, `edgesOf(l)`.
 
 **Well-formedness rules**, asserted once for every registered lifecycle:
 

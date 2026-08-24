@@ -1,11 +1,15 @@
 import { stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type {
-  AgentSettings,
-  AgentSettingsPatch,
-  LandingSettings,
-  TeamAgentProcessRequest,
-  TeamFileOperationResult
+import {
+  COMPRESSION_LIFECYCLE,
+  LANDING_JOB_LIFECYCLE,
+  TRANSCRIPTION_LIFECYCLE,
+  isSettled,
+  type AgentSettings,
+  type AgentSettingsPatch,
+  type LandingSettings,
+  type TeamAgentProcessRequest,
+  type TeamFileOperationResult
 } from '@video-compressor/shared';
 import { parseSettingsPatch } from '../compressor/settings-validation.js';
 import type { LandingOptimizer } from '../landing/optimizer.js';
@@ -288,8 +292,7 @@ function compressionDelegate(queue: JobQueue, embedding: boolean): TeamProcessDe
         read: () => queue.teamJob(sourceKey),
         signal: input.signal,
         cancel: () => queue.cancel(job!.id),
-        terminal: value =>
-          ['completed', 'failed', 'cancelled', 'interrupted'].includes(value.status),
+        terminal: value => isSettled(COMPRESSION_LIFECYCLE, value.status),
         progress: value => input.onProgress(value.progress ?? 0)
       });
       if (input.signal.aborted || job.status === 'cancelled') throw new Error('PROCESS_CANCELED');
@@ -378,7 +381,7 @@ function transcriptionDelegate(queue: TranscriptionQueue, translate = false): Te
         read: () => queue.teamJob(sourceKey),
         signal: input.signal,
         cancel: () => queue.cancel(job!.id),
-        terminal: value => ['completed', 'failed', 'cancelled'].includes(value.status),
+        terminal: value => isSettled(TRANSCRIPTION_LIFECYCLE, value.status),
         progress: value => input.onProgress(value.progress ?? 0)
       });
       if (input.signal.aborted || job.status === 'cancelled') throw new Error('PROCESS_CANCELED');
@@ -473,7 +476,7 @@ function landingDelegate(optimizer: LandingOptimizer): TeamProcessDelegate {
           read: () => optimizer.teamJob(jobId),
           signal: input.signal,
           cancel: () => optimizer.cancel(jobId),
-          terminal: value => ['completed', 'failed'].includes(value.status),
+          terminal: value => isSettled(LANDING_JOB_LIFECYCLE, value.status),
           progress: value => input.onProgress(value.progress ?? 0)
         }),
         startGuard

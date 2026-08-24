@@ -165,6 +165,55 @@ manufacture `ready` rows or paste provider ids into SQL.
 - On shutdown/update drain, refuse new team tasks, cancel bounded local work, and clean only
   temporary agent directories. Never kill another active Soty Dev process.
 
+## Membership and content lifecycle (010)
+
+Four `security definer` functions complete the lifecycle the earlier specs left open. All
+follow the 001 template — `set search_path = ''`, fully-qualified names, permission checks
+through the existing membership helpers, an audit row per mutation, `grant execute` to
+`authenticated` only.
+
+- `leave_team(p_team)` — a non-owner ends their own membership. Same row-level effect as
+  `remove_member`, authorized on _self_. An owner is refused with `OWNER_TRANSFER_REQUIRED`:
+  a space cannot be left without one. Returns the standing
+  `EXTERNAL_DRIVE_ACCESS_REMAINS` warning, because leaving does not touch Google Drive's own
+  sharing ACL — if that access must go, remove it in Drive. Audit: `membership.left`.
+- `delete_draft_team(p_team)` — an owner discards a space that never completed setup.
+  "Draft" is a server fact, stricter than the lobby's presentation: a team that has **ever**
+  had a drive connection row, including a detached one, is refused with `TEAM_NOT_DRAFT`.
+  Audit: `team.draft_deleted` — see the retention note below.
+- `delete_team_task(p_team, p_task)` — hard-deletes a task and its attachment links for a
+  caller with the `edit` permission. The attached materials are untouched. Audit:
+  `task.deleted`, carrying a title snapshot.
+- `list_team_trashed_materials(p_team, p_limit, p_before)` — the read behind the trash view.
+  `view` permission, newest first, keyset-paged on `trashed_at`. Restore still goes through
+  the existing `drive-ops/restore`; Google Drive's retention decides how long that works.
+
+Two error codes joined the registry. `TEAM_NOT_DRAFT` is new. `OWNER_TRANSFER_REQUIRED` is
+not — `remove_member` has raised it since 001 while only the Edge Function's longer spelling
+(`OWNERSHIP_TRANSFER_REQUIRED`) was registered, so the raised code fell through every
+consumer's mapping as unknown until now.
+
+**Audit retention caveat.** `team_audit_events.team_id` is `on delete cascade`, so the
+`team.draft_deleted` row does not outlive the team it records. It is written anyway, so the
+mutation path is uniform and a future retention change (a nullable team reference, an archive
+sink) picks it up without touching the function. Giving draft deletions a durable trail is a
+retention change, not part of this feature.
+
+## Background library processing (010)
+
+The library batch belongs to the entered space, not to the dialog that starts it. The claim
+loop runs in a space-level provider: `claim → context → heartbeat → complete/fail`, unchanged
+on the server side. What changed is who holds it.
+
+- Closing the batch window does nothing to the run. Progress stays visible as a chip in the
+  workspace header, and the completion summary arrives whether or not the window is open.
+- Stopping is explicit and confirmed. It releases the in-flight attempt and leaves the rest of
+  the queue intact for a later run.
+- Leaving team mode (or closing the tab) releases the active lease. Expired leases remain
+  reclaimable by design, so an abandoned tab costs at most one lease TTL.
+- A partly-failed batch never reports as success: the summary counts failures and names the
+  files, so a silent partial is not possible.
+
 Use `specs/001-team-media-workspace/quickstart.md` for the isolated V1–V9 validation matrix
 and `supabase/migrations/ROLLBACK.md` for reverse-order development recovery. Neither document
 authorizes a production migration, deploy, release, or destructive rollback.

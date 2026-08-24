@@ -1,5 +1,6 @@
 import { cleanup } from '@testing-library/react';
 import { afterEach } from 'vitest';
+import { clearPreviewUrlCache } from '../../apps/web/src/team/preview-url-cache';
 
 /**
  * Unmounts anything a DOM test rendered, and returns the address to `/`, after
@@ -19,9 +20,15 @@ import { afterEach } from 'vitest';
  * mode now does, since the URL is what decides which space and section are open
  * — leaves the next test starting from that address. The symptom is a test
  * failing on a screen it never asked for.
+ *
+ * The signed-preview cache is emptied for the same reason: it is deliberately
+ * module-scoped so a grid does not re-fetch a grant it already holds, which
+ * means one test's grant would otherwise satisfy the next test's assertion that
+ * a fetch happened.
  */
 afterEach(() => {
   cleanup();
+  clearPreviewUrlCache();
   if (typeof window !== 'undefined' && window.location.pathname !== '/') {
     window.history.replaceState(null, '', '/');
   }

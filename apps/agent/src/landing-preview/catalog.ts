@@ -47,7 +47,6 @@ function transitionItem(item: LandingPreviewItem, next: LandingPreviewItemStatus
   return true;
 }
 
-
 const STATE_VERSION = 1;
 /** Bumped whenever the capture pipeline changes in a way that invalidates caches. */
 const RENDER_PIPELINE_VERSION = 'v2-segmented';

@@ -11,13 +11,13 @@ import type {
 
 const api = vi.hoisted(() => ({
   renderTeamLanding: vi.fn(),
-  teamLandingEventUrl: vi.fn(() => '')
+  toolEventUrl: vi.fn(() => '')
 }));
 
 vi.mock('../apps/web/src/api/client.js', async importOriginal => ({
   ...(await importOriginal<typeof import('../apps/web/src/api/client')>()),
   renderTeamLanding: api.renderTeamLanding,
-  teamLandingEventUrl: api.teamLandingEventUrl
+  toolEventUrl: api.toolEventUrl
 }));
 vi.mock('../apps/web/src/AgentContext.js', () => ({
   useOptionalAgent: () => ({

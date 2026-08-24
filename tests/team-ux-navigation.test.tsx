@@ -123,7 +123,20 @@ describe('entering a space', () => {
     const team = makeTeam();
     const client = makeClient({
       listTeams: vi.fn().mockResolvedValue([team]),
-      listMyInvitations: vi.fn().mockResolvedValue([{ state: 'pending' }])
+      listMyInvitations: vi.fn().mockResolvedValue([
+        {
+          id: 'invitation-1',
+          teamId: team.id,
+          teamName: team.name,
+          inviterName: 'Olena',
+          targetEmail: 'me@example.test',
+          initialRole: 'editor' as const,
+          state: 'pending' as const,
+          deliveryState: 'sent' as const,
+          deliveryErrorCode: null,
+          expiresAt: '2099-01-01T00:00:00.000Z'
+        }
+      ])
     });
     renderSpace(client);
 

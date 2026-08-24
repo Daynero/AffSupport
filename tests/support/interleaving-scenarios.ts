@@ -24,11 +24,7 @@
  * what makes them worth interleaving.
  */
 export type ToolId =
-  | 'compressor'
-  | 'transcription'
-  | 'landingOptimizer'
-  | 'landingPreview'
-  | 'mediaActions';
+  'compressor' | 'transcription' | 'landingOptimizer' | 'landingPreview' | 'mediaActions';
 
 /**
  * One thing that happens.
@@ -180,7 +176,6 @@ const STOP_RACES_START: Scenario = {
     { do: 'expect', tool: 'mediaActions', jobRef: 'photo', status: 'cancelled' }
   ]
 };
-
 
 /**
  * Which user action causes which transition.

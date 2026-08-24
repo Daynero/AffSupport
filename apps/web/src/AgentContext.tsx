@@ -23,16 +23,19 @@ import {
 import {
   agentInstallAwaitingPairing,
   agentProvenAlive,
+  agentUrl,
   markAgentSeen,
   claimAutomaticPairing,
   connect,
   consumePairingToken,
-  eventUrl,
+  toolEventUrl,
   onPairingToken,
   pairWithAgent,
   releaseAutomaticPairing
 } from './api/client';
 import { ensureAgentEntitlement } from './api/entitlement';
+import { pairingToken } from './api/pairing-token';
+import { streamClient } from './api/stream-client';
 import { useAgentEventStream } from './api/useAgentEventStream';
 import { failureState, type ConnectionState, versionState } from './connection';
 import { analytics } from './analytics/service';
@@ -190,8 +193,23 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  // One connection for every tool, when the agent offers one. The seven per-tool endpoints
+  // remain the fallback, so an agent and an interface can be upgraded independently.
+  const multiplexed = capabilities.includes('event-stream');
+
+  useEffect(() => {
+    if (!connectedOnce || !multiplexed) {
+      streamClient.configure(null);
+      return;
+    }
+    streamClient.configure({ agentUrl, token: pairingToken() });
+    return () => streamClient.configure(null);
+  }, [connectedOnce, multiplexed]);
+
   useAgentEventStream<AgentEvent>({
-    url: connectedOnce ? eventUrl() : null,
+    url: connectedOnce ? toolEventUrl('compressor') : null,
+    channel: 'compressor',
+    multiplexed,
     enabled: connectedOnce,
     onMessage: update => {
       setState(update.state);

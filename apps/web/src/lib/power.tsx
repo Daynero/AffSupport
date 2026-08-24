@@ -14,7 +14,7 @@ import {
   DEFAULT_POWER_LIMIT,
   type PowerState
 } from '@video-compressor/shared';
-import { fetchPowerState, powerEventsUrl, setPowerLimit } from '../api/client';
+import { fetchPowerState, toolEventUrl, setPowerLimit } from '../api/client';
 import { useAgentEventStream } from '../api/useAgentEventStream';
 import { useOptionalAgent } from '../AgentContext';
 
@@ -56,6 +56,10 @@ const COMMIT_DEBOUNCE_MS = 200;
 
 export function PowerProvider({ children }: { children: ReactNode }) {
   const agent = useOptionalAgent();
+  // One connection for every tool, when the agent offers one. Consumption is the channel
+  // that costs something to sample, so it is also the one whose subscription the agent
+  // refcounts — asking for it here is what starts and stops the measurement.
+  const multiplexed = Boolean(agent?.capabilities?.includes('event-stream'));
   const [state, setState] = useState<PowerState | null>(null);
   const [status, setStatus] = useState<PowerStatus>('loading');
   const [pending, setPending] = useState<number | null>(null);
@@ -159,7 +163,9 @@ export function PowerProvider({ children }: { children: ReactNode }) {
   // when the last subscriber goes away, so a closed panel costs nothing on
   // either side of the wire.
   useAgentEventStream<PowerState>({
-    url: watchers > 0 && connected && supported ? powerEventsUrl() : null,
+    url: watchers > 0 && connected && supported ? toolEventUrl('power') : null,
+    channel: 'power',
+    multiplexed,
     enabled: watchers > 0 && connected && supported,
     onMessage: next => {
       setState(next);

@@ -1,10 +1,7 @@
 import { createElement, type ReactElement, type ReactNode } from 'react';
 import { render, type RenderOptions, type RenderResult } from '@testing-library/react';
 import type { QueueState } from '../../packages/shared/src/types.js';
-import {
-  AgentContextOverride,
-  type AgentContextValue
-} from '../../apps/web/src/AgentContext.js';
+import { AgentContextOverride, type AgentContextValue } from '../../apps/web/src/AgentContext.js';
 import { optimalSettings } from '../helpers.js';
 
 /**

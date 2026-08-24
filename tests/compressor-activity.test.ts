@@ -351,10 +351,7 @@ describe('prioritising an estimate', () => {
  * graph has to be rebuilt after the variable is set — hence the dynamic import.
  */
 describe('while a child process is actually running', () => {
-  async function stubbedQueue(
-    config: Parameters<typeof writeStubTool>[2],
-    jobFile = 'clip.mov'
-  ) {
+  async function stubbedQueue(config: Parameters<typeof writeStubTool>[2], jobFile = 'clip.mov') {
     directory = await mkdtemp(path.join(os.tmpdir(), 'compressor-encode-'));
     const source = path.join(directory, jobFile);
     await writeFile(source, 'source');

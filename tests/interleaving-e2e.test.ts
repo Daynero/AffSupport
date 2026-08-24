@@ -3,16 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { bootAgent, type AgentProcess } from './support/agent-process.js';
-import {
-  INTERLEAVING_SCENARIOS,
-  toolsIn,
-  type ToolId
-} from './support/interleaving-scenarios.js';
-import {
-  DRIVABLE_TOOLS,
-  runScenario,
-  type ScenarioResult
-} from './support/interleaving-runner.js';
+import { INTERLEAVING_SCENARIOS, toolsIn, type ToolId } from './support/interleaving-scenarios.js';
+import { DRIVABLE_TOOLS, runScenario, type ScenarioResult } from './support/interleaving-runner.js';
 import { describeSurvivors, handlesUnder, survivorsOf } from './support/machine-probe.js';
 import { describeRequiring, requirePath } from './support/requires.js';
 import { writeStubTool } from './support/stub-tools/index.js';
@@ -119,50 +111,55 @@ describeRequiring(builtAgent, 'interleaved work behaves predictably', () => {
 
   const cases = INTERLEAVING_SCENARIOS.map(scenario => [scenario.id, scenario] as const);
 
-  it.each(cases)('%s', async (_id, scenario) => {
-    let result: ScenarioResult;
-    try {
-      result = await runScenario(scenario, agent, root);
-    } catch (error) {
-      // The runner names the step index and the scenario's intent, which is the difference
-      // between a bug report somebody can act on and "something disagreed".
-      throw new Error(`${(error as Error).message}\n--- agent log ---\n${agent.log()}`, {
-        cause: error
-      });
-    }
+  it.each(cases)(
+    '%s',
+    async (_id, scenario) => {
+      let result: ScenarioResult;
+      try {
+        result = await runScenario(scenario, agent, root);
+      } catch (error) {
+        // The runner names the step index and the scenario's intent, which is the difference
+        // between a bug report somebody can act on and "something disagreed".
+        throw new Error(`${(error as Error).message}\n--- agent log ---\n${agent.log()}`, {
+          cause: error
+        });
+      }
 
-    // Every step either ran or is named. A scenario that quietly dropped five of its steps
-    // reads exactly like one that ran them, which is the failure mode this whole file exists
-    // to rule out.
-    const undrivable: ToolId[] = ['landingOptimizer', 'landingPreview', 'mediaActions'];
-    for (const outcome of result.unperformed) {
-      const reason = outcome.reason ?? '';
-      const expected =
-        reason.includes('suspend the machine') ||
-        undrivable.some(tool => reason.includes(tool)) ||
-        reason.includes('was never added');
-      expect(expected, `step ${outcome.index} was skipped for an unexpected reason: ${reason}`).toBe(
-        true
+      // Every step either ran or is named. A scenario that quietly dropped five of its steps
+      // reads exactly like one that ran them, which is the failure mode this whole file exists
+      // to rule out.
+      const undrivable: ToolId[] = ['landingOptimizer', 'landingPreview', 'mediaActions'];
+      for (const outcome of result.unperformed) {
+        const reason = outcome.reason ?? '';
+        const expected =
+          reason.includes('suspend the machine') ||
+          undrivable.some(tool => reason.includes(tool)) ||
+          reason.includes('was never added');
+        expect(
+          expected,
+          `step ${outcome.index} was skipped for an unexpected reason: ${reason}`
+        ).toBe(true);
+      }
+
+      // And the walk actually happened. Every adapter failing to match would leave a scenario
+      // in which nothing was performed and nothing disagreed — a clean pass over no work at
+      // all, which is the one result this file must never be able to produce.
+      const applied = result.outcomes.filter(outcome => outcome.applied);
+      expect(applied.length).toBeGreaterThanOrEqual(Math.ceil(scenario.steps.length / 2));
+
+      const drivenTools = new Set(
+        applied
+          .filter(outcome => 'tool' in outcome.step)
+          .map(outcome => (outcome.step as { tool: ToolId }).tool)
       );
-    }
-
-    // And the walk actually happened. Every adapter failing to match would leave a scenario
-    // in which nothing was performed and nothing disagreed — a clean pass over no work at
-    // all, which is the one result this file must never be able to produce.
-    const applied = result.outcomes.filter(outcome => outcome.applied);
-    expect(applied.length).toBeGreaterThanOrEqual(Math.ceil(scenario.steps.length / 2));
-
-    const drivenTools = new Set(
-      applied
-        .filter(outcome => 'tool' in outcome.step)
-        .map(outcome => (outcome.step as { tool: ToolId }).tool)
-    );
-    // Every tool this scenario names that the runner can actually drive. Naming the
-    // intersection rather than a fixed list keeps a short scenario from being held to a long
-    // one's coverage, without letting a broken adapter pass unnoticed.
-    const expected = toolsIn(scenario).filter(tool => DRIVABLE_TOOLS.includes(tool));
-    expect([...drivenTools].sort()).toEqual(expect.arrayContaining(expected));
-  }, 180_000);
+      // Every tool this scenario names that the runner can actually drive. Naming the
+      // intersection rather than a fixed list keeps a short scenario from being held to a long
+      // one's coverage, without letting a broken adapter pass unnoticed.
+      const expected = toolsIn(scenario).filter(tool => DRIVABLE_TOOLS.includes(tool));
+      expect([...drivenTools].sort()).toEqual(expect.arrayContaining(expected));
+    },
+    180_000
+  );
 
   it('leaves nothing running once every scenario has finished', async () => {
     const handles = await handlesUnder(agent.pid);

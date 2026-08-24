@@ -1,13 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { constants, type Stats } from 'node:fs';
-import { access, copyFile, link, stat, unlink, writeFile } from 'node:fs/promises';
+import { access, copyFile, link, readdir, stat, unlink, writeFile } from 'node:fs/promises';
 import { spawnTracked } from '../power/spawn.js';
 import path from 'node:path';
 import { ffmpegPath, probeImage } from '../ffmpeg/tools.js';
 import { encodeImageToWebp } from '../landing/images.js';
+import { IMAGE_CONVERSION_FORMATS, type ImageConversionFormat } from '@video-compressor/shared';
 
-export const IMAGE_CONVERSION_FORMATS = ['png', 'jpeg', 'webp'] as const;
-export type ImageConversionFormat = (typeof IMAGE_CONVERSION_FORMATS)[number];
+// Declared in the shared package because the interface renders it, and a set the two
+// processes enumerate separately is a set they will eventually disagree on.
+export { IMAGE_CONVERSION_FORMATS };
+export type { ImageConversionFormat };
 
 export const IMAGE_CONVERSION_EXTENSIONS: Record<ImageConversionFormat, '.png' | '.jpg' | '.webp'> =
   {
@@ -140,8 +143,37 @@ export async function convertImage(
 
 function temporaryOutputPath(outputPath: string) {
   const parsed = path.parse(outputPath);
-  return path.join(parsed.dir, `.${parsed.name}.soty-${randomUUID()}${parsed.ext}`);
+  return path.join(parsed.dir, `.${temporaryPrefix(parsed.name)}${randomUUID()}${parsed.ext}`);
 }
+
+function temporaryPrefix(name: string) {
+  return `${name}.soty-`;
+}
+
+/**
+ * Removes the half-written temporaries this converter may have left beside `outputPath`.
+ *
+ * `convertImage` unlinks its own temporary as it unwinds, so this is for the case where it
+ * never got to: a quit that ran out of patience and signalled the encoder, or an agent the
+ * launcher killed outright. What is left then is a partial file beside the user's original
+ * that nothing will ever finish or claim.
+ *
+ * Matched by the converter's own marker and a UUID rather than by prefix alone, so it can
+ * only ever remove a file this application wrote.
+ */
+export async function removeConversionTemporaries(outputPath: string): Promise<void> {
+  const parsed = path.parse(outputPath);
+  const prefix = `.${temporaryPrefix(parsed.name)}`;
+  const entries = await readdir(parsed.dir).catch(() => [] as string[]);
+  await Promise.all(
+    entries
+      .filter(entry => entry.startsWith(prefix) && entry.endsWith(parsed.ext))
+      .filter(entry => UUID.test(entry.slice(prefix.length, entry.length - parsed.ext.length)))
+      .map(entry => unlink(path.join(parsed.dir, entry)).catch(() => {}))
+  );
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function conversionCancelled() {
   return new ImageConversionError('CONVERSION_CANCELLED', 'The image conversion was stopped.');

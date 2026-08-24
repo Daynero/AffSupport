@@ -55,7 +55,11 @@ import {
  * spelled a second time; the other three are steps *within* `processing`, and those are what
  * `step` records now.
  */
-function transitionJob(job: LandingJob, next: LandingJobStatus, step: LandingStep | null = null): boolean {
+function transitionJob(
+  job: LandingJob,
+  next: LandingJobStatus,
+  step: LandingStep | null = null
+): boolean {
   if (!decideTransition(LANDING_JOB_LIFECYCLE, job.status, next)) return false;
   job.status = next;
   job.phase = phaseOf(next, step);
@@ -79,7 +83,6 @@ function transitionAsset(item: LandingAsset, next: LandingAssetStatus): boolean 
   item.status = next;
   return true;
 }
-
 
 type Notify = (type?: LandingEventType) => void;
 

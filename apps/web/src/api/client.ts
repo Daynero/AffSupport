@@ -151,8 +151,30 @@ export async function connect(signal?: AbortSignal): Promise<{
 export function submitEntitlementToken(entitlementToken: string): Promise<AgentEntitlementStatus> {
   return requestBody<AgentEntitlementStatus>('/api/entitlement', { token: entitlementToken });
 }
-export function eventUrl() {
-  return `${agentUrl}/api/events?token=${encodeURIComponent(pairingToken())}`;
+/**
+ * The per-tool live-update endpoints, kept as the fallback for an agent that does not
+ * advertise `event-stream`.
+ *
+ * One builder, not seven. Every one of these carries the session token as a **query
+ * parameter**, which is the one place a secret must never be — it lands in server logs, in a
+ * `Referer`, and in whatever the browser remembers about the page. That is precisely why the
+ * multiplexed stream sends it as a header instead, and why this shape is worth keeping in a
+ * single place while it lasts rather than repeated at seven call sites.
+ */
+const TOOL_EVENT_PATHS = {
+  compressor: '/api/events',
+  landing: '/api/landing/events',
+  'landing-preview': '/api/landing-preview/events',
+  transcription: '/api/transcription/events',
+  team: '/api/team/events',
+  'team-landings': '/api/team/landings/events',
+  power: '/api/power/events'
+} as const;
+
+export type ToolEventChannel = keyof typeof TOOL_EVENT_PATHS;
+
+export function toolEventUrl(channel: ToolEventChannel): string {
+  return `${agentUrl}${TOOL_EVENT_PATHS[channel]}?token=${encodeURIComponent(pairingToken())}`;
 }
 
 /* ── Local resource budget ────────────────────────────────────────────────── */
@@ -170,9 +192,6 @@ export function setPowerLimit(limitPercent: number): Promise<PowerState> {
   return requestBody<PowerState>('/api/power/limit', { limitPercent });
 }
 
-export function powerEventsUrl() {
-  return `${agentUrl}/api/power/events?token=${encodeURIComponent(pairingToken())}`;
-}
 export async function request<T>(url: string, method = 'GET', signal?: AbortSignal): Promise<T> {
   if (!pairingToken()) throw new PairingRequiredError(false);
   let response: Response;
@@ -259,9 +278,6 @@ export async function uploadImage(slot: ImageSlot, file: File): Promise<QueueSta
 export function imageContentUrl(id: string) {
   return `${agentUrl}/api/images/${encodeURIComponent(id)}/content?token=${encodeURIComponent(pairingToken())}`;
 }
-export function landingEventUrl() {
-  return `${agentUrl}/api/landing/events?token=${encodeURIComponent(pairingToken())}`;
-}
 export function landingPreviewUrl(
   jobId: string,
   assetId: string,
@@ -272,10 +288,6 @@ export function landingPreviewUrl(
     assetId
   )}/preview/${side}`;
   return `${agentUrl}${path}?variant=${variant}&token=${encodeURIComponent(pairingToken())}`;
-}
-
-export function landingGalleryEventUrl() {
-  return `${agentUrl}/api/landing-preview/events?token=${encodeURIComponent(pairingToken())}`;
 }
 
 export function landingGalleryImageUrl(landingId: string, revision: number | null, segment = 0) {
@@ -342,14 +354,6 @@ export async function closeTeamPreview(operationId: string): Promise<boolean> {
     'DELETE'
   );
   return value.closed === true;
-}
-
-export function teamEventUrl() {
-  return `${agentUrl}/api/team/events?token=${encodeURIComponent(pairingToken())}`;
-}
-
-export function teamLandingEventUrl() {
-  return `${agentUrl}/api/team/landings/events?token=${encodeURIComponent(pairingToken())}`;
 }
 
 export async function renderTeamLanding(
@@ -620,9 +624,6 @@ export async function landingFolderFinish(): Promise<LandingState> {
 export interface TranscriptionSelectionResponse {
   state: TranscriptionState;
   warnings: SelectionWarning[];
-}
-export function transcriptionEventUrl() {
-  return `${agentUrl}/api/transcription/events?token=${encodeURIComponent(pairingToken())}`;
 }
 export function transcriptionSettings(
   patch: Partial<TranscriptionSettings>

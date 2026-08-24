@@ -187,14 +187,17 @@ function guardTermination(governor: ManagedSpawnGovernor | null, child: ChildPro
     // on every repeated SIGTERM would push the deadline out indefinitely for a
     // caller that retries, which is the opposite of what it is asking for.
     if (!isForceSignal(signal) && !escalation && child.exitCode === null) {
-      escalation = setTimeout(() => {
-        escalation = null;
-        // A no-op once the child has been reaped: Node drops the handle on
-        // exit, so this can never signal a PID the OS has recycled.
-        nativeKill('SIGKILL');
-        // Throttling stretches wall-clock time, so the grace period stretches with it. With
-        // no governor there is no throttling and the raw period is the right one.
-      }, governor?.scaleTimeout(TERMINATION_GRACE_MS) ?? TERMINATION_GRACE_MS);
+      escalation = setTimeout(
+        () => {
+          escalation = null;
+          // A no-op once the child has been reaped: Node drops the handle on
+          // exit, so this can never signal a PID the OS has recycled.
+          nativeKill('SIGKILL');
+          // Throttling stretches wall-clock time, so the grace period stretches with it. With
+          // no governor there is no throttling and the raw period is the right one.
+        },
+        governor?.scaleTimeout(TERMINATION_GRACE_MS) ?? TERMINATION_GRACE_MS
+      );
       // Never hold the process open for a kill nobody is waiting on.
       escalation.unref();
     }

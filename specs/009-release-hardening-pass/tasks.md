@@ -123,7 +123,7 @@ These four close holes confirmed by **probing a running local app**, not inferre
 - [ ] T045b [P] [US1] Add a case to `tests/real-media-e2e.test.ts` asserting that a run stopped mid-encode and then re-run produces output equivalent to one never stopped, by decoded content, duration and dimensions (FR-008)
 - [X] T046 [P] [US1] Create `tests/agent-restart-recovery.test.ts` covering forced termination, sleep/wake, and the interrupted-not-running presentation on next start (FR-006, FR-009a, SC-022)
 - [X] T047 [P] [US1] Create `tests/start-serialisation.test.ts` asserting 100 simultaneous double-starts produce exactly one run (FR-009c, SC-021)
-- [ ] T048 [P] [US1] Create `tests/stream-multiplex.test.ts` asserting one connection carries every channel, that snapshots replay per channel, and that a start or stop completes within 1 second with every channel subscribed (FR-009b, SC-020)
+- [X] T048 [P] [US1] Create `tests/stream-multiplex.test.ts` asserting one connection carries every channel, that snapshots replay per channel, and that a start or stop completes within 1 second with every channel subscribed (FR-009b, SC-020)
 
 ### Implementation — transitions and lifecycle
 
@@ -134,7 +134,7 @@ These four close holes confirmed by **probing a running local app**, not inferre
 - [X] T053 [US1] Map a refused transition to `409 TRANSITION_NOT_ALLOWED` in `apps/agent/src/compressor/routes.ts`, `apps/agent/src/transcription/routes.ts`, `apps/agent/src/landing/routes.ts` and `apps/agent/src/landing-preview/routes.ts`
 - [X] T054 [US1] Add `interrupted` to `TranscriptionJobStatus` in `packages/shared/src/types.ts` and map a restarted in-flight run to it in `apps/agent/src/queue/transcription-store.ts`, leaving existing persisted records untouched (A12, FR-006)
 - [X] T055 [US1] Make `LandingJobPhase` derived via `phaseOf(status, step)` in `apps/agent/src/landing/optimizer.ts`, keeping the wire field and removing nine independently assignable states (data-model §1.2)
-- [ ] T056 [P] [US1] Replace the ~30 hand-written status-array literals across `apps/agent/src` and `apps/web/src` with `isTerminal` and `canTransition` from the shared module
+- [X] T056 [P] [US1] Replace the ~30 hand-written status-array literals across `apps/agent/src` and `apps/web/src` with `isTerminal` and `canTransition` from the shared module
 
 ### Implementation — compressor activity collapse
 
@@ -153,20 +153,20 @@ These four close holes confirmed by **probing a running local app**, not inferre
 - [X] T066 [US1] Add `cancelled` to `MediaActionStatus` and move the union into `packages/shared/src/types.ts` (data-model §1.4)
 - [X] T067 [US1] Promote the abandon path in `apps/agent/src/media-actions/queue.ts` into `cancel(id)` and `cancelAll()`, with a scaled per-job deadline so a wedged conversion cannot hold the machine with no window open (A3)
 - [X] T068 [US1] Add session-authenticated `POST /api/media-actions/:id/cancel` and `POST /api/media-actions/cancel-all` to `apps/agent/src/media-actions/routes.ts`
-- [ ] T069 [US1] Add optional media-action state to `QueueState` in `packages/shared/src/types.ts` so it rides the compressor's existing stream rather than opening an eighth channel (FR-009b)
-- [ ] T070 [US1] Mark abandoned media-action jobs cancelled and unlink their partial outputs on shutdown in `apps/agent/src/media-actions/queue.ts`, and label the list session-scoped in `apps/web/src/` — deliberately **not** adding persistence, which would be new capability
-- [ ] T071 [P] [US1] Add a media-action surface to the interface so a Finder-initiated conversion is visible and stoppable, in `apps/web/src/` alongside the compressor view
+- [X] T069 [US1] Add optional media-action state to `QueueState` in `packages/shared/src/types.ts` so it rides the compressor's existing stream rather than opening an eighth channel (FR-009b)
+- [X] T070 [US1] Mark abandoned media-action jobs cancelled and unlink their partial outputs on shutdown in `apps/agent/src/media-actions/queue.ts`, and label the list session-scoped in `apps/web/src/` — deliberately **not** adding persistence, which would be new capability
+- [X] T071 [P] [US1] Add a media-action surface to the interface so a Finder-initiated conversion is visible and stoppable, in `apps/web/src/` alongside the compressor view
 
 ### Implementation — connection budget
 
-- [ ] T071a [P] [US1] Audit `apps/web/src/` for any affordance implying a stopped run can be resumed rather than re-run, and remove or relabel it — no resume exists anywhere in the local app, so offering one is the interface lying (FR-008)
-- [ ] T072 [US1] Convert `EventChannel` in `apps/agent/src/server/sse.ts` into a named-channel hub with per-channel snapshot replay
-- [ ] T073 [US1] Create `apps/agent/src/server/stream.ts` implementing `GET /api/stream?channels=…` with header authentication, the frame envelope, and its own cross-origin headers on the hijacked response, per [contracts/agent-http.md §2](./contracts/agent-http.md)
-- [ ] T074 [US1] Register the channels through the hub in `apps/agent/src/index.ts` and `apps/agent/src/power/routes.ts`, keeping the seven existing endpoints in place for older clients
-- [ ] T075 [US1] Add the `event-stream` capability flag to `packages/shared/src/types.ts` and the health payload in `apps/agent/src/server/app.ts`
-- [ ] T076 [US1] Create `apps/web/src/api/event-stream.ts` — a fetch-based reader with a manual frame parser that sends the token as a request header
-- [ ] T077 [US1] Rewrite `apps/web/src/api/useAgentEventStream.ts` to subscribe to multiplexed channels through the new reader, with a capability-gated fallback to the seven existing URLs
-- [ ] T078 [US1] Collapse the seven stream URL builders in `apps/web/src/api/client.ts` into one, and migrate the three direct stream consumers in `apps/web/src/landing/LandingOptimizerPage.tsx`, `apps/web/src/transcription/TranscriptionPage.tsx` and `apps/web/src/landing-viewer/sources/agentLandingSource.ts` onto the hook
+- [X] T071a [P] [US1] Audit `apps/web/src/` for any affordance implying a stopped run can be resumed rather than re-run, and remove or relabel it — no resume exists anywhere in the local app, so offering one is the interface lying (FR-008)
+- [X] T072 [US1] Convert `EventChannel` in `apps/agent/src/server/sse.ts` into a named-channel hub with per-channel snapshot replay
+- [X] T073 [US1] Create `apps/agent/src/server/stream.ts` implementing `GET /api/stream?channels=…` with header authentication, the frame envelope, and its own cross-origin headers on the hijacked response, per [contracts/agent-http.md §2](./contracts/agent-http.md)
+- [X] T074 [US1] Register the channels through the hub in `apps/agent/src/index.ts` and `apps/agent/src/power/routes.ts`, keeping the seven existing endpoints in place for older clients
+- [X] T075 [US1] Add the `event-stream` capability flag to `packages/shared/src/types.ts` and the health payload in `apps/agent/src/server/app.ts`
+- [X] T076 [US1] Create `apps/web/src/api/event-stream.ts` — a fetch-based reader with a manual frame parser that sends the token as a request header
+- [X] T077 [US1] Rewrite `apps/web/src/api/useAgentEventStream.ts` to subscribe to multiplexed channels through the new reader, with a capability-gated fallback to the seven existing URLs
+- [X] T078 [US1] Collapse the seven stream URL builders in `apps/web/src/api/client.ts` into one, and migrate the three direct stream consumers in `apps/web/src/landing/LandingOptimizerPage.tsx`, `apps/web/src/transcription/TranscriptionPage.tsx` and `apps/web/src/landing-viewer/sources/agentLandingSource.ts` onto the hook
 - [X] T079 [US1] Serialise start requests in `apps/agent/src/queue/queue.ts` so two simultaneous requests produce exactly one run (FR-009c)
 - [ ] T080 [US1] Handle sleep and wake in `apps/agent/src/power/governor.ts` and `apps/agent/src/queue/queue.ts` so in-flight work either continues correctly or is presented as interrupted (FR-009a)
 

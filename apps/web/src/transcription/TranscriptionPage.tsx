@@ -8,7 +8,8 @@ import {
   TRANSCRIPTION_LANGUAGE_CODES,
   TRANSCRIPTION_LIFECYCLE,
   TRANSLATEGEMMA_LANGUAGE_CODES,
-  canTransition
+  canTransition,
+  isSettled
 } from '@video-compressor/shared';
 import {
   request,
@@ -17,7 +18,7 @@ import {
   transcriptionCancelAll,
   transcriptionClearFinished,
   transcriptionDocument,
-  transcriptionEventUrl,
+  toolEventUrl,
   transcriptionModelCancel,
   transcriptionModelDownload,
   transcriptionTranslatorCancel,
@@ -34,6 +35,7 @@ import {
 } from '../api/client';
 import { Onboarding } from '../App';
 import { useAgent } from '../AgentContext';
+import { useAgentEventStream } from '../api/useAgentEventStream';
 import { DropZone } from '../components/DropZone';
 import { Modal } from '../components/Modal';
 import {
@@ -160,6 +162,7 @@ interface ToastMessage {
 export default function TranscriptionPage() {
   const { language, t } = useI18n();
   const { connection, connectedOnce, reconnect, capabilities } = useAgent();
+  const multiplexed = capabilities.includes('event-stream');
   const entering = usePageEntrance();
   const [state, setState] = useState<TranscriptionState | null>(null);
   const [help, setHelp] = useState(false);
@@ -189,23 +192,26 @@ export default function TranscriptionPage() {
 
   useEffect(() => {
     if (connection !== 'connected') return;
-    let source: EventSource | null = null;
     let active = true;
     request<TranscriptionState>('/api/transcription/state', 'GET')
       .then(value => {
         if (active) setState(value);
       })
       .catch(() => {});
-    source = new EventSource(transcriptionEventUrl());
-    source.onmessage = event => {
-      const update = JSON.parse(event.data) as { state: TranscriptionState };
-      setState(update.state);
-    };
     return () => {
       active = false;
-      source?.close();
     };
   }, [connection]);
+
+  // Through the shared hook rather than a socket of this page's own — see the same change in
+  // the landing optimiser.
+  useAgentEventStream<{ state: TranscriptionState }>({
+    url: connection === 'connected' ? toolEventUrl('transcription') : null,
+    channel: 'transcription',
+    multiplexed,
+    enabled: connection === 'connected',
+    onMessage: update => setState(update.state)
+  });
 
   const addToast = (text: string, tone: ToastMessage['tone'] = 'neutral') => {
     const id = ++toastId.current;
@@ -262,13 +268,7 @@ export default function TranscriptionPage() {
   const startable = (job: TranscriptionJob) =>
     canTransition(TRANSCRIPTION_LIFECYCLE, job.status, 'queued');
   const readyJobs = jobs.filter(job => job.status === 'ready' || job.status === 'cancelled');
-  const finishedJobs = jobs.filter(
-    job =>
-      job.status === 'completed' ||
-      job.status === 'failed' ||
-      job.status === 'cancelled' ||
-      job.status === 'interrupted'
-  );
+  const finishedJobs = jobs.filter(job => isSettled(TRANSCRIPTION_LIFECYCLE, job.status));
   // Anything already transcribed can be transcribed again, so a completed job
   // is startable too — that is what makes "Transcribe selected" a re-run.
   const selectableIds = visibleJobs.filter(job => job.status !== 'analyzing').map(job => job.id);
@@ -1052,9 +1052,7 @@ function TranscriptionRow({
               {t('transcriptionCancel')}
             </Button>
           )}
-          {(job.status === 'failed' ||
-            job.status === 'cancelled' ||
-            job.status === 'interrupted') && (
+          {isSettled(TRANSCRIPTION_LIFECYCLE, job.status) && job.status !== 'completed' && (
             <Button variant="primary" disabled={!connected} onClick={onRetry}>
               {t('transcriptionRetry')}
             </Button>

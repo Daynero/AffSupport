@@ -449,6 +449,15 @@ export interface QueueState {
     state: 'none' | 'pending' | 'draining';
     targetBuildId: string | null;
   };
+  /**
+   * Conversions started from the native file manager.
+   *
+   * They ride the compressor's stream rather than opening an eighth channel (FR-009b):
+   * a conversion is work the machine is doing, and the connection budget is the reason
+   * this release exists. Absent on agents built before this release, and on any agent
+   * whose platform does not offer the file-manager bridge.
+   */
+  mediaActions?: MediaActionState;
 }
 
 export type AgentEventType =
@@ -499,6 +508,14 @@ export interface HealthResponse {
  * absent entry as "not offered" and an unknown entry as harmless.
  */
 export const AGENT_CAPABILITIES = [
+  /**
+   * One connection carries every channel, instead of one connection per tool.
+   *
+   * Gated rather than assumed because the seven per-tool endpoints are not removed in this
+   * release: a client that does not see this keeps using them, and neither side has to be
+   * upgraded in step with the other.
+   */
+  'event-stream',
   'finder-image-conversion',
   'landing',
   'landing-preview',
@@ -759,12 +776,35 @@ export type LandingPreviewSourceKind = 'folder' | 'zip' | 'team';
  * status the two processes describe separately is a status they will eventually disagree on.
  */
 export type MediaActionStatus =
-  | 'queued'
-  | 'processing'
-  | 'completed'
-  | 'failed'
-  | 'skipped'
-  | 'cancelled';
+  'queued' | 'processing' | 'completed' | 'failed' | 'skipped' | 'cancelled';
+
+export const IMAGE_CONVERSION_FORMATS = ['png', 'jpeg', 'webp'] as const;
+export type ImageConversionFormat = (typeof IMAGE_CONVERSION_FORMATS)[number];
+
+/** One conversion in the media-action list. */
+export interface MediaActionJob {
+  id: string;
+  kind: 'image-conversion';
+  inputPath: string;
+  /** Where the result will be written; null until a destination is chosen, and for a skip. */
+  outputPath: string | null;
+  targetFormat: ImageConversionFormat;
+  status: MediaActionStatus;
+  errorCode: string | null;
+  error: string | null;
+  createdAt: number;
+  startedAt: number | null;
+  finishedAt: number | null;
+}
+
+/**
+ * Session-scoped: nothing here survives a restart, deliberately. Persisting it would be
+ * new capability rather than the hardening this release is.
+ */
+export interface MediaActionState {
+  running: boolean;
+  jobs: MediaActionJob[];
+}
 
 export type LandingPreviewItemStatus = 'queued' | 'rendering' | 'ready' | 'failed';
 export type LandingPreviewPhase =

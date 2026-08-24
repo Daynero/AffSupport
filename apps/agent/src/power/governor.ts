@@ -82,6 +82,18 @@ const TREE_REFRESH_MS = 3_000;
  */
 const TERMINATION_PIN_CYCLES = 50;
 
+/** How often the wake probe checks the wall clock while anything is managed. */
+const WAKE_PROBE_MS = 5_000;
+
+/**
+ * How much further behind its own period the probe must be for the gap to mean a suspend.
+ *
+ * Half a minute, because the alternative reading — an event loop this far behind — would
+ * mean the agent had bigger problems than the duty cycler, and because a machine held at a
+ * low limit is expected to be late, just never by this much.
+ */
+const WAKE_GAP_MS = 30_000;
+
 /**
  * The on/off split for a duty fraction.
  *
@@ -169,8 +181,12 @@ export class PowerGovernor {
   private readonly busy: () => boolean;
   private readonly onError: (error: unknown, message: string) => void;
   private onChange: (() => void) | null;
+  private onWake: (() => void) | null = null;
   private readonly persist: ((limitPercent: number) => Promise<void>) | null;
   private cycleTimer: NodeJS.Timeout | null = null;
+  private wakeProbe: NodeJS.Timeout | null = null;
+  /** When the wake probe last ran; a much larger gap than its period means a suspend. */
+  private lastProbeAt = 0;
   private latestSample: PowerSample | null = null;
   private readonly probeProcessTable: () => Promise<ProcessTableRow[]>;
   private readonly descendantSignals: NonNullable<PowerGovernorOptions['descendantSignals']>;
@@ -195,6 +211,11 @@ export class PowerGovernor {
   }
 
   /** Wired after construction, once the SSE channel exists. */
+  /** Called once each time the machine is found to have slept and woken (FR-009a). */
+  setWakeListener(listener: (() => void) | null) {
+    this.onWake = listener;
+  }
+
   setChangeListener(listener: (() => void) | null) {
     this.onChange = listener;
   }
@@ -477,6 +498,11 @@ export class PowerGovernor {
   /* ── duty cycling ─────────────────────────────────────────────────────── */
 
   private retune(): void {
+    // Only while something is managed. An agent with nothing running has nothing to be
+    // woken up for, and holding a timer at idle would be at odds with the whole point of
+    // a governor.
+    if (this.children.size > 0) this.startWakeProbe();
+    else this.stopWakeProbe();
     const { dutyOnFraction } = this.budget();
     const shouldCycle = dutyOnFraction < 1 && this.pauseSupported && this.children.size > 0;
     if (!shouldCycle) {
@@ -525,6 +551,56 @@ export class PowerGovernor {
       clearTimeout(this.cycleTimer);
       this.cycleTimer = null;
     }
+  }
+
+  /* ── sleep and wake ───────────────────────────────────────────────────── */
+
+  /**
+   * Notices that the machine stopped running and started again (FR-009a).
+   *
+   * There is no portable notification for this, so it is read off the wall clock: a probe
+   * that finds far more time gone than it slept for was not late, it was suspended along
+   * with everything else.
+   *
+   * Worth detecting because the duty cycler is built out of wall-clock timers, and a
+   * suspend lands in the middle of one of its windows — with a child stopped, waiting for
+   * a timer whose relationship to the cycle it belongs to no longer holds. Rather than
+   * reason about which window it was, the cycle is torn down and rebuilt from a known
+   * point, and anything stopped only on the cycler's account is resumed first.
+   */
+  private startWakeProbe(): void {
+    if (this.wakeProbe) return;
+    this.lastProbeAt = Date.now();
+    const timer = setInterval(() => {
+      const now = Date.now();
+      const elapsed = now - this.lastProbeAt;
+      this.lastProbeAt = now;
+      // Generously past the probe's own period, so ordinary event-loop lateness under a
+      // machine at its limit — which is the normal state here — is never read as a sleep.
+      if (elapsed < WAKE_PROBE_MS + WAKE_GAP_MS) return;
+      this.wake();
+    }, WAKE_PROBE_MS);
+    // Never hold the process open to watch for a wake.
+    timer.unref();
+    this.wakeProbe = timer;
+  }
+
+  private stopWakeProbe(): void {
+    if (!this.wakeProbe) return;
+    clearInterval(this.wakeProbe);
+    this.wakeProbe = null;
+  }
+
+  private wake(): void {
+    this.stopCycle();
+    for (const entry of this.children.values()) {
+      if (this.isStopped(entry) && entry.holds.size === 0) this.resume(entry);
+    }
+    this.retune();
+    // Told, not inferred: the governor knows the machine slept, and the queue knows
+    // whether what it had running is still there.
+    this.onWake?.();
+    this.onChange?.();
   }
 
   private resumeAll(): void {

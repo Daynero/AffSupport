@@ -297,9 +297,11 @@ describe('quitting while Finder image conversions are queued', () => {
     await shutdown;
 
     expect(sawAbort).toBe(true);
-    // The job behind the wedged one is never picked up: the queue stops where
-    // it stands rather than starting fresh work on the way out.
-    expect(queue.state().jobs.map(job => job.status)).toEqual(['failed', 'queued']);
+    // The job behind the wedged one is never picked up: the queue stops where it
+    // stands rather than starting fresh work on the way out. Both end `cancelled`
+    // — nothing about them broke, the application ran out of time — so the last
+    // state the window sees describes work that is no longer happening.
+    expect(queue.state().jobs.map(job => job.status)).toEqual(['cancelled', 'cancelled']);
   }, 15_000);
 });
 

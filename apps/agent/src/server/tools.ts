@@ -119,7 +119,11 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
       id: 'media-actions',
       lifecycle: MEDIA_ACTION_LIFECYCLE,
       register: (app, ctx) =>
-        registerMediaActionRoutes(app, { mediaActions, acceptingNewTasks: ctx.acceptingNewTasks }),
+        registerMediaActionRoutes(app, {
+          mediaActions,
+          acceptingNewTasks: ctx.acceptingNewTasks,
+          compressorState: () => compressor.queue.state()
+        }),
       busy: () => mediaActions.workActive(),
       cancel: id => mediaActions.cancel(id),
       cancelAll: () => mediaActions.cancelAll(),

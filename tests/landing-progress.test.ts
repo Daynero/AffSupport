@@ -51,7 +51,14 @@ describe('a landing job’s phase', () => {
   it('is the status itself for every state but processing', () => {
     // Six of the nine phases were only ever the status spelled a second time, assigned at a
     // different moment and therefore able to disagree with it.
-    for (const status of ['preparing', 'ready', 'queued', 'completed', 'failed', 'cancelled'] as const)
+    for (const status of [
+      'preparing',
+      'ready',
+      'queued',
+      'completed',
+      'failed',
+      'cancelled'
+    ] as const)
       expect(phaseOf(status, null)).toBe(status);
   });
 

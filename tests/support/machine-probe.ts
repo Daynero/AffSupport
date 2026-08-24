@@ -169,7 +169,14 @@ async function readWindowsTable(): Promise<ProcessObservation[]> {
     const name = parts.slice(5).join('|');
     if (!Number.isInteger(pid) || !Number.isInteger(ppid)) continue;
     if (!Number.isFinite(ticks) || !Number.isFinite(cpuMillis)) continue;
-    rows.push({ pid, ppid, createdAt: ticksToEpochMillis(ticks), name, cpuMillis, suspended: null });
+    rows.push({
+      pid,
+      ppid,
+      createdAt: ticksToEpochMillis(ticks),
+      name,
+      cpuMillis,
+      suspended: null
+    });
   }
   return rows;
 }

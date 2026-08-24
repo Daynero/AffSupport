@@ -101,8 +101,7 @@ describeRequiring(requirePath('apps/agent/dist/index.js'), 'recovering from a ha
       body: JSON.stringify({ ids: [id] })
     });
     await waitFor(
-      async () =>
-        (await agent!.api<QueueLike>('/api/queue')).jobs?.[0]?.status === 'processing',
+      async () => (await agent!.api<QueueLike>('/api/queue')).jobs?.[0]?.status === 'processing',
       { timeoutMs: 20_000, describe: 'the encode to start' }
     );
 
@@ -135,8 +134,7 @@ describeRequiring(requirePath('apps/agent/dist/index.js'), 'recovering from a ha
       body: JSON.stringify({ ids: [id] })
     });
     await waitFor(
-      async () =>
-        (await agent!.api<QueueLike>('/api/queue')).jobs?.[0]?.status === 'processing',
+      async () => (await agent!.api<QueueLike>('/api/queue')).jobs?.[0]?.status === 'processing',
       { timeoutMs: 20_000, describe: 'the encode to start' }
     );
     await agent.crash();
@@ -152,8 +150,7 @@ describeRequiring(requirePath('apps/agent/dist/index.js'), 'recovering from a ha
     expect(restarted.status).toBe(200);
 
     await waitFor(
-      async () =>
-        (await agent!.api<QueueLike>('/api/queue')).jobs?.[0]?.status === 'processing',
+      async () => (await agent!.api<QueueLike>('/api/queue')).jobs?.[0]?.status === 'processing',
       { timeoutMs: 20_000, describe: 'the re-run to start' }
     );
 
@@ -175,8 +172,7 @@ describeRequiring(requirePath('apps/agent/dist/index.js'), 'recovering from a ha
         body: JSON.stringify({ ids: [id] })
       });
       await waitFor(
-        async () =>
-          (await agent!.api<QueueLike>('/api/queue')).jobs?.[0]?.status === 'processing',
+        async () => (await agent!.api<QueueLike>('/api/queue')).jobs?.[0]?.status === 'processing',
         { timeoutMs: 20_000, describe: `cycle ${cycle}: the encode to start` }
       );
 

@@ -105,22 +105,18 @@ process.env.AGENT_LANDING_WORKSPACE = path.join(workspace, 'landing-workspaces')
 const { MediaToolUnavailableError } = await import('../../apps/agent/src/ffmpeg/tools.js');
 const { JobQueue } = await import('../../apps/agent/src/queue/queue.js');
 const { TranscriptionQueue } = await import('../../apps/agent/src/queue/transcription-queue.js');
-const { loadTranscriptionState } = await import(
-  '../../apps/agent/src/queue/transcription-store.js'
-);
+const { loadTranscriptionState } =
+  await import('../../apps/agent/src/queue/transcription-store.js');
 const { LandingOptimizer } = await import('../../apps/agent/src/landing/optimizer.js');
 const { MediaActionQueue } = await import('../../apps/agent/src/media-actions/queue.js');
 const { LandingPreviewCatalog } = await import('../../apps/agent/src/landing-preview/catalog.js');
-const { TranscriptionDocumentStore } = await import(
-  '../../apps/agent/src/transcription/document-store.js'
-);
+const { TranscriptionDocumentStore } =
+  await import('../../apps/agent/src/transcription/document-store.js');
 
 /** Removes everything the drivers wrote. Call from the suite's teardown. */
 export async function cleanUpDrivers(): Promise<void> {
   await rm(workspace, { recursive: true, force: true });
 }
-
-
 
 async function behave(behaviour: Behaviour): Promise<void> {
   await writeFile(behaviourFile, JSON.stringify(behaviour), 'utf8');
@@ -245,9 +241,7 @@ const COMPRESSION_DRIVERS: DriverMap = {
   'ready->queued': async () => {
     await behave({ hang: true });
     const harnessed = await harness([makeJob('ready-job', 'ready')]);
-    const result = await compressionEdge('queued', () =>
-      harnessed.queue.start(['ready-job'])
-    );
+    const result = await compressionEdge('queued', () => harnessed.queue.start(['ready-job']));
     await quiesce(harnessed);
     return result;
   },
@@ -255,9 +249,7 @@ const COMPRESSION_DRIVERS: DriverMap = {
   'queued->processing': async () => {
     await behave({ hang: true });
     const harnessed = await harness([makeJob('starting', 'ready')]);
-    const result = await compressionEdge('processing', () =>
-      harnessed.queue.start(['starting'])
-    );
+    const result = await compressionEdge('processing', () => harnessed.queue.start(['starting']));
     await quiesce(harnessed);
     return result;
   },
@@ -290,9 +282,7 @@ const COMPRESSION_DRIVERS: DriverMap = {
   'processing->completed': async () => {
     await behave({ exitCode: 0, durationMs: 10 });
     const harnessed = await harness([makeJob('finishing', 'ready')]);
-    const result = await compressionEdge('completed', () =>
-      harnessed.queue.start(['finishing'])
-    );
+    const result = await compressionEdge('completed', () => harnessed.queue.start(['finishing']));
     await quiesce(harnessed);
     return result;
   },
@@ -300,9 +290,7 @@ const COMPRESSION_DRIVERS: DriverMap = {
   'processing->failed': async () => {
     await behave({ exitCode: 3, durationMs: 10, stderr: 'the encoder gave up' });
     const harnessed = await harness([makeJob('breaking', 'ready')]);
-    const result = await compressionEdge('failed', () =>
-      harnessed.queue.start(['breaking'])
-    );
+    const result = await compressionEdge('failed', () => harnessed.queue.start(['breaking']));
     await quiesce(harnessed);
     return result;
   },
@@ -351,9 +339,7 @@ const COMPRESSION_DRIVERS: DriverMap = {
   'completed->ready': async () => {
     await behave({ hang: true });
     const harnessed = await harness([makeJob('again', 'completed')]);
-    const result = await compressionEdge('ready', () =>
-      harnessed.queue.start(['again'])
-    );
+    const result = await compressionEdge('ready', () => harnessed.queue.start(['again']));
     await quiesce(harnessed);
     return result;
   },
@@ -361,9 +347,7 @@ const COMPRESSION_DRIVERS: DriverMap = {
   'failed->ready': async () => {
     await behave({ hang: true });
     const harnessed = await harness([makeJob('retrying', 'failed')]);
-    const result = await compressionEdge('ready', () =>
-      harnessed.queue.start(['retrying'])
-    );
+    const result = await compressionEdge('ready', () => harnessed.queue.start(['retrying']));
     await quiesce(harnessed);
     return result;
   },
@@ -371,9 +355,7 @@ const COMPRESSION_DRIVERS: DriverMap = {
   'cancelled->ready': async () => {
     await behave({ hang: true });
     const harnessed = await harness([makeJob('rerunning', 'cancelled')]);
-    const result = await compressionEdge('ready', () =>
-      harnessed.queue.start(['rerunning'])
-    );
+    const result = await compressionEdge('ready', () => harnessed.queue.start(['rerunning']));
     await quiesce(harnessed);
     return result;
   },
@@ -382,9 +364,7 @@ const COMPRESSION_DRIVERS: DriverMap = {
     const harnessed = await harness([
       makeJob('recovering', 'interrupted', { errorDetails: recoveryMarker('input-analysis') })
     ]);
-    return compressionEdge('ready', () =>
-      harnessed.queue.recoverRuntimeInterruptedJobs()
-    );
+    return compressionEdge('ready', () => harnessed.queue.recoverRuntimeInterruptedJobs());
   },
 
   'interrupted->completed': async () => {
@@ -394,9 +374,7 @@ const COMPRESSION_DRIVERS: DriverMap = {
     // The encode had finished; only the probe that checks it was interrupted. The output has
     // to exist for the re-probe to find.
     await writeFile(harnessed.queue.state().jobs[0].outputPath, 'a complete encode', 'utf8');
-    return compressionEdge('completed', () =>
-      harnessed.queue.recoverRuntimeInterruptedJobs()
-    );
+    return compressionEdge('completed', () => harnessed.queue.recoverRuntimeInterruptedJobs());
   },
 
   'interrupted->failed': async () => {
@@ -404,12 +382,9 @@ const COMPRESSION_DRIVERS: DriverMap = {
       [makeJob('unreadable', 'interrupted', { errorDetails: recoveryMarker('input-analysis') })],
       async () => goodMedia({ codec: null, width: null, height: null })
     );
-    return compressionEdge('failed', () =>
-      harnessed.queue.recoverRuntimeInterruptedJobs()
-    );
+    return compressionEdge('failed', () => harnessed.queue.recoverRuntimeInterruptedJobs());
   }
 };
-
 
 /**
  * A translator whose every call is resolved by hand.
@@ -487,7 +462,9 @@ async function transcriptionHarness(): Promise<TranscriptionHarness> {
     jobId,
     sourceLanguage: 'en',
     modelVersion: 'large-v3',
-    segments: [{ id: `${jobId}-s0`, startMs: 0, endMs: 1_000, sourceText: 'Hello world.', words: [] }],
+    segments: [
+      { id: `${jobId}-s0`, startMs: 0, endMs: 1_000, sourceText: 'Hello world.', words: [] }
+    ],
     translations: {}
   });
 
@@ -559,7 +536,6 @@ const TRANSLATION_DRIVERS: DriverMap = {
     return result;
   }
 };
-
 
 const transcriptionEdge = driverFor('transcription');
 
@@ -729,7 +705,6 @@ const TRANSCRIPTION_DRIVERS: DriverMap = {
   }
 };
 
-
 /** A real one-pixel PNG, for the frame the encoder is asked to decode. */
 const ONE_PIXEL_PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
@@ -756,7 +731,10 @@ async function landingFolder(name: string, extras: Record<string, string> = {}):
   // Padded far beyond the pixel it contains: whether an asset ends up `optimized` or
   // `skipped` is decided by comparing the encoded result against the size of the file on
   // disk, so a one-pixel image that is also one pixel on disk can only ever be "no gain".
-  await writeFile(path.join(site, 'photo.png'), Buffer.concat([ONE_PIXEL_PNG, Buffer.alloc(40_000)]));
+  await writeFile(
+    path.join(site, 'photo.png'),
+    Buffer.concat([ONE_PIXEL_PNG, Buffer.alloc(40_000)])
+  );
   for (const [relative, content] of Object.entries(extras))
     await writeFile(path.join(site, relative), content);
   return site;
@@ -927,7 +905,6 @@ const LANDING_ASSET_DRIVERS: DriverMap = {
   }
 };
 
-
 const mediaActionEdge = driverFor('media-action');
 
 /** A conversion queue whose converter is held open until the driver decides. */
@@ -1014,7 +991,6 @@ const MEDIA_ACTION_DRIVERS: DriverMap = {
     return result;
   }
 };
-
 
 const previewItemEdge = driverFor('landing-preview-item');
 

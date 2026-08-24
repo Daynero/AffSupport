@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import type { TeamOperationSnapshot } from '../../api/team';
 import { teamApi } from '../../api/team';
-import { cancelTeamAgentProcess, teamEventUrl } from '../../api/client';
+import { cancelTeamAgentProcess, toolEventUrl } from '../../api/client';
+import { useOptionalAgent } from '../../AgentContext';
 import { useAgentEventStream } from '../../api/useAgentEventStream';
 import { getSupabaseClient } from '../../lib/supabase';
 import type { LocalTeamProgress } from './OperationStatus';
@@ -72,8 +73,13 @@ export function useTeamOperation(input: {
     };
   }, [operationId, refetch]);
 
+  const agent = useOptionalAgent();
+  const multiplexed = Boolean(agent?.capabilities?.includes('event-stream'));
+
   useAgentEventStream<TeamOperationSseEvent>({
-    url: operationId && agentEnabled ? teamEventUrl() : null,
+    url: operationId && agentEnabled ? toolEventUrl('team') : null,
+    channel: 'team',
+    multiplexed,
     enabled: Boolean(operationId && agentEnabled),
     onMessage: event => {
       if (event.type !== 'team:operations' || !operationId) return;

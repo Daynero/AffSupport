@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   LIFECYCLES,
   edgesOf,
+  isSettled,
   isTerminal,
   statesOf,
   type AnyLifecycle
@@ -65,6 +66,41 @@ describe.each(CASES)('%s lifecycle', (_id, lifecycle) => {
     // An unreachable state is either dead code or a missing edge, and both are worth
     // knowing. It is also unprovable by driver: no test could ever put a run into it.
     expect(statesOf(lifecycle).filter(state => !reached.has(state))).toEqual([]);
+  });
+
+  it('marks only real states as settled', () => {
+    const declared = new Set<string>(statesOf(lifecycle));
+    expect(lifecycle.settled.filter(state => !declared.has(state))).toEqual([]);
+  });
+
+  it('never calls the state a run starts in settled', () => {
+    // A run that is over before it begins is a contradiction, and it would make every
+    // interface offer to re-run something that has not run.
+    expect(isSettled(lifecycle, lifecycle.initial)).toBe(false);
+  });
+
+  it('can reach every settled state', () => {
+    // Declared separately from the edges, so nothing stops the two disagreeing except this.
+    const reachable = new Set<string>([lifecycle.initial]);
+    const queue: string[] = [lifecycle.initial];
+    while (queue.length > 0) {
+      const from = queue.pop() as string;
+      for (const [start, to] of edgesOf(lifecycle)) {
+        if (start !== from || reachable.has(to)) continue;
+        reachable.add(to);
+        queue.push(to);
+      }
+    }
+    expect(lifecycle.settled.filter(state => !reachable.has(state))).toEqual([]);
+  });
+
+  it('treats every terminal state as settled', () => {
+    // The reverse does not hold — a finished compression can be run again, so it is settled
+    // without being terminal — but a state with nowhere to go is certainly over.
+    const terminalButUnsettled = statesOf(lifecycle).filter(
+      state => isTerminal(lifecycle, state) && !isSettled(lifecycle, state)
+    );
+    expect(terminalButUnsettled).toEqual([]);
   });
 
   it('gives every non-terminal state somewhere to go', () => {

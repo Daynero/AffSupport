@@ -1,4 +1,4 @@
-import { useEffect, useState, type DragEvent } from 'react';
+import { useEffect, useState } from 'react';
 import type { MaterialCategory } from '@video-compressor/shared';
 import {
   teamApi,
@@ -8,16 +8,6 @@ import {
 import { Modal } from '../../components/Modal';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
-import {
-  decodeTaskMaterialDragItems,
-  TASK_MATERIAL_DRAG_TYPE,
-  type TaskMaterialDragItem
-} from './task-drag';
-export {
-  decodeTaskMaterialDrag,
-  decodeTaskMaterialDragItems,
-  TASK_MATERIAL_DRAG_TYPE
-} from './task-drag';
 
 export interface TaskAttachmentCandidate {
   id: string;
@@ -125,15 +115,6 @@ function toCandidate(material: TeamMaterialSummary): TaskAttachmentCandidate {
   };
 }
 
-function toDragCandidate(item: TaskMaterialDragItem): TaskAttachmentCandidate {
-  return {
-    id: item.id,
-    name: item.name,
-    category: item.category,
-    previewState: item.previewState
-  };
-}
-
 export function TaskAttachmentPicker({
   teamId,
   client = defaultClient,
@@ -151,7 +132,6 @@ export function TaskAttachmentPicker({
   const [materials, setMaterials] = useState<TeamMaterialSummary[]>([]);
   const [selected, setSelected] = useState<Map<string, TaskAttachmentCandidate>>(new Map());
   const [loading, setLoading] = useState(false);
-  const [dragging, setDragging] = useState(false);
   const [error, setError] = useState(false);
   const parentId = path.at(-1)?.id ?? null;
   const pickerTitleId = 'team-task-attachment-picker-title';
@@ -192,16 +172,6 @@ export function TaskAttachmentPicker({
     if (unique.size > 0) onAdd([...unique.values()]);
   };
 
-  const dropped = (event: DragEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    setDragging(false);
-    stage(
-      decodeTaskMaterialDragItems(event.dataTransfer.getData(TASK_MATERIAL_DRAG_TYPE)).map(
-        toDragCandidate
-      )
-    );
-  };
-
   const toggle = (material: TeamMaterialSummary) => {
     if (material.kind === 'folder' || attachedMaterialIds.has(material.id)) return;
     const candidate = toCandidate(material);
@@ -222,17 +192,11 @@ export function TaskAttachmentPicker({
     <>
       <button
         type="button"
-        className={`team-task-attachment-add ${dragging ? 'is-dragging' : ''}`.trim()}
+        // No drop handling: the only thing that ever produced this payload was
+        // the browser's dead drag plumbing, so advertising a drop target here
+        // promised something nothing could deliver.
+        className="team-task-attachment-add"
         onClick={() => setOpen(true)}
-        onDragEnter={event => {
-          event.preventDefault();
-          setDragging(true);
-        }}
-        onDragOver={event => event.preventDefault()}
-        onDragLeave={event => {
-          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false);
-        }}
-        onDrop={dropped}
       >
         <span className="team-task-attachment-add-icon">
           <PlusIcon />

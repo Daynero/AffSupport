@@ -201,9 +201,7 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
       return reply.code(400).send({ error: 'Invalid landing ids.' });
     }
     const started = await optimizer.start(rawIds as string[] | undefined);
-    return started
-      ? optimizer.state()
-      : reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' });
+    return started ? optimizer.state() : reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' });
   });
 
   app.post<{ Params: { jobId: string } }>(

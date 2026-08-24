@@ -1,4 +1,10 @@
-import type { CompressionJob, QueueBatch } from '@video-compressor/shared';
+import {
+  COMPRESSION_LIFECYCLE,
+  canTransition,
+  isSettled,
+  type CompressionJob,
+  type QueueBatch
+} from '@video-compressor/shared';
 
 export interface BatchMetrics {
   total: number;
@@ -13,10 +19,12 @@ export function batchMetrics(jobs: CompressionJob[], batch: QueueBatch | null): 
   if (!batch) return { total: 0, queued: 0, processing: 0, completed: 0, failed: 0, progress: 0 };
   const ids = new Set(batch.jobIds);
   const batchJobs = jobs.filter(job => ids.has(job.id));
-  const finished = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
   const progress = batchJobs.length
     ? batchJobs.reduce((total, job) => {
-        if (finished.has(job.status)) return total + 100;
+        // Asked of the same declaration the agent enforces. The list this replaces was the
+        // interface's own second opinion about which statuses mean "over", and it had
+        // already drifted from the agent's.
+        if (isSettled(COMPRESSION_LIFECYCLE, job.status)) return total + 100;
         return total + (job.progress ?? 0);
       }, 0) / batchJobs.length
     : 0;
@@ -25,7 +33,10 @@ export function batchMetrics(jobs: CompressionJob[], batch: QueueBatch | null): 
     queued: batchJobs.filter(job => job.status === 'queued').length,
     processing: batchJobs.filter(job => job.status === 'processing').length,
     completed: batchJobs.filter(job => job.status === 'completed').length,
-    failed: batchJobs.filter(job => ['failed', 'interrupted'].includes(job.status)).length,
+    // Counted together on purpose: from the batch summary's point of view a run that broke
+    // and a run the application could not finish are both work that did not get done. The
+    // row itself still tells them apart, which is where the distinction matters.
+    failed: batchJobs.filter(job => job.status === 'failed' || job.status === 'interrupted').length,
     progress
   };
 }
@@ -43,13 +54,23 @@ export function readySelectedIds(jobs: CompressionJob[], selected: ReadonlySet<s
 }
 
 export function startableSelectedIds(jobs: CompressionJob[], selected: ReadonlySet<string>) {
-  return jobs
-    .filter(
-      job =>
-        selected.has(job.id) &&
-        ['ready', 'completed', 'failed', 'cancelled', 'interrupted'].includes(job.status)
-    )
-    .map(job => job.id);
+  return jobs.filter(job => selected.has(job.id) && startable(job)).map(job => job.id);
+}
+
+/**
+ * Can this job be started, whether for the first time or again?
+ *
+ * `ready` has never run; a settled job has, and re-running it is a declared transition. The
+ * question is asked of the table so that the button the interface offers and the request the
+ * agent accepts cannot disagree — which they did, in both directions, before this.
+ */
+export function startable(job: CompressionJob): boolean {
+  return job.status === 'ready' || isSettled(COMPRESSION_LIFECYCLE, job.status);
+}
+
+/** Can this job be stopped right now? */
+export function stoppable(job: CompressionJob): boolean {
+  return canTransition(COMPRESSION_LIFECYCLE, job.status, 'cancelled');
 }
 
 /** Why the compress action is unavailable, or null when it can run. */
@@ -83,9 +104,7 @@ export function compressBlock(input: {
 }
 
 export function removableSelectedIds(jobs: CompressionJob[], selected: ReadonlySet<string>) {
-  return jobs
-    .filter(job => selected.has(job.id) && !['processing', 'queued'].includes(job.status))
-    .map(job => job.id);
+  return jobs.filter(job => selected.has(job.id) && !stoppable(job)).map(job => job.id);
 }
 
 export function toggleSelection(

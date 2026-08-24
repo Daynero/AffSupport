@@ -45,8 +45,7 @@ export async function waitFor(
     }
     if (Date.now() - startedAt > timeoutMs) {
       const what = options.describe ?? 'condition';
-      const because =
-        lastError instanceof Error ? ` Last attempt threw: ${lastError.message}` : '';
+      const because = lastError instanceof Error ? ` Last attempt threw: ${lastError.message}` : '';
       throw new Error(`Timed out after ${timeoutMs}ms waiting for ${what}.${because}`);
     }
     await new Promise(resolve => setTimeout(resolve, intervalMs));
@@ -65,15 +64,12 @@ export async function waitForValue<T>(
   options: WaitOptions = {}
 ): Promise<T> {
   let captured: T | null = null;
-  await waitFor(
-    async () => {
-      const value = await produce();
-      if (value === null || value === undefined) return false;
-      captured = value;
-      return true;
-    },
-    options
-  );
+  await waitFor(async () => {
+    const value = await produce();
+    if (value === null || value === undefined) return false;
+    captured = value;
+    return true;
+  }, options);
   // waitFor either assigned this or threw.
   return captured as T;
 }

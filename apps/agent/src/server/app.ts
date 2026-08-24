@@ -12,6 +12,8 @@ import {
   type AppEnvironment
 } from '@video-compressor/shared';
 import { advertisedCapabilities } from './capabilities.js';
+import { registerStreamRoutes } from './stream.js';
+import type { ChannelHub } from './sse.js';
 import type { EntitlementGate } from '../entitlement/entitlement.js';
 import type { JobQueue } from '../queue/queue.js';
 import type { PowerGovernor } from '../power/governor.js';
@@ -61,6 +63,13 @@ export interface ServerDeps {
   /** The compressor queue also carries the agent-wide update/warning state. */
   queue: JobQueue;
   modules: ToolModule[];
+  /**
+   * The multiplexed live-update fan-out, when one is wired.
+   *
+   * Optional so a bare test assembly can omit it: the seven per-tool endpoints still work
+   * on their own, which is the same fallback a client that has not been updated relies on.
+   */
+  channelHub?: ChannelHub;
   /** The shared local-resource budget every tool spawns through. */
   power: PowerGovernor;
   /** Live consumption measurement; absent when the agent runs without it. */
@@ -316,6 +325,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     governor: deps.power,
     allowedOrigins,
     sampler: deps.powerSampler,
+    channelHub: deps.channelHub,
     onError: (error, message) => app.log.error(error, message)
   });
 
@@ -325,6 +335,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     power: deps.power
   };
   for (const module of modules) module.register(app, toolContext);
+  if (deps.channelHub) registerStreamRoutes(app, { hub: deps.channelHub, allowedOrigins });
 
   await app.register(fastifyStatic, {
     root: deps.webRoot,

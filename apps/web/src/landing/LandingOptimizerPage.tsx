@@ -1,7 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { LandingEvent, LandingSettings, LandingState } from '@video-compressor/shared';
 import {
-  landingEventUrl,
+  LANDING_JOB_LIFECYCLE,
+  canTransition,
+  isSettled,
+  type LandingEvent,
+  type LandingJobStatus,
+  type LandingSettings,
+  type LandingState
+} from '@video-compressor/shared';
+
+/**
+ * Can this landing be stopped right now?
+ *
+ * Asked of the same table the agent enforces, so the button the interface offers and the
+ * request the agent accepts cannot disagree.
+ */
+function landingStoppable(status: LandingJobStatus): boolean {
+  return canTransition(LANDING_JOB_LIFECYCLE, status, 'cancelled');
+}
+import {
+  toolEventUrl,
   landingFolderBegin,
   landingFolderFile,
   landingFolderFinish,
@@ -11,6 +29,7 @@ import {
 } from '../api/client';
 import { Onboarding } from '../App';
 import { useAgent } from '../AgentContext';
+import { useAgentEventStream } from '../api/useAgentEventStream';
 import { DropZone } from '../components/DropZone';
 import {
   Button,
@@ -38,7 +57,8 @@ interface UploadFile {
 
 export default function LandingOptimizerPage() {
   const { language, t } = useI18n();
-  const { connection, connectedOnce, reconnect } = useAgent();
+  const { capabilities, connection, connectedOnce, reconnect } = useAgent();
+  const multiplexed = capabilities.includes('event-stream');
   const entering = usePageEntrance();
   const [state, setState] = useState<LandingState | null>(null);
   const [help, setHelp] = useState(false);
@@ -54,23 +74,28 @@ export default function LandingOptimizerPage() {
 
   useEffect(() => {
     if (connection !== 'connected') return;
-    let source: EventSource | null = null;
     let active = true;
     request<LandingState>('/api/landing/state', 'GET')
       .then(value => {
         if (active) setState(value);
       })
       .catch(() => {});
-    source = new EventSource(landingEventUrl());
-    source.onmessage = event => {
-      const update = JSON.parse(event.data) as LandingEvent;
-      setState(update.state);
-    };
     return () => {
       active = false;
-      source?.close();
     };
   }, [connection]);
+
+  // Through the shared hook rather than a socket of this page's own. Three pages each
+  // opening their own `EventSource` is three of the seven connections the multiplexed
+  // stream exists to replace — and three more places deciding for themselves whether the
+  // local app is reachable.
+  useAgentEventStream<LandingEvent>({
+    url: connection === 'connected' ? toolEventUrl('landing') : null,
+    channel: 'landing',
+    multiplexed,
+    enabled: connection === 'connected',
+    onMessage: update => setState(update.state)
+  });
 
   const addToast = (text: string, tone: ToastMessage['tone'] = 'neutral') => {
     const id = ++toastId.current;
@@ -92,10 +117,8 @@ export default function LandingOptimizerPage() {
     archive: false
   };
   const readyJobs = jobs.filter(job => job.status === 'ready');
-  const finishedJobs = jobs.filter(job =>
-    ['completed', 'failed', 'cancelled'].includes(job.status)
-  );
-  const stoppable = jobs.some(job => ['processing', 'queued'].includes(job.status));
+  const finishedJobs = jobs.filter(job => isSettled(LANDING_JOB_LIFECYCLE, job.status));
+  const stoppable = jobs.some(job => landingStoppable(job.status));
 
   const updateSettings = async (patch: Partial<LandingSettings>) => {
     try {
@@ -199,7 +222,7 @@ export default function LandingOptimizerPage() {
    * after the last one finished reports honestly.
    */
   const stopAll = async () => {
-    const stopping = jobs.filter(job => ['processing', 'queued'].includes(job.status)).length;
+    const stopping = jobs.filter(job => landingStoppable(job.status)).length;
     try {
       setState(await request<LandingState>('/api/landing/cancel-all', 'POST'));
       if (stopping) addToast(t('stoppedCount', { count: stopping }));

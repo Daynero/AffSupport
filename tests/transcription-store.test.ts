@@ -190,7 +190,6 @@ describe('persistent transcription state', () => {
     expect(restored.jobs[0].status).toBe('failed');
   });
 
-
   it('keeps restored queued jobs waiting for an explicit start', async () => {
     const source = path.join(directory, 'queued.mp3');
     await writeFile(source, 'media');

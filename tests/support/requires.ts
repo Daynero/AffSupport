@@ -97,11 +97,7 @@ export function allOf(...requirements: Requirement[]): Requirement {
  * The `[needs: ...]` marker is not decoration. The verification command reads it back out
  * of the runner's report; a skipped test without one fails the run.
  */
-export function describeRequiring(
-  requirement: Requirement,
-  title: string,
-  body: () => void
-): void {
+export function describeRequiring(requirement: Requirement, title: string, body: () => void): void {
   const marked = `${title} [needs: ${requirement.names.join(',')}]`;
   if (requirement.missing) {
     describe.skip(marked, body);

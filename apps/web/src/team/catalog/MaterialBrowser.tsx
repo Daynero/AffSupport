@@ -5,11 +5,6 @@ import { useI18n } from '../../i18n';
 import { Button } from '../../components/ui';
 import { CopyDriveLinkButton } from '../library/CopyDriveLinkButton';
 import { MediaActionIcon } from '../library/mediaActionIcons';
-import {
-  encodeTaskMaterialDrag,
-  TASK_MATERIAL_DRAG_TYPE,
-  type TaskMaterialDragItem
-} from '../tasks/task-drag';
 import { MaterialRowMenu } from './MaterialRowMenu';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 
@@ -27,8 +22,7 @@ export function MaterialBrowser({
   onLoaded,
   onChanged,
   onCreateTask,
-  onPreview,
-  taskDragSelection
+  onPreview
 }: {
   teamId: string;
   client: MaterialBrowserClient;
@@ -54,10 +48,6 @@ export function MaterialBrowser({
   onCreateTask?: (material: { id: string; name: string }) => void;
   /** Opens the same safe viewer used by catalog search for a file in the tree. */
   onPreview?: (material: TeamMaterialSummary) => void;
-  taskDragSelection?: {
-    selectedIds: ReadonlySet<string>;
-    onChange: (selectedIds: Set<string>) => void;
-  };
 }) {
   const { t } = useI18n();
   const [path, setPath] = useState<{ id: string; name: string }[]>(() =>
@@ -148,43 +138,12 @@ export function MaterialBrowser({
               </Button>
             ) : (
               <>
-                <span
-                  draggable={Boolean(taskDragSelection)}
-                  onDragStart={event => {
-                    if (!taskDragSelection) return;
-                    const ids = taskDragSelection.selectedIds.has(material.id)
-                      ? [...taskDragSelection.selectedIds]
-                      : [material.id];
-                    const items: TaskMaterialDragItem[] = materials
-                      .filter(
-                        candidate => candidate.kind !== 'folder' && ids.includes(candidate.id)
-                      )
-                      .map(candidate => ({
-                        id: candidate.id,
-                        name: candidate.name,
-                        category: candidate.category,
-                        previewState: candidate.previewState
-                      }));
-                    event.dataTransfer.effectAllowed = 'copy';
-                    event.dataTransfer.setData(
-                      TASK_MATERIAL_DRAG_TYPE,
-                      encodeTaskMaterialDrag(items)
-                    );
-                  }}
-                >
-                  {taskDragSelection && (
-                    <input
-                      type="checkbox"
-                      checked={taskDragSelection.selectedIds.has(material.id)}
-                      aria-label={t('teamTaskSelectMedia', { name: material.name })}
-                      onChange={event => {
-                        const next = new Set(taskDragSelection.selectedIds);
-                        if (event.target.checked) next.add(material.id);
-                        else next.delete(material.id);
-                        taskDragSelection.onChange(next);
-                      }}
-                    />
-                  )}
+                {/* The drag-and-drop selection this row used to advertise had no
+                    consumer: nothing rendered the browser with a selection, and
+                    the only drop target read a payload nothing produced. The
+                    keyboard and drag model is out of scope for this pass, so the
+                    plumbing goes rather than sitting there looking supported. */}
+                <span>
                   <span aria-hidden="true">{material.kind === 'shortcut' ? '↗' : '▤'}</span>{' '}
                   {material.name}
                 </span>

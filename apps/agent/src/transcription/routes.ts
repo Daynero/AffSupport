@@ -162,18 +162,14 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
       return reply.code(400).send({ error: 'Choose one or more files to transcribe.' });
     }
     const started = await queue.start(rawIds as string[]);
-    return started
-      ? queue.state()
-      : reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' });
+    return started ? queue.state() : reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' });
   });
 
   app.post<{ Params: { id: string } }>(
     '/api/transcription/jobs/:id/cancel',
     async (request, reply) => {
       const cancelled = queue.cancel(request.params.id);
-      return cancelled
-        ? queue.state()
-        : reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' });
+      return cancelled ? queue.state() : reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' });
     }
   );
 
@@ -186,9 +182,7 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
     '/api/transcription/jobs/:id/retry',
     async (request, reply) => {
       const retried = await queue.retry(request.params.id);
-      return retried
-        ? queue.state()
-        : reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' });
+      return retried ? queue.state() : reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' });
     }
   );
 
