@@ -181,22 +181,31 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
             const underDevelopment = tool.status === 'in-development';
             const beta = tool.status === 'beta';
             const available = openable && connected && toolAvailable(tool.id);
+            // The card told assistive technology it was disabled and then acted
+            // on a click and on Enter anyway. Announcing a control as
+            // unavailable and having it work is worse than either alone: it is
+            // the one state a user cannot reason about.
+            const inert = openable && !connected;
+            const activate = () => {
+              if (inert) return;
+              openTool(tool);
+            };
             return (
               <Card
                 as="article"
                 key={tool.id}
                 interactive={openable}
                 className={`tool-card ${openable ? '' : 'tool-coming-soon'} ${available ? 'is-available' : ''}`}
-                onClick={() => openTool(tool)}
+                onClick={activate}
                 onKeyDown={event => {
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
-                    openTool(tool);
+                    activate();
                   }
                 }}
                 role="button"
                 tabIndex={0}
-                aria-disabled={openable && !connected ? true : undefined}
+                aria-disabled={inert ? true : undefined}
               >
                 <div className="tool-card-top">
                   <span className="tool-icon" aria-hidden="true">

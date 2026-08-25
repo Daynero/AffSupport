@@ -715,14 +715,26 @@ export function Header({
       <div className="topbar-actions">
         <PowerThrottle />
         <ThemeToggle />
-        <div className="language-switch" aria-label={t('language')}>
+        {/* A group of two states where one is always chosen, which is what
+            `radiogroup` describes. Previously it was an unlabelled pair of
+            buttons: a screen reader announced "EN, button" with no indication
+            that a language was already selected, or which one. The active state
+            was carried by a class — visible, and invisible to anything that is
+            not looking at pixels. */}
+        <div className="language-switch" role="radiogroup" aria-label={t('language')}>
           <button
+            type="button"
+            role="radio"
+            aria-checked={language === 'en'}
             className={language === 'en' ? 'is-active' : ''}
             onClick={() => setLanguage('en')}
           >
             EN
           </button>
           <button
+            type="button"
+            role="radio"
+            aria-checked={language === 'uk'}
             className={language === 'uk' ? 'is-active' : ''}
             onClick={() => setLanguage('uk')}
           >

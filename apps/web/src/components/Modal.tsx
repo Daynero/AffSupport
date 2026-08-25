@@ -3,12 +3,32 @@ import { createPortal } from 'react-dom';
 
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
 
-const FOCUSABLE_SELECTOR = [
+/**
+ * What Tab can reach inside a dialog.
+ *
+ * The list decides where focus goes when a dialog opens and where it wraps at
+ * the end — so anything missing from it is a control a keyboard user cannot
+ * reach while the dialog is up, with no way to tell why.
+ *
+ * Three kinds were missing, and all three appear in dialogs this application
+ * actually shows: the transcript editor is a `contenteditable` region, the
+ * preview dialogs mount `<video>` and `<audio>` with native controls, and
+ * `<summary>` is what opens the details blocks inside the support dialog.
+ */
+export const FOCUSABLE_SELECTOR = [
   'a[href]',
   'button:not([disabled])',
   'textarea:not([disabled])',
   'input:not([disabled])',
   'select:not([disabled])',
+  // An editable region is focusable without a tabindex, and `="false"` is the
+  // explicit opt-out — matching on the attribute alone would trap focus in
+  // something the author deliberately made read-only.
+  '[contenteditable]:not([contenteditable="false"])',
+  'audio[controls]',
+  'video[controls]',
+  'details > summary',
+  'iframe',
   '[tabindex]:not([tabindex="-1"])'
 ].join(', ');
 
