@@ -165,6 +165,14 @@ const PHASES = {
     gates: () => [
       script('database', 'test:db', 900_000),
       {
+        // Same reason as the policy smoke test: it needs a built site and a
+        // real browser.
+        id: 'a11y',
+        command: 'node',
+        args: [path.join(root, 'scripts/verify-a11y.mjs')],
+        timeoutMs: 600_000
+      },
+      {
         // The policy smoke test drives a real browser against the built site,
         // so it belongs to the phase that runs after the builds rather than to
         // the ordinary suite.

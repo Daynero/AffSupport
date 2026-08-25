@@ -1,0 +1,4 @@
+{
+  "note": "Accessibility violations present when the sweep was introduced. New violations fail the gate; these are worked down deliberately. Refresh with: node scripts/verify-a11y.mjs --update-baseline",
+  "counts": {}
+}

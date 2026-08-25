@@ -424,8 +424,8 @@ These four close holes confirmed by **probing a running local app**, not inferre
 
 - [X] T211 [US7] Create `scripts/verify-styles.mjs` parsing `apps/web/src/styles.css`, cross-referencing component inline styles to resolve legitimately-external properties, and checking undefined properties, off-scale values, the stacking scale and duplicate blocks (SC-017)
 - [ ] T212 [US7] Extract the browser and accessibility core of `apps/soty-review/scripts/verify-review.mjs` into `scripts/lib/axe-sweep.mjs` and hoist its two dependencies to the root `package.json`
-- [ ] T213 [US7] Create `scripts/verify-a11y.mjs` serving the built interface and walking the route matrix in both themes and both languages, using `tests/support/fake-agent.ts` to reach authenticated routes (FR-053)
-- [ ] T214 [US7] Land the accessibility sweep in report-only mode with a committed violation baseline, wired into `scripts/verify-all.mjs`
+- [X] T213 [US7] Create `scripts/verify-a11y.mjs` serving the built interface and walking the route matrix in both themes and both languages, using `tests/support/fake-agent.ts` to reach authenticated routes (FR-053)
+- [X] T214 [US7] Land the accessibility sweep in report-only mode with a committed violation baseline, wired into `scripts/verify-all.mjs`
 - [X] T215 [US7] Create `scripts/verify-i18n.mjs` scanning every string literal rather than every call site, subtracting a committed dynamic-key allowlist (SC-018)
 - [X] T216 [US7] Create `i18n-dynamic.json` at the repository root and add a lint rule to `eslint.config.mjs` forbidding the translation-key cast outside registered files
 
@@ -449,7 +449,7 @@ These four close holes confirmed by **probing a running local app**, not inferre
 - [X] T232 [US7] Emit stable codes for the eleven messages currently translated by matching English wording, in `apps/agent/src/` and `apps/web/src/App.tsx` and `apps/web/src/components/JobRow.tsx` (F13, FR-055)
 - [X] T233 [P] [US7] Move the remaining untranslated literals and page titles into the translations across `apps/web/src/` (F14)
 - [X] T234 [US7] Make the document language, title, description and pre-load appearance match the user in `apps/web/index.html` and `apps/web/src/i18n.ts` (F7, FR-057)
-- [ ] T235 [US7] Drive the accessibility violation baseline to zero and flip the sweep from report-only to blocking in `scripts/verify-all.mjs` (SC-016)
+- [X] T235 [US7] Drive the accessibility violation baseline to zero and flip the sweep from report-only to blocking in `scripts/verify-all.mjs` (SC-016)
 
 **Checkpoint**: One dialog, one theme system, one set of scales, two correct languages, zero blocking accessibility findings.
 

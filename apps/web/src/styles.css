@@ -8429,11 +8429,15 @@ body:has(.public-home) {
   --color-border-strong: #51435e;
 
   /* Brand roles — purple */
-  --color-accent: #8a67e8;
+  /* Lightened from #8a67e8, which measured 4.33:1 against the dark surface
+     where WCAG asks for 4.5:1 on body text — a link that read as slightly dim
+     to a sighted user and failed outright for anyone who needs the contrast.
+     This is 5.35:1 and keeps the hue. */
+  --color-accent: #9b7aee;
   --color-accent-hover: #9b7aee;
   --color-accent-active: #6842d9;
-  --color-accent-soft: color-mix(in srgb, #8a67e8 22%, transparent);
-  --color-accent-softer: color-mix(in srgb, #8a67e8 12%, transparent);
+  --color-accent-soft: color-mix(in srgb, #9b7aee 22%, transparent);
+  --color-accent-softer: color-mix(in srgb, #9b7aee 12%, transparent);
   --color-focus: #bca7f7;
 
   /* Honey action roles — brighter honey reads on the dark canvas */
