@@ -3,6 +3,8 @@ import React from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { FOCUSABLE_SELECTOR, Modal } from '../apps/web/src/components/Modal';
+import { SegmentedControl } from '../apps/web/src/components/ui';
+import userEvent from '@testing-library/user-event';
 
 /**
  * Three things a keyboard or a screen reader could not do.
@@ -49,5 +51,67 @@ describe('the dialog focus trap', () => {
       </Modal>
     );
     expect(screen.getByTestId('readonly').matches(FOCUSABLE_SELECTOR)).toBe(false);
+  });
+});
+
+describe('the segmented control', () => {
+  /**
+   * A radio group has a keyboard convention older than the web: one Tab stop
+   * for the group, arrows to move within it. This one had neither — every
+   * option was its own Tab stop, so a settings form with three controls cost
+   * nine presses to cross, and the arrow keys did nothing at all.
+   */
+
+  function render3(value: string, onChange: (next: string) => void) {
+    return render(
+      <SegmentedControl
+        label="Mode"
+        value={value}
+        onChange={onChange}
+        options={[
+          { value: 'a', label: 'A' },
+          { value: 'b', label: 'B' },
+          { value: 'c', label: 'C' }
+        ]}
+      />
+    );
+  }
+
+  it('is a single tab stop', () => {
+    render3('b', () => {});
+    const options = screen.getAllByRole('radio');
+    // Exactly one reachable by Tab: the chosen one, which is where a keyboard
+    // user expects to land.
+    expect(options.filter(option => option.tabIndex === 0)).toHaveLength(1);
+    expect(options.find(option => option.tabIndex === 0)?.textContent).toBe('B');
+  });
+
+  it('moves to the next option on an arrow key', async () => {
+    const user = userEvent.setup();
+    const changes: string[] = [];
+    render3('a', next => changes.push(next));
+
+    screen.getAllByRole('radio')[0].focus();
+    await user.keyboard('{ArrowRight}');
+    expect(changes).toEqual(['b']);
+  });
+
+  it('wraps from the last option to the first', async () => {
+    const user = userEvent.setup();
+    const changes: string[] = [];
+    render3('c', next => changes.push(next));
+
+    screen.getAllByRole('radio')[2].focus();
+    await user.keyboard('{ArrowRight}');
+    // Wrapping is the convention. Stopping at the end reads as a broken key.
+    expect(changes).toEqual(['a']);
+  });
+
+  it('reports which option is chosen', () => {
+    render3('b', () => {});
+    const checked = screen
+      .getAllByRole('radio')
+      .filter(o => o.getAttribute('aria-checked') === 'true');
+    expect(checked).toHaveLength(1);
   });
 });

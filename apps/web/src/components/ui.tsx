@@ -108,7 +108,7 @@ export function SegmentedControl<T extends string>({
           style={{ width: indicator.width, transform: `translateX(${indicator.left}px)` }}
         />
       )}
-      {options.map(option => (
+      {options.map((option, index) => (
         <button
           type="button"
           role="radio"
@@ -116,7 +116,28 @@ export function SegmentedControl<T extends string>({
           className={option.value === value ? 'is-active' : ''}
           disabled={disabled}
           key={option.value}
+          /* A roving tab stop: the group is one stop, not one per option.
+             Without it, Tab walked through every choice — so a form with three
+             of these cost nine presses to cross, and Tab moved *within* a
+             control where a radio group's own convention is that arrows do. */
+          tabIndex={option.value === value ? 0 : -1}
           onClick={() => onChange(option.value)}
+          onKeyDown={event => {
+            const step =
+              event.key === 'ArrowRight' || event.key === 'ArrowDown'
+                ? 1
+                : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+                  ? -1
+                  : 0;
+            if (step === 0 || disabled) return;
+            event.preventDefault();
+            // Wraps, which is what a radio group does: from the last option,
+            // one more press returns to the first rather than doing nothing.
+            const next = options[(index + step + options.length) % options.length];
+            onChange(next.value);
+            const buttons = event.currentTarget.parentElement?.querySelectorAll('button');
+            buttons?.[(index + step + options.length) % options.length]?.focus();
+          }}
         >
           {option.label}
         </button>

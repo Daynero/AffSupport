@@ -441,7 +441,7 @@ These four close holes confirmed by **probing a running local app**, not inferre
 - [ ] T224 [US7] Route the two hand-rolled dialogs in `apps/web/src/team/preview/MaterialPreview.tsx` and `apps/web/src/team/landings/LandingFullView.tsx` through the shared modal, and replace the three native confirmations in `apps/web/src/App.tsx` and `apps/web/src/landing-viewer/useLandingViewer.ts` (F4, FR-051)
 - [X] T225 [US7] Extend the focusable-element set in `apps/web/src/components/Modal.tsx` to cover editable regions, media controls and frames, and mark the rest of the tree inert while a dialog is open (F10)
 - [X] T226 [US7] Remove the live-region announcement from the three job lists in `apps/web/src/App.tsx`, `apps/web/src/transcription/TranscriptionPage.tsx` and `apps/web/src/landing/LandingOptimizerPage.tsx`, replacing it with one throttled status line, and make error notifications assertive (F9)
-- [ ] T227 [P] [US7] Add arrow-key navigation and a roving tab stop to the segmented control in `apps/web/src/components/ui.tsx` (F11)
+- [X] T227 [P] [US7] Add arrow-key navigation and a roving tab stop to the segmented control in `apps/web/src/components/ui.tsx` (F11)
 - [ ] T228 [P] [US7] Make range selection keyboard-operable in `apps/web/src/components/JobRow.tsx` and fix the controlled-input warning (F11)
 - [X] T229 [P] [US7] Give the language switch a proper role and pressed state in `apps/web/src/App.tsx`, and stop activating disabled tool cards in `apps/web/src/HomePage.tsx` (F11)
 - [X] T230 [US7] Add plural-rule handling to `apps/web/src/i18n.ts` for the five count strings and remove the hand-coded special case (F12, FR-054)
