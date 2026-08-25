@@ -143,6 +143,13 @@ function CustomSettings({
           ]}
           onChange={rateControl => updateSettings({ rateControl })}
         />
+        {/* Constant quality means "hold this quality, whatever it costs" — not
+            "make the file smaller". On a source that is already efficiently
+            encoded it can honestly spend more bytes than the original, which is
+            how a 227 MB video came back at 500 MB. */}
+        {settings.rateControl === 'crf' ? (
+          <p className="rate-control-note">{t('constantQualityNote')}</p>
+        ) : null}
       </div>
       <div className="rate-value-field custom-column-secondary">
         <Collapse open={settings.rateControl === 'crf'}>

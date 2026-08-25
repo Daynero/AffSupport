@@ -200,6 +200,10 @@ export function ImageEmbeddingSection({
                   <option value="random-50-60">{t('randomDuration50To60')}</option>
                   <option value="custom">{t('customDuration')}</option>
                 </select>
+                {/* The label says "40–50 min" and the unit is easy to read past.
+                    A user found out from the file: a 2.5 minute video came back
+                    47 minutes long, and about a hundred megabytes heavier. */}
+                <p className="embedding-duration-note">{t('finalImageDurationEffect')}</p>
                 {settings.finalDurationMode === 'custom' && (
                   <>
                     <div className="custom-duration-input">

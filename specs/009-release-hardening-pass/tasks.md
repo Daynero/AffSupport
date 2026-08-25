@@ -391,11 +391,11 @@ These four close holes confirmed by **probing a running local app**, not inferre
 - [X] T193 [US6] Create `apps/web/src/api/reconcile-queue.ts` returning previous references for unchanged jobs and the previous array when nothing changed, so memoisation is not a no-op
 - [X] T194 [US6] Apply reconciliation inside the state writer in `apps/web/src/AgentContext.tsx`
 - [X] T195 [US6] Stabilise the four inline callbacks and move the selection arithmetic behind refs in `apps/web/src/App.tsx`, then memoise `apps/web/src/components/JobRow.tsx`
-- [ ] T196 [P] [US6] Memoise the remaining derived selections in `apps/web/src/App.tsx` and delete the per-render identifier join key
-- [ ] T197 [P] [US6] Memoise the context value in `apps/web/src/AuthContext.tsx`
-- [ ] T198 [US6] Bound the broadcast rate and send only what changed in `apps/agent/src/queue/queue.ts` and `apps/agent/src/server/sse.ts` (FR-043, E4)
-- [ ] T199 [US6] Lazy-load the tool pages, the workspace and the admin screen in `apps/web/src/lib/tool-registry.ts` and `apps/web/src/ProtectedSoty.tsx` (FR-045)
-- [ ] T200 [P] [US6] Lazy-load the code generator in `apps/web/src/components/SupportDialog.tsx` so it does not ship to everyone
+- [X] T196 [P] [US6] Memoise the remaining derived selections in `apps/web/src/App.tsx` and delete the per-render identifier join key
+- [X] T197 [P] [US6] Memoise the context value in `apps/web/src/AuthContext.tsx`
+- [X] T198 [US6] Bound the broadcast rate and send only what changed in `apps/agent/src/queue/queue.ts` and `apps/agent/src/server/sse.ts` (FR-043, E4)
+- [X] T199 [US6] Lazy-load the tool pages, the workspace and the admin screen in `apps/web/src/lib/tool-registry.ts` and `apps/web/src/ProtectedSoty.tsx` (FR-045)
+- [X] T200 [P] [US6] Lazy-load the code generator in `apps/web/src/components/SupportDialog.tsx` so it does not ship to everyone
 - [ ] T201 [US6] Move the decorative field's data out of the entry bundle and mount it per route rather than above the router in `apps/web/src/Root.tsx` and `apps/web/src/components/HoneycombField.tsx`
 - [ ] T202 [US6] Remove the per-element filter from the pointer-driven loop in `apps/web/src/components/HoneycombField.tsx` and gate the whole effect on a reduced-motion preference and a constrained-machine check (FR-047)
 - [ ] T203 [US6] Add chunking configuration to `apps/web/vite.config.ts` so the vendor and workspace code split apart

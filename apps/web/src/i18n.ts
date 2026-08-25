@@ -396,6 +396,8 @@ const en = {
     'A separate random duration in the selected range will be chosen for each video.',
   randomDuration30To40: 'Random: 30–40 min',
   randomDuration40To50: 'Random: 40–50 min',
+  finalImageDurationEffect:
+    'This still is appended to every video, so the finished file lasts that much longer and weighs more.',
   randomDuration50To60: 'Random: 50–60 min',
   customDuration: 'Custom duration',
   customDurationInput: 'Custom duration in minutes',
@@ -432,6 +434,13 @@ const en = {
   clearSelection: 'Clear selection',
   compressSelected: 'Compress selected',
   compressStuck: 'Stalled — restart Soty to clear it',
+  constantQualityNote:
+    'Holds this quality whatever it costs — it does not target a file size. Soty converts to H.264, which needs about twice the bitrate of newer formats for the same picture.',
+  growthRiskCodec:
+    'This video already uses a more efficient format. Converting it may produce a larger file — the original will be kept if that happens.',
+  growthRiskBitrate:
+    'The chosen bitrate is at or above the source. Lower it, or the result may be larger than the original.',
+  keptOriginalLarger: 'Kept the original — compressing it would have made it larger.',
   compressBusy: 'Compression is already running.',
   compressFixImageDuration: 'Fix the image duration in the settings above.',
   compressNothingReady: 'The selected videos are not ready to start.',
@@ -1979,6 +1988,8 @@ const uk: Record<keyof typeof en, string> = {
     'Для кожного відео буде окремо вибрана випадкова тривалість у зазначеному діапазоні.',
   randomDuration30To40: 'Випадково: 30–40 хв',
   randomDuration40To50: 'Випадково: 40–50 хв',
+  finalImageDurationEffect:
+    'Цей кадр додається до кожного відео, тож готовий файл стає настільки ж довшим і важчим.',
   randomDuration50To60: 'Випадково: 50–60 хв',
   customDuration: 'Власна тривалість',
   customDurationInput: 'Власна тривалість у хвилинах',
@@ -2015,6 +2026,13 @@ const uk: Record<keyof typeof en, string> = {
   clearSelection: 'Зняти вибір',
   compressSelected: 'Стиснути вибрані',
   compressStuck: 'Застрягло — перезапустіть Soty, щоб зняти',
+  constantQualityNote:
+    'Тримає задану якість, скільки б це не коштувало — це не ціль за розміром. Soty конвертує у H.264, якому для тієї ж картинки потрібно приблизно вдвічі більше бітрейту, ніж новішим форматам.',
+  growthRiskCodec:
+    'Це відео вже у більш ефективному форматі. Після конвертації воно може стати більшим — тоді залишимо оригінал.',
+  growthRiskBitrate:
+    'Обраний бітрейт не менший за вихідний. Зменште його, інакше результат може бути більшим за оригінал.',
+  keptOriginalLarger: 'Залишили оригінал — стиснення зробило б файл більшим.',
   compressBusy: 'Стиснення вже виконується.',
   compressFixImageDuration: 'Виправте тривалість зображення в налаштуваннях вище.',
   compressNothingReady: 'Вибрані відео не готові до запуску.',

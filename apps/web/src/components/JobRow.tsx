@@ -322,9 +322,18 @@ function EstimatePanel({
 
   return (
     <section
-      className={`media-panel estimate-panel ${saving !== null && saving < 0 ? 'has-warning' : ''}`}
+      className={`media-panel estimate-panel ${
+        (saving !== null && saving < 0) || job.growthRisk ? 'has-warning' : ''
+      }`}
       aria-label={t('expectedVideoInfo')}
     >
+      {/* Shown from the probe, so it is on screen while the estimate is still
+          running — which is when people press Compress. */}
+      {job.growthRisk && !estimated ? (
+        <p className="estimate-growth-warning">
+          {t(job.growthRisk === 'codec' ? 'growthRiskCodec' : 'growthRiskBitrate')}
+        </p>
+      ) : null}
       <div className="panel-title-with-help">
         <h4>{t('expectedResult')}</h4>
         <span className="estimate-tag">≈ {t('estimateLabel')}</span>
@@ -398,9 +407,18 @@ function ResultPanel({
       <h4>{t('readyFile')}</h4>
       <div className="result-size">
         <strong>{formatSize(displayedSize, language)}</strong>
-        {saving !== null && saving >= 0 && <span>{t('actualSaving', { value: saving })}</span>}
-        {saving !== null && saving < 0 && (
-          <span className="warning-text">{t('largerActual', { value: Math.abs(saving) })}</span>
+        {/* The never-larger ceiling fired: the encode finished bigger than the
+            source, so the source is what the user still has. Saying "0% saved"
+            here would be true and useless. */}
+        {job.keptOriginalReason === 'larger-than-source' ? (
+          <span className="warning-text">{t('keptOriginalLarger')}</span>
+        ) : (
+          <>
+            {saving !== null && saving >= 0 && <span>{t('actualSaving', { value: saving })}</span>}
+            {saving !== null && saving < 0 && (
+              <span className="warning-text">{t('largerActual', { value: Math.abs(saving) })}</span>
+            )}
+          </>
         )}
       </div>
       <MediaGrid

@@ -13072,6 +13072,27 @@ button.team-landing-tile:hover {
 
 /* The held-but-not-in-force note. Muted rather than dangerous: nothing has
    failed, the value simply has nowhere to apply yet. */
+.rate-control-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-text-muted, #6b7280);
+}
+
+.embedding-duration-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-text-muted, #6b7280);
+}
+
+.estimate-growth-warning {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-warning-text, #8a5a00);
+}
+
 .power-panel__pending {
   margin: 0;
   font-size: 12px;

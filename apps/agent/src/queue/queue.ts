@@ -1699,10 +1699,52 @@ export class JobQueue {
 
   private async completeJob(job: CompressionJob, media: MediaInfo) {
     validateCompletedOutput(job, media);
+    const producedSize = await fileSize(job.outputPath);
+
+    // The never-larger ceiling.
+    //
+    // A user compressed a 227 MB video and got back roughly 500 MB. Nothing
+    // malfunctioned: the source was already H.265, the target is H.264, and
+    // that format needs about twice the bitrate for the same picture — so a
+    // quality-targeted encode honestly spent the bytes. But a tool called
+    // "compress" handing back a bigger file has failed at the one thing it is
+    // for, and no explanation makes that output useful. The original is kept
+    // and the reason is recorded.
+    //
+    // Image embedding is the deliberate exception: it appends a still tail the
+    // user asked for, so a larger file is the requested outcome rather than a
+    // surprise.
+    const embedding = Boolean(
+      job.imageEmbedding && (job.imageEmbedding.startImage || job.imageEmbedding.endImage)
+    );
+    if (!embedding && producedSize > job.originalSize) {
+      await unlink(job.outputPath).catch(() => {});
+      job.keptOriginalReason = 'larger-than-source';
+      // Pointing at the source is what makes "open" and "reveal" lead to the
+      // file the user actually has.
+      job.outputPath = job.inputPath;
+      this.transition(job, 'completed');
+      job.progress = 100;
+      job.processingStage = null;
+      job.finalSize = job.originalSize;
+      job.finalWidth = job.sourceWidth;
+      job.finalHeight = job.sourceHeight;
+      job.finalFrameRate = job.sourceFrameRate;
+      job.finalBitrate = job.sourceBitrate;
+      job.finalDurationSeconds = job.durationSeconds;
+      job.finalCodec = job.sourceCodec;
+      job.error = null;
+      job.errorDetails = null;
+      job.estimateStatus = 'cancelled';
+      job.estimateProgress = null;
+      job.finishedAt = finishTimestamp(job);
+      return;
+    }
+
     this.transition(job, 'completed');
     job.progress = 100;
     job.processingStage = null;
-    job.finalSize = await fileSize(job.outputPath);
+    job.finalSize = producedSize;
     job.finalWidth = media.width;
     job.finalHeight = media.height;
     job.finalFrameRate = media.frameRate;
@@ -1958,6 +2000,33 @@ function validSourceMedia(media: MediaInfo) {
   return Boolean(media.width && media.height && media.duration);
 }
 
+/**
+ * Codecs that already compress better than the H.264 target.
+ *
+ * Re-encoding one of these to H.264 needs roughly twice the bitrate for the
+ * same picture. That is a property of the formats, not a defect — but it is
+ * invisible to someone who sees a button marked "compress" and reasonably
+ * expects the number to go down.
+ */
+const MORE_EFFICIENT_THAN_TARGET = new Set(['hevc', 'h265', 'av1', 'vp9']);
+
+/**
+ * Whether this job is likely to grow, judged from the probe alone.
+ *
+ * Deliberately cheap and deliberately early. The estimate answers this properly
+ * and takes long enough on a large file that people start the run before it
+ * lands — which is exactly what happened to the user who reported a 227 MB
+ * video coming back at 500 MB.
+ */
+function growthRiskFor(job: CompressionJob): CompressionJob['growthRisk'] {
+  const codec = job.sourceCodec?.toLowerCase() ?? '';
+  if (MORE_EFFICIENT_THAN_TARGET.has(codec)) return 'codec';
+  const target = job.encoding.rateControl === 'bitrate' ? job.encoding.videoBitrateKbps : null;
+  const source = job.sourceBitrate ? Math.round(job.sourceBitrate / 1000) : null;
+  if (target && source && target >= source) return 'bitrate';
+  return undefined;
+}
+
 function applySourceMedia(job: CompressionJob, media: MediaInfo) {
   job.durationSeconds = media.duration;
   job.sourceWidth = media.width;
@@ -1970,6 +2039,8 @@ function applySourceMedia(job: CompressionJob, media: MediaInfo) {
   job.sourceAudioSampleRate = media.audioSampleRate;
   job.sourceAudioChannels = media.audioChannels;
   job.sourceAudioLayout = media.audioLayout;
+  // Known now, from the probe — not in several minutes, from the estimate.
+  job.growthRisk = growthRiskFor(job);
   job.progress = 0;
 }
 

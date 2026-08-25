@@ -391,6 +391,33 @@ export interface CompressionJob {
   sourceKey?: string | null;
   durationSeconds: number | null;
   originalSize: number;
+  /**
+   * Set when the encode finished larger than the source and the original was
+   * kept instead.
+   *
+   * A tool called "compress" handing back a bigger file is a failure whatever
+   * the settings said, and it is not a rare edge: a source already encoded with
+   * a newer codec needs roughly twice the bitrate to look the same in H.264, so
+   * the honest outcome is to keep what the user already had and say why.
+   *
+   * Absent on every job that compressed normally, so an older client that does
+   * not know the field simply sees a completed job — which it is.
+   */
+  keptOriginalReason?: 'larger-than-source';
+  /**
+   * Set as soon as the source has been probed, long before any estimate.
+   *
+   * The application could already say "this may end up larger than the
+   * original" — but only once the estimate finished, and estimating a big file
+   * takes long enough that a user presses Compress while the row still reads
+   * "waiting to be estimated". They found out from a 500 MB result.
+   *
+   * `codec` means the source uses a more efficient format than the target, so
+   * matching its quality costs more bytes. `bitrate` means the requested
+   * bitrate is at or above what the source already uses. Both are known from
+   * the probe that runs on add, which is fast.
+   */
+  growthRisk?: 'codec' | 'bitrate';
   sourceWidth: number | null;
   sourceHeight: number | null;
   sourceFrameRate: number | null;
