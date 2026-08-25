@@ -272,7 +272,7 @@ These four close holes confirmed by **probing a running local app**, not inferre
 - [X] T122 [P] [US4] Create `tests/state-revision-guard.test.ts` asserting a stale response cannot overwrite a newer snapshot, and that a fresh connect after a restart correctly resets rather than being rejected as stale (FR-037, D3, SC-013)
 - [ ] T123 [P] [US4] Create `tests/repair-handshake.test.ts` asserting a wrong origin is refused, a wrong nonce is refused, the timeout falls back to navigation, and two tabs produce exactly one handshake (D4)
 - [ ] T124 [P] [US4] Add cases to `tests/shell-and-modal-layout.test.ts` asserting no reachable state renders a dialog without a dismissal (FR-033)
-- [ ] T125 [P] [US4] Create `tests/frozen-progress.test.tsx` asserting the progress animation and elapsed timer stop while disconnected (FR-036, D6)
+- [X] T125 [P] [US4] Create `tests/frozen-progress.test.tsx` asserting the progress animation and elapsed timer stop while disconnected (FR-036, D6)
 
 ### Implementation for User Story 4
 
@@ -282,7 +282,7 @@ These four close holes confirmed by **probing a running local app**, not inferre
 - [X] T129 [US4] Pass a close handler to the local-app dialog in `apps/web/src/ProtectedSoty.tsx` so it can never be un-closable (D1)
 - [X] T130 [US4] Revive the in-page degradation at `apps/web/src/App.tsx` and give the disconnected state its own branch instead of letting it fall through to the generic onboarding panel (D2)
 - [X] T131 [P] [US4] Distinguish never-connected from was-connected in `apps/web/src/HomePage.tsx` so a blip does not show download instructions (D2)
-- [ ] T132 [P] [US4] Pass connection state into `apps/web/src/components/JobRow.tsx` so the flowing animation and the elapsed interval both stop while disconnected (D6)
+- [X] T132 [P] [US4] Pass connection state into `apps/web/src/components/JobRow.tsx` so the flowing animation and the elapsed interval both stop while disconnected (D6)
 - [X] T133 [US4] Add a monotonic `revision` to `QueueState`, `TranscriptionState` and `LandingState` in `packages/shared/src/types.ts` with the comparison helper (data-model §3)
 - [X] T134 [US4] Increment the revision by wrapping the injected notify callback once in each of `apps/agent/src/queue/queue.ts`, `apps/agent/src/queue/transcription-queue.ts` and `apps/agent/src/landing/optimizer.ts` — not at the thirty-plus call sites
 - [X] T135 [US4] Apply the newer-wins guard in one place in `apps/web/src/AgentContext.tsx`, with a documented bypass for a fresh connect keyed on the reported instance identity
@@ -293,7 +293,7 @@ These four close holes confirmed by **probing a running local app**, not inferre
 - [ ] T140 [US4] Replace the navigation call in `apps/web/src/AgentContext.tsx` with the in-page re-pair so unsaved work survives (FR-038)
 - [ ] T141 [P] [US4] Replace the hardcoded placeholder progress in `apps/web/src/team/library/ProcessLibraryDialog.tsx` with a real measurement (D7, FR-040)
 - [ ] T142 [P] [US4] Add an in-flight disabled state and accurate post-action counts to the stop paths in `apps/web/src/App.tsx` and `apps/web/src/components/JobRow.tsx` (D8, FR-041)
-- [ ] T143 [P] [US4] Clear the toast timers on unmount in `apps/web/src/App.tsx`, `apps/web/src/transcription/TranscriptionPage.tsx` and `apps/web/src/landing/LandingOptimizerPage.tsx` (D12)
+- [X] T143 [P] [US4] Clear the toast timers on unmount in `apps/web/src/App.tsx`, `apps/web/src/transcription/TranscriptionPage.tsx` and `apps/web/src/landing/LandingOptimizerPage.tsx` (D12)
 
 **Checkpoint**: Every tool page behaves identically under interruption, the interface never moves backwards, and re-pairing no longer destroys the page.
 

@@ -86,6 +86,17 @@ export default function CompressorPage() {
   const [embeddingFormValid, setEmbeddingFormValid] = useState(true);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const toastId = useRef(0);
+  /** Live toast dismissal timers, so none of them outlives the page. */
+  const toastTimers = useRef(new Set<number>());
+
+  // Every dismissal timer dies with the page that scheduled it.
+  useEffect(() => {
+    const timers = toastTimers.current;
+    return () => {
+      for (const timer of timers) window.clearTimeout(timer);
+      timers.clear();
+    };
+  }, []);
   const settingsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSettings = useRef<AgentSettingsPatch>({});
   const previousJobs = useRef<Map<string, CompressionJob> | null>(null);
@@ -136,9 +147,16 @@ export default function CompressorPage() {
   const addToast = (text: string, tone: ToastMessage['tone'] = 'neutral') => {
     const id = ++toastId.current;
     setToasts(current => [...current, { id, text, tone }]);
-    window.setTimeout(() => {
+    // D12. Tracked so unmount can clear it. An unmounted component's dismissal
+    // timer still fires, and React then warns about a state update on a tree
+    // that no longer exists — noise that trains people to ignore the console,
+    // for a callback whose only remaining job is to remove something already
+    // gone.
+    const timer = window.setTimeout(() => {
+      toastTimers.current.delete(timer);
       setToasts(current => current.filter(toast => toast.id !== id));
     }, 3600);
+    toastTimers.current.add(timer);
   };
 
   useEffect(
@@ -564,6 +582,7 @@ export default function CompressorPage() {
                 job={job}
                 selected={selected.has(job.id)}
                 disabled={!connected}
+                connected={connected}
                 compressionRunning={state.running}
                 language={language}
                 onSelected={(checked, shiftKey) => {

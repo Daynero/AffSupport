@@ -47,7 +47,8 @@ export function JobRow({
   language,
   onSelected,
   action,
-  t
+  t,
+  connected = true
 }: {
   job: CompressionJob;
   selected: boolean;
@@ -57,6 +58,14 @@ export function JobRow({
   onSelected: (checked: boolean, shiftKey: boolean) => void;
   action: (url: string, method?: string) => void;
   t: Translate;
+  /**
+   * Whether the local app is answering right now.
+   *
+   * Passed in rather than read from the context so this component stays a
+   * presentational one — it is rendered in tests without a provider — and
+   * defaults to true so no existing caller changes behaviour by omission.
+   */
+  connected?: boolean;
 }) {
   const [copiedDetails, setCopiedDetails] = useState(false);
   return (
@@ -79,7 +88,7 @@ export function JobRow({
             <h3 title={job.fileName}>{job.fileName}</h3>
             <StatusBadge status={job.status} t={t} />
           </div>
-          <JobTimer job={job} t={t} showRunning={false} />
+          <JobTimer job={job} t={t} showRunning={false} live={connected} />
         </div>
         <JobActions
           job={job}
@@ -98,11 +107,14 @@ export function JobRow({
           <ProgressBar
             value={job.status === 'queued' ? 0 : job.progress}
             label={t('compressionProgress', { name: job.fileName })}
-            active={job.status === 'processing'}
+            /* The flowing animation says "work is happening right now". With
+               no connection that claim cannot be checked, so the bar holds its
+               last known value instead of continuing to flow. */
+            active={job.status === 'processing' && connected}
           />
           <div className="job-progress-meta">
             {job.processingStage && <span>{processingStage(job, t)}</span>}
-            <JobTimer job={job} t={t} />
+            <JobTimer job={job} t={t} live={connected} />
             <strong>{job.status === 'queued' ? '0%' : `${Math.round(job.progress ?? 0)}%`}</strong>
           </div>
         </div>
@@ -511,18 +523,26 @@ function JobActions({
 function JobTimer({
   job,
   t,
-  showRunning = true
+  showRunning = true,
+  live = true
 }: {
   job: CompressionJob;
   t: Translate;
   showRunning?: boolean;
+  /** False while the local app is unreachable; see the effect below. */
+  live?: boolean;
 }) {
   const [, setTick] = useState(0);
   useEffect(() => {
     if (job.status !== 'processing' || job.startedAt === null) return;
+    // D6/FR-036. While the connection is down the interface has no idea whether
+    // this job is still running, so a ticking elapsed timer is not a live
+    // reading — it is an animation asserting something nobody knows. It stops
+    // and resumes from the truth when the connection does.
+    if (!live) return;
     const timer = window.setInterval(() => setTick(value => value + 1), 1000);
     return () => window.clearInterval(timer);
-  }, [job.status, job.startedAt]);
+  }, [job.status, job.startedAt, live]);
   if (job.startedAt === null) return null;
   const state = timerState(job);
   if (!state || (state === 'running' && !showRunning)) return null;

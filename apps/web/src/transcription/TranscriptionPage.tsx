@@ -178,6 +178,17 @@ export default function TranscriptionPage() {
   const [copyScope, setCopyScope] = useState<TranscriptionCopyScope>('finished');
   const [copyContent, setCopyContent] = useState<TranscriptionCopyContent>('both');
   const toastId = useRef(0);
+  /** Live toast dismissal timers, so none of them outlives the page. */
+  const toastTimers = useRef(new Set<number>());
+
+  // Every dismissal timer dies with the page that scheduled it.
+  useEffect(() => {
+    const timers = toastTimers.current;
+    return () => {
+      for (const timer of timers) window.clearTimeout(timer);
+      timers.clear();
+    };
+  }, []);
   // Job ids the user asked to transcribe before the model was present; started
   // automatically once the download completes.
   const pendingStart = useRef<string[] | null>(null);
@@ -216,7 +227,13 @@ export default function TranscriptionPage() {
   const addToast = (text: string, tone: ToastMessage['tone'] = 'neutral') => {
     const id = ++toastId.current;
     setToasts(current => [...current, { id, text, tone }]);
-    window.setTimeout(() => setToasts(current => current.filter(toast => toast.id !== id)), 3600);
+    // D12. Tracked so unmount can clear it: a dismissal timer that fires after
+    // the page is gone updates state on a tree that no longer exists.
+    const timer = window.setTimeout(() => {
+      toastTimers.current.delete(timer);
+      setToasts(current => current.filter(toast => toast.id !== id));
+    }, 3600);
+    toastTimers.current.add(timer);
   };
 
   const handleError = (error: unknown) => {
