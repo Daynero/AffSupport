@@ -20,6 +20,21 @@ import type { PowerGovernor } from '../power/governor.js';
 import { registerPowerRoutes, type PowerSamplerHandle } from '../power/routes.js';
 import type { ToolContext, ToolModule } from './tools.js';
 import { DEFAULT_UPLOAD_BYTES } from './upload-limits.js';
+import { TICKET_TTL_MS, issueTicket, ticketAuthorises } from './tickets.js';
+
+/**
+ * The only paths a ticket may be minted for.
+ *
+ * Every one of these is fetched by the browser's own loader — an <img>, a
+ * <video>, a background request for a preview frame — which is the entire
+ * reason a credential has to travel in the URL at all. Nothing that changes
+ * state is here, and nothing that returns a list of what exists.
+ */
+const TICKETABLE_PREFIXES = [
+  '/api/images/',
+  '/api/transcription/jobs/',
+  '/api/landing-preview/'
+] as const;
 
 export interface ServerConfig {
   /** Which environment this process belongs to; surfaced on the health snapshot. */
@@ -293,6 +308,16 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     // `?token=a&token=b` into an array, which reached the raw comparison as a non-string;
     // the guard rejects that before it can be compared. /native/* twelve lines above has
     // always used tokensMatch — this brings the browser token to the same standard.
+    // A capability ticket authorises exactly this method and this path, and
+    // nothing else. It exists so a subresource the browser's own loader fetches
+    // — an image, a preview frame, a media stream — can be named in a URL
+    // without the session token being in that URL, where it would reach
+    // referrers, access logs and proxy caches (C4).
+    const ticket = (request.query as { ticket?: unknown }).ticket;
+    if (ticket !== undefined && ticketAuthorises(token, request.method, route, ticket)) {
+      return;
+    }
+
     // Refused before the token is looked at: something that has failed twenty
     // times in a minute is not a stale token, and answering it at all is what
     // makes the attempt worth repeating.
@@ -453,6 +478,36 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
    * did not. A nonce is echoed back so the receiving page can tell its own
    * handshake from a message someone else sent it.
    */
+  /**
+   * Mints a ticket for one subresource the caller has already been authorised
+   * to see.
+   *
+   * Reached with the session token like any other API call — this is not a way
+   * to get access, it is a way to carry access somewhere a header cannot go.
+   * The prefix allowlist is what keeps it that: a ticket may only be asked for
+   * on the paths whose whole purpose is to be loaded by the browser as a
+   * subresource. Without it this route would mint a five-minute bearer token
+   * for any endpoint at all, which is the problem it exists to solve, moved.
+   */
+  app.post<{ Body: { path?: unknown; method?: unknown } }>(
+    '/api/tickets',
+    async (request, reply) => {
+      const wanted = request.body?.path;
+      const method = typeof request.body?.method === 'string' ? request.body.method : 'GET';
+      if (typeof wanted !== 'string' || !wanted.startsWith('/api/') || wanted.includes('?')) {
+        return reply.code(400).send({ error: 'INVALID_INPUT' });
+      }
+      if (!TICKETABLE_PREFIXES.some(prefix => wanted.startsWith(prefix))) {
+        return reply.code(403).send({ error: 'PATH_NOT_TICKETABLE' });
+      }
+      if (method !== 'GET' && method !== 'HEAD') {
+        // A ticket travels in a URL, and a URL is copied, linked and logged.
+        // Anything that changes state stays behind the header.
+        return reply.code(403).send({ error: 'METHOD_NOT_TICKETABLE' });
+      }
+      return { ticket: issueTicket(token, method, wanted), expiresInMs: TICKET_TTL_MS };
+    }
+  );
   app.get('/pair/handshake', async (request, reply) => {
     const nonce = handshakeNonce((request.query as { nonce?: unknown }).nonce);
     if (!nonce) return reply.code(400).send({ error: 'A handshake nonce is required.' });

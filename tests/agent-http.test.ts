@@ -904,3 +904,84 @@ describe('request budgets', () => {
     expect(response.statusCode).toBe(200);
   });
 });
+
+describe('ticket issuing', () => {
+  /**
+   * The route exists so access can travel where a header cannot — into an
+   * `<img>` or a `<video>` the browser fetches itself. It is not a way to *get*
+   * access, and the allowlist is what keeps that true: without it this would
+   * mint a five-minute bearer token for any endpoint, which is the problem it
+   * was built to solve, relocated.
+   */
+
+  async function ask(app: FastifyInstance, body: unknown, token: string = TOKEN) {
+    return app.inject({
+      method: 'POST',
+      url: '/api/tickets',
+      headers: { 'x-session-token': token, 'content-type': 'application/json' },
+      payload: body as Record<string, unknown>
+    });
+  }
+
+  it('mints a ticket for a subresource', async () => {
+    const app = await makeServer();
+    const response = await ask(app, { path: '/api/images/abc/content' });
+    expect(response.statusCode).toBe(200);
+    expect(typeof response.json().ticket).toBe('string');
+  });
+
+  it('refuses a path outside the allowlist', async () => {
+    const app = await makeServer();
+    // A ticket for /api/queue would be a five-minute bearer token for the
+    // queue, in a URL.
+    const response = await ask(app, { path: '/api/queue' });
+    expect(response.statusCode).toBe(403);
+    expect(response.json().error).toBe('PATH_NOT_TICKETABLE');
+  });
+
+  it('refuses a method that changes anything', async () => {
+    const app = await makeServer();
+    const response = await ask(app, { path: '/api/images/abc/content', method: 'DELETE' });
+    expect(response.statusCode).toBe(403);
+  });
+
+  it('refuses a path carrying its own query string', async () => {
+    const app = await makeServer();
+    // The ticket travels in the query; signing a path that already has one
+    // would mean signing a value that contains its own signature.
+    const response = await ask(app, { path: '/api/images/abc/content?ticket=x' });
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('cannot be reached without the session token', async () => {
+    const app = await makeServer();
+    const response = await ask(app, { path: '/api/images/abc/content' }, 'f'.repeat(64));
+    expect(response.statusCode).toBe(401);
+  });
+
+  it('lets the minted ticket fetch that resource without a token', async () => {
+    const app = await makeServer();
+    const minted = await ask(app, { path: '/api/images/missing/content' });
+    const { ticket } = minted.json();
+
+    const used = await app.inject({
+      method: 'GET',
+      url: `/api/images/missing/content?ticket=${encodeURIComponent(ticket)}`
+    });
+    // 404 rather than 401: the request got past authentication on the ticket
+    // alone and failed on the resource not existing, which is the whole point.
+    expect(used.statusCode).not.toBe(401);
+  });
+
+  it('does not let it fetch a different resource', async () => {
+    const app = await makeServer();
+    const minted = await ask(app, { path: '/api/images/one/content' });
+    const { ticket } = minted.json();
+
+    const used = await app.inject({
+      method: 'GET',
+      url: `/api/images/two/content?ticket=${encodeURIComponent(ticket)}`
+    });
+    expect(used.statusCode).toBe(401);
+  });
+});
