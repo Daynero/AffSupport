@@ -262,6 +262,8 @@ export function MaterialPreview({
             )}
             {!mediaFailed && material.category === 'image' && (
               <img
+                loading="lazy"
+                decoding="async"
                 src={state.rangeUrl}
                 alt={material.name}
                 referrerPolicy="no-referrer"

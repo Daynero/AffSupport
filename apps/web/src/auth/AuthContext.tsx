@@ -5,7 +5,8 @@ import {
   useEffect,
   useRef,
   useState,
-  type ReactNode
+  type ReactNode,
+  useMemo
 } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { analytics } from '../analytics/service';
@@ -435,23 +436,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loading = ['initializing', 'authenticating', 'signing-out'].includes(snapshot.status);
 
-  return (
-    <AuthContext.Provider
-      value={{
-        ...snapshot,
-        loading,
-        signInWithGoogle,
-        signInWithBetaFixture,
-        completeOAuthCallback,
-        adoptHandedOverSession,
-        signOut,
-        updateProfile,
-        refreshProfile
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+  /**
+   * Memoised, because an object literal here is a new value on every render of
+   * this provider — and this provider sits above the whole application. Every
+   * consumer re-rendered whenever anything in it moved, including consumers
+   * that only ever read `isAdmin`.
+   *
+   * The callbacks below are already stable (`useCallback`), so the only thing
+   * that legitimately changes this value is the snapshot itself.
+   */
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      ...snapshot,
+      loading,
+      signInWithGoogle,
+      signInWithBetaFixture,
+      completeOAuthCallback,
+      adoptHandedOverSession,
+      signOut,
+      updateProfile,
+      refreshProfile
+    }),
+    [
+      snapshot,
+      loading,
+      signInWithGoogle,
+      signInWithBetaFixture,
+      completeOAuthCallback,
+      adoptHandedOverSession,
+      signOut,
+      updateProfile,
+      refreshProfile
+    ]
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

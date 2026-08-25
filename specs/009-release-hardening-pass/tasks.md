@@ -383,16 +383,16 @@ These four close holes confirmed by **probing a running local app**, not inferre
 ### Tests for User Story 6
 
 - [X] T190 [P] [US6] Create `tests/performance-budgets.test.ts` recording the pre-change baseline and asserting the bundle, load-time and interaction budgets, including that each of the three largest pieces falls (FR-048, SC-014)
-- [ ] T191 [P] [US6] Create `tests/render-counts.test.tsx` asserting that a live update does not rebuild rows whose data did not change (FR-042, SC-015)
+- [X] T191 [P] [US6] Create `tests/render-counts.test.tsx` asserting that a live update does not rebuild rows whose data did not change (FR-042, SC-015)
 
 ### Implementation for User Story 6
 
 - [ ] T192 [US6] Split `apps/web/src/AgentContext.tsx` into a low-frequency status context and an external store with selectors, keeping the existing hook as a shim and the test override working
-- [ ] T193 [US6] Create `apps/web/src/api/reconcile-queue.ts` returning previous references for unchanged jobs and the previous array when nothing changed, so memoisation is not a no-op
-- [ ] T194 [US6] Apply reconciliation inside the state writer in `apps/web/src/AgentContext.tsx`
+- [X] T193 [US6] Create `apps/web/src/api/reconcile-queue.ts` returning previous references for unchanged jobs and the previous array when nothing changed, so memoisation is not a no-op
+- [X] T194 [US6] Apply reconciliation inside the state writer in `apps/web/src/AgentContext.tsx`
 - [ ] T195 [US6] Stabilise the four inline callbacks and move the selection arithmetic behind refs in `apps/web/src/App.tsx`, then memoise `apps/web/src/components/JobRow.tsx`
 - [ ] T196 [P] [US6] Memoise the remaining derived selections in `apps/web/src/App.tsx` and delete the per-render identifier join key
-- [ ] T197 [P] [US6] Memoise the context value in `apps/web/src/AuthContext.tsx`
+- [X] T197 [P] [US6] Memoise the context value in `apps/web/src/AuthContext.tsx`
 - [ ] T198 [US6] Bound the broadcast rate and send only what changed in `apps/agent/src/queue/queue.ts` and `apps/agent/src/server/sse.ts` (FR-043, E4)
 - [X] T199 [US6] Lazy-load the tool pages, the workspace and the admin screen in `apps/web/src/lib/tool-registry.ts` and `apps/web/src/ProtectedSoty.tsx` (FR-045)
 - [X] T200 [P] [US6] Lazy-load the code generator in `apps/web/src/components/SupportDialog.tsx` so it does not ship to everyone
@@ -401,8 +401,8 @@ These four close holes confirmed by **probing a running local app**, not inferre
 - [X] T203 [US6] Add chunking configuration to `apps/web/vite.config.ts` so the vendor and workspace code split apart
 - [ ] T204 [US6] Virtualise the compressor queue in `apps/web/src/App.tsx` (FR-044)
 - [ ] T205 [US6] Virtualise the transcript segment lists in `apps/web/src/transcription/TranscriptTextModal.tsx` and remove the half-second recomputation interval
-- [ ] T206 [P] [US6] Add lazy loading, explicit dimensions and async decoding to the ten image sites listed under E8 across `apps/web/src/` (FR-046)
-- [ ] T207 [P] [US6] Add a minimum interval to the manifest polling in `apps/web/src/AgentContext.tsx` and throttle the tooltip measurement in `apps/web/src/components/ui.tsx` (E9)
+- [X] T206 [P] [US6] Add lazy loading, explicit dimensions and async decoding to the ten image sites listed under E8 across `apps/web/src/` (FR-046)
+- [X] T207 [P] [US6] Add a minimum interval to the manifest polling in `apps/web/src/AgentContext.tsx` and throttle the tooltip measurement in `apps/web/src/components/ui.tsx` (E9)
 
 **Checkpoint**: Measurably smaller, measurably faster, and enforced against regression.
 

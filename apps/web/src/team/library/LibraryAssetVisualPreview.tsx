@@ -142,6 +142,8 @@ export function LibraryAssetVisualPreview({
     >
       {thumbnailUrl && (
         <img
+          loading="lazy"
+          decoding="async"
           className="creative-library-card-preview-media"
           src={thumbnailUrl}
           alt=""
@@ -170,6 +172,8 @@ export function LibraryAssetVisualPreview({
       )}
       {asset.category === 'image' && previewUrl && !thumbnailUrl && (
         <img
+          loading="lazy"
+          decoding="async"
           className="creative-library-card-preview-media"
           src={previewUrl}
           alt=""

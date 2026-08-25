@@ -28,7 +28,7 @@ export function ImageCompareModal({
   const [failed, setFailed] = useState(false);
   const preview = asset.preview;
   const comparison = preview?.comparison === true;
-  // Ticketed, so the session token is not in an <img src> that ends up in a
+  // Ticketed, so the session token is not in an <img loading="lazy" decoding="async" src> that ends up in a
   // referrer or a log. Null until the ticket arrives, which the loading state
   // below already covers.
   const beforeUrl = useSubresourceUrl(landingPreviewPath(jobId, asset.id, 'before'), {
@@ -80,6 +80,8 @@ export function ImageCompareModal({
           {comparison ? (
             <>
               <img
+                loading="lazy"
+                decoding="async"
                 className="landing-compare-image landing-compare-after"
                 src={afterUrl ?? ''}
                 alt=""
@@ -89,6 +91,8 @@ export function ImageCompareModal({
               />
               <div className="landing-compare-before-layer" aria-hidden="true">
                 <img
+                  loading="lazy"
+                  decoding="async"
                   className="landing-compare-image landing-compare-before"
                   src={beforeUrl ?? ''}
                   alt=""
@@ -100,6 +104,8 @@ export function ImageCompareModal({
             </>
           ) : (
             <img
+              loading="lazy"
+              decoding="async"
               className="landing-compare-image landing-compare-single"
               src={beforeUrl ?? ''}
               alt=""

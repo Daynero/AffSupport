@@ -45,6 +45,7 @@ import { useAgentEventStream } from './api/useAgentEventStream';
 import { failureState, type ConnectionState, versionState } from './connection';
 import { analytics } from './analytics/service';
 import { loadStableReleaseManifest, type ReleaseManifestState } from './release-manifest';
+import { reconcileQueue } from './api/reconcile-queue';
 
 const emptyState: QueueState = {
   jobs: [],
@@ -253,12 +254,14 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       if (options.freshConnect && instanceChanged) {
         knownInstance.current = options.instance ?? null;
         shownRevision.current = next.revision ?? 0;
-        setState(next);
+        setState(current => reconcileQueue(current, next));
         return;
       }
       if (!isNewerSnapshot(next, { revision: shownRevision.current })) return;
       shownRevision.current = next.revision ?? 0;
-      setState(next);
+      // Reconciled in the writer, so every consumer benefits and no component
+      // has to know that a snapshot arrives as fresh objects each time.
+      setState(current => reconcileQueue(current, next));
     },
     []
   );
@@ -335,8 +338,21 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     let loading = false;
-    const refresh = async () => {
+    let lastFetchedAt = 0;
+    /**
+     * The floor between manifest fetches.
+     *
+     * The interval alone was fine; the two event listeners were not. Focus and
+     * visibility both fire when a user alt-tabs back, so a person moving
+     * between windows re-fetched the release manifest on every switch — several
+     * times a minute for anyone working across two applications, for a file
+     * that changes at most on a release day.
+     */
+    const MIN_INTERVAL_MS = 60_000;
+    const refresh = async (options: { force?: boolean } = {}) => {
       if (loading) return;
+      if (!options.force && Date.now() - lastFetchedAt < MIN_INTERVAL_MS) return;
+      lastFetchedAt = Date.now();
       loading = true;
       try {
         const manifest = await loadStableReleaseManifest();
@@ -354,8 +370,10 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     const refreshWhenVisible = () => {
       if (document.visibilityState === 'visible') void refresh();
     };
-    void refresh();
-    const interval = window.setInterval(() => void refresh(), 15 * 60_000);
+    // The first load is forced: the floor exists to damp repeated triggers,
+    // not to delay the initial fetch.
+    void refresh({ force: true });
+    const interval = window.setInterval(() => void refresh({ force: true }), 15 * 60_000);
     window.addEventListener('focus', refreshWhenVisible);
     document.addEventListener('visibilitychange', refreshWhenVisible);
     return () => {

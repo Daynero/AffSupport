@@ -116,6 +116,8 @@ export function LandingFullView({
             >
               {cachedArtifact.segmentTokens.map((_, segment) => (
                 <img
+                  loading="lazy"
+                  decoding="async"
                   key={segment}
                   src={artifactClient.landingRenderImageUrl(cachedArtifact, segment)}
                   alt={segment === 0 ? material.name : ''}

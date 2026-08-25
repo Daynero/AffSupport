@@ -52,6 +52,8 @@ export function LandingPreviewFrame({
       )}
       {fallback && preview.screenshotUrl ? (
         <img
+          loading="lazy"
+          decoding="async"
           className="team-landing-preview-fallback"
           src={preview.screenshotUrl}
           alt={t('teamPreviewSafeScreenshot')}

@@ -233,6 +233,8 @@ export function TaskAttachmentTile({
       <div className="team-task-attachment-preview">
         {thumbnailUrl && (
           <img
+            loading="lazy"
+            decoding="async"
             src={thumbnailUrl}
             alt={attachment.name}
             referrerPolicy="no-referrer"
@@ -258,6 +260,8 @@ export function TaskAttachmentTile({
         )}
         {attachment.category !== 'video' && rangeUrl && !thumbnailUrl && (
           <img
+            loading="lazy"
+            decoding="async"
             src={rangeUrl}
             alt={attachment.name}
             referrerPolicy="no-referrer"
@@ -352,7 +356,13 @@ export function TaskAttachmentTile({
                 ref={element => element?.setAttribute('referrerpolicy', 'no-referrer')}
               />
             ) : (
-              <img src={rangeUrl} alt={attachment.name} referrerPolicy="no-referrer" />
+              <img
+                loading="lazy"
+                decoding="async"
+                src={rangeUrl}
+                alt={attachment.name}
+                referrerPolicy="no-referrer"
+              />
             )}
           </div>
         </Modal>
