@@ -93,7 +93,7 @@ export default function LandingOptimizerPage() {
   const connected = connection === 'connected';
 
   useEffect(() => {
-    document.title = 'Landing Optimizer — Soty';
+    document.title = t('pageTitleLanding');
     analytics.track('tool_opened', { tool_identifier: 'landing-optimizer' });
   }, []);
 

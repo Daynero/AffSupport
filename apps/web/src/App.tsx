@@ -105,7 +105,7 @@ export default function CompressorPage() {
   const connected = connection === 'connected';
 
   useEffect(() => {
-    document.title = 'Video Compressor — Soty';
+    document.title = t('pageTitleCompressor');
     analytics.track('tool_opened', { tool_identifier: 'compressor' });
   }, []);
 

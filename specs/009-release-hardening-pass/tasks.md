@@ -447,8 +447,8 @@ These four close holes confirmed by **probing a running local app**, not inferre
 - [X] T230 [US7] Add plural-rule handling to `apps/web/src/i18n.ts` for the five count strings and remove the hand-coded special case (F12, FR-054)
 - [X] T231 [US7] Delete the unused translations from `apps/web/src/i18n.ts` after reproducing the count with the new checker (F12, FR-056)
 - [X] T232 [US7] Emit stable codes for the eleven messages currently translated by matching English wording, in `apps/agent/src/` and `apps/web/src/App.tsx` and `apps/web/src/components/JobRow.tsx` (F13, FR-055)
-- [ ] T233 [P] [US7] Move the remaining untranslated literals and page titles into the translations across `apps/web/src/` (F14)
-- [ ] T234 [US7] Make the document language, title, description and pre-load appearance match the user in `apps/web/index.html` and `apps/web/src/i18n.ts` (F7, FR-057)
+- [X] T233 [P] [US7] Move the remaining untranslated literals and page titles into the translations across `apps/web/src/` (F14)
+- [X] T234 [US7] Make the document language, title, description and pre-load appearance match the user in `apps/web/index.html` and `apps/web/src/i18n.ts` (F7, FR-057)
 - [ ] T235 [US7] Drive the accessibility violation baseline to zero and flip the sweep from report-only to blocking in `scripts/verify-all.mjs` (SC-016)
 
 **Checkpoint**: One dialog, one theme system, one set of scales, two correct languages, zero blocking accessibility findings.

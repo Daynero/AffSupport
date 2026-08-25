@@ -419,6 +419,10 @@ const en = {
   errorPermissionDenied: 'Soty is not allowed to read that file.',
   errorPathNotGranted: 'Add that file through the picker or by dropping it in.',
   errorToolUnavailable: 'A media tool is unavailable right now.',
+  pageTitleHome: 'Soty — your media buying assistant',
+  pageTitleCompressor: 'Video Compressor — Soty',
+  pageTitleLanding: 'Landing Optimizer — Soty',
+  pageTitleTranscription: 'Transcription — Soty',
   compressStuck: 'Stalled — restart Soty to clear it',
   constantQualityNote:
     'Holds this quality whatever it costs — it does not target a file size. Soty converts to H.264, which needs about twice the bitrate of newer formats for the same picture.',
@@ -1953,6 +1957,10 @@ const uk: Record<keyof typeof en, string> = {
   errorPermissionDenied: 'Soty не має доступу до цього файлу.',
   errorPathNotGranted: 'Додайте файл через вибір або перетягніть його.',
   errorToolUnavailable: 'Медіаінструмент зараз недоступний.',
+  pageTitleHome: 'Soty — Твій помічник у медіабаїнгу',
+  pageTitleCompressor: 'Стиснення відео — Soty',
+  pageTitleLanding: 'Оптимізація лендингів — Soty',
+  pageTitleTranscription: 'Транскрипція — Soty',
   compressStuck: 'Застрягло — перезапустіть Soty, щоб зняти',
   constantQualityNote:
     'Тримає задану якість, скільки б це не коштувало — це не ціль за розміром. Soty конвертує у H.264, якому для тієї ж картинки потрібно приблизно вдвічі більше бітрейту, ніж новішим форматам.',

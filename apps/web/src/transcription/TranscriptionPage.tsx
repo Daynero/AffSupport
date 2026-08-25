@@ -209,7 +209,7 @@ export default function TranscriptionPage() {
   const canUseLocalPaths = capabilities.includes('local-file-paths');
 
   useEffect(() => {
-    document.title = 'Transcription — Soty';
+    document.title = t('pageTitleTranscription');
     analytics.track('tool_opened', { tool_identifier: 'transcription' });
   }, []);
 

@@ -39,6 +39,31 @@
                 : 'light';
           document.documentElement.dataset.theme = theme;
           document.documentElement.style.colorScheme = theme;
+
+          // The document declares its language before the bundle loads.
+          //
+          // It was `lang="uk"` in the markup for everyone, so an English user's
+          // screen reader read English text with Ukrainian pronunciation rules,
+          // and the browser offered to translate a page already in the reader's
+          // language. The stored preference is the same one the application
+          // uses; the browser's own languages are the fallback, which is what
+          // the application falls back to as well.
+          var stored_language = localStorage.getItem('language');
+          var language =
+            stored_language === 'uk' || stored_language === 'en'
+              ? stored_language
+              : (navigator.languages || [navigator.language || 'en'])
+                    .join(',')
+                    .toLowerCase()
+                    .indexOf('uk') === 0
+                ? 'uk'
+                : 'en';
+          document.documentElement.lang = language;
+          if (language === 'en') {
+            document.title = 'Soty — your media buying assistant';
+            var description = document.querySelector('meta[name="description"]');
+            if (description) description.setAttribute('content', 'Your media buying assistant.');
+          }
           if (theme === 'dark') {
             var meta = document.querySelector('meta[name="theme-color"]');
             if (meta) meta.setAttribute('content', '#120e1f');
