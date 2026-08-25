@@ -1,6 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { AuthProvider, useAuth } from './auth/AuthContext';
-import { HoneycombField } from './components/HoneycombField';
 import { EnvironmentBadge } from './components/EnvironmentBadge';
 import {
   AuthCallbackPage,
@@ -29,10 +28,27 @@ const TermsPage = lazy(() =>
   import('./pages/LegalPages').then(module => ({ default: module.TermsPage }))
 );
 
+/**
+ * The decorative backdrop, loaded after the application is usable.
+ *
+ * It is a full-viewport SVG field with a pointer-driven animation and it is
+ * purely decoration: nothing about the product stops working without it. Having
+ * it in the entry bundle meant every user waited for it before the first screen
+ * could render, including a user who came to compress one file and leave.
+ *
+ * No Suspense fallback, because there is nothing to wait for — the page is
+ * complete without it and it fades in when it arrives.
+ */
+const HoneycombField = lazy(() =>
+  import('./components/HoneycombField').then(module => ({ default: module.HoneycombField }))
+);
+
 export default function Root() {
   return (
     <AuthProvider>
-      <HoneycombField />
+      <Suspense fallback={null}>
+        <HoneycombField />
+      </Suspense>
       <EnvironmentBadge />
       <Routes />
     </AuthProvider>

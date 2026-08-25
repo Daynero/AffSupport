@@ -75,6 +75,15 @@ import { decideTransition } from './transitions.js';
  * mechanism that drives it.
  */
 const DRAIN_WATCHDOG_MS = 2_000;
+
+/**
+ * The floor between progress broadcasts.
+ *
+ * FFmpeg reports several times a second and each report was a full state
+ * broadcast. Four a second is smoother than any progress bar needs to look, and
+ * an order of magnitude less work than what the encoder emits.
+ */
+const PROGRESS_BROADCAST_MS = 250;
 import { defaultSettings } from './store.js';
 
 type EstimatorHooks = {
@@ -234,6 +243,8 @@ export class JobQueue {
    * snapshot it should replace.
    */
   private revision = 0;
+  private lastProgressBroadcast = 0;
+  private progressTrailing: ReturnType<typeof setTimeout> | null = null;
   /** Every broadcast goes through here, so the revision cannot be missed. */
   private readonly notify: (event?: AgentEventType) => void;
 
@@ -292,6 +303,38 @@ export class JobQueue {
    */
   private get activity(): CompressorActivity {
     return this.current;
+  }
+
+  /**
+   * A progress-only broadcast, rate-limited.
+   *
+   * FFmpeg reports progress several times a second, and each report was a full
+   * state broadcast: the whole queue serialised, pushed over the event stream,
+   * parsed by every open tab and reconciled against what it already had — to
+   * move one number that the interface renders as a whole percent anyway.
+   *
+   * Status changes do not come through here. They keep the immediate path,
+   * because "this job just failed" arriving a quarter-second late is a
+   * different kind of wrong from a progress bar updating four times a second
+   * instead of twenty.
+   */
+  private notifyProgress(): void {
+    const at = Date.now();
+    if (at - this.lastProgressBroadcast < PROGRESS_BROADCAST_MS) {
+      // Coalesced rather than dropped: the last value in a quiet period still
+      // has to arrive, or a bar sticks at 97% until something else happens.
+      if (!this.progressTrailing) {
+        this.progressTrailing = setTimeout(() => {
+          this.progressTrailing = null;
+          this.lastProgressBroadcast = Date.now();
+          this.notify();
+        }, PROGRESS_BROADCAST_MS);
+        this.progressTrailing.unref?.();
+      }
+      return;
+    }
+    this.lastProgressBroadcast = at;
+    this.notify();
   }
 
   /**
@@ -1931,7 +1974,7 @@ export class JobQueue {
       fallback,
       value => {
         job.progress = value;
-        this.notify();
+        this.notifyProgress();
       },
       embedding,
       this.power
