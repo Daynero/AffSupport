@@ -128,6 +128,22 @@ export function consumePairingToken() {
   return true;
 }
 
+/**
+ * Adopts a token that arrived through the in-page handshake.
+ *
+ * The same adoption the fragment path performs, minus the URL cleanup it has no
+ * URL to do — and it broadcasts, so the tabs that waited for the election get
+ * the result rather than each starting a handshake of their own.
+ */
+export function storePairingToken(value: string): boolean {
+  if (!TOKEN_PATTERN.test(value)) return false;
+  const changed = adopt(value);
+  localStorage.removeItem(INSTALL_STARTED_KEY);
+  channel?.postMessage(value);
+  if (changed) for (const listener of [...listeners]) listener();
+  return true;
+}
+
 export function markAgentInstallStarted() {
   localStorage.setItem(INSTALL_STARTED_KEY, String(Date.now()));
 }
@@ -170,22 +186,127 @@ export function agentInstallAwaitingPairing() {
  * token the Agent then rejects again would spin the tab forever. Two attempts a
  * minute is enough for the case this exists for — the Agent restarted and minted
  * a new token — while any repeating failure falls through to the manual button
- * after the second try. Per tab (sessionStorage), because the loop being guarded
- * against is this tab's.
+ * after the second try.
+ *
+ * **Per browser, not per tab (D4).** It used to live in `sessionStorage`, so
+ * three open tabs burned three separate budgets against one local app and the
+ * third fell through to a manual screen for no reason the user could see. The
+ * loop being guarded against belongs to the browser, because the token being
+ * re-fetched does.
  *
  * Only a *connection* releases the budget, never the arrival of a token:
  * resetting on arrival would refill it on every lap of the very loop this
  * guards, and the tab would navigate forever.
  */
 export function claimAutomaticPairing(now = Date.now()) {
-  const [since, count] = (sessionStorage.getItem(AUTOPAIR_KEY) ?? '').split(':').map(Number);
+  const [since, count] = (localStorage.getItem(AUTOPAIR_KEY) ?? '').split(':').map(Number);
   const fresh = !Number.isFinite(since) || now - since > AUTOPAIR_WINDOW_MS;
   const attempts = fresh ? 0 : count;
   if (!Number.isFinite(attempts) || attempts >= AUTOPAIR_LIMIT) return false;
-  sessionStorage.setItem(AUTOPAIR_KEY, `${fresh ? now : since}:${attempts + 1}`);
+  localStorage.setItem(AUTOPAIR_KEY, `${fresh ? now : since}:${attempts + 1}`);
   return true;
 }
 
 export function releaseAutomaticPairing() {
-  sessionStorage.removeItem(AUTOPAIR_KEY);
+  localStorage.removeItem(AUTOPAIR_KEY);
+}
+
+/**
+ * How long a tab waits for another tab's handshake before doing its own.
+ *
+ * Short, because the cost of waiting is a visibly idle page and the cost of not
+ * waiting is a duplicate handshake — neither is serious, and the shorter one is
+ * the better default.
+ */
+const CLAIM_WAIT_MS = 400;
+
+/** How long the whole handshake may take before the caller falls back. */
+const HANDSHAKE_TIMEOUT_MS = 4_000;
+
+/**
+ * Re-pairs without navigating away from the page.
+ *
+ * The old path was a full-page navigation that came back with a token in the
+ * fragment. It works, and it destroys everything on screen — an editable
+ * transcript, a half-filled form, an open dialog — to deliver a string
+ * (FR-038). This frames a document the local app serves, which posts the token
+ * back and nothing else.
+ *
+ * Three things are checked before a message is believed, and the risk of this
+ * whole feature is concentrated in them: the message came from the frame this
+ * function created, its origin is the local app's, and it carries the nonce
+ * this call generated. A mistake in any one turns a fix into a way for a page
+ * to harvest a session token.
+ *
+ * Resolves null on timeout, so the caller keeps the existing navigation as a
+ * fallback and nothing is ever worse than it was.
+ */
+export async function handshakeForToken(agentOrigin: string): Promise<string | null> {
+  if (typeof document === 'undefined' || typeof BroadcastChannel === 'undefined') return null;
+
+  // One handshake per browser, not one per tab: three tabs noticing the same
+  // dead token at the same moment should produce one frame, not three.
+  const claimed = await claimHandshake();
+  if (!claimed) return waitForBroadcastToken();
+
+  const nonce = crypto.randomUUID().replace(/-/gu, '');
+  const frame = document.createElement('iframe');
+  frame.setAttribute('aria-hidden', 'true');
+  frame.style.display = 'none';
+  frame.src = `${agentOrigin}/pair/handshake?nonce=${encodeURIComponent(nonce)}`;
+
+  return new Promise<string | null>(resolve => {
+    let settled = false;
+    const finish = (value: string | null) => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener('message', onMessage);
+      clearTimeout(timer);
+      frame.remove();
+      resolve(value);
+    };
+
+    const onMessage = (event: MessageEvent) => {
+      // Origin first: a message from anywhere else is not worth parsing.
+      if (event.origin !== agentOrigin) return;
+      // Then provenance — this is the frame we created, not some other one that
+      // happens to be same-origin with the local app.
+      if (event.source !== frame.contentWindow) return;
+      const data = event.data as { type?: unknown; nonce?: unknown; token?: unknown };
+      if (data?.type !== 'soty:pairing') return;
+      // Then the nonce: proof this is the answer to *this* request.
+      if (data.nonce !== nonce) return;
+      if (typeof data.token !== 'string' || !/^[a-f0-9]{64}$/u.test(data.token)) return;
+      finish(data.token);
+    };
+
+    const timer = setTimeout(() => finish(null), HANDSHAKE_TIMEOUT_MS);
+    window.addEventListener('message', onMessage);
+    document.body.append(frame);
+  });
+}
+
+/** Elects one tab to perform the handshake. Returns false if another one won. */
+async function claimHandshake(): Promise<boolean> {
+  const key = `${AUTOPAIR_KEY}:claim`;
+  const now = Date.now();
+  const held = Number(localStorage.getItem(key) ?? '0');
+  if (Number.isFinite(held) && now - held < CLAIM_WAIT_MS) return false;
+  localStorage.setItem(key, String(now));
+  return true;
+}
+
+/** Waits for the tab that won the election to broadcast what it got. */
+function waitForBroadcastToken(): Promise<string | null> {
+  return new Promise(resolve => {
+    const timer = setTimeout(() => {
+      stop();
+      resolve(null);
+    }, HANDSHAKE_TIMEOUT_MS);
+    const stop = onPairingToken(() => {
+      clearTimeout(timer);
+      stop();
+      resolve(pairingToken() || null);
+    });
+  });
 }

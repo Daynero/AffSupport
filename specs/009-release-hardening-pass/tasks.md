@@ -270,8 +270,8 @@ These four close holes confirmed by **probing a running local app**, not inferre
 
 - [X] T121 [P] [US4] Create `tests/agent-disconnect-ui.test.tsx` asserting that a 2-second interruption produces no visible disconnect, that a 10-second one keeps the page mounted with input intact, and that no installation prompt appears to a previously connected user (FR-033, SC-012)
 - [X] T122 [P] [US4] Create `tests/state-revision-guard.test.ts` asserting a stale response cannot overwrite a newer snapshot, and that a fresh connect after a restart correctly resets rather than being rejected as stale (FR-037, D3, SC-013)
-- [ ] T123 [P] [US4] Create `tests/repair-handshake.test.ts` asserting a wrong origin is refused, a wrong nonce is refused, the timeout falls back to navigation, and two tabs produce exactly one handshake (D4)
-- [ ] T124 [P] [US4] Add cases to `tests/shell-and-modal-layout.test.ts` asserting no reachable state renders a dialog without a dismissal (FR-033)
+- [X] T123 [P] [US4] Create `tests/repair-handshake.test.ts` asserting a wrong origin is refused, a wrong nonce is refused, the timeout falls back to navigation, and two tabs produce exactly one handshake (D4)
+- [X] T124 [P] [US4] Add cases to `tests/shell-and-modal-layout.test.ts` asserting no reachable state renders a dialog without a dismissal (FR-033)
 - [X] T125 [P] [US4] Create `tests/frozen-progress.test.tsx` asserting the progress animation and elapsed timer stop while disconnected (FR-036, D6)
 
 ### Implementation for User Story 4
@@ -287,11 +287,11 @@ These four close holes confirmed by **probing a running local app**, not inferre
 - [X] T134 [US4] Increment the revision by wrapping the injected notify callback once in each of `apps/agent/src/queue/queue.ts`, `apps/agent/src/queue/transcription-queue.ts` and `apps/agent/src/landing/optimizer.ts` — not at the thirty-plus call sites
 - [X] T135 [US4] Apply the newer-wins guard in one place in `apps/web/src/AgentContext.tsx`, with a documented bypass for a fresh connect keyed on the reported instance identity
 - [X] T136 [P] [US4] Apply the same guard to the local state writers in `apps/web/src/transcription/TranscriptionPage.tsx` and `apps/web/src/landing/LandingOptimizerPage.tsx`
-- [ ] T137 [US4] Add a handshake route to `apps/agent/src/server/app.ts` serving a minimal document that posts the token to a server-chosen target origin, never a wildcard and never the requesting origin
-- [ ] T138 [US4] Implement the in-page handshake in `apps/web/src/api/pairing-token.ts` with nonce, origin and source verification, and a timeout fallback to the existing navigation
-- [ ] T139 [US4] Move the automatic pairing budget from per-tab to per-browser storage in `apps/web/src/api/pairing-token.ts` and add a claim election over the existing broadcast channel, so three tabs perform one handshake (D4)
-- [ ] T140 [US4] Replace the navigation call in `apps/web/src/AgentContext.tsx` with the in-page re-pair so unsaved work survives (FR-038)
-- [ ] T141 [P] [US4] Replace the hardcoded placeholder progress in `apps/web/src/team/library/ProcessLibraryDialog.tsx` with a real measurement (D7, FR-040)
+- [X] T137 [US4] Add a handshake route to `apps/agent/src/server/app.ts` serving a minimal document that posts the token to a server-chosen target origin, never a wildcard and never the requesting origin
+- [X] T138 [US4] Implement the in-page handshake in `apps/web/src/api/pairing-token.ts` with nonce, origin and source verification, and a timeout fallback to the existing navigation
+- [X] T139 [US4] Move the automatic pairing budget from per-tab to per-browser storage in `apps/web/src/api/pairing-token.ts` and add a claim election over the existing broadcast channel, so three tabs perform one handshake (D4)
+- [X] T140 [US4] Replace the navigation call in `apps/web/src/AgentContext.tsx` with the in-page re-pair so unsaved work survives (FR-038)
+- [X] T141 [P] [US4] Replace the hardcoded placeholder progress in `apps/web/src/team/library/ProcessLibraryDialog.tsx` with a real measurement (D7, FR-040)
 - [X] T142 [P] [US4] Add an in-flight disabled state and accurate post-action counts to the stop paths in `apps/web/src/App.tsx` and `apps/web/src/components/JobRow.tsx` (D8, FR-041)
 - [X] T143 [P] [US4] Clear the toast timers on unmount in `apps/web/src/App.tsx`, `apps/web/src/transcription/TranscriptionPage.tsx` and `apps/web/src/landing/LandingOptimizerPage.tsx` (D12)
 

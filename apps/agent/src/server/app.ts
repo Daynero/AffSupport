@@ -359,6 +359,37 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   app.get('/pair', async (_request, reply) => {
     return reply.redirect(`${pairOrigin}/#agentToken=${token}`);
   });
+  /**
+   * The in-page pairing handshake: a document that hands the token to the page
+   * that framed it, and to nothing else.
+   *
+   * Re-pairing used to be a full-page navigation. It works, and it throws away
+   * everything the user had on screen — an editable transcript, a half-filled
+   * form, an open dialog — to deliver a string. This serves a minimal document
+   * inside a hidden frame instead, which posts the token and closes.
+   *
+   * **The target origin is chosen here, by the server.** Never `*`, and never
+   * the requesting origin: both would let any page that can frame this one
+   * collect a live session token. The value is the same origin the pairing
+   * redirect already trusts, so the handshake grants nothing the existing flow
+   * did not. A nonce is echoed back so the receiving page can tell its own
+   * handshake from a message someone else sent it.
+   */
+  app.get('/pair/handshake', async (request, reply) => {
+    const nonce = handshakeNonce((request.query as { nonce?: unknown }).nonce);
+    if (!nonce) return reply.code(400).send({ error: 'A handshake nonce is required.' });
+    reply.header('Content-Type', 'text/html; charset=utf-8');
+    reply.header('Cache-Control', 'no-store');
+    // No framing by anyone but the origin the token is being posted to.
+    reply.header('Content-Security-Policy', `frame-ancestors ${pairOrigin}`);
+    reply.header('X-Frame-Options', 'SAMEORIGIN');
+    return reply.send(
+      '<!doctype html><meta charset="utf-8"><title>Pairing</title><script>' +
+        `window.parent.postMessage({type:"soty:pairing",nonce:${JSON.stringify(nonce)},` +
+        `token:${JSON.stringify(token)}},${JSON.stringify(pairOrigin)});` +
+        '</script>'
+    );
+  });
   app.get('/local', async (request, reply) => {
     const path = localRedirectPath((request.query as { to?: unknown }).to);
     return reply.redirect(`http://${config.host}:${config.port}${path}#agentToken=${token}`);
@@ -386,6 +417,19 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
  * navigates to another site entirely.
  */
 const LOCAL_REDIRECT_PATH = /^\/[A-Za-z0-9\-._~/]*(?:\?[A-Za-z0-9\-._~/=&%]*)?$/u;
+
+/**
+ * The nonce, echoed back into a script literal — so it is validated, not trusted.
+ *
+ * It arrives from a browser and is written into a document this server serves.
+ * A conservative character set and a length bound are what keep it a nonce
+ * rather than an injection point; `JSON.stringify` at the call site is the
+ * second layer, not the first.
+ */
+function handshakeNonce(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  return /^[A-Za-z0-9_-]{8,128}$/u.test(value) ? value : null;
+}
 
 function localRedirectPath(value: unknown) {
   if (typeof value !== 'string' || value.length > 512) return '/';

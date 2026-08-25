@@ -35,7 +35,7 @@ import {
   releaseAutomaticPairing
 } from './api/client';
 import { ensureAgentEntitlement } from './api/entitlement';
-import { pairingToken } from './api/pairing-token';
+import { handshakeForToken, pairingToken, storePairingToken } from './api/pairing-token';
 import { streamClient } from './api/stream-client';
 import { useAgentEventStream } from './api/useAgentEventStream';
 import { failureState, type ConnectionState, versionState } from './connection';
@@ -190,7 +190,20 @@ export function AgentProvider({ children }: { children: ReactNode }) {
             mode === 'connecting' || agentProvenAlive(error) || agentInstallAwaitingPairing();
           if (canPairSilently && claimAutomaticPairing()) {
             setConnection('connecting');
-            pairWithAgent();
+            // In-page first (FR-038). The navigation below works and takes the
+            // whole page with it — an editable transcript, a half-filled form,
+            // an open dialog — to deliver a string. The handshake asks for the
+            // same string without moving anyone, and falls back to the old path
+            // on timeout, so this is never worse than it was.
+            void handshakeForToken(agentUrl).then(handshakeToken => {
+              if (!mounted.current) return;
+              if (handshakeToken) {
+                storePairingToken(handshakeToken);
+                void establish('retry');
+                return;
+              }
+              pairWithAgent();
+            });
           } else {
             // Not a dead end: the Agent may still be starting, so keep looking.
             setConnection('pairing_required');

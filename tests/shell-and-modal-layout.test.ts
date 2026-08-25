@@ -1,6 +1,10 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+
+const WEB_SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../apps/web/src');
 
 const css = readFileSync('apps/web/src/styles.css', 'utf8');
 // Comments are stripped first: a comment ahead of a rule would otherwise be
@@ -200,5 +204,36 @@ describe('dialog fit', () => {
       return rule ? /(?:max-width|width):\s*(?:min\()?\d/.test(rule) : false;
     });
     expect(offenders).toEqual([]);
+  });
+});
+
+describe('every dialog can be dismissed', () => {
+  /**
+   * FR-033. A dialog with no way out is a dead end, and the one that mattered
+   * was reachable by accident: the local-app dialog was rendered without a
+   * close handler, so a user whose connection dropped mid-task got a panel
+   * offering to install software they were already running, and no way back to
+   * the page they were on.
+   *
+   * Read from source rather than rendered, because the property is structural —
+   * "no reachable state renders this without a dismissal" is a claim about
+   * every call site, and rendering one of them proves nothing about the others.
+   */
+
+  const dialogComponents = ['LocalAppDialog'];
+
+  it.each(dialogComponents)('is always given a way to close: %s', name => {
+    const callers = readdirSync(WEB_SRC, { recursive: true, encoding: 'utf8' })
+      .filter(file => file.endsWith('.tsx'))
+      .map(file => ({ file, source: readFileSync(path.join(WEB_SRC, file), 'utf8') }))
+      .filter(({ source }) => source.includes(`<${name}`));
+
+    expect(callers.length).toBeGreaterThan(0);
+    for (const { file, source } of callers) {
+      const usages = [...source.matchAll(new RegExp(`<${name}[\\s\\S]*?/>`, 'gu'))];
+      for (const usage of usages) {
+        expect(usage[0], `${file}: ${name} rendered without onClose`).toContain('onClose');
+      }
+    }
   });
 });
