@@ -1,0 +1,4 @@
+{
+  "note": "Keys assembled or returned at runtime rather than written as literals at a call site, so the unused-key scan must not delete them. Kept short deliberately: an exception list that grows on its own stops meaning anything.",
+  "keys": ["selectedOne", "selectedFew", "selectedMany"]
+}

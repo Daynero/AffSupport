@@ -426,8 +426,8 @@ These four close holes confirmed by **probing a running local app**, not inferre
 - [ ] T212 [US7] Extract the browser and accessibility core of `apps/soty-review/scripts/verify-review.mjs` into `scripts/lib/axe-sweep.mjs` and hoist its two dependencies to the root `package.json`
 - [ ] T213 [US7] Create `scripts/verify-a11y.mjs` serving the built interface and walking the route matrix in both themes and both languages, using `tests/support/fake-agent.ts` to reach authenticated routes (FR-053)
 - [ ] T214 [US7] Land the accessibility sweep in report-only mode with a committed violation baseline, wired into `scripts/verify-all.mjs`
-- [ ] T215 [US7] Create `scripts/verify-i18n.mjs` scanning every string literal rather than every call site, subtracting a committed dynamic-key allowlist (SC-018)
-- [ ] T216 [US7] Create `i18n-dynamic.json` at the repository root and add a lint rule to `eslint.config.mjs` forbidding the translation-key cast outside registered files
+- [X] T215 [US7] Create `scripts/verify-i18n.mjs` scanning every string literal rather than every call site, subtracting a committed dynamic-key allowlist (SC-018)
+- [X] T216 [US7] Create `i18n-dynamic.json` at the repository root and add a lint rule to `eslint.config.mjs` forbidding the translation-key cast outside registered files
 
 ### Implementation — the fixes
 
@@ -445,7 +445,7 @@ These four close holes confirmed by **probing a running local app**, not inferre
 - [ ] T228 [P] [US7] Make range selection keyboard-operable in `apps/web/src/components/JobRow.tsx` and fix the controlled-input warning (F11)
 - [X] T229 [P] [US7] Give the language switch a proper role and pressed state in `apps/web/src/App.tsx`, and stop activating disabled tool cards in `apps/web/src/HomePage.tsx` (F11)
 - [X] T230 [US7] Add plural-rule handling to `apps/web/src/i18n.ts` for the five count strings and remove the hand-coded special case (F12, FR-054)
-- [ ] T231 [US7] Delete the unused translations from `apps/web/src/i18n.ts` after reproducing the count with the new checker (F12, FR-056)
+- [X] T231 [US7] Delete the unused translations from `apps/web/src/i18n.ts` after reproducing the count with the new checker (F12, FR-056)
 - [ ] T232 [US7] Emit stable codes for the eleven messages currently translated by matching English wording, in `apps/agent/src/` and `apps/web/src/App.tsx` and `apps/web/src/components/JobRow.tsx` (F13, FR-055)
 - [ ] T233 [P] [US7] Move the remaining untranslated literals and page titles into the translations across `apps/web/src/` (F14)
 - [ ] T234 [US7] Make the document language, title, description and pre-load appearance match the user in `apps/web/index.html` and `apps/web/src/i18n.ts` (F7, FR-057)

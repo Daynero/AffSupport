@@ -86,6 +86,12 @@ const PHASES = {
         timeoutMs: 60_000
       },
       {
+        id: 'i18n',
+        command: 'node',
+        args: [path.join(root, 'scripts/verify-i18n.mjs')],
+        timeoutMs: 60_000
+      },
+      {
         id: 'csp',
         command: 'node',
         args: [path.join(root, 'scripts/generate-csp-headers.mjs'), '--check'],
