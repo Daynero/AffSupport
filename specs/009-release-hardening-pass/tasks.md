@@ -417,7 +417,7 @@ These four close holes confirmed by **probing a running local app**, not inferre
 ### Tests for User Story 7
 
 - [X] T208 [P] [US7] Create `tests/design-token-contract.test.ts` asserting the checker catches an undefined property, an off-scale value and a duplicate rule block
-- [ ] T209 [P] [US7] Create `tests/route-matrix-contract.test.ts` asserting every literal path compared in `apps/web/src/Root.tsx` and `apps/web/src/ProtectedSoty.tsx` is a member of the exported route list, so a new route cannot escape the sweep
+- [X] T209 [P] [US7] Create `tests/route-matrix-contract.test.ts` asserting every literal path compared in `apps/web/src/Root.tsx` and `apps/web/src/ProtectedSoty.tsx` is a member of the exported route list, so a new route cannot escape the sweep
 - [X] T210 [P] [US7] Create `tests/i18n-plurals.test.ts` asserting each count string is correct in both languages across the plural categories
 
 ### Implementation — the checkers
@@ -435,14 +435,14 @@ These four close holes confirmed by **probing a running local app**, not inferre
 - [X] T218 [US7] Create the text-size scale in `apps/web/src/styles.css` and replace the fractional pixel literals, so browser font-size settings are honoured (F2, FR-050)
 - [X] T219 [US7] Create the stacking scale in `apps/web/src/styles.css` and move all 58 raw values onto it, excluding view-transition pseudo-elements (F3, FR-050)
 - [ ] T220 [US7] Move the off-grid spacing declarations onto the spacing scale in `apps/web/src/styles.css` (F2)
-- [ ] T221 [US7] Remove the duplicate button definition and the triplicated help-text rule from `apps/web/src/styles.css`, and route the four one-off button styles through the shared component (F5)
+- [X] T221 [US7] Remove the duplicate button definition and the triplicated help-text rule from `apps/web/src/styles.css`, and route the four one-off button styles through the shared component (F5)
 - [X] T222 [US7] Fix the global focus indicator contrast in `apps/web/src/styles.css`, which currently fails on every light surface (F8)
 - [X] T223 [P] [US7] Replace the hardcoded colours that do not respond to theme across `apps/web/src/styles.css` (F6, FR-052)
 - [ ] T224 [US7] Route the two hand-rolled dialogs in `apps/web/src/team/preview/MaterialPreview.tsx` and `apps/web/src/team/landings/LandingFullView.tsx` through the shared modal, and replace the three native confirmations in `apps/web/src/App.tsx` and `apps/web/src/landing-viewer/useLandingViewer.ts` (F4, FR-051)
 - [X] T225 [US7] Extend the focusable-element set in `apps/web/src/components/Modal.tsx` to cover editable regions, media controls and frames, and mark the rest of the tree inert while a dialog is open (F10)
 - [X] T226 [US7] Remove the live-region announcement from the three job lists in `apps/web/src/App.tsx`, `apps/web/src/transcription/TranscriptionPage.tsx` and `apps/web/src/landing/LandingOptimizerPage.tsx`, replacing it with one throttled status line, and make error notifications assertive (F9)
 - [X] T227 [P] [US7] Add arrow-key navigation and a roving tab stop to the segmented control in `apps/web/src/components/ui.tsx` (F11)
-- [ ] T228 [P] [US7] Make range selection keyboard-operable in `apps/web/src/components/JobRow.tsx` and fix the controlled-input warning (F11)
+- [X] T228 [P] [US7] Make range selection keyboard-operable in `apps/web/src/components/JobRow.tsx` and fix the controlled-input warning (F11)
 - [X] T229 [P] [US7] Give the language switch a proper role and pressed state in `apps/web/src/App.tsx`, and stop activating disabled tool cards in `apps/web/src/HomePage.tsx` (F11)
 - [X] T230 [US7] Add plural-rule handling to `apps/web/src/i18n.ts` for the five count strings and remove the hand-coded special case (F12, FR-054)
 - [X] T231 [US7] Delete the unused translations from `apps/web/src/i18n.ts` after reproducing the count with the new checker (F12, FR-056)

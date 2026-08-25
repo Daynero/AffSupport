@@ -732,10 +732,11 @@ a {
   justify-content: flex-end;
 }
 
-.tool-card .tool-action-row .button {
-  min-height: 44.2px;
-  padding-inline: 15.6px;
-}
+.tool-card .tool-action-row /* `.button` already sets both of these where it is defined; this repeat was
+   added during a touch-target pass and changes nothing. The two rules that do
+   reduce a button's height — the job actions and the update notice — are more
+   specific and win regardless of order, so removing this affects nothing at
+   all, which is the point. */
 
 .tool-icon {
   display: grid;

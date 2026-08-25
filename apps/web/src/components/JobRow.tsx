@@ -80,8 +80,20 @@ export function JobRow({
           disabled={job.status === 'analyzing'}
           aria-label={t('fileSelection', { name: job.fileName })}
           label={<span className="sr-only">{t('fileSelection', { name: job.fileName })}</span>}
-          onChange={() => {}}
-          onClick={event => onSelected(!selected, event.shiftKey)}
+          /* Selection happens on change, not on click.
+             
+             A controlled checkbox with an empty `onChange` is React's warning
+             case, and it was also the reason range selection was mouse-only:
+             the shift state was read from a click event, so Shift+Space — the
+             keyboard way to extend a selection — did nothing at all. `change`
+             fires for both, and the native event carries the modifier whichever
+             one caused it. */
+          onChange={event =>
+            onSelected(
+              event.target.checked,
+              (event.nativeEvent as MouseEvent | KeyboardEvent).shiftKey === true
+            )
+          }
         />
         <div className="job-title-block">
           <div className="job-title-line">
