@@ -708,7 +708,10 @@ export default function TranscriptionPage() {
           </section>
         )}
 
-        <section className="video-list" aria-live="polite">
+        {/* Not a live region — see the compressor queue. A transcription job
+            list that announces itself on every progress tick is a screen reader
+            that cannot be interrupted. */}
+        <section className="video-list">
           {jobs.length === 0 ? (
             <div className="empty-state">
               <strong>{t('transcriptionEmpty')}</strong>

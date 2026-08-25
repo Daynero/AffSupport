@@ -4814,8 +4814,11 @@ input.is-invalid {
   margin: 12px auto 0;
   padding: 7px 11px;
   border-radius: 999px;
-  color: #33240a;
-  background: #ffe59a;
+  /* The warning palette rather than a copy of its light-theme values: this
+     pill kept bright yellow and near-black text in dark mode, where the rest
+     of the page had moved. */
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
   box-shadow: var(--shadow-md);
   font-size: 16.45px;
 }
@@ -11386,15 +11389,15 @@ body {
 }
 .task-status-filter-option.is-todo svg,
 .team-task-status-option.is-todo {
-  color: #94a3b8;
+  color: var(--color-text-muted);
 }
 .task-status-filter-option.is-in_progress svg,
 .team-task-status-option.is-in_progress {
-  color: #eab308;
+  color: var(--color-warning);
 }
 .task-status-filter-option.is-done svg,
 .team-task-status-option.is-done {
-  color: #22c55e;
+  color: var(--color-success);
 }
 .team-task-editor input,
 .team-task-editor textarea,
@@ -11502,7 +11505,7 @@ body {
 }
 .team-task-card-error {
   overflow: hidden;
-  color: #ef4444;
+  color: var(--color-error);
   text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;

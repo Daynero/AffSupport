@@ -376,7 +376,12 @@ export default function LandingOptimizerPage() {
         )}
 
         {jobs.length > 0 ? (
-          <section className="landing-jobs-list" aria-live="polite">
+          <section
+            className="landing-jobs-list"
+            // Not a live region — same reason as the compressor queue: a list
+            // that changes on a timer is not an announcement, it is a wall of
+            // speech a screen reader user cannot interrupt.
+          >
             {visibleJobs.map(job => (
               <LandingJobCard
                 key={job.id}

@@ -603,7 +603,15 @@ export default function CompressorPage() {
           </>
         )}
 
-        <section className="video-list" aria-live="polite">
+        {/* Not a live region.
+
+            A list of jobs that updates several times a second announced its
+            entire contents on every progress tick — a screen reader read the
+            queue aloud, continuously, for as long as an encode ran, and the
+            user could not interrupt it to do anything else. Progress belongs to
+            each row's own progressbar, which announces a value when asked
+            rather than shouting it. */}
+        <section className="video-list">
           {state.jobs.length === 0 ? (
             <div className="empty-state">
               <strong>{t('queueEmpty')}</strong>
