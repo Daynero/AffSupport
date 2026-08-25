@@ -45,6 +45,7 @@ const UNVERIFIED_RISKS = [
 ];
 
 const checks = [];
+/** @type {import('node:child_process').ChildProcess | null} */
 let host = null;
 let api = null;
 
@@ -117,6 +118,16 @@ async function pair() {
   if (!location) throw new Error('pairing redirect is missing');
   const token = new URL(location, ORIGIN).hash.replace('#agentToken=', '');
   if (!/^[a-f0-9]{64}$/u.test(token)) throw new Error('pairing token is malformed');
+  /**
+   * An authenticated call, returning the parsed body.
+   *
+   * `raw` is this helper's own option, not a fetch one: it returns the
+   * Response rather than the parsed body, for endpoints that answer with bytes.
+   *
+   * @param {string} route
+   * @param {RequestInit & { raw?: boolean }} [init]
+   * @returns {Promise<any>}
+   */
   const request = async (route, init = {}) => {
     const { raw = false, ...rest } = init;
     const result = await fetch(`${ORIGIN}${route}`, {
@@ -129,7 +140,7 @@ async function pair() {
       if (!result.ok) throw new Error(`${route}: ${result.status}`);
       return result;
     }
-    const body = await result.json();
+    const body = /** @type {Record<string, unknown>} */ (await result.json());
     if (!result.ok) throw new Error(`${route}: ${body.error ?? result.status}`);
     return body;
   };
@@ -184,11 +195,26 @@ async function waitFor(probe, { timeoutMs = 120_000, everyMs = 1000 } = {}) {
   }
 }
 
+/**
+ * The public health document.
+ *
+ * @typedef {{
+ *   ready?: boolean,
+ *   version?: string,
+ *   buildId?: string,
+ *   apiVersion?: number,
+ *   channel?: string,
+ *   capabilities?: string[],
+ *   entitlement?: { enforced?: boolean, entitled?: boolean, reason?: string }
+ * }} AgentHealth
+ */
+
+/** @returns {Promise<AgentHealth>} */
 async function agentHealth({ retries = 60, delayMs = 1000 } = {}) {
   for (let attempt = 0; attempt < retries; attempt += 1) {
     try {
       const response = await fetch(`${ORIGIN}/health`);
-      if (response.ok) return await response.json();
+      if (response.ok) return /** @type {AgentHealth} */ (await response.json());
     } catch {
       // The host is still starting the agent; retry until the budget runs out.
     }
@@ -556,7 +582,7 @@ try {
     // Windows for a while, because the host was not passing AGENT_LAUNCHER_PID
     // and Windows never reparents an orphan. Killing only the host is what makes
     // this check the thing its name claims.
-    execFileSync('taskkill', ['/PID', String(host.pid), '/F'], { shell: false });
+    execFileSync('taskkill', ['/PID', String(host?.pid ?? 0), '/F'], { shell: false });
     for (let attempt = 0; attempt < 30; attempt += 1) {
       try {
         await fetch(`${ORIGIN}/health`);
@@ -595,9 +621,16 @@ try {
     record('silent-uninstall', 'skipped', '--keep was passed');
   }
 } finally {
-  if (host) {
+  // Annotated rather than inferred: every path that assigns `host` also has a
+  // path that clears it, so control-flow analysis narrows it to `null` by the
+  // time this cleanup runs — which is true of the analysis and not of the
+  // process, which may well still be alive.
+  const runningHost = /** @type {import('node:child_process').ChildProcess | null} */ (host);
+  if (runningHost) {
     try {
-      execFileSync('taskkill', ['/PID', String(host.pid), '/T', '/F'], { shell: false });
+      // Read through a local binding: the assignment that clears `host` happens
+      // in another branch, so narrowing does not survive to here.
+      execFileSync('taskkill', ['/PID', String(runningHost.pid), '/T', '/F'], { shell: false });
     } catch {
       // Already gone.
     }

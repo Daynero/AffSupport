@@ -20,7 +20,8 @@ import { parseEnvFile } from './verify-beta-env.mjs';
 const docker = spawnSync('docker', ['info'], { shell: false, stdio: 'ignore' });
 if (docker.status !== 0) {
   const colima = spawnSync('colima', ['start'], { shell: false, stdio: 'inherit' });
-  if (colima.error?.code === 'ENOENT') {
+  // A spawn failure carries an errno; `Error` does not declare one.
+  if (/** @type {NodeJS.ErrnoException | undefined} */ (colima.error)?.code === 'ENOENT') {
     // The doctor below reports the platform-neutral prerequisite and remedy.
   }
 }

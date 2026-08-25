@@ -19,12 +19,34 @@ import { existsSync, readFileSync } from 'node:fs';
 const RECORD_PATH = 'release/beta/verification.json';
 const BETA_BRANCH = process.env.BETA_BRANCH?.trim() || 'beta';
 
+/**
+ * Reports and exits.
+ *
+ * Annotated `never` so the checker knows control does not continue past a call
+ * — without it, every value guarded by a `fail()` reads as possibly undefined
+ * further down, which is the shape most of this file's type errors took.
+ *
+ * @param {string} message
+ * @returns {never}
+ */
 function fail(message) {
   process.stderr.write(`RELEASE_BETA_UNVERIFIED: ${message}\n`);
   process.exit(1);
 }
 
-function git(args, fallback = null) {
+/**
+ * A git command, or a caller-chosen fallback when it fails.
+ *
+ * The default parameter alone makes the checker infer `null` for the fallback
+ * type, so every caller passing a string reads as an error — the annotation
+ * says what the signature always meant.
+ *
+ * @template {string | null} T
+ * @param {readonly string[]} args
+ * @param {T} [fallback]
+ * @returns {string | T}
+ */
+function git(args, fallback = /** @type {T} */ (null)) {
   try {
     return execFileSync('git', args, {
       encoding: 'utf8',

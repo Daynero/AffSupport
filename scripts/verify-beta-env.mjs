@@ -21,6 +21,16 @@ import {
 
 const PROFILE_FILE = '.env.beta';
 
+/**
+ * Reports and exits.
+ *
+ * Annotated `never` so the checker knows control does not continue past a call
+ * — without it, every value guarded by a `fail()` reads as possibly undefined
+ * further down, which is the shape most of this file's type errors took.
+ *
+ * @param {string} message
+ * @returns {never}
+ */
 function fail(message) {
   process.stderr.write(`Beta environment check failed: ${message}\n`);
   process.exit(1);
@@ -62,7 +72,19 @@ function portFree(port) {
   });
 }
 
-function git(args, fallback = null) {
+/**
+ * A git command, or a caller-chosen fallback when it fails.
+ *
+ * The default parameter alone makes the checker infer `null` for the fallback
+ * type, so every caller passing a string reads as an error — the annotation
+ * says what the signature always meant.
+ *
+ * @template {string | null} T
+ * @param {readonly string[]} args
+ * @param {T} [fallback]
+ * @returns {string | T}
+ */
+function git(args, fallback = /** @type {T} */ (null)) {
   try {
     return execFileSync('git', args, {
       encoding: 'utf8',
@@ -91,6 +113,7 @@ async function main() {
   // Process environment wins over the file, matching the precedence in
   // contracts/beta-environment-contract.md, so a one-off override is honoured
   // and — importantly — is still checked rather than bypassing the guard.
+  /** @type {Record<string, string | undefined>} */
   const profile = { ...parseEnvFile(readFileSync(PROFILE_FILE, 'utf8')) };
   for (const key of Object.keys(profile)) {
     const override = process.env[key];
@@ -122,7 +145,12 @@ async function main() {
     );
   }
 
-  const ports = [BETA_PROFILE.agentPort, BETA_PROFILE.webPort, ...BETA_LOCAL_STACK_PORTS];
+  // Filtered rather than asserted: a profile without a port configured should
+  // skip that check, not crash trying to bind `null`.
+  const ports = [BETA_PROFILE.agentPort, BETA_PROFILE.webPort, ...BETA_LOCAL_STACK_PORTS].filter(
+    /** @returns {port is number} */ port => typeof port === 'number'
+  );
+  /** @type {number[]} */
   const portsInUse = [];
   for (const port of ports) {
     if (!(await portFree(port))) portsInUse.push(port);

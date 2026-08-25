@@ -8,6 +8,16 @@ import {
 } from '../packages/shared/dist/release.js';
 import { BETA_MARKERS } from '../packages/shared/dist/environment.js';
 
+/**
+ * Reports and exits.
+ *
+ * Annotated `never` so the checker knows control does not continue past a call
+ * — without it, every value guarded by a `fail()` reads as possibly undefined
+ * further down, which is the shape most of this file's type errors took.
+ *
+ * @param {string} message
+ * @returns {never}
+ */
 function fail(message) {
   process.stderr.write(`${message}\n`);
   process.exit(1);

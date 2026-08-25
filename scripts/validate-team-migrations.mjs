@@ -59,7 +59,8 @@ try {
     try {
       await db.exec(sql);
     } catch (error) {
-      const position = Number(error?.position ?? 0);
+      // Postgres reports the character offset of a syntax error on the thrown value.
+      const position = Number(/** @type {{ position?: unknown }} */ (error)?.position ?? 0);
       const context = position > 0 ? sql.slice(Math.max(0, position - 180), position + 180) : '';
       process.stderr.write(
         `Team migration validation failed in ${file}:\n${String(error)}\n${context}\n`

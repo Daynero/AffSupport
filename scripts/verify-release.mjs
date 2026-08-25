@@ -24,6 +24,16 @@ import {
 } from '../packages/shared/dist/release.js';
 import { BETA_MARKERS, BETA_PROFILE } from '../packages/shared/dist/environment.js';
 
+/**
+ * Reports and exits.
+ *
+ * Annotated `never` so the checker knows control does not continue past a call
+ * — without it, every value guarded by a `fail()` reads as possibly undefined
+ * further down, which is the shape most of this file's type errors took.
+ *
+ * @param {string} message
+ * @returns {never}
+ */
 function fail(message) {
   process.stderr.write(`Release check failed: ${message}\n`);
   process.exit(1);
@@ -152,12 +162,22 @@ if (configuredDriveOAuthMode !== 'verified') {
   fail(`production team OAuth requires DRIVE_OAUTH_MODE=verified, got ${configuredDriveOAuthMode}`);
 }
 
-const legacyContracts = { ...AGENT_TOOL_CONTRACTS };
-delete legacyContracts.teamWorkspace;
+// Built without the key rather than deleting a required one: this stands in
+// for an agent that predates the team workspace, and `delete` on a
+// non-optional property is exactly the operation the type system objects to.
+const legacyContracts = Object.fromEntries(
+  Object.entries(AGENT_TOOL_CONTRACTS).filter(([tool]) => tool !== 'teamWorkspace')
+);
 if (toolContractCompatible('teamWorkspace', legacyContracts)) {
   fail('an agent without the teamWorkspace contract was accepted for team routes');
 }
-for (const tool of ['compressor', 'landingOptimizer', 'landingPreview', 'transcription']) {
+const LEGACY_TOOLS = /** @type {const} */ ([
+  'compressor',
+  'landingOptimizer',
+  'landingPreview',
+  'transcription'
+]);
+for (const tool of LEGACY_TOOLS) {
   if (!toolContractCompatible(tool, legacyContracts)) {
     fail(`adding the teamWorkspace contract made legacy ${tool} incompatible`);
   }

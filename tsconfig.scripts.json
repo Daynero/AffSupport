@@ -36,18 +36,5 @@
   // RATCHET — 12 scripts, 81 errors, overwhelmingly possibly-undefined and unknown-typed
   // catch bindings. Empty this list file by file (T240).
   // tests/typecheck-ratchet.test.ts fails if it grows.
-  "exclude": [
-    "scripts/beta-up.mjs",
-    "scripts/fetch-windows-inputs.mjs",
-    "scripts/real-agent-check.mjs",
-    "scripts/stage-windows-runtime.mjs",
-    "scripts/validate-team-migrations.mjs",
-    "scripts/verify-beta-env.mjs",
-    "scripts/verify-beta-promotion.mjs",
-    "scripts/verify-published-release.mjs",
-    "scripts/verify-release.mjs",
-    "scripts/verify-team-production.mjs",
-    "scripts/watch-github-run.mjs",
-    "scripts/windows-smoke.mjs"
-  ]
+  "exclude": []
 }

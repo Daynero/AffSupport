@@ -25,7 +25,10 @@ while (true) {
       })
     );
   } catch (error) {
-    const stderr = error?.stderr?.toString().trim();
+    // execFile attaches the child's output to the error it throws.
+    const stderr = /** @type {{ stderr?: { toString(): string } }} */ (error)?.stderr
+      ?.toString()
+      .trim();
     console.error(stderr || `Could not read GitHub Actions run ${runId}`);
     process.exit(2);
   }

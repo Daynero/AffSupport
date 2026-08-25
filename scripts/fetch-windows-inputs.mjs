@@ -124,8 +124,11 @@ async function stageEntry(entry, archiveFile, workDir) {
 
 if (!existsSync(manifestPath)) fail(`manifest not found: ${manifestPath}`);
 const parsed = parseInputsManifest(JSON.parse(await readFile(manifestPath, 'utf8')));
-if (!parsed.ok) fail(parsed.error);
-const manifest = parsed.value;
+// `fail` exits, but the parse result is a union and the checker follows it
+// rather than the control flow; reading the value once it is known to be
+// present says the same thing in a form it can verify.
+if (!parsed.ok) fail(parsed.error ?? 'the inputs manifest could not be parsed');
+const manifest = /** @type {NonNullable<typeof parsed.value>} */ (parsed.value);
 
 const blockers = releaseBlockers(manifest);
 // Downloadable inputs. `git` sources are cloned at their pinned commit by the

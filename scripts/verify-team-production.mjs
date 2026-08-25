@@ -5,11 +5,29 @@ import {
   parseSupabaseSecretNames
 } from './lib/team-production-readiness.mjs';
 
+/**
+ * Reports and exits.
+ *
+ * Annotated `never` so the checker knows control does not continue past a call
+ * — without it, every value guarded by a `fail()` reads as possibly undefined
+ * further down, which is the shape most of this file's type errors took.
+ *
+ * @param {string} message
+ * @returns {never}
+ */
 function fail(message) {
   process.stderr.write(`Team production readiness check failed: ${message}\n`);
   process.exit(1);
 }
 
+/**
+ * A type guard, not just a boolean: without the annotation the checker learns
+ * nothing from the call and every field read afterwards is an error on
+ * `unknown`.
+ *
+ * @param {unknown} value
+ * @returns {value is Record<string, unknown>}
+ */
 function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -58,7 +76,7 @@ try {
   fail('the deployed provider-readiness endpoint is unavailable');
 }
 
-const payload = await response.json().catch(() => null);
+const payload = /** @type {unknown} */ (await response.json().catch(() => null));
 if (!response.ok || !isRecord(payload) || payload.ok !== true || !isRecord(payload.value)) {
   fail(`the deployed provider-readiness endpoint returned HTTP ${response.status}`);
 }
