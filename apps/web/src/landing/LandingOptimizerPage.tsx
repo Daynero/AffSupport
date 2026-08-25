@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   LANDING_JOB_LIFECYCLE,
   canTransition,
@@ -6,6 +6,7 @@ import {
   type LandingEvent,
   type LandingJobStatus,
   type LandingSettings,
+  isNewerSnapshot,
   type LandingState
 } from '@video-compressor/shared';
 
@@ -60,7 +61,20 @@ export default function LandingOptimizerPage() {
   const { capabilities, connection, connectedOnce, reconnect } = useAgent();
   const multiplexed = capabilities.includes('event-stream');
   const entering = usePageEntrance();
-  const [state, setState] = useState<LandingState | null>(null);
+  const [state, setStateRaw] = useState<LandingState | null>(null);
+
+  /**
+   * The one place this page's snapshot is written.
+   *
+   * Same rule as the queue context, for the same reason: a request in flight
+   * when an event fires resolves second and would overwrite a newer snapshot
+   * with an older one. Every writer below goes through here, so "newer wins" is
+   * a property of the page rather than something each call site remembers.
+   */
+  const applyState = useCallback((next: LandingState | null) => {
+    if (!next) return;
+    setStateRaw(current => (isNewerSnapshot(next, current) ? next : current));
+  }, []);
   const [help, setHelp] = useState(false);
   const [importing, setImporting] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -88,7 +102,7 @@ export default function LandingOptimizerPage() {
     let active = true;
     request<LandingState>('/api/landing/state', 'GET')
       .then(value => {
-        if (active) setState(value);
+        if (active) applyState(value);
       })
       .catch(() => {});
     return () => {
@@ -105,7 +119,7 @@ export default function LandingOptimizerPage() {
     channel: 'landing',
     multiplexed,
     enabled: connection === 'connected',
-    onMessage: update => setState(update.state)
+    onMessage: update => applyState(update.state)
   });
 
   const addToast = (text: string, tone: ToastMessage['tone'] = 'neutral') => {
@@ -139,7 +153,7 @@ export default function LandingOptimizerPage() {
 
   const updateSettings = async (patch: Partial<LandingSettings>) => {
     try {
-      setState(await requestBody<LandingState>('/api/landing/settings', patch));
+      applyState(await requestBody<LandingState>('/api/landing/settings', patch));
     } catch (error) {
       handleError(error);
     }
@@ -162,14 +176,14 @@ export default function LandingOptimizerPage() {
       for (const payload of payloads) {
         try {
           if (payload.kind === 'zip') {
-            setState(await uploadLandingZip(payload.file));
+            applyState(await uploadLandingZip(payload.file));
             loaded += 1;
           } else if (payload.files.length) {
             await landingFolderBegin(payload.name);
             for (const item of payload.files) {
               await landingFolderFile(item.relPath, item.file);
             }
-            setState(await landingFolderFinish());
+            applyState(await landingFolderFinish());
             loaded += 1;
           }
         } catch (error) {
@@ -188,7 +202,7 @@ export default function LandingOptimizerPage() {
     if (importing) return;
     setImporting(true);
     try {
-      setState(await request<LandingState>(endpoint, 'POST'));
+      applyState(await request<LandingState>(endpoint, 'POST'));
     } catch (error) {
       handleError(error);
     } finally {
@@ -198,7 +212,7 @@ export default function LandingOptimizerPage() {
 
   const start = async (jobId: string) => {
     try {
-      setState(
+      applyState(
         await request<LandingState>(`/api/landing/jobs/${encodeURIComponent(jobId)}/start`, 'POST')
       );
       analytics.track('landing_optimization_started', { tool_identifier: 'landing-optimizer' });
@@ -209,7 +223,7 @@ export default function LandingOptimizerPage() {
 
   const startAll = async () => {
     try {
-      setState(
+      applyState(
         await requestBody<LandingState>('/api/landing/start', {
           ids: readyJobs.map(job => job.id)
         })
@@ -225,7 +239,7 @@ export default function LandingOptimizerPage() {
 
   const remove = async (jobId: string) => {
     try {
-      setState(
+      applyState(
         await request<LandingState>(`/api/landing/jobs/${encodeURIComponent(jobId)}`, 'DELETE')
       );
     } catch (error) {
@@ -241,7 +255,7 @@ export default function LandingOptimizerPage() {
   const stopAll = async () => {
     const stopping = jobs.filter(job => landingStoppable(job.status)).length;
     try {
-      setState(await request<LandingState>('/api/landing/cancel-all', 'POST'));
+      applyState(await request<LandingState>('/api/landing/cancel-all', 'POST'));
       if (stopping) addToast(t('stoppedCount', { count: stopping }));
     } catch (error) {
       handleError(error);
@@ -250,7 +264,7 @@ export default function LandingOptimizerPage() {
 
   const clearFinished = async () => {
     try {
-      setState(await request<LandingState>('/api/landing/completed', 'DELETE'));
+      applyState(await request<LandingState>('/api/landing/completed', 'DELETE'));
     } catch (error) {
       handleError(error);
     }

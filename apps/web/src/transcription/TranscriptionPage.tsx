@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type {
   TranscriptionDocument,
   TranscriptionJob,
@@ -9,7 +9,8 @@ import {
   TRANSCRIPTION_LIFECYCLE,
   TRANSLATEGEMMA_LANGUAGE_CODES,
   canTransition,
-  isSettled
+  isSettled,
+  isNewerSnapshot
 } from '@video-compressor/shared';
 import {
   request,
@@ -164,7 +165,18 @@ export default function TranscriptionPage() {
   const { connection, connectedOnce, reconnect, capabilities } = useAgent();
   const multiplexed = capabilities.includes('event-stream');
   const entering = usePageEntrance();
-  const [state, setState] = useState<TranscriptionState | null>(null);
+  const [state, setStateRaw] = useState<TranscriptionState | null>(null);
+  /**
+   * The one place this page's snapshot is written.
+   *
+   * Same rule as the queue context: a request in flight when an event fires
+   * resolves second and would otherwise overwrite a newer snapshot with an
+   * older one, showing work as running that has already finished.
+   */
+  const applyState = useCallback((next: TranscriptionState | null) => {
+    if (!next) return;
+    setStateRaw(current => (isNewerSnapshot(next, current) ? next : current));
+  }, []);
   const [help, setHelp] = useState(false);
   const [importing, setImporting] = useState(false);
   const [preview, setPreview] = useState<{ jobId: string; trigger: HTMLElement | null } | null>(
@@ -206,7 +218,7 @@ export default function TranscriptionPage() {
     let active = true;
     request<TranscriptionState>('/api/transcription/state', 'GET')
       .then(value => {
-        if (active) setState(value);
+        if (active) applyState(value);
       })
       .catch(() => {});
     return () => {
@@ -221,7 +233,7 @@ export default function TranscriptionPage() {
     channel: 'transcription',
     multiplexed,
     enabled: connection === 'connected',
-    onMessage: update => setState(update.state)
+    onMessage: update => applyState(update.state)
   });
 
   const addToast = (text: string, tone: ToastMessage['tone'] = 'neutral') => {
@@ -243,7 +255,7 @@ export default function TranscriptionPage() {
   };
 
   const applySelection = (response: TranscriptionSelectionResponse) => {
-    setState(response.state);
+    applyState(response.state);
     for (const warning of response.warnings) {
       addToast(`${warning.fileName}: ${warning.message}`, 'warning');
     }
@@ -315,7 +327,7 @@ export default function TranscriptionPage() {
 
   const updateLanguage = async (value: string) => {
     try {
-      setState(await transcriptionSettings({ language: value }));
+      applyState(await transcriptionSettings({ language: value }));
     } catch (error) {
       handleError(error);
     }
@@ -329,7 +341,7 @@ export default function TranscriptionPage() {
     let active = true;
     transcriptionSettings({ translationLanguage: language })
       .then(next => {
-        if (active) setState(next);
+        if (active) applyState(next);
       })
       .catch(() => {});
     return () => {
@@ -380,7 +392,7 @@ export default function TranscriptionPage() {
     try {
       // The preferred translation target is synced by the mount/language effect
       // above; starting a transcription must not rewrite global settings.
-      setState(await transcriptionStart(ids));
+      applyState(await transcriptionStart(ids));
     } catch (error) {
       handleError(error);
     }
@@ -401,7 +413,7 @@ export default function TranscriptionPage() {
   const confirmDownload = async () => {
     setConfirmingDownload(false);
     try {
-      setState(await transcriptionModelDownload());
+      applyState(await transcriptionModelDownload());
       // If Whisper was already installed, translation/alignment can continue
       // downloading in the background while the shared resource queue starts
       // transcription immediately.
@@ -429,7 +441,7 @@ export default function TranscriptionPage() {
 
   const cancelDownload = async () => {
     try {
-      setState(await transcriptionModelCancel());
+      applyState(await transcriptionModelCancel());
     } catch (error) {
       handleError(error);
     }
@@ -446,7 +458,7 @@ export default function TranscriptionPage() {
 
   const run = async (action: () => Promise<TranscriptionState>) => {
     try {
-      setState(await action());
+      applyState(await action());
     } catch (error) {
       handleError(error);
     }
@@ -483,7 +495,7 @@ export default function TranscriptionPage() {
       job => job.status === 'processing' || job.status === 'queued'
     ).length;
     try {
-      setState(await transcriptionCancelAll());
+      applyState(await transcriptionCancelAll());
       if (stopping) addToast(t('stoppedCount', { count: stopping }), 'neutral');
     } catch (error) {
       handleError(error);

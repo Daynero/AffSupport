@@ -86,6 +86,8 @@ export default function CompressorPage() {
   const [embeddingFormValid, setEmbeddingFormValid] = useState(true);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const toastId = useRef(0);
+  /** True while a stop-all is between request and response. */
+  const [stopInFlight, setStopInFlight] = useState(false);
   /** Live toast dismissal timers, so none of them outlives the page. */
   const toastTimers = useRef(new Set<number>());
 
@@ -216,12 +218,25 @@ export default function CompressorPage() {
    * last file finished reports honestly instead of implying it did something.
    */
   const stopAll = async () => {
-    const stopping = state.jobs.filter(stoppable).length;
+    // D8/FR-041. Guarded against a second press: stopping takes a moment, the
+    // button stays under the cursor, and a double-click used to fire two
+    // cancel-all requests and report the count twice.
+    if (stopInFlight) return;
+    const before = state.jobs.filter(stoppable).length;
+    setStopInFlight(true);
     try {
-      setState(await request<QueueState>('/api/queue/cancel-all', 'POST'));
-      if (stopping) addToast(t('stoppedCount', { count: stopping }), 'neutral');
+      const next = await request<QueueState>('/api/queue/cancel-all', 'POST');
+      setState(next);
+      // Counted from what actually changed, not from what was stoppable when
+      // the button was pressed: a job that finished in between was never
+      // stopped, and saying it was is a small lie the user can see.
+      const after = next.jobs.filter(stoppable).length;
+      const stopped = Math.max(0, before - after);
+      if (stopped) addToast(t('stoppedCount', { count: stopped }), 'neutral');
     } catch (error) {
       handleError(error);
+    } finally {
+      setStopInFlight(false);
     }
   };
 
@@ -539,7 +554,7 @@ export default function CompressorPage() {
                 {anythingStoppable && (
                   <Button
                     variant="danger"
-                    disabled={!connected}
+                    disabled={!connected || stopInFlight}
                     title={t('stopAllHint')}
                     onClick={() => void stopAll()}
                   >

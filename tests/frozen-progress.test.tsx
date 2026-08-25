@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { JobRow } from '../apps/web/src/components/JobRow';
 import { makeJob } from './helpers.js';
 import type { CompressionJob } from '@video-compressor/shared';

@@ -220,7 +220,17 @@ export function AgentProvider({ children }: { children: ReactNode }) {
    * it would make a manual refresh appear to do nothing.
    */
   const applyState = useCallback(
-    (next: QueueState, options: { freshConnect?: boolean; instance?: string | null } = {}) => {
+    (
+      next: SetStateAction<QueueState>,
+      options: { freshConnect?: boolean; instance?: string | null } = {}
+    ) => {
+      // An updater function is a local edit — the caller is deriving the next
+      // state from the one already shown, so there is no race to arbitrate and
+      // nothing to compare against.
+      if (typeof next === 'function') {
+        setState(next);
+        return;
+      }
       const instanceChanged =
         options.instance !== undefined && options.instance !== knownInstance.current;
       if (options.freshConnect && instanceChanged) {
@@ -339,7 +349,9 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       value={{
         connection,
         state,
-        setState,
+        // Every consumer writes through the guard, so "newer wins" cannot be
+        // opted out of by a caller that does not know it exists.
+        setState: applyState,
         connectedOnce,
         agentVersion,
         agentBuildId,

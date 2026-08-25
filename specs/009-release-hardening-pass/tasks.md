@@ -286,13 +286,13 @@ These four close holes confirmed by **probing a running local app**, not inferre
 - [X] T133 [US4] Add a monotonic `revision` to `QueueState`, `TranscriptionState` and `LandingState` in `packages/shared/src/types.ts` with the comparison helper (data-model §3)
 - [X] T134 [US4] Increment the revision by wrapping the injected notify callback once in each of `apps/agent/src/queue/queue.ts`, `apps/agent/src/queue/transcription-queue.ts` and `apps/agent/src/landing/optimizer.ts` — not at the thirty-plus call sites
 - [X] T135 [US4] Apply the newer-wins guard in one place in `apps/web/src/AgentContext.tsx`, with a documented bypass for a fresh connect keyed on the reported instance identity
-- [ ] T136 [P] [US4] Apply the same guard to the local state writers in `apps/web/src/transcription/TranscriptionPage.tsx` and `apps/web/src/landing/LandingOptimizerPage.tsx`
+- [X] T136 [P] [US4] Apply the same guard to the local state writers in `apps/web/src/transcription/TranscriptionPage.tsx` and `apps/web/src/landing/LandingOptimizerPage.tsx`
 - [ ] T137 [US4] Add a handshake route to `apps/agent/src/server/app.ts` serving a minimal document that posts the token to a server-chosen target origin, never a wildcard and never the requesting origin
 - [ ] T138 [US4] Implement the in-page handshake in `apps/web/src/api/pairing-token.ts` with nonce, origin and source verification, and a timeout fallback to the existing navigation
 - [ ] T139 [US4] Move the automatic pairing budget from per-tab to per-browser storage in `apps/web/src/api/pairing-token.ts` and add a claim election over the existing broadcast channel, so three tabs perform one handshake (D4)
 - [ ] T140 [US4] Replace the navigation call in `apps/web/src/AgentContext.tsx` with the in-page re-pair so unsaved work survives (FR-038)
 - [ ] T141 [P] [US4] Replace the hardcoded placeholder progress in `apps/web/src/team/library/ProcessLibraryDialog.tsx` with a real measurement (D7, FR-040)
-- [ ] T142 [P] [US4] Add an in-flight disabled state and accurate post-action counts to the stop paths in `apps/web/src/App.tsx` and `apps/web/src/components/JobRow.tsx` (D8, FR-041)
+- [X] T142 [P] [US4] Add an in-flight disabled state and accurate post-action counts to the stop paths in `apps/web/src/App.tsx` and `apps/web/src/components/JobRow.tsx` (D8, FR-041)
 - [X] T143 [P] [US4] Clear the toast timers on unmount in `apps/web/src/App.tsx`, `apps/web/src/transcription/TranscriptionPage.tsx` and `apps/web/src/landing/LandingOptimizerPage.tsx` (D12)
 
 **Checkpoint**: Every tool page behaves identically under interruption, the interface never moves backwards, and re-pairing no longer destroys the page.
