@@ -843,3 +843,64 @@ describe('stopping work from the interface', () => {
     expect(refused.json()).toEqual({ error: 'TRANSITION_NOT_ALLOWED' });
   });
 });
+
+describe('request budgets', () => {
+  /**
+   * The local app is only reachable from this machine, so what these bounds
+   * protect against is not a distributed attack — it is a runaway loop in a tab
+   * and a script on a page that has found the port, both of which turn into a
+   * warm laptop and a busy disk if the server answers every time.
+   */
+
+  it('keeps answering an ordinary burst', async () => {
+    const app = await makeServer();
+    // A page can legitimately be busy: several tools polling, a queue updating,
+    // a user clicking. A bound that fires here would be a bug of its own.
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/health',
+        headers: { 'x-session-token': TOKEN }
+      });
+      expect(response.statusCode).toBe(200);
+    }
+  });
+
+  it('stops answering a token that keeps being wrong', async () => {
+    const app = await makeServer();
+    let refused = 0;
+    let cooled = 0;
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/health',
+        headers: { 'x-session-token': 'f'.repeat(64) }
+      });
+      if (response.statusCode === 401) refused += 1;
+      if (response.statusCode === 429) cooled += 1;
+    }
+    // A handful of wrong tokens is ordinary — the local app restarted and
+    // minted a new one. Sixty in a row is something enumerating.
+    expect(refused).toBeGreaterThan(0);
+    expect(cooled).toBeGreaterThan(0);
+  });
+
+  it('lets a real token through again once it works', async () => {
+    const app = await makeServer();
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await app.inject({
+        method: 'GET',
+        url: '/api/health',
+        headers: { 'x-session-token': 'f'.repeat(64) }
+      });
+    }
+    // The ordinary case: a tab that re-pairs must not spend the rest of the
+    // minute in a cooldown it earned before it had the new token.
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/health',
+      headers: { 'x-session-token': TOKEN }
+    });
+    expect(response.statusCode).toBe(200);
+  });
+});

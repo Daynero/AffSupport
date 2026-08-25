@@ -87,6 +87,67 @@ const ENTITLEMENT_EXEMPT_ROUTES = new Set(['/api/health', '/api/diagnostics', '/
  * module-level state — so tests can assemble a real server around fake or
  * minimal deps and drive it with `app.inject()`.
  */
+
+/**
+ * A small fixed-window counter, per key.
+ *
+ * Not a token bucket and not a library: what is being bounded is a loopback
+ * server only this user's browser can reach, so the job is to turn a runaway
+ * loop or a hostile page's script into a refusal rather than a warm laptop —
+ * not to survive a distributed attack. A fixed window is the cheapest shape
+ * that does that and the easiest to reason about when it fires.
+ */
+class FixedWindowBudget {
+  #hits = new Map<string, { since: number; count: number }>();
+
+  constructor(
+    private readonly limit: number,
+    private readonly windowMs: number,
+    private readonly now: () => number = () => Date.now()
+  ) {}
+
+  /** True when this call is within budget; false when it should be refused. */
+  take(key: string): boolean {
+    const at = this.now();
+    const entry = this.#hits.get(key);
+    if (!entry || at - entry.since >= this.windowMs) {
+      this.#hits.set(key, { since: at, count: 1 });
+      // Swept here rather than on a timer: a timer would keep the process alive
+      // for bookkeeping, and this map only grows while requests are arriving.
+      if (this.#hits.size > 512) {
+        for (const [candidate, value] of this.#hits) {
+          if (at - value.since >= this.windowMs) this.#hits.delete(candidate);
+        }
+      }
+      return true;
+    }
+    entry.count += 1;
+    return entry.count <= this.limit;
+  }
+
+  /** Forgets a key, so a success can clear a failure streak. */
+  clear(key: string): void {
+    this.#hits.delete(key);
+  }
+}
+
+/**
+ * Per-route budget. Generous, because the honest client is a page that can
+ * legitimately be busy and the dishonest one is a loop.
+ */
+const ROUTE_BUDGET_LIMIT = 600;
+const ROUTE_BUDGET_WINDOW_MS = 60_000;
+
+/**
+ * The cooldown after repeated authentication failures.
+ *
+ * A wrong token is ordinary — the local app restarted and minted a new one — so
+ * a handful of attempts stays free. Twenty in a minute is not a stale token; it
+ * is something enumerating, and the answer is to stop answering.
+ */
+const AUTH_FAILURE_LIMIT = 20;
+const AUTH_FAILURE_WINDOW_MS = 60_000;
+
 export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   const {
     token,
@@ -205,6 +266,8 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     }
     return payload;
   });
+  const routeBudget = new FixedWindowBudget(ROUTE_BUDGET_LIMIT, ROUTE_BUDGET_WINDOW_MS);
+  const authFailures = new FixedWindowBudget(AUTH_FAILURE_LIMIT, AUTH_FAILURE_WINDOW_MS);
   app.addHook('preHandler', async (request, reply) => {
     const route = request.url.split('?')[0];
     if (route === '/native/update/drain') {
@@ -230,11 +293,26 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     // `?token=a&token=b` into an array, which reached the raw comparison as a non-string;
     // the guard rejects that before it can be compared. /native/* twelve lines above has
     // always used tokensMatch — this brings the browser token to the same standard.
+    // Refused before the token is looked at: something that has failed twenty
+    // times in a minute is not a stale token, and answering it at all is what
+    // makes the attempt worth repeating.
+    const caller = request.ip || 'local';
+    if (!authFailures.take(`${caller}:probe`)) {
+      return reply.code(429).send({ error: 'TOO_MANY_ATTEMPTS' });
+    }
+    if (!routeBudget.take(`${caller}:${route}`)) {
+      return reply.code(429).send({ error: 'RATE_LIMITED' });
+    }
     const supplied =
       request.headers['x-session-token'] ?? (request.query as { token?: unknown }).token;
     if (typeof supplied !== 'string' || !tokensMatch(token, supplied)) {
+      authFailures.take(`${caller}:probe`);
       return reply.code(401).send({ error: 'Invalid session token.' });
     }
+    // A success clears the streak. The ordinary cause of a failure here is a
+    // restarted local app, and the tab that re-pairs must not spend the rest of
+    // the minute in a cooldown it earned before it had the new token.
+    authFailures.clear(`${caller}:probe`);
     if (
       !ENTITLEMENT_EXEMPT_ROUTES.has(route) &&
       entitlementGate.enforced &&

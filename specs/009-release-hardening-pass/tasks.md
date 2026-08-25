@@ -360,9 +360,9 @@ These four close holes confirmed by **probing a running local app**, not inferre
 
 ### Implementation — the remainder
 
-- [ ] T181 [P] [US5] Add per-route rate budgets and the auth-failure cooldown to `apps/agent/src/server/app.ts`, with a constant key and a comment stating why a per-address limiter would be theatre (C7)
+- [X] T181 [P] [US5] Add per-route rate budgets and the auth-failure cooldown to `apps/agent/src/server/app.ts`, with a constant key and a comment stating why a per-address limiter would be theatre (C7)
 - [ ] T182 [P] [US5] Add the folder-upload session budget, echoed session identifier, path depth bounds and exclusive-create write to `apps/agent/src/landing/routes.ts` (C8)
-- [ ] T183 [P] [US5] Add the subscriber cap, oldest-first eviction with a terminal frame, heartbeat and stalled-writer drop to `apps/agent/src/server/sse.ts` (C7)
+- [X] T183 [P] [US5] Add the subscriber cap, oldest-first eviction with a terminal frame, heartbeat and stalled-writer drop to `apps/agent/src/server/sse.ts` (C7)
 - [X] T184 [P] [US5] Replace string interpolation with argument passing in the system search in `apps/agent/src/files/dropped-source.ts`, and make the picker script safe by construction rather than by accident in `apps/agent/src/files/picker.ts` (C14, FR-032a)
 - [ ] T185 [P] [US5] Map failures to a fixed code list in `apps/agent/src/server/app.ts`, `apps/agent/src/landing/routes.ts` and `apps/agent/src/landing-preview/routes.ts`, and add a guard test so relaying an underlying message cannot regress (C17, FR-029a)
 - [X] T186 [P] [US5] Verify a candidate pairing token against the local app before persisting or broadcasting it in `apps/web/src/api/pairing-token.ts` (C12, FR-032)
