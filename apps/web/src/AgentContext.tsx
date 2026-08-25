@@ -28,14 +28,18 @@ import {
   markAgentSeen,
   claimAutomaticPairing,
   connect,
-  consumePairingToken,
   toolEventUrl,
   onPairingToken,
   pairWithAgent,
   releaseAutomaticPairing
 } from './api/client';
 import { ensureAgentEntitlement } from './api/entitlement';
-import { handshakeForToken, pairingToken, storePairingToken } from './api/pairing-token';
+import {
+  handshakeForToken,
+  pairingToken,
+  storePairingToken,
+  verifyPairingToken
+} from './api/pairing-token';
 import { streamClient } from './api/stream-client';
 import { useAgentEventStream } from './api/useAgentEventStream';
 import { failureState, type ConnectionState, versionState } from './connection';
@@ -313,8 +317,13 @@ export function AgentProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     mounted.current = true;
-    consumePairingToken();
-    void establish('checking');
+    // A token from the fragment was taken out of the URL at start-up but not
+    // believed. Prove it against the local app first: adopting an unverified
+    // one replaces the working token in every open tab, and the session then
+    // stops working for reasons nothing on screen explains.
+    void verifyPairingToken(agentUrl).finally(() => {
+      if (mounted.current) void establish('checking');
+    });
     const removePairingListener = onPairingToken(() => void establish('connecting'));
     return () => {
       mounted.current = false;

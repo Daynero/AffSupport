@@ -118,14 +118,64 @@ export function onPairingToken(listener: () => void) {
  * exactly when it must run, ahead of any routing decision that would rewrite
  * the URL.
  */
-export function consumePairingToken() {
+/**
+ * Takes a token out of the URL fragment — and takes the fragment out of the URL
+ * whatever happens next.
+ *
+ * The value arrives from wherever the browser was last sent, which includes a
+ * link somebody else wrote. A planted token is not immediately dangerous (the
+ * local app rejects it), but persisting and broadcasting one replaces the real
+ * token in every open tab, and the user's session simply stops working for
+ * reasons nothing on screen explains.
+ *
+ * So it is held, not adopted: `verifyPairingToken` asks the local app whether
+ * the token is real before anything is written or broadcast. The URL is cleaned
+ * first and unconditionally — a token in the address bar ends up in history, in
+ * a screenshot, and in whatever the user pastes next.
+ */
+export function consumePairingToken(): boolean {
   const value = new URLSearchParams(location.hash.slice(1)).get('agentToken');
+  if (value) history.replaceState(null, '', location.pathname + location.search);
   if (!value || !TOKEN_PATTERN.test(value)) return false;
-  adopt(value);
-  localStorage.removeItem(INSTALL_STARTED_KEY);
-  channel?.postMessage(value);
-  history.replaceState(null, '', location.pathname + location.search);
+  pendingToken = value;
   return true;
+}
+
+/** A token seen in the URL and not yet proven to belong to the local app. */
+let pendingToken = '';
+
+/**
+ * Adopts the held token only if the local app answers for it.
+ *
+ * A 401 means someone else minted it — or nobody did. Either way it is
+ * discarded rather than stored, and the browser keeps whatever working token it
+ * already had.
+ */
+export async function verifyPairingToken(agentOrigin: string): Promise<boolean> {
+  const candidate = pendingToken;
+  pendingToken = '';
+  if (!TOKEN_PATTERN.test(candidate)) return false;
+  try {
+    const response = await fetch(`${agentOrigin}/api/health`, {
+      headers: { 'x-session-token': candidate },
+      cache: 'no-store'
+    });
+    if (!response.ok) return false;
+  } catch {
+    // Unreachable is not the same as invalid, but it is not proof either, and
+    // this path exists precisely to stop unproven tokens being written.
+    return false;
+  }
+  const changed = adopt(candidate);
+  localStorage.removeItem(INSTALL_STARTED_KEY);
+  channel?.postMessage(candidate);
+  if (changed) for (const listener of [...listeners]) listener();
+  return true;
+}
+
+/** Whether a token is waiting to be proven. */
+export function hasPendingPairingToken(): boolean {
+  return pendingToken !== '';
 }
 
 /**
