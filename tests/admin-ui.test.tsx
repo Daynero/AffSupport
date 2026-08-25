@@ -12,6 +12,7 @@ vi.mock('../apps/web/src/lib/supabase', () => ({
 }));
 
 import { AuthContextOverride, type AuthContextValue } from '../apps/web/src/auth/AuthContext';
+import { adminAuthStub } from './support/auth-stub.js';
 import AdminPage, { marketingCsv, parseAdminOverview } from '../apps/web/src/pages/AdminPage';
 
 const user = {
@@ -40,20 +41,7 @@ const profile: Profile = {
 };
 
 function context(isAdmin: boolean): AuthContextValue {
-  return {
-    status: 'authenticated',
-    user,
-    session,
-    profile,
-    isAdmin,
-    error: null,
-    loading: false,
-    signInWithGoogle: vi.fn(),
-    completeOAuthCallback: vi.fn(),
-    signOut: vi.fn(),
-    updateProfile: vi.fn(),
-    refreshProfile: vi.fn()
-  };
+  return adminAuthStub({ user, session, profile, isAdmin });
 }
 
 const overview = {

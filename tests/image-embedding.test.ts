@@ -21,7 +21,13 @@ import {
 import { calculateEncodeProgress } from '../apps/agent/src/ffmpeg/encoder.js';
 import { JobQueue } from '../apps/agent/src/queue/queue.js';
 import { ImageAssetStore } from '../apps/agent/src/images/store.js';
-import { makeJob, optimalEncoding, optimalSettings } from './helpers.js';
+import {
+  makeEmbedding,
+  makeEmbeddingSettings,
+  makeJob,
+  optimalEncoding,
+  optimalSettings
+} from './helpers.js';
 import { waitFor } from './support/wait.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 
@@ -68,12 +74,12 @@ describe('final image duration configuration', () => {
       ...optimalSettings,
       outputMode: 'chosen-folder' as const,
       outputFolder: directory,
-      imageEmbedding: {
+      imageEmbedding: makeEmbeddingSettings({
         ...defaultImageEmbeddingSettings(),
         enabled: true,
         endImages: [asset('end')],
         finalDurationMode: 'random-40-50' as const
-      }
+      })
     };
     const values = [0.1, 0.9];
     const queue = new JobQueue(
@@ -96,7 +102,7 @@ describe('final image duration configuration', () => {
       second.imageEmbedding?.finalDurationSeconds
     );
     await queue.updateSettings({
-      imageEmbedding: { ...settings.imageEmbedding, fitMode: 'stretch' }
+      imageEmbedding: makeEmbeddingSettings({ ...settings.imageEmbedding, fitMode: 'stretch' })
     });
     expect(queue.state().jobs[1].imageEmbedding?.fitMode).toBe('cover');
     await waitFor(() => !queue.state().running, {
@@ -112,19 +118,19 @@ describe('final image duration configuration', () => {
       ...optimalSettings,
       outputMode: 'chosen-folder' as const,
       outputFolder: directory,
-      imageEmbedding: {
+      imageEmbedding: makeEmbeddingSettings({
         ...defaultImageEmbeddingSettings(),
         enabled: true,
         endImages: [image],
         replaceExisting: true,
         finalDurationMode: 'custom' as const,
         customFinalDurationSeconds: 60
-      }
+      })
     };
     const job = makeJob('replacement-trims', 'ready', {
       inputPath: path.join(directory, 'missing.mp4'),
       durationSeconds: 100,
-      imageEmbedding: {
+      imageEmbedding: makeEmbedding({
         startImage: null,
         endImage: image,
         finalDurationMode: 'custom',
@@ -133,7 +139,7 @@ describe('final image duration configuration', () => {
         replaceExisting: true,
         sourceTrimStartSeconds: 10,
         sourceTrimEndSeconds: 40
-      }
+      })
     });
     const queue = new JobQueue(
       { ffmpeg: true, ffprobe: true },
@@ -171,11 +177,11 @@ describe('final image duration configuration', () => {
         ...optimalSettings,
         outputMode: 'chosen-folder',
         outputFolder: directory,
-        imageEmbedding: {
+        imageEmbedding: makeEmbeddingSettings({
           ...defaultImageEmbeddingSettings(),
           enabled: true,
           startImages: images
-        }
+        })
       },
       null,
       new ImageAssetStore(path.join(directory, 'images')),
@@ -200,11 +206,11 @@ describe('final image duration configuration', () => {
       [],
       {
         ...optimalSettings,
-        imageEmbedding: {
+        imageEmbedding: makeEmbeddingSettings({
           ...defaultImageEmbeddingSettings(),
           enabled: true,
           startImages: [asset('start')]
-        }
+        })
       },
       null,
       new ImageAssetStore(path.join(directory, 'missing-images'))
@@ -220,13 +226,13 @@ describe('final image duration configuration', () => {
 
 describe('embedded output model and FFmpeg graph', () => {
   it('uses the full output duration for progress while estimating static video separately', () => {
-    const embedding: JobImageEmbedding = {
+    const embedding: JobImageEmbedding = makeEmbedding({
       startImage: asset('start'),
       endImage: asset('end'),
       finalDurationMode: 'custom',
       finalDurationSeconds: 100,
       fitMode: 'cover'
-    };
+    });
     const job = makeJob('estimate', 'ready', {
       durationSeconds: 10,
       sourceFrameRate: 25,
@@ -277,13 +283,13 @@ describe('embedded output model and FFmpeg graph', () => {
       height: 360,
       frameRate: 24,
       settings: optimalEncoding,
-      imageEmbedding: {
+      imageEmbedding: makeEmbedding({
         startImage: asset('start'),
         endImage: asset('end'),
         finalDurationMode: 'custom',
         finalDurationSeconds: 3,
         fitMode: 'cover'
-      },
+      }),
       startImagePath: startPath,
       endImagePath: endPath
     });

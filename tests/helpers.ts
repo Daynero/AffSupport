@@ -8,6 +8,7 @@ import {
   type CompressionJob,
   type EncodingSettings,
   type JobImageEmbedding,
+  type ImageEmbeddingSettings,
   type JobStatus
 } from '../packages/shared/src/types.js';
 
@@ -127,4 +128,20 @@ export function makeEmbedding(patch: Partial<JobImageEmbedding> = {}): JobImageE
     sourceTrimEndSeconds: 0,
     ...patch
   };
+}
+
+/**
+ * A complete `ImageEmbeddingSettings`.
+ *
+ * Not the same shape as `JobImageEmbedding`, despite both living under the key
+ * `imageEmbedding`. Settings are what the user has configured and hold lists
+ * (`startImages`, `endImages`) plus an `enabled` flag; a job holds the single
+ * pair actually chosen for it. Sharing a field name is why fixtures for one
+ * kept being written where the other was expected — with these files excluded
+ * from the typecheck, nothing said so.
+ */
+export function makeEmbeddingSettings(
+  patch: Partial<ImageEmbeddingSettings> = {}
+): ImageEmbeddingSettings {
+  return { ...defaultImageEmbeddingSettings(), ...patch };
 }

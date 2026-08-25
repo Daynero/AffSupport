@@ -29,7 +29,8 @@ function manifestWith(artifacts: StableReleaseManifest['artifacts']): StableRele
       compressor: {},
       landingOptimizer: {},
       landingPreview: {},
-      transcription: {}
+      transcription: {},
+      teamWorkspace: {}
     }
   };
 }

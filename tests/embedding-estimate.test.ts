@@ -8,7 +8,7 @@ import { EstimateCache, estimateCacheKey } from '../apps/agent/src/estimate/cach
 import { EstimationWorker } from '../apps/agent/src/estimate/worker.js';
 import { outputDurationSeconds } from '../apps/agent/src/images/embedding.js';
 import { ImageAssetStore } from '../apps/agent/src/images/store.js';
-import { makeJob, optimalEncoding } from './helpers.js';
+import { makeEmbedding, makeJob, optimalEncoding } from './helpers.js';
 import { waitFor } from './support/wait.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 
@@ -37,13 +37,13 @@ describe('embedded static-section estimation', () => {
       sourceHeight: 180,
       sourceFrameRate: 24,
       sourceHasAudio: false,
-      imageEmbedding: {
+      imageEmbedding: makeEmbedding({
         startImage: null,
         endImage: asset,
         finalDurationMode: 'custom',
         finalDurationSeconds: 120,
         fitMode: 'contain'
-      }
+      })
     });
     const progressTotals: number[] = [];
     const worker = new EstimationWorker(
@@ -76,13 +76,13 @@ describe('embedded static-section estimation', () => {
 
   it('invalidates the cache key for image, fit and frozen-duration changes', () => {
     const asset = imageAsset();
-    const embedding = {
+    const embedding = makeEmbedding({
       startImage: null,
       endImage: asset,
       finalDurationMode: 'custom' as const,
       finalDurationSeconds: 60,
       fitMode: 'cover' as const
-    };
+    });
     const base = estimateCacheKey('/video', 10, 20, optimalEncoding, embedding);
     expect(
       estimateCacheKey('/video', 10, 20, optimalEncoding, {
@@ -119,7 +119,7 @@ describe('embedded static-section estimation', () => {
       sourceHeight: 180,
       sourceFrameRate: 24,
       sourceHasAudio: false,
-      imageEmbedding: {
+      imageEmbedding: makeEmbedding({
         startImage: null,
         endImage: asset,
         finalDurationMode: 'custom',
@@ -128,7 +128,7 @@ describe('embedded static-section estimation', () => {
         replaceExisting: true,
         sourceTrimStartSeconds: 0,
         sourceTrimEndSeconds: 0
-      }
+      })
     });
     const detect = vi.fn(async () => ({ startSeconds: 0, endSeconds: 0.75 }));
     const worker = new EstimationWorker(

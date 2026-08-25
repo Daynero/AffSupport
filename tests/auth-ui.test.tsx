@@ -35,7 +35,8 @@ import {
 import { AgentContextOverride, type AgentContextValue } from '../apps/web/src/AgentContext';
 import AccountPage from '../apps/web/src/pages/AccountPage';
 import type { Profile } from '../apps/web/src/lib/database.types';
-import { emptyQueueState } from './web-auth-helpers';
+import { adminAuthStub } from './support/auth-stub.js';
+import { agentContextStub } from './support/agent-stub.js';
 
 const user = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -65,32 +66,15 @@ const profile: Profile = {
 };
 
 function authValue(patch: Partial<AuthContextValue> = {}): AuthContextValue {
-  return {
+  return adminAuthStub({
     status: 'unauthenticated',
-    user: null,
-    session: null,
-    profile: null,
     isAdmin: false,
-    error: null,
-    loading: false,
-    signInWithGoogle: vi.fn().mockResolvedValue(undefined),
-    completeOAuthCallback: vi.fn().mockResolvedValue(undefined),
-    signOut: vi.fn().mockResolvedValue(undefined),
     updateProfile: vi.fn().mockResolvedValue(profile),
-    refreshProfile: vi.fn().mockResolvedValue(undefined),
     ...patch
-  };
+  });
 }
 
-const agentValue: AgentContextValue = {
-  connection: 'connected',
-  state: emptyQueueState,
-  setState: vi.fn(),
-  connectedOnce: true,
-  agentVersion: '0.4.0',
-  capabilities: ['landing'],
-  reconnect: vi.fn()
-};
+const agentValue: AgentContextValue = agentContextStub({ capabilities: ['landing'] });
 
 beforeEach(() => {
   localStorage.clear();

@@ -22,7 +22,7 @@ import { SettingsPanel } from '../apps/web/src/components/SettingsPanel';
 import { JobRow } from '../apps/web/src/components/JobRow';
 import { translate, type Language } from '../apps/web/src/i18n';
 import type { Translate } from '../apps/web/src/components/ui';
-import { makeJob, optimalSettings } from './helpers.js';
+import { makeEmbedding, makeEmbeddingSettings, makeJob, optimalSettings } from './helpers.js';
 import { mergeSettingsPatches } from '../apps/web/src/settings-patch';
 
 const t =
@@ -85,11 +85,11 @@ describe('image embedding settings UI', () => {
       <SettingsPanel
         settings={{
           ...optimalSettings,
-          imageEmbedding: {
+          imageEmbedding: makeEmbeddingSettings({
             ...defaultImageEmbeddingSettings(),
             startImages: [asset('opening.png')],
             endImages: [asset('ending.webp', 'asset-2')]
-          }
+          })
         }}
         disabled={false}
         updateSettings={updateSettings}
@@ -124,11 +124,11 @@ describe('image embedding settings UI', () => {
       <SettingsPanel
         settings={{
           ...optimalSettings,
-          imageEmbedding: {
+          imageEmbedding: makeEmbeddingSettings({
             ...defaultImageEmbeddingSettings(),
             enabled: true,
             startImages: [asset('opening.png')]
-          }
+          })
         }}
         disabled={false}
         updateSettings={updateSettings}
@@ -263,12 +263,12 @@ describe('image embedding settings UI', () => {
   it('preserves selected images and settings when the language changes', async () => {
     const settings = {
       ...optimalSettings,
-      imageEmbedding: {
+      imageEmbedding: makeEmbeddingSettings({
         ...defaultImageEmbeddingSettings(),
         enabled: true,
         startImages: [asset('opening.png')],
         fitMode: 'contain' as const
-      }
+      })
     };
     const view = render(
       <SettingsPanel
@@ -300,7 +300,7 @@ describe('image embedding settings UI', () => {
     const job = makeJob('embedded-card', 'queued', {
       durationSeconds: 10,
       sourceFrameRate: 30,
-      imageEmbedding: {
+      imageEmbedding: makeEmbedding({
         startImage: asset('opening.png'),
         endImage: asset('ending.webp', 'asset-2'),
         finalDurationMode: 'random-40-50',
@@ -309,7 +309,7 @@ describe('image embedding settings UI', () => {
         replaceExisting: false,
         sourceTrimStartSeconds: 0,
         sourceTrimEndSeconds: 0
-      }
+      })
     });
     render(
       <JobRow
@@ -365,12 +365,12 @@ function SettingsHarness({
 }) {
   const [settings, setSettings] = useState<AgentSettings>({
     ...optimalSettings,
-    imageEmbedding: {
+    imageEmbedding: makeEmbeddingSettings({
       ...defaultImageEmbeddingSettings(),
       enabled,
       startImages: startImage ? [startImage] : [],
       endImages: endImage ? [endImage] : []
-    }
+    })
   });
   return (
     <SettingsPanel
@@ -421,10 +421,10 @@ function mergeSettings(current: AgentSettings, patch: AgentSettingsPatch): Agent
   return {
     ...current,
     ...patch,
-    imageEmbedding: {
+    imageEmbedding: makeEmbeddingSettings({
       ...current.imageEmbedding,
       ...patch.imageEmbedding
-    }
+    })
   };
 }
 
