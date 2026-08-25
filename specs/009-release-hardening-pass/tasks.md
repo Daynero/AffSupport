@@ -318,7 +318,7 @@ These four close holes confirmed by **probing a running local app**, not inferre
 - [ ] T148 [P] [US5] Create `tests/mac-signing-chain.test.ts` verifying the signing, hardened-runtime and stapling chain against a self-signed identity in a throwaway keychain (C1, SC-010)
 - [ ] T149 [P] [US5] Create `tests/release-manifest-pinning.test.ts` asserting an artifact on an unexpected host or with a malformed hash is rejected (C11)
 - [x] T150 [P] [US5] Create `tests/pairing-verify-before-adopt.test.ts` asserting a planted token is discarded without ever reaching persistent storage (C12)
-- [ ] T151 [P] [US5] Create `tests/csp-smoke.test.ts` driving a browser through pair → compress → open a preview → sign in and asserting zero policy violations (C2)
+- [X] T151 [P] [US5] Create `tests/csp-smoke.test.ts` driving a browser through pair → compress → open a preview → sign in and asserting zero policy violations (C2)
 - [ ] T152 [P] [US5] Create `tests/transfer-grant-tickets.test.ts` asserting forged, replayed, expired and wrong-team tickets are all refused on the unauthenticated backend range paths (C9)
 - [ ] T152a [US5] Create `tests/adversarial-suite-size.test.ts` collecting the attempt count across `tests/agent-admission.test.ts`, `tests/path-grants.test.ts`, `tests/upload-budgets.test.ts`, `tests/hostile-filenames.test.ts` and `tests/transfer-grant-tickets.test.ts`, asserting at least 30 attempts at a 100% refusal rate — a countable assertion, not a claim in prose (SC-008)
 

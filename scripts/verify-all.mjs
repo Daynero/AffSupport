@@ -150,7 +150,18 @@ const PHASES = {
     // contend for the same fixed agent port.
     exclusive: true,
     forms: ['release'],
-    gates: () => [script('database', 'test:db', 900_000)]
+    gates: () => [
+      script('database', 'test:db', 900_000),
+      {
+        // The policy smoke test drives a real browser against the built site,
+        // so it belongs to the phase that runs after the builds rather than to
+        // the ordinary suite.
+        id: 'csp:browser',
+        command: npx,
+        args: ['vitest', 'run', 'tests/csp-smoke.test.ts', '--reporter=dot'],
+        timeoutMs: 600_000
+      }
+    ]
   }
 };
 
