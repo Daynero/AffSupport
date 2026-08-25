@@ -13,6 +13,7 @@ vi.mock('../apps/web/src/lib/supabase', () => ({
 }));
 
 import { AuthContextOverride, type AuthContextValue } from '../apps/web/src/auth/AuthContext';
+import { adminAuthStub } from './support/auth-stub.js';
 import { JobRow } from '../apps/web/src/components/JobRow';
 import { translate, type Language } from '../apps/web/src/i18n';
 import AccountPage from '../apps/web/src/pages/AccountPage';
@@ -46,21 +47,7 @@ const profile: Profile = {
 };
 
 function authValue(patch: Partial<AuthContextValue> = {}): AuthContextValue {
-  return {
-    status: 'authenticated',
-    user,
-    session,
-    profile,
-    isAdmin: false,
-    error: null,
-    loading: false,
-    signInWithGoogle: vi.fn(),
-    completeOAuthCallback: vi.fn(),
-    signOut: vi.fn(),
-    updateProfile: vi.fn(),
-    refreshProfile: vi.fn(),
-    ...patch
-  };
+  return adminAuthStub({ user, session, profile, isAdmin: false, ...patch });
 }
 
 const translator =

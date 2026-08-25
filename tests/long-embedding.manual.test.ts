@@ -20,7 +20,12 @@ import {
 } from '../apps/agent/src/ffmpeg/tools.js';
 import { ImageAssetStore } from '../apps/agent/src/images/store.js';
 import { JobQueue } from '../apps/agent/src/queue/queue.js';
-import { optimalEncoding, optimalSettings } from './helpers.js';
+import {
+  makeEmbedding,
+  makeEmbeddingSettings,
+  optimalEncoding,
+  optimalSettings
+} from './helpers.js';
 import { waitFor } from './support/wait.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 
@@ -93,11 +98,12 @@ describeRequiring(ffmpegBinaries, 'manual long static embedding verification', (
         () => {},
         {
           sourceDurationSeconds: source.duration!,
+          sourceStartSeconds: 0,
           sourceHasAudio: false,
           width: 96,
           height: 54,
           frameRate: 24,
-          imageEmbedding: {
+          imageEmbedding: makeEmbedding({
             startImage: null,
             endImage: imageAsset(),
             finalDurationMode: 'random-30-40',
@@ -106,7 +112,7 @@ describeRequiring(ffmpegBinaries, 'manual long static embedding verification', (
             replaceExisting: false,
             sourceTrimStartSeconds: 0,
             sourceTrimEndSeconds: 0
-          },
+          }),
           startImagePath: null,
           endImagePath: image
         }
@@ -183,12 +189,12 @@ describeRequiring(ffmpegBinaries, 'manual long static embedding verification', (
         ...optimalSettings,
         outputMode: 'chosen-folder',
         outputFolder,
-        imageEmbedding: {
+        imageEmbedding: makeEmbeddingSettings({
           ...defaultImageEmbeddingSettings(),
           enabled: true,
           endImages: [endImage],
           finalDurationMode: 'random-40-50'
-        }
+        })
       };
       const randomValues = [0.1, 0.9];
       const queue = new JobQueue(

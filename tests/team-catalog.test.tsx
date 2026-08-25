@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
+import { freshnessStub } from './support/catalog-stub.js';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -65,13 +66,14 @@ function result(overrides: Record<string, unknown> = {}) {
       offer: [{ value: 'Summer Sale', count: 1 }],
       category: [{ value: 'video', count: 1 }]
     },
-    catalogFreshness: { state: 'ready' as const, lastSyncedAt: '2026-08-01T12:00:00.000Z' },
+    catalogFreshness: freshnessStub({ lastSyncedAt: '2026-08-01T12:00:00.000Z' }),
     ...overrides
   };
 }
 
 function client(): TeamCatalogClient {
   return {
+    listMaterials: vi.fn().mockResolvedValue([]),
     searchCatalog: vi.fn().mockResolvedValue(result()),
     getCatalogVocabulary: vi.fn().mockResolvedValue({
       geo: ['UA', 'US'],

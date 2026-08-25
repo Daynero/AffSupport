@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { freshnessStub } from './support/catalog-stub.js';
 import type {
   CatalogMaterialItem,
   CatalogSearchResponse,
@@ -112,7 +113,7 @@ function catalogResponse(items: CatalogMaterialItem[]): CatalogSearchResponse {
     total: items.length,
     activeFilters: { category: ['landing'] },
     facets: {},
-    catalogFreshness: { state: 'ready', lastSyncedAt: null }
+    catalogFreshness: freshnessStub({ lastSyncedAt: null })
   };
 }
 

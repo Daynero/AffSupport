@@ -12,6 +12,7 @@ vi.mock('../apps/web/src/lib/supabase', () => ({
 }));
 
 import { AuthContextOverride, type AuthContextValue } from '../apps/web/src/auth/AuthContext';
+import { adminAuthStub } from './support/auth-stub.js';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { TeamSpace } from '../apps/web/src/team/TeamSpace';
 import { makeClient, makeTeam } from './team-space-fixtures';
@@ -21,20 +22,7 @@ const user = {
   email: 'outside@example.com'
 } as User;
 
-const outsideUserContext: AuthContextValue = {
-  status: 'authenticated',
-  user,
-  session: null,
-  profile: null,
-  isAdmin: false,
-  error: null,
-  loading: false,
-  signInWithGoogle: vi.fn(),
-  completeOAuthCallback: vi.fn(),
-  signOut: vi.fn(),
-  updateProfile: vi.fn(),
-  refreshProfile: vi.fn()
-};
+const outsideUserContext: AuthContextValue = adminAuthStub({ user, isAdmin: false });
 
 afterEach(() => {
   cleanup();

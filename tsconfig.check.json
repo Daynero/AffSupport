@@ -45,21 +45,14 @@
   "exclude": [
     "tests/create-space-wizard.test.tsx",
     "tests/creative-library-security.test.ts",
-    "tests/creative-library-tasks.test.tsx",
     "tests/delete-account-team.test.ts",
     "tests/drive-connect.test.ts",
     "tests/estimate-cancelled.test.ts",
     "tests/landing-drop.test.tsx",
-    "tests/loading-skeletons.test.tsx",
-    "tests/long-embedding.manual.test.ts",
-    "tests/release-manifest-signature.test.ts",
     "tests/team-bridge.test.ts",
-    "tests/team-catalog.test.tsx",
-    "tests/team-landing-previewer-interop.test.ts",
     "tests/team-landing-render-bridge.test.ts",
     "tests/team-landing-render-timeout.test.tsx",
     "tests/team-preview-sandbox.test.tsx",
-    "tests/team-workspace-gate.test.tsx",
     "tests/ui-workflow.test.tsx"
   ]
 }

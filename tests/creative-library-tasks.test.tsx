@@ -97,19 +97,6 @@ function client(): TaskSpaceClient {
       alreadyAttached: [],
       rejected: []
     }),
-    searchCatalog: vi.fn().mockResolvedValue({
-      items: [],
-      total: 0,
-      activeFilters: {},
-      facets: { geo: [], language: [], offer: [], category: [] },
-      catalogFreshness: { state: 'ready', lastSyncedAt: null }
-    }),
-    getCatalogVocabulary: vi.fn().mockResolvedValue({
-      geo: [],
-      languages: [],
-      offers: [],
-      tags: []
-    }),
     previewMaterial: vi.fn().mockResolvedValue({
       kind: 'media',
       rangeUrl: 'https://example.test/video',
@@ -131,7 +118,8 @@ function client(): TaskSpaceClient {
     listLandingRenders: vi.fn().mockResolvedValue([]),
     landingRenderImageUrl: vi.fn().mockReturnValue('https://example.test/landing.webp'),
     listMaterials: vi.fn().mockResolvedValue([]),
-    listMembers: vi.fn().mockResolvedValue([])
+    listMembers: vi.fn().mockResolvedValue([]),
+    deleteTask: vi.fn().mockResolvedValue(true as const)
   };
 }
 
@@ -507,26 +495,7 @@ describe('Creative Library task workflows', () => {
         <TaskSpace
           teamId={TEAM_ID}
           client={api}
-          createFromAsset={{
-            id: ASSET_ID,
-            teamId: TEAM_ID,
-            name: 'launch.mp4',
-            category: 'video',
-            mimeType: 'video/mp4',
-            fileExtension: 'mp4',
-            sizeBytes: 10,
-            lifecycle: 'active',
-            sourceVersion: '1',
-            stage: 'library',
-            offer: 'Summer',
-            language: 'uk',
-            type: 'Video',
-            placementState: 'ready',
-            languageDecisionSource: 'manual',
-            thumbnailState: 'ready',
-            thumbnailTimeMs: 1_000,
-            createdAt: '2026-08-14T10:00:00.000Z'
-          }}
+          createFromAsset={{ id: ASSET_ID, name: 'launch.mp4' }}
         />
       </TeamProvider>
     );
