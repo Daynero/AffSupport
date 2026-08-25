@@ -39,6 +39,7 @@ import {
 import { TeamProcessBridge } from '../apps/agent/src/team-bridge/process.js';
 import { TeamTransferClient } from '../apps/agent/src/team-bridge/transfer.js';
 import { optimalSettings } from './helpers.js';
+import { waitFor } from './support/wait.js';
 
 const TOKEN = 'test-session-token';
 const NATIVE_TOKEN = 'test-native-token';
@@ -310,17 +311,21 @@ describe('agent HTTP surface', () => {
     });
     expect(opened.statusCode).toBe(200);
 
+    // The old loop gave up quietly at its deadline and then asserted `running`
+    // was false, so a preview that never finished failed as a puzzling
+    // expectation rather than as the timeout it was.
     let state: LandingPreviewState = opened.json();
-    const deadline = Date.now() + 5_000;
-    while (state.running && Date.now() < deadline) {
-      await new Promise(resolve => setTimeout(resolve, 10));
-      const response = await app.inject({
-        url: '/api/landing-preview/state',
-        headers: { 'x-session-token': TOKEN }
-      });
-      state = response.json();
-    }
-    expect(state.running).toBe(false);
+    await waitFor(
+      async () => {
+        const response = await app.inject({
+          url: '/api/landing-preview/state',
+          headers: { 'x-session-token': TOKEN }
+        });
+        state = response.json();
+        return !state.running;
+      },
+      { timeoutMs: 5_000, describe: 'the landing preview render to finish' }
+    );
     expect(state.landings).toHaveLength(1);
     expect(state.landings[0]).toMatchObject({
       name: 'campaign',

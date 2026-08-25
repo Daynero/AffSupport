@@ -6,6 +6,7 @@ import path from 'node:path';
 import { JobQueue } from '../apps/agent/src/queue/queue.js';
 import { MediaToolUnavailableError, probeMedia } from '../apps/agent/src/ffmpeg/tools.js';
 import { makeJob, optimalSettings } from './helpers.js';
+import { waitFor } from './support/wait.js';
 
 let directory = '';
 afterEach(async () => {
@@ -105,7 +106,7 @@ describe('selected batch behavior', () => {
     await queue.add([first, second]);
     const firstId = queue.state().jobs[0].id;
     expect(await queue.start([firstId])).toBe(true);
-    await until(() => !queue.state().running);
+    await idle(queue);
     expect(queue.state().jobs.map(job => job.status)).toEqual(['completed', 'ready']);
     expect(queue.state().batch?.jobIds).toEqual([firstId]);
   }, 15_000);
@@ -135,7 +136,7 @@ describe('selected batch behavior', () => {
     await queue.add([input]);
     const id = queue.state().jobs[0].id;
     await queue.start([id]);
-    await until(() => !queue.state().running);
+    await idle(queue);
     const completed = queue.state().jobs[0];
     expect(completed).toMatchObject({
       finalWidth: 160,
@@ -158,7 +159,7 @@ describe('selected batch behavior', () => {
     const id = queue.state().jobs[0].id;
 
     expect(await queue.start([id])).toBe(true);
-    await until(() => !queue.state().running);
+    await idle(queue);
     const firstOutput = queue.state().jobs[0].outputPath;
 
     await queue.updateSettings({
@@ -169,7 +170,7 @@ describe('selected batch behavior', () => {
       crf: 24
     });
     expect(await queue.repeat(id)).toBe(true);
-    await until(() => !queue.state().running);
+    await idle(queue);
     const repeated = queue.state().jobs[0];
     expect(repeated).toMatchObject({
       status: 'completed',
@@ -181,7 +182,7 @@ describe('selected batch behavior', () => {
 
     await queue.updateSettings({ frameRate: 30 });
     expect(await queue.start([id])).toBe(true);
-    await until(() => !queue.state().running);
+    await idle(queue);
     expect(queue.state().jobs[0]).toMatchObject({
       status: 'completed',
       encoding: { mode: 'custom', frameRate: 30 },
@@ -218,7 +219,7 @@ describe('selected batch behavior', () => {
     ffprobeAvailable = false;
 
     expect(await queue.start([id])).toBe(true);
-    await until(() => !queue.state().running);
+    await idle(queue);
 
     const interrupted = queue.state().jobs[0];
     expect(interrupted.status).toBe('interrupted');
@@ -258,7 +259,7 @@ describe('selected batch behavior', () => {
     await queue.add([good]);
     const goodId = queue.state().jobs[1].id;
     await queue.start([badJob.id, goodId]);
-    await until(() => !queue.state().running);
+    await idle(queue);
     expect(queue.state().jobs[0].status).toBe('failed');
     expect(queue.state().jobs[0].startedAt).toBeTypeOf('number');
     expect(queue.state().jobs[0].finishedAt).toBeGreaterThanOrEqual(
@@ -268,7 +269,7 @@ describe('selected batch behavior', () => {
     expect(await queue.retry(badJob.id)).toBe(true);
     expect(['queued', 'processing']).toContain(queue.state().jobs[0].status);
     expect(queue.state().batch?.jobIds).toEqual([badJob.id]);
-    await until(() => !queue.state().running);
+    await idle(queue);
   }, 15_000);
 
   it('cancels the active FFmpeg job without completing it', async () => {
@@ -279,12 +280,13 @@ describe('selected batch behavior', () => {
     await queue.add([input]);
     const id = queue.state().jobs[0].id;
     await queue.start([id]);
-    await until(
+    await waitFor(
       () =>
-        queue.state().jobs[0].status === 'processing' && queue.state().jobs[0].startedAt !== null
+        queue.state().jobs[0].status === 'processing' && queue.state().jobs[0].startedAt !== null,
+      { timeoutMs: 12_000, describe: 'the job to start and record when it did' }
     );
     expect(await queue.cancel(id)).toBe(true);
-    await until(() => !queue.state().running);
+    await idle(queue);
     expect(queue.state().jobs[0]).toMatchObject({ status: 'cancelled', finalSize: null });
     expect(queue.state().jobs[0].finishedAt).toBeGreaterThanOrEqual(
       queue.state().jobs[0].startedAt!
@@ -312,7 +314,7 @@ describe('stranded queue recovery', () => {
     // Nothing is in flight, so this is the shape that used to grey out the
     // whole compressor until the agent was restarted.
     expect(queue.state().running).toBe(true);
-    await until(() => !queue.state().running);
+    await idle(queue);
     expect(queue.state().jobs[0].status).toBe('failed');
   });
 
@@ -340,7 +342,7 @@ describe('stranded queue recovery', () => {
     expect(queue.remove(job!.id)).toBe(false);
 
     expect(await queue.discardTeamJob(job!.id)).toBe(true);
-    await until(() => !queue.state().running);
+    await idle(queue);
     expect(queue.teamJob('team:op-1')).toBeNull();
   }, 20_000);
 });
@@ -372,10 +374,15 @@ function makeVideo(file: string, duration: number, size: string, rate: number) {
   });
 }
 
-async function until(check: () => boolean) {
-  const end = Date.now() + 12_000;
-  while (!check()) {
-    if (Date.now() > end) throw new Error('Timed out');
-    await new Promise(resolve => setTimeout(resolve, 25));
-  }
+/**
+ * The queue has stopped working: nothing running, nothing left to pick up.
+ *
+ * Twelve seconds because these tests drive a real ffmpeg, and the machine that
+ * runs them is often already busy encoding for another test file.
+ */
+function idle(queue: JobQueue) {
+  return waitFor(() => !queue.state().running, {
+    timeoutMs: 12_000,
+    describe: 'the queue to go idle'
+  });
 }

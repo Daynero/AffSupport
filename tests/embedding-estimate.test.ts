@@ -9,6 +9,7 @@ import { EstimationWorker } from '../apps/agent/src/estimate/worker.js';
 import { outputDurationSeconds } from '../apps/agent/src/images/embedding.js';
 import { ImageAssetStore } from '../apps/agent/src/images/store.js';
 import { makeJob, optimalEncoding } from './helpers.js';
+import { waitFor } from './support/wait.js';
 
 let directory = '';
 afterEach(async () => {
@@ -55,7 +56,10 @@ describe('embedded static-section estimation', () => {
       new ImageAssetStore(imageRoot)
     );
     await worker.init();
-    await until(() => ['estimated', 'unavailable'].includes(job.estimateStatus));
+    await waitFor(() => ['estimated', 'unavailable'].includes(job.estimateStatus), {
+      timeoutMs: 15_000,
+      describe: 'the estimate to settle'
+    });
     await worker.shutdown();
     expect(job.estimateStatus, job.estimateError ?? '').toBe('estimated');
     expect(job.estimateBreakdown?.staticVideoBytesPerSecond).toBeGreaterThan(0);
@@ -136,7 +140,10 @@ describe('embedded static-section estimation', () => {
     );
 
     await worker.init();
-    await until(() => ['estimated', 'unavailable'].includes(job.estimateStatus));
+    await waitFor(() => ['estimated', 'unavailable'].includes(job.estimateStatus), {
+      timeoutMs: 15_000,
+      describe: 'the estimate to settle'
+    });
     await worker.shutdown();
 
     expect(job.estimateStatus, job.estimateError ?? '').toBe('estimated');
@@ -205,12 +212,4 @@ function run(args: string[]) {
     child.on('error', reject);
     child.on('close', resolve);
   });
-}
-
-async function until(check: () => boolean) {
-  const deadline = Date.now() + 15_000;
-  while (!check()) {
-    if (Date.now() > deadline) throw new Error('Timed out');
-    await new Promise(resolve => setTimeout(resolve, 20));
-  }
 }

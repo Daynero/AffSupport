@@ -9,6 +9,7 @@ import { JobQueue } from '../apps/agent/src/queue/queue.js';
 import { TranscriptionQueue } from '../apps/agent/src/queue/transcription-queue.js';
 import type { TranscriptionJob } from '@video-compressor/shared';
 import { makeJob, optimalSettings } from './helpers.js';
+import { waitFor } from './support/wait.js';
 
 let directory = '';
 
@@ -144,7 +145,10 @@ describe('compressor stop all', () => {
     const teamJob = queue.teamJob('team:op-1');
     expect(teamJob).not.toBeNull();
     await queue.start([teamJob!.id]);
-    await until(() => queue.teamJob('team:op-1')?.status === 'processing');
+    await waitFor(() => queue.teamJob('team:op-1')?.status === 'processing', {
+      timeoutMs: 12_000,
+      describe: 'the team operation to start encoding'
+    });
 
     // The compressor list is empty, so its "stop all" has nothing to stop and
     // must not reach into the team job it cannot even show.
@@ -153,7 +157,10 @@ describe('compressor stop all', () => {
     expect(queue.teamJob('team:op-1')?.status).toBe('processing');
 
     await queue.discardTeamJob(teamJob!.id);
-    await until(() => !queue.state().running);
+    await waitFor(() => !queue.state().running, {
+      timeoutMs: 12_000,
+      describe: 'the queue to go idle'
+    });
   }, 20_000);
 });
 
@@ -263,7 +270,10 @@ describe('landing optimizer stop all', () => {
     // start() resolves only when the batch drains, so the stop has to be sent
     // while it is still in flight — exactly what the button does.
     const running = optimizer.start(ids);
-    await until(() => optimizer.state().jobs.some(job => job.status === 'processing'));
+    await waitFor(() => optimizer.state().jobs.some(job => job.status === 'processing'), {
+      timeoutMs: 12_000,
+      describe: 'the optimizer to pick up a job'
+    });
     expect(await optimizer.cancelAll()).toBe(2);
     await running;
 
@@ -301,12 +311,4 @@ function makeVideo(file: string, duration: number) {
     encoder.on('error', reject);
     encoder.on('close', resolve);
   });
-}
-
-async function until(check: () => boolean) {
-  const end = Date.now() + 12_000;
-  while (!check()) {
-    if (Date.now() > end) throw new Error('Timed out');
-    await new Promise(resolve => setTimeout(resolve, 25));
-  }
 }

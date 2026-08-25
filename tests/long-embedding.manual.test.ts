@@ -21,6 +21,7 @@ import {
 import { ImageAssetStore } from '../apps/agent/src/images/store.js';
 import { JobQueue } from '../apps/agent/src/queue/queue.js';
 import { optimalEncoding, optimalSettings } from './helpers.js';
+import { waitFor } from './support/wait.js';
 
 const runLong = process.env.RUN_LONG_EMBED_TEST === '1' ? it : it.skip;
 let directory = '';
@@ -203,7 +204,10 @@ describeRequiring(ffmpegBinaries, 'manual long static embedding verification', (
       expect(queue.state().jobs.map(job => job.imageEmbedding?.finalDurationSeconds)).toEqual([
         2460, 2940
       ]);
-      await until(() => !queue.state().running, 2 * 60_000);
+      await waitFor(() => !queue.state().running, {
+        timeoutMs: 2 * 60_000,
+        describe: 'the long embedding run to finish'
+      });
       const completed = queue.state().jobs;
       expect(completed.map(job => job.status)).toEqual(['completed', 'completed']);
       expect(completed[0].finalDurationSeconds).not.toBe(completed[1].finalDurationSeconds);
@@ -242,11 +246,3 @@ const run = (command: string, args: string[]) =>
     child.on('error', reject);
     child.on('close', resolve);
   });
-
-async function until(check: () => boolean, timeout: number) {
-  const deadline = Date.now() + timeout;
-  while (!check()) {
-    if (Date.now() > deadline) throw new Error('Timed out');
-    await new Promise(resolve => setTimeout(resolve, 25));
-  }
-}

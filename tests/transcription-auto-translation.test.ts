@@ -39,15 +39,7 @@ vi.mock('../apps/agent/src/whisper/transcriber.js', () => ({
 
 import { TranscriptionQueue } from '../apps/agent/src/queue/transcription-queue.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
-
-async function waitFor(condition: () => boolean | Promise<boolean>, timeoutMs = 2000) {
-  const startedAt = Date.now();
-  for (;;) {
-    if (await condition()) return;
-    if (Date.now() - startedAt > timeoutMs) throw new Error('waitFor timed out');
-    await new Promise(resolve => setTimeout(resolve, 5));
-  }
-}
+import { waitFor } from './support/wait.js';
 
 function translatedOutput(request: TranslateRequest): TranslationOutputSegment[] {
   return request.segments.map((segment, index) => {

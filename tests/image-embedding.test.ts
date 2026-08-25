@@ -22,6 +22,7 @@ import { calculateEncodeProgress } from '../apps/agent/src/ffmpeg/encoder.js';
 import { JobQueue } from '../apps/agent/src/queue/queue.js';
 import { ImageAssetStore } from '../apps/agent/src/images/store.js';
 import { makeJob, optimalEncoding, optimalSettings } from './helpers.js';
+import { waitFor } from './support/wait.js';
 
 let directory = '';
 afterEach(async () => {
@@ -97,7 +98,10 @@ describe('final image duration configuration', () => {
       imageEmbedding: { ...settings.imageEmbedding, fitMode: 'stretch' }
     });
     expect(queue.state().jobs[1].imageEmbedding?.fitMode).toBe('cover');
-    await until(() => !queue.state().running);
+    await waitFor(() => !queue.state().running, {
+      timeoutMs: 3_000,
+      describe: 'the queue to go idle'
+    });
   });
 
   it('keeps estimated replacement trims when image choices are frozen for the queue', async () => {
@@ -146,7 +150,10 @@ describe('final image duration configuration', () => {
       sourceTrimEndSeconds: 40
     });
     expect(outputDurationSeconds(queued)).toBe(110);
-    await until(() => !queue.state().running);
+    await waitFor(() => !queue.state().running, {
+      timeoutMs: 3_000,
+      describe: 'the queue to go idle'
+    });
   });
 
   it('draws each image once before refreshing the random pool', async () => {
@@ -178,7 +185,10 @@ describe('final image duration configuration', () => {
     const selected = queue.state().jobs.map(job => job.imageEmbedding?.startImage?.id);
     expect(new Set(selected.slice(0, 3))).toEqual(new Set(images.map(image => image.id)));
     expect(selected[3]).toBe(selected[0]);
-    await until(() => !queue.state().running);
+    await waitFor(() => !queue.state().running, {
+      timeoutMs: 3_000,
+      describe: 'the queue to go idle'
+    });
   });
 
   it('clears a persisted image that is no longer available to the agent', async () => {
@@ -310,12 +320,4 @@ function poolAsset(hex: string): ImageAsset {
     id: `${hex.repeat(8)}-${hex.repeat(4)}-4${hex.repeat(3)}-8${hex.repeat(3)}-${hex.repeat(12)}`,
     fileName: `${hex}.png`
   };
-}
-
-async function until(check: () => boolean) {
-  const deadline = Date.now() + 3000;
-  while (!check()) {
-    if (Date.now() > deadline) throw new Error('Timed out');
-    await new Promise(resolve => setTimeout(resolve, 10));
-  }
 }

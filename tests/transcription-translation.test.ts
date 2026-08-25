@@ -19,6 +19,7 @@ import {
   translationPrompt
 } from '../apps/agent/src/translation/translator.js';
 import { TranscriptionDocumentStore } from '../apps/agent/src/transcription/document-store.js';
+import { waitFor } from './support/wait.js';
 import {
   automaticTranslationTarget,
   combinedModelStatus,
@@ -27,15 +28,6 @@ import {
 } from '../apps/agent/src/queue/transcription-queue.js';
 
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
-
-async function waitFor(condition: () => boolean | Promise<boolean>, timeoutMs = 2000) {
-  const start = Date.now();
-  for (;;) {
-    if (await condition()) return;
-    if (Date.now() - start > timeoutMs) throw new Error('waitFor timed out');
-    await new Promise(resolve => setTimeout(resolve, 5));
-  }
-}
 
 describe('weightedDownloadProgress', () => {
   it('reports 100% when nothing is missing', () => {

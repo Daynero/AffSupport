@@ -5,6 +5,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PowerGovernor } from '../apps/agent/src/power/governor.js';
 import { spawnManaged } from '../apps/agent/src/power/spawn.js';
+import { waitFor } from './support/wait.js';
 import type {
   TranslateRequest,
   Translator,
@@ -19,15 +20,6 @@ import type {
  * carried on holding the CPU — visible only as a power readout that would not
  * come down, and blamed on whatever they opened next.
  */
-
-async function waitFor(condition: () => boolean | Promise<boolean>, timeoutMs = 5_000) {
-  const startedAt = Date.now();
-  for (;;) {
-    if (await condition()) return;
-    if (Date.now() - startedAt > timeoutMs) throw new Error('waitFor timed out');
-    await new Promise(resolve => setTimeout(resolve, 10));
-  }
-}
 
 describe('terminating a managed child', () => {
   it('kills one that swallows SIGTERM instead of leaving it running', async () => {

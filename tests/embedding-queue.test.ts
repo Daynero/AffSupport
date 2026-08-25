@@ -13,6 +13,7 @@ import { probeMedia } from '../apps/agent/src/ffmpeg/tools.js';
 import { ImageAssetStore } from '../apps/agent/src/images/store.js';
 import { JobQueue } from '../apps/agent/src/queue/queue.js';
 import { optimalSettings } from './helpers.js';
+import { waitFor } from './support/wait.js';
 
 let directory = '';
 afterEach(async () => {
@@ -67,7 +68,10 @@ describe('sequential queue with embedded images', () => {
     expect(sourceJobs.map(job => job.sourceHasAudio)).toEqual([true, true, false]);
     expect(sourceJobs[1].sourceAudioChannels).toBe(1);
     expect(await queue.start(sourceJobs.map(job => job.id))).toBe(true);
-    await until(() => !queue.state().running, 20_000);
+    await waitFor(() => !queue.state().running, {
+      timeoutMs: 20_000,
+      describe: 'the queue to go idle'
+    });
 
     const completed = queue.state().jobs;
     expect(completed.map(job => job.status)).toEqual(['completed', 'completed', 'completed']);
@@ -113,7 +117,10 @@ describe('sequential queue with embedded images', () => {
     );
     await queue.add(files);
     expect(await queue.start(queue.state().jobs.map(job => job.id))).toBe(true);
-    await until(() => !queue.state().running, 10_000);
+    await waitFor(() => !queue.state().running, {
+      timeoutMs: 10_000,
+      describe: 'the queue to go idle'
+    });
     expect(queue.state().jobs.map(job => job.status)).toEqual(['failed', 'failed']);
     for (const job of queue.state().jobs) {
       expect(job.error).toMatch(/damaged/i);
@@ -185,12 +192,4 @@ async function sha256(file: string) {
   return createHash('sha256')
     .update(await readFile(file))
     .digest('hex');
-}
-
-async function until(check: () => boolean, timeout: number) {
-  const deadline = Date.now() + timeout;
-  while (!check()) {
-    if (Date.now() > deadline) throw new Error('Timed out');
-    await new Promise(resolve => setTimeout(resolve, 20));
-  }
 }

@@ -15,6 +15,7 @@ import { JobQueue } from '../apps/agent/src/queue/queue.js';
 import { describeRequiring } from './support/requires.js';
 import { ffmpegBinaries } from './support/toolchain.js';
 import { optimalSettings } from './helpers.js';
+import { waitFor } from './support/wait.js';
 
 let directory = '';
 afterEach(async () => {
@@ -101,7 +102,10 @@ describeRequiring(ffmpegBinaries, 're-embedding static edge removal', () => {
     await queue.add([input]);
     const id = queue.state().jobs[0].id;
     expect(await queue.start([id])).toBe(true);
-    await until(() => !queue.state().running);
+    await waitFor(() => !queue.state().running, {
+      timeoutMs: 15_000,
+      describe: 'the queue to go idle'
+    });
 
     const completed = queue.state().jobs[0];
     expect(completed.status).toBe('completed');
@@ -202,12 +206,4 @@ function run(command: string, args: string[]) {
     child.once('error', reject);
     child.once('close', resolve);
   });
-}
-
-async function until(check: () => boolean) {
-  const deadline = Date.now() + 15_000;
-  while (!check()) {
-    if (Date.now() > deadline) throw new Error('Timed out');
-    await new Promise(resolve => setTimeout(resolve, 20));
-  }
 }

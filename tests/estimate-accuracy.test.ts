@@ -8,6 +8,7 @@ import { EstimationWorker } from '../apps/agent/src/estimate/worker.js';
 import { encodeVideo } from '../apps/agent/src/ffmpeg/encoder.js';
 import { probeDuration } from '../apps/agent/src/ffmpeg/tools.js';
 import { makeJob, optimalEncoding } from './helpers.js';
+import { waitFor } from './support/wait.js';
 
 let directory = '';
 afterAll(async () => {
@@ -45,7 +46,10 @@ describe('estimate accuracy on representative synthetic videos', () => {
         new EstimateCache(path.join(directory, `${name}-cache.json`))
       );
       await worker.init();
-      await until(() => ['estimated', 'unavailable'].includes(job.estimateStatus));
+      await waitFor(() => ['estimated', 'unavailable'].includes(job.estimateStatus), {
+        timeoutMs: 30_000,
+        describe: 'the estimate to settle'
+      });
       expect(job.estimateStatus).toBe('estimated');
       await worker.shutdown();
       const operation = encodeVideo(
@@ -133,12 +137,4 @@ function synthetic(output: string, dynamic: number, still: number) {
     process.on('error', reject);
     process.on('close', resolve);
   });
-}
-
-async function until(check: () => boolean) {
-  const end = Date.now() + 30_000;
-  while (!check()) {
-    if (Date.now() > end) throw new Error('Timed out');
-    await new Promise(resolve => setTimeout(resolve, 25));
-  }
 }

@@ -8,6 +8,7 @@ import { EstimateCache, estimateCacheKey } from '../apps/agent/src/estimate/cach
 import { createSamplePlan, estimateFromSamples } from '../apps/agent/src/estimate/sampler.js';
 import { EstimationWorker } from '../apps/agent/src/estimate/worker.js';
 import { customEncoding, makeJob, optimalEncoding } from './helpers.js';
+import { waitFor } from './support/wait.js';
 
 let directory = '';
 afterEach(async () => {
@@ -88,9 +89,9 @@ describe('sequential estimation worker', () => {
     );
     await worker.init();
     try {
-      await until(
+      await waitFor(
         () => jobs.every(job => ['estimated', 'unavailable'].includes(job.estimateStatus)),
-        60_000
+        { timeoutMs: 60_000, describe: 'all ten estimates to settle' }
       );
       expect(maxActive).toBe(1);
       expect(order).toEqual(Array.from({ length: 10 }, (_, index) => String(index)));
@@ -115,11 +116,17 @@ describe('sequential estimation worker', () => {
       new EstimateCache(path.join(directory, 'cache.json'))
     );
     await worker.init();
-    await until(() => jobs[0].estimateStatus === 'estimating');
+    await waitFor(() => jobs[0].estimateStatus === 'estimating', {
+      timeoutMs: 10_000,
+      describe: 'the first estimate to start'
+    });
     await worker.pause();
     expect(jobs[0].estimateStatus).toBe('cancelled');
     worker.resume();
-    await until(() => ['estimated', 'unavailable'].includes(jobs[0].estimateStatus), 20_000);
+    await waitFor(() => ['estimated', 'unavailable'].includes(jobs[0].estimateStatus), {
+      timeoutMs: 20_000,
+      describe: 'the first estimate to settle'
+    });
     await worker.shutdown();
   }, 25_000);
 });
@@ -199,12 +206,4 @@ function makeVideo(file: string, duration: number, size: string, rate: number) {
     process.on('error', reject);
     process.on('close', resolve);
   });
-}
-
-async function until(check: () => boolean, timeout = 10_000) {
-  const end = Date.now() + timeout;
-  while (!check()) {
-    if (Date.now() > end) throw new Error('Timed out');
-    await new Promise(resolve => setTimeout(resolve, 20));
-  }
 }
