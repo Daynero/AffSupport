@@ -7,6 +7,7 @@ import {
   type AgentSettings,
   type CompressionJob,
   type EncodingSettings,
+  type JobImageEmbedding,
   type JobStatus
 } from '../packages/shared/src/types.js';
 
@@ -98,6 +99,32 @@ export function makeJob(
     estimateKey: null,
     estimatePriorityOrder: null,
     estimateBreakdown: null,
+    ...patch
+  };
+}
+
+/**
+ * A complete `JobImageEmbedding`, with the fields a test does not care about
+ * already filled in.
+ *
+ * Nine tests built this shape inline and each named the five or six fields it
+ * was actually about, which type-checked only because those files were excluded
+ * from the check. Every one of them would have gone stale the next time the
+ * shape grew — a factory means that growth is one edit here rather than nine
+ * failures spread across the suite.
+ */
+export function makeEmbedding(patch: Partial<JobImageEmbedding> = {}): JobImageEmbedding {
+  return {
+    startImage: null,
+    endImage: null,
+    startDurationMode: 'one-frame',
+    customStartDurationMs: 100,
+    finalDurationMode: 'random-40-50',
+    finalDurationSeconds: null,
+    fitMode: 'cover',
+    replaceExisting: false,
+    sourceTrimStartSeconds: 0,
+    sourceTrimEndSeconds: 0,
     ...patch
   };
 }

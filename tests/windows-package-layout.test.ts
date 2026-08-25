@@ -1,6 +1,5 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-// @ts-expect-error - build script without type declarations
 import {
   isX64Executable,
   peMachine,

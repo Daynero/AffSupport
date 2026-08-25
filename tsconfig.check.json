@@ -50,7 +50,6 @@
     "tests/creative-library-tasks.test.tsx",
     "tests/delete-account-team.test.ts",
     "tests/drive-connect.test.ts",
-    "tests/embedded-ffmpeg.test.ts",
     "tests/embedding-estimate.test.ts",
     "tests/estimate-cancelled.test.ts",
     "tests/image-embedding-ui.test.tsx",
@@ -69,9 +68,6 @@
     "tests/team-landing-render-timeout.test.tsx",
     "tests/team-preview-sandbox.test.tsx",
     "tests/team-workspace-gate.test.tsx",
-    "tests/ui-workflow.test.tsx",
-    "tests/windows-attribution.test.ts",
-    "tests/windows-inputs-manifest.test.ts",
-    "tests/windows-package-layout.test.ts"
+    "tests/ui-workflow.test.tsx"
   ]
 }

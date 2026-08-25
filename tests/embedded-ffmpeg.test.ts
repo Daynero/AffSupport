@@ -10,7 +10,7 @@ import type {
 } from '../packages/shared/src/types.js';
 import { encodeVideo } from '../apps/agent/src/ffmpeg/encoder.js';
 import { probeMedia } from '../apps/agent/src/ffmpeg/tools.js';
-import { optimalEncoding } from './helpers.js';
+import { optimalEncoding, makeEmbedding } from './helpers.js';
 import { describeRequiring } from './support/requires.js';
 import { ffmpegBinaries } from './support/toolchain.js';
 
@@ -50,13 +50,13 @@ describeRequiring(ffmpegBinaries, 'real image embedding filter graph', () => {
       const output = path.join(directory, `result ${fps}.mp4`);
       expect(await createVideo(input, fps, true)).toBe(0);
       const source = await probeMedia(input);
-      const embedding: JobImageEmbedding = {
+      const embedding: JobImageEmbedding = makeEmbedding({
         startImage: imageAsset('11111111-1111-4111-8111-111111111111'),
         endImage: null,
         finalDurationMode: 'random-40-50',
         finalDurationSeconds: null,
         fitMode: 'cover'
-      };
+      });
       const totalDuration = source.duration! + 1 / fps;
       const operation = encodeVideo(
         input,
@@ -66,6 +66,8 @@ describeRequiring(ffmpegBinaries, 'real image embedding filter graph', () => {
         false,
         () => {},
         {
+          // Whole source, so no leading trim.
+          sourceStartSeconds: 0,
           sourceDurationSeconds: source.duration!,
           sourceHasAudio: true,
           width: 160,
@@ -105,18 +107,20 @@ describeRequiring(ffmpegBinaries, 'real image embedding filter graph', () => {
       false,
       () => {},
       {
+        // Whole source, so no leading trim.
+        sourceStartSeconds: 0,
         sourceDurationSeconds: source.duration!,
         sourceHasAudio: true,
         width: 160,
         height: 90,
         frameRate: source.frameRate!,
-        imageEmbedding: {
+        imageEmbedding: makeEmbedding({
           startImage: imageAsset('55555555-5555-4555-8555-555555555555'),
           endImage: null,
           finalDurationMode: 'random-40-50',
           finalDurationSeconds: null,
           fitMode: 'cover'
-        },
+        }),
         startImagePath,
         endImagePath: null
       }
@@ -148,12 +152,14 @@ describeRequiring(ffmpegBinaries, 'real image embedding filter graph', () => {
         false,
         () => {},
         {
+          // Whole source, so no leading trim.
+          sourceStartSeconds: 0,
           sourceDurationSeconds: source.duration!,
           sourceHasAudio: true,
           width: 160,
           height: 90,
           frameRate: 30,
-          imageEmbedding: {
+          imageEmbedding: makeEmbedding({
             startImage: imageAsset('22222222-2222-4222-8222-222222222222'),
             endImage: null,
             startDurationMode: mode,
@@ -164,7 +170,7 @@ describeRequiring(ffmpegBinaries, 'real image embedding filter graph', () => {
             replaceExisting: false,
             sourceTrimStartSeconds: 0,
             sourceTrimEndSeconds: 0
-          },
+          }),
           startImagePath,
           endImagePath: null
         }
@@ -182,13 +188,13 @@ describeRequiring(ffmpegBinaries, 'real image embedding filter graph', () => {
     const output = path.join(directory, 'silent source embedded.mp4');
     expect(await createVideo(input, 30, false)).toBe(0);
     const source = await probeMedia(input);
-    const embedding: JobImageEmbedding = {
+    const embedding: JobImageEmbedding = makeEmbedding({
       startImage: null,
       endImage: imageAsset('22222222-2222-4222-8222-222222222222'),
       finalDurationMode: 'custom',
       finalDurationSeconds: 0.4,
       fitMode: 'contain'
-    };
+    });
     const operation = encodeVideo(
       input,
       output,
@@ -197,6 +203,8 @@ describeRequiring(ffmpegBinaries, 'real image embedding filter graph', () => {
       false,
       () => {},
       {
+        // Whole source, so no leading trim.
+        sourceStartSeconds: 0,
         sourceDurationSeconds: source.duration!,
         sourceHasAudio: false,
         width: 160,
@@ -228,18 +236,20 @@ describeRequiring(ffmpegBinaries, 'real image embedding filter graph', () => {
       false,
       () => {},
       {
+        // Whole source, so no leading trim.
+        sourceStartSeconds: 0,
         sourceDurationSeconds: source.duration!,
         sourceHasAudio: true,
         width: 128,
         height: 128,
         frameRate: 24,
-        imageEmbedding: {
+        imageEmbedding: makeEmbedding({
           startImage: null,
           endImage: imageAsset('33333333-3333-4333-8333-333333333333'),
           finalDurationMode: 'custom',
           finalDurationSeconds: 0.2,
           fitMode: 'stretch'
-        },
+        }),
         startImagePath: null,
         endImagePath: startImagePath
       }

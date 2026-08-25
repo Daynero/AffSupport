@@ -1,6 +1,5 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-// @ts-expect-error - build script without type declarations
 import {
   copyleftSourceGaps,
   parseInputsManifest,
@@ -12,7 +11,9 @@ const manifestSource = JSON.parse(readFileSync('packaging/windows/inputs.json', 
 function parsed() {
   const result = parseInputsManifest(manifestSource);
   if (!result.ok) throw new Error(`manifest did not parse: ${result.error}`);
-  return result.value;
+  // The union's `ok` flag and its `value` are not linked in the parser's return
+  // type, so the guard above does not narrow it.
+  return result.value!;
 }
 
 /**

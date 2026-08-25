@@ -1,6 +1,5 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-// @ts-expect-error - build script without type declarations
 import { parseInputsManifest } from '../scripts/lib/windows-inputs.mjs';
 
 const notices = readFileSync('THIRD_PARTY_NOTICES.md', 'utf8');
@@ -9,8 +8,10 @@ function manifest() {
   const result = parseInputsManifest(
     JSON.parse(readFileSync('packaging/windows/inputs.json', 'utf8'))
   );
+  // The union's `ok` flag and its `value` are not linked in the parser's return
+  // type, so the throw above does not narrow it. Read once, where it is known.
   if (!result.ok) throw new Error(result.error);
-  return result.value;
+  return /** @type {NonNullable<typeof result.value>} */ result.value!;
 }
 
 /**
