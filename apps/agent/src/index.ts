@@ -385,6 +385,9 @@ if (process.env.PACKAGED_APP === '1') {
   mediaToolsTimer.unref();
 }
 if (config.installedReleasePath) {
+  // C21. Unreferenced below: a poller that keeps the event loop alive turns
+  // "the agent has nothing left to do" into "the agent never exits", and the
+  // symptom is a process the user cannot get rid of.
   installedReleaseTimer = setInterval(() => {
     void readFile(config.installedReleasePath as string, 'utf8')
       .then(raw => JSON.parse(raw) as { buildId?: unknown })
@@ -395,6 +398,7 @@ if (config.installedReleasePath) {
       })
       .catch(() => undefined);
   }, 3000);
+  installedReleaseTimer.unref();
 }
 
 async function shutdown(code = 0) {

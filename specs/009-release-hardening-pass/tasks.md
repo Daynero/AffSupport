@@ -310,7 +310,7 @@ These four close holes confirmed by **probing a running local app**, not inferre
 ### Tests for User Story 5
 
 - [X] T144 [P] [US5] Create `tests/agent-admission.test.ts` covering spoofed hosts, missing hosts, duplicate hosts, hostile origins, missing origins, the pairing navigation discriminator, the native fetch-metadata discriminator, and a repeated token query parameter yielding an array (C4, C5, C6)
-- [ ] T144a [P] [US5] Create `tests/hostile-filenames.test.ts` driving a fixed adversarial name set — quotation marks, backslashes, shell-significant characters, newlines, non-ASCII — through upload, drop resolution and the picker, asserting no part of a name is ever interpreted as an instruction (SC-023, C14)
+- [X] T144a [P] [US5] Create `tests/hostile-filenames.test.ts` driving a fixed adversarial name set — quotation marks, backslashes, shell-significant characters, newlines, non-ASCII — through upload, drop resolution and the picker, asserting no part of a name is ever interpreted as an instruction (SC-023, C14)
 - [ ] T145 [P] [US5] Create `tests/path-grants.test.ts` with the adversarial set — traversal, symlink swapped between grant and use, credential-store paths, network paths, extended-length prefixes, short names, case collisions — **and** the positive set: pick → restart → resume, drop → restart → resume, output folder still writable (C3)
 - [ ] T146 [P] [US5] Create `tests/upload-budgets.test.ts` asserting per-route file limits, the folder-session file/byte/time budgets, path depth bounds, and that the multipart default is now restrictive (C8)
 - [ ] T147 [P] [US5] Create `tests/log-redaction.test.ts` asserting no log line contains a token, a query string, a path-shaped identifier, or a redirect location (C10, FR-029)
@@ -345,7 +345,7 @@ These four close holes confirmed by **probing a running local app**, not inferre
 
 ### Implementation — the path ledger and its prerequisites
 
-- [ ] T169 [P] [US5] Validate the support-directory environment override as a single path segment in `apps/agent/src/files/support-dir.ts`, and refuse the state-path overrides in a packaged production build (C19)
+- [X] T169 [P] [US5] Validate the support-directory environment override as a single path segment in `apps/agent/src/files/support-dir.ts`, and refuse the state-path overrides in a packaged production build (C19)
 - [ ] T170 [P] [US5] Remove the model hash from the environment-overridable set in `apps/agent/src/translation/tools.ts`, so the pin cannot be changed by whoever changed the source (C19, FR-032e)
 - [ ] T171 [P] [US5] Write state files with owner-only permissions under an owner-only parent in `apps/agent/src/queue/store.ts`, `apps/agent/src/queue/transcription-store.ts`, `apps/agent/src/entitlement/entitlement.ts` and the preview catalog, and tighten the beta environment file in `scripts/beta-up.mjs` (C18, FR-032d)
 - [ ] T172 [US5] Create `apps/agent/src/files/path-grants.ts` implementing the ledger from [data-model.md §4](./data-model.md), including pattern-bound derived-output write scope, device and inode re-checking, and the outer bound (FR-026)
@@ -363,12 +363,12 @@ These four close holes confirmed by **probing a running local app**, not inferre
 - [ ] T181 [P] [US5] Add per-route rate budgets and the auth-failure cooldown to `apps/agent/src/server/app.ts`, with a constant key and a comment stating why a per-address limiter would be theatre (C7)
 - [ ] T182 [P] [US5] Add the folder-upload session budget, echoed session identifier, path depth bounds and exclusive-create write to `apps/agent/src/landing/routes.ts` (C8)
 - [ ] T183 [P] [US5] Add the subscriber cap, oldest-first eviction with a terminal frame, heartbeat and stalled-writer drop to `apps/agent/src/server/sse.ts` (C7)
-- [ ] T184 [P] [US5] Replace string interpolation with argument passing in the system search in `apps/agent/src/files/dropped-source.ts`, and make the picker script safe by construction rather than by accident in `apps/agent/src/files/picker.ts` (C14, FR-032a)
+- [X] T184 [P] [US5] Replace string interpolation with argument passing in the system search in `apps/agent/src/files/dropped-source.ts`, and make the picker script safe by construction rather than by accident in `apps/agent/src/files/picker.ts` (C14, FR-032a)
 - [ ] T185 [P] [US5] Map failures to a fixed code list in `apps/agent/src/server/app.ts`, `apps/agent/src/landing/routes.ts` and `apps/agent/src/landing-preview/routes.ts`, and add a guard test so relaying an underlying message cannot regress (C17, FR-029a)
 - [ ] T186 [P] [US5] Verify a candidate pairing token against the local app before persisting or broadcasting it in `apps/web/src/api/pairing-token.ts` (C12, FR-032)
 - [ ] T187 [P] [US5] Sign, bind, time-limit and single-use the transfer grants in `supabase/functions/drive-transfer/index.ts` and `supabase/functions/_shared/operations.ts`, with replay detection by unique insert (C9, FR-031)
 - [ ] T188 [P] [US5] Build the backend origin allowlist from deployment configuration in `supabase/functions/_shared/cors.ts` and add a deploy check asserting production contains no loopback origin (C20, FR-032f)
-- [ ] T189 [P] [US5] Unreference the release-path polling timer in `apps/agent/src/index.ts` (C21)
+- [X] T189 [P] [US5] Unreference the release-path polling timer in `apps/agent/src/index.ts` (C21)
 
 **Checkpoint**: The adversarial suite passes, nothing leaks, and both platforms verify their publisher — pending only the credential substitution.
 

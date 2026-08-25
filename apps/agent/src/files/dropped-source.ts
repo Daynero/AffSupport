@@ -19,11 +19,7 @@ export async function findDroppedSource(
     if (await matchesFile(candidate, expectedSize, expectedModifiedAt)) return candidate;
   }
 
-  const escapedName = fileName.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
-  const candidates = await spotlight(
-    home,
-    `kMDItemFSName == "${escapedName}"c && kMDItemFSSize == ${Math.round(expectedSize)}`
-  );
+  const candidates = await spotlight(home, fileName);
   for (const candidate of candidates) {
     if (await matchesFile(candidate, expectedSize, expectedModifiedAt)) return candidate;
   }
@@ -71,11 +67,8 @@ export async function findDroppedFolder(sample: DroppedFolderSample): Promise<st
   }
 
   if (!capabilities().spotlightSearch) return null;
-  const escapedName = sample.fileName.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
-  const hits = await spotlight(
-    home,
-    `kMDItemFSName == "${escapedName}"c && kMDItemFSSize == ${Math.round(sample.size)}`
-  );
+
+  const hits = await spotlight(home, sample.fileName);
   for (const hit of hits) {
     let root = hit;
     for (let index = 0; index < relSegments.length; index += 1) root = path.dirname(root);
@@ -117,9 +110,23 @@ async function matchesFile(
   }
 }
 
-function spotlight(root: string, query: string): Promise<string[]> {
+/**
+ * Asks Spotlight for files with this exact name, by argument rather than by query.
+ *
+ * It used to build a `kMDItemFSName == "…"` expression by interpolating the
+ * name, with two characters escaped by hand. `shell: false` meant this was
+ * never a shell injection — but the query language is a language, and hand-rolled
+ * escaping for one is the same bet every time: that nobody will ever pass the
+ * character the author did not think of. `-name` takes the value as its own
+ * argv entry, so there is no expression to escape and nothing to get wrong.
+ *
+ * The size predicate went with it. It was only ever a narrowing hint; every
+ * candidate is checked against size and modification time by `matchesFile`
+ * afterwards, which is the check that actually decides.
+ */
+function spotlight(root: string, name: string): Promise<string[]> {
   return new Promise(resolve => {
-    const child = spawn('/usr/bin/mdfind', ['-onlyin', root, query], {
+    const child = spawn('/usr/bin/mdfind', ['-onlyin', root, '-name', name], {
       shell: false,
       stdio: ['ignore', 'pipe', 'ignore']
     });
