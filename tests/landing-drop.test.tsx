@@ -45,7 +45,7 @@ function fileEntry(file: File): FileSystemFileEntry {
     fullPath: `/${file.name}`,
     filesystem: {} as FileSystem,
     getParent: () => undefined,
-    file: callback => callback(file)
+    file: (callback: (value: File) => void) => callback(file)
   } as unknown as FileSystemFileEntry;
 }
 

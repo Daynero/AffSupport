@@ -19,10 +19,18 @@ import { describe, expect, it } from 'vitest';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-/** Baselines recorded when the gates were introduced. Lower these, never raise them. */
+/**
+ * Baselines recorded when the gates were introduced. Lower these, never raise them.
+ *
+ * Both reached zero. What that buys is not tidiness: emptying the test list turned up a
+ * release-manifest fixture missing a tool the product shipped, a catalog response missing
+ * three fields the scan reports, a task client missing the method its delete path calls,
+ * and a manual test that could not have compiled. None of those were failing. They were
+ * describing a product that no longer existed, and passing.
+ */
 const BASELINE = {
-  'tsconfig.check.json': 30,
-  'tsconfig.scripts.json': 12
+  'tsconfig.check.json': 0,
+  'tsconfig.scripts.json': 0
 } as const;
 
 /** Reads a tsconfig that carries `//` comments, which JSON.parse rejects. */

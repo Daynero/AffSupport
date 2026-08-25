@@ -20,11 +20,11 @@ describe('team-aware account deletion', () => {
 
     await expect(
       deleteAccountWithTeamPreflight('10000000-0000-4000-8000-000000000001', deps)
-    ).rejects.toMatchObject<TeamFunctionError>({
+    ).rejects.toMatchObject({
       code: 'OWNERSHIP_TRANSFER_REQUIRED',
       retryable: false,
       details: { teamCount: 2 }
-    });
+    } satisfies Partial<TeamFunctionError>);
     expect(deps.deleteAuthUser).not.toHaveBeenCalled();
     expect(deps.revokeDeletedUserGrants).not.toHaveBeenCalled();
   });

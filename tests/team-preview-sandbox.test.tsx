@@ -227,7 +227,8 @@ function rangeFetch(bytes: Buffer, seenRanges: string[]): typeof fetch {
     if (!match) return new Response(null, { status: 416 });
     const start = Number(match[1]);
     const end = Math.min(Number(match[2]), bytes.length - 1);
-    const body = bytes.subarray(start, end + 1);
+    // A Node Buffer view is not a BodyInit; copy into a plain Uint8Array.
+    const body = new Uint8Array(bytes.subarray(start, end + 1));
     return new Response(body, {
       status: 206,
       headers: {

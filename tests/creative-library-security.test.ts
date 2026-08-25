@@ -34,7 +34,12 @@ describe('Creative Library privacy contract', () => {
     expect(serialized).not.toContain('drive.google.com');
     expect(serialized).not.toContain('/private/tmp');
     expect(serialized).toContain('reconciling');
-    expect(sanitizeErrorDetails(unsafe as Record<string, string>)).toEqual({
+    expect(
+      // Deliberately a value the signature forbids: `providerBody` is a nested
+      // object, and dropping it is what is being tested. A caller in a JavaScript
+      // runtime can pass exactly this.
+      sanitizeErrorDetails(unsafe as unknown as Record<string, string>)
+    ).toEqual({
       safeState: 'reconciling'
     });
   });

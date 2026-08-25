@@ -8,7 +8,8 @@ import { GoogleDriveClient } from '../supabase/functions/_shared/drive';
 import { TeamFunctionError } from '../supabase/functions/_shared/errors';
 import {
   executeDriveConnectCommand,
-  validateRootCandidate
+  validateRootCandidate,
+  type DriveConnectCommand
 } from '../supabase/functions/drive-connect/handler';
 import { evaluateTeamProviderReadiness } from '../supabase/functions/drive-connect/readiness';
 import { completeDriveOAuthCallback } from '../supabase/functions/drive-oauth-callback/handler';
@@ -383,22 +384,22 @@ describe('connection lifecycle and initial sync smoke path', () => {
     async action => {
       const mutateConnection = vi.fn().mockResolvedValue({ state: `${action}ed` });
       const deleteDriveFile = vi.fn();
+      // Built per branch rather than spread: the two commands are a
+      // discriminated union precisely because they carry different fields, and
+      // a conditional spread produces an object that matches neither arm.
+      const teamId = '20000000-0000-4000-8000-000000000001';
+      const idempotencyKey = `${action}-attempt-01`;
+      const command: DriveConnectCommand =
+        action === 'replace'
+          ? { action, teamId, folderId: 'replacement-root', confirmed: true, idempotencyKey }
+          : { action, teamId, confirmed: true, idempotencyKey };
       await expect(
-        executeDriveConnectCommand(
-          {
-            action,
-            teamId: '20000000-0000-4000-8000-000000000001',
-            confirmed: true,
-            idempotencyKey: `${action}-attempt-01`,
-            ...(action === 'replace' ? { folderId: 'replacement-root' } : {})
-          },
-          {
-            oauthMode: 'verified',
-            signals: localSignals,
-            mutateConnection,
-            deleteDriveFile
-          }
-        )
+        executeDriveConnectCommand(command, {
+          oauthMode: 'verified',
+          signals: localSignals,
+          mutateConnection,
+          deleteDriveFile
+        })
       ).resolves.toBeTruthy();
       expect(mutateConnection).toHaveBeenCalledOnce();
       expect(deleteDriveFile).not.toHaveBeenCalled();

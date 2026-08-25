@@ -311,7 +311,10 @@ describe('team processing orchestration and SSE state', () => {
 
   it('cancels the existing delegate, publishes canceled, and cleans temporary state', async () => {
     const cleanup = vi.fn().mockResolvedValue(undefined);
-    let delegateSignal: AbortSignal | null = null;
+    // Held in an object rather than a `let`: a variable assigned only inside a
+    // callback keeps the narrowing from its initialiser, so `delegateSignal`
+    // reads as `never` at the assertion below.
+    const captured: { signal: AbortSignal | null } = { signal: null };
     const transfer: TeamProcessTransfer = {
       downloadSource: vi.fn().mockResolvedValue({
         workspace: '/tmp/opaque-workspace',
@@ -326,7 +329,7 @@ describe('team processing orchestration and SSE state', () => {
     const delegate: TeamProcessDelegate = vi.fn().mockImplementation(
       input =>
         new Promise((_resolve, reject) => {
-          delegateSignal = input.signal;
+          captured.signal = input.signal;
           input.signal.addEventListener('abort', () => reject(input.signal.reason), { once: true });
         })
     );
@@ -340,7 +343,7 @@ describe('team processing orchestration and SSE state', () => {
     await vi.waitFor(() => expect(delegate).toHaveBeenCalledOnce());
     expect(await bridge.cancel('operation-process')).toBe(true);
     await expect(running).rejects.toThrow('PROCESS_CANCELED');
-    expect(delegateSignal?.aborted).toBe(true);
+    expect(captured.signal?.aborted).toBe(true);
     expect(cleanup).toHaveBeenCalledOnce();
     expect(events.snapshot().operations[0]).toMatchObject({ state: 'canceled' });
     expect(bridge.busy()).toBe(false);

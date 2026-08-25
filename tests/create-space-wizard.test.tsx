@@ -4,6 +4,7 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthContextOverride } from '../apps/web/src/auth/AuthContext';
+import type { DriveRootResult } from '../apps/web/src/api/team';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { TeamSpace } from '../apps/web/src/team/TeamSpace';
 import { makeClient, makeTeam } from './team-space-fixtures';
@@ -95,15 +96,16 @@ describe('create space wizard', () => {
         folders: tree[parentId] ?? [],
         nextPageToken: null
       })),
-      confirmDriveRoot: vi.fn(async (input: { folderId: string; confirmed: boolean }) =>
-        input.confirmed
-          ? { state: 'connected', folder: tree.work[0], syncState: 'queued' }
-          : {
-              state: 'confirmation_required',
-              folder: { id: input.folderId, name: input.folderId, driveKind: 'my_drive' },
-              account: 'owner@example.test',
-              independentAclWarning: true
-            }
+      confirmDriveRoot: vi.fn(
+        async (input: { folderId: string; confirmed: boolean }): Promise<DriveRootResult> =>
+          input.confirmed
+            ? { state: 'connected', folder: tree.work[0], syncState: 'queued' }
+            : {
+                state: 'confirmation_required',
+                folder: { id: input.folderId, name: input.folderId, driveKind: 'my_drive' },
+                account: 'owner@example.test',
+                independentAclWarning: true
+              }
       )
     });
     const user = userEvent.setup();

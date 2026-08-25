@@ -130,10 +130,10 @@ describe('team shared landing renderer', () => {
       fetchImpl
     });
 
-    await expect(bridge.render(job())).rejects.toMatchObject<TeamLandingRenderError>({
+    await expect(bridge.render(job())).rejects.toMatchObject({
       message: 'RENDER_FAILED',
       reason: 'protected'
-    });
+    } satisfies Partial<TeamLandingRenderError>);
     expect(String(fetchImpl.mock.calls[0]?.[1]?.body)).toBe('{"reason":"protected"}');
     expect(JSON.stringify(fetchImpl.mock.calls)).not.toMatch(
       /password|landingRoot|sourceChecksum/i

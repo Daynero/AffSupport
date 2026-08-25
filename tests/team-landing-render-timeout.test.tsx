@@ -74,13 +74,10 @@ const job = {
 const failedRender: LandingRenderPointer = {
   materialId: MATERIAL_ID,
   state: 'failed',
-  valid: false,
-  preset: 'default',
-  segmentCount: 0,
   failureReason: 'render_error',
-  sourceVersion: null,
-  sourceChecksum: null,
-  fingerprint: null
+  preset: 'default',
+  sourceVersion: '1',
+  fingerprint: 'fingerprint-1'
 };
 
 describe('team landing render timeout', () => {

@@ -14,7 +14,10 @@ import { defineConfig } from 'vitest/config';
  */
 export default defineConfig({
   test: {
-    include: ['tests/**/*.test.{ts,tsx}'],
+    // Deliberately no `include` here. Both projects inherit this block, and an
+    // `include` at this level is merged into each of them rather than replaced
+    // — which had the end-to-end project collecting all 260 test files instead
+    // of its 3, running the whole suite twice against one shared jsdom origin.
     exclude: ['**/node_modules/**', '**/dist/**', 'release/**'],
 
     /**

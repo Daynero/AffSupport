@@ -158,8 +158,10 @@ describe('image embedding settings UI', () => {
     const first = new File(['png'], 'opening image.png', { type: 'image/png' });
     await user.upload(input, first);
     expect(uploaded).toHaveLength(1);
-    expect(screen.getByAltText('opening image.png')).toBeTruthy();
-    expect(screen.getByText('640×360')).toBeTruthy();
+    // `user.upload` resolves before the async upload handler's state update has
+    // rendered, so these are found rather than read.
+    expect(await screen.findByAltText('opening image.png')).toBeTruthy();
+    expect(await screen.findByText('640×360')).toBeTruthy();
     expect(document.querySelector('img')?.getAttribute('src')).toContain('asset-1');
 
     const second = new File(['webp'], 'replacement.webp', { type: 'image/webp' });

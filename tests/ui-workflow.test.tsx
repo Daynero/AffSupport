@@ -147,7 +147,7 @@ describe('drop zone and list selection', () => {
     const data = {
       getData: () =>
         'file:///Users/daynero/Downloads/HR17%2Be_compressed.mp4\nhttps://example.com/video.mp4'
-    } as DataTransfer;
+    } as unknown as DataTransfer;
     expect(droppedFilePaths(data)).toEqual(['/Users/daynero/Downloads/HR17+e_compressed.mp4']);
   });
 

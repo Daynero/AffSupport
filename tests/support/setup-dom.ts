@@ -1,4 +1,4 @@
-import { cleanup } from '@testing-library/react';
+import { cleanup, configure } from '@testing-library/react';
 import { afterEach } from 'vitest';
 import { clearPreviewUrlCache } from '../../apps/web/src/team/preview-url-cache';
 
@@ -26,6 +26,17 @@ import { clearPreviewUrlCache } from '../../apps/web/src/team/preview-url-cache'
  * means one test's grant would otherwise satisfy the next test's assertion that
  * a fetch happened.
  */
+/**
+ * How long an async query waits before deciding the thing never appeared.
+ *
+ * Testing Library's default is one second, which is a statement about the
+ * machine rather than about the code: a `findBy` resolves the moment its
+ * element exists, so a longer ceiling costs a passing test nothing and only
+ * changes what happens when the suite is competing for a busy CPU. One second
+ * was enough to make a different single test fail on each full run.
+ */
+configure({ asyncUtilTimeout: 5_000 });
+
 afterEach(() => {
   cleanup();
   clearPreviewUrlCache();

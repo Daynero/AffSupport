@@ -34,7 +34,6 @@ describe('estimate state after cancellation and retry', () => {
     });
     queue.attachEstimator({
       invalidate: vi.fn(),
-      pause: vi.fn(),
       resume: vi.fn(),
       schedule: vi.fn(),
       runPrioritized: vi.fn(),

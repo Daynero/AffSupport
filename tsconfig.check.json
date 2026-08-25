@@ -40,19 +40,7 @@
     "types": ["node", "vite/client"]
   },
   "include": ["tests/**/*.ts", "tests/**/*.tsx", "tests/types/*.d.ts"],
-  // RATCHET — 30 of 205 test files, 57 errors. Empty this list file by file (T240).
-  // tests/typecheck-ratchet.test.ts fails if it grows.
-  "exclude": [
-    "tests/create-space-wizard.test.tsx",
-    "tests/creative-library-security.test.ts",
-    "tests/delete-account-team.test.ts",
-    "tests/drive-connect.test.ts",
-    "tests/estimate-cancelled.test.ts",
-    "tests/landing-drop.test.tsx",
-    "tests/team-bridge.test.ts",
-    "tests/team-landing-render-bridge.test.ts",
-    "tests/team-landing-render-timeout.test.tsx",
-    "tests/team-preview-sandbox.test.tsx",
-    "tests/ui-workflow.test.tsx"
-  ]
+  // The ratchet reached zero (T240). Every test file is typechecked.
+  // tests/typecheck-ratchet.test.ts fails if this list ever grows again.
+  "exclude": []
 }
