@@ -12,7 +12,6 @@ const POOL_CORNERS = [
 
 const R = 170; // cursor influence radius (svg units)
 const LIFT = 0.075; // max scale-up near the cursor — uniform for every cell
-const MAX_GLOW = 7; // px of glow at full lift
 
 // Full-viewport Soty honeycomb backdrop, rendered as real React elements.
 // Light/dark colours are driven by CSS on :root[data-theme]. On a theme change
@@ -90,7 +89,6 @@ export function HoneycombField() {
         if (!inv) return;
       }
       const pt = new DOMPoint(mx, my).matrixTransform(inv);
-      const glow = document.documentElement.dataset.theme === 'dark' ? '255 205 105' : '96 52 188';
       const cbx = Math.floor(pt.x / B);
       const cby = Math.floor(pt.y / B);
       const next = new Set<number>();
@@ -105,8 +103,15 @@ export function HoneycombField() {
             const d2 = dx * dx + dy * dy;
             if (d2 > R2) continue;
             const f = Math.pow(1 - Math.sqrt(d2) / R, 1.5);
+            // `transform` and `opacity` are the two properties a browser can
+            // animate without repainting. `filter: drop-shadow` was neither:
+            // it forced a blurred repaint of every cell under the cursor, on
+            // every frame, and this field sits behind the whole application.
+            // The glow is carried by opacity instead — a slightly different
+            // look for a decoration, and the difference between a smooth
+            // pointer and a warm laptop.
             c.el.style.transform = `scale(${(1 + LIFT * f).toFixed(3)})`;
-            c.el.style.filter = `drop-shadow(0 0 ${(MAX_GLOW * f).toFixed(1)}px rgb(${glow} / ${(0.6 * f).toFixed(2)}))`;
+            c.el.style.opacity = (0.35 + 0.65 * f).toFixed(3);
             next.add(i);
           }
         }
@@ -114,7 +119,7 @@ export function HoneycombField() {
       for (const i of active)
         if (!next.has(i)) {
           cells[i].el.style.transform = '';
-          cells[i].el.style.filter = '';
+          cells[i].el.style.opacity = '';
         }
       active = next;
     };
@@ -131,7 +136,7 @@ export function HoneycombField() {
       }
       for (const i of active) {
         cells[i].el.style.transform = '';
-        cells[i].el.style.filter = '';
+        cells[i].el.style.opacity = '';
       }
       active = new Set();
     };
@@ -146,7 +151,7 @@ export function HoneycombField() {
       if (raf) cancelAnimationFrame(raf);
       for (const c of cells) {
         c.el.style.transform = '';
-        c.el.style.filter = '';
+        c.el.style.opacity = '';
       }
     };
   }, []);

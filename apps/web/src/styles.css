@@ -2084,6 +2084,23 @@ input.is-invalid {
   transition:
     border-color var(--dur-control) var(--ease-standard),
     box-shadow var(--dur-control) var(--ease-standard);
+
+  /* FR-044: the queue has no upper bound, and a row is not cheap — a preview,
+     a progress bar, an estimate panel and a details grid each.
+
+     Rendering is skipped for rows outside the viewport, rather than the rows
+     being removed from the document. Windowing would be the textbook answer and
+     is the wrong one here: these rows expand, so their heights are not known
+     ahead of time, and every windowing implementation for variable heights buys
+     smooth scrolling with jumpy scrollbars and broken find-in-page. This keeps
+     the DOM whole — search, keyboard navigation and screen readers all still
+     traverse it — and skips only the layout and paint.
+
+     The intrinsic size is a collapsed row's height. It only has to be close:
+     it is what the scrollbar is sized from before a row has been rendered
+     once, so a wrong value costs a scrollbar that settles, not a broken list. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 132px;
 }
 
 .job-row.is-selected {
@@ -9095,6 +9112,14 @@ body:has(.public-home) {
   border-radius: var(--radius-sm);
   overflow-wrap: anywhere;
   transition: background var(--dur-control) var(--ease-standard);
+
+  /* A transcript of an hour-long recording is thousands of these, each one
+     carrying a span per word for the click-to-seek mapping. Rendering is
+     skipped outside the viewport; the document stays whole, so find-in-page,
+     select-all and copy still see every word — which for a transcript editor is
+     not a detail but the point of the screen. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 2.4em;
 }
 .ts-segment:hover {
   background: color-mix(in srgb, var(--color-accent-softer) 45%, transparent);
