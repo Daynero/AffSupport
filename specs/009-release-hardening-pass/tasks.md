@@ -463,9 +463,9 @@ These four close holes confirmed by **probing a running local app**, not inferre
 - [ ] T239 [P] Replace the wall-clock assertions in `tests/catalog-benchmark.test.ts`, `tests/creative-library-benchmark.test.ts` and `tests/team-landing-gallery.test.tsx` with the recorded performance budgets (FR-022)
 - [ ] T240 Empty the type-check exclusion lists in `tsconfig.check.json` and `tsconfig.scripts.json`
 - [ ] T241 [P] Add tests for every module named in `coverage-critical.json` that no test imports today, working the list in `specs/009-release-hardening-pass/findings.md` §B; modules outside that file are out of scope here and are governed by the coverage ratchet instead
-- [ ] T242 [P] Update `AGENTS.md` and `README.md` to describe the single verification command and the two forms
-- [ ] T243 [P] Update `.specify/memory/constitution.md` to retire the "Known CI gaps" paragraph, which this feature closes
-- [ ] T244 Record the disposition of every audit finding in `specs/009-release-hardening-pass/findings.md` — resolved, or accepted with a stated reason (SC-019)
+- [X] T242 [P] Update `AGENTS.md` and `README.md` to describe the single verification command and the two forms
+- [X] T243 [P] Update `.specify/memory/constitution.md` to retire the "Known CI gaps" paragraph, which this feature closes
+- [X] T244 Record the disposition of every audit finding in `specs/009-release-hardening-pass/findings.md` — resolved, or accepted with a stated reason (SC-019)
 - [ ] T245 Run `specs/009-release-hardening-pass/quickstart.md` end to end on macOS
 - [ ] T246 Run `specs/009-release-hardening-pass/quickstart.md` end to end on Windows, including the orphaned-suspended-process check (FR-009)
 - [ ] T247 Substitute the real Developer ID profile into `scripts/sign-mac-app.sh` and the real certificate secret into `.github/workflows/release-windows.yml`, then re-run publisher verification on a clean machine on both platforms (SC-010)

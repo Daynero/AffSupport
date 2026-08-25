@@ -311,3 +311,48 @@ fixture", so someone enumerated the tests that did not. A curated subset reports
 green for everything it forgot to include, and it forgets silently on every
 rename. The requirements mechanism states the dependency at the test, an
 unexplained skip fails the run, and the list's reason for existing is gone.
+
+---
+
+## Disposition of every finding (2026-08-25)
+
+Ninety-one findings were recorded during the audit. This is where each one
+stands after the implementation pass, in the only three categories that mean
+anything: **resolved** (the behaviour changed and a test holds it), **accepted**
+(the behaviour stands, deliberately, with a reason), and **outstanding** (still
+true, not yet done).
+
+Rather than restate ninety-one lines, they are grouped by what happened to them
+and by the commit that did it. A finding not named here is outstanding.
+
+### Resolved, with a test
+
+| Group                                                                                                                                                                                                                                                                                                    | Findings                     | Where                                                                       |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | --------------------------------------------------------------------------- |
+| Power budget: unreachable unsupported state, pin ageing on a stopped cycler, render pool fixed at start-up, lever showing a limit not in force                                                                                                                                                           | A1, A6, A7, D9               | `feat(power): make the shared budget one that cannot quietly stop applying` |
+| Verification: no single command, no CI on pull requests, hand-maintained Windows test list, two boot paths for the end-to-end harness, unexplained skips                                                                                                                                                 | A17, B6, B10, B11            | `feat(verify): …` (three commits)                                           |
+| Interruption honesty: transport failure treated as absence, state moving backwards, animation asserting unverifiable progress, re-pair destroying the page, un-closable dialog, toast timers outliving their page                                                                                        | D1, D2, D3, D5, D6, D12, A14 | `feat(web): …` (four commits)                                               |
+| Local surface: session token in subresource URLs, paths accepted without provenance, error messages carrying file paths, state files readable by other accounts, unbounded request rate, a query language escaped by hand, model hash overridable beside its URL, support directory override unvalidated | C3, C4, C19, C21             | `fix(agent): …`, `feat(agent): …` (five commits)                            |
+| Browser origin: no content policy on the origin storing the local app's token, boot recovery blocked by its own policy, single-language recovery screen                                                                                                                                                  | FR-025, FR-057               | `feat(web): give the browser origin a content policy it can survive`        |
+| Performance: everything downloaded before anything appears, rows rebuilt on every tick, a decoration in the entry bundle, a filter repainting on every pointer move, unbounded lists, broadcast per encoder tick                                                                                         | E1–E8                        | `perf(web): …`, `perf: …` (four commits)                                    |
+| Surface consistency: nine tokens resolving to nothing, focus ring below contrast, stacking by escalation, text that ignored the reader's size, Ukrainian plurals, live regions shouting, a radio group without arrow keys, a document declaring the wrong language                                       | F1–F14                       | `fix(a11y): …`, `fix(i18n): …`, `refactor(web): …` (six commits)            |
+| Field reports: a queue busy while holding nothing, a compression that doubled a file, a warning arriving after the work                                                                                                                                                                                  | —                            | `fix(queue): …`, `fix(compress): …`                                         |
+
+### Accepted, deliberately
+
+| Finding                                               | Why it stands                                                                                                                                                                                  |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Signing credentials are external                      | The chain is scripted and tested; only the final substitution needs a certificate this repository cannot hold. Recorded in Complexity Tracking at plan time and unchanged.                     |
+| Media-action jobs get a real stop but not persistence | Adding a store to satisfy the interrupted-state requirement would be new capability, which this feature does not add. The honest downgrade was chosen at plan time.                            |
+| Path ledger enforces nothing yet                      | Observe mode counts what it would refuse and reports the number through diagnostics. Turning a new authorisation check on before that number is known is how a security fix becomes an outage. |
+| Google sign-in button is white in both themes         | Brand guidelines require it. A theme checker that flagged it would be one people learn to route around.                                                                                        |
+| Two translation keys kept despite reading as unused   | `agentVersion` and `help` are also ordinary identifiers, so no scan can separate a translation use from a coincidence. A dead string costs a line; a deleted live one costs a blank label.     |
+
+### Outstanding
+
+| Finding                                                                            | Blocked on                                                                                                                                                                          |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Windows suite has never been run                                                   | No Windows machine here. The `test-windows` job now runs the whole suite on every pull request, so the first run happens in CI rather than never.                                   |
+| macOS and Windows quickstart passes                                                | Both need a person at the machine; the Windows one also needs the orphaned-suspended-process check, which cannot be staged remotely.                                                |
+| Twenty-six test files excluded from type-checking                                  | Mechanical, and resistant to scripting: the same fixture shape varies enough between files that a regular expression produces wrong fixtures, which pass. By hand, in a later pass. |
+| Real-sleep test sites, benchmark wall-clock assertions, temp-directory duplication | Test-suite hygiene; none of it changes what ships.                                                                                                                                  |

@@ -82,6 +82,28 @@ the one-time setup in `docs/ANALYTICS_CLI.md`; do not fall back to manual Supaba
 
 Do not change production data during analytics queries.
 
+## Verifying a change
+
+```bash
+npm run verify           # static gates and the suite — about a minute
+npm run verify:release   # adds the builds, release contracts and database tests
+```
+
+Both run every gate through `scripts/verify-all.mjs` and report one
+machine-readable result, written to `verification-result.json` whichever form
+ran. The two forms differ **only** in which gates run, never in how a result is
+reported — there is one code path, and `--form` chooses a list. Success prints
+at most twenty lines; a failure prints at most a hundred, naming the gate and
+quoting the tool's own words rather than a paraphrase of them.
+
+The same command runs in CI (`.github/workflows/verify.yml`) on every pull
+request, across macOS, Windows and Linux — so a green run locally and a green
+run there mean the same thing. `--gates=<group>` runs one phase group, which is
+how the CI jobs split the work.
+
+A gate that hangs fails rather than holding the command open, and each carries
+its own timeout.
+
 ## Soty development builds
 
 When the user asks for a dev build, test build, or installable build without

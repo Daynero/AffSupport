@@ -204,7 +204,7 @@ hook; prop-drilling `t` through a component chain; stringly-typed error branches
 
 - **Local gates before a PR:** `npm run format:check`, `npm run lint`, and `npm test`
   (which builds `shared` then runs `vitest run`) MUST pass. Because there is no `tsc
-  --noEmit` script, run the relevant `build` to catch type errors — especially for
+--noEmit` script, run the relevant `build` to catch type errors — especially for
   `apps/agent`, which CI never builds.
 - **Test conventions:** all tests live in the central `tests/` directory as `*.test.ts(x)`
   (never co-located, never `*.spec`). DOM tests opt into jsdom with a
@@ -212,11 +212,13 @@ hook; prop-drilling `t` through a component chain; stringly-typed error branches
   DB query tests use PGlite; filesystem/server integration tests use `mkdtemp` + an
   `afterEach` recursive cleanup. `scripts/real-agent-check.mjs` (`test:agent:e2e`) is the
   real end-to-end harness and requires a full build.
-- **Known CI gaps — do not mistake a green `main` for verified:** the only workflow
-  (`.github/workflows/release-test.yml`) is `workflow_dispatch`-only and runs on Node 22;
-  nothing runs on PR or push, and lint, format, typecheck, `test:db`, and `test:agent:e2e`
-  are NOT gated. Closing these gaps is sanctioned work; until then, contributors carry the
-  gate manually.
+- **Verification is one command, and it runs on every pull request:**
+  `npm run verify` (fast) and `npm run verify:release` (full) run every gate
+  through `scripts/verify-all.mjs`, and `.github/workflows/verify.yml` runs them
+  on pull requests and on the default branch across macOS, Windows and Linux.
+  The two forms differ only in which gates run, never in how a result is
+  reported. This paragraph previously warned that nothing ran on PR or push and
+  that contributors carried the gate by hand; feature 009 closed that.
 - **Anti-patterns to fix, not copy:** real-binary tests that `if (!available) return;`
   report as PASSING when a tool is absent — use `it.skipIf`/`ctx.skip()` so they show as
   skipped. Do not pin `apps/web` deps to `"latest"`.
