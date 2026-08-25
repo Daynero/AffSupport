@@ -1,10 +1,11 @@
-import { useId, useMemo, useState, type CSSProperties } from 'react';
+import { useId, useState, type CSSProperties } from 'react';
 import type { LandingAsset } from '@video-compressor/shared';
-import { landingPreviewUrl } from '../api/client';
 import { formatSize } from '../format';
 import type { Language } from '../i18n';
 import { Modal } from '../components/Modal';
 import { Spinner, type Translate } from '../components/ui';
+import { landingPreviewPath } from '../api/client';
+import { useSubresourceUrl } from '../api/useSubresourceUrl';
 
 export function ImageCompareModal({
   jobId,
@@ -27,8 +28,15 @@ export function ImageCompareModal({
   const [failed, setFailed] = useState(false);
   const preview = asset.preview;
   const comparison = preview?.comparison === true;
-  const beforeUrl = useMemo(() => landingPreviewUrl(jobId, asset.id, 'before'), [jobId, asset.id]);
-  const afterUrl = useMemo(() => landingPreviewUrl(jobId, asset.id, 'after'), [jobId, asset.id]);
+  // Ticketed, so the session token is not in an <img src> that ends up in a
+  // referrer or a log. Null until the ticket arrives, which the loading state
+  // below already covers.
+  const beforeUrl = useSubresourceUrl(landingPreviewPath(jobId, asset.id, 'before'), {
+    variant: 'full'
+  });
+  const afterUrl = useSubresourceUrl(landingPreviewPath(jobId, asset.id, 'after'), {
+    variant: 'full'
+  });
 
   const ready = loaded.before && (!comparison || loaded.after) && !failed;
   const saving = asset.savedPercent ?? 0;
@@ -73,7 +81,7 @@ export function ImageCompareModal({
             <>
               <img
                 className="landing-compare-image landing-compare-after"
-                src={afterUrl}
+                src={afterUrl ?? ''}
                 alt=""
                 draggable={false}
                 onLoad={() => setLoaded(value => ({ ...value, after: true }))}
@@ -82,7 +90,7 @@ export function ImageCompareModal({
               <div className="landing-compare-before-layer" aria-hidden="true">
                 <img
                   className="landing-compare-image landing-compare-before"
-                  src={beforeUrl}
+                  src={beforeUrl ?? ''}
                   alt=""
                   draggable={false}
                   onLoad={() => setLoaded(value => ({ ...value, before: true }))}
@@ -93,7 +101,7 @@ export function ImageCompareModal({
           ) : (
             <img
               className="landing-compare-image landing-compare-single"
-              src={beforeUrl}
+              src={beforeUrl ?? ''}
               alt=""
               draggable={false}
               onLoad={() => setLoaded(value => ({ ...value, before: true }))}

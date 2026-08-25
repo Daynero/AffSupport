@@ -17,6 +17,8 @@ import {
 } from '@video-compressor/shared';
 import type { TranslationKey } from '../i18n';
 import { Checkbox, Collapse, IconButton, Spinner, Tooltip, type Translate } from './ui';
+import { imageContentPath } from '../api/client';
+import { useSubresourceUrl } from '../api/useSubresourceUrl';
 
 const supportedExtensions = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 const supportedMimeTypes = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -27,7 +29,6 @@ export function ImageEmbeddingSection({
   update,
   uploadImages,
   removeImage,
-  imageUrl,
   onValidityChange,
   t
 }: {
@@ -36,7 +37,6 @@ export function ImageEmbeddingSection({
   update: (patch: ImageEmbeddingSettingsPatch, debounce?: boolean) => void;
   uploadImages: (slot: ImageSlot, files: File[]) => Promise<void>;
   removeImage: (slot: ImageSlot, id: string) => Promise<void>;
-  imageUrl: (id: string) => string;
   onValidityChange: (valid: boolean) => void;
   t: Translate;
 }) {
@@ -97,7 +97,6 @@ export function ImageEmbeddingSection({
               disabled={disabled}
               uploadImages={uploadImages}
               removeImage={removeImage}
-              imageUrl={imageUrl}
               t={t}
             >
               <div className="embedding-column-fields">
@@ -178,7 +177,6 @@ export function ImageEmbeddingSection({
               disabled={disabled}
               uploadImages={uploadImages}
               removeImage={removeImage}
-              imageUrl={imageUrl}
               t={t}
             >
               <div className="field-group final-duration-field">
@@ -252,7 +250,6 @@ function ImageColumn({
   disabled,
   uploadImages,
   removeImage,
-  imageUrl,
   children,
   t
 }: {
@@ -263,7 +260,6 @@ function ImageColumn({
   disabled: boolean;
   uploadImages: (slot: ImageSlot, files: File[]) => Promise<void>;
   removeImage: (slot: ImageSlot, id: string) => Promise<void>;
-  imageUrl: (id: string) => string;
   children?: React.ReactNode;
   t: Translate;
 }) {
@@ -279,7 +275,6 @@ function ImageColumn({
         disabled={disabled}
         uploadImages={uploadImages}
         removeImage={removeImage}
-        imageUrl={imageUrl}
         t={t}
       />
       {children}
@@ -293,7 +288,6 @@ export function ImageDropArea({
   disabled,
   uploadImages,
   removeImage,
-  imageUrl,
   t
 }: {
   slot: ImageSlot;
@@ -301,7 +295,6 @@ export function ImageDropArea({
   disabled: boolean;
   uploadImages: (slot: ImageSlot, files: File[]) => Promise<void>;
   removeImage: (slot: ImageSlot, id: string) => Promise<void>;
-  imageUrl: (id: string) => string;
   t: Translate;
 }) {
   const input = useRef<HTMLInputElement>(null);
@@ -398,7 +391,7 @@ export function ImageDropArea({
         >
           {assets.map(asset => (
             <div className="selected-image-tile" key={asset.id} title={asset.fileName}>
-              {imageUrl(asset.id) && <img src={imageUrl(asset.id)} alt={asset.fileName} />}
+              <AssetThumbnail id={asset.id} fileName={asset.fileName} />
               <IconButton
                 className="selected-image-action is-delete"
                 label={t('deleteImage')}
@@ -491,4 +484,17 @@ function FieldLabel({ label, tooltip }: { label: string; tooltip?: string }) {
       {tooltip && <Tooltip label={tooltip}>{tooltip}</Tooltip>}
     </div>
   );
+}
+
+/**
+ * The thumbnail, fetched with a capability ticket rather than the session token.
+ *
+ * A ticket has to be asked for, so the URL arrives a moment after the row does.
+ * Rendering nothing until then is what the component did anyway while the image
+ * loaded — there is no new state here, only a slightly earlier one.
+ */
+function AssetThumbnail({ id, fileName }: { id: string; fileName: string }) {
+  const url = useSubresourceUrl(imageContentPath(id));
+  if (!url) return null;
+  return <img src={url} alt={fileName} />;
 }

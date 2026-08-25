@@ -12,7 +12,6 @@ import {
 import {
   agentKnown,
   agentLocalUrl,
-  imageContentUrl,
   markAgentInstallStarted,
   request,
   requestBody,
@@ -490,7 +489,6 @@ export default function CompressorPage() {
           chooseOutputFolder={() => void action('/api/output/select')}
           uploadImages={setImages}
           removeImage={removeImage}
-          imageUrl={imageContentUrl}
           onEmbeddingValidityChange={setEmbeddingFormValid}
           t={t}
         />

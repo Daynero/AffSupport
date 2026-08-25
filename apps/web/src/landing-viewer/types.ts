@@ -59,7 +59,16 @@ export interface LandingViewerSource {
   }): () => void;
 
   /** Resolve the image URL for a landing + segment (agent token URL vs. signed URL). */
-  imageUrl(item: LandingPreviewItem, segment: number): string;
+  /**
+   * The image for one tile.
+   *
+   * May be a promise, because the agent-backed source mints a capability ticket
+   * for it: the session token must not travel in an `<img src>`, which is
+   * copied into referrers, logs and proxy caches. A source that already knows
+   * the URL — a bundled fixture, a hosted gallery — returns the string, and
+   * callers resolve either shape.
+   */
+  imageUrl(item: LandingPreviewItem, segment: number): string | Promise<string | null> | null;
 
   /** Switch active catalogue — the one action every source supports. */
   activate(catalogId: string): Promise<LandingPreviewState>;

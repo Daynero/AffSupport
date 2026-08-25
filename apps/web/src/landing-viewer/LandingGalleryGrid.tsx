@@ -1,6 +1,7 @@
 import type { LandingPreviewItem } from '@video-compressor/shared';
 import { useI18n } from '../i18n';
 import { Spinner } from '../components/ui';
+import { useEffect, useState } from 'react';
 
 export function LandingGalleryGrid({
   landings,
@@ -10,7 +11,7 @@ export function LandingGalleryGrid({
 }: {
   landings: LandingPreviewItem[];
   selectedId: string | null;
-  imageUrl: (item: LandingPreviewItem, segment: number) => string;
+  imageUrl: (item: LandingPreviewItem, segment: number) => string | Promise<string | null> | null;
   onSelect: (id: string) => void;
 }) {
   const { t } = useI18n();
@@ -26,7 +27,7 @@ export function LandingGalleryGrid({
         >
           <span className="landing-gallery-grid-thumb">
             {item.previewAvailable ? (
-              <img src={imageUrl(item, 0)} alt="" loading="lazy" draggable={false} />
+              <GalleryThumbnail item={item} imageUrl={imageUrl} />
             ) : item.status === 'failed' ? (
               <em>{t('landingGalleryStatusFailed')}</em>
             ) : (
@@ -38,4 +39,32 @@ export function LandingGalleryGrid({
       ))}
     </div>
   );
+}
+
+/**
+ * One tile's image, resolved through a capability ticket.
+ *
+ * The grid renders many of these, and the ticket for a given landing is cached
+ * in the client, so a scroll costs one request per landing rather than one per
+ * tile.
+ */
+function GalleryThumbnail({
+  item,
+  imageUrl
+}: {
+  item: LandingPreviewItem;
+  imageUrl: (item: LandingPreviewItem, segment: number) => string | Promise<string | null> | null;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    void Promise.resolve(imageUrl(item, 0)).then(next => {
+      if (active) setUrl(next);
+    });
+    return () => {
+      active = false;
+    };
+  }, [imageUrl, item]);
+  if (!url) return null;
+  return <img src={url} alt="" loading="lazy" draggable={false} />;
 }

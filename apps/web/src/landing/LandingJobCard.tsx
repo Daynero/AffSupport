@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { LandingAsset, LandingJob, LandingState } from '@video-compressor/shared';
-import { landingPreviewUrl } from '../api/client';
+import { landingPreviewPath } from '../api/client';
+import { useSubresourceUrl } from '../api/useSubresourceUrl';
 import { formatSize } from '../format';
 import type { Language, TranslationKey } from '../i18n';
 import { Card } from '../components/Card';
@@ -361,16 +362,14 @@ function ImagePreviewThumbnail({
   const comparison = asset.preview?.comparison === true;
   const [beforeVariant, setBeforeVariant] = useState<'thumbnail' | 'full' | 'failed'>('thumbnail');
   const [afterVariant, setAfterVariant] = useState<'thumbnail' | 'full' | 'failed'>('thumbnail');
-  const before = useMemo(
-    () =>
-      landingPreviewUrl(jobId, asset.id, 'before', beforeVariant === 'full' ? 'full' : 'thumbnail'),
-    [jobId, asset.id, beforeVariant]
-  );
-  const after = useMemo(
-    () =>
-      landingPreviewUrl(jobId, asset.id, 'after', afterVariant === 'full' ? 'full' : 'thumbnail'),
-    [jobId, asset.id, afterVariant]
-  );
+  // Ticketed rather than token-carrying: these end up in <img src>, which is
+  // the one place a URL is guaranteed to be logged and referred.
+  const before = useSubresourceUrl(landingPreviewPath(jobId, asset.id, 'before'), {
+    variant: beforeVariant === 'full' ? 'full' : 'thumbnail'
+  });
+  const after = useSubresourceUrl(landingPreviewPath(jobId, asset.id, 'after'), {
+    variant: afterVariant === 'full' ? 'full' : 'thumbnail'
+  });
   const retryFull = (
     variant: 'thumbnail' | 'full' | 'failed',
     setVariant: (value: 'thumbnail' | 'full' | 'failed') => void
@@ -394,7 +393,7 @@ function ImagePreviewThumbnail({
       {comparison ? (
         <>
           <img
-            src={after}
+            src={after ?? ''}
             alt=""
             loading="lazy"
             draggable={false}
@@ -402,7 +401,7 @@ function ImagePreviewThumbnail({
           />
           <span aria-hidden="true">
             <img
-              src={before}
+              src={before ?? ''}
               alt=""
               loading="lazy"
               draggable={false}
@@ -413,7 +412,7 @@ function ImagePreviewThumbnail({
         </>
       ) : (
         <img
-          src={before}
+          src={before ?? ''}
           alt=""
           loading="lazy"
           draggable={false}

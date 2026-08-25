@@ -30,7 +30,6 @@ export function SettingsPanel({
   chooseOutputFolder,
   uploadImages = async () => {},
   removeImage = async () => {},
-  imageUrl = () => '',
   onEmbeddingValidityChange = () => {},
   t
 }: {
@@ -105,7 +104,6 @@ export function SettingsPanel({
         update={(patch, debounce) => updateSettings({ imageEmbedding: patch }, debounce)}
         uploadImages={uploadImages}
         removeImage={removeImage}
-        imageUrl={imageUrl}
         onValidityChange={onEmbeddingValidityChange}
         t={t}
       />

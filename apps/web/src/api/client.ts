@@ -275,26 +275,97 @@ export async function uploadImage(slot: ImageSlot, file: File): Promise<QueueSta
   }
   return assertOk(response) as Promise<QueueState>;
 }
-export function imageContentUrl(id: string) {
-  return `${agentUrl}/api/images/${encodeURIComponent(id)}/content?token=${encodeURIComponent(pairingToken())}`;
+
+/**
+ * A short-lived ticket for one subresource, cached until it is nearly expired.
+ *
+ * The builders below produce URLs the browser's own loader fetches, so the
+ * credential has to be in the URL — and a URL is copied, linked, logged and
+ * cached. A ticket is scoped to that one path and lasts five minutes, so the
+ * worst a leaked one costs is that one resource for a short while, instead of
+ * the whole local app for as long as it runs (C4/FR-024).
+ *
+ * Cached because a gallery renders the same image repeatedly and a video seeks
+ * within one file; asking per render would turn every scroll into a round trip.
+ * Refreshed a minute early so a request never leaves with a ticket that expires
+ * in flight.
+ */
+const ticketCache = new Map<string, { ticket: string; expiresAt: number }>();
+const TICKET_REFRESH_MARGIN_MS = 60_000;
+
+export async function subresourceTicket(path: string): Promise<string | null> {
+  const cached = ticketCache.get(path);
+  if (cached && cached.expiresAt - TICKET_REFRESH_MARGIN_MS > Date.now()) return cached.ticket;
+  try {
+    const response = await fetch(`${agentUrl}/api/tickets`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-session-token': pairingToken() },
+      body: JSON.stringify({ path })
+    });
+    if (!response.ok) return null;
+    const body = (await response.json()) as { ticket?: unknown; expiresInMs?: unknown };
+    if (typeof body.ticket !== 'string') return null;
+    const lifetime = typeof body.expiresInMs === 'number' ? body.expiresInMs : 5 * 60_000;
+    ticketCache.set(path, { ticket: body.ticket, expiresAt: Date.now() + lifetime });
+    return body.ticket;
+  } catch {
+    return null;
+  }
 }
+
+/** Builds a subresource URL carrying a ticket, or null when none could be had. */
+export async function ticketedUrl(
+  path: string,
+  extra: Record<string, string> = {}
+): Promise<string | null> {
+  const ticket = await subresourceTicket(path);
+  if (!ticket) return null;
+  const query = new URLSearchParams({ ...extra, ticket });
+  return `${agentUrl}${path}?${query.toString()}`;
+}
+
+/** Forgets every cached ticket. Called when the session token changes. */
+export function clearSubresourceTickets(): void {
+  ticketCache.clear();
+}
+
+/** The path of an embedded image's bytes; pair with `useSubresourceUrl`. */
+export function imageContentPath(id: string) {
+  return `/api/images/${encodeURIComponent(id)}/content`;
+}
+
+export async function imageContentUrl(id: string): Promise<string | null> {
+  return ticketedUrl(imageContentPath(id));
+}
+/** The path of a landing asset preview; pair with `useSubresourceUrl`. */
+export function landingPreviewPath(jobId: string, assetId: string, side: 'before' | 'after') {
+  return `/api/landing/jobs/${encodeURIComponent(jobId)}/assets/${encodeURIComponent(
+    assetId
+  )}/preview/${side}`;
+}
+
 export function landingPreviewUrl(
   jobId: string,
   assetId: string,
   side: 'before' | 'after',
   variant: 'full' | 'thumbnail' = 'full'
-) {
+): Promise<string | null> {
   const path = `/api/landing/jobs/${encodeURIComponent(jobId)}/assets/${encodeURIComponent(
     assetId
   )}/preview/${side}`;
-  return `${agentUrl}${path}?variant=${variant}&token=${encodeURIComponent(pairingToken())}`;
+  return ticketedUrl(path, { variant });
 }
 
-export function landingGalleryImageUrl(landingId: string, revision: number | null, segment = 0) {
-  const suffix = revision ? `&v=${encodeURIComponent(revision)}` : '';
-  return `${agentUrl}/api/landing-preview/landings/${encodeURIComponent(
-    landingId
-  )}/image?token=${encodeURIComponent(pairingToken())}&segment=${encodeURIComponent(segment)}${suffix}`;
+export function landingGalleryImageUrl(
+  landingId: string,
+  revision: number | null,
+  segment = 0
+): Promise<string | null> {
+  const path = `/api/landing-preview/landings/${encodeURIComponent(landingId)}/image`;
+  return ticketedUrl(path, {
+    segment: String(segment),
+    ...(revision ? { v: String(revision) } : {})
+  });
 }
 
 function teamTransferRangeUrl() {
@@ -764,9 +835,20 @@ export function transcriptionMediaCancel(id: string): Promise<{ ok: boolean }> {
     'POST'
   );
 }
-/** URL for the local, token-gated, range-capable source media (for the player). */
-export function transcriptionMediaUrl(id: string): string {
-  return `${agentUrl}/api/transcription/jobs/${encodeURIComponent(id)}/media?token=${encodeURIComponent(pairingToken())}`;
+/** The path of a job's source media; pair with `useSubresourceUrl`. */
+export function transcriptionMediaPath(id: string): string {
+  return `/api/transcription/jobs/${encodeURIComponent(id)}/media`;
+}
+
+/**
+ * URL for the local, range-capable source media, carrying a capability ticket.
+ *
+ * The player seeks, which means range requests, which means the URL is used
+ * repeatedly and stays in the element for as long as the modal is open — the
+ * worst possible place for a session token.
+ */
+export function transcriptionMediaUrl(id: string): Promise<string | null> {
+  return ticketedUrl(transcriptionMediaPath(id));
 }
 async function assertOk(response: Response) {
   // Decided before the body is read: a 401 came *from* the Agent, so it is

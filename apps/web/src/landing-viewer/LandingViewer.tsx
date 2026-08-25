@@ -15,7 +15,7 @@ import {
   firstDroppedDirectory,
   sampleDroppedFolder
 } from '../components/DropZone';
-import { emptyState } from './types';
+import { emptyState, type LandingViewerSource } from './types';
 import { readViewerPreferences, writeViewerPreferences } from './viewerPreferences';
 import { useLandingViewport } from './useLandingViewport';
 import type { UseLandingViewer } from './useLandingViewer';
@@ -517,15 +517,13 @@ export function LandingViewer({
           >
             <div className="landing-gallery-image-stack">
               {Array.from({ length: Math.max(1, selected.previewSegments ?? 1) }, (_, index) => (
-                <img
+                <SegmentImage
                   key={`${selected.id}-${selected.renderedAt}-${index}`}
-                  src={source.imageUrl(selected, index)}
+                  source={source}
+                  item={selected}
+                  segment={index}
                   alt={index === 0 ? selected.name : ''}
-                  aria-hidden={index > 0 ? true : undefined}
-                  draggable={false}
-                  style={{
-                    width: selected.previewWidth ? selected.previewWidth * scale : undefined
-                  }}
+                  scale={scale}
                 />
               ))}
             </div>
@@ -643,5 +641,47 @@ export function LandingViewer({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * One segment of a rendered landing, resolved through the source.
+ *
+ * The agent-backed source mints a capability ticket per landing, so a tall page
+ * split into sixty segments costs one request, not sixty — the ticket is
+ * scoped to the path, and every segment shares it.
+ */
+function SegmentImage({
+  source,
+  item,
+  segment,
+  alt,
+  scale
+}: {
+  source: LandingViewerSource;
+  item: Parameters<LandingViewerSource['imageUrl']>[0];
+  segment: number;
+  alt: string;
+  scale: number;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    void Promise.resolve(source.imageUrl(item, segment)).then(next => {
+      if (active) setUrl(next);
+    });
+    return () => {
+      active = false;
+    };
+  }, [source, item, segment]);
+  if (!url) return null;
+  return (
+    <img
+      src={url}
+      alt={alt}
+      aria-hidden={segment > 0 ? true : undefined}
+      draggable={false}
+      style={{ width: item.previewWidth ? item.previewWidth * scale : undefined }}
+    />
   );
 }

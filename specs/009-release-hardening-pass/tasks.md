@@ -341,7 +341,7 @@ These four close holes confirmed by **probing a running local app**, not inferre
 
 - [X] T166 [US5] Create `apps/agent/src/server/tickets.ts` issuing path- and method-bound capability tickets with a five-minute lifetime, derived from but not equal to the session token
 - [X] T167 [US5] Issue tickets in the authenticated responses describing image, preview and media resources in `apps/agent/src/compressor/routes.ts`, `apps/agent/src/landing-preview/routes.ts` and `apps/agent/src/transcription/routes.ts`
-- [ ] T168 [US5] Remove the token query parameter from the remaining subresource URL builders in `apps/web/src/api/client.ts`, using tickets instead — range requests must keep working
+- [X] T168 [US5] Remove the token query parameter from the remaining subresource URL builders in `apps/web/src/api/client.ts`, using tickets instead — range requests must keep working
 
 ### Implementation — the path ledger and its prerequisites
 

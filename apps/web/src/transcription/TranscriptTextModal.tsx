@@ -25,7 +25,7 @@ import {
   transcriptionMediaCancel,
   transcriptionMediaPrepare,
   transcriptionMediaStatus,
-  transcriptionMediaUrl,
+  transcriptionMediaPath,
   transcriptionSaveWithTranslation,
   transcriptionTranslate,
   transcriptionTranslation,
@@ -41,6 +41,7 @@ import {
 } from './alignment';
 import { charOffsetWithin, joinRanges, splitTextByRanges } from './selection-dom';
 import { activeWordIndex, flattenWords } from './karaoke';
+import { useSubresourceUrl } from '../api/useSubresourceUrl';
 
 const TARGET_LANGUAGES = [...TRANSLATEGEMMA_LANGUAGE_CODES];
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -316,6 +317,10 @@ export function TranscriptTextModal({
   onClose: () => void;
   t: Translate;
 }) {
+  // Ticketed rather than token-carrying: the player seeks, so this URL is used
+  // repeatedly and sits in the element for as long as the modal is open — the
+  // worst possible place for a session token to live.
+  const mediaUrl = useSubresourceUrl(job ? transcriptionMediaPath(job.id) : null);
   const titleId = useId();
   const matchHintId = useId();
   const previewId = useId();
@@ -1568,7 +1573,7 @@ export function TranscriptTextModal({
                 <video
                   ref={mediaRef}
                   className="transcript-preview-media"
-                  src={transcriptionMediaUrl(job.id)}
+                  src={mediaUrl ?? ''}
                   playsInline
                   preload="metadata"
                   onLoadedMetadata={syncPlayback}
