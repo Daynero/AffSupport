@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdir, mkdtemp, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, stat } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
@@ -113,17 +113,28 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
     await mkdir(importRoot, { recursive: true });
     const dir = await mkdtemp(path.join(importRoot, 'import-'));
     const target = path.join(dir, fileName);
+    // Every failure below leaves a directory behind unless someone removes it,
+    // and the two that matter are the ordinary ones: a dropped connection and a
+    // file over the limit. Neither is exceptional enough to be noticed, which is
+    // how an import directory accumulates one abandoned copy per attempt.
+    const discardImport = () => rm(dir, { recursive: true, force: true }).catch(() => {});
     try {
       await pipeline(part.file, createWriteStream(target));
     } catch (error) {
+      await discardImport();
       return reply
         .code(400)
         .send({ error: error instanceof Error ? error.message : 'The file could not be stored.' });
     }
     if (part.file.truncated) {
+      await discardImport();
       return reply.code(413).send({ error: 'The file is too large.' });
     }
     const warnings = await queue.addUploaded(target, fileName, signature);
+    // On the accepted path the copy *is* the job's input and must stay. A
+    // rejected one has already been unlinked by the queue, leaving an empty
+    // directory that nothing will ever look in again.
+    if (warnings.length > 0) await discardImport();
     return { state: queue.state(), warnings };
   });
 

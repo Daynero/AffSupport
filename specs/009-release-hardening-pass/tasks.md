@@ -356,7 +356,7 @@ These four close holes confirmed by **probing a running local app**, not inferre
 - [ ] T177 [US5] Accept grant identifiers in place of absolute paths in those three routes and in `apps/web/src/api/client.ts`, keeping raw-path acceptance only where it resolves to an existing grant
 - [ ] T178 [US5] Flip the ledger from observe to enforce in `apps/agent/src/files/path-grants.ts`, with no environment flag to disable it. **Exit criterion, fixed before T176 ships**: at least 200 observed path uses across at least 10 distinct beta sessions covering pick, drop, Finder and restore, with **zero** would-refuse events not already reproduced by a positive-suite case. One unexplained would-refuse resets the count
 - [ ] T179 [P] [US5] Route the six reveal and open call sites through one guarded helper in `apps/agent/src/platform/platform.ts` that resolves, stats, and rejects executable or URL-shaped targets (C15, FR-032b)
-- [ ] T180 [P] [US5] Remove the import temp directory on the success path in `apps/agent/src/transcription/routes.ts` and add a boot sweep plus a periodic unreferenced-directory sweep in `apps/agent/src/files/support-dir.ts` (C16, FR-032c)
+- [X] T180 [P] [US5] Remove the import temp directory on the success path in `apps/agent/src/transcription/routes.ts` and add a boot sweep plus a periodic unreferenced-directory sweep in `apps/agent/src/files/support-dir.ts` (C16, FR-032c)
 
 ### Implementation — the remainder
 
