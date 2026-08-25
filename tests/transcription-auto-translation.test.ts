@@ -38,8 +38,8 @@ vi.mock('../apps/agent/src/whisper/transcriber.js', () => ({
 }));
 
 import { TranscriptionQueue } from '../apps/agent/src/queue/transcription-queue.js';
-import { removeTemporaryDirectory } from './support/temp-dir.js';
 import { waitFor } from './support/wait.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 function translatedOutput(request: TranslateRequest): TranslationOutputSegment[] {
   return request.segments.map((segment, index) => {

@@ -1,14 +1,15 @@
-import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { findDroppedFolder } from '../apps/agent/src/files/dropped-source.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 const roots: string[] = [];
 
 afterEach(async () => {
   vi.restoreAllMocks();
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })));
+  await Promise.all(roots.splice(0).map(root => removeTemporaryDirectory(root)));
 });
 
 /** Seed a folder under a fake home's Downloads and describe one file inside it as a drop sample. */

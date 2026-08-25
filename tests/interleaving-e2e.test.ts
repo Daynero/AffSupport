@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
@@ -8,6 +8,7 @@ import { DRIVABLE_TOOLS, runScenario, type ScenarioResult } from './support/inte
 import { describeSurvivors, handlesUnder, survivorsOf } from './support/machine-probe.js';
 import { describeRequiring, requirePath } from './support/requires.js';
 import { writeStubTool } from './support/stub-tools/index.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 /**
  * The feature's core guarantee, walked end to end.
@@ -106,7 +107,7 @@ describeRequiring(builtAgent, 'interleaved work behaves predictably', () => {
         }
       }
     }
-    if (root) await rm(root, { recursive: true, force: true });
+    if (root) await removeTemporaryDirectory(root);
   }, 120_000);
 
   const cases = INTERLEAVING_SCENARIOS.map(scenario => [scenario.id, scenario] as const);

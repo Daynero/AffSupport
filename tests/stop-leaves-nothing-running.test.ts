@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,6 +11,7 @@ import type {
   Translator,
   TranslationOutputSegment
 } from '../apps/agent/src/translation/translator.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 /**
  * "Stopped" has to mean the machine goes quiet, not that a status field changed.
@@ -74,7 +75,7 @@ describe('cancelling a transcription', () => {
   afterEach(async () => {
     vi.unstubAllEnvs();
     vi.resetModules();
-    await rm(dir, { recursive: true, force: true });
+    await removeTemporaryDirectory(dir);
   });
 
   it('never starts the audio extract when the stop lands before the first spawn', async () => {
@@ -161,7 +162,7 @@ describe('stopping everything in the transcription tool', () => {
     delete process.env.AGENT_TRANSCRIBE_DOCUMENTS_PATH;
     delete process.env.AGENT_TRANSLATION_CACHE_PATH;
     delete process.env.AGENT_TRANSCRIBE_PREVIEWS_PATH;
-    await rm(dir, { recursive: true, force: true });
+    await removeTemporaryDirectory(dir);
   });
 
   it('stops the local translation, not just the transcription queue', async () => {

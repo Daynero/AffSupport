@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import Fastify from 'fastify';
@@ -7,6 +7,7 @@ import type { TranscriptionState } from '../packages/shared/src/types.js';
 import type { TranscriptionQueue } from '../apps/agent/src/queue/transcription-queue.js';
 import { EventChannel } from '../apps/agent/src/server/sse.js';
 import { registerTranscriptionRoutes } from '../apps/agent/src/transcription/routes.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 describe('token-gated transcription media Range endpoint', () => {
   let dir: string;
@@ -19,7 +20,7 @@ describe('token-gated transcription media Range endpoint', () => {
   });
 
   afterAll(async () => {
-    await rm(dir, { recursive: true, force: true });
+    await removeTemporaryDirectory(dir);
   });
 
   async function server() {

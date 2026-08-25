@@ -1,15 +1,16 @@
-import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LandingOptimizer } from '../apps/agent/src/landing/optimizer.js';
 import { zipDirectory } from '../apps/agent/src/platform/platform.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 const roots: string[] = [];
 
 afterEach(async () => {
   vi.unstubAllEnvs();
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })));
+  await Promise.all(roots.splice(0).map(root => removeTemporaryDirectory(root)));
 });
 
 async function landingFolder(parent: string, name: string): Promise<string> {

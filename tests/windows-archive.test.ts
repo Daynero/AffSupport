@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -11,6 +11,7 @@ import {
   unzipArchive,
   zipDirectory
 } from '../apps/agent/src/platform/platform.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 /**
  * The archive helpers take a different branch on Windows: macOS uses `ditto`,
@@ -24,7 +25,7 @@ const bsdtar = process.platform === 'darwin' ? '/usr/bin/tar' : 'tar';
 const temporary: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(temporary.splice(0).map(dir => rm(dir, { recursive: true, force: true })));
+  await Promise.all(temporary.splice(0).map(dir => removeTemporaryDirectory(dir)));
 });
 
 async function workspace() {

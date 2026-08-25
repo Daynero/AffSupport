@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -6,6 +6,7 @@ import {
   LandingPreviewCatalog,
   type LandingRenderer
 } from '../apps/agent/src/landing-preview/catalog.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 /**
  * A7. The power limit reached spawned processes and left this pool alone, so a
@@ -23,7 +24,7 @@ const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
   await Promise.all(
-    temporaryDirectories.splice(0).map(directory => rm(directory, { recursive: true, force: true }))
+    temporaryDirectories.splice(0).map(directory => removeTemporaryDirectory(directory))
   );
 });
 

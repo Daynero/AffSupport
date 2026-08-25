@@ -1,10 +1,11 @@
-import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { loadPowerState, powerStatePath, savePowerLimit } from '../apps/agent/src/power/store.js';
 import { PowerGovernor } from '../apps/agent/src/power/governor.js';
 import { POWER_LIMIT_MAX } from '../packages/shared/src/types.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 const directories: string[] = [];
 
@@ -17,7 +18,7 @@ async function temporaryStore(): Promise<string> {
 afterEach(async () => {
   while (directories.length) {
     const dir = directories.pop();
-    if (dir) await rm(dir, { recursive: true, force: true }).catch(() => {});
+    if (dir) await removeTemporaryDirectory(dir).catch(() => {});
   }
   delete process.env.AGENT_POWER_STATE_PATH;
 });

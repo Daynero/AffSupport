@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { generateKeyPairSync, sign as signBytes } from 'node:crypto';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
@@ -8,6 +8,7 @@ import {
   ENTITLEMENT_TOKEN_PREFIX,
   EntitlementGate
 } from '../apps/agent/src/entitlement/entitlement.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
 const publicKeyBase64 = publicKey.export({ type: 'spki', format: 'der' }).toString('base64');
@@ -29,7 +30,7 @@ function validPayload(nowMs: number, ttlSeconds = 12 * 3600) {
 
 let directory = '';
 afterEach(async () => {
-  if (directory) await rm(directory, { recursive: true, force: true });
+  if (directory) await removeTemporaryDirectory(directory);
   directory = '';
 });
 

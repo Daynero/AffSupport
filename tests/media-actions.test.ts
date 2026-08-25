@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -10,11 +10,12 @@ import {
 } from '../apps/agent/src/media-actions/image-converter.js';
 import { MediaActionQueue } from '../apps/agent/src/media-actions/queue.js';
 import { JobQueue } from '../apps/agent/src/queue/queue.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 let root = '';
 
 afterEach(async () => {
-  if (root) await rm(root, { recursive: true, force: true });
+  if (root) await removeTemporaryDirectory(root);
   root = '';
 });
 

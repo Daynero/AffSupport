@@ -1,17 +1,16 @@
-import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LandingState } from '../packages/shared/src/types.js';
 import { LandingOptimizer } from '../apps/agent/src/landing/optimizer.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 const temporaryRoots: string[] = [];
 
 afterEach(async () => {
   vi.unstubAllEnvs();
-  await Promise.all(
-    temporaryRoots.splice(0).map(root => rm(root, { recursive: true, force: true }))
-  );
+  await Promise.all(temporaryRoots.splice(0).map(root => removeTemporaryDirectory(root)));
 });
 
 describe('landing optimizer batch queue', () => {

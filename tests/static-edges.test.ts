@@ -1,6 +1,6 @@
 import { afterEach, expect, it } from 'vitest';
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
@@ -16,10 +16,11 @@ import { describeRequiring } from './support/requires.js';
 import { ffmpegBinaries } from './support/toolchain.js';
 import { optimalSettings } from './helpers.js';
 import { waitFor } from './support/wait.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 let directory = '';
 afterEach(async () => {
-  if (directory) await rm(directory, { recursive: true, force: true });
+  if (directory) await removeTemporaryDirectory(directory);
   directory = '';
 });
 

@@ -1,14 +1,15 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { loadState, saveState } from '../apps/agent/src/queue/store.js';
 import { makeJob, optimalSettings } from './helpers.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 let directory = '';
 afterEach(async () => {
-  if (directory) await rm(directory, { recursive: true, force: true });
+  if (directory) await removeTemporaryDirectory(directory);
   directory = '';
 });
 

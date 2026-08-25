@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, rm, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import type { ImageAsset } from '../packages/shared/src/types.js';
@@ -10,10 +10,11 @@ import { outputDurationSeconds } from '../apps/agent/src/images/embedding.js';
 import { ImageAssetStore } from '../apps/agent/src/images/store.js';
 import { makeJob, optimalEncoding } from './helpers.js';
 import { waitFor } from './support/wait.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 let directory = '';
 afterEach(async () => {
-  if (directory) await rm(directory, { recursive: true, force: true });
+  if (directory) await removeTemporaryDirectory(directory);
   directory = '';
 });
 

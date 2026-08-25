@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -10,6 +10,7 @@ import { TranscriptionQueue } from '../apps/agent/src/queue/transcription-queue.
 import type { TranscriptionJob } from '@video-compressor/shared';
 import { makeJob, optimalSettings } from './helpers.js';
 import { waitFor } from './support/wait.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 let directory = '';
 
@@ -25,7 +26,7 @@ afterEach(async () => {
   delete process.env.AGENT_TRANSCRIBE_DOCUMENTS_PATH;
   delete process.env.AGENT_TRANSLATION_CACHE_PATH;
   delete process.env.AGENT_TRANSCRIBE_PREVIEWS_PATH;
-  await rm(directory, { recursive: true, force: true });
+  await removeTemporaryDirectory(directory);
   directory = '';
 });
 

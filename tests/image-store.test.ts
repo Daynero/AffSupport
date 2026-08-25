@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import os from 'node:os';
 import path from 'node:path';
@@ -9,10 +9,11 @@ import {
   ImageAssetStore,
   isSupportedImageFile
 } from '../apps/agent/src/images/store.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 let directory = '';
 afterEach(async () => {
-  if (directory) await rm(directory, { recursive: true, force: true });
+  if (directory) await removeTemporaryDirectory(directory);
   directory = '';
 });
 

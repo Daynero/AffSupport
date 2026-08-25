@@ -1,5 +1,5 @@
 import { generateKeyPairSync, sign as signData } from 'node:crypto';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -40,6 +40,7 @@ import { TeamProcessBridge } from '../apps/agent/src/team-bridge/process.js';
 import { TeamTransferClient } from '../apps/agent/src/team-bridge/transfer.js';
 import { optimalSettings } from './helpers.js';
 import { waitFor } from './support/wait.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 const TOKEN = 'test-session-token';
 const NATIVE_TOKEN = 'test-native-token';
@@ -57,7 +58,7 @@ afterEach(async () => {
   while (handles.length) {
     const handle = handles.pop()!;
     await handle.app.close();
-    await rm(handle.dir, { recursive: true, force: true });
+    await removeTemporaryDirectory(handle.dir);
   }
 });
 

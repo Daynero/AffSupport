@@ -1,8 +1,9 @@
-import { mkdtemp, mkdir, rm, symlink, unlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, symlink, unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { PathGrantLedger, IDLE_GRANT_TTL_MS } from '../apps/agent/src/files/path-grants.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 /**
  * C3. The ledger exists so the session token stops being a key to the whole
@@ -18,9 +19,7 @@ import { PathGrantLedger, IDLE_GRANT_TTL_MS } from '../apps/agent/src/files/path
 const directories: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(
-    directories.splice(0).map(directory => rm(directory, { recursive: true, force: true }))
-  );
+  await Promise.all(directories.splice(0).map(directory => removeTemporaryDirectory(directory)));
 });
 
 async function workspace() {

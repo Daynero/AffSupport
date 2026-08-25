@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -9,6 +9,7 @@ import {
   TeamLandingRenderError
 } from '../apps/agent/src/team-bridge/landing-gallery.js';
 import type { TeamPreviewBridge } from '../apps/agent/src/team-bridge/preview.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 const roots: string[] = [];
 const TEAM_ID = '41000000-0000-4000-8000-000000000001';
@@ -18,7 +19,7 @@ const RENDER_ID = '41000000-0000-4000-8000-000000000004';
 const FINGERPRINT = 'a'.repeat(64);
 
 afterEach(async () => {
-  while (roots.length) await rm(roots.pop()!, { recursive: true, force: true });
+  while (roots.length) await removeTemporaryDirectory(roots.pop()!);
 });
 
 function job(): TeamLandingRenderJob {

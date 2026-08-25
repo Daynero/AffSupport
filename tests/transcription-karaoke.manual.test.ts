@@ -1,11 +1,12 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { probeMedia } from '../apps/agent/src/ffmpeg/tools.js';
 import { transcribe } from '../apps/agent/src/whisper/transcriber.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 const execFileAsync = promisify(execFile);
 const runReal = process.env.RUN_REAL_KARAOKE_SMOKE === '1' && process.platform === 'darwin';
@@ -57,7 +58,7 @@ describe.runIf(runReal)('real local karaoke timestamp smoke', () => {
       expect(last.endMs - first.startMs).toBeGreaterThan(durationMs * 0.45);
       expect(last.endMs).toBeLessThanOrEqual(durationMs + 750);
     } finally {
-      await rm(dir, { recursive: true, force: true });
+      await removeTemporaryDirectory(dir);
     }
   }, 120_000);
 });

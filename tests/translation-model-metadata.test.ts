@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -11,6 +11,7 @@ import {
   translationModelPath,
   translationRuntimePath
 } from '../apps/agent/src/translation/tools.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 describe('pinned local translation artifacts', () => {
   let dir: string;
@@ -23,7 +24,7 @@ describe('pinned local translation artifacts', () => {
     delete process.env.TRANSLATION_RUNTIME_PATH;
     delete process.env.TRANSLATION_MODEL_PATH;
     delete process.env.ALIGNMENT_MODEL_PATH;
-    await rm(dir, { recursive: true, force: true });
+    await removeTemporaryDirectory(dir);
   });
 
   it('pins immutable revisions, exact sizes, and exact SHA-256 values', () => {

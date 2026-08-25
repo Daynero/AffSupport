@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -9,11 +9,12 @@ import {
   convertImage,
   sourceAlreadyUsesFormat
 } from '../apps/agent/src/media-actions/image-converter.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 let root = '';
 
 afterEach(async () => {
-  if (root) await rm(root, { recursive: true, force: true });
+  if (root) await removeTemporaryDirectory(root);
   root = '';
 });
 

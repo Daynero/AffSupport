@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm, stat } from 'node:fs/promises';
+import { mkdtemp, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { EstimateCache } from '../apps/agent/src/estimate/cache.js';
@@ -9,10 +9,11 @@ import { encodeVideo } from '../apps/agent/src/ffmpeg/encoder.js';
 import { probeDuration } from '../apps/agent/src/ffmpeg/tools.js';
 import { makeJob, optimalEncoding } from './helpers.js';
 import { waitFor } from './support/wait.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 let directory = '';
 afterAll(async () => {
-  if (directory) await rm(directory, { recursive: true, force: true });
+  if (directory) await removeTemporaryDirectory(directory);
 });
 
 describe('estimate accuracy on representative synthetic videos', () => {

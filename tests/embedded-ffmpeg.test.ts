@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import type {
@@ -13,6 +13,7 @@ import { probeMedia } from '../apps/agent/src/ffmpeg/tools.js';
 import { optimalEncoding, makeEmbedding } from './helpers.js';
 import { describeRequiring } from './support/requires.js';
 import { ffmpegBinaries } from './support/toolchain.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 let directory = '';
 let startImagePath = '';
@@ -41,7 +42,7 @@ describeRequiring(ffmpegBinaries, 'real image embedding filter graph', () => {
   });
 
   afterAll(async () => {
-    if (directory) await rm(directory, { recursive: true, force: true });
+    if (directory) await removeTemporaryDirectory(directory);
   });
 
   for (const fps of [24, 30, 60]) {

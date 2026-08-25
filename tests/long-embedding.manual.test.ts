@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
@@ -22,6 +22,7 @@ import { ImageAssetStore } from '../apps/agent/src/images/store.js';
 import { JobQueue } from '../apps/agent/src/queue/queue.js';
 import { optimalEncoding, optimalSettings } from './helpers.js';
 import { waitFor } from './support/wait.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 const runLong = process.env.RUN_LONG_EMBED_TEST === '1' ? it : it.skip;
 let directory = '';
@@ -33,7 +34,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (directory) await rm(directory, { recursive: true, force: true });
+  if (directory) await removeTemporaryDirectory(directory);
 });
 
 describeRequiring(ffmpegBinaries, 'manual long static embedding verification', () => {

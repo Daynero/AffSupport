@@ -1,4 +1,4 @@
-import { access, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -10,12 +10,13 @@ import { inspectZip } from '../apps/agent/src/landing-preview/archive.js';
 import { LandingPageRenderer } from '../apps/agent/src/landing-preview/renderer.js';
 import { discoverLandings } from '../apps/agent/src/landing-preview/scanner.js';
 import { zipDirectory } from '../apps/agent/src/platform/platform.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
   await Promise.all(
-    temporaryDirectories.splice(0).map(directory => rm(directory, { recursive: true, force: true }))
+    temporaryDirectories.splice(0).map(directory => removeTemporaryDirectory(directory))
   );
 });
 

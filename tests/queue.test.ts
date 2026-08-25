@@ -1,16 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { spawn } from 'node:child_process';
-import { access, copyFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, copyFile, mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { JobQueue } from '../apps/agent/src/queue/queue.js';
 import { MediaToolUnavailableError, probeMedia } from '../apps/agent/src/ffmpeg/tools.js';
 import { makeJob, optimalSettings } from './helpers.js';
 import { waitFor } from './support/wait.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 let directory = '';
 afterEach(async () => {
-  if (directory) await rm(directory, { recursive: true, force: true });
+  if (directory) await removeTemporaryDirectory(directory);
   directory = '';
 });
 

@@ -74,3 +74,21 @@ describe('the suite has one way to wait', () => {
     expect(stale, 'these files no longer sleep — drop them from the allowlist').toEqual([]);
   });
 });
+
+/**
+ * `rm(recursive, force)` is not atomic. It walks the tree, and anything still
+ * writing into that tree — a worker asked to stop but still flushing, a child
+ * process mid-exit — fails the walk with ENOTEMPTY on a directory that was
+ * empty a moment before. It passes alone and fails in the full suite, which is
+ * the shape of flake that gets rerun rather than read.
+ *
+ * `removeTemporaryDirectory` is the same call with Node's retry loop turned on.
+ * Fifty-two files now use it; this is what stops the fifty-third from not.
+ */
+describe('the suite has one way to clean up', () => {
+  it('removes temporary directories through the retrying helper', () => {
+    const offenders = testFiles().filter(name => /\brm\([^)]*recursive:\s*true/u.test(read(name)));
+
+    expect(offenders, 'use removeTemporaryDirectory from ./support/temp-dir.js').toEqual([]);
+  });
+});

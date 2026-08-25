@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ModelDownloader } from '../apps/agent/src/whisper/downloader.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 const bytes = Buffer.from('verified local model fixture');
 const digest = createHash('sha256').update(bytes).digest('hex');
@@ -20,7 +21,7 @@ describe('ModelDownloader', () => {
 
   afterEach(async () => {
     vi.unstubAllGlobals();
-    await rm(dir, { recursive: true, force: true });
+    await removeTemporaryDirectory(dir);
   });
 
   function downloader(

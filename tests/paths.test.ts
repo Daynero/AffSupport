@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
@@ -7,10 +7,11 @@ import {
   nextConvertedImagePath,
   nextOutputPath
 } from '../apps/agent/src/files/paths.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 let temp = '';
 afterEach(async () => {
-  if (temp) await rm(temp, { recursive: true, force: true });
+  if (temp) await removeTemporaryDirectory(temp);
 });
 describe('safe output paths', () => {
   it('supports spaces and Cyrillic and does not overwrite', async () => {

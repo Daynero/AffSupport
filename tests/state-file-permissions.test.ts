@@ -1,9 +1,10 @@
-import { mkdtemp, rm, stat } from 'node:fs/promises';
+import { mkdtemp, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 import { saveState } from '../apps/agent/src/queue/store.js';
 import { describeRequiring, requirePlatform } from './support/requires.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 /**
  * The queue state names every file the user has worked on.
@@ -20,9 +21,7 @@ import { describeRequiring, requirePlatform } from './support/requires.js';
 const directories: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(
-    directories.splice(0).map(directory => rm(directory, { recursive: true, force: true }))
-  );
+  await Promise.all(directories.splice(0).map(directory => removeTemporaryDirectory(directory)));
 });
 
 describeRequiring(requirePlatform('darwin', 'linux'), 'persisted state permissions', () => {

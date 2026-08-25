@@ -457,7 +457,7 @@ These four close holes confirmed by **probing a running local app**, not inferre
 
 ## Phase 10: Polish & Cross-Cutting Concerns
 
-- [ ] T236 [P] Consolidate the temp-directory setup copy-pasted into 41 test files onto the shared helper in `tests/support/` (B7, FR-021)
+- [X] T236 [P] Consolidate the temp-directory setup copy-pasted into 41 test files onto the shared helper in `tests/support/` (B7, FR-021)
 - [X] T237 [P] Replace the real sleeps at the twenty sites listed under B8 with fake timers or `tests/support/wait.ts`, starting with `tests/agent-http.test.ts`, `tests/queue.test.ts`, `tests/stop-all.test.ts`, `tests/estimate.test.ts` and `tests/landing-preview-catalog.test.ts` (FR-022)
 - [X] T238 [P] Fix the load-dependent cleanup flake in `tests/transcription-auto-translation.test.ts` (A18)
 - [X] T239 [P] Replace the wall-clock assertions in `tests/catalog-benchmark.test.ts`, `tests/creative-library-benchmark.test.ts` and `tests/team-landing-gallery.test.tsx` with the recorded performance budgets (FR-022)

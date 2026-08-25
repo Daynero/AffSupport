@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -26,6 +26,7 @@ import {
   TranscriptionQueue,
   translationInputForDocument
 } from '../apps/agent/src/queue/transcription-queue.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
 
@@ -280,7 +281,7 @@ describe('translation coordination', () => {
     delete process.env.AGENT_TRANSCRIBE_DOCUMENTS_PATH;
     delete process.env.AGENT_TRANSLATION_CACHE_PATH;
     delete process.env.AGENT_TRANSCRIBE_PREVIEWS_PATH;
-    await rm(dir, { recursive: true, force: true });
+    await removeTemporaryDirectory(dir);
   });
 
   it('rejects unknown jobs, invalid languages, and a missing translator', async () => {

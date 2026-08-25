@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, expect, it } from 'vitest';
@@ -7,6 +7,7 @@ import { spawnManaged } from '../apps/agent/src/power/spawn.js';
 import { sampleMachine, type MachineSample } from './support/machine-probe.js';
 import { writeStubTool } from './support/stub-tools/index.js';
 import { describeRequiring, requireEnvFlag } from './support/requires.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 /**
  * SC-004 / FR-010. One limit, shared: whatever combination of tools is running,
@@ -51,7 +52,7 @@ afterEach(async () => {
       // Already gone.
     }
   }
-  if (directory) await rm(directory, { recursive: true, force: true });
+  if (directory) await removeTemporaryDirectory(directory);
   directory = '';
 });
 

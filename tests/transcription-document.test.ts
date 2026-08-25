@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -20,6 +20,7 @@ import {
 } from '../apps/agent/src/translation/segmentation.js';
 import type { WhisperWord } from '../apps/agent/src/whisper/words.js';
 import { isValidTargetLanguage } from '../apps/agent/src/queue/transcription-queue.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 describe('media range + mime helpers', () => {
   it('treats a missing or multi-range header as a full response', () => {
@@ -332,7 +333,7 @@ describe('document store round-trip', () => {
     store = new TranscriptionDocumentStore(dir);
   });
   afterAll(async () => {
-    await rm(dir, { recursive: true, force: true });
+    await removeTemporaryDirectory(dir);
   });
 
   it('saves, loads, and removes a document without leaking the id into a path', async () => {

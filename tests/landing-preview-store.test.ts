@@ -1,16 +1,15 @@
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { LandingPreviewStore } from '../apps/agent/src/landing/previews.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 const temporaryRoots: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(
-    temporaryRoots.splice(0).map(root => rm(root, { recursive: true, force: true }))
-  );
+  await Promise.all(temporaryRoots.splice(0).map(root => removeTemporaryDirectory(root)));
 });
 
 describe('landing preview store', () => {

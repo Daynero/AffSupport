@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -10,6 +10,7 @@ import {
   type TeamProcessTransfer
 } from '../apps/agent/src/team-bridge/process.js';
 import { TeamTransferClient } from '../apps/agent/src/team-bridge/transfer.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 const temporaryRoots: string[] = [];
 
@@ -20,9 +21,7 @@ async function temporaryRoot() {
 }
 
 afterEach(async () => {
-  await Promise.all(
-    temporaryRoots.splice(0).map(root => rm(root, { recursive: true, force: true }))
-  );
+  await Promise.all(temporaryRoots.splice(0).map(root => removeTemporaryDirectory(root)));
 });
 
 function grant(purpose: 'process_input' | 'finalize' | 'download_range' = 'process_input') {

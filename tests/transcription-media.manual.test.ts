@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, rm, stat } from 'node:fs/promises';
+import { mkdtemp, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { ffmpegPath, probeMedia } from '../apps/agent/src/ffmpeg/tools.js';
 import { mediaMimeType } from '../apps/agent/src/transcription/media.js';
 import { MediaPreviewManager } from '../apps/agent/src/transcription/media-preview.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 const execFileAsync = promisify(execFile);
 const runReal = process.env.RUN_REAL_MEDIA_SMOKE === '1';
@@ -59,7 +60,7 @@ describe.runIf(runReal)('local media preview smoke', () => {
       expect(media.height).toBeLessThanOrEqual(720);
     } finally {
       await manager.close();
-      await rm(dir, { recursive: true, force: true });
+      await removeTemporaryDirectory(dir);
     }
   }, 30_000);
 });

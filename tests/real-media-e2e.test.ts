@@ -1,5 +1,5 @@
 import { afterAll, expect, it } from 'vitest';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import os from 'node:os';
@@ -24,6 +24,7 @@ import {
   WEB_TOOL_REQUIREMENTS,
   toolContractCompatible
 } from '../packages/shared/src/release.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 /**
  * End-to-end runs against real media, where "real" is the point: the parts of
@@ -40,7 +41,7 @@ const temporaryDirectories: string[] = [];
 
 afterAll(async () => {
   await Promise.all(
-    temporaryDirectories.splice(0).map(directory => rm(directory, { recursive: true, force: true }))
+    temporaryDirectories.splice(0).map(directory => removeTemporaryDirectory(directory))
   );
 });
 

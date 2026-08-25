@@ -9,6 +9,7 @@ import { JobQueue } from '../apps/agent/src/queue/queue.js';
 import { makeJob, optimalSettings } from './helpers.js';
 import { writeStubTool } from './support/stub-tools/index.js';
 import { waitFor } from './support/wait.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 /**
  * What the compressor does today, written down before it is rewritten.
@@ -86,7 +87,7 @@ let directory = '';
 afterEach(async () => {
   vi.unstubAllEnvs();
   vi.resetModules();
-  if (directory) await rm(directory, { recursive: true, force: true });
+  if (directory) await removeTemporaryDirectory(directory);
   directory = '';
 });
 

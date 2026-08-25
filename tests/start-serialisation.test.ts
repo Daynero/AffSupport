@@ -1,10 +1,11 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { makeJob, optimalSettings } from './helpers.js';
 import { writeStubTool } from './support/stub-tools/index.js';
 import { waitFor } from './support/wait.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 /**
  * A double-click must not start the same work twice.
@@ -25,7 +26,7 @@ let directory = '';
 afterEach(async () => {
   vi.unstubAllEnvs();
   vi.resetModules();
-  if (directory) await rm(directory, { recursive: true, force: true });
+  if (directory) await removeTemporaryDirectory(directory);
   directory = '';
 });
 

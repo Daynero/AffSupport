@@ -16,12 +16,13 @@ import {
   TeamPreviewBridge,
   classifyArchivePreviewError
 } from '../apps/agent/src/team-bridge/preview.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
   await Promise.all(
-    temporaryDirectories.splice(0).map(directory => rm(directory, { recursive: true, force: true }))
+    temporaryDirectories.splice(0).map(directory => removeTemporaryDirectory(directory))
   );
 });
 

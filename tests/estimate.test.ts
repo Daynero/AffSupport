@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { spawn } from 'node:child_process';
-import { copyFile, mkdtemp, rm } from 'node:fs/promises';
+import { copyFile, mkdtemp } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import type { CompressionJob } from '../packages/shared/src/types.js';
@@ -9,10 +9,11 @@ import { createSamplePlan, estimateFromSamples } from '../apps/agent/src/estimat
 import { EstimationWorker } from '../apps/agent/src/estimate/worker.js';
 import { customEncoding, makeJob, optimalEncoding } from './helpers.js';
 import { waitFor } from './support/wait.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 let directory = '';
 afterEach(async () => {
-  if (directory) await rm(directory, { recursive: true, force: true });
+  if (directory) await removeTemporaryDirectory(directory);
   directory = '';
 });
 

@@ -1,4 +1,4 @@
-import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -9,6 +9,7 @@ import {
   TRANSCRIPTION_INTERRUPTED_CODE
 } from '../apps/agent/src/queue/transcription-store.js';
 import { TranscriptionQueue } from '../apps/agent/src/queue/transcription-queue.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 let directory = '';
 let docsDir = '';
@@ -30,7 +31,7 @@ afterEach(async () => {
   delete process.env.AGENT_TRANSCRIBE_DOCUMENTS_PATH;
   delete process.env.AGENT_TRANSLATION_CACHE_PATH;
   delete process.env.AGENT_TRANSCRIBE_PREVIEWS_PATH;
-  await rm(directory, { recursive: true, force: true });
+  await removeTemporaryDirectory(directory);
   directory = '';
 });
 

@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -6,6 +6,7 @@ import { JobQueue } from '../apps/agent/src/queue/queue.js';
 import { makeJob } from './helpers.js';
 import type { CompressionJob } from '@video-compressor/shared';
 import type { MediaInfo } from '../apps/agent/src/ffmpeg/tools.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 /**
  * A user compressed a 227 MB video and got back roughly 500 MB.
@@ -25,9 +26,7 @@ import type { MediaInfo } from '../apps/agent/src/ffmpeg/tools.js';
 const directories: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(
-    directories.splice(0).map(directory => rm(directory, { recursive: true, force: true }))
-  );
+  await Promise.all(directories.splice(0).map(directory => removeTemporaryDirectory(directory)));
 });
 
 function queue() {

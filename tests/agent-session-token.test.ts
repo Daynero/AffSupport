@@ -1,8 +1,9 @@
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { resolveSessionToken } from '../apps/agent/src/server/session-token.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 const temporaries: string[] = [];
 
@@ -15,7 +16,7 @@ async function scratchFile() {
 afterEach(async () => {
   for (const directory of temporaries.splice(0)) {
     await chmod(directory, 0o700).catch(() => {});
-    await rm(directory, { recursive: true, force: true });
+    await removeTemporaryDirectory(directory);
   }
 });
 

@@ -1,7 +1,7 @@
 import { afterAll, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { encodeVideo } from '../apps/agent/src/ffmpeg/encoder.js';
@@ -9,10 +9,11 @@ import { probeDuration, probeMedia } from '../apps/agent/src/ffmpeg/tools.js';
 import { customEncoding, optimalEncoding } from './helpers.js';
 import { describeRequiring } from './support/requires.js';
 import { ffmpegBinaries } from './support/toolchain.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 let temporaryDirectory = '';
 afterAll(async () => {
-  if (temporaryDirectory) await rm(temporaryDirectory, { recursive: true, force: true });
+  if (temporaryDirectory) await removeTemporaryDirectory(temporaryDirectory);
 });
 
 describeRequiring(ffmpegBinaries, 'real FFmpeg end to end', () => {

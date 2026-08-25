@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, expect, it } from 'vitest';
@@ -7,6 +7,7 @@ import { describeSurvivors, handlesUnder, isAlive, survivorsOf } from './support
 import { describeRequiring, requirePath } from './support/requires.js';
 import { writeStubTool } from './support/stub-tools/index.js';
 import { waitFor } from './support/wait.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 /**
  * What the next launch finds after the application was cut short.
@@ -57,7 +58,7 @@ afterEach(async () => {
       }
     }
   }
-  if (tools) await rm(tools, { recursive: true, force: true });
+  if (tools) await removeTemporaryDirectory(tools);
   tools = '';
 });
 
