@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -38,6 +38,7 @@ vi.mock('../apps/agent/src/whisper/transcriber.js', () => ({
 }));
 
 import { TranscriptionQueue } from '../apps/agent/src/queue/transcription-queue.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 async function waitFor(condition: () => boolean | Promise<boolean>, timeoutMs = 2000) {
   const startedAt = Date.now();
@@ -141,7 +142,10 @@ describe('automatic post-transcription translation', () => {
     delete process.env.AGENT_TRANSCRIBE_DOCUMENTS_PATH;
     delete process.env.AGENT_TRANSLATION_CACHE_PATH;
     delete process.env.AGENT_TRANSCRIBE_PREVIEWS_PATH;
-    await rm(dir, { recursive: true, force: true });
+    // A18: the queue's workers may still be flushing when this runs, and a
+    // plain recursive remove fails with ENOTEMPTY on a directory that was empty
+    // when the walk started. Retried rather than raced.
+    await removeTemporaryDirectory(dir);
   });
 
   it('waits for the whole transcription batch before translating and reuses cached work', async () => {

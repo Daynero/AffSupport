@@ -459,8 +459,8 @@ These four close holes confirmed by **probing a running local app**, not inferre
 
 - [ ] T236 [P] Consolidate the temp-directory setup copy-pasted into 41 test files onto the shared helper in `tests/support/` (B7, FR-021)
 - [ ] T237 [P] Replace the real sleeps at the twenty sites listed under B8 with fake timers or `tests/support/wait.ts`, starting with `tests/agent-http.test.ts`, `tests/queue.test.ts`, `tests/stop-all.test.ts`, `tests/estimate.test.ts` and `tests/landing-preview-catalog.test.ts` (FR-022)
-- [ ] T238 [P] Fix the load-dependent cleanup flake in `tests/transcription-auto-translation.test.ts` (A18)
-- [ ] T239 [P] Replace the wall-clock assertions in `tests/catalog-benchmark.test.ts`, `tests/creative-library-benchmark.test.ts` and `tests/team-landing-gallery.test.tsx` with the recorded performance budgets (FR-022)
+- [X] T238 [P] Fix the load-dependent cleanup flake in `tests/transcription-auto-translation.test.ts` (A18)
+- [X] T239 [P] Replace the wall-clock assertions in `tests/catalog-benchmark.test.ts`, `tests/creative-library-benchmark.test.ts` and `tests/team-landing-gallery.test.tsx` with the recorded performance budgets (FR-022)
 - [ ] T240 Empty the type-check exclusion lists in `tsconfig.check.json` and `tsconfig.scripts.json`
 - [ ] T241 [P] Add tests for every module named in `coverage-critical.json` that no test imports today, working the list in `specs/009-release-hardening-pass/findings.md` §B; modules outside that file are out of scope here and are governed by the coverage ratchet instead
 - [X] T242 [P] Update `AGENTS.md` and `README.md` to describe the single verification command and the two forms
