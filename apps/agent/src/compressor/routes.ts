@@ -21,6 +21,7 @@ import { isSupportedVideoPath, type JobQueue } from '../queue/queue.js';
 import { hasCapability } from '../server/capabilities.js';
 import type { EventChannel } from '../server/sse.js';
 import { parseSettingsPatch } from './settings-validation.js';
+import { pathGrants } from '../files/path-grants.js';
 
 export interface CompressorEstimator {
   pause(): Promise<void>;
@@ -77,6 +78,19 @@ export function registerCompressorRoutes(app: FastifyInstance, ctx: CompressorCo
       .map(value => path.resolve(value));
     if (!localPaths.length)
       return reply.code(400).send({ error: 'No local file paths were provided.' });
+
+    // A drop is a choice, so it mints its own grant — but it goes through the
+    // ledger to get one, which is what applies the outer bound. A path the
+    // ledger will not grant is refused with a single code whatever the cause
+    // (out of bounds, gone, not a file), so the route cannot be used to ask
+    // whether a given path exists.
+    const refused: string[] = [];
+    for (const candidate of localPaths) {
+      if (pathGrants.mint(candidate, { origin: 'drop' })) continue;
+      if (!pathGrants.check(candidate, 'read')) refused.push(candidate);
+    }
+    if (refused.length) return reply.code(403).send({ error: 'PATH_NOT_GRANTED' });
+
     const warnings = await queue.add(localPaths);
     return { state: queue.state(), warnings };
   });

@@ -275,6 +275,41 @@ export class PathGrantLedger {
   /** Drops everything. Tests, and a full state reset. */
   clear(): void {
     this.#grants.clear();
+    this.#wouldRefuse = 0;
+  }
+
+  #wouldRefuse = 0;
+  #enforcing = false;
+
+  /**
+   * Checks a path and reports whether the caller may proceed.
+   *
+   * **Observe mode first, on purpose.** Turning a new authorisation check
+   * straight on is how a security fix becomes an outage: every path the ledger
+   * fails to account for is a user whose file stops working, and the ways it
+   * can fail to account for one are exactly the ways nobody thought of. In
+   * observe mode this counts what it *would* have refused and allows it, so the
+   * rate can be read off the diagnostics page rather than guessed at, and the
+   * switch is flipped once that number is zero in real use.
+   */
+  check(candidate: string, access: GrantAccess): boolean {
+    if (this.authorises(candidate, access)) return true;
+    this.#wouldRefuse += 1;
+    return !this.#enforcing;
+  }
+
+  /** How many calls would have been refused. Read by the diagnostics surface. */
+  wouldRefuseCount(): number {
+    return this.#wouldRefuse;
+  }
+
+  /** Whether refusals are real. Off until the observed rate says it is safe. */
+  enforcing(): boolean {
+    return this.#enforcing;
+  }
+
+  setEnforcing(value: boolean): void {
+    this.#enforcing = value;
   }
 }
 

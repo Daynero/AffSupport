@@ -21,6 +21,7 @@ import { registerPowerRoutes, type PowerSamplerHandle } from '../power/routes.js
 import type { ToolContext, ToolModule } from './tools.js';
 import { DEFAULT_UPLOAD_BYTES } from './upload-limits.js';
 import { TICKET_TTL_MS, issueTicket, ticketAuthorises } from './tickets.js';
+import { pathGrants } from '../files/path-grants.js';
 
 /**
  * The only paths a ticket may be minted for.
@@ -435,7 +436,15 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     // Enough to answer "the button says busy and the panel says nothing is
     // happening" without reading the source. Counts and ids only — no file
     // names, no paths — because this page is meant to be sent to us.
-    queue: queue.liveness()
+    queue: queue.liveness(),
+    // How often the path ledger would have refused a request, and whether it
+    // actually does. Observe mode is only useful if the number it produces is
+    // somewhere a person can read it (T176).
+    pathGrants: {
+      enforcing: pathGrants.enforcing(),
+      wouldRefuse: pathGrants.wouldRefuseCount(),
+      live: pathGrants.all().length
+    }
   }));
 
   // The power throttle is server-wide infrastructure, not a tool: it is passed

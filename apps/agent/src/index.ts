@@ -53,6 +53,7 @@ import { TeamTransferClient } from './team-bridge/transfer.js';
 import { createAligner } from './translation/aligner.js';
 import { createTranslator } from './translation/translator.js';
 import { whisperAvailable } from './whisper/tools.js';
+import { pathGrants } from './files/path-grants.js';
 
 // Persisted across restarts on purpose: a per-boot token silently unpairs
 // every browser that already holds one (see server/session-token.ts).
@@ -221,6 +222,38 @@ async function refreshMediaTools() {
 }
 
 const restored = await loadState();
+
+/**
+ * Rebuilds the path ledger from the state it authorises.
+ *
+ * Not from a grant file. The persisted queue *is* the record of what the user
+ * chose — every input path in it got there through a picker or a drop — so
+ * deriving authorisation from it means restoration and authorisation cannot
+ * disagree. A separate file would be a second answer to the same question, and
+ * the day the two differed one of them would be wrong with nothing to say which.
+ *
+ * Grants restored this way are held rather than left to age: a queued job may
+ * sit for days, and expiring the grant under it would turn a resumed queue into
+ * a permission error the user can neither understand nor act on.
+ */
+function restorePathGrants(): void {
+  const chosen = new Set<string>();
+  for (const job of restored.jobs) {
+    if (job.inputPath) chosen.add(job.inputPath);
+  }
+  for (const job of restoredTranscription.jobs) {
+    if (job.inputPath) chosen.add(job.inputPath);
+  }
+  const outputFolder = restored.settings?.outputFolder;
+  for (const candidate of chosen) {
+    pathGrants.mint(candidate, { origin: 'restore', referenced: true });
+  }
+  if (outputFolder) {
+    pathGrants.mint(outputFolder, { access: 'write', origin: 'restore', referenced: true });
+  }
+}
+
+restorePathGrants();
 
 /**
  * The shared local-resource budget. Constructed before any tool because every

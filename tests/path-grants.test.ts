@@ -208,3 +208,55 @@ async function realpathOf(candidate: string) {
   const { realpath } = await import('node:fs/promises');
   return realpath(candidate);
 }
+
+describe('observe mode', () => {
+  /**
+   * A new authorisation check turned straight on is how a security fix becomes
+   * an outage: every path the ledger fails to account for is a user whose file
+   * stops working, and the ways it can fail are exactly the ways nobody thought
+   * of. So it counts first and refuses later — but only if the counting is real
+   * and the switch actually flips, which is what these assert. An observe mode
+   * nobody can turn off is a check that never happens.
+   */
+
+  it('allows what it would refuse, and counts it', async () => {
+    const root = await workspace();
+    const ungranted = path.join(root, 'never-chosen.mov');
+    await writeFile(ungranted, 'video');
+    const ledger = new PathGrantLedger();
+
+    expect(ledger.check(ungranted, 'read')).toBe(true);
+    expect(ledger.wouldRefuseCount()).toBe(1);
+  });
+
+  it('refuses once enforcing', async () => {
+    const root = await workspace();
+    const ungranted = path.join(root, 'never-chosen.mov');
+    await writeFile(ungranted, 'video');
+    const ledger = new PathGrantLedger();
+    ledger.setEnforcing(true);
+
+    expect(ledger.check(ungranted, 'read')).toBe(false);
+  });
+
+  it('counts nothing when the path is granted', async () => {
+    const root = await workspace();
+    const granted = path.join(root, 'chosen.mov');
+    await writeFile(granted, 'video');
+    const ledger = new PathGrantLedger();
+    ledger.mint(granted);
+
+    expect(ledger.check(granted, 'read')).toBe(true);
+    // The number is the whole signal for when it is safe to enforce; counting
+    // an allowed path would make it meaningless.
+    expect(ledger.wouldRefuseCount()).toBe(0);
+  });
+
+  it('still refuses an out-of-bounds path while only observing', async () => {
+    const ledger = new PathGrantLedger();
+    // The outer bound is not a ledger decision and does not wait for enforcement:
+    // observe mode exists to protect users from an incomplete ledger, not to
+    // hand out credential directories in the meantime.
+    expect(ledger.authorises(path.join(os.homedir(), '.ssh', 'id_rsa'), 'read')).toBe(false);
+  });
+});

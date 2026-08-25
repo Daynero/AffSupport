@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { TRANSCRIBE_EXTENSIONS } from '@video-compressor/shared';
+import { pathGrants, type GrantAccess } from './path-grants.js';
 
 /**
  * Native pickers per platform: osascript `choose file/folder` on macOS,
@@ -154,6 +155,23 @@ function windowsFolderScript(description: string): string {
  * dialogs; -NonInteractive only blocks console prompts, not GUI windows;
  * windowsHide suppresses the transient console window, not the dialog.
  */
+
+/**
+ * Records what the user just chose, and hands the paths back unchanged.
+ *
+ * Every selector funnels through the three runners below, so minting here means
+ * a selector added later inherits the grant without its author having to know
+ * the ledger exists — which is the only version of this that stays true. The
+ * paths are returned whatever the ledger says: a grant that could not be minted
+ * (the path vanished between the dialog and this line, or it is out of bounds)
+ * is a path the routes will refuse later, and failing here instead would turn a
+ * refusal into a picker that appears broken.
+ */
+function grantChosen(paths: readonly string[], access: GrantAccess = 'read'): string[] {
+  for (const candidate of paths) pathGrants.mint(candidate, { access, origin: 'picker' });
+  return [...paths];
+}
+
 function runWindowsPicker(script: string, failure: string): Promise<string[]> {
   return new Promise((resolve, reject) => {
     const child = spawn(
@@ -173,10 +191,12 @@ function runWindowsPicker(script: string, failure: string): Promise<string[]> {
     child.on('close', code => {
       if (code === 0) {
         resolve(
-          out
-            .split(/\r?\n/u)
-            .map(value => value.trim())
-            .filter(Boolean)
+          grantChosen(
+            out
+              .split(/\r?\n/u)
+              .map(value => value.trim())
+              .filter(Boolean)
+          )
         );
       } else reject(new Error(err.trim() ? `${failure} (${err.trim()})` : failure));
     });
@@ -198,10 +218,12 @@ function runMultiplePicker(script: string, failure: string): Promise<string[]> {
     child.on('close', code => {
       if (code === 0) {
         resolve(
-          out
-            .split('\n')
-            .map(value => value.trim().replace(/\/$/, ''))
-            .filter(Boolean)
+          grantChosen(
+            out
+              .split('\n')
+              .map(value => value.trim().replace(/\/$/, ''))
+              .filter(Boolean)
+          )
         );
       } else if (err.includes('User canceled')) resolve([]);
       else reject(new Error(failure));
@@ -222,7 +244,10 @@ function runFolderScript(script: string, failure: string): Promise<string | null
     });
     child.on('close', code =>
       code === 0
-        ? resolve(out.trim().replace(/\/$/, ''))
+        ? // A folder is chosen to write into as often as to read from, so the
+          // grant covers both; a read-only grant here would refuse the output
+          // directory the user just picked.
+          resolve(grantChosen([out.trim().replace(/\/$/, '')], 'write')[0] ?? null)
         : err.includes('User canceled')
           ? resolve(null)
           : reject(new Error(failure))
