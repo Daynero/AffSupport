@@ -17,7 +17,7 @@ import {
 } from '@video-compressor/shared';
 import type { TranslationKey } from '../i18n';
 import { Checkbox, Collapse, IconButton, Spinner, Tooltip, type Translate } from './ui';
-import { imageContentPath } from '../api/client';
+import { imageContentPath } from '../api/subresource-paths';
 import { useSubresourceUrl } from '../api/useSubresourceUrl';
 
 const supportedExtensions = new Set(['.png', '.jpg', '.jpeg', '.webp']);

@@ -382,15 +382,15 @@ These four close holes confirmed by **probing a running local app**, not inferre
 
 ### Tests for User Story 6
 
-- [ ] T190 [P] [US6] Create `tests/performance-budgets.test.ts` recording the pre-change baseline and asserting the bundle, load-time and interaction budgets, including that each of the three largest pieces falls (FR-048, SC-014)
-- [ ] T191 [P] [US6] Create `tests/render-counts.test.tsx` asserting that a live update does not rebuild rows whose data did not change (FR-042, SC-015)
+- [X] T190 [P] [US6] Create `tests/performance-budgets.test.ts` recording the pre-change baseline and asserting the bundle, load-time and interaction budgets, including that each of the three largest pieces falls (FR-048, SC-014)
+- [X] T191 [P] [US6] Create `tests/render-counts.test.tsx` asserting that a live update does not rebuild rows whose data did not change (FR-042, SC-015)
 
 ### Implementation for User Story 6
 
-- [ ] T192 [US6] Split `apps/web/src/AgentContext.tsx` into a low-frequency status context and an external store with selectors, keeping the existing hook as a shim and the test override working
-- [ ] T193 [US6] Create `apps/web/src/api/reconcile-queue.ts` returning previous references for unchanged jobs and the previous array when nothing changed, so memoisation is not a no-op
-- [ ] T194 [US6] Apply reconciliation inside the state writer in `apps/web/src/AgentContext.tsx`
-- [ ] T195 [US6] Stabilise the four inline callbacks and move the selection arithmetic behind refs in `apps/web/src/App.tsx`, then memoise `apps/web/src/components/JobRow.tsx`
+- [X] T192 [US6] Split `apps/web/src/AgentContext.tsx` into a low-frequency status context and an external store with selectors, keeping the existing hook as a shim and the test override working
+- [X] T193 [US6] Create `apps/web/src/api/reconcile-queue.ts` returning previous references for unchanged jobs and the previous array when nothing changed, so memoisation is not a no-op
+- [X] T194 [US6] Apply reconciliation inside the state writer in `apps/web/src/AgentContext.tsx`
+- [X] T195 [US6] Stabilise the four inline callbacks and move the selection arithmetic behind refs in `apps/web/src/App.tsx`, then memoise `apps/web/src/components/JobRow.tsx`
 - [ ] T196 [P] [US6] Memoise the remaining derived selections in `apps/web/src/App.tsx` and delete the per-render identifier join key
 - [ ] T197 [P] [US6] Memoise the context value in `apps/web/src/AuthContext.tsx`
 - [ ] T198 [US6] Bound the broadcast rate and send only what changed in `apps/agent/src/queue/queue.ts` and `apps/agent/src/server/sse.ts` (FR-043, E4)
@@ -469,6 +469,41 @@ These four close holes confirmed by **probing a running local app**, not inferre
 - [ ] T245 Run `specs/009-release-hardening-pass/quickstart.md` end to end on macOS
 - [ ] T246 Run `specs/009-release-hardening-pass/quickstart.md` end to end on Windows, including the orphaned-suspended-process check (FR-009)
 - [ ] T247 Substitute the real Developer ID profile into `scripts/sign-mac-app.sh` and the real certificate secret into `.github/workflows/release-windows.yml`, then re-run publisher verification on a clean machine on both platforms (SC-010)
+
+
+---
+
+## Phase 11: Field reports (Priority: P1 — reported by users, 2026-08-25)
+
+**Goal**: Two complaints arrived from real use. A compression that doubled a
+227 MB file to ~500 MB, and a Compress button greyed out as "already running"
+above a panel reading 0 queued, 0 processing, 0 done. Both are covered here,
+plus the reason diagnosing the second cost an hour of reading code.
+
+**Scope discipline**: these are fixes, not features. Nothing here adds a
+capability; each item removes a way the application misleads someone or a way we
+cannot see what it did.
+
+### The blocked queue that is doing nothing (complaint 2)
+
+- [ ] T190 [FIELD] Report queue liveness in `/api/diagnostics` — `running`, the activity kind, per-status job counts, the batch id and whether the drain watchdog is armed — so the next report of this is answered by reading a page rather than the source (`apps/agent/src/server/app.ts`)
+- [ ] T191 [FIELD] Make the drain watchdog guard the *activity*, not only the batch, in `apps/agent/src/queue/queue.ts`: it currently arms on `start()` and retires whenever no batch is open, so an activity stranded without a batch keeps `running` true forever and the one thing that could clear it has already stopped looking
+- [ ] T192 [FIELD] Arm the watchdog whenever the queue becomes non-idle rather than only inside `start()`, so a queue that is already stuck can recover without the button the stuck state disables
+- [ ] T193 [FIELD] Derive `running()` from one source in `apps/agent/src/queue/queue.ts` — an activity naming a job that no longer exists, or that has reached a terminal status, is not activity — so the panel counters and the busy flag cannot disagree
+- [ ] T194 [P] [FIELD] Create `tests/queue-stuck-recovery.test.ts` staging each way the two can diverge (activity pointing at a removed job, at a completed job, a batch whose jobs are gone) and asserting the queue reports itself idle and accepts a start
+- [ ] T195 [P] [FIELD] Say what is actually happening when the interface is blocked in `apps/web/src/App.tsx`: a busy flag with nothing queued, processing or in flight is a stuck queue, not a busy one, and the copy must not claim otherwise
+
+### A compression that made the file bigger (complaint 1)
+
+- [ ] T196 [FIELD] Warn before the estimate, not after, in `apps/agent/src/queue/queue.ts`: `sourceCodec` and `sourceBitrate` are known from the ffprobe that runs on add, so a file that will almost certainly grow — already-efficient source codec, or a target bitrate above the source's — can be flagged the moment it is added rather than after a long estimate the user does not wait for
+- [ ] T197 [FIELD] Add the never-larger ceiling to `apps/agent/src/ffmpeg/encoder.ts` and the compressor routes: when the finished output is larger than the source, keep the source and report that plainly, because a tool called "compress" returning a bigger file is a failure whatever the settings said
+- [ ] T198 [P] [FIELD] Explain the codec change where the choice is made in `apps/web/src/components/SettingsPanel.tsx` — an H.265 source re-encoded to H.264 needs roughly twice the bitrate for the same picture, which is a property of the format and not a bug, and the user currently has no way to know it
+- [ ] T199 [P] [FIELD] Show the resulting duration next to the image-embedding controls in `apps/web/src/components/ImageEmbeddingSection.tsx`: a 40–50 minute default tail turns a 2.5 minute video into a 47 minute file, and the panel says neither the range nor the total
+- [ ] T200 [P] [FIELD] Create `tests/output-never-larger.test.ts` covering the ceiling, the pre-estimate warning for an efficient source, and the case where growth is legitimate and the user asked for it
+
+**Checkpoint**: the tool cannot silently hand back a bigger file, it says why a
+file will grow before the work starts, and a stuck queue is both visible in
+diagnostics and able to recover on its own.
 
 ---
 

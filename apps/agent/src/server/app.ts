@@ -431,7 +431,11 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     system: `${os.platform()} ${os.release()}`,
     architecture: os.arch(),
     ffmpeg: tools.ffmpeg && tools.ffprobe ? 'ready' : 'unavailable',
-    lastError: queue.warningMessage()
+    lastError: queue.warningMessage(),
+    // Enough to answer "the button says busy and the panel says nothing is
+    // happening" without reading the source. Counts and ids only — no file
+    // names, no paths — because this page is meant to be sent to us.
+    queue: queue.liveness()
   }));
 
   // The power throttle is server-wide infrastructure, not a tool: it is passed

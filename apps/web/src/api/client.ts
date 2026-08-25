@@ -33,6 +33,14 @@ import { agentFetchOptions, pairingPath, probeAgent, versionState } from '../con
 import { configuredAgentOrigin, publicConfig, servedByAgent } from '../lib/config';
 import { pairingToken } from './pairing-token';
 import type { DroppedFolderSample } from '../components/DropZone';
+import {
+  imageContentPath,
+  landingPreviewPath,
+  subresourceTicket,
+  transcriptionMediaPath
+} from './subresource-paths';
+
+export { imageContentPath, landingPreviewPath, transcriptionMediaPath };
 
 export const agentUrl = servedByAgent() ? location.origin : configuredAgentOrigin();
 const privateNetworkInit = agentFetchOptions(agentUrl, location.origin);
@@ -276,74 +284,20 @@ export async function uploadImage(slot: ImageSlot, file: File): Promise<QueueSta
   return assertOk(response) as Promise<QueueState>;
 }
 
-/**
- * A short-lived ticket for one subresource, cached until it is nearly expired.
- *
- * The builders below produce URLs the browser's own loader fetches, so the
- * credential has to be in the URL — and a URL is copied, linked, logged and
- * cached. A ticket is scoped to that one path and lasts five minutes, so the
- * worst a leaked one costs is that one resource for a short while, instead of
- * the whole local app for as long as it runs (C4/FR-024).
- *
- * Cached because a gallery renders the same image repeatedly and a video seeks
- * within one file; asking per render would turn every scroll into a round trip.
- * Refreshed a minute early so a request never leaves with a ticket that expires
- * in flight.
- */
-const ticketCache = new Map<string, { ticket: string; expiresAt: number }>();
-const TICKET_REFRESH_MARGIN_MS = 60_000;
-
-export async function subresourceTicket(path: string): Promise<string | null> {
-  const cached = ticketCache.get(path);
-  if (cached && cached.expiresAt - TICKET_REFRESH_MARGIN_MS > Date.now()) return cached.ticket;
-  try {
-    const response = await fetch(`${agentUrl}/api/tickets`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-session-token': pairingToken() },
-      body: JSON.stringify({ path })
-    });
-    if (!response.ok) return null;
-    const body = (await response.json()) as { ticket?: unknown; expiresInMs?: unknown };
-    if (typeof body.ticket !== 'string') return null;
-    const lifetime = typeof body.expiresInMs === 'number' ? body.expiresInMs : 5 * 60_000;
-    ticketCache.set(path, { ticket: body.ticket, expiresAt: Date.now() + lifetime });
-    return body.ticket;
-  } catch {
-    return null;
-  }
-}
-
 /** Builds a subresource URL carrying a ticket, or null when none could be had. */
 export async function ticketedUrl(
   path: string,
   extra: Record<string, string> = {}
 ): Promise<string | null> {
-  const ticket = await subresourceTicket(path);
+  const ticket = await subresourceTicket(agentUrl, pairingToken(), path);
   if (!ticket) return null;
   const query = new URLSearchParams({ ...extra, ticket });
   return `${agentUrl}${path}?${query.toString()}`;
 }
 
-/** Forgets every cached ticket. Called when the session token changes. */
-export function clearSubresourceTickets(): void {
-  ticketCache.clear();
-}
-
-/** The path of an embedded image's bytes; pair with `useSubresourceUrl`. */
-export function imageContentPath(id: string) {
-  return `/api/images/${encodeURIComponent(id)}/content`;
-}
-
 export async function imageContentUrl(id: string): Promise<string | null> {
   return ticketedUrl(imageContentPath(id));
 }
-/** The path of a landing asset preview; pair with `useSubresourceUrl`. */
-export function landingPreviewPath(jobId: string, assetId: string, side: 'before' | 'after') {
-  return `/api/landing/jobs/${encodeURIComponent(jobId)}/assets/${encodeURIComponent(
-    assetId
-  )}/preview/${side}`;
-}
-
 export function landingPreviewUrl(
   jobId: string,
   assetId: string,
@@ -835,11 +789,6 @@ export function transcriptionMediaCancel(id: string): Promise<{ ok: boolean }> {
     'POST'
   );
 }
-/** The path of a job's source media; pair with `useSubresourceUrl`. */
-export function transcriptionMediaPath(id: string): string {
-  return `/api/transcription/jobs/${encodeURIComponent(id)}/media`;
-}
-
 /**
  * URL for the local, range-capable source media, carrying a capability ticket.
  *

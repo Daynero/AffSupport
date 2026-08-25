@@ -295,6 +295,20 @@ export class JobQueue {
   }
 
   /**
+   * The one place the activity is set, so the safety net cannot be forgotten.
+   *
+   * The watchdog used to be armed inside `start()` alone. That is the one path
+   * a stuck queue cannot take — the button is disabled by the very state the
+   * watchdog exists to clear — so the net was absent exactly when it was
+   * needed. Arming it here means becoming busy is what starts the thing that
+   * can un-stick it, whichever route made it busy.
+   */
+  private setActivity(next: CompressorActivity): void {
+    this.current = next;
+    if (next.kind !== 'idle') this.startDrainWatchdog();
+  }
+
+  /**
    * Can this job be stopped right now?
    *
    * Asked of the shared table rather than matched against a list of status names. The lists
@@ -354,13 +368,13 @@ export class JobQueue {
       release();
       return false;
     }
-    this.current = {
+    this.setActivity({
       kind: 'encoding-held',
       jobId: this.current.jobId,
       abort: this.current.abort,
       child,
       release
-    };
+    });
     return true;
   }
 
@@ -369,7 +383,7 @@ export class JobQueue {
     const { jobId, abort, child, release } = this.current;
     // Step out of the held variant before calling, so a throwing release cannot leave the
     // queue claiming a hold it no longer owns.
-    this.current = { kind: 'encoding', jobId, abort, child, estimating: true };
+    this.setActivity({ kind: 'encoding', jobId, abort, child, estimating: true });
     release();
   }
 
@@ -430,6 +444,12 @@ export class JobQueue {
    * pure waste.
    */
   running(): boolean {
+    // An activity naming a job that is gone, or finished, is not activity. It
+    // used to be reported as busy anyway, which is how the interface came to
+    // show a greyed-out Compress button above a panel of zeroes with no way
+    // back. Cleared on read, so the correction reaches every caller at once
+    // rather than waiting for the next watchdog tick.
+    if (this.clearStrandedActivity()) queueMicrotask(() => this.notify());
     return this.activity.kind !== 'idle' || this.queuedInBatch();
   }
 
@@ -439,6 +459,41 @@ export class JobQueue {
 
   warningMessage(): string | null {
     return this.warning;
+  }
+
+  /**
+   * Why the queue thinks it is busy, in a form somebody can read over support.
+   *
+   * A user reported the Compress button greyed out as "already running" above a
+   * panel showing nothing queued, nothing processing and nothing done. Working
+   * out how those two could disagree took an hour of reading source, because
+   * the diagnostics page carried the version and the FFmpeg status and nothing
+   * about the queue at all. Everything needed to answer that question in a
+   * glance is here.
+   */
+  liveness() {
+    const byStatus: Record<string, number> = {};
+    for (const job of this.jobs) byStatus[job.status] = (byStatus[job.status] ?? 0) + 1;
+    const activity = this.activity;
+    return {
+      running: this.running(),
+      activity: activity.kind,
+      /** The job the activity claims to be about; null when it names none. */
+      activityJobId: 'jobId' in activity ? (activity.jobId ?? null) : null,
+      /** Whether that job still exists and is still unfinished. */
+      activityJobLive:
+        'jobId' in activity && activity.jobId
+          ? this.jobs.some(
+              job => job.id === activity.jobId && !isSettled(COMPRESSION_LIFECYCLE, job.status)
+            )
+          : null,
+      jobs: this.jobs.length,
+      byStatus,
+      batchId: this.batch?.id ?? null,
+      batchFinished: this.batch ? this.batch.finishedAt !== null : null,
+      queuedInBatch: this.queuedInBatch(),
+      watchdogArmed: this.drainWatchdog !== null
+    };
   }
 
   compressionActive() {
@@ -868,7 +923,7 @@ export class JobQueue {
     // The slot is freed here for the same reason a stop frees it (FR-004): there is
     // nothing left to wait for, and the next job should not be held behind a process that
     // no longer exists.
-    this.current = { kind: 'idle' };
+    this.setActivity({ kind: 'idle' });
     queueMicrotask(() => void this.pump());
     this.notify();
     return true;
@@ -931,7 +986,7 @@ export class JobQueue {
       // encode's own `finally` checks whether the activity is still its own before touching
       // it.
       if (encoding) {
-        this.current = { kind: 'idle' };
+        this.setActivity({ kind: 'idle' });
         queueMicrotask(() => void this.pump());
       }
     }
@@ -1422,8 +1477,20 @@ export class JobQueue {
   private startDrainWatchdog() {
     if (this.drainWatchdog) return;
     const timer = setInterval(() => {
+      // The stranded-activity case, and the reason this net had a hole in it.
+      //
+      // A user reported the Compress button greyed out as "already running"
+      // over a panel showing nothing queued, processing or done — and no way
+      // out short of restarting the application. The activity had been left
+      // non-idle while naming a job that was gone, so `running()` stayed true;
+      // the watchdog retired on the line below because there was no open batch,
+      // which is precisely the state it needed to survive.
+      if (this.clearStrandedActivity()) this.notify();
+
       if (!this.batch || this.batch.finishedAt) {
-        this.stopDrainWatchdog();
+        // Only retire once there is genuinely nothing to watch. An activity
+        // still in flight has to be watched whether or not a batch is open.
+        if (this.activity.kind === 'idle') this.stopDrainWatchdog();
         return;
       }
       if (this.activity.kind !== 'idle') return;
@@ -1440,6 +1507,30 @@ export class JobQueue {
     // Never hold the process open for a safety net.
     timer.unref();
     this.drainWatchdog = timer;
+  }
+
+  /**
+   * Clears an activity that cannot be real, and says whether it cleared one.
+   *
+   * "Encoding job X" is only true while X exists and is unfinished. If it has
+   * been removed, or has already reached a terminal status, then whatever the
+   * activity is describing ended without the value being reset — and every
+   * caller downstream, including the interface's busy flag, is being told the
+   * queue is working when it is not.
+   *
+   * Deliberately conservative: an activity naming no job at all is left alone,
+   * because the estimate-priority handoff legitimately has one of those in
+   * flight, and clearing it here would end a real encode.
+   */
+  private clearStrandedActivity(): boolean {
+    const activity = this.activity;
+    if (activity.kind === 'idle') return false;
+    const jobId = 'jobId' in activity ? activity.jobId : null;
+    if (!jobId) return false;
+    const job = this.jobs.find(candidate => candidate.id === jobId);
+    if (job && !isSettled(COMPRESSION_LIFECYCLE, job.status)) return false;
+    this.setActivity({ kind: 'idle' });
+    return true;
   }
 
   private stopDrainWatchdog() {
@@ -1495,13 +1586,13 @@ export class JobQueue {
     // two fields that a throw could land between.
     const abort = new AbortController();
     try {
-      this.current = {
+      this.setActivity({
         kind: 'encoding',
         jobId: job.id,
         abort,
         child: null,
         estimating: this.current.kind === 'estimating'
-      };
+      });
       this.transition(job, 'processing');
       job.error = null;
       job.errorDetails = null;
@@ -1594,7 +1685,7 @@ export class JobQueue {
         // the estimate loop still believed it had the machine.
         const estimatesStillRunning =
           ending.kind === 'encoding-held' || (ending.kind === 'encoding' && ending.estimating);
-        this.current = estimatesStillRunning ? { kind: 'estimating' } : { kind: 'idle' };
+        this.setActivity(estimatesStillRunning ? { kind: 'estimating' } : { kind: 'idle' });
       }
       this.resumeEstimatorWhenIdle();
       // Queue the next drain first: a throw from `notify` or from the estimate
@@ -1807,7 +1898,7 @@ export class JobQueue {
     // other than an encode would mean `run()` was called outside the guarded region, and
     // hanging a child off an unrelated activity is how it would be lost.
     if (this.current.kind === 'encoding')
-      this.current = { ...this.current, child: operation.child };
+      this.setActivity({ ...this.current, child: operation.child });
     void this.runPrioritizedEstimates();
     return operation.done;
   }

@@ -438,7 +438,11 @@ export default function CompressorPage() {
     ),
     embeddingFormValid,
     selectedCount: selected.size,
-    startableCount: selectedStartable.length
+    startableCount: selectedStartable.length,
+    // Counted from the same list the batch panel renders, so the button and
+    // the numbers beside it can no longer tell different stories.
+    activeCount: state.jobs.filter(job => job.status === 'queued' || job.status === 'processing')
+      .length
   });
 
   if (connection === 'checking') {
@@ -1018,6 +1022,7 @@ function warningText(warning: SelectionWarning, t: Translate) {
 function blockedReasonKey(block: CompressBlock): TranslationKey | null {
   const reasons: Record<NonNullable<CompressBlock>, TranslationKey | null> = {
     running: 'compressBusy',
+    stuck: 'compressStuck',
     'embedding-needs-image': 'embeddingNeedsImage',
     'invalid-image-duration': 'compressFixImageDuration',
     'nothing-startable': 'compressNothingReady',

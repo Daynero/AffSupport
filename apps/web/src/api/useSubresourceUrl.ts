@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ticketedUrl } from './client';
+import { subresourceTicket } from './subresource-paths';
 
 /**
  * A subresource URL that carries a capability ticket instead of the session
@@ -25,7 +25,7 @@ export function useSubresourceUrl(
       return;
     }
     let active = true;
-    void ticketedUrl(path, JSON.parse(extraKey) as Record<string, string>).then(next => {
+    void resolve(path, JSON.parse(extraKey) as Record<string, string>).then(next => {
       if (active) setUrl(next);
     });
     return () => {
@@ -34,4 +34,21 @@ export function useSubresourceUrl(
   }, [path, extraKey]);
 
   return url;
+}
+
+/**
+ * Builds the ticketed URL, reaching for the origin and token only when a
+ * component actually asks for one.
+ *
+ * Imported dynamically rather than at module load: `client` reads the stored
+ * token as soon as it is imported, which needs a DOM — and a component that
+ * merely names an image should not drag `localStorage` into a test that renders
+ * it to a string. This runs inside an effect, so by then there is a browser.
+ */
+async function resolve(path: string, extra: Record<string, string>): Promise<string | null> {
+  const { agentUrl } = await import('./client');
+  const { pairingToken } = await import('./pairing-token');
+  const ticket = await subresourceTicket(agentUrl, pairingToken(), path);
+  if (!ticket) return null;
+  return `${agentUrl}${path}?${new URLSearchParams({ ...extra, ticket }).toString()}`;
 }

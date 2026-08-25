@@ -76,6 +76,8 @@ export function stoppable(job: CompressionJob): boolean {
 /** Why the compress action is unavailable, or null when it can run. */
 export type CompressBlock =
   | 'running'
+  /** Reports itself busy while holding nothing. See `compressBlock`. */
+  | 'stuck'
   | 'embedding-needs-image'
   | 'invalid-image-duration'
   | 'nothing-selected'
@@ -94,7 +96,15 @@ export function compressBlock(input: {
   embeddingFormValid: boolean;
   selectedCount: number;
   startableCount: number;
+  /** Jobs the local app says are queued or in flight right now. */
+  activeCount?: number;
 }): CompressBlock {
+  // "Busy" with nothing queued and nothing in flight is not busy — it is a
+  // queue that has lost track of itself, which users met as a greyed-out
+  // button above a panel of zeroes and no way forward. Saying "already
+  // running" there is the interface repeating a claim its own numbers
+  // contradict; naming it as stuck at least matches what is on screen.
+  if (input.running && input.activeCount === 0) return 'stuck';
   if (input.running) return 'running';
   if (input.embeddingEnabled && !input.embeddingHasImages) return 'embedding-needs-image';
   if (!input.embeddingFormValid) return 'invalid-image-duration';
