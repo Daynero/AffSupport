@@ -222,7 +222,9 @@ describe('selected batch behavior', () => {
 
     const interrupted = queue.state().jobs[0];
     expect(interrupted.status).toBe('interrupted');
-    expect(interrupted.error).toMatch(/recover after restart/i);
+    // A stable code, not a sentence: the interface translates it, and
+    // rewording the English used to untranslate it silently.
+    expect(interrupted.error).toBe('MEDIA_TOOLS_UNAVAILABLE_JOB');
     expect(interrupted.errorDetails).toContain('MEDIA_TOOL_UNAVAILABLE');
     expect(queue.state().tools.ffprobe).toBe(false);
     expect(recovery).toHaveBeenCalledOnce();

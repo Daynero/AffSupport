@@ -1115,7 +1115,26 @@ function localizedError(value: unknown, t: Translate) {
   return t(map[raw] ?? 'genericError');
 }
 
+/**
+ * Renders a message the local app sent, by its code.
+ *
+ * It used to match the English wording with regular expressions, which meant
+ * rewording a sentence in the agent silently untranslated it here — and neither
+ * side could notice, because both kept working in English. The agent emits
+ * codes now; anything unrecognised falls through unchanged, which keeps an
+ * older agent's prose readable instead of blanking it.
+ */
 function localizedAgentText(raw: string, t: Translate) {
+  const byCode: Record<string, TranslationKey> = {
+    DISK_SPACE_LOW: 'diskWarning',
+    DISK_SPACE_UNKNOWN: 'diskCheckFailed',
+    MEDIA_TOOLS_UNAVAILABLE: 'engineUnavailable',
+    MEDIA_TOOLS_UNAVAILABLE_JOB: 'engineUnavailable'
+  };
+  const key = byCode[raw];
+  if (key) return t(key);
+  // An agent from before this change still sends sentences. Matching them is
+  // kept as a fallback and nothing new should be added to it.
   if (/free space may be insufficient/i.test(raw)) return t('diskWarning');
   if (/could not check free space/i.test(raw)) return t('diskCheckFailed');
   if (/media tools became unavailable/i.test(raw)) return t('engineUnavailable');

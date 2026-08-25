@@ -148,9 +148,18 @@ type RuntimeRecoveryPhase = 'input-analysis' | 'encoding' | 'output-validation';
 export type QueueMediaRuntime = { probeMedia: typeof probeMedia };
 
 const defaultMediaRuntime: QueueMediaRuntime = { probeMedia };
-const RUNTIME_WARNING = 'Soty media tools became unavailable. The agent is restarting safely.';
-const RUNTIME_JOB_ERROR =
-  'Soty media tools became unavailable. This task will recover after restart.';
+/**
+ * Stable codes, not sentences.
+ *
+ * These reached the interface as English prose and were translated by matching
+ * that prose with a regular expression — so rewording a message in the agent
+ * silently untranslated it in the browser, and neither side had any way to
+ * notice. The disk warnings were worse: they interpolated the output folder, so
+ * a user's full directory path travelled in a string that ends up in toasts and
+ * screenshots (FR-029/FR-029a).
+ */
+const RUNTIME_WARNING = 'MEDIA_TOOLS_UNAVAILABLE';
+const RUNTIME_JOB_ERROR = 'MEDIA_TOOLS_UNAVAILABLE_JOB';
 
 export interface AddSourceOptions {
   sourceKind?: SourceKind;
@@ -1489,10 +1498,13 @@ export class JobQueue {
         const info = await statfs(folder);
         const free = info.bavail * info.bsize;
         if (free < required * 1.1) {
-          return `Free space may be insufficient in ${folder}. Compression will continue, but consider freeing disk space.`;
+          // The folder is deliberately not named: the interface knows which
+          // output folder is configured and can say so itself, without the path
+          // travelling through a message.
+          return 'DISK_SPACE_LOW';
         }
       } catch {
-        return `Could not check free space in ${folder}.`;
+        return 'DISK_SPACE_UNKNOWN';
       }
     }
     return null;
