@@ -49,6 +49,18 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
+      // Boot recovery: what the user sees if the bundle never hydrates.
+      //
+      // Built with DOM calls rather than an innerHTML string, because a content
+      // policy hash covers the script's text and nothing it writes: an inline
+      // `onclick` and `style="..."` attribute are separately inline, separately
+      // blocked, and would have turned the page that exists to survive a
+      // failure into a second failure. Assigning through `element.style` is not
+      // an inline style attribute and stays allowed.
+      //
+      // The colours follow the theme the bootstrap above already chose, and the
+      // text follows the browser's language, because this screen used to be
+      // dark-only and Ukrainian-only regardless of either (FR-057).
       (function () {
         var recoveryKey = 'soty.boot-recovery.v1';
         window.setTimeout(function () {
@@ -70,11 +82,62 @@
             }
           } catch (e) {}
 
-          root.innerHTML =
-            '<main style="min-height:100vh;display:grid;place-items:center;padding:24px;background:#120e1f;color:#fff;font:16px/1.5 system-ui,sans-serif;text-align:center">' +
-            '<div><h1 style="margin:0 0 12px;font-size:28px">Soty не вдалося запустити</h1>' +
-            '<p style="margin:0 0 20px;color:#c9c2dc">Оновіть сторінку, щоб завантажити актуальну версію.</p>' +
-            '<button type="button" onclick="location.reload()" style="min-height:44px;padding:0 18px;border:0;border-radius:9px;background:#f5a623;color:#1b102d;font:inherit;font-weight:700;cursor:pointer">Оновити сторінку</button></div></main>';
+          var dark = document.documentElement.dataset.theme === 'dark';
+          var uk = (navigator.language || '').toLowerCase().indexOf('uk') === 0;
+          var text = uk
+            ? {
+                title: 'Soty не вдалося запустити',
+                body: 'Оновіть сторінку, щоб завантажити актуальну версію.',
+                action: 'Оновити сторінку'
+              }
+            : {
+                title: 'Soty could not start',
+                body: 'Reload the page to fetch the current version.',
+                action: 'Reload the page'
+              };
+
+          var main = document.createElement('main');
+          main.style.minHeight = '100vh';
+          main.style.display = 'grid';
+          main.style.placeItems = 'center';
+          main.style.padding = '24px';
+          main.style.textAlign = 'center';
+          main.style.font = '16px/1.5 system-ui, sans-serif';
+          main.style.background = dark ? '#120e1f' : '#ffffff';
+          main.style.color = dark ? '#ffffff' : '#1b102d';
+
+          var box = document.createElement('div');
+          var heading = document.createElement('h1');
+          heading.textContent = text.title;
+          heading.style.margin = '0 0 12px';
+          heading.style.fontSize = '28px';
+
+          var body = document.createElement('p');
+          body.textContent = text.body;
+          body.style.margin = '0 0 20px';
+          body.style.color = dark ? '#c9c2dc' : '#4a4458';
+
+          var button = document.createElement('button');
+          button.type = 'button';
+          button.textContent = text.action;
+          button.style.minHeight = '44px';
+          button.style.padding = '0 18px';
+          button.style.border = '0';
+          button.style.borderRadius = '9px';
+          button.style.background = '#f5a623';
+          button.style.color = '#1b102d';
+          button.style.font = 'inherit';
+          button.style.fontWeight = '700';
+          button.style.cursor = 'pointer';
+          button.addEventListener('click', function () {
+            location.reload();
+          });
+
+          box.appendChild(heading);
+          box.appendChild(body);
+          box.appendChild(button);
+          main.appendChild(box);
+          root.appendChild(main);
         }, 3500);
       })();
     </script>

@@ -333,9 +333,9 @@ These four close holes confirmed by **probing a running local app**, not inferre
 
 ### Implementation — the browser origin
 
-- [ ] T163 [US5] Rewrite the boot-recovery block in `apps/web/index.html` to remove its inline handler and inline styles, and localise its text and theme (C2, FR-057)
-- [ ] T164 [US5] Add a build step generating policy hashes for the two inline blocks and writing them into `apps/web/public/_headers`
-- [ ] T165 [US5] Write the full header set into `apps/web/public/_headers` per [contracts/web-origin-headers.md](./contracts/web-origin-headers.md), with the connect list covering the local app across ports (FR-025)
+- [X] T163 [US5] Rewrite the boot-recovery block in `apps/web/index.html` to remove its inline handler and inline styles, and localise its text and theme (C2, FR-057)
+- [X] T164 [US5] Add a build step generating policy hashes for the two inline blocks and writing them into `apps/web/public/_headers`
+- [X] T165 [US5] Write the full header set into `apps/web/public/_headers` per [contracts/web-origin-headers.md](./contracts/web-origin-headers.md), with the connect list covering the local app across ports (FR-025)
 
 ### Implementation — tokens out of URLs
 

@@ -12,7 +12,7 @@
   "scripts": {
     "dev": "concurrently -k -n agent,web \"npm run dev -w @video-compressor/agent\" \"npm run dev -w @video-compressor/web\"",
     "build": "npm run build:web && npm run build -w @video-compressor/agent",
-    "build:web": "npm run build -w @video-compressor/shared && npm run build -w @video-compressor/web",
+    "build:web": "npm run build -w @video-compressor/shared && npm run generate:csp && npm run build -w @video-compressor/web",
     "deploy:web:identity": "node scripts/verify-web-env.mjs --identity && npm run build:web && node scripts/verify-release.mjs --deploy && node scripts/verify-beta-promotion.mjs && node scripts/verify-published-release.mjs && npx --yes wrangler@4.112.0 pages deploy apps/web/dist --project-name wishly-app --branch main",
     "deploy:web": "node scripts/verify-web-env.mjs && npm run verify:team-production && npm run build:web && node scripts/verify-release.mjs --deploy && node scripts/verify-beta-promotion.mjs && node scripts/verify-published-release.mjs && npx --yes wrangler@4.112.0 pages deploy apps/web/dist --project-name wishly-app --branch main",
     "deploy:web:member-pilot": "node scripts/verify-web-env.mjs --member-pilot && npm run verify:team-member-pilot && npm run build:web && node scripts/verify-release.mjs --deploy && node scripts/verify-beta-promotion.mjs && node scripts/verify-published-release.mjs && npx --yes wrangler@4.112.0 pages deploy apps/web/dist --project-name wishly-app --branch main",
@@ -44,6 +44,8 @@
     "format": "prettier --write apps packages tests scripts docs supabase/functions README.md TESTER_GUIDE.md RELEASE_NOTES.md THIRD_PARTY_NOTICES.md package.json",
     "format:check": "prettier --check apps packages tests scripts docs supabase/functions README.md TESTER_GUIDE.md RELEASE_NOTES.md THIRD_PARTY_NOTICES.md package.json",
     "lint": "eslint apps packages tests scripts",
+    "generate:csp": "node scripts/generate-csp-headers.mjs",
+    "generate:csp:check": "node scripts/generate-csp-headers.mjs --check",
     "verify": "node scripts/verify-all.mjs --form=fast",
     "verify:release": "node scripts/verify-all.mjs --form=release",
     "typecheck": "npm run build -w @video-compressor/shared && npm run typecheck:projects && npm run typecheck:tests && npm run typecheck:scripts",

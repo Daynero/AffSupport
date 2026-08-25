@@ -80,6 +80,12 @@ const PHASES = {
       script('typecheck:tests', 'typecheck:tests', 600_000),
       script('typecheck:scripts', 'typecheck:scripts', 300_000),
       {
+        id: 'csp',
+        command: 'node',
+        args: [path.join(root, 'scripts/generate-csp-headers.mjs'), '--check'],
+        timeoutMs: 60_000
+      },
+      {
         id: 'audit',
         command: 'node',
         args: [path.join(root, 'scripts/audit-dependencies.mjs')],
