@@ -16,7 +16,7 @@ import { applicationSupportRoot } from '../files/support-dir.js';
 import { uploadIntakeMeta } from '../files/upload-intake.js';
 import { ImageAssetError, MAX_IMAGE_BYTES, type ImageAssetStore } from '../images/store.js';
 import { MAX_MEDIA_UPLOAD_BYTES } from '../server/upload-limits.js';
-import { openPath, revealInFileManager } from '../platform/platform.js';
+import { showInFileManager } from '../platform/platform.js';
 import { isSupportedVideoPath, type JobQueue } from '../queue/queue.js';
 import { hasCapability } from '../server/capabilities.js';
 import type { EventChannel } from '../server/sse.js';
@@ -304,7 +304,7 @@ export function registerCompressorRoutes(app: FastifyInstance, ctx: CompressorCo
         candidate => candidate.id === request.params.id && candidate.status === 'completed'
       );
     if (!job) return reply.code(404).send({ error: 'Completed file not found.' });
-    revealInFileManager(job.outputPath);
+    showInFileManager(job.outputPath, { reveal: true });
     return queue.state();
   });
   app.post<{ Params: { id: string } }>('/api/jobs/:id/open', async (request, reply) => {
@@ -314,13 +314,13 @@ export function registerCompressorRoutes(app: FastifyInstance, ctx: CompressorCo
         candidate => candidate.id === request.params.id && candidate.status === 'completed'
       );
     if (!job) return reply.code(404).send({ error: 'Completed file not found.' });
-    openPath(job.outputPath);
+    showInFileManager(job.outputPath);
     return queue.state();
   });
   app.post('/api/output/reveal', async (_request, reply) => {
     const folder = queue.outputFolder();
     if (!folder) return reply.code(404).send({ error: 'No output folder is available yet.' });
-    openPath(folder);
+    showInFileManager(folder);
     return queue.state();
   });
 }

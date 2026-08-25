@@ -4,7 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import type { LandingPreviewEvent } from '@video-compressor/shared';
 import { selectLandingPreviewFolder } from '../files/picker.js';
 import { findDroppedFolder } from '../files/dropped-source.js';
-import { capabilities, openPath, revealInFileManager } from '../platform/platform.js';
+import { showInFileManager, capabilities } from '../platform/platform.js';
 import type { EventChannel } from '../server/sse.js';
 import type { LandingPreviewCatalog } from './catalog.js';
 
@@ -190,8 +190,7 @@ export function registerLandingPreviewRoutes(
       if (!source) return reply.code(404).send({ error: 'Landing source is unavailable.' });
       try {
         await access(source.path);
-        if (source.kind === 'folder') openPath(source.path);
-        else revealInFileManager(source.path);
+        showInFileManager(source.path, { reveal: source.kind !== 'folder' });
         return catalog.state();
       } catch (error) {
         return failure(reply, error, 404);
@@ -206,7 +205,7 @@ export function registerLandingPreviewRoutes(
       if (!extracted) return reply.code(404).send({ error: 'Extracted copy is unavailable.' });
       try {
         await access(extracted);
-        openPath(extracted);
+        showInFileManager(extracted);
         return catalog.state();
       } catch (error) {
         return failure(reply, error, 404);

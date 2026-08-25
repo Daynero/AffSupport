@@ -7,7 +7,7 @@ import type { LandingEvent, LandingSettings } from '@video-compressor/shared';
 import { findDroppedSource } from '../files/dropped-source.js';
 import { selectLandingFolders, selectLandingZips } from '../files/picker.js';
 import { uploadIntakeMeta } from '../files/upload-intake.js';
-import { capabilities, openPath, revealInFileManager } from '../platform/platform.js';
+import { showInFileManager, capabilities } from '../platform/platform.js';
 import type { EventChannel } from '../server/sse.js';
 import { MAX_LANDING_ARCHIVE_BYTES, MAX_LANDING_ASSET_BYTES } from '../server/upload-limits.js';
 import type { LandingOptimizer } from './optimizer.js';
@@ -278,7 +278,6 @@ async function failPreparation(reply: any, optimizer: LandingOptimizer, error: u
 function revealOutput(reply: any, optimizer: LandingOptimizer, flag: '-R' | null, jobId?: string) {
   const output = jobId ? optimizer.outputPath(jobId) : optimizer.state().job?.outputPath;
   if (!output) return reply.code(404).send({ error: 'No result is available yet.' });
-  if (flag === '-R') revealInFileManager(output);
-  else openPath(output);
+  showInFileManager(output, { reveal: flag === '-R' });
   return optimizer.state();
 }

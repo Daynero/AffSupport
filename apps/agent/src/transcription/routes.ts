@@ -15,7 +15,7 @@ import { findDroppedSource } from '../files/dropped-source.js';
 import { selectTranscribeMedia } from '../files/picker.js';
 import { applicationSupportRoot } from '../files/support-dir.js';
 import { uploadIntakeMeta } from '../files/upload-intake.js';
-import { capabilities, revealInFileManager } from '../platform/platform.js';
+import { showInFileManager, capabilities } from '../platform/platform.js';
 import type { EventChannel } from '../server/sse.js';
 import { resolveByteRange } from './media.js';
 import type { TranscriptionQueue } from '../queue/transcription-queue.js';
@@ -226,7 +226,7 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
     async (request, reply) => {
       const source = queue.sourcePath(request.params.id);
       if (!source) return reply.code(404).send({ error: 'No source file is available.' });
-      revealInFileManager(source);
+      showInFileManager(source, { reveal: true });
       return queue.state();
     }
   );
@@ -257,7 +257,7 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
     const result = await queue.saveWithTranslation(request.params.id, languageLabel, fileName);
     switch (result.outcome) {
       case 'saved':
-        revealInFileManager(result.folderPath);
+        showInFileManager(result.folderPath, { reveal: true });
         return queue.state();
       case 'not-local':
         return reply.code(409).send({ error: 'SOURCE_NOT_LOCAL' });

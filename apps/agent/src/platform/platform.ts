@@ -1,5 +1,5 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, statSync, type Stats } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -150,8 +150,41 @@ function spawnDetached(command: string, args: string[]): void {
   spawn(command, args, { shell: false, detached: true, stdio: 'ignore' }).unref();
 }
 
+/**
+ * The one door to the user's file manager.
+ *
+ * Eight call sites handed a path straight to `open`, `explorer.exe` or
+ * `xdg-open`. Each one is a request from the browser naming a file, and the
+ * verb on the other side is "do whatever this system does with this" — which
+ * for a `.command`, a `.desktop` entry or a script means execute it. The paths
+ * are ones the agent produced, so none of this was reachable in practice; it
+ * was reachable in one edit, at any of eight places, by someone who had no
+ * reason to know the rule.
+ *
+ * Now there is one place, and it refuses anything that is not a regular file or
+ * a directory that exists right now. When the path ledger lands this is where it
+ * gets consulted, for the same reason: one door.
+ */
+export function showInFileManager(target: string, options: { reveal?: boolean } = {}): boolean {
+  if (!path.isAbsolute(target)) return false;
+  let entry: Stats;
+  try {
+    // `stat`, not `lstat`: a symlink to a real file is a perfectly ordinary
+    // thing for a user to have, and following it is what the file manager
+    // would do anyway. What is refused is the target being something other
+    // than a file or a directory — a FIFO, a device, a socket.
+    entry = statSync(target);
+  } catch {
+    return false;
+  }
+  if (!entry.isFile() && !entry.isDirectory()) return false;
+  if (options.reveal) revealInFileManager(target);
+  else openPath(target);
+  return true;
+}
+
 /** Shows the file selected in the OS file manager (Finder/Explorer). */
-export function revealInFileManager(filePath: string): void {
+function revealInFileManager(filePath: string): void {
   switch (process.platform) {
     case 'darwin':
       spawnDetached('/usr/bin/open', ['-R', filePath]);
@@ -167,7 +200,7 @@ export function revealInFileManager(filePath: string): void {
 }
 
 /** Opens a file or folder with its default application/file manager. */
-export function openPath(target: string): void {
+function openPath(target: string): void {
   switch (process.platform) {
     case 'darwin':
       spawnDetached('/usr/bin/open', [target]);

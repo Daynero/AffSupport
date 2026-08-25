@@ -1,5 +1,6 @@
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChildProcess } from 'node:child_process';
 
@@ -19,11 +20,10 @@ import {
   capabilities,
   executableName,
   listZipEntries,
-  openPath,
+  showInFileManager,
   pauseProcess,
   processPauseSupported,
   resumeProcess,
-  revealInFileManager,
   sanitizeFileName
 } from '../apps/agent/src/platform/platform.js';
 
@@ -119,21 +119,42 @@ describe('capabilities', () => {
 });
 
 describe('file manager actions', () => {
+  /**
+   * Real paths, because the door checks that the target exists and is a file or
+   * a directory before handing it to the system. That check is the point of the
+   * door: the alternative is eight call sites each passing whatever they were
+   * given to a verb that means "do whatever this system does with this".
+   */
+  const realFile = fileURLToPath(import.meta.url);
+  const realDirectory = path.dirname(realFile);
+
+  it('refuses a path that does not exist', () => {
+    setPlatform('darwin');
+    expect(showInFileManager('/definitely/not/here.mov')).toBe(false);
+    expect(processMock.spawn).not.toHaveBeenCalled();
+  });
+
+  it('refuses a relative path', () => {
+    setPlatform('darwin');
+    expect(showInFileManager('relative/clip.mov')).toBe(false);
+    expect(processMock.spawn).not.toHaveBeenCalled();
+  });
+
   it('reveals via open -R on macOS', () => {
     setPlatform('darwin');
-    revealInFileManager('/Users/example/Movies/clip.mp4');
-    expect(processMock.spawn).toHaveBeenCalledWith(
-      '/usr/bin/open',
-      ['-R', '/Users/example/Movies/clip.mp4'],
-      { shell: false, detached: true, stdio: 'ignore' }
-    );
+    expect(showInFileManager(realFile, { reveal: true })).toBe(true);
+    expect(processMock.spawn).toHaveBeenCalledWith('/usr/bin/open', ['-R', realFile], {
+      shell: false,
+      detached: true,
+      stdio: 'ignore'
+    });
     expect(processMock.unref).toHaveBeenCalledOnce();
   });
 
   it('opens paths via open on macOS', () => {
     setPlatform('darwin');
-    openPath('/Users/example/Movies');
-    expect(processMock.spawn).toHaveBeenCalledWith('/usr/bin/open', ['/Users/example/Movies'], {
+    expect(showInFileManager(realDirectory)).toBe(true);
+    expect(processMock.spawn).toHaveBeenCalledWith('/usr/bin/open', [realDirectory], {
       shell: false,
       detached: true,
       stdio: 'ignore'
@@ -142,14 +163,14 @@ describe('file manager actions', () => {
 
   it('uses Explorer with a /select, argument on Windows', () => {
     setPlatform('win32');
-    revealInFileManager('C:\\Videos\\clip.mp4');
-    expect(processMock.spawn).toHaveBeenCalledWith(
-      'explorer.exe',
-      ['/select,C:\\Videos\\clip.mp4'],
-      { shell: false, detached: true, stdio: 'ignore' }
-    );
-    openPath('C:\\Videos');
-    expect(processMock.spawn).toHaveBeenLastCalledWith('explorer.exe', ['C:\\Videos'], {
+    expect(showInFileManager(realFile, { reveal: true })).toBe(true);
+    expect(processMock.spawn).toHaveBeenCalledWith('explorer.exe', [`/select,${realFile}`], {
+      shell: false,
+      detached: true,
+      stdio: 'ignore'
+    });
+    expect(showInFileManager(realDirectory)).toBe(true);
+    expect(processMock.spawn).toHaveBeenLastCalledWith('explorer.exe', [realDirectory], {
       shell: false,
       detached: true,
       stdio: 'ignore'

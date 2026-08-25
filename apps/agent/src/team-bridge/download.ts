@@ -3,7 +3,7 @@ import { copyFile, lstat, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import type { TeamTransferGrant } from '@video-compressor/shared';
 import { selectOutputFolder } from '../files/picker.js';
-import { revealInFileManager, sanitizeFileName } from '../platform/platform.js';
+import { sanitizeFileName, showInFileManager } from '../platform/platform.js';
 import type { DownloadedTeamSource, TeamSourceDownloadRequest } from './transfer.js';
 
 const MAX_NAME_ATTEMPTS = 1_000;
@@ -38,7 +38,10 @@ export class TeamDownloadBridge {
   constructor(options: TeamDownloadBridgeOptions) {
     this.#transfer = options.transfer;
     this.#chooseDestination = options.chooseDestination ?? selectOutputFolder;
-    this.#reveal = options.reveal ?? revealInFileManager;
+    // Through the same guarded door as every other reveal: a downloaded file
+    // is exactly the kind of path worth checking before handing it to the
+    // system's "do whatever this is" verb.
+    this.#reveal = options.reveal ?? (target => void showInFileManager(target, { reveal: true }));
   }
 
   async download(request: TeamAgentDownloadRequest) {
