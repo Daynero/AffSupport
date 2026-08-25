@@ -418,7 +418,7 @@ These four close holes confirmed by **probing a running local app**, not inferre
 
 - [X] T208 [P] [US7] Create `tests/design-token-contract.test.ts` asserting the checker catches an undefined property, an off-scale value and a duplicate rule block
 - [ ] T209 [P] [US7] Create `tests/route-matrix-contract.test.ts` asserting every literal path compared in `apps/web/src/Root.tsx` and `apps/web/src/ProtectedSoty.tsx` is a member of the exported route list, so a new route cannot escape the sweep
-- [ ] T210 [P] [US7] Create `tests/i18n-plurals.test.ts` asserting each count string is correct in both languages across the plural categories
+- [X] T210 [P] [US7] Create `tests/i18n-plurals.test.ts` asserting each count string is correct in both languages across the plural categories
 
 ### Implementation — the checkers
 
@@ -444,7 +444,7 @@ These four close holes confirmed by **probing a running local app**, not inferre
 - [ ] T227 [P] [US7] Add arrow-key navigation and a roving tab stop to the segmented control in `apps/web/src/components/ui.tsx` (F11)
 - [ ] T228 [P] [US7] Make range selection keyboard-operable in `apps/web/src/components/JobRow.tsx` and fix the controlled-input warning (F11)
 - [ ] T229 [P] [US7] Give the language switch a proper role and pressed state in `apps/web/src/App.tsx`, and stop activating disabled tool cards in `apps/web/src/HomePage.tsx` (F11)
-- [ ] T230 [US7] Add plural-rule handling to `apps/web/src/i18n.ts` for the five count strings and remove the hand-coded special case (F12, FR-054)
+- [X] T230 [US7] Add plural-rule handling to `apps/web/src/i18n.ts` for the five count strings and remove the hand-coded special case (F12, FR-054)
 - [ ] T231 [US7] Delete the unused translations from `apps/web/src/i18n.ts` after reproducing the count with the new checker (F12, FR-056)
 - [ ] T232 [US7] Emit stable codes for the eleven messages currently translated by matching English wording, in `apps/agent/src/` and `apps/web/src/App.tsx` and `apps/web/src/components/JobRow.tsx` (F13, FR-055)
 - [ ] T233 [P] [US7] Move the remaining untranslated literals and page titles into the translations across `apps/web/src/` (F14)

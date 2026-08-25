@@ -459,6 +459,9 @@ const en = {
   stoppedCount: 'Stopped: {count}',
   clearFinished: 'Clear finished',
   selectedOne: '{count} file selected',
+  // English has no separate few form; the plural rules return 'other' for
+  // everything but one, and this is what that resolves to.
+  selectedFew: '{count} files selected',
   selectedMany: '{count} files selected',
   noSelection: 'No files selected',
   batchProgress: 'Batch progress',
@@ -2060,6 +2063,10 @@ const uk: Record<keyof typeof en, string> = {
   stoppedCount: 'Зупинено: {count}',
   clearFinished: 'Очистити завершені',
   selectedOne: 'Вибрано {count} файл',
+  // The form Ukrainian needs for 2–4, which the two-form version never
+  // produced: "2 файлів" instead of "2 файли", on every selection of two,
+  // three or four files.
+  selectedFew: 'Вибрано {count} файли',
   selectedMany: 'Вибрано {count} файлів',
   noSelection: 'Нічого не вибрано',
   batchProgress: 'Прогрес пакета',
@@ -3232,11 +3239,30 @@ export function translate(
   );
 }
 
+/**
+ * Plural category for a count, from the platform's own rules.
+ *
+ * The hand-written version knew two forms, and Ukrainian has three: one file,
+ * two files, five files. "2 файлів" was shown for every selection of two, three
+ * or four — grammatically wrong, on a string a user sees every time they tick a
+ * second checkbox.
+ *
+ * `Intl.PluralRules` is in every browser this application supports and it
+ * already knows these rules for every language, including the ones we have not
+ * translated into yet. Writing them out again would be reimplementing a table
+ * that ships with the platform, and getting it wrong the same way.
+ */
+function pluralCategory(language: Language, count: number): 'one' | 'few' | 'many' {
+  const category = new Intl.PluralRules(language).select(count);
+  if (category === 'one') return 'one';
+  if (category === 'few') return 'few';
+  return 'many';
+}
+
 export function selectedCountKey(language: Language, count: number): TranslationKey {
-  if (language === 'en') return count === 1 ? 'selectedOne' : 'selectedMany';
-  const remainder10 = count % 10;
-  const remainder100 = count % 100;
-  return remainder10 === 1 && remainder100 !== 11 ? 'selectedOne' : 'selectedMany';
+  const category = pluralCategory(language, count);
+  if (category === 'one') return 'selectedOne';
+  return category === 'few' ? 'selectedFew' : 'selectedMany';
 }
 
 export function syncProfileLanguage(language: Language) {
