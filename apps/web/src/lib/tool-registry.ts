@@ -9,10 +9,24 @@ import {
   LandingPreviewIcon,
   TranscriptionIcon
 } from '../components/tool-icons';
-import CompressorPage from '../App';
-import LandingOptimizerPage from '../landing/LandingOptimizerPage';
-import LandingPreviewPage from '../landing-preview/LandingPreviewPage';
-import TranscriptionPage from '../transcription/TranscriptionPage';
+import { lazy } from 'react';
+
+/**
+ * Tool pages are loaded when a tool is opened, not when the application is.
+ *
+ * Four full pages — a compressor, two landing tools and a transcription editor
+ * with its own text engine — were in the first download for everyone, including
+ * someone who came to use exactly one of them. Nothing here is shared enough to
+ * justify that: each page is reached by its own route, and the router already
+ * renders one at a time.
+ *
+ * `lazy` needs a Suspense boundary, which ProtectedSoty provides around the
+ * viewport where these render.
+ */
+const CompressorPage = lazy(() => import('../App'));
+const LandingOptimizerPage = lazy(() => import('../landing/LandingOptimizerPage'));
+const LandingPreviewPage = lazy(() => import('../landing-preview/LandingPreviewPage'));
+const TranscriptionPage = lazy(() => import('../transcription/TranscriptionPage'));
 
 // The single source of truth for the Soty web tools. Adding a tool here
 // registers its route (ProtectedSoty), its home-page tile (HomePage) and its

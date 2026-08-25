@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { Suspense, type ComponentType, useEffect } from 'react';
 import { AgentProvider, useAgent } from './AgentContext';
 import { Header } from './App';
 import { ProfileOnboarding } from './auth/AuthScreens';
@@ -77,20 +77,21 @@ function ToolRoute({ tool }: { tool: WebTool }) {
   const locked = useToolLock(tool.featureFlag);
   if (locked && tool.featureFlag) return <FeatureLockScreen feature={tool.featureFlag} />;
   if (tool.capability) {
-    if (capabilities.includes(tool.capability) && toolAvailable(tool.id)) return <tool.page />;
+    if (capabilities.includes(tool.capability) && toolAvailable(tool.id))
+      return <ToolPage tool={tool} />;
     // A connected agent without the capability cannot serve this tool — send the
     // user home. Before connecting, keep the page mounted so it can pair/onboard.
     if (connection === 'connected') return <RedirectHome />;
-    return <tool.page />;
+    return <ToolPage tool={tool} />;
   }
-  if (connection === 'connected' && toolAvailable(tool.id)) return <tool.page />;
+  if (connection === 'connected' && toolAvailable(tool.id)) return <ToolPage tool={tool} />;
   // D1/FR-039. The setup screen is for someone who has to *do* something —
   // install the app, or update it. It is not for someone whose wifi dropped
   // for two seconds: unmounting the tool page there throws away form input,
   // scroll position and any dialog they had open, and then offers to install
   // software they are already running. Anyone who has connected once keeps
   // their page.
-  if (connectedOnce && connection !== 'agent_update_required') return <tool.page />;
+  if (connectedOnce && connection !== 'agent_update_required') return <ToolPage tool={tool} />;
   return <ToolSetupScreen tool={tool.id} connection={connection} />;
 }
 
@@ -144,5 +145,21 @@ function FeatureLockScreen({ feature }: { feature: FeatureId }) {
         onClose={() => navigateTo('/', true)}
       />
     </>
+  );
+}
+
+/**
+ * Renders a tool page behind a Suspense boundary.
+ *
+ * The pages are loaded on demand, so React needs somewhere to wait while the
+ * chunk arrives. The fallback is an empty viewport rather than a spinner: the
+ * chunk is served from the same origin and is usually already cached, so a
+ * spinner would flash for a frame and read as jank rather than as progress.
+ */
+function ToolPage({ tool }: { tool: { page: ComponentType } }) {
+  return (
+    <Suspense fallback={<main className="page-container" />}>
+      <tool.page />
+    </Suspense>
   );
 }

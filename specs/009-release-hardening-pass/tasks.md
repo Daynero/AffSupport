@@ -382,7 +382,7 @@ These four close holes confirmed by **probing a running local app**, not inferre
 
 ### Tests for User Story 6
 
-- [ ] T190 [P] [US6] Create `tests/performance-budgets.test.ts` recording the pre-change baseline and asserting the bundle, load-time and interaction budgets, including that each of the three largest pieces falls (FR-048, SC-014)
+- [X] T190 [P] [US6] Create `tests/performance-budgets.test.ts` recording the pre-change baseline and asserting the bundle, load-time and interaction budgets, including that each of the three largest pieces falls (FR-048, SC-014)
 - [ ] T191 [P] [US6] Create `tests/render-counts.test.tsx` asserting that a live update does not rebuild rows whose data did not change (FR-042, SC-015)
 
 ### Implementation for User Story 6
@@ -394,11 +394,11 @@ These four close holes confirmed by **probing a running local app**, not inferre
 - [ ] T196 [P] [US6] Memoise the remaining derived selections in `apps/web/src/App.tsx` and delete the per-render identifier join key
 - [ ] T197 [P] [US6] Memoise the context value in `apps/web/src/AuthContext.tsx`
 - [ ] T198 [US6] Bound the broadcast rate and send only what changed in `apps/agent/src/queue/queue.ts` and `apps/agent/src/server/sse.ts` (FR-043, E4)
-- [ ] T199 [US6] Lazy-load the tool pages, the workspace and the admin screen in `apps/web/src/lib/tool-registry.ts` and `apps/web/src/ProtectedSoty.tsx` (FR-045)
-- [ ] T200 [P] [US6] Lazy-load the code generator in `apps/web/src/components/SupportDialog.tsx` so it does not ship to everyone
+- [X] T199 [US6] Lazy-load the tool pages, the workspace and the admin screen in `apps/web/src/lib/tool-registry.ts` and `apps/web/src/ProtectedSoty.tsx` (FR-045)
+- [X] T200 [P] [US6] Lazy-load the code generator in `apps/web/src/components/SupportDialog.tsx` so it does not ship to everyone
 - [ ] T201 [US6] Move the decorative field's data out of the entry bundle and mount it per route rather than above the router in `apps/web/src/Root.tsx` and `apps/web/src/components/HoneycombField.tsx`
 - [ ] T202 [US6] Remove the per-element filter from the pointer-driven loop in `apps/web/src/components/HoneycombField.tsx` and gate the whole effect on a reduced-motion preference and a constrained-machine check (FR-047)
-- [ ] T203 [US6] Add chunking configuration to `apps/web/vite.config.ts` so the vendor and workspace code split apart
+- [X] T203 [US6] Add chunking configuration to `apps/web/vite.config.ts` so the vendor and workspace code split apart
 - [ ] T204 [US6] Virtualise the compressor queue in `apps/web/src/App.tsx` (FR-044)
 - [ ] T205 [US6] Virtualise the transcript segment lists in `apps/web/src/transcription/TranscriptTextModal.tsx` and remove the half-second recomputation interval
 - [ ] T206 [P] [US6] Add lazy loading, explicit dimensions and async decoding to the ten image sites listed under E8 across `apps/web/src/` (FR-046)

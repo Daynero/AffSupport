@@ -1,5 +1,4 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import QRCode from 'qrcode';
 import { useI18n } from '../i18n';
 import { analytics } from '../analytics/service';
 import { activeCryptoWallets, hasDonationOptions, monobankUrl, supportEmail } from '../lib/support';
@@ -261,7 +260,15 @@ function CryptoRow({ network, address }: { network: string; address: string }) {
 
   useEffect(() => {
     let active = true;
-    QRCode.toDataURL(address, { margin: 1, width: 320, errorCorrectionLevel: 'M' })
+    // Loaded on demand. The generator is only reachable from the donation
+    // dialog's crypto tab, and it was being downloaded by everyone who opened
+    // the application — including the majority who never open this dialog at
+    // all. The failure path already degrades to the address text and the copy
+    // button, so a chunk that does not arrive costs a picture, not a feature.
+    void import('qrcode')
+      .then(({ default: QRCode }) =>
+        QRCode.toDataURL(address, { margin: 1, width: 320, errorCorrectionLevel: 'M' })
+      )
       .then(url => {
         if (active) setQr(url);
       })

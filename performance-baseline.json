@@ -1,0 +1,7 @@
+{
+  "note": "Gzipped size of the built web assets. Ratcheted with a small tolerance by tests/performance-budgets.test.ts. The total is deliberately allowed to sit slightly above the pre-splitting figure: splitting adds per-chunk overhead and buys a first screen less than half the size, which is the number that decides how long the application takes to appear.",
+  "measured_at": "2026-08-25",
+  "total_gzip_bytes": 421964,
+  "entry_gzip_bytes": 43765,
+  "largest_gzip_bytes": 60456
+}

@@ -29,5 +29,28 @@ export default defineConfig({
   envDir: '../..',
   define: { 'import.meta.env.VITE_WEB_REVISION': JSON.stringify(currentRevision()) },
   server: { port: 5173, strictPort: true, proxy: { '/api': 'http://127.0.0.1:43117' } },
-  build: { outDir: 'dist' }
+  build: {
+    outDir: 'dist',
+    rollupOptions: {
+      output: {
+        /**
+         * Keep the two heavy dependencies out of whatever chunk happens to
+         * reference them first.
+         *
+         * Without this the bundler attaches a shared dependency to an arbitrary
+         * module in the graph — the Supabase client ended up inside a chunk
+         * named after the logo component, 115 kB of it, downloaded on the first
+         * screen by someone who had not signed in. Naming them makes the split
+         * a decision rather than an accident, and lets the browser cache them
+         * across releases that do not change them.
+         */
+        manualChunks(id: string) {
+          if (!id.includes('node_modules')) return undefined;
+          if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/u.test(id)) return 'react';
+          if (id.includes('@supabase')) return 'supabase';
+          return undefined;
+        }
+      }
+    }
+  }
 });
