@@ -163,6 +163,43 @@ const ROUTE_BUDGET_WINDOW_MS = 60_000;
 const AUTH_FAILURE_LIMIT = 20;
 const AUTH_FAILURE_WINDOW_MS = 60_000;
 
+/**
+ * The logger configuration, exported so a test can assert on the real one.
+ *
+ * A log is what a user attaches to a bug report or pastes into a support
+ * thread — deliberately, and without reading every line first — so anything in
+ * it is effectively published. Two rules follow: the request URL is never
+ * recorded (it carries ids, filenames, and now capability tickets in its
+ * query), and the headers that are credentials are removed rather than starred.
+ *
+ * The route *pattern* goes in instead, which cannot carry any of that and is
+ * more useful for diagnostics than a raw URL anyway.
+ */
+export const SAFE_LOGGER = {
+  serializers: {
+    req(request: { method: string; routeOptions?: { url?: string }; url: string }) {
+      return {
+        method: request.method,
+        // Never `request.url`: it carries the query string and every id.
+        route: request.routeOptions?.url ?? '(unrouted)'
+      };
+    }
+  },
+  redact: {
+    paths: [
+      'req.headers["x-session-token"]',
+      'req.headers["x-wishly-native-token"]',
+      'req.headers["x-wishly-update-token"]',
+      'req.headers.authorization',
+      'req.headers.cookie',
+      // The one response header that is itself a credential: /pair redirects
+      // with the session token in the fragment.
+      'res.headers.location'
+    ],
+    remove: true
+  }
+};
+
 export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   const {
     token,
@@ -181,31 +218,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     // instead removes both in one change, and a pattern is more useful for diagnostics
     // than a raw URL anyway. Redaction covers the headers and — the one that matters for
     // /pair — the redirect Location, which carries the session token.
-    logger:
-      deps.logger === undefined || deps.logger === true
-        ? {
-            serializers: {
-              req(request: { method: string; routeOptions?: { url?: string }; url: string }) {
-                return {
-                  method: request.method,
-                  // Never `request.url`: it carries the query string and every id.
-                  route: request.routeOptions?.url ?? '(unrouted)'
-                };
-              }
-            },
-            redact: {
-              paths: [
-                'req.headers["x-session-token"]',
-                'req.headers["x-wishly-native-token"]',
-                'req.headers["x-wishly-update-token"]',
-                'req.headers.authorization',
-                'req.headers.cookie',
-                'res.headers.location'
-              ],
-              remove: true
-            }
-          }
-        : deps.logger,
+    logger: deps.logger === undefined || deps.logger === true ? SAFE_LOGGER : deps.logger,
     bodyLimit: 16_384
   });
 
