@@ -393,7 +393,7 @@ a {
 .soty-logo {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
+  gap: var(--space-2);
 }
 
 /* Soty wordmark lockup — the full honey wordmark image, fitted to its container */
@@ -425,7 +425,7 @@ a {
 
 /* Make the home / brand button read a touch larger than the Support pill. */
 .topbar-lead .brand-link .soty-logo {
-  gap: 11.5px;
+  gap: var(--space-3);
 }
 
 .topbar-lead .brand-link .soty-wordmark {
@@ -454,7 +454,7 @@ a {
 .topbar-lead {
   display: inline-flex;
   align-items: center;
-  gap: 16.1px;
+  gap: var(--space-4);
 }
 
 .support-trigger {
@@ -641,7 +641,7 @@ a {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 18px;
+  gap: var(--space-5);
 }
 
 .team-workspace-launcher-copy h3 {
@@ -670,7 +670,7 @@ a {
 .tool-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
+  gap: var(--space-5);
 }
 
 /* Shared card surface; per-card modifiers add their unique traits. */
@@ -775,7 +775,7 @@ a {
   font-size: var(--text-7xl);
 }
 .tool-copy p {
-  margin-top: 9px;
+  margin-top: var(--space-2);
   color: var(--color-text-muted);
 }
 .tool-readiness {
@@ -949,7 +949,7 @@ a {
   min-height: 44.2px;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: var(--space-2);
   padding: 0 15.6px;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
@@ -2560,7 +2560,7 @@ input.is-invalid {
 }
 
 .skeleton-field-block {
-  gap: 7px;
+  gap: var(--space-2);
 }
 
 .skeleton-button {
@@ -3347,7 +3347,7 @@ input.is-invalid {
   }
 
   .topbar-actions {
-    gap: 7px;
+    gap: var(--space-2);
   }
 
   .support-trigger.has-goal .support-trigger-label {
@@ -3360,7 +3360,7 @@ input.is-invalid {
   }
 
   .launcher-heading {
-    margin-bottom: 22px;
+    margin-bottom: var(--space-6);
     padding-inline: 8px;
   }
 
@@ -3375,13 +3375,13 @@ input.is-invalid {
   }
 
   .agent-panel-slot {
-    margin-bottom: 18px;
+    margin-bottom: var(--space-5);
   }
 
   .team-workspace-launcher-card {
     align-items: stretch;
     flex-direction: column;
-    gap: 18px;
+    gap: var(--space-5);
     padding: 20px;
   }
 
@@ -3391,7 +3391,7 @@ input.is-invalid {
 
   .tool-grid {
     grid-template-columns: minmax(0, 1fr);
-    gap: 14px;
+    gap: var(--space-4);
   }
 
   .tool-card {
@@ -3532,20 +3532,20 @@ input.is-invalid {
 
 @media (max-width: 500px) {
   :root {
-    --app-header-padding-inline: 10px;
+    --app-header-padding-inline: var(--space-3);
   }
 
   .topbar-lead {
-    gap: 7px;
+    gap: var(--space-2);
   }
 
   .soty-logo {
-    gap: 7px;
+    gap: var(--space-2);
   }
 
   .support-trigger {
     gap: 5px;
-    padding-inline: 9px;
+    padding-inline: var(--space-2);
   }
 
   .support-trigger-amount {
@@ -3553,7 +3553,7 @@ input.is-invalid {
   }
 
   .support-goal-card {
-    padding: 17px;
+    padding: var(--space-4);
   }
 
   .support-goal-heading > span {
@@ -3589,11 +3589,11 @@ input.is-invalid {
 
   .launcher {
     width: calc(100% - 20px);
-    padding-top: 18px;
+    padding-top: var(--space-5);
   }
 
   .launcher-heading {
-    margin-bottom: 18px;
+    margin-bottom: var(--space-5);
   }
 
   .launcher-heading p {
@@ -3615,7 +3615,7 @@ input.is-invalid {
 
   .launcher .onboarding-panel {
     gap: 11px;
-    padding: 18px;
+    padding: var(--space-5);
   }
 
   .launcher .onboarding-panel > .inline-actions {
@@ -3639,12 +3639,12 @@ input.is-invalid {
   }
 
   .installation-help ol {
-    padding-left: 18px;
+    padding-left: var(--space-5);
   }
 
   .tool-card {
     min-height: 224px;
-    padding: 18px;
+    padding: var(--space-5);
   }
 
   .tool-icon {
@@ -3835,7 +3835,7 @@ input.is-invalid {
 }
 
 .landing-gallery-welcome-error {
-  margin-top: 14px;
+  margin-top: var(--space-4);
   padding: 11px 14px;
   border-radius: var(--radius-md);
   color: var(--color-error);
@@ -4724,7 +4724,7 @@ input.is-invalid {
   align-items: center;
   gap: 8px;
   padding-top: 5px;
-  padding-right: 9px;
+  padding-right: var(--space-2);
   padding-bottom: 5px;
   border-radius: var(--radius-sm) !important;
 }
@@ -4889,7 +4889,7 @@ input.is-invalid {
   align-items: center;
   justify-content: center;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-3);
   padding: 30px;
   color: rgb(255 255 255 / 78%);
   text-align: center;
@@ -4953,7 +4953,7 @@ input.is-invalid {
   min-height: 46px;
   align-items: center;
   grid-template-columns: minmax(180px, auto) minmax(120px, 420px) auto;
-  gap: 14px;
+  gap: var(--space-4);
   padding: 7px 14px;
   border-top: 1px solid var(--color-border);
   background: var(--color-surface);
@@ -5601,7 +5601,7 @@ body:has(.public-home) {
   display: grid;
   grid-template-columns: 24px 1fr 24px;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-3);
   width: min(100%, 402px);
   min-height: 50px;
   padding: 4px 12px;
@@ -6048,7 +6048,7 @@ body:has(.public-home) {
   position: relative;
   display: grid;
   overflow: hidden;
-  gap: 14px;
+  gap: var(--space-4);
   padding: var(--space-6);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -6383,7 +6383,7 @@ body:has(.public-home) {
 .platform-download-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: var(--space-4);
 }
 
 .platform-download-actions .button {
@@ -6416,7 +6416,7 @@ body:has(.public-home) {
 .local-app-modal > .inline-actions {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 14px;
+  gap: var(--space-4);
   padding-top: 4px;
 }
 
@@ -8867,7 +8867,7 @@ body:has(.public-home) {
   display: grid;
   width: min(460px, 100%);
   gap: 5px;
-  margin-top: 7px;
+  margin-top: var(--space-2);
   color: var(--color-text-muted);
   font-size: 0.76rem;
 }
@@ -10211,7 +10211,7 @@ button,
 
 .button {
   min-height: 44.2px;
-  padding-inline: 15.6px;
+  padding-inline: var(--space-4);
 }
 
 .theme-toggle,
@@ -11215,7 +11215,7 @@ body {
 .job-row-actions .button,
 .landing-batch-actions .button {
   min-height: 44.2px;
-  padding-inline: 15.6px;
+  padding-inline: var(--space-4);
   font-size: inherit;
 }
 
@@ -11285,7 +11285,7 @@ body {
 .task-date-filter-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: var(--space-2);
   min-height: 38px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -11756,7 +11756,7 @@ body {
 .team-task-attachment-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
-  gap: 10px;
+  gap: var(--space-3);
 }
 .team-task-attachment {
   display: grid;
@@ -11805,7 +11805,7 @@ body {
 .team-task-attachment-caption {
   display: grid;
   align-content: start;
-  gap: 7px;
+  gap: var(--space-2);
   padding: 8px;
 }
 .team-task-attachment-caption-heading {
@@ -11926,7 +11926,7 @@ body {
   min-height: 186px;
   place-items: center;
   align-content: center;
-  gap: 7px;
+  gap: var(--space-2);
   border: 1.5px dashed var(--color-border);
   border-radius: var(--radius-md);
   background: color-mix(in oklab, var(--color-surface-muted) 40%, var(--color-surface));
@@ -12014,7 +12014,7 @@ body {
 }
 .team-task-picker-path-action.button {
   min-height: 30px;
-  padding-inline: 7px;
+  padding-inline: var(--space-2);
   font-size: 0.72rem;
 }
 .team-task-picker-path-action svg {
@@ -12084,7 +12084,7 @@ body {
   border-radius: var(--radius-md);
   background: transparent;
   color: var(--color-text);
-  padding: 7px;
+  padding: var(--space-2);
   text-align: left;
   cursor: pointer;
 }
@@ -13103,7 +13103,7 @@ button.team-landing-tile:hover {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
+  gap: var(--space-4);
   width: 244px;
   padding: 18px 20px 20px;
   border: 1px solid var(--color-border);
