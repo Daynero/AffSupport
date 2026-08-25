@@ -7,7 +7,8 @@ import {
   useState,
   type Dispatch,
   type ReactNode,
-  type SetStateAction
+  type SetStateAction,
+  useMemo
 } from 'react';
 import {
   DEFAULT_CRF,
@@ -85,6 +86,24 @@ export interface AgentContextValue {
 }
 
 const AgentContext = createContext<AgentContextValue | null>(null);
+
+/**
+ * The queue snapshot, kept in a context of its own.
+ *
+ * Everything else here — the connection state, the agent's version, its
+ * capabilities — changes a handful of times in a session. The snapshot changes
+ * several times a second while an encode runs, and it used to share one context
+ * object with the rest, so a progress tick re-rendered every component that had
+ * only ever asked whether the agent was connected.
+ *
+ * `useAgent` still returns both, because most callers genuinely want both and
+ * rewriting every one of them would be a larger change than the problem
+ * justifies. What this buys is that a component *can* subscribe to just the
+ * status, and the ones that sit above the whole page now do.
+ */
+const AgentStatusContext = createContext<Omit<AgentContextValue, 'state' | 'setState'> | null>(
+  null
+);
 
 export function AgentProvider({ children }: { children: ReactNode }) {
   const [connection, setConnection] = useState<ConnectionState>('checking');
@@ -384,42 +403,73 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  /**
+   * The half of the context that rarely changes.
+   *
+   * Memoised so a queue snapshot arriving four times a second does not hand
+   * every status consumer a new object to compare against.
+   */
+  const status = useMemo(
+    () => ({
+      connection,
+      connectedOnce,
+      agentVersion,
+      agentBuildId,
+      agentChannel,
+      agentApiVersion,
+      capabilities,
+      toolContracts,
+      releaseManifest,
+      toolAvailable: (tool: SotyToolId) => toolContractCompatible(tool, toolContracts),
+      teamWorkspaceAvailable:
+        connection === 'connected' && toolContractCompatible('teamWorkspace', toolContracts),
+      reconnect: () => {
+        // An explicit ask is never held back by the automatic budget: that
+        // budget exists to stop the page navigating in a loop on its own, not
+        // to stop the user from trying again.
+        releaseAutomaticPairing();
+        void establish('connecting');
+      }
+    }),
+    [
+      connection,
+      connectedOnce,
+      agentVersion,
+      agentBuildId,
+      agentChannel,
+      agentApiVersion,
+      capabilities,
+      toolContracts,
+      releaseManifest,
+      entitlement
+    ]
+  );
+
   return (
-    <AgentContext.Provider
-      value={{
-        connection,
-        state,
-        // Every consumer writes through the guard, so "newer wins" cannot be
-        // opted out of by a caller that does not know it exists.
-        setState: applyState,
-        connectedOnce,
-        agentVersion,
-        agentBuildId,
-        agentChannel,
-        agentApiVersion,
-        capabilities,
-        toolContracts,
-        releaseManifest,
-        toolAvailable: tool => toolContractCompatible(tool, toolContracts),
-        teamWorkspaceAvailable:
-          connection === 'connected' && toolContractCompatible('teamWorkspace', toolContracts),
-        reconnect: () => {
-          // An explicit ask is never held back by the automatic budget: that
-          // budget exists to stop the page navigating in a loop on its own, not
-          // to stop the user from trying again.
-          releaseAutomaticPairing();
-          void establish('connecting');
-        }
-      }}
-    >
-      {children}
-    </AgentContext.Provider>
+    <AgentStatusContext.Provider value={status}>
+      <AgentContext.Provider value={{ ...status, state, setState: applyState }}>
+        {children}
+      </AgentContext.Provider>
+    </AgentStatusContext.Provider>
   );
 }
 
 export function useAgent() {
   const value = useContext(AgentContext);
   if (!value) throw new Error('useAgent must be used inside AgentProvider');
+  return value;
+}
+
+/**
+ * Everything except the queue snapshot.
+ *
+ * For components that only need to know whether the agent is there — a header,
+ * a route guard, a badge. They re-render when the connection changes, and not
+ * when a progress bar moves.
+ */
+export function useAgentStatus() {
+  const value = useContext(AgentStatusContext);
+  if (!value) throw new Error('useAgentStatus must be used inside AgentProvider');
   return value;
 }
 

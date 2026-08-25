@@ -387,11 +387,11 @@ These four close holes confirmed by **probing a running local app**, not inferre
 
 ### Implementation for User Story 6
 
-- [ ] T192 [US6] Split `apps/web/src/AgentContext.tsx` into a low-frequency status context and an external store with selectors, keeping the existing hook as a shim and the test override working
+- [X] T192 [US6] Split `apps/web/src/AgentContext.tsx` into a low-frequency status context and an external store with selectors, keeping the existing hook as a shim and the test override working
 - [X] T193 [US6] Create `apps/web/src/api/reconcile-queue.ts` returning previous references for unchanged jobs and the previous array when nothing changed, so memoisation is not a no-op
 - [X] T194 [US6] Apply reconciliation inside the state writer in `apps/web/src/AgentContext.tsx`
-- [ ] T195 [US6] Stabilise the four inline callbacks and move the selection arithmetic behind refs in `apps/web/src/App.tsx`, then memoise `apps/web/src/components/JobRow.tsx`
-- [ ] T196 [P] [US6] Memoise the remaining derived selections in `apps/web/src/App.tsx` and delete the per-render identifier join key
+- [X] T195 [US6] Stabilise the four inline callbacks and move the selection arithmetic behind refs in `apps/web/src/App.tsx`, then memoise `apps/web/src/components/JobRow.tsx`
+- [X] T196 [P] [US6] Memoise the remaining derived selections in `apps/web/src/App.tsx` and delete the per-render identifier join key
 - [X] T197 [P] [US6] Memoise the context value in `apps/web/src/AuthContext.tsx`
 - [X] T198 [US6] Bound the broadcast rate and send only what changed in `apps/agent/src/queue/queue.ts` and `apps/agent/src/server/sse.ts` (FR-043, E4)
 - [X] T199 [US6] Lazy-load the tool pages, the workspace and the admin screen in `apps/web/src/lib/tool-registry.ts` and `apps/web/src/ProtectedSoty.tsx` (FR-045)

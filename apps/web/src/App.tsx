@@ -167,12 +167,20 @@ export default function CompressorPage() {
     []
   );
 
-  const jobIdsKey = state.jobs.map(job => job.id).join('|');
   useEffect(() => {
     if (connection !== 'connected') return;
+    // Keyed on the jobs array itself, which reconciliation keeps stable while
+    // nothing changes. The previous version built a joined string of every id
+    // on every render — allocating a string proportional to the queue several
+    // times a second, purely to decide whether to skip an effect.
     const existing = new Set(state.jobs.map(job => job.id));
-    setSelected(current => new Set([...current].filter(id => existing.has(id))));
-  }, [connection, jobIdsKey]);
+    setSelected(current => {
+      const kept = [...current].filter(id => existing.has(id));
+      // Returning the same set when nothing was dropped keeps every consumer of
+      // the selection from re-rendering too.
+      return kept.length === current.size ? current : new Set(kept);
+    });
+  }, [connection, state.jobs]);
 
   useEffect(() => {
     sessionStorage.setItem(COMPRESSOR_SELECTION_KEY, JSON.stringify([...selected]));
@@ -421,9 +429,18 @@ export default function CompressorPage() {
 
   const visibleJobs = useMemo(() => newestJobsFirst(state.jobs), [state.jobs]);
   const selectableIds = useMemo(() => selectableJobIds(visibleJobs), [visibleJobs]);
-  const selectedStartable = startableSelectedIds(state.jobs, selected);
-  const selectedRemovable = removableSelectedIds(state.jobs, selected);
-  const anythingStoppable = state.jobs.some(stoppable);
+  // Derived from the job list and the selection, so they change when those do
+  // and not when a progress tick arrives. Each of these walks every job; three
+  // walks per render, several times a second, on a list with no upper bound.
+  const selectedStartable = useMemo(
+    () => startableSelectedIds(state.jobs, selected),
+    [state.jobs, selected]
+  );
+  const selectedRemovable = useMemo(
+    () => removableSelectedIds(state.jobs, selected),
+    [state.jobs, selected]
+  );
+  const anythingStoppable = useMemo(() => state.jobs.some(stoppable), [state.jobs]);
   const metrics = useMemo(() => batchMetrics(state.jobs, state.batch), [state.jobs, state.batch]);
   const summary = useMemo(() => calculateQueueSummary(state.jobs), [state.jobs]);
   const selectedLabel = selected.size

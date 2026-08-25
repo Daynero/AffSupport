@@ -1,5 +1,5 @@
 import { Suspense, type ComponentType, useEffect } from 'react';
-import { AgentProvider, useAgent } from './AgentContext';
+import { AgentProvider, useAgent, useAgentStatus } from './AgentContext';
 import { Header } from './App';
 import { ProfileOnboarding } from './auth/AuthScreens';
 import HomePage from './HomePage';
@@ -45,7 +45,9 @@ export default function ProtectedSoty({ path, route = path }: { path: string; ro
  */
 function ApplicationShell({ path, route }: { path: string; route: string }) {
   const { language, setLanguage, t } = useI18n();
-  const { connection } = useAgent();
+  // Status only: this sits above every page and has no interest in a
+  // progress tick.
+  const { connection } = useAgentStatus();
   return (
     <div className="app-shell">
       <Header language={language} setLanguage={setLanguage} connection={connection} t={t} />
@@ -71,7 +73,7 @@ function ProtectedApplication({ path, route }: { path: string; route: string }) 
 }
 
 function ToolRoute({ tool }: { tool: WebTool }) {
-  const { connection, capabilities, connectedOnce, toolAvailable } = useAgent();
+  const { connection, capabilities, connectedOnce, toolAvailable } = useAgentStatus();
   // Web-only access gate — a protected tool must show the lock even on a
   // direct URL visit until this browser has acknowledged the warning.
   const locked = useToolLock(tool.featureFlag);
