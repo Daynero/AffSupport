@@ -7,6 +7,7 @@ import { findDroppedFolder } from '../files/dropped-source.js';
 import { showInFileManager, capabilities } from '../platform/platform.js';
 import type { EventChannel } from '../server/sse.js';
 import type { LandingPreviewCatalog } from './catalog.js';
+import { failureCode } from '../server/failure-codes.js';
 
 interface LandingPreviewDeps {
   catalog: LandingPreviewCatalog;
@@ -215,7 +216,5 @@ export function registerLandingPreviewRoutes(
 }
 
 function failure(reply: any, error: unknown, status = 400) {
-  return reply
-    .code(status)
-    .send({ error: error instanceof Error ? error.message : 'Landing preview action failed.' });
+  return reply.code(status).send({ error: failureCode(error) });
 }

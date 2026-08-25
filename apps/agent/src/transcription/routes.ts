@@ -19,6 +19,7 @@ import { showInFileManager, capabilities } from '../platform/platform.js';
 import type { EventChannel } from '../server/sse.js';
 import { resolveByteRange } from './media.js';
 import type { TranscriptionQueue } from '../queue/transcription-queue.js';
+import { failureCode } from '../server/failure-codes.js';
 
 interface TranscriptionDeps {
   queue: TranscriptionQueue;
@@ -122,9 +123,7 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
       await pipeline(part.file, createWriteStream(target));
     } catch (error) {
       await discardImport();
-      return reply
-        .code(400)
-        .send({ error: error instanceof Error ? error.message : 'The file could not be stored.' });
+      return reply.code(400).send({ error: failureCode(error) });
     }
     if (part.file.truncated) {
       await discardImport();

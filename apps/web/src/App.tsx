@@ -1058,7 +1058,22 @@ function localizedError(value: unknown, t: Translate) {
     IMAGE_DAMAGED: 'damagedImage',
     IMAGE_TOO_LARGE: 'imageTooLarge',
     IMAGE_UNAVAILABLE: 'imageUnavailable',
-    IMAGE_IMPORT_FAILED: 'imageUploadFailed'
+    IMAGE_IMPORT_FAILED: 'imageUploadFailed',
+    // The stable codes the local app emits in place of relaying a raw message.
+    // A relayed message routinely carried a full path and could not be
+    // translated anyway, so it fell through to the generic text — meaning this
+    // map is what finally makes these failures readable rather than merely
+    // safe.
+    UPLOAD_FAILED: 'errorUploadFailed',
+    IMPORT_FAILED: 'errorImportFailed',
+    FILE_TOO_LARGE: 'errorFileTooLarge',
+    FILE_UNAVAILABLE: 'errorFileUnavailable',
+    UNSUPPORTED_FORMAT: 'errorUnsupportedFormat',
+    DISK_FULL: 'errorDiskFull',
+    PERMISSION_DENIED: 'errorPermissionDenied',
+    PATH_NOT_GRANTED: 'errorPathNotGranted',
+    TOOL_UNAVAILABLE: 'errorToolUnavailable',
+    OPERATION_FAILED: 'genericError'
   };
   return t(map[raw] ?? 'genericError');
 }

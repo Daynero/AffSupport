@@ -12,6 +12,7 @@ import type { EventChannel } from '../server/sse.js';
 import { MAX_LANDING_ARCHIVE_BYTES, MAX_LANDING_ASSET_BYTES } from '../server/upload-limits.js';
 import type { LandingOptimizer } from './optimizer.js';
 import { sanitizeRelPath } from './workspace.js';
+import { failureCode } from '../server/failure-codes.js';
 
 interface LandingDeps {
   optimizer: LandingOptimizer;
@@ -174,9 +175,7 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
       await pipeline(part.file, createWriteStream(target));
       return { ok: true };
     } catch (error) {
-      return reply
-        .code(400)
-        .send({ error: error instanceof Error ? error.message : 'The file could not be stored.' });
+      return reply.code(400).send({ error: failureCode(error) });
     }
   });
 
@@ -270,9 +269,7 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
 
 async function failPreparation(reply: any, optimizer: LandingOptimizer, error: unknown) {
   await optimizer.abortUpload().catch(() => {});
-  return reply
-    .code(400)
-    .send({ error: error instanceof Error ? error.message : 'The landing could not be prepared.' });
+  return reply.code(400).send({ error: failureCode(error) });
 }
 
 function revealOutput(reply: any, optimizer: LandingOptimizer, flag: '-R' | null, jobId?: string) {

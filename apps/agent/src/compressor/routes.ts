@@ -22,6 +22,7 @@ import { hasCapability } from '../server/capabilities.js';
 import type { EventChannel } from '../server/sse.js';
 import { parseSettingsPatch } from './settings-validation.js';
 import { pathGrants } from '../files/path-grants.js';
+import { failureCode } from '../server/failure-codes.js';
 
 export interface CompressorEstimator {
   pause(): Promise<void>;
@@ -135,7 +136,7 @@ export function registerCompressorRoutes(app: FastifyInstance, ctx: CompressorCo
     } catch (error) {
       await rm(directory, { recursive: true, force: true });
       return reply.code(400).send({
-        error: error instanceof Error ? error.message : 'The file could not be imported.'
+        error: failureCode(error)
       });
     }
   });
