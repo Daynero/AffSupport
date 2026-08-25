@@ -134,10 +134,10 @@
      the file. The rungs below are the ones already in use; naming them is what
      lets the 010 refresh retire the two ad-hoc bands:
 
-       z-index: 45  — the hand-rolled team overlays (process dialog, text editor,
+       z-index: var(--layer-dropdown)  — the hand-rolled team overlays (process dialog, text editor,
                       operation overlay). They become `components/Modal`
                       children, so they inherit --layer-modal and the band goes.
-       z-index: 80  — the team preview and landing full view, which claimed
+       z-index: var(--layer-preview)  — the team preview and landing full view, which claimed
                       modality while sitting *below* --layer-modal. They become
                       full-bleed Modal variants; 80 survives only as the
                       popover rung (user menu, row menus), which is what it
@@ -150,6 +150,22 @@
   --layer-modal-nested: 110;
   --layer-fullbleed: 120;
   --layer-toast: 130;
+
+  /* The lower half of the same scale, added when fifty-three raw z-index
+     declarations were moved onto it. The values above were already chosen and
+     documented; these fill in what sits below a popover, in the order the raw
+     numbers already implied — so nothing moved relative to anything else. */
+  --layer-beneath: -1;
+  --layer-base: 0;
+  --layer-raised: 1;
+  --layer-content: 2;
+  --layer-sticky: 10;
+  --layer-header: 20;
+  --layer-dropdown: 30;
+  --layer-overlay: 40;
+  --layer-preview: 50;
+  --layer-tooltip: 90;
+  --layer-top: 140;
 
   /* Ink tints (the rgba(36,27,58,α) family) and overlays */
   --tint-soft: rgba(36, 27, 58, 0.06);
@@ -320,7 +336,7 @@ a {
      logo so the bar just grows a little instead of letting the logo spill out
      below and overlap content. */
   position: fixed;
-  z-index: 40;
+  z-index: var(--layer-dropdown);
   top: 0;
   left: 0;
   right: 0;
@@ -1810,7 +1826,7 @@ input.is-invalid {
 
 .segmented-indicator {
   position: absolute;
-  z-index: 0;
+  z-index: var(--layer-base);
   top: 3px;
   left: 0;
   height: calc(100% - 6px);
@@ -1825,7 +1841,7 @@ input.is-invalid {
 
 .segmented button {
   position: relative;
-  z-index: 1;
+  z-index: var(--layer-raised);
   min-height: 30px;
   padding: 0 11px;
   border: 0;
@@ -1894,7 +1910,7 @@ input.is-invalid {
 
 .tooltip-popover {
   position: fixed;
-  z-index: 1000;
+  z-index: var(--layer-toast);
   width: min(280px, calc(100vw - 24px));
   padding: 9px 11px;
   border-radius: var(--radius-sm);
@@ -1992,7 +2008,7 @@ input.is-invalid {
    ============================================================ */
 .batch-toolbar {
   position: sticky;
-  z-index: 30;
+  z-index: var(--layer-header);
   top: 64px;
   display: flex;
   flex-wrap: wrap;
@@ -2936,7 +2952,7 @@ input.is-invalid {
 
 .release-update-notice {
   position: fixed;
-  z-index: 1150;
+  z-index: var(--layer-toast);
   left: var(--space-4);
   bottom: var(--space-4);
   display: grid;
@@ -3055,7 +3071,7 @@ input.is-invalid {
 
 .toast-region {
   position: fixed;
-  z-index: 1200;
+  z-index: var(--layer-tooltip);
   right: var(--space-4);
   bottom: var(--space-4);
   display: grid;
@@ -3874,7 +3890,7 @@ input.is-invalid {
 
 .landing-gallery-viewer {
   position: fixed;
-  z-index: 100;
+  z-index: var(--layer-modal);
   inset: 0;
   display: grid;
   grid-template:
@@ -3891,7 +3907,7 @@ input.is-invalid {
 }
 
 .landing-gallery-toolbar {
-  z-index: 5;
+  z-index: var(--layer-content);
   grid-area: toolbar;
   display: grid;
   min-width: 0;
@@ -4057,7 +4073,7 @@ input.is-invalid {
 
 .landing-gallery-more > div {
   position: absolute;
-  z-index: 20;
+  z-index: var(--layer-header);
   top: calc(100% + 8px);
   right: 0;
   display: grid;
@@ -4150,7 +4166,7 @@ input.is-invalid {
 
 .landing-gallery-source-menu {
   position: absolute;
-  z-index: 20;
+  z-index: var(--layer-header);
   top: calc(100% + 8px);
   left: 0;
   display: grid;
@@ -4251,7 +4267,7 @@ input.is-invalid {
 
 .landing-gallery-refresh-more > div {
   position: absolute;
-  z-index: 20;
+  z-index: var(--layer-header);
   top: calc(100% + 8px);
   right: 0;
   display: grid;
@@ -4332,7 +4348,7 @@ input.is-invalid {
 
 .landing-gallery-settings > div {
   position: absolute;
-  z-index: 20;
+  z-index: var(--layer-header);
   top: calc(100% + 8px);
   right: calc(-44.2px - 6px);
   display: grid;
@@ -4478,7 +4494,7 @@ input.is-invalid {
 
 .landing-gallery-sidebar {
   position: relative;
-  z-index: 3;
+  z-index: var(--layer-raised);
   grid-area: sidebar;
   display: flex;
   min-width: 0;
@@ -4791,7 +4807,7 @@ input.is-invalid {
 
 .landing-gallery-stale-note {
   position: sticky;
-  z-index: 2;
+  z-index: var(--layer-raised);
   top: 12px;
   width: max-content;
   max-width: calc(100% - 24px);
@@ -4806,7 +4822,7 @@ input.is-invalid {
 
 .landing-gallery-render-note {
   position: sticky;
-  z-index: 2;
+  z-index: var(--layer-raised);
   bottom: 12px;
   display: grid;
   gap: 3px;
@@ -4854,7 +4870,7 @@ input.is-invalid {
 
 .landing-gallery-edge-nav {
   position: fixed;
-  z-index: 4;
+  z-index: var(--layer-content);
   top: 50%;
   display: grid;
   width: 42px;
@@ -4888,7 +4904,7 @@ input.is-invalid {
 }
 
 .landing-gallery-progress {
-  z-index: 6;
+  z-index: var(--layer-content);
   grid-area: progress;
   display: grid;
   min-height: 46px;
@@ -4927,7 +4943,7 @@ input.is-invalid {
 
 .landing-gallery-drop-overlay {
   position: fixed;
-  z-index: 30;
+  z-index: var(--layer-header);
   inset: 12px;
   display: flex;
   align-items: center;
@@ -5041,7 +5057,7 @@ input.is-invalid {
 
   .landing-gallery-sidebar {
     position: fixed;
-    z-index: 20;
+    z-index: var(--layer-header);
     top: 70px;
     bottom: 0;
     left: 0;
@@ -5184,7 +5200,7 @@ body:has(.public-home) {
 .public-home-content,
 .public-footer {
   position: relative;
-  z-index: 2;
+  z-index: var(--layer-raised);
 }
 
 .public-topbar a,
@@ -5217,7 +5233,7 @@ body:has(.public-home) {
 
 .public-ambient-labels {
   position: absolute;
-  z-index: 0;
+  z-index: var(--layer-base);
   inset: 0;
   overflow: hidden;
   pointer-events: none;
@@ -5257,7 +5273,7 @@ body:has(.public-home) {
 
 .public-hero {
   position: relative;
-  z-index: 1;
+  z-index: var(--layer-raised);
   display: grid;
   justify-items: center;
   width: 100%;
@@ -5429,7 +5445,7 @@ body:has(.public-home) {
 .login-topbar,
 .legal-topbar {
   position: relative;
-  z-index: 2;
+  z-index: var(--layer-raised);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -5503,7 +5519,7 @@ body:has(.public-home) {
 
 .login-card {
   position: relative;
-  z-index: 1;
+  z-index: var(--layer-raised);
   align-self: center;
   justify-self: center;
   display: grid;
@@ -6942,7 +6958,7 @@ body:has(.public-home) {
 
 .admin-table-wrap th {
   position: sticky;
-  z-index: 1;
+  z-index: var(--layer-raised);
   top: 0;
   color: var(--color-text-muted);
   background: var(--color-surface-subtle);
@@ -6994,7 +7010,7 @@ body:has(.public-home) {
 
 .legal-topbar {
   position: sticky;
-  z-index: 10;
+  z-index: var(--layer-sticky);
   top: 0;
   border-bottom: 1px solid rgb(228 225 236 / 80%);
   background: rgb(250 249 253 / 86%);
@@ -7379,7 +7395,7 @@ body:has(.public-home) {
 
 .landing-batch-card.is-completed::before {
   position: absolute;
-  z-index: 2;
+  z-index: var(--layer-raised);
   top: 0;
   bottom: 0;
   left: -25%;
@@ -7392,7 +7408,7 @@ body:has(.public-home) {
 
 .landing-batch-header {
   position: relative;
-  z-index: 3;
+  z-index: var(--layer-raised);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -7538,7 +7554,7 @@ body:has(.public-home) {
 
 .landing-batch-progress {
   position: relative;
-  z-index: 1;
+  z-index: var(--layer-raised);
   display: grid;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4) var(--space-4);
@@ -7564,7 +7580,7 @@ body:has(.public-home) {
 
 .landing-success-summary {
   position: relative;
-  z-index: 1;
+  z-index: var(--layer-raised);
   display: grid;
   gap: var(--space-3);
   padding: var(--space-4);
@@ -7677,7 +7693,7 @@ body:has(.public-home) {
 }
 
 .landing-asset-item.is-current {
-  z-index: 1;
+  z-index: var(--layer-raised);
   background: linear-gradient(90deg, var(--color-accent-softer), var(--color-surface));
   box-shadow: inset 3px 0 0 var(--color-accent);
 }
@@ -8016,7 +8032,7 @@ body:has(.public-home) {
 
 .landing-compare-label {
   position: absolute;
-  z-index: 3;
+  z-index: var(--layer-raised);
   top: 12px;
   padding: 5px 9px;
   border: 1px solid rgb(255 255 255 / 22%);
@@ -8040,7 +8056,7 @@ body:has(.public-home) {
 
 .landing-compare-divider {
   position: absolute;
-  z-index: 4;
+  z-index: var(--layer-content);
   top: 0;
   bottom: 0;
   left: var(--compare-position);
@@ -8067,7 +8083,7 @@ body:has(.public-home) {
 
 .landing-compare-divider i {
   position: absolute;
-  z-index: 1;
+  z-index: var(--layer-raised);
   top: 50%;
   color: var(--color-accent-hover);
   font-size: 29.9px;
@@ -8086,7 +8102,7 @@ body:has(.public-home) {
 
 .landing-compare-range {
   position: absolute;
-  z-index: 5;
+  z-index: var(--layer-content);
   width: 100%;
   height: 100%;
   margin: 0;
@@ -8552,7 +8568,7 @@ body:has(.public-home) {
 .theme-toggle__halo {
   position: absolute;
   inset: -5px;
-  z-index: -1;
+  z-index: var(--layer-beneath);
   border-radius: 50%;
   background: radial-gradient(circle, rgba(242, 169, 60, 0.55), transparent 68%);
   opacity: 0;
@@ -8632,7 +8648,7 @@ body:has(.public-home) {
    Scoped to an active theme transition: route view transitions also snapshot the
    named toggle, and an unscoped rule would spin it on every navigation. */
 ::view-transition-group(theme-toggle) {
-  z-index: 10001;
+  z-index: var(--layer-top);
 }
 :root.is-theming::view-transition-old(theme-toggle) {
   animation: theme-toggle-out 0.5s var(--ease-standard) both;
@@ -8939,7 +8955,7 @@ body:has(.public-home) {
 .transcript-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: var(--layer-toast);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -8964,7 +8980,7 @@ body:has(.public-home) {
   position: absolute;
   left: 50%;
   bottom: 66px;
-  z-index: 8;
+  z-index: var(--layer-content);
   padding: 7px 12px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--color-text) 92%, transparent);
@@ -9160,7 +9176,7 @@ body:has(.public-home) {
 }
 .transcript-language-combobox ul {
   position: absolute;
-  z-index: 5;
+  z-index: var(--layer-content);
   inset: calc(100% + 4px) 0 auto;
   max-height: 240px;
   margin: 0;
@@ -10889,7 +10905,7 @@ button,
 }
 .transcript-match-tooltip {
   position: absolute;
-  z-index: 12;
+  z-index: var(--layer-sticky);
   top: calc(100% + 8px);
   right: 0;
   width: min(300px, 70vw);
@@ -10973,7 +10989,7 @@ button,
 .soty-honeycomb {
   position: fixed;
   inset: 0;
-  z-index: -1;
+  z-index: var(--layer-beneath);
   overflow: hidden;
   pointer-events: none;
 }
@@ -11256,7 +11272,7 @@ body {
 }
 .task-date-filter-popover {
   position: absolute;
-  z-index: 10;
+  z-index: var(--layer-sticky);
   top: calc(100% + 8px);
   left: 0;
   width: min(304px, calc(100vw - 32px));
@@ -11586,7 +11602,7 @@ body {
   position: absolute;
   top: 50%;
   left: var(--task-progress-position);
-  z-index: 1;
+  z-index: var(--layer-raised);
   display: grid;
   width: 34px;
   height: 34px;
@@ -12239,7 +12255,7 @@ body {
   opacity: 1;
 }
 .creative-library-card-preview-fallback {
-  z-index: 1;
+  z-index: var(--layer-raised);
   display: grid;
   justify-items: center;
   gap: var(--space-2);
@@ -12262,7 +12278,7 @@ body {
   position: absolute;
   right: var(--space-2);
   bottom: var(--space-2);
-  z-index: 2;
+  z-index: var(--layer-raised);
   border-radius: 999px;
   background: color-mix(in oklab, #000 68%, transparent);
   padding: 4px 9px;
@@ -12615,7 +12631,7 @@ body {
   position: absolute;
   top: var(--space-2);
   left: var(--space-2);
-  z-index: 3;
+  z-index: var(--layer-raised);
   display: inline-grid;
   place-items: center;
   width: 32px;
@@ -12686,7 +12702,7 @@ body {
 .creative-library-toolbar {
   position: sticky;
   top: var(--app-header-height);
-  z-index: 20;
+  z-index: var(--layer-header);
   display: grid;
   gap: var(--space-3);
   margin: calc(-1 * var(--space-5)) calc(-1 * var(--space-5)) 0;
@@ -12953,7 +12969,7 @@ button.team-landing-tile:hover {
   top: 0.5rem;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 2000;
+  z-index: var(--layer-tooltip);
   padding: 0.2rem 0.7rem;
   border-radius: 999px;
   border: 1px solid var(--color-border-strong);
@@ -13036,7 +13052,7 @@ button.team-landing-tile:hover {
   position: absolute;
   top: calc(100% + 10px);
   right: 0;
-  z-index: 60;
+  z-index: var(--layer-overlay);
   display: flex;
   flex-direction: column;
   align-items: center;

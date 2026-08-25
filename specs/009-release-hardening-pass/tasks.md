@@ -433,7 +433,7 @@ These four close holes confirmed by **probing a running local app**, not inferre
 
 - [X] T217 [US7] Define the nine referenced-but-undefined custom properties in `apps/web/src/styles.css`, or delete the three orphan blocks that use them (F1, FR-049)
 - [ ] T218 [US7] Create the text-size scale in `apps/web/src/styles.css` and replace the fractional pixel literals, so browser font-size settings are honoured (F2, FR-050)
-- [ ] T219 [US7] Create the stacking scale in `apps/web/src/styles.css` and move all 58 raw values onto it, excluding view-transition pseudo-elements (F3, FR-050)
+- [X] T219 [US7] Create the stacking scale in `apps/web/src/styles.css` and move all 58 raw values onto it, excluding view-transition pseudo-elements (F3, FR-050)
 - [ ] T220 [US7] Move the off-grid spacing declarations onto the spacing scale in `apps/web/src/styles.css` (F2)
 - [ ] T221 [US7] Remove the duplicate button definition and the triplicated help-text rule from `apps/web/src/styles.css`, and route the four one-off button styles through the shared component (F5)
 - [X] T222 [US7] Fix the global focus indicator contrast in `apps/web/src/styles.css`, which currently fails on every light surface (F8)
