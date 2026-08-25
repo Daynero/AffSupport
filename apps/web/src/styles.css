@@ -231,7 +231,15 @@ summary,
 }
 
 :focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--color-focus) 45%, transparent);
+  /* Solid, not mixed toward transparent.
+
+     At 45% the ring measured 1.63:1 against the light background, where WCAG
+     asks for 3:1 on a non-text indicator — so on the theme most people use, the
+     one thing telling a keyboard user where they are was effectively invisible.
+     The colour itself passes at 3.28:1; the transparency was the whole defect.
+     Dark measured 2.74:1 mixed and 9.03:1 solid, which is why this was easy to
+     miss while testing in dark. */
+  outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
 
@@ -1373,8 +1381,8 @@ a {
 }
 
 .image-drop-zone.has-error {
-  border-color: color-mix(in srgb, var(--color-danger, #d64545) 58%, var(--color-border));
-  background: color-mix(in srgb, var(--color-danger, #d64545) 6%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-error, #d64545) 58%, var(--color-border));
+  background: color-mix(in srgb, var(--color-error, #d64545) 6%, var(--color-surface));
 }
 
 .image-drop-zone.has-image {
@@ -1572,7 +1580,7 @@ a {
 }
 
 .selected-image-action.is-delete:hover:not(:disabled) {
-  color: var(--color-danger, #d64545);
+  color: var(--color-error, #d64545);
 }
 
 .selected-image-size {
@@ -1695,7 +1703,7 @@ select:focus-visible,
 input[type='number']:focus-visible,
 .time-input:focus-visible {
   border-color: var(--color-accent);
-  outline: 3px solid color-mix(in srgb, var(--color-focus) 35%, transparent);
+  outline: 3px solid var(--color-focus);
   outline-offset: 0;
 }
 
@@ -2718,7 +2726,7 @@ input.is-invalid {
 }
 
 .checkbox input:focus-visible + .checkbox-mark {
-  outline: 3px solid color-mix(in srgb, var(--color-focus) 45%, transparent);
+  outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
 
@@ -2824,7 +2832,7 @@ input.is-invalid {
 }
 
 .media-action-failed .media-action-status {
-  color: var(--color-danger, #d64545);
+  color: var(--color-error, #d64545);
 }
 
 .blocking-message {
@@ -6128,7 +6136,7 @@ body:has(.public-home) {
 }
 
 .support-goal-note {
-  color: var(--color-text-subtle, var(--color-text-muted));
+  color: var(--color-text-muted, var(--color-text-muted));
   font-size: 16.45px;
   line-height: 1.4;
 }
@@ -6293,7 +6301,7 @@ body:has(.public-home) {
 }
 
 .support-error {
-  color: var(--color-danger, #d64545);
+  color: var(--color-error, #d64545);
   font-size: 17.94px;
 }
 
@@ -9703,7 +9711,7 @@ body:has(.public-home) {
 }
 .team-invitation-link input {
   width: 100%;
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-family-mono, monospace);
 }
 .team-drive-confirmation {
   margin-top: var(--space-3);
@@ -12225,7 +12233,7 @@ body {
   height: 100%;
   object-fit: cover;
   opacity: 0;
-  transition: opacity var(--dur-fast) var(--ease-standard);
+  transition: opacity var(--dur-micro) var(--ease-standard);
 }
 .creative-library-card-preview[data-preview-state='ready'] .creative-library-card-preview-media {
   opacity: 1;
@@ -12236,7 +12244,7 @@ body {
   justify-items: center;
   gap: var(--space-2);
   max-width: calc(100% - var(--space-4));
-  transition: opacity var(--dur-fast) var(--ease-standard);
+  transition: opacity var(--dur-micro) var(--ease-standard);
 }
 .creative-library-card-preview[data-preview-state='ready'] .creative-library-card-preview-fallback {
   opacity: 0;
@@ -12652,7 +12660,7 @@ body {
   color: var(--color-on-accent);
 }
 .creative-library-card-select:has(input:focus-visible) {
-  outline: 3px solid color-mix(in srgb, var(--color-focus) 45%, transparent);
+  outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
 
@@ -12933,9 +12941,9 @@ button.team-landing-tile:hover {
 .team-beta-storage-notice {
   margin: 0.75rem 0 0;
   padding: 0.6rem 0.75rem;
-  border: 1px dashed var(--border-strong, var(--border));
+  border: 1px dashed var(--color-border-strong);
   border-radius: 0.5rem;
-  color: var(--text-muted, var(--text));
+  color: var(--color-text-muted);
   font-size: 0.9rem;
   line-height: 1.45;
 }
@@ -12948,9 +12956,9 @@ button.team-landing-tile:hover {
   z-index: 2000;
   padding: 0.2rem 0.7rem;
   border-radius: 999px;
-  border: 1px solid var(--border-strong, var(--border));
-  background: var(--surface-raised, var(--surface));
-  color: var(--text);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text);
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.14em;
@@ -13091,7 +13099,7 @@ button.team-landing-tile:hover {
 .power-panel__error {
   margin: 0;
   font-size: 12px;
-  color: var(--color-danger, #d2453f);
+  color: var(--color-error, #d2453f);
   text-align: center;
 }
 
@@ -13115,7 +13123,7 @@ button.team-landing-tile:hover {
   margin: 0 0 8px;
   font-size: 12px;
   line-height: 1.4;
-  color: var(--color-warning-text, #8a5a00);
+  color: var(--color-text-muted, #8a5a00);
 }
 
 .power-panel__pending {

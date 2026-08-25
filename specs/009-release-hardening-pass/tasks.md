@@ -416,13 +416,13 @@ These four close holes confirmed by **probing a running local app**, not inferre
 
 ### Tests for User Story 7
 
-- [ ] T208 [P] [US7] Create `tests/design-token-contract.test.ts` asserting the checker catches an undefined property, an off-scale value and a duplicate rule block
+- [X] T208 [P] [US7] Create `tests/design-token-contract.test.ts` asserting the checker catches an undefined property, an off-scale value and a duplicate rule block
 - [ ] T209 [P] [US7] Create `tests/route-matrix-contract.test.ts` asserting every literal path compared in `apps/web/src/Root.tsx` and `apps/web/src/ProtectedSoty.tsx` is a member of the exported route list, so a new route cannot escape the sweep
 - [ ] T210 [P] [US7] Create `tests/i18n-plurals.test.ts` asserting each count string is correct in both languages across the plural categories
 
 ### Implementation — the checkers
 
-- [ ] T211 [US7] Create `scripts/verify-styles.mjs` parsing `apps/web/src/styles.css`, cross-referencing component inline styles to resolve legitimately-external properties, and checking undefined properties, off-scale values, the stacking scale and duplicate blocks (SC-017)
+- [X] T211 [US7] Create `scripts/verify-styles.mjs` parsing `apps/web/src/styles.css`, cross-referencing component inline styles to resolve legitimately-external properties, and checking undefined properties, off-scale values, the stacking scale and duplicate blocks (SC-017)
 - [ ] T212 [US7] Extract the browser and accessibility core of `apps/soty-review/scripts/verify-review.mjs` into `scripts/lib/axe-sweep.mjs` and hoist its two dependencies to the root `package.json`
 - [ ] T213 [US7] Create `scripts/verify-a11y.mjs` serving the built interface and walking the route matrix in both themes and both languages, using `tests/support/fake-agent.ts` to reach authenticated routes (FR-053)
 - [ ] T214 [US7] Land the accessibility sweep in report-only mode with a committed violation baseline, wired into `scripts/verify-all.mjs`
@@ -431,12 +431,12 @@ These four close holes confirmed by **probing a running local app**, not inferre
 
 ### Implementation — the fixes
 
-- [ ] T217 [US7] Define the nine referenced-but-undefined custom properties in `apps/web/src/styles.css`, or delete the three orphan blocks that use them (F1, FR-049)
+- [X] T217 [US7] Define the nine referenced-but-undefined custom properties in `apps/web/src/styles.css`, or delete the three orphan blocks that use them (F1, FR-049)
 - [ ] T218 [US7] Create the text-size scale in `apps/web/src/styles.css` and replace the fractional pixel literals, so browser font-size settings are honoured (F2, FR-050)
 - [ ] T219 [US7] Create the stacking scale in `apps/web/src/styles.css` and move all 58 raw values onto it, excluding view-transition pseudo-elements (F3, FR-050)
 - [ ] T220 [US7] Move the off-grid spacing declarations onto the spacing scale in `apps/web/src/styles.css` (F2)
 - [ ] T221 [US7] Remove the duplicate button definition and the triplicated help-text rule from `apps/web/src/styles.css`, and route the four one-off button styles through the shared component (F5)
-- [ ] T222 [US7] Fix the global focus indicator contrast in `apps/web/src/styles.css`, which currently fails on every light surface (F8)
+- [X] T222 [US7] Fix the global focus indicator contrast in `apps/web/src/styles.css`, which currently fails on every light surface (F8)
 - [ ] T223 [P] [US7] Replace the hardcoded colours that do not respond to theme across `apps/web/src/styles.css` (F6, FR-052)
 - [ ] T224 [US7] Route the two hand-rolled dialogs in `apps/web/src/team/preview/MaterialPreview.tsx` and `apps/web/src/team/landings/LandingFullView.tsx` through the shared modal, and replace the three native confirmations in `apps/web/src/App.tsx` and `apps/web/src/landing-viewer/useLandingViewer.ts` (F4, FR-051)
 - [ ] T225 [US7] Extend the focusable-element set in `apps/web/src/components/Modal.tsx` to cover editable regions, media controls and frames, and mark the rest of the tree inert while a dialog is open (F10)
