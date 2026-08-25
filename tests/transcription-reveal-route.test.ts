@@ -1,6 +1,15 @@
+import { fileURLToPath } from 'node:url';
 import Fastify from 'fastify';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TranscriptionQueue } from '../apps/agent/src/queue/transcription-queue.js';
+
+/**
+ * A real path, because the reveal helper checks that its target exists before
+ * handing it to the system — a made-up path is refused, which is the whole
+ * point of routing every reveal through one guarded door. This file will do:
+ * what is asserted is which path is passed along, not what is in it.
+ */
+const REAL_SOURCE = fileURLToPath(import.meta.url);
 
 const processMock = vi.hoisted(() => ({
   unref: vi.fn(),
@@ -23,7 +32,7 @@ describe('revealing a completed transcription source', () => {
   async function server() {
     const app = Fastify();
     const queue = {
-      sourcePath: (id: string) => (id === 'known' ? '/Users/example/Movies/source.mp4' : null),
+      sourcePath: (id: string) => (id === 'known' ? REAL_SOURCE : null),
       state: () => ({ jobs: [] })
     } as unknown as TranscriptionQueue;
     registerTranscriptionRoutes(app, {
@@ -46,15 +55,11 @@ describe('revealing a completed transcription source', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(processMock.spawn).toHaveBeenCalledWith(
-      '/usr/bin/open',
-      ['-R', '/Users/example/Movies/source.mp4'],
-      {
-        shell: false,
-        detached: true,
-        stdio: 'ignore'
-      }
-    );
+    expect(processMock.spawn).toHaveBeenCalledWith('/usr/bin/open', ['-R', REAL_SOURCE], {
+      shell: false,
+      detached: true,
+      stdio: 'ignore'
+    });
     expect(processMock.unref).toHaveBeenCalledOnce();
     await app.close();
   });

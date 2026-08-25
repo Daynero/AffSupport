@@ -5,6 +5,7 @@ import {
   agentKnown,
   agentLocalUrl,
   consumePairingToken,
+  verifyPairingToken,
   markAgentInstallStarted,
   markAgentSeen
 } from '../apps/web/src/api/client';
@@ -47,14 +48,24 @@ describe('agent installation pairing handoff', () => {
     expect(agentInstallAwaitingPairing()).toBe(false);
   });
 
-  it('clears the handoff once the agent token returns to the tab', () => {
+  it('clears the handoff once the returned token is proven', async () => {
     markAgentInstallStarted();
     history.replaceState(null, '', `/#agentToken=${TOKEN}`);
 
     consumePairingToken();
-
-    expect(agentInstallAwaitingPairing()).toBe(false);
+    // The fragment is gone immediately, but an install is not finished by a
+    // string appearing in the URL — anyone can put one there. It is finished
+    // when the local app answers for it.
     expect(location.hash).toBe('');
+    expect(agentInstallAwaitingPairing()).toBe(true);
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('{}', { status: 200 }))
+    );
+    await verifyPairingToken('http://127.0.0.1:43140');
+    expect(agentInstallAwaitingPairing()).toBe(false);
+    vi.unstubAllGlobals();
   });
 });
 
@@ -88,11 +99,21 @@ describe('knowing that Soty is on this computer', () => {
     expect(agentKnown()).toBe(true);
   });
 
-  it('treats a pairing token that arrived from the Agent as proof', () => {
+  it('treats a token the Agent answered for as proof it is installed', async () => {
     history.replaceState(null, '', `/#agentToken=${TOKEN}`);
     consumePairingToken();
-
+    // The "not yet proof" half is asserted in
+    // tests/pairing-verify-before-adopt.test.ts, which starts from a clean
+    // module: `hasPairingToken()` reads module state that `localStorage.clear()`
+    // does not reset, so a token adopted by an earlier test in this file would
+    // make the same assertion pass or fail depending on ordering.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('{}', { status: 200 }))
+    );
+    await verifyPairingToken('http://127.0.0.1:43140');
     expect(agentKnown()).toBe(true);
+    vi.unstubAllGlobals();
   });
 
   it('counts an installation that is still in progress', () => {

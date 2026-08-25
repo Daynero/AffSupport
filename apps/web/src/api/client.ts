@@ -57,7 +57,8 @@ export {
   markAgentInstallStarted,
   markAgentSeen,
   onPairingToken,
-  releaseAutomaticPairing
+  releaseAutomaticPairing,
+  verifyPairingToken
 } from './pairing-token';
 
 /**

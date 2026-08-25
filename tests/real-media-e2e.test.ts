@@ -187,6 +187,28 @@ describeRequiring(
       expect(health.toolContracts.teamWorkspace).toBe(AGENT_TOOL_CONTRACTS.teamWorkspace);
     }, 120_000);
 
+    it('exposes the guarded team routes, and guards them', async () => {
+      agent ??= await bootAgent({ profile: 'real-media' });
+      // Moved from the old shell script with the rest, and nearly lost: these
+      // assert that a *built* agent actually serves the team routes the web app
+      // depends on, and answers a malformed call with a stable code rather than
+      // a stack trace. A route quietly missing from a build is exactly the
+      // failure a contract test cannot see, because there is nothing to import.
+      for (const route of [
+        '/api/team/landings/render',
+        '/api/landing-preview/team-space',
+        '/api/team/library/process'
+      ]) {
+        const response = await agent.request(route, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{}'
+        });
+        expect(response.status, route).toBe(400);
+        expect((await response.json()).error, route).toBe('INVALID_INPUT');
+      }
+    }, 120_000);
+
     it('isolates a tool the running agent predates, and only that tool', async () => {
       agent ??= await bootAgent({ profile: 'real-media' });
       const health = await agent.api<{ toolContracts: Record<string, number> }>('/api/health');

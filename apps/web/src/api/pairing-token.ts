@@ -88,8 +88,19 @@ channel?.addEventListener('message', event => {
     for (const listener of [...listeners]) listener();
 });
 
-/** The token every Agent request carries, or '' when this browser is unpaired. */
+/**
+ * The token every Agent request carries, or '' when this browser is unpaired.
+ *
+ * Read through storage rather than from the cached copy alone. The cache exists
+ * so a broadcast from another tab can update it, but it must not outlive what
+ * it caches: a user who clears site data leaves a tab holding a token that no
+ * longer exists anywhere, and every request it makes fails for a reason nothing
+ * on screen can explain. `getItem` is cheap enough that the cache was never
+ * buying much.
+ */
 export function pairingToken() {
+  const stored = readStored();
+  if (stored !== current) current = stored;
   return current;
 }
 

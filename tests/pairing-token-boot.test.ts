@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { readFile } from 'node:fs/promises';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   claimAutomaticPairing,
   consumePairingToken,
+  verifyPairingToken,
   hasPairingToken,
   onPairingToken,
   pairingToken,
@@ -30,16 +31,32 @@ describe('the pairing token the Agent hands over', () => {
     expect(main.indexOf('consumePairingToken()')).toBeLessThan(main.indexOf('createRoot'));
   });
 
-  it('is kept without the Agent origin, and taken out of the address bar', () => {
+  it('is taken out of the address bar immediately, and held until it is proven', async () => {
     history.replaceState(null, '', `/compressor?a=1#agentToken=${TOKEN}`);
 
     expect(consumePairingToken()).toBe(true);
 
+    // Out of the URL at once — a token in the address bar reaches history, a
+    // screenshot and whatever gets pasted next.
+    expect(location.hash).toBe('');
+    expect(`${location.pathname}${location.search}`).toBe('/compressor?a=1');
+
+    // But not adopted yet. The value arrives from wherever the browser was last
+    // sent, including a link somebody else wrote, and adopting an unverified
+    // one replaces the working token in every open tab.
+    expect(pairingToken()).toBe('');
+    expect(localStorage.getItem('agentToken')).toBe(null);
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('{"ok":true}', { status: 200 }))
+    );
+    await expect(verifyPairingToken('http://127.0.0.1:43140')).resolves.toBe(true);
+
     expect(pairingToken()).toBe(TOKEN);
     expect(hasPairingToken()).toBe(true);
     expect(localStorage.getItem('agentToken')).toBe(TOKEN);
-    expect(location.hash).toBe('');
-    expect(`${location.pathname}${location.search}`).toBe('/compressor?a=1');
+    vi.unstubAllGlobals();
   });
 
   it('ignores a fragment that is not a token', () => {

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React, { useState } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
@@ -30,6 +30,29 @@ const t =
   (key, values) =>
     translate(language, key, values);
 afterEach(cleanup);
+
+/**
+ * Thumbnails carry a capability ticket now, so the component asks the local app
+ * for one before it has a URL to render. Stubbed here rather than left
+ * unmocked: without it every image in these tests renders as nothing, and the
+ * failures read as missing markup instead of a missing round trip.
+ */
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () =>
+        new Response(JSON.stringify({ ticket: '9999999999.stub', expiresInMs: 300_000 }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        })
+    )
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe('image embedding settings UI', () => {
   it('keeps the compact section hidden until the switch is enabled', async () => {
@@ -156,8 +179,10 @@ describe('image embedding settings UI', () => {
       screen.getByLabelText('Choose opening-frame image'),
       new File(['jpeg'], 'new photo.jpg', { type: 'image/jpeg' })
     );
-    expect(screen.getByAltText('existing.png')).toBeTruthy();
-    expect(screen.getByAltText('new photo.jpg')).toBeTruthy();
+    // Awaited, not read: each thumbnail resolves a capability ticket before it
+    // has a URL, so it appears a tick after the row it belongs to.
+    expect(await screen.findByAltText('existing.png')).toBeTruthy();
+    expect(await screen.findByAltText('new photo.jpg')).toBeTruthy();
     await user.click(screen.getAllByRole('button', { name: 'Delete' })[0]);
     expect(onRemove).toHaveBeenCalledWith('start', 'asset-1');
     expect(screen.queryByAltText('existing.png')).toBeNull();
@@ -235,7 +260,7 @@ describe('image embedding settings UI', () => {
     await waitFor(() => expect(validity).toHaveBeenLastCalledWith(true));
   });
 
-  it('preserves selected images and settings when the language changes', () => {
+  it('preserves selected images and settings when the language changes', async () => {
     const settings = {
       ...optimalSettings,
       imageEmbedding: {
@@ -251,22 +276,22 @@ describe('image embedding settings UI', () => {
         disabled={false}
         updateSettings={() => {}}
         chooseOutputFolder={() => {}}
-        imageUrl={id => `preview://${id}`}
         t={t('en')}
       />
     );
-    expect(screen.getByAltText('opening.png')).toBeTruthy();
+    // Awaited: the thumbnail resolves a capability ticket before it has a URL,
+    // so it appears a tick after the row does.
+    expect(await screen.findByAltText('opening.png')).toBeTruthy();
     view.rerender(
       <SettingsPanel
         settings={settings}
         disabled={false}
         updateSettings={() => {}}
         chooseOutputFolder={() => {}}
-        imageUrl={id => `preview://${id}`}
         t={t('uk')}
       />
     );
-    expect(screen.getByAltText('opening.png')).toBeTruthy();
+    expect(await screen.findByAltText('opening.png')).toBeTruthy();
     expect(screen.getByText('Вмістити повністю')).toBeTruthy();
     expect(settings.imageEmbedding.startImages[0]?.id).toBe('asset-1');
   });
@@ -355,7 +380,6 @@ function SettingsHarness({
       chooseOutputFolder={() => {}}
       uploadImages={async () => {}}
       removeImage={async () => {}}
-      imageUrl={id => `preview://${id}`}
       onEmbeddingValidityChange={onValidity}
       t={t('en')}
     />
@@ -388,7 +412,6 @@ function ImageAreaHarness({
         await onRemove(slot, id);
         setSelected(current => current.filter(asset => asset.id !== id));
       }}
-      imageUrl={id => `preview://${id}`}
       t={t('en')}
     />
   );

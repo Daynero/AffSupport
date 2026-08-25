@@ -18,7 +18,13 @@ const api = vi.hoisted(() => ({
   transcriptionMediaPrepare: vi.fn(),
   transcriptionMediaStatus: vi.fn(),
   transcriptionMediaCancel: vi.fn(),
-  transcriptionMediaUrl: vi.fn(() => 'http://127.0.0.1:43131/local-media')
+  transcriptionMediaUrl: vi.fn(async () => 'http://127.0.0.1:43131/local-media'),
+  // The path builder the ticketed hook uses; the URL itself is now resolved
+  // asynchronously against a capability ticket.
+  transcriptionMediaPath: vi.fn((id: string) => `/api/transcription/jobs/${id}/media`),
+  // The hook reaches for the origin through this module when it builds the
+  // ticketed URL; a mock without it produces `undefined/api/...`.
+  agentUrl: 'http://127.0.0.1:43131'
 }));
 
 vi.mock('../apps/web/src/api/client.js', () => api);
@@ -162,6 +168,25 @@ const t = ((key: string, values?: Record<string, unknown>) => {
   }
   return value;
 }) as Translate;
+
+/**
+ * The player's source is resolved through a capability ticket, so the component
+ * asks the local app for one before it has a URL. Without this stub the src is
+ * empty and the failure reads as missing markup rather than a missing round
+ * trip.
+ */
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () =>
+        new Response(JSON.stringify({ ticket: '9999999999.stub', expiresInMs: 300_000 }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        })
+    )
+  );
+});
 
 describe('bilingual transcript modal integration', () => {
   let reduced = false;
@@ -319,7 +344,12 @@ describe('bilingual transcript modal integration', () => {
       expect(element).not.toBeNull();
       return element!;
     });
-    expect(media.src).toContain('/local-media');
+    // The player's source is a ticketed subresource URL now, not the session
+    // token in a query string: what matters is that it points at this job's
+    // media and carries a ticket rather than a credential.
+    await waitFor(() => expect(media.src).toContain('/media'));
+    expect(media.src).toContain('ticket=');
+    expect(media.src).not.toContain('token=');
     await waitFor(() => expect(HTMLMediaElement.prototype.play).toHaveBeenCalled());
     expect(source.querySelectorAll('.ts-selected').length).toBeGreaterThan(0);
 

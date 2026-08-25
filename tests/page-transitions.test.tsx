@@ -37,6 +37,15 @@ vi.mock('../apps/web/src/AgentContext.js', async () => {
       capabilities: ['landing'],
       toolAvailable: () => true
     }),
+    // The status-only context, for components that do not want the queue
+    // snapshot — the route guard and the header both take it now.
+    useAgentStatus: () => ({
+      connection: 'connected',
+      connectedOnce: true,
+      reconnect: vi.fn(),
+      capabilities: ['landing'],
+      toolAvailable: () => true
+    }),
     // The header's power throttle reads the agent optionally, so it can render
     // its "not connected" state instead of throwing outside a provider.
     useOptionalAgent: () => null
@@ -101,14 +110,16 @@ afterEach(() => {
 });
 
 describe('persistent shell', () => {
-  it('keeps the same header DOM node across page navigations', () => {
+  it('keeps the same header DOM node across page navigations', async () => {
     const { rerender } = render(<ProtectedSoty path="/" />);
     const header = document.querySelector('header.topbar');
     expect(header).not.toBeNull();
     expect(screen.getByRole('heading', { name: 'Soty Tools' })).toBeTruthy();
 
     rerender(<ProtectedSoty path="/compressor" />);
-    expect(screen.getByTestId('compressor-page')).toBeTruthy();
+    // Tool pages are loaded on demand now, so the page arrives a tick after the
+    // shell around it.
+    expect(await screen.findByTestId('compressor-page')).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'Soty Tools' })).toBeNull();
     expect(document.querySelector('header.topbar')).toBe(header);
 
@@ -117,10 +128,11 @@ describe('persistent shell', () => {
     expect(document.querySelector('header.topbar')).toBe(header);
   });
 
-  it('renders exactly one header inside the shell around the page viewport', () => {
+  it('renders exactly one header inside the shell around the page viewport', async () => {
     render(<ProtectedSoty path="/compressor" />);
     expect(document.querySelectorAll('header').length).toBe(1);
     const viewport = document.querySelector('.app-shell > .page-viewport');
+    await screen.findByTestId('compressor-page');
     expect(viewport?.querySelector('[data-testid="compressor-page"]')).toBeTruthy();
     expect(viewport?.querySelector('header')).toBeNull();
   });

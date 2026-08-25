@@ -223,11 +223,16 @@ describe('release identity', () => {
     }
     expect(rootPackage.scripts['deploy:web:member-pilot']).toContain('verify:team-member-pilot');
     expect(rootPackage.scripts['deploy:web:member-pilot']).toContain('--member-pilot');
-    expect(realAgentGate).toContain('AGENT_UPDATE_REQUIRED');
-    expect(realAgentGate).toContain('legacyContracts');
-    expect(realAgentGate).toContain('/api/team/landings/render');
-    expect(realAgentGate).toContain('/api/landing-preview/team-space');
-    expect(realAgentGate).toContain('/api/team/library/process');
+    // These assertions moved into tests/real-media-e2e.test.ts when the shell
+    // script became a shim over the suite, so they are checked where they now
+    // live. Reading the shim for them would pass on a shim that ran nothing.
+    expect(realAgentGate).toContain('real-media-e2e.test.ts');
+    expect(realAgentGate).toContain('SOTY_REQUIRE_ALL');
+    const realMediaSuite = readFileSync('tests/real-media-e2e.test.ts', 'utf8');
+    expect(realMediaSuite).toContain('toolContractCompatible');
+    expect(realMediaSuite).toContain('/api/team/landings/render');
+    expect(realMediaSuite).toContain('/api/landing-preview/team-space');
+    expect(realMediaSuite).toContain('/api/team/library/process');
   });
 
   it('keeps installable dev builds isolated from production identities and services', () => {
