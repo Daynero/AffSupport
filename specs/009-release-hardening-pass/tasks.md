@@ -346,8 +346,8 @@ These four close holes confirmed by **probing a running local app**, not inferre
 ### Implementation — the path ledger and its prerequisites
 
 - [X] T169 [P] [US5] Validate the support-directory environment override as a single path segment in `apps/agent/src/files/support-dir.ts`, and refuse the state-path overrides in a packaged production build (C19)
-- [ ] T170 [P] [US5] Remove the model hash from the environment-overridable set in `apps/agent/src/translation/tools.ts`, so the pin cannot be changed by whoever changed the source (C19, FR-032e)
-- [ ] T171 [P] [US5] Write state files with owner-only permissions under an owner-only parent in `apps/agent/src/queue/store.ts`, `apps/agent/src/queue/transcription-store.ts`, `apps/agent/src/entitlement/entitlement.ts` and the preview catalog, and tighten the beta environment file in `scripts/beta-up.mjs` (C18, FR-032d)
+- [X] T170 [P] [US5] Remove the model hash from the environment-overridable set in `apps/agent/src/translation/tools.ts`, so the pin cannot be changed by whoever changed the source (C19, FR-032e)
+- [X] T171 [P] [US5] Write state files with owner-only permissions under an owner-only parent in `apps/agent/src/queue/store.ts`, `apps/agent/src/queue/transcription-store.ts`, `apps/agent/src/entitlement/entitlement.ts` and the preview catalog, and tighten the beta environment file in `scripts/beta-up.mjs` (C18, FR-032d)
 - [ ] T172 [US5] Create `apps/agent/src/files/path-grants.ts` implementing the ledger from [data-model.md §4](./data-model.md), including pattern-bound derived-output write scope, device and inode re-checking, and the outer bound (FR-026)
 - [ ] T173 [US5] Mint grants inside every selector in `apps/agent/src/files/picker.ts` and on successful resolution in `apps/agent/src/files/dropped-source.ts`, so no caller can forget
 - [ ] T174 [US5] Mint grants in the native bridge handlers in `apps/agent/src/media-actions/routes.ts`, then run the same check as everyone else — no bypass

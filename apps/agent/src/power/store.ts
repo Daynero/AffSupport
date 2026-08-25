@@ -1,7 +1,33 @@
-import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
+import { stat, chmod, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parsePersistedPowerState, type PersistedPowerState } from '@video-compressor/shared';
 import { applicationSupportRoot } from '../files/support-dir.js';
+import { currentPlatform } from '../platform/platform.js';
+
+/** Owner-only: this file names the user's own work; see queue/store.ts. */
+const OWNER_ONLY_FILE = 0o600;
+const OWNER_ONLY_DIRECTORY = 0o700;
+
+/**
+ * Removes group and other access, and changes nothing else.
+ *
+ * Deliberately not `chmod(0o700)`: setting the mode outright would *restore*
+ * owner permissions somebody had removed on purpose — a read-only state
+ * directory is a legitimate thing for an administrator, or a test, to arrange,
+ * and quietly making it writable again would defeat both. Only the bits that
+ * leak to other accounts are cleared.
+ */
+async function tightenDirectory(directory: string): Promise<void> {
+  if (currentPlatform() === 'win32') return;
+  try {
+    const current = (await stat(directory)).mode & 0o777;
+    if ((current & 0o077) === 0) return;
+    await chmod(directory, current & ~0o077);
+  } catch {
+    // Best effort: a directory we cannot inspect is one we cannot tighten, and
+    // failing the save over it would trade a privacy nicety for lost work.
+  }
+}
 
 /**
  * Where the power limit lives.
@@ -56,10 +82,15 @@ export async function savePowerLimit(
   filePath = powerStatePath()
 ): Promise<void> {
   const state: PersistedPowerState = { limitPercent, updatedAt: new Date().toISOString() };
-  await mkdir(path.dirname(filePath), { recursive: true });
+  const directory = path.dirname(filePath);
+  await mkdir(directory, { recursive: true, mode: OWNER_ONLY_DIRECTORY });
+  await tightenDirectory(directory);
   const temporary = `${filePath}.${process.pid}.tmp`;
   try {
-    await writeFile(temporary, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+    await writeFile(temporary, `${JSON.stringify(state, null, 2)}\n`, {
+      encoding: 'utf8',
+      mode: OWNER_ONLY_FILE
+    });
     await rename(temporary, filePath);
   } catch (error) {
     await unlink(temporary).catch(() => {});

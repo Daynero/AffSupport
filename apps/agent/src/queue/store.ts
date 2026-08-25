@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { access, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
+import { stat, access, chmod, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { applicationSupportRoot } from '../files/support-dir.js';
 import {
@@ -25,6 +25,7 @@ import {
   type JobImageEmbedding,
   type QueueBatch
 } from '@video-compressor/shared';
+import { currentPlatform } from '../platform/platform.js';
 
 export interface PersistedState {
   jobs: CompressionJob[];
@@ -115,11 +116,55 @@ export async function loadState(file = defaultStatePath()): Promise<PersistedSta
   }
 }
 
+/**
+ * Owner-only, on both the file and the directory holding it.
+ *
+ * The queue state names every file the user has worked on, and on a shared
+ * machine the default mode makes that list readable by every other account.
+ * The directory matters as much as the file: 0o700 on the parent is what stops
+ * another user listing the names even when they cannot open the contents.
+ *
+ * Ignored on Windows, where these bits mean nothing and the ACL inherited from
+ * the user's profile directory is the real control.
+ */
+const OWNER_ONLY_FILE = 0o600;
+const OWNER_ONLY_DIRECTORY = 0o700;
+
+/**
+ * Removes group and other access, and changes nothing else.
+ *
+ * Deliberately not `chmod(0o700)`: setting the mode outright would *restore*
+ * owner permissions somebody had removed on purpose — a read-only state
+ * directory is a legitimate thing for an administrator, or a test, to arrange,
+ * and quietly making it writable again would defeat both. Only the bits that
+ * leak to other accounts are cleared.
+ */
+async function tightenDirectory(directory: string): Promise<void> {
+  if (currentPlatform() === 'win32') return;
+  try {
+    const current = (await stat(directory)).mode & 0o777;
+    if ((current & 0o077) === 0) return;
+    await chmod(directory, current & ~0o077);
+  } catch {
+    // Best effort: a directory we cannot inspect is one we cannot tighten, and
+    // failing the save over it would trade a privacy nicety for lost work.
+  }
+}
+
 export async function saveState(state: PersistedState, file = defaultStatePath()) {
-  await mkdir(path.dirname(file), { recursive: true });
+  const directory = path.dirname(file);
+  await mkdir(directory, { recursive: true, mode: OWNER_ONLY_DIRECTORY });
+  // Also applied to a directory that already existed, since `mkdir`'s mode is
+  // only honoured on creation and most runs are not the first.
+  await tightenDirectory(directory);
   const temporary = `${file}.${process.pid}.${randomUUID()}.tmp`;
   try {
-    await writeFile(temporary, JSON.stringify(state, null, 2), 'utf8');
+    // The mode is set at creation rather than after: a file that exists for a
+    // moment at 0o644 is a file that can be read in that moment.
+    await writeFile(temporary, JSON.stringify(state, null, 2), {
+      encoding: 'utf8',
+      mode: OWNER_ONLY_FILE
+    });
     await rename(temporary, file);
   } finally {
     await unlink(temporary).catch(() => {});

@@ -156,9 +156,13 @@ export const TRANSLATION_MODEL_DESCRIPTOR = {
       'translategemma-4b-it-Q4_K_M-GGUF/resolve/' +
       '74307c4cbd921b1f524ec90113e3c4cf0466e98c/' +
       'translategemma-4b-it-Q4_K_M.gguf',
-  sha256:
-    process.env.TRANSLATION_MODEL_SHA256 ??
-    '8040937f77f3c0612461d833cdf7696282444c7aded00250b3924be9652f2055',
+  // Deliberately not overridable. The URL is — a mirror or a local file server
+  // is a legitimate thing to want — and the hash is what makes that safe: it is
+  // the one value that decides whether the bytes that arrived are the model.
+  // Letting the environment set both means whoever redirects the download also
+  // sets the number it is checked against, and the integrity check verifies a
+  // forgery against itself.
+  sha256: '8040937f77f3c0612461d833cdf7696282444c7aded00250b3924be9652f2055',
   sizeBytes: Number(process.env.TRANSLATION_MODEL_SIZE ?? 2_489_909_120)
 } as const;
 

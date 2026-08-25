@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { access, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
+import { stat, chmod, access, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   TRANSCRIPTION_LIFECYCLE,
@@ -16,6 +16,32 @@ import {
   transcriptionDocumentFile,
   transcriptionDocumentsRoot
 } from '../transcription/document-store.js';
+import { currentPlatform } from '../platform/platform.js';
+
+/** Owner-only: this file names the user's own work; see queue/store.ts. */
+const OWNER_ONLY_FILE = 0o600;
+const OWNER_ONLY_DIRECTORY = 0o700;
+
+/**
+ * Removes group and other access, and changes nothing else.
+ *
+ * Deliberately not `chmod(0o700)`: setting the mode outright would *restore*
+ * owner permissions somebody had removed on purpose — a read-only state
+ * directory is a legitimate thing for an administrator, or a test, to arrange,
+ * and quietly making it writable again would defeat both. Only the bits that
+ * leak to other accounts are cleared.
+ */
+async function tightenDirectory(directory: string): Promise<void> {
+  if (currentPlatform() === 'win32') return;
+  try {
+    const current = (await stat(directory)).mode & 0o777;
+    if ((current & 0o077) === 0) return;
+    await chmod(directory, current & ~0o077);
+  } catch {
+    // Best effort: a directory we cannot inspect is one we cannot tighten, and
+    // failing the save over it would trade a privacy nicety for lost work.
+  }
+}
 
 /**
  * The transcription queue list persisted across agent restarts, mirroring the
@@ -85,10 +111,15 @@ export async function saveTranscriptionState(
   state: PersistedTranscriptionState,
   file = defaultTranscriptionStatePath()
 ) {
-  await mkdir(path.dirname(file), { recursive: true });
+  const directory = path.dirname(file);
+  await mkdir(directory, { recursive: true, mode: OWNER_ONLY_DIRECTORY });
+  await tightenDirectory(directory);
   const temporary = `${file}.${process.pid}.${randomUUID()}.tmp`;
   try {
-    await writeFile(temporary, JSON.stringify(state, null, 2), 'utf8');
+    await writeFile(temporary, JSON.stringify(state, null, 2), {
+      encoding: 'utf8',
+      mode: OWNER_ONLY_FILE
+    });
     await rename(temporary, file);
   } finally {
     await unlink(temporary).catch(() => {});
