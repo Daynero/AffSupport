@@ -1,3 +1,11 @@
+# v1.0.4
+
+- Make stopping or cancelling local work reliably terminate its child processes and release the shared CPU budget, including on Windows.
+- Recover cleanly from interrupted, restarted, or empty queues, and never return a compressed file that is larger than its source.
+- Reduce startup downloads and unnecessary interface updates while keeping live progress and brief Agent disconnects accurate.
+- Protect local file access with scoped tickets, remove session tokens from resource URLs, and redact private file paths from relayed errors.
+- Refresh Team Workspace navigation, background operations, invitations, file actions, accessibility, and Ukrainian localization.
+
 # v1.0.3
 
 - Fix the Windows production bundle so Supabase configuration is included instead of showing a development configuration error.

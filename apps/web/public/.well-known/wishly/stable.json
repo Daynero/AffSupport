@@ -1,24 +1,24 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "1.0.3",
-  "buildNumber": "61",
-  "buildId": "1.0.3+61",
+  "version": "1.0.4",
+  "buildNumber": "62",
+  "buildId": "1.0.4+62",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-08-22T13:50:22.000Z",
+  "publishedAt": "2026-08-26T21:34:41.000Z",
   "summary": {
-    "en": "Windows now includes its production configuration and connects correctly from an already-open Soty page.",
-    "uk": "Windows-версія тепер містить production-конфігурацію та правильно підключається з уже відкритої сторінки Soty."
+    "en": "Safer local task cancellation and recovery, protected file access, leaner startup, and a refreshed Team Workspace.",
+    "uk": "Безпечніше скасування й відновлення локальних завдань, захищений доступ до файлів, легший старт і оновлений Team Workspace."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.0.3/Soty-v1.0.3-macOS-arm64.dmg",
-      "sha256": "099a0310282cd1f1611785d15f31ab47e264507f1c217b2b373d4017e0d07a13"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.0.4/Soty-v1.0.4-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "windows-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.0.3/Soty-v1.0.3-Windows-x64.exe",
-      "sha256": "aaaa12c423dcd825ff816e5c3ccc1a62cbf1367dab75e59e2554aa9386d149c9"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.0.4/Soty-v1.0.4-Windows-x64.exe",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -39,5 +39,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "S-2Icvy93jzC98L3ah3wIatR9MSHsMtuf3I-MnoG7OkGSELupqGhD6q6JQdUx72-2m2gnnsG3UGi8-0vpzZ3ag"
+  "signature": "V1La2puPtbkOrQVq5E1RvtHEASiG13Lh1O4sym7yPj3XnzsS9yFJk6_LTxME6z5XyJd__nS9oJ57vCxeUW3MIw"
 }

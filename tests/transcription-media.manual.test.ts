@@ -3,16 +3,17 @@ import { mkdtemp, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { describe, expect, it } from 'vitest';
+import { expect, it } from 'vitest';
 import { ffmpegPath, probeMedia } from '../apps/agent/src/ffmpeg/tools.js';
 import { mediaMimeType } from '../apps/agent/src/transcription/media.js';
 import { MediaPreviewManager } from '../apps/agent/src/transcription/media-preview.js';
+import { describeRequiring, requireEnvFlag } from './support/requires.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 const execFileAsync = promisify(execFile);
-const runReal = process.env.RUN_REAL_MEDIA_SMOKE === '1';
+const realMediaSmoke = requireEnvFlag('RUN_REAL_MEDIA_SMOKE');
 
-describe.runIf(runReal)('local media preview smoke', () => {
+describeRequiring(realMediaSmoke, 'local media preview smoke', () => {
   it('creates a cached H.264/AAC proxy for an unsupported MKV and keeps it seekable', async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'wishly-preview-'));
     const sourcePath = path.join(dir, 'fixture.mkv');

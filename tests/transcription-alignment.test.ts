@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { TranscriptSegment } from '@video-compressor/shared';
 import { alignEmbeddingUnits, E5Aligner } from '../apps/agent/src/translation/aligner.js';
 import { LlamaTranslator } from '../apps/agent/src/translation/translator.js';
+import { describeRequiring, requireEnvFlag } from './support/requires.js';
 
 const unit = (start: number, end: number, text: string, tokenStart: number, tokenEnd: number) => ({
   start,
@@ -74,8 +75,8 @@ describe('deterministic multilingual alignment logic', () => {
   });
 });
 
-const runReal = process.env.RUN_REAL_TRANSLATION_SMOKE === '1';
-describe.runIf(runReal)('installed multilingual E5 smoke', () => {
+const realTranslationSmoke = requireEnvFlag('RUN_REAL_TRANSLATION_SMOKE');
+describeRequiring(realTranslationSmoke, 'installed multilingual E5 smoke', () => {
   it('produces measured links for English, Turkish, and Arabic → Ukrainian fixtures', async () => {
     const aligner = new E5Aligner();
     expect(aligner.available()).toBe(true);
@@ -114,7 +115,7 @@ describe.runIf(runReal)('installed multilingual E5 smoke', () => {
   }, 60_000);
 });
 
-describe.runIf(runReal)('installed TranslateGemma worker smoke', () => {
+describeRequiring(realTranslationSmoke, 'installed TranslateGemma worker smoke', () => {
   it('translates two language pairs and aligns while the translator stays warm', async () => {
     const translator = new LlamaTranslator();
     const aligner = new E5Aligner();

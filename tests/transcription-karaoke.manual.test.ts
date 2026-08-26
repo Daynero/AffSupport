@@ -3,13 +3,14 @@ import { mkdtemp } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { describe, expect, it } from 'vitest';
+import { expect, it } from 'vitest';
 import { probeMedia } from '../apps/agent/src/ffmpeg/tools.js';
 import { transcribe } from '../apps/agent/src/whisper/transcriber.js';
+import { allOf, describeRequiring, requireEnvFlag, requirePlatform } from './support/requires.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 const execFileAsync = promisify(execFile);
-const runReal = process.env.RUN_REAL_KARAOKE_SMOKE === '1' && process.platform === 'darwin';
+const realKaraokeSmoke = allOf(requireEnvFlag('RUN_REAL_KARAOKE_SMOKE'), requirePlatform('darwin'));
 
 /**
  * Opt-in integration check for the exact lag-then-jump regression. It creates
@@ -17,7 +18,7 @@ const runReal = process.env.RUN_REAL_KARAOKE_SMOKE === '1' && process.platform =
  * chunk/JSON/merge path, and asserts that timestamps remain distributed over
  * the media instead of collapsing several words onto a segment end.
  */
-describe.runIf(runReal)('real local karaoke timestamp smoke', () => {
+describeRequiring(realKaraokeSmoke, 'real local karaoke timestamp smoke', () => {
   it('keeps every synthetic spoken word monotonic and spread across playback time', async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'wishly-karaoke-smoke-'));
     try {
