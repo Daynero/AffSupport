@@ -89,6 +89,14 @@ export function resolveTeamEntry(input: {
   if (!teamsLoaded) return { kind: 'checking' };
   if (pendingInvitations !== null && pendingInvitations > 0) return { kind: 'lobby' };
 
+  // Asked for by name, so it is not a question to answer by entering somewhere.
+  // Both rules below exist to spare someone the lobby when they merely arrived
+  // at `/team`; applying them to an explicit "All spaces" made the link bounce
+  // straight back — and entering re-armed the remembered id that leaving had
+  // just cleared, so the lobby, and with it the create wizard, could not be
+  // reached at all.
+  if (route.showAll) return { kind: 'lobby' };
+
   /**
    * A redirect must not lose the Drive OAuth return. The parameter is what
    * tells the Drive panel to reopen folder selection, so a space entered on the
@@ -147,7 +155,7 @@ export function TeamSpace({
   const entering = usePageEntrance();
   const browserRoute = useBrowserRoute();
   const route: TeamRoute = routeProp ??
-    parseTeamRoute(browserRoute) ?? { kind: 'resolver', driveReturn: null };
+    parseTeamRoute(browserRoute) ?? { kind: 'resolver', driveReturn: null, showAll: false };
   const { teams, activeTeam, loading, replaceTeams, setActiveTeamId } = useTeam();
   const [flow, setFlow] = useState<Flow>({ mode: 'browse' });
   const [loadError, setLoadError] = useState<string | null>(null);

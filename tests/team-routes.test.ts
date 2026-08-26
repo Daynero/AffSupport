@@ -24,12 +24,39 @@ describe('parseTeamRoute', () => {
   });
 
   it('reads the bare resolver address and its Drive return', () => {
-    expect(parseTeamRoute('/team')).toEqual({ kind: 'resolver', driveReturn: null });
-    expect(parseTeamRoute('/team/')).toEqual({ kind: 'resolver', driveReturn: null });
+    expect(parseTeamRoute('/team')).toEqual({
+      kind: 'resolver',
+      driveReturn: null,
+      showAll: false
+    });
+    expect(parseTeamRoute('/team/')).toEqual({
+      kind: 'resolver',
+      driveReturn: null,
+      showAll: false
+    });
     expect(parseTeamRoute('/team?drive=folder-1')).toEqual({
       kind: 'resolver',
+      driveReturn: 'folder-1',
+      showAll: false
+    });
+  });
+
+  /**
+   * `/team` is a question the resolver may answer by entering a space. `?all=1`
+   * says the lobby was asked for by name, which is a different question and has
+   * to survive a refresh — otherwise reloading the lobby drops you back into a
+   * space, which is the loop the parameter exists to break.
+   */
+  it('tells an explicit request for the lobby from an ordinary arrival', () => {
+    expect(parseTeamRoute('/team?all=1')).toMatchObject({ showAll: true });
+    expect(parseTeamRoute('/team?all=1&drive=folder-1')).toMatchObject({
+      showAll: true,
       driveReturn: 'folder-1'
     });
+    // Only the value the builder writes counts, so a stray `all` in a pasted
+    // link cannot quietly change what the address means.
+    expect(parseTeamRoute('/team?all=0')).toMatchObject({ showAll: false });
+    expect(parseTeamRoute('/team?all=yes')).toMatchObject({ showAll: false });
   });
 
   it('treats a bare space address as Files, the canonical default', () => {
@@ -150,6 +177,14 @@ describe('buildTeamRoute', () => {
 describe('teamResolverRoute', () => {
   it('is the bare address where entry decisions are made', () => {
     expect(teamResolverRoute()).toBe('/team');
-    expect(parseTeamRoute(teamResolverRoute())).toMatchObject({ kind: 'resolver' });
+    expect(parseTeamRoute(teamResolverRoute())).toMatchObject({
+      kind: 'resolver',
+      showAll: false
+    });
+  });
+
+  it('round-trips an explicit request for the lobby', () => {
+    expect(teamResolverRoute({ showAll: true })).toBe('/team?all=1');
+    expect(parseTeamRoute(teamResolverRoute({ showAll: true }))).toMatchObject({ showAll: true });
   });
 });

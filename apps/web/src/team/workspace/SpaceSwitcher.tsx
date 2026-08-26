@@ -30,9 +30,11 @@ export function SpaceSwitcher({
   const menuId = useId();
 
   const others = teams.filter(team => team.id !== activeTeam?.id);
-  // With nothing to switch to, a switcher is a control that cannot do anything:
-  // the name renders as a plain heading instead (FR-015).
-  const switchable = others.length > 0;
+  // The menu always carries the way back to the lobby, so it always has
+  // something to do — reading "nothing to switch to" as "nothing to offer" is
+  // what left an owner of one space with no route to the lobby, and therefore
+  // none to the create wizard that lives only there. FR-015 asks that a control
+  // which cannot act be hidden; this one can.
 
   useEffect(() => {
     if (!open) return;
@@ -49,14 +51,6 @@ export function SpaceSwitcher({
       document.removeEventListener('keydown', onKeyDown);
     };
   }, [open]);
-
-  if (!switchable) {
-    return (
-      <h1 id={headingId} className="team-space-shell-title">
-        {activeTeam?.name ?? ''}
-      </h1>
-    );
-  }
 
   return (
     <div className="team-space-switcher" ref={containerRef}>
@@ -76,7 +70,9 @@ export function SpaceSwitcher({
       </h1>
       {open && (
         <div className="team-space-switcher-menu" id={menuId}>
-          <p className="team-space-switcher-label">{t('teamSpaceSwitcherOther')}</p>
+          {others.length > 0 && (
+            <p className="team-space-switcher-label">{t('teamSpaceSwitcherOther')}</p>
+          )}
           <ul>
             {others.map(space => {
               const href = buildTeamRoute({ spaceId: space.id });
@@ -108,11 +104,11 @@ export function SpaceSwitcher({
               which is why the release is conditional on the in-app navigation
               actually having happened. */}
           <a
-            href={teamResolverRoute()}
+            href={teamResolverRoute({ showAll: true })}
             className="team-space-switcher-all"
             onClick={event => {
               setOpen(false);
-              internalLink(event, teamResolverRoute());
+              internalLink(event, teamResolverRoute({ showAll: true }));
               if (event.defaultPrevented) leaveSpace();
             }}
           >

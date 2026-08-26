@@ -165,13 +165,47 @@ describe('space switcher', () => {
     await waitFor(() => expect(window.location.pathname).toBe(`/team/${second.id}`));
   });
 
-  it('is a plain heading when there is nowhere else to go', async () => {
+  /**
+   * This used to assert a plain heading, on the reasoning that a switcher with
+   * nowhere to switch to is a control that cannot act (FR-015). The premise was
+   * wrong: the menu always carries the way back to the lobby, and the lobby is
+   * the only place the create wizard lives. Hiding it left the owner of a
+   * single space — which is what the beta fixture and every new account is —
+   * with no route to a second one.
+   */
+  it('still opens, because the lobby is always somewhere to go', async () => {
     const team = makeTeam();
     const client = makeClient({ listTeams: vi.fn().mockResolvedValue([team]) });
+    const user = userEvent.setup();
     renderSpace(client, `/team/${team.id}`);
 
-    expect(await screen.findByRole('heading', { name: 'Media buyers' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /Media buyers/ })).toBeNull();
+    await user.click(await screen.findByRole('button', { name: /Media buyers/ }));
+    expect(await screen.findByRole('link', { name: 'All spaces' })).toBeTruthy();
+    // Nothing to switch to, so nothing pretends there is.
+    expect(screen.queryByText('Other spaces')).toBeNull();
+  });
+
+  /**
+   * The loop this closes, found by driving the real stack: "All spaces"
+   * navigated to `/team`, the resolver read that as an ordinary arrival and
+   * sent the person back into the space they had just left, and entering
+   * rewrote the remembered id that leaving had cleared. Two ready spaces were
+   * not enough to escape it. The unit suite could not see it because jsdom
+   * starts with an empty `localStorage`, so the remembered rule never fired —
+   * hence the explicit seed here.
+   */
+  it('reaches the lobby even when a space is remembered', async () => {
+    const first = makeTeam();
+    const second = makeTeam({ id: SECOND_ID, name: 'Archive team' });
+    localStorage.setItem(STORAGE_KEY, first.id);
+    const client = makeClient({ listTeams: vi.fn().mockResolvedValue([first, second]) });
+    const user = userEvent.setup();
+    renderSpace(client, `/team/${first.id}`);
+
+    await user.click(await screen.findByRole('button', { name: /Media buyers/ }));
+    await user.click(await screen.findByRole('link', { name: 'All spaces' }));
+
+    expect(await screen.findByRole('heading', { name: 'Choose a space' })).toBeTruthy();
   });
 });
 

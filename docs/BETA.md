@@ -73,6 +73,13 @@ It also mirrors the git-ignored `supabase/functions/.env.local` to the filename 
 Supabase edge runtime. A normal restart therefore needs only this one command; no Docker, Functions,
 agent, or Vite preparation is manual.
 
+**`beta:up` does not apply new migrations.** It brings the database back from a snapshot — its own
+log says `Starting database from backup...` — so a migration added since that snapshot is simply not
+there. Only `npm run beta:reset` replays the chain. This is easy to miss because the product does not
+say "your schema is old": a missing function surfaces as whatever the calling screen shows for an
+unexpected server error, which for the team lifecycle actions is the generic "something went wrong"
+toast. **After pulling or writing a migration, reset before validating anything that depends on it.**
+
 `beta:up` also proves the local edge runtime is actually serving before it reports beta up, and
 restarts it once if it is not. `supabase start` exits 0 even when it has given up on a service that
 failed its health check; when that service is the edge runtime, every server-side team feature —

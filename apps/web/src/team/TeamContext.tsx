@@ -111,9 +111,12 @@ export function TeamProvider({
   const enterSpace = useCallback((teamId: string) => {
     navigateTo(buildTeamRoute({ spaceId: teamId }));
   }, []);
+  // Leaving is a destination, not just an exit: `/team` on its own is the
+  // address the resolver answers by entering somewhere, so leaving to it walked
+  // straight back in and re-armed the remembered space it had just cleared.
   const leaveSpace = useCallback(() => {
     setActiveTeamId(null);
-    navigateTo(teamResolverRoute());
+    navigateTo(teamResolverRoute({ showAll: true }));
   }, [setActiveTeamId]);
 
   const replaceTeams = useCallback((nextTeams: TeamContextSnapshot[]) => {

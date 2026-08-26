@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TEAM_ERROR_CODES } from '@video-compressor/shared';
@@ -217,6 +217,56 @@ describe('the realtime chip', () => {
       </TeamContextOverride>
     );
     expect(await screen.findByText('Live updates off')).toBeTruthy();
+  });
+
+  /**
+   * Found on the beta stack with the realtime container stopped: the header
+   * said nothing for forty seconds. Kong keeps accepting the socket while its
+   * upstream is dead, so the handshake hangs instead of failing, no subscribe
+   * status is ever delivered, and the state never leaves `connecting` — which
+   * the chip drew nothing for. The worse failure was the quieter one.
+   */
+  it('says so when the channel never comes up, not only when it drops', async () => {
+    vi.useFakeTimers();
+    try {
+      render(
+        <TeamContextOverride value={teamContext('connecting')}>
+          <RealtimeChip />
+        </TeamContextOverride>
+      );
+      // A slow first connect is ordinary and must stay quiet, exactly as a
+      // brief drop does; the grace is the whole reason this is not a flicker.
+      expect(screen.queryByRole('status')).toBeNull();
+
+      await act(async () => {
+        vi.advanceTimersByTime(8_000);
+      });
+      expect(screen.getByRole('status').textContent).toContain('No live updates yet');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('waits out the same grace before announcing a drop', async () => {
+    vi.useFakeTimers();
+    try {
+      render(
+        <TeamContextOverride value={teamContext('reconnecting')}>
+          <RealtimeChip />
+        </TeamContextOverride>
+      );
+      expect(screen.queryByRole('status')).toBeNull();
+
+      await act(async () => {
+        vi.advanceTimersByTime(8_000);
+      });
+      // Distinct copy on purpose: a channel that never connected is not
+      // reconnecting, and telling someone we are restoring something they
+      // never had is a small lie the chip does not need to tell.
+      expect(screen.getByRole('status').textContent).toContain('Reconnecting');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -429,3 +429,70 @@ schema they are correct — the four functions to drop are exactly the four the
 migration creates, and the note about restoring `private.record_team_audit`'s
 narrower whitelist only once no `task.deleted` row remains is right, because
 this pass wrote one.
+
+## T068 / T069 — the two open behaviours, landed (2026-08-26)
+
+Both were left as decisions rather than repairs when T065 found them, because
+each changes what a rule *means* rather than fixing a slip. Taken in turn.
+
+### `/team` can now be asked for the lobby, and the ask is in the address
+
+The loop was that "Усі простори" navigated to `/team`, which is the same address
+someone types or bookmarks — so the resolver read an explicit request to see
+every space as an ordinary arrival, and answered it by entering a space. Then
+entering rewrote the remembered id that leaving had just cleared, which is why
+it never converged.
+
+The intent is now a parameter, `/team?all=1`, for the reason the rest of team
+mode keeps state in the URL: it survives a refresh, so reloading the lobby keeps
+you in the lobby instead of dropping you back into a space. `resolveTeamEntry`
+honours it *before* the one-ready-space and remembered-space rules, and both of
+those rules are otherwise untouched — arriving at `/team` behaves exactly as it
+did. `leaveSpace()` navigates to the same address, since leaving is a
+destination and not merely an exit.
+
+The second half of the trap was the switcher hiding itself when there was no
+other space, which took the lobby link with it. The comment justifying that
+cited FR-015 — a control that cannot act should be hidden — but the premise was
+false: the menu always carries the way back to the lobby, and the lobby is the
+only place the create wizard exists. An owner of one space, which is what the
+beta fixture and every new account is, therefore had no route to a second one.
+The switcher now always opens; the "Other spaces" heading and its list appear
+only when there is something in them, so nothing pretends there is.
+
+Worth recording why no test caught this. `tests/team-space-lobby.test.tsx:45`
+already clicked "All spaces" and asserted the lobby, and it passed throughout —
+jsdom starts with an empty `localStorage`, so the remembered-space rule never
+fired and the assertion never met the case that breaks in a browser. The new
+`reaches the lobby even when a space is remembered` seeds the key first, which
+is the whole difference between the two.
+
+### A channel that never connects now says so, on the same terms as one that drops
+
+`RealtimeChip` announced `reconnecting` after an 8-second grace and drew nothing
+for `connecting`, which made the worse of the two failures the quieter one: a
+channel that never came up at all was silent, while one that came up and dropped
+was announced. Both states now share the grace timer, so a slow first connect
+stays as quiet as a brief drop and neither flickers.
+
+The copy is deliberately not shared. Telling someone we are *re*connecting
+something they never had is a small lie the chip does not need to tell, so
+`connecting` past its grace reads "No live updates yet" / «Живих оновлень ще
+немає». Moving between the two waiting states restarts the timer but does not
+clear an elapsed grace — once we have said live updates are missing, saying it
+differently is not a reason to go quiet.
+
+The grace path had no test at all before this: the suite covered `connected` and
+`disabled` only, so neither the timer nor either warning had ever run.
+
+### The beta note
+
+`docs/BETA.md` now says under Start that `beta:up` restores from a snapshot and
+does not replay migrations, and that only `beta:reset` does — with the reason it
+is easy to miss, which is that the product cannot say "your schema is old" and
+shows the generic error toast instead.
+
+Gates after all of it, one at a time: prettier and eslint over the changed
+files, `typecheck:tests`, `tsc -b apps/web`, `verify-i18n`, `verify-styles`, and
+14 suites covering everything touched — 129 tests, all green. The full suite
+remains the pre-PR gate and was not run here.

@@ -24,9 +24,35 @@ vi.mock('../apps/web/src/lib/config', () => ({
   publicConfig: { ok: false, value: null, errors: [] }
 }));
 
+vi.mock('../apps/web/src/lib/supabase', () => ({
+  requireSupabaseClient: () => {
+    throw new Error('the wizard step must not reach the network in these tests');
+  },
+  getSupabaseClient: () => null
+}));
+
 const { EnvironmentBadge } = await import('../apps/web/src/components/EnvironmentBadge');
 const { BetaStorageNotice, externalStorageUnavailableInBeta } =
   await import('../apps/web/src/team/drive/BetaStorageNotice');
+const { ConnectFolderStep } = await import('../apps/web/src/team/create/ConnectFolderStep');
+
+/** Step 2 renders before any of these are called; failing loudly proves it. */
+const idleDriveClient = {
+  listFolders: () => Promise.reject(new Error('not reached')),
+  connectRoot: () => Promise.reject(new Error('not reached'))
+} as unknown as Parameters<typeof ConnectFolderStep>[0]['client'];
+
+function renderFolderStep() {
+  return render(
+    <ConnectFolderStep
+      teamId="22222222-2222-4222-8222-222222222222"
+      client={idleDriveClient}
+      onConnected={() => {}}
+      onBack={() => {}}
+      onCancel={() => {}}
+    />
+  );
+}
 
 afterEach(() => {
   cleanup();
@@ -86,5 +112,29 @@ describe('external storage notice', () => {
     for (const state of ['unavailable', 'connected', undefined]) {
       expect(externalStorageUnavailableInBeta(state)).toBe(false);
     }
+  });
+});
+
+describe('the wizard step the notice is written for', () => {
+  /**
+   * The predicate above was already right about the wizard — the step just did
+   * not ask it. Found on the beta stack: step 2 rendered an enabled primary
+   * "Connect Google Drive" directly beneath its own "unavailable in beta"
+   * notice, which is the silent control FR-015 forbids dressed as the way
+   * forward. The settings panel guards the same control; this asserts the step
+   * agrees, because agreement between two callers is what actually regressed.
+   */
+  it('offers no connect button in beta, only the reason there is none', () => {
+    environment.current = 'beta';
+    renderFolderStep();
+    expect(screen.getByRole('note').textContent).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /drive/i })).toBeNull();
+  });
+
+  it('still offers it in production, where connecting is the point', () => {
+    environment.current = 'production';
+    renderFolderStep();
+    expect(screen.queryByRole('note')).toBeNull();
+    expect(screen.getByRole('button', { name: /drive/i })).toBeTruthy();
   });
 });

@@ -33,7 +33,17 @@ export interface TeamRouteQuery {
 }
 
 export type TeamRoute =
-  | { kind: 'resolver'; driveReturn: string | null }
+  | {
+      kind: 'resolver';
+      driveReturn: string | null;
+      /**
+       * "Show me every space", asked for out loud. Without it `/team` is a
+       * question the resolver answers by *entering* somewhere — one ready
+       * space, or the remembered one — which is right for arriving at `/team`
+       * and wrong for having just pressed "All spaces".
+       */
+      showAll: boolean;
+    }
   | { kind: 'space'; spaceId: string; section: TeamSection; query: TeamRouteQuery };
 
 /**
@@ -111,7 +121,11 @@ export function parseTeamRoute(route: string): TeamRoute | null {
 
   const params = new URLSearchParams(search);
   if (segments.length === 1) {
-    return { kind: 'resolver', driveReturn: trimmedParam(params, 'drive') };
+    return {
+      kind: 'resolver',
+      driveReturn: trimmedParam(params, 'drive'),
+      showAll: params.get('all') === '1'
+    };
   }
 
   const spaceId = decodeURIComponent(segments[1] ?? '');
@@ -173,7 +187,14 @@ export function buildTeamRoute(input: TeamRouteInput): string {
   return search ? `${path}?${search}` : path;
 }
 
-/** The bare resolver address (`/team`), where entry decisions are made. */
-export function teamResolverRoute(): string {
-  return '/team';
+/**
+ * The resolver address (`/team`), where entry decisions are made.
+ *
+ * `showAll` puts the intent in the address rather than in component state,
+ * which is the same rule the rest of team mode follows: the URL is the truth
+ * about what is open. It also means refreshing the lobby keeps you in the
+ * lobby instead of dropping you back into a space.
+ */
+export function teamResolverRoute(options: { showAll?: boolean } = {}): string {
+  return options.showAll ? '/team?all=1' : '/team';
 }
