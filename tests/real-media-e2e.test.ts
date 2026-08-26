@@ -25,6 +25,7 @@ import {
   toolContractCompatible
 } from '../packages/shared/src/release.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
+import { waitFor } from './support/wait.js';
 
 /**
  * End-to-end runs against real media, where "real" is the point: the parts of
@@ -210,6 +211,39 @@ describeRequiring(
       }
     }, 120_000);
 
+    it('answers the diagnostics a stuck queue would be reported through', async () => {
+      // The fourth field report was "the Compress button says busy and the panel
+      // says nothing is happening, and I cannot tell you any more than that".
+      // This route is the answer to that, so it has to exist in a *built* agent
+      // and carry the two things the question needs — what the queue thinks it
+      // is doing, and whether the path ledger is refusing anything. A route
+      // present in the source and missing from the build is exactly the failure
+      // a contract test cannot see.
+      agent ??= await bootAgent({ profile: 'real-media' });
+      const diagnostics = await agent.api<{
+        queue: Record<string, unknown>;
+        pathGrants: Record<string, unknown>;
+        instanceId: string;
+      }>('/api/diagnostics');
+
+      expect(typeof diagnostics.instanceId).toBe('string');
+      // An idle agent: not running, no activity, nothing stranded, no batch.
+      expect(diagnostics.queue.running).toBe(false);
+      expect(diagnostics.queue).toHaveProperty('activity');
+      expect(diagnostics.queue).toHaveProperty('activityJobId');
+      expect(diagnostics.queue).toHaveProperty('activityJobLive');
+      expect(diagnostics.queue).toHaveProperty('watchdogArmed');
+      expect(diagnostics.queue).toHaveProperty('byStatus');
+      expect(diagnostics.pathGrants).toMatchObject({ enforcing: expect.any(Boolean) });
+      expect(typeof diagnostics.pathGrants.wouldRefuse).toBe('number');
+
+      // Counts and ids only. This page is meant to be pasted into a report, so a
+      // file name reaching it would mean asking someone to send us their
+      // filenames to get support.
+      const serialised = JSON.stringify(diagnostics);
+      expect(serialised).not.toMatch(/\.(?:mp4|mov|mkv|webm|png|jpg)\b/iu);
+    }, 120_000);
+
     it('isolates a tool the running agent predates, and only that tool', async () => {
       agent ??= await bootAgent({ profile: 'real-media' });
       const health = await agent.api<{ toolContracts: Record<string, number> }>('/api/health');
@@ -302,5 +336,109 @@ describeRequiring(
       expect(media.hasAudio).toBe(true);
       expect(media.duration).toBeGreaterThan(0);
     }, 600_000);
+  }
+);
+
+/**
+ * The complaint this exists for: a 227 MB clip came back as 500 MB.
+ *
+ * The source was H.265. Re-encoding it to H.264 at the default quality target
+ * produces a larger file, because the newer codec was already doing better than
+ * the one being asked to replace it. Nothing in the pipeline objected — the
+ * encode succeeded, so the queue reported success and wrote the result over the
+ * saving the user came for.
+ *
+ * Both halves are checked against a real agent and a real HEVC file, because
+ * both halves are about a decoder: the warning has to be there at the moment the
+ * file is added, from the probe rather than from an estimate minutes later, and
+ * the output has to be refused if it is bigger than what went in.
+ */
+describeRequiring(
+  allOf(ffmpegBinaries, requirePath('apps/agent/dist/index.js')),
+  'a source the target codec cannot beat',
+  () => {
+    let agent: AgentProcess | null = null;
+
+    afterAll(async () => {
+      await agent?.stop();
+      agent = null;
+    });
+
+    it('warns when the file is added, and never writes a larger result', async () => {
+      const directory = await mkdtemp(path.join(os.tmpdir(), 'hevc-growth-'));
+      temporaryDirectories.push(directory);
+      const source = path.join(directory, 'source.mp4');
+      // Encoded well enough by x265 that H.264 at the default CRF cannot match
+      // it: ~30 KB in, ~37 KB out. That inequality is the whole subject, so if a
+      // future encoder makes the re-encode smaller this test fails rather than
+      // passing while exercising nothing — the refusal below would simply never
+      // run, which is how it read the first time I wrote it.
+      expect(
+        await run('ffmpeg', [
+          '-y',
+          '-f',
+          'lavfi',
+          '-i',
+          'testsrc2=size=320x180:rate=24:duration=2',
+          '-c:v',
+          'libx265',
+          '-crf',
+          '34',
+          '-tag:v',
+          'hvc1',
+          '-pix_fmt',
+          'yuv420p',
+          source
+        ])
+      ).toBe(0);
+
+      agent ??= await bootAgent({ profile: 'real-media' });
+      const before = await sha256(source);
+      const originalBytes = (await readFile(source)).byteLength;
+
+      await agent.api('/api/files/add', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ paths: [source] })
+      });
+
+      const added = await agent.api<{ jobs: Array<Record<string, unknown>> }>('/api/queue');
+      const job = added.jobs.find(entry => entry.inputPath === source);
+      expect(job, 'the source was not accepted').toBeTruthy();
+
+      // Known from the probe, at the moment of adding. The original complaint
+      // was not only that the file grew — it was that nothing said so until the
+      // estimate had run, by which time the person had already committed.
+      expect(job!.sourceCodec).toBe('hevc');
+      expect(job!.growthRisk).toBe('codec');
+
+      await agent.api('/api/queue/start', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ids: [job!.id] })
+      });
+
+      let finished: Record<string, unknown> | undefined;
+      await waitFor(
+        async () => {
+          const state = await agent!.api<{ jobs: Array<Record<string, unknown>> }>('/api/queue');
+          finished = state.jobs.find(entry => entry.id === job!.id);
+          return finished?.status === 'completed' || finished?.status === 'failed';
+        },
+        { timeoutMs: 120_000, describe: 'the encode to finish' }
+      );
+
+      expect(finished!.status).toBe('completed');
+      // The encode succeeded and produced something bigger, so the result was
+      // thrown away and the reason recorded. Asserted directly rather than
+      // guarded by an `if`: this is the case the complaint was about.
+      expect(finished!.keptOriginalReason).toBe('larger-than-source');
+      // What the user is left with is their own file, byte for byte, and the
+      // path the interface opens leads to it.
+      expect(finished!.outputPath).toBe(source);
+      expect(await sha256(source)).toBe(before);
+      expect(Number(finished!.finalSize)).toBe(originalBytes);
+      expect(Number(finished!.finalSize)).toBeLessThanOrEqual(originalBytes);
+    }, 180_000);
   }
 );
