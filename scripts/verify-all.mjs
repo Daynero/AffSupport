@@ -337,6 +337,24 @@ export function readSuiteReport(report) {
 }
 
 /**
+ * Repo-relative form of a path the coverage provider reported.
+ *
+ * The provider has emitted both forms: the committed baseline holds relative
+ * paths, and the summary produced today holds absolute ones. Compared as
+ * written, every floor reads "listed as critical but not measured" and every
+ * baselined file reads "no longer measured" — 334 failures describing nothing
+ * about coverage. Normalising here means the verdict does not depend on which
+ * form the provider happens to be in.
+ *
+ * @param {string} key
+ * @returns {string}
+ */
+function relativeCoverageKey(key) {
+  const withoutRoot = key.startsWith(root) ? key.slice(root.length) : key;
+  return withoutRoot.replace(/^[/\\]+/u, '');
+}
+
+/**
  * The coverage verdict: critical floors first, the ratchet second.
  *
  * The order is the requirement (FR-018). A run-state module below its absolute
@@ -360,7 +378,7 @@ export function judgeCoverage({ summary, baseline, critical }) {
   const files = {};
   for (const [key, entry] of Object.entries(summary)) {
     if (key === 'total') continue;
-    files[key] = Number(entry?.lines?.pct ?? 0);
+    files[relativeCoverageKey(key)] = Number(entry?.lines?.pct ?? 0);
   }
   const total = Number(summary.total?.lines?.pct ?? 0);
   const failures = [];

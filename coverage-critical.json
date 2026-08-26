@@ -5,7 +5,7 @@
     "apps/agent/src/ffmpeg/presets.ts": 99,
     "apps/agent/src/ffmpeg/tools.ts": 96,
     "apps/agent/src/files/paths.ts": 99,
-    "apps/agent/src/files/support-dir.ts": 77,
+    "apps/agent/src/files/support-dir.ts": 99,
     "apps/agent/src/images/embedding.ts": 97,
     "apps/agent/src/images/static-edges.ts": 86,
     "apps/agent/src/images/store.ts": 88,
@@ -50,7 +50,7 @@
     "packages/shared/src/team/material-category.ts": 97,
     "packages/shared/src/team/tasks.ts": 59,
     "packages/shared/src/team/transcript.ts": 89,
-    "packages/shared/src/team/transport.ts": 19,
+    "packages/shared/src/team/transport.ts": 85,
     "packages/shared/src/types.ts": 63
   }
 }

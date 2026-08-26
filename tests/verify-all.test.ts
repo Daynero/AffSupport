@@ -207,6 +207,25 @@ describe('the coverage verdict', () => {
     expect(verdict.failures.some((line: string) => line.includes('queue.ts'))).toBe(true);
   });
 
+  it('judges a report whose paths are absolute the same as one that is relative', () => {
+    // The provider has emitted both forms. Compared as written, an absolute
+    // summary makes every floor read "not measured" and every baselined file
+    // read "no longer measured" — a wall of failures describing nothing about
+    // coverage, and the shape that hides a real fall inside it.
+    const absolute = {
+      total: { lines: { pct: 80 } },
+      [`${process.cwd()}/apps/agent/src/queue/queue.ts`]: { lines: { pct: 90 } }
+    };
+    const verdict = expectVerdict({
+      summary: absolute,
+      baseline: { total_lines: 70, files: { 'apps/agent/src/queue/queue.ts': 88 } },
+      critical: { modules: { 'apps/agent/src/queue/queue.ts': 85 } }
+    });
+
+    expect(verdict.failures).toEqual([]);
+    expect(verdict.files['apps/agent/src/queue/queue.ts']).toBe(90);
+  });
+
   it('fails a critical module that stopped being measured', () => {
     const verdict = expectVerdict({
       summary,
