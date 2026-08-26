@@ -496,3 +496,39 @@ Gates after all of it, one at a time: prettier and eslint over the changed
 files, `typecheck:tests`, `tsc -b apps/web`, `verify-i18n`, `verify-styles`, and
 14 suites covering everything touched — 129 tests, all green. The full suite
 remains the pre-PR gate and was not run here.
+
+### Browser check of both fixes, and one qualification (2026-08-26, later)
+
+The lobby fix was verified against the exact case that produced the bug: one
+space, `wishly.active-team.v1` holding its id. The switcher now opens on a
+single space, its menu carries "Усі простори" pointing at `/team?all=1` and
+shows no "Інші простори" heading over an empty list, and following it lands in
+the lobby with the space card and "Створити новий простір". The remembered key
+is cleared and stays cleared, because nothing re-enters. Reloading `/team?all=1`
+stays in the lobby — the reason the intent is in the address. A bare `/team`
+still enters the remembered space, so the rule that spares people the lobby is
+untouched.
+
+**The realtime fix could not be re-provoked in the browser, and that is worth
+saying plainly.** Stopping `supabase_realtime_wishly` on the rebuilt stack no
+longer hangs the handshake: a subscribe status arrives within about ten seconds,
+the state reaches `reconnecting`, and the chip that appears reads
+«Перепідключаємось» — the branch that already existed. `docker pause` on the
+same container behaves the same way. So today's browser run exercises the old
+path, not the new one.
+
+The mechanism behind the original observation still holds on reading the code:
+`useTeamRealtime` sets `connecting` exactly once, immediately after `.subscribe`,
+and never sets it again — supabase-js handles its own retries and only reports
+through the status callback. If the socket never opens, the join is never sent,
+the join timeout that would produce `TIMED_OUT` never starts, and no status ever
+arrives, so `connecting` is where the state stays. That is consistent with the
+raw `ws://` probe measured during the pass, which neither opened, closed nor
+errored in six seconds. What differs today is the transport, not the hook.
+
+So the `connecting` branch is a guard on a state the code can genuinely be in
+and previously drew nothing for, verified deterministically by
+`tests/team-ux-feedback.test.tsx` with fake timers rather than by the stack.
+Recorded this way so nobody later reads the earlier entry as a reproduction
+recipe: whether a dead realtime container hangs or refuses is a property of the
+container set, not of the product.
