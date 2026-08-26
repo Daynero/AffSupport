@@ -229,6 +229,14 @@ describe('selected batch behavior', () => {
     expect(interrupted.error).toBe('MEDIA_TOOLS_UNAVAILABLE_JOB');
     expect(interrupted.errorDetails).toContain('MEDIA_TOOL_UNAVAILABLE');
     expect(queue.state().tools.ffprobe).toBe(false);
+    // The queue notifies its listeners before it calls the recovery handler, so
+    // "no longer running" arrives first. Waiting on the handler rather than on
+    // the queue keeps `toHaveBeenCalledOnce` meaningful — it still fails if the
+    // handler is called twice — without racing the gap between the two.
+    await waitFor(() => recovery.mock.calls.length > 0, {
+      timeoutMs: 12_000,
+      describe: 'the runtime recovery handler to be told'
+    });
     expect(recovery).toHaveBeenCalledOnce();
     await expect(access(interrupted.outputPath)).resolves.toBeUndefined();
 

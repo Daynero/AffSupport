@@ -28,8 +28,24 @@ const DIST = path.join(root, 'apps/web/dist');
 const BASELINE = path.join(root, 'a11y-baseline.json');
 const AXE = path.join(root, 'node_modules/axe-core/axe.min.js');
 
-/** The routes a signed-out visitor can reach without a local app. */
-const ROUTES = ['/', '/login', '/privacy', '/terms'];
+/**
+ * The routes a signed-out visitor can reach without a local app.
+ *
+ * The tool paths are here because a signed-out visitor asking for one is a real
+ * arrival — it redirects to sign-in — and that redirect is where a deep link to
+ * three of the four tools was being downgraded to the home page. Sweeping the
+ * destination only would never have seen it.
+ */
+const ROUTES = [
+  '/',
+  '/login',
+  '/privacy',
+  '/terms',
+  '/compressor',
+  '/transcription',
+  '/landing-optimizer',
+  '/landing-preview'
+];
 const THEMES = ['light', 'dark'];
 
 const CONTENT_TYPES = {
@@ -80,10 +96,33 @@ const site = await serve();
 const browser = await chromium.launch({ headless: true });
 const axeSource = readFileSync(AXE, 'utf8');
 const found = [];
+/**
+ * Uncaught exceptions and console errors, collected alongside the accessibility
+ * pass because the page is already open in a real browser.
+ *
+ * This exists because a real-browser check found an `InvalidStateError` thrown
+ * on every redirect to sign-in — an unhandled View Transitions rejection, with
+ * no stack and nothing on screen. Headless sweeps that only assert on rendered
+ * output cannot see that class of fault at all.
+ */
+const pageErrors = [];
 
 for (const theme of THEMES) {
   for (const route of ROUTES) {
-    const page = await browser.newPage();
+    // Motion is left on deliberately. Headless Chromium reports
+    // `prefers-reduced-motion: reduce` by default, which sends the app down the
+    // branch that skips view transitions entirely — so the sweep would never
+    // execute the transition code a real visitor runs, and could not see a
+    // fault in it.
+    const page = await browser.newPage({ reducedMotion: 'no-preference' });
+    page.on('pageerror', error => {
+      pageErrors.push({ route, theme, kind: 'uncaught', message: String(error?.message ?? error) });
+    });
+    page.on('console', message => {
+      if (message.type() === 'error') {
+        pageErrors.push({ route, theme, kind: 'console', message: message.text() });
+      }
+    });
     // The theme is stored, not guessed, so the page renders the one being swept
     // rather than whatever the headless default happens to be.
     await page.addInitScript(`localStorage.setItem('theme', ${JSON.stringify(theme)})`);
@@ -150,4 +189,12 @@ process.stdout.write(
 for (const [name, count] of regressions) {
   process.stdout.write(`  ${name}: ${count} (baseline ${baseline[name] ?? 0})\n`);
 }
-if (regressions.length) process.exit(1);
+
+// No baseline for these: an uncaught error is not a rendering opinion that gets
+// worked down over time, it is a fault, and there are none today.
+process.stdout.write(`a11y: ${pageErrors.length} page error(s)\n`);
+for (const entry of pageErrors) {
+  process.stdout.write(`  ${entry.route} [${entry.theme}] ${entry.kind}: ${entry.message}\n`);
+}
+
+if (regressions.length || pageErrors.length) process.exit(1);

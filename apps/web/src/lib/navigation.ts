@@ -64,6 +64,13 @@ function commitRouteChange(apply: () => void) {
   // (mirrors the synchronous applyTheme commit in theme.ts).
   const transition = document.startViewTransition(() => flushSync(apply));
   transition.finished.then(finish, finish);
+  // `ready` and `updateCallbackDone` reject when the transition is skipped —
+  // which a redirect does every time, because the route changes again before
+  // the animation can start. Nothing awaits them, so each rejection surfaced in
+  // the console as an uncaught `InvalidStateError` with no stack to explain it.
+  // A skipped transition is ordinary; `finished` above still runs the cleanup.
+  transition.ready.catch(() => {});
+  transition.updateCallbackDone.catch(() => {});
 }
 
 /**

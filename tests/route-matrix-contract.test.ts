@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { webTools } from '../apps/web/src/lib/tool-registry';
 
 /**
  * The set of routes the application answers, and the set the accessibility
@@ -21,11 +22,24 @@ import { describe, expect, it } from 'vitest';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ROUTER = readFileSync(path.join(root, 'apps/web/src/Root.tsx'), 'utf8');
+const PROTECTED = readFileSync(path.join(root, 'apps/web/src/ProtectedSoty.tsx'), 'utf8');
 const SWEEP = readFileSync(path.join(root, 'scripts/verify-a11y.mjs'), 'utf8');
 
-/** Every literal path the router compares against. */
+/**
+ * Every path the application answers.
+ *
+ * Two sources, because there are two. `Root.tsx` and `ProtectedSoty.tsx`
+ * compare against literals; the tools are resolved from the registry by
+ * `toolByPath`, so their paths appear as data rather than as comparisons. A
+ * check that read only the literals would call a tool route unserved — which is
+ * how adding `/transcription` to the sweep looked like a mistake instead of a
+ * gap being closed.
+ */
 function routerPaths(): string[] {
-  return [...ROUTER.matchAll(/path === '([^']+)'/gu)].map(match => match[1]).sort();
+  const literals = [...`${ROUTER}${PROTECTED}`.matchAll(/path === '([^']+)'/gu)].map(
+    match => match[1]
+  );
+  return [...new Set([...literals, ...webTools.map(tool => tool.path)])].sort();
 }
 
 /** The routes the accessibility sweep walks. */
@@ -57,6 +71,12 @@ describe('the route matrix', () => {
     // sweep cannot render them. Listing them here means adding a public route
     // and forgetting to sweep it shows up as a change to this expectation
     // rather than as silence.
-    expect(unswept).toEqual(['/auth/callback']);
+    //
+    // `/account` and `/admin` joined the list when this check learned to read
+    // ProtectedSoty as well as Root — they were always unswept, and were simply
+    // invisible to a check that read one file. The tool paths are not here
+    // because a signed-out visitor asking for one is a real arrival: it
+    // redirects to sign-in, and that redirect is worth sweeping.
+    expect(unswept).toEqual(['/account', '/admin', '/auth/callback']);
   });
 });

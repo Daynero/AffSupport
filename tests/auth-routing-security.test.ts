@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { configuredTeamDirectAddMode, validatePublicConfig } from '../apps/web/src/lib/config';
 import { loginUrl, safeReturnPath } from '../apps/web/src/lib/redirects';
 import { protectedRouteDecision } from '../apps/web/src/Root';
-import { routeKind } from '../apps/web/src/lib/tool-registry';
+import { routeKind, webTools } from '../apps/web/src/lib/tool-registry';
 import { translate } from '../apps/web/src/i18n';
 
 describe('protected routing and safe OAuth returns', () => {
@@ -17,6 +17,20 @@ describe('protected routing and safe OAuth returns', () => {
     expect(safeReturnPath('/unknown')).toBe('/');
     expect(loginUrl('/compressor')).toBe('/login?returnTo=%2Fcompressor');
   });
+
+  it.each(webTools.map(tool => tool.path))(
+    'brings a signed-out visitor back to %s after they sign in',
+    toolPath => {
+      // Found in a real browser, not by a test: asking for /transcription while
+      // signed out produced `/login?returnTo=%2F`. The allowlist here was written
+      // by hand and named one tool; the registry had four. Everything that did
+      // not match was not rejected loudly — it was replaced with `/`, so the
+      // person landed on the home page having asked for a tool, with nothing on
+      // screen accounting for the difference.
+      expect(safeReturnPath(toolPath)).toBe(toolPath);
+      expect(loginUrl(toolPath)).toBe(`/login?returnTo=${encodeURIComponent(toolPath)}`);
+    }
+  );
 
   it('gates protected content until session and profile checks finish', () => {
     expect(
