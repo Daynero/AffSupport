@@ -538,6 +538,14 @@ function memberRpcResultGuard(value: unknown): value is unknown[] {
   return Array.isArray(value) && value.length === 1 && mapMember(value[0]) !== null;
 }
 
+/**
+ * Mirrors `private.record_team_audit`'s own key whitelist
+ * (`20260823120000_team_ux_lifecycle.sql`). The two lists have to be read as
+ * one: the server refuses to write a key that is not here, and an unknown key
+ * arriving here fails `mapAuditEvent`, which fails the *whole* history rather
+ * than the one row. Widening the server list without widening this one is how
+ * a single `task.deleted` event took the entire space history down.
+ */
 const AUDIT_TARGET_KEYS = new Set([
   'member_id',
   'invitation_id',
@@ -547,7 +555,9 @@ const AUDIT_TARGET_KEYS = new Set([
   'relation',
   'role',
   'state',
-  'warning_code'
+  'warning_code',
+  'task_id',
+  'task_title'
 ]);
 
 function mapAuditEvent(value: unknown): TeamAuditEventSummary | null {

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { DriveFolderPage, DriveFolderSummary, DriveRootResult } from '../../api/team';
 import { TeamApiError } from '../../api/team';
 import { Button } from '../../components/ui';
-import { BetaStorageNotice } from '../drive/BetaStorageNotice';
+import { BetaStorageNotice, externalStorageUnavailableInBeta } from '../drive/BetaStorageNotice';
 import { useI18n } from '../../i18n';
 import { DriveFolderBrowser } from '../drive/DriveFolderBrowser';
 import type { DrivePanelClient } from '../drive/DriveConnectionPanel';
@@ -154,7 +154,11 @@ export function ConnectFolderStep({
         <BetaStorageNotice />
       </div>
 
-      {!folders && !authorizationUrl && (
+      {/* The notice above already says this cannot work here, so offering the
+          control anyway is the "silent element" FR-015 forbids — an enabled
+          primary button directly under its own unavailability. The settings
+          panel hides it through the same predicate; this step now agrees. */}
+      {!folders && !authorizationUrl && !externalStorageUnavailableInBeta() && (
         <Button type="button" variant="primary" loading={busy} onClick={() => void connect()}>
           {t('teamDriveConnect')}
         </Button>

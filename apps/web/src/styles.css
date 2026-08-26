@@ -10015,7 +10015,13 @@ body:has(.public-home) {
   margin: 0;
   line-height: 1.15;
 }
+/* Grow into the header's free space. Without this the identity column sits at
+   the bare name's max-content width, and the switcher's own chrome — padding,
+   gap, caret — is then subtracted from that same width rather than added to it,
+   so the name wraps to two lines and the caret floats away from it the moment a
+   second space makes the title a switcher. */
 .team-space-shell-identity {
+  flex: 1 1 auto;
   min-width: 0;
 }
 /* Utilities only — the content tabs live in their own row below. Splitting the

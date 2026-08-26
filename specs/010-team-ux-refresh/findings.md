@@ -220,3 +220,212 @@ been read as "nothing asked for, so send everything", which is how a guard becom
 firehose. It refuses instead.
 
 Nothing here touched a destructive route — no cancel, remove, reset or delete was called.
+
+## T065 — manual quickstart pass, run (2026-08-26)
+
+The 2026-08-24 blocker is gone. It was never a permission or a port: the shell
+that started the stack ran sandboxed, with a loopback of its own, so `:5175`
+existed for `curl` inside it and for nothing else. Started outside that sandbox,
+the same `npm run beta:up` binds the host's loopback and Chrome reaches the app,
+the agent and Studio alike. Anyone repeating this pass should start the stack
+from a shell that shares the browser's network namespace; nothing else changed.
+
+Run one story at a time on the weak reference machine, with the stack up and no
+test suite running beside it, then the suites after `beta:down` — never both.
+
+### The database was a migration behind, and said so only as "something went wrong"
+
+The first destructive action attempted — deleting an abandoned wizard draft —
+answered with the generic `Щось пішло не так. Спробуйте ще раз за мить.` The
+cause was not in the product: `public.delete_draft_team` **did not exist**.
+Neither did `delete_team_task`, `leave_team` or `list_team_trashed_materials`.
+The beta database's last applied migration was `20260820210000`; this feature's
+`20260823120000_team_ux_lifecycle.sql` had never been applied.
+
+`beta:up` restores the database from a snapshot — its own log says
+`Starting database from backup...` — and does not replay pending migrations.
+Only `npm run beta:reset` does, and `docs/BETA.md` presents reset as a *data*
+reset ("seeds the fixtures, clears resettable state"), so nothing tells someone
+about to validate a schema change that `beta:up` alone leaves them a schema
+behind. Every US4/US5 lifecycle flow fails identically and anonymously until it
+is noticed. **`docs/BETA.md` should say, under Start, that new migrations reach
+the stack only through `beta:reset`** — the cheapest fix, and the one that stops
+the next person losing an hour to a toast that names nothing.
+
+Applied here as the single missing file plus its `schema_migrations` row rather
+than a full reset, which on this machine is the difference between a minute and
+a rebuild. After that the draft deleted cleanly: `Чернетку простору видалено`.
+
+### One deleted task took the whole space history down — fixed
+
+The worst thing found, and the only one that would have shipped: **Settings
+showed `Не вдалося завантажити історію простору.` permanently, from the first
+task anyone deleted onward.**
+
+The migration widened `private.record_team_audit`'s target-key whitelist to
+accept `task_id` and `task_title` (`20260823120000:44-54`). The client keeps its
+own copy of that list, `AUDIT_TARGET_KEYS` in `apps/web/src/api/team.ts`, and it
+was not widened. `mapAuditEvent` returns `null` for a row carrying a key it does
+not know, and `listAuditEvents` throws `INVALID_RESPONSE` when *any* row maps to
+null — so one `task.deleted` event does not lose its own line, it loses every
+line, forever, for every member of that space.
+
+Both halves were tested. `tests/team-lifecycle-rpc.test.ts:260` proves the
+server writes `task_title`; `tests/team-members.test.tsx:155` mocks the client
+whole and never reaches the mapper. Neither test could see the disagreement
+between them, which is exactly the seam a manual pass is for.
+
+Fixed by mirroring the server list, with a comment on each side saying the two
+must be read as one. `tests/team-audit-wire.test.ts` now drives the real mapper
+over the row the function actually returns, and asserts both halves of the
+contract: a declared key survives, an undeclared one still fails the page
+(all-or-nothing is deliberate — a partial history is a history you cannot
+trust). Verified in the running app: the history renders the `task.deleted`
+entry, with the id and title still absent from what is displayed.
+
+### The lobby cannot be reached, and its own link is what proves it
+
+`/team` never resolves to the lobby for anyone who has entered a space:
+
+- `TeamSpace.tsx:104` redirects whenever exactly one space is *ready*.
+- Failing that, `TeamSpace.tsx:111-116` redirects to the remembered space.
+- `SpaceSwitcher.tsx:35` renders the switcher only when another space exists,
+  and the "Усі простори" link lives **inside** that menu — so with one space
+  there is no lobby link at all.
+
+With two ready spaces the link appears and still does not work. Clicking it
+calls `leaveSpace()`, which clears the active space and navigates to `/team`;
+the resolver redirects straight back in, and entering rewrites
+`wishly.active-team.v1` with the id that was just cleared. Leaving is undone by
+the redirect that leaving triggers. Measured: after the click the key still held
+`22222222-…`; the lobby rendered only after removing it by hand.
+`TeamSpace.tsx:159` compounds it — `rememberedTeamId` is captured with
+`useState` at mount and never re-read, so an in-app navigation cannot clear it
+even in principle.
+
+What the user loses: the create wizard and the space list, both of which live
+only in the lobby. The shipped beta fixture — one ready space, one member — is
+the worst case of it. Only a pending invitation forces the lobby open.
+
+Left unfixed on purpose: every candidate fix changes what `/team` *means*, and
+the resolver's rules are spec text (FR-015) and encoded in
+`tests/team-ux-navigation.test.tsx`. The smallest honest shape is an explicit
+"take me to the lobby" intent that the resolver honours for one navigation —
+distinguishable from "I arrived at `/team` with a space remembered", which is
+the case the redirect exists for. That is a decision, not a repair.
+
+### A live channel that never connects is never mentioned
+
+With `supabase_realtime_wishly` stopped, the space showed no chip for forty
+seconds and nothing else changed either. `useTeamRealtime.ts:19` starts in
+`connecting` and leaves it only on a subscribe-callback status
+(`SUBSCRIBED` / `CHANNEL_ERROR` / `TIMED_OUT` / `CLOSED`, `:86-93`). Kong stays
+up while its upstream is dead, so the WebSocket handshake *hangs* rather than
+failing — probed from the page, a raw `ws://…/realtime/v1/websocket` neither
+opened, closed nor errored within six seconds. No status fires, so `connecting`
+is terminal, and `RealtimeChip` draws nothing for it.
+
+FR-018 wants the break visible. "Was connected, then dropped" is announced after
+an 8-second grace; "never connected" — the worse case, because nothing the user
+sees will ever update — is silent. The fix is the grace timer `reconnecting`
+already has, applied to `connecting` too, so a merely slow first connect still
+stays quiet. Left for the same reason as above: it is a state-machine change
+with a test to match, not a one-liner.
+
+### Two small things repaired in place
+
+**The wizard offered a Drive button it had just called unusable.** Step 2 renders
+`<BetaStorageNotice />` and, directly under `Недоступно в беті`, an enabled
+`button-primary` reading `Підключити Google Drive` — measured `disabled:false`,
+`aria-disabled:null`, `opacity:1`. `DriveConnectionPanel.tsx:275` guards the same
+control with `externalStorageUnavailableInBeta()`; `ConnectFolderStep.tsx:154`
+rendered only the notice. FR-015 asks for hidden or disabled *with* an
+explanation; only the explanation had shipped. The step now uses the same
+predicate as its sibling — verified: notice present, button gone.
+
+**The space name broke in two the moment it became a switcher.** With one space
+the title is a plain `<h1>` on one line; with two it wrapped, and the caret hung
+detached beside the second line. Measured: header 1168 px, utilities 467 px,
+`.team-space-shell-identity` 216 px at `flex: 0 1 auto` — it never grew into the
+450 px of free space beside it, so the h1 sat at the bare name's max-content
+width and the trigger's own chrome (padding 24 + gap 12 + caret 7) was subtracted
+from that width instead of added to it, leaving 185 px for a 200 px name. Now
+`flex: 1 1 auto`; the name and its caret sit on one line.
+
+### Verified working
+
+- **US1** — sections walk and the address follows; Back twice returns Settings →
+  Tasks → Files; a section URL restores its section. A link to a space you are
+  not in gives a neutral screen that does not name it and offers a way out
+  (FR-016's "absent and denied answer alike" holds in the browser). One ready
+  space enters directly. The wizard's step 2 has Back and the name survives the
+  round trip.
+- **US4** — abandoning the wizard leaves a draft card offering resume or delete;
+  the delete confirmation names the space and states that nothing was saved. An
+  owner is told *why* they cannot leave ("Простір не може лишитися без
+  власника…") rather than being shown a dead control — FR-015 at its best.
+- **US5** — "Create task" from a file row stages the attachment without
+  committing it ("Файлів буде прикріплено після збереження: 1"); cancelling left
+  zero tasks and zero attachment rows in the database. Creating opens the editor
+  at `?task=<id>`. Deleting confirms, names the consequence *and* says the
+  attached files survive it, toasts, and clears the parameter. The audit row
+  lands as `task.deleted / succeeded` carrying `task_id` + `task_title`.
+- **US6** — dialogs are `aria-modal`, lock the page behind them (`body` overflow
+  `hidden`, restored on close), close on Escape, scroll inside themselves, and
+  stack correctly (the delete confirmation renders over the task editor).
+  `tests/team-i18n-glossary.test.ts` passes as the copy audit.
+- **US3** — a failure names its subsystem: trashing a file with no real Drive
+  gave `Google Drive не відповідає. Спробуйте трохи згодом.`, no error code.
+- **US2 (partial)** — the catalog panel carries search plus seven filters, an
+  honest count and `Каталог актуальний`, and the toggle relabels to `Закрити
+  пошук`. Trash renders, explains Drive's ~30-day window and distinguishes empty
+  from unloaded.
+- Not a defect, checked because it looked like one: the create-task submit is
+  enabled with an empty title, but the input is `required` on a form that is not
+  `noValidate` — the browser blocks it with `Заповніть це поле.`
+
+One observation rather than a finding: `/` focuses the catalog search, but the
+listener is mounted inside `CatalogSearchBar`, so it does nothing until the
+search panel is already open. A jump-to-search shortcut that only works once you
+are looking at the field is doing very little; worth deciding whether it should
+open the panel.
+
+### What this pass still could not cover
+
+Unchanged from 2026-08-24 and not repairable from here:
+
+- **A second signed-in account** — US1.3 seen from the other side, US2's
+  live-update-on-another-member's-write, US4's invite → accept → leave, and the
+  membership-loss explanation. The invite form is present and the local stack
+  returns the link rather than sending it, so this is one account away.
+- **Google Drive** — everything downstream of storage: rename, move, trash and
+  restore, the 50-item search page, and therefore **US7 entirely** and the
+  **SC-009 spot-check**, which needs a 50-item page to be meaningful. This needs
+  the opt-in OAuth test client from `docs/BETA.md`.
+
+Gates re-run after the three fixes, one at a time: `prettier --check` and
+`eslint` on the changed files, `typecheck:tests`, `tsc -b apps/web`,
+`verify-styles`, `verify-i18n`, and the seven `team-ux-*` suites plus
+`team-i18n-glossary`, `team-members`, `beta-web-environment` and the new
+`team-audit-wire` — 97 tests, all green. The full suite was **not** re-run here;
+it is the pre-PR gate and it last passed at T064.
+
+The stack was stopped again (`npm run beta:down`) and the two QA spaces seeded
+for this pass were removed, so the beta fixture is back to its documented
+baseline of one space. The applied migration is left in place — it belongs there.
+
+## T066 — release precondition re-checked (2026-08-26)
+
+Still not satisfied, and further from it. Against `v1.0.3` the web deploy now
+carries **40** unreleased `apps/agent` / `packaging` / `packages/shared/src`
+files, up from 24 on 2026-08-24. `verify-release.mjs:336-345` fails a web deploy
+on exactly this, so `npm run deploy:web` will refuse until an Agent release is
+cut and tagged. That is a release decision, not a repair, and nothing here makes
+it.
+
+The other half of T066 holds: the migration's reverse steps are in
+`supabase/migrations/ROLLBACK.md:23-33`, and re-reading them against the applied
+schema they are correct — the four functions to drop are exactly the four the
+migration creates, and the note about restoring `private.record_team_audit`'s
+narrower whitelist only once no `task.deleted` row remains is right, because
+this pass wrote one.
