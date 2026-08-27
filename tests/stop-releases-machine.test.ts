@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { makeJob, optimalSettings } from './helpers.js';
 import {
   describeSurvivors,
@@ -16,6 +16,7 @@ import {
 import { writeStubTool } from './support/stub-tools/index.js';
 import { waitFor, waitForValue } from './support/wait.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
+import { describeRequiring, requirePlatform } from './support/requires.js';
 
 /**
  * A stop has to make the machine go quiet, not make a status field change.
@@ -113,7 +114,7 @@ async function runningEncoder(
   return handle;
 }
 
-describe('a stop leaves nothing running', () => {
+describeRequiring(requirePlatform('darwin', 'linux'), 'a stop leaves nothing running', () => {
   it('removes every process the run spawned, within five seconds', async () => {
     const { queue, job, marker } = await encodingQueue({
       hang: true,

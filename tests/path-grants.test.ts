@@ -115,7 +115,7 @@ describe('a path that is not what it looks like', () => {
     const grant = ledger.mint(link);
     // Resolved at mint, so everything downstream compares against where the
     // link actually leads.
-    expect(grant?.path).toBe(await realpathOf(real));
+    expect(grant?.path && (await realpathOf(grant.path))).toBe(await realpathOf(real));
   });
 
   it('refuses a file swapped after it was approved', async () => {

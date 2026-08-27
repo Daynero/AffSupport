@@ -21,10 +21,12 @@ import { removeTemporaryDirectory } from './support/temp-dir.js';
  * and assert the round trip a Windows agent depends on.
  */
 const bsdtar = process.platform === 'darwin' ? '/usr/bin/tar' : 'tar';
+const realPlatform = process.platform;
 
 const temporary: string[] = [];
 
 afterEach(async () => {
+  Object.defineProperty(process, 'platform', { value: realPlatform });
   await Promise.all(temporary.splice(0).map(dir => removeTemporaryDirectory(dir)));
 });
 
@@ -72,6 +74,22 @@ describe('zip round trip on the bsdtar branch', () => {
     const unicode = path.join(destination, 'payload', 'nested', 'відео.txt');
     expect(existsSync(unicode)).toBe(true);
     expect(await readFile(unicode, 'utf8')).toBe('unicode name');
+  });
+
+  it('keeps Unicode entry names through the Windows extraction branch', async () => {
+    const root = await workspace();
+    const payload = await sampleTree(root);
+    const archive = path.join(root, 'windows-unicode.zip');
+    execFileSync(bsdtar, ['-a', '-cf', archive, '-C', path.dirname(payload), 'payload']);
+    const destination = path.join(root, 'windows-out');
+    await mkdir(destination, { recursive: true });
+
+    Object.defineProperty(process, 'platform', { value: 'win32' });
+    await unzipArchive(archive, destination);
+
+    expect(await readFile(path.join(destination, 'payload', 'nested', 'відео.txt'), 'utf8')).toBe(
+      'unicode name'
+    );
   });
 
   it('rejects a corrupt archive instead of silently producing nothing', async () => {

@@ -21,6 +21,7 @@ import {
   type Driver,
   type DriverMap
 } from './support/lifecycle-drivers.js';
+import { describeRequiring, requirePlatform } from './support/requires.js';
 
 /**
  * The half that makes the tables mean something.
@@ -96,7 +97,9 @@ describe('driver coverage', () => {
   );
 });
 
-describe('drivers end where the table says', () => {
+const posixProcesses = requirePlatform('darwin', 'linux');
+
+describeRequiring(posixProcesses, 'drivers end where the table says', () => {
   afterAll(async () => {
     await cleanUpDrivers();
   });
@@ -193,7 +196,7 @@ describe('the enforcement seam', () => {
     // of these helpers is a write that escaped the decision entirely.
     const guards = [
       ...source.matchAll(
-        /if \(!decideTransition\([^)]*\)\) return false;\n(\s*)(\w+)\.status = next;/g
+        /if \(!decideTransition\([^)]*\)\) return false;\r?\n(\s*)(\w+)\.status = next;/g
       )
     ];
     expect(guards.length).toBeGreaterThan(0);

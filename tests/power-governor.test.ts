@@ -3,6 +3,7 @@ import os from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PowerGovernor } from '../apps/agent/src/power/governor.js';
 import { POWER_LIMIT_MAX, POWER_LIMIT_MIN } from '../packages/shared/src/types.js';
+import { describeRequiring, requirePlatform } from './support/requires.js';
 
 /**
  * A stand-in for a spawned tool. `kill` records the signals it receives, which
@@ -25,6 +26,8 @@ function fakeChild(pid = 4242) {
 function governor(options: Partial<ConstructorParameters<typeof PowerGovernor>[0]> = {}) {
   return new PowerGovernor({ cpuCount: 10, pauseSupported: true, ...options });
 }
+
+const posixSignals = requirePlatform('darwin', 'linux');
 
 afterEach(() => {
   vi.useRealTimers();
@@ -91,7 +94,7 @@ describe('cpu budget', () => {
   });
 });
 
-describe('duty cycling', () => {
+describeRequiring(posixSignals, 'duty cycling', () => {
   it('sends no signals at all when unrestricted', () => {
     vi.useFakeTimers();
     const power = governor();
@@ -145,7 +148,7 @@ describe('duty cycling', () => {
   });
 });
 
-describe('safety invariants', () => {
+describeRequiring(posixSignals, 'safety invariants', () => {
   it('resumes and then kills every child still registered at shutdown', async () => {
     vi.useFakeTimers();
     const power = governor();
@@ -217,7 +220,7 @@ describe('safety invariants', () => {
   });
 });
 
-describe('hold protocol', () => {
+describeRequiring(posixSignals, 'hold protocol', () => {
   it('keeps a held child suspended through the duty cycle', async () => {
     vi.useFakeTimers();
     const power = governor();
@@ -350,7 +353,7 @@ describe('persistence coupling', () => {
   });
 });
 
-describe('the termination pin ages on the wall clock', () => {
+describeRequiring(posixSignals, 'the termination pin ages on the wall clock', () => {
   /**
    * A6. The pin used to be counted in duty periods, ticked by the cycler. The
    * cycler stops for exactly the reasons that leave a pin outstanding — the

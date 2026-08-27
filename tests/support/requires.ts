@@ -135,3 +135,10 @@ export function describeRequiring(requirement: Requirement, title: string, body:
   }
   describe(marked, body);
 }
+
+/** A requirement-aware describe with Vitest's two-argument call shape. */
+export function describeWithRequirement(
+  requirement: Requirement
+): (title: string, body: () => void) => void {
+  return (title, body) => describeRequiring(requirement, title, body);
+}

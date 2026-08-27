@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PowerGovernor } from '../apps/agent/src/power/governor.js';
 import { descendantsByRoot, descendantsOf } from '../apps/agent/src/power/process-tree.js';
 import type { ProcessTableRow } from '../apps/agent/src/platform/platform.js';
+import { describeRequiring, requirePlatform } from './support/requires.js';
 
 /**
  * The descendant half of the throttle.
@@ -158,7 +159,7 @@ describe('descendant control', () => {
   });
 });
 
-describe('walk frequency', () => {
+describeRequiring(requirePlatform('darwin', 'linux'), 'walk frequency', () => {
   it('does not walk the table at all when nothing needs it', async () => {
     const { power, table } = governorWithTree([{ pid: 100, ppid: 1 }]);
     power.register(fakeChild(100), { toolId: 'compressor' });

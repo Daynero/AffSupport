@@ -238,7 +238,7 @@ describe('team contract', () => {
     );
     const stalePath = join(fixture, 'team_contract_seed.sql');
     const crlfPath = join(fixture, 'team_contract_seed_crlf.sql');
-    writeFileSync(crlfPath, generated.replaceAll('\n', '\r\n'));
+    writeFileSync(crlfPath, generated.replaceAll('\r\n', '\n').replaceAll('\n', '\r\n'));
     const crlf = spawnSync(
       process.execPath,
       ['scripts/generate-team-contract-sql.mjs', '--check', '--output', crlfPath],

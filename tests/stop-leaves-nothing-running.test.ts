@@ -12,6 +12,7 @@ import type {
   TranslationOutputSegment
 } from '../apps/agent/src/translation/translator.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
+import { describeRequiring, requirePlatform } from './support/requires.js';
 
 /**
  * "Stopped" has to mean the machine goes quiet, not that a status field changed.
@@ -22,7 +23,9 @@ import { removeTemporaryDirectory } from './support/temp-dir.js';
  * come down, and blamed on whatever they opened next.
  */
 
-describe('terminating a managed child', () => {
+const posixTermination = requirePlatform('darwin', 'linux');
+
+describeRequiring(posixTermination, 'terminating a managed child', () => {
   it('kills one that swallows SIGTERM instead of leaving it running', async () => {
     const governor = new PowerGovernor({ cpuCount: 4, pauseSupported: false });
     // A child that handles SIGTERM and carries on is not hypothetical: a
@@ -298,7 +301,7 @@ describe('quitting while Finder image conversions are queued', () => {
   }, 15_000);
 });
 
-describe('the termination guarantee without a resource budget', () => {
+describeRequiring(posixTermination, 'the termination guarantee without a resource budget', () => {
   it('still kills a child that swallows SIGTERM when no governor is attached', async () => {
     // The guarantee used to be skipped entirely on this branch: `spawnManaged` returned
     // early when it had no governor, so the child never got the escalation wrapper. A

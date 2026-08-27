@@ -1,6 +1,7 @@
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { PowerGovernor } from '../apps/agent/src/power/governor.js';
+import { describeRequiring, requirePlatform } from './support/requires.js';
 
 /**
  * The compressor queue used to suspend the active encode itself so prioritized
@@ -31,7 +32,9 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('estimate prioritization under a limit', () => {
+const posixSignals = requirePlatform('darwin', 'linux');
+
+describeRequiring(posixSignals, 'estimate prioritization under a limit', () => {
   it('keeps the encode stopped for the whole hold, whatever the cycler wants', async () => {
     vi.useFakeTimers();
     const power = new PowerGovernor({ cpuCount: 8, pauseSupported: true });
@@ -71,7 +74,7 @@ describe('estimate prioritization under a limit', () => {
   });
 });
 
-describe('termination while suspended', () => {
+describeRequiring(posixSignals, 'termination while suspended', () => {
   it('resumes before a graceful signal can be delivered', async () => {
     vi.useFakeTimers();
     const power = new PowerGovernor({ cpuCount: 8, pauseSupported: true });
@@ -117,7 +120,7 @@ describe('termination while suspended', () => {
   });
 });
 
-describe('kill escalation under a limit', () => {
+describeRequiring(posixSignals, 'kill escalation under a limit', () => {
   it('stretches the grace period in step with the duty cycle', async () => {
     const power = new PowerGovernor({ cpuCount: 8, pauseSupported: true });
     expect(power.scaleTimeout(2_000)).toBe(2_000);

@@ -2,12 +2,13 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { makeJob, optimalSettings } from './helpers.js';
 import { handleFor, isAlive, survivorsOf, type ProcessHandle } from './support/machine-probe.js';
 import { writeStubTool } from './support/stub-tools/index.js';
 import { waitFor, waitForValue } from './support/wait.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
+import { describeRequiring, requirePlatform } from './support/requires.js';
 
 /**
  * A stop has to give the queue its place back straight away.
@@ -102,7 +103,7 @@ async function readMarker(marker: string): Promise<string> {
   return readFile(marker, 'utf8');
 }
 
-describe('stopping one job', () => {
+describeRequiring(requirePlatform('darwin', 'linux'), 'stopping one job', () => {
   it('lets the next job start while the stopped one is still unwinding', async () => {
     // The encoder ignores SIGTERM, so its teardown takes the full escalation deadline. That
     // is the window FR-004 is about: if the slot were held until the child exited, the

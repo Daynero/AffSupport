@@ -33,6 +33,9 @@ export interface PersistedState {
   batch: QueueBatch | null;
 }
 
+/** One ordered write chain per destination, so overlapping saves never race a replace. */
+const pendingSaves = new Map<string, Promise<void>>();
+
 export const defaultSettings: AgentSettings = {
   mode: 'optimal',
   outputMode: 'next-to-originals',
@@ -151,7 +154,7 @@ async function tightenDirectory(directory: string): Promise<void> {
   }
 }
 
-export async function saveState(state: PersistedState, file = defaultStatePath()) {
+async function writeState(state: PersistedState, file: string): Promise<void> {
   const directory = path.dirname(file);
   await mkdir(directory, { recursive: true, mode: OWNER_ONLY_DIRECTORY });
   // Also applied to a directory that already existed, since `mkdir`'s mode is
@@ -169,6 +172,18 @@ export async function saveState(state: PersistedState, file = defaultStatePath()
   } finally {
     await unlink(temporary).catch(() => {});
   }
+}
+
+export function saveState(state: PersistedState, file = defaultStatePath()): Promise<void> {
+  const previous = pendingSaves.get(file) ?? Promise.resolve();
+  // A failed write must reject its own caller, but must not poison every later
+  // save to the same file. Each replacement starts only after its predecessor
+  // has released Windows' handle on the destination.
+  const current = previous.catch(() => {}).then(() => writeState(state, file));
+  pendingSaves.set(file, current);
+  return current.finally(() => {
+    if (pendingSaves.get(file) === current) pendingSaves.delete(file);
+  });
 }
 
 function migrateSettings(value: unknown): AgentSettings {

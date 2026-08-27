@@ -18,6 +18,10 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const AGENT_SRC = path.join(ROOT, 'apps/agent/src');
 const SUPPORT = path.join(ROOT, 'tests/support');
 
+function portableRelative(root: string, absolute: string): string {
+  return path.relative(root, absolute).split(path.sep).join('/');
+}
+
 /**
  * Files allowed to import `node:child_process` for a value import. Anything
  * here spawns either the mechanism itself or a sub-second probe, where managing
@@ -44,7 +48,7 @@ async function agentSources(): Promise<{ relative: string; source: string }[]> {
       if (entry.isDirectory()) await walk(absolute);
       else if (entry.name.endsWith('.ts'))
         files.push({
-          relative: path.relative(AGENT_SRC, absolute),
+          relative: portableRelative(AGENT_SRC, absolute),
           source: await readFile(absolute, 'utf8')
         });
     }
@@ -146,7 +150,7 @@ describe('the governed seam still bounds everything that spawns', () => {
         if (entry.isDirectory()) await walk(absolute);
         else if (entry.name.endsWith('.ts'))
           files.push({
-            relative: path.relative(SUPPORT, absolute),
+            relative: portableRelative(SUPPORT, absolute),
             source: await readFile(absolute, 'utf8')
           });
       }

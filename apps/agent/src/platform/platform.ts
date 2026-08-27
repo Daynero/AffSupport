@@ -3,6 +3,7 @@ import { existsSync, statSync, type Stats } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { extractZipSafely } from '../landing-preview/archive.js';
 import { WindowsSuspendHelper } from './windows-suspend.js';
 
 /**
@@ -291,6 +292,13 @@ export async function zipDirectory(dir: string, zipPath: string): Promise<void> 
 
 /** Extracts a ZIP archive into a destination directory. */
 export async function unzipArchive(zipPath: string, destination: string): Promise<void> {
+  if (process.platform === 'win32') {
+    // Windows bsdtar can create a valid UTF-8 ZIP and then extract its Unicode
+    // entry names through the active console code page. Use the same validated
+    // Node reader as landing previews so names survive without a shell locale.
+    await extractZipSafely(zipPath, destination);
+    return;
+  }
   const result =
     process.platform === 'darwin'
       ? await runCommand('/usr/bin/ditto', ['-x', '-k', zipPath, destination])

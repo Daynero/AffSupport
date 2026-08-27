@@ -82,6 +82,14 @@ describe('the verification workflow', () => {
     expect(aggregator).toContain("'--project=unit'");
   });
 
+  it('runs the suite inside one worker budget', () => {
+    // Real media tests each start a tool that can use every core. File-level
+    // parallelism turns that into several all-core workloads competing at once,
+    // which is both slower and unsafe on a thermally constrained release Mac.
+    expect(aggregator).toContain("'--maxWorkers=1'");
+    expect(aggregator).toContain("'--no-file-parallelism'");
+  });
+
   it('cancels superseded runs', () => {
     expect(verify).toContain('cancel-in-progress: true');
   });

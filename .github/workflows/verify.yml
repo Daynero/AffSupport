@@ -71,6 +71,8 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - name: Install media test dependencies
+        run: choco install ffmpeg --yes --no-progress
       # The whole suite, not a hand-maintained list of files. Tests that cannot
       # run here are named skips, and an unexplained skip fails the run.
       - run: node scripts/verify-all.mjs --form=fast --gates=suite

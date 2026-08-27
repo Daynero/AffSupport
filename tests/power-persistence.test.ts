@@ -6,6 +6,7 @@ import { loadPowerState, powerStatePath, savePowerLimit } from '../apps/agent/sr
 import { PowerGovernor } from '../apps/agent/src/power/governor.js';
 import { POWER_LIMIT_MAX } from '../packages/shared/src/types.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
+import { describeRequiring, requirePlatform } from './support/requires.js';
 
 const directories: string[] = [];
 
@@ -91,24 +92,26 @@ describe('a store that cannot be trusted', () => {
 });
 
 describe('persistence and the applied limit never diverge', () => {
-  it('does not apply a limit it could not write', async () => {
-    const file = await temporaryStore();
-    const directory = path.dirname(file);
-    await chmod(directory, 0o500);
+  describeRequiring(requirePlatform('darwin', 'linux'), 'unwritable store permissions', () => {
+    it('does not apply a limit it could not write', async () => {
+      const file = await temporaryStore();
+      const directory = path.dirname(file);
+      await chmod(directory, 0o500);
 
-    const power = new PowerGovernor({
-      cpuCount: 8,
-      pauseSupported: true,
-      persist: limitPercent => savePowerLimit(limitPercent, file)
+      const power = new PowerGovernor({
+        cpuCount: 8,
+        pauseSupported: true,
+        persist: limitPercent => savePowerLimit(limitPercent, file)
+      });
+
+      await expect(power.setLimit(40)).rejects.toThrow();
+      // A lever pointing at a limit that will not survive a restart is worse than
+      // a visible error.
+      expect(power.limitPercent()).toBe(POWER_LIMIT_MAX);
+      expect(await loadPowerState(file)).toBeNull();
+
+      await chmod(directory, 0o700);
     });
-
-    await expect(power.setLimit(40)).rejects.toThrow();
-    // A lever pointing at a limit that will not survive a restart is worse than
-    // a visible error.
-    expect(power.limitPercent()).toBe(POWER_LIMIT_MAX);
-    expect(await loadPowerState(file)).toBeNull();
-
-    await chmod(directory, 0o700);
   });
 
   it('applies and stores the same value on success', async () => {

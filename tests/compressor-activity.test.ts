@@ -8,6 +8,7 @@ import { MediaToolUnavailableError } from '../apps/agent/src/ffmpeg/tools.js';
 import { JobQueue } from '../apps/agent/src/queue/queue.js';
 import { makeJob, optimalSettings } from './helpers.js';
 import { writeStubTool } from './support/stub-tools/index.js';
+import { describeWithRequirement, requirePlatform } from './support/requires.js';
 import { waitFor } from './support/wait.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 
@@ -351,7 +352,9 @@ describe('prioritising an estimate', () => {
  * `ffmpeg/tools.ts` reads `FFMPEG_PATH` into a module constant at import time, so the module
  * graph has to be rebuilt after the variable is set — hence the dynamic import.
  */
-describe('while a child process is actually running', () => {
+const describePosixProcess = describeWithRequirement(requirePlatform('darwin', 'linux'));
+
+describePosixProcess('while a child process is actually running', () => {
   async function stubbedQueue(config: Parameters<typeof writeStubTool>[2], jobFile = 'clip.mov') {
     directory = await mkdtemp(path.join(os.tmpdir(), 'compressor-encode-'));
     const source = path.join(directory, jobFile);
@@ -461,7 +464,10 @@ describe('while a child process is actually running', () => {
       describe: 'the first pass to start'
     });
     await queue.cancel(job.id);
-    await waitFor(() => !queue.state().running, { timeoutMs: 20_000, describe: 'the run to end' });
+    await waitFor(() => !queue.state().running, {
+      timeoutMs: 20_000,
+      describe: 'the run to end'
+    });
 
     // A stop between the two passes has no child to signal for the pass that has not started
     // yet — it only sets a flag. Re-running anyway would follow the user's stop with a full

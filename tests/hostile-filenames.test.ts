@@ -50,8 +50,10 @@ describe('the sanitiser', () => {
     const safe = sanitizeFileName(name);
     // An empty result is a pass, not a skip: the sanitiser is allowed to decide
     // that nothing usable remains, and that is the safest answer of all.
-    const joined = safe === '' ? '/tmp/workspace/kept' : path.join('/tmp/workspace', safe);
-    expect(joined.startsWith('/tmp/workspace/')).toBe(true);
+    const workspace = path.join(path.parse(process.cwd()).root, 'tmp', 'workspace');
+    const joined = safe === '' ? path.join(workspace, 'kept') : path.join(workspace, safe);
+    const relative = path.relative(workspace, joined);
+    expect(relative).not.toMatch(/^(?:\.\.(?:[\\/]|$)|[\\/])/u);
     expect(path.normalize(joined)).toBe(joined);
   });
 
