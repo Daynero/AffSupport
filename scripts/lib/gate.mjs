@@ -108,7 +108,7 @@ export async function runGate(gate) {
     let child;
     try {
       child = spawn(gate.command, gate.args, {
-        shell: false,
+        shell: gate.shell ?? false,
         stdio: ['ignore', 'pipe', 'pipe'],
         env: { ...process.env, ...gate.env }
       });

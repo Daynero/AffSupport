@@ -47,7 +47,14 @@ const vitest = path.join(root, 'node_modules/vitest/vitest.mjs');
 
 /** A gate that runs an npm script, which is how every existing check is spelled. */
 function script(id, name, timeoutMs, extra = {}) {
-  return { id, command: npm, args: ['run', '--silent', name], timeoutMs, ...extra };
+  return {
+    id,
+    command: npm,
+    args: ['run', '--silent', name],
+    timeoutMs,
+    shell: process.platform === 'win32',
+    ...extra
+  };
 }
 
 /**
@@ -66,6 +73,7 @@ const PHASES = {
         id: 'build:shared',
         command: npm,
         args: ['run', '--silent', 'build', '-w', '@video-compressor/shared'],
+        shell: process.platform === 'win32',
         timeoutMs: 180_000
       }
     ]
@@ -142,6 +150,7 @@ const PHASES = {
         id: 'build:agent',
         command: npm,
         args: ['run', '--silent', 'build', '-w', '@video-compressor/agent'],
+        shell: process.platform === 'win32',
         timeoutMs: 600_000
       },
       {
