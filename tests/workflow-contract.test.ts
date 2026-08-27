@@ -56,6 +56,7 @@ describe('every workflow', () => {
 
 describe('the verification workflow', () => {
   const verify = readFileSync(path.join(WORKFLOW_DIR, 'verify.yml'), 'utf8');
+  const aggregator = readFileSync(path.join(root, 'scripts/verify-all.mjs'), 'utf8');
 
   it('runs the four jobs that gate a merge', () => {
     for (const job of ['static:', 'test-macos:', 'test-windows:', 'build:']) {
@@ -72,6 +73,13 @@ describe('the verification workflow', () => {
 
   it('keeps the expensive end-to-end job off ordinary pull requests', () => {
     expect(verify).toMatch(/if:.*github\.event_name == 'push'/u);
+  });
+
+  it('keeps the ordinary suite on the unit project', () => {
+    // Real-media e2e tests become intentionally expensive when FFmpeg is
+    // installed. They belong to the separately scheduled e2e job, not the
+    // suite that every required macOS and Windows check runs.
+    expect(aggregator).toContain("'--project=unit'");
   });
 
   it('cancels superseded runs', () => {

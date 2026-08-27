@@ -191,13 +191,16 @@ describe('skip accounting', () => {
             {
               status: 'failed',
               title: 'resumes before termination',
-              ancestorTitles: ['power governor', 'hold protocol']
+              ancestorTitles: ['power governor', 'hold protocol'],
+              failureMessages: ['expected undefined to be SIGCONT\nstack follows']
             }
           ]
         }
       ]
     });
-    expect(report.failed).toEqual(['power governor > hold protocol > resumes before termination']);
+    expect(report.failed).toEqual([
+      'power governor > hold protocol > resumes before termination — expected undefined to be SIGCONT'
+    ]);
   });
 });
 

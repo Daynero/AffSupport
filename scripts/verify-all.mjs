@@ -130,6 +130,7 @@ const PHASES = {
         args: [
           vitest,
           'run',
+          '--project=unit',
           '--reporter=dot',
           '--reporter=json',
           `--outputFile.json=${SUITE_REPORT_FILE}`,
@@ -336,10 +337,20 @@ export function readSuiteReport(report) {
   const skipReasons = {};
   const unexplained = [];
   const failed = [];
-  for (const assertion of assertions.filter(assertion => assertion.status === 'failed')) {
-    failed.push(
-      [...(assertion.ancestorTitles ?? []), assertion.title ?? ''].filter(Boolean).join(' > ')
-    );
+  for (const file of results) {
+    const fileAssertions = Array.isArray(file.assertionResults) ? file.assertionResults : [];
+    for (const assertion of fileAssertions.filter(assertion => assertion.status === 'failed')) {
+      const title = [...(assertion.ancestorTitles ?? []), assertion.title ?? '']
+        .filter(Boolean)
+        .join(' > ');
+      const fileName = typeof file.name === 'string' ? path.relative(root, file.name) : '';
+      const firstMessage = Array.isArray(assertion.failureMessages)
+        ? String(assertion.failureMessages[0] ?? '').split(/\r?\n/u)[0]
+        : '';
+      failed.push(
+        [fileName, title].filter(Boolean).join(' > ') + (firstMessage ? ` — ${firstMessage}` : '')
+      );
+    }
   }
   for (const assertion of skipped) {
     const title = `${assertion.ancestorTitles?.join(' ') ?? ''} ${assertion.title ?? ''}`;
