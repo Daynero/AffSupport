@@ -52,6 +52,17 @@ describe('the content policy', () => {
     });
   });
 
+  it('is deterministic when production variables are exported', () => {
+    execFileSync('node', [path.join(root, 'scripts/generate-csp-headers.mjs'), '--check'], {
+      cwd: root,
+      env: {
+        ...process.env,
+        VITE_SUPABASE_URL: 'https://example.supabase.co'
+      },
+      stdio: 'pipe'
+    });
+  });
+
   it('forbids framing, base rewriting, plugins and form posts', () => {
     expect(directive('frame-ancestors')).toContain("'none'");
     expect(directive('base-uri')).toContain("'none'");

@@ -22,30 +22,14 @@ const INDEX = path.join(root, 'apps/web/index.html');
 const HEADERS = path.join(root, 'apps/web/public/_headers');
 
 /**
- * The backend origin the page is allowed to talk to.
+ * Supabase endpoints the page is allowed to talk to.
  *
- * The exact project URL is a build-time variable, not a committed constant, so
- * it is taken from the environment when one is present. When it is not — a
- * developer regenerating this file locally, for instance — the policy falls
- * back to the project host wildcard rather than to nothing.
- *
- * That fallback is the load-bearing decision here. An empty `connect-src` entry
- * produces a policy that is *stricter* than intended and blocks every backend
- * request, which means the page loads and then fails at sign-in for everyone —
- * a policy mistake is invisible to unit tests and total in production.
+ * Keep this generated, committed policy independent of the build machine's
+ * environment. The exact project URL is already covered by these host
+ * wildcards; adding it when VITE_SUPABASE_URL happens to be exported makes the
+ * same source tree generate different bytes locally and in CI.
  */
-function backendOrigin() {
-  const configured = process.env.VITE_SUPABASE_URL?.trim();
-  if (configured) {
-    try {
-      return new URL(configured).origin;
-    } catch {
-      process.stderr.write(`csp: VITE_SUPABASE_URL is not a URL: ${configured}\n`);
-      process.exit(1);
-    }
-  }
-  return 'https://*.supabase.co';
-}
+const SUPABASE_ORIGINS = 'https://*.supabase.co wss://*.supabase.co';
 
 /** Every inline `<script>` body in the document, in order. */
 function inlineScripts(html) {
@@ -65,8 +49,6 @@ if (scriptHashes.length === 0) {
   process.exit(1);
 }
 
-const backend = backendOrigin();
-
 /**
  * The local app, across ports.
  *
@@ -83,7 +65,7 @@ const policy = [
   // The stylesheet is a file; inline styles assigned through `element.style`
   // are CSSOM writes and are not covered by this directive.
   "style-src 'self' 'unsafe-inline'",
-  `connect-src 'self' ${backend} ${LOCAL_APP} https://*.supabase.co wss://*.supabase.co`,
+  `connect-src 'self' ${SUPABASE_ORIGINS} ${LOCAL_APP}`,
   // `data:` for an inline SVG in the stylesheet, `blob:` for a generated
   // download preview, and the avatar host for signed-in users.
   "img-src 'self' data: blob: https://lh3.googleusercontent.com",
