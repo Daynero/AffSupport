@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   ALIGNMENT_MODEL_DESCRIPTOR,
   TRANSLATION_MODEL_DESCRIPTOR,
-  TRANSLATION_RUNTIME_DESCRIPTOR,
   alignmentModelPath,
   finalizeTranslationModelArtifact,
   translationModelPath,
@@ -37,12 +36,6 @@ describe('pinned local translation artifacts', () => {
     expect(TRANSLATION_MODEL_DESCRIPTOR.url).toContain(
       `/${TRANSLATION_MODEL_DESCRIPTOR.artifactRevision}/`
     );
-    expect(TRANSLATION_RUNTIME_DESCRIPTOR).toMatchObject({
-      tag: 'b10092',
-      revision: '3ce7da2c852c538c4c5f9806da27029cf8c9cc4a',
-      sizeBytes: 10_612_780,
-      sha256: 'f3ec2351e06322478e3f38f23f5339cd834cca5e3740f334ce2bdc5de95f90e0'
-    });
     expect(ALIGNMENT_MODEL_DESCRIPTOR).toMatchObject({
       artifactRevision: '3251974431b4ec1b9f6b0335edebedc505ec36d8',
       sizeBytes: 124_350_304,

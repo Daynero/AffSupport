@@ -237,6 +237,15 @@ describe('team contract', () => {
       'utf8'
     );
     const stalePath = join(fixture, 'team_contract_seed.sql');
+    const crlfPath = join(fixture, 'team_contract_seed_crlf.sql');
+    writeFileSync(crlfPath, generated.replaceAll('\n', '\r\n'));
+    const crlf = spawnSync(
+      process.execPath,
+      ['scripts/generate-team-contract-sql.mjs', '--check', '--output', crlfPath],
+      { encoding: 'utf8' }
+    );
+    expect(crlf.status, crlf.stderr).toBe(0);
+
     writeFileSync(stalePath, generated.replace('team_contract_version', 'stale_contract_version'));
     const result = spawnSync(
       process.execPath,

@@ -167,6 +167,7 @@ describe('skip accounting', () => {
     expect(report.skipped).toBe(1);
     expect(report.skipReasons).toEqual({ ffmpeg: 1, ffprobe: 1 });
     expect(report.unexplained).toEqual([]);
+    expect(report.failed).toEqual([]);
   });
 
   it('reports a skip that carries no reason', () => {
@@ -180,6 +181,23 @@ describe('skip accounting', () => {
     // SC-007 in one line: an unexplained skip is indistinguishable from a gap,
     // so it is treated as one.
     expect(report.unexplained).toEqual(['queue flaky one']);
+  });
+
+  it('keeps exact failed test titles for bounded CI diagnostics', () => {
+    const report = readSuiteReport({
+      testResults: [
+        {
+          assertionResults: [
+            {
+              status: 'failed',
+              title: 'resumes before termination',
+              ancestorTitles: ['power governor', 'hold protocol']
+            }
+          ]
+        }
+      ]
+    });
+    expect(report.failed).toEqual(['power governor > hold protocol > resumes before termination']);
   });
 });
 

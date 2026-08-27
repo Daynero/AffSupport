@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Fastify from 'fastify';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -47,7 +48,7 @@ describe('revealing a completed transcription source', () => {
     return app;
   }
 
-  it('asks Finder to reveal the original media path, not a transcript file', async () => {
+  it('asks the platform file manager to reveal the original media path, not a transcript file', async () => {
     const app = await server();
     const response = await app.inject({
       method: 'POST',
@@ -55,7 +56,13 @@ describe('revealing a completed transcription source', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(processMock.spawn).toHaveBeenCalledWith('/usr/bin/open', ['-R', REAL_SOURCE], {
+    const expected: [string, string[]] =
+      process.platform === 'win32'
+        ? ['explorer.exe', [`/select,${REAL_SOURCE}`]]
+        : process.platform === 'darwin'
+          ? ['/usr/bin/open', ['-R', REAL_SOURCE]]
+          : ['xdg-open', [path.dirname(REAL_SOURCE)]];
+    expect(processMock.spawn).toHaveBeenCalledWith(expected[0], expected[1], {
       shell: false,
       detached: true,
       stdio: 'ignore'

@@ -180,7 +180,13 @@ if (check) {
   } catch {
     fail(`Generated team contract is out of date: ${output}`);
   }
-  if (current !== next) fail(`Generated team contract is out of date: ${output}`);
+  // Git checks text files out with CRLF on the Windows runner. The generated
+  // contract is canonical LF, so compare content rather than checkout-specific
+  // line endings; otherwise an unchanged migration is reported as stale only
+  // on Windows.
+  if (current.replaceAll('\r\n', '\n') !== next) {
+    fail(`Generated team contract is out of date: ${output}`);
+  }
   process.stdout.write(`Team contract is current: ${output}\n`);
 } else {
   writeFileSync(output, next);

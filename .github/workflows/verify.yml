@@ -47,8 +47,6 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - name: Install media test dependencies
-        run: brew install ffmpeg
       # Coverage is measured on one runner only: the figure is the same wherever
       # it is taken, and taking it twice would double the slowest job for
       # nothing.

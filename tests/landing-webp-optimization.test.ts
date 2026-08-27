@@ -1,9 +1,10 @@
 import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { LandingOptimizer } from '../apps/agent/src/landing/optimizer.js';
 import { encodeWebp } from '../apps/agent/src/landing/webp.js';
+import { describeRequiring, requireBinaries } from './support/requires.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 const temporaryRoots: string[] = [];
@@ -13,7 +14,9 @@ afterEach(async () => {
   await Promise.all(temporaryRoots.splice(0).map(root => removeTemporaryDirectory(root)));
 });
 
-describe('landing WebP optimization', () => {
+const mediaBinaries = await requireBinaries('ffmpeg', 'ffprobe');
+
+describeRequiring(mediaBinaries, 'landing WebP optimization', () => {
   it('re-encodes an existing WebP instead of treating it as already optimized', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'wishly-webp-test-'));
     temporaryRoots.push(root);

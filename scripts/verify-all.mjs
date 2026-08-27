@@ -335,6 +335,12 @@ export function readSuiteReport(report) {
   );
   const skipReasons = {};
   const unexplained = [];
+  const failed = [];
+  for (const assertion of assertions.filter(assertion => assertion.status === 'failed')) {
+    failed.push(
+      [...(assertion.ancestorTitles ?? []), assertion.title ?? ''].filter(Boolean).join(' > ')
+    );
+  }
   for (const assertion of skipped) {
     const title = `${assertion.ancestorTitles?.join(' ') ?? ''} ${assertion.title ?? ''}`;
     const marker = /\[needs:\s*([^\]]+)\]/u.exec(title);
@@ -353,7 +359,8 @@ export function readSuiteReport(report) {
     tests: assertions.length,
     skipped: skipped.length,
     skipReasons,
-    unexplained
+    unexplained,
+    failed
   };
 }
 
@@ -503,6 +510,17 @@ async function main() {
       const report = readSuiteFile();
       const unexplained = report?.unexplained ?? [];
       suite = report;
+      // Vitest's text output can contain thousands of lines, while the gate
+      // deliberately retains only a bounded tail. Its JSON report carries the
+      // exact failed test titles, so use those exact titles as the actionable
+      // diagnosis instead of forcing a second CI run just to discover names.
+      if (failure?.gate === 'suite' && report?.failed.length) {
+        failure = {
+          gate: 'suite',
+          subject: report.failed[0],
+          excerpt: report.failed
+        };
+      }
       const coverage = judgeCoverage({
         summary: readJson(COVERAGE_SUMMARY_FILE),
         baseline: readJson(COVERAGE_BASELINE_FILE),
