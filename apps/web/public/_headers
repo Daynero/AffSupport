@@ -5,7 +5,7 @@
 # generation is a build step rather than a checklist item.
 
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-w/yPmHe6ajvBilgpPVMf3220xt43Hlvasr60CKDtZmw=' 'sha256-gaORwNTb0K+tckbjPEJ3loJPJrchVW0XSv9U7DIxWoE='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co http://127.0.0.1:* http://localhost:* https://*.supabase.co wss://*.supabase.co; img-src 'self' data: blob: https://lh3.googleusercontent.com; media-src 'self' blob: http://127.0.0.1:* http://localhost:*; frame-src http://127.0.0.1:* http://localhost:*; frame-ancestors 'none'; base-uri 'none'; form-action 'none'; object-src 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-w/yPmHe6ajvBilgpPVMf3220xt43Hlvasr60CKDtZmw=' 'sha256-gaORwNTb0K+tckbjPEJ3loJPJrchVW0XSv9U7DIxWoE='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://yvvvignywfmbdgkcxtfk.supabase.co http://127.0.0.1:* http://localhost:* https://*.supabase.co wss://*.supabase.co; img-src 'self' data: blob: https://lh3.googleusercontent.com; media-src 'self' blob: http://127.0.0.1:* http://localhost:*; frame-src http://127.0.0.1:* http://localhost:*; frame-ancestors 'none'; base-uri 'none'; form-action 'none'; object-src 'none'
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
