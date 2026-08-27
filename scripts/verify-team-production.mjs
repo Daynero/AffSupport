@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import path from 'node:path';
 import { loadEnv } from 'vite';
 import {
   missingTeamProductionSecrets,
@@ -32,7 +33,7 @@ function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-const environment = loadEnv('production', process.cwd(), '');
+const environment = loadEnv('production', path.join(process.cwd(), 'apps/web'), '');
 const memberPilot = process.argv.includes('--member-pilot');
 const supabaseUrl = environment.VITE_SUPABASE_URL?.trim();
 const publishableKey = environment.VITE_SUPABASE_PUBLISHABLE_KEY?.trim();

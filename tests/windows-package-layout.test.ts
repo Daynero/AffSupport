@@ -60,9 +60,9 @@ describe('PE inspection', () => {
     expect(peMachine(Buffer.from('MZ')).ok).toBe(false);
   });
 
-  it('identifies the real macOS-bundled node as NOT a Windows x64 binary', () => {
-    // Guards against a Mach-O binary being staged into the Windows payload.
-    const macNode = readFileSync('release/Soty.app/Contents/Resources/runtime/node');
+  it('identifies a macOS Mach-O executable as NOT a Windows x64 binary', () => {
+    // Hermetic guard against a Mach-O binary being staged into the Windows payload.
+    const macNode = Buffer.from([0xcf, 0xfa, 0xed, 0xfe, 0x0c, 0, 0, 1]);
     expect(isX64Executable(macNode)).toBe(false);
   });
 });

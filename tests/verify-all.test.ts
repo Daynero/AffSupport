@@ -93,11 +93,13 @@ describe('gate lists', () => {
     expect(phasesFor('release').length).toBeGreaterThan(phasesFor('fast').length);
   });
 
-  it('narrows to a single group when CI asks for one', () => {
-    // Each CI job runs one group on one runner; a group that quietly included
-    // another phase would make two jobs do the same expensive work.
-    expect(phasesFor('fast', 'suite')).toEqual(['suite']);
-    expect(phasesFor('release', 'e2e')).toEqual(['e2e']);
+  it('includes prerequisites when CI asks for an isolated group', () => {
+    // Each job starts from a clean checkout. Shared output cannot leak from the
+    // static job, and the browser checks cannot borrow a build from another
+    // runner, so grouped invocations carry only their required prerequisites.
+    expect(phasesFor('fast', 'suite')).toEqual(['seed', 'suite']);
+    expect(phasesFor('release', 'build')).toEqual(['seed', 'build']);
+    expect(phasesFor('release', 'e2e')).toEqual(['seed', 'build', 'e2e']);
   });
 });
 

@@ -1,8 +1,9 @@
 import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import { loadEnv } from 'vite';
 import { PRODUCTION_SITE_ORIGIN } from '../packages/shared/dist/release.js';
 
-const environment = loadEnv('production', process.cwd(), '');
+const environment = loadEnv('production', path.join(process.cwd(), 'apps/web'), '');
 const memberPilot = process.argv.includes('--member-pilot');
 const identityOnly = process.argv.includes('--identity');
 const required = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_PUBLISHABLE_KEY', 'VITE_SITE_URL'];

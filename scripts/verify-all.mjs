@@ -43,7 +43,7 @@ const EXCERPT_LINE_CAP = 88;
 const SUBJECT_WITHIN_LINES = 10;
 
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+const vitest = path.join(root, 'node_modules/vitest/vitest.mjs');
 
 /** A gate that runs an npm script, which is how every existing check is spelled. */
 function script(id, name, timeoutMs, extra = {}) {
@@ -115,9 +115,12 @@ const PHASES = {
     gates: form => [
       {
         id: 'suite',
-        command: npx,
+        // Spawning npx.cmd directly with shell:false fails with EINVAL on the
+        // Windows runner. Vitest is already an installed dependency, so invoke
+        // its portable Node entry point without a command-shell intermediary.
+        command: process.execPath,
         args: [
-          'vitest',
+          vitest,
           'run',
           '--reporter=dot',
           '--reporter=json',
@@ -177,8 +180,8 @@ const PHASES = {
         // so it belongs to the phase that runs after the builds rather than to
         // the ordinary suite.
         id: 'csp:browser',
-        command: npx,
-        args: ['vitest', 'run', 'tests/csp-smoke.test.ts', '--reporter=dot'],
+        command: process.execPath,
+        args: [vitest, 'run', 'tests/csp-smoke.test.ts', '--reporter=dot'],
         timeoutMs: 600_000
       }
     ]
@@ -186,6 +189,14 @@ const PHASES = {
 };
 
 const PHASE_ORDER = ['seed', 'static', 'suite', 'build', 'e2e'];
+/** @type {Record<string, string[]>} */
+const GROUP_PHASES = {
+  static: ['seed', 'static'],
+  suite: ['seed', 'suite'],
+  build: ['seed', 'build'],
+  // The browser checks read the built site and real Agent binaries.
+  e2e: ['seed', 'build', 'e2e']
+};
 
 function parseArgs(argv) {
   const args = { form: null, json: false, gates: null, updateCoverageBaseline: false };
@@ -206,10 +217,11 @@ function parseArgs(argv) {
  * @returns {string[]}
  */
 export function phasesFor(form, group = null) {
+  const selected = group ? (GROUP_PHASES[group] ?? []) : PHASE_ORDER;
   return PHASE_ORDER.filter(name => {
+    if (!selected.includes(name)) return false;
     const phase = PHASES[name];
     if (phase.forms && !phase.forms.includes(form)) return false;
-    if (group && phase.group !== group) return false;
     return true;
   });
 }
