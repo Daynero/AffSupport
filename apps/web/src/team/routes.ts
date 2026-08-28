@@ -159,15 +159,23 @@ function aliasSection(
   switch (raw) {
     case 'files':
       return { section: 'explorer', query };
+    // Space-wide, not folder-scoped: these links used to open a gallery of
+    // everything of that kind, so scoping them to whichever folder happens to
+    // be current would make an old bookmark land on an empty screen.
     case 'landings':
       return {
         section: 'explorer',
-        query: { ...query, kinds: ['landing'], view: query.view ?? 'grid' }
+        query: { ...query, kinds: ['landing'], scope: 'space', view: query.view ?? 'grid' }
       };
     case 'creatives':
       return {
         section: 'explorer',
-        query: { ...query, kinds: ['image', 'video'], view: query.view ?? 'grid' }
+        query: {
+          ...query,
+          kinds: ['image', 'video'],
+          scope: 'space',
+          view: query.view ?? 'grid'
+        }
       };
     case 'settings':
       return { section: 'explorer', query: { ...query, settings: true } };

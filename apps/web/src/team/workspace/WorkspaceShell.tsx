@@ -74,6 +74,19 @@ export function WorkspaceShell({
   const { activeTeam, teams, revision } = useTeam();
   const agent = useOptionalAgent();
   const connectedToDrive = activeTeam?.connectionState === 'connected';
+  /**
+   * A catalog that was indexed once stays browsable even when the connection
+   * needs a person (011, FR-033). Hiding the explorer behind the state panel
+   * would take away the one thing the member came for and make an expired
+   * token look like data loss; the chip explains it and offers the fix. The
+   * list is exactly the states the chip reports as `attention`, so the two
+   * never disagree — `unavailable` reads as disconnected and keeps the panel.
+   */
+  const browsable =
+    activeTeam !== null &&
+    ['connected', 'needs_reauth', 'root_missing'].includes(activeTeam.connectionState);
+  const connectionNeedsPerson =
+    activeTeam !== null && ['needs_reauth', 'root_missing'].includes(activeTeam.connectionState);
   // One storage state for the whole space (011, FR-031): the chip in the header
   // replaces the old sync banner, and an attention state makes the explorer
   // read-only rather than letting writes fail one by one.
@@ -85,7 +98,9 @@ export function WorkspaceShell({
       activeTeam.connectionState !== 'none' &&
       activeTeam.connectionState !== 'detached'
   });
-  const storageAttention = health?.kind === 'attention';
+  // The connection state is authoritative the moment it changes; the health
+  // read confirms it a beat later. Either one makes the space read-only.
+  const storageAttention = health?.kind === 'attention' || connectionNeedsPerson;
   const [browserRevision, setBrowserRevision] = useState(0);
   const [batchDialogOpen, setBatchDialogOpen] = useState(false);
   const [taskAsset, setTaskAsset] = useState<{ ids: string[]; name: string } | null>(null);
@@ -285,9 +300,9 @@ export function WorkspaceShell({
                 openTaskId={query?.taskId ?? null}
                 onOpenTaskChange={onOpenTaskChange}
               />
-            ) : !connectedToDrive && activeTeam ? (
-              /* The connection is the reason there are no files, so say that
-             instead of showing an empty tree (finding I4). */
+            ) : !browsable && activeTeam ? (
+              /* Nothing was ever indexed, so the connection is genuinely the reason
+             there are no files (finding I4). */
               <SpaceStatePanel space={activeTeam} canManageDrive={activeTeam.role === 'owner'} />
             ) : (
               <ExplorerShell

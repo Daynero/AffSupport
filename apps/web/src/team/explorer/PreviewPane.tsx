@@ -41,6 +41,10 @@ export function PreviewPane({
   const { teamId } = useExplorer();
   const session = useThumbnailSession({ teamId, client, enabled: row !== null });
   const [render, setRender] = useState<RenderArtifactRef | null>(null);
+  const [broken, setBroken] = useState(false);
+
+  // A new row (or a new version of the same one) deserves a fresh attempt.
+  useEffect(() => setBroken(false), [row?.id, row?.driveVersion]);
 
   useEffect(() => {
     setRender(null);
@@ -62,6 +66,10 @@ export function PreviewPane({
     };
   }, [client, row, teamId]);
 
+  // A cached thumbnail can go away — an evicted entry, an expired session —
+  // and the tile already degrades to its kind glyph when that happens. The
+  // pane showed the browser's torn-page icon instead, which reads as a broken
+  // file rather than a missing preview.
   if (!row) {
     return (
       <aside className="team-explorer-pane is-empty" aria-label={t('teamExplorerPaneLabel')}>
@@ -70,14 +78,14 @@ export function PreviewPane({
     );
   }
 
-  const image = visual(row, session, render, client);
+  const image = broken ? null : visual(row, session, render, client);
   const reason = KIND_REASON[row.kind];
 
   return (
     <aside className="team-explorer-pane" aria-label={t('teamExplorerPaneLabel')}>
       <div className="team-explorer-pane-visual">
         {image ? (
-          <img src={image} alt="" decoding="async" />
+          <img src={image} alt="" decoding="async" onError={() => setBroken(true)} />
         ) : (
           <span className="team-explorer-tile-icon" aria-hidden="true">
             {KIND_ICON[row.kind]}

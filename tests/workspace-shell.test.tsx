@@ -49,4 +49,48 @@ describe('content-first workspace shell', () => {
     await user.click(screen.getByRole('link', { name: 'Space settings' }));
     expect(await screen.findByRole('heading', { name: 'Google Drive storage' })).toBeTruthy();
   });
+
+  it('keeps the indexed catalog browsable, read-only, when storage needs a person', async () => {
+    // Found in the beta run: every non-connected state fell through to the
+    // state panel, so an expired token hid the whole explorer and read as data
+    // loss. What was indexed stays visible; only the writes go dark (FR-033).
+    const team = makeTeam({ connectionState: 'needs_reauth' });
+    const client = makeClient({
+      listTeams: vi.fn().mockResolvedValue([team]),
+      listFolderPage: vi.fn().mockResolvedValue({
+        rows: [
+          {
+            id: 'material-1',
+            teamId: team.id,
+            driveFileId: 'file-1',
+            parentFolderId: null,
+            name: 'summer-lp.zip',
+            kind: 'file',
+            category: 'landing',
+            mimeType: 'application/zip',
+            fileExtension: 'zip',
+            sizeBytes: 2048,
+            modifiedAt: null,
+            driveVersion: '1',
+            previewState: 'pending',
+            thumbnailReady: false,
+            sortKey: '1|summer-lp.zip'
+          }
+        ],
+        total: 1,
+        next: null
+      }),
+      getStorageHealth: vi
+        .fn()
+        .mockResolvedValue({ kind: 'attention', reason: 'needs_reauth', fixer: 'owner' })
+    });
+    renderEnteredSpace(client, team.id);
+
+    expect(await screen.findByText('summer-lp.zip')).toBeTruthy();
+    expect(
+      screen.getByText('Read-only until storage is reconnected — nothing here is lost.')
+    ).toBeTruthy();
+    // The writes are the only thing that goes away.
+    expect(screen.queryByRole('button', { name: 'Add files' })).toBeNull();
+  });
 });

@@ -202,6 +202,12 @@ describe('the old sections, as aliases (011)', () => {
       section: 'explorer',
       query: { kinds: ['image', 'video'], view: 'grid' }
     });
+    // Found in the beta run: scoped to the current folder these opened on an
+    // empty screen, because the kind lives further down the tree. The gallery
+    // they replace listed the whole space, so the alias does too.
+    expect(parseTeamRoute('/team/space-1/landings').query.scope).toBe('space');
+    expect(parseTeamRoute('/team/space-1/creatives').query.scope).toBe('space');
+    expect(parseTeamRoute('/team/space-1/files').query.scope).toBe('folder');
     expect(parseTeamRoute('/team/space-1/settings')).toMatchObject({
       section: 'explorer',
       query: { settings: true }

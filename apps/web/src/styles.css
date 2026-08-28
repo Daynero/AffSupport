@@ -10430,14 +10430,31 @@ button,
   margin: 0;
   padding: 0;
   list-style: none;
+  /* Search moved inside the explorer's content column (011), which is far
+     narrower than the full-width page these rows were built for. The row
+     answers to the width it actually has, not the viewport's: an `auto`
+     actions column took its max-content width and squeezed the name to a
+     single character per line. */
+  container-type: inline-size;
 }
 .team-catalog-results > li {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: var(--space-3);
   border-top: 1px solid var(--color-border);
   padding-top: var(--space-3);
+}
+.team-catalog-results > li > .team-catalog-material-actions {
+  justify-content: flex-start;
+}
+@container (min-width: 34rem) {
+  .team-catalog-results > li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .team-catalog-results > li > .team-catalog-material-actions {
+    justify-content: flex-end;
+  }
 }
 .team-catalog-material-heading {
   display: flex;
@@ -13975,7 +13992,11 @@ button.team-landing-tile:hover {
 }
 .team-explorer-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  /* One column per child — checkbox, name, kind, size, actions — because the
+     row auto-placed into a second line otherwise, which read as a broken
+     table: the name sat mid-row and the size wrapped under the checkbox. The
+     reason line still spans the whole row beneath them. */
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   gap: var(--space-3);
   align-items: center;
   min-height: 40px;
@@ -14274,12 +14295,23 @@ button.team-landing-tile:hover {
 }
 
 /* Storage chip (011, US4). */
+/* The honeycomb canvas sits behind the whole app, and a bright honey cell
+   under a translucent chip washes its text out (the launcher title needed the
+   same care). Every other chip appears only occasionally; this one is always
+   there, so it paints an opaque surface first and its tone over that. */
 .team-storage-chip {
+  background-color: var(--color-surface);
   cursor: pointer;
   max-width: 28rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.team-storage-chip.ui-chip-warn {
+  background-image: linear-gradient(var(--color-warning-soft), var(--color-warning-soft));
+}
+.team-storage-chip.ui-chip-busy {
+  background-image: linear-gradient(var(--color-accent-softer), var(--color-accent-softer));
 }
 .team-storage-detail-state {
   font-weight: 600;
