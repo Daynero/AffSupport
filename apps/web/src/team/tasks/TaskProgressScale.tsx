@@ -1,4 +1,4 @@
-import { useEffect, useRef, type KeyboardEvent, type PointerEvent } from 'react';
+import { useRef, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -53,17 +53,15 @@ export function TaskProgressScale({
   };
   const percent = taskProgressPercent(value, max);
 
-  useEffect(() => {
-    const element = track.current;
-    if (!element) return;
-    element.style.setProperty('--task-progress-position', `${percent}%`);
-  }, [percent]);
-
   return (
     <div className={`team-task-progress-scale ${disabled ? 'is-disabled' : ''}`.trim()}>
       <div
         ref={track}
         className="team-task-progress-track"
+        /* Written on the element React renders, not from an effect: an effect
+           runs after paint, so every pointer move drew the knob at its previous
+           spot and it trailed the cursor by a frame. */
+        style={{ '--task-progress-position': `${percent}%` } as CSSProperties}
         role="slider"
         tabIndex={disabled ? -1 : 0}
         aria-label={label}

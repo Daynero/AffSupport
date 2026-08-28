@@ -1,8 +1,7 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { TeamTaskSummary } from '@video-compressor/shared';
 import { teamApi, type TeamMemberSummary } from '../../api/team';
 import { Button } from '../../components/ui';
-import { Modal } from '../../components/Modal';
 import { useI18n } from '../../i18n';
 import { useTeam } from '../TeamContext';
 import { attachTaskMaterialsInChunks } from './TaskAttachmentPicker';
@@ -56,15 +55,18 @@ export function TaskSpace({
   const { push } = useToasts();
   const { can, revision } = useTeam();
   const tasks = useTasks({ teamId, revision, client });
-  const [creating, setCreating] = useState(false);
-  const [title, setTitle] = useState('');
-  const [note, setNote] = useState('');
   const [members, setMembers] = useState<TeamMemberSummary[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const [creatingAssetId, setCreatingAssetId] = useState<string | null>(null);
-  /** Materials that will be attached when — and only when — the task is saved. */
-  const [stagedMaterialIds, setStagedMaterialIds] = useState<string[]>([]);
+  /**
+   * A task created by the "Create task" button and not yet given anything of
+   * its own. There is no separate form any more: the button makes the real
+   * task and opens it, so the one window a person sees is the task itself. The
+   * marker is what keeps the old promise that walking away leaves nothing
+   * behind (FR-026) — an untouched draft is removed when its editor closes.
+   */
+  const [draft, setDraft] = useState<{ id: string; touched: boolean } | null>(null);
 
   /**
    * Which task the editor is showing.
@@ -100,13 +102,72 @@ export function TaskSpace({
     };
   }, [client, revision, teamId]);
 
+  /** True when a filter is what is hiding the tasks, rather than there being none. */
+  const filtered = tasks.statusFilter !== 'all' || tasks.filter.kind !== 'all';
+
   /**
-   * A selection sent here from Files, Creatives or a landing.
-   *
-   * It opens the create form with the title prefilled and the materials
-   * *staged* — nothing is written yet. The old path called `create_team_task`
-   * the moment the button was pressed, so abandoning the editor left a stray
-   * empty task behind for someone to find later (finding R1, FR-026).
+   * Makes the task and opens it. The intermediate "name it first" dialog asked
+   * for two of the fields the editor already has, on the way to the editor.
+   */
+  const startTask = useCallback(
+    async (input: { title?: string; materialIds?: string[]; touched?: boolean } = {}) => {
+      setBusy(true);
+      setError(false);
+      try {
+        const materialIds = input.materialIds ?? [];
+        const [firstId, ...restIds] = materialIds;
+        const created = await tasks.create({
+          title: input.title ?? t('teamTaskUntitled'),
+          note: null,
+          initialMaterialId: firstId ?? null
+        });
+        if (restIds.length > 0) {
+          await attachTaskMaterialsInChunks({
+            client,
+            teamId,
+            taskId: created.id,
+            materialIds: restIds
+          });
+          await tasks.refetch();
+        }
+        setDraft({ id: created.id, touched: input.touched === true });
+        setOpenTask(created);
+      } catch {
+        setError(true);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [client, setOpenTask, t, tasks, teamId]
+  );
+
+  /**
+   * Closing the editor. A draft nobody gave anything to is removed rather than
+   * left in the list as an empty row somebody has to tidy up later.
+   */
+  const closeEditor = useCallback(
+    async (task: TeamTaskSummary) => {
+      setOpenTask(null);
+      if (!draft || draft.id !== task.id || draft.touched) {
+        setDraft(null);
+        return;
+      }
+      setDraft(null);
+      try {
+        await client.deleteTask({ teamId, taskId: task.id });
+        await tasks.refetch();
+      } catch {
+        // Leaving the empty draft visible is better than a message about a
+        // task the person never meant to make.
+        await tasks.refetch();
+      }
+    },
+    [client, draft, setOpenTask, tasks, teamId]
+  );
+
+  /**
+   * A selection sent here from Files, Creatives or a landing: the task is made
+   * with the asset's name and its materials already attached, then opened.
    */
   useEffect(() => {
     const materialIds = sourceMaterialIds(createFromAsset);
@@ -119,58 +180,13 @@ export function TaskSpace({
     )
       return;
     setCreatingAssetId(selectionKey);
-    setStagedMaterialIds(materialIds);
-    setTitle(t('teamTaskFromAssetTitle', { name: createFromAsset.name }).slice(0, 160));
-    setNote('');
-    setCreating(true);
+    void startTask({
+      title: t('teamTaskFromAssetTitle', { name: createFromAsset.name }).slice(0, 160),
+      materialIds,
+      touched: true
+    });
     onConsumedCreateFromAsset?.();
-  }, [can, createFromAsset, creatingAssetId, onConsumedCreateFromAsset, t]);
-
-  /** True when a filter is what is hiding the tasks, rather than there being none. */
-  const filtered = tasks.statusFilter !== 'all' || tasks.filter.kind !== 'all';
-
-  const cancelCreate = () => {
-    setCreating(false);
-    setTitle('');
-    setNote('');
-    setStagedMaterialIds([]);
-    setCreatingAssetId(null);
-  };
-
-  const create = async (event: FormEvent) => {
-    event.preventDefault();
-    setBusy(true);
-    setError(false);
-    try {
-      const [firstId, ...restIds] = stagedMaterialIds;
-      const created = await tasks.create({
-        title,
-        note: note || null,
-        initialMaterialId: firstId ?? null
-      });
-      // The first material seeds the task; the rest attach in one follow-up
-      // call, then the list is refetched so counts settle.
-      if (restIds.length > 0) {
-        await attachTaskMaterialsInChunks({
-          client,
-          teamId,
-          taskId: created.id,
-          materialIds: restIds
-        });
-        await tasks.refetch();
-      }
-      setCreating(false);
-      setTitle('');
-      setNote('');
-      setStagedMaterialIds([]);
-      setCreatingAssetId(null);
-      setOpenTask(created);
-    } catch {
-      setError(true);
-    } finally {
-      setBusy(false);
-    }
-  };
+  }, [can, createFromAsset, creatingAssetId, onConsumedCreateFromAsset, startTask, t]);
 
   return (
     <section className="team-panel team-task-space" aria-labelledby="team-tasks-title">
@@ -180,7 +196,7 @@ export function TaskSpace({
           <h2 id="team-tasks-title">{t('teamTasksTitle')}</h2>
         </div>
         {can('edit') && (
-          <Button type="button" variant="primary" loading={busy} onClick={() => setCreating(true)}>
+          <Button type="button" variant="primary" loading={busy} onClick={() => void startTask()}>
             {t('teamTaskCreate')}
           </Button>
         )}
@@ -206,7 +222,12 @@ export function TaskSpace({
             <>
               <p>{t('teamTasksEmpty')}</p>
               {can('edit') && (
-                <Button type="button" variant="primary" onClick={() => setCreating(true)}>
+                <Button
+                  type="button"
+                  variant="primary"
+                  loading={busy}
+                  onClick={() => void startTask()}
+                >
                   {t('teamTasksEmptyAction')}
                 </Button>
               )}
@@ -236,53 +257,6 @@ export function TaskSpace({
         </Button>
       )}
 
-      {creating && (
-        <Modal
-          labelledBy="team-task-create-title"
-          onClose={cancelCreate}
-          // No `closeLabel`: the form already carries one Cancel, and a second
-          // control with the same name is two ways to do one thing.
-          initialFocus="#new-team-task-title"
-          size="md"
-        >
-          <form className="team-dialog-form" onSubmit={event => void create(event)}>
-            <h2 id="team-task-create-title">{t('teamTaskCreate')}</h2>
-            {stagedMaterialIds.length > 0 && (
-              <p className="team-task-staged-note">
-                {t('teamTaskStagedAttachments', { count: stagedMaterialIds.length })}
-              </p>
-            )}
-            <label>
-              <span>{t('teamTaskTitle')}</span>
-              <input
-                id="new-team-task-title"
-                value={title}
-                maxLength={160}
-                required
-                onChange={event => setTitle(event.target.value)}
-              />
-            </label>
-            <label>
-              <span>{t('teamTaskDescription')}</span>
-              <textarea
-                className="team-task-description-input"
-                value={note}
-                maxLength={2_000}
-                onChange={event => setNote(event.target.value)}
-              />
-            </label>
-            <div className="team-dialog-actions">
-              <Button type="button" variant="ghost" onClick={cancelCreate}>
-                {t('teamCancel')}
-              </Button>
-              <Button type="submit" variant="primary" loading={busy}>
-                {t('teamTaskCreate')}
-              </Button>
-            </div>
-          </form>
-        </Modal>
-      )}
-
       {openTask && (
         <TaskEditor
           teamId={teamId}
@@ -290,8 +264,9 @@ export function TaskSpace({
           members={members}
           canEdit={can('edit')}
           client={client}
-          onClose={() => setOpenTask(null)}
+          onClose={() => void closeEditor(openTask)}
           onChanged={() => {
+            setDraft(current => (current ? { ...current, touched: true } : null));
             void tasks.refetch();
           }}
           onDelete={
@@ -299,6 +274,7 @@ export function TaskSpace({
               ? async task => {
                   try {
                     await client.deleteTask({ teamId, taskId: task.id });
+                    setDraft(null);
                     setOpenTask(null);
                     await tasks.refetch();
                     push({ tone: 'success', text: t('teamToastTaskDeleted') });

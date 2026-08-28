@@ -1,7 +1,48 @@
 import { useEffect, useState } from 'react';
 import type { TeamAuditEventSummary } from '../../api/team';
-import { useI18n } from '../../i18n';
+import { useI18n, type TranslationKey } from '../../i18n';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
+
+/**
+ * The history is for people, so it says what happened rather than printing the
+ * identifier the database stores. An action with no entry here still renders —
+ * its raw name is better than a blank row — but every action this application
+ * writes has one.
+ */
+const ACTION_LABEL: Readonly<Record<string, TranslationKey>> = {
+  'drive.connected': 'teamAuditDriveConnected',
+  'drive.detached': 'teamAuditDriveDetached',
+  'drive.resynced': 'teamAuditDriveResynced',
+  'invitation.accepted': 'teamAuditInvitationAccepted',
+  'invitation.created': 'teamAuditInvitationCreated',
+  'invitation.declined': 'teamAuditInvitationDeclined',
+  'invitation.resent': 'teamAuditInvitationResent',
+  'invitation.revoked': 'teamAuditInvitationRevoked',
+  'material.content_edited': 'teamAuditMaterialEdited',
+  'material.metadata_updated': 'teamAuditMaterialMetadata',
+  'material.processed': 'teamAuditMaterialProcessed',
+  'material.uploaded': 'teamAuditMaterialUploaded',
+  'material.version_created': 'teamAuditMaterialVersion',
+  'membership.direct_added': 'teamAuditMemberAdded',
+  'membership.left': 'teamAuditMemberLeft',
+  'membership.removed': 'teamAuditMemberRemoved',
+  'membership.updated': 'teamAuditMemberUpdated',
+  'task.deleted': 'teamAuditTaskDeleted',
+  'team.created': 'teamAuditTeamCreated',
+  'team.draft_deleted': 'teamAuditTeamDraftDeleted'
+};
+
+/** Sync states and roles reach the panel as their stored words. */
+const DETAIL_LABEL: Readonly<Record<string, TranslationKey>> = {
+  scanning: 'teamSyncProgressScanningShort',
+  replaying: 'teamSyncProgressReplayingShort',
+  ready: 'teamAuditDetailReady',
+  failed: 'teamAuditDetailFailed',
+  owner: 'teamRoleOwner',
+  admin: 'teamRoleAdmin',
+  editor: 'teamRoleEditor',
+  viewer: 'teamRoleViewer'
+};
 
 export interface TeamAuditClient {
   listAuditEvents: (
@@ -64,7 +105,9 @@ export function TeamAuditPanel({
           return (
             <li key={event.id}>
               <div>
-                <strong>{event.action}</strong>
+                <strong>
+                  {ACTION_LABEL[event.action] ? t(ACTION_LABEL[event.action]!) : event.action}
+                </strong>
                 <span>{event.actorLabel ?? t('teamFormerMember')}</span>
               </div>
               <span className={`team-audit-result is-${event.result}`}>
@@ -78,7 +121,11 @@ export function TeamAuditPanel({
                         : 'teamAuditFailed'
                 )}
               </span>
-              {safeDetail && <small>{safeDetail}</small>}
+              {safeDetail && (
+                <small>
+                  {DETAIL_LABEL[safeDetail] ? t(DETAIL_LABEL[safeDetail]!) : safeDetail}
+                </small>
+              )}
               {event.errorCode && <code>{event.errorCode}</code>}
               <time dateTime={event.occurredAt}>
                 {new Intl.DateTimeFormat(language, {

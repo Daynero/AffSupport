@@ -4,16 +4,10 @@ import { Button } from '../../components/ui';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { useI18n } from '../../i18n';
 import { formatSize } from '../../format';
-import {
-  DRAG_TYPE,
-  KIND_ICON,
-  KIND_LABEL,
-  KIND_REASON,
-  PREVIEWABLE_KINDS,
-  previewSummary
-} from './rowKinds';
+import { DRAG_TYPE, KIND_LABEL, KIND_REASON, PREVIEWABLE_KINDS, previewSummary } from './rowKinds';
 import { useExplorer } from './ExplorerProvider';
 import { useFolderPage, type FolderPageClient } from './useFolderPage';
+import { KindIcon } from './KindIcon';
 import { RowActions, type RowActionsProps } from './RowActions';
 
 /**
@@ -135,7 +129,7 @@ function Row({
           className="team-explorer-row-name"
           onClick={() => onOpenFolder(row.driveFileId)}
         >
-          <span aria-hidden="true">{KIND_ICON.folder}</span> {row.name}
+          <KindIcon kind="folder" /> {row.name}
         </button>
       ) : (
         <button
@@ -144,7 +138,7 @@ function Row({
           disabled={!previewable || !onPreview}
           onClick={() => onPreview?.(previewSummary(row))}
         >
-          <span aria-hidden="true">{KIND_ICON[row.kind]}</span> {row.name}
+          <KindIcon kind={row.kind} /> {row.name}
         </button>
       )}
       <span className="team-explorer-row-kind">{t(KIND_LABEL[row.kind])}</span>

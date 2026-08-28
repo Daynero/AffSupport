@@ -98,9 +98,15 @@ export function WorkspaceShell({
       activeTeam.connectionState !== 'none' &&
       activeTeam.connectionState !== 'detached'
   });
-  // The connection state is authoritative the moment it changes; the health
-  // read confirms it a beat later. Either one makes the space read-only.
-  const storageAttention = health?.kind === 'attention' || connectionNeedsPerson;
+  /**
+   * Only the reasons that actually stop a write make the space read-only. A
+   * scan that failed is not one of them: the catalog is there and the folder
+   * still accepts uploads, so taking the buttons away would punish everyone
+   * for a background job. The connection state is authoritative the moment it
+   * changes; the health read confirms it a beat later.
+   */
+  const storageAttention =
+    connectionNeedsPerson || (health?.kind === 'attention' && health.reason !== 'sync_failed');
   const [browserRevision, setBrowserRevision] = useState(0);
   const [batchDialogOpen, setBatchDialogOpen] = useState(false);
   const [taskAsset, setTaskAsset] = useState<{ ids: string[]; name: string } | null>(null);

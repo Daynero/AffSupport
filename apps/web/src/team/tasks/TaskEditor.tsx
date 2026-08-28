@@ -389,6 +389,12 @@ export function TaskEditor({
                 maxLength={160}
                 required
                 disabled={!canEdit}
+                /* A brand-new task opens with a stand-in name; selecting it
+                   means the first thing typed replaces it instead of landing
+                   after it. */
+                onFocus={event => {
+                  if (event.target.value === t('teamTaskUntitled')) event.target.select();
+                }}
                 onChange={event => setTitle(event.target.value)}
               />
             </label>

@@ -14,6 +14,7 @@ import { GoogleDriveClient } from '../_shared/drive.ts';
 import {
   errorResponse,
   mapUnknownError,
+  redactForLog,
   successResponse,
   TeamFunctionError
 } from '../_shared/errors.ts';
@@ -606,9 +607,21 @@ Deno.serve(async request => {
             })
           );
           if (detached?.delete_credential === true) {
-            await rpcValue(configured.service, 'service_delete_google_drive_credential', {
-              p_credential: detached.credential_id
-            });
+            // The folder is already detached at this point. Removing the token
+            // nobody can use any more is tidying up after that, so a failure
+            // here must not be reported as a failed disconnect: it left the
+            // owner told the server had misbehaved while the space was, in
+            // fact, disconnected — and no way to try again, because a second
+            // attempt then found nothing to detach.
+            try {
+              await rpcValue(configured.service, 'service_delete_google_drive_credential', {
+                p_credential: detached.credential_id
+              });
+            } catch (cause) {
+              console.error('drive-connect: detached, credential cleanup failed', {
+                error: redactForLog(cause instanceof Error ? cause.message : cause)
+              });
+            }
           }
           return { state: 'detached' };
         }

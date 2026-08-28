@@ -20,7 +20,7 @@ export function SettingsDialog({
 }) {
   const titleId = useId();
   return (
-    <Modal labelledBy={titleId} size="lg" onClose={onClose} className="team-settings-dialog">
+    <Modal labelledBy={titleId} size="xl" onClose={onClose} className="team-settings-dialog">
       <span id={titleId} className="visually-hidden">
         Settings
       </span>

@@ -159,7 +159,11 @@ describe('team membership management', () => {
       </TeamProvider>
     );
 
-    expect(await screen.findByText('membership.updated')).toBeTruthy();
+    // The history is read by people, so it says what happened; the stored
+    // identifier and the role token behind it never reach the page.
+    expect(await screen.findByText('Member role changed')).toBeTruthy();
+    expect(screen.getByText('Editor')).toBeTruthy();
+    expect(screen.queryByText('membership.updated')).toBeNull();
     expect(screen.getByText('Owner User')).toBeTruthy();
     expect(screen.getByText('Succeeded')).toBeTruthy();
     expect(screen.queryByText(/41000000-/)).toBeNull();

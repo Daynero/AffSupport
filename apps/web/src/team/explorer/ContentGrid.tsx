@@ -11,7 +11,8 @@ import { Button } from '../../components/ui';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { formatSize } from '../../format';
-import { DRAG_TYPE, KIND_ICON, KIND_LABEL, KIND_REASON, previewSummary } from './rowKinds';
+import { DRAG_TYPE, KIND_LABEL, KIND_REASON, previewSummary } from './rowKinds';
+import { KindIcon } from './KindIcon';
 import { RowActions, type RowActionsProps } from './RowActions';
 import { useExplorer } from './ExplorerProvider';
 import { useFolderPage, type FolderPageClient } from './useFolderPage';
@@ -196,7 +197,9 @@ function Tile({
 
   return (
     <li
-      className={`team-explorer-tile is-${row.kind}${selected ? ' is-selected' : ''}`}
+      className={`team-explorer-tile is-${row.kind}${selected ? ' is-selected' : ''}${
+        checked ? ' is-checked' : ''
+      }`}
       aria-selected={selected}
       draggable={row.kind !== 'folder'}
       onDragStart={event => {
@@ -205,14 +208,6 @@ function Tile({
       }}
       onClick={() => onSelect(row.id)}
     >
-      <input
-        type="checkbox"
-        className="team-explorer-tile-check"
-        aria-label={t('teamExplorerSelectNamed', { name: row.name })}
-        checked={checked}
-        onClick={event => event.stopPropagation()}
-        onChange={() => onToggle(row.id)}
-      />
       <button
         type="button"
         className="team-explorer-tile-visual"
@@ -228,11 +223,38 @@ function Tile({
           <img src={image} alt="" loading="lazy" decoding="async" onError={() => setBroken(true)} />
         ) : (
           <span className="team-explorer-tile-icon" aria-hidden="true">
-            {KIND_ICON[row.kind]}
+            <KindIcon kind={row.kind} />
           </span>
         )}
-        {row.kind === 'video' && <span className="team-explorer-tile-badge">▶</span>}
+        {row.kind === 'video' && image && (
+          <span className="team-explorer-tile-play" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M9 7.4v9.2l7.4-4.6z" fill="currentColor" />
+            </svg>
+          </span>
+        )}
       </button>
+      {/* Selection and the menu sit over the picture, the way every file
+          manager puts them: out of the caption, where they competed with the
+          name, and out of the flow, where the bare checkbox floated loose. */}
+      <label
+        className="team-explorer-tile-check"
+        onClick={event => event.stopPropagation()}
+        title={t('teamExplorerSelectNamed', { name: row.name })}
+      >
+        <input
+          type="checkbox"
+          aria-label={t('teamExplorerSelectNamed', { name: row.name })}
+          checked={checked}
+          onChange={() => onToggle(row.id)}
+        />
+        <span aria-hidden="true" />
+      </label>
+      {actions && row.kind !== 'folder' && (
+        <div className="team-explorer-tile-actions" onClick={event => event.stopPropagation()}>
+          <RowActions {...actions} row={row} />
+        </div>
+      )}
       <div className="team-explorer-tile-caption">
         <span className="team-explorer-tile-name" title={row.name}>
           {row.name}
@@ -247,11 +269,6 @@ function Tile({
           </span>
         )}
         {reason && <span className="team-explorer-tile-reason">{t(reason)}</span>}
-        {actions && row.kind !== 'folder' && (
-          <div className="team-explorer-row-actions" onClick={event => event.stopPropagation()}>
-            <RowActions {...actions} row={row} />
-          </div>
-        )}
       </div>
     </li>
   );

@@ -83,6 +83,42 @@ function Chevron({ direction }: { direction: 'left' | 'right' }) {
 
 const statuses: readonly TaskStatusFilter[] = ['todo', 'in_progress', 'done', 'all'];
 
+/**
+ * The ranges people actually ask for, one press each. The calendar answers
+ * everything else, but reaching it for "today" was four interactions for the
+ * commonest question there is.
+ */
+type QuickRange = 'today' | 'yesterday' | 'month' | 'all';
+
+function quickRangeValue(range: Exclude<QuickRange, 'all'>, now: Date): TaskDateFilter {
+  if (range === 'today') {
+    const today = localDateValue(now);
+    return { kind: 'range', from: today, to: today };
+  }
+  if (range === 'yesterday') {
+    const yesterday = localDateValue(
+      new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 12)
+    );
+    return { kind: 'range', from: yesterday, to: yesterday };
+  }
+  return {
+    kind: 'range',
+    from: localDateValue(new Date(now.getFullYear(), now.getMonth(), 1, 12)),
+    to: localDateValue(now)
+  };
+}
+
+function activeQuickRange(value: TaskDateFilter, now: Date): QuickRange | null {
+  if (value.kind === 'all') return 'all';
+  for (const range of ['today', 'yesterday', 'month'] as const) {
+    const candidate = quickRangeValue(range, now);
+    if (candidate.kind === 'range' && candidate.from === value.from && candidate.to === value.to) {
+      return range;
+    }
+  }
+  return null;
+}
+
 export function TaskDateFilterControl({
   value,
   onChange,
@@ -138,8 +174,36 @@ export function TaskDateFilterControl({
     setOpen(false);
   };
 
+  const now = new Date();
+  const quick = activeQuickRange(value, now);
+  const quickRanges: ReadonlyArray<{ range: QuickRange; label: string }> = [
+    { range: 'today', label: t('teamTasksToday') },
+    { range: 'yesterday', label: t('teamTasksYesterday') },
+    { range: 'month', label: t('teamTasksThisMonth') },
+    { range: 'all', label: t('teamTasksAllTime') }
+  ];
+
   return (
     <div className="task-date-filter" aria-label={t('teamTasksDateFilter')}>
+      <div className="task-quick-ranges">
+        {quickRanges.map(option => (
+          <button
+            key={option.range}
+            type="button"
+            className={`task-quick-range ${quick === option.range ? 'is-active' : ''}`.trim()}
+            aria-pressed={quick === option.range}
+            onClick={() => {
+              setPendingStart(null);
+              setOpen(false);
+              onChange(
+                option.range === 'all' ? { kind: 'all' } : quickRangeValue(option.range, new Date())
+              );
+            }}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
       <div ref={root} className="task-date-filter-calendar">
         <button
           type="button"

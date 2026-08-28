@@ -122,8 +122,42 @@ describe('get_team_storage_health', () => {
     expect(typeof value.lastReconciledAt).toBe('string');
   });
 
+  it('stops claiming progress when the scan has stopped moving', async () => {
+    // Found in the beta run: a queued job whose worker never ran left the chip
+    // spinning "Indexing…" with nothing to act on, for as long as anyone
+    // watched it.
+    const { teamId, connectionId } = await makeSpace('Health stalled');
+    await addMaterial(teamId, connectionId!, { id: 'f9', kind: 'folder' });
+    await harness.root(
+      `update public.team_drive_connections set initial_sync_state = 'scanning' where id = $1`,
+      [connectionId]
+    );
+    await harness.root(
+      `insert into private.catalog_sync_jobs (connection_id, phase, state, updated_at)
+       values ($1, 'initial_scan', 'pending', clock_timestamp() - interval '40 minutes')`,
+      [connectionId]
+    );
+    expect(await health(teamId)).toEqual({
+      kind: 'attention',
+      reason: 'sync_failed',
+      fixer: 'manager'
+    });
+
+    // A job that is being worked on right now still reads as indexing.
+    await harness.root(
+      `update private.catalog_sync_jobs set updated_at = clock_timestamp() where connection_id = $1`,
+      [connectionId]
+    );
+    expect((await health(teamId)).kind).toBe('indexing');
+  });
+
   it('is indexing while any folder has not been listed', async () => {
     const { teamId, connectionId } = await makeSpace('Health indexing');
+    await harness.root(
+      `insert into private.catalog_sync_jobs (connection_id, phase, state, updated_at)
+       values ($1, 'initial_scan', 'pending', clock_timestamp())`,
+      [connectionId]
+    );
     await addMaterial(teamId, connectionId!, { id: 'f1', kind: 'folder', indexed: true });
     await addMaterial(teamId, connectionId!, { id: 'f2', kind: 'folder' });
     await addMaterial(teamId, connectionId!, { id: 'i1', kind: 'image', thumb: 'pending' });

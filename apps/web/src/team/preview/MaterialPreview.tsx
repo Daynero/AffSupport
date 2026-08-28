@@ -14,6 +14,7 @@ import {
 import { teamApi } from '../../api/team';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
+import { teamErrorMessage } from '../errors';
 import { LandingPreviewFrame, type LandingPreviewView } from './LandingPreviewFrame';
 import { PreviewUnavailable } from './PreviewUnavailable';
 import { Modal } from '../../components/Modal';
@@ -228,13 +229,18 @@ export function MaterialPreview({
         {state.kind === 'loading' && <p aria-live="polite">{t('teamPreviewLoading')}</p>}
         {state.kind === 'error' && (
           <p className="team-inline-error" role="alert">
+            {/* The three cases with their own advice keep it; everything else asks
+                the shared map for a sentence rather than falling back to "could
+                not prepare", which told a person nothing they could act on. */}
             {state.code === 'PERMISSION_DENIED'
               ? t('teamPreviewPermissionLost')
               : state.code === 'AGENT_UPDATE_REQUIRED'
                 ? t('teamPreviewAgentUpdateRequired')
                 : state.code === 'PAIRING_REQUIRED' || state.code === 'CONNECTION_FAILED'
                   ? t('teamPreviewAgentRequired')
-                  : t('teamPreviewLoadFailed')}
+                  : state.code
+                    ? teamErrorMessage(state.code, t)
+                    : t('teamPreviewLoadFailed')}
           </p>
         )}
         {state.kind === 'media' && (

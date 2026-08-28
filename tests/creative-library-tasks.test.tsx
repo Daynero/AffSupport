@@ -1,13 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import {
-  cleanup,
-  fireEvent,
-  render as renderRaw,
-  screen,
-  waitFor,
-  within
-} from '@testing-library/react';
+import { cleanup, fireEvent, render as renderRaw, screen, waitFor } from '@testing-library/react';
 import { DEFAULT_ROLE_PERMISSIONS, type TeamTaskAttachmentSummary } from '@video-compressor/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
@@ -480,7 +473,7 @@ describe('Creative Library task workflows', () => {
     expect(roots[0].id).toBe('team-task-picker-root');
   });
 
-  it('stages an asset into the create form and writes nothing until it is saved', async () => {
+  it('sends an asset straight into a real task, attached and open', async () => {
     localStorage.setItem('wishly.active-team.v1', TEAM_ID);
     const api = client();
     const team = {
@@ -499,26 +492,20 @@ describe('Creative Library task workflows', () => {
         />
       </TeamProvider>
     );
-    // The form opens prefilled, and nothing has been written yet: abandoning
-    // here used to leave a stray empty task behind (finding R1).
-    const title = await screen.findByLabelText('Title');
-    expect((title as HTMLInputElement).value).toContain('launch.mp4');
-    expect(screen.getByText('1 file will be attached when you save')).toBeTruthy();
-    expect(api.createTask).not.toHaveBeenCalled();
 
-    // The dialog's own submit, not the header button that opened it.
-    await userEvent.click(
-      within(screen.getByRole('dialog')).getByRole('button', { name: 'Create task' })
-    );
+    // No "name it first" step: the task exists, carries the asset, and the one
+    // window that opens is the task itself.
     await waitFor(() =>
       expect(api.createTask).toHaveBeenCalledWith(
         expect.objectContaining({ teamId: TEAM_ID, initialMaterialId: ASSET_ID })
       )
     );
     expect(await screen.findByRole('heading', { name: 'Task details' })).toBeTruthy();
+    const title = await screen.findByLabelText('Title');
+    expect((title as HTMLInputElement).value).toContain('launch.mp4');
   });
 
-  it('leaves nothing behind when the create form is cancelled', async () => {
+  it('opens a new task at once and removes it again if nothing was given to it', async () => {
     localStorage.setItem('wishly.active-team.v1', TEAM_ID);
     const api = client();
     const team = {
@@ -535,12 +522,13 @@ describe('Creative Library task workflows', () => {
     );
 
     await userEvent.click(await screen.findByRole('button', { name: 'Create task' }));
-    await userEvent.type(await screen.findByLabelText('Title'), 'Abandoned');
-    await userEvent.click(
-      within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' })
-    );
+    expect(await screen.findByRole('heading', { name: 'Task details' })).toBeTruthy();
+    await waitFor(() => expect(api.createTask).toHaveBeenCalledOnce());
 
-    expect(api.createTask).not.toHaveBeenCalled();
+    // Closing an untouched draft takes it away again, so walking out of the
+    // editor still leaves nothing behind (FR-026).
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(api.deleteTask).toHaveBeenCalledOnce());
     await waitFor(() => expect(screen.queryByLabelText('Title')).toBeNull());
   });
 });

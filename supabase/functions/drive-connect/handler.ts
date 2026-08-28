@@ -90,7 +90,26 @@ export interface DriveConnectDependencies {
   deleteDriveFile?: (id: string) => Promise<unknown>;
 }
 
-function requireGate(dependencies: DriveConnectDependencies): void {
+/**
+ * The gate exists so an environment Google has not approved cannot mint new
+ * grants. It has nothing to say about giving one up: refusing `detach` because
+ * Google has not approved the app left an owner unable to disconnect a folder
+ * they had already connected, with a message about approval that made no sense
+ * for what they asked. Letting go never needs permission.
+ */
+const GATED_ACTIONS: ReadonlySet<DriveConnectCommand['action']> = new Set([
+  'start',
+  'reauth',
+  'confirm',
+  'replace',
+  'choose_root'
+]);
+
+function requireGate(
+  action: DriveConnectCommand['action'],
+  dependencies: DriveConnectDependencies
+): void {
+  if (!GATED_ACTIONS.has(action)) return;
   const gate = evaluateDriveOAuthGate(dependencies.oauthMode, dependencies.signals);
   if (!gate.allowed) {
     throw new TeamFunctionError('OAUTH_APPROVAL_REQUIRED', {
@@ -104,7 +123,7 @@ export async function executeDriveConnectCommand(
   command: DriveConnectCommand,
   dependencies: DriveConnectDependencies
 ): Promise<unknown> {
-  requireGate(dependencies);
+  requireGate(command.action, dependencies);
 
   if (command.action === 'start' || command.action === 'reauth') {
     if (!dependencies.createOAuthTransaction) {

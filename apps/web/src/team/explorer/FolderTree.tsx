@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import type { TeamFolderNode } from '@video-compressor/shared';
 import { useI18n } from '../../i18n';
+import { KindIcon } from './KindIcon';
 import { useExplorer } from './ExplorerProvider';
 import { DRAG_TYPE } from './rowKinds';
 
@@ -174,7 +175,7 @@ export function FolderTree({
                 tabIndex={-1}
                 onClick={() => openFolder(id)}
               >
-                <span aria-hidden="true">📁</span> {node.name}
+                <KindIcon kind="folder" /> {node.name}
               </button>
               <span
                 className="team-explorer-tree-count"
@@ -183,7 +184,12 @@ export function FolderTree({
                   files: node.childFileCount
                 })}
               >
-                {node.indexedAt === null ? t('teamExplorerListing') : node.childFileCount}
+                {node.indexedAt === null
+                  ? t('teamExplorerListing')
+                  : /* Everything inside, not files alone: a folder holding two
+                       sub-folders and no loose files read as "0", which says
+                       empty when it is not. Nothing is shown when it truly is. */
+                    node.childFolderCount + node.childFileCount || ''}
               </span>
             </div>
             {hasChildren &&

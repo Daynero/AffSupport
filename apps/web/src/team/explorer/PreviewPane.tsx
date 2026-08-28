@@ -9,7 +9,8 @@ import type { TeamMaterialSummary } from '../../api/team';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
 import { formatSize } from '../../format';
-import { KIND_ICON, KIND_LABEL, KIND_REASON, PREVIEWABLE_KINDS, previewSummary } from './rowKinds';
+import { KIND_LABEL, KIND_REASON, PREVIEWABLE_KINDS, previewSummary } from './rowKinds';
+import { KindIcon } from './KindIcon';
 import { useExplorer } from './ExplorerProvider';
 import { useThumbnailSession, type ThumbnailSessionClient } from './useThumbnailSession';
 
@@ -88,7 +89,7 @@ export function PreviewPane({
           <img src={image} alt="" decoding="async" onError={() => setBroken(true)} />
         ) : (
           <span className="team-explorer-tile-icon" aria-hidden="true">
-            {KIND_ICON[row.kind]}
+            <KindIcon kind={row.kind} />
           </span>
         )}
       </div>

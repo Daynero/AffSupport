@@ -92,6 +92,29 @@ describe('Drive OAuth release gate', () => {
     expect(Object.values(effects).every(effect => effect.mock.calls.length === 0)).toBe(true);
   });
 
+  it('lets an owner detach a folder in an environment Google has not approved', async () => {
+    // Found in the beta run: the gate wrapped every action, so disconnecting a
+    // folder was refused with "Google must approve this access" — advice that
+    // could not be acted on and had nothing to do with giving a grant up.
+    const mutateConnection = vi.fn(async () => ({ state: 'detached' }));
+    const result = await executeDriveConnectCommand(
+      {
+        action: 'detach',
+        teamId: '20000000-0000-4000-8000-000000000001',
+        confirmed: true,
+        idempotencyKey: 'detach-key-1'
+      },
+      {
+        oauthMode: 'testing',
+        signals: { ...localSignals, requestOrigin: productionOrigin },
+        mutateConnection
+      }
+    );
+
+    expect(result).toEqual({ state: 'detached' });
+    expect(mutateConnection).toHaveBeenCalledOnce();
+  });
+
   it('reports production ready only when every Team Workspace provider is configured', () => {
     const signals = { siteUrl: productionOrigin, requestOrigin: productionOrigin };
     const complete = {

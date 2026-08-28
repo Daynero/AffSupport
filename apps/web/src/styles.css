@@ -5863,6 +5863,7 @@ body:has(.public-home) {
    what turns `overflow-y: auto` into a horizontal scrollbar. The rest of the
    fit rules are shared with every other dialog further down. */
 .modal {
+  --modal-padding: 36px;
   position: relative;
   display: grid;
   gap: 24px;
@@ -5870,7 +5871,7 @@ body:has(.public-home) {
   width: min(100%, var(--modal-width, var(--dialog-md)));
   max-height: calc(100vh - 48px);
   overflow-y: auto;
-  padding: 36px;
+  padding: var(--modal-padding);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-xl);
   background: var(--color-surface);
@@ -9532,9 +9533,10 @@ body:has(.public-home) {
 .team-inline-actions,
 .team-member-limit {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
+  align-items: baseline;
   justify-content: space-between;
-  gap: var(--space-3);
+  gap: var(--space-2) var(--space-3);
 }
 .team-workspace-header {
   margin-bottom: var(--space-6);
@@ -9623,10 +9625,18 @@ body:has(.public-home) {
 }
 .team-invite-form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(120px, 0.35fr) auto;
+  /* Stacked until the card is genuinely wide enough for a row: three tracks in
+     a narrow panel squeezed the address label to one letter per line. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
   align-items: end;
   margin-top: var(--space-4);
+  container-type: inline-size;
+}
+@container (min-width: 30rem) {
+  .team-invite-form {
+    grid-template-columns: minmax(0, 1fr) minmax(120px, 0.35fr) auto;
+  }
 }
 .team-test-mode-note {
   margin: var(--space-3) 0 0;
@@ -10183,6 +10193,10 @@ body:has(.public-home) {
   display: grid;
   gap: var(--space-4);
   min-width: 0;
+  /* Settings is a dialog now (011), so its panels must answer to the dialog's
+     width. Keyed to the viewport they split into two columns inside a box that
+     was never that wide, and every heading broke mid-word. */
+  container-type: inline-size;
 }
 .team-space-settings-header {
   display: flex;
@@ -10201,7 +10215,7 @@ body:has(.public-home) {
 .team-space-settings-grid > * {
   min-width: 0;
 }
-@media (min-width: 1180px) {
+@container (min-width: 56rem) {
   .team-space-settings-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: start;
@@ -10319,10 +10333,19 @@ button,
   gap: var(--space-2);
   margin: var(--space-3) 0 0;
 }
+.team-role-guide {
+  container-type: inline-size;
+}
 .team-role-guide dl > div {
   display: grid;
-  grid-template-columns: minmax(92px, 0.3fr) 1fr;
-  gap: var(--space-2);
+  gap: var(--space-1);
+}
+/* Role name beside its description only where the name fits on one line. */
+@container (min-width: 26rem) {
+  .team-role-guide dl > div {
+    grid-template-columns: minmax(92px, 0.3fr) 1fr;
+    gap: var(--space-2);
+  }
 }
 .team-role-guide dt {
   font-weight: 700;
@@ -11650,7 +11673,14 @@ body {
   position: relative;
   height: 10px;
   border-radius: 999px;
-  background: linear-gradient(90deg, #dc2626 0%, #f59e0b 50%, #16a34a 100%);
+  /* Two flat colours meeting at the knob, no blend: what is left to do reads
+     red, what is done reads green, and the boundary is exactly where the
+     handle sits rather than somewhere inside a wash of amber. */
+  background: linear-gradient(
+    90deg,
+    #dc2626 0 var(--task-progress-position),
+    #16a34a var(--task-progress-position) 100%
+  );
   box-shadow: inset 0 0 0 1px color-mix(in oklab, #000 16%, transparent);
   cursor: pointer;
   touch-action: none;
@@ -13686,6 +13716,11 @@ button.team-landing-tile:hover {
   display: grid;
   gap: var(--space-1);
 }
+/* A menu reads down its left edge; centred items made it a list of headings. */
+.team-row-menu-panel .team-material-action-buttons > button {
+  justify-content: flex-start;
+  text-align: left;
+}
 
 .team-folder-picker-trail {
   display: flex;
@@ -13943,10 +13978,20 @@ button.team-landing-tile:hover {
   gap: var(--space-3);
   min-width: 0;
 }
+.team-explorer-breadcrumb {
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+/* One line, always. Wrapping made the toolbar taller for a deep folder than a
+   shallow one, so the whole grid of files jumped up or down on every step into
+   or out of a folder. A long path scrolls sideways instead. */
 .team-explorer-breadcrumb ol {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
   align-items: center;
+  min-height: 32px;
   gap: var(--space-1);
   list-style: none;
   margin: 0;
@@ -13957,13 +14002,17 @@ button.team-landing-tile:hover {
   align-items: center;
   gap: var(--space-1);
 }
+/* A path segment is a link, not one of the page's large controls: at the
+   global 44px the row was taller whenever an ancestor was clickable, so
+   stepping into a folder moved every file below it. */
 .team-explorer-breadcrumb button {
+  min-height: 26px;
   border: 0;
   background: transparent;
   color: var(--color-accent);
   font: inherit;
   cursor: pointer;
-  padding: var(--space-1);
+  padding: 0 var(--space-1);
   border-radius: var(--radius-sm);
 }
 .team-explorer-breadcrumb [aria-current='location'] {
@@ -14067,47 +14116,103 @@ button.team-landing-tile:hover {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2) var(--space-3);
   flex-wrap: wrap;
+  /* The row's own height, independent of how deep the open folder is. */
+  min-height: 40px;
 }
+.team-explorer-breadcrumb ol::-webkit-scrollbar {
+  display: none;
+}
+.team-explorer-breadcrumb li {
+  flex: 0 0 auto;
+}
+/* Takes the rest of the row so the view control can sit at its far end; when
+   the breadcrumb wraps to its own line the actions still span the width. */
+.team-explorer-toolbar-actions {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+/* Sits at the end of the toolbar, reads as one control rather than two loose
+   buttons wedged between the actions. */
 .team-explorer-view-toggle {
   display: inline-flex;
+  margin-left: auto;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+  padding: 2px;
+  gap: 2px;
 }
 .team-explorer-view-toggle button {
+  min-height: 30px;
   border: 0;
+  border-radius: 999px;
   background: transparent;
   color: var(--color-text-muted);
   font: inherit;
-  padding: var(--space-1) var(--space-3);
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0 var(--space-3);
   cursor: pointer;
 }
-.team-explorer-view-toggle button[aria-pressed='true'] {
-  background: var(--color-accent-softer);
+.team-explorer-view-toggle button:hover {
   color: var(--color-text);
+}
+.team-explorer-view-toggle button[aria-pressed='true'] {
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-sm);
 }
 .team-explorer-grid {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(184px, 1fr));
   gap: var(--space-3);
 }
 .team-explorer-tile {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
-  overflow: hidden;
+  /* Not `hidden`: the row menu is absolutely positioned inside the tile, and
+     clipping it meant the button opened a panel nobody could see. Only the
+     picture needs clipping, and it does its own. */
+  overflow: visible;
+  transition:
+    border-color var(--dur-control) var(--ease-standard),
+    transform var(--dur-control) var(--ease-standard),
+    box-shadow var(--dur-control) var(--ease-standard);
+}
+.team-explorer-tile:hover {
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-sm);
+}
+.team-explorer-tile:focus-within {
+  border-color: var(--color-accent);
 }
 .team-explorer-tile.is-selected {
-  outline: 2px solid var(--color-accent);
-  outline-offset: -2px;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+/* A folder has no picture to show, so it does not need a picture's worth of
+   height: full-size preview boxes full of the same glyph made a folder list
+   scroll for no reason. */
+.team-explorer-tile.is-folder .team-explorer-tile-visual {
+  aspect-ratio: auto;
+  height: 74px;
+}
+.team-explorer-tile.is-folder .team-explorer-tile-icon .team-kind-icon {
+  width: 28px;
+  height: 28px;
+  color: var(--color-accent);
 }
 .team-explorer-tile-visual {
   position: relative;
@@ -14116,7 +14221,9 @@ button.team-landing-tile:hover {
   aspect-ratio: 4 / 3;
   width: 100%;
   border: 0;
+  border-radius: calc(var(--radius-md) - 1px) calc(var(--radius-md) - 1px) 0 0;
   padding: 0;
+  overflow: hidden;
   background: var(--color-surface-muted);
   cursor: pointer;
 }
@@ -14127,29 +14234,137 @@ button.team-landing-tile:hover {
   display: block;
 }
 .team-explorer-tile-icon {
-  font-size: 2rem;
+  display: grid;
+  place-items: center;
+  color: var(--color-text-muted);
 }
-.team-explorer-tile-badge {
+.team-kind-icon {
+  width: 1em;
+  height: 1em;
+  flex: 0 0 auto;
+}
+.team-explorer-tile-icon .team-kind-icon {
+  width: 34px;
+  height: 34px;
+}
+/* A play mark belongs over the frame it plays, centred, and only when there is
+   a frame — on the fallback glyph it was a second icon saying the same thing. */
+.team-explorer-tile-play {
   position: absolute;
-  right: var(--space-2);
-  bottom: var(--space-2);
-  padding: 0 var(--space-1);
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: color-mix(in srgb, #000 55%, transparent);
+  color: #fff;
+  pointer-events: none;
+}
+.team-explorer-tile-play svg {
+  width: 22px;
+  height: 22px;
+}
+/* Selection and the menu live over the picture and stay out of the way until
+   the tile is pointed at, focused, or already part of a selection. */
+.team-explorer-tile-check,
+.team-explorer-tile-actions {
+  position: absolute;
+  top: var(--space-1);
+  z-index: 1;
+  opacity: 0;
+  transition: opacity var(--dur-control) var(--ease-standard);
+}
+.team-explorer-tile-check {
+  left: var(--space-1);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.team-explorer-tile-actions {
+  right: var(--space-1);
+}
+.team-explorer-tile:hover .team-explorer-tile-check,
+.team-explorer-tile:hover .team-explorer-tile-actions,
+.team-explorer-tile:focus-within .team-explorer-tile-check,
+.team-explorer-tile:focus-within .team-explorer-tile-actions,
+.team-explorer-tile.is-selected .team-explorer-tile-check,
+.team-explorer-tile.is-selected .team-explorer-tile-actions,
+.team-explorer-tile.is-checked .team-explorer-tile-check {
+  opacity: 1;
+}
+.team-explorer-tile-check input {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.team-explorer-tile-check > span {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
+}
+.team-explorer-tile-check > span::after {
+  content: '';
+  width: 10px;
+  height: 6px;
+  border: 2px solid var(--color-on-accent, #fff);
+  border-top: 0;
+  border-right: 0;
+  transform: translateY(-1px) rotate(-45deg);
+  opacity: 0;
+}
+.team-explorer-tile-check input:checked + span {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+}
+.team-explorer-tile-check input:checked + span::after {
+  opacity: 1;
+}
+.team-explorer-tile-check input:focus-visible + span {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+/* The menu trigger is an icon button on the picture, not a word in the caption
+   competing with the file's own name. */
+.team-explorer-tile-actions .team-row-menu > button {
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-size: 0;
+}
+.team-explorer-tile-actions .team-row-menu > button::before {
+  content: '···';
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 1px;
   color: var(--color-text);
-  font-size: 0.8em;
 }
 .team-explorer-tile-caption {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: var(--space-1) var(--space-2) var(--space-2);
+  padding: var(--space-2);
   min-width: 0;
 }
 .team-explorer-tile-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+  line-height: 1.3;
 }
 .team-explorer-tile-meta,
 .team-explorer-tile-reason,
@@ -14258,10 +14473,14 @@ button.team-landing-tile:hover {
   font-size: 0.85em;
 }
 .team-settings-dialog .team-space-settings-header {
+  /* Spans the dialog's own padding, or the rows scrolling past show through
+     the strip above the bar and the title sits on top of the history. */
   position: sticky;
-  top: 0;
+  top: calc(-1 * var(--modal-padding, 36px));
+  margin: calc(-1 * var(--modal-padding, 36px)) calc(-1 * var(--modal-padding, 36px)) 0;
+  padding: var(--modal-padding, 36px) var(--modal-padding, 36px) var(--space-3);
   background: var(--color-surface);
-  z-index: 1;
+  z-index: 2;
 }
 .team-explorer-folders-toggle {
   display: none;
@@ -14322,4 +14541,54 @@ button.team-landing-tile:hover {
   border: 1px solid var(--color-warning);
   border-radius: var(--radius-sm);
   color: var(--color-text-muted);
+}
+
+/* Quick date ranges for tasks: one press for the questions people ask daily. */
+.task-quick-ranges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.task-quick-range {
+  min-height: 32px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  padding: 0 var(--space-3);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.task-quick-range:hover {
+  color: var(--color-text);
+}
+.task-quick-range.is-active {
+  border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-border));
+  background: var(--color-accent-softer);
+  color: var(--color-accent-active);
+}
+
+/* The list row's kind glyph, at text size. */
+.team-explorer-row-name .team-kind-icon {
+  width: 17px;
+  height: 17px;
+  margin-right: 6px;
+  vertical-align: -3px;
+  color: var(--color-text-muted);
+}
+.team-explorer-pane-visual .team-kind-icon {
+  width: 44px;
+  height: 44px;
+  color: var(--color-text-muted);
+}
+
+/* The tree's own folder glyph, at label size. */
+.team-explorer-tree .team-kind-icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  vertical-align: -3px;
+  color: var(--color-accent);
 }
