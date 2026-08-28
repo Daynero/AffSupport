@@ -84,6 +84,13 @@ process.env.WHISPER_PATH = await writeStubTool(workspace, 'stub-whisper', {
   behaviourFile: whisperBehaviour,
   hang: true
 });
+// Transcription deliberately refuses to enter `processing` until its model is
+// present. A developer machine may already have the real 3 GB model downloaded,
+// but a clean CI runner does not; use a tiny fixture because the stub binary
+// never reads model contents.
+const whisperModel = path.join(workspace, 'ggml-large-v3.bin');
+await writeFile(whisperModel, 'test model', 'utf8');
+process.env.WHISPER_MODEL_PATH = whisperModel;
 
 /** Points the whisper stand-in at one behaviour for the next run. */
 async function whisperBehaves(behaviour: Behaviour): Promise<void> {
