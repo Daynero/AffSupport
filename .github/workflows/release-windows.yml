@@ -43,6 +43,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install media test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends ffmpeg libarchive-tools
+
       # The whole suite, not a list of fifteen files.
       #
       # That list existed because there was no way to say "this test needs a
