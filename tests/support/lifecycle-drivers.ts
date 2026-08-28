@@ -591,7 +591,7 @@ const TRANSCRIPTION_DRIVERS: DriverMap = {
   'ready->queued': async () => {
     const { queue } = await seededTranscription([{ id: 'starting', status: 'ready' }]);
     const result = await transcriptionEdge('queued', () => queue.start(['starting']));
-    queue.cancelAll();
+    await queue.cancelAll();
     await queue.shutdown();
     return result;
   },
@@ -599,7 +599,7 @@ const TRANSCRIPTION_DRIVERS: DriverMap = {
   'queued->processing': async () => {
     const { queue } = await seededTranscription([{ id: 'running', status: 'ready' }]);
     const result = await transcriptionEdge('processing', () => queue.start(['running']));
-    queue.cancelAll();
+    await queue.cancelAll();
     await queue.shutdown();
     return result;
   },
@@ -618,7 +618,7 @@ const TRANSCRIPTION_DRIVERS: DriverMap = {
       await waitFor(() => queue.state().jobs[0]?.status === 'processing', {
         describe: 'the transcription to start'
       });
-      queue.cancel('stopping');
+      await queue.cancel('stopping');
     });
     await queue.shutdown();
     return result;
@@ -627,7 +627,7 @@ const TRANSCRIPTION_DRIVERS: DriverMap = {
   'completed->queued': async () => {
     const { queue } = await seededTranscription([{ id: 'again', status: 'completed' }]);
     const result = await transcriptionEdge('queued', () => queue.start(['again']));
-    queue.cancelAll();
+    await queue.cancelAll();
     await queue.shutdown();
     return result;
   },
@@ -635,7 +635,7 @@ const TRANSCRIPTION_DRIVERS: DriverMap = {
   'failed->queued': async () => {
     const { queue } = await seededTranscription([{ id: 'retrying', status: 'failed' }]);
     const result = await transcriptionEdge('queued', () => queue.retry('retrying'));
-    queue.cancelAll();
+    await queue.cancelAll();
     await queue.shutdown();
     return result;
   },
@@ -643,7 +643,7 @@ const TRANSCRIPTION_DRIVERS: DriverMap = {
   'cancelled->queued': async () => {
     const { queue } = await seededTranscription([{ id: 'rerunning', status: 'cancelled' }]);
     const result = await transcriptionEdge('queued', () => queue.retry('rerunning'));
-    queue.cancelAll();
+    await queue.cancelAll();
     await queue.shutdown();
     return result;
   },
@@ -651,7 +651,7 @@ const TRANSCRIPTION_DRIVERS: DriverMap = {
   'interrupted->queued': async () => {
     const { queue } = await seededTranscription([{ id: 'resuming', status: 'interrupted' }]);
     const result = await transcriptionEdge('queued', () => queue.retry('resuming'));
-    queue.cancelAll();
+    await queue.cancelAll();
     await queue.shutdown();
     return result;
   },

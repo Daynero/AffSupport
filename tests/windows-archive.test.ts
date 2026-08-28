@@ -14,11 +14,10 @@ import {
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 /**
- * The archive helpers take a different branch on Windows: macOS uses `ditto`,
- * everything else uses bsdtar (`tar.exe`, bundled since Windows 10 1803). The
- * bsdtar branch cannot be exercised by running on macOS, so these tests drive
- * bsdtar directly — the same binary and arguments the win32 branch would use —
- * and assert the round trip a Windows agent depends on.
+ * ZIP creation and extraction take a different branch on Windows so entry
+ * names are independent of the console code page. The tests select that branch
+ * explicitly even on macOS, then assert the round trip a Windows agent needs.
+ * bsdtar remains the shared system reader for listing ZIP and tar.gz entries.
  */
 const bsdtar = process.platform === 'darwin' ? '/usr/bin/tar' : 'tar';
 const realPlatform = process.platform;
@@ -44,15 +43,15 @@ async function sampleTree(root: string) {
   return payload;
 }
 
-describe('zip round trip on the bsdtar branch', () => {
+describe('zip round trip on the Windows branch', () => {
   it('writes an archive whose single top-level entry is the directory itself', async () => {
     const root = await workspace();
     const payload = await sampleTree(root);
     const archive = path.join(root, 'payload.zip');
 
-    // zipDirectory takes the ditto branch on macOS; assert the bsdtar branch
-    // produces the layout the agent's callers rely on.
-    execFileSync(bsdtar, ['-a', '-cf', archive, '-C', path.dirname(payload), 'payload']);
+    Object.defineProperty(process, 'platform', { value: 'win32' });
+    await zipDirectory(payload, archive);
+    Object.defineProperty(process, 'platform', { value: realPlatform });
 
     const entries = await listZipEntries(archive);
     expect(entries.length).toBeGreaterThan(0);
@@ -64,32 +63,15 @@ describe('zip round trip on the bsdtar branch', () => {
     const root = await workspace();
     const payload = await sampleTree(root);
     const archive = path.join(root, 'payload.zip');
-    execFileSync(bsdtar, ['-a', '-cf', archive, '-C', path.dirname(payload), 'payload']);
-
     const destination = path.join(root, 'out');
-    await mkdir(destination, { recursive: true });
+    Object.defineProperty(process, 'platform', { value: 'win32' });
+    await zipDirectory(payload, archive);
     await unzipArchive(archive, destination);
 
     expect(existsSync(path.join(destination, 'payload', 'index.html'))).toBe(true);
     const unicode = path.join(destination, 'payload', 'nested', 'відео.txt');
     expect(existsSync(unicode)).toBe(true);
     expect(await readFile(unicode, 'utf8')).toBe('unicode name');
-  });
-
-  it('keeps Unicode entry names through the Windows extraction branch', async () => {
-    const root = await workspace();
-    const payload = await sampleTree(root);
-    const archive = path.join(root, 'windows-unicode.zip');
-    execFileSync(bsdtar, ['-a', '-cf', archive, '-C', path.dirname(payload), 'payload']);
-    const destination = path.join(root, 'windows-out');
-    await mkdir(destination, { recursive: true });
-
-    Object.defineProperty(process, 'platform', { value: 'win32' });
-    await unzipArchive(archive, destination);
-
-    expect(await readFile(path.join(destination, 'payload', 'nested', 'відео.txt'), 'utf8')).toBe(
-      'unicode name'
-    );
   });
 
   it('rejects a corrupt archive instead of silently producing nothing', async () => {

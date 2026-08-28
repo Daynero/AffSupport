@@ -15,6 +15,7 @@
     "apps/agent/src/media-actions/queue.ts": 91,
     "apps/agent/src/platform/platform.ts": 65,
     "apps/agent/src/platform/windows-suspend.ts": 87,
+    "apps/agent/src/platform/zip.ts": 65,
     "apps/agent/src/power/governor.ts": 95,
     "apps/agent/src/power/process-tree.ts": 99,
     "apps/agent/src/power/spawn.ts": 99,

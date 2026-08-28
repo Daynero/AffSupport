@@ -306,8 +306,10 @@ describe('landing preview discovery and cache', () => {
     expect(landings).toHaveLength(4);
     expect(landings.every(item => item.status === 'ready' && item.previewAvailable)).toBe(true);
     expect(renderer.renders).toBe(4);
-    // The two folder landings plus at least one archive root overlap in time.
-    expect(renderer.peakConcurrency).toBeGreaterThan(1);
+    // CI can intentionally expose only enough CPU for one render slot. Assert
+    // the exact bounded host width instead of requiring parallel work from a
+    // single-slot runner.
+    expect(renderer.peakConcurrency).toBe(Math.min(4, Math.max(1, os.availableParallelism() - 2)));
     await catalog.shutdown();
   });
 

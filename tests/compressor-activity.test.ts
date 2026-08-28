@@ -515,7 +515,7 @@ describePosixProcess('while a child process is actually running', () => {
   });
 });
 
-describe('handing the machine to a prioritised estimate', () => {
+describePosixProcess('handing the machine to a prioritised estimate', () => {
   /**
    * The `encoding-held` variant, driven for real.
    *

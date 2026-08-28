@@ -3,7 +3,7 @@ import { existsSync, statSync, type Stats } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { extractZipSafely } from '../landing-preview/archive.js';
+import { extractZipSafely, writeZipDirectory } from './zip.js';
 import { WindowsSuspendHelper } from './windows-suspend.js';
 
 /**
@@ -269,22 +269,18 @@ function runCommand(command: string, args: string[]): Promise<CommandResult> {
 
 /**
  * Zips a directory so the archive contains the directory itself as its single
- * top-level entry. macOS keeps using `ditto`; elsewhere bsdtar writes the zip
- * (`-a` selects the format from the `.zip` extension), which avoids PowerShell
- * startup/policy issues that make Compress-Archive fragile.
+ * top-level entry. macOS keeps using `ditto`; elsewhere the pure-JS writer
+ * records UTF-8 entry names explicitly, avoiding both bsdtar's Windows code
+ * page ambiguity and PowerShell startup/policy failures.
  */
 export async function zipDirectory(dir: string, zipPath: string): Promise<void> {
   const result =
     process.platform === 'darwin'
       ? await runCommand('/usr/bin/ditto', ['-c', '-k', '--keepParent', dir, zipPath])
-      : await runCommand(tarExecutable(), [
-          '-a',
-          '-cf',
-          zipPath,
-          '-C',
-          path.dirname(dir),
-          path.basename(dir)
-        ]);
+      : await writeZipDirectory(dir, zipPath).then(
+          () => ({ code: 0, stderr: '' }),
+          error => ({ code: 1, stderr: error instanceof Error ? error.message : String(error) })
+        );
   if (result.code !== 0) {
     throw new Error(`Could not create the archive: ${result.stderr.trim() || 'unknown error'}`);
   }
@@ -293,9 +289,9 @@ export async function zipDirectory(dir: string, zipPath: string): Promise<void> 
 /** Extracts a ZIP archive into a destination directory. */
 export async function unzipArchive(zipPath: string, destination: string): Promise<void> {
   if (process.platform === 'win32') {
-    // Windows bsdtar can create a valid UTF-8 ZIP and then extract its Unicode
-    // entry names through the active console code page. Use the same validated
-    // Node reader as landing previews so names survive without a shell locale.
+    // Windows system archive tools interpret some entry names through an
+    // active code page. The validated Node reader consumes the ZIP's explicit
+    // UTF-8 names, so extraction does not depend on a shell locale.
     await extractZipSafely(zipPath, destination);
     return;
   }

@@ -42,7 +42,10 @@ function sha256(source) {
   return `'sha256-${createHash('sha256').update(source, 'utf8').digest('base64')}'`;
 }
 
-const html = readFileSync(INDEX, 'utf8');
+// Git checks the file out with CRLF on Windows. Hash the canonical document
+// bytes so a single source revision produces the same committed policy on
+// every runner; Vite emits the normalized text during the production build.
+const html = readFileSync(INDEX, 'utf8').replaceAll('\r\n', '\n');
 const scriptHashes = inlineScripts(html).map(sha256);
 if (scriptHashes.length === 0) {
   process.stderr.write('csp: no inline scripts found; the policy would be wrong.\n');
