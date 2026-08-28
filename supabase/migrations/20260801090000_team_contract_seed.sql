@@ -149,7 +149,13 @@ insert into public.team_error_codes (code) values
   ('GROUP_RECONCILING'),
   ('SHARE_NOT_ALLOWED'),
   ('OWNER_TRANSFER_REQUIRED'),
-  ('TEAM_NOT_DRAFT');
+  ('TEAM_NOT_DRAFT'),
+  ('SELECTION_UNREACHABLE'),
+  ('ROOT_SELECTION_REQUIRED'),
+  ('ROOT_MISSING'),
+  ('TREE_TOO_LARGE'),
+  ('THUMBNAIL_SESSION_EXPIRED'),
+  ('RESTRICTED_SCOPE_NOT_APPROVED');
 
 insert into public.geo_options (code) values
   ('AD'),

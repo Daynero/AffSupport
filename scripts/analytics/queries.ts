@@ -738,7 +738,47 @@ export async function getTeamWorkspace(period: ResolvedPeriod): Promise<TeamWork
   const findSuccesses = findRows.reduce((total, row) => total + row.successes, 0);
   const balancedCues = findRows.length === 4 && findRows.every(row => row.attempts === 5);
   const windows = windowRows.map(row => activationWindow(row));
+  // 011: the storage lifecycle, read straight from the four events the
+  // explorer fires. Counts of events, not of spaces — a space that reconnects
+  // twice counts twice, which is the honest number for "how often".
+  const storageCounts = await queryOne<{
+    storage_connected: number;
+    index_completed: number;
+    previews_ready: number;
+    attention: number;
+  }>(
+    `select
+       count(*) filter (where e.event_name = 'team_storage_connected')::int as storage_connected,
+       count(*) filter (where e.event_name = 'team_index_completed')::int as index_completed,
+       count(*) filter (where e.event_name = 'team_previews_ready')::int as previews_ready,
+       count(*) filter (where e.event_name = 'team_storage_attention')::int as attention
+     from public.analytics_events e
+     where ${EVENTS_RANGE}
+       and e.event_name in (
+         'team_storage_connected', 'team_index_completed',
+         'team_previews_ready', 'team_storage_attention'
+       )`,
+    params
+  );
+  const attentionReasons = await query<{ reason: string; count: number }>(
+    `select coalesce(e.properties ->> 'attention_reason', 'unknown') as reason,
+       count(*)::int as count
+     from public.analytics_events e
+     where ${EVENTS_RANGE}
+       and e.event_name = 'team_storage_attention'
+     group by 1
+     order by count desc, reason asc`,
+    params
+  );
+
   return {
+    storage: {
+      storage_connected: storageCounts?.storage_connected ?? 0,
+      index_completed: storageCounts?.index_completed ?? 0,
+      previews_ready: storageCounts?.previews_ready ?? 0,
+      attention: storageCounts?.attention ?? 0,
+      attention_reasons: attentionReasons
+    },
     sc001: {
       attempts: onboardingAttempts,
       successes: onboardingSuccesses,

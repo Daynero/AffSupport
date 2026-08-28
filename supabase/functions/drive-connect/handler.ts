@@ -64,7 +64,11 @@ export type DriveConnectCommand =
       expectedAccount?: string;
       confirmed: boolean;
       idempotencyKey: string;
-    };
+    }
+  // 011: the owner picked the root in Google's own chooser with the very
+  // credential this connection holds, so the account check the two-phase
+  // confirm performs is satisfied by construction and the space opens at once.
+  | { action: 'choose_root'; teamId: string; folderId: string; resourceKey?: string };
 
 export interface DriveConnectDependencies {
   oauthMode: unknown;
@@ -139,6 +143,32 @@ export async function executeDriveConnectCommand(
     if (!dependencies.persistConnection || !dependencies.enqueueInitialSync) {
       throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
     }
+    const persisted = await dependencies.persistConnection({ ...root, teamId: command.teamId });
+    const queued = await dependencies.enqueueInitialSync({
+      teamId: command.teamId,
+      connectionId: persisted.connectionId,
+      rootFolderId: root.id
+    });
+    return {
+      connectionId: persisted.connectionId,
+      syncJobId: queued.jobId,
+      state: 'connected',
+      syncState: 'queued',
+      folder: root
+    };
+  }
+
+  if (command.action === 'choose_root') {
+    if (
+      !dependencies.getRoot ||
+      !dependencies.persistConnection ||
+      !dependencies.enqueueInitialSync
+    ) {
+      throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
+    }
+    const root = validateRootCandidate(
+      await dependencies.getRoot(command.folderId, command.resourceKey)
+    );
     const persisted = await dependencies.persistConnection({ ...root, teamId: command.teamId });
     const queued = await dependencies.enqueueInitialSync({
       teamId: command.teamId,

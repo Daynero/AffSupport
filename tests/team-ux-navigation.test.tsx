@@ -44,14 +44,14 @@ describe('team sections are addresses', () => {
     renderSpace(client);
 
     const tabs = await screen.findByRole('navigation', { name: 'Space sections' });
-    for (const label of ['Files', 'Tasks', 'Creatives', 'Landings']) {
+    for (const label of ['Explorer', 'Tasks', 'Members']) {
       expect(screen.getByRole('link', { name: label })).toBeTruthy();
     }
-    // Files is the canonical default and carries no path suffix of its own.
+    // The explorer is the canonical default and carries no path suffix of its own.
     // Waited for, not read once: the tabs render before the resolver has
     // finished settling the address, and the marking follows the address.
     await waitFor(() =>
-      expect(tabs.querySelector('[aria-current="page"]')?.textContent).toBe('Files')
+      expect(tabs.querySelector('[aria-current="page"]')?.textContent).toBe('Explorer')
     );
   });
 
@@ -71,10 +71,10 @@ describe('team sections are addresses', () => {
     // This is what a refresh, a bookmark and a pasted link all look like.
     const team = makeTeam();
     const client = makeClient({ listTeams: vi.fn().mockResolvedValue([team]) });
-    renderSpace(client, `/team/${team.id}/landings`);
+    renderSpace(client, `/team/${team.id}/members`);
 
     const tabs = await screen.findByRole('navigation', { name: 'Space sections' });
-    expect(tabs.querySelector('[aria-current="page"]')?.textContent).toBe('Landings');
+    expect(tabs.querySelector('[aria-current="page"]')?.textContent).toBe('Members');
   });
 
   it('walks sections on Back before leaving the space', async () => {
@@ -85,8 +85,8 @@ describe('team sections are addresses', () => {
 
     await user.click(await screen.findByRole('link', { name: 'Tasks' }));
     await waitFor(() => expect(window.location.pathname).toBe(`/team/${team.id}/tasks`));
-    await user.click(screen.getByRole('link', { name: 'Landings' }));
-    await waitFor(() => expect(window.location.pathname).toBe(`/team/${team.id}/landings`));
+    await user.click(screen.getByRole('link', { name: 'Members' }));
+    await waitFor(() => expect(window.location.pathname).toBe(`/team/${team.id}/members`));
 
     window.history.back();
     await waitFor(() => expect(window.location.pathname).toBe(`/team/${team.id}/tasks`));
@@ -218,8 +218,7 @@ describe('create wizard', () => {
     });
     const client = makeClient({
       listTeams: vi.fn().mockResolvedValue([]),
-      createTeam: vi.fn().mockResolvedValue(draft),
-      listFolders: vi.fn().mockResolvedValue({ folders: [], nextPageToken: null })
+      createTeam: vi.fn().mockResolvedValue(draft)
     });
     const user = userEvent.setup();
     renderSpace(client);

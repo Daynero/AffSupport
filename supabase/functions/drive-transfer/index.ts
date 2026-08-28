@@ -45,17 +45,21 @@ import {
   landingArtifactGrantTool,
   parseBoundedRange,
   parseLandingArtifactGrantTool,
+  parseThumbnailRequest,
   publicEndpointUrl,
   validateUpstreamRangeResponse,
   type PreviewGrantContext,
   type PreviewMaterialRecord,
   type PreviewMode
 } from './handler.ts';
+import { thumbnailCachePath as sharedThumbnailCachePath } from '../_shared/thumbnails.ts';
 
 const WEBP_MIME_TYPE = 'image/webp';
 const LANDING_RENDER_GRANT_TTL_MS = 20 * 60 * 1000;
 const MAX_THUMBNAIL_BYTES = 4 * 1024 * 1024;
 const THUMBNAIL_CACHE_BUCKET = 'team-thumbnail-cache';
+const THUMBNAIL_SESSION_TTL_MS = 15 * 60 * 1000;
+const THUMBNAIL_SESSION_MAX_USES = 5000;
 const THUMBNAIL_MIME_TYPES = new Set([
   'image/avif',
   'image/gif',
@@ -681,15 +685,13 @@ async function thumbnailCachePath(
   sourceVersion: string | null,
   sourceChecksum: string | null
 ): Promise<string | null> {
-  const sourceIdentity =
-    sourceVersion ?? sourceChecksum ?? context.driveVersion ?? context.checksum;
-  if (!sourceIdentity) return null;
-  const digest = byteaHex(
-    await sha256(
-      `${context.teamId}\u0000${context.materialId}\u0000${sourceIdentity}\u0000${context.mimeType ?? ''}`
-    )
-  ).slice(2);
-  return `${digest.slice(0, 2)}/${digest}.thumbnail`;
+  // One formula, shared with the preview warm worker (011).
+  return sharedThumbnailCachePath({
+    teamId: context.teamId,
+    materialId: context.materialId,
+    sourceIdentity: sourceVersion ?? sourceChecksum ?? context.driveVersion ?? context.checksum,
+    mimeType: context.mimeType
+  });
 }
 
 function thumbnailHeaders(
@@ -719,6 +721,60 @@ async function readCachedThumbnail(storage: ThumbnailStorage, path: string) {
   return { body: data, mimeType, contentLength: data.size };
 }
 
+/**
+ * A thumbnail session (011): one team-bound grant for a whole grid. Consumed
+ * per read like every other grant, and `view` is re-checked each time.
+ */
+async function consumeSessionGrant(
+  service: RpcClient,
+  ticket: string
+): Promise<{ teamId: string; actorId: string } | null> {
+  const row = firstRecord(
+    await rpcValue(service, 'consume_team_transfer_grant', {
+      p_token_hash: byteaHex(await sha256(ticket)),
+      p_purpose: 'thumbnail_session'
+    })
+  );
+  if (!row) return null;
+  const teamId = stringValue(row, 'team_id');
+  const actorId = stringValue(row, 'actor_id');
+  return teamId && actorId ? { teamId, actorId } : null;
+}
+
+async function handleThumbnailSession(
+  request: Request,
+  caller: RpcClient,
+  service: RpcClient,
+  body: Record<string, unknown>,
+  cors: Record<string, string>
+) {
+  const teamId = parseUuid(body.teamId);
+  if (!teamId.ok) throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+  const { userId } = await authorizeCaller(request, service);
+  await rpcValue(caller, 'assert_team_member', { p_team: teamId.value });
+  const ticket = randomTicket();
+  const expiresAt = new Date(Date.now() + THUMBNAIL_SESSION_TTL_MS).toISOString();
+  await rpcValue(service, 'issue_team_transfer_grant', {
+    p_token_hash: byteaHex(await sha256(ticket)),
+    p_operation: null,
+    p_team: teamId.value,
+    p_actor: userId,
+    p_purpose: 'thumbnail_session',
+    p_material: null,
+    p_destination: null,
+    p_tool: 'thumbnail:session',
+    p_max_range_bytes: 1,
+    p_expires_at: expiresAt,
+    p_max_uses: THUMBNAIL_SESSION_MAX_USES
+  });
+  const endpoint = driveTransferEndpoint(request);
+  endpoint.pathname = `${endpoint.pathname.replace(/\/$/, '')}/thumbnail`;
+  return successResponse(
+    { token: ticket, expiresAt, teamId: teamId.value, endpoint: endpoint.toString() },
+    cors
+  );
+}
+
 async function handleThumbnail(
   request: Request,
   service: RpcClient,
@@ -726,17 +782,48 @@ async function handleThumbnail(
   cors: Record<string, string>
 ) {
   const url = new URL(request.url);
-  const ticket = url.searchParams.get('grant') ?? '';
-  const grant = await consumeGrant(service, ticket, 'preview_range');
-  if (!grant) throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+  const parsed = parseThumbnailRequest(url);
+  if (!parsed) throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+  let teamId: string;
+  let materialId: string;
+  let actorId: string;
+  if (parsed.mode === 'session') {
+    const session = await consumeSessionGrant(service, parsed.ticket);
+    if (!session) throw new TeamFunctionError('THUMBNAIL_SESSION_EXPIRED', { retryable: false });
+    teamId = session.teamId;
+    materialId = parsed.materialId;
+    actorId = session.actorId;
+  } else {
+    const grant = await consumeGrant(service, parsed.ticket, 'preview_range');
+    if (!grant) throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+    teamId = grant.teamId;
+    materialId = grant.materialId;
+    actorId = grant.actorId;
+  }
   const context = transferContext(
     await rpcValue(service, 'service_get_material_transfer_context', {
-      p_team: grant.teamId,
-      p_material: grant.materialId,
-      p_actor: grant.actorId
+      p_team: teamId,
+      p_material: materialId,
+      p_actor: actorId
     })
   );
-  if (!context) throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+  if (!context || context.teamId !== teamId) {
+    throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+  }
+  // A session read serves the prepared cache without touching the provider
+  // (FR-009's spirit for previews): the warm worker wrote it for exactly this
+  // version, and the catalog's lifecycle was just re-checked above.
+  if (parsed.mode === 'session') {
+    const prepared = await thumbnailCachePath(context, null, null);
+    if (prepared) {
+      const cached = await readCachedThumbnail(thumbnailStorage, prepared);
+      if (cached) {
+        const headers = thumbnailHeaders(cached.mimeType, cached.contentLength, cors, 'hit');
+        headers.set('cache-control', 'private, max-age=900');
+        return new Response(cached.body.stream(), { status: 200, headers });
+      }
+    }
+  }
   const drive = await driveClient(service, context.credentialId, request);
   const live = await proveLiveAncestry({
     client: drive,
@@ -1285,6 +1372,15 @@ Deno.serve(async request => {
     if (!parsed.ok) throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
     if (parsed.value.action === 'landing_render_start') {
       return await handleLandingRenderStart(
+        request,
+        configured.caller,
+        configured.service,
+        parsed.value,
+        cors
+      );
+    }
+    if (parsed.value.action === 'thumbnail_session') {
+      return await handleThumbnailSession(
         request,
         configured.caller,
         configured.service,

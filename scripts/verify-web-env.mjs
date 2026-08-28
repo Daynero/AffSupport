@@ -66,6 +66,15 @@ if (
   !['disabled', 'testing'].includes(environment.VITE_TEAM_DIRECT_ADD_MODE.trim())
 )
   failures.push('VITE_TEAM_DIRECT_ADD_MODE must be disabled or testing');
+// Feature 011: the Google Picker values are public, but a malformed one is a
+// chooser that never opens. Presence on the team production path is asserted by
+// verify-team-production.mjs; the shape is asserted whenever a value is set.
+const pickerKey = environment.VITE_GOOGLE_PICKER_API_KEY?.trim();
+if (pickerKey && !/^AIza[0-9A-Za-z_-]{20,}$/u.test(pickerKey))
+  failures.push('VITE_GOOGLE_PICKER_API_KEY does not look like a Google browser API key');
+const projectNumber = environment.VITE_GOOGLE_PROJECT_NUMBER?.trim();
+if (projectNumber && !/^\d{6,}$/u.test(projectNumber))
+  failures.push('VITE_GOOGLE_PROJECT_NUMBER must be the numeric Cloud project number');
 
 if (failures.length) {
   console.error(`Production web environment check failed: ${failures.join('; ')}.`);

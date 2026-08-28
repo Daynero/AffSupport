@@ -500,3 +500,24 @@ export function summarizePreviewMeasurements(attempts: readonly PreviewStartMeas
       falseReady === 0
   };
 }
+
+/**
+ * The two ways a thumbnail may be asked for (011). A grant is bound to one
+ * material and consumed per read; a session is bound to a team and names the
+ * material in the query, so a grid of two hundred rows costs one mint.
+ */
+export type ThumbnailRequest =
+  { mode: 'grant'; ticket: string } | { mode: 'session'; ticket: string; materialId: string };
+
+export function parseThumbnailRequest(url: URL): ThumbnailRequest | null {
+  const session = url.searchParams.get('session');
+  const material = url.searchParams.get('material');
+  if (session !== null || material !== null) {
+    if (!session || session.length < 16 || session.length > 512) return null;
+    if (!material || !UUID.test(material)) return null;
+    return { mode: 'session', ticket: session, materialId: material.toLowerCase() };
+  }
+  const grant = url.searchParams.get('grant');
+  if (!grant || grant.length < 16 || grant.length > 512) return null;
+  return { mode: 'grant', ticket: grant };
+}

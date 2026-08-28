@@ -2216,6 +2216,64 @@ export type Database = {
           target_user_id: string;
         }[];
       };
+      add_team_drive_selection: {
+        Args: {
+          p_drive_folder_id: string;
+          p_name?: string;
+          p_resource_key?: string;
+          p_team: string;
+        };
+        Returns: {
+          drive_folder_id: string;
+          id: string;
+          is_root: boolean;
+          name: string;
+          state: string;
+        }[];
+      };
+      get_team_storage_health: {
+        Args: { p_team: string };
+        Returns: Json;
+      };
+      list_team_drive_selections: {
+        Args: { p_team: string };
+        Returns: {
+          drive_folder_id: string;
+          id: string;
+          is_root: boolean;
+          name: string;
+          state: string;
+        }[];
+      };
+      list_team_folder_page: {
+        Args: {
+          p_after_id?: string;
+          p_after_sort_key?: string;
+          p_kind?: string[];
+          p_limit?: number;
+          p_parent_folder_id?: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      list_team_folder_tree: {
+        Args: { p_team: string };
+        Returns: {
+          child_file_count: number;
+          child_folder_count: number;
+          drive_file_id: string;
+          id: string;
+          indexed_at: string | null;
+          name: string;
+          parent_folder_id: string | null;
+          selection_id: string | null;
+          thumbnail_ready_count: number;
+        }[];
+      };
+      remove_team_drive_selection: {
+        Args: { p_selection: string; p_team: string };
+        Returns: undefined;
+      };
       list_team_materials: {
         Args: { p_parent_folder_id?: string; p_team: string };
         Returns: {
@@ -2360,8 +2418,10 @@ export type Database = {
       search_materials: {
         Args: {
           p_filters?: Json;
+          p_kind?: string[];
           p_page?: number;
           p_page_size?: number;
+          p_parent_folder_id?: string;
           p_query?: string;
           p_team: string;
         };

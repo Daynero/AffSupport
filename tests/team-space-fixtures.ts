@@ -42,8 +42,20 @@ export function makeClient(overrides: Partial<TeamSpaceClient> = {}): TeamSpaceC
     listInvitations: vi.fn().mockResolvedValue([]),
     createInvitation: vi.fn(),
     getConnectionStatus: vi.fn().mockResolvedValue({ state: 'connected' }),
-    listFolders: vi.fn().mockResolvedValue({ folders: [], nextPageToken: null }),
+    pickerToken: vi.fn().mockResolvedValue({ accessToken: 'picker-token', expiresAt: 'later' }),
+    chooseRoot: vi.fn(),
     confirmDriveRoot: vi.fn(),
+    listFolderTree: vi.fn().mockResolvedValue([]),
+    listFolderPage: vi.fn().mockResolvedValue({ rows: [], total: 0, next: null }),
+    mintThumbnailSession: vi.fn().mockResolvedValue({
+      token: 'thumb-session',
+      expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+      teamId: 'team',
+      endpoint: 'https://p.supabase.co/functions/v1/drive-transfer/thumbnail'
+    }),
+    thumbnailUrl: (session: { endpoint: string; token: string }, materialId: string) =>
+      `${session.endpoint}?material=${materialId}&session=${session.token}`,
+    listDriveSelections: vi.fn().mockResolvedValue([]),
     listMaterials: vi.fn().mockResolvedValue([]),
     searchCatalog: vi.fn().mockResolvedValue(emptySearch),
     getCatalogVocabulary: vi

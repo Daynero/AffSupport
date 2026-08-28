@@ -49,6 +49,15 @@ export interface TeamActivationWindow {
   status: TeamMetricStatus;
 }
 
+/** Storage lifecycle counters (011): how many spaces got connected, indexed, previewed — and how often storage needed a person. */
+export interface TeamStorageMetrics {
+  storage_connected: number;
+  index_completed: number;
+  previews_ready: number;
+  attention: number;
+  attention_reasons: Array<{ reason: string; count: number }>;
+}
+
 export interface TeamWorkspaceData {
   sc001: TeamPilotCriterion;
   sc005: TeamFindCriterion;
@@ -56,6 +65,7 @@ export interface TeamWorkspaceData {
     windows: TeamActivationWindow[];
     all_windows_pass: boolean | null;
   };
+  storage: TeamStorageMetrics;
 }
 
 export function buildCommandEnvelope<T>(

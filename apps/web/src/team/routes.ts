@@ -1,22 +1,25 @@
 import {
   CATALOG_FILTER_KEYS,
+  TEAM_MATERIAL_ROW_KINDS,
   normalizeCatalogSearchRequest,
   type CatalogFilterKey,
-  type CatalogSearchFilters
+  type CatalogSearchFilters,
+  type TeamMaterialRowKind
 } from '@video-compressor/shared';
 
-export const TEAM_SECTIONS = [
-  'files',
-  'tasks',
-  'creatives',
-  'landings',
-  'settings',
-  'trash'
-] as const;
+/**
+ * The three destinations a space has (011, FR-029): the explorer, tasks and
+ * members. Everything the old Files, Landings, Creatives, Settings and Trash
+ * screens did is a view or a dialog of the explorer now; their old addresses
+ * still resolve, as aliases, so a pasted link keeps meaning what it meant.
+ */
+export const TEAM_SECTIONS = ['explorer', 'tasks', 'members'] as const;
 export type TeamSection = (typeof TEAM_SECTIONS)[number];
 
-/** Files is canonical and carries no path suffix: `/team/<id>` *is* Files. */
-export const DEFAULT_SECTION: TeamSection = 'files';
+/** The explorer is canonical and carries no path suffix: `/team/<id>` *is* it. */
+export const DEFAULT_SECTION: TeamSection = 'explorer';
+
+export type ExplorerView = 'grid' | 'list';
 
 /**
  * The query half of a team address. Every field is restorable on refresh, so
@@ -28,8 +31,20 @@ export interface TeamRouteQuery {
   filters: CatalogSearchFilters;
   /** Opens the task editor over the Tasks section. */
   taskId: string | null;
-  /** Files browser position. */
+  /** Explorer position: the open folder's provider id, null for the root. */
   folderId: string | null;
+  /** Explorer kind filters; empty for all. */
+  kinds: TeamMaterialRowKind[];
+  /** Tiles or rows; null leaves it to the remembered choice. */
+  view: ExplorerView | null;
+  /** Whether a search looks in the open folder or the whole space. */
+  scope: 'folder' | 'space';
+  /** The explorer shows the trash instead of a folder. */
+  trash: boolean;
+  /** The space settings dialog is open over the explorer. */
+  settings: boolean;
+  /** The selected material, so a shared link opens on it. */
+  itemId: string | null;
 }
 
 export type TeamRoute =
@@ -61,6 +76,9 @@ const FILTER_PARAM: Record<CatalogFilterKey, string> = {
   unfilled: 'unfilled'
 };
 
+/** Explorer kind chips use `k`; the catalog's older `kind` filter keeps `kind`. */
+const KINDS_PARAM = 'k';
+
 /**
  * Filters are repeated params (`?geo=US&geo=DE`) rather than a comma-joined
  * list because `offer` is free text and may legitimately contain a comma.
@@ -91,16 +109,73 @@ function emptyFilters(): CatalogSearchFilters {
 }
 
 export function emptyTeamRouteQuery(): TeamRouteQuery {
-  return { q: '', filters: emptyFilters(), taskId: null, folderId: null };
+  return {
+    q: '',
+    filters: emptyFilters(),
+    taskId: null,
+    folderId: null,
+    kinds: [],
+    view: null,
+    scope: 'folder',
+    trash: false,
+    settings: false,
+    itemId: null
+  };
 }
 
 function isSection(value: string): value is TeamSection {
   return (TEAM_SECTIONS as readonly string[]).includes(value);
 }
 
+function isRowKind(value: string): value is TeamMaterialRowKind {
+  return (TEAM_MATERIAL_ROW_KINDS as readonly string[]).includes(value);
+}
+
 function trimmedParam(params: URLSearchParams, name: string): string | null {
   const value = params.get(name)?.trim();
   return value ? value : null;
+}
+
+function readKinds(params: URLSearchParams): TeamMaterialRowKind[] {
+  const seen = new Set<TeamMaterialRowKind>();
+  for (const raw of params.getAll(KINDS_PARAM)) {
+    for (const piece of raw.split(',')) {
+      const kind = piece.trim();
+      if (isRowKind(kind)) seen.add(kind);
+    }
+  }
+  return [...seen];
+}
+
+/**
+ * The old sections, kept as aliases (011). A link to `/landings` opens the
+ * explorer filtered to landings; `/settings` opens the explorer with the
+ * settings dialog; `/trash` the explorer's trash view; `/files` the explorer.
+ */
+function aliasSection(
+  raw: string,
+  query: TeamRouteQuery
+): { section: TeamSection; query: TeamRouteQuery } {
+  switch (raw) {
+    case 'files':
+      return { section: 'explorer', query };
+    case 'landings':
+      return {
+        section: 'explorer',
+        query: { ...query, kinds: ['landing'], view: query.view ?? 'grid' }
+      };
+    case 'creatives':
+      return {
+        section: 'explorer',
+        query: { ...query, kinds: ['image', 'video'], view: query.view ?? 'grid' }
+      };
+    case 'settings':
+      return { section: 'explorer', query: { ...query, settings: true } };
+    case 'trash':
+      return { section: 'explorer', query: { ...query, trash: true } };
+    default:
+      return { section: isSection(raw) ? raw : DEFAULT_SECTION, query };
+  }
 }
 
 /**
@@ -109,9 +184,10 @@ function trimmedParam(params: URLSearchParams, name: string): string | null {
  * Total by construction: it never throws and never rejects. A path outside
  * `/team` returns `null`; anything inside it resolves to a route, because a
  * pasted link with a typo should land somewhere explainable rather than on an
- * error. An unrecognized section degrades to Files, and an unrecognized space
- * id is carried through verbatim so the resolver's own access check renders the
- * one neutral no-access screen (it must not distinguish "absent" from "denied").
+ * error. An unrecognized section degrades to the explorer, and an unrecognized
+ * space id is carried through verbatim so the resolver's own access check
+ * renders the one neutral no-access screen (it must not distinguish "absent"
+ * from "denied").
  */
 export function parseTeamRoute(route: string): TeamRoute | null {
   const [pathAndQuery = ''] = route.split('#');
@@ -130,18 +206,21 @@ export function parseTeamRoute(route: string): TeamRoute | null {
 
   const spaceId = decodeURIComponent(segments[1] ?? '');
   const rawSection = decodeURIComponent(segments[2] ?? '');
-  const section = isSection(rawSection) ? rawSection : DEFAULT_SECTION;
-  return {
-    kind: 'space',
-    spaceId,
-    section,
-    query: {
-      q: params.get('q')?.trim() ?? '',
-      filters: readFilters(params),
-      taskId: trimmedParam(params, 'task'),
-      folderId: trimmedParam(params, 'folder')
-    }
+  const rawView = params.get('view');
+  const base: TeamRouteQuery = {
+    q: params.get('q')?.trim() ?? '',
+    filters: readFilters(params),
+    taskId: trimmedParam(params, 'task'),
+    folderId: trimmedParam(params, 'folder'),
+    kinds: readKinds(params),
+    view: rawView === 'grid' || rawView === 'list' ? rawView : null,
+    scope: params.get('scope') === 'space' ? 'space' : 'folder',
+    trash: params.get('trash') === '1',
+    settings: params.get('settings') === '1',
+    itemId: trimmedParam(params, 'item')
   };
+  const { section, query } = aliasSection(rawSection, base);
+  return { kind: 'space', spaceId, section, query };
 }
 
 function splitOnce(value: string, separator: string): [string, string] {
@@ -160,8 +239,9 @@ export interface TeamRouteInput {
  * Build the canonical address for a space view.
  *
  * Query state is dropped where the section cannot act on it — a Tasks link does
- * not carry a catalog filter, a Files link does not carry an open task — so the
- * same view always has one address and Back never walks through near-duplicates.
+ * not carry a catalog filter, an explorer link does not carry an open task — so
+ * the same view always has one address and Back never walks through
+ * near-duplicates.
  */
 export function buildTeamRoute(input: TeamRouteInput): string {
   const section = input.section ?? DEFAULT_SECTION;
@@ -170,7 +250,7 @@ export function buildTeamRoute(input: TeamRouteInput): string {
   const params = new URLSearchParams();
   const query = input.query ?? {};
 
-  if (section === 'files') {
+  if (section === 'explorer') {
     const q = query.q?.trim();
     if (q) params.set('q', q);
     const filters = query.filters;
@@ -180,6 +260,12 @@ export function buildTeamRoute(input: TeamRouteInput): string {
       }
     }
     if (query.folderId) params.set('folder', query.folderId);
+    if (query.kinds && query.kinds.length > 0) params.set(KINDS_PARAM, query.kinds.join(','));
+    if (query.view) params.set('view', query.view);
+    if (query.scope === 'space') params.set('scope', 'space');
+    if (query.trash) params.set('trash', '1');
+    if (query.settings) params.set('settings', '1');
+    if (query.itemId) params.set('item', query.itemId);
   }
   if (section === 'tasks' && query.taskId) params.set('task', query.taskId);
 

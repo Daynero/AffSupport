@@ -105,7 +105,7 @@ export function resolveTeamEntry(input: {
    */
   const spaceRoute = (spaceId: string) =>
     route.driveReturn
-      ? `${buildTeamRoute({ spaceId, section: 'settings' })}?drive=${encodeURIComponent(route.driveReturn)}`
+      ? `${buildTeamRoute({ spaceId, section: 'explorer', query: { settings: true } })}?drive=${encodeURIComponent(route.driveReturn)}`
       : buildTeamRoute({ spaceId });
 
   const ready = teams.filter(team => spaceReadiness(team) === 'ready');

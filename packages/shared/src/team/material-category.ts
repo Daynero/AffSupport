@@ -148,3 +148,47 @@ export function classifyMaterial(input: MaterialClassificationInput): MaterialCl
   }
   return { ...common, category: 'other', source: 'fallback' };
 }
+
+/**
+ * The kind a row shows in the explorer. Folders and shortcuts come from the
+ * stored kind, provider-native documents from their mime family, and the rest
+ * from the catalog category. The SQL function `team_material_kind` mirrors
+ * this rule exactly; `tests/team-material-kind.test.ts` proves the two agree.
+ */
+export const TEAM_MATERIAL_ROW_KINDS = [
+  'folder',
+  'image',
+  'video',
+  'landing',
+  'archive',
+  'transcript',
+  'document',
+  'shortcut',
+  'other'
+] as const;
+export type TeamMaterialRowKind = (typeof TEAM_MATERIAL_ROW_KINDS)[number];
+
+const GOOGLE_NATIVE_PREFIX = 'application/vnd.google-apps.';
+
+export function materialKindOf(input: {
+  storedKind: unknown;
+  mimeType: unknown;
+  category: unknown;
+}): TeamMaterialRowKind {
+  const mime = normalizeMimeType(input.mimeType);
+  if (input.storedKind === 'folder' || mime === `${GOOGLE_NATIVE_PREFIX}folder`) return 'folder';
+  if (input.storedKind === 'shortcut' || mime === `${GOOGLE_NATIVE_PREFIX}shortcut`) {
+    return 'shortcut';
+  }
+  if (mime?.startsWith(GOOGLE_NATIVE_PREFIX)) return 'document';
+  switch (input.category) {
+    case 'image':
+    case 'video':
+    case 'landing':
+    case 'archive':
+    case 'transcript':
+      return input.category;
+    default:
+      return 'other';
+  }
+}

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
@@ -62,7 +62,7 @@ describe('space settings surface', () => {
     expect(screen.queryByRole('heading', { name: 'Space history' })).toBeNull();
   });
 
-  it('refreshes the entered space after connecting Drive, so landings show sync progress', async () => {
+  it('refreshes the entered space after connecting Drive, so the storage chip shows indexing', async () => {
     let isConnected = false;
     const disconnectedTeam = makeTeam({ connectionState: 'none' });
     const connectedTeam = makeTeam({ connectionState: 'connected' });
@@ -73,16 +73,11 @@ describe('space settings surface', () => {
     const client = makeClient({
       listTeams,
       getConnectionStatus: vi.fn().mockResolvedValue({ state: 'none' }),
-      listFolders: vi.fn().mockResolvedValue({ folders: [folder], nextPageToken: null }),
-      confirmDriveRoot: vi.fn().mockImplementation(async input => {
-        if (!input.confirmed) {
-          return {
-            state: 'confirmation_required' as const,
-            folder,
-            account: 'owner@example.test',
-            independentAclWarning: true
-          };
-        }
+      // 011: the folder is picked in Google's chooser, injected here.
+      pickFolders: async () => [
+        { id: folder.id, name: folder.name, mimeType: null, resourceKey: null }
+      ],
+      chooseRoot: vi.fn().mockImplementation(async () => {
         isConnected = true;
         return {
           state: 'connected' as const,
@@ -91,13 +86,14 @@ describe('space settings surface', () => {
           connectionId: 'connection-1'
         };
       }),
-      searchCatalog: vi.fn().mockResolvedValue({
-        items: [],
-        total: 0,
-        activeFilters: { category: ['landing', 'archive'] },
-        facets: {},
-        catalogFreshness: { state: 'scanning' as const, lastSyncedAt: null }
-      })
+      // The storage chip (011, US4) reads one health value; the scan is in flight.
+      getStorageHealth: vi
+        .fn()
+        .mockImplementation(async () =>
+          isConnected
+            ? { kind: 'indexing' as const, indexedFolders: 1, totalFolders: null, files: 3 }
+            : { kind: 'disconnected' as const }
+        )
     });
     const user = userEvent.setup();
     renderEnteredSpace(client, disconnectedTeam.id, client);
@@ -105,15 +101,17 @@ describe('space settings surface', () => {
     await screen.findByRole('heading', { name: 'Media buyers' });
     await user.click(screen.getByRole('link', { name: 'Space settings' }));
     await user.click(await screen.findByRole('button', { name: 'Connect Google Drive' }));
-    // Opening and selecting are separate actions now, so name the select one.
-    await user.click(
-      await screen.findByRole('button', { name: 'Campaign root — Use this folder' })
+    // No server-side browse and nothing to confirm: pick, and it is connected.
+    await user.click(await screen.findByRole('button', { name: 'Choose folder in Google Drive' }));
+    await waitFor(() =>
+      expect(client.chooseRoot).toHaveBeenCalledWith(
+        expect.objectContaining({ folderId: 'root-folder', name: 'Campaign root' })
+      )
     );
-    await user.click(await screen.findByRole('button', { name: 'Confirm folder' }));
     await user.click(screen.getByRole('button', { name: 'Back to space' }));
-    await user.click(screen.getByRole('link', { name: 'Landings' }));
 
-    expect(await screen.findByText(/Scanning the connected Google Drive folder/i)).toBeTruthy();
+    // The space-wide storage chip, in the header of every view (011): no per-tab copy.
+    expect(await screen.findByRole('button', { name: /Indexing · 3 files so far/ })).toBeTruthy();
     expect(screen.queryByText(/Google Drive is not connected for this space/i)).toBeNull();
   });
 
@@ -135,8 +133,7 @@ describe('space settings surface', () => {
     await user.click(await screen.findByRole('button', { name: 'Sync now' }));
 
     expect(resyncDrive).toHaveBeenCalledWith(team.id);
-    expect(client.listFolders).not.toHaveBeenCalled();
-    expect(client.confirmDriveRoot).not.toHaveBeenCalled();
+    expect(client.chooseRoot).not.toHaveBeenCalled();
     // By text, not by role: the shell header now carries its own status chip
     // for a degraded realtime channel, so "the status element" is ambiguous.
     expect(
@@ -155,10 +152,6 @@ describe('space settings surface', () => {
       });
       const client = makeClient({
         listTeams: vi.fn().mockResolvedValue([team]),
-        listFolders: vi.fn().mockResolvedValue({
-          folders: [{ id: 'folder-1', name: 'Current root', driveKind: 'my_drive' as const }],
-          nextPageToken: null
-        }),
         resyncDrive
       });
       const user = userEvent.setup();
@@ -166,11 +159,10 @@ describe('space settings surface', () => {
 
       await screen.findByRole('heading', { name: 'Media buyers' });
       await user.click(screen.getByRole('link', { name: 'Space settings' }));
-      await screen.findByRole('button', { name: 'Current root — Open' });
-      await user.click(screen.getByRole('button', { name: 'Sync now' }));
+      await user.click(await screen.findByRole('button', { name: 'Sync now' }));
 
       expect(resyncDrive).toHaveBeenCalledWith(team.id);
-      expect(client.confirmDriveRoot).not.toHaveBeenCalled();
+      expect(client.chooseRoot).not.toHaveBeenCalled();
     } finally {
       window.history.replaceState(null, '', previousPath);
     }

@@ -67,6 +67,7 @@ Default period is `7d`. `--days N` gives a rolling N-day window and overrides
 | Is one build or platform less reliable?                  | `cohorts --cohort-by local-app-version                                                     | platform | web-build`and`errors` |
 | Which features are seen but not learned?                 | `features`                                                                                 |
 | Team pilot onboarding/find/weekly activation health?     | `team-workspace` → `data.sc001` / `data.sc005` / four separate `data.sc009.windows`        |
+| Team storage: connections, index completions, attention? | `team-workspace` → `data.storage` (011 storage events, aggregate only)                     |
 
 ### Examples
 

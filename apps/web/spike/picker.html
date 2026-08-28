@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>R1 spike — Picker + drive.file</title>
+    <meta name="robots" content="noindex" />
+    <style>
+      body {
+        font:
+          14px/1.5 system-ui,
+          sans-serif;
+        margin: 2rem;
+        max-width: 48rem;
+      }
+      label {
+        display: block;
+        margin: 0.75rem 0 0.25rem;
+      }
+      input {
+        width: 100%;
+        font: inherit;
+        padding: 0.4rem;
+      }
+      button {
+        margin: 0.75rem 0.5rem 0 0;
+        font: inherit;
+        padding: 0.4rem 0.8rem;
+      }
+      pre {
+        background: #f4f4f4;
+        padding: 0.75rem;
+        overflow: auto;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>R1 spike: does a folder picked under <code>drive.file</code> carry its descendants?</h1>
+    <p>
+      Throwaway page for
+      <code>specs/011-team-workspace-rework/research.md § R1</code>. Not part of the Vite build.
+      Delete <code>apps/web/spike/</code> after recording the outcome (task T002).
+    </p>
+    <ol>
+      <li>
+        Mint an access token <em>outside</em> the app with only the
+        <code>https://www.googleapis.com/auth/drive.file</code> scope — OAuth Playground or
+        <code
+          >gcloud auth print-access-token --scopes=https://www.googleapis.com/auth/drive.file</code
+        >.
+      </li>
+      <li>Paste the token, the Picker API key and the project number below.</li>
+      <li>Pick a folder that has nested folders and files.</li>
+      <li>
+        Press <strong>List children</strong>, then <strong>List grandchildren</strong>. Copy the
+        counts into <code>research.md</code> under "R1 outcome".
+      </li>
+    </ol>
+
+    <label for="token">Access token (drive.file only)</label>
+    <input id="token" autocomplete="off" />
+    <label for="apiKey">Picker API key</label>
+    <input id="apiKey" autocomplete="off" />
+    <label for="appId">Project number (app id)</label>
+    <input id="appId" autocomplete="off" />
+
+    <div>
+      <button id="pick" type="button">Open Picker</button>
+      <button id="children" type="button" disabled>List children</button>
+      <button id="grandchildren" type="button" disabled>List grandchildren</button>
+    </div>
+
+    <pre id="log">Nothing yet.</pre>
+
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script>
+      const log = document.getElementById('log');
+      const value = id => document.getElementById(id).value.trim();
+      const state = { folderId: null, children: [] };
+
+      function write(lines) {
+        log.textContent = lines.join('\n');
+        console.log('[r1-spike]', ...lines);
+      }
+
+      async function listChildren(parentId) {
+        const query = encodeURIComponent(`'${parentId}' in parents and trashed = false`);
+        const fields = encodeURIComponent('files(id,name,mimeType),nextPageToken');
+        const url =
+          `https://www.googleapis.com/drive/v3/files?q=${query}&fields=${fields}` +
+          '&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true';
+        const response = await fetch(url, {
+          headers: { Authorization: `Bearer ${value('token')}` }
+        });
+        const body = await response.json();
+        if (!response.ok) throw new Error(`${response.status} ${JSON.stringify(body)}`);
+        return body.files ?? [];
+      }
+
+      document.getElementById('pick').addEventListener('click', () => {
+        gapi.load('picker', () => {
+          const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
+            .setSelectFolderEnabled(true)
+            .setIncludeFolders(true)
+            .setMimeTypes('application/vnd.google-apps.folder');
+          const picker = new google.picker.PickerBuilder()
+            .setOAuthToken(value('token'))
+            .setDeveloperKey(value('apiKey'))
+            .setAppId(value('appId'))
+            .enableFeature(google.picker.Feature.SUPPORT_DRIVES)
+            .addView(view)
+            .setCallback(data => {
+              if (data.action !== google.picker.Action.PICKED) return;
+              const doc = data.docs?.[0];
+              state.folderId = doc?.id ?? null;
+              document.getElementById('children').disabled = !state.folderId;
+              write([`Picked folder: ${doc?.name} (${state.folderId})`]);
+            })
+            .build();
+          picker.setVisible(true);
+        });
+      });
+
+      document.getElementById('children').addEventListener('click', async () => {
+        try {
+          state.children = await listChildren(state.folderId);
+          const folders = state.children.filter(
+            f => f.mimeType === 'application/vnd.google-apps.folder'
+          );
+          document.getElementById('grandchildren').disabled = folders.length === 0;
+          write([
+            `children of ${state.folderId}: ${state.children.length} items, ${folders.length} folders`,
+            ...state.children.slice(0, 20).map(f => `  ${f.mimeType}  ${f.name}`),
+            state.children.length === 0
+              ? 'OUTCOME B candidate: no children visible under drive.file'
+              : 'Children visible — now list grandchildren'
+          ]);
+        } catch (error) {
+          write([`children: FAILED — ${error.message}`, 'OUTCOME B candidate']);
+        }
+      });
+
+      document.getElementById('grandchildren').addEventListener('click', async () => {
+        const folders = state.children.filter(
+          f => f.mimeType === 'application/vnd.google-apps.folder'
+        );
+        const lines = [];
+        let total = 0;
+        for (const folder of folders.slice(0, 5)) {
+          try {
+            const items = await listChildren(folder.id);
+            total += items.length;
+            lines.push(`  ${folder.name}: ${items.length} items`);
+          } catch (error) {
+            lines.push(`  ${folder.name}: FAILED — ${error.message}`);
+          }
+        }
+        write([
+          `grandchildren across ${Math.min(folders.length, 5)} folders: ${total} items`,
+          ...lines,
+          total > 0 ? 'OUTCOME A: descendants reachable' : 'OUTCOME B: only the picked folder'
+        ]);
+      });
+    </script>
+  </body>
+</html>

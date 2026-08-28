@@ -23,6 +23,8 @@ import {
   parseTeamEdgeResult,
   resolveEffectivePermissions,
   sanitizeTeamAnalyticsProperties,
+  TEAM_ANALYTICS_EVENT_NAMES,
+  teamBackgroundRenderSupported,
   transcriptEditorEligibility
 } from '../packages/shared/src/team/index';
 import {
@@ -255,4 +257,52 @@ describe('team contract', () => {
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain('out of date');
   }, 60_000);
+});
+
+describe('011 — storage analytics and the background-render contract', () => {
+  it('sanitizes the storage lifecycle counters and attention reason', () => {
+    expect(
+      sanitizeTeamAnalyticsProperties({
+        selection_count: 2,
+        folder_count: 37,
+        file_count: 1240,
+        unavailable_count: 3,
+        ready_count: 1000,
+        attention_reason: 'root_missing',
+        duration_ms: 4200.4,
+        folder_id: 'must-not-pass'
+      })
+    ).toEqual({
+      selection_count: 2,
+      folder_count: 37,
+      file_count: 1240,
+      unavailable_count: 3,
+      ready_count: 1000,
+      attention_reason: 'root_missing',
+      duration_ms: 4200
+    });
+    expect(sanitizeTeamAnalyticsProperties({ attention_reason: 'password' })).toEqual({});
+    expect(sanitizeTeamAnalyticsProperties({ file_count: -1, folder_count: 1.5 })).toEqual({});
+  });
+
+  it('registers the four storage lifecycle events', () => {
+    for (const name of [
+      'team_storage_connected',
+      'team_index_completed',
+      'team_previews_ready',
+      'team_storage_attention'
+    ]) {
+      expect(TEAM_ANALYTICS_EVENT_NAMES).toContain(name);
+    }
+  });
+
+  it('detects background rendering from the contract, never from the tool page map', () => {
+    expect(AGENT_TOOL_CONTRACTS.teamBackgroundRender).toBe(1);
+    expect('teamBackgroundRender' in WEB_TOOL_REQUIREMENTS).toBe(false);
+    expect(teamBackgroundRenderSupported({ teamWorkspace: 2 })).toBe(false);
+    expect(teamBackgroundRenderSupported({ teamWorkspace: 2, teamBackgroundRender: 1 })).toBe(true);
+    expect(teamBackgroundRenderSupported(null)).toBe(false);
+    // Legacy negotiation is untouched by the new key.
+    expect(toolContractCompatible('teamWorkspace', { teamWorkspace: 1 })).toBe(true);
+  });
 });

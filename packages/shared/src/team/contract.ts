@@ -106,6 +106,20 @@ export const AGENT_INTAKE_MAX_BYTES = 100 * 1024 * 1024 * 1024;
 export const UPLOAD_CHUNK_MULTIPLE_BYTES = 256 * 1024;
 export const OAUTH_TRANSACTION_TTL_SECONDS = 10 * 60;
 export const TRANSFER_GRANT_TTL_SECONDS = 10 * 60;
+/** Change replay and preview warming tick at this interval; the storage chip shows it. */
+export const TEAM_RECONCILIATION_INTERVAL_MS = 5 * 60 * 1000;
+/** Published limit for the one-call folder tree read (beside 50,000 materials). */
+export const TEAM_FOLDER_TREE_MAX_FOLDERS = 10_000;
+/** Why a space's storage needs a person; the chip names who can fix each. */
+export const TEAM_STORAGE_ATTENTION_REASONS = [
+  'needs_reauth',
+  'root_missing',
+  'permission_lost',
+  'quota',
+  // The last full scan failed; anyone who can manage the space may ask for another.
+  'sync_failed'
+] as const;
+export type TeamStorageAttentionReason = (typeof TEAM_STORAGE_ATTENTION_REASONS)[number];
 
 const ISO_GEO_CODE_SOURCE = `
 AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ
@@ -267,4 +281,15 @@ export function normalizeTeamTags(value: unknown): string[] | null {
     }
   }
   return output;
+}
+
+/**
+ * Whether a paired agent can take background landing renders. Detected from
+ * the `teamBackgroundRender` contract directly (the same shape as `power`):
+ * an agent that predates it never reports the key and is simply not asked.
+ */
+export function teamBackgroundRenderSupported(
+  contracts: Partial<Record<string, number>> | null | undefined
+): boolean {
+  return (contracts?.teamBackgroundRender ?? 0) >= 1;
 }

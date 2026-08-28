@@ -13,6 +13,7 @@ import {
   type LandingRenderFailureReason,
   type LandingTileState,
   type ToolContracts,
+  type TeamStorageAttentionReason,
   appEnvironmentOrProduction
 } from '@video-compressor/shared';
 import { getSupabaseClient } from '../lib/supabase';
@@ -349,6 +350,49 @@ function safeUuid(value: Json | undefined): string | null {
 export const analytics = new ProductAnalytics();
 
 type AnalyticsTracker = Pick<ProductAnalytics, 'track'>;
+
+/** 011 — a root (or a set of picked folders) was connected. */
+export function trackTeamStorageConnected(
+  properties: { selectionCount: number; storageKind: 'my_drive' | 'shared_drive' },
+  tracker: AnalyticsTracker = analytics
+): void {
+  tracker.track('team_storage_connected', {
+    selection_count: properties.selectionCount,
+    storage_kind: properties.storageKind
+  });
+}
+
+/** 011 — storage needs a person; once per reason change. */
+export function trackTeamStorageAttention(
+  properties: { reason: TeamStorageAttentionReason },
+  tracker: AnalyticsTracker = analytics
+): void {
+  tracker.track('team_storage_attention', { attention_reason: properties.reason });
+}
+
+/** 011 — preview preparation finished for the space. */
+export function trackTeamPreviewsReady(
+  properties: { readyCount: number; unavailableCount: number; durationMs: number },
+  tracker: AnalyticsTracker = analytics
+): void {
+  tracker.track('team_previews_ready', {
+    ready_count: properties.readyCount,
+    unavailable_count: properties.unavailableCount,
+    duration_ms: properties.durationMs
+  });
+}
+
+/** 011 — every folder under the root has been listed. */
+export function trackTeamIndexCompleted(
+  properties: { folderCount: number; fileCount: number; durationMs: number },
+  tracker: AnalyticsTracker = analytics
+): void {
+  tracker.track('team_index_completed', {
+    folder_count: properties.folderCount,
+    file_count: properties.fileCount,
+    duration_ms: properties.durationMs
+  });
+}
 
 export function trackTeamWorkspaceSession(tracker: AnalyticsTracker = analytics): void {
   tracker.track('team_workspace_session', { workspace_session: true });

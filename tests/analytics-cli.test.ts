@@ -85,6 +85,13 @@ describe('team-workspace JSON contract', () => {
   it('builds the stable envelope and rejects identifying output fields', () => {
     const period = resolvePeriod('all', undefined);
     const data: TeamWorkspaceData = {
+      storage: {
+        storage_connected: 0,
+        index_completed: 0,
+        previews_ready: 0,
+        attention: 0,
+        attention_reasons: []
+      },
       sc001: { attempts: 20, successes: 18, success_rate: 0.9, status: 'pass' },
       sc005: {
         attempts: 20,

@@ -39,7 +39,8 @@ export function MaterialResults({
   browseClient,
   destinationFolderId = null,
   page,
-  onPageChange
+  onPageChange,
+  pathFor
 }: {
   result: CatalogSearchResponse | null;
   loading: boolean;
@@ -61,6 +62,8 @@ export function MaterialResults({
   /** 1-based page currently shown. */
   page: number;
   onPageChange: (page: number) => void;
+  /** 011: the folder path of a result, when the caller can name it. */
+  pathFor?: (material: CatalogMaterialItem) => string | null;
 }) {
   const { t } = useI18n();
   if (error) return <p className="team-inline-error">{t('teamCatalogLoadFailed')}</p>;
@@ -101,6 +104,9 @@ export function MaterialResults({
                   </span>
                   <div>
                     <strong>{material.name}</strong>
+                    {pathFor?.(material) && (
+                      <span className="team-catalog-material-path">{pathFor(material)}</span>
+                    )}
                     <span className="team-catalog-material-type">
                       {typeLabel}
                       {material.kind === 'file' && material.fileExtension

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type {
   CatalogMaterialItem,
   CatalogSearchFilters,
@@ -9,6 +9,7 @@ import type {
   TeamAnalyticsStage,
   TeamAnalyticsStorage,
   TeamMaterialProvenanceEntry,
+  TeamMaterialRowKind,
   TeamProcessStartResult
 } from '@video-compressor/shared';
 import { useOptionalAgent } from '../../AgentContext';
@@ -63,7 +64,12 @@ export function TeamCatalog({
   onCreateTask,
   initialQuery,
   initialFilters,
-  onSearched
+  onSearched,
+  scopeFolderId,
+  scope = 'folder',
+  onScopeChange,
+  kinds,
+  pathFor
 }: {
   teamId: string;
   client: TeamCatalogClient;
@@ -73,12 +79,40 @@ export function TeamCatalog({
   initialFilters?: CatalogSearchFilters;
   /** Reports the state behind each executed search so it can be addressed. */
   onSearched?: (state: { query: string; filters: CatalogSearchFilters }) => void;
+  /**
+   * 011: the explorer's search. When a folder is given, a scope toggle lets the
+   * person widen from it to the whole space; kinds narrow either way.
+   */
+  scopeFolderId?: string | null;
+  scope?: 'folder' | 'space';
+  onScopeChange?: (scope: 'folder' | 'space') => void;
+  kinds?: TeamMaterialRowKind[];
+  pathFor?: (material: CatalogMaterialItem) => string | null;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
   const { can, permissions } = useTeam();
   const agent = useOptionalAgent();
-  const catalog = useCatalogSearch({ teamId, client, initialQuery, initialFilters, onSearched });
+  const kindsKey = (kinds ?? []).join(',');
+  const searchScope = useMemo(
+    () =>
+      scopeFolderId === undefined && !kindsKey
+        ? undefined
+        : {
+            parentFolderId: scope === 'space' ? null : (scopeFolderId ?? null),
+            ...(kindsKey ? { kinds } : {})
+          },
+    // kindsKey stands in for the array's identity.
+    [kinds, kindsKey, scope, scopeFolderId]
+  );
+  const catalog = useCatalogSearch({
+    teamId,
+    client,
+    initialQuery,
+    initialFilters,
+    onSearched,
+    scope: searchScope
+  });
   const [storageKind, setStorageKind] = useState<TeamAnalyticsStorage | null>(null);
   /**
    * The one overlay this surface is showing, if any.
@@ -165,6 +199,24 @@ export function TeamCatalog({
         {catalog.loading && <small aria-live="polite">{t('teamCatalogRefreshing')}</small>}
       </div>
       <CatalogSearchBar value={catalog.query} onChange={catalog.setQuery} />
+      {scopeFolderId !== undefined && onScopeChange && (
+        <div className="team-explorer-scope" role="group" aria-label={t('teamExplorerScopeLabel')}>
+          <button
+            type="button"
+            aria-pressed={scope === 'folder'}
+            onClick={() => onScopeChange('folder')}
+          >
+            {t('teamExplorerScopeFolder')}
+          </button>
+          <button
+            type="button"
+            aria-pressed={scope === 'space'}
+            onClick={() => onScopeChange('space')}
+          >
+            {t('teamExplorerScopeSpace')}
+          </button>
+        </div>
+      )}
       <CatalogFilters
         filters={catalog.filters}
         vocabulary={catalog.vocabulary}
@@ -199,6 +251,7 @@ export function TeamCatalog({
         browseClient={client}
         page={catalog.page}
         onPageChange={catalog.setPage}
+        pathFor={pathFor}
       />
       {overlay?.kind === 'metadata' && (
         <MaterialMetadataEditor

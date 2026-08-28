@@ -124,8 +124,12 @@ actually need to verify Drive-dependent flows.
 2. Add the redirect URI `http://127.0.0.1:54321/functions/v1/drive-oauth-callback` — it is already
    documented in `supabase/functions/.env.example`.
 3. In `supabase/functions/.env.local` set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
-   `GOOGLE_REDIRECT_URI`, and `DRIVE_OAUTH_MODE=testing`.
-4. Restart the local stack.
+   `GOOGLE_REDIRECT_URI`, and `DRIVE_OAUTH_MODE=testing`. The client needs only the
+   non-restricted `drive.file` scope (feature 011); a Testing-status consent screen expires
+   refresh tokens after 7 days, which the chip surfaces as `needs_reauth`.
+4. Enable the Google Picker API on the same project and set `VITE_GOOGLE_PICKER_API_KEY` and
+   `VITE_GOOGLE_PROJECT_NUMBER` in `.env.beta`; without them the folder chooser cannot open.
+5. Restart the local stack.
 
 Production must stay on `DRIVE_OAUTH_MODE=verified`; the release gate enforces that independently.
 

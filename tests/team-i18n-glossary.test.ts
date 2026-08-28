@@ -87,10 +87,10 @@ describe('the object noun', () => {
 
 describe('canonical section labels', () => {
   it.each([
-    ['teamSectionFiles', 'Files', 'Файли'],
+    // 011: Files, Creatives and Landings merged into the explorer; Members became a destination.
+    ['teamSectionExplorer', 'Explorer', 'Провідник'],
     ['teamSectionTasks', 'Tasks', 'Завдання'],
-    ['teamSectionCreatives', 'Creatives', 'Креативи'],
-    ['teamSectionLandings', 'Landings', 'Лендінги'],
+    ['teamSectionMembers', 'Members', 'Учасники'],
     ['teamSpaceSettings', 'Space settings', 'Налаштування простору']
   ] as const)('%s is the agreed label in both locales', (key, en, uk) => {
     expect(translate('en', key)).toBe(en);

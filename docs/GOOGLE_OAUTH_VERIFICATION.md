@@ -43,7 +43,27 @@ remains the only deployment path that asserts the Google Drive workspace is prod
 Do not change the public name, logo, homepage URL, Privacy URL, Terms URL, redirect URI,
 or requested scopes during review. Those changes can trigger a new review.
 
-## Google Drive is deliberately not ready for submission
+## drive.file release (feature 011)
+
+The team workspace ships on the **non-restricted** `drive.file` scope with the Google Picker
+as the folder chooser, so it needs no restricted-scope review to work in production. The
+owner-side checklist, recorded with a date when done:
+
+1. OAuth consent screen publishing status **In production** (not Testing).
+2. Scope list exactly: `openid`, `userinfo.email`, `userinfo.profile`,
+   `https://www.googleapis.com/auth/drive.file`.
+3. **Google Picker API** enabled on the same Cloud project.
+4. A browser API key restricted to `https://soty.pp.ua` referrers and the Picker API only.
+5. The Cloud project number recorded; both values set as `VITE_GOOGLE_PICKER_API_KEY` and
+   `VITE_GOOGLE_PROJECT_NUMBER` in `apps/web/.env.production` (public values only).
+6. `DRIVE_RESTRICTED_SCOPE_APPROVED` left unset (or `false`) on the Supabase deployment.
+
+The restricted-scope packet below is prepared **in parallel and never blocks the release**
+(clarification of 2026-08-27). After approval, set `DRIVE_RESTRICTED_SCOPE_APPROVED=true`;
+existing connections gain the wider scope through `include_granted_scopes` on their next
+authorization without the owner re-selecting anything.
+
+## Google Drive restricted scope — not required for the 011 release
 
 The team workspace currently has `DRIVE_OAUTH_MODE=disabled` in production. Its planned
 scope is `https://www.googleapis.com/auth/drive`, which is a **restricted** scope. Do not
@@ -73,7 +93,18 @@ The current specification describes the second design, so it must retain the res
 scope until the product is redesigned around explicit per-file/folder selection. Do not
 downscope in code without changing and testing that user journey.
 
-## Drive submission packet (prepare only after the feature works)
+## Drive submission packet (parallel, non-blocking)
+
+Per the 2026-08-27 clarification the 011 release ships on `drive.file` alone; this packet is
+prepared in parallel and blocks nothing. Checklist (kept outside the repository):
+
+- [ ] Restricted scope added to the consent screen in a **separate** submission, never to the
+      `drive.file` client the release uses.
+- [ ] `DRIVE_RESTRICTED_SCOPE_APPROVED` stays unset until Google's approval mail is filed.
+- [ ] Demo video shows the Picker flow, the folder tree, and one write inside the root.
+- [ ] CASA assessment booked (Tier 2), report filed with the approval date.
+- [ ] After approval: switch the scope set via `resolveDriveScopes`, and rely on
+      `include_granted_scopes=true` so existing owners upgrade without losing `drive.file`.
 
 Keep these values outside the repository, with no credentials or tokens:
 

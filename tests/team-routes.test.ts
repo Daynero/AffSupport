@@ -59,9 +59,9 @@ describe('parseTeamRoute', () => {
     expect(parseTeamRoute('/team?all=yes')).toMatchObject({ showAll: false });
   });
 
-  it('treats a bare space address as Files, the canonical default', () => {
+  it('treats a bare space address as the explorer, the canonical default', () => {
     const route = parseTeamRoute('/team/space-1');
-    expect(route).toMatchObject({ kind: 'space', spaceId: 'space-1', section: 'files' });
+    expect(route).toMatchObject({ kind: 'space', spaceId: 'space-1', section: 'explorer' });
   });
 
   it('parses every declared section', () => {
@@ -71,7 +71,7 @@ describe('parseTeamRoute', () => {
     }
   });
 
-  it('degrades an unrecognized section to Files rather than failing', () => {
+  it('degrades an unrecognized section to the explorer rather than failing', () => {
     expect(parseTeamRoute('/team/space-1/bogus')).toMatchObject({
       kind: 'space',
       spaceId: 'space-1',
@@ -127,14 +127,16 @@ describe('parseTeamRoute', () => {
 });
 
 describe('buildTeamRoute', () => {
-  it('omits the suffix for the canonical Files section', () => {
+  it('omits the suffix for the canonical explorer section', () => {
     expect(buildTeamRoute({ spaceId: 'space-1' })).toBe('/team/space-1');
-    expect(buildTeamRoute({ spaceId: 'space-1', section: 'files' })).toBe('/team/space-1');
+    expect(buildTeamRoute({ spaceId: 'space-1', section: 'explorer' })).toBe('/team/space-1');
   });
 
   it('writes the suffix for every other section', () => {
     expect(buildTeamRoute({ spaceId: 'space-1', section: 'tasks' })).toBe('/team/space-1/tasks');
-    expect(buildTeamRoute({ spaceId: 'space-1', section: 'trash' })).toBe('/team/space-1/trash');
+    expect(buildTeamRoute({ spaceId: 'space-1', section: 'members' })).toBe(
+      '/team/space-1/members'
+    );
   });
 
   it('drops query state the section cannot act on', () => {
@@ -148,7 +150,7 @@ describe('buildTeamRoute', () => {
     expect(route).toBe('/team/space-1/tasks?task=task-7');
   });
 
-  it('round-trips a Files view with search, filters and position', () => {
+  it('round-trips an explorer view with search, filters and position', () => {
     const built = buildTeamRoute({
       spaceId: 'space-1',
       query: {
@@ -161,7 +163,7 @@ describe('buildTeamRoute', () => {
     expect(parsed).toMatchObject({
       kind: 'space',
       spaceId: 'space-1',
-      section: 'files',
+      section: 'explorer',
       query: { q: 'banner', folderId: 'folder-9', filters: { geo: ['US'], language: ['en'] } }
     });
   });
@@ -186,5 +188,57 @@ describe('teamResolverRoute', () => {
   it('round-trips an explicit request for the lobby', () => {
     expect(teamResolverRoute({ showAll: true })).toBe('/team?all=1');
     expect(parseTeamRoute(teamResolverRoute({ showAll: true }))).toMatchObject({ showAll: true });
+  });
+});
+
+describe('the old sections, as aliases (011)', () => {
+  it('opens /files, /landings, /creatives, /settings and /trash inside the explorer', () => {
+    expect(parseTeamRoute('/team/space-1/files')).toMatchObject({ section: 'explorer' });
+    expect(parseTeamRoute('/team/space-1/landings')).toMatchObject({
+      section: 'explorer',
+      query: { kinds: ['landing'], view: 'grid' }
+    });
+    expect(parseTeamRoute('/team/space-1/creatives')).toMatchObject({
+      section: 'explorer',
+      query: { kinds: ['image', 'video'], view: 'grid' }
+    });
+    expect(parseTeamRoute('/team/space-1/settings')).toMatchObject({
+      section: 'explorer',
+      query: { settings: true }
+    });
+    expect(parseTeamRoute('/team/space-1/trash')).toMatchObject({
+      section: 'explorer',
+      query: { trash: true }
+    });
+  });
+
+  it('round-trips the explorer view state through the address', () => {
+    const route = buildTeamRoute({
+      spaceId: 'space-1',
+      section: 'explorer',
+      query: {
+        folderId: 'f-1',
+        kinds: ['image', 'video'],
+        view: 'list',
+        scope: 'space',
+        trash: false,
+        settings: true,
+        itemId: 'm-1'
+      }
+    });
+    expect(parseTeamRoute(route)).toMatchObject({
+      section: 'explorer',
+      query: {
+        folderId: 'f-1',
+        kinds: ['image', 'video'],
+        view: 'list',
+        scope: 'space',
+        settings: true,
+        itemId: 'm-1'
+      }
+    });
+    expect(parseTeamRoute('/team/space-1?k=image,nonsense')).toMatchObject({
+      query: { kinds: ['image'] }
+    });
   });
 });

@@ -20,15 +20,29 @@ describe('guided team space workspace', () => {
     const invitations: TeamInvitationSummary[] = [];
     const client = makeClient({
       listTeams: vi.fn().mockResolvedValue([team]),
-      listMaterials: vi.fn().mockResolvedValue([
-        {
-          id: 'material-visible',
-          teamId: team.id,
-          name: 'launch.mp4',
-          kind: 'file',
-          category: 'video'
-        }
-      ]),
+      // The explorer reads paged rows from the index (011).
+      listFolderPage: vi.fn().mockResolvedValue({
+        rows: [
+          {
+            id: 'material-visible',
+            teamId: team.id,
+            name: 'launch.mp4',
+            category: 'video',
+            mimeType: 'video/mp4',
+            fileExtension: 'mp4',
+            sizeBytes: 1024,
+            kind: 'video',
+            driveFileId: 'drive-visible',
+            parentFolderId: 'root',
+            modifiedAt: null,
+            driveVersion: '1',
+            previewState: 'pending',
+            thumbnailReady: false
+          }
+        ],
+        total: 1,
+        next: null
+      }),
       listInvitations: vi.fn().mockImplementation(async () => [...invitations]),
       createInvitation: vi.fn().mockImplementation(async () => {
         const created = {
@@ -61,7 +75,7 @@ describe('guided team space workspace', () => {
       mimeType: 'video/mp4',
       expiresAt: '2026-08-15T12:00:00.000Z'
     });
-    await user.click(screen.getByRole('button', { name: 'Preview launch.mp4' }));
+    await user.click(screen.getByRole('button', { name: 'Open launch.mp4' }));
     expect(await screen.findByRole('dialog', { name: 'launch.mp4' })).toBeTruthy();
     await waitFor(() =>
       expect(previewMaterial).toHaveBeenCalledWith(team.id, 'material-visible', 'media')
@@ -77,9 +91,10 @@ describe('guided team space workspace', () => {
     await user.click(screen.getByRole('button', { name: 'Send invitation' }));
     expect(await screen.findByText('new.member@example.test')).toBeTruthy();
 
-    // Return to the content view.
+    // Return to the content view. The opened file is still selected, so its name
+    // shows on the tile and in the pane (011).
     await user.click(screen.getByRole('button', { name: 'Back to space' }));
-    expect(await screen.findByText('launch.mp4')).toBeTruthy();
+    expect((await screen.findAllByText('launch.mp4')).length).toBeGreaterThanOrEqual(1);
 
     await waitFor(() =>
       expect(client.createInvitation).toHaveBeenCalledWith(

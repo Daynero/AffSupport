@@ -62,18 +62,29 @@ if (scriptHashes.length === 0) {
  */
 const LOCAL_APP = 'http://127.0.0.1:* http://localhost:*';
 
+/**
+ * Google's own folder chooser (feature 011). The page loads the Picker loader
+ * from apis.google.com and the chooser itself renders inside a docs.google.com
+ * frame; the loader talks back to its own origin. This is site-wide because a
+ * single-page application keeps the policy of the document it first loaded,
+ * so a route-scoped rule would break the moment someone navigated to the
+ * connect screen from anywhere else. Nothing here is 'unsafe-*'.
+ */
+const PICKER_SCRIPT = 'https://apis.google.com';
+const PICKER_FRAME = 'https://docs.google.com';
+
 const policy = [
   "default-src 'self'",
-  `script-src 'self' ${scriptHashes.join(' ')}`,
+  `script-src 'self' ${scriptHashes.join(' ')} ${PICKER_SCRIPT}`,
   // The stylesheet is a file; inline styles assigned through `element.style`
   // are CSSOM writes and are not covered by this directive.
   "style-src 'self' 'unsafe-inline'",
-  `connect-src 'self' ${SUPABASE_ORIGINS} ${LOCAL_APP}`,
+  `connect-src 'self' ${SUPABASE_ORIGINS} ${LOCAL_APP} ${PICKER_SCRIPT}`,
   // `data:` for an inline SVG in the stylesheet, `blob:` for a generated
   // download preview, and the avatar host for signed-in users.
   "img-src 'self' data: blob: https://lh3.googleusercontent.com",
   `media-src 'self' blob: ${LOCAL_APP}`,
-  `frame-src ${LOCAL_APP}`,
+  `frame-src ${LOCAL_APP} ${PICKER_FRAME}`,
   "frame-ancestors 'none'",
   "base-uri 'none'",
   // Sign-in is a redirect, not a form post. Widen to 'self' if a real form

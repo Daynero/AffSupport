@@ -108,9 +108,10 @@ async function constantTimeEqual(left: string, right: string): Promise<boolean> 
 
 export async function requireNamedWorkerSecret(
   request: Request,
-  configuredSecret = Deno.env.get('CATALOG_SYNC_SECRET')
+  configuredSecret = Deno.env.get('CATALOG_SYNC_SECRET'),
+  headerName = 'x-catalog-sync-secret'
 ): Promise<void> {
-  const supplied = request.headers.get('x-catalog-sync-secret');
+  const supplied = request.headers.get(headerName);
   if (
     !configuredSecret ||
     configuredSecret.length < 32 ||

@@ -79,7 +79,8 @@ describe('language selection and dictionaries', () => {
         key.startsWith('teamLandings') ||
         key.startsWith('landingGalleryTeam')
     );
-    expect(keys.length).toBeGreaterThan(25);
+    // 011 folded the landings gallery into the explorer; its tile copy left with it.
+    expect(keys.length).toBeGreaterThan(15);
     for (const key of keys) {
       const english = translate('en', key);
       const ukrainian = translate('uk', key);

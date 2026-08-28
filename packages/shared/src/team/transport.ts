@@ -1,12 +1,19 @@
 import {
   TEAM_OPERATION_KINDS,
   TEAM_OPERATION_STATES,
+  TEAM_STORAGE_ATTENTION_REASONS,
   isRecord,
   type TeamOperationKind,
   type TeamOperationState,
+  type TeamStorageAttentionReason,
   type TranscriptIngestState
 } from './contract.js';
-import type { MaterialCategory } from './material-category.js';
+import {
+  MATERIAL_CATEGORIES,
+  TEAM_MATERIAL_ROW_KINDS,
+  type MaterialCategory,
+  type TeamMaterialRowKind
+} from './material-category.js';
 
 export const TEAM_ERROR_CODES = [
   'AUTH_REQUIRED',
@@ -48,7 +55,14 @@ export const TEAM_ERROR_CODES = [
   // than renamed: the string on the wire is the contract.
   'OWNER_TRANSFER_REQUIRED',
   // `delete_draft_team` on a team that has ever had a drive connection.
-  'TEAM_NOT_DRAFT'
+  'TEAM_NOT_DRAFT',
+  // 011 — storage selections, folder tree, thumbnail sessions and scope gating.
+  'SELECTION_UNREACHABLE',
+  'ROOT_SELECTION_REQUIRED',
+  'ROOT_MISSING',
+  'TREE_TOO_LARGE',
+  'THUMBNAIL_SESSION_EXPIRED',
+  'RESTRICTED_SCOPE_NOT_APPROVED'
 ] as const;
 export type TeamErrorCode = (typeof TEAM_ERROR_CODES)[number];
 
@@ -81,7 +95,9 @@ export const TEAM_TRANSFER_PURPOSES = [
   'download_range',
   'process_input',
   'process_output',
-  'finalize'
+  'finalize',
+  // 011: one team-bound session for a whole grid of thumbnails.
+  'thumbnail_session'
 ] as const;
 export type TeamTransferPurpose = (typeof TEAM_TRANSFER_PURPOSES)[number];
 
@@ -639,4 +655,208 @@ export function parseTeamProcessStartResult(value: unknown): TeamProcessStartRes
     finalizeGrant,
     agentContractVersion: value.agentContractVersion
   };
+}
+
+// ---------------------------------------------------------------------------
+// 011 — explorer reads: selections, folder tree, paged rows, thumbnail
+// sessions and the one storage-health value the chip renders. Every row
+// crosses from SQL as `unknown` and is narrowed here; the interface never
+// trusts a shape it did not check.
+// ---------------------------------------------------------------------------
+
+export const TEAM_DRIVE_SELECTION_STATES = ['active', 'missing', 'removed'] as const;
+export type TeamDriveSelectionState = (typeof TEAM_DRIVE_SELECTION_STATES)[number];
+
+export interface TeamDriveSelection {
+  id: string;
+  driveFolderId: string;
+  name: string;
+  isRoot: boolean;
+  state: TeamDriveSelectionState;
+}
+
+export interface TeamFolderNode {
+  id: string;
+  driveFileId: string;
+  parentFolderId: string | null;
+  selectionId: string | null;
+  name: string;
+  /** Null until the last page of this folder's children has landed. */
+  indexedAt: string | null;
+  childFolderCount: number;
+  childFileCount: number;
+  thumbnailReadyCount: number;
+}
+
+export const TEAM_PREVIEW_STATES = ['pending', 'ready', 'unavailable', 'not_applicable'] as const;
+export type TeamPreviewState = (typeof TEAM_PREVIEW_STATES)[number];
+
+export const TEAM_LANDING_TILE_RENDER_STATES = [
+  'ready',
+  'rendering',
+  'stale',
+  'failed',
+  'none'
+] as const;
+export type TeamLandingTileRenderState = (typeof TEAM_LANDING_TILE_RENDER_STATES)[number];
+
+export interface TeamMaterialRow extends TeamMaterialSummary {
+  kind: TeamMaterialRowKind;
+  /** The provider id; folders are opened by it. */
+  driveFileId: string;
+  parentFolderId: string | null;
+  modifiedAt: string | null;
+  driveVersion: string | null;
+  previewState: TeamPreviewState;
+  previewReason?: string;
+  thumbnailReady: boolean;
+  landingRender?: { state: TeamLandingTileRenderState };
+}
+
+export interface FolderPageCursor {
+  sortKey: string;
+  id: string;
+}
+
+export interface FolderPage {
+  rows: TeamMaterialRow[];
+  total: number;
+  next: FolderPageCursor | null;
+}
+
+export interface ThumbnailSession {
+  token: string;
+  expiresAt: string;
+  teamId: string;
+  /** The relay to append `?material=&session=` to. */
+  endpoint: string;
+}
+
+export type StorageHealth =
+  | { kind: 'connected'; lastReconciledAt: string }
+  | { kind: 'indexing'; indexedFolders: number; totalFolders: number | null; files: number }
+  | { kind: 'preparing'; ready: number; pending: number }
+  | { kind: 'waiting_provider'; since: string }
+  | { kind: 'attention'; reason: TeamStorageAttentionReason; fixer: 'owner' | 'manager' }
+  | { kind: 'disconnected' };
+
+function optionalString(value: unknown): value is string | null {
+  return value === null || typeof value === 'string';
+}
+
+function count(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
+}
+
+export function isTeamDriveSelection(value: unknown): value is TeamDriveSelection {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.driveFolderId === 'string' &&
+    typeof value.name === 'string' &&
+    typeof value.isRoot === 'boolean' &&
+    (TEAM_DRIVE_SELECTION_STATES as readonly string[]).includes(value.state as string)
+  );
+}
+
+export function isTeamFolderNode(value: unknown): value is TeamFolderNode {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.driveFileId === 'string' &&
+    optionalString(value.parentFolderId) &&
+    optionalString(value.selectionId) &&
+    typeof value.name === 'string' &&
+    optionalString(value.indexedAt) &&
+    count(value.childFolderCount) &&
+    count(value.childFileCount) &&
+    count(value.thumbnailReadyCount)
+  );
+}
+
+export function isTeamMaterialRow(value: unknown): value is TeamMaterialRow {
+  if (!isRecord(value)) return false;
+  if (
+    typeof value.id !== 'string' ||
+    typeof value.teamId !== 'string' ||
+    typeof value.name !== 'string' ||
+    !(
+      value.category === null ||
+      (MATERIAL_CATEGORIES as readonly string[]).includes(value.category as string)
+    ) ||
+    !optionalString(value.mimeType) ||
+    !optionalString(value.fileExtension) ||
+    !(value.sizeBytes === null || typeof value.sizeBytes === 'number') ||
+    !(TEAM_MATERIAL_ROW_KINDS as readonly string[]).includes(value.kind as string) ||
+    typeof value.driveFileId !== 'string' ||
+    !optionalString(value.parentFolderId) ||
+    !optionalString(value.modifiedAt) ||
+    !optionalString(value.driveVersion) ||
+    !(TEAM_PREVIEW_STATES as readonly string[]).includes(value.previewState as string) ||
+    typeof value.thumbnailReady !== 'boolean'
+  ) {
+    return false;
+  }
+  if (value.previewReason !== undefined && typeof value.previewReason !== 'string') return false;
+  if (value.landingRender !== undefined) {
+    if (!isRecord(value.landingRender)) return false;
+    if (
+      !(TEAM_LANDING_TILE_RENDER_STATES as readonly string[]).includes(
+        value.landingRender.state as string
+      )
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function isFolderPage(value: unknown): value is FolderPage {
+  if (!isRecord(value) || !Array.isArray(value.rows) || !count(value.total)) return false;
+  if (!value.rows.every(isTeamMaterialRow)) return false;
+  if (value.next === null) return true;
+  return (
+    isRecord(value.next) &&
+    typeof value.next.sortKey === 'string' &&
+    typeof value.next.id === 'string'
+  );
+}
+
+export function isThumbnailSession(value: unknown): value is ThumbnailSession {
+  return (
+    isRecord(value) &&
+    typeof value.token === 'string' &&
+    value.token.length > 0 &&
+    typeof value.expiresAt === 'string' &&
+    typeof value.teamId === 'string' &&
+    typeof value.endpoint === 'string' &&
+    /^https?:\/\//u.test(value.endpoint)
+  );
+}
+
+export function isStorageHealth(value: unknown): value is StorageHealth {
+  if (!isRecord(value) || typeof value.kind !== 'string') return false;
+  switch (value.kind) {
+    case 'connected':
+      return typeof value.lastReconciledAt === 'string';
+    case 'indexing':
+      return (
+        count(value.indexedFolders) &&
+        (value.totalFolders === null || count(value.totalFolders)) &&
+        count(value.files)
+      );
+    case 'preparing':
+      return count(value.ready) && count(value.pending);
+    case 'waiting_provider':
+      return typeof value.since === 'string';
+    case 'attention':
+      return (
+        (TEAM_STORAGE_ATTENTION_REASONS as readonly string[]).includes(value.reason as string) &&
+        (value.fixer === 'owner' || value.fixer === 'manager')
+      );
+    case 'disconnected':
+      return true;
+    default:
+      return false;
+  }
 }

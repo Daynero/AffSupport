@@ -5,7 +5,6 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TEAM_ERROR_CODES } from '@video-compressor/shared';
 import { ToastProvider } from '../apps/web/src/components/toast';
-import { SyncProgress } from '../apps/web/src/team/SyncProgress';
 import { ProvenancePanel } from '../apps/web/src/team/catalog/ProvenancePanel';
 import { MaterialRowMenu } from '../apps/web/src/team/catalog/MaterialRowMenu';
 import { teamErrorMessage } from '../apps/web/src/team/errors';
@@ -145,37 +144,6 @@ describe('the code→copy mapper', () => {
     const t = (key: (typeof translationKeys)[number]) => translate('en', key);
     expect(teamErrorMessage('NOT_A_REAL_CODE', t)).toBe(t('teamErrorUnknown'));
     expect(teamErrorMessage(null, t)).toBe(t('teamErrorUnknown'));
-  });
-});
-
-describe('the sync banner', () => {
-  const freshness = (state: 'ready' | 'failed' | 'unavailable' | 'scanning') => ({
-    state,
-    lastSyncedAt: null,
-    discoveredCount: 0,
-    foldersRemaining: null,
-    lastProgressAt: null
-  });
-
-  it('renders a failed sync with a way to try again', async () => {
-    const onRetry = vi.fn();
-    render(<SyncProgress freshness={freshness('failed')} onRetry={onRetry} />);
-
-    expect(screen.getByText('The last sync with Google Drive failed')).toBeTruthy();
-    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
-    expect(onRetry).toHaveBeenCalledOnce();
-  });
-
-  it('explains an unreachable Drive, without offering a retry that cannot help', () => {
-    render(<SyncProgress freshness={freshness('unavailable')} />);
-
-    expect(screen.getByText('Google Drive is not reachable')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
-  });
-
-  it('stays quiet when everything is up to date', () => {
-    const { container } = render(<SyncProgress freshness={freshness('ready')} />);
-    expect(container.textContent).toBe('');
   });
 });
 

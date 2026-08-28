@@ -238,23 +238,35 @@ function dependencies(input: {
     listChanges: request => drive.listChanges(request),
     getFile: fileId => drive.getFile(fileId),
     isWithinRoot: async file => {
-      try {
-        await proveLiveAncestry({
-          client: drive,
-          fileId: file.id,
-          rootFolderId: job.rootFolderId,
-          resourceKey: file.resourceKey
-        });
-        return true;
-      } catch (cause) {
-        const error = mapUnknownError(cause);
-        if (
-          ['ROOT_ESCAPE', 'NOT_FOUND', 'PERMISSION_DENIED', 'INVALID_RESPONSE'].includes(error.code)
-        ) {
-          return false;
+      // Any picked folder is an acceptable ancestor (011). The root is tried
+      // first because under research R1 outcome A it is the only one.
+      const roots = [
+        job.rootFolderId,
+        ...(job.selectionFolderIds ?? []).filter(id => id !== job.rootFolderId)
+      ];
+      let lastError: TeamFunctionError | null = null;
+      for (const rootFolderId of roots) {
+        try {
+          await proveLiveAncestry({
+            client: drive,
+            fileId: file.id,
+            rootFolderId,
+            resourceKey: file.resourceKey
+          });
+          return true;
+        } catch (cause) {
+          const error = mapUnknownError(cause);
+          if (
+            !['ROOT_ESCAPE', 'NOT_FOUND', 'PERMISSION_DENIED', 'INVALID_RESPONSE'].includes(
+              error.code
+            )
+          ) {
+            throw error;
+          }
+          lastError = error;
         }
-        throw error;
       }
+      return lastError === null;
     },
     isHiddenSystemFile: async (file, rootFolderId) => {
       try {
@@ -328,6 +340,21 @@ function dependencies(input: {
     reconcile: request =>
       rpcValue(service, 'service_enqueue_catalog_reconciliation', {
         p_connection: request.connectionId
+      }),
+    markFolderIndexed: request =>
+      rpcValue(service, 'service_mark_folder_indexed', {
+        p_connection: request.connectionId,
+        p_drive_folder_id: request.folderId
+      }),
+    markRootState: request =>
+      rpcValue(service, 'service_mark_root_state', {
+        p_connection: request.connectionId,
+        p_state: request.state,
+        p_root_name: request.rootName
+      }),
+    touchReconciled: request =>
+      rpcValue(service, 'service_touch_catalog_reconciled', {
+        p_connection: request.connectionId
       })
   };
 }
@@ -362,6 +389,11 @@ Deno.serve(async request => {
       const job = catalogJob(row);
       try {
         const credentialId = requiredString(row, 'credential_id');
+        job.selectionFolderIds = rows(
+          await rpcValue(service, 'service_list_connection_selections', {
+            p_connection: job.connectionId
+          })
+        ).map(selection => requiredString(selection, 'drive_folder_id'));
         const credential = await readDriveCredential(service, credentialId);
         const clientId = Deno.env.get('GOOGLE_CLIENT_ID');
         const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');

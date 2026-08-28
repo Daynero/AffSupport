@@ -1,9 +1,8 @@
 import { useEffect, useId, useState } from 'react';
+import type { TeamDriveSelection } from '@video-compressor/shared';
 import type {
   DriveCatalogResyncResult,
   DriveConnectionStatus,
-  DriveFolderPage,
-  DriveFolderSummary,
   DriveRootResult
 } from '../../api/team';
 import { TeamApiError } from '../../api/team';
@@ -12,63 +11,74 @@ import { useToasts } from '../../components/toast';
 import { Modal } from '../../components/Modal';
 import { teamErrorMessageFor } from '../errors';
 import { Button } from '../../components/ui';
-import { DriveFolderBrowser } from './DriveFolderBrowser';
 import { BetaStorageNotice, externalStorageUnavailableInBeta } from './BetaStorageNotice';
+import { openFolderPicker, pickerConfig, type PickFolders } from '../storage/loadPicker';
+import { SelectionList, selectionModeEnabled } from '../storage/SelectionList';
 
 type SafeConnectionStatus = Partial<DriveConnectionStatus> & {
   state: DriveConnectionStatus['state'];
 };
 
+/**
+ * What the settings panel and the create flow need from the client (011). The
+ * folder is always picked in Google's own chooser; there is no server-side
+ * browse any more because `drive.file` cannot list an account's folders.
+ */
 export interface DrivePanelClient {
   getConnectionStatus: (teamId: string) => Promise<SafeConnectionStatus>;
   startDriveOAuth?: (teamId: string) => Promise<{ authorizationUrl: string; expiresAt: string }>;
-  listFolders: (
-    teamId: string,
-    parentId?: string,
-    pageToken?: string | null
-  ) => Promise<DriveFolderPage>;
-  confirmDriveRoot: (input: {
+  pickerToken: (teamId: string) => Promise<{ accessToken: string; expiresAt: string }>;
+  chooseRoot: (input: {
     teamId: string;
     folderId: string;
     resourceKey?: string | null;
-    expectedAccount?: string;
-    confirmed: boolean;
+    name?: string;
   }) => Promise<DriveRootResult>;
   replaceDriveRoot?: (input: {
     teamId: string;
     folderId: string;
+    folderName?: string;
     resourceKey?: string | null;
     expectedAccount?: string;
   }) => Promise<DriveRootResult>;
+  restoreRoot?: (teamId: string) => Promise<DriveRootResult>;
   detachDrive?: (teamId: string, connectionId: string) => Promise<void>;
   resyncDrive?: (teamId: string) => Promise<DriveCatalogResyncResult>;
+  listDriveSelections?: (teamId: string) => Promise<TeamDriveSelection[]>;
+  addDriveSelection?: (
+    teamId: string,
+    input: { driveFolderId: string; resourceKey: string | null; name: string }
+  ) => Promise<TeamDriveSelection>;
+  removeDriveSelection?: (teamId: string, selectionId: string) => Promise<void>;
+  /** The chooser; tests inject one, production opens Google's. */
+  pickFolders?: PickFolders;
 }
 
 export function DriveConnectionPanel({
   teamId,
   client,
   revision = 0,
-  onConnected
+  onConnected,
+  config = pickerConfig()
 }: {
   teamId: string;
   client: DrivePanelClient;
   revision?: number;
   onConnected?: () => void;
+  config?: ReturnType<typeof pickerConfig>;
 }) {
+  const pickFolders = client.pickFolders ?? openFolderPicker;
   const { t } = useI18n();
   const { push } = useToasts();
   const [status, setStatus] = useState<SafeConnectionStatus>({ state: 'none' });
-  const [folders, setFolders] = useState<DriveFolderPage | null>(null);
-  const [trail, setTrail] = useState<DriveFolderSummary[]>([]);
-  const [selected, setSelected] = useState<DriveFolderSummary | null>(null);
-  const [confirmation, setConfirmation] = useState<DriveRootResult | null>(null);
+  const [authorized, setAuthorized] = useState(false);
   const [authorizationUrl, setAuthorizationUrl] = useState<string | null>(null);
-  const [replaceMode, setReplaceMode] = useState(false);
   const [confirmingDetach, setConfirmingDetach] = useState(false);
   const detachTitleId = useId();
   const [resyncQueued, setResyncQueued] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectionRevision, setSelectionRevision] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -88,35 +98,26 @@ export function DriveConnectionPanel({
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const callbackCode = new URLSearchParams(window.location.search).get('drive');
-    if (callbackCode === 'connected') void loadFolders();
+    if (callbackCode === 'connected') setAuthorized(true);
     else if (callbackCode === 'OAUTH_APPROVAL_REQUIRED') setError(t('teamDriveApprovalRequired'));
     // The callback query is read once for this mounted team panel.
   }, [teamId]);
 
-  const loadFolders = async (pageToken?: string | null, parentId = 'root') => {
-    setBusy(true);
-    setError(null);
-    try {
-      const page = await client.listFolders(teamId, parentId, pageToken);
-      setFolders(current =>
-        current && pageToken
-          ? { folders: [...current.folders, ...page.folders], nextPageToken: page.nextPageToken }
-          : page
-      );
-    } catch (cause) {
-      setError(
-        cause instanceof TeamApiError && cause.code === 'OAUTH_APPROVAL_REQUIRED'
-          ? t('teamDriveApprovalRequired')
-          : t('teamDriveUnavailable')
-      );
-    } finally {
-      setBusy(false);
+  const explain = (cause: unknown) => {
+    if (cause instanceof TeamApiError && cause.code === 'OAUTH_APPROVAL_REQUIRED') {
+      return t('teamDriveApprovalRequired');
     }
+    if (cause && typeof cause === 'object' && 'code' in cause) {
+      if ((cause as { code: unknown }).code === 'PICKER_UNAVAILABLE') {
+        return t('teamConnectPickerFailed');
+      }
+    }
+    return teamErrorMessageFor(cause, t);
   };
 
   const connect = async () => {
     if (!client.startDriveOAuth) {
-      await loadFolders();
+      setAuthorized(true);
       return;
     }
     setBusy(true);
@@ -125,94 +126,83 @@ export function DriveConnectionPanel({
       const started = await client.startDriveOAuth(teamId);
       setAuthorizationUrl(started.authorizationUrl);
     } catch (cause) {
-      setError(
-        cause instanceof TeamApiError && cause.code === 'OAUTH_APPROVAL_REQUIRED'
-          ? t('teamDriveApprovalRequired')
-          : t('teamDriveUnavailable')
-      );
+      setError(explain(cause));
     } finally {
       setBusy(false);
     }
   };
 
   /**
-   * Steps into a folder (or back to the account root when given null) and
-   * rewrites the trail so the crumbs always describe the listing on screen.
-   * Navigating never selects: choosing a root is a separate, explicit act.
+   * One chooser for both first connection and replacement. The chooser ran
+   * with the credential the connection holds, so nothing is left to confirm.
    */
-  const openFolder = async (folder: DriveFolderSummary | null) => {
-    if (!folder) {
-      setTrail([]);
-      setFolders(null);
-      await loadFolders(null, 'root');
+  const pick = async (mode: 'connect' | 'replace') => {
+    if (!config && !client.pickFolders) {
+      setError(t('teamConnectChooserUnavailable'));
       return;
     }
-    setTrail(current => {
-      const seen = current.findIndex(entry => entry.id === folder.id);
-      return seen >= 0 ? current.slice(0, seen + 1) : [...current, folder];
-    });
-    setFolders(null);
-    await loadFolders(null, folder.id);
-  };
-
-  /**
-   * Both connecting and replacing ask the server what this folder means before
-   * showing anything to confirm.
-   *
-   * Replace used to fabricate its own confirmation client-side — inventing the
-   * account and the ACL warning rather than reading them — so the dialog could
-   * assert facts the server had never checked (finding R3).
-   */
-  const choose = async (folder: DriveFolderSummary) => {
-    setSelected(folder);
     setBusy(true);
+    setError(null);
     try {
-      setConfirmation(
-        await client.confirmDriveRoot({
-          teamId,
-          folderId: folder.id,
-          resourceKey: folder.resourceKey,
-          confirmed: false
-        })
-      );
-    } catch {
-      setError(t('teamDriveUnavailable'));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const confirm = async () => {
-    if (!selected || confirmation?.state !== 'confirmation_required') return;
-    setBusy(true);
-    try {
+      const token = await client.pickerToken(teamId);
+      const picked = await pickFolders({
+        accessToken: token.accessToken,
+        config,
+        title: t('teamConnectChooserTitle')
+      });
+      const folder = picked?.[0];
+      if (!folder) return;
       const result =
-        replaceMode && client.replaceDriveRoot
+        mode === 'replace' && client.replaceDriveRoot
           ? await client.replaceDriveRoot({
               teamId,
-              folderId: selected.id,
-              resourceKey: selected.resourceKey,
-              expectedAccount: confirmation.account
+              folderId: folder.id,
+              folderName: folder.name,
+              resourceKey: folder.resourceKey
             })
-          : await client.confirmDriveRoot({
+          : await client.chooseRoot({
               teamId,
-              folderId: selected.id,
-              resourceKey: selected.resourceKey,
-              expectedAccount: confirmation.account,
-              confirmed: true
+              folderId: folder.id,
+              resourceKey: folder.resourceKey,
+              name: folder.name
             });
-      setConfirmation(result);
+      if (result.state !== 'connected') {
+        setError(t('teamDriveUnavailable'));
+        return;
+      }
       setStatus(current => ({
         ...current,
         state: 'connected',
-        rootFolderName: selected.name
+        rootFolderName: result.folder.name,
+        connectionId: result.connectionId ?? current.connectionId
       }));
-      setFolders(null);
-      setTrail([]);
-      setReplaceMode(false);
+      setSelectionRevision(value => value + 1);
+      push({ tone: 'success', text: t('teamConnectPicked', { name: result.folder.name }) });
       onConnected?.();
-    } catch {
-      setError(t('teamDriveUnavailable'));
+    } catch (cause) {
+      setError(explain(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const restore = async () => {
+    if (!client.restoreRoot) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await client.restoreRoot(teamId);
+      if (result.state === 'connected') {
+        setStatus(current => ({
+          ...current,
+          state: 'connected',
+          rootFolderName: result.folder.name
+        }));
+        push({ tone: 'success', text: t('teamDriveRootRestored') });
+        onConnected?.();
+      }
+    } catch (cause) {
+      setError(explain(cause));
     } finally {
       setBusy(false);
     }
@@ -225,7 +215,6 @@ export function DriveConnectionPanel({
     try {
       await client.detachDrive(teamId, status.connectionId);
       setStatus({ state: 'detached' });
-      setConfirmation(null);
       setConfirmingDetach(false);
       push({ tone: 'success', text: t('teamToastDriveDetached') });
     } catch (cause) {
@@ -255,85 +244,115 @@ export function DriveConnectionPanel({
     }
   };
 
-  const connected = status.state === 'connected' || confirmation?.state === 'connected';
+  const connected = status.state === 'connected';
+  const rootMissing = status.state === 'root_missing';
+  const unavailable = externalStorageUnavailableInBeta(status.state);
+  const badge = connected
+    ? t('teamDriveConnected')
+    : rootMissing
+      ? t('teamDriveRootMissing')
+      : status.state === 'needs_reauth'
+        ? t('teamDriveNeedsReauth')
+        : status.state === 'unavailable'
+          ? t('teamDriveUnavailable')
+          : t('teamDriveNotConnected');
+
   return (
     <section className="team-panel team-drive-panel" aria-labelledby="team-drive-title">
       <div className="team-panel-heading">
         <h2 id="team-drive-title">{t('teamDriveTitle')}</h2>
-        <span className={`team-connection-badge is-${status.state}`}>
-          {connected
-            ? t('teamDriveConnected')
-            : status.state === 'needs_reauth'
-              ? t('teamDriveNeedsReauth')
-              : status.state === 'unavailable'
-                ? t('teamDriveUnavailable')
-                : t('teamDriveNotConnected')}
-        </span>
+        <span className={`team-connection-badge is-${status.state}`}>{badge}</span>
       </div>
       {status.rootFolderName && <p>{status.rootFolderName}</p>}
       <BetaStorageNotice state={status.state} />
-      {!connected && !folders && !externalStorageUnavailableInBeta(status.state) && (
+
+      {!connected && !rootMissing && !unavailable && !authorized && !authorizationUrl && (
         <Button type="button" variant="primary" loading={busy} onClick={() => void connect()}>
           {t('teamDriveConnect')}
         </Button>
       )}
-      {authorizationUrl && (
+      {!connected && !rootMissing && authorizationUrl && !authorized && (
         <a className="button button-primary" href={authorizationUrl} rel="noreferrer">
           {t('teamDriveAuthorize')}
         </a>
       )}
-      {connected && (!folders || (status.state === 'connected' && client.resyncDrive)) && (
+      {!connected && !rootMissing && !unavailable && authorized && (
+        <Button type="button" variant="primary" loading={busy} onClick={() => void pick('connect')}>
+          {t('teamConnectChooseFolder')}
+        </Button>
+      )}
+
+      {rootMissing && (
         <div className="team-inline-actions">
-          {status.state === 'connected' && client.resyncDrive && (
+          <p className="team-inline-error">{t('teamDriveRootMissingBody')}</p>
+          {client.restoreRoot && (
+            <Button type="button" variant="primary" loading={busy} onClick={() => void restore()}>
+              {t('teamDriveRestoreRoot')}
+            </Button>
+          )}
+          {client.replaceDriveRoot && (
+            <Button
+              type="button"
+              variant="secondary"
+              loading={busy}
+              onClick={() => void pick('replace')}
+            >
+              {t('teamDriveChooseAnother')}
+            </Button>
+          )}
+        </div>
+      )}
+
+      {connected && (
+        <div className="team-inline-actions">
+          {client.resyncDrive && (
             <Button type="button" variant="secondary" loading={busy} onClick={() => void resync()}>
               {t('teamDriveResync')}
             </Button>
           )}
-          {!folders && client.replaceDriveRoot && (
+          {client.replaceDriveRoot && (
             <Button
               type="button"
               variant="secondary"
-              onClick={() => {
-                setReplaceMode(true);
-                void loadFolders();
-              }}
+              loading={busy}
+              onClick={() => void pick('replace')}
             >
               {t('teamDriveReplace')}
             </Button>
           )}
-          {!folders && client.startDriveOAuth && (
+          {client.startDriveOAuth && (
             <Button type="button" variant="secondary" onClick={() => void connect()}>
               {t('teamDriveReauth')}
             </Button>
           )}
-          {!folders && client.detachDrive && (
+          {client.detachDrive && (
             <Button type="button" variant="danger" onClick={() => setConfirmingDetach(true)}>
               {t('teamDriveDetach')}
             </Button>
           )}
         </div>
       )}
-      {folders && (
-        <DriveFolderBrowser
-          folders={folders.folders}
-          nextPageToken={folders.nextPageToken}
-          trail={trail}
-          onOpen={folder => void openFolder(folder)}
-          onChoose={folder => void choose(folder)}
-          onLoadMore={() => void loadFolders(folders.nextPageToken, trail.at(-1)?.id ?? 'root')}
-        />
-      )}
-      {confirmation?.state === 'confirmation_required' && (
-        <div className="team-drive-confirmation">
-          <strong>{confirmation.folder.name}</strong>
-          <span>{confirmation.account}</span>
-          <p>{t('teamDriveIndependentAcl')}</p>
-          <Button type="button" variant="primary" loading={busy} onClick={() => void confirm()}>
-            {t('teamDriveConfirmFolder')}
-          </Button>
-        </div>
-      )}
-      {confirmation?.state === 'connected' && <p>{t('teamSyncQueued')}</p>}
+
+      {connected &&
+        selectionModeEnabled() &&
+        client.listDriveSelections &&
+        client.addDriveSelection &&
+        client.removeDriveSelection && (
+          <SelectionList
+            teamId={teamId}
+            client={{
+              listDriveSelections: client.listDriveSelections,
+              addDriveSelection: client.addDriveSelection,
+              removeDriveSelection: client.removeDriveSelection,
+              pickerToken: client.pickerToken,
+              pickFolders: client.pickFolders
+            }}
+            canManage
+            revision={selectionRevision + revision}
+            config={config}
+          />
+        )}
+
       {resyncQueued && <p role="status">{t('teamDriveResyncQueued')}</p>}
       {error && <p className="team-inline-error">{error}</p>}
       {confirmingDetach && (

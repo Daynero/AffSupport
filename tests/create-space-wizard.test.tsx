@@ -12,6 +12,8 @@ import { adminAuthStub } from './support/auth-stub';
 
 const NEW_ID = '20000000-0000-4000-8000-0000000000c2';
 const folder = { id: 'root-folder', name: 'Team media', driveKind: 'my_drive' as const };
+/** What Google's chooser hands back (011); the chooser itself is injected. */
+const picked = { id: folder.id, name: folder.name, mimeType: null, resourceKey: null };
 
 afterEach(() => {
   cleanup();
@@ -25,16 +27,10 @@ function wizardClient() {
     createTeam: vi
       .fn()
       .mockResolvedValue(makeTeam({ id: NEW_ID, name: 'Media buyers', connectionState: 'none' })),
-    listFolders: vi.fn().mockResolvedValue({ folders: [folder], nextPageToken: null }),
-    confirmDriveRoot: vi
+    pickFolders: vi.fn().mockResolvedValue([picked]),
+    chooseRoot: vi
       .fn()
-      .mockResolvedValueOnce({
-        state: 'confirmation_required',
-        folder,
-        account: 'owner@example.test',
-        independentAclWarning: true
-      })
-      .mockResolvedValueOnce({ state: 'connected', folder, syncState: 'queued' })
+      .mockResolvedValue({ state: 'connected', folder, syncState: 'queued' } as DriveRootResult)
   });
 }
 
@@ -63,50 +59,36 @@ describe('create space wizard', () => {
     await user.type(screen.getByLabelText('Space name'), 'Media buyers');
     await user.click(screen.getByRole('button', { name: 'Continue' }));
 
-    // Folder step: cannot finish until a root is connected.
+    // Folder step: two inputs in total — the name, and a folder picked in
+    // Google's chooser. Nothing to confirm afterwards (011, FR-001).
     expect(
       await screen.findByRole('heading', { name: 'Connect a Google Drive folder' })
     ).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Connect Google Drive' }));
-    await user.click(await screen.findByRole('button', { name: 'Team media — Use this folder' }));
-    await user.click(await screen.findByRole('button', { name: 'Confirm folder' }));
+    await user.click(await screen.findByRole('button', { name: 'Choose folder in Google Drive' }));
 
     // Completion lands in the new space's workspace shell.
     expect(await screen.findByRole('heading', { name: 'Media buyers' })).toBeTruthy();
     await waitFor(() => {
       expect(client.createTeam).toHaveBeenCalledWith('Media buyers');
-      expect(client.confirmDriveRoot).toHaveBeenLastCalledWith(
-        expect.objectContaining({ teamId: NEW_ID, folderId: 'root-folder', confirmed: true })
+      expect(client.chooseRoot).toHaveBeenLastCalledWith(
+        expect.objectContaining({ teamId: NEW_ID, folderId: 'root-folder', name: 'Team media' })
       );
     });
+    expect(screen.queryByRole('button', { name: 'Confirm folder' })).toBeNull();
   });
 
-  it('connects a nested folder and lets a wrong pick be taken back', async () => {
-    // The folder a team actually wants is rarely at the account root.
-    const tree: Record<string, { id: string; name: string; driveKind: 'my_drive' }[]> = {
-      root: [{ id: 'work', name: 'Work', driveKind: 'my_drive' }],
-      work: [{ id: 'creatives', name: 'Creatives', driveKind: 'my_drive' }]
-    };
+  it('leaves setup where it was when the chooser is closed, and connects on the next pick', async () => {
+    const pickFolders = vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce([picked]);
     const client = makeClient({
       listTeams: vi.fn().mockResolvedValue([]),
       createTeam: vi
         .fn()
         .mockResolvedValue(makeTeam({ id: NEW_ID, name: 'Media buyers', connectionState: 'none' })),
-      listFolders: vi.fn(async (_team: string, parentId = 'root') => ({
-        folders: tree[parentId] ?? [],
-        nextPageToken: null
-      })),
-      confirmDriveRoot: vi.fn(
-        async (input: { folderId: string; confirmed: boolean }): Promise<DriveRootResult> =>
-          input.confirmed
-            ? { state: 'connected', folder: tree.work[0], syncState: 'queued' }
-            : {
-                state: 'confirmation_required',
-                folder: { id: input.folderId, name: input.folderId, driveKind: 'my_drive' },
-                account: 'owner@example.test',
-                independentAclWarning: true
-              }
-      )
+      pickFolders,
+      chooseRoot: vi
+        .fn()
+        .mockResolvedValue({ state: 'connected', folder, syncState: 'queued' } as DriveRootResult)
     });
     const user = userEvent.setup();
     renderSpace(client);
@@ -116,19 +98,17 @@ describe('create space wizard', () => {
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await user.click(await screen.findByRole('button', { name: 'Connect Google Drive' }));
 
-    // Pick the wrong folder first, then take it back without abandoning setup.
-    await user.click(await screen.findByRole('button', { name: 'Work — Use this folder' }));
-    await user.click(await screen.findByRole('button', { name: 'Choose a different folder' }));
+    // Closed without picking: still on the folder step, nothing connected.
+    await user.click(await screen.findByRole('button', { name: 'Choose folder in Google Drive' }));
+    await waitFor(() => expect(pickFolders).toHaveBeenCalledTimes(1));
+    expect(client.chooseRoot).not.toHaveBeenCalled();
+    expect(screen.getByRole('heading', { name: 'Connect a Google Drive folder' })).toBeTruthy();
 
-    // Descend and connect the folder that is actually wanted.
-    await user.click(await screen.findByRole('button', { name: 'Work — Open' }));
-    await user.click(await screen.findByRole('button', { name: 'Creatives — Use this folder' }));
-    await user.click(await screen.findByRole('button', { name: 'Confirm folder' }));
-
+    await user.click(screen.getByRole('button', { name: 'Choose folder in Google Drive' }));
     expect(await screen.findByRole('heading', { name: 'Media buyers' })).toBeTruthy();
     await waitFor(() => {
-      expect(client.confirmDriveRoot).toHaveBeenLastCalledWith(
-        expect.objectContaining({ teamId: NEW_ID, folderId: 'creatives', confirmed: true })
+      expect(client.chooseRoot).toHaveBeenLastCalledWith(
+        expect.objectContaining({ teamId: NEW_ID, folderId: 'root-folder' })
       );
     });
   });

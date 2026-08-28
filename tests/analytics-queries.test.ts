@@ -135,6 +135,12 @@ beforeAll(async () => {
     values ${finds};
 
     insert into public.analytics_events (user_id,event_name,properties,outcome,occurred_at,created_at) values
+      ('${TEAM_A_MEMBER_1}','team_storage_connected','{"selection_count":1,"storage_kind":"my_drive"}',null,'2026-06-01T00:00:00Z','2026-06-01T00:00:00Z'),
+      ('${TEAM_A_MEMBER_1}','team_index_completed','{"folder_count":37,"file_count":1240,"duration_ms":180000}',null,'2026-06-01T00:03:00Z','2026-06-01T00:03:00Z'),
+      ('${TEAM_A_MEMBER_1}','team_previews_ready','{"ready_count":1000,"unavailable_count":3,"duration_ms":600000}',null,'2026-06-01T00:13:00Z','2026-06-01T00:13:00Z'),
+      ('${TEAM_A_MEMBER_1}','team_storage_attention','{"attention_reason":"needs_reauth"}',null,'2026-06-20T00:00:00Z','2026-06-20T00:00:00Z'),
+      ('${TEAM_A_MEMBER_1}','team_storage_attention','{"attention_reason":"needs_reauth"}',null,'2026-06-21T00:00:00Z','2026-06-21T00:00:00Z'),
+      ('${TEAM_B_MEMBER_1}','team_storage_attention','{"attention_reason":"root_missing"}',null,'2026-06-22T00:00:00Z','2026-06-22T00:00:00Z'),
       ('${TEAM_A_MEMBER_1}','team_workspace_session','{"workspace_session":true}',null,'2026-06-02T00:00:00Z','2026-06-02T00:00:00Z'),
       ('${TEAM_A_MEMBER_1}','team_find_completed','{"outcome":"success"}','success','2026-06-02T00:01:00Z','2026-06-02T00:01:00Z'),
       ('${TEAM_A_MEMBER_1}','team_file_attempt_completed','{"outcome":"success","production_completed":true}','success','2026-06-02T00:02:00Z','2026-06-02T00:02:00Z'),
@@ -276,6 +282,20 @@ describe('getTools / getEvents / getFunnel', () => {
 });
 
 describe('getTeamWorkspace', () => {
+  it('reports the storage lifecycle as plain event counts (011)', async () => {
+    const data = await getTeamWorkspace(ALL);
+    expect(data.storage).toEqual({
+      storage_connected: 1,
+      index_completed: 1,
+      previews_ready: 1,
+      attention: 3,
+      attention_reasons: [
+        { reason: 'needs_reauth', count: 2 },
+        { reason: 'root_missing', count: 1 }
+      ]
+    });
+  });
+
   it('reports SC-001/SC-005 and each SC-009 root-relative week independently', async () => {
     const data = await getTeamWorkspace(ALL);
 

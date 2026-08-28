@@ -44,7 +44,13 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
   STALE_RESULT: 'teamErrorStaleResult',
   GROUP_RECONCILING: 'teamErrorGroupReconciling',
   SHARE_NOT_ALLOWED: 'teamErrorShareNotAllowed',
-  TEAM_NOT_DRAFT: 'teamErrorTeamNotDraft'
+  TEAM_NOT_DRAFT: 'teamErrorTeamNotDraft',
+  SELECTION_UNREACHABLE: 'teamErrorSelectionUnreachable',
+  ROOT_SELECTION_REQUIRED: 'teamErrorRootSelectionRequired',
+  ROOT_MISSING: 'teamErrorRootMissing',
+  TREE_TOO_LARGE: 'teamErrorTreeTooLarge',
+  THUMBNAIL_SESSION_EXPIRED: 'teamErrorThumbnailSessionExpired',
+  RESTRICTED_SCOPE_NOT_APPROVED: 'teamErrorRestrictedScopeNotApproved'
 };
 
 const KNOWN = new Set<string>(TEAM_ERROR_CODES);

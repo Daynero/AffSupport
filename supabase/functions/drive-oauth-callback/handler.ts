@@ -73,7 +73,8 @@ export async function completeDriveOAuthCallback(
       actorId: transaction.actorId,
       permissionId: principal.permissionId,
       email: principal.email,
-      scope: tokens.scope ?? 'https://www.googleapis.com/auth/drive',
+      // 011: what Google actually granted; drive.file is the request's floor.
+      scope: tokens.scope ?? 'https://www.googleapis.com/auth/drive.file',
       refreshToken: tokens.refreshToken ?? undefined,
       credentialId: transaction.credentialId
     });

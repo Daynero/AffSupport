@@ -26,6 +26,19 @@ scope approval at least annually and before changing domains, OAuth client, priv
 data use, or scope. If approval lapses, set the deployment to `disabled`; never fall back to
 `testing` on the production origin.
 
+### Scope set (feature 011)
+
+Storage connects under the non-restricted `https://www.googleapis.com/auth/drive.file` scope,
+with the owner choosing the root in Google's own folder chooser. That scope needs no
+verification review, shows no "unverified app" warning, and its refresh tokens do not expire
+weekly. The restricted `https://www.googleapis.com/auth/drive` scope is added to the request
+only when `DRIVE_RESTRICTED_SCOPE_APPROVED=true` is set on the deployment, which records
+Google's approval of the production client; readiness reports `scopes`,
+`restrictedScopeApproved` and `scopeGate`, and `npm run verify:team-production` refuses a
+restricted scope without the approval or a browser build without
+`VITE_GOOGLE_PICKER_API_KEY` / `VITE_GOOGLE_PROJECT_NUMBER`. A space may hold more than one
+picked folder (`team_drive_selections`); the root is always the first.
+
 Google OAuth apps in Testing can issue time-limited refresh access. Treat `invalid_grant`,
 revocation, expiry, and account-policy failures as `needs_reauth`; do not delete the catalog,
 metadata, provenance, audit history, or existing Vault secret until replacement succeeds.
@@ -99,20 +112,41 @@ every write proves live source and destination ancestry and the relevant per-ite
 Soty role removal does not revoke independent sharing configured directly in Google Drive;
 show that warning during membership/root changes.
 
+### Storage chip states (feature 011)
+
+The header chip is the one place storage health is shown; it reads
+`get_team_storage_health`, which composes exactly one state in this priority:
+
+| State              | Meaning and the one action                                                                                                                                                                                                                                                                             |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `attention`        | Someone must act. `needs_reauth`, `root_missing`, `permission_lost` → owner reconnects or restores from the chip / storage settings; `sync_failed` → anyone who manages the space asks for a new scan; `quota` → free space, then check. The explorer is read-only meanwhile; nothing indexed is lost. |
+| `disconnected`     | No connection (or `pending` / `unavailable`). Connect from storage settings.                                                                                                                                                                                                                           |
+| `waiting_provider` | A sync job is backing off on `RATE_LIMITED` / `DRIVE_UNAVAILABLE` within the last 10 min. Not a failure; no retry is offered.                                                                                                                                                                          |
+| `indexing`         | Some folder is not listed yet (`folder_indexed_at is null`) or the initial scan is running. Folders open as they land.                                                                                                                                                                                 |
+| `preparing`        | Every folder is listed; provider thumbnails or landing renders are still pending.                                                                                                                                                                                                                      |
+| `connected`        | Nothing pending; stamped with the last reconciliation.                                                                                                                                                                                                                                                 |
+
+Analytics: `team_storage_attention { attention_reason }` once per reason change and
+`team_previews_ready` when `preparing` ends — both from the web hook, never from the chip.
+
 ## Published limits
 
-| Surface               | Limit/behavior                                                                                       |
-| --------------------- | ---------------------------------------------------------------------------------------------------- |
-| Team members          | 50 active members; invitation validity 14 days                                                       |
-| Catalog target        | 50,000 visible materials per team                                                                    |
-| Transcript ingest     | bounded to 1 MiB at a valid UTF-8 boundary; explicit full/truncated/invalid/unavailable state        |
-| Embedded editor       | complete valid UTF-8 `.txt` only, at most 1 MiB; `.srt`/`.vtt` remain read-only previews             |
-| Transfer range        | at most 32 MiB per permission-rechecked request                                                      |
-| Browser full download | at most 100 MiB; larger files hand off to the compatible local agent                                 |
-| Agent intake          | at most 100 GiB, with the selected tool's lower limit still authoritative                            |
-| Resumable upload      | 256 KiB alignment; session URI remains memory-only                                                   |
-| Archive preview       | manifest only; at most 5 GiB total uncompressed and 2 GiB per entry, plus scanner ratio/count limits |
-| Transfer grant        | short-lived, purpose/team/actor/material/operation scoped, bounded uses, hashed at rest              |
+| Surface               | Limit/behavior                                                                                             |
+| --------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Team members          | 50 active members; invitation validity 14 days                                                             |
+| Catalog target        | 50,000 visible materials per team                                                                          |
+| Transcript ingest     | bounded to 1 MiB at a valid UTF-8 boundary; explicit full/truncated/invalid/unavailable state              |
+| Embedded editor       | complete valid UTF-8 `.txt` only, at most 1 MiB; `.srt`/`.vtt` remain read-only previews                   |
+| Transfer range        | at most 32 MiB per permission-rechecked request                                                            |
+| Browser full download | at most 100 MiB; larger files hand off to the compatible local agent                                       |
+| Agent intake          | at most 100 GiB, with the selected tool's lower limit still authoritative                                  |
+| Resumable upload      | 256 KiB alignment; session URI remains memory-only                                                         |
+| Archive preview       | manifest only; at most 5 GiB total uncompressed and 2 GiB per entry, plus scanner ratio/count limits       |
+| Transfer grant        | short-lived, purpose/team/actor/material/operation scoped, bounded uses, hashed at rest                    |
+| Folder tree (011)     | one call, at most 10,000 folders per space (`TREE_TOO_LARGE` above that); pages of 200 rows keyset-ordered |
+| Reconciliation (011)  | every 5 minutes per connection, root first; `last_reconciled_at` is what the chip shows                    |
+| Thumbnail session     | team-bound grant, 15 minutes, at most 5,000 uses; provider thumbnails cached in `team-thumbnail-cache`     |
+| Preview warm          | cron `*/5`, bounded slice per run; a provider refusal marks the row `unavailable` with a reason            |
 
 Only complete valid TXT content can be edited. Transcript/search text must never enter
 Realtime, analytics, audit, logs, error details, or provider diagnostics. SRT/VTT preview is

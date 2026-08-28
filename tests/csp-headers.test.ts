@@ -85,6 +85,18 @@ describe('the content policy', () => {
     expect(directive('img-src')).toContain('blob:');
   });
 
+  it('admits exactly the Google Picker origins and nothing wider', () => {
+    // Feature 011: the storage root is chosen in Google's own folder chooser.
+    expect(directive('script-src')).toContain('https://apis.google.com');
+    expect(directive('connect-src')).toContain('https://apis.google.com');
+    expect(directive('frame-src')).toContain('https://docs.google.com');
+    // The chooser's origins must not leak into the directives that would let
+    // a Google-hosted document paint over or replace this page.
+    expect(directive('frame-ancestors')).not.toContain('google');
+    expect(directive('script-src')).not.toContain('*.google.com');
+    expect(directive('script-src')).not.toContain('https://www.googleapis.com');
+  });
+
   it('does not set the embedder policy', () => {
     // Deliberate: it would break the loopback handshake frame and cross-origin
     // avatars, both of which are load-bearing.

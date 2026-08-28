@@ -28,6 +28,18 @@ import {
   parseTeamTaskAttachmentSummary,
   parseTeamTaskPatch,
   parseUploadBatchRequest,
+  isFolderPage,
+  isStorageHealth,
+  isThumbnailSession,
+  isTeamDriveSelection,
+  isTeamFolderNode,
+  type FolderPage,
+  type FolderPageCursor,
+  type StorageHealth,
+  type ThumbnailSession,
+  type TeamDriveSelection,
+  type TeamFolderNode,
+  type TeamMaterialRowKind,
   type LandingRenderPointer,
   type RenderArtifactRef,
   type CatalogMaterialItem,
@@ -96,7 +108,8 @@ export interface TeamContextSnapshot {
   name: string;
   role: TeamRole;
   permissions: TeamPermissions;
-  connectionState: 'none' | 'pending' | 'connected' | 'needs_reauth' | 'unavailable' | 'detached';
+  connectionState:
+    'none' | 'pending' | 'connected' | 'needs_reauth' | 'unavailable' | 'detached' | 'root_missing';
 }
 
 export type UnknownGuard<T> = (value: unknown) => value is T;
@@ -153,9 +166,15 @@ export function isTeamContextSnapshot(value: unknown): value is TeamContextSnaps
     !item.permissions ||
     typeof item.permissions !== 'object' ||
     Array.isArray(item.permissions) ||
-    !['none', 'pending', 'connected', 'needs_reauth', 'unavailable', 'detached'].includes(
-      String(item.connectionState)
-    )
+    ![
+      'none',
+      'pending',
+      'connected',
+      'needs_reauth',
+      'unavailable',
+      'detached',
+      'root_missing'
+    ].includes(String(item.connectionState))
   ) {
     return false;
   }
@@ -277,6 +296,12 @@ export type DriveRootResult =
       syncState: 'queued' | 'scanning' | 'replaying' | 'ready';
       connectionId?: string;
     };
+
+/** Where a search looks (011): one folder or the whole space, some kinds or all. */
+export interface CatalogSearchScope {
+  parentFolderId?: string | null;
+  kinds?: TeamMaterialRowKind[];
+}
 
 export interface TeamMaterialSummary {
   id: string;
@@ -690,6 +715,35 @@ function teamLandingSourceStatus(value: unknown): TeamLandingSourceStatus | null
   return row && typeof row.has_detached_landing_candidates === 'boolean'
     ? { hasDetachedLandingCandidates: row.has_detached_landing_candidates }
     : null;
+}
+
+/** snake_case tree row → the shared node shape; the guard decides if it is whole. */
+function folderNode(value: unknown): unknown {
+  const record = asRecord(value);
+  if (!record) return null;
+  return {
+    id: record.id,
+    driveFileId: record.drive_file_id,
+    parentFolderId: record.parent_folder_id ?? null,
+    selectionId: record.selection_id ?? null,
+    name: record.name,
+    indexedAt: record.indexed_at ?? null,
+    childFolderCount: record.child_folder_count,
+    childFileCount: record.child_file_count,
+    thumbnailReadyCount: record.thumbnail_ready_count
+  };
+}
+
+function driveSelection(value: unknown): unknown {
+  const record = asRecord(value);
+  if (!record) return null;
+  return {
+    id: record.id,
+    driveFolderId: record.drive_folder_id,
+    name: record.name,
+    isRoot: record.is_root,
+    state: record.state
+  };
 }
 
 function throwRpc(error: { message: string; code?: string } | null): void {
@@ -1420,6 +1474,148 @@ export const teamApi = {
     );
   },
 
+  // ---------------------------------------------------------------------
+  // Feature 011 — the explorer's reads and the storage selections.
+  // Rows cross as `unknown` and are narrowed by the shared guards; a row
+  // the interface could not render is refused here, not painted blank.
+  // ---------------------------------------------------------------------
+
+  async listFolderTree(teamId: string): Promise<TeamFolderNode[]> {
+    const { data, error } = await requireSupabaseClient().rpc('list_team_folder_tree', {
+      p_team: teamId
+    });
+    throwRpc(error);
+    const nodes = (data ?? []).map(folderNode);
+    if (!nodes.every(isTeamFolderNode)) throw new TeamApiError('INVALID_RESPONSE', false);
+    return nodes;
+  },
+
+  async listFolderPage(
+    teamId: string,
+    input: {
+      parentFolderId: string | null;
+      kinds?: TeamMaterialRowKind[];
+      after?: FolderPageCursor | null;
+      limit?: number;
+    }
+  ): Promise<FolderPage> {
+    const { data, error } = await requireSupabaseClient().rpc('list_team_folder_page', {
+      p_team: teamId,
+      ...(input.parentFolderId ? { p_parent_folder_id: input.parentFolderId } : {}),
+      ...(input.kinds && input.kinds.length > 0 ? { p_kind: input.kinds } : {}),
+      ...(input.after ? { p_after_sort_key: input.after.sortKey, p_after_id: input.after.id } : {}),
+      p_limit: input.limit ?? 100
+    });
+    throwRpc(error);
+    if (!isFolderPage(data)) throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
+  },
+
+  async listDriveSelections(teamId: string): Promise<TeamDriveSelection[]> {
+    const { data, error } = await requireSupabaseClient().rpc('list_team_drive_selections', {
+      p_team: teamId
+    });
+    throwRpc(error);
+    const selections = (data ?? []).map(driveSelection);
+    if (!selections.every(isTeamDriveSelection)) {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return selections;
+  },
+
+  async addDriveSelection(
+    teamId: string,
+    input: { driveFolderId: string; resourceKey: string | null; name: string }
+  ): Promise<TeamDriveSelection> {
+    // Through the function, not the RPC: the provider proves the folder lives
+    // in the connected drive before the caller's own JWT writes the row.
+    const value = await invokeTeamFunction(
+      'drive-connect',
+      {
+        action: 'add_selection',
+        teamId,
+        folderId: input.driveFolderId,
+        resourceKey: input.resourceKey,
+        name: input.name
+      },
+      (result): result is Record<string, unknown> => asRecord(result) !== null
+    );
+    const selection = driveSelection(value);
+    if (!isTeamDriveSelection(selection)) throw new TeamApiError('INVALID_RESPONSE', false);
+    return selection;
+  },
+
+  async pickerToken(teamId: string): Promise<{ accessToken: string; expiresAt: string }> {
+    return invokeTeamFunction(
+      'drive-connect',
+      { action: 'picker_token', teamId },
+      (value): value is { accessToken: string; expiresAt: string } => {
+        const row = asRecord(value);
+        return Boolean(
+          row && typeof row.accessToken === 'string' && typeof row.expiresAt === 'string'
+        );
+      }
+    );
+  },
+
+  async chooseRoot(input: {
+    teamId: string;
+    folderId: string;
+    resourceKey?: string | null;
+    name?: string;
+  }): Promise<DriveRootResult> {
+    return invokeTeamFunction(
+      'drive-connect',
+      {
+        action: 'choose_root',
+        teamId: input.teamId,
+        folderId: input.folderId,
+        ...(input.resourceKey ? { resourceKey: input.resourceKey } : {})
+      },
+      driveRootResultGuard
+    );
+  },
+
+  async restoreRoot(teamId: string): Promise<DriveRootResult> {
+    return invokeTeamFunction(
+      'drive-connect',
+      { action: 'restore_root', teamId },
+      driveRootResultGuard
+    );
+  },
+
+  async removeDriveSelection(teamId: string, selectionId: string): Promise<void> {
+    const { error } = await requireSupabaseClient().rpc('remove_team_drive_selection', {
+      p_team: teamId,
+      p_selection: selectionId
+    });
+    throwRpc(error);
+  },
+
+  async getStorageHealth(teamId: string): Promise<StorageHealth> {
+    const { data, error } = await requireSupabaseClient().rpc('get_team_storage_health', {
+      p_team: teamId
+    });
+    throwRpc(error);
+    if (!isStorageHealth(data)) throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
+  },
+
+  async mintThumbnailSession(teamId: string): Promise<ThumbnailSession> {
+    return invokeTeamFunction(
+      'drive-transfer',
+      { action: 'thumbnail_session', teamId },
+      (value): value is ThumbnailSession => isThumbnailSession(value)
+    );
+  },
+
+  thumbnailUrl(session: ThumbnailSession, materialId: string): string {
+    const url = new URL(session.endpoint);
+    url.searchParams.set('material', materialId);
+    url.searchParams.set('session', session.token);
+    return url.toString();
+  },
+
   async listMaterials(
     teamId: string,
     parentFolderId: string | null
@@ -1438,7 +1634,8 @@ export const teamApi = {
 
   async searchCatalog(
     teamId: string,
-    request: CatalogSearchRequestInput
+    request: CatalogSearchRequestInput,
+    scope?: CatalogSearchScope
   ): Promise<CatalogSearchResponse> {
     const normalized = normalizeCatalogSearchRequest(request);
     if (!normalized) throw new TeamApiError('INVALID_INPUT', false);
@@ -1447,7 +1644,10 @@ export const teamApi = {
       p_query: normalized.query || undefined,
       p_filters: normalized.filters as unknown as Json,
       p_page: normalized.page,
-      p_page_size: normalized.pageSize
+      p_page_size: normalized.pageSize,
+      // 011: the explorer narrows to the open folder and to row kinds.
+      ...(scope?.parentFolderId ? { p_parent_folder_id: scope.parentFolderId } : {}),
+      ...(scope?.kinds && scope.kinds.length > 0 ? { p_kind: scope.kinds } : {})
     });
     throwRpc(error);
     const result = decodeCatalogSearchResponse(data, teamId);

@@ -8,7 +8,7 @@ import { buildTeamRoute } from '../routes';
  * connected — reads to a member exactly like a space still being set up, so it
  * shares that copy rather than inventing a fifth thing to say.
  */
-type Explained = 'detached' | 'needs_reauth' | 'unavailable' | 'pending';
+type Explained = 'detached' | 'needs_reauth' | 'unavailable' | 'pending' | 'root_missing';
 
 /**
  * Says why a space has no files, when the reason is the storage connection.
@@ -38,10 +38,16 @@ export function SpaceStatePanel({
       title: 'teamSpaceStorageUnavailableTitle',
       body: 'teamSpaceStorageUnavailableBody'
     },
-    pending: { title: 'teamSpacePendingTitle', body: 'teamSpacePendingBody' }
+    pending: { title: 'teamSpacePendingTitle', body: 'teamSpacePendingBody' },
+    // 011: the connected folder was deleted in the provider; nothing is lost.
+    root_missing: { title: 'teamSpaceRootMissingTitle', body: 'teamSpaceRootMissingBody' }
   };
   const explained: Explained = state === 'none' ? 'pending' : state;
-  const settingsRoute = buildTeamRoute({ spaceId: space.id, section: 'settings' });
+  const settingsRoute = buildTeamRoute({
+    spaceId: space.id,
+    section: 'explorer',
+    query: { settings: true }
+  });
 
   return (
     <section className="team-panel team-space-state" aria-labelledby="team-space-state-title">

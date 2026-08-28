@@ -32,6 +32,12 @@ import {
   type RootCandidateSnapshot
 } from './handler.ts';
 import { evaluateTeamProviderReadiness } from './readiness.ts';
+import {
+  assertScopesAllowed,
+  resolveDriveScopes,
+  restrictedScopeApproval
+} from '../_shared/scopes.ts';
+import { evaluateDriveOAuthGate } from '../_shared/auth.ts';
 
 interface RpcFailure {
   code?: string;
@@ -158,8 +164,21 @@ async function startOAuth(
   authorizationUrl.searchParams.set('client_id', clientId);
   authorizationUrl.searchParams.set('redirect_uri', callbackUrl);
   authorizationUrl.searchParams.set('response_type', 'code');
-  authorizationUrl.searchParams.set('scope', 'https://www.googleapis.com/auth/drive');
+  // 011: drive.file by default; the restricted scope only on recorded approval.
+  const environment = {
+    DRIVE_RESTRICTED_SCOPE_APPROVED: Deno.env.get('DRIVE_RESTRICTED_SCOPE_APPROVED')
+  };
+  const scopes = resolveDriveScopes(environment);
+  assertScopesAllowed(
+    scopes,
+    evaluateDriveOAuthGate(Deno.env.get('DRIVE_OAUTH_MODE'), signals).production,
+    restrictedScopeApproval(environment.DRIVE_RESTRICTED_SCOPE_APPROVED)
+  );
+  authorizationUrl.searchParams.set('scope', scopes.join(' '));
   authorizationUrl.searchParams.set('access_type', 'offline');
+  // Incremental auth: when the restricted scope is approved later (011, D1), an
+  // owner who re-consents keeps `drive.file` and gains the wider scope in one
+  // grant, so nothing already connected has to be reconnected.
   authorizationUrl.searchParams.set('include_granted_scopes', 'true');
   authorizationUrl.searchParams.set('prompt', 'consent');
   authorizationUrl.searchParams.set('state', state);
@@ -196,9 +215,18 @@ async function accessContext(
       oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
       productionSignals: signals
     });
+    // 011: record when this access runs out and which scopes it carries, so
+    // the chip and the release gate read facts rather than assumptions.
+    await rpcValue(service, 'service_record_access_expiry', {
+      p_credential: credentialId,
+      p_expires_at: new Date(Date.now() + token.expiresIn * 1000).toISOString(),
+      p_scope_set: credential.scope.split(/\s+/).filter(Boolean)
+    }).catch(() => undefined);
     return {
       credential,
       credentialId,
+      accessToken: token.accessToken,
+      expiresAt: new Date(Date.now() + token.expiresIn * 1000).toISOString(),
       drive: new GoogleDriveClient(token.accessToken)
     };
   } catch (error) {
@@ -353,9 +381,109 @@ Deno.serve(async request => {
       throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
     }
     const teamId = parseTeamId(body.teamId);
+
+    // 011 — the Google Picker needs a short-lived access token in the browser.
+    // It is minted from the Vault credential the caller connected, lives in
+    // memory only, and carries the same drive.file grant the server holds.
+    if (action === 'picker_token') {
+      await executeDriveConnectCommand(
+        { action: 'start', teamId },
+        {
+          oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
+          signals,
+          createOAuthTransaction: async command => command
+        }
+      );
+      const context = await accessContext(teamId, userId, configured.service, signals);
+      return successResponse(
+        { accessToken: context.accessToken, expiresAt: context.expiresAt },
+        cors
+      );
+    }
+
+    // 011 — a second (or later) picked folder. The provider proves it lives in
+    // the connected drive; the caller's own JWT then writes the selection so
+    // the permission check happens in SQL, where every other write checks it.
+    if (action === 'add_selection') {
+      const folderId = parseBoundedString(body.folderId, 1, 1024);
+      const name = parseBoundedString(body.name ?? 'Folder', 1, 255);
+      if (!folderId.ok || !name.ok) {
+        throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+      }
+      const context = await accessContext(teamId, userId, configured.service, signals);
+      const connection = firstRecord(
+        await rpcValue(configured.service, 'service_get_drive_connection_credential', {
+          p_team: teamId,
+          p_actor: userId
+        })
+      );
+      if (!connection) throw new TeamFunctionError('NOT_FOUND', { retryable: false });
+      const candidate = validateRootCandidate(
+        await context.drive.getFile(
+          folderId.value,
+          typeof body.resourceKey === 'string' ? body.resourceKey : null
+        )
+      );
+      const connectionDriveId =
+        typeof connection.drive_id === 'string' ? connection.drive_id : null;
+      if ((candidate.driveId ?? null) !== connectionDriveId) {
+        throw new TeamFunctionError('SELECTION_UNREACHABLE', { retryable: false });
+      }
+      const added = firstRecord(
+        await rpcValue(configured.caller, 'add_team_drive_selection', {
+          p_team: teamId,
+          p_drive_folder_id: candidate.id,
+          p_resource_key: candidate.resourceKey,
+          p_name: candidate.name
+        })
+      );
+      if (!added) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+      return successResponse(added, cors);
+    }
+
+    // 011 — the root was trashed in the provider: bring it back and say so.
+    if (action === 'restore_root') {
+      const context = await accessContext(teamId, userId, configured.service, signals);
+      const connection = firstRecord(
+        await rpcValue(configured.service, 'service_get_drive_connection_credential', {
+          p_team: teamId,
+          p_actor: userId
+        })
+      );
+      if (!connection) throw new TeamFunctionError('NOT_FOUND', { retryable: false });
+      const rootFolderId = requiredString(connection, 'root_folder_id');
+      let root;
+      try {
+        root = validateRootCandidate(
+          await context.drive.updateFileMetadata({ fileId: rootFolderId, trashed: false })
+        );
+      } catch (cause) {
+        const error = mapUnknownError(cause);
+        if (error.code === 'NOT_FOUND') {
+          throw new TeamFunctionError('ROOT_MISSING', { retryable: false });
+        }
+        throw error;
+      }
+      await rpcValue(configured.service, 'service_mark_root_state', {
+        p_connection: requiredString(connection, 'connection_id'),
+        p_state: 'connected',
+        p_root_name: root.name
+      });
+      return successResponse({ state: 'connected', folder: root }, cors);
+    }
+
     let command: DriveConnectCommand;
     if (action === 'start' || action === 'reauth') {
       command = { action, teamId };
+    } else if (action === 'choose_root') {
+      const folderId = parseBoundedString(body.folderId, 1, 1024);
+      if (!folderId.ok) throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+      command = {
+        action,
+        teamId,
+        folderId: folderId.value,
+        ...(typeof body.resourceKey === 'string' ? { resourceKey: body.resourceKey } : {})
+      };
     } else if (action === 'confirm') {
       const folderId = parseBoundedString(body.folderId, 1, 1024);
       const expectedAccount =

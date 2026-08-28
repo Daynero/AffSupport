@@ -1,4 +1,9 @@
 import { evaluateDriveOAuthGate, type OAuthProductionSignals } from '../_shared/auth.ts';
+import {
+  resolveDriveScopes,
+  restrictedScopeApproval,
+  restrictedScopeGate
+} from '../_shared/scopes.ts';
 
 export type TeamProviderEnvironment = Readonly<Record<string, string | undefined>>;
 
@@ -24,8 +29,15 @@ export function evaluateTeamProviderReadiness(
   signals: OAuthProductionSignals
 ) {
   const gate = evaluateDriveOAuthGate(environment.DRIVE_OAUTH_MODE, signals);
+  // 011: the scope set is a deployment fact. A restricted scope on the
+  // production origin without Google's approval is refused here, before any
+  // person is sent through the unverified-app flow.
+  const approval = restrictedScopeApproval(environment.DRIVE_RESTRICTED_SCOPE_APPROVED);
+  const scopes = resolveDriveScopes(environment);
+  const scopeGate = restrictedScopeGate(scopes, gate.production, approval);
   const googleDrive =
     gate.allowed &&
+    scopeGate === null &&
     configured(environment.GOOGLE_CLIENT_ID) &&
     configured(environment.GOOGLE_CLIENT_SECRET) &&
     validRedirect(environment.GOOGLE_REDIRECT_URI);
@@ -40,6 +52,9 @@ export function evaluateTeamProviderReadiness(
     fullProviderReady,
     production: gate.production,
     oauthMode: gate.mode,
+    scopes,
+    restrictedScopeApproved: approval === 'approved',
+    scopeGate,
     memberOnboarding: directMemberAdd
       ? 'direct_add_testing'
       : invitationEmail

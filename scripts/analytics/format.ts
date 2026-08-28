@@ -341,6 +341,27 @@ export function formatTeamWorkspace(data: TeamWorkspaceData, period: ResolvedPer
         window.status
       ])
     ),
-    `  All four pass: ${data.sc009.all_windows_pass == null ? 'insufficient' : data.sc009.all_windows_pass ? 'yes' : 'no'}`
+    `  All four pass: ${data.sc009.all_windows_pass == null ? 'insufficient' : data.sc009.all_windows_pass ? 'yes' : 'no'}`,
+    '',
+    '  Storage (011) · events in the period:',
+    table(
+      ['Connected', 'Indexed', 'Previews ready', 'Needed attention'],
+      [
+        [
+          num(data.storage.storage_connected),
+          num(data.storage.index_completed),
+          num(data.storage.previews_ready),
+          num(data.storage.attention)
+        ]
+      ]
+    ),
+    ...(data.storage.attention_reasons.length > 0
+      ? [
+          table(
+            ['Attention reason', 'Count'],
+            data.storage.attention_reasons.map(row => [row.reason, num(row.count)])
+          )
+        ]
+      : [])
   ].join('\n');
 }

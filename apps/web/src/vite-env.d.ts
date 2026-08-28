@@ -5,6 +5,9 @@ interface ImportMetaEnv {
   readonly VITE_SUPABASE_PUBLISHABLE_KEY?: string;
   readonly VITE_SITE_URL?: string;
   readonly VITE_TEAM_DIRECT_ADD_MODE?: string;
+  readonly VITE_GOOGLE_PICKER_API_KEY?: string;
+  readonly VITE_GOOGLE_PROJECT_NUMBER?: string;
+  readonly VITE_TEAM_SELECTION_MODE?: string;
   readonly VITE_ADMIN_EMAIL?: string;
   readonly VITE_PRODUCT_OPERATOR?: string;
   readonly VITE_LEGAL_CONTACT_EMAIL?: string;

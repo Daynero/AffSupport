@@ -34,13 +34,13 @@ describe('content-first workspace shell', () => {
     const user = userEvent.setup();
     renderEnteredSpace(client, team.id);
 
-    // Content-first: the folder browser is the default, showing the empty state.
+    // Content-first: the explorer is the default, showing the folder's empty state (011).
     expect(await screen.findByRole('heading', { name: 'Media buyers' })).toBeTruthy();
-    expect(await screen.findByText('No visible files in this folder yet.')).toBeTruthy();
+    expect(await screen.findByText('This folder is empty.')).toBeTruthy();
 
-    // Empty space → zero filter controls and no revealed search affordance.
+    // Empty space → zero facet controls until a search is opened; search itself is one click away.
     expect(screen.queryByText('GEO')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Search & filter' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Search' })).toBeTruthy();
 
     // Management is not shown beside the content by default.
     expect(screen.queryByRole('heading', { name: 'Google Drive storage' })).toBeNull();

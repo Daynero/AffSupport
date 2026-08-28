@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
@@ -23,6 +23,7 @@ import { adminAuthStub } from './support/auth-stub';
 const TEAM = makeTeam();
 
 afterEach(() => {
+  cleanup();
   localStorage.clear();
   vi.restoreAllMocks();
 });
@@ -77,6 +78,30 @@ function folder(id: string, name: string) {
   };
 }
 
+/** The explorer reads paged rows from the index (011); the row menu's folder picker still reads the tree. */
+function page(rows: Array<ReturnType<typeof file> | ReturnType<typeof folder>>) {
+  return {
+    rows: rows.map(item => ({
+      id: item.id,
+      teamId: item.teamId,
+      name: item.name,
+      category: item.category,
+      mimeType: item.mimeType,
+      fileExtension: item.fileExtension,
+      sizeBytes: item.sizeBytes,
+      kind: item.kind === 'folder' ? 'folder' : 'video',
+      driveFileId: 'providerId' in item && item.providerId ? item.providerId : item.id,
+      parentFolderId: 'root',
+      modifiedAt: null,
+      driveVersion: '1',
+      previewState: 'ready',
+      thumbnailReady: false
+    })),
+    total: rows.length,
+    next: null
+  };
+}
+
 function renderSpace(client: ReturnType<typeof makeClient>) {
   window.history.replaceState(null, '', `/team/${TEAM.id}`);
   return render(
@@ -92,7 +117,7 @@ describe('file actions on the Files rows', () => {
   it('offers the permission-shaped set from a row, without going through search', async () => {
     const client = makeClient({
       listTeams: vi.fn().mockResolvedValue([TEAM]),
-      listMaterials: vi.fn().mockResolvedValue([file('material-1', 'launch.mp4')])
+      listFolderPage: vi.fn().mockResolvedValue(page([file('material-1', 'launch.mp4')]))
     });
     const user = userEvent.setup();
     renderSpace(client);
@@ -108,7 +133,7 @@ describe('file actions on the Files rows', () => {
     const viewer = makeTeam({ role: 'viewer', permissions: DEFAULT_ROLE_PERMISSIONS.viewer });
     const client = makeClient({
       listTeams: vi.fn().mockResolvedValue([viewer]),
-      listMaterials: vi.fn().mockResolvedValue([file('material-1', 'launch.mp4')])
+      listFolderPage: vi.fn().mockResolvedValue(page([file('material-1', 'launch.mp4')]))
     });
     const user = userEvent.setup();
     renderSpace(client);
@@ -124,6 +149,9 @@ describe('file actions on the Files rows', () => {
     vi.spyOn(await import('../apps/web/src/api/team'), 'teamApi', 'get');
     const client = makeClient({
       listTeams: vi.fn().mockResolvedValue([TEAM]),
+      listFolderPage: vi
+        .fn()
+        .mockResolvedValue(page([file('material-1', 'launch.mp4'), folder('folder-1', 'Archive')])),
       listMaterials: vi
         .fn()
         .mockResolvedValue([file('material-1', 'launch.mp4'), folder('folder-1', 'Archive')])
@@ -145,11 +173,11 @@ describe('file actions on the Files rows', () => {
 });
 
 describe('search availability', () => {
-  it('stays available in a folder-only root, because the space has content elsewhere', async () => {
+  it('is one click away in a folder-only root, because the space has content elsewhere', async () => {
     const client = makeClient({
       listTeams: vi.fn().mockResolvedValue([TEAM]),
       // The open folder holds nothing but folders…
-      listMaterials: vi.fn().mockResolvedValue([folder('folder-1', 'Archive')]),
+      listFolderPage: vi.fn().mockResolvedValue(page([folder('folder-1', 'Archive')])),
       // …while the space-wide probe reports there is content somewhere.
       searchCatalog: vi.fn().mockResolvedValue(
         searchResponse({
@@ -166,19 +194,21 @@ describe('search availability', () => {
     });
     renderSpace(client);
 
-    expect(await screen.findByRole('button', { name: 'Search & filter' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Search' })).toBeTruthy();
+    // The folder is shown as a tile; the name may also appear in a tooltip or crumb.
+    expect((await screen.findAllByText('Archive')).length).toBeGreaterThanOrEqual(1);
   });
 
-  it('stays out of the way in a space that is genuinely empty', async () => {
+  it('says a genuinely empty folder is empty rather than showing nothing', async () => {
     const client = makeClient({
       listTeams: vi.fn().mockResolvedValue([TEAM]),
-      listMaterials: vi.fn().mockResolvedValue([]),
+      listFolderPage: vi.fn().mockResolvedValue(page([])),
       searchCatalog: vi.fn().mockResolvedValue(searchResponse())
     });
     renderSpace(client);
 
     await screen.findByRole('navigation', { name: 'Space sections' });
-    expect(screen.queryByRole('button', { name: 'Search & filter' })).toBeNull();
+    expect(await screen.findByText('This folder is empty.')).toBeTruthy();
   });
 });
 
@@ -214,18 +244,22 @@ describe('search results past the first fifty', () => {
     );
     const client = makeClient({
       listTeams: vi.fn().mockResolvedValue([TEAM]),
-      listMaterials: vi.fn().mockResolvedValue([]),
+      listFolderPage: vi.fn().mockResolvedValue(page([])),
       searchCatalog
     });
     const user = userEvent.setup();
     renderSpace(client);
 
-    await user.click(await screen.findByRole('button', { name: 'Search & filter' }));
+    await user.click(await screen.findByRole('button', { name: 'Search' }));
     expect(await screen.findByText('Page 1 of 3')).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: 'Next' }));
     await waitFor(() =>
-      expect(searchCatalog).toHaveBeenCalledWith(TEAM.id, expect.objectContaining({ page: 2 }))
+      expect(searchCatalog).toHaveBeenCalledWith(
+        TEAM.id,
+        expect.objectContaining({ page: 2 }),
+        expect.anything()
+      )
     );
     expect(await screen.findByText('page-2.mp4')).toBeTruthy();
   });

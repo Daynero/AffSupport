@@ -53,6 +53,9 @@ function dependencies(overrides: Partial<CatalogSyncDependencies> = {}): Catalog
     checkpoint: vi.fn(),
     complete: vi.fn(),
     reconcile: vi.fn(),
+    markFolderIndexed: vi.fn(),
+    markRootState: vi.fn(),
+    touchReconciled: vi.fn(),
     ...overrides
   };
 }
@@ -276,5 +279,91 @@ describe('durable catalog synchronization', () => {
     expect(catalogRetryDelayMs(1, () => 0)).toBe(1_000);
     expect(catalogRetryDelayMs(5, () => 0)).toBe(16_000);
     expect(catalogRetryDelayMs(20, () => 1)).toBeLessThanOrEqual(15 * 60_000);
+  });
+});
+
+describe('011 — folder markers, root changes and reconciliation stamps', () => {
+  it('marks a folder indexed only when its last page lands', async () => {
+    const paged = dependencies({
+      listChildren: vi
+        .fn()
+        .mockResolvedValue({ files: [file({ id: 'file-1' })], nextPageToken: 'more' })
+    });
+    await runCatalogSyncSlice(baseJob, paged);
+    expect(paged.markFolderIndexed).not.toHaveBeenCalled();
+
+    const last = dependencies({
+      listChildren: vi.fn().mockResolvedValue({ files: [], nextPageToken: null })
+    });
+    await runCatalogSyncSlice({ ...baseJob, folderQueue: ['folder-a'], pageToken: 'more' }, last);
+    expect(last.markFolderIndexed).toHaveBeenCalledWith(
+      expect.objectContaining({ connectionId: 'connection-id', folderId: 'folder-a' })
+    );
+    // An empty folder is indexed too — nothing was upserted, but it is listed.
+    expect(last.upsertFiles).not.toHaveBeenCalled();
+  });
+
+  it('reports a trashed root as missing and a renamed root as followed, never as a material', async () => {
+    const trashed = dependencies({
+      listChanges: vi.fn().mockResolvedValue({
+        changes: [
+          {
+            fileId: 'root',
+            removed: false,
+            file: file({ id: 'root', name: 'Root', trashed: true })
+          }
+        ],
+        nextPageToken: null,
+        newStartPageToken: 'change-1'
+      })
+    });
+    await runCatalogSyncSlice({ ...baseJob, phase: 'incremental' }, trashed);
+    expect(trashed.markRootState).toHaveBeenCalledWith(
+      expect.objectContaining({ state: 'root_missing', rootName: null })
+    );
+    expect(trashed.tombstoneFiles).not.toHaveBeenCalled();
+    expect(trashed.upsertFiles).not.toHaveBeenCalled();
+
+    const renamed = dependencies({
+      listChanges: vi.fn().mockResolvedValue({
+        changes: [
+          { fileId: 'root', removed: false, file: file({ id: 'root', name: 'Campaigns 2026' }) },
+          { fileId: 'file-9', removed: false, file: file({ id: 'file-9' }) }
+        ],
+        nextPageToken: null,
+        newStartPageToken: 'change-2'
+      })
+    });
+    await runCatalogSyncSlice({ ...baseJob, phase: 'incremental' }, renamed);
+    expect(renamed.markRootState).toHaveBeenCalledWith(
+      expect.objectContaining({ state: 'connected', rootName: 'Campaigns 2026' })
+    );
+    expect(renamed.upsertFiles).toHaveBeenCalledWith(
+      expect.objectContaining({ files: [expect.objectContaining({ id: 'file-9' })] })
+    );
+  });
+
+  it('leaves a picked folder alone in change replay and stamps reconciliation on completion', async () => {
+    const deps = dependencies({
+      listChanges: vi.fn().mockResolvedValue({
+        changes: [
+          { fileId: 'picked', removed: false, file: file({ id: 'picked', name: 'Picked' }) }
+        ],
+        nextPageToken: null,
+        newStartPageToken: 'change-3'
+      })
+    });
+    await runCatalogSyncSlice(
+      { ...baseJob, phase: 'incremental', selectionFolderIds: ['root', 'picked'] },
+      deps
+    );
+    expect(deps.upsertFiles).not.toHaveBeenCalled();
+    expect(deps.tombstoneFiles).not.toHaveBeenCalled();
+    expect(deps.touchReconciled).toHaveBeenCalledWith(
+      expect.objectContaining({ connectionId: 'connection-id' })
+    );
+    expect(deps.complete).toHaveBeenCalledWith(
+      expect.objectContaining({ changeToken: 'change-3' })
+    );
   });
 });

@@ -4,7 +4,8 @@ import {
   type CatalogSearchFilters,
   type CatalogSearchRequestInput,
   type CatalogSearchResponse,
-  type CatalogVocabulary
+  type CatalogVocabulary,
+  type TeamMaterialRowKind
 } from '@video-compressor/shared';
 import { useTeam } from '../TeamContext';
 import {
@@ -23,10 +24,17 @@ const EMPTY_FILTERS: CatalogSearchFilters = {
   unfilled: []
 };
 
+/** Where a search looks (011): one folder or the whole space, some kinds or all. */
+export interface CatalogSearchScope {
+  parentFolderId?: string | null;
+  kinds?: TeamMaterialRowKind[];
+}
+
 export interface CatalogSearchClient {
   searchCatalog: (
     teamId: string,
-    request: CatalogSearchRequestInput
+    request: CatalogSearchRequestInput,
+    scope?: CatalogSearchScope
   ) => Promise<CatalogSearchResponse>;
   getCatalogVocabulary: (teamId: string) => Promise<CatalogVocabulary>;
 }
@@ -45,6 +53,8 @@ export function useCatalogSearch(input: {
    * write re-renders the application shell.
    */
   onSearched?: (state: { query: string; filters: CatalogSearchFilters }) => void;
+  /** 011: narrow to the open folder and/or to explorer row kinds. */
+  scope?: CatalogSearchScope;
 }) {
   const {
     teamId,
@@ -53,8 +63,10 @@ export function useCatalogSearch(input: {
     fixedFilters,
     initialQuery = '',
     initialFilters,
-    onSearched
+    onSearched,
+    scope
   } = input;
+  const scopeKey = `${scope?.parentFolderId ?? ''}|${(scope?.kinds ?? []).join(',')}`;
   const { revision, realtimeState } = useTeam();
   const [query, setQuery] = useState(initialQuery);
   const [filters, setFilters] = useState<CatalogSearchFilters>(initialFilters ?? EMPTY_FILTERS);
@@ -121,7 +133,10 @@ export function useCatalogSearch(input: {
     if (cue) findFlow.current = startTeamFindFlow(cue);
     setLoading(true);
     try {
-      const next = await client.searchCatalog(teamId, request);
+      // Only pass a scope that exists: callers asserting on the call see two arguments as before.
+      const next = scope
+        ? await client.searchCatalog(teamId, request, scope)
+        : await client.searchCatalog(teamId, request);
       if (sequence !== requestSequence.current) return;
       // Reports the *user's* filters, not the merged request: a surface with
       // fixed filters (landings, library) must not write them into the address.
@@ -150,7 +165,8 @@ export function useCatalogSearch(input: {
     } finally {
       if (sequence === requestSequence.current) setLoading(false);
     }
-  }, [client, filters, request, teamId]);
+    // scopeKey stands in for the scope object's identity.
+  }, [client, filters, request, teamId, scopeKey]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void refetch(), debounceMs);

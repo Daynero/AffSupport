@@ -15,6 +15,12 @@ export interface CatalogSyncJob {
   attempts: number;
   /** Child folders found on earlier pages of the folder currently being scanned. */
   discoveredFolderIds?: string[];
+  /**
+   * Every picked folder of the connection (011). Ancestry proofs accept any of
+   * them; a change to one of them is a change to the space's storage, not a
+   * material.
+   */
+  selectionFolderIds?: string[];
 }
 
 export interface CatalogDriveChange {
@@ -80,6 +86,21 @@ export interface CatalogSyncDependencies {
     rootFolderId: string;
     driveId: string | null;
   }) => Promise<unknown>;
+  /** The last page of a folder landed: it is openable from now on (011). */
+  markFolderIndexed: (input: {
+    jobId: string;
+    connectionId: string;
+    folderId: string;
+  }) => Promise<unknown>;
+  /** The root itself was renamed, moved, trashed or removed (011). */
+  markRootState: (input: {
+    jobId: string;
+    connectionId: string;
+    state: 'connected' | 'root_missing';
+    rootName: string | null;
+  }) => Promise<unknown>;
+  /** A change page completed against the provider; the chip shows the time (011). */
+  touchReconciled: (input: { jobId: string; connectionId: string }) => Promise<unknown>;
 }
 
 const FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder';
@@ -163,6 +184,13 @@ async function runInitialScan(
     return { phase: 'initial_scan', processed: page.files.length };
   }
 
+  // No further page for this folder: everything under it is in the catalog.
+  await dependencies.markFolderIndexed({
+    jobId: job.jobId,
+    connectionId: job.connectionId,
+    folderId: parentId
+  });
+
   const folderQueue = [...remaining, ...discovered];
   if (folderQueue.length > 0) {
     await dependencies.checkpoint({
@@ -208,6 +236,23 @@ async function runChanges(
   }
 
   for (const change of page.changes) {
+    if (change.fileId === job.rootFolderId) {
+      // The root is not a material. Trashed or gone, the space says so and
+      // keeps everything; renamed or moved, the space follows (FR-006).
+      const missing = change.removed || !change.file || change.file.trashed;
+      await dependencies.markRootState({
+        jobId: job.jobId,
+        connectionId: job.connectionId,
+        state: missing ? 'root_missing' : 'connected',
+        rootName: missing ? null : change.file!.name
+      });
+      continue;
+    }
+    if (job.selectionFolderIds?.includes(change.fileId)) {
+      // A picked folder other than the root: its descendants stay cataloged
+      // until reconciliation proves otherwise; the folder row itself is kept.
+      continue;
+    }
     if (change.removed || !change.file) {
       tombstones.push({ fileId: change.fileId, lifecycle: 'missing' });
       continue;
@@ -251,6 +296,7 @@ async function runChanges(
   }
 
   const committedToken = page.newStartPageToken ?? job.changeToken;
+  await dependencies.touchReconciled({ jobId: job.jobId, connectionId: job.connectionId });
   await dependencies.complete({
     jobId: job.jobId,
     connectionId: job.connectionId,
@@ -274,6 +320,7 @@ export async function runCatalogSyncSlice(
     rootFolderId: job.rootFolderId,
     driveId: job.driveId
   });
+  await dependencies.touchReconciled({ jobId: job.jobId, connectionId: job.connectionId });
   await dependencies.complete({
     jobId: job.jobId,
     connectionId: job.connectionId,

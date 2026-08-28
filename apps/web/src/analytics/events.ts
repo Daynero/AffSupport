@@ -10,7 +10,8 @@ import {
   type TeamAnalyticsProperties,
   type TeamAnalyticsSizeBucket,
   type TeamAnalyticsStage,
-  type TeamAnalyticsStorage
+  type TeamAnalyticsStorage,
+  type TeamStorageAttentionReason
 } from '@video-compressor/shared';
 
 export const analyticsEventNames = [
@@ -189,6 +190,27 @@ export interface TeamWorkflowCompletedProperties extends TeamWorkflowStartedProp
   production_completed: boolean;
 }
 
+export interface TeamStorageConnectedProperties {
+  selection_count: number;
+  storage_kind: TeamAnalyticsStorage;
+}
+
+export interface TeamIndexCompletedProperties {
+  folder_count: number;
+  file_count: number;
+  duration_ms: number;
+}
+
+export interface TeamPreviewsReadyProperties {
+  ready_count: number;
+  unavailable_count: number;
+  duration_ms: number;
+}
+
+export interface TeamStorageAttentionProperties {
+  attention_reason: TeamStorageAttentionReason;
+}
+
 export interface CreativeLibraryContributionEventProperties {
   contribution_category: TeamAnalyticsProperties['contribution_category'];
   contribution_action: TeamAnalyticsProperties['contribution_action'];
@@ -210,7 +232,15 @@ type TeamEventProperties<Event extends TeamAnalyticsEventName> =
                 | 'team_library_processing_completed'
                 | 'team_task_completed'
             ? CreativeLibraryContributionEventProperties
-            : TeamAnalyticsProperties;
+            : Event extends 'team_storage_connected'
+              ? TeamStorageConnectedProperties
+              : Event extends 'team_index_completed'
+                ? TeamIndexCompletedProperties
+                : Event extends 'team_previews_ready'
+                  ? TeamPreviewsReadyProperties
+                  : Event extends 'team_storage_attention'
+                    ? TeamStorageAttentionProperties
+                    : TeamAnalyticsProperties;
 
 export type AnalyticsEventProperties = {
   [Event in AnalyticsEventName]: Event extends TeamAnalyticsEventName

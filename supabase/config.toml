@@ -36,6 +36,9 @@ verify_jwt = false
 [functions.drive-transfer]
 verify_jwt = false
 
+[functions.preview-warm]
+verify_jwt = false
+
 [functions.drive-ops]
 verify_jwt = false
 

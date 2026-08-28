@@ -34,17 +34,18 @@ vi.mock('../apps/web/src/lib/supabase', () => ({
 const { EnvironmentBadge } = await import('../apps/web/src/components/EnvironmentBadge');
 const { BetaStorageNotice, externalStorageUnavailableInBeta } =
   await import('../apps/web/src/team/drive/BetaStorageNotice');
-const { ConnectFolderStep } = await import('../apps/web/src/team/create/ConnectFolderStep');
+const { ConnectStorageFlow } = await import('../apps/web/src/team/storage/ConnectStorageFlow');
 
 /** Step 2 renders before any of these are called; failing loudly proves it. */
 const idleDriveClient = {
-  listFolders: () => Promise.reject(new Error('not reached')),
-  connectRoot: () => Promise.reject(new Error('not reached'))
-} as unknown as Parameters<typeof ConnectFolderStep>[0]['client'];
+  pickerToken: () => Promise.reject(new Error('not reached')),
+  chooseRoot: () => Promise.reject(new Error('not reached')),
+  pickFolders: () => Promise.reject(new Error('not reached'))
+} as unknown as Parameters<typeof ConnectStorageFlow>[0]['client'];
 
 function renderFolderStep() {
   return render(
-    <ConnectFolderStep
+    <ConnectStorageFlow
       teamId="22222222-2222-4222-8222-222222222222"
       client={idleDriveClient}
       onConnected={() => {}}

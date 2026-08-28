@@ -9,7 +9,7 @@ import {
 import { useTeam } from '../TeamContext';
 import type { DrivePanelClient } from '../drive/DriveConnectionPanel';
 import { SpaceNameStep } from './SpaceNameStep';
-import { ConnectFolderStep } from './ConnectFolderStep';
+import { ConnectStorageFlow } from '../storage/ConnectStorageFlow';
 
 export type CreateSpaceWizardClient = {
   createTeam: (name: string) => Promise<TeamContextSnapshot>;
@@ -113,7 +113,7 @@ export function CreateSpaceWizard({
       ) : (
         <>
           {resumeName && <p className="team-create-resume-name">{resumeName}</p>}
-          <ConnectFolderStep
+          <ConnectStorageFlow
             teamId={step.teamId}
             client={client}
             onConnected={() => handleConnected(step.teamId)}

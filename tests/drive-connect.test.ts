@@ -145,6 +145,48 @@ describe('Drive OAuth release gate', () => {
       evaluateTeamProviderReadiness({ ...complete, DRIVE_OAUTH_MODE: 'testing' }, signals)
     ).toMatchObject({ ready: false, oauthMode: 'testing' });
   });
+
+  it('asks for drive.file only, and the restricted scope solely on recorded approval (011)', () => {
+    const signals = { siteUrl: productionOrigin, requestOrigin: productionOrigin };
+    const complete = {
+      DRIVE_OAUTH_MODE: 'verified',
+      GOOGLE_CLIENT_ID: 'google-client-id',
+      GOOGLE_CLIENT_SECRET: 'google-client-secret',
+      GOOGLE_REDIRECT_URI: 'https://project.supabase.co/functions/v1/drive-oauth-callback',
+      RESEND_API_KEY: 'resend-api-key',
+      INVITE_EMAIL_FROM: 'Soty <team@example.test>',
+      CATALOG_SYNC_SECRET: 'c'.repeat(32)
+    };
+    expect(evaluateTeamProviderReadiness(complete, signals)).toMatchObject({
+      ready: true,
+      scopes: ['https://www.googleapis.com/auth/drive.file'],
+      restrictedScopeApproved: false,
+      scopeGate: null
+    });
+    expect(
+      evaluateTeamProviderReadiness(
+        { ...complete, DRIVE_RESTRICTED_SCOPE_APPROVED: 'true' },
+        signals
+      )
+    ).toMatchObject({
+      ready: true,
+      scopes: [
+        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive'
+      ],
+      restrictedScopeApproved: true
+    });
+    expect(
+      evaluateTeamProviderReadiness(
+        { ...complete, DRIVE_RESTRICTED_SCOPE_APPROVED: 'maybe' },
+        signals
+      )
+    ).toMatchObject({
+      ready: false,
+      services: { googleDrive: false },
+      scopeGate: 'RESTRICTED_SCOPE_NOT_APPROVED'
+    });
+  });
 });
 
 describe('server-side folder browser and root validation', () => {

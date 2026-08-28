@@ -81,6 +81,11 @@ export const AGENT_TOOL_CONTRACTS = {
   landingPreview: 2,
   transcription: 5,
   teamWorkspace: 2,
+  // Background landing renders for team spaces (011). Absent from
+  // WEB_TOOL_REQUIREMENTS for the same reason as `power`: it is a capability
+  // read directly from the contract (teamBackgroundRenderSupported in shared),
+  // never a tool page, so an older agent is not asked rather than rejected.
+  teamBackgroundRender: 1,
   // Server-wide power throttle. Deliberately absent from WEB_TOOL_REQUIREMENTS:
   // that map is the set of user-facing *tool pages*, and it is byte-compared
   // against the signed, published stable.json by verify-release.mjs. The power

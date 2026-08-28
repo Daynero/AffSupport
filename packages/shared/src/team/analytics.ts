@@ -1,5 +1,9 @@
 import { MATERIAL_CATEGORIES, type MaterialCategory } from './material-category.js';
-import { isRecord } from './contract.js';
+import {
+  TEAM_STORAGE_ATTENTION_REASONS,
+  isRecord,
+  type TeamStorageAttentionReason
+} from './contract.js';
 import type { LandingRenderFailureReason, LandingTileState } from './landing-gallery.js';
 import {
   CREATIVE_LIBRARY_CONTRIBUTION_ACTIONS,
@@ -25,7 +29,12 @@ export const TEAM_ANALYTICS_EVENT_NAMES = [
   'team_landing_render',
   'team_library_batch_completed',
   'team_library_processing_completed',
-  'team_task_completed'
+  'team_task_completed',
+  // 011 — storage lifecycle, read by the analytics CLI as `data.storage`.
+  'team_storage_connected',
+  'team_index_completed',
+  'team_previews_ready',
+  'team_storage_attention'
 ] as const;
 export type TeamAnalyticsEventName = (typeof TEAM_ANALYTICS_EVENT_NAMES)[number];
 
@@ -70,6 +79,11 @@ export interface TeamAnalyticsProperties {
   reason?: LandingRenderFailureReason;
   contribution_category?: CreativeLibraryContributionCategory;
   contribution_action?: CreativeLibraryContributionAction;
+  selection_count?: number;
+  folder_count?: number;
+  file_count?: number;
+  unavailable_count?: number;
+  attention_reason?: TeamStorageAttentionReason;
 }
 
 const ID_KEYS = new Set(['flow_id', 'study_run_id', 'attempt_id', 'workflow_id']);
@@ -128,6 +142,15 @@ const LANDING_FAILURE_REASONS = new Set<LandingRenderFailureReason>([
   'too_large',
   'render_error'
 ]);
+const COUNT_KEYS = new Set([
+  'item_count',
+  'ready_count',
+  'selection_count',
+  'folder_count',
+  'file_count',
+  'unavailable_count'
+]);
+const ATTENTION_REASONS = new Set<TeamStorageAttentionReason>(TEAM_STORAGE_ATTENTION_REASONS);
 const CONTRIBUTION_CATEGORIES = new Set<CreativeLibraryContributionCategory>(
   CREATIVE_LIBRARY_CONTRIBUTION_CATEGORIES
 );
@@ -216,13 +239,18 @@ export function sanitizeTeamAnalyticsProperties(input: unknown): TeamAnalyticsPr
     } else if (key === 'outcome' && OUTCOMES.has(value as TeamAnalyticsOutcome)) {
       output.outcome = value as TeamAnalyticsOutcome;
     } else if (
-      (key === 'item_count' || key === 'ready_count') &&
+      COUNT_KEYS.has(key) &&
       typeof value === 'number' &&
       Number.isInteger(value) &&
       value >= 0 &&
       value <= 1_000_000
     ) {
       output[key as 'item_count'] = value;
+    } else if (
+      key === 'attention_reason' &&
+      ATTENTION_REASONS.has(value as TeamStorageAttentionReason)
+    ) {
+      output.attention_reason = value as TeamStorageAttentionReason;
     } else if (key === 'tile_state' && TILE_STATES.has(value as LandingTileState)) {
       output.tile_state = value as LandingTileState;
     } else if (
