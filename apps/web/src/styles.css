@@ -10676,6 +10676,22 @@ button,
   background: #05070a;
   object-fit: contain;
 }
+/* A picture or a clip fits the dialog whole: the dialog is capped at
+   min(90vh, 900px), and the heading and the content padding take about 140px
+   of that, so the media may use the rest and no more. "70vh" plus padding was
+   taller than the content area on a laptop screen, which put the last rows of
+   pixels behind a scrollbar (findings J1). Width follows the aspect ratio. */
+.team-preview-content > video,
+.team-preview-content > img {
+  width: auto;
+  max-width: 100%;
+  max-height: calc(min(90vh, 900px) - 140px);
+  margin: 0 auto;
+}
+.team-preview-content:has(> video),
+.team-preview-content:has(> img) {
+  overflow: hidden;
+}
 .team-landing-preview iframe {
   min-height: min(68vh, 720px);
   background: #fff;

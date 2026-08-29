@@ -631,7 +631,12 @@ async function handleRange(request: Request, service: RpcClient, cors: Record<st
     resourceKey: authorized.source.resourceKey,
     start: authorized.range.start,
     end: authorized.range.end,
-    signal: request.signal
+    signal: request.signal,
+    // A file Drive has flagged as malware or spam still opens in Soty's own
+    // sandbox and renders on the paired agent — the owner can read it in
+    // Drive with a click-through, and neither consumer runs it as a program.
+    // A download to disk keeps Google's refusal (011, findings J3).
+    acknowledgeAbuse: authorized.grant.purpose === 'preview_range'
   });
   let contentLength: number;
   try {

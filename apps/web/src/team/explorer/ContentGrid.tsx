@@ -184,9 +184,11 @@ function Tile({
       ? client.landingRenderImageUrl(render, 0)
       : null;
   const image = thumbnail ?? renderImage;
+  // A landing's picture is its own render; Drive's thumbnail has nothing to
+  // add, so "no thumbnail in Google Drive yet" under a rendered page is noise.
   const reason =
     KIND_REASON[row.kind] ??
-    (row.previewState === 'unavailable' && row.previewReason
+    (row.kind !== 'landing' && row.previewState === 'unavailable' && row.previewReason
       ? (`teamExplorerThumbnail_${row.previewReason}` as TranslationKey)
       : undefined);
 

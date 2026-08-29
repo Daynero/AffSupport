@@ -377,6 +377,12 @@ export class GoogleDriveClient {
     start: number;
     end: number;
     signal?: AbortSignal;
+    /**
+     * Read a file Drive has flagged as malware or spam — the owner can, with a
+     * click-through, in Drive itself. Only for reads that never run the bytes:
+     * the archive inspection looks at a ZIP's entry list (011, findings J3).
+     */
+    acknowledgeAbuse?: boolean;
   }): Promise<Response> {
     if (
       !Number.isSafeInteger(input.start) ||
@@ -393,6 +399,7 @@ export class GoogleDriveClient {
     url.searchParams.set('alt', 'media');
     url.searchParams.set('supportsAllDrives', 'true');
     if (input.resourceKey) url.searchParams.set('resourceKey', input.resourceKey);
+    if (input.acknowledgeAbuse) url.searchParams.set('acknowledgeAbuse', 'true');
     return this.#request(url, {
       headers: { range: `bytes=${input.start}-${input.end}` },
       signal: input.signal

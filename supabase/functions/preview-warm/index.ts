@@ -12,6 +12,10 @@ import {
   successResponse,
   TeamFunctionError
 } from '../_shared/errors.ts';
+import {
+  runArchiveInspectionSlice,
+  type ArchiveInspectionRow
+} from '../_shared/archive-inspection.ts';
 import { runPreviewWarmSlice, type PreviewWarmRow } from '../_shared/preview-warm.ts';
 import { THUMBNAIL_CACHE_BUCKET } from '../_shared/thumbnails.ts';
 import { isRecord } from '../_shared/validation.ts';
@@ -43,6 +47,8 @@ interface RpcClient extends ServiceRpcClient {
 }
 
 const CLAIM_LIMIT = 50;
+/** Archives looked into per pass: one or two small range reads each. */
+const ARCHIVE_CLAIM_LIMIT = 20;
 
 function serviceClient(): RpcClient {
   const url = Deno.env.get('SUPABASE_URL');
@@ -88,6 +94,29 @@ function warmRow(row: Record<string, unknown>): PreviewWarmRow | null {
     resourceKey: text(row, 'resource_key'),
     driveVersion: text(row, 'drive_version'),
     mimeType: text(row, 'mime_type')
+  };
+}
+
+function archiveRow(row: Record<string, unknown>): ArchiveInspectionRow | null {
+  const sizeBytes = typeof row.size_bytes === 'number' ? row.size_bytes : Number(row.size_bytes);
+  if (
+    typeof row.material_id !== 'string' ||
+    typeof row.team_id !== 'string' ||
+    typeof row.credential_id !== 'string' ||
+    typeof row.drive_file_id !== 'string' ||
+    !Number.isFinite(sizeBytes)
+  ) {
+    return null;
+  }
+  return {
+    materialId: row.material_id,
+    teamId: row.team_id,
+    credentialId: row.credential_id,
+    driveFileId: row.drive_file_id,
+    resourceKey: typeof row.resource_key === 'string' ? row.resource_key : null,
+    driveVersion: typeof row.drive_version === 'string' ? row.drive_version : null,
+    checksum: typeof row.checksum === 'string' ? row.checksum : null,
+    sizeBytes
   };
 }
 
@@ -169,7 +198,43 @@ Deno.serve(async request => {
         });
       }
     });
-    return successResponse({ claimed: claimed.length, ...summary });
+
+    // Archives that arrived since the last pass: which of them are landings
+    // (011, findings J2). The same access tokens serve both passes.
+    const archives = rows(
+      await rpcValue(service, 'service_claim_archive_inspections', {
+        p_limit: ARCHIVE_CLAIM_LIMIT
+      })
+    )
+      .map(archiveRow)
+      .filter((row): row is ArchiveInspectionRow => row !== null);
+    const inspected = await runArchiveInspectionSlice(archives, {
+      fetchRange: async (row, start, end) => {
+        const drive = await driveFor(row.credentialId);
+        const response = await drive.fetchFileRange({
+          fileId: row.driveFileId,
+          resourceKey: row.resourceKey,
+          start,
+          end,
+          acknowledgeAbuse: true
+        });
+        if (response.status !== 206 && response.status !== 200) return null;
+        return new Uint8Array(await response.arrayBuffer());
+      },
+      commit: async (row, inspection) => {
+        await rpcValue(service, 'service_commit_archive_inspection', {
+          p_material: row.materialId,
+          p_outcome: inspection.outcome,
+          p_version: row.driveVersion,
+          p_fingerprint: inspection.outcome === 'landing' ? inspection.fingerprint : null
+        });
+      }
+    });
+    return successResponse({
+      claimed: claimed.length,
+      ...summary,
+      archives: { claimed: archives.length, ...inspected }
+    });
   } catch (error) {
     return errorResponse(mapUnknownError(error));
   }
