@@ -177,6 +177,45 @@ round-trip; the storage chip settles to "Сховище актуальне".
   element at `readyState 0` even for a `blob:` URL of the same bytes. A decoder limitation
   of the automation profile, not of the transfer path.
 
+## H — a second pass through the connected space (2026-08-29, evening)
+
+Beta stack brought up from a cold machine (colima had not come back after the reboot; `beta:up`
+names that and stops). Every screen was walked again in the browser at 1035, 1040, 720 and
+360 px: tiles and list, all five preview kinds, search, rename, trash and its undo, upload
+through the relay, tasks (create, save, filters, slider, attachments), members, settings,
+history. Working as recorded in section G: previews (video plays in this profile), upload
+(`start` → `relay` → `finalize`), trash → undo, task editor. What was not:
+
+| ID  | What was wrong                                                                                                                                                                                                                                                                                          | Fix                                                                                                                                                                              |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| H1  | Renaming from the row menu could not be done from the keyboard: the field opened unfocused, 93 px wide under the still-open item list; Enter went to the explorer's shortcut and opened a preview of whatever row was focused (and cancelled the submit); a space in the new name toggled the selection | `MaterialRowMenu`: the form replaces the item list, the field is focused with the base name selected, the menu keeps its own keys; `ExplorerShell` ignores keys typed in a field |
+| H2  | `/` did nothing until the search it was meant to open was already on screen (the only listener lived in the search bar); "Search" opened the panel without focusing it                                                                                                                                  | the shell binds `/` while the search is closed; the bar focuses itself when the explorer opens it                                                                                |
+| H3  | Trash, restore and move never appeared in the space history: `service_complete_material_group_intent` updated the rows and catalog events but wrote no audit row — only the rename/transfer commit did                                                                                                  | migration `20260829140000`: one `record_team_audit` call per completed intent, under the operation's actor                                                                       |
+| H4  | Delete on a focused row did nothing (`contracts/explorer-ui.md`: Delete → trash with undo)                                                                                                                                                                                                              | `ExplorerShell`: Delete/Backspace trash the focused or checked rows with an Undo toast; the selection bar gets the same button                                                   |
+| H5  | At a 1040 px viewport the list showed `be…`, `b…` or no name at all: the name column had no floor while kind and size kept theirs; tiles fell to one per row for the same reason                                                                                                                        | `styles.css`: the content column keeps 380 px before the tree and pane give way; list rows drop the kind, then the size, before the name (container queries)                     |
+| H6  | Task attachments and the attach picker labelled files with the classifier key — `image`, `video`, `landing`, `archive`                                                                                                                                                                                  | `CATEGORY_LABEL` beside `KIND_LABEL`; both surfaces read it                                                                                                                      |
+| H7  | The trash view offered a Tiles/List switch that switches nothing there                                                                                                                                                                                                                                  | hidden in the trash                                                                                                                                                              |
+| H8  | Search results stacked four full-height buttons under every hit                                                                                                                                                                                                                                         | caption-weight, 32 px, left-aligned                                                                                                                                              |
+
+Regression tests: H1, H2, H4 (`tests/team-explorer-keyboard-layout.test.tsx`), H3
+(`tests/team-intent-audit-sql.test.ts`, on the real function through PGlite), H6
+(`tests/creative-library-tasks.test.tsx`). H5, H7, H8 are stylesheet and markup, verified on
+screen. Also fixed on the way: `tests/team-routes.test.ts` read `.query` off the route union
+without narrowing and failed `typecheck:tests`.
+
+Verified live after the fixes: `/` opens and focuses the search; rename from the keyboard
+with a space in the name; Delete → "Переміщено в кошик · Скасувати" → "Відновлено"; the
+history reads "Файл переміщено в кошик" and "Файл відновлено з кошика"; attachment captions
+say "Зображення".
+
+### Seen, left alone
+
+- The global header's "БЕТА" badge sits on top of the support chip ("$0 / $99") below about
+  1100 px. It is the application header, not the workspace; noted for its own stream.
+- The first tile screen after `beta:up` came up blank for a few seconds — the edge function
+  compiling on first hit — and filled on its own. Not reproducible once warm.
+- A search hit's four actions still take two lines in a 380 px column; they are readable now.
+
 ### Still to run (needs the owner)
 
 Done so far under T076: the beta OAuth client (`soty-beta`, `drive.file`,
