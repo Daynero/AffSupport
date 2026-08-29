@@ -20,6 +20,9 @@ These are forward-only production migrations. Prefer a backup plus a forward fix
 team has connected storage. For an empty isolated development database, reverse the
 feature group in this exact order:
 
+0. `20260830120000_transcript_companion_link.sql`: drop
+   `public.service_link_transcript_companion(uuid, uuid, uuid, text, text)` and
+   `public.service_find_transcript_by_fingerprint(uuid, text)`.
 0. `20260830110000_landing_render_lifecycle.sql`: restore the previous body of
    `public.list_landing_renders(uuid, uuid[], text)` from `20260815113000` (without the
    `material.lifecycle = 'active'` join condition).

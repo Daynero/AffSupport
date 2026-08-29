@@ -22,7 +22,7 @@ Order is dependency-first. Each task is small and independently committable.
 
 - [ ] T004 Agent: on a transcription job, compute a decoded-audio fingerprint (ffmpeg → raw PCM →
       sha256) alongside the text; return both. `apps/agent/src/team-bridge/process.ts`.
-- [ ] T005 Server `service_commit_transcript_companion(p_team, p_video, p_actor, p_text,
+- [~] T005 SQL half done (`service_link_transcript_companion` + `service_find_transcript_by_fingerprint`); the Drive .txt upload + agent wiring remain. `service_commit_transcript_companion(p_team, p_video, p_actor, p_text,
     p_fingerprint, ...)`: create-or-reuse text by fingerprint, mint a companion material named
       `<video-stem>.txt` beside the video, link it, trash any previous companion. Migration + test.
 - [ ] T006 Wire the process-output finalize path (`drive-ops/process/output/finalize`) so a

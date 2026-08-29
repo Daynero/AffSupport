@@ -138,3 +138,76 @@ describe('landing preview lifecycle (012, T013)', () => {
     expect(after).toHaveLength(0);
   }, 60_000);
 });
+
+describe('transcript companion linking (012, T005)', () => {
+  it('links a .txt to its video, dedups text by fingerprint, and retires the old companion', async () => {
+    const FP = 'b'.repeat(64);
+    const video = await material('lecture.mp4', 'file', 'video');
+    // First companion, carrying text and a fingerprint.
+    const first = await harness.root<{ id: string }>(
+      `insert into public.team_materials
+         (team_id, connection_id, drive_file_id, parent_folder_id, name, kind, category, mime_type)
+       values ($1, $2, 'lecture-txt', 'root', 'lecture.txt', 'file', 'transcript', 'text/plain')
+       returning id`,
+      [teamId, connectionId]
+    );
+    expect(
+      await harness.root<{ ok: boolean }>(
+        `select public.service_link_transcript_companion($1, $2, $3, $4, $5) as ok`,
+        [teamId, video, first[0]!.id, FP, 'the full text of the lecture']
+      )
+    ).toEqual([{ ok: true }]);
+
+    // A second identical audio finds the text without recomputing it.
+    const found = await harness.root<{ transcript_text: string }>(
+      'select * from public.service_find_transcript_by_fingerprint($1, $2)',
+      [teamId, FP]
+    );
+    expect(found[0]!.transcript_text).toBe('the full text of the lecture');
+
+    // Re-transcribe: a new companion replaces the first, which is retired.
+    const second = await harness.root<{ id: string }>(
+      `insert into public.team_materials
+         (team_id, connection_id, drive_file_id, parent_folder_id, name, kind, category, mime_type)
+       values ($1, $2, 'lecture-txt-2', 'root', 'lecture.txt', 'file', 'transcript', 'text/plain')
+       returning id`,
+      [teamId, connectionId]
+    );
+    await harness.root(`select public.service_link_transcript_companion($1, $2, $3, $4, $5)`, [
+      teamId,
+      video,
+      second[0]!.id,
+      'c'.repeat(64),
+      'a fresh transcription'
+    ]);
+    const live = await harness.asUser<{ id: string }>(
+      OWNER,
+      'select id from public.get_material_transcript_companion($1, $2)',
+      [teamId, video]
+    );
+    expect(live).toHaveLength(1);
+    expect(live[0]!.id).toBe(second[0]!.id);
+    const oldState = await harness.root<{ lifecycle: string; companion_of: string | null }>(
+      'select lifecycle, companion_of from public.team_materials where id = $1',
+      [first[0]!.id]
+    );
+    expect(oldState[0]).toMatchObject({ lifecycle: 'trashed', companion_of: null });
+  }, 60_000);
+
+  it('refuses to link a non-transcript or a non-video', async () => {
+    const notVideo = await material('pic.png', 'file', 'image');
+    const txt = await harness.root<{ id: string }>(
+      `insert into public.team_materials
+         (team_id, connection_id, drive_file_id, parent_folder_id, name, kind, category, mime_type)
+       values ($1, $2, 'stray-txt', 'root', 'stray.txt', 'file', 'transcript', 'text/plain')
+       returning id`,
+      [teamId, connectionId]
+    );
+    expect(
+      await harness.root<{ ok: boolean }>(
+        `select public.service_link_transcript_companion($1, $2, $3, null, 't') as ok`,
+        [teamId, notVideo, txt[0]!.id]
+      )
+    ).toEqual([{ ok: false }]);
+  }, 60_000);
+});
