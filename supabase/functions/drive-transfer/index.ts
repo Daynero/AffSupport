@@ -653,7 +653,8 @@ async function handleRange(request: Request, service: RpcClient, cors: Record<st
   const headers = forwardedRangeHeaders(
     upstream.headers,
     authorized.source.mimeType,
-    authorized.grant.purpose === 'preview_range' ? 'inline' : 'attachment'
+    authorized.grant.purpose === 'preview_range' ? 'inline' : 'attachment',
+    authorized.material.name
   );
   if (authorized.source.sourceVersion) {
     headers.set('x-wishly-source-version', authorized.source.sourceVersion);

@@ -6,7 +6,6 @@ import type {
   CatalogSearchResponse,
   CatalogVocabulary,
   MaterialMetadataPatch,
-  TeamAnalyticsStage,
   TeamAnalyticsStorage,
   TeamMaterialProvenanceEntry,
   TeamMaterialRowKind,
@@ -18,11 +17,7 @@ import { teamApi } from '../../api/team';
 import { startTeamAgentProcess } from '../../api/client';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
-import {
-  completeTeamWorkflow,
-  startTeamWorkflow,
-  type TeamWorkflowFlow
-} from '../../analytics/service';
+import { startTeamWorkflow, type TeamWorkflowFlow } from '../../analytics/service';
 import type { DriveConnectionStatus, TeamMaterialSummary } from '../../api/team';
 import { useTeam } from '../TeamContext';
 import { CatalogFilters } from './CatalogFilters';
@@ -38,8 +33,7 @@ import { MaterialPreview } from '../preview/MaterialPreview';
 import { TeamTextEditor } from './TeamTextEditor';
 import { uploadTeamFile } from './material-actions-client';
 import { ProcessMaterialDialog } from '../processing/ProcessMaterialDialog';
-import { OperationStatus } from '../processing/OperationStatus';
-import { useTeamOperation } from '../processing/useTeamOperation';
+import { ActiveOperation } from '../processing/MaterialProcessFlow';
 import { ProvenancePanel } from './ProvenancePanel';
 
 export interface TeamCatalogClient {
@@ -397,66 +391,6 @@ function ProvenanceDialog({
       </div>
     </Modal>
   );
-}
-
-function ActiveOperation({
-  teamId,
-  operationId,
-  workflow,
-  agentEnabled,
-  localFailureCode = null,
-  onClose,
-  onRetry
-}: {
-  teamId: string;
-  operationId: string;
-  workflow: TeamWorkflowFlow;
-  agentEnabled: boolean;
-  localFailureCode?: string | null;
-  onClose: () => void;
-  onRetry: () => void;
-}) {
-  const { t } = useI18n();
-  const state = useTeamOperation({ teamId, operationId, agentEnabled });
-  useEffect(() => {
-    const operation = state.operation;
-    if (!operation || !['succeeded', 'failed', 'canceled'].includes(operation.state)) return;
-    completeTeamWorkflow(workflow, {
-      outcome:
-        operation.state === 'succeeded'
-          ? 'success'
-          : operation.state === 'canceled'
-            ? 'cancelled'
-            : 'failure',
-      retryable: operation.retryable,
-      stage: operationStage(operation.stage)
-    });
-  }, [state.operation, workflow]);
-  if (!state.operation) return <p aria-live="polite">{t('teamOperationLoading')}</p>;
-  return (
-    <div className="team-operation-overlay">
-      <OperationStatus
-        operation={state.operation}
-        localProgress={state.localProgress}
-        localFailureCode={localFailureCode}
-        onCancel={state.cancel}
-        onRetry={onRetry}
-      />
-      {(localFailureCode !== null || !['pending', 'running'].includes(state.operation.state)) && (
-        <Button type="button" variant="ghost" onClick={onClose}>
-          {t('teamOperationClose')}
-        </Button>
-      )}
-    </div>
-  );
-}
-
-function operationStage(stage: string | null): TeamAnalyticsStage {
-  return ['finding', 'previewing', 'downloading', 'processing', 'uploading', 'finalizing'].includes(
-    stage ?? ''
-  )
-    ? (stage as TeamAnalyticsStage)
-    : 'processing';
 }
 
 function TextVersionDialog({

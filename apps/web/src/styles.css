@@ -10873,10 +10873,19 @@ button,
   width: 100%;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: var(--color-surface);
+  background-color: var(--color-surface);
   color: var(--color-text);
   padding: 10px 12px;
   font: inherit;
+}
+/* The global select is 36px tall with no vertical padding; the dialog's
+   10px padding on top of that left 16px for the text, which clipped the tool
+   name. The select grows to its content and keeps the chevron's room. */
+.team-process-dialog select {
+  height: auto;
+  min-height: 44px;
+  padding-right: 36px;
+  line-height: 1.3;
 }
 .team-text-editor textarea {
   min-height: 260px;
@@ -14091,10 +14100,11 @@ button.team-landing-tile:hover {
      row auto-placed into a second line otherwise, which read as a broken
      table: the name sat mid-row and the size wrapped under the checkbox. The
      reason line still spans the whole row beneath them. */
-  grid-template-columns: auto minmax(120px, 1fr) auto auto auto;
-  gap: var(--space-3);
+  /* Ruled columns — name, kind, size — so a list reads as a table. */
+  grid-template-columns: auto minmax(120px, 1fr) 7.5em 6em auto;
+  gap: 0;
   align-items: center;
-  min-height: 40px;
+  min-height: 44px;
   padding: var(--space-1) var(--space-2);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -14108,13 +14118,43 @@ button.team-landing-tile:hover {
   text-align: left;
   border: 0;
   background: transparent;
-  color: var(--color-text);
+  /* The name is the one part of a row that opens the file; it wears the
+     colour of an action, and the rest of the row only selects. */
+  color: var(--color-success);
   font: inherit;
+  font-weight: 600;
   cursor: pointer;
-  padding: var(--space-1);
+  margin-left: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+}
+.team-explorer-row-name:hover:not(:disabled) {
+  background: var(--color-success-soft);
+  text-decoration: underline;
+}
+.team-explorer-row-name:focus-visible {
+  outline: 2px solid var(--color-success);
+  outline-offset: -2px;
+}
+.team-explorer-row-kind,
+.team-explorer-row-meta {
+  padding: 0 var(--space-3);
+  border-left: 1px solid var(--color-border);
+  line-height: 28px;
+}
+.team-explorer-row-meta {
+  text-align: right;
+}
+.team-explorer-row-actions {
+  padding-left: var(--space-2);
+}
+.team-explorer-row-check {
+  margin-right: var(--space-1);
 }
 .team-explorer-row-name:disabled {
   cursor: default;
+  color: var(--color-text);
+  font-weight: 500;
 }
 .team-explorer-row-kind,
 .team-explorer-row-meta {
@@ -14128,11 +14168,17 @@ button.team-landing-tile:hover {
   container-type: inline-size;
 }
 @container (max-width: 460px) {
+  .team-explorer-row {
+    grid-template-columns: auto minmax(120px, 1fr) 6em auto;
+  }
   .team-explorer-row-kind {
     display: none;
   }
 }
 @container (max-width: 360px) {
+  .team-explorer-row {
+    grid-template-columns: auto minmax(120px, 1fr) auto;
+  }
   .team-explorer-row-meta {
     display: none;
   }
@@ -14348,6 +14394,14 @@ button.team-landing-tile:hover {
 }
 .team-explorer-tile-check {
   left: 8px;
+}
+/* The same 28px box in a list row, in the flow rather than on a picture. */
+.team-explorer-check {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
   cursor: pointer;
 }
 .team-explorer-tile-actions {
@@ -14368,7 +14422,7 @@ button.team-landing-tile:hover {
 .team-explorer-tile.is-checked .team-explorer-tile-check {
   opacity: 1;
 }
-.team-explorer-tile-check input {
+.team-explorer-check input {
   position: absolute;
   width: 100%;
   height: 100%;
@@ -14376,7 +14430,7 @@ button.team-landing-tile:hover {
   opacity: 0;
   cursor: pointer;
 }
-.team-explorer-tile-check > span {
+.team-explorer-check > span {
   display: grid;
   place-items: center;
   width: 28px;
@@ -14385,7 +14439,7 @@ button.team-landing-tile:hover {
   border-radius: var(--radius-sm);
   background: var(--color-surface);
 }
-.team-explorer-tile-check > span::after {
+.team-explorer-check > span::after {
   content: '';
   width: 12px;
   height: 7px;
@@ -14395,20 +14449,21 @@ button.team-landing-tile:hover {
   transform: translateY(-1px) rotate(-45deg);
   opacity: 0;
 }
-.team-explorer-tile-check input:checked + span {
+.team-explorer-check input:checked + span {
   border-color: var(--color-accent);
   background: var(--color-accent);
 }
-.team-explorer-tile-check input:checked + span::after {
+.team-explorer-check input:checked + span::after {
   opacity: 1;
 }
-.team-explorer-tile-check input:focus-visible + span {
+.team-explorer-check input:focus-visible + span {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 /* The menu trigger is an icon button on the picture, not a word in the caption
    competing with the file's own name. */
-.team-explorer-tile-actions .team-row-menu > button {
+.team-explorer-tile-actions .team-row-menu > button,
+.team-explorer-row-actions .team-row-menu > button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -14428,7 +14483,8 @@ button.team-landing-tile:hover {
    space that pushed the group left, and the middle dot sat below the line's
    centre. A box is centred by the flex button exactly; its shadows are the
    outer dots. */
-.team-explorer-tile-actions .team-row-menu > button::before {
+.team-explorer-tile-actions .team-row-menu > button::before,
+.team-explorer-row-actions .team-row-menu > button::before {
   content: '';
   display: block;
   width: 4px;
@@ -14541,14 +14597,29 @@ button.team-landing-tile:hover {
   border-color: var(--color-accent);
   color: var(--color-text);
 }
+/* The selection bar wraps and its buttons keep caption weight: at the content
+   column's width four full-height buttons ran past the bar's own border, and
+   the count broke across two lines beside them. */
 .team-explorer-selection-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
+  min-width: 0;
   padding: var(--space-1) var(--space-2);
   border: 1px solid var(--color-accent);
   border-radius: var(--radius-sm);
   background: var(--color-accent-softer);
+}
+.team-explorer-selection-bar > span {
+  white-space: nowrap;
+  font-weight: 600;
+}
+.team-explorer-selection-bar > .button {
+  min-height: 32px;
+  padding-block: 0;
+  font-size: 0.9rem;
+  white-space: nowrap;
 }
 .team-explorer-dropzone.is-over {
   outline: 2px dashed var(--color-accent);

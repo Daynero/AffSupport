@@ -195,7 +195,7 @@ function MaterialRowMenuContent({
               {t('teamFileEditText')}
             </Button>
           )}
-          {!isFolder && permissions.process && (
+          {!isFolder && permissions.process && onProcess && (
             <Button type="button" variant="ghost" onClick={onProcess}>
               {t('teamFileProcess')}
             </Button>

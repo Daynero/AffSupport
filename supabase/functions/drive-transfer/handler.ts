@@ -340,15 +340,33 @@ export function parseBoundedRange(
   return { start, end };
 }
 
+/**
+ * `Content-Disposition` with the file's own name. The browser ignores an
+ * anchor's `download` attribute for a cross-origin address, so a download
+ * without a name here was saved as "range" (011, findings K1). RFC 6266:
+ * an ASCII fallback in `filename`, the real name percent-encoded in
+ * `filename*`.
+ */
+export function contentDisposition(
+  disposition: 'inline' | 'attachment',
+  fileName: string | null
+): string {
+  const name = (fileName ?? '').replace(/[\r\n"\\]/gu, '').trim();
+  if (!name) return disposition;
+  const ascii = name.replace(/[^\x20-\x7e]/gu, '_');
+  return `${disposition}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
+}
+
 export function forwardedRangeHeaders(
   upstream: Headers,
   mimeType: string,
-  disposition: 'inline' | 'attachment'
+  disposition: 'inline' | 'attachment',
+  fileName: string | null = null
 ): Headers {
   const headers = new Headers({
     'accept-ranges': 'bytes',
     'cache-control': 'no-store',
-    'content-disposition': disposition,
+    'content-disposition': contentDisposition(disposition, fileName),
     'content-type': mimeType || 'application/octet-stream',
     'referrer-policy': 'no-referrer',
     'x-content-type-options': 'nosniff'

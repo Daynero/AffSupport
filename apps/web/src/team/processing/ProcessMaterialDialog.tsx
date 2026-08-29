@@ -30,6 +30,9 @@ const defaultClient: ProcessMaterialClient = {
   start: input => teamApi.startProcess(input)
 };
 
+/** What the dialog reads of a material: the explorer's rows and the catalog's items both have it. */
+export type ProcessableMaterial = Pick<CatalogMaterialItem, 'id' | 'name' | 'category'>;
+
 export function ProcessMaterialDialog({
   teamId,
   material,
@@ -42,7 +45,7 @@ export function ProcessMaterialDialog({
   onClose
 }: {
   teamId: string;
-  material: CatalogMaterialItem;
+  material: ProcessableMaterial;
   destinationFolderId: string | null;
   /** Reads the folder tree for the destination picker. */
   browseClient: FolderPickerClient;
@@ -190,7 +193,7 @@ export function ProcessMaterialDialog({
   );
 }
 
-function toolsForMaterial(material: CatalogMaterialItem): TeamProcessTool[] {
+function toolsForMaterial(material: ProcessableMaterial): TeamProcessTool[] {
   if (material.category === 'video') return ['compressor', 'transcription', 'imageEmbedding'];
   if (material.category === 'archive' || material.category === 'landing') {
     return ['landingOptimizer'];
@@ -198,7 +201,7 @@ function toolsForMaterial(material: CatalogMaterialItem): TeamProcessTool[] {
   return [];
 }
 
-function suggestedOutputName(material: CatalogMaterialItem, tool?: TeamProcessTool) {
+function suggestedOutputName(material: ProcessableMaterial, tool?: TeamProcessTool) {
   const stem = material.name.replace(/\.[^.]+$/u, '');
   if (tool === 'transcription') return `${stem}-transcript.txt`;
   if (tool === 'landingOptimizer') return `${stem}-optimized.zip`;

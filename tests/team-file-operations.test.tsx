@@ -192,6 +192,7 @@ describe('team file operations', () => {
           client={client}
           browseClient={browseClient}
           onChanged={vi.fn()}
+          onProcess={vi.fn()}
         />
       </ToastProvider>
     );

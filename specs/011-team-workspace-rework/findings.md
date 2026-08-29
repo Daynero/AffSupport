@@ -257,6 +257,20 @@ directory-outside-the-tail case and the fingerprint against the agent's digest;
 `tests/team-archive-inspection-sql.test.ts` for claim-once and the version guard). J1 and J4 are
 stylesheet and markup, verified on screen.
 
+## K — the owner at the list (2026-08-30)
+
+| ID  | What was wrong                                                                                                                                                                                | Fix                                                                                                                                          |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| K1  | "Скачати" saved the file as `range`: the anchor's `download=` is ignored across origins (5175 → 54321) and the function sent a bare `attachment`                                              | `drive-transfer`: `Content-Disposition` carries the material's name (`filename` ASCII fallback + `filename*` UTF-8)                          |
+| K2  | "Обробити" in the explorer's row menu did nothing — the menu had the button, the explorer passed no handler                                                                                   | the catalog's dialog → local run → operation view lifted into `MaterialProcessFlow`, used by both; the menu hides the item without a handler |
+| K3  | On a tile the checkbox and the menu were 20 px and 28 px, at different heights; the menu's "···" glyph sat off-centre; the list wrote "Дії" where tiles had dots, with a bare native checkbox | one 28 px control style (`.team-explorer-check`) on tiles and rows; three drawn dots centred by flex; the list uses the same icon button     |
+| K4  | The selection bar ran past its own border at the content column's width, "Обрано: 2" wrapped                                                                                                  | wraps, caption-weight buttons                                                                                                                |
+| K5  | List rows read as loose text                                                                                                                                                                  | ruled columns name / kind / size; the name is the one green, opening control with the full name on hover; the rest of the row selects        |
+| K6  | The tool `<select>` in the process dialog clipped its text (global 36 px height under 10 px padding) and lost its chevron to a `background` shorthand                                         | auto height, ≥ 44 px, `background-color`                                                                                                     |
+
+Tests: K1 (`tests/drive-transfer.test.ts`), K2 (`tests/team-file-operations.test.tsx` — the item
+needs a handler). The rest is markup and stylesheet, verified on screen.
+
 ### Still to run (needs the owner)
 
 Done so far under T076: the beta OAuth client (`soty-beta`, `drive.file`,

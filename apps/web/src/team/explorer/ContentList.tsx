@@ -115,18 +115,24 @@ function Row({
       }}
       onClick={() => onSelect(row.id)}
     >
-      <input
-        type="checkbox"
-        className="team-explorer-row-check"
-        aria-label={t('teamExplorerSelectNamed', { name: row.name })}
-        checked={checked}
+      <label
+        className="team-explorer-check team-explorer-row-check"
         onClick={event => event.stopPropagation()}
-        onChange={() => onToggle(row.id)}
-      />
+        title={t('teamExplorerSelectNamed', { name: row.name })}
+      >
+        <input
+          type="checkbox"
+          aria-label={t('teamExplorerSelectNamed', { name: row.name })}
+          checked={checked}
+          onChange={() => onToggle(row.id)}
+        />
+        <span aria-hidden="true" />
+      </label>
       {row.kind === 'folder' ? (
         <button
           type="button"
           className="team-explorer-row-name"
+          title={row.name}
           onClick={() => onOpenFolder(row.driveFileId)}
         >
           <KindIcon kind="folder" /> {row.name}
@@ -135,6 +141,7 @@ function Row({
         <button
           type="button"
           className="team-explorer-row-name"
+          title={row.name}
           disabled={!previewable || !onPreview}
           onClick={() => onPreview?.(previewSummary(row))}
         >

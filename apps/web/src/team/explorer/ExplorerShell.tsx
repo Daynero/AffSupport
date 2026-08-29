@@ -27,6 +27,7 @@ import { ExplorerProvider, useExplorer, type ExplorerClient } from './ExplorerPr
 import { FolderTree } from './FolderTree';
 import { KindFilterBar } from './KindFilterBar';
 import { PreviewPane } from './PreviewPane';
+import { MaterialProcessFlow } from '../processing/MaterialProcessFlow';
 import type { RowActionsProps } from './RowActions';
 import { useFolderPage } from './useFolderPage';
 
@@ -143,6 +144,7 @@ function ExplorerBody({
   const { currentFolderId, selectedId, select, selectedIds, clearSelection, pathTo, nodeOf } =
     explorer;
   const [treeOpen, setTreeOpen] = useState(false);
+  const [processing, setProcessing] = useState<TeamMaterialRow | null>(null);
   const [dropping, setDropping] = useState(false);
   const [storageKind, setStorageKind] = useState<TeamAnalyticsStorage | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -280,7 +282,8 @@ function ExplorerBody({
         browseClient: client,
         actionsClient,
         storageKind,
-        onChanged: changed
+        onChanged: changed,
+        ...(permissions.process ? { onProcess: (row: TeamMaterialRow) => setProcessing(row) } : {})
       }
     : undefined;
 
@@ -600,6 +603,18 @@ function ExplorerBody({
         {dropping && <p className="team-explorer-muted">{t('teamExplorerDropHint')}</p>}
       </div>
       <PreviewPane row={trash || searching ? null : focused} client={client} onOpen={onPreview} />
+      {processing && (
+        <MaterialProcessFlow
+          teamId={teamId}
+          material={{ id: processing.id, name: processing.name, category: processing.category }}
+          destinationFolderId={processing.parentFolderId ?? currentFolderId ?? null}
+          browseClient={client}
+          onClose={() => {
+            setProcessing(null);
+            changed();
+          }}
+        />
+      )}
     </div>
   );
 }

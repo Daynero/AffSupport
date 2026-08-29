@@ -275,6 +275,15 @@ describe('team preview transfer contract', () => {
       location: 'https://www.googleapis.com/private',
       'set-cookie': 'secret=value'
     });
+    // A download carries the file's own name — the browser ignores an anchor's
+    // `download` across origins, so without it the file was saved as "range".
+    expect(
+      forwardedRangeHeaders(upstream, 'video/mp4', 'attachment', 'Ролик — фінал.mp4').get(
+        'content-disposition'
+      )
+    ).toBe(
+      `attachment; filename="_____ _ _____.mp4"; filename*=UTF-8''${encodeURIComponent('Ролик — фінал.mp4')}`
+    );
     expect(Object.fromEntries(forwardedRangeHeaders(upstream, 'video/mp4', 'inline'))).toEqual({
       'accept-ranges': 'bytes',
       'cache-control': 'no-store',

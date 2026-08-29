@@ -240,7 +240,7 @@ function Tile({
           manager puts them: out of the caption, where they competed with the
           name, and out of the flow, where the bare checkbox floated loose. */}
       <label
-        className="team-explorer-tile-check"
+        className="team-explorer-check team-explorer-tile-check"
         onClick={event => event.stopPropagation()}
         title={t('teamExplorerSelectNamed', { name: row.name })}
       >
