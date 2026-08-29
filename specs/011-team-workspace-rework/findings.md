@@ -216,6 +216,23 @@ say "Зображення".
   compiling on first hit — and filled on its own. Not reproducible once warm.
 - A search hit's four actions still take two lines in a 380 px column; they are readable now.
 
+## I — the root replaced with a real folder (2026-08-29, late)
+
+The owner swapped the 19-file test folder for their own `Soty` folder. The chip read
+"Індексуємо · файлів поки що: 0 · папок прочитано: 0" and stayed there. Two separate
+causes, one a bug and one the answer to R1.
+
+| ID  | What was wrong                                                                                                                                                                                                                                                                                                                                                                                                                        | Fix                                                                                                                                                                                                                                                                    |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| I1  | The scheduler starved the new root's scan. `private.claim_catalog_sync_jobs` leased any job in `next_attempt_at` order; the public wrapper dropped detached connections only _after_ the lease. The replaced root's old job — first in the queue — took the worker's single slot every minute (128 attempts, lease renewed each time), and the new job ran 4 times in an hour                                                         | migration `20260829150000`: the claim joins the connection and skips detached ones; orphaned jobs of detached connections are closed as `failed / CONNECTION_DETACHED`. `tests/team-sync-claim-sql.test.ts`                                                            |
+| I2  | Even when it ran, the initial scan of `Soty` found nothing — and it was right. Asked directly with the stored `drive.file` token: `files.list` for the picked `Mock` folder returns **21** children (all uploaded by Soty), for the picked `Soty` folder **0**, while `files.get` and `canListChildren` succeed for both. **R1 outcome B**: under `drive.file` a picked folder does not carry the files a person put there themselves | recorded in `research.md` § R1 outcome. Not a code defect: the walk is correct for what the scope shows. The way through is the restricted `drive` scope (`DRIVE_RESTRICTED_SCOPE_APPROVED=true`, consent screen lists it; Testing status lets test users consent now) |
+
+After I1 the connection reached `ready` within a minute and the chip settled on
+"Сховище актуальне" — over an empty catalog, which is what I2 makes of a real folder until
+the scope is widened. Worth a sentence in the product: an empty root after a fresh connect
+should say that Soty sees only what it uploaded or what was picked file by file, rather
+than "Ця папка порожня".
+
 ### Still to run (needs the owner)
 
 Done so far under T076: the beta OAuth client (`soty-beta`, `drive.file`,

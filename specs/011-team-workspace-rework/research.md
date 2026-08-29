@@ -7,7 +7,7 @@ and two web checks of Google's OAuth policy. Each item ends in a decision the pl
 
 **Finding**: Not settled by documentation. Google's scope guide recommends `drive.file` +
 Picker for explicit selection and lists `drive` as restricted; community answers disagree on
-whether a picked *folder* grants its children. Nothing authoritative was found either way.
+whether a picked _folder_ grants its children. Nothing authoritative was found either way.
 
 **Decision**: A one-hour spike, run before any storage code is written (task order: first in
 Phase 2). Throwaway page: Picker with `setSelectFolderEnabled(true)` + `drive.file`, pick a
@@ -34,9 +34,9 @@ Drive for Desktop + local folder — a different product (files on one member's 
 `https://www.googleapis.com/auth/drive` (restricted). `docs/GOOGLE_OAUTH_VERIFICATION.md`
 records that the restricted-scope review was never submitted and the app must not claim Drive
 is live. `config/production.env` nonetheless sets `DRIVE_OAUTH_MODE=verified`, so the code
-path opens while the OAuth app is in Google's *Testing* status. Google's policy (confirmed
+path opens while the OAuth app is in Google's _Testing_ status. Google's policy (confirmed
 2026-08-27): Testing status → refresh tokens expire after 7 days (`invalid_grant`), only listed
-test users may consent, and the consent screen warns. Switching the app to *In production*
+test users may consent, and the consent screen warns. Switching the app to _In production_
 without verification keeps the warning, imposes a lifetime 100-user cap, and per Google's
 "Unverified apps" page the refresh-token lifetime remains limited for restricted scopes.
 
@@ -91,6 +91,7 @@ surfaced in `TeamMaterialSummary`. Landing renders (`team_landing_renders`) are 
 in `.soty/landing-previews/…`, rendered on demand by a paired agent.
 
 **Decision**:
+
 - **Thumbnail session**: `drive-transfer` action `thumbnail_session` mints a 15-minute,
   team-bound, purpose `thumbnail` token (HMAC over team, member, expiry; hashed at rest in
   `team_operations` like grants). `/thumbnail?material=<id>&session=<token>` authorises
@@ -109,8 +110,8 @@ in `.soty/landing-previews/…`, rendered on demand by a paired agent.
   the power governor when the space has any; without an agent the tile shows the kind icon
   and the one-line "open the local app to render" reason.
 - **Video**: poster = Drive thumbnail; playback = existing range relay.
-**Rejected**: agent-generated thumbnails for images/videos (needs a paired agent, duplicates
-what Drive already produces); public bucket (violates least privilege).
+  **Rejected**: agent-generated thumbnails for images/videos (needs a paired agent, duplicates
+  what Drive already produces); public bucket (violates least privilege).
 
 ## R6 — One explorer
 
@@ -178,4 +179,21 @@ move) or sets connection `state = 'root_missing'` (trashed / deleted); `drive-co
 
 ## R1 outcome
 
-_To be filled by the spike task before Phase 2 storage work begins._
+**B — only the picked items.** Settled 2026-08-29 on the beta stack against the real
+account, not with the throwaway page (the connected space already had a server credential):
+the stored `drive.file` refresh token was exchanged and `files.list` with `'<id>' in parents`
+was run for two roots picked in the Picker.
+
+| Root picked in the Picker                             | `files.get` | children under `drive.file` |
+| ----------------------------------------------------- | ----------- | --------------------------- |
+| `Mock` — every file inside was uploaded through Soty  | ok          | **21**                      |
+| `Soty` — the owner's own folder, files added in Drive | ok          | **0**                       |
+
+`capabilities.canListChildren` is `true` for both; the listing is simply empty for content
+the app did not create. So a picked _folder_ does not carry its descendants: the space sees
+what Soty uploaded and what was picked file by file, and the initial scan of a real folder
+finishes with nothing (findings I2). The release ships on B as decided on 2026-08-27; the
+restricted `drive` scope, once approved, is added with `include_granted_scopes` and the
+walk reaches the original root without re-selection. For the beta project (publishing
+status Testing) the restricted scope can be turned on now with
+`DRIVE_RESTRICTED_SCOPE_APPROVED=true` — test users can consent to it without verification.

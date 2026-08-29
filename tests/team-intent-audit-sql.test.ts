@@ -16,6 +16,7 @@ let materialId: string;
 beforeAll(async () => {
   harness = await createTeamTestDb();
   await createUser(harness, { id: OWNER, email: 'owner@intent.test', displayName: 'Owner' });
+  await harness.root(`insert into public.admin_users (user_id) values ($1)`, [OWNER]);
   const team = await harness.asUser<{ id: string }>(
     OWNER,
     'select id from public.create_team($1)',
