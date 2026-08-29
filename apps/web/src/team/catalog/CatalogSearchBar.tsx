@@ -11,13 +11,20 @@ import { useI18n } from '../../i18n';
  */
 export function CatalogSearchBar({
   value,
-  onChange
+  onChange,
+  autoFocus = false
 }: {
   value: string;
   onChange: (value: string) => void;
+  /** Take the keyboard on mount — the explorer opens this bar on purpose. */
+  autoFocus?: boolean;
 }) {
   const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (autoFocus) inputRef.current?.focus();
+  }, [autoFocus]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

@@ -1,4 +1,8 @@
-import type { TeamMaterialRow, TeamMaterialRowKind } from '@video-compressor/shared';
+import type {
+  MaterialCategory,
+  TeamMaterialRow,
+  TeamMaterialRowKind
+} from '@video-compressor/shared';
 import type { TeamMaterialSummary } from '../../api/team';
 import type { TranslationKey } from '../../i18n';
 
@@ -27,6 +31,16 @@ export const KIND_LABEL: Record<TeamMaterialRowKind, TranslationKey> = {
   transcript: 'teamExplorerKindTranscript',
   document: 'teamExplorerKindDocument',
   shortcut: 'teamExplorerKindShortcut',
+  other: 'teamExplorerKindOther'
+};
+
+/** A classifier category by the same word the explorer uses for its kind. */
+export const CATEGORY_LABEL: Record<MaterialCategory, TranslationKey> = {
+  image: 'teamExplorerKindImage',
+  video: 'teamExplorerKindVideo',
+  landing: 'teamExplorerKindLanding',
+  archive: 'teamExplorerKindArchive',
+  transcript: 'teamExplorerKindTranscript',
   other: 'teamExplorerKindOther'
 };
 

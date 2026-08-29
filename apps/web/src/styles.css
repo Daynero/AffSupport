@@ -10535,7 +10535,15 @@ button,
   gap: var(--space-2);
 }
 .team-catalog-material-actions {
-  justify-content: flex-end;
+  justify-content: flex-start;
+}
+/* Search results carry the row actions inline at caption weight rather than
+   as four full-height buttons stacked under every hit. */
+.team-catalog-material-actions > .button,
+.team-catalog-secondary-actions .team-row-menu > .button {
+  min-height: 32px;
+  padding-block: 0;
+  font-size: 0.9rem;
 }
 .team-catalog-secondary-actions {
   grid-column: 1 / -1;
@@ -13719,6 +13727,16 @@ button.team-landing-tile:hover {
   grid-template-columns: minmax(0, 1fr);
   gap: 2px;
 }
+/* The rename form takes the menu's whole width in place of the item list;
+   the 93px field it used to squeeze under the items could not show a name. */
+.team-row-menu-panel .team-row-menu-rename {
+  grid-template-columns: 1fr;
+  padding: var(--space-1);
+}
+.team-row-menu-panel .team-row-menu-rename input {
+  width: 100%;
+  min-width: 0;
+}
 /* A menu reads down its left edge; centred items made it a list of headings.
    Menu rows are also shorter than standalone buttons — a 44px control repeated
    six times is a wall, not a list — and wrap rather than spill. */
@@ -14057,7 +14075,7 @@ button.team-landing-tile:hover {
      row auto-placed into a second line otherwise, which read as a broken
      table: the name sat mid-row and the size wrapped under the checkbox. The
      reason line still spans the whole row beneath them. */
-  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  grid-template-columns: auto minmax(120px, 1fr) auto auto auto;
   gap: var(--space-3);
   align-items: center;
   min-height: 40px;
@@ -14087,6 +14105,21 @@ button.team-landing-tile:hover {
   color: var(--color-text-muted);
   font-size: 0.9em;
   white-space: nowrap;
+}
+/* A narrow list keeps the name and drops the columns a person can read from
+   the icon and the pane: the kind first, then the size. */
+.team-explorer-rows {
+  container-type: inline-size;
+}
+@container (max-width: 460px) {
+  .team-explorer-row-kind {
+    display: none;
+  }
+}
+@container (max-width: 360px) {
+  .team-explorer-row-meta {
+    display: none;
+  }
 }
 .team-explorer-row-reason {
   grid-column: 1 / -1;
@@ -14122,7 +14155,11 @@ button.team-landing-tile:hover {
 
 /* Explorer tiles and the selected-item pane (011, US2). */
 .team-explorer.has-pane {
-  grid-template-columns: minmax(200px, 280px) minmax(0, 1fr) minmax(240px, 360px);
+  /* The content column has a floor: below it the tree and the pane give way,
+     not the file names. At 1040px the old 0-floor let the pane and tree take
+     their maxima and left 334px for the files — one tile per row, and list
+     rows whose names shrank to "be…" while the kind and size stayed whole. */
+  grid-template-columns: minmax(200px, 280px) minmax(380px, 1fr) minmax(240px, 340px);
 }
 .team-explorer-toolbar {
   display: flex;

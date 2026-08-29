@@ -290,9 +290,68 @@ function ExplorerBody({
   );
   const focused = page.rows.find(row => row.id === selectedId) ?? null;
 
-  /** Keyboard on the content area (FR-027): arrows move, Enter opens, Escape clears. */
+  /** Rows going to the trash from the keyboard or the selection bar, with the way back. */
+  const trashRows = useCallback(
+    async (rows: TeamMaterialRow[]) => {
+      if (!permissions?.delete) return;
+      const trashed: string[] = [];
+      for (const row of rows) {
+        if (row.kind === 'folder') continue;
+        try {
+          await actionsClient.trashMaterial({
+            teamId,
+            materialId: row.id,
+            idempotencyKey: crypto.randomUUID()
+          });
+          trashed.push(row.id);
+        } catch (cause) {
+          push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+          break;
+        }
+      }
+      if (trashed.length === 0) return;
+      select(null);
+      clearSelection();
+      changed();
+      const restore = async () => {
+        for (const materialId of trashed) {
+          try {
+            await actionsClient.restoreMaterial({
+              teamId,
+              materialId,
+              idempotencyKey: crypto.randomUUID()
+            });
+          } catch (cause) {
+            push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+            break;
+          }
+        }
+        changed();
+        push({ tone: 'success', text: t('teamToastRestored') });
+      };
+      push({
+        tone: 'success',
+        text:
+          trashed.length === 1
+            ? t('teamToastTrashed')
+            : t('teamExplorerTrashedCount', { count: trashed.length }),
+        action: { label: t('teamUndo'), run: () => void restore() }
+      });
+    },
+    [actionsClient, changed, clearSelection, permissions?.delete, push, select, t, teamId]
+  );
+
+  /**
+   * Keyboard on the content area (FR-027): arrows move, Enter opens, Escape
+   * clears, Delete trashes with undo. Keys typed into a field — the rename
+   * form inside a row menu, most of all — are that field's; letting them
+   * through here opened a preview on Enter and toggled the selection on every
+   * space in the new name.
+   */
   const onContentKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (page.rows.length === 0) return;
+    const target = event.target instanceof HTMLElement ? event.target : null;
+    if (isEditableTarget(target) || target?.closest('.team-row-menu')) return;
     const index = page.rows.findIndex(row => row.id === selectedId);
     const step = view === 'grid' ? gridColumns(event.currentTarget) : 1;
     let next: TeamMaterialRow | undefined;
@@ -323,6 +382,13 @@ function ExplorerBody({
       case ' ':
         if (focused) explorer.toggleSelected(focused.id);
         break;
+      case 'Delete':
+      case 'Backspace': {
+        const rows = selectedRows.length > 0 ? selectedRows : focused ? [focused] : [];
+        if (rows.length === 0 || !permissions?.delete) return;
+        void trashRows(rows);
+        break;
+      }
       default:
         return;
     }
@@ -331,6 +397,21 @@ function ExplorerBody({
   };
 
   const trash = query.trash;
+
+  // `/` opens the search from anywhere on the folder screen (FR-027). The
+  // search bar binds the same key once it is mounted; before that there was
+  // nothing listening, so the shortcut only worked when it was not needed.
+  useEffect(() => {
+    if (searching || trash) return;
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (isEditableTarget(event.target instanceof HTMLElement ? event.target : null)) return;
+      event.preventDefault();
+      onQueryChange({ scope: 'space' });
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onQueryChange, searching, trash]);
 
   return (
     <div className={`team-explorer has-pane${treeOpen ? ' is-tree-open' : ''}`}>
@@ -408,18 +489,28 @@ function ExplorerBody({
                 </Button>
               </>
             )}
-            <div
-              className="team-explorer-view-toggle"
-              role="group"
-              aria-label={t('teamExplorerViewLabel')}
-            >
-              <button type="button" aria-pressed={view === 'grid'} onClick={() => setView('grid')}>
-                {t('teamExplorerViewGrid')}
-              </button>
-              <button type="button" aria-pressed={view === 'list'} onClick={() => setView('list')}>
-                {t('teamExplorerViewList')}
-              </button>
-            </div>
+            {!trash && (
+              <div
+                className="team-explorer-view-toggle"
+                role="group"
+                aria-label={t('teamExplorerViewLabel')}
+              >
+                <button
+                  type="button"
+                  aria-pressed={view === 'grid'}
+                  onClick={() => setView('grid')}
+                >
+                  {t('teamExplorerViewGrid')}
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={view === 'list'}
+                  onClick={() => setView('list')}
+                >
+                  {t('teamExplorerViewList')}
+                </button>
+              </div>
+            )}
           </div>
         </div>
         {!trash && !searching && (
@@ -450,6 +541,11 @@ function ExplorerBody({
                 {t('teamExplorerProcessSelection')}
               </Button>
             )}
+            {permissions?.delete && (
+              <Button type="button" variant="danger" onClick={() => void trashRows(selectedRows)}>
+                {t('teamFileTrash')}
+              </Button>
+            )}
             <Button type="button" variant="ghost" onClick={clearSelection}>
               {t('teamExplorerClearSelection')}
             </Button>
@@ -466,6 +562,7 @@ function ExplorerBody({
             initialQuery={query.q}
             initialFilters={query.filters}
             onSearched={onSearched}
+            autoFocusSearch
             scopeFolderId={currentFolderId}
             scope={query.scope}
             onScopeChange={scope => onQueryChange({ scope })}
@@ -508,6 +605,17 @@ function ExplorerBody({
 }
 
 const VIEW_KEY = 'soty.team.explorer.view';
+
+/** Someone typing owns their keys; the explorer's shortcuts never apply there. */
+function isEditableTarget(target: HTMLElement | null): boolean {
+  if (!target) return false;
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    target.isContentEditable
+  );
+}
 
 function readRememberedView(): ExplorerView {
   try {

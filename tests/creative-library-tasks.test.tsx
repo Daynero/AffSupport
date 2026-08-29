@@ -149,6 +149,9 @@ describe('Creative Library task workflows', () => {
       position: 0
     };
     render(<TaskAttachmentTile teamId={TEAM_ID} attachment={attachment} client={client()} />);
+    // The caption says the kind in the reader's language, not the classifier key.
+    expect(screen.getByText('Video')).toBeTruthy();
+    expect(screen.queryByText('video')).toBeNull();
     const element = (await screen.findByLabelText(
       'Video preview for launch.mp4 at one second'
     )) as HTMLVideoElement;

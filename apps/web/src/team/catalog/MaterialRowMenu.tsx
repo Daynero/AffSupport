@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type KeyboardEvent as ReactKeyboardEvent
+} from 'react';
 import type { TeamAnalyticsStorage, TeamPermissions } from '@video-compressor/shared';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
@@ -95,6 +101,29 @@ function MaterialRowMenuContent({
   });
   const [prompt, setPrompt] = useState<Prompt | null>(null);
   const [newName, setNewName] = useState(material.name);
+  const nameInput = useRef<HTMLInputElement | null>(null);
+
+  // The new-name field gets the keyboard the moment it appears, with the base
+  // name selected so typing replaces it and the extension survives. Without
+  // this the field opened unfocused and Enter went to whatever had focus.
+  useEffect(() => {
+    if (prompt?.kind !== 'rename') return;
+    const input = nameInput.current;
+    if (!input) return;
+    input.focus();
+    const dot = material.name.lastIndexOf('.');
+    input.setSelectionRange(0, dot > 0 ? dot : material.name.length);
+  }, [material.name, prompt?.kind]);
+
+  const onPanelKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      if (prompt) setPrompt(null);
+      else onDone();
+    }
+    // Arrows, Enter, space and Delete inside the menu are the menu's own.
+    event.stopPropagation();
+  };
 
   const isFolder = material.kind === 'folder';
   const transcriptReady = material.transcriptIngestState === 'full';
@@ -107,108 +136,122 @@ function MaterialRowMenuContent({
   };
 
   return (
-    <div className="team-row-menu-panel" role="group">
-      <div className="team-material-action-buttons">
-        {isFolder && permissions.upload && (
-          <label className="button button-secondary">
-            {folderUploadLabel ?? t('teamFileUpload')}
-            <input
-              type="file"
-              aria-label={folderUploadLabel ?? t('teamFileUpload')}
-              hidden
-              onChange={event => selectUpload(event, null)}
-            />
-          </label>
-        )}
-        {!isFolder && permissions.download && (
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={actions.busy}
-            onClick={() => void actions.download()}
-          >
-            {t('teamFileDownload')}
-          </Button>
-        )}
-        {!isFolder && permissions.upload && destinationFolderId && (
-          <label className="button button-ghost">
-            {t('teamFileNewVersion')}
-            <input
-              type="file"
-              aria-label={t('teamFileNewVersion')}
-              hidden
-              onChange={event => selectUpload(event, material.id)}
-            />
-          </label>
-        )}
-        {!isFolder && permissions.edit && (
-          <>
-            <Button type="button" variant="ghost" onClick={() => setPrompt({ kind: 'rename' })}>
-              {t('teamFileRename')}
+    <div className="team-row-menu-panel" role="group" onKeyDown={onPanelKeyDown}>
+      {prompt === null && (
+        <div className="team-material-action-buttons">
+          {isFolder && permissions.upload && (
+            <label className="button button-secondary">
+              {folderUploadLabel ?? t('teamFileUpload')}
+              <input
+                type="file"
+                aria-label={folderUploadLabel ?? t('teamFileUpload')}
+                hidden
+                onChange={event => selectUpload(event, null)}
+              />
+            </label>
+          )}
+          {!isFolder && permissions.download && (
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={actions.busy}
+              onClick={() => void actions.download()}
+            >
+              {t('teamFileDownload')}
             </Button>
-            <Button type="button" variant="ghost" onClick={() => setPrompt({ kind: 'move' })}>
-              {t('teamFileMove')}
-            </Button>
-          </>
-        )}
-        {/* Disabled with a reason rather than absent: the action exists for this
+          )}
+          {!isFolder && permissions.upload && destinationFolderId && (
+            <label className="button button-ghost">
+              {t('teamFileNewVersion')}
+              <input
+                type="file"
+                aria-label={t('teamFileNewVersion')}
+                hidden
+                onChange={event => selectUpload(event, material.id)}
+              />
+            </label>
+          )}
+          {!isFolder && permissions.edit && (
+            <>
+              <Button type="button" variant="ghost" onClick={() => setPrompt({ kind: 'rename' })}>
+                {t('teamFileRename')}
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => setPrompt({ kind: 'move' })}>
+                {t('teamFileMove')}
+              </Button>
+            </>
+          )}
+          {/* Disabled with a reason rather than absent: the action exists for this
             file, it is the transcript that is not ready yet (FR-015). Silently
             doing nothing — the old behavior — reads as a broken button. */}
-        {!isFolder && permissions.edit && isTextFile && onEditText && (
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={!transcriptReady}
-            title={transcriptReady ? undefined : t('teamFileEditTextUnavailable')}
-            onClick={onEditText}
-          >
-            {t('teamFileEditText')}
-          </Button>
-        )}
-        {!isFolder && permissions.process && (
-          <Button type="button" variant="ghost" onClick={onProcess}>
-            {t('teamFileProcess')}
-          </Button>
-        )}
-        {!isFolder && permissions.delete && !trashed && (
-          <Button
-            type="button"
-            variant="danger"
-            disabled={actions.busy}
-            onClick={() => void actions.trash().then(code => !code && onDone())}
-          >
-            {t('teamFileTrash')}
-          </Button>
-        )}
-        {!isFolder && permissions.delete && trashed && (
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={actions.busy}
-            onClick={() => void actions.restore().then(code => !code && onDone())}
-          >
-            {t('teamFileRestore')}
-          </Button>
-        )}
-      </div>
+          {!isFolder && permissions.edit && isTextFile && onEditText && (
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={!transcriptReady}
+              title={transcriptReady ? undefined : t('teamFileEditTextUnavailable')}
+              onClick={onEditText}
+            >
+              {t('teamFileEditText')}
+            </Button>
+          )}
+          {!isFolder && permissions.process && (
+            <Button type="button" variant="ghost" onClick={onProcess}>
+              {t('teamFileProcess')}
+            </Button>
+          )}
+          {!isFolder && permissions.delete && !trashed && (
+            <Button
+              type="button"
+              variant="danger"
+              disabled={actions.busy}
+              onClick={() => void actions.trash().then(code => !code && onDone())}
+            >
+              {t('teamFileTrash')}
+            </Button>
+          )}
+          {!isFolder && permissions.delete && trashed && (
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={actions.busy}
+              onClick={() => void actions.restore().then(code => !code && onDone())}
+            >
+              {t('teamFileRestore')}
+            </Button>
+          )}
+        </div>
+      )}
 
       {prompt?.kind === 'rename' && (
         <form
-          className="team-material-inline-form"
+          className="team-material-inline-form team-row-menu-rename"
           onSubmit={event => {
             event.preventDefault();
             void actions.rename(newName).then(code => {
-              if (!code) setPrompt(null);
+              if (!code) {
+                setPrompt(null);
+                onDone();
+              }
             });
           }}
         >
           <label>
             {t('teamFileNewName')}
-            <input value={newName} onChange={event => setNewName(event.target.value)} />
+            <input
+              ref={nameInput}
+              value={newName}
+              onChange={event => setNewName(event.target.value)}
+            />
           </label>
-          <Button type="submit" loading={actions.busy}>
-            {t('teamFileRename')}
-          </Button>
+          <div className="team-dialog-actions">
+            <Button type="submit" loading={actions.busy}>
+              {t('teamFileRename')}
+            </Button>
+            <Button type="button" variant="ghost" onClick={() => setPrompt(null)}>
+              {t('teamCancel')}
+            </Button>
+          </div>
         </form>
       )}
 

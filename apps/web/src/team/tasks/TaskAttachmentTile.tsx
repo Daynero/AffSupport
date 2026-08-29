@@ -8,6 +8,7 @@ import type {
   TeamPreviewResult,
   TeamTaskAttachmentSummary
 } from '@video-compressor/shared';
+import { CATEGORY_LABEL } from '../explorer/rowKinds';
 import { teamApi } from '../../api/team';
 import { Modal } from '../../components/Modal';
 import { Button } from '../../components/ui';
@@ -278,7 +279,7 @@ export function TaskAttachmentTile({
         <div className="team-task-attachment-caption-heading">
           <div>
             <strong title={attachment.name}>{attachment.name}</strong>
-            <small>{attachment.category ?? t('teamTaskAttachMedia')}</small>
+            <small>{t(CATEGORY_LABEL[attachment.category ?? 'other'])}</small>
             {isDraft && (
               <small className="team-task-attachment-draft">{t('teamTaskAttachmentDraft')}</small>
             )}

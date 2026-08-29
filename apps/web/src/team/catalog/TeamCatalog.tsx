@@ -65,6 +65,7 @@ export function TeamCatalog({
   initialQuery,
   initialFilters,
   onSearched,
+  autoFocusSearch = false,
   scopeFolderId,
   scope = 'folder',
   onScopeChange,
@@ -79,6 +80,8 @@ export function TeamCatalog({
   initialFilters?: CatalogSearchFilters;
   /** Reports the state behind each executed search so it can be addressed. */
   onSearched?: (state: { query: string; filters: CatalogSearchFilters }) => void;
+  /** Focus the search field on mount (the explorer's "Search" button opened it). */
+  autoFocusSearch?: boolean;
   /**
    * 011: the explorer's search. When a folder is given, a scope toggle lets the
    * person widen from it to the whole space; kinds narrow either way.
@@ -198,7 +201,11 @@ export function TeamCatalog({
         <h2 id="team-catalog-title">{t('teamCatalogTitle')}</h2>
         {catalog.loading && <small aria-live="polite">{t('teamCatalogRefreshing')}</small>}
       </div>
-      <CatalogSearchBar value={catalog.query} onChange={catalog.setQuery} />
+      <CatalogSearchBar
+        value={catalog.query}
+        onChange={catalog.setQuery}
+        autoFocus={autoFocusSearch}
+      />
       {scopeFolderId !== undefined && onScopeChange && (
         <div className="team-explorer-scope" role="group" aria-label={t('teamExplorerScopeLabel')}>
           <button

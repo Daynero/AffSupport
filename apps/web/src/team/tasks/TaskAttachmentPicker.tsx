@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { MaterialCategory } from '@video-compressor/shared';
+import { CATEGORY_LABEL } from '../explorer/rowKinds';
 import {
   teamApi,
   type TeamMaterialSummary,
@@ -296,7 +297,7 @@ export function TaskAttachmentPicker({
                               ? t('teamTaskAttachmentAlreadyAdded')
                               : isFolder
                                 ? t('teamTaskFolderOpen')
-                                : (material.category ?? material.kind)}
+                                : t(CATEGORY_LABEL[material.category ?? 'other'])}
                           </small>
                         </span>
                         <span className="team-task-picker-check" aria-hidden="true">

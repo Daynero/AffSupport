@@ -139,3 +139,99 @@ describe('explorer narrow layout', () => {
     expect(screen.getByRole('complementary', { name: 'Folders' })).toBeTruthy();
   });
 });
+
+/**
+ * Found in the browser (011 findings H): keys typed into the rename field
+ * reached the explorer's shortcuts, Delete did nothing, and `/` only worked
+ * once the search it was meant to open was already on screen.
+ */
+describe('explorer keyboard, second pass', () => {
+  function actionsClient() {
+    return {
+      trashMaterial: vi.fn().mockResolvedValue({ state: 'succeeded' }),
+      restoreMaterial: vi.fn().mockResolvedValue({ state: 'succeeded' }),
+      renameMaterial: vi.fn().mockResolvedValue({ state: 'succeeded' })
+    };
+  }
+
+  function renderWithActions(rows: TeamMaterialRow[]) {
+    // The shell reads its permissions from the active space.
+    localStorage.setItem('wishly.active-team.v1', TEAM.id);
+    const actions = actionsClient();
+    const onQueryChange = vi.fn();
+    const onPreview = vi.fn();
+    render(
+      <ToastProvider>
+        <TeamProvider realtime={false} initialTeams={[TEAM]}>
+          <ExplorerShell
+            teamId={TEAM.id}
+            client={makeClient(rows)}
+            actionsClient={actions as never}
+            query={{ ...emptyTeamRouteQuery(), view: 'list' }}
+            onQueryChange={onQueryChange}
+            onFolderChange={vi.fn()}
+            onSearched={vi.fn()}
+            onPreview={onPreview}
+          />
+        </TeamProvider>
+      </ToastProvider>
+    );
+    return { actions, onQueryChange, onPreview };
+  }
+
+  it('sends the focused row to the trash on Delete and offers the way back', async () => {
+    const user = userEvent.setup();
+    const { actions } = renderWithActions([row(1), row(2)]);
+    await screen.findByText('file-2.png');
+    const area = document.querySelector<HTMLElement>('.team-explorer-content-keys')!;
+    fireEvent.keyDown(area, { key: 'ArrowDown' });
+    await waitFor(() =>
+      expect(document.querySelector('.team-explorer-row.is-selected')?.textContent).toContain(
+        'file-1.png'
+      )
+    );
+    fireEvent.keyDown(area, { key: 'Delete' });
+    await waitFor(() =>
+      expect(actions.trashMaterial).toHaveBeenCalledWith(
+        expect.objectContaining({ teamId: TEAM.id, materialId: 'id-1' })
+      )
+    );
+    await screen.findByText('Moved to trash');
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() =>
+      expect(actions.restoreMaterial).toHaveBeenCalledWith(
+        expect.objectContaining({ materialId: 'id-1' })
+      )
+    );
+    await screen.findByText('Restored');
+  });
+
+  it('leaves the rename field its own keys, focused with the base name selected', async () => {
+    const user = userEvent.setup();
+    const { actions, onPreview } = renderWithActions([row(1)]);
+    await screen.findByText('file-1.png');
+    await user.click(screen.getByRole('button', { name: 'Actions for file-1.png' }));
+    await user.click(screen.getByRole('button', { name: 'Rename' }));
+    const input = screen.getByLabelText('New name') as HTMLInputElement;
+    expect(document.activeElement).toBe(input);
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, 'file-1'.length]);
+    // The menu's items stepped aside for the form.
+    expect(screen.queryByRole('button', { name: 'Download' })).toBeNull();
+    await user.keyboard('walk one{Enter}');
+    await waitFor(() =>
+      expect(actions.renameMaterial).toHaveBeenCalledWith(
+        expect.objectContaining({ materialId: 'id-1', newName: 'walk one.png' })
+      )
+    );
+    expect(onPreview).not.toHaveBeenCalled();
+    // Space in the new name toggled nothing.
+    expect(screen.queryByRole('region', { name: /Selected/ })).toBeNull();
+  });
+
+  it('opens the search on `/` before the search bar exists', async () => {
+    const { onQueryChange } = renderWithActions([row(1)]);
+    await screen.findByText('file-1.png');
+    fireEvent.keyDown(document.body, { key: '/' });
+    expect(onQueryChange).toHaveBeenCalledWith({ scope: 'space' });
+  });
+});
