@@ -14154,8 +14154,8 @@ button.team-landing-tile:hover {
      row auto-placed into a second line otherwise, which read as a broken
      table: the name sat mid-row and the size wrapped under the checkbox. The
      reason line still spans the whole row beneath them. */
-  /* Ruled columns — name, kind, size — so a list reads as a table. */
-  grid-template-columns: auto minmax(120px, 1fr) 7.5em 6em auto;
+  /* Ruled columns — name, kind, date, size — so a list reads as a table. */
+  grid-template-columns: auto minmax(120px, 1fr) 7em 8.5em 6em auto;
   gap: 0;
   align-items: center;
   min-height: 44px;
@@ -14191,10 +14191,14 @@ button.team-landing-tile:hover {
   outline-offset: -2px;
 }
 .team-explorer-row-kind,
+.team-explorer-row-date,
 .team-explorer-row-meta {
   padding: 0 var(--space-3);
   border-left: 1px solid var(--color-border);
   line-height: 28px;
+  color: var(--color-text-muted);
+  font-size: 0.9em;
+  white-space: nowrap;
 }
 .team-explorer-row-meta {
   text-align: right;
@@ -14220,6 +14224,14 @@ button.team-landing-tile:hover {
    the icon and the pane: the kind first, then the size. */
 .team-explorer-rows {
   container-type: inline-size;
+}
+@container (max-width: 560px) {
+  .team-explorer-row {
+    grid-template-columns: auto minmax(120px, 1fr) 7em 6em auto;
+  }
+  .team-explorer-row-date {
+    display: none;
+  }
 }
 @container (max-width: 460px) {
   .team-explorer-row {
@@ -14579,6 +14591,10 @@ button.team-landing-tile:hover {
     50% 50%,
     calc(50% + 6px) 50%;
   color: transparent;
+}
+.team-explorer-tile-date {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
 }
 .team-explorer-tile-caption {
   display: flex;

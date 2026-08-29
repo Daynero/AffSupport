@@ -10,7 +10,7 @@ import type { TeamMaterialSummary } from '../../api/team';
 import { Button } from '../../components/ui';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { useI18n, type TranslationKey } from '../../i18n';
-import { formatSize } from '../../format';
+import { formatDate, formatSize } from '../../format';
 import { DRAG_TYPE, KIND_LABEL, KIND_REASON, previewSummary } from './rowKinds';
 import { KindIcon } from './KindIcon';
 import { RowActions, type RowActionsProps } from './RowActions';
@@ -172,7 +172,7 @@ function Tile({
   onPreview?: (material: TeamMaterialSummary) => void;
   actions?: RowActionsProps;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const [broken, setBroken] = useState(false);
   useEffect(() => setBroken(false), [row.id, row.driveVersion]);
 
@@ -267,6 +267,9 @@ function Tile({
           {t(KIND_LABEL[row.kind])}
           {row.sizeBytes !== null && row.kind !== 'folder' ? ` · ${formatSize(row.sizeBytes)}` : ''}
         </span>
+        {row.modifiedAt && (
+          <span className="team-explorer-tile-date">{formatDate(row.modifiedAt, language)}</span>
+        )}
         {row.kind === 'landing' && row.landingRender && (
           <span className={`team-explorer-tile-render is-${row.landingRender.state}`}>
             {t(RENDER_LABEL[row.landingRender.state])}

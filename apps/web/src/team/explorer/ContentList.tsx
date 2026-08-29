@@ -3,7 +3,7 @@ import type { TeamMaterialSummary } from '../../api/team';
 import { Button } from '../../components/ui';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { useI18n } from '../../i18n';
-import { formatSize } from '../../format';
+import { formatDate, formatSize } from '../../format';
 import { DRAG_TYPE, KIND_LABEL, KIND_REASON, PREVIEWABLE_KINDS, previewSummary } from './rowKinds';
 import { useExplorer } from './ExplorerProvider';
 import { useFolderPage, type FolderPageClient } from './useFolderPage';
@@ -102,7 +102,7 @@ function Row({
   onPreview?: (material: TeamMaterialSummary) => void;
   actions?: RowActionsProps;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const reason = KIND_REASON[row.kind];
   const previewable = PREVIEWABLE_KINDS.has(row.kind);
   return (
@@ -150,6 +150,7 @@ function Row({
         </button>
       )}
       <span className="team-explorer-row-kind">{t(KIND_LABEL[row.kind])}</span>
+      <span className="team-explorer-row-date">{formatDate(row.modifiedAt, language)}</span>
       <span className="team-explorer-row-meta">
         {row.sizeBytes !== null && row.kind !== 'folder' ? formatSize(row.sizeBytes) : ''}
       </span>

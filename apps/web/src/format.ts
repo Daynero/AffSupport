@@ -75,3 +75,19 @@ export function compactPath(value: string): string {
   if (segments.length <= 3) return value;
   return `…/${segments.slice(-3).join('/')}`;
 }
+
+/**
+ * A file's modified date, the way a drive listing shows it: day and month, and
+ * the year only when it is not the current one. Empty for a missing date.
+ */
+export function formatDate(value: string | null | undefined, locale = 'en'): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const sameYear = date.getFullYear() === new Date().getFullYear();
+  return new Intl.DateTimeFormat(locale, {
+    day: 'numeric',
+    month: 'short',
+    ...(sameYear ? {} : { year: 'numeric' })
+  }).format(date);
+}
