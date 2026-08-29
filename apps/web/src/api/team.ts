@@ -1781,11 +1781,42 @@ export const teamApi = {
     materialId: string,
     preset = 'default'
   ): Promise<TeamLandingRenderJob> {
-    return invokeTeamFunction(
+    const job = await invokeTeamFunction(
       'drive-transfer',
       { action: 'landing_render_start', teamId, materialId, preset },
       landingRenderJobGuard
     );
+    /* The two addresses in the job are handed on to the local Agent, so they
+       must be the ones a process on this machine can reach. Behind the gateway
+       the function reports its own internal hop — on the local stack that is
+       `http://127.0.0.1:8081/drive-transfer/range`, whose path lacks the
+       `/functions/v1` prefix the Agent requires, so every render was refused
+       with INVALID_INPUT before it began. */
+    return {
+      ...job,
+      transferUrl: browserFunctionUrl(job.transferUrl),
+      artifactUploadUrl: browserFunctionUrl(job.artifactUploadUrl)
+    };
+  },
+
+  /**
+   * Reports a render this browser could not hand to the Agent.
+   *
+   * The Agent reports its own failures, but a job it refused outright never
+   * reaches that path, and the row stays "rendering" for good: no worker holds
+   * it and nothing retries it, so the storage chip promises previews that will
+   * never arrive. Uses the same endpoint and artifact grant the Agent uses.
+   */
+  async failLandingRender(job: TeamLandingRenderJob, reason = 'render_error'): Promise<void> {
+    await fetch(`${job.artifactUploadUrl}/${encodeURIComponent(job.operationId)}/fail`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-wishly-transfer-grant': job.artifactGrant.ticket
+      },
+      body: JSON.stringify({ reason }),
+      redirect: 'error'
+    });
   },
 
   async getLandingRenderArtifact(

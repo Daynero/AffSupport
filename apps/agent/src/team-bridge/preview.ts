@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, open, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, open, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import type { TeamPreviewUnavailableReason, TeamTransferGrant } from '@video-compressor/shared';
@@ -136,7 +136,15 @@ export class TeamPreviewBridge {
     let promotedToSession = false;
     try {
       downloaded = await this.#download(request, controller.signal);
-      const inspection = await inspectZip(downloaded.file, controller.signal);
+      const extracted = path.join(downloaded.workspace, 'extracted');
+      /* A landing is normally a package, but the catalog also calls a bare
+         .html file a landing — that is what its type says it is. Rendering
+         only ever unpacked a ZIP, so those files failed as "corrupt" every
+         time, in the viewer and in the background render alike. A single page
+         is written out as the package it stands for and follows the same path
+         from here on. */
+      const single = await singlePageLanding(downloaded.file, extracted);
+      const inspection = single ?? (await inspectZip(downloaded.file, controller.signal));
       const landingRoot = inspection.landingRoots[0];
       if (landingRoot === undefined) {
         return {
@@ -145,8 +153,7 @@ export class TeamPreviewBridge {
           reason: 'unsupported'
         };
       }
-      const extracted = path.join(downloaded.workspace, 'extracted');
-      await extractZipSafely(downloaded.file, extracted, controller.signal);
+      if (!single) await extractZipSafely(downloaded.file, extracted, controller.signal);
       const entry = landingEntry(inspection, landingRoot);
       if (!entry) throw new Error('INVALID_ARCHIVE');
       const landingDirectory = path.join(extracted, ...landingRoot.split('/').filter(Boolean));
@@ -364,6 +371,51 @@ function manifestEntry(entry: SafeZipEntry): TeamArchiveManifestEntry {
     path: entry.path,
     directory: entry.directory,
     sizeBytes: entry.uncompressedSize
+  };
+}
+
+/** The first four bytes of every ZIP local file header. */
+const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
+/** A page written out on its own is a document, not an archive of one. */
+const MAX_SINGLE_PAGE_BYTES = 8 * 1024 * 1024;
+const HTML_MARKER = /<(?:!doctype\s+html|html|head|body|meta|title)\b/iu;
+
+/**
+ * Materialises a standalone HTML file as a one-entry landing package.
+ *
+ * Returns null for anything that is a ZIP, is too large to be a page, or does
+ * not read as HTML — those go on to the archive path unchanged, so a broken
+ * ZIP still reports itself as a broken ZIP rather than as an unsupported page.
+ */
+async function singlePageLanding(file: string, extracted: string): Promise<ZipInspection | null> {
+  const handle = await open(file, 'r');
+  let head: Buffer;
+  let size: number;
+  try {
+    const status = await handle.stat();
+    size = status.size;
+    head = Buffer.alloc(4);
+    await handle.read(head, 0, 4, 0);
+  } finally {
+    await handle.close();
+  }
+  if (size < 1 || size > MAX_SINGLE_PAGE_BYTES || head.equals(ZIP_MAGIC)) return null;
+  const bytes = await readFile(file);
+  if (!HTML_MARKER.test(bytes.subarray(0, 4096).toString('utf8'))) return null;
+  await mkdir(extracted, { recursive: true });
+  await writeFile(path.join(extracted, 'index.html'), bytes);
+  const entry: SafeZipEntry = {
+    path: 'index.html',
+    directory: false,
+    compressedSize: bytes.byteLength,
+    uncompressedSize: bytes.byteLength,
+    crc32: 0
+  };
+  return {
+    entries: [entry],
+    landingRoots: [''],
+    compressedBytes: bytes.byteLength,
+    uncompressedBytes: bytes.byteLength
   };
 }
 

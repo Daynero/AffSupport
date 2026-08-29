@@ -44,6 +44,8 @@ export interface BackgroundRenderClient {
     materialId: string,
     preset: string
   ) => Promise<TeamLandingRenderJob>;
+  /** Releases a job this browser started but could not hand to the Agent. */
+  failLandingRender?: (job: TeamLandingRenderJob, reason?: string) => Promise<void>;
 }
 
 export interface BackgroundRenderAgent {
@@ -165,7 +167,17 @@ export function BackgroundRenderProvider({
         if (!client.startLandingRender) return;
         const job = await client.startLandingRender(teamId, candidate.materialId, 'default');
         if (stopped.current) return;
-        await agent.render(job);
+        try {
+          await agent.render(job);
+        } catch (cause) {
+          /* Starting the render moved the row to "rendering". If the Agent
+             never took it, nothing else will ever move it back: no worker
+             holds it, the loop only picks up "stale", and the storage chip
+             counts it as a preview still being prepared — forever. Release it
+             here so the state matches what actually happened. */
+          await client.failLandingRender?.(job).catch(() => undefined);
+          throw cause;
+        }
         onRendered?.();
         // Straight on to the next one; the governor paces the renderer itself.
         timer = window.setTimeout(() => void look(), 250);

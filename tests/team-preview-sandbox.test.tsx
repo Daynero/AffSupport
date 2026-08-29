@@ -203,6 +203,45 @@ describe('team archive and landing preview isolation', () => {
     ).toEqual([]);
     await bridge.shutdown();
   });
+
+  /* The catalog calls a bare .html file a landing, because that is what it is.
+     Rendering only ever unpacked a ZIP, so every one of those files came back
+     "corrupt" — in the viewer and in the background render alike. */
+  it('serves a standalone HTML file as a one-page landing', async () => {
+    const temporaryRoot = await temporaryDirectory('wishly-team-preview-page-');
+    const page = Buffer.from('<!doctype html><html><body><h1>Single</h1></body></html>', 'utf8');
+    const bridge = new TeamPreviewBridge({
+      temporaryRoot,
+      fetchImpl: rangeFetch(page, []),
+      renderer: unavailableRenderer()
+    });
+    await bridge.init();
+    const result = await bridge.previewLanding(transferRequest('landing-page', 1024));
+    expect(result).toMatchObject({
+      kind: 'landing',
+      sandbox: 'allow-scripts',
+      validation: { landingRoot: '' }
+    });
+    if (result.kind !== 'landing') throw new Error('expected landing fixture');
+    expect((await fetch(result.url)).status).toBe(200);
+    expect(await bridge.close('landing-page')).toBe(true);
+    await bridge.shutdown();
+  });
+
+  /* A file that is neither a ZIP nor a page must keep reporting itself as the
+     broken archive it is, rather than being wrapped as a landing. */
+  it('leaves a non-HTML, non-ZIP file to the archive path', async () => {
+    const temporaryRoot = await temporaryDirectory('wishly-team-preview-other-');
+    const bridge = new TeamPreviewBridge({
+      temporaryRoot,
+      fetchImpl: rangeFetch(Buffer.from('not an archive and not a page', 'utf8'), []),
+      renderer: unavailableRenderer()
+    });
+    await bridge.init();
+    const result = await bridge.previewLanding(transferRequest('landing-other', 1024));
+    expect(result.kind).toBe('unavailable');
+    await bridge.shutdown();
+  });
 });
 
 function transferRequest(operationId: string, maxRangeBytes: number) {
