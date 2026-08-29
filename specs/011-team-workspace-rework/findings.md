@@ -65,6 +65,37 @@ Regression tests: C1 (`tests/drive-connect.test.ts`), C12 (`tests/team-storage-h
 (`tests/creative-library-tasks.test.tsx`), C5 (`tests/team-members.test.tsx`). C2 lives in the
 function's request wiring rather than its command layer and was verified against the running beta.
 
+### Beta storage opt-in completed, 2026-08-29 (T076 partly)
+
+A dedicated Google Cloud project `soty-beta` now carries the beta client, kept apart from
+the live `wishlyproject` so its consent screen is untouched: OAuth client **Soty Beta Web**
+(Web application, redirect `http://127.0.0.1:54321/functions/v1/drive-oauth-callback`), an
+API key restricted to the Picker API, `drive.file` listed under **non-sensitive** scopes,
+publishing status Testing with one test user, and both **Google Picker API** and **Google
+Drive API** enabled — the Drive API was off, which would have failed every catalog call.
+Values live in the two gitignored env files; `DRIVE_OAUTH_MODE=testing`.
+
+Note for anyone repeating this: the containers bake their environment in at creation, so a
+`docker restart` does not pick up an edited `.env.local` — `npm run beta:down && npm run beta:up`
+does.
+
+| #   | Defect found by doing it for real                                                                                                                                                                 | Fix                                                                                        |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| D1  | Returning from Google built `?settings=1?drive=connected` — a second `?`, so the code became part of the settings value, the panel never saw it, and the return landed on the create-space wizard | `TeamSpace.tsx`: joined with the separator the built route actually needs                  |
+| D2  | The beta advisory said external storage was unavailable even after the opt-in, because the wizard asks before any status call and `undefined` always meant "unavailable"                          | `BetaStorageNotice.tsx`: the browser's chooser keys are the signal that the opt-in is done |
+| D3  | The chooser opened on **Shared drives** only — one view with `setEnableDrives(true)` lists shared drives, never My Drive — so anyone without a Workspace shared drive saw "No folders."           | `loadPicker.ts`: two views, My Drive first                                                 |
+| D4  | The chooser never took itself off the screen after a choice, so it sat over the page while the app worked, hiding whatever the app had to say                                                     | `loadPicker.ts`: dismissed on both picked and cancelled                                    |
+
+Regression tests: D1 (`tests/space-settings.test.tsx`), D2 (`tests/beta-web-environment.test.tsx`).
+D3 and D4 are chooser wiring, verified against the running chooser.
+
+**Where this stopped.** The OAuth round trip, the chooser, both its tabs and the real folder
+list are all working and were seen on screen. Confirming a folder is the one gesture the
+automation could not complete — synthetic clicks on the chooser's own **Select** button
+inside Google's iframe clear the selection instead of confirming it. Two human clicks
+(a folder, then Select) finish it, after which the indexing, tree, thumbnails and preview
+rows of §2–§3 can be checked.
+
 ### Still to run (needs the owner)
 
 | Item                                                                      | Task  |

@@ -145,22 +145,48 @@ export const openFolderPicker: PickFolders = async input => {
   const config = input.config;
   const picker = await loadPicker();
   return new Promise(resolve => {
-    const view = new picker.DocsView(picker.ViewId.FOLDERS)
-      .setSelectFolderEnabled(true)
-      .setIncludeFolders(true)
-      .setMimeTypes('application/vnd.google-apps.folder');
-    view.setEnableDrives?.(true);
+    /**
+     * One view per tab, and a view either lists My Drive or the shared drives —
+     * not both. Configured as a single view with `setEnableDrives(true)` the
+     * chooser opened on "Shared drives" alone, so anyone without a Workspace
+     * shared drive was shown "No folders." and could not pick anything at all.
+     */
+    const folderView = (sharedDrives: boolean) => {
+      const view = new picker.DocsView(picker.ViewId.FOLDERS)
+        .setSelectFolderEnabled(true)
+        .setIncludeFolders(true)
+        .setMimeTypes('application/vnd.google-apps.folder');
+      view.setEnableDrives?.(sharedDrives);
+      return view;
+    };
     let builder = new picker.PickerBuilder()
       .setOAuthToken(input.accessToken)
       .setDeveloperKey(config.apiKey)
       .setAppId(config.appId)
       .setTitle(input.title)
       .enableFeature(picker.Feature.SUPPORT_DRIVES)
-      .addView(view);
+      // My Drive first: it is where most people keep the folder they mean.
+      .addView(folderView(false))
+      .addView(folderView(true));
     if (input.multiple) builder = builder.enableFeature(picker.Feature.MULTISELECT_ENABLED);
-    builder
+    /**
+     * Google's chooser does not take itself off the screen once a choice is
+     * made, so it sat over the page while the app worked — and any message the
+     * app had about the choice, including a failure, was behind it.
+     */
+    let instance: { setVisible: (visible: boolean) => void; dispose?: () => void } | null = null;
+    const dismiss = () => {
+      try {
+        instance?.setVisible(false);
+        instance?.dispose?.();
+      } catch {
+        // A chooser that has already gone is not a problem worth reporting.
+      }
+    };
+    const built = builder
       .setCallback(data => {
         if (data.action === picker.Action.PICKED) {
+          dismiss();
           const docs = (data.docs ?? [])
             .filter(doc => typeof doc.id === 'string' && doc.id.length > 0)
             .map(doc => ({
@@ -171,10 +197,12 @@ export const openFolderPicker: PickFolders = async input => {
             }));
           resolve(docs);
         } else if (data.action === picker.Action.CANCEL) {
+          dismiss();
           resolve(null);
         }
       })
-      .build()
-      .setVisible(true);
+      .build();
+    instance = built;
+    built.setVisible(true);
   });
 };

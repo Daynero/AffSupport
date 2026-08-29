@@ -141,6 +141,30 @@ describe('space settings surface', () => {
     ).toBeTruthy();
   });
 
+  it('carries the Drive return code into the space address with an ampersand', async () => {
+    // Found on the beta stack: the built route already ends in `?settings=1`,
+    // and the code was appended with a second `?`. The parameter became part
+    // of the settings value, so coming back from Google landed on the
+    // create-space wizard instead of the folder it had just authorised.
+    const previousPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    window.history.replaceState(null, '', '/team?drive=connected');
+    try {
+      const team = makeTeam({ connectionState: 'connected' });
+      const client = makeClient({ listTeams: vi.fn().mockResolvedValue([team]) });
+      renderEnteredSpace(client, team.id);
+
+      await screen.findByRole('heading', { name: 'Media buyers' });
+      await waitFor(() => {
+        expect(window.location.search).toContain('settings=1');
+        expect(window.location.search).toContain('drive=connected');
+      });
+      expect(new URLSearchParams(window.location.search).get('settings')).toBe('1');
+      expect(new URLSearchParams(window.location.search).get('drive')).toBe('connected');
+    } finally {
+      window.history.replaceState(null, '', previousPath);
+    }
+  });
+
   it('keeps Sync now available while the Drive callback has opened folder selection', async () => {
     const previousPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
     window.history.replaceState(null, '', '/team?drive=connected');

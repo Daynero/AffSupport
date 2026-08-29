@@ -103,10 +103,16 @@ export function resolveTeamEntry(input: {
    * way back from Google opens at Settings — where that panel lives — with the
    * parameter still attached.
    */
-  const spaceRoute = (spaceId: string) =>
-    route.driveReturn
-      ? `${buildTeamRoute({ spaceId, section: 'explorer', query: { settings: true } })}?drive=${encodeURIComponent(route.driveReturn)}`
-      : buildTeamRoute({ spaceId });
+  const spaceRoute = (spaceId: string) => {
+    if (!route.driveReturn) return buildTeamRoute({ spaceId });
+    // The built route already carries `?settings=1`, so the return code needs
+    // `&`. Joined with a second `?` it became part of the settings value, the
+    // panel never saw `drive=connected`, and coming back from Google landed on
+    // the create-space wizard instead of the folder it had just authorised.
+    const base = buildTeamRoute({ spaceId, section: 'explorer', query: { settings: true } });
+    const separator = base.includes('?') ? '&' : '?';
+    return `${base}${separator}drive=${encodeURIComponent(route.driveReturn)}`;
+  };
 
   const ready = teams.filter(team => spaceReadiness(team) === 'ready');
   if (ready.length === 1 && ready[0]) {

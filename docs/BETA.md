@@ -129,7 +129,10 @@ actually need to verify Drive-dependent flows.
    refresh tokens after 7 days, which the chip surfaces as `needs_reauth`.
 4. Enable the Google Picker API on the same project and set `VITE_GOOGLE_PICKER_API_KEY` and
    `VITE_GOOGLE_PROJECT_NUMBER` in `.env.beta`; without them the folder chooser cannot open.
-5. Restart the local stack.
+5. Also enable the **Google Drive API** on that project — the Picker API alone is not enough,
+   and without it every catalog call fails.
+6. Recreate the stack with `npm run beta:down && npm run beta:up`. A plain `docker restart` will
+   not do: the containers take their environment when they are created, not when they start.
 
 Production must stay on `DRIVE_OAUTH_MODE=verified`; the release gate enforces that independently.
 

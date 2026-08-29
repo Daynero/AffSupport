@@ -1,4 +1,5 @@
 import { configuredEnvironment } from '../../lib/config';
+import { pickerConfig } from '../storage/loadPicker';
 import { useI18n } from '../../i18n';
 
 /**
@@ -20,6 +21,11 @@ import { useI18n } from '../../i18n';
  */
 export function externalStorageUnavailableInBeta(state?: string): boolean {
   if (configuredEnvironment() !== 'beta') return false;
+  // The chooser keys are the browser's half of the opt-in, and they are only
+  // present once someone has done it. Without this the advisory outlived the
+  // setup it describes: the wizard asks before any status call, so `undefined`
+  // kept it on the screen in a beta whose storage was fully configured.
+  if (pickerConfig() !== null) return false;
   return state === undefined || state === 'unavailable';
 }
 

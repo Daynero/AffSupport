@@ -100,6 +100,18 @@ describe('external storage notice', () => {
     expect(container.innerHTML).toBe('');
   });
 
+  it('stops advising once the beta has its own chooser keys', async () => {
+    // Found on the beta stack after the documented opt-in was completed: the
+    // wizard asks before any status call, so `undefined` kept the notice on a
+    // screen whose storage was fully configured and working.
+    environment.current = 'beta';
+    const { pickerConfig } = await import('../apps/web/src/team/storage/loadPicker');
+    expect(pickerConfig({})).toBeNull();
+    expect(
+      pickerConfig({ VITE_GOOGLE_PICKER_API_KEY: 'key', VITE_GOOGLE_PROJECT_NUMBER: '1' })
+    ).toEqual({ apiKey: 'key', appId: '1' });
+  });
+
   it('advises when the state is not yet known, rather than assuming it works', () => {
     // The space-creation wizard reaches this step before any status call. Not
     // knowing that external storage is reachable must never read as knowing
