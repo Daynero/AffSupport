@@ -14331,22 +14331,33 @@ button.team-landing-tile:hover {
 }
 /* Selection and the menu live over the picture and stay out of the way until
    the tile is pointed at, focused, or already part of a selection. */
+/* One row of two 28px controls on the picture — the checkbox and the menu —
+   the same size, the same distance from the top edge. They were 20px and 28px
+   boxes hung from different anchors, which read as two afterthoughts. */
 .team-explorer-tile-check,
 .team-explorer-tile-actions {
   position: absolute;
-  top: var(--space-1);
+  top: 8px;
   z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
   opacity: 0;
   transition: opacity var(--dur-control) var(--ease-standard);
 }
 .team-explorer-tile-check {
-  left: var(--space-1);
-  display: grid;
-  place-items: center;
+  left: 8px;
   cursor: pointer;
 }
 .team-explorer-tile-actions {
-  right: var(--space-1);
+  right: 8px;
+}
+.team-explorer-tile-actions .team-row-menu {
+  display: block;
+  width: 28px;
+  height: 28px;
+  line-height: 0;
 }
 .team-explorer-tile:hover .team-explorer-tile-check,
 .team-explorer-tile:hover .team-explorer-tile-actions,
@@ -14368,16 +14379,16 @@ button.team-landing-tile:hover {
 .team-explorer-tile-check > span {
   display: grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
-  border: 1px solid var(--color-border-strong);
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
 }
 .team-explorer-tile-check > span::after {
   content: '';
-  width: 10px;
-  height: 6px;
+  width: 12px;
+  height: 7px;
   border: 2px solid var(--color-on-accent, #fff);
   border-top: 0;
   border-right: 0;
@@ -14398,13 +14409,20 @@ button.team-landing-tile:hover {
 /* The menu trigger is an icon button on the picture, not a word in the caption
    competing with the file's own name. */
 .team-explorer-tile-actions .team-row-menu > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 28px;
-  min-height: 28px;
+  height: 28px;
+  min-height: 0;
+  margin: 0;
   padding: 0;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
   font-size: 0;
+  line-height: 0;
+  vertical-align: top;
 }
 /* Three drawn dots, not a glyph: "···" with letter-spacing carried a trailing
    space that pushed the group left, and the middle dot sat below the line's
