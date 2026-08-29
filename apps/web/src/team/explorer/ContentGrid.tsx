@@ -16,6 +16,7 @@ import { KindIcon } from './KindIcon';
 import { RowActions, type RowActionsProps } from './RowActions';
 import { ShareButton } from './ShareButton';
 import { useExplorer } from './ExplorerProvider';
+import { sortRows, DEFAULT_SORT, type ExplorerSort } from './sort';
 import { useFolderPage, type FolderPageClient } from './useFolderPage';
 import { useThumbnailSession, type ThumbnailSessionClient } from './useThumbnailSession';
 
@@ -48,18 +49,21 @@ export function ContentGrid({
   revision = 0,
   kinds,
   onPreview,
-  actions
+  actions,
+  sort
 }: {
   client: ContentGridClient;
   revision?: number;
   kinds?: TeamMaterialRowKind[];
   onPreview?: (material: TeamMaterialSummary) => void;
   actions?: RowActionsProps;
+  sort?: ExplorerSort;
 }) {
   const { t } = useI18n();
   const { teamId, currentFolderId, openFolder, selectedId, select, selectedIds, toggleSelected } =
     useExplorer();
   const page = useFolderPage({ teamId, client, parentFolderId: currentFolderId, kinds, revision });
+  const rows = sortRows(page.rows, sort ?? DEFAULT_SORT);
   const session = useThumbnailSession({ teamId, client });
   const landingIds = useMemo(
     () =>
@@ -116,7 +120,7 @@ export function ContentGrid({
         <p className="team-explorer-muted">{t('teamExplorerEmpty')}</p>
       )}
       <ul className="team-explorer-grid" role="list">
-        {page.rows.map(row => (
+        {rows.map(row => (
           <Tile
             key={row.id}
             row={row}

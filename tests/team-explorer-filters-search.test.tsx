@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-import React from 'react';
+import React, { useState } from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { KindFilterBar } from '../apps/web/src/team/explorer/KindFilterBar';
+import { KindFilterMenu } from '../apps/web/src/team/explorer/KindFilterMenu';
 import { parseTeamRoute, buildTeamRoute } from '../apps/web/src/team/routes';
 import { useCatalogSearch } from '../apps/web/src/team/catalog/useCatalogSearch';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
@@ -18,23 +18,31 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('KindFilterBar', () => {
-  it('toggles kinds one click at a time and clears with "Everything"', async () => {
+function StatefulFilter({ onChange }: { onChange: (kinds: string[]) => void }) {
+  const [kinds, setKinds] = useState<string[]>([]);
+  return (
+    <KindFilterMenu
+      kinds={kinds as never}
+      onChange={next => {
+        setKinds(next);
+        onChange(next);
+      }}
+    />
+  );
+}
+
+describe('KindFilterMenu', () => {
+  it('toggles kinds from the Type menu and clears them', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    const { rerender } = render(<KindFilterBar kinds={[]} onChange={onChange} />);
-    expect(screen.getByRole('button', { name: 'Everything' }).getAttribute('aria-pressed')).toBe(
-      'true'
-    );
-    await user.click(screen.getByRole('button', { name: 'Image' }));
+    render(<StatefulFilter onChange={onChange} />);
+    await user.click(screen.getByRole('button', { name: /Type/ }));
+    await user.click(screen.getByRole('menuitemcheckbox', { name: 'Image' }));
     expect(onChange).toHaveBeenLastCalledWith(['image']);
-    rerender(<KindFilterBar kinds={['image']} onChange={onChange} />);
-    await user.click(screen.getByRole('button', { name: 'Video' }));
+    await user.click(screen.getByRole('menuitemcheckbox', { name: 'Video' }));
     expect(onChange).toHaveBeenLastCalledWith(['image', 'video']);
-    rerender(<KindFilterBar kinds={['image', 'video']} onChange={onChange} />);
-    await user.click(screen.getByRole('button', { name: 'Image' }));
-    expect(onChange).toHaveBeenLastCalledWith(['video']);
-    await user.click(screen.getByRole('button', { name: 'Everything' }));
+    // With a filter set, a clear control appears and empties it.
+    await user.click(screen.getByRole('button', { name: 'Clear filter' }));
     expect(onChange).toHaveBeenLastCalledWith([]);
   });
 

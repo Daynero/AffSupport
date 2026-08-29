@@ -6,6 +6,7 @@ import { useI18n } from '../../i18n';
 import { formatDate, formatSize } from '../../format';
 import { DRAG_TYPE, KIND_LABEL, KIND_REASON, PREVIEWABLE_KINDS, previewSummary } from './rowKinds';
 import { useExplorer } from './ExplorerProvider';
+import { sortRows, DEFAULT_SORT, type ExplorerSort } from './sort';
 import { useFolderPage, type FolderPageClient } from './useFolderPage';
 import { KindIcon } from './KindIcon';
 import { RowActions, type RowActionsProps } from './RowActions';
@@ -21,7 +22,8 @@ export function ContentList({
   revision = 0,
   kinds,
   onPreview,
-  actions
+  actions,
+  sort
 }: {
   client: FolderPageClient;
   revision?: number;
@@ -29,11 +31,13 @@ export function ContentList({
   onPreview?: (material: TeamMaterialSummary) => void;
   /** Per-row file actions; absent when the member may do nothing (011, FR-025). */
   actions?: RowActionsProps;
+  sort?: ExplorerSort;
 }) {
   const { t } = useI18n();
   const { teamId, currentFolderId, openFolder, selectedId, select, selectedIds, toggleSelected } =
     useExplorer();
   const page = useFolderPage({ teamId, client, parentFolderId: currentFolderId, kinds, revision });
+  const rows = sortRows(page.rows, sort ?? DEFAULT_SORT);
 
   return (
     <section className="team-explorer-content" aria-labelledby="team-explorer-content-title">
@@ -55,7 +59,7 @@ export function ContentList({
         <p className="team-explorer-muted">{t('teamExplorerEmpty')}</p>
       )}
       <ul className="team-explorer-rows">
-        {page.rows.map(row => (
+        {rows.map(row => (
           <Row
             key={row.id}
             row={row}

@@ -98,11 +98,16 @@ describe('ContentGrid', () => {
     const { container } = renderGrid(client);
     await screen.findByText('Items: 5');
     await waitFor(() => expect(container.querySelectorAll('img')).toHaveLength(2));
-    const images = [...container.querySelectorAll('img')].map(img => img.getAttribute('src'));
-    expect(images).toEqual([
-      `${SESSION.endpoint}?material=id-1&session=session-token`,
-      `${SESSION.endpoint}?material=id-2&session=session-token`
-    ]);
+    const images = [...container.querySelectorAll('img')]
+      .map(img => img.getAttribute('src'))
+      .sort();
+    // The default sort orders by name, so compare the set, not the order.
+    expect(images).toEqual(
+      [
+        `${SESSION.endpoint}?material=id-1&session=session-token`,
+        `${SESSION.endpoint}?material=id-2&session=session-token`
+      ].sort()
+    );
     expect(client.mintThumbnailSession).toHaveBeenCalledTimes(1);
     expect(screen.getByText(/would not hand over a thumbnail/)).toBeTruthy();
     expect(screen.getByText('Opens in Google Drive, not in Soty.')).toBeTruthy();

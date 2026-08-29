@@ -25,7 +25,9 @@ import { ContentGrid, type ContentGridClient } from './ContentGrid';
 import { ContentList } from './ContentList';
 import { ExplorerProvider, useExplorer, type ExplorerClient } from './ExplorerProvider';
 import { FolderTree } from './FolderTree';
-import { KindFilterBar } from './KindFilterBar';
+import { KindFilterMenu } from './KindFilterMenu';
+import { SortMenu } from './SortMenu';
+import { sortRows, readRememberedSort, rememberSort, type ExplorerSort } from './sort';
 import { PreviewPane } from './PreviewPane';
 import { MaterialProcessFlow } from '../processing/MaterialProcessFlow';
 import type { RowActionsProps } from './RowActions';
@@ -154,6 +156,11 @@ function ExplorerBody({
   const [storageKind, setStorageKind] = useState<TeamAnalyticsStorage | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const view: ExplorerView = query.view ?? readRememberedView();
+  const [sort, setSortState] = useState<ExplorerSort>(() => readRememberedSort());
+  const setSort = (next: ExplorerSort) => {
+    rememberSort(next);
+    setSortState(next);
+  };
   const searching = query.q.length > 0 || query.scope === 'space';
   const page = useFolderPage({
     teamId,
@@ -162,6 +169,7 @@ function ExplorerBody({
     kinds: query.kinds,
     revision
   });
+  const sortedRows = useMemo(() => sortRows(page.rows, sort), [page.rows, sort]);
 
   useEffect(() => {
     let active = true;
@@ -357,26 +365,26 @@ function ExplorerBody({
    * space in the new name.
    */
   const onContentKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (page.rows.length === 0) return;
+    if (sortedRows.length === 0) return;
     const target = event.target instanceof HTMLElement ? event.target : null;
     if (isEditableTarget(target) || target?.closest('.team-row-menu')) return;
-    const index = page.rows.findIndex(row => row.id === selectedId);
+    const index = sortedRows.findIndex(row => row.id === selectedId);
     const step = view === 'grid' ? gridColumns(event.currentTarget) : 1;
     let next: TeamMaterialRow | undefined;
     switch (event.key) {
       case 'ArrowDown':
-        next = page.rows[Math.min(page.rows.length - 1, index < 0 ? 0 : index + step)];
+        next = sortedRows[Math.min(sortedRows.length - 1, index < 0 ? 0 : index + step)];
         break;
       case 'ArrowUp':
-        next = page.rows[Math.max(0, index - step)];
+        next = sortedRows[Math.max(0, index - step)];
         break;
       case 'ArrowRight':
         if (view !== 'grid') return;
-        next = page.rows[Math.min(page.rows.length - 1, index + 1)];
+        next = sortedRows[Math.min(sortedRows.length - 1, index + 1)];
         break;
       case 'ArrowLeft':
         if (view !== 'grid') return;
-        next = page.rows[Math.max(0, index - 1)];
+        next = sortedRows[Math.max(0, index - 1)];
         break;
       case 'Enter':
         if (!focused) return;
@@ -505,24 +513,31 @@ function ExplorerBody({
               >
                 <button
                   type="button"
-                  aria-pressed={view === 'grid'}
-                  onClick={() => setView('grid')}
+                  aria-pressed={view === 'list'}
+                  aria-label={t('teamExplorerViewList')}
+                  title={t('teamExplorerViewList')}
+                  onClick={() => setView('list')}
                 >
-                  {t('teamExplorerViewGrid')}
+                  <ListViewIcon />
                 </button>
                 <button
                   type="button"
-                  aria-pressed={view === 'list'}
-                  onClick={() => setView('list')}
+                  aria-pressed={view === 'grid'}
+                  aria-label={t('teamExplorerViewGrid')}
+                  title={t('teamExplorerViewGrid')}
+                  onClick={() => setView('grid')}
                 >
-                  {t('teamExplorerViewList')}
+                  <GridViewIcon />
                 </button>
               </div>
             )}
           </div>
         </div>
         {!trash && !searching && (
-          <KindFilterBar kinds={query.kinds} onChange={kinds => onQueryChange({ kinds })} />
+          <div className="team-explorer-list-controls">
+            <KindFilterMenu kinds={query.kinds} onChange={kinds => onQueryChange({ kinds })} />
+            <SortMenu sort={sort} onChange={setSort} />
+          </div>
         )}
         {selectedRows.length > 0 && !trash && (
           <div
@@ -593,6 +608,7 @@ function ExplorerBody({
                 kinds={query.kinds}
                 onPreview={onPreview}
                 actions={actions}
+                sort={sort}
               />
             ) : (
               <ContentList
@@ -601,6 +617,7 @@ function ExplorerBody({
                 kinds={query.kinds}
                 onPreview={onPreview}
                 actions={actions}
+                sort={sort}
               />
             )}
           </div>
@@ -651,6 +668,25 @@ function rememberView(view: ExplorerView): void {
   } catch {
     // A browser that refuses storage still gets the address.
   }
+}
+
+function ListViewIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+      <path
+        fill="currentColor"
+        d="M4 5h2v2H4zm4 .25h12v1.5H8zM4 11h2v2H4zm4 .25h12v1.5H8zM4 17h2v2H4zm4 .25h12v1.5H8z"
+      />
+    </svg>
+  );
+}
+
+function GridViewIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+      <path fill="currentColor" d="M4 4h7v7H4zm9 0h7v7h-7zM4 13h7v7H4zm9 0h7v7h-7z" />
+    </svg>
+  );
 }
 
 function gridColumns(element: HTMLElement): number {

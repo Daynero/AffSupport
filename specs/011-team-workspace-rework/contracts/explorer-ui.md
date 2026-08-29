@@ -16,7 +16,7 @@
 
 ```
 ┌ header: space switcher · name · [StorageChip] · search ─────── Tasks · Members · ⚙ ┐
-├ tree (280px, collapsible) │ content (grid/list) · KindFilterBar · breadcrumb │ preview (360px) ┤
+├ tree (280px, collapsible) │ content (grid/list) · KindFilterMenu · SortMenu · breadcrumb │ preview (360px) ┤
 ```
 
 - `< 1024px`: tree becomes a drawer; `< 720px`: preview becomes a bottom sheet; usable at
@@ -31,7 +31,7 @@
 | `ExplorerProvider` / `useExplorer()`   | tree cache, selection, filters, view mode, thumbnail session                                                | `listFolderTree`, realtime patches, `mintThumbnailSession` |
 | `FolderTree`                           | virtualised tree, counts, "listing…" state, drag target                                                     | `TeamFolderNode[]`                                         |
 | `Breadcrumb`                           | full clickable path from root/selection                                                                     | tree                                                       |
-| `KindFilterBar`                        | landing · image · video · transcript · archive · other; counts                                              | tree counts + page totals                                  |
+| `KindFilterMenu` / `SortMenu`           | a Type dropdown (landing · image · video · transcript · archive · other) and a sort menu (name/date, A–Z/Z–A, folders apart) | tree counts + page totals |
 | `ExplorerSearch`                       | type-ahead within folder; scope toggle; results with paths                                                  | `search_materials`                                         |
 | `ContentGrid` / `ContentList`          | paged rows, thumbnails via session URL, kind icon + reason, selection, context menu, drag source            | `listFolderPage`                                           |
 | `PreviewPane`                          | wraps `MaterialPreview` (media/transcript/archive), `LandingFullView`, metadata editor, provenance, actions | existing clients                                           |

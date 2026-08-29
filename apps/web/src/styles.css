@@ -14325,15 +14325,15 @@ button.team-landing-tile:hover {
   gap: 2px;
 }
 .team-explorer-view-toggle button {
-  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 30px;
   border: 0;
   border-radius: 999px;
   background: transparent;
   color: var(--color-text-muted);
-  font: inherit;
-  font-size: 0.9rem;
-  font-weight: 600;
-  padding: 0 var(--space-3);
   cursor: pointer;
 }
 .team-explorer-view-toggle button:hover {
@@ -14676,6 +14676,109 @@ button.team-landing-tile:hover {
 }
 
 /* Explorer kinds, scope, selection bar, settings dialog (011, US3). */
+.team-explorer-list-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.team-explorer-filter,
+.team-explorer-sort {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.team-explorer-filter-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 34px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.team-explorer-filter-button:hover {
+  border-color: var(--color-accent);
+}
+.team-explorer-filter-button.is-active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-softer);
+  color: var(--color-accent);
+}
+.team-explorer-filter-caret,
+.team-explorer-sort-icon {
+  font-size: 0.8em;
+  color: var(--color-text-muted);
+}
+.team-explorer-filter-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.team-explorer-filter-clear:hover {
+  color: var(--color-text);
+  border-color: var(--color-accent);
+}
+.team-explorer-menu {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  z-index: var(--layer-popover);
+  min-width: 220px;
+  padding: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+}
+.team-explorer-menu-heading {
+  margin: 0;
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.team-explorer-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.team-explorer-menu-item:hover {
+  background: var(--color-surface-muted);
+}
+.team-explorer-menu-item.is-checked {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+.team-explorer-menu-check {
+  width: 16px;
+  color: var(--color-accent);
+}
 .team-explorer-kinds,
 .team-explorer-scope {
   display: flex;

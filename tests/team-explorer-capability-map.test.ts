@@ -16,7 +16,7 @@ const EXPLORER_HOMES = [
   'apps/web/src/team/explorer/ExplorerProvider.tsx',
   'apps/web/src/team/explorer/FolderTree.tsx',
   'apps/web/src/team/explorer/Breadcrumb.tsx',
-  'apps/web/src/team/explorer/KindFilterBar.tsx',
+  'apps/web/src/team/explorer/KindFilterMenu.tsx',
   'apps/web/src/team/explorer/ContentGrid.tsx',
   'apps/web/src/team/explorer/ContentList.tsx',
   'apps/web/src/team/explorer/PreviewPane.tsx',
@@ -84,7 +84,7 @@ describe('the explorer capability map', () => {
       'uploadTeamFile',
       'onCreateTaskFromSelection',
       'onProcessSelection',
-      'KindFilterBar'
+      'KindFilterMenu'
     ]) {
       expect(shell, needle).toContain(needle);
     }

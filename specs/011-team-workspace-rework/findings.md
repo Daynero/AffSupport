@@ -316,6 +316,24 @@ It now reads the destination with `optionalDestination` and resolves it to a mat
 through `destinationWithClient`, so a process starts (`202`) and its output lands beside the
 original by default.
 
+## O — the list, the way a drive does it (2026-08-30)
+
+The explorer's toolbar took the shape of Google Drive's, at the owner's request:
+
+- **View toggle** is two icons — a list of rows and a grid — not the words "Плитки/Список".
+- **"Тип" dropdown** replaces the kind chips: one button, a menu of kinds to check, the choice
+  summarised on the button with a clear control. Folders are never filtered.
+- **Sort menu**: a button showing the current key and direction opens a menu of the sort key
+  (Назва / Дата змінення), the order (А→Я / Я→А), and whether folders group apart from files.
+  The choice is remembered per browser; the sort is applied to the loaded page (a full-order
+  sort of a folder larger than a page is a server concern, noted for later).
+- **Modified date** already lives in the list as its own column and under each tile (finding
+  from the same run).
+
+`KindFilterBar` gave way to `KindFilterMenu` + `SortMenu`; `sort.ts` holds the ordering and its
+persistence; `tests/team-explorer-filters-search.test.tsx` covers the menu, and the capability
+map and `contracts/explorer-ui.md` were updated.
+
 ### Still to run (needs the owner)
 
 Done so far under T076: the beta OAuth client (`soty-beta`, `drive.file`,
