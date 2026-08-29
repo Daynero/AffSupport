@@ -18,11 +18,27 @@ const ACTION_LABEL: Readonly<Record<string, TranslationKey>> = {
   'invitation.declined': 'teamAuditInvitationDeclined',
   'invitation.resent': 'teamAuditInvitationResent',
   'invitation.revoked': 'teamAuditInvitationRevoked',
+  // Two writers name these: the older events carry a past-tense word, while a
+  // finished transfer operation is recorded as `material.` plus its own kind
+  // ('rename', 'move', …). Both spellings are on the wire, so both are here —
+  // an unmapped action fell through to the raw key, and "material.rename" in
+  // the history of a space is a leak of the schema, not a sentence.
+  'material.content_edit': 'teamAuditMaterialEdited',
   'material.content_edited': 'teamAuditMaterialEdited',
+  'material.download': 'teamAuditMaterialDownloaded',
   'material.metadata_updated': 'teamAuditMaterialMetadata',
+  'material.move': 'teamAuditMaterialMoved',
+  'material.new_version': 'teamAuditMaterialVersion',
+  'material.process': 'teamAuditMaterialProcessed',
   'material.processed': 'teamAuditMaterialProcessed',
+  'material.rename': 'teamAuditMaterialRenamed',
+  'material.restore': 'teamAuditMaterialRestored',
+  'material.trash': 'teamAuditMaterialTrashed',
+  'material.upload': 'teamAuditMaterialUploaded',
   'material.uploaded': 'teamAuditMaterialUploaded',
   'material.version_created': 'teamAuditMaterialVersion',
+  'storage.selection_added': 'teamAuditStorageFolderAdded',
+  'storage.selection_removed': 'teamAuditStorageFolderRemoved',
   'membership.direct_added': 'teamAuditMemberAdded',
   'membership.left': 'teamAuditMemberLeft',
   'membership.removed': 'teamAuditMemberRemoved',
@@ -36,6 +52,7 @@ const ACTION_LABEL: Readonly<Record<string, TranslationKey>> = {
 const DETAIL_LABEL: Readonly<Record<string, TranslationKey>> = {
   scanning: 'teamSyncProgressScanningShort',
   replaying: 'teamSyncProgressReplayingShort',
+  connected: 'teamDriveConnected',
   ready: 'teamAuditDetailReady',
   failed: 'teamAuditDetailFailed',
   owner: 'teamRoleOwner',

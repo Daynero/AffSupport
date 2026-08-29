@@ -284,38 +284,46 @@ export function TaskAttachmentTile({
             )}
           </div>
         </div>
+        {/* Icon-only controls with the label as the accessible name and the
+            tooltip. Four labelled buttons did not fit a 158px tile: every one
+            of them broke its word across two lines ("Копіюв / ати посила /
+            ння"), which is the opposite of the quick glance a reference tile
+            is for. */}
         <div className="team-task-attachment-actions">
           <Button
             type="button"
             variant="ghost"
             className="team-task-attachment-action is-view"
             disabled={!rangeUrl || unavailable}
+            title={t('teamTaskAttachmentView')}
+            aria-label={t('teamTaskAttachmentView')}
             onClick={() => setPreviewOpen(true)}
           >
             <AttachmentActionIcon action="view" />
-            <span>{t('teamTaskAttachmentView')}</span>
           </Button>
           <Button
             type="button"
             variant="ghost"
             className="team-task-attachment-action is-download"
             loading={action === 'download'}
+            title={t('teamTaskAttachmentDownload')}
+            aria-label={t('teamTaskAttachmentDownload')}
             onClick={() => void download()}
           >
             <AttachmentActionIcon action="download" />
-            <span>{t('teamTaskAttachmentDownload')}</span>
           </Button>
           <Button
             type="button"
             variant="ghost"
-            className="team-task-attachment-action is-copy-link"
+            className={`team-task-attachment-action is-copy-link${copied ? ' is-copied' : ''}`}
             loading={action === 'copy-link'}
+            title={copied ? t('teamTaskAttachmentLinkCopied') : t('teamTaskAttachmentCopyLink')}
+            aria-label={
+              copied ? t('teamTaskAttachmentLinkCopied') : t('teamTaskAttachmentCopyLink')
+            }
             onClick={() => void copyLink()}
           >
             <AttachmentActionIcon action="copy-link" />
-            <span>
-              {copied ? t('teamTaskAttachmentLinkCopied') : t('teamTaskAttachmentCopyLink')}
-            </span>
           </Button>
           {/* No dialog: detaching is reversible, and the Undo in the toast
               costs one press to fix a mistake that the dialog charged a press
@@ -323,12 +331,13 @@ export function TaskAttachmentTile({
           {onDetach && (
             <Button
               type="button"
-              variant="danger"
+              variant="ghost"
               className="team-task-attachment-action is-detach"
+              title={t('teamTaskDetach')}
+              aria-label={t('teamTaskDetach')}
               onClick={() => onDetach()}
             >
               <AttachmentActionIcon action="detach" />
-              <span>{t('teamTaskDetach')}</span>
             </Button>
           )}
         </div>

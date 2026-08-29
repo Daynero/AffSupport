@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TeamTaskSummary } from '@video-compressor/shared';
 import { teamApi, type TeamMemberSummary } from '../../api/team';
 import { Button } from '../../components/ui';
@@ -65,8 +65,12 @@ export function TaskSpace({
    * task and opens it, so the one window a person sees is the task itself. The
    * marker is what keeps the old promise that walking away leaves nothing
    * behind (FR-026) — an untouched draft is removed when its editor closes.
+   *
+   * A ref, not state: saving reports the change and closes the editor in the
+   * same tick, so a `closeEditor` holding a render-time copy of this would see
+   * the draft as untouched and delete the task the person had just saved.
    */
-  const [draft, setDraft] = useState<{ id: string; touched: boolean } | null>(null);
+  const draft = useRef<{ id: string; touched: boolean } | null>(null);
 
   /**
    * Which task the editor is showing.
@@ -130,7 +134,7 @@ export function TaskSpace({
           });
           await tasks.refetch();
         }
-        setDraft({ id: created.id, touched: input.touched === true });
+        draft.current = { id: created.id, touched: input.touched === true };
         setOpenTask(created);
       } catch {
         setError(true);
@@ -148,11 +152,9 @@ export function TaskSpace({
   const closeEditor = useCallback(
     async (task: TeamTaskSummary) => {
       setOpenTask(null);
-      if (!draft || draft.id !== task.id || draft.touched) {
-        setDraft(null);
-        return;
-      }
-      setDraft(null);
+      const pending = draft.current;
+      draft.current = null;
+      if (!pending || pending.id !== task.id || pending.touched) return;
       try {
         await client.deleteTask({ teamId, taskId: task.id });
         await tasks.refetch();
@@ -162,7 +164,7 @@ export function TaskSpace({
         await tasks.refetch();
       }
     },
-    [client, draft, setOpenTask, tasks, teamId]
+    [client, setOpenTask, tasks, teamId]
   );
 
   /**
@@ -266,7 +268,7 @@ export function TaskSpace({
           client={client}
           onClose={() => void closeEditor(openTask)}
           onChanged={() => {
-            setDraft(current => (current ? { ...current, touched: true } : null));
+            if (draft.current) draft.current = { ...draft.current, touched: true };
             void tasks.refetch();
           }}
           onDelete={
@@ -274,7 +276,7 @@ export function TaskSpace({
               ? async task => {
                   try {
                     await client.deleteTask({ teamId, taskId: task.id });
-                    setDraft(null);
+                    draft.current = null;
                     setOpenTask(null);
                     await tasks.refetch();
                     push({ tone: 'success', text: t('teamToastTaskDeleted') });

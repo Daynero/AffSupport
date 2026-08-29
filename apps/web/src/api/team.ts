@@ -85,6 +85,23 @@ import type { Json } from '../lib/database.types';
 import { publicConfig } from '../lib/config';
 import { requireSupabaseClient } from '../lib/supabase';
 
+/**
+ * The same address, as this browser can reach it.
+ *
+ * A function sits behind the gateway and sees only the internal host it was
+ * forwarded to, so every URL it hands back — a byte range, a thumbnail, an
+ * upload relay — pointed at the container talking to itself. The path is the
+ * function's to decide; the origin is ours.
+ */
+export function browserFunctionUrl(reported: string): string {
+  if (!publicConfig.ok) throw new TeamApiError('INVALID_RESPONSE', false);
+  const source = new URL(reported);
+  const path = source.pathname.replace(/^\/functions\/v1/u, '');
+  const url = new URL(`${publicConfig.value.supabaseUrl}/functions/v1${path}`);
+  url.search = source.search;
+  return url.toString();
+}
+
 export class TeamApiError extends Error {
   readonly code: TeamErrorCode;
   readonly retryable: boolean;
@@ -1611,7 +1628,7 @@ export const teamApi = {
   },
 
   thumbnailUrl(session: ThumbnailSession, materialId: string): string {
-    const url = new URL(session.endpoint);
+    const url = new URL(browserFunctionUrl(session.endpoint));
     url.searchParams.set('material', materialId);
     url.searchParams.set('session', session.token);
     return url.toString();
@@ -1976,7 +1993,9 @@ export const teamApi = {
     );
     const parsed = parseTeamDownloadGrantResult(value);
     if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
-    return parsed;
+    return parsed.kind === 'browser'
+      ? { ...parsed, rangeUrl: browserFunctionUrl(parsed.rangeUrl) }
+      : parsed;
   },
 
   async startProcess(input: TeamProcessStartInput): Promise<TeamProcessStartResult> {
@@ -2040,7 +2059,9 @@ export const teamApi = {
     );
     const parsed = parseTeamPreviewResult(value);
     if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
-    return parsed;
+    return parsed.kind === 'media'
+      ? { ...parsed, rangeUrl: browserFunctionUrl(parsed.rangeUrl) }
+      : parsed;
   },
 
   async listLibraryMaterials(input: {
