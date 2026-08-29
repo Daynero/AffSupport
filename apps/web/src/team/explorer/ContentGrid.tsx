@@ -14,6 +14,7 @@ import { formatSize } from '../../format';
 import { DRAG_TYPE, KIND_LABEL, KIND_REASON, previewSummary } from './rowKinds';
 import { KindIcon } from './KindIcon';
 import { RowActions, type RowActionsProps } from './RowActions';
+import { ShareButton } from './ShareButton';
 import { useExplorer } from './ExplorerProvider';
 import { useFolderPage, type FolderPageClient } from './useFolderPage';
 import { useThumbnailSession, type ThumbnailSessionClient } from './useThumbnailSession';
@@ -252,9 +253,10 @@ function Tile({
         />
         <span aria-hidden="true" />
       </label>
-      {actions && row.kind !== 'folder' && (
+      {actions && (
         <div className="team-explorer-tile-actions" onClick={event => event.stopPropagation()}>
-          <RowActions {...actions} row={row} />
+          <ShareButton teamId={actions.teamId} row={row} />
+          {row.kind !== 'folder' && <RowActions {...actions} row={row} />}
         </div>
       )}
       <div className="team-explorer-tile-caption">

@@ -9,6 +9,7 @@ import { useExplorer } from './ExplorerProvider';
 import { useFolderPage, type FolderPageClient } from './useFolderPage';
 import { KindIcon } from './KindIcon';
 import { RowActions, type RowActionsProps } from './RowActions';
+import { ShareButton } from './ShareButton';
 
 /**
  * The open folder's rows (011, FR-009/FR-010): first screen and total at once,
@@ -152,9 +153,10 @@ function Row({
       <span className="team-explorer-row-meta">
         {row.sizeBytes !== null && row.kind !== 'folder' ? formatSize(row.sizeBytes) : ''}
       </span>
-      {actions && row.kind !== 'folder' && (
+      {actions && (
         <div className="team-explorer-row-actions" onClick={event => event.stopPropagation()}>
-          <RowActions {...actions} row={row} />
+          <ShareButton teamId={actions.teamId} row={row} />
+          {row.kind !== 'folder' && <RowActions {...actions} row={row} />}
         </div>
       )}
       {reason && <span className="team-explorer-row-reason">{t(reason)}</span>}

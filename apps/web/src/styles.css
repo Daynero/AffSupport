@@ -14460,6 +14460,9 @@ button.team-landing-tile:hover {
 }
 .team-explorer-tile-actions {
   right: 8px;
+  display: inline-flex;
+  width: auto;
+  gap: var(--space-1);
 }
 .team-explorer-tile-actions .team-row-menu {
   display: block;
@@ -14516,6 +14519,33 @@ button.team-landing-tile:hover {
 }
 /* The menu trigger is an icon button on the picture, not a word in the caption
    competing with the file's own name. */
+.team-explorer-share {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: color var(--dur-micro) var(--ease-standard);
+}
+.team-explorer-share:hover:not(:disabled) {
+  color: var(--color-accent);
+}
+.team-explorer-share:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+/* Share sits left of the menu, both the same size, a small gap between. */
+.team-explorer-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
 .team-explorer-tile-actions .team-row-menu > button,
 .team-explorer-row-actions .team-row-menu > button {
   display: inline-flex;

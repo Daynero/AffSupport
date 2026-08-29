@@ -271,6 +271,21 @@ stylesheet and markup, verified on screen.
 Tests: K1 (`tests/drive-transfer.test.ts`), K2 (`tests/team-file-operations.test.tsx` — the item
 needs a handler). The rest is markup and stylesheet, verified on screen.
 
+## L — share by link, and the list gets a table (2026-08-30, continued)
+
+Owner requests while testing on the real folder, each its own commit:
+
+- **Share by link** on every row, tile and folder, left of the "···" menu: one press gives
+  everyone with the link read-only access (Drive `anyone` reader), copies it, and a green
+  "Посилання скопійовано" confirms. `ShareButton` over `library-ops/share/copy` with
+  `allowIfRestricted`; `tests/team-share-button.test.tsx`.
+
+Still open from the same run, in the owner's order: the drag-into-folder error (then "file
+exists" — a stale reservation from a move that failed after Drive had already moved it, or a
+non-idempotent retry; needs a clean repro), a modified date in previews and tiles, and a
+Google-Drive-style list (a Date column, a sort menu, a "Тип" filter dropdown replacing the
+kind chips).
+
 ### Still to run (needs the owner)
 
 Done so far under T076: the beta OAuth client (`soty-beta`, `drive.file`,
