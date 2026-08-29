@@ -60,6 +60,7 @@ export function ExplorerShell({
   onCreateTaskFromSelection,
   onProcessSelection,
   onChanged,
+  onReset,
   actionsClient = defaultMaterialActionsClient,
   readOnly = false
 }: {
@@ -75,6 +76,7 @@ export function ExplorerShell({
   onCreateTaskFromSelection?: (assets: Array<{ id: string; name: string }>) => void;
   onProcessSelection?: () => void;
   onChanged?: () => void;
+  onReset?: () => void;
   actionsClient?: MaterialActionsClient;
   /** Storage needs a person (011, FR-033): browse and preview only. */
   readOnly?: boolean;
@@ -99,6 +101,7 @@ export function ExplorerShell({
         onCreateTaskFromSelection={onCreateTaskFromSelection}
         onProcessSelection={onProcessSelection}
         onChanged={onChanged}
+        onReset={onReset}
         actionsClient={actionsClient}
         readOnly={readOnly}
       />
@@ -118,6 +121,7 @@ function ExplorerBody({
   onCreateTaskFromSelection,
   onProcessSelection,
   onChanged,
+  onReset,
   actionsClient,
   readOnly
 }: {
@@ -132,6 +136,7 @@ function ExplorerBody({
   onCreateTaskFromSelection?: (assets: Array<{ id: string; name: string }>) => void;
   onProcessSelection?: () => void;
   onChanged?: () => void;
+  onReset?: () => void;
   actionsClient: MaterialActionsClient;
   readOnly: boolean;
 }) {
@@ -418,7 +423,7 @@ function ExplorerBody({
 
   return (
     <div className={`team-explorer has-pane${treeOpen ? ' is-tree-open' : ''}`}>
-      <FolderTree onDropMaterials={(folder, ids) => void moveTo(folder, ids)} />
+      <FolderTree onDropMaterials={(folder, ids) => void moveTo(folder, ids)} onReset={onReset} />
       <div
         className={`team-explorer-main team-explorer-dropzone${dropping ? ' is-over' : ''}`}
         onDragOver={event => {

@@ -124,10 +124,37 @@ export function WorkspaceShell({
     trackTeamWorkspaceSession();
   }, [teamId]);
 
-  const sectionRoute = useCallback(
-    (target: TeamSection) => buildTeamRoute({ spaceId: teamId, section: target }),
-    [teamId]
+  // The last place the explorer was — folder, kinds, view — so the "Провідник"
+  // tab returns there instead of the root, and the shell can stay mounted.
+  const [explorerQuery, setExplorerQuery] = useState<TeamRouteQuery>(
+    () => query ?? emptyTeamRouteQuery()
   );
+  useEffect(() => {
+    if (section === 'explorer' && query) setExplorerQuery(query);
+  }, [section, query]);
+
+  const sectionRoute = useCallback(
+    (target: TeamSection) =>
+      buildTeamRoute({
+        spaceId: teamId,
+        section: target,
+        query:
+          target === 'explorer'
+            ? {
+                folderId: explorerQuery.folderId ?? null,
+                kinds: explorerQuery.kinds ?? [],
+                view: explorerQuery.view ?? null
+              }
+            : undefined
+      }),
+    [explorerQuery, teamId]
+  );
+
+  /** Back to a clean explorer: root, nothing selected, no search or filter. */
+  const resetExplorer = useCallback(() => {
+    navigateTo(buildTeamRoute({ spaceId: teamId, section: 'explorer' }), true, false);
+    setBrowserRevision(value => value + 1);
+  }, [teamId]);
 
   /** An explorer address that keeps the current folder and view. */
   const explorerRoute = useCallback(
@@ -157,7 +184,8 @@ export function WorkspaceShell({
     (target: TeamSection, patch: Partial<TeamRouteQuery>) => {
       navigateTo(
         buildTeamRoute({ spaceId: teamId, section: target, query: { ...query, ...patch } }),
-        true
+        true,
+        false
       );
     },
     [query, teamId]
@@ -290,14 +318,15 @@ export function WorkspaceShell({
           </nav>
 
           <div className="team-space-shell-body">
-            {section === 'members' ? (
+            {section === 'members' && (
               <MembersSection
                 key={`members:${teamId}`}
                 teamId={teamId}
                 client={client}
                 directAddMode={directAddMode}
               />
-            ) : section === 'tasks' ? (
+            )}
+            {section === 'tasks' && (
               <TaskSpace
                 key={`tasks:${teamId}`}
                 teamId={teamId}
@@ -306,20 +335,27 @@ export function WorkspaceShell({
                 openTaskId={query?.taskId ?? null}
                 onOpenTaskChange={onOpenTaskChange}
               />
-            ) : !browsable && activeTeam ? (
-              /* Nothing was ever indexed, so the connection is genuinely the reason
-             there are no files (finding I4). */
+            )}
+            {/* Nothing was ever indexed, so the connection is genuinely the
+            reason there are no files (finding I4). */}
+            {section === 'explorer' && !browsable && activeTeam && (
               <SpaceStatePanel space={activeTeam} canManageDrive={activeTeam.role === 'owner'} />
-            ) : (
+            )}
+            {/* The explorer stays mounted across a trip to Tasks or Members —
+            hidden, not unmounted — so the open folder and the selection are
+            still there on return (a section change used to reset both). It
+            reads its own remembered query while another section is showing. */}
+            <div hidden={section !== 'explorer' || (!browsable && Boolean(activeTeam))}>
               <ExplorerShell
                 key={`explorer:${teamId}`}
                 teamId={teamId}
                 client={client}
                 revision={revision + browserRevision}
-                query={query ?? emptyTeamRouteQuery()}
+                query={section === 'explorer' && query ? query : explorerQuery}
                 onQueryChange={onExplorerQuery}
                 onFolderChange={onExplorerFolderChange}
                 onSearched={onSearched}
+                onReset={resetExplorer}
                 onPreview={setPreviewing}
                 onCreateTask={asset => createTaskFrom({ ids: [asset.id], name: asset.name })}
                 onCreateTaskFromSelection={assets => {
@@ -333,7 +369,7 @@ export function WorkspaceShell({
                 onChanged={() => setBrowserRevision(value => value + 1)}
                 readOnly={storageAttention}
               />
-            )}
+            </div>
           </div>
 
           {query?.settings && (

@@ -89,22 +89,34 @@ export function currentRoute() {
   return `${location.pathname}${location.search}${location.hash}`;
 }
 
-export function navigateTo(path: string, replace = false) {
+/**
+ * `animate: false` swaps the route with no page crossfade — for adjustments
+ * within a screen (a folder, a view toggle, a selection written to the URL),
+ * where the View Transition of the whole page read as a flicker on every
+ * click. A section change keeps the default crossfade.
+ */
+export function navigateTo(path: string, replace = false, animate = true) {
   if (path === currentRoute()) return;
   if (replace) history.replaceState(null, '', path);
   else history.pushState(null, '', path);
-  window.dispatchEvent(new Event(NAVIGATION_EVENT));
+  window.dispatchEvent(new CustomEvent(NAVIGATION_EVENT, { detail: { animate } }));
 }
 
 export function useBrowserRoute() {
   const [route, setRoute] = useState(currentRoute);
   useEffect(() => {
-    const update = () => commitRouteChange(() => setRoute(currentRoute()));
-    window.addEventListener('popstate', update);
-    window.addEventListener(NAVIGATION_EVENT, update);
+    const apply = () => setRoute(currentRoute());
+    const onNavigation = (event: Event) => {
+      const animate = (event as CustomEvent<{ animate?: boolean }>).detail?.animate !== false;
+      if (animate) commitRouteChange(apply);
+      else apply();
+    };
+    const onPopState = () => commitRouteChange(apply);
+    window.addEventListener('popstate', onPopState);
+    window.addEventListener(NAVIGATION_EVENT, onNavigation);
     return () => {
-      window.removeEventListener('popstate', update);
-      window.removeEventListener(NAVIGATION_EVENT, update);
+      window.removeEventListener('popstate', onPopState);
+      window.removeEventListener(NAVIGATION_EVENT, onNavigation);
     };
   }, []);
   return route;

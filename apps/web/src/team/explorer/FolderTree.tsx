@@ -5,6 +5,21 @@ import { KindIcon } from './KindIcon';
 import { useExplorer } from './ExplorerProvider';
 import { DRAG_TYPE } from './rowKinds';
 
+function RefreshIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+      <path
+        d="M20 11a8 8 0 1 0-.6 3M20 5v6h-6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /**
  * The folder tree (011, FR-008/FR-027): every level, counts beside each
  * folder, "listing…" until a folder's last page has landed, and a keyboard
@@ -12,10 +27,13 @@ import { DRAG_TYPE } from './rowKinds';
  * the open folder's path, which keeps the DOM bounded at the published limit.
  */
 export function FolderTree({
-  onDropMaterials
+  onDropMaterials,
+  onReset
 }: {
   /** Materials dragged from the content area onto a folder (011, FR-026). */
   onDropMaterials?: (folderDriveId: string, materialIds: string[]) => void;
+  /** The round refresh by the root: back to a clean explorer. */
+  onReset?: () => void;
 } = {}) {
   const { t } = useI18n();
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -28,7 +46,10 @@ export function FolderTree({
     childrenOf,
     nodeOf,
     pathTo,
-    openFolder
+    openFolder,
+    select,
+    clearSelection,
+    refresh
   } = useExplorer();
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [focused, setFocused] = useState<string | null>(null);
@@ -206,14 +227,31 @@ export function FolderTree({
 
   return (
     <aside className="team-explorer-tree" aria-label={t('teamExplorerTreeLabel')}>
-      <button
-        type="button"
-        className={`team-explorer-tree-root${currentFolderId === null ? ' is-current' : ''}`}
-        aria-current={currentFolderId === null ? 'location' : undefined}
-        onClick={() => openFolder(null)}
-      >
-        {t('teamExplorerRootLabel')}
-      </button>
+      <div className="team-explorer-tree-head">
+        <button
+          type="button"
+          className={`team-explorer-tree-root${currentFolderId === null ? ' is-current' : ''}`}
+          aria-current={currentFolderId === null ? 'location' : undefined}
+          onClick={() => openFolder(null)}
+        >
+          {t('teamExplorerRootLabel')}
+        </button>
+        <button
+          type="button"
+          className="team-explorer-tree-refresh"
+          aria-label={t('teamExplorerReset')}
+          title={t('teamExplorerReset')}
+          onClick={() => {
+            select(null);
+            clearSelection();
+            openFolder(null);
+            void refresh();
+            onReset?.();
+          }}
+        >
+          <RefreshIcon />
+        </button>
+      </div>
       {loading && nodes === null && (
         <p className="team-explorer-muted">{t('teamExplorerLoading')}</p>
       )}
