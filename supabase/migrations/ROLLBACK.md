@@ -20,6 +20,9 @@ These are forward-only production migrations. Prefer a backup plus a forward fix
 team has connected storage. For an empty isolated development database, reverse the
 feature group in this exact order:
 
+0. `20260830100000_media_companions.sql`: drop
+   `public.get_material_transcript_companion(uuid, uuid)`, the three companion indexes, and the
+   columns `companion_of`, `companion_kind`, `audio_fingerprint` from `public.team_materials`.
 0. `20260829170000_team_archive_inspection.sql`: drop
    `public.service_commit_archive_inspection(uuid, text, text, text)`,
    `public.service_claim_archive_inspections(integer)` and the column

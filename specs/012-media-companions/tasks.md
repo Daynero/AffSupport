@@ -8,11 +8,11 @@ Order is dependency-first. Each task is small and independently committable.
 
 ## Phase 1 — Companion data model (schema + reads)
 
-- [ ] T001 Migration `team_material_companions`: add `companion_of uuid` and
+- [x] T001 Migration `team_material_companions`: add `companion_of uuid` and
       `companion_kind text` to `team_materials` (nullable; FK to the owning material, check kind in
       `('transcript')`), plus `audio_fingerprint text` for dedup. Index on
       `(team_id, companion_of)` and on `(team_id, audio_fingerprint)`. ROLLBACK entry.
-- [ ] T002 `service_get_material_transcript_companion(p_team, p_material, p_actor)` returns the
+- [x] T002 `get_material_transcript_companion(p_team, p_material, p_actor)` returns the
       linked transcript companion (id, name, ingest_state, text presence) or null; RLS-checked.
 - [ ] T003 Extend the catalog projection (`catalog-search` + the folder-page read) with
       `companionOf` / `companionKind` / `hasTranscriptCompanion` so the UI can show state without a
