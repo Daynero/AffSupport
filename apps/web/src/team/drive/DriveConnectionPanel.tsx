@@ -320,10 +320,25 @@ export function DriveConnectionPanel({
               {t('teamDriveReplace')}
             </Button>
           )}
-          {client.startDriveOAuth && (
-            <Button type="button" variant="secondary" onClick={() => void connect()}>
-              {t('teamDriveReauth')}
-            </Button>
+          {/* A re-consent on a connected space (a wider scope, an expired
+              grant) needs the same "continue in Google" step as a first
+              connection; the button alone fetched the address and showed
+              nothing, because the link lived in the not-connected branch. */}
+          {client.startDriveOAuth && authorizationUrl && !authorized ? (
+            <a className="button button-primary" href={authorizationUrl} rel="noreferrer">
+              {t('teamDriveAuthorize')}
+            </a>
+          ) : (
+            client.startDriveOAuth && (
+              <Button
+                type="button"
+                variant="secondary"
+                loading={busy}
+                onClick={() => void connect()}
+              >
+                {t('teamDriveReauth')}
+              </Button>
+            )
           )}
           {client.detachDrive && (
             <Button type="button" variant="danger" onClick={() => setConfirmingDetach(true)}>

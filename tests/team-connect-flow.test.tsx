@@ -201,6 +201,44 @@ describe('DriveConnectionPanel (settings)', () => {
     await waitFor(() => expect(restoreRoot).toHaveBeenCalledWith(TEAM));
     expect(await screen.findByText('The folder is back.')).toBeTruthy();
   });
+
+  it('carries a reconnect on a connected space through to Google', async () => {
+    const user = userEvent.setup();
+    const startDriveOAuth = vi
+      .fn()
+      .mockResolvedValue({
+        authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth?x=1',
+        expiresAt: 'later'
+      });
+    render(
+      <ToastProvider>
+        <DriveConnectionPanel
+          teamId={TEAM}
+          client={{
+            getConnectionStatus: vi
+              .fn()
+              .mockResolvedValue({
+                state: 'connected',
+                rootFolderName: 'Root',
+                connectionId: 'c1'
+              }),
+            startDriveOAuth,
+            pickerToken: vi.fn(),
+            chooseRoot: vi.fn(),
+            pickFolders: picks(null)
+          }}
+          config={CONFIG}
+        />
+      </ToastProvider>
+    );
+    await user.click(await screen.findByRole('button', { name: 'Reconnect' }));
+    await waitFor(() => expect(startDriveOAuth).toHaveBeenCalledWith(TEAM));
+    // The address came back; the step to Google must be on screen, not swallowed.
+    expect(
+      (await screen.findByRole('link', { name: 'Continue with Google' })).getAttribute('href')
+    ).toContain('accounts.google.com');
+    expect(screen.queryByRole('button', { name: 'Reconnect' })).toBeNull();
+  });
 });
 
 describe('SelectionList (research R1 outcome B)', () => {
