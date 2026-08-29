@@ -141,6 +141,42 @@ and behind it two payload contracts that had never matched.
 Verified on the beta stack: uploading a file through the app reports "1 file uploaded" and the
 file appears in the space; `drive-ops/rename` answers `succeeded`.
 
+## G — the connected space, exercised (2026-08-29)
+
+The space is connected to a real Drive folder with 19 files, and every flow below was
+run in the browser rather than reasoned about.
+
+| ID  | What was wrong                                                                                                                                                                                                                                                                                            | Fix                                                                                 |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| G1  | Opening a file answered "Не вдалося підготувати перегляд." — `previewMaterial` returned the media grant with the gateway's internal address, the last caller not going through `browserFunctionUrl`                                                                                                       | translate it there too                                                              |
+| G2  | A task saved from the editor vanished: `TaskEditor` reports the change and closes in one tick, so `closeEditor`'s render-time copy of the draft marker still said "untouched" and deleted it                                                                                                              | the marker is a ref; nothing renders from it                                        |
+| G3  | The row menu painted "Перемістити в кошик" outside its own rounded panel — a fixed 240px against a 250px item                                                                                                                                                                                             | the panel takes the width its longest item needs, between a floor and a ceiling     |
+| G4  | Attachment tiles carried four labelled buttons on a 158px tile, each breaking its word across two lines                                                                                                                                                                                                   | icon-only, label as the accessible name and tooltip, colour on hover                |
+| G5  | Space history printed raw keys ("material.rename"): a finished transfer operation is recorded as `material.` plus its own kind, which the label map did not know                                                                                                                                          | both spellings mapped, plus the storage-selection events and the `connected` detail |
+| G6  | **Landing renders never ran.** The job's two addresses are the ones the Agent must fetch from, and the function reports its internal hop — locally `http://127.0.0.1:8081/drive-transfer/range`, whose path lacks the `/functions/v1` prefix the Agent requires. Every job was refused with INVALID_INPUT | the browser rewrites both from its own Supabase URL                                 |
+| G7  | Starting a render moves the row to "rendering" and nothing moved it back when the Agent refused it: no worker held it, the loop only picks up "stale", and the chip counted it as a preview still being prepared — for good                                                                               | the loop releases the row through the endpoint the Agent uses for its own failures  |
+| G8  | A bare `.html` file is a landing by its own type, but rendering only ever unpacked a ZIP, so those files failed as "corrupt" every time                                                                                                                                                                   | a single page is written out as the one-entry package it stands for                 |
+
+Verified live: image and transcript previews open; the download range answers `206` from
+the public function URL; an uploaded `.mp4` arrives byte-identical (SHA-256 checked against
+the local file) and gets a provider thumbnail; an uploaded landing reaches `ready` and its
+rendered page appears on the tile and in the sandboxed viewer; trash and its Undo both
+round-trip; the storage chip settles to "Сховище актуальне".
+
+### Known gaps, recorded rather than fixed
+
+- A ZIP holding `index.html` stays an **archive**. Promotion to a landing runs through
+  `service_apply_landing_validation`, which the viewer only calls for a material that is
+  already a landing — so a landing package dropped into Drive by hand is never promoted.
+  Landings therefore arrive either as `.html` files or from Soty's own upload path.
+- The nested-folder tree could not be exercised: the reference folder has no subfolders and
+  the app has no "new folder" action, so §2's tree rows still need the reference root from
+  `quickstart.md` §0.
+- Video **playback** could not be confirmed in this browser: the bytes are provably correct
+  (identical SHA-256, `206` with the right `content-range`), but this Chrome leaves the
+  element at `readyState 0` even for a `blob:` URL of the same bytes. A decoder limitation
+  of the automation profile, not of the transfer path.
+
 ### Still to run (needs the owner)
 
 | Item                                                                      | Task  |
