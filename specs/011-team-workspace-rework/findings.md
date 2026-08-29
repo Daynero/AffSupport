@@ -179,17 +179,20 @@ round-trip; the storage chip settles to "Сховище актуальне".
 
 ### Still to run (needs the owner)
 
-| Item                                                                      | Task  |
-| ------------------------------------------------------------------------- | ----- |
-| Beta OAuth test client with `drive.file`, `DRIVE_OAUTH_MODE=testing`      | T076  |
-| `VITE_GOOGLE_PICKER_API_KEY`, `VITE_GOOGLE_PROJECT_NUMBER` in `.env.beta` | T076  |
-| Reference root built per `quickstart.md` §0                               | T076  |
-| Production Google Cloud project                                           | T076a |
-| R1 spike (`quickstart.md` §1), outcome A/B                                | T002  |
+Done so far under T076: the beta OAuth client (`soty-beta`, `drive.file`,
+`DRIVE_OAUTH_MODE=testing`), the Picker key and project number in both env files, and a real
+connection to a 19-file folder with no subfolders. What is left:
 
-With those in place: §2 (storage and tree, including the revoke-and-reconnect
-trial and the root-trashed case), §3 (previews and the agent render loop), §4's
-three-person and width matrix rows, and §5 (both accounts) remain.
+| Item                                                                            | Task  |
+| ------------------------------------------------------------------------------- | ----- |
+| Reference root built per `quickstart.md` §0 (≥ 4 levels, > 1,000-child folder…) | T076  |
+| Production Google Cloud project                                                 | T076a |
+| R1 spike (`quickstart.md` §1), outcome A/B                                      | T002  |
+
+With the reference root in place: §2's tree rows, the network-cut timing row, the
+revoke-and-reconnect trial and the root-trashed case; §3's cold-open timing and the
+agent-at-lowest-power rows; §4's three-person and width matrix rows; and §5 from both
+accounts remain. Everything that a flat 19-file folder can show has been run (section G).
 
 ### Noted, not ours
 
