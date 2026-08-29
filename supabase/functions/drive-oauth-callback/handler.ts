@@ -38,6 +38,12 @@ export interface OAuthCallbackDependencies {
     credentialId: string;
   }) => Promise<void>;
   markNeedsReauth: (credentialId: string | null) => Promise<void>;
+  /**
+   * A re-consent of an existing credential changes what Drive shows (a wider
+   * scope, a grant that had lapsed); the change feed never replays what was
+   * there all along, so the connected root is walked again (011, findings I4).
+   */
+  rescanAfterReconsent?: (input: { teamId: string; actorId: string }) => Promise<void>;
 }
 
 export async function completeDriveOAuthCallback(
@@ -83,6 +89,12 @@ export async function completeDriveOAuthCallback(
       actorId: transaction.actorId,
       credentialId: stored.credentialId
     });
+    if (transaction.credentialId) {
+      await dependencies.rescanAfterReconsent?.({
+        teamId: transaction.teamId,
+        actorId: transaction.actorId
+      });
+    }
     return { code: 'connected', credentialId: stored.credentialId };
   } catch (error) {
     const errorCode =

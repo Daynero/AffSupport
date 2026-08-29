@@ -331,6 +331,58 @@ describe('OAuth callback custody', () => {
     );
   });
 
+  it('walks the root again after a re-consent of an existing credential (011, I4)', async () => {
+    const base = {
+      peekTransaction: vi.fn().mockResolvedValue({ origin: localSignals.siteUrl }),
+      exchangeCode: vi.fn().mockResolvedValue({
+        accessToken: 'google-access-token-long-enough',
+        refreshToken: 'google-refresh-token-long-enough',
+        scope: 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/drive.file'
+      }),
+      verifyPrincipal: vi.fn().mockResolvedValue({
+        permissionId: 'google-permission-id',
+        email: 'owner@example.test'
+      }),
+      storeCredential: vi.fn().mockResolvedValue({ credentialId: 'credential-id' }),
+      markNeedsReauth: vi.fn()
+    };
+    const transaction = {
+      id: 'transaction-id',
+      teamId: '20000000-0000-4000-8000-000000000001',
+      actorId: '10000000-0000-4000-8000-000000000001',
+      origin: localSignals.siteUrl,
+      codeVerifier: 'stored-pkce-verifier'
+    };
+    const input = {
+      code: 'google-code',
+      state: 'opaque-state',
+      oauthMode: 'testing',
+      signals: localSignals
+    };
+
+    const rescan = vi.fn().mockResolvedValue(undefined);
+    await completeDriveOAuthCallback(input, {
+      ...base,
+      consumeTransaction: vi
+        .fn()
+        .mockResolvedValue({ ...transaction, credentialId: 'credential-id' }),
+      rescanAfterReconsent: rescan
+    });
+    expect(rescan).toHaveBeenCalledWith({
+      teamId: transaction.teamId,
+      actorId: transaction.actorId
+    });
+
+    // A first consent has nothing to walk again; choose_root starts that scan.
+    const first = vi.fn();
+    await completeDriveOAuthCallback(input, {
+      ...base,
+      consumeTransaction: vi.fn().mockResolvedValue({ ...transaction, credentialId: null }),
+      rescanAfterReconsent: first
+    });
+    expect(first).not.toHaveBeenCalled();
+  });
+
   it('preserves an existing refresh token when Google omits one', async () => {
     const storeCredential = vi.fn().mockResolvedValue({ credentialId: 'credential-id' });
     await completeDriveOAuthCallback(

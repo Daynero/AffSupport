@@ -227,9 +227,17 @@ causes, one a bug and one the answer to R1.
 | I1  | The scheduler starved the new root's scan. `private.claim_catalog_sync_jobs` leased any job in `next_attempt_at` order; the public wrapper dropped detached connections only _after_ the lease. The replaced root's old job — first in the queue — took the worker's single slot every minute (128 attempts, lease renewed each time), and the new job ran 4 times in an hour                                                         | migration `20260829150000`: the claim joins the connection and skips detached ones; orphaned jobs of detached connections are closed as `failed / CONNECTION_DETACHED`. `tests/team-sync-claim-sql.test.ts`                                                            |
 | I2  | Even when it ran, the initial scan of `Soty` found nothing — and it was right. Asked directly with the stored `drive.file` token: `files.list` for the picked `Mock` folder returns **21** children (all uploaded by Soty), for the picked `Soty` folder **0**, while `files.get` and `canListChildren` succeed for both. **R1 outcome B**: under `drive.file` a picked folder does not carry the files a person put there themselves | recorded in `research.md` § R1 outcome. Not a code defect: the walk is correct for what the scope shows. The way through is the restricted `drive` scope (`DRIVE_RESTRICTED_SCOPE_APPROVED=true`, consent screen lists it; Testing status lets test users consent now) |
 
+| I3 | With the scope widened and a full walk queued, the catalog grew by **one Drive page per minute**: the scheduler ticks every minute and the worker ran one slice per tick, so a fifty-folder tree was an hour's wait | `runCatalogSyncJob` (engine): slices back to back within an 8 s budget per tick, each still checkpointed; 4 → 22 → 95 materials in three ticks on the real folder. `CATALOG_SYNC_BUDGET_MS` overrides |
+| I4 | A re-consent that widened the grant changed nothing on screen: the job stayed `incremental`, and the change feed never replays files that were there all along, so the real folder stayed at 0 until "Синхронізувати зараз" was pressed by hand | migration `20260829160000` + `drive-oauth-callback`: a re-consent of an existing credential queues a full walk (`service_request_catalog_rescan`, owner-checked, one open scan at a time). And "Підключити знову" on a connected space now shows the "Продовжити з Google" step at all — the link lived only in the not-connected branch |
+
 After I1 the connection reached `ready` within a minute and the chip settled on
 "Сховище актуальне" — over an empty catalog, which is what I2 makes of a real folder until
-the scope is widened. Worth a sentence in the product: an empty root after a fresh connect
+the scope is widened. With the scope widened (consent screen + `DRIVE_RESTRICTED_SCOPE_APPROVED=true`
+in the beta env, re-consent through the settings) `files.list` on the same root returned its
+three subfolders, and after I3/I4 the walk filled the catalog from the owner's real tree. Regression tests: I1 (`tests/team-sync-claim-sql.test.ts`), I3 (`tests/catalog-sync.test.ts`),
+I4 (`tests/drive-connect.test.ts`, `tests/team-sync-claim-sql.test.ts`, `tests/team-connect-flow.test.tsx`).
+
+Worth a sentence in the product: an empty root after a fresh connect
 should say that Soty sees only what it uploaded or what was picked file by file, rather
 than "Ця папка порожня".
 

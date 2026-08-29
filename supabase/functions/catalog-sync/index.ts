@@ -18,7 +18,7 @@ import {
 import { isRecord } from '../_shared/validation.ts';
 import {
   catalogRetryDelayMs,
-  runCatalogSyncSlice,
+  runCatalogSyncJob,
   type CatalogSyncDependencies,
   type CatalogSyncJob
 } from './engine.ts';
@@ -359,6 +359,17 @@ function dependencies(input: {
   };
 }
 
+/**
+ * How long one scheduler invocation keeps walking the same job. Well inside
+ * the 60 s lease and the local edge runtime's wall clock (it has ended
+ * isolates at about 19 s); overridable for a slower provider or a stricter
+ * runtime.
+ */
+function catalogSyncBudgetMs(): number {
+  const raw = Number(Deno.env.get('CATALOG_SYNC_BUDGET_MS'));
+  return Number.isFinite(raw) && raw >= 1_000 && raw <= 45_000 ? raw : 8_000;
+}
+
 Deno.serve(async request => {
   if (request.method !== 'POST') {
     return errorResponse(new TeamFunctionError('INVALID_INPUT', { retryable: false }));
@@ -408,10 +419,9 @@ Deno.serve(async request => {
           productionSignals: { siteUrl: Deno.env.get('WISHLY_SITE_URL') }
         });
         const drive = new GoogleDriveClient(token.accessToken);
-        const result = await runCatalogSyncSlice(
-          job,
-          dependencies({ service, drive, worker, job })
-        );
+        const result = await runCatalogSyncJob(job, dependencies({ service, drive, worker, job }), {
+          budgetMs: catalogSyncBudgetMs()
+        });
         completed += 1;
         processed += result.processed;
       } catch (cause) {

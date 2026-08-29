@@ -306,6 +306,65 @@ async function runChanges(
   return { phase: 'incremental', processed: page.changes.length };
 }
 
+type CheckpointInput = Parameters<CatalogSyncDependencies['checkpoint']>[0];
+
+export interface CatalogSyncRunOptions {
+  /** Wall-clock budget for one scheduler invocation, in milliseconds. */
+  budgetMs: number;
+  now?: () => number;
+}
+
+/**
+ * Slices of one job, back to back, until the budget is spent or the walk hands
+ * over to the change feed. One page per scheduler tick — the shape before —
+ * made a fifty-folder tree an hour's wait, because the tick is a minute
+ * (findings I3). Each slice still checkpoints before the next begins, so a
+ * worker stopped mid-budget resumes exactly where the last checkpoint left it.
+ */
+export async function runCatalogSyncJob(
+  job: CatalogSyncJob,
+  dependencies: CatalogSyncDependencies,
+  options: CatalogSyncRunOptions
+): Promise<{ phase: CatalogSyncPhase; processed: number; slices: number }> {
+  const now = options.now ?? Date.now;
+  const started = now();
+  let current = job;
+  let processed = 0;
+  let slices = 0;
+  let phase = job.phase;
+  // Held in an object: the closure below writes it, and a plain `let` would be
+  // narrowed to `null` by the assignment before the loop.
+  const seen: { checkpoint: CheckpointInput | null } = { checkpoint: null };
+  // Read through a call so the assignment above is not narrowed to `null`.
+  const lastCheckpoint = (): CheckpointInput | null => seen.checkpoint;
+  const observed: CatalogSyncDependencies = {
+    ...dependencies,
+    checkpoint: async input => {
+      seen.checkpoint = input;
+      return dependencies.checkpoint(input);
+    }
+  };
+  for (;;) {
+    seen.checkpoint = null;
+    const result = await runCatalogSyncSlice(current, observed);
+    slices += 1;
+    processed += result.processed;
+    phase = result.phase;
+    const checkpoint = lastCheckpoint();
+    if (result.phase !== 'initial_scan' || !checkpoint) break;
+    if (now() - started >= options.budgetMs) break;
+    current = {
+      ...current,
+      phase: 'initial_scan',
+      folderQueue: checkpoint.folderQueue,
+      pageToken: checkpoint.pageToken,
+      changeToken: checkpoint.changeToken,
+      discoveredFolderIds: checkpoint.discoveredFolderIds
+    };
+  }
+  return { phase, processed, slices };
+}
+
 export async function runCatalogSyncSlice(
   job: CatalogSyncJob,
   dependencies: CatalogSyncDependencies

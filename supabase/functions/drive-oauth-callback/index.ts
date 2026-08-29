@@ -245,6 +245,12 @@ Deno.serve(async request => {
             p_credential: input.credentialId
           });
         },
+        rescanAfterReconsent: async input => {
+          await rpcValue(service, 'service_request_catalog_rescan', {
+            p_team: input.teamId,
+            p_actor: input.actorId
+          });
+        },
         markNeedsReauth: async credentialId => {
           if (credentialId) {
             await rpcValue(service, 'service_mark_drive_needs_reauth', {

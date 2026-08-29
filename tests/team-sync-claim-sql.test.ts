@@ -11,6 +11,7 @@ import { createTeamTestDb, createUser, type TeamTestDb } from './support/team-db
 const OWNER = '24000000-0000-4000-8000-000000000001';
 
 let harness: TeamTestDb;
+let teamId: string;
 let liveJob: string;
 let deadJob: string;
 
@@ -23,7 +24,7 @@ beforeAll(async () => {
     'select id from public.create_team($1)',
     ['Claim']
   );
-  const teamId = team[0]!.id;
+  teamId = team[0]!.id;
   const credential = await harness.root<{ id: string }>(
     `insert into private.google_drive_credentials
        (google_permission_id, google_account_email, scope, vault_secret_id, connected_by)
@@ -75,5 +76,48 @@ describe('claim_catalog_sync_jobs', () => {
       [deadJob]
     );
     expect(dead[0]).toMatchObject({ state: 'pending', attempts: 0 });
+  }, 60_000);
+});
+
+describe('service_request_catalog_rescan (011, findings I4)', () => {
+  it('queues a full walk of the connected root for the owner and records it', async () => {
+    const queued = await harness.root<{ job: string | null }>(
+      'select public.service_request_catalog_rescan($1, $2) as job',
+      [teamId, OWNER]
+    );
+    // The live connection's initial scan is still open (leased above), so that
+    // walk is the answer rather than a second one queued behind it.
+    expect(queued[0]!.job).toBe(liveJob);
+    const job = await harness.root<{ phase: string; state: string }>(
+      'select phase, state from private.catalog_sync_jobs where id = $1',
+      [queued[0]!.job]
+    );
+    expect(job[0]).toMatchObject({ phase: 'initial_scan' });
+    const connection = await harness.root<{ initial_sync_state: string }>(
+      `select initial_sync_state from public.team_drive_connections
+        where team_id = $1 and state = 'connected'`,
+      [teamId]
+    );
+    expect(connection[0]!.initial_sync_state).toBe('scanning');
+    const audit = await harness.root<{ action: string }>(
+      `select action from public.team_audit_events where team_id = $1 and action = 'drive.resynced'`,
+      [teamId]
+    );
+    expect(audit).toHaveLength(1);
+    // Asked again while that scan is still queued: the same job, not a second one.
+    const again = await harness.root<{ job: string | null }>(
+      'select public.service_request_catalog_rescan($1, $2) as job',
+      [teamId, OWNER]
+    );
+    expect(again[0]!.job).toBe(queued[0]!.job);
+  }, 60_000);
+
+  it('refuses anyone but the owner', async () => {
+    await expect(
+      harness.root('select public.service_request_catalog_rescan($1, $2)', [
+        teamId,
+        '24000000-0000-4000-8000-000000000009'
+      ])
+    ).rejects.toThrow(/PERMISSION_DENIED/);
   }, 60_000);
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   catalogRetryDelayMs,
+  runCatalogSyncJob,
   runCatalogSyncSlice,
   type CatalogSyncDependencies,
   type CatalogSyncJob
@@ -364,6 +365,62 @@ describe('011 — folder markers, root changes and reconciliation stamps', () =>
     );
     expect(deps.complete).toHaveBeenCalledWith(
       expect.objectContaining({ changeToken: 'change-3' })
+    );
+  });
+});
+
+describe('one scheduler tick, many slices (011, findings I3)', () => {
+  it('keeps walking the same job until the budget runs out, then hands over at the checkpoint', async () => {
+    const listChildren = vi
+      .fn()
+      // root: two folders, one page
+      .mockResolvedValueOnce({
+        files: [
+          file({ id: 'folder-a', name: 'A', mimeType: folderMime }),
+          file({ id: 'folder-b', name: 'B', mimeType: folderMime })
+        ],
+        nextPageToken: null
+      })
+      // folder-a: a file
+      .mockResolvedValueOnce({
+        files: [file({ id: 'file-a', parents: ['folder-a'] })],
+        nextPageToken: null
+      })
+      // folder-b: a file
+      .mockResolvedValueOnce({
+        files: [file({ id: 'file-b', parents: ['folder-b'] })],
+        nextPageToken: null
+      });
+    let clock = 0;
+    const deps = dependencies({ listChildren });
+    const result = await runCatalogSyncJob(baseJob, deps, { budgetMs: 10_000, now: () => clock });
+    // Three folders walked in one tick, the queue then handed to the change feed.
+    expect(result).toMatchObject({ phase: 'change_replay', slices: 3 });
+    expect(listChildren).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ parentId: 'folder-a' })
+    );
+    expect(listChildren).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({ parentId: 'folder-b' })
+    );
+    expect(deps.markFolderIndexed).toHaveBeenCalledTimes(3);
+
+    // The budget stops the loop at a checkpoint; the next tick resumes from it.
+    const spent = dependencies({
+      listChildren: vi.fn().mockResolvedValue({
+        files: [file({ id: 'folder-c', name: 'C', mimeType: folderMime })],
+        nextPageToken: null
+      })
+    });
+    clock = 0;
+    const stopped = await runCatalogSyncJob(baseJob, spent, {
+      budgetMs: 1,
+      now: () => (clock += 1_000)
+    });
+    expect(stopped).toMatchObject({ phase: 'initial_scan', slices: 1 });
+    expect(spent.checkpoint).toHaveBeenLastCalledWith(
+      expect.objectContaining({ phase: 'initial_scan', folderQueue: ['folder-c'] })
     );
   });
 });
