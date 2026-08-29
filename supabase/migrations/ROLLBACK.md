@@ -20,6 +20,8 @@ These are forward-only production migrations. Prefer a backup plus a forward fix
 team has connected storage. For an empty isolated development database, reverse the
 feature group in this exact order:
 
+0. `20260830130000_landing_render_refresh.sql`: drop
+   `public.request_landing_render_refresh(uuid, uuid)`.
 0. `20260830120000_transcript_companion_link.sql`: drop
    `public.service_link_transcript_companion(uuid, uuid, uuid, text, text)` and
    `public.service_find_transcript_by_fingerprint(uuid, text)`.

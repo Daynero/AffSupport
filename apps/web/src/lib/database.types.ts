@@ -2377,6 +2377,20 @@ export type Database = {
         };
         Returns: string;
       };
+      request_landing_render_refresh: {
+        Args: { p_team: string; p_material: string };
+        Returns: number;
+      };
+      get_material_transcript_companion: {
+        Args: { p_team: string; p_material: string };
+        Returns: {
+          id: string;
+          name: string;
+          ingest_state: string;
+          has_text: boolean;
+          drive_file_id: string;
+        }[];
+      };
       request_team_catalog_resync: {
         Args: { p_team: string };
         Returns: {

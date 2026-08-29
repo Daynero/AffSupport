@@ -7,6 +7,10 @@ import { MaterialRowMenu } from '../catalog/MaterialRowMenu';
 import type { FolderPickerClient } from '../catalog/FolderPicker';
 import type { MaterialActionsClient } from '../catalog/useMaterialActions';
 import { useExplorer } from './ExplorerProvider';
+import { teamApi } from '../../api/team';
+import { useToasts } from '../../components/toast';
+import { useI18n } from '../../i18n';
+import { teamErrorMessageFor } from '../errors';
 
 /**
  * The per-row actions of the explorer (011, FR-025): the same menu the Files
@@ -36,6 +40,20 @@ export function RowActions({
   row
 }: RowActionsProps & { row: TeamMaterialRow }) {
   const { currentFolderId } = useExplorer();
+  const { push } = useToasts();
+  const { t } = useI18n();
+  const regeneratePreview =
+    row.kind === 'landing'
+      ? async () => {
+          try {
+            await teamApi.regenerateLandingPreview(teamId, row.id);
+            push({ tone: 'success', text: t('teamLandingRegenerateStarted') });
+            onChanged();
+          } catch (cause) {
+            push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+          }
+        }
+      : undefined;
   return (
     <MaterialRowMenu
       teamId={teamId}
@@ -56,6 +74,7 @@ export function RowActions({
       replaceMaterialId={row.id}
       onEditText={row.kind === 'transcript' && onEditText ? () => onEditText(row) : undefined}
       onProcess={onProcess ? () => onProcess(row) : undefined}
+      onRegeneratePreview={regeneratePreview}
     />
   );
 }

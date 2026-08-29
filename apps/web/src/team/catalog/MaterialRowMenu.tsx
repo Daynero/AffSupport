@@ -25,6 +25,7 @@ export interface MaterialRowMenuProps {
   onChanged: () => void;
   onEditText?: () => void;
   onProcess?: () => void;
+  onRegeneratePreview?: () => void;
   storageKind?: TeamAnalyticsStorage | null;
   trashed?: boolean;
   replaceMaterialId?: string | null;
@@ -94,6 +95,7 @@ function MaterialRowMenuContent({
   onChanged,
   onEditText,
   onProcess,
+  onRegeneratePreview,
   storageKind = null,
   trashed = false,
   replaceMaterialId = null,
@@ -209,6 +211,11 @@ function MaterialRowMenuContent({
           {!isFolder && permissions.process && onProcess && (
             <Button type="button" variant="ghost" onClick={onProcess}>
               {t('teamFileProcess')}
+            </Button>
+          )}
+          {!isFolder && permissions.edit && onRegeneratePreview && (
+            <Button type="button" variant="ghost" onClick={onRegeneratePreview}>
+              {t('teamLandingRegenerate')}
             </Button>
           )}
           {!isFolder && permissions.delete && !trashed && (

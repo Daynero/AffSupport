@@ -211,3 +211,41 @@ describe('transcript companion linking (012, T005)', () => {
     ).toEqual([{ ok: false }]);
   }, 60_000);
 });
+
+describe('landing preview refresh (012, T014)', () => {
+  it('marks a landing render stale for the render loop to rebuild', async () => {
+    const landing = await harness.root<{ id: string }>(
+      `insert into public.team_materials
+         (team_id, connection_id, drive_file_id, parent_folder_id, name, kind, category, mime_type,
+          drive_version, checksum)
+       values ($1, $2, 'land-2', 'root', 'promo2.html', 'file', 'landing', 'text/html', 'v1', 'c1')
+       returning id`,
+      [teamId, connectionId]
+    );
+    await harness.root(
+      `insert into public.team_landing_renders
+         (team_id, material_id, preset, source_version, source_checksum, fingerprint,
+          render_state, artifact_root, segment_count)
+       values ($1, $2, 'default', 'v1', 'c1', $3, 'ready', 'art', 1)`,
+      [teamId, landing[0]!.id, 'd'.repeat(64)]
+    );
+    const affected = await harness.asUser<{ request_landing_render_refresh: number }>(
+      OWNER,
+      'select public.request_landing_render_refresh($1, $2)',
+      [teamId, landing[0]!.id]
+    );
+    expect(affected[0]!.request_landing_render_refresh).toBe(1);
+    const state = await harness.root<{ render_state: string; artifact_root: string | null }>(
+      'select render_state, artifact_root from public.team_landing_renders where material_id = $1',
+      [landing[0]!.id]
+    );
+    expect(state[0]).toMatchObject({ render_state: 'stale', artifact_root: null });
+  }, 60_000);
+
+  it('refuses a refresh on a material that is not a landing', async () => {
+    const video = await material('novid.mp4', 'file', 'video');
+    await expect(
+      harness.asUser(OWNER, 'select public.request_landing_render_refresh($1, $2)', [teamId, video])
+    ).rejects.toThrow(/NOT_FOUND/);
+  }, 60_000);
+});

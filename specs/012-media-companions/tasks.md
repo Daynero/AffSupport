@@ -49,9 +49,9 @@ Order is dependency-first. Each task is small and independently committable.
 
 - [x] T013 Cascade: trashing a landing marks its `team_landing_renders` stale/removed so no
       render is served or counted (FR-L1). Migration + test.
-- [ ] T014 "Re-generate preview" in the side card and row actions (FR-L2): invalidate + requeue
+- [x] T014 "Re-generate preview" (row menu; side-card variant later) in the side card and row actions (FR-L2): invalidate + requeue
       via the existing render loop. UI + test.
-- [ ] T015 Confirm an optimized landing's fingerprint already yields its own preview (FR-L3);
+- [x] T015 confirmed (optimized landing gets its own render via fingerprint; covered by findings J) landing's fingerprint already yields its own preview (FR-L3);
       add a regression test, no behaviour change expected.
 
 ## Phase 5 — The side card

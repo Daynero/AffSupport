@@ -1389,6 +1389,14 @@ export const teamApi = {
     };
   },
 
+  async regenerateLandingPreview(teamId: string, materialId: string): Promise<void> {
+    const { error } = await requireSupabaseClient().rpc('request_landing_render_refresh', {
+      p_team: teamId,
+      p_material: materialId
+    });
+    throwRpc(error);
+  },
+
   async resyncDrive(teamId: string): Promise<DriveCatalogResyncResult> {
     const { data, error } = await requireSupabaseClient().rpc('request_team_catalog_resync', {
       p_team: teamId
