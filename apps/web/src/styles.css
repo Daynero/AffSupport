@@ -14406,13 +14406,20 @@ button.team-landing-tile:hover {
   background: var(--color-surface);
   font-size: 0;
 }
+/* Three drawn dots, not a glyph: "···" with letter-spacing carried a trailing
+   space that pushed the group left, and the middle dot sat below the line's
+   centre. A box is centred by the flex button exactly; its shadows are the
+   outer dots. */
 .team-explorer-tile-actions .team-row-menu > button::before {
-  content: '···';
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: 1px;
-  color: var(--color-text);
+  content: '';
+  display: block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--color-text);
+  box-shadow:
+    -6px 0 0 var(--color-text),
+    6px 0 0 var(--color-text);
 }
 .team-explorer-tile-caption {
   display: flex;
