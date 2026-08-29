@@ -1023,6 +1023,31 @@ function parseMutationBody(body: Record<string, unknown>) {
   };
 }
 
+async function withOperationFailure<T>(
+  service: RpcClient,
+  operationId: string,
+  run: () => Promise<T>
+): Promise<T> {
+  try {
+    return await run();
+  } catch (cause) {
+    // A move or rename that reserved a name and then failed must release it,
+    // or the next attempt is refused with a name conflict for a file that is
+    // not there (011, findings M1). Marking the operation failed does that.
+    const mapped = mapUnknownError(cause);
+    await rpcValue(service, 'service_transition_team_operation', {
+      p_operation: operationId,
+      p_state: 'failed',
+      p_stage: 'failed',
+      p_progress: 100,
+      p_result_material: null,
+      p_error_code: mapped.code,
+      p_retryable: mapped.retryable
+    }).catch(() => undefined);
+    throw cause;
+  }
+}
+
 async function startSimpleOperation(input: {
   service: RpcClient;
   teamId: string;
@@ -1121,23 +1146,25 @@ async function handleRename(
     expectedSize: null
   });
   if (authority.reused) return operationRecord(authority);
-  await transitionOperation({
-    service,
-    operationId: authority.operationId,
-    state: 'running',
-    stage: 'renaming',
-    progress: 25
-  });
-  const updated = await client.updateFileMetadata({
-    fileId: live.id,
-    resourceKey: live.resourceKey,
-    name: plan.name
-  });
-  postconditionForMutation('rename', liveTarget(updated), { name: plan.name });
-  return rpcValue(service, 'service_commit_team_material_mutation', {
-    p_operation: authority.operationId,
-    p_actor: actorId,
-    p_drive: mutationResult(updated)
+  return withOperationFailure(service, authority.operationId, async () => {
+    await transitionOperation({
+      service,
+      operationId: authority.operationId,
+      state: 'running',
+      stage: 'renaming',
+      progress: 25
+    });
+    const updated = await client.updateFileMetadata({
+      fileId: live.id,
+      resourceKey: live.resourceKey,
+      name: plan.name
+    });
+    postconditionForMutation('rename', liveTarget(updated), { name: plan.name });
+    return rpcValue(service, 'service_commit_team_material_mutation', {
+      p_operation: authority.operationId,
+      p_actor: actorId,
+      p_drive: mutationResult(updated)
+    });
   });
 }
 
@@ -1237,34 +1264,36 @@ async function handleMove(
     expectedSize: null
   });
   if (authority.reused && authority.state === 'succeeded') return operationRecord(authority);
-  await transitionOperation({
-    service,
-    operationId: authority.operationId,
-    state: 'running',
-    stage: 'moving',
-    progress: 25
-  });
-  const intent = parseLibraryGroupIntent(
-    await rpcValue(service, 'service_create_material_lifecycle_intent', {
-      p_team: common.teamId,
-      p_actor: actorId,
-      p_operation: authority.operationId,
-      p_material: common.materialId,
-      p_action: 'move',
-      p_destination_parent_id: destination.live.id
-    })
-  );
-  if (!intent) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
-  await applyLibraryGroupMutation({
-    service,
-    drive: sourceClient,
-    rootFolderId: source.rootFolderId,
-    intent,
-    destinationFolderId: destination.live.id,
-    sourceName: plan.name
-  });
-  return rpcValue(service, 'service_complete_material_group_intent', {
-    p_intent: intent.intentId
+  return withOperationFailure(service, authority.operationId, async () => {
+    await transitionOperation({
+      service,
+      operationId: authority.operationId,
+      state: 'running',
+      stage: 'moving',
+      progress: 25
+    });
+    const intent = parseLibraryGroupIntent(
+      await rpcValue(service, 'service_create_material_lifecycle_intent', {
+        p_team: common.teamId,
+        p_actor: actorId,
+        p_operation: authority.operationId,
+        p_material: common.materialId,
+        p_action: 'move',
+        p_destination_parent_id: destination.live.id
+      })
+    );
+    if (!intent) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+    await applyLibraryGroupMutation({
+      service,
+      drive: sourceClient,
+      rootFolderId: source.rootFolderId,
+      intent,
+      destinationFolderId: destination.live.id,
+      sourceName: plan.name
+    });
+    return rpcValue(service, 'service_complete_material_group_intent', {
+      p_intent: intent.intentId
+    });
   });
 }
 

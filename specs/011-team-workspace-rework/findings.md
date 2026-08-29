@@ -286,6 +286,26 @@ non-idempotent retry; needs a clean repro), a modified date in previews and tile
 Google-Drive-style list (a Date column, a sort menu, a "Тип" filter dropdown replacing the
 kind chips).
 
+## M — the drag-into-folder error (2026-08-30)
+
+Dragging a file onto a folder failed with "something went wrong", and the second try was
+refused with "a file with that name already exists" — for a file that was not there.
+
+**Cause (M1).** A move reserves the destination name through `service_start_team_operation`,
+which holds it on a unique index until the operation ends or fifteen minutes pass. Nothing
+marked a _failed_ move failed: `handleMove` let the error propagate and the operation stayed
+`running` with the name still reserved. The retry — a new drag, so a new idempotency key —
+tried to reserve the same name and hit the index: `NAME_CONFLICT`, surfaced as "file exists".
+
+**Fix.** `withOperationFailure` wraps the move and rename mutations: on any error it transitions
+the operation to `failed` (which `service_transition_team_operation` already made release the
+reservation) before re-raising, so the next attempt reserves the name cleanly.
+`tests/team-operation-reservation-sql.test.ts` pins the contract: the reservation blocks a
+second attempt while held, and a `failed` transition frees it.
+
+The _first_ error ("something went wrong") still wants a clean repro to name its own cause —
+the reservation fix makes the retry work regardless of what tripped the first attempt.
+
 ### Still to run (needs the owner)
 
 Done so far under T076: the beta OAuth client (`soty-beta`, `drive.file`,
