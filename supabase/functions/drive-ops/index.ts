@@ -188,6 +188,20 @@ function safeInteger(value: unknown): number | null {
     : null;
 }
 
+/** Provider file ids are opaque; this only refuses what could not be one. */
+const PROVIDER_FOLDER_ID = /^[\w-]{6,256}$/u;
+
+/**
+ * A destination named as a material id, as the provider's folder id, or not
+ * named at all — the last meaning the space root, which is not a material.
+ */
+function optionalDestination(value: unknown): string | null {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string') throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+  if (parseUuid(value).ok || PROVIDER_FOLDER_ID.test(value)) return value;
+  throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+}
+
 function requireUuid(value: unknown): string {
   const parsed = parseUuid(value);
   if (!parsed.ok) throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
@@ -341,6 +355,99 @@ async function driveClient(service: RpcClient, credentialId: string, request: Re
   }
 }
 
+/**
+ * Where an operation is going.
+ *
+ * A destination is usually a folder the catalog knows, and is named by its
+ * material id. The space's own root is not a material — catalog-sync keeps it
+ * out on purpose — so it is named by the provider's folder id instead and
+ * carries no `materialId`. Everything downstream needs the same four things
+ * either way: which folder, whose credential, which connection, and the root
+ * the operation must stay inside.
+ */
+interface DestinationContext {
+  materialId: string | null;
+  driveFolderId: string;
+  connectionId: string;
+  credentialId: string;
+  rootFolderId: string;
+  resourceKey: string | null;
+}
+
+async function rootDestination(input: {
+  service: RpcClient;
+  teamId: string;
+  actorId: string;
+  permission: string;
+}): Promise<DestinationContext> {
+  const row = firstRecord(
+    await rpcValue(input.service, 'service_get_root_operation_context', {
+      p_team: input.teamId,
+      p_actor: input.actorId,
+      p_permission: input.permission
+    })
+  );
+  const driveFolderId = row ? stringValue(row, 'root_folder_id') : null;
+  const connectionId = row ? stringValue(row, 'connection_id') : null;
+  const credentialId = row ? stringValue(row, 'credential_id') : null;
+  if (!row || !driveFolderId || !connectionId || !credentialId) {
+    throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+  }
+  return {
+    materialId: null,
+    driveFolderId,
+    connectionId,
+    credentialId,
+    rootFolderId: driveFolderId,
+    resourceKey: stringValue(row, 'root_resource_key')
+  };
+}
+
+/**
+ * Accepts a material id, a provider folder id, or nothing at all — the last two
+ * both meaning "the space root" when they name it. The explorer navigates by
+ * provider ids, so it could not otherwise say where a file should go.
+ */
+async function loadDestination(input: {
+  service: RpcClient;
+  teamId: string;
+  actorId: string;
+  permission: string;
+  destination: string | null;
+}): Promise<DestinationContext> {
+  if (!input.destination) return rootDestination(input);
+  if (parseUuid(input.destination).ok) {
+    const context = await loadContext({
+      service: input.service,
+      teamId: input.teamId,
+      materialId: input.destination,
+      actorId: input.actorId,
+      permission: input.permission
+    });
+    return {
+      materialId: context.id,
+      driveFolderId: context.driveFileId,
+      connectionId: context.connectionId,
+      credentialId: context.credentialId,
+      rootFolderId: context.rootFolderId,
+      resourceKey: context.resourceKey
+    };
+  }
+  const root = await rootDestination(input);
+  if (input.destination === root.driveFolderId) return root;
+  const folder = firstRecord(
+    await rpcValue(input.service, 'service_resolve_team_folder', {
+      p_team: input.teamId,
+      p_actor: input.actorId,
+      p_drive_folder_id: input.destination,
+      p_permission: input.permission
+    })
+  );
+  const materialId = folder ? stringValue(folder, 'material_id') : null;
+  if (!materialId) throw new TeamFunctionError('NOT_FOUND', { retryable: false });
+  return loadDestination({ ...input, destination: materialId });
+}
+
 async function loadContext(input: {
   service: RpcClient;
   teamId: string;
@@ -388,6 +495,24 @@ async function proveContext(
     rootFolderId: context.rootFolderId,
     resourceKey: context.resourceKey,
     allowTrashedTarget
+  });
+}
+
+/**
+ * The same ancestry proof for a destination that may be the root. Proving the
+ * root against itself is trivially true, so it is fetched directly rather than
+ * walked — every other folder is still walked up to the root as before.
+ */
+async function proveDestination(destination: DestinationContext, client: GoogleDriveClient) {
+  if (destination.materialId === null) {
+    return client.getFile(destination.driveFolderId, destination.resourceKey);
+  }
+  return proveLiveAncestry({
+    client,
+    fileId: destination.driveFolderId,
+    rootFolderId: destination.rootFolderId,
+    resourceKey: destination.resourceKey,
+    allowTrashedTarget: false
   });
 }
 
@@ -495,13 +620,14 @@ async function nameCandidates(
 async function exactCatalogConflicts(input: {
   service: RpcClient;
   teamId: string;
-  destinationFolderId: string;
+  /** The provider's folder id, so the space root — which has no material — counts. */
+  destinationDriveFolderId: string;
   actorId: string;
   name: string;
 }) {
-  const value = await rpcValue(input.service, 'service_find_team_name_conflicts', {
+  const value = await rpcValue(input.service, 'service_find_team_name_conflicts_in_folder', {
     p_team: input.teamId,
-    p_destination_folder: input.destinationFolderId,
+    p_drive_folder_id: input.destinationDriveFolderId,
     p_actor: input.actorId,
     p_reserved_name_key: normalizeReservedName(input.name)
   });
@@ -578,15 +704,15 @@ async function handleUploadStart(
   actorId: string
 ) {
   const upload = validateUploadStartRequest(body);
-  const destination = await loadContext({
+  const destination = await loadDestination({
     service,
     teamId: upload.teamId,
-    materialId: upload.destinationFolderId,
     actorId,
-    permission: 'upload'
+    permission: 'upload',
+    destination: upload.destinationFolderId
   });
   const destinationDrive = await driveClient(service, destination.credentialId, request);
-  const liveDestination = await proveContext(destination, destinationDrive);
+  const liveDestination = await proveDestination(destination, destinationDrive);
   if (liveDestination.mimeType !== 'application/vnd.google-apps.folder') {
     throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
   }
@@ -596,7 +722,7 @@ async function handleUploadStart(
   const catalogConflicts = await exactCatalogConflicts({
     service,
     teamId: upload.teamId,
-    destinationFolderId: upload.destinationFolderId,
+    destinationDriveFolderId: destination.driveFolderId,
     actorId,
     name: upload.name
   });
@@ -657,7 +783,8 @@ async function handleUploadStart(
     idempotencyKey: upload.idempotencyKey,
     requestNonce: requestNonce(upload.idempotencyKey),
     sourceMaterialId: upload.versionOfMaterialId,
-    destinationFolderId: upload.destinationFolderId,
+    // Null when the destination is the space root, which has no material.
+    destinationFolderId: destination.materialId,
     reservedNameKey: plan.reservationKey,
     reservationExpiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
     bytesTotal: upload.sizeBytes
@@ -908,16 +1035,17 @@ async function handleRename(
     permission: 'edit'
   });
   if (!source.parentFolderId) throw new TeamFunctionError('ROOT_ESCAPE', { retryable: false });
-  const folder = firstRecord(
-    await rpcValue(service, 'service_resolve_team_folder', {
-      p_team: common.teamId,
-      p_actor: actorId,
-      p_drive_folder_id: source.parentFolderId,
-      p_permission: 'edit'
-    })
-  );
-  const folderId = folder ? stringValue(folder, 'material_id') : null;
-  if (!folderId) throw new TeamFunctionError('ROOT_ESCAPE', { retryable: false });
+  // A file directly in the space root has a parent the catalog does not store,
+  // and asking for its material id came back empty — so renaming anything at
+  // the top level was refused as if it were trying to escape the root.
+  const parent = await loadDestination({
+    service,
+    teamId: common.teamId,
+    actorId,
+    permission: 'edit',
+    destination: source.parentFolderId
+  });
+  const folderId = parent.materialId;
   const client = await driveClient(service, source.credentialId, request);
   const live = await proveContext(source, client);
   validateLiveMutationTarget({
@@ -983,19 +1111,20 @@ async function destinationWithClient(input: {
   request: Request;
   service: RpcClient;
   teamId: string;
-  destinationFolderId: string;
+  /** Material id, provider folder id, or null for the space root. */
+  destinationFolderId: string | null;
   actorId: string;
   permission: 'edit' | 'upload' | 'process' | 'delete';
 }) {
-  const context = await loadContext({
+  const context = await loadDestination({
     service: input.service,
     teamId: input.teamId,
-    materialId: input.destinationFolderId,
     actorId: input.actorId,
-    permission: input.permission
+    permission: input.permission,
+    destination: input.destinationFolderId
   });
   const client = await driveClient(input.service, context.credentialId, input.request);
-  const live = await proveContext(context, client);
+  const live = await proveDestination(context, client);
   if (live.mimeType !== 'application/vnd.google-apps.folder') {
     throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
   }
@@ -1010,7 +1139,10 @@ async function handleMove(
   actorId: string
 ) {
   const common = parseMutationBody(body);
-  const destinationFolderId = requireUuid(body.destinationFolderId);
+  // Material id, provider folder id, or absent for the space root — the
+  // explorer navigates by provider ids, and moving a file back to the root is
+  // an ordinary thing to want.
+  const destinationFolderId = optionalDestination(body.destinationFolderId);
   const conflictMode = parseEnum(body.conflictMode, ['cancel', 'keep_both'] as const);
   if (!conflictMode.ok) throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
   const source = await loadContext({
@@ -1041,7 +1173,7 @@ async function handleMove(
   const plan = buildUploadConflictPlan(
     {
       teamId: common.teamId,
-      destinationFolderId,
+      destinationFolderId: destination.context.materialId,
       name: source.name,
       mimeType: source.mimeType ?? 'application/octet-stream',
       sizeBytes: source.sizeBytes ?? 0,
@@ -1059,7 +1191,7 @@ async function handleMove(
     kind: 'move',
     idempotencyKey: common.idempotencyKey,
     sourceMaterialId: common.materialId,
-    destinationFolderId,
+    destinationFolderId: destination.context.materialId,
     reservedNameKey: plan.reservationKey
   });
   await bindIntent({
@@ -1349,7 +1481,7 @@ async function handleProcessStart(
     permission: 'process'
   });
   if (!source.category || !tool.categories.includes(source.category)) {
-    throw new TeamFunctionError('UNSUPPORTED_MEDIA', { retryable: false });
+    throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
   }
   if (source.sizeBytes === null || source.sizeBytes > AGENT_INTAKE_MAX_BYTES) {
     throw new TeamFunctionError('TOO_LARGE', { retryable: false });

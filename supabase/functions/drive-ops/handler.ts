@@ -12,7 +12,13 @@ export type ConflictMode = 'cancel' | 'keep_both' | 'replace';
 
 export interface UploadStartRequest {
   teamId: string;
-  destinationFolderId: string;
+  /**
+   * A catalog folder's material id, the provider's own folder id, or null for
+   * the space root — which is not a material, so it has no id of the first
+   * kind. The explorer navigates by provider ids and could not otherwise say
+   * where a file belongs.
+   */
+  destinationFolderId: string | null;
   name: string;
   mimeType: string;
   sizeBytes: number;
@@ -86,6 +92,16 @@ function optionalUuid(value: unknown): string | null {
   return requiredUuid(value);
 }
 
+/** Provider file ids are opaque; this only refuses what could not be one. */
+const PROVIDER_ID = /^[\w-]{6,256}$/u;
+
+/** A destination is a material id, a provider folder id, or the root. */
+function destinationId(value: unknown): string | null {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string' || (!UUID.test(value) && !PROVIDER_ID.test(value))) inputError();
+  return value;
+}
+
 export function displayDriveName(value: unknown): string {
   if (typeof value !== 'string') inputError();
   const normalized = value.normalize('NFC').trim().replace(/\s+/gu, ' ');
@@ -131,7 +147,7 @@ export function validateUploadStartRequest(value: unknown): UploadStartRequest {
   if (versionOfMaterialId && (conflictMode === 'replace' || replaceMaterialId)) inputError();
   return {
     teamId: requiredUuid(value.teamId),
-    destinationFolderId: requiredUuid(value.destinationFolderId),
+    destinationFolderId: destinationId(value.destinationFolderId),
     name: displayDriveName(value.name),
     mimeType,
     sizeBytes: sizeBytes as number,

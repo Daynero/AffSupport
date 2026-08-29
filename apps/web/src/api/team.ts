@@ -340,7 +340,8 @@ export interface TeamOperationSnapshot {
 
 export interface TeamUploadStartInput {
   teamId: string;
-  destinationFolderId: string;
+  /** The folder's provider id, or null for the space root. */
+  destinationFolderId: string | null;
   name: string;
   mimeType: string;
   sizeBytes: number;
@@ -1862,7 +1863,8 @@ export const teamApi = {
   async moveMaterial(input: {
     teamId: string;
     materialId: string;
-    destinationFolderId: string;
+    /** The folder's provider id, or null for the space root. */
+    destinationFolderId: string | null;
     conflictMode: 'cancel' | 'keep_both';
     idempotencyKey: string;
   }): Promise<TeamFileOperationResult> {

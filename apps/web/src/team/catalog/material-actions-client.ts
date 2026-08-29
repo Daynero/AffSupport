@@ -5,7 +5,8 @@ import { resumableUpload } from '../drive/resumableUpload';
 
 export interface TeamFileUploadInput {
   teamId: string;
-  destinationFolderId: string;
+  /** The folder's provider id, or null for the space root. */
+  destinationFolderId: string | null;
   file: File;
   conflictMode: 'cancel' | 'keep_both' | 'replace';
   replaceMaterialId: string | null;
@@ -38,7 +39,8 @@ export interface MaterialActionsClient {
   moveMaterial(input: {
     teamId: string;
     materialId: string;
-    destinationFolderId: string;
+    /** The folder's provider id, or null for the space root. */
+    destinationFolderId: string | null;
     conflictMode: 'cancel' | 'keep_both';
     idempotencyKey: string;
   }): Promise<TeamFileOperationResult>;

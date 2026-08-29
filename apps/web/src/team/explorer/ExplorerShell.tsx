@@ -246,11 +246,11 @@ function ExplorerBody({
     async (files: FileList | File[]) => {
       const list = Array.from(files);
       if (list.length === 0 || !permissions?.upload) return;
-      const destination = currentFolderId ?? rootFolderId(explorer);
-      if (!destination) {
-        push({ tone: 'error', text: t('teamDriveUnavailable') });
-        return;
-      }
+      // No folder open means the space root, which the server resolves from the
+      // connection. Inferring it from the first top-level folder refused every
+      // upload into an empty space — with a message about Drive being
+      // unavailable, which it was not.
+      const destination = currentFolderId;
       let done = 0;
       for (const file of list) {
         try {
@@ -523,12 +523,6 @@ function rememberView(view: ExplorerView): void {
   } catch {
     // A browser that refuses storage still gets the address.
   }
-}
-
-/** The root's provider id is the parent of any top-level folder. */
-function rootFolderId(explorer: ReturnType<typeof useExplorer>): string | null {
-  const first = explorer.topLevelIds[0];
-  return first ? (explorer.nodeOf(first)?.parentFolderId ?? null) : null;
 }
 
 function gridColumns(element: HTMLElement): number {

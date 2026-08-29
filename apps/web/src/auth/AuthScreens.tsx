@@ -36,17 +36,10 @@ export function AuthLoadingScreen({ callback = false }: { callback?: boolean }) 
 export function ConfigErrorScreen() {
   const { t } = useI18n();
   return (
-    <main className="auth-state-screen auth-error-screen">
+    <main className="auth-state-screen auth-error-screen" role="status" aria-live="polite">
       <SotyMark size={42} />
       <h1>{t('authConfigTitle')}</h1>
       <p>{t('authConfigBody')}</p>
-      {!publicConfig.ok && (
-        <ul>
-          {publicConfig.errors.map(error => (
-            <li key={error}>{error}</li>
-          ))}
-        </ul>
-      )}
       <small>{t('authConfigHint')}</small>
     </main>
   );

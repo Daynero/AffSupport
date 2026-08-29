@@ -96,6 +96,42 @@ inside Google's iframe clear the selection instead of confirming it. Two human c
 (a folder, then Select) finish it, after which the indexing, tree, thumbnails and preview
 rows of §2–§3 can be checked.
 
+### First real connection, 2026-08-29 — the space root could not be named
+
+With a live Google account the whole connect path worked on the first try: consent,
+callback, `choose_root`, the initial scan (`sync=ready`, phase moved to `incremental`),
+and the chip settling on "Storage up to date". The picked folder was empty, so the next
+thing to try was putting something in it — and nothing could be.
+
+The connected root is deliberately **not a material**; catalog-sync says so in as many
+words. Every file operation, though, identified its destination or its parent by material
+id, so the one folder the explorer opens on could not be named. Uploading into the space
+root, moving a file back to it, and renaming anything sitting directly in it were all
+impossible — and 011 made the root the primary screen, so this went from an edge case to
+the common one. It hid behind five separate layers, each of which had to be found by
+provoking the next:
+
+| Layer | What refused                                                                                                                                                                                                                        | Fix                                                                                                                                                                                       |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| E1    | The web upload never reached the server at all: the explorer inferred the root's id from the first top-level folder's parent, which an empty space does not have, and refused with "Google Drive is unavailable" — which it was not | `ExplorerShell.tsx`: no open folder means the root, and the server resolves it                                                                                                            |
+| E2    | `validateUploadStartRequest` demanded a uuid, but the explorer navigates by provider ids                                                                                                                                            | `drive-ops/handler.ts`: a destination is a material id, a provider folder id, or absent                                                                                                   |
+| E3    | `handleUploadStart` / `handleMove` / `handleRename` loaded the destination and the parent as materials; renaming a top-level file failed with `ROOT_ESCAPE`, which reads as a security refusal                                      | `drive-ops/index.ts`: one resolver that accepts all three forms, plus `service_get_root_operation_context` and a conflict lookup keyed by provider folder id (migration `20260829110000`) |
+| E4    | `service_start_team_operation` refused a name reservation without a destination material                                                                                                                                            | migration `20260829120000`                                                                                                                                                                |
+| E5    | `team_operations_reservation_check` said the same thing at the table level                                                                                                                                                          | same migration; the reservation index folds the root into one key with `coalesce`, so two people uploading the same name into the root still collide                                      |
+
+After those, `uploads/start` for the root answers `202` with a live resumable session — the
+server half of an upload works.
+
+**Where it stops, precisely.** The browser then PUTs the bytes straight to the session URI
+and the request never leaves: `TypeError: Failed to fetch`, a CORS refusal. The session is
+created server-side without an `Origin` header (`_shared/drive.ts`), so Google will not
+accept a browser PUT against it — in production as much as here. The design already has the
+answer: `uploads/start` returns a `relayUrl`, and the relay endpoint responds through the
+public function URL. But `resumableUpload` never uses it, and `relayEndpoint` builds the URL
+from the request as the container sees it (`127.0.0.1:8081`), which no browser can reach.
+Wiring the client to the relay and giving the relay a public-facing URL is the next piece;
+it belongs to the transfer design (010) rather than to this feature.
+
 ### Still to run (needs the owner)
 
 | Item                                                                      | Task  |
