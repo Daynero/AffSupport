@@ -122,15 +122,24 @@ provoking the next:
 After those, `uploads/start` for the root answers `202` with a live resumable session — the
 server half of an upload works.
 
-**Where it stops, precisely.** The browser then PUTs the bytes straight to the session URI
-and the request never leaves: `TypeError: Failed to fetch`, a CORS refusal. The session is
-created server-side without an `Origin` header (`_shared/drive.ts`), so Google will not
-accept a browser PUT against it — in production as much as here. The design already has the
-answer: `uploads/start` returns a `relayUrl`, and the relay endpoint responds through the
-public function URL. But `resumableUpload` never uses it, and `relayEndpoint` builds the URL
-from the request as the container sees it (`127.0.0.1:8081`), which no browser can reach.
-Wiring the client to the relay and giving the relay a public-facing URL is the next piece;
-it belongs to the transfer design (010) rather than to this feature.
+### Uploads reach Drive, 2026-08-29
+
+The browser's PUT to the resumable session was refused by CORS: the session is opened
+server-side with no `Origin`, so no tab can use it directly — in production as much as here.
+The design already answered that with a relay, which turned out never to have been wired up,
+and behind it two payload contracts that had never matched.
+
+| #   | What refused                                                                                                                                                                                                                                          | Fix                                                                                                                                                     |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1  | The client PUT straight at the provider and ignored the `relayUrl` the start call returns                                                                                                                                                             | `resumableUpload` takes a `sendChunk`; the upload sends every chunk through the relay                                                                   |
+| F2  | The relay's address was built from the request as the container sees it (`127.0.0.1:8081`)                                                                                                                                                            | the browser builds it from the public address, the way render ranges already do; the function still prefers forwarded headers when a gateway sends them |
+| F3  | The relay took only `POST`, and refused a browser chunk for want of a `content-length` it is not allowed to set                                                                                                                                       | the check applies when the header is there; the bounded reader already holds the body to the declared range                                             |
+| F4  | The relay and the finalize step both demanded a destination material, so a root upload died at the last step                                                                                                                                          | both resolve the destination the same way as the rest of the function                                                                                   |
+| F5  | `service_finalize_uploaded_material` rejected `classificationVersion`, a key the Edge always sent and the function never accepted — so **no upload has ever been committed by finalize**; files appeared only when the next catalog scan noticed them | migration `20260829130000` also finalises into the root; the Edge sends what the command accepts                                                        |
+| F6  | The same mismatch, larger: `service_commit_team_material_mutation` accepts seven keys and was sent fifteen, so **every rename and move failed** with "some of the data is wrong"                                                                      | a payload built for that command                                                                                                                        |
+
+Verified on the beta stack: uploading a file through the app reports "1 file uploaded" and the
+file appears in the space; `drive-ops/rename` answers `succeeded`.
 
 ### Still to run (needs the owner)
 

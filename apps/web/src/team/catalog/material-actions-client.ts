@@ -58,6 +58,22 @@ export interface MaterialActionsClient {
 }
 
 /**
+ * What the provider says it has after an incomplete chunk. Google reports the
+ * bytes it holds as `bytes=0-N`; without that header the safest reading is that
+ * the chunk landed whole.
+ */
+function nextOffsetFrom(
+  receivedRange: string | null,
+  chunk: { offset: number; endExclusive: number }
+): number {
+  const match = /^bytes=0-(\d+)$/u.exec(receivedRange ?? '');
+  if (!match) return chunk.endExclusive;
+  const received = Number(match[1]);
+  if (!Number.isSafeInteger(received) || received < chunk.offset) return chunk.endExclusive;
+  return Math.min(received + 1, chunk.endExclusive);
+}
+
+/**
  * One upload, start to finish. The idempotency key is minted here and reused by
  * the resumable transfer and its finalize call, so a retry of an interrupted
  * upload resumes rather than duplicating the file.
@@ -76,11 +92,28 @@ export async function uploadTeamFile(input: TeamFileUploadInput) {
     idempotencyKey
   });
   if (!session.sessionUri || session.sessionUnavailable) throw new Error('WRONG_STATE');
+  const sessionUri = session.sessionUri;
+  const relayUrl = teamApi.uploadRelayUrl(session.operationId);
   return resumableUpload({
     source: input.file,
-    sessionUri: session.sessionUri,
+    sessionUri,
     operationId: session.operationId,
     idempotencyKey,
+    // The session is opened server-side and carries no browser origin, so the
+    // bytes go through the relay rather than straight at the provider.
+    sendChunk: async chunk => {
+      const outcome = await teamApi.relayUploadChunk({
+        relayUrl,
+        sessionUri,
+        contentRange: `bytes ${chunk.offset}-${chunk.endExclusive - 1}/${chunk.totalBytes}`,
+        chunk: chunk.chunk,
+        signal: chunk.signal
+      });
+      if (outcome.complete && outcome.driveFileId) {
+        return { complete: true, driveFileId: outcome.driveFileId };
+      }
+      return { complete: false, nextOffset: nextOffsetFrom(outcome.receivedRange, chunk) };
+    },
     finalize: teamApi.finalizeUpload
   });
 }

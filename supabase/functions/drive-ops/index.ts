@@ -1,7 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
   AGENT_INTAKE_MAX_BYTES,
-  MATERIAL_CLASSIFIER_VERSION,
   RANGE_REQUEST_MAX_BYTES,
   TEAM_ERROR_CODES,
   TRANSCRIPT_INDEX_MAX_BYTES,
@@ -530,6 +529,27 @@ function extensionOf(name: string): string | null {
   return dot > 0 && dot < leaf.length - 1 ? leaf.slice(dot + 1).toLocaleLowerCase('en-US') : null;
 }
 
+/**
+ * What a mutation commit accepts — and only that.
+ *
+ * The upload result carries everything the catalog needs to describe a new
+ * file; a rename or a move changes a row that already exists, so its command
+ * takes a much shorter list and refuses anything else outright. Sending the
+ * long shape at it failed every rename and move with "some of the data is
+ * wrong", which is true but says nothing about whose data.
+ */
+function mutationResult(metadata: DriveFileMetadata) {
+  return {
+    driveFileId: metadata.id,
+    name: metadata.name,
+    parentFolderId: metadata.parents[0] ?? null,
+    driveVersion: metadata.version,
+    checksum: metadata.checksum,
+    sizeBytes: metadata.size,
+    trashed: metadata.trashed
+  };
+}
+
 function driveResult(metadata: DriveFileMetadata) {
   const classification = classifyMaterial({
     kind: 'file',
@@ -548,7 +568,6 @@ function driveResult(metadata: DriveFileMetadata) {
     kind: 'file',
     category: classification.category,
     classificationSource: classification.source,
-    classificationVersion: MATERIAL_CLASSIFIER_VERSION,
     sizeBytes: metadata.size,
     modifiedAt: metadata.modifiedAt,
     driveVersion: metadata.version,
@@ -683,6 +702,20 @@ async function bindSource(
 
 function relayEndpoint(request: Request, operationId: string) {
   const url = new URL(request.url);
+  /**
+   * The gateway terminates the caller's request and forwards it here on an
+   * internal address, so the URL this function sees is one no browser can
+   * reach — the relay was advertised as `127.0.0.1:8081`, which is the runtime
+   * talking to itself. The forwarded headers carry the address the caller
+   * actually used; without them the request came in directly and its own URL
+   * is right.
+   */
+  const forwardedHost = request.headers.get('x-forwarded-host');
+  if (forwardedHost) {
+    const forwardedProto = request.headers.get('x-forwarded-proto');
+    url.protocol = `${forwardedProto ?? url.protocol.replace(':', '')}:`;
+    url.host = forwardedHost;
+  }
   url.search = '';
   url.hash = '';
   url.pathname = `${url.pathname.replace(/\/uploads\/start.*$/u, '').replace(/\/$/u, '')}/uploads/${operationId}/relay`;
@@ -918,18 +951,19 @@ async function handleUploadFinalize(
       reused: true
     };
   }
-  if (!operation.destinationFolderId || !operation.expectedName) {
+  // A null destination is the space root, which has no material to name.
+  if (!operation.expectedName) {
     throw new TeamFunctionError('WRONG_STATE', { retryable: false });
   }
-  const destination = await loadContext({
+  const destination = await loadDestination({
     service,
     teamId: operation.teamId,
-    materialId: operation.destinationFolderId,
     actorId,
-    permission: operation.kind === 'process' ? 'process' : 'upload'
+    permission: operation.kind === 'process' ? 'process' : 'upload',
+    destination: operation.destinationFolderId
   });
   const client = await driveClient(service, destination.credentialId, request);
-  const liveDestination = await proveContext(destination, client);
+  const liveDestination = await proveDestination(destination, client);
   requireDriveCapability(liveDestination, 'canAddChildren');
   const result = await proveLiveAncestry({
     client,
@@ -1103,7 +1137,7 @@ async function handleRename(
   return rpcValue(service, 'service_commit_team_material_mutation', {
     p_operation: authority.operationId,
     p_actor: actorId,
-    p_drive: { ...driveResult(updated), trashed: updated.trashed }
+    p_drive: mutationResult(updated)
   });
 }
 
@@ -1740,30 +1774,39 @@ async function handleRelay(
   actorId: string
 ) {
   const operation = await getOperation(service, operationId, actorId);
+  // A null destination is the space root, which is not a material — refusing it
+  // here would have made the relay the one place a root upload could not go.
   if (
     !['upload', 'new_version'].includes(operation.kind) ||
     operation.state !== 'running' ||
-    operation.expectedSize === null ||
-    !operation.destinationFolderId
+    operation.expectedSize === null
   ) {
     throw new TeamFunctionError('WRONG_STATE', { retryable: false });
   }
   const sessionUri = request.headers.get('x-wishly-upload-session');
   if (!sessionUri) throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
   const range = parseRelayRange(request.headers.get('content-range'), operation.expectedSize);
+  /**
+   * `content-length` is a forbidden header in a browser: a tab cannot set it,
+   * and a gateway may stream the body without one, so demanding that it match
+   * refused every upload made from the app. The range still says how many bytes
+   * are expected, and `boundedRequestBody` below holds the body to exactly that
+   * — so the header is checked when it is there and trusted to nothing when it
+   * is not.
+   */
   const declaredLength = safeInteger(request.headers.get('content-length'));
-  if (declaredLength !== range.length) {
+  if (declaredLength !== null && declaredLength !== range.length) {
     throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
   }
-  const destination = await loadContext({
+  const destination = await loadDestination({
     service,
     teamId: operation.teamId,
-    materialId: operation.destinationFolderId,
     actorId,
-    permission: 'upload'
+    permission: 'upload',
+    destination: operation.destinationFolderId
   });
   const client = await driveClient(service, destination.credentialId, request);
-  await proveContext(destination, client);
+  await proveDestination(destination, client);
   const response = await client.relayResumableChunk({
     sessionUri,
     contentRange: request.headers.get('content-range') ?? '',

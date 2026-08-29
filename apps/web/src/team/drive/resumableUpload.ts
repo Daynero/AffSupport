@@ -108,9 +108,31 @@ async function queryOffset(input: {
   };
 }
 
+/**
+ * Sends one chunk and says what the provider did with it.
+ *
+ * A resumable session opened by the server carries no browser origin, so a
+ * `PUT` straight to it is refused before it leaves the tab. Every chunk goes
+ * through the relay the start call hands back, which forwards it under the
+ * team's own credential; the shape below is all the upload loop needs to know
+ * about either route.
+ */
+export type ChunkOutcome =
+  { complete: true; driveFileId: string } | { complete: false; nextOffset: number };
+
+export type SendChunk = (input: {
+  chunk: Blob;
+  offset: number;
+  endExclusive: number;
+  totalBytes: number;
+  signal?: AbortSignal;
+}) => Promise<ChunkOutcome>;
+
 export interface ResumableUploadInput<TFinalize> {
   source: Blob;
   sessionUri: string;
+  /** Sends the bytes. Without one the chunk goes straight to the session. */
+  sendChunk?: SendChunk;
   operationId: string;
   idempotencyKey: string;
   chunkBytes?: number;
@@ -160,8 +182,29 @@ export async function resumableUpload<TFinalize>(
       'content-length': String(chunk.size),
       'content-range': `bytes ${offset}-${endExclusive - 1}/${input.source.size}`
     });
-    let response: Response;
+    let response: Response | null;
     try {
+      if (input.sendChunk) {
+        const outcome = await input.sendChunk({
+          chunk,
+          offset,
+          endExclusive,
+          totalBytes: input.source.size,
+          signal: input.signal
+        });
+        if (outcome.complete) {
+          driveFileId = outcome.driveFileId;
+          offset = input.source.size;
+          input.onProgress?.(offset, input.source.size);
+          continue;
+        }
+        if (outcome.nextOffset <= offset || outcome.nextOffset > endExclusive) {
+          throw uploadError('INVALID_RESPONSE');
+        }
+        offset = outcome.nextOffset;
+        input.onProgress?.(offset, input.source.size);
+        continue;
+      }
       response = await fetchImpl(input.sessionUri, {
         method: 'PUT',
         headers,
@@ -172,8 +215,12 @@ export async function resumableUpload<TFinalize>(
       });
     } catch (error) {
       if (input.signal?.aborted) throw input.signal.reason ?? uploadError('CANCELED', error);
+      if (error instanceof Error && error.message === 'INVALID_RESPONSE') throw error;
       if (recoveries >= maximumRecoveryQueries) throw uploadError('DRIVE_UNAVAILABLE', error);
       recoveries += 1;
+      // Through the relay the provider is not reachable for an offset query, and
+      // re-sending the same range is what a resumable session expects anyway.
+      if (input.sendChunk) continue;
       const recovered = await queryOffset({
         fetchImpl,
         sessionUri: input.sessionUri,
@@ -188,6 +235,7 @@ export async function resumableUpload<TFinalize>(
       continue;
     }
 
+    if (!response) continue;
     if (response.status === 308) {
       const nextOffset = parseResumableOffset(response.status, response.headers, input.source.size);
       if (nextOffset <= offset || nextOffset > endExclusive) throw uploadError('INVALID_RESPONSE');

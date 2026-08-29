@@ -1834,6 +1834,70 @@ export const teamApi = {
     return parsed;
   },
 
+  /**
+   * Sends one chunk through the upload relay.
+   *
+   * The resumable session Google hands back is opened by the server, with no
+   * browser origin attached, so a `PUT` from a tab is refused before it leaves.
+   * The relay forwards the same bytes under the team's own credential; the
+   * session address travels in a header and is never persisted or logged.
+   */
+  /**
+   * Where this browser reaches the upload relay. Built here from the public
+   * address, the way render ranges already are: the function itself sits behind
+   * a gateway and sees only an internal host, so the address it reports is one
+   * no tab can use.
+   */
+  uploadRelayUrl(operationId: string): string {
+    if (!publicConfig.ok) throw new TeamApiError('INVALID_RESPONSE', false);
+    return `${publicConfig.value.supabaseUrl}/functions/v1/drive-ops/uploads/${encodeURIComponent(operationId)}/relay`;
+  },
+
+  async relayUploadChunk(input: {
+    relayUrl: string;
+    sessionUri: string;
+    contentRange: string;
+    chunk: Blob;
+    signal?: AbortSignal;
+  }): Promise<{ complete: boolean; driveFileId: string | null; receivedRange: string | null }> {
+    if (!publicConfig.ok) throw new TeamApiError('INVALID_RESPONSE', false);
+    const { data } = await requireSupabaseClient().auth.getSession();
+    const accessToken = data.session?.access_token;
+    if (!accessToken) throw new TeamApiError('AUTH_REQUIRED', false);
+    let response: Response;
+    try {
+      response = await fetch(input.relayUrl, {
+        // The function takes POST for every route, relay included.
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${accessToken}`,
+          apikey: publicConfig.value.supabasePublishableKey,
+          'content-type': 'application/octet-stream',
+          'content-range': input.contentRange,
+          'x-wishly-upload-session': input.sessionUri
+        },
+        body: input.chunk,
+        cache: 'no-store',
+        signal: input.signal
+      });
+    } catch {
+      throw new TeamApiError('DRIVE_UNAVAILABLE', true);
+    }
+    const parsed = parseTeamEdgeResult(await response.json().catch(() => null));
+    if (!parsed.ok) {
+      throw new TeamApiError(parsed.error.code, parsed.error.retryable, parsed.error.details);
+    }
+    const value = asRecord(parsed.value);
+    if (!value || typeof value.complete !== 'boolean') {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return {
+      complete: value.complete,
+      driveFileId: typeof value.driveFileId === 'string' ? value.driveFileId : null,
+      receivedRange: typeof value.receivedRange === 'string' ? value.receivedRange : null
+    };
+  },
+
   async finalizeUpload(input: {
     operationId: string;
     driveFileId: string;
