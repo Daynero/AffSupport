@@ -6,16 +6,11 @@ import { useExplorer } from './ExplorerProvider';
 import { DRAG_TYPE } from './rowKinds';
 
 function RefreshIcon() {
+  // A coiled arrow, the way Google's refresh reads — a ring broken at the top
+  // with an arrowhead, not a plain circle.
   return (
     <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
-      <path
-        d="M20 11a8 8 0 1 0-.6 3M20 5v6h-6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <path fill="currentColor" d="M12 6V3L8 7l4 4V8a4 4 0 1 1-4 4H6a6 6 0 1 0 6-6z" />
     </svg>
   );
 }

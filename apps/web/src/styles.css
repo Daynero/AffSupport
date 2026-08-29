@@ -13969,6 +13969,44 @@ button.team-landing-tile:hover {
   gap: var(--space-4);
   align-items: start;
 }
+.team-explorer-tree-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+.team-explorer-tree-head .team-explorer-tree-root {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+/* Beside the "Усі файли" label, sized to its cap height; a coiled arrow, not a
+   plain ring; a quarter turn on press. */
+.team-explorer-tree-refresh {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    color var(--dur-micro) var(--ease-standard),
+    border-color var(--dur-micro) var(--ease-standard),
+    transform var(--dur-control) var(--ease-standard);
+}
+.team-explorer-tree-refresh:hover {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+.team-explorer-tree-refresh:active {
+  transform: rotate(-180deg);
+}
 .team-explorer-tree {
   position: sticky;
   top: var(--space-3);
