@@ -306,6 +306,16 @@ second attempt while held, and a `failed` transition frees it.
 The _first_ error ("something went wrong") still wants a clean repro to name its own cause —
 the reservation fix makes the retry work regardless of what tripped the first attempt.
 
+## N — processing refused every file (2026-08-30)
+
+"Обробити" ended in "Частина даних некоректна" and did nothing: `drive-ops/process/start`
+answered `400`. `handleProcessStart` read the destination with `requireUuid`, but the explorer
+names a folder by its provider id (or omits it for the space root, "beside the original"), so
+the guard rejected the request before the resolver that move and upload already use could run.
+It now reads the destination with `optionalDestination` and resolves it to a material id
+through `destinationWithClient`, so a process starts (`202`) and its output lands beside the
+original by default.
+
 ### Still to run (needs the owner)
 
 Done so far under T076: the beta OAuth client (`soty-beta`, `drive.file`,

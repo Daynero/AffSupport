@@ -1514,7 +1514,11 @@ async function handleProcessStart(
 ) {
   const teamId = requireUuid(body.teamId);
   const materialId = requireUuid(body.materialId);
-  const destinationFolderId = requireUuid(body.destinationFolderId);
+  // The explorer names a destination by its provider folder id (or leaves it
+  // out for the space root, "beside the original"). It is resolved to a
+  // material id below, the way move and upload already do — requireUuid here
+  // refused every process with "part of the data is wrong" (011, findings N1).
+  const rawDestination = optionalDestination(body.destinationFolderId);
   const idempotencyKey = requireIdempotency(body.idempotencyKey);
   const toolId = typeof body.toolId === 'string' ? body.toolId : '';
   const tool = TOOL_RULES[toolId];
@@ -1556,10 +1560,11 @@ async function handleProcessStart(
     request,
     service,
     teamId,
-    destinationFolderId,
+    destinationFolderId: rawDestination,
     actorId,
     permission: 'process'
   });
+  const destinationFolderId = destination.context.materialId;
   const names = await nameCandidates(destination.client, destination.live);
   const plan = buildUploadConflictPlan(
     {
