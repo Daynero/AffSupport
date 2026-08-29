@@ -102,3 +102,39 @@ describe('media companions', () => {
     ).rejects.toThrow(/audio_fingerprint_check/);
   }, 60_000);
 });
+
+describe('landing preview lifecycle (012, T013)', () => {
+  it('stops serving a landing render once the landing is trashed', async () => {
+    const landing = await harness.root<{ id: string }>(
+      `insert into public.team_materials
+         (team_id, connection_id, drive_file_id, parent_folder_id, name, kind, category, mime_type,
+          drive_version, checksum)
+       values ($1, $2, 'land-1', 'root', 'promo.html', 'file', 'landing', 'text/html', 'v1', 'c1')
+       returning id`,
+      [teamId, connectionId]
+    );
+    await harness.root(
+      `insert into public.team_landing_renders
+         (team_id, material_id, preset, source_version, source_checksum, fingerprint,
+          render_state, artifact_root, segment_count)
+       values ($1, $2, 'default', 'v1', 'c1', $3, 'ready', 'art-root', 1)`,
+      [teamId, landing[0]!.id, 'a'.repeat(64)]
+    );
+    const before = await harness.asUser<{ material_id: string; render_state: string }>(
+      OWNER,
+      'select * from public.list_landing_renders($1, $2, $3)',
+      [teamId, [landing[0]!.id], 'default']
+    );
+    expect(before).toHaveLength(1);
+    await harness.root(
+      `update public.team_materials set lifecycle = 'trashed', trashed_at = now() where id = $1`,
+      [landing[0]!.id]
+    );
+    const after = await harness.asUser(
+      OWNER,
+      'select * from public.list_landing_renders($1, $2, $3)',
+      [teamId, [landing[0]!.id], 'default']
+    );
+    expect(after).toHaveLength(0);
+  }, 60_000);
+});
