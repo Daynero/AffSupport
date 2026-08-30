@@ -4,6 +4,7 @@ import { ICON_SIZE, ICON_STROKE } from './icons';
 import {
   CRF_MAX,
   CRF_MIN,
+  DEFAULT_CRF,
   FRAME_RATE_MAX,
   FRAME_RATE_MIN,
   RESOLUTION_MAX,
@@ -147,6 +148,16 @@ function CustomSettings({
   updateSettings: UpdateSettings;
   t: Translate;
 }) {
+  // 'Оптимальний' is the CRF preset (DEFAULT_CRF); picking Gem keeps the
+  // custom CRF editable even when its value happens to equal the preset.
+  const [rateMode, setRateMode] = useState<'optimal' | 'crf' | 'bitrate'>(
+    settings.rateControl === 'bitrate'
+      ? 'bitrate'
+      : settings.crf === DEFAULT_CRF
+        ? 'optimal'
+        : 'crf'
+  );
+
   return (
     <div className="custom-settings">
       <FpsControl settings={settings} disabled={disabled} updateSettings={updateSettings} t={t} />
@@ -163,29 +174,52 @@ function CustomSettings({
           <button
             type="button"
             role="radio"
-            className={settings.rateControl === 'crf' ? 'is-selected' : ''}
+            className={rateMode === 'optimal' ? 'is-selected' : ''}
+            title={t('optimal')}
+            aria-label={t('optimal')}
+            aria-checked={rateMode === 'optimal'}
+            disabled={disabled}
+            onClick={() => {
+              setRateMode('optimal');
+              updateSettings({ rateControl: 'crf', crf: DEFAULT_CRF });
+            }}
+          >
+            <Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            role="radio"
+            className={rateMode === 'crf' ? 'is-selected' : ''}
             title={t('constantQuality')}
             aria-label={t('constantQuality')}
-            aria-checked={settings.rateControl === 'crf'}
+            aria-checked={rateMode === 'crf'}
             disabled={disabled}
-            onClick={() => updateSettings({ rateControl: 'crf' })}
+            onClick={() => {
+              setRateMode('crf');
+              updateSettings({ rateControl: 'crf' });
+            }}
           >
             <Gem size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
           </button>
           <button
             type="button"
             role="radio"
-            className={settings.rateControl === 'bitrate' ? 'is-selected' : ''}
+            className={rateMode === 'bitrate' ? 'is-selected' : ''}
             title={t('targetBitrate')}
             aria-label={t('targetBitrate')}
-            aria-checked={settings.rateControl === 'bitrate'}
+            aria-checked={rateMode === 'bitrate'}
             disabled={disabled}
-            onClick={() => updateSettings({ rateControl: 'bitrate' })}
+            onClick={() => {
+              setRateMode('bitrate');
+              updateSettings({ rateControl: 'bitrate' });
+            }}
           >
             <Gauge size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
           </button>
         </div>
-        {settings.rateControl === 'crf' ? (
+        {rateMode === 'optimal' ? (
+          <span className="rate-optimal-note">CRF {DEFAULT_CRF}</span>
+        ) : rateMode === 'crf' ? (
           <RateValueCrf settings={settings} disabled={disabled} updateSettings={updateSettings} t={t} />
         ) : (
           <RateValueBitrate settings={settings} disabled={disabled} updateSettings={updateSettings} t={t} />

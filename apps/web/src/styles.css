@@ -15355,3 +15355,9 @@ input[type='number'] {
 .rate-control-field .input-with-suffix input.crf-input {
   width: 52px;
 }
+
+/* Static value note beside the optimal preset — plain text, not a control. */
+.rate-optimal-note {
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+}
