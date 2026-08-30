@@ -16491,9 +16491,15 @@ input[type='number'] {
 
 
 /* The source metrics sink to the bottom of their column so they line up with
-   the outcome grid, which starts under its own heading and headline figure. */
+   the outcome grid, which starts under its own heading and headline figure.
+   The second row takes the leftover height and the panel sits at its end —
+   an auto margin cannot do it, because a content-sized row has no slack. */
+.job-main {
+  grid-template-rows: auto minmax(0, 1fr);
+}
 .job-main .original-panel {
-  margin-top: auto;
+  align-self: end;
+  margin-top: 0;
 }
 
 
