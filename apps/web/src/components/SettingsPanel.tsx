@@ -451,7 +451,7 @@ function RateValueCrf({
       />
       <div className="input-with-suffix">
         <input
-          className={`time-input ${!valid && value !== '' ? 'is-invalid' : ''}`}
+          className={`time-input crf-input ${!valid && value !== '' ? 'is-invalid' : ''}`}
           type="number"
           inputMode="numeric"
           min={CRF_MIN}

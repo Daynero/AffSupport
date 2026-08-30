@@ -15347,7 +15347,10 @@ input[type='number'] {
   appearance: textfield;
 }
 
-/* CRF is a two-digit value — the box is exactly two digits wide. */
+/* CRF is a two-digit value; bitrate goes up to five digits. */
 .rate-control-field .input-with-suffix input {
+  width: 78px;
+}
+.rate-control-field .input-with-suffix input.crf-input {
   width: 52px;
 }
