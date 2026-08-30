@@ -15751,3 +15751,45 @@ input[type='number'] {
   color: #ff6b6b;
   vertical-align: -3px;
 }
+
+/* Toolbar per the reference: select-all checkbox, status chips in the middle,
+   actions on the right. */
+.batch-toolbar .select-all-box {
+  margin-right: var(--space-2);
+}
+.batch-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 auto;
+}
+.batch-chip {
+  padding: 4px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  color: var(--color-text-muted);
+  background: var(--color-surface-subtle);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.batch-chip.is-processing {
+  border-color: color-mix(in oklab, var(--honey-400) 45%, transparent);
+  color: var(--honey-300);
+  background: color-mix(in oklab, var(--honey-800) 30%, var(--color-surface));
+}
+.batch-chip.is-done {
+  border-color: color-mix(in oklab, #34c759 45%, transparent);
+  color: #6fe08f;
+  background: color-mix(in oklab, #06301a 45%, var(--color-surface));
+}
+.batch-chip.is-failed {
+  border-color: color-mix(in oklab, #ff6b6b 45%, transparent);
+  color: #ff9b9b;
+  background: color-mix(in oklab, #360a0a 45%, var(--color-surface));
+}
+/* The progress row keeps the bar; its plain counters are now the chips. */
+.batch-toolbar .batch-counts {
+  display: none;
+}

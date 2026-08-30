@@ -39,7 +39,7 @@ import { DropZone } from './components/DropZone';
 import { JobRow } from './components/JobRow';
 import { MediaActionsPanel } from './components/MediaActionsPanel';
 import { SettingsPanel } from './components/SettingsPanel';
-import { Button, ProgressBar, Spinner, type Translate } from './components/ui';
+import { Button, ProgressBar, Spinner, type Translate, Checkbox } from './components/ui';
 import { SotyLogo, SotyMark } from './components/SotyLogo';
 import { PowerThrottle } from './components/PowerThrottle';
 import { ThemeToggle } from './components/ThemeToggle';
@@ -578,13 +578,15 @@ export default function CompressorPage() {
               aria-label={t('fileActions', { name: t('appName') })}
             >
               <div className="selection-actions">
-                <Button
-                  variant="ghost"
+                <Checkbox
+                  className="select-all-box"
+                  checked={selectableIds.length > 0 && selected.size === selectableIds.length}
                   disabled={!connected || selectableIds.length === 0}
-                  onClick={() => setSelected(new Set(selectableIds))}
-                >
-                  {t('selectAll')}
-                </Button>
+                  onChange={event =>
+                    setSelected(event.target.checked ? new Set(selectableIds) : new Set())
+                  }
+                  label={<strong>{t('selectAll')}</strong>}
+                />
                 <Button
                   variant="ghost"
                   disabled={!connected || selected.size === 0}
@@ -599,13 +601,29 @@ export default function CompressorPage() {
                   {selectedLabel}
                 </span>
               </div>
+              <div className="batch-chips" aria-hidden="true">
+                <span className="batch-chip">{t('chipFiles', { count: state.jobs.length })}</span>
+                {metrics.processing > 0 && (
+                  <span className="batch-chip is-processing">
+                    {t('chipProcessing', { count: metrics.processing })}
+                  </span>
+                )}
+                {metrics.completed > 0 && (
+                  <span className="batch-chip is-done">
+                    {t('chipCompleted', { count: metrics.completed })}
+                  </span>
+                )}
+                <span className={`batch-chip ${metrics.failed > 0 ? 'is-failed' : ''}`.trim()}>
+                  {t('chipFailed', { count: metrics.failed })}
+                </span>
+              </div>
               <div className="primary-actions">
                 <Button
                   variant="primary"
                   disabled={!connected || blocked !== null}
                   onClick={() => void startSelected()}
                 >
-                  {t('compressSelected')}
+                  {`${t('compressSelected')}${selected.size ? ` (${selected.size})` : ''}`}
                 </Button>
                 {connected && blockedReasonKey(blocked) && (
                   <span className="compress-blocked-reason" role="status">
