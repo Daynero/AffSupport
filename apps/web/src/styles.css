@@ -15759,10 +15759,11 @@ input[type='number'] {
 }
 .batch-chips {
   display: flex;
-  flex-wrap: wrap;
+  /* One line always: the chips are a status strip, not a wrapping list. */
+  flex-wrap: nowrap;
   align-items: center;
+  align-self: center;
   gap: var(--space-2);
-  margin: 0 auto;
 }
 .batch-chip {
   padding: 4px 10px;
@@ -15792,4 +15793,41 @@ input[type='number'] {
 /* The progress row keeps the bar; its plain counters are now the chips. */
 .batch-toolbar .batch-counts {
   display: none;
+}
+
+
+/* Two levels: one row of controls, the progress bar beneath it. */
+.batch-toolbar {
+  display: grid;
+  gap: 0;
+}
+.batch-toolbar-row {
+  display: flex;
+  /* Wraps rather than clipping the last action when the window is narrow. */
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+}
+.batch-toolbar-row .selection-actions,
+.batch-toolbar-row .primary-actions {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+}
+.batch-chips {
+  /* Never shrink: the row wraps before a chip is cut in half. */
+  flex: 0 0 auto;
+  margin-inline: auto;
+  overflow: visible;
+}
+/* Chips never truncate: below this width the row wraps instead. */
+.batch-chip {
+  flex: 0 0 auto;
+}
+@media (max-width: 1280px) {
+  .batch-chips {
+    order: 3;
+    margin-inline: 0;
+    justify-content: flex-start;
+  }
 }

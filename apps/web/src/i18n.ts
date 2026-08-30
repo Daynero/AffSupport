@@ -460,7 +460,9 @@ const en = {
   processingCount: '{count} processing',
   completedCount: '{count} completed',
   failedCount: '{count} failed',
-  chipFiles: '{count} files',
+  chipFilesOne: '{count} file',
+  chipFilesFew: '{count} files',
+  chipFilesMany: '{count} files',
   chipProcessing: '{count} processing',
   chipCompleted: '{count} done',
   chipFailed: '{count} failed',
@@ -2179,7 +2181,9 @@ const uk: Record<keyof typeof en, string> = {
   processingCount: 'Обробляється: {count}',
   completedCount: 'Завершено: {count}',
   failedCount: 'З помилкою: {count}',
-  chipFiles: '{count} файлів',
+  chipFilesOne: '{count} файл',
+  chipFilesFew: '{count} файли',
+  chipFilesMany: '{count} файлів',
   chipProcessing: '{count} обробляється',
   chipCompleted: '{count} завершено',
   chipFailed: '{count} помилок',
@@ -3489,6 +3493,12 @@ function pluralCategory(language: Language, count: number): 'one' | 'few' | 'man
   if (category === 'one') return 'one';
   if (category === 'few') return 'few';
   return 'many';
+}
+
+export function fileCountKey(language: Language, count: number): TranslationKey {
+  const category = pluralCategory(language, count);
+  if (category === 'one') return 'chipFilesOne';
+  return category === 'few' ? 'chipFilesFew' : 'chipFilesMany';
 }
 
 export function selectedCountKey(language: Language, count: number): TranslationKey {

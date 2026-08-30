@@ -21,7 +21,7 @@ import {
 } from './api/client';
 import { type ConnectionState } from './connection';
 import { formatSize } from './format';
-import { selectedCountKey, type Language, type TranslationKey, useI18n } from './i18n';
+import { fileCountKey, selectedCountKey, type Language, type TranslationKey, useI18n } from './i18n';
 import { mergeSettingsPatches } from './settings-patch';
 import { preferredDownload } from './release-manifest';
 import {
@@ -577,6 +577,7 @@ export default function CompressorPage() {
               className="batch-toolbar"
               aria-label={t('fileActions', { name: t('appName') })}
             >
+              <div className="batch-toolbar-row">
               <div className="selection-actions">
                 <Checkbox
                   className="select-all-box"
@@ -602,7 +603,9 @@ export default function CompressorPage() {
                 </span>
               </div>
               <div className="batch-chips" aria-hidden="true">
-                <span className="batch-chip">{t('chipFiles', { count: state.jobs.length })}</span>
+                <span className="batch-chip">
+                  {t(fileCountKey(language, state.jobs.length), { count: state.jobs.length })}
+                </span>
                 {metrics.processing > 0 && (
                   <span className="batch-chip is-processing">
                     {t('chipProcessing', { count: metrics.processing })}
@@ -656,6 +659,7 @@ export default function CompressorPage() {
                     {t('clearFinished')}
                   </Button>
                 )}
+              </div>
               </div>
               {state.batch && <BatchProgress metrics={metrics} t={t} />}
             </section>
