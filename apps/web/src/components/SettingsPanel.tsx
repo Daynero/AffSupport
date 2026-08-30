@@ -443,7 +443,7 @@ function ResolutionControl({
         {choice === 'custom' && (
           <div className="input-with-suffix">
             <input
-              className={`time-input ${!valid && custom ? 'is-invalid' : ''}`}
+              className={`time-input res-input ${!valid && custom ? 'is-invalid' : ''}`}
               type="number"
               inputMode="numeric"
               min={RESOLUTION_MIN}

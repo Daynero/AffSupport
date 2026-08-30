@@ -15448,3 +15448,8 @@ input[type='number'] {
 .start-duration-row .input-with-suffix input.fps-input {
   width: 52px;
 }
+
+/* Resolution is four digits at most. */
+.start-duration-row .input-with-suffix input.res-input {
+  width: 64px;
+}
