@@ -15361,3 +15361,56 @@ input[type='number'] {
   color: var(--color-text-muted);
   font-size: var(--text-lg);
 }
+
+/* CRF slider tells the story without words: crystal (left, big file) →
+   sparkle mark at the optimal default → pixels (right, small file). */
+.crf-edge {
+  display: inline-flex;
+  align-items: center;
+}
+.crf-edge-quality { color: #34c759; }
+.crf-edge-pixel { color: #ff6b6b; }
+.crf-track-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.crf-gradient {
+  accent-color: var(--color-accent);
+  background: linear-gradient(
+    to right,
+    #34c759 0%,
+    var(--color-accent) 45%,
+    #ff6b6b 100%
+  );
+  height: 6px;
+  border-radius: 999px;
+  appearance: none;
+  -webkit-appearance: none;
+  outline-offset: 4px;
+}
+.crf-gradient::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--color-accent);
+  cursor: pointer;
+}
+.crf-gradient::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--color-accent);
+  cursor: pointer;
+}
+.crf-opt-mark {
+  position: absolute;
+  top: -14px;
+  transform: translateX(-50%);
+  color: var(--color-accent);
+  pointer-events: none;
+  line-height: 1;
+}
