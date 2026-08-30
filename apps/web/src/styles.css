@@ -1118,6 +1118,35 @@ a {
   grid-template-columns: auto minmax(0, 1fr);
   gap: var(--space-3) var(--space-5);
   padding: var(--space-4);
+  /* A touch brighter than the page so the panel reads as its own surface. */
+  background: color-mix(in oklab, var(--color-surface) 78%, var(--color-text) 4%);
+}
+.settings-panel .settings-body {
+  display: contents;
+}
+/* display:contents outranks the hidden attribute, so say it explicitly. */
+.settings-panel .settings-body[hidden] {
+  display: none;
+}
+.settings-panel .section-heading {
+  grid-column: 1 / -1;
+}
+.settings-collapse {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.settings-collapse svg {
+  transition: transform var(--dur-control) var(--ease-standard);
+}
+.settings-collapse svg.is-rotated {
+  transform: rotate(-90deg);
 }
 
 .section-heading {
@@ -2001,10 +2030,11 @@ input.is-invalid {
 .add-files-section {
   display: grid;
   gap: 6px;
-  /* Always reachable: the intake zone sticks to the top while scrolling. */
+  /* Always reachable: the intake zone sticks below the fixed topbar while
+     scrolling, and never over it. */
   position: sticky;
-  top: 0;
-  z-index: 30;
+  top: var(--topbar-h, 62px);
+  z-index: calc(var(--layer-header) + 1);
   margin-top: 0;
   padding-bottom: 6px;
   background: var(--color-bg);
@@ -2077,7 +2107,8 @@ input.is-invalid {
 .batch-toolbar {
   position: sticky;
   z-index: var(--layer-header);
-  top: 64px;
+  /* Below the pinned intake zone, never under it. */
+  top: calc(var(--topbar-h, 62px) + 108px);
   display: flex;
   flex-wrap: wrap;
   align-items: center;

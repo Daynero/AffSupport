@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Eraser, Files, Film, FolderOpen, Gauge, Gem, Monitor, Sparkles, SlidersHorizontal, Timer } from 'lucide-react';
+import { ChevronDown, Eraser, Files, Film, FolderOpen, Gauge, Gem, Monitor, Sparkles, SlidersHorizontal, Timer } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from './icons';
 import {
   CRF_MAX,
@@ -46,11 +46,32 @@ export function SettingsPanel({
   onEmbeddingValidityChange?: (valid: boolean) => void;
   t: Translate;
 }) {
+  // The whole panel folds down to its title line so the file list can own
+  // the screen once the settings are set.
+  const [open, setOpen] = useState(true);
   return (
-    <section className="settings-panel" aria-labelledby="settings-title">
+    <section
+      className={`settings-panel ${open ? '' : 'is-collapsed'}`.trim()}
+      aria-labelledby="settings-title"
+    >
       <div className="section-heading compact-heading">
-        <h2 id="settings-title">{t('compressionSettings')}</h2>
+        <button
+          type="button"
+          className="settings-collapse"
+          aria-expanded={open}
+          aria-controls="settings-body"
+          onClick={() => setOpen(current => !current)}
+        >
+          <ChevronDown
+            size={ICON_SIZE}
+            strokeWidth={ICON_STROKE}
+            className={open ? '' : 'is-rotated'}
+            aria-hidden="true"
+          />
+          <h2 id="settings-title">{t('compressionSettings')}</h2>
+        </button>
       </div>
+      <div id="settings-body" className="settings-body" hidden={!open}>
       <div className="settings-primary-row">
         <div className="field-group">
           <FieldLabel
@@ -133,6 +154,7 @@ export function SettingsPanel({
         onValidityChange={onEmbeddingValidityChange}
         t={t}
       />
+      </div>
     </section>
   );
 }
