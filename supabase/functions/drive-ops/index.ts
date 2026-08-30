@@ -1698,8 +1698,10 @@ async function handleProcessStart(
       sizeBytes: 0,
       // Overwrite may keep the source's own name: that "collision" is the
       // point, so it resolves as a replace of the source instead of a rename.
+      // The plan's collision ids are DRIVE file ids (nameCandidates maps
+      // listChildren), so the replace target is the source's live Drive id.
       conflictMode: versionOfMaterialId ? 'replace' : conflictMode.value,
-      replaceMaterialId: versionOfMaterialId,
+      replaceMaterialId: versionOfMaterialId ? liveSource.id : null,
       versionOfMaterialId,
       idempotencyKey
     },

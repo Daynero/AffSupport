@@ -459,13 +459,7 @@ export function ImageDropArea({
               }}
             >
               <AssetThumbnail id={asset.id} fileName={asset.fileName} />
-              {disabledIds?.has(asset.id) && (
-                <span className="selected-image-off" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M4 4 20 20 M20 4 4 20" />
-                  </svg>
-                </span>
-              )}
+
               <IconButton
                 className="selected-image-action is-delete"
                 label={t('deleteImage')}
