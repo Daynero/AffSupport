@@ -1567,21 +1567,25 @@ a {
   backdrop-filter: blur(4px);
 }
 
-/* The wrapper (.selected-image-actions) is the positioned plate; the button
-   itself just fills a roomy cell — icons stay 20px, plates grow. */
+/* The delete button is its own plate on the tile corner: the icon stays at
+   the canon 20px and the 30px plate gives it room (comfort rule). */
 .selected-image-tile .selected-image-action {
-  position: static;
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 3;
   width: 30px;
   height: 30px;
   min-width: 30px;
   min-height: 30px;
-  flex: 0 0 30px;
   padding: 0;
   display: grid;
   place-items: center;
-  border-radius: 7px;
+  border-radius: 8px;
   color: #2d2638;
-  background: transparent;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 1px 4px var(--tint-medium);
+  backdrop-filter: blur(5px);
 }
 
 .image-grid-error {
@@ -11294,14 +11298,6 @@ body {
   font-size: var(--text-xs);
 }
 
-.selected-image-tile .selected-image-action {
-  width: 10px;
-  height: 10px;
-  min-width: 10px;
-  min-height: 10px;
-  flex-basis: 10px;
-  border-radius: 3px;
-}
 
 .selected-image-tile .selected-image-action-icon {
   width: 6px;
