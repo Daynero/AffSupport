@@ -16022,20 +16022,27 @@ input[type='number'] {
   gap: var(--space-3);
   min-width: 0;
 }
-/* Actions stack vertically to the right of the outcome panel. */
+/* Actions stack vertically to the right of the outcome panel. The column
+   sizes to the widest label — a fixed width made the buttons overflow their
+   cell and cover the panel beside them. */
 .job-side .job-actions {
   display: grid;
   align-content: start;
+  justify-items: stretch;
   gap: 8px;
-  width: 190px;
+  width: max-content;
+  min-width: 190px;
+  max-width: 260px;
 }
 .job-side .job-actions .button {
   justify-content: flex-start;
   gap: 10px;
   width: 100%;
+  min-width: 0;
   min-height: 42px;
   padding: 0 14px;
   border-radius: 10px;
+  white-space: nowrap;
 }
 /* Running: the progress panel owns the right side, cancel sits inline. */
 .job-progress-panel {
@@ -16138,4 +16145,23 @@ input[type='number'] {
 .job-row .status-interrupted {
   color: var(--color-text-muted);
   background: color-mix(in oklab, var(--color-text) 10%, transparent);
+}
+
+
+/* The error strip belongs to the whole card, not to its left column. */
+.job-row > .collapse,
+.job-row > .job-error {
+  grid-column: 1 / -1;
+}
+/* Tighter card rhythm: the reference cards are compact. */
+.job-row {
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-3);
+  row-gap: var(--space-2);
+}
+.job-main .media-grid {
+  row-gap: 10px;
+}
+.job-side .media-panel {
+  padding: 12px 14px;
 }
