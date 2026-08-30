@@ -118,3 +118,10 @@ freed by marking the dead operations failed.
   checks — stale source version, "result must not be the source file",
   processed_from self-link — are skipped when
   `intent.version_of_material_id = operation.source_material_id`.
+- B5 «Локально на компʼютері» implemented end to end (agent download bridge
+  + compress delegate + local save with suffix; web dialog radio + queue
+  runner branch, no team operation). Live verification reached the native
+  folder picker: the request chain web → download grant → agent → picker
+  works, but the OS dialog needs a human click (osascript keystrokes are
+  blocked without Accessibility permission), so the final click-through is
+  on the owner.
