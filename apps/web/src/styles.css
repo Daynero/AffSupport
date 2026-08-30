@@ -15717,13 +15717,19 @@ input[type='number'] {
   animation: job-fresh-glow 3s var(--ease-standard) both;
 }
 
-/* Progress is a hairline strip under the row with its percentage at the end. */
+/* Progress is a hairline strip under the row with its percentage at the end:
+   no card of its own — no border, no fill, no padding. */
 .batch-toolbar .batch-progress {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   width: 100%;
-  margin-top: 10px;
+  margin-top: 12px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 .batch-toolbar .batch-progress .progress-track {
   flex: 1;
