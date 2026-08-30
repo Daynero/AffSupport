@@ -528,6 +528,8 @@ function JobActions({
   t: Translate;
 }) {
   const priority = estimatePriorityAction(job, compressionRunning);
+  // One order on every card: run first, then folder, open, delete — so the
+  // same action is always in the same place whatever state the file is in.
   return (
     <div className="job-actions" aria-label={t('fileActions', { name: job.fileName })}>
       {job.status === 'processing' && (
@@ -554,23 +556,6 @@ function JobActions({
           </Button>
         </>
       )}
-      {priority && (
-        <Button
-          variant="ghost"
-          disabled={disabled}
-          title={t(priority === 'cancel' ? 'cancelPriorityEstimateHint' : 'prioritizeEstimateHint')}
-          onClick={() =>
-            action(
-              `/api/jobs/${job.id}/estimate-priority`,
-              priority === 'cancel' ? 'DELETE' : 'POST'
-            )
-          }
-        >
-          {t(priority === 'cancel' ? 'cancelPriorityEstimate' : 'prioritizeEstimate')}
-        </Button>
-      )}
-      {/* A file that has not run yet gets the same stack, with 'Стиснути' in
-          place of 'Повторити'. */}
       {job.status === 'ready' && (
         <Button
           variant="primary"
@@ -579,6 +564,16 @@ function JobActions({
         >
           <Play size={16} strokeWidth={1.75} aria-hidden="true" />
           {t('compressOne')}
+        </Button>
+      )}
+      {job.status === 'completed' && (
+        <Button
+          variant="primary"
+          disabled={disabled || compressionRunning}
+          onClick={() => action(`/api/jobs/${job.id}/repeat`)}
+        >
+          <RefreshCw size={16} strokeWidth={1.75} aria-hidden="true" />
+          {t('repeatCompression')}
         </Button>
       )}
       {isSettled(COMPRESSION_LIFECYCLE, job.status) && job.status !== 'completed' && (
@@ -591,7 +586,9 @@ function JobActions({
           {t('retry')}
         </Button>
       )}
-      {job.status === 'completed' && (
+      {/* Folder and open work before a run too — they point at the source
+          until there is a result. */}
+      {job.status !== 'analyzing' && (
         <>
           <Button
             variant="success"
@@ -609,15 +606,22 @@ function JobActions({
             <ExternalLink size={16} strokeWidth={1.75} aria-hidden="true" />
             {t('openFile')}
           </Button>
-          <Button
-            variant="primary"
-            disabled={disabled || compressionRunning}
-            onClick={() => action(`/api/jobs/${job.id}/repeat`)}
-          >
-            <RefreshCw size={16} strokeWidth={1.75} aria-hidden="true" />
-            {t('repeatCompression')}
-          </Button>
         </>
+      )}
+      {priority && (
+        <Button
+          variant="ghost"
+          disabled={disabled}
+          title={t(priority === 'cancel' ? 'cancelPriorityEstimateHint' : 'prioritizeEstimateHint')}
+          onClick={() =>
+            action(
+              `/api/jobs/${job.id}/estimate-priority`,
+              priority === 'cancel' ? 'DELETE' : 'POST'
+            )
+          }
+        >
+          {t(priority === 'cancel' ? 'cancelPriorityEstimate' : 'prioritizeEstimate')}
+        </Button>
       )}
       {!stoppable(job) && job.status !== 'analyzing' && (
         <Button

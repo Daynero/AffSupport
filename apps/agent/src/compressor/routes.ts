@@ -325,23 +325,19 @@ export function registerCompressorRoutes(app: FastifyInstance, ctx: CompressorCo
     return reply.code(409).send({ error: 'This completed job cannot be repeated right now.' });
   });
   app.post<{ Params: { id: string } }>('/api/jobs/:id/reveal', async (request, reply) => {
-    const job = queue
-      .state()
-      .jobs.find(
-        candidate => candidate.id === request.params.id && candidate.status === 'completed'
-      );
-    if (!job) return reply.code(404).send({ error: 'Completed file not found.' });
-    showInFileManager(job.outputPath, { reveal: true });
+    // Before a job has run there is no result yet, so the source is what the
+    // person means by "show me this file".
+    const job = queue.state().jobs.find(candidate => candidate.id === request.params.id);
+    if (!job) return reply.code(404).send({ error: 'File not found.' });
+    showInFileManager(job.status === 'completed' ? job.outputPath : job.inputPath, {
+      reveal: true
+    });
     return queue.state();
   });
   app.post<{ Params: { id: string } }>('/api/jobs/:id/open', async (request, reply) => {
-    const job = queue
-      .state()
-      .jobs.find(
-        candidate => candidate.id === request.params.id && candidate.status === 'completed'
-      );
-    if (!job) return reply.code(404).send({ error: 'Completed file not found.' });
-    showInFileManager(job.outputPath);
+    const job = queue.state().jobs.find(candidate => candidate.id === request.params.id);
+    if (!job) return reply.code(404).send({ error: 'File not found.' });
+    showInFileManager(job.status === 'completed' ? job.outputPath : job.inputPath);
     return queue.state();
   });
   app.post('/api/output/reveal', async (_request, reply) => {

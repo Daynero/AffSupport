@@ -835,15 +835,6 @@ export default function CompressorPage() {
                 </dd>
               </div>
             </dl>
-            {summary.successful > 0 && (
-              <Button
-                variant="ghost"
-                disabled={!connected}
-                onClick={() => void action('/api/output/reveal')}
-              >
-                {t('showOutput')}
-              </Button>
-            )}
           </section>
         )}
       </main>
