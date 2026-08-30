@@ -103,3 +103,28 @@ Two things the owner hit while testing, both fixed and verified live:
   `20260830150000_video_text_variants_companion.sql`, T003-adjacent). Translations already held by
   the library appear automatically with a selector; none exists in beta yet, so only the original
   showed, view + copy working end to end.
+
+## Owner-driven UI/UX batch, 2026-08-30 (live-tested one by one)
+
+Everything below was reproduced, fixed, and verified in the browser during the run:
+
+| # | What | Root cause → fix |
+| --- | --- | --- |
+| 1 | Transcription progress in the video card | `ActiveOperation` now reports progress up; the card shows an "n%" bar instead of the Transcribe button while that video runs (no double-clicking). |
+| 2 | Selection accumulates across folders | The provider kept ids per folder and cleared them on navigation; it now keeps the selected rows in a map and only the focus resets. Batch actions act on the accumulated rows. |
+| 3 | Oval refresh / stretched share buttons | The global 44px button tap-target min-height fought fixed icon sizes; cleared on both. |
+| 4 | Explorer list rows overflowed their border | Fixed columns summed wider than the row on a mid pane; the name column now shrinks (minmax(0,1fr)), columns drop earlier. |
+| 5 | Big tile glyphs + visible checkboxes | Folder/no-preview tiles show a 72cqmin glyph; the empty checkbox got a legible border/fill on dark. |
+| 6 | Cmd/Ctrl+C/X/V | New `drive-ops/copy` (Drive `files.copy` as an upload-kind operation, immediate row); cut pastes as move. Live: copy landed in another folder, cut moved it on. |
+| 7 | Create-task from the card | Button on a file's preview card. |
+| 8 | Task attachment buttons | Fixed 32px squares (three-action tiles no longer wider than four-action ones); view=blue, download=green, copy-link=violet, detach=red at rest. |
+| 9 | Per-account default for task Maximum | Save-as-default icon beside the field (appears when it differs), account-settings field, `create_team_task` starts from it. Live: saved 12, knob button behaved. |
+| 10 | Manual progress bar | Green fills from the left; Done no longer snaps the marker to max (server) and status flips no longer re-sync it (client). Live: drag→1, Done→still 1. |
+| 11 | Folder attachments said "Готуємо превʼю…" forever | previewState='unavailable' returned early without marking unavailable; now says "Превʼю недоступне". |
+| 12 | "Нова версія" removed from the ⋯ menu | Owner: unclear/unused; replace-on-conflict still covers it. |
+| 13 | Folder batch processing | ⋯ on a folder → "Обробити вміст…": transcribe all videos (skips ones with transcripts), refresh landing previews, or everything; sequential with "n of m" progress. Folders got the ⋯ menu at all. |
+
+Also: cancelling a transcription no longer raises "Щось пішло не так" (the
+expected abort rejection is swallowed for operations the person cancelled), and
+the move-from-menu bug (menu's outside-close ate the picker) is fixed earlier
+in this run.

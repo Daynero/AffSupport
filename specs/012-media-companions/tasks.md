@@ -64,7 +64,7 @@ Order is dependency-first. Each task is small and independently committable.
 
 ## Phase 6 — Verify
 
-- [x] T018 Ran the affected suites single-worker (team-companions-sql 10, team-preview-transcript, team-file-operations, creative-library-sidecars, team-share-button): all green.
+- [x] T018 Ran the affected suites single-worker (again after the UI batch: 21 tests green) (team-companions-sql 10, team-preview-transcript, team-file-operations, creative-library-sidecars, team-share-button): all green.
 - [ ] T019 Beta walkthrough on the real folder: transcribe a video, see the companion appear
       named after it; rename/move/trash and watch the companion follow; re-transcribe; delete a
       landing and confirm the render is gone; re-generate a preview. Record in `findings.md`.
