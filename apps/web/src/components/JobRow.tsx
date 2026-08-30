@@ -428,20 +428,20 @@ function EstimatePanel({
           )}
         </div>
       )}
+      {/* Same five metrics, in the same order, as the finished panel — so the
+          estimate and the result read as one before/after pair. */}
       <MediaGrid
         items={[
           [t('videoResolution'), output ? dimensions(output.width, output.height) : '—'],
           [t('videoFps'), `${formatFps(fps, language)} FPS`],
+          [
+            t('videoBitrate'),
+            job.encoding.rateControl === 'bitrate' && job.encoding.videoBitrateKbps
+              ? `${job.encoding.videoBitrateKbps} ${t('bitrateUnit')}`
+              : '—'
+          ],
           [t('duration'), formatDuration(expectedOutputDurationSeconds(job))],
-          [t('qualityMode'), qualityMode(job, t)],
-          ...(job.encoding.rateControl === 'bitrate' && job.encoding.videoBitrateKbps
-            ? [
-                [t('videoBitrate'), `${job.encoding.videoBitrateKbps} ${t('bitrateUnit')}`] as [
-                  string,
-                  string
-                ]
-              ]
-            : [])
+          [t('qualityMode'), qualityMode(job, t)]
         ]}
       />
     </section>
