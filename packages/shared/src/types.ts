@@ -117,6 +117,8 @@ export interface ImageEmbeddingSettings {
   enabled: boolean;
   startImages: ImageAsset[];
   endImages: ImageAsset[];
+  /** Images excluded from the random pick (toggled off by clicking the tile). */
+  disabledImageIds: string[];
   replaceExisting: boolean;
   finalDurationMode: FinalImageDurationMode;
   customFinalDurationSeconds: number;
@@ -161,6 +163,8 @@ export interface AgentSettings {
   mode: CompressionMode;
   outputMode: OutputMode;
   outputFolder: string | null;
+  /** Appended to every result's name; empty = the historic _compressed[_N]. */
+  outputSuffix: string | null;
   stripMetadata: boolean;
   frameRate: number | null;
   resolutionLimit: number | null;
@@ -186,6 +190,7 @@ export function defaultImageEmbeddingSettings(): ImageEmbeddingSettings {
     enabled: false,
     startImages: [],
     endImages: [],
+    disabledImageIds: [],
     replaceExisting: false,
     finalDurationMode: 'random-40-50',
     customFinalDurationSeconds: DEFAULT_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
@@ -304,9 +309,15 @@ export function jobConfigurationKey(
   return JSON.stringify([encodingKey(settings), imageEmbeddingKey(imageEmbedding)]);
 }
 
+export function activeEmbeddingImages(settings: ImageEmbeddingSettings, slot: 'start' | 'end') {
+  const disabled = new Set(settings.disabledImageIds ?? []);
+  const assets = slot === 'start' ? settings.startImages : settings.endImages;
+  return assets.filter(asset => !disabled.has(asset.id));
+}
+
 export function draftImageEmbedding(settings: ImageEmbeddingSettings): JobImageEmbedding | null {
-  const startImage = settings.startImages[0] ?? null;
-  const endImage = settings.endImages[0] ?? null;
+  const startImage = activeEmbeddingImages(settings, 'start')[0] ?? null;
+  const endImage = activeEmbeddingImages(settings, 'end')[0] ?? null;
   if (!settings.enabled || (!startImage && !endImage)) return null;
   return {
     startImage: startImage ? { ...startImage } : null,

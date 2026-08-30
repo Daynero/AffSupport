@@ -347,6 +347,9 @@ const en = {
   stripMetadataTooltip:
     'Removes source, device, location, author and chapter metadata from every compressed file.',
   embedImages: 'Embed images into video',
+  imageActiveHint: 'Active — click to exclude from the random pick',
+  imageInactiveHint: 'Inactive — click to include again',
+  outputSuffixLabel: 'Name ending',
   embedImagesTooltip: 'Randomly selects images from the opening and final grids without repeats.',
   replaceExistingImages: 'Replace existing',
   replaceExistingImagesHint:
@@ -2035,6 +2038,9 @@ const uk: Record<keyof typeof en, string> = {
   stripMetadataTooltip:
     'Видаляє дані про джерело, пристрій, геолокацію, автора та розділи з кожного стисненого файла.',
   embedImages: 'Зашити зображення у відео',
+  imageActiveHint: 'Активна — клік вимикає її з рандому',
+  imageInactiveHint: 'Неактивна — клік вмикає знову',
+  outputSuffixLabel: 'Закінчення назви',
   embedImagesTooltip: 'Випадково вибирає зображення із сіток початку та фіналу без повторів.',
   replaceExistingImages: 'Перезашити існуюче',
   replaceExistingImagesHint:

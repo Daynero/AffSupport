@@ -49,6 +49,16 @@ export function parseSettingsPatch(
     }
     allowed.outputMode = body.outputMode;
   }
+  if (body.outputSuffix !== undefined) {
+    if (body.outputSuffix !== null && typeof body.outputSuffix !== 'string') {
+      return { ok: false, error: 'Invalid output suffix.' };
+    }
+    const trimmed = body.outputSuffix === null ? null : body.outputSuffix.trim();
+    if (trimmed !== null && (trimmed.length > 60 || /[\/\\\u0000\r\n]/u.test(trimmed))) {
+      return { ok: false, error: 'Invalid output suffix.' };
+    }
+    allowed.outputSuffix = trimmed === '' ? null : trimmed;
+  }
   if (body.stripMetadata !== undefined) {
     if (typeof body.stripMetadata !== 'boolean') {
       return { ok: false, error: 'Invalid metadata setting.' };
@@ -117,6 +127,17 @@ export function parseSettingsPatch(
         return { ok: false, error: 'Invalid image embedding mode.' };
       }
       imageEmbedding.enabled = body.imageEmbedding.enabled;
+    }
+    if (body.imageEmbedding.disabledImageIds !== undefined) {
+      const ids = body.imageEmbedding.disabledImageIds;
+      if (
+        !Array.isArray(ids) ||
+        ids.length > 500 ||
+        ids.some(id => typeof id !== 'string' || id.length < 1 || id.length > 128)
+      ) {
+        return { ok: false, error: 'Invalid disabled image list.' };
+      }
+      imageEmbedding.disabledImageIds = [...new Set(ids)];
     }
     if (body.imageEmbedding.replaceExisting !== undefined) {
       if (typeof body.imageEmbedding.replaceExisting !== 'boolean') {

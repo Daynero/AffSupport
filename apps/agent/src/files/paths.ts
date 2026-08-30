@@ -5,13 +5,14 @@ export async function nextOutputPath(
   inputPath: string,
   outputFolder?: string,
   reserved: Iterable<string> = [],
-  embedded = false
+  embedded = false,
+  customSuffix?: string | null
 ): Promise<string> {
   const parsed = path.parse(inputPath);
   const reservedPaths = new Set([...reserved].map(value => path.resolve(value)));
   let n = 1;
   while (true) {
-    const baseSuffix = embedded ? '_embedded_compressed' : '_compressed';
+    const baseSuffix = customSuffix ?? (embedded ? '_embedded_compressed' : '_compressed');
     const suffix = n === 1 ? baseSuffix : `${baseSuffix}_${n}`;
     const candidate = path.join(outputFolder ?? parsed.dir, `${parsed.name}${suffix}.mp4`);
     if (path.resolve(candidate) === path.resolve(inputPath))

@@ -3,6 +3,7 @@ import { access, mkdir, statfs, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import {
+  activeEmbeddingImages,
   clampCrf,
   clampFrameRate,
   clampResolutionLimit,
@@ -892,8 +893,11 @@ export class JobQueue {
       const estimatedEmbedding = job.imageEmbedding;
       const selectedImages = jobSettings.imageEmbedding.enabled
         ? {
-            startImage: this.drawImage('start', jobSettings.imageEmbedding.startImages),
-            endImage: this.drawImage('end', jobSettings.imageEmbedding.endImages)
+            startImage: this.drawImage(
+              'start',
+              activeEmbeddingImages(jobSettings.imageEmbedding, 'start')
+            ),
+            endImage: this.drawImage('end', activeEmbeddingImages(jobSettings.imageEmbedding, 'end'))
           }
         : { startImage: null, endImage: null };
       const imageEmbedding = freezeImageEmbedding(
@@ -1481,7 +1485,8 @@ export class JobQueue {
       inputPath,
       folder,
       reserved,
-      Boolean(draftImageEmbedding(settings.imageEmbedding))
+      Boolean(draftImageEmbedding(settings.imageEmbedding)),
+      settings.outputSuffix
     );
   }
 

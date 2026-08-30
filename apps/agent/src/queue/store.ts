@@ -40,6 +40,7 @@ export const defaultSettings: AgentSettings = {
   mode: 'optimal',
   outputMode: 'next-to-originals',
   outputFolder: null,
+  outputSuffix: null,
   stripMetadata: true,
   frameRate: null,
   resolutionLimit: null,
@@ -212,6 +213,7 @@ function migrateSettings(value: unknown): AgentSettings {
     outputMode,
     outputFolder:
       typeof raw.outputFolder === 'string' && raw.outputFolder ? raw.outputFolder : null,
+    outputSuffix: typeof raw.outputSuffix === 'string' ? raw.outputSuffix : null,
     stripMetadata: raw.stripMetadata !== false,
     frameRate,
     resolutionLimit,
@@ -331,7 +333,12 @@ function migrateImageEmbeddingSettings(value: unknown): ImageEmbeddingSettings {
     startImages: migrateImageAssets(raw.startImages, raw.startImage),
     endImages: migrateImageAssets(raw.endImages, raw.endImage),
     replaceExisting: raw.replaceExisting === true,
-    finalDurationMode:
+
+    disabledImageIds: Array.isArray((value as Record<string, unknown>).disabledImageIds)
+      ? ((value as Record<string, unknown>).disabledImageIds as unknown[]).filter(
+          (id): id is string => typeof id === 'string'
+        )
+      : [],    finalDurationMode:
       raw.finalDurationMode === 'random-30-40' ||
       raw.finalDurationMode === 'random-40-50' ||
       raw.finalDurationMode === 'random-50-60' ||

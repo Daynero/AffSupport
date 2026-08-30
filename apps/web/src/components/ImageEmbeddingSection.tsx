@@ -62,6 +62,14 @@ export function ImageEmbeddingSection({
     onValidityChange(!settings.enabled || (finalDurationValid && startDurationValid));
   }, [settings.enabled, finalDurationValid, startDurationValid, onValidityChange]);
 
+  const disabledIds = new Set(settings.disabledImageIds ?? []);
+  const toggleImage = (id: string) => {
+    const next = disabledIds.has(id)
+      ? (settings.disabledImageIds ?? []).filter(item => item !== id)
+      : [...(settings.disabledImageIds ?? []), id];
+    update({ disabledImageIds: next });
+  };
+
   return (
     <div className="image-embedding-settings">
       <div className="image-embedding-toggle">
@@ -97,6 +105,8 @@ export function ImageEmbeddingSection({
               disabled={disabled}
               uploadImages={uploadImages}
               removeImage={removeImage}
+              disabledIds={disabledIds}
+              onToggleImage={toggleImage}
               t={t}
             >
               <div className="embedding-column-fields">
@@ -177,6 +187,8 @@ export function ImageEmbeddingSection({
               disabled={disabled}
               uploadImages={uploadImages}
               removeImage={removeImage}
+              disabledIds={disabledIds}
+              onToggleImage={toggleImage}
               t={t}
             >
               <div className="field-group final-duration-field">
@@ -254,6 +266,8 @@ function ImageColumn({
   disabled,
   uploadImages,
   removeImage,
+  disabledIds,
+  onToggleImage,
   children,
   t
 }: {
@@ -264,8 +278,10 @@ function ImageColumn({
   disabled: boolean;
   uploadImages: (slot: ImageSlot, files: File[]) => Promise<void>;
   removeImage: (slot: ImageSlot, id: string) => Promise<void>;
-  children?: React.ReactNode;
+  disabledIds?: ReadonlySet<string>;
+  onToggleImage?: (id: string) => void;
   t: Translate;
+  children?: React.ReactNode;
 }) {
   return (
     <section className="image-column" aria-label={title}>
@@ -279,6 +295,8 @@ function ImageColumn({
         disabled={disabled}
         uploadImages={uploadImages}
         removeImage={removeImage}
+        disabledIds={disabledIds}
+        onToggleImage={onToggleImage}
         t={t}
       />
       {children}
@@ -292,6 +310,8 @@ export function ImageDropArea({
   disabled,
   uploadImages,
   removeImage,
+  disabledIds,
+  onToggleImage,
   t
 }: {
   slot: ImageSlot;
@@ -299,6 +319,8 @@ export function ImageDropArea({
   disabled: boolean;
   uploadImages: (slot: ImageSlot, files: File[]) => Promise<void>;
   removeImage: (slot: ImageSlot, id: string) => Promise<void>;
+  disabledIds?: ReadonlySet<string>;
+  onToggleImage?: (id: string) => void;
   t: Translate;
 }) {
   const input = useRef<HTMLInputElement>(null);
@@ -394,13 +416,44 @@ export function ImageDropArea({
           aria-label={slot === 'start' ? t('startImageTitle') : t('endImageTitle')}
         >
           {assets.map(asset => (
-            <div className="selected-image-tile" key={asset.id} title={asset.fileName}>
+            <div
+              className={`selected-image-tile ${
+                disabledIds?.has(asset.id) ? 'is-inactive' : 'is-active'
+              }`}
+              key={asset.id}
+              title={
+                disabledIds?.has(asset.id) ? t('imageInactiveHint') : t('imageActiveHint')
+              }
+              role={onToggleImage ? 'button' : undefined}
+              tabIndex={onToggleImage && !disabled ? 0 : undefined}
+              aria-pressed={onToggleImage ? !disabledIds?.has(asset.id) : undefined}
+              onClick={() => {
+                if (!disabled && onToggleImage) onToggleImage(asset.id);
+              }}
+              onKeyDown={event => {
+                if (!onToggleImage || disabled) return;
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  onToggleImage(asset.id);
+                }
+              }}
+            >
               <AssetThumbnail id={asset.id} fileName={asset.fileName} />
+              {disabledIds?.has(asset.id) && (
+                <span className="selected-image-off" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M4 4 20 20 M20 4 4 20" />
+                  </svg>
+                </span>
+              )}
               <IconButton
                 className="selected-image-action is-delete"
                 label={t('deleteImage')}
                 disabled={disabled || busy}
-                onClick={() => void remove(asset.id)}
+                onClick={event => {
+                  event.stopPropagation();
+                  void remove(asset.id);
+                }}
               >
                 <svg className="selected-image-action-icon" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="m6 6 12 12M18 6 6 18" />

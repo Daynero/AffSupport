@@ -470,6 +470,17 @@ function OutputSettings({
               else updateSettings({ outputMode: value });
             }}
           />
+          <label className="output-suffix-field">
+            <span>{t('outputSuffixLabel')}</span>
+            <input
+              type="text"
+              maxLength={60}
+              placeholder="_compressed"
+              value={settings.outputSuffix ?? ''}
+              disabled={disabled}
+              onChange={event => updateSettings({ outputSuffix: event.target.value }, true)}
+            />
+          </label>
           {settings.outputMode === 'chosen-folder' && (
             <Button variant="ghost" disabled={disabled} onClick={chooseOutputFolder}>
               {t('selectFolder')}

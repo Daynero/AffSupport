@@ -56,6 +56,7 @@ const emptyState: QueueState = {
     mode: 'optimal',
     outputMode: 'next-to-originals',
     outputFolder: null,
+  outputSuffix: null,
     stripMetadata: true,
     frameRate: null,
     resolutionLimit: null,
