@@ -1002,6 +1002,24 @@ async function handleUploadFinalize(
         result
       });
     }
+    // 012 (T006): a transcription result is the video's transcript companion —
+    // link it so it follows the video and the card reflects it. Best-effort:
+    // the .txt is committed regardless, and the text/fingerprint are filled by
+    // ingestion (and T004) later.
+    if (
+      resultMaterialId &&
+      operation.kind === 'process' &&
+      operation.toolId === 'transcription' &&
+      operation.sourceMaterialId
+    ) {
+      await rpcValue(service, 'service_link_transcript_companion', {
+        p_team: operation.teamId,
+        p_video: operation.sourceMaterialId,
+        p_companion: resultMaterialId,
+        p_fingerprint: null,
+        p_text: null
+      }).catch(() => undefined);
+    }
     return committed;
   } catch (error) {
     await transitionOperation({

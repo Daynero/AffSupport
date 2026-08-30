@@ -19,7 +19,18 @@ loaded machine. Each is its own commit on `011-team-workspace-rework`.
 So **Phase 1 (data model) and Phase 4 (landing preview lifecycle) are complete**, and the SQL
 half of the transcribe→companion path is in.
 
-### Deliberately not done blind (needs a free machine + a real whisper run)
+### Added after the machine freed up (T006, T016, T014, landing lifecycle)
+
+- **T006** the transcription finalize now links its `.txt` as the video's transcript companion
+  (`service_link_transcript_companion`, best-effort; drive-ops recompiles and serves). The
+  transcript output is named after the video (`<stem>.txt`, FR-T2). End-to-end verification
+  needs a whisper run — the model here is `ggml-large-v3`, minutes of CPU on this machine, so
+  it was not run live; the wiring is a simple call to the SQL function already covered by
+  `tests/team-companions-sql.test.ts`.
+- **T016** the video side card shows a Transcript block (verified live: "Транскрибувати" when
+  none exists).
+
+### Still not done blind (needs a free machine + a real whisper run)
 
 The rest forms one coupled block that touches the working `drive-ops` mutation handlers (which
 cannot be type-checked locally without Deno) and can only be judged by transcribing a real

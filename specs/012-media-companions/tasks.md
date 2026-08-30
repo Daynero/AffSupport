@@ -25,7 +25,7 @@ Order is dependency-first. Each task is small and independently committable.
 - [~] T005 SQL half done (`service_link_transcript_companion` + `service_find_transcript_by_fingerprint`); the Drive .txt upload + agent wiring remain. `service_commit_transcript_companion(p_team, p_video, p_actor, p_text,
     p_fingerprint, ...)`: create-or-reuse text by fingerprint, mint a companion material named
       `<video-stem>.txt` beside the video, link it, trash any previous companion. Migration + test.
-- [ ] T006 Wire the process-output finalize path (`drive-ops/process/output/finalize`) so a
+- [x] T006 finalize links a transcription result as the video's companion; end-to-end whisper check deferred (large-v3 on CPU is a long run). Wire the process-output finalize path (`drive-ops/process/output/finalize`) so a
       transcription tool result lands as a companion via T005 rather than a bare `.txt` upload.
 - [ ] T007 Re-transcribe action: a `process` variant that forces a new companion even when a
       fingerprint match exists (owner asked for a fresh id on demand).

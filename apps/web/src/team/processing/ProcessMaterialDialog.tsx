@@ -203,7 +203,7 @@ function toolsForMaterial(material: ProcessableMaterial): TeamProcessTool[] {
 
 function suggestedOutputName(material: ProcessableMaterial, tool?: TeamProcessTool) {
   const stem = material.name.replace(/\.[^.]+$/u, '');
-  if (tool === 'transcription') return `${stem}-transcript.txt`;
+  if (tool === 'transcription') return `${stem}.txt`;
   if (tool === 'landingOptimizer') return `${stem}-optimized.zip`;
   return `${stem}-optimized.mp4`;
 }
