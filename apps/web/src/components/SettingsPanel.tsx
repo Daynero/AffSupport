@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Eraser, Settings as SettingsIcon, Files, Film, FolderOpen, Gauge, Gem, Monitor, Sparkles, SlidersHorizontal, Timer } from 'lucide-react';
+import { Check, ChevronDown, Eraser, Settings as SettingsIcon, Files, Film, FolderOpen, Gauge, Gem, Monitor, Sparkles, SlidersHorizontal, Timer, X } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from './icons';
 import {
   CRF_MAX,
   CRF_MIN,
   DEFAULT_CRF,
+  encodingFromSettings,
   FRAME_RATE_MAX,
   FRAME_RATE_MIN,
   RESOLUTION_MAX,
@@ -49,6 +50,9 @@ export function SettingsPanel({
   // The whole panel folds down to its title line so the file list can own
   // the screen once the settings are set.
   const [open, setOpen] = useState(true);
+  // The optimal preset overrides the custom fields, so the summary reads the
+  // encoding that will actually run rather than the untouched form values.
+  const summary = encodingFromSettings(settings);
   return (
     <section
       className={`settings-panel ${open ? '' : 'is-collapsed'}`.trim()}
@@ -69,24 +73,28 @@ export function SettingsPanel({
         {!open && (
           <span className="settings-summary">
             <span>
-              <span className="settings-summary-key">{t('settingsSummaryPreset')}</span>
-              {settings.mode === 'optimal' ? t('optimal') : t('custom')}
-            </span>
-            <span>
               <span className="settings-summary-key">{t('settingsSummaryResolution')}</span>
-              {settings.resolutionLimit
-                ? `${settings.resolutionLimit}p`
+              {summary.resolutionLimit
+                ? `${summary.resolutionLimit}p`
                 : t('settingsSummaryOriginal')}
             </span>
             <span>
               <span className="settings-summary-key">{t('settingsSummaryFps')}</span>
-              {settings.frameRate ?? t('settingsSummaryOriginal')}
+              {summary.frameRate ?? t('settingsSummaryOriginal')}
             </span>
             <span>
               <span className="settings-summary-key">{t('settingsSummaryQuality')}</span>
-              {settings.rateControl === 'crf'
-                ? `CRF ${settings.crf}`
-                : `${settings.videoBitrateKbps} kbps`}
+              {summary.rateControl === 'crf'
+                ? `CRF ${summary.crf}`
+                : `${summary.videoBitrateKbps} kbps`}
+            </span>
+            <span>
+              <span className="settings-summary-key">{t('settingsSummaryEmbedding')}</span>
+              {settings.imageEmbedding.enabled ? (
+                <Check size={16} strokeWidth={ICON_STROKE} className="summary-yes" aria-hidden="true" />
+              ) : (
+                <X size={16} strokeWidth={ICON_STROKE} className="summary-no" aria-hidden="true" />
+              )}
             </span>
           </span>
         )}

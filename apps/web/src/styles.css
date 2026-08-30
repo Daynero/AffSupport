@@ -15741,3 +15741,13 @@ input[type='number'] {
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
 }
+
+/* Yes/no marks in the collapsed settings summary. */
+.settings-summary .summary-yes {
+  color: #34c759;
+  vertical-align: -3px;
+}
+.settings-summary .summary-no {
+  color: #ff6b6b;
+  vertical-align: -3px;
+}
