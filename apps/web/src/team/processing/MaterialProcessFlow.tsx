@@ -28,13 +28,15 @@ export function MaterialProcessFlow({
   material,
   destinationFolderId,
   browseClient,
-  onClose
+  onClose,
+  initialTool
 }: {
   teamId: string;
   material: ProcessableMaterial;
   destinationFolderId: string | null;
   browseClient: FolderPickerClient;
   onClose: () => void;
+  initialTool?: 'compressor' | 'transcription' | 'imageEmbedding' | 'landingOptimizer';
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
@@ -92,6 +94,7 @@ export function MaterialProcessFlow({
       toolContracts={agent?.toolContracts ?? {}}
       onClose={onClose}
       onStarted={start}
+      initialTool={initialTool}
     />
   );
 }

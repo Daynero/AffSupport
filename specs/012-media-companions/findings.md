@@ -27,8 +27,17 @@ half of the transcribe→companion path is in.
   needs a whisper run — the model here is `ggml-large-v3`, minutes of CPU on this machine, so
   it was not run live; the wiring is a simple call to the SQL function already covered by
   `tests/team-companions-sql.test.ts`.
-- **T016** the video side card shows a Transcript block (verified live: "Транскрибувати" when
-  none exists).
+- **T016** the video side card shows a Transcript block, and the card's Transcribe preselects
+  the transcription tool (`initialTool`).
+
+### Verified end-to-end, live (2026-08-30)
+
+Transcribed the smallest real video (4.68 MB) through the card. whisper (`ggml-large-v3`) ran
+on the agent, the operation reached `succeeded`, and a transcript companion appeared: a
+`.txt` **named after the video** (`<stem>.txt`, FR-T2), `category=transcript`, linked
+(`companion_of`), `ingest_state=full`, text indexed. The card then showed **"Перетранскрибувати"**.
+So T006 (finalize→companion), T005 (link) and T016 (card state) all work against a real
+whisper run — the core of the feature is proven, not just unit-tested.
 
 ### Still not done blind (needs a free machine + a real whisper run)
 

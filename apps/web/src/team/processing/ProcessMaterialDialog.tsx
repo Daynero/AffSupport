@@ -42,7 +42,8 @@ export function ProcessMaterialDialog({
   client = defaultClient,
   browseClient,
   onStarted,
-  onClose
+  onClose,
+  initialTool
 }: {
   teamId: string;
   material: ProcessableMaterial;
@@ -54,11 +55,15 @@ export function ProcessMaterialDialog({
   client?: ProcessMaterialClient;
   onStarted: (result: TeamProcessStartResult, input: TeamProcessStartInput) => void;
   onClose: () => void;
+  /** Preselect a tool (e.g. transcription from the card's Transcribe). */
+  initialTool?: TeamProcessTool;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
   const tools = useMemo(() => toolsForMaterial(material), [material]);
-  const [toolId, setToolId] = useState<TeamProcessTool>(tools[0] ?? 'compressor');
+  const [toolId, setToolId] = useState<TeamProcessTool>(
+    initialTool && tools.includes(initialTool) ? initialTool : (tools[0] ?? 'compressor')
+  );
   const [outputName, setOutputName] = useState(() => suggestedOutputName(material, tools[0]));
   const [destination, setDestination] = useState(destinationFolderId ?? '');
   const [destinationName, setDestinationName] = useState<string | null>(

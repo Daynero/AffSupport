@@ -151,7 +151,10 @@ function ExplorerBody({
   const { currentFolderId, selectedId, select, selectedIds, clearSelection, pathTo, nodeOf } =
     explorer;
   const [treeOpen, setTreeOpen] = useState(false);
-  const [processing, setProcessing] = useState<TeamMaterialRow | null>(null);
+  const [processing, setProcessing] = useState<{
+    row: TeamMaterialRow;
+    tool?: 'transcription';
+  } | null>(null);
   const [dropping, setDropping] = useState(false);
   const [storageKind, setStorageKind] = useState<TeamAnalyticsStorage | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -296,7 +299,9 @@ function ExplorerBody({
         actionsClient,
         storageKind,
         onChanged: changed,
-        ...(permissions.process ? { onProcess: (row: TeamMaterialRow) => setProcessing(row) } : {})
+        ...(permissions.process
+          ? { onProcess: (row: TeamMaterialRow) => setProcessing({ row }) }
+          : {})
       }
     : undefined;
 
@@ -628,14 +633,21 @@ function ExplorerBody({
         row={trash || searching ? null : focused}
         client={client}
         onOpen={onPreview}
-        onTranscribe={permissions?.process ? row => setProcessing(row) : undefined}
+        onTranscribe={
+          permissions?.process ? row => setProcessing({ row, tool: 'transcription' }) : undefined
+        }
         getTranscriptCompanion={teamApi.getTranscriptCompanion}
       />
       {processing && (
         <MaterialProcessFlow
           teamId={teamId}
-          material={{ id: processing.id, name: processing.name, category: processing.category }}
-          destinationFolderId={processing.parentFolderId ?? currentFolderId ?? null}
+          material={{
+            id: processing.row.id,
+            name: processing.row.name,
+            category: processing.row.category
+          }}
+          initialTool={processing.tool}
+          destinationFolderId={processing.row.parentFolderId ?? currentFolderId ?? null}
           browseClient={client}
           onClose={() => {
             setProcessing(null);
