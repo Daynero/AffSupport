@@ -212,7 +212,12 @@ export class TeamTransferClient {
           },
           body: bytes,
           cache: 'no-store',
-          redirect: 'error',
+          // Google's resumable protocol answers 308 (Resume Incomplete) for
+          // every intermediate chunk; undici treats 308 as a redirect, so
+          // 'error' aborted the upload of anything larger than one chunk
+          // ("fetch failed <= unexpected redirect"). 'manual' hands the 308
+          // back to the loop below, which already understands it.
+          redirect: 'manual',
           signal
         });
         if (response.status === 308) {

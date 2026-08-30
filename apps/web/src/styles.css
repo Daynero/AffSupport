@@ -1567,20 +1567,21 @@ a {
   backdrop-filter: blur(4px);
 }
 
+/* The wrapper (.selected-image-actions) is the positioned plate; the button
+   itself just fills a roomy cell — icons stay 20px, plates grow. */
 .selected-image-tile .selected-image-action {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 28px;
-  height: 28px;
-  min-height: 0;
+  position: static;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  flex: 0 0 30px;
   padding: 0;
   display: grid;
   place-items: center;
+  border-radius: 7px;
   color: #2d2638;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 1px 4px var(--tint-medium);
-  backdrop-filter: blur(5px);
+  background: transparent;
 }
 
 .image-grid-error {

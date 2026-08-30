@@ -5,6 +5,8 @@
  * over drawing one. DEFAULTS: size={ICON_SIZE} (20) and
  * strokeWidth={ICON_STROKE} (1.75) unless a spot genuinely needs another
  * scale; import the constants from here so every icon stays consistent.
+ * COMFORT RULE (owner): 20px is the comfortable icon size — when a control
+ * feels cramped, grow the button/plate under the icon, never shrink the icon.
  *
  * Vocabulary: lucide-react is the app's icon system — thin 24px strokes,
  * round caps — an open (ISC) set drawn in the same restrained spirit as
