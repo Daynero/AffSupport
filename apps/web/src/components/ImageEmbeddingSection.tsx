@@ -18,7 +18,8 @@ import {
 import type { TranslationKey } from '../i18n';
 import { Checkbox, Collapse, IconButton, Spinner, Tooltip, type Translate } from './ui';
 import { imageContentPath } from '../api/subresource-paths';
-import { Crop, Minimize2, UnfoldVertical } from 'lucide-react';
+import { Crop, Minimize2, Plus, UnfoldVertical, X } from 'lucide-react';
+import { ICON_SIZE, ICON_STROKE } from './icons';
 import { useSubresourceUrl } from '../api/useSubresourceUrl';
 
 const supportedExtensions = new Set(['.png', '.jpg', '.jpeg', '.webp']);
@@ -116,16 +117,16 @@ export function ImageEmbeddingSection({
                   <div className="fit-mode-pictos" role="group" aria-label={t('frameFit')}>
                     {(
                       [
-                        ['cover', t('fitCover'), <Crop key="c" size={20} strokeWidth={1.75} />],
+                        ['cover', t('fitCover'), <Crop key="c" size={ICON_SIZE} strokeWidth={ICON_STROKE} />],
                         [
                           'contain',
                           t('fitContain'),
-                          <Minimize2 key="i" size={20} strokeWidth={1.75} />
+                          <Minimize2 key="i" size={ICON_SIZE} strokeWidth={ICON_STROKE} />
                         ],
                         [
                           'stretch',
                           t('fitStretch'),
-                          <UnfoldVertical key="s" size={20} strokeWidth={1.75} />
+                          <UnfoldVertical key="s" size={ICON_SIZE} strokeWidth={ICON_STROKE} />
                         ]
                       ] as const
                     ).map(([value, label, icon]) => (
@@ -474,9 +475,7 @@ export function ImageDropArea({
                   void remove(asset.id);
                 }}
               >
-                <svg className="selected-image-action-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="m6 6 12 12M18 6 6 18" />
-                </svg>
+                <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
               </IconButton>
               <span>
                 {asset.width}×{asset.height}
@@ -494,7 +493,7 @@ export function ImageDropArea({
             onKeyDown={onKeyDown}
           >
             <div className="image-drop-message is-minimal">
-              {busy ? <Spinner /> : <span className="image-drop-icon">＋</span>}
+              {busy ? <Spinner /> : <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
             </div>
           </div>
         </div>

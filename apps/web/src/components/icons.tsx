@@ -1,5 +1,10 @@
 /**
- * The app's shared pictogram base (owner, 2026-08-30).
+ * The app's icon system (owner, 2026-08-30).
+ *
+ * WHERE ICONS COME FROM: lucide-react — always prefer an existing lucide icon
+ * over drawing one. DEFAULTS: size={ICON_SIZE} (20) and
+ * strokeWidth={ICON_STROKE} (1.75) unless a spot genuinely needs another
+ * scale; import the constants from here so every icon stays consistent.
  *
  * Vocabulary: lucide-react is the app's icon system — thin 24px strokes,
  * round caps — an open (ISC) set drawn in the same restrained spirit as
@@ -74,3 +79,6 @@ export function FitStretchIcon() {
     </Pictogram>
   );
 }
+
+export const ICON_SIZE = 20;
+export const ICON_STROKE = 1.75;
