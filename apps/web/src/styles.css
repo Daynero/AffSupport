@@ -15831,11 +15831,27 @@ input[type='number'] {
 }
 .batch-chips {
   /* Left-aligned right after the divider, exactly as in the reference. */
+  position: relative;
   flex: 0 1 auto;
   margin-right: auto;
-  padding-left: var(--space-4);
-  border-left: 1px solid var(--color-border);
-  overflow: hidden;
+  padding-left: var(--space-5);
+  overflow: visible;
+}
+/* The divider is a hairline that fades out at both ends. */
+.batch-chips::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 1px;
+  height: 34px;
+  transform: translateY(-50%);
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    color-mix(in oklab, var(--color-text) 26%, transparent) 50%,
+    transparent 100%
+  );
 }
 /* Chips never truncate: below this width the row wraps instead. */
 .batch-chip {
