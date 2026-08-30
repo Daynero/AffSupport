@@ -125,3 +125,7 @@ freed by marking the dead operations failed.
   works, but the OS dialog needs a human click (osascript keystrokes are
   blocked without Accessibility permission), so the final click-through is
   on the owner.
+- C1 verification pass (2026-08-30): team suite 68 files / 515 tests green,
+  creative-library suite 64 tests green (both single-worker); web tsc and
+  agent build clean; live walkthrough covered B3 beside-run, B4 overwrite
+  twice (companion survives), and the B5 chain up to the native picker.
