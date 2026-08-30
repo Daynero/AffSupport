@@ -16,6 +16,11 @@ Dropping `profiles` permanently removes user preferences and consent history. Dr
 
 ## Team media workspace migrations (development recovery only)
 
+0. `20260830160000_task_progress_max_default.sql`: restore `create_team_task` to its prior body
+   (no `progress_max` from the profile), drop `public.get_task_progress_max_default()` and
+   `public.set_task_progress_max_default(integer)`, then drop the `task_progress_max_default`
+   column and its check from `public.profiles`. No task data is lost.
+
 0. `20260830150000_video_text_variants_companion.sql`: `list_video_text_variants` gained a
    companion-transcript fallback. To revert, re-create the function from
    `20260830100000`-era definition (library-results only). No data is touched — it is a pure

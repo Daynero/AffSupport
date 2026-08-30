@@ -128,6 +128,21 @@ function AccountContent({
       active = false;
     };
   }, []);
+  const [taskMaxDefault, setTaskMaxDefault] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    void teamApi
+      .getTaskProgressMaxDefault()
+      .then(value => {
+        if (active) setTaskMaxDefault(String(value));
+      })
+      .catch(() => {
+        if (active) setTaskMaxDefault('100');
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [formError, setFormError] = useState(false);
@@ -231,6 +246,26 @@ function AccountContent({
                 <option value="delete">{t('accountTranscriptDeleteAlways')}</option>
                 <option value="keep">{t('accountTranscriptDeleteNever')}</option>
               </select>
+            </label>
+          )}
+          {taskMaxDefault !== null && (
+            <label className="field">
+              <span>{t('accountTaskMaxDefaultLabel')}</span>
+              <input
+                type="number"
+                min={1}
+                max={10000}
+                value={taskMaxDefault}
+                onChange={event => setTaskMaxDefault(event.target.value)}
+                onBlur={() => {
+                  const parsed = Number(taskMaxDefault);
+                  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 10000) {
+                    void teamApi.getTaskProgressMaxDefault().then(v => setTaskMaxDefault(String(v)));
+                    return;
+                  }
+                  void teamApi.setTaskProgressMaxDefault(parsed).catch(() => undefined);
+                }}
+              />
             </label>
           )}
           {formError && <div className="inline-alert inline-alert-error">{t('profileError')}</div>}

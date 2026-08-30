@@ -11722,13 +11722,13 @@ body {
   position: relative;
   height: 10px;
   border-radius: 999px;
-  /* Two flat colours meeting at the knob, no blend: what is left to do reads
-     red, what is done reads green, and the boundary is exactly where the
-     handle sits rather than somewhere inside a wash of amber. */
+  /* Two flat colours meeting at the knob, no blend: what is done (left of the
+     handle) reads green, what is left to do reads red, and the boundary sits
+     exactly under the handle rather than in a wash of amber. */
   background: linear-gradient(
     90deg,
-    #dc2626 0 var(--task-progress-position),
-    #16a34a var(--task-progress-position) 100%
+    #16a34a 0 var(--task-progress-position),
+    #dc2626 var(--task-progress-position) 100%
   );
   box-shadow: inset 0 0 0 1px color-mix(in oklab, #000 16%, transparent);
   cursor: pointer;
@@ -11827,6 +11827,36 @@ body {
   padding: 0 2px;
   text-align: center;
   font-variant-numeric: tabular-nums;
+}
+.team-task-progress-max-input {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.team-task-progress-max-save {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  color: var(--color-accent);
+  cursor: pointer;
+  transition:
+    color var(--dur-micro) var(--ease-standard),
+    border-color var(--dur-micro) var(--ease-standard);
+}
+.team-task-progress-max-save:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  background: color-mix(in oklab, var(--color-accent) 15%, var(--color-surface));
+}
+.team-task-progress-max-save:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 .team-task-editor .team-task-assignee-field select:focus-visible,
 .team-task-editor .team-task-progress-max-field input:focus-visible {

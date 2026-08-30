@@ -105,6 +105,25 @@ export function TaskEditor({
   const [showUnsavedPrompt, setShowUnsavedPrompt] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // The account-wide default for a new task's Maximum. When the field differs
+  // from it, a small save control offers to make the current value the default.
+  const [defaultMax, setDefaultMax] = useState<number | null>(null);
+  const [savingDefaultMax, setSavingDefaultMax] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void teamApi
+      .getTaskProgressMaxDefault()
+      .then(value => {
+        if (active) setDefaultMax(value);
+      })
+      .catch(() => {
+        if (active) setDefaultMax(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const hydrateTask = (next: TeamTaskSummary) => {
     setTask(next);
@@ -416,18 +435,59 @@ export function TaskEditor({
               </label>
               <label className="team-task-progress-max-field">
                 <span>{t('teamTaskProgressMax')}</span>
-                <input
-                  inputMode="numeric"
-                  type="number"
-                  min={1}
-                  max={TASK_PROGRESS_MAX}
-                  value={progressMaxInput}
-                  disabled={!canEdit}
-                  onChange={event => updateProgressMax(event.target.value)}
-                  onBlur={() => {
-                    if (!/^\d+$/u.test(progressMaxInput)) setProgressMaxInput(String(progressMax));
-                  }}
-                />
+                <div className="team-task-progress-max-input">
+                  <input
+                    inputMode="numeric"
+                    type="number"
+                    min={1}
+                    max={TASK_PROGRESS_MAX}
+                    value={progressMaxInput}
+                    disabled={!canEdit}
+                    onChange={event => updateProgressMax(event.target.value)}
+                    onBlur={() => {
+                      if (!/^\d+$/u.test(progressMaxInput))
+                        setProgressMaxInput(String(progressMax));
+                    }}
+                  />
+                  {canEdit && defaultMax !== null && progressMax !== defaultMax && (
+                    <button
+                      type="button"
+                      className="team-task-progress-max-save"
+                      disabled={savingDefaultMax}
+                      title={t('teamTaskProgressMaxSaveDefault')}
+                      aria-label={t('teamTaskProgressMaxSaveDefault')}
+                      onClick={async () => {
+                        setSavingDefaultMax(true);
+                        try {
+                          await teamApi.setTaskProgressMaxDefault(progressMax);
+                          setDefaultMax(progressMax);
+                          push({ tone: 'success', text: t('teamTaskProgressMaxSaved') });
+                        } catch {
+                          push({ tone: 'error', text: t('teamTaskAttachmentActionFailed') });
+                        } finally {
+                          setSavingDefaultMax(false);
+                        }
+                      }}
+                    >
+                      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                        <path
+                          d="M5 3h11l3 3v15H5z"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.7"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M8 3v6h7V3M8 21v-6h8v6"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.7"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </button>
+                  )}
+                </div>
               </label>
             </div>
             <TaskProgressScale

@@ -1402,6 +1402,19 @@ export const teamApi = {
     throwRpc(error);
   },
 
+  async getTaskProgressMaxDefault(): Promise<number> {
+    const { data, error } = await requireSupabaseClient().rpc('get_task_progress_max_default');
+    throwRpc(error);
+    return typeof data === 'number' && Number.isFinite(data) ? data : 100;
+  },
+
+  async setTaskProgressMaxDefault(value: number): Promise<void> {
+    const { error } = await requireSupabaseClient().rpc('set_task_progress_max_default', {
+      p_value: value
+    });
+    throwRpc(error);
+  },
+
   async getTranscriptCompanion(
     teamId: string,
     materialId: string

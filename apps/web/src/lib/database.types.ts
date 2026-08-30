@@ -2385,6 +2385,14 @@ export type Database = {
         Args: { p_pref: string };
         Returns: string;
       };
+      get_task_progress_max_default: {
+        Args: Record<string, never>;
+        Returns: number;
+      };
+      set_task_progress_max_default: {
+        Args: { p_value: number };
+        Returns: undefined;
+      };
       request_landing_render_refresh: {
         Args: { p_team: string; p_material: string };
         Returns: number;
