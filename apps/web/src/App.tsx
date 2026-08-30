@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react';
+import { PaintRoller, Play, Trash2 } from 'lucide-react';
 import {
   COMPRESSION_LIFECYCLE,
   calculateQueueSummary,
@@ -91,6 +92,59 @@ export default function CompressorPage() {
     setFreshJobs(new Set(ids));
     window.setTimeout(() => setFreshJobs(new Set()), 3000);
   };
+  // The toolbar collapses its action labels the moment the row would overflow,
+  // measured rather than guessed at a breakpoint: the same window is wide
+  // enough in English and too narrow in Ukrainian.
+  const toolbarRow = useRef<HTMLDivElement>(null);
+  const stage = useRef({ actions: false, chips: false });
+  const [compactActions, setCompactActions] = useState(false);
+  const [compactChips, setCompactChips] = useState(false);
+  useLayoutEffect(() => {
+    const row = toolbarRow.current;
+    if (!row) return;
+    // Two stages: the action labels go first, and only if the row still cannot
+    // fit do the status words shrink to bare numbers (their meaning stays in
+    // the hover hint).
+    const measure = () => {
+      const slack = row.clientWidth - row.scrollWidth;
+      if (slack < 0) {
+        // One stage per frame, re-measured in between: the action labels go
+        // first, and the status words only if the row still does not fit.
+        if (!stage.current.actions) {
+          stage.current.actions = true;
+          setCompactActions(true);
+          requestAnimationFrame(measure);
+          return;
+        }
+        if (!stage.current.chips) {
+          stage.current.chips = true;
+          setCompactChips(true);
+        }
+        return;
+      }
+      // Expand again when the room returns, with enough margin that a pixel of
+      // slack cannot flip the row back and forth.
+      if (slack > 200 && stage.current.chips) {
+        stage.current.chips = false;
+        setCompactChips(false);
+        requestAnimationFrame(measure);
+        return;
+      }
+      if (slack > 420 && stage.current.actions) {
+        stage.current.actions = false;
+        setCompactActions(false);
+      }
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(row);
+    window.addEventListener('resize', measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  });
   const [intake, setIntake] = useState<'ok' | 'fail' | null>(null);
   const [intakeMessage, setIntakeMessage] = useState<string | null>(null);
   // Both outcomes hold for two seconds — long enough to read the line where
@@ -578,7 +632,12 @@ export default function CompressorPage() {
               className="batch-toolbar"
               aria-label={t('fileActions', { name: t('appName') })}
             >
-              <div className="batch-toolbar-row">
+              <div
+                className={`batch-toolbar-row ${compactActions ? 'is-compact' : ''} ${
+                  compactChips ? 'is-compact-chips' : ''
+                }`.trim()}
+                ref={toolbarRow}
+              >
               <div className="selection-actions">
                 <Checkbox
                   className="select-all-box"
@@ -601,27 +660,64 @@ export default function CompressorPage() {
                 </Button>
               </div>
               <div className="batch-chips" aria-hidden="true">
-                <span className="batch-chip">
-                  {t(fileCountKey(language, state.jobs.length), { count: state.jobs.length })}
+                <span className="batch-chip" title={t('chipFilesMany', { count: state.jobs.length })}>
+                  <b>{state.jobs.length}</b>
+                  <span className="chip-word">
+                    {' '}
+                    {t(fileCountKey(language, state.jobs.length), { count: state.jobs.length })
+                      .replace(String(state.jobs.length), '')
+                      .trim()}
+                  </span>
                 </span>
                 {/* All four counters stay on screen — a zero is information too. */}
-                <span className="batch-chip is-processing">
-                  {t('chipProcessing', { count: metrics.processing })}
+                <span
+                  className="batch-chip is-processing"
+                  title={t('chipProcessing', { count: metrics.processing })}
+                >
+                  <b>{metrics.processing}</b>
+                  <span className="chip-word">
+                    {' '}
+                    {t('chipProcessing', { count: metrics.processing })
+                      .replace(String(metrics.processing), '')
+                      .trim()}
+                  </span>
                 </span>
-                <span className="batch-chip is-done">
-                  {t('chipCompleted', { count: metrics.completed })}
+                <span
+                  className="batch-chip is-done"
+                  title={t('chipCompleted', { count: metrics.completed })}
+                >
+                  <b>{metrics.completed}</b>
+                  <span className="chip-word">
+                    {' '}
+                    {t('chipCompleted', { count: metrics.completed })
+                      .replace(String(metrics.completed), '')
+                      .trim()}
+                  </span>
                 </span>
-                <span className="batch-chip is-failed">
-                  {t('chipFailed', { count: metrics.failed })}
+                <span
+                  className="batch-chip is-failed"
+                  title={t('chipFailed', { count: metrics.failed })}
+                >
+                  <b>{metrics.failed}</b>
+                  <span className="chip-word">
+                    {' '}
+                    {t('chipFailed', { count: metrics.failed })
+                      .replace(String(metrics.failed), '')
+                      .trim()}
+                  </span>
                 </span>
               </div>
               <div className="primary-actions">
                 <Button
                   variant="primary"
                   disabled={!connected || blocked !== null}
+                  title={t('compressSelected')}
                   onClick={() => void startSelected()}
                 >
-                  {`${t('compressSelected')}${selected.size ? ` (${selected.size})` : ''}`}
+                  <Play size={18} strokeWidth={1.75} aria-hidden="true" />
+                  <span className="action-label">
+                    {`${t('compressSelected')}${selected.size ? ` (${selected.size})` : ''}`}
+                  </span>
                 </Button>
                 {connected && blockedReasonKey(blocked) && (
                   <span className="compress-blocked-reason" role="status">
@@ -641,17 +737,21 @@ export default function CompressorPage() {
                 <Button
                   variant="danger"
                   disabled={!connected || selectedRemovable.length === 0}
+                  title={t('removeSelected')}
                   onClick={() => void removeSelected()}
                 >
-                  {t('removeSelected')}
+                  <Trash2 size={18} strokeWidth={1.75} aria-hidden="true" />
+                  <span className="action-label">{t('removeSelected')}</span>
                 </Button>
                 {state.jobs.some(job => isSettled(COMPRESSION_LIFECYCLE, job.status)) && (
                   <Button
                     variant="ghost"
                     disabled={!connected}
+                    title={t('clearFinished')}
                     onClick={() => void action('/api/jobs/completed', 'DELETE')}
                   >
-                    {t('clearFinished')}
+                    <PaintRoller size={18} strokeWidth={1.75} aria-hidden="true" />
+                    <span className="action-label">{t('clearFinished')}</span>
                   </Button>
                 )}
               </div>

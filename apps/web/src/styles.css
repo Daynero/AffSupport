@@ -15861,7 +15861,6 @@ input[type='number'] {
 }
 @media (max-width: 1280px) {
   .batch-chips {
-    order: 3;
     margin-inline: 0;
     justify-content: flex-start;
   }
@@ -16348,4 +16347,42 @@ input[type='number'] {
 .job-side .job-actions .button-primary:hover:not(:disabled),
 .job-progress-panel .job-actions .button-primary:hover:not(:disabled) {
   background: linear-gradient(180deg, #ff9a33 0%, #fb8b1e 100%);
+}
+
+/* When the bar runs out of room the three actions drop their words and become
+   square icon buttons — compress, delete, sweep. Their labels stay as instant
+   hints (title → data-tip) so nothing is lost. */
+.batch-toolbar .primary-actions .button {
+  gap: 10px;
+}
+/* Set by App when the row measures as overflowing. */
+.batch-toolbar-row.is-compact .primary-actions .action-label {
+  display: none;
+}
+.batch-toolbar-row.is-compact .primary-actions .button {
+  width: 44px;
+  min-width: 44px;
+  padding: 0;
+  justify-content: center;
+}
+
+
+/* Narrow windows: the card's two columns stack instead of squeezing. */
+@media (max-width: 1180px) {
+  .job-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .job-side {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+
+/* Second stage: the status words drop away and only their numbers remain,
+   each keeping its colour and its hover hint. */
+.batch-toolbar-row.is-compact-chips .chip-word {
+  display: none;
+}
+.batch-toolbar-row.is-compact-chips .batch-chips {
+  gap: 14px;
 }
