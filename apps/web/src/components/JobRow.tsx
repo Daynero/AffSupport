@@ -490,10 +490,12 @@ function ResultPanel({
       </div>
       <MediaGrid
         items={[
+          // Duration sits where the estimate keeps it, so the two panels line
+          // up column for column.
           [t('videoResolution'), dimensions(job.finalWidth, job.finalHeight)],
           [t('videoFps'), `${formatFps(job.finalFrameRate, language)} FPS`],
-          [t('videoBitrate'), formatBitrate(job.finalBitrate, language)],
           [t('duration'), formatDuration(job.finalDurationSeconds)],
+          [t('videoBitrate'), formatBitrate(job.finalBitrate, language)],
           [t('codec'), formatCodec(job.finalCodec)]
         ]}
       />
