@@ -503,6 +503,7 @@ export function ImageDropArea({
               onClick={() => {
                 if (!disabled && onToggleImage) onToggleImage(asset.id);
               }}
+              data-inactive-label={t('imageInactiveBadge')}
               onKeyDown={event => {
                 if (!onToggleImage || disabled) return;
                 if (event.key === 'Enter' || event.key === ' ') {

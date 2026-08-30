@@ -15155,6 +15155,26 @@ button.team-landing-tile:hover {
   position: relative;
   /* The veil must cover the tile to its rounded edge — no bright rim. */
   overflow: hidden;
+  /* A thin red frame says "excluded" at a glance. */
+  outline: 1px solid color-mix(in oklab, #ff6b6b 75%, transparent);
+  outline-offset: -1px;
+}
+/* Centred thin caption over the veil. */
+.selected-image-tile.is-inactive::before {
+  content: attr(data-inactive-label);
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  padding: 0 6px;
+  color: #ff9b9b;
+  font-size: var(--text-2xl);
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  text-align: center;
+  text-transform: uppercase;
+  pointer-events: none;
 }
 .selected-image-tile.is-inactive img {
   filter: grayscale(1) blur(2px);
