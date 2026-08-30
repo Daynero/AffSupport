@@ -1438,7 +1438,9 @@ a {
 
 .image-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  /* Square thumbnails everywhere: the column is exactly as wide as the row is
+     tall, so a tile is never a rectangle. */
+  grid-template-columns: repeat(auto-fill, var(--image-grid-row-height));
   grid-auto-rows: var(--image-grid-row-height);
   gap: var(--image-grid-gap);
   min-height: var(--image-grid-row-height);
@@ -16188,7 +16190,7 @@ input[type='number'] {
   top: 50%;
   left: calc(var(--space-6) / -2);
   width: 1px;
-  height: 64px;
+  height: 128px;
   transform: translateY(-50%);
   background: linear-gradient(
     to bottom,
@@ -16196,4 +16198,15 @@ input[type='number'] {
     color-mix(in oklab, var(--color-text) 22%, transparent) 50%,
     transparent 100%
   );
+}
+
+
+/* The metadata toggle is a control in the row, not a heading: same type size
+   as the other group labels, centred against them. */
+.metadata-settings {
+  align-self: center;
+}
+.metadata-settings .checkbox strong {
+  font-size: var(--text-xl);
+  font-weight: 600;
 }

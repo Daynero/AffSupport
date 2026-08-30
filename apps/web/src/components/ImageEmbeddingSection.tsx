@@ -4,8 +4,7 @@ import {
   useState,
   type ChangeEvent,
   type DragEvent,
-  type KeyboardEvent
-} from 'react';
+  type KeyboardEvent, useLayoutEffect } from 'react';
 import {
   MAX_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
   MAX_CUSTOM_START_IMAGE_DURATION_MS,
@@ -401,17 +400,30 @@ export function ImageDropArea({
   // so a short gallery never swallows the page's wheel events.
   const scrollHost = useRef<HTMLDivElement>(null);
   const [scrollable, setScrollable] = useState(false);
-  useEffect(() => {
+  // Measured from the grid's own height against the host's two-row cap, so the
+  // answer never depends on the state it is about to set — the earlier version
+  // compared the host's scroll height with its client height, which stayed
+  // equal once scrolling was on and left it stuck there.
+  useLayoutEffect(() => {
     const host = scrollHost.current;
-    if (!host) return;
-    const measure = () => setScrollable(host.scrollHeight - host.clientHeight > 2);
+    const grid = host?.firstElementChild as HTMLElement | null;
+    if (!host || !grid) return;
+    const measure = () => {
+      const cap = Number.parseFloat(getComputedStyle(host).maxHeight);
+      if (!Number.isFinite(cap)) return;
+      setScrollable(grid.getBoundingClientRect().height > cap + 1);
+    };
     measure();
     if (typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(measure);
     observer.observe(host);
-    for (const child of Array.from(host.children)) observer.observe(child);
-    return () => observer.disconnect();
-  }, [assets.length]);
+    observer.observe(grid);
+    window.addEventListener('resize', measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  });
   const dragDepth = useRef(0);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
