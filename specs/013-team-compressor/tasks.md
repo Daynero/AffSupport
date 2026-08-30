@@ -105,3 +105,16 @@ freed by marking the dead operations failed.
 - finalize's `verifyBoundSource` threw SOURCE_CHANGED on overwrite runs
   (the run itself advances the source's drive version); drive-ops now skips
   the stale-source comparison when `versionOfMaterialId === sourceMaterialId`.
+- The silent queue deaths had a third cause beyond edge restarts and HMR
+  page reloads: `process/start` 409 NAME_CONFLICT swallowed by the web
+  runner (no toast — worth fixing), and the 409 itself came from the name
+  reservation unique index: succeeded MOVE operations finish through
+  `service_complete_material_group_intent`, which never released
+  `reservation_released_at` — the moved name stayed blocked in that folder
+  forever. Fixed by 20260830190000 (release on success); stale held keys
+  were released manually (trigger `TERMINAL_OPERATION_IMMUTABLE` requires
+  a temporary `disable trigger user`).
+- The finalize RPC needed real overwrite support (20260830180000): three
+  checks — stale source version, "result must not be the source file",
+  processed_from self-link — are skipped when
+  `intent.version_of_material_id = operation.source_material_id`.

@@ -221,3 +221,14 @@ where jobname = 'wishly-preview-warm'`; drop `private.invoke_preview_warm_worker
 
 Never automate this recovery sequence against production. Export audit/provenance/catalog
 records and confirm Vault/Google credential revocation before any destructive rollback.
+
+## 20260830180000_finalize_overwrite_support.sql
+Re-apply the previous `service_finalize_uploaded_material` definition (from
+20260830150000 or the latest prior migration touching it): the three added
+`version_of_material_id` conditions are the only changes — removing them
+restores the old behavior (overwrite finalize rejected with SOURCE_CHANGED).
+
+## 20260830190000_group_intent_release_reservation.sql
+Re-apply the prior `service_complete_material_group_intent` definition (drop
+the added `reservation_released_at` line in the succeeded update). Stale
+held reservations released manually during this fix stay released.
