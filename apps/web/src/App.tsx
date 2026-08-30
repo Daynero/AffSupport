@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react';
-import { PaintRoller, Play, Trash2 } from 'lucide-react';
+import { Broom, Play, Trash2 } from 'lucide-react';
 import {
   COMPRESSION_LIFECYCLE,
   calculateQueueSummary,
@@ -750,7 +750,7 @@ export default function CompressorPage() {
                     title={t('clearFinished')}
                     onClick={() => void action('/api/jobs/completed', 'DELETE')}
                   >
-                    <PaintRoller size={18} strokeWidth={1.75} aria-hidden="true" />
+                    <Broom size={18} strokeWidth={1.75} aria-hidden="true" />
                     <span className="action-label">{t('clearFinished')}</span>
                   </Button>
                 )}

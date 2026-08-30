@@ -15598,7 +15598,9 @@ input[type='number'] {
 .instant-tip {
   position: fixed;
   z-index: var(--layer-toast);
-  max-width: 320px;
+  /* Wide enough for a long file name, wrapping (and breaking a single
+     unbroken run of characters) rather than running off the screen. */
+  max-width: min(560px, calc(100vw - 32px));
   padding: 9px 12px;
   transform: translateX(-50%);
   border-radius: var(--radius-sm);
@@ -15609,6 +15611,9 @@ input[type='number'] {
   font-weight: 500;
   line-height: 1.35;
   text-align: center;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
   pointer-events: none;
 }
 
