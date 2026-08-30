@@ -2060,13 +2060,13 @@ input.is-invalid {
   justify-content: center;
   gap: var(--space-3);
   padding: var(--space-4);
-  /* A drop target, not a button: the page's dark surface, an orange dashed
-     outline, white type and an orange glyph. */
+  /* A drop target, not a button: a deep orange-tinted field behind an orange
+     dashed outline, white type and an orange glyph. */
   border: 2px dashed var(--honey-500);
   box-shadow: none;
   border-radius: var(--radius-lg);
   color: var(--color-text);
-  background: var(--color-surface);
+  background: color-mix(in oklab, var(--honey-800) 40%, var(--color-surface));
   cursor: pointer;
   transition:
     border-color var(--dur-control) var(--ease-standard),
@@ -2076,10 +2076,10 @@ input.is-invalid {
 
 .drop-zone:hover:not(.is-disabled),
 .drop-zone.is-dragging {
-  /* Hover warms the dark field a touch and brightens the dashed outline. */
+  /* Hover deepens the field and brightens the dashed outline. */
   border-color: var(--honey-400);
   color: var(--honey-400);
-  background: color-mix(in oklab, var(--color-action) 10%, var(--color-surface));
+  background: color-mix(in oklab, var(--honey-700) 55%, var(--color-surface));
 }
 .drop-zone:hover:not(.is-disabled) .drop-icon,
 .drop-zone.is-dragging .drop-icon,
@@ -15590,7 +15590,7 @@ input[type='number'] {
 :root:not([data-theme='dark']) .drop-zone {
   border-color: var(--honey-500);
   color: var(--color-text);
-  background: var(--color-surface);
+  background: color-mix(in oklab, var(--honey-200) 45%, var(--color-surface));
 }
 :root[data-theme='light'] .drop-zone .drop-icon,
 :root:not([data-theme='dark']) .drop-zone .drop-icon,
@@ -15613,7 +15613,7 @@ input[type='number'] {
 :root[data-theme='light'] .drop-zone.is-dragging,
 :root:not([data-theme='dark']) .drop-zone.is-dragging {
   border-color: var(--honey-400);
-  background: color-mix(in oklab, var(--color-action) 10%, var(--color-surface));
+  background: color-mix(in oklab, var(--honey-300) 55%, var(--color-surface));
 }
 
 /* The metadata toggle and its hint share one line. */
