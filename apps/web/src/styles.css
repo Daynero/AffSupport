@@ -15298,3 +15298,15 @@ button.team-landing-tile:hover {
   font-size: var(--text-md);
   font-variant-numeric: tabular-nums;
 }
+
+/* The three embedding controls share one row above the two image columns. */
+.embedding-settings-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-4) var(--space-5);
+  margin-bottom: var(--space-3);
+}
+.embedding-settings-row .field-group {
+  margin: 0;
+}

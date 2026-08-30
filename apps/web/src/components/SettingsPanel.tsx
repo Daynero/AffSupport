@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { Eraser, Files, FolderOpen, Sparkles, SlidersHorizontal } from 'lucide-react';
+import { ICON_SIZE, ICON_STROKE } from './icons';
 import {
   CRF_MAX,
   CRF_MIN,
@@ -54,16 +56,32 @@ export function SettingsPanel({
             label={t('compressionMode')}
             tooltip={settings.mode === 'optimal' ? t('optimalTooltip') : undefined}
           />
-          <SegmentedControl<CompressionMode>
-            label={t('compressionMode')}
-            value={settings.mode}
-            disabled={disabled}
-            options={[
-              { value: 'optimal', label: t('optimal') },
-              { value: 'custom', label: t('custom') }
-            ]}
-            onChange={mode => updateSettings({ mode })}
-          />
+          <div className="fit-mode-pictos" role="radiogroup" aria-label={t('compressionMode')}>
+            <button
+              type="button"
+              className={settings.mode === 'optimal' ? 'is-selected' : ''}
+              title={t('optimal')}
+              aria-label={t('optimal')}
+              aria-checked={settings.mode === 'optimal'}
+              role="radio"
+              disabled={disabled}
+              onClick={() => updateSettings({ mode: 'optimal' })}
+            >
+              <Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className={settings.mode === 'custom' ? 'is-selected' : ''}
+              title={t('custom')}
+              aria-label={t('custom')}
+              aria-checked={settings.mode === 'custom'}
+              role="radio"
+              disabled={disabled}
+              onClick={() => updateSettings({ mode: 'custom' })}
+            >
+              <SlidersHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            </button>
+          </div>
           {settings.mode === 'optimal' && (
             <span className="optimal-summary">{t('optimalSummary')}</span>
           )}
@@ -78,13 +96,20 @@ export function SettingsPanel({
         <div className="field-group metadata-settings">
           <FieldLabel label={t('metadata')} tooltip={t('stripMetadataTooltip')} />
           <div className="metadata-control">
-            <Checkbox
-              className="feature-switch"
-              checked={settings.stripMetadata}
-              disabled={disabled}
-              onChange={event => updateSettings({ stripMetadata: event.target.checked })}
-              label={<strong>{t('stripMetadata')}</strong>}
-            />
+            <div className="fit-mode-pictos">
+              <button
+                type="button"
+                role="switch"
+                className={settings.stripMetadata ? 'is-selected' : ''}
+                title={t('stripMetadata')}
+                aria-label={t('stripMetadata')}
+                aria-checked={settings.stripMetadata}
+                disabled={disabled}
+                onClick={() => updateSettings({ stripMetadata: !settings.stripMetadata })}
+              >
+                <Eraser size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -457,31 +482,37 @@ function OutputSettings({
       <div className="field-group">
         <FieldLabel label={t('saveResults')} tooltip={t('saveTooltip')} />
         <div className="output-control-row">
-          <SegmentedControl<'next-to-originals' | 'chosen-folder'>
-            label={t('saveResults')}
-            value={settings.outputMode}
-            disabled={disabled}
-            options={[
-              { value: 'next-to-originals', label: t('nextToOriginals') },
-              { value: 'chosen-folder', label: t('chooseFolder') }
-            ]}
-            onChange={value => {
-              if (value === 'chosen-folder') chooseOutputFolder();
-              else updateSettings({ outputMode: value });
-            }}
-          />
-          {settings.outputMode === 'chosen-folder' && (
-            <Button variant="ghost" disabled={disabled} onClick={chooseOutputFolder}>
-              {t('selectFolder')}
-            </Button>
-          )}
+          <div className="fit-mode-pictos" role="radiogroup" aria-label={t('saveResults')}>
+            <button
+              type="button"
+              role="radio"
+              className={settings.outputMode === 'next-to-originals' ? 'is-selected' : ''}
+              title={t('nextToOriginals')}
+              aria-label={t('nextToOriginals')}
+              aria-checked={settings.outputMode === 'next-to-originals'}
+              disabled={disabled}
+              onClick={() => updateSettings({ outputMode: 'next-to-originals' })}
+            >
+              <Files size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              role="radio"
+              className={settings.outputMode === 'chosen-folder' ? 'is-selected' : ''}
+              title={t('chooseFolder')}
+              aria-label={t('chooseFolder')}
+              aria-checked={settings.outputMode === 'chosen-folder'}
+              disabled={disabled}
+              onClick={chooseOutputFolder}
+            >
+              <FolderOpen size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            </button>
+          </div>
           {settings.outputMode === 'chosen-folder' && (
             <span className="selected-folder" title={settings.outputFolder ?? t('noFolderSelected')}>
               {settings.outputFolder ? compactPath(settings.outputFolder) : t('noFolderSelected')}
             </span>
           )}
-        </div>
-        <div className="output-control-row">
           <label className="output-suffix-field">
             <span>{t('outputSuffixLabel')}</span>
             <input

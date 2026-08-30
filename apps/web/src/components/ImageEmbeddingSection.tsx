@@ -98,21 +98,8 @@ export function ImageEmbeddingSection({
               {t('replaceExistingImagesHint')}
             </Tooltip>
           </div>
-          <div className="image-columns">
-            <ImageColumn
-              slot="start"
-              title={t('startImageTitle')}
-              description={t('startImageDescription')}
-              assets={settings.startImages}
-              disabled={disabled}
-              uploadImages={uploadImages}
-              removeImage={removeImage}
-              disabledIds={disabledIds}
-              onToggleImage={toggleImage}
-              t={t}
-            >
-              <div className="embedding-column-fields">
-                <div className="field-group embedding-fit-row">
+          <div className="embedding-settings-row">
+<div className="field-group embedding-fit-row">
                   <FieldLabel label={t('frameFit')} tooltip={t('frameFitTooltip')} />
                   <div className="fit-mode-pictos" role="group" aria-label={t('frameFit')}>
                     {(
@@ -148,7 +135,7 @@ export function ImageEmbeddingSection({
                     <span className="field-hint">{t('fitStretchWarning')}</span>
                   )}
                 </div>
-                <div className="field-group start-duration-field">
+<div className="field-group start-duration-field">
                   <FieldLabel
                     label={t('startImageDuration')}
                     tooltip={t('startImageDurationTooltip')}
@@ -206,24 +193,10 @@ export function ImageEmbeddingSection({
                   )}
                   </div>
                 </div>
-              </div>
-            </ImageColumn>
-            <ImageColumn
-              slot="end"
-              title={t('endImageTitle')}
-              description={t('endImageDescription')}
-              assets={settings.endImages}
-              disabled={disabled}
-              uploadImages={uploadImages}
-              removeImage={removeImage}
-              disabledIds={disabledIds}
-              onToggleImage={toggleImage}
-              t={t}
-            >
-              <div className="field-group final-duration-field">
+<div className="field-group final-duration-field">
                 <FieldLabel
                   label={t('finalImageDuration')}
-                  tooltip={t('finalImageDurationTooltip')}
+                  tooltip={`${t('finalImageDurationTooltip')} ${t('finalImageDurationEffect')}`}
                 />
                 <div className="start-duration-row">
                   <div
@@ -265,10 +238,7 @@ export function ImageEmbeddingSection({
                     </button>
                   </div>
                 </div>
-                {/* The label says "40–50 min" and the unit is easy to read past.
-                    A user found out from the file: a 2.5 minute video came back
-                    47 minutes long, and about a hundred megabytes heavier. */}
-                <p className="embedding-duration-note">{t('finalImageDurationEffect')}</p>
+
                 {settings.finalDurationMode === 'custom' && (
                   <>
                     <div className="custom-duration-input">
@@ -297,6 +267,38 @@ export function ImageEmbeddingSection({
                   </>
                 )}
               </div>
+</div>
+          <div className="image-columns">
+            <ImageColumn
+              slot="start"
+              title={t('startImageTitle')}
+              description={t('startImageDescription')}
+              assets={settings.startImages}
+              disabled={disabled}
+              uploadImages={uploadImages}
+              removeImage={removeImage}
+              disabledIds={disabledIds}
+              onToggleImage={toggleImage}
+              t={t}
+            >
+              <div className="embedding-column-fields">
+                
+                
+              </div>
+            </ImageColumn>
+            <ImageColumn
+              slot="end"
+              title={t('endImageTitle')}
+              description={t('endImageDescription')}
+              assets={settings.endImages}
+              disabled={disabled}
+              uploadImages={uploadImages}
+              removeImage={removeImage}
+              disabledIds={disabledIds}
+              onToggleImage={toggleImage}
+              t={t}
+            >
+              
             </ImageColumn>
           </div>
 

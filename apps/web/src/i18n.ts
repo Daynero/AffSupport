@@ -2059,7 +2059,7 @@ const uk: Record<keyof typeof en, string> = {
   replaceExistingImages: 'Перезашити існуюче',
   replaceExistingImagesHint:
     'Спочатку видаляє статичні кадри на початку та в кінці, а потім додає нові.',
-  startImageTitle: 'Початковий кадр',
+  startImageTitle: 'Початкове зображення',
   startImageDescription: 'Одне зображення із сітки буде додано на один кадр перед відео.',
   endImageTitle: 'Фінальне зображення',
   endImageDescription: 'Одне зображення із сітки буде показуватися після відео без звуку.',
@@ -2088,7 +2088,7 @@ const uk: Record<keyof typeof en, string> = {
   customDurationInput: 'Власна тривалість у хвилинах',
   minutesUnit: 'хв',
   invalidCustomDuration: 'Введіть ціле число хвилин, більше за 0.',
-  startImageDuration: 'Тривалість першого кадру',
+  startImageDuration: 'Тривалість початкового зображення',
   startImageDurationTooltip:
     'Скільки часу показувати початкове зображення перед відео. «1 кадр» робить його таким же коротким, як один кадр відео.',
   startDurationOneFrame: '1 кадр',
