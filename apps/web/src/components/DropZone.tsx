@@ -1,11 +1,12 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 import { Spinner, type Translate } from './ui';
-import { Upload } from 'lucide-react';
+import { Check, Upload, X } from 'lucide-react';
 import { ICON_STROKE } from './icons';
 
 export function DropZone({
   disabled,
   importing,
+  outcome,
   chooseFiles,
   addDroppedFiles,
   addDroppedFilePaths,
@@ -18,6 +19,8 @@ export function DropZone({
 }: {
   disabled: boolean;
   importing: boolean;
+  /** One-second confirmation flash after an import ('ok' | 'fail'). */
+  outcome?: 'ok' | 'fail' | null;
   chooseFiles: () => void;
   addDroppedFiles: (files: File[]) => void;
   addDroppedFilePaths?: (paths: string[]) => void;
@@ -68,7 +71,9 @@ export function DropZone({
 
   return (
     <div
-      className={`drop-zone ${dragging ? 'is-dragging' : ''} ${disabled ? 'is-disabled' : ''}`}
+      className={`drop-zone ${dragging ? 'is-dragging' : ''} ${
+        disabled ? 'is-disabled' : ''
+      } ${outcome === 'ok' ? 'is-ok' : outcome === 'fail' ? 'is-fail' : ''}`}
       role="button"
       tabIndex={disabled ? -1 : 0}
       aria-disabled={disabled}
@@ -81,7 +86,15 @@ export function DropZone({
       onDrop={onDrop}
     >
       <span className="drop-icon" aria-hidden="true">
-        {importing ? <Spinner /> : <Upload size={44} strokeWidth={ICON_STROKE} />}
+        {outcome === 'ok' ? (
+          <Check size={44} strokeWidth={ICON_STROKE} />
+        ) : outcome === 'fail' ? (
+          <X size={44} strokeWidth={ICON_STROKE} />
+        ) : importing ? (
+          <Spinner />
+        ) : (
+          <Upload size={44} strokeWidth={ICON_STROKE} />
+        )}
       </span>
       <div>
         <strong>

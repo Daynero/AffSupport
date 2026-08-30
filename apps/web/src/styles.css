@@ -1207,8 +1207,9 @@ a {
   align-items: start;
   gap: var(--space-4) var(--space-6);
   padding: var(--space-3);
-  border-top: 1px solid var(--color-border);
-  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  /* A standalone block now — rounded on all four corners, not just below. */
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   background: var(--color-surface-subtle);
 }
 
@@ -15591,4 +15592,36 @@ input[type='number'] {
   flex-wrap: nowrap;
   align-items: center;
   gap: var(--space-2);
+}
+
+/* One-second confirmation flash after an import: green with a check, red
+   with a cross. The colour eases in and out so it reads as a pulse. */
+.drop-zone {
+  transition:
+    border-color var(--dur-control) var(--ease-standard),
+    background var(--dur-control) var(--ease-standard),
+    color var(--dur-control) var(--ease-standard),
+    box-shadow var(--dur-control) var(--ease-standard);
+}
+.drop-zone.is-ok,
+.drop-zone.is-ok:hover {
+  border-color: #1f7a3d;
+  color: #06301a;
+  background: #34c759;
+}
+.drop-zone.is-fail,
+.drop-zone.is-fail:hover {
+  border-color: #8f2020;
+  color: #360a0a;
+  background: #ff6b6b;
+}
+.drop-zone.is-ok .drop-icon,
+.drop-zone.is-ok strong,
+.drop-zone.is-ok span:not(.drop-icon):not(.spinner) {
+  color: #06301a;
+}
+.drop-zone.is-fail .drop-icon,
+.drop-zone.is-fail strong,
+.drop-zone.is-fail span:not(.drop-icon):not(.spinner) {
+  color: #360a0a;
 }

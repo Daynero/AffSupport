@@ -81,6 +81,13 @@ export default function CompressorPage() {
   const [selected, setSelected] = useState<Set<string>>(storedCompressorSelection);
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
   const [importing, setImporting] = useState(false);
+  // The intake zone flashes green or red for a second after an import so the
+  // result is visible where the action happened, not only in a toast.
+  const [intake, setIntake] = useState<'ok' | 'fail' | null>(null);
+  const flashIntake = (outcome: 'ok' | 'fail') => {
+    setIntake(outcome);
+    window.setTimeout(() => setIntake(current => (current === outcome ? null : current)), 1000);
+  };
   const [help, setHelp] = useState(false);
   const [embeddingFormValid, setEmbeddingFormValid] = useState(true);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -296,7 +303,9 @@ export default function CompressorPage() {
         setState,
         setSelected
       );
+      if (added.length) flashIntake('ok');
     } catch (error) {
+      flashIntake('fail');
       handleError(error);
     }
   };
@@ -323,7 +332,9 @@ export default function CompressorPage() {
           video_count: addedCount,
           total_input_bytes: addedBytes
         });
+      flashIntake(addedCount ? 'ok' : 'fail');
     } catch (error) {
+      flashIntake('fail');
       handleError(error);
     } finally {
       setImporting(false);
@@ -346,7 +357,9 @@ export default function CompressorPage() {
         });
       }
       showSelectionWarnings(result.warnings, t, addToast);
+      flashIntake(added.length ? 'ok' : 'fail');
     } catch (error) {
+      flashIntake('fail');
       handleError(error);
     } finally {
       setImporting(false);
@@ -507,6 +520,7 @@ export default function CompressorPage() {
           <DropZone
             disabled={!connected || importing || !state.tools.ffprobe}
             importing={importing}
+            outcome={intake}
             chooseFiles={() => void selectNativeFiles()}
             addDroppedFiles={files => void addDroppedFiles(files)}
             addDroppedFilePaths={
