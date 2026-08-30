@@ -13988,8 +13988,12 @@ button.team-landing-tile:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
+  /* Buttons carry a 44px min-height tap target; without clearing it here the
+     36px-wide icon button is forced tall and reads as an oval, not a ring. */
+  min-height: 0;
+  padding: 0;
   border: 1px solid var(--color-border);
   border-radius: 50%;
   background: var(--color-surface);
@@ -14154,8 +14158,12 @@ button.team-landing-tile:hover {
      row auto-placed into a second line otherwise, which read as a broken
      table: the name sat mid-row and the size wrapped under the checkbox. The
      reason line still spans the whole row beneath them. */
-  /* Ruled columns — name, kind, date, size — so a list reads as a table. */
-  grid-template-columns: auto minmax(120px, 1fr) 7em 8.5em 6em auto;
+  /* Ruled columns — name, kind, date, size — so a list reads as a table. The
+     name column may shrink to nothing (minmax(0, 1fr)); a hard 120px floor let
+     the fixed columns push the actions past the row's own border on a mid-width
+     pane. It ellipsizes instead, and the container queries drop columns before
+     it gets too tight. */
+  grid-template-columns: auto minmax(0, 1fr) 6em 6.5em 5.5em auto;
   gap: 0;
   align-items: center;
   min-height: 44px;
@@ -14193,11 +14201,13 @@ button.team-landing-tile:hover {
 .team-explorer-row-kind,
 .team-explorer-row-date,
 .team-explorer-row-meta {
-  padding: 0 var(--space-3);
+  padding: 0 var(--space-2);
   border-left: 1px solid var(--color-border);
   line-height: 28px;
   color: var(--color-text-muted);
   font-size: 0.9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 .team-explorer-row-meta {
@@ -14225,25 +14235,25 @@ button.team-landing-tile:hover {
 .team-explorer-rows {
   container-type: inline-size;
 }
-@container (max-width: 560px) {
+@container (max-width: 680px) {
   .team-explorer-row {
-    grid-template-columns: auto minmax(120px, 1fr) 7em 6em auto;
+    grid-template-columns: auto minmax(0, 1fr) 6em 5.5em auto;
   }
   .team-explorer-row-date {
     display: none;
   }
 }
-@container (max-width: 460px) {
+@container (max-width: 520px) {
   .team-explorer-row {
-    grid-template-columns: auto minmax(120px, 1fr) 6em auto;
+    grid-template-columns: auto minmax(0, 1fr) 5.5em auto;
   }
   .team-explorer-row-kind {
     display: none;
   }
 }
-@container (max-width: 360px) {
+@container (max-width: 400px) {
   .team-explorer-row {
-    grid-template-columns: auto minmax(120px, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
   }
   .team-explorer-row-meta {
     display: none;
