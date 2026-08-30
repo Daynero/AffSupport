@@ -6,6 +6,7 @@ import type {
   TeamPermissions
 } from '@video-compressor/shared';
 import { teamApi, type TeamMaterialSummary } from '../../api/team';
+import { downloadTeamFileWithAgent } from '../../api/client';
 import { Button, ProgressBar } from '../../components/ui';
 import { useToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';
@@ -192,6 +193,8 @@ function ExplorerBody({
     outputName: string;
     /** Overwrite-the-original: upload as a new version of this material. */
     versionOf?: string;
+    /** 013 (B5): compress on the agent and save to a locally chosen folder. */
+    local?: { embed: boolean; suffix: string };
     options?: Record<string, unknown>;
   };
   const [tQueue, setTQueue] = useState<QueueItem[]>([]);
@@ -492,6 +495,20 @@ function ExplorerBody({
     setTActive({ ...next, operationId: null });
     void (async () => {
       try {
+        if (next.local) {
+          // 013 (B5): no team operation — the agent downloads the source,
+          // compresses it locally and saves into a natively chosen folder.
+          const grant = await teamApi.requestDownload(teamId, next.id, 'agent');
+          if (grant.kind !== 'agent') throw new Error('AGENT_UPDATE_REQUIRED');
+          const saved = await downloadTeamFileWithAgent({
+            transferUrl: grant.transferUrl,
+            transferGrant: grant.grant,
+            fileName: next.name,
+            compress: next.local
+          });
+          push({ tone: 'success', text: t('teamCompressLocalSaved', { name: saved.fileName }) });
+          return;
+        }
         const result = await teamApi.startProcess({
           teamId,
           materialId: next.id,
@@ -564,6 +581,9 @@ function ExplorerBody({
         tool: 'compressor' as const,
         outputName,
         ...(overwrite ? { versionOf: item.id } : {}),
+        ...(plan.destination.kind === 'local'
+          ? { local: { embed: plan.embed, suffix } }
+          : {}),
         options: plan.embed ? { imageEmbedding: { enabled: true } } : {}
       };
     });

@@ -296,11 +296,19 @@ function downloadRequest(value: unknown): TeamAgentDownloadRequest | null {
   ) {
     return null;
   }
+  let compress: { embed: boolean; suffix: string } | null = null;
+  if (value.compress !== undefined && value.compress !== null) {
+    if (!record(value.compress)) return null;
+    const suffix = typeof value.compress.suffix === 'string' ? value.compress.suffix : '';
+    if (suffix.length > 60) return null;
+    compress = { embed: value.compress.embed === true, suffix };
+  }
   return {
     operationId: value.operationId,
     transferUrl: value.transferUrl,
     transferGrant,
-    fileName: value.fileName
+    fileName: value.fileName,
+    compress
   };
 }
 

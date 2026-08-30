@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { TeamTransferGrant } from '@video-compressor/shared';
 import { selectOutputFolder } from '../files/picker.js';
 import { sanitizeFileName, showInFileManager } from '../platform/platform.js';
+import type { TeamProcessDelegate } from './process.js';
 import type { DownloadedTeamSource, TeamSourceDownloadRequest } from './transfer.js';
 
 const MAX_NAME_ATTEMPTS = 1_000;
@@ -13,6 +14,8 @@ export interface TeamAgentDownloadRequest {
   transferUrl: string;
   transferGrant: TeamTransferGrant;
   fileName: string;
+  /** 013 (B5): compress after downloading, before saving locally. */
+  compress?: { embed: boolean; suffix: string } | null;
 }
 
 export interface TeamDownloadTransfer {
@@ -26,6 +29,8 @@ export interface TeamDownloadBridgeOptions {
   transfer: TeamDownloadTransfer;
   chooseDestination?: () => Promise<string | null>;
   reveal?: (file: string) => void;
+  /** Compressor delegates ('compressor' | 'imageEmbedding') for local runs. */
+  delegates?: Readonly<Record<string, TeamProcessDelegate>>;
 }
 
 /** Saves an agent-only download after an explicit native destination choice. */
@@ -33,10 +38,12 @@ export class TeamDownloadBridge {
   readonly #transfer: TeamDownloadTransfer;
   readonly #chooseDestination: () => Promise<string | null>;
   readonly #reveal: (file: string) => void;
+  readonly #delegates: Readonly<Record<string, TeamProcessDelegate>> | null;
   readonly #active = new Map<string, AbortController>();
 
   constructor(options: TeamDownloadBridgeOptions) {
     this.#transfer = options.transfer;
+    this.#delegates = options.delegates ?? null;
     this.#chooseDestination = options.chooseDestination ?? selectOutputFolder;
     // Through the same guarded door as every other reveal: a downloaded file
     // is exactly the kind of path worth checking before handing it to the
@@ -64,9 +71,38 @@ export class TeamDownloadBridge {
         },
         controller.signal
       );
-      const target = await copyWithoutOverwrite(source.file, destinationRoot, fileName);
-      this.#reveal(target);
-      return { saved: true as const, fileName: path.basename(target), sizeBytes: source.sizeBytes };
+      let produced = source.file;
+      let producedCleanup: (() => Promise<void>) | null = null;
+      let finalName = fileName;
+      if (request.compress) {
+        const delegate = this.#delegates?.[request.compress.embed ? 'imageEmbedding' : 'compressor'];
+        if (!delegate) throw new Error('UNSUPPORTED_MEDIA');
+        const output = await delegate({
+          operationId: `local:${request.operationId}`,
+          workspace: source.workspace,
+          sourceFile: source.file,
+          sourceSizeBytes: source.sizeBytes,
+          sourceVersion: source.sourceVersion,
+          sourceChecksum: source.sourceChecksum,
+          options: {},
+          signal: controller.signal,
+          onProgress: () => {}
+        });
+        produced = output.file;
+        producedCleanup = output.cleanup ?? null;
+        const extension = path.extname(fileName);
+        const stem = fileName.slice(0, fileName.length - extension.length);
+        const suffix = sanitizeFileName(request.compress.suffix).slice(0, 60) || '_1';
+        finalName = safeDownloadName(`${stem}${suffix}.mp4`);
+      }
+      try {
+        const target = await copyWithoutOverwrite(produced, destinationRoot, finalName);
+        this.#reveal(target);
+        const written = await lstat(target);
+        return { saved: true as const, fileName: path.basename(target), sizeBytes: written.size };
+      } finally {
+        await producedCleanup?.().catch(() => undefined);
+      }
     } catch (error) {
       if (controller.signal.aborted) throw new Error('DOWNLOAD_CANCELED', { cause: error });
       throw error;

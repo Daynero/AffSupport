@@ -422,6 +422,8 @@ export async function downloadTeamFileWithAgent(input: {
   transferUrl: string;
   transferGrant: TeamTransferGrant;
   fileName: string;
+  /** 013 (B5): compress after downloading, before saving locally. */
+  compress?: { embed: boolean; suffix: string };
 }): Promise<{ saved: true; fileName: string; sizeBytes: number }> {
   const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
   if (!toolContractCompatible('teamWorkspace', health.toolContracts ?? {})) {
@@ -435,7 +437,8 @@ export async function downloadTeamFileWithAgent(input: {
     operationId: crypto.randomUUID(),
     transferUrl: input.transferUrl,
     transferGrant: input.transferGrant,
-    fileName: input.fileName
+    fileName: input.fileName,
+    ...(input.compress ? { compress: input.compress } : {})
   });
   if (
     value.saved !== true ||

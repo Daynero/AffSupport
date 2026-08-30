@@ -25,6 +25,7 @@ export interface CompressPlan {
   destination:
     | { kind: 'beside' }
     | { kind: 'folder'; folderId: string | null; folderName: string }
+    | { kind: 'local' }
     | { kind: 'overwrite' };
 }
 
@@ -45,7 +46,7 @@ export function TeamCompressorDialog({
   const titleId = useId();
   const [embed, setEmbed] = useState(false);
   const [suffix, setSuffix] = useState('');
-  const [mode, setMode] = useState<'beside' | 'folder' | 'overwrite'>('beside');
+  const [mode, setMode] = useState<'beside' | 'folder' | 'local' | 'overwrite'>('beside');
   const [folder, setFolder] = useState<{ id: string | null; name: string } | null>(null);
   const [picking, setPicking] = useState(false);
 
@@ -117,6 +118,15 @@ export function TeamCompressorDialog({
               {t('teamFileMove')}…
             </Button>
           )}
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="team-compress-destination"
+            checked={mode === 'local'}
+            onChange={() => setMode('local')}
+          />
+          <span>{t('teamCompressLocal')}</span>
         </label>
         <label>
           <input

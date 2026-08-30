@@ -15346,3 +15346,8 @@ input[type='number'] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
+
+/* CRF is a two-digit value — the box is exactly two digits wide. */
+.rate-control-field .input-with-suffix input {
+  width: 52px;
+}

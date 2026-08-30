@@ -330,19 +330,20 @@ const teamEvents = new EventChannel<TeamOperationEvent>(allowedOrigins, () =>
 teamEvents.publishOn(channelHub, 'team');
 teamOperationEvents.setNotify(event => teamEvents.broadcast(event));
 const teamTransfer = new TeamTransferClient();
+const teamDelegates = createTeamProcessDelegates({
+  compressor: queue,
+  transcription: transcriptionQueue,
+  landing: landingOptimizer
+});
 const teamProcessBridge = new TeamProcessBridge({
   transfer: teamTransfer,
-  delegates: createTeamProcessDelegates({
-    compressor: queue,
-    transcription: transcriptionQueue,
-    landing: landingOptimizer
-  }),
+  delegates: teamDelegates,
   events: teamOperationEvents
 });
 const creativeLibraryProcessBridge = new CreativeLibraryProcessBridge({
   process: teamProcessBridge
 });
-const teamDownloadBridge = new TeamDownloadBridge({ transfer: teamTransfer });
+const teamDownloadBridge = new TeamDownloadBridge({ transfer: teamTransfer, delegates: teamDelegates });
 const teamLandingRenderBridge = new TeamLandingRenderBridge({
   preview: teamPreviewBridge,
   events: teamOperationEvents
