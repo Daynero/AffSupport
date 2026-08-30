@@ -69,3 +69,18 @@ trash and the dialog appeared over the list. The dialog lives in `ExplorerShell`
 (which unmounts the instant the video leaves the list — an earlier attempt in `RowActions` was
 destroyed before it could show). The account setting (`transcript_delete_pref`) backs the
 checkbox and skips the question thereafter. Deleting the companion runs an ordinary trash.
+
+## Root cause of "transcription doesn't work" — output was misnamed (2026-08-30)
+
+The card's **Транскрибувати** ran whisper (proved: the result was `text/plain`, 3 KB) but the
+output landed as **`16-optimized.mp4`** — the compressor's suggested name — so it was categorised
+as a *video*, and the companion link (T006) skipped it (a `.mp4` is not a transcript).
+
+`ProcessMaterialDialog` initialised the tool from `initialTool` (transcription, correct) but the
+output **name** from `tools[0]` (always the compressor for a video) — the two disagreed whenever a
+tool was preselected. Fix: derive one `initialToolId` and seed both `toolId` and `outputName` from
+it. Verified live in the browser: opening the card's Transcribe now shows tool **Транскрипція**
+and name **`16.txt`**. Re-ran the transcription to confirm the `.txt` companion path end-to-end.
+
+Also shipped T011 UI: account settings now has a "When deleting a video with a transcript"
+select (ask / delete too / keep), backed by `get/set_transcript_delete_pref`.

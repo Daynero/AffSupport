@@ -38,7 +38,7 @@ Order is dependency-first. Each task is small and independently committable.
       Test.
 - [ ] T010 On video copy / compress finalize: copy the companion, named after the new file, linked
       to it. Test.
-- [~] T011 SQL done (get/set RPCs + default 'ask'); account-settings UI toggle remains. Account setting `transcript_delete_prompt` (default `ask`): migration + `get`/`set`
+- [x] T011 SQL (get/set RPCs, default 'ask') + account-settings UI select (ask / delete too / keep). Account setting `transcript_delete_prompt` (default `ask`): migration + `get`/`set`
       RPCs; surface in account settings UI.
 - [x] T012 delete flow (row-menu trash of a video asks, with remember + account setting; verified live). Delete flow: when trashing a video with a companion and the setting is `ask`, the UI
       asks "Delete the transcript too?" with a remember checkbox; on confirm, trash both; the
@@ -59,8 +59,8 @@ Order is dependency-first. Each task is small and independently committable.
 - [x] T016 Transcript block (card shows Transcribe / Re-transcribe by companion state; copy/translation land with T006) in `PreviewPane`: primary "Copy transcript" + overflow
       (re-transcribe / view translation / copy translation) when a companion exists; a single
       "Transcribe" when none. Compact, not a wall of buttons (FR-T8). Tests (jsdom).
-- [ ] T017 Copy-to-clipboard with a green toast for transcript and translation, mirroring the
-      share control.
+- [x] T017 Card's transcript block: primary "Copy transcript" (fetches the companion text via
+      `previewMaterial`, copies, green toast), with Transcribe/Re-transcribe below. Mirrors the share toast.
 
 ## Phase 6 — Verify
 
