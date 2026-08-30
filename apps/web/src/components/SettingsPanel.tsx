@@ -116,23 +116,14 @@ export function SettingsPanel({
           t={t}
         />
         <div className="field-group metadata-settings">
-          <FieldLabel label={t('metadata')} tooltip={t('stripMetadataTooltip')} />
-          <div className="metadata-control">
-            <div className="fit-mode-pictos is-single">
-              <button
-                type="button"
-                role="switch"
-                className={settings.stripMetadata ? 'is-selected' : ''}
-                data-tip={t('stripMetadata')}
-                aria-label={t('stripMetadata')}
-                aria-checked={settings.stripMetadata}
-                disabled={disabled}
-                onClick={() => updateSettings({ stripMetadata: !settings.stripMetadata })}
-              >
-                <Eraser size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              </button>
-            </div>
-          </div>
+          <Checkbox
+            className="feature-switch"
+            checked={settings.stripMetadata}
+            disabled={disabled}
+            onChange={event => updateSettings({ stripMetadata: event.target.checked })}
+            label={<strong>{t('stripMetadata')}</strong>}
+          />
+          <Tooltip label={t('stripMetadataTooltip')}>{t('stripMetadataTooltip')}</Tooltip>
         </div>
       </div>
       <div className="mode-detail">

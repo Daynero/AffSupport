@@ -15518,20 +15518,11 @@ input[type='number'] {
   color: var(--color-on-action);
 }
 
-/* Instant hover hints: native title tooltips wait about a second before the
-   OS shows them, which reads as lag on icon-only controls. Anything with
-   data-tip gets its own bubble the moment the pointer lands. */
-[data-tip] {
-  position: relative;
-}
-[data-tip]:hover::after,
-[data-tip]:focus-visible::after {
-  content: attr(data-tip);
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 50%;
+/* Instant hover hints: rendered into a body portal by InstantTips, so no
+   scrolling ancestor can crop them and there is no OS delay. */
+.instant-tip {
+  position: fixed;
   z-index: var(--layer-toast);
-  width: max-content;
   max-width: 260px;
   padding: 7px 10px;
   transform: translateX(-50%);
@@ -15543,6 +15534,29 @@ input[type='number'] {
   font-weight: 500;
   line-height: 1.35;
   text-align: center;
-  white-space: normal;
   pointer-events: none;
+}
+
+
+/* Light theme flips the intake zone: purple field, honey type and dashes. */
+:root[data-theme='light'] .drop-zone,
+:root:not([data-theme='dark']) .drop-zone {
+  border-color: var(--honey-400);
+  color: var(--honey-300);
+  background: var(--purple-700);
+}
+:root[data-theme='light'] .drop-zone .drop-icon,
+:root:not([data-theme='dark']) .drop-zone .drop-icon,
+:root[data-theme='light'] .drop-zone strong,
+:root:not([data-theme='dark']) .drop-zone strong,
+:root[data-theme='light'] .drop-zone span:not(.drop-icon):not(.spinner),
+:root:not([data-theme='dark']) .drop-zone span:not(.drop-icon):not(.spinner) {
+  color: var(--honey-300);
+}
+:root[data-theme='light'] .drop-zone:hover:not(.is-disabled),
+:root:not([data-theme='dark']) .drop-zone:hover:not(.is-disabled),
+:root[data-theme='light'] .drop-zone.is-dragging,
+:root:not([data-theme='dark']) .drop-zone.is-dragging {
+  border-color: var(--honey-300);
+  background: var(--purple-800);
 }

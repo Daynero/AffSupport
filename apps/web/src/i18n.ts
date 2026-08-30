@@ -2048,7 +2048,7 @@ const uk: Record<keyof typeof en, string> = {
   selectFolder: 'Вибрати папку',
   noFolderSelected: 'Папку не вибрано',
   metadata: 'Метадані',
-  stripMetadata: 'Видалити метадані',
+  stripMetadata: 'Витерти метадані',
   stripMetadataTooltip:
     'Увімкнено — з кожного стисненого файла зникають дані про джерело, пристрій, геолокацію, автора та розділи. Вимкнено — ці дані переносяться з оригіналу у стиснений файл.',
   embedImages: 'Зашити зображення у відео',

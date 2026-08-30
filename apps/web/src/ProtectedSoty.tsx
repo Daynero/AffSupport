@@ -1,4 +1,5 @@
 import { Suspense, type ComponentType, useEffect } from 'react';
+import { InstantTips } from './components/InstantTips';
 import { AgentProvider, useAgent, useAgentStatus } from './AgentContext';
 import { Header } from './App';
 import { ProfileOnboarding } from './auth/AuthScreens';
@@ -50,6 +51,7 @@ function ApplicationShell({ path, route }: { path: string; route: string }) {
   const { connection } = useAgentStatus();
   return (
     <div className="app-shell">
+      <InstantTips />
       <Header language={language} setLanguage={setLanguage} connection={connection} t={t} />
       <div className="page-viewport">
         <ProtectedApplication path={path} route={route} />
