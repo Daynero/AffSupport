@@ -16034,6 +16034,7 @@ input[type='number'] {
    cell and cover the panel beside them. */
 .job-side .job-actions {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   justify-items: stretch;
   gap: 8px;
@@ -16332,4 +16333,19 @@ input[type='number'] {
 }
 .job-progress-panel .job-actions {
   flex-wrap: nowrap;
+}
+
+/* Card actions share the toolbar's palette: filled orange for the run/repeat
+   action, outlined red for delete, quiet outlines for the rest. */
+.job-side .job-actions .button-primary,
+.job-progress-panel .job-actions .button-primary {
+  border: none;
+  color: #fff;
+  background: linear-gradient(180deg, #fb8b1e 0%, #f2740c 100%);
+  box-shadow: none;
+  font-weight: 700;
+}
+.job-side .job-actions .button-primary:hover:not(:disabled),
+.job-progress-panel .job-actions .button-primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #ff9a33 0%, #fb8b1e 100%);
 }

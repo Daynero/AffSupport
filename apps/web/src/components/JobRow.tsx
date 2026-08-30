@@ -560,8 +560,21 @@ function JobActions({
           {t(priority === 'cancel' ? 'cancelPriorityEstimate' : 'prioritizeEstimate')}
         </Button>
       )}
+      {/* A file that has not run yet gets the same stack, with 'Стиснути' in
+          place of 'Повторити'. */}
+      {job.status === 'ready' && (
+        <Button
+          variant="primary"
+          disabled={disabled || compressionRunning}
+          onClick={() => action('/api/queue/start', 'POST', { ids: [job.id] })}
+        >
+          <Play size={16} strokeWidth={1.75} aria-hidden="true" />
+          {t('compressOne')}
+        </Button>
+      )}
       {isSettled(COMPRESSION_LIFECYCLE, job.status) && job.status !== 'completed' && (
         <Button
+          variant="primary"
           disabled={disabled || compressionRunning}
           onClick={() => action(`/api/jobs/${job.id}/retry`)}
         >
@@ -588,7 +601,7 @@ function JobActions({
             {t('openFile')}
           </Button>
           <Button
-            variant="secondary"
+            variant="primary"
             disabled={disabled || compressionRunning}
             onClick={() => action(`/api/jobs/${job.id}/repeat`)}
           >
