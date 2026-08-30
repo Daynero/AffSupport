@@ -128,6 +128,8 @@ describe('image embedding settings UI', () => {
           imageEmbedding: makeEmbeddingSettings({
             ...defaultImageEmbeddingSettings(),
             enabled: true,
+    startEnabled: true,
+    endEnabled: true,
             startImages: [asset('opening.png')]
           })
         }}
@@ -268,6 +270,8 @@ describe('image embedding settings UI', () => {
       imageEmbedding: makeEmbeddingSettings({
         ...defaultImageEmbeddingSettings(),
         enabled: true,
+    startEnabled: true,
+    endEnabled: true,
         startImages: [asset('opening.png')],
         fitMode: 'contain' as const
       })
@@ -465,6 +469,8 @@ describe('embedding image activity toggle (013 A2)', () => {
       <ImageEmbeddingSection
         settings={{
           enabled: true,
+    startEnabled: true,
+    endEnabled: true,
           startImages: [asset],
           endImages: [],
           disabledImageIds: [],

@@ -120,6 +120,8 @@ export async function connect(signal?: AbortSignal): Promise<{
   state: QueueState | null;
   version: string;
   buildId: string;
+  /** Identifies this run of the agent; changes on every restart. */
+  instanceId: string;
   channel: string;
   apiVersion: number;
   capabilities: string[];
@@ -150,6 +152,7 @@ export async function connect(signal?: AbortSignal): Promise<{
     state,
     version: health.version,
     buildId: health.buildId ?? '',
+    instanceId: health.instanceId ?? health.buildId ?? '',
     channel: health.channel ?? 'unknown',
     apiVersion,
     capabilities,

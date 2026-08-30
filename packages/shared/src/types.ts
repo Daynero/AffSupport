@@ -546,6 +546,8 @@ export interface AgentEntitlementStatus {
 }
 
 export interface HealthResponse {
+  /** Identifies this run of the agent; changes on every restart. */
+  instanceId?: string;
   ok: boolean;
   tools: QueueState['tools'];
   version: string;
