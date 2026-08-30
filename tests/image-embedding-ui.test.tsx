@@ -16,7 +16,8 @@ import {
   formatMinutesInput,
   isSupportedImageFile,
   parseMillisecondsInput,
-  parseMinutesInput
+  parseMinutesInput,
+  ImageEmbeddingSection
 } from '../apps/web/src/components/ImageEmbeddingSection';
 import { SettingsPanel } from '../apps/web/src/components/SettingsPanel';
 import { JobRow } from '../apps/web/src/components/JobRow';
@@ -176,7 +177,7 @@ describe('image embedding settings UI', () => {
     const user = userEvent.setup({ applyAccept: false });
     const onRemove = vi.fn(async () => {});
     render(<ImageAreaHarness initial={asset('existing.png')} onRemove={onRemove} />);
-    await user.click(screen.getByText('Add image'));
+    await user.click(screen.getByLabelText('Add image'));
     await user.upload(
       screen.getByLabelText('Choose opening-frame image'),
       new File(['jpeg'], 'new photo.jpg', { type: 'image/jpeg' })
@@ -222,10 +223,9 @@ describe('image embedding settings UI', () => {
     await user.type(custom, '54');
     await waitFor(() => expect(validity).toHaveBeenLastCalledWith(true));
 
-    const fit = screen.getByLabelText('Frame fit');
-    for (const value of ['cover', 'contain', 'stretch']) {
-      await user.selectOptions(fit, value);
-      expect((fit as HTMLSelectElement).value).toBe(value);
+    for (const name of ['Fill and crop', 'Fit completely', 'Stretch']) {
+      await user.click(screen.getByRole('button', { name }));
+      expect(screen.getByRole('button', { name, pressed: true })).toBeTruthy();
     }
     expect(screen.getByText('Stretching can distort the image proportions.')).toBeTruthy();
   });
@@ -294,7 +294,7 @@ describe('image embedding settings UI', () => {
       />
     );
     expect(await screen.findByAltText('opening.png')).toBeTruthy();
-    expect(screen.getByText('Вмістити повністю')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Вмістити повністю' })).toBeTruthy();
     expect(settings.imageEmbedding.startImages[0]?.id).toBe('asset-1');
   });
 
@@ -447,3 +447,45 @@ function asset(fileName: string, id = 'asset-1'): ImageAsset {
     extension
   };
 }
+
+
+describe('embedding image activity toggle (013 A2)', () => {
+  it('clicking a tile disables it and patches disabledImageIds', async () => {
+    const update = vi.fn();
+    const asset = {
+      id: 'img-1',
+      fileName: 'a.png',
+      width: 10,
+      height: 10,
+      size: 100,
+      mimeType: 'image/png' as const,
+      extension: '.png' as const
+    };
+    render(
+      <ImageEmbeddingSection
+        settings={{
+          enabled: true,
+          startImages: [asset],
+          endImages: [],
+          disabledImageIds: [],
+          replaceExisting: false,
+          finalDurationMode: 'random-40-50',
+          customFinalDurationSeconds: 2400,
+          startDurationMode: 'one-frame',
+          customStartDurationMs: 100,
+          fitMode: 'cover'
+        }}
+        disabled={false}
+        update={update}
+        uploadImages={vi.fn()}
+        removeImage={vi.fn()}
+        onValidityChange={vi.fn()}
+        t={key => key}
+      />
+    );
+    const tile = document.querySelector('.selected-image-tile') as HTMLElement;
+    expect(tile.className).toContain('is-active');
+    fireEvent.click(tile);
+    expect(update).toHaveBeenCalledWith({ disabledImageIds: ['img-1'] });
+  });
+});

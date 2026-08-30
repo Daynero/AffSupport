@@ -18,6 +18,7 @@ import {
 import type { TranslationKey } from '../i18n';
 import { Checkbox, Collapse, IconButton, Spinner, Tooltip, type Translate } from './ui';
 import { imageContentPath } from '../api/subresource-paths';
+import { FitContainIcon, FitCoverIcon, FitStretchIcon } from './icons';
 import { useSubresourceUrl } from '../api/useSubresourceUrl';
 
 const supportedExtensions = new Set(['.png', '.jpg', '.jpeg', '.webp']);
@@ -112,18 +113,28 @@ export function ImageEmbeddingSection({
               <div className="embedding-column-fields">
                 <div className="field-group embedding-fit-row">
                   <FieldLabel label={t('frameFit')} tooltip={t('frameFitTooltip')} />
-                  <select
-                    value={settings.fitMode}
-                    disabled={disabled}
-                    aria-label={t('frameFit')}
-                    onChange={event =>
-                      update({ fitMode: event.target.value as ImageEmbeddingSettings['fitMode'] })
-                    }
-                  >
-                    <option value="cover">{t('fitCover')}</option>
-                    <option value="contain">{t('fitContain')}</option>
-                    <option value="stretch">{t('fitStretch')}</option>
-                  </select>
+                  <div className="fit-mode-pictos" role="group" aria-label={t('frameFit')}>
+                    {(
+                      [
+                        ['cover', t('fitCover'), <FitCoverIcon key="c" />],
+                        ['contain', t('fitContain'), <FitContainIcon key="i" />],
+                        ['stretch', t('fitStretch'), <FitStretchIcon key="s" />]
+                      ] as const
+                    ).map(([value, label, icon]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        className={settings.fitMode === value ? 'is-selected' : ''}
+                        disabled={disabled}
+                        title={label}
+                        aria-label={label}
+                        aria-pressed={settings.fitMode === value}
+                        onClick={() => update({ fitMode: value })}
+                      >
+                        {icon}
+                      </button>
+                    ))}
+                  </div>
                   {settings.fitMode === 'stretch' && (
                     <span className="field-hint">{t('fitStretchWarning')}</span>
                   )}

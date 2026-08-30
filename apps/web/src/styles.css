@@ -15176,3 +15176,40 @@ button.team-landing-tile:hover {
 .image-drop-message.is-minimal .image-drop-icon {
   font-size: 30px;
 }
+
+/* Shared pictogram base: icons speak, the words live in tooltips. */
+.pictogram {
+  width: 1em;
+  height: 1em;
+  display: block;
+}
+.fit-mode-pictos {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+}
+.fit-mode-pictos button {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 44px;
+  min-height: 0;
+  padding: 0;
+  font-size: 34px;
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius-sm) - 2px);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.fit-mode-pictos button.is-selected {
+  border-color: var(--color-accent);
+  background: color-mix(in oklab, var(--color-accent) 16%, var(--color-surface));
+  color: var(--color-accent);
+}
+.fit-mode-pictos button:hover:not(:disabled):not(.is-selected) {
+  color: var(--color-text);
+}
