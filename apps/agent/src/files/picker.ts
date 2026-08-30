@@ -237,10 +237,20 @@ function runMultiplePicker(script: string, failure: string): Promise<string[]> {
               .filter(Boolean)
           )
         );
-      } else if (err.includes('User canceled')) resolve([]);
+      } else if (canceledByUser(err)) resolve([]);
       else reject(new Error(failure));
     });
   });
+}
+
+/**
+ * A cancelled AppleScript dialog reports error -128. The message text is
+ * localized (macOS in Ukrainian says "Користувач скасував"), so matching the
+ * English wording alone turned every cancel into a failure — the code is the
+ * part that never changes.
+ */
+function canceledByUser(stderr: string): boolean {
+  return stderr.includes('-128') || stderr.includes('User canceled');
 }
 
 function runFolderScript(script: string, failure: string): Promise<string | null> {
@@ -260,7 +270,7 @@ function runFolderScript(script: string, failure: string): Promise<string | null
           // grant covers both; a read-only grant here would refuse the output
           // directory the user just picked.
           resolve(grantChosen([out.trim().replace(/\/$/, '')], 'write')[0] ?? null)
-        : err.includes('User canceled')
+        : canceledByUser(err)
           ? resolve(null)
           : reject(new Error(failure))
     );
