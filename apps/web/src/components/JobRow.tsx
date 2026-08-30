@@ -444,7 +444,6 @@ function EstimatePanel({
             : [])
         ]}
       />
-      <EmbeddingDetails job={job} language={language} t={t} />
     </section>
   );
 }
@@ -494,7 +493,6 @@ function ResultPanel({
           [t('codec'), formatCodec(job.finalCodec)]
         ]}
       />
-      <EmbeddingDetails job={job} language={language} t={t} />
       <div className="output-path" title={job.outputPath}>
         <span>{t('outputPath')}</span>
         <strong>{compactPath(job.outputPath)}</strong>
@@ -692,57 +690,6 @@ function dimensions(width: number | null | undefined, height: number | null | un
   return width && height ? `${width}×${height}` : '—';
 }
 
-function EmbeddingDetails({
-  job,
-  language,
-  t
-}: {
-  job: CompressionJob;
-  language: Language;
-  t: Translate;
-}) {
-  const embedding = job.imageEmbedding;
-  if (!embedding) return null;
-  const fps = expectedFrameRate(job.sourceFrameRate, job.encoding.frameRate) ?? 30;
-  const startDuration = embedding.startImage ? startImageDurationSeconds(embedding, fps) : 0;
-  const fitKeys = {
-    cover: 'fitCover',
-    contain: 'fitContain',
-    stretch: 'fitStretch'
-  } as const;
-  const startLabel =
-    embedding.startDurationMode && embedding.startDurationMode !== 'one-frame'
-      ? t('embeddingStartDuration', {
-          duration: `${Math.round(startDuration * 1000)} ${t('millisecondsUnit')}`
-        })
-      : t('embeddingStartOneFrame');
-  const endLabel =
-    embedding.finalDurationSeconds !== null
-      ? formatDurationWords(embedding.finalDurationSeconds, language)
-      : t(
-          embedding.finalDurationMode === 'random-30-40'
-            ? 'randomDuration30To40'
-            : embedding.finalDurationMode === 'random-50-60'
-              ? 'randomDuration50To60'
-              : 'randomDuration40To50'
-        );
-  return (
-    <div className="embedding-summary">
-      <strong>{t('embeddingLabel')}</strong>
-      <div>
-        {embedding.startImage && <span>{startLabel}</span>}
-        {embedding.endImage && <span>{t('embeddingFinalImage', { duration: endLabel })}</span>}
-        {embedding.replaceExisting && <span>{t('replaceExistingImages')}</span>}
-        <span>{t('embeddingFitMode', { mode: t(fitKeys[embedding.fitMode]) })}</span>
-        <span>
-          {t('expectedTotalDuration', {
-            duration: formatDuration(expectedOutputDurationSeconds(job))
-          })}
-        </span>
-      </div>
-    </div>
-  );
-}
 
 /** Mirrors the agent's outputDurationSeconds calculation so the duration shown
  * while encoding is the duration that FFmpeg is actually asked to produce. */
