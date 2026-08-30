@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, Eraser, Settings as SettingsIcon, Files, Film, FolderOpen, Gauge, Gem, Monitor, Sparkles, SlidersHorizontal, Timer, X } from 'lucide-react';
+import { ChevronDown, Eraser, Settings as SettingsIcon, Files, Film, FolderOpen, Gauge, Gem, Monitor, Sparkles, SlidersHorizontal, Timer } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from './icons';
 import {
   CRF_MAX,
@@ -27,6 +27,8 @@ const RESOLUTION_OPTIONS = [2160, 1440, 1080, 720, 550];
 
 type UpdateSettings = (patch: AgentSettingsPatch, debounce?: boolean) => void;
 
+const SETTINGS_OPEN_KEY = 'wishly.compressor.settings-open.v1';
+
 export function SettingsPanel({
   settings,
   disabled,
@@ -48,8 +50,23 @@ export function SettingsPanel({
   t: Translate;
 }) {
   // The whole panel folds down to its title line so the file list can own
-  // the screen once the settings are set.
-  const [open, setOpen] = useState(true);
+  // the screen once the settings are set — and the choice survives a reload,
+  // because re-collapsing it after every refresh is the kind of small chore
+  // that makes a tool feel forgetful.
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem(SETTINGS_OPEN_KEY) !== 'closed';
+    } catch {
+      return true;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(SETTINGS_OPEN_KEY, open ? 'open' : 'closed');
+    } catch {
+      // Private windows and blocked site data: the panel simply opens by default.
+    }
+  }, [open]);
   // The optimal preset overrides the custom fields, so the summary reads the
   // encoding that will actually run rather than the untouched form values.
   const summary = encodingFromSettings(settings);
@@ -88,14 +105,8 @@ export function SettingsPanel({
                 ? `CRF ${summary.crf}`
                 : `${summary.videoBitrateKbps} kbps`}
             </span>
-            <span>
-              <span className="settings-summary-key">{t('settingsSummaryEmbedding')}</span>
-              {settings.imageEmbedding.enabled ? (
-                <Check size={16} strokeWidth={ICON_STROKE} className="summary-yes" aria-hidden="true" />
-              ) : (
-                <X size={16} strokeWidth={ICON_STROKE} className="summary-no" aria-hidden="true" />
-              )}
-            </span>
+            {/* Embedding is only worth a word when it is on. */}
+            {settings.imageEmbedding.enabled && <span>{t('settingsSummaryEmbedding')}</span>}
           </span>
         )}
         <ChevronDown
