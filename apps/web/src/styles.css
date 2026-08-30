@@ -1118,8 +1118,10 @@ a {
   grid-template-columns: auto minmax(0, 1fr);
   gap: var(--space-3) var(--space-5);
   padding: var(--space-4);
-  /* A touch brighter than the page so the panel reads as its own surface. */
-  background: color-mix(in oklab, var(--color-surface) 78%, var(--color-text) 4%);
+  /* Settings wear a faint accent tint — the same violet as their controls —
+     so the panel reads as "controls", never as another result card. */
+  border: 1px solid color-mix(in oklab, var(--color-accent) 26%, transparent);
+  background: color-mix(in oklab, var(--color-accent) 7%, var(--color-surface));
 }
 .settings-panel .settings-body {
   display: contents;
@@ -15167,13 +15169,14 @@ button.team-landing-tile:hover {
   z-index: 2;
   display: grid;
   place-items: center;
-  padding: 0 6px;
+  padding: 0 4px;
   color: #ff9b9b;
-  font-size: var(--text-2xl);
-  font-weight: 400;
-  letter-spacing: 0.03em;
+  font-size: var(--text-lg);
+  font-weight: 500;
+  letter-spacing: 0.06em;
   text-align: center;
-  text-transform: uppercase;
+  text-transform: lowercase;
+  line-height: 1.2;
   pointer-events: none;
 }
 .selected-image-tile.is-inactive img {
