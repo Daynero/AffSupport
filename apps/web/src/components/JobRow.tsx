@@ -422,7 +422,10 @@ function EstimatePanel({
                 />
               </span>
               <small>
-                {job.estimateProgress.completed}/{job.estimateProgress.total}
+                {Math.round(
+                  (job.estimateProgress.completed / Math.max(1, job.estimateProgress.total)) * 100
+                )}
+                %
               </small>
             </>
           )}
