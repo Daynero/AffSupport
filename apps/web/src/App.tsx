@@ -96,44 +96,42 @@ export default function CompressorPage() {
   // measured rather than guessed at a breakpoint: the same window is wide
   // enough in English and too narrow in Ukrainian.
   const toolbarRow = useRef<HTMLDivElement>(null);
-  const stage = useRef({ actions: false, chips: false });
   const [compactActions, setCompactActions] = useState(false);
   const [compactChips, setCompactChips] = useState(false);
   useLayoutEffect(() => {
     const row = toolbarRow.current;
     if (!row) return;
-    // Two stages: the action labels go first, and only if the row still cannot
-    // fit do the status words shrink to bare numbers (their meaning stays in
-    // the hover hint).
+    /**
+     * How wide the row wants to be, asked of the layout rather than guessed.
+     *
+     * The chips container shrinks (and hides its overflow) instead of pushing
+     * the row wider, so comparing scrollWidth with clientWidth on the row
+     * itself always reported "fits" and the collapsed state could never lift.
+     * Summing what each group actually needs is the honest question.
+     */
+    const required = () => {
+      const gap = Number.parseFloat(getComputedStyle(row).columnGap) || 0;
+      const children = Array.from(row.children) as HTMLElement[];
+      return (
+        children.reduce((total, child) => total + child.scrollWidth, 0) +
+        gap * Math.max(0, children.length - 1)
+      );
+    };
     const measure = () => {
-      const slack = row.clientWidth - row.scrollWidth;
-      if (slack < 0) {
-        // One stage per frame, re-measured in between: the action labels go
-        // first, and the status words only if the row still does not fit.
-        if (!stage.current.actions) {
-          stage.current.actions = true;
-          setCompactActions(true);
-          requestAnimationFrame(measure);
-          return;
-        }
-        if (!stage.current.chips) {
-          stage.current.chips = true;
-          setCompactChips(true);
-        }
-        return;
+      const available = row.clientWidth;
+      // Measured with the words back on, so a window that grew can undo a
+      // collapse instead of staying compact forever.
+      row.classList.remove('is-compact', 'is-compact-chips');
+      const needsActions = required() > available;
+      let needsChips = false;
+      if (needsActions) {
+        row.classList.add('is-compact');
+        needsChips = required() > available;
       }
-      // Expand again when the room returns, with enough margin that a pixel of
-      // slack cannot flip the row back and forth.
-      if (slack > 200 && stage.current.chips) {
-        stage.current.chips = false;
-        setCompactChips(false);
-        requestAnimationFrame(measure);
-        return;
-      }
-      if (slack > 420 && stage.current.actions) {
-        stage.current.actions = false;
-        setCompactActions(false);
-      }
+      row.classList.toggle('is-compact', needsActions);
+      row.classList.toggle('is-compact-chips', needsChips);
+      setCompactActions(needsActions);
+      setCompactChips(needsChips);
     };
     measure();
     if (typeof ResizeObserver === 'undefined') return;
@@ -145,6 +143,7 @@ export default function CompressorPage() {
       window.removeEventListener('resize', measure);
     };
   });
+
   const [intake, setIntake] = useState<'ok' | 'fail' | null>(null);
   const [intakeMessage, setIntakeMessage] = useState<string | null>(null);
   // Both outcomes hold for two seconds — long enough to read the line where

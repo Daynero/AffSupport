@@ -16391,3 +16391,10 @@ input[type='number'] {
 .batch-toolbar-row.is-compact-chips .batch-chips {
   gap: 14px;
 }
+
+
+/* The actions stay pinned to the right edge in every collapse stage — the
+   chips' auto margin disappears once they shrink to bare numbers. */
+.batch-toolbar-row .primary-actions {
+  margin-left: auto;
+}
