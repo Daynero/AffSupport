@@ -14366,7 +14366,10 @@ button.team-landing-tile:hover {
    the breadcrumb wraps to its own line the actions still span the width. */
 .team-explorer-toolbar-actions {
   display: flex;
-  flex: 1 1 auto;
+  /* Packed into the top-right corner (owner, 2026-08-30): search, add-files
+     and the view toggle sit together, clear of a long breadcrumb. */
+  flex: 0 0 auto;
+  margin-left: auto;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
@@ -15134,4 +15137,42 @@ button.team-landing-tile:hover {
 }
 .output-suffix-field input {
   width: 150px;
+}
+
+/* 011 layout (owner, 2026-08-30): the toolbar row spans the breadcrumb and the
+   corner actions across the whole right side, and the preview card starts a
+   row lower — a long path no longer runs under the card. */
+.team-explorer > .team-explorer-toolbar {
+  grid-column: 2 / -1;
+  grid-row: 1;
+}
+.team-explorer > .team-explorer-tree {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+}
+.team-explorer > .team-explorer-main {
+  grid-column: 2;
+  grid-row: 2;
+}
+.team-explorer > .team-explorer-pane {
+  grid-column: 3;
+  grid-row: 2;
+}
+@media (max-width: 1023px) {
+  .team-explorer > .team-explorer-toolbar,
+  .team-explorer > .team-explorer-tree,
+  .team-explorer > .team-explorer-main,
+  .team-explorer > .team-explorer-pane {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+
+/* The add-image tile is just a plus; the words live in its tooltip. */
+.image-drop-message.is-minimal {
+  display: grid;
+  place-items: center;
+}
+.image-drop-message.is-minimal .image-drop-icon {
+  font-size: 30px;
 }

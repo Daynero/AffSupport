@@ -699,6 +699,87 @@ function ExplorerBody({
   return (
     <div className={`team-explorer has-pane${treeOpen ? ' is-tree-open' : ''}`}>
       <FolderTree onDropMaterials={(folder, ids) => void moveTo(folder, ids)} onReset={onReset} />
+      <div className="team-explorer-toolbar">
+        <Button
+          type="button"
+          variant="ghost"
+          className="team-explorer-folders-toggle"
+          aria-pressed={treeOpen}
+          onClick={() => setTreeOpen(open => !open)}
+        >
+          {t('teamExplorerFoldersToggle')}
+        </Button>
+        {trash ? (
+          <Button type="button" variant="ghost" onClick={() => onQueryChange({ trash: false })}>
+            ← {t('teamExplorerBackToFiles')}
+          </Button>
+        ) : (
+          <Breadcrumb />
+        )}
+        <div className="team-explorer-toolbar-actions">
+          {!trash && (
+            <Button
+              type="button"
+              variant="secondary"
+              aria-pressed={searching}
+              onClick={() =>
+                searching
+                  ? onQueryChange({ q: '', scope: 'folder', filters: undefined })
+                  : onQueryChange({ scope: 'space' })
+              }
+            >
+              {searching ? t('teamExplorerSearchClose') : t('teamExplorerSearchOpen')}
+            </Button>
+          )}
+          {permissions?.upload && !trash && (
+            <>
+              <input
+                ref={fileInput}
+                type="file"
+                multiple
+                hidden
+                onChange={event => {
+                  if (event.target.files) void upload(event.target.files);
+                  event.target.value = '';
+                }}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => fileInput.current?.click()}
+              >
+                {t('teamExplorerAddFiles')}
+              </Button>
+            </>
+          )}
+          {!trash && (
+            <div
+              className="team-explorer-view-toggle"
+              role="group"
+              aria-label={t('teamExplorerViewLabel')}
+            >
+              <button
+                type="button"
+                aria-pressed={view === 'list'}
+                aria-label={t('teamExplorerViewList')}
+                title={t('teamExplorerViewList')}
+                onClick={() => setView('list')}
+              >
+                <ListViewIcon />
+              </button>
+              <button
+                type="button"
+                aria-pressed={view === 'grid'}
+                aria-label={t('teamExplorerViewGrid')}
+                title={t('teamExplorerViewGrid')}
+                onClick={() => setView('grid')}
+              >
+                <GridViewIcon />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
       <div
         className={`team-explorer-main team-explorer-dropzone${dropping ? ' is-over' : ''}`}
         onDragOver={event => {
@@ -719,87 +800,6 @@ function ExplorerBody({
             {t('teamStorageReadOnly')}
           </p>
         )}
-        <div className="team-explorer-toolbar">
-          <Button
-            type="button"
-            variant="ghost"
-            className="team-explorer-folders-toggle"
-            aria-pressed={treeOpen}
-            onClick={() => setTreeOpen(open => !open)}
-          >
-            {t('teamExplorerFoldersToggle')}
-          </Button>
-          {trash ? (
-            <Button type="button" variant="ghost" onClick={() => onQueryChange({ trash: false })}>
-              ← {t('teamExplorerBackToFiles')}
-            </Button>
-          ) : (
-            <Breadcrumb />
-          )}
-          <div className="team-explorer-toolbar-actions">
-            {!trash && (
-              <Button
-                type="button"
-                variant="secondary"
-                aria-pressed={searching}
-                onClick={() =>
-                  searching
-                    ? onQueryChange({ q: '', scope: 'folder', filters: undefined })
-                    : onQueryChange({ scope: 'space' })
-                }
-              >
-                {searching ? t('teamExplorerSearchClose') : t('teamExplorerSearchOpen')}
-              </Button>
-            )}
-            {permissions?.upload && !trash && (
-              <>
-                <input
-                  ref={fileInput}
-                  type="file"
-                  multiple
-                  hidden
-                  onChange={event => {
-                    if (event.target.files) void upload(event.target.files);
-                    event.target.value = '';
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => fileInput.current?.click()}
-                >
-                  {t('teamExplorerAddFiles')}
-                </Button>
-              </>
-            )}
-            {!trash && (
-              <div
-                className="team-explorer-view-toggle"
-                role="group"
-                aria-label={t('teamExplorerViewLabel')}
-              >
-                <button
-                  type="button"
-                  aria-pressed={view === 'list'}
-                  aria-label={t('teamExplorerViewList')}
-                  title={t('teamExplorerViewList')}
-                  onClick={() => setView('list')}
-                >
-                  <ListViewIcon />
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={view === 'grid'}
-                  aria-label={t('teamExplorerViewGrid')}
-                  title={t('teamExplorerViewGrid')}
-                  onClick={() => setView('grid')}
-                >
-                  <GridViewIcon />
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
         {!trash && !searching && (
           <div className="team-explorer-list-controls">
             <KindFilterMenu kinds={query.kinds} onChange={kinds => onQueryChange({ kinds })} />

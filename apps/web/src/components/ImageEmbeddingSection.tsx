@@ -467,18 +467,15 @@ export function ImageDropArea({
           <div
             className={`image-drop-zone image-add-tile ${disabled ? 'is-disabled' : ''}`}
             role="button"
-            title={t('dropImage')}
+            title={`${t('addImage')} · ${t('imageFormats')}`}
+            aria-label={t('addImage')}
             tabIndex={!disabled ? 0 : -1}
             aria-disabled={disabled}
             onClick={choose}
             onKeyDown={onKeyDown}
           >
-            <div className="image-drop-message">
+            <div className="image-drop-message is-minimal">
               {busy ? <Spinner /> : <span className="image-drop-icon">＋</span>}
-              <strong>
-                {busy ? t('uploadingImage') : dragging ? t('dropImageActive') : t('addImage')}
-              </strong>
-              <span>{t('imageFormats')}</span>
             </div>
           </div>
         </div>
