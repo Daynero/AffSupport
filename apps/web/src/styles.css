@@ -15093,12 +15093,12 @@ button.team-landing-tile:hover {
 
 /* Embedding image tiles: click toggles the image in/out of the random pick. */
 .selected-image-tile.is-active {
-  outline: 2px solid #16a34a;
-  outline-offset: 1px;
-  /* A visible green glow, not just a hairline. */
+  /* A quiet luxe glow: a whisper of an outline, light spreading softly. */
+  outline: 1px solid color-mix(in oklab, #34c759 55%, transparent);
+  outline-offset: 0;
   box-shadow:
-    0 0 16px 3px color-mix(in oklab, #16a34a 75%, transparent),
-    0 0 4px 1px color-mix(in oklab, #16a34a 60%, transparent);
+    0 0 10px 1px color-mix(in oklab, #34c759 45%, transparent),
+    0 0 26px 8px color-mix(in oklab, #34c759 16%, transparent);
   cursor: pointer;
 }
 .selected-image-tile.is-inactive {
@@ -15108,15 +15108,15 @@ button.team-landing-tile:hover {
   overflow: hidden;
 }
 .selected-image-tile.is-inactive img {
-  filter: grayscale(1) blur(1px);
-  opacity: 0.8;
+  filter: grayscale(1) blur(2px);
+  opacity: 0.75;
 }
 .selected-image-tile.is-inactive::after {
   content: '';
   position: absolute;
   inset: 0;
-  /* A light 10% gray veil across the whole tile; the delete button rides above. */
-  background: color-mix(in oklab, #808080 10%, transparent);
+  /* A 20% gray veil across the whole tile; the delete button rides above. */
+  background: color-mix(in oklab, #808080 20%, transparent);
   border-radius: inherit;
   pointer-events: none;
   z-index: 1;
