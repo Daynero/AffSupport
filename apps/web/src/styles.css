@@ -1118,10 +1118,11 @@ a {
   grid-template-columns: auto minmax(0, 1fr);
   gap: var(--space-3) var(--space-5);
   padding: var(--space-4);
-  /* Settings wear a faint accent tint — the same violet as their controls —
-     so the panel reads as "controls", never as another result card. */
-  border: 1px solid color-mix(in oklab, var(--color-accent) 26%, transparent);
-  background: color-mix(in oklab, var(--color-accent) 7%, var(--color-surface));
+  /* A brighter, colour-neutral slab: it separates from the page by light
+     alone, so it competes with neither the orange intake zone nor the green
+     result cards. */
+  border: 1px solid color-mix(in oklab, var(--color-text) 14%, transparent);
+  background: color-mix(in oklab, var(--color-text) 9%, var(--color-surface));
 }
 .settings-panel .settings-body {
   display: contents;
