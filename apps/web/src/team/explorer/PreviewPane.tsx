@@ -31,18 +31,44 @@ export interface PreviewPaneClient extends ThumbnailSessionClient {
 export function PreviewPane({
   row,
   client,
-  onOpen
+  onOpen,
+  onTranscribe,
+  getTranscriptCompanion
 }: {
   /** The selected row, or null when nothing is selected. */
   row: TeamMaterialRow | null;
   client: PreviewPaneClient;
   onOpen?: (material: TeamMaterialSummary) => void;
+  /** Start (re-)transcribing a video from its card. */
+  onTranscribe?: (row: TeamMaterialRow) => void;
+  /** Reads a video's transcript companion, so the card can reflect its state. */
+  getTranscriptCompanion?: (
+    teamId: string,
+    materialId: string
+  ) => Promise<{ id: string; name: string; ingestState: string; hasText: boolean } | null>;
 }) {
   const { t } = useI18n();
   const { teamId } = useExplorer();
   const session = useThumbnailSession({ teamId, client, enabled: row !== null });
   const [render, setRender] = useState<RenderArtifactRef | null>(null);
   const [broken, setBroken] = useState(false);
+  const [companion, setCompanion] = useState<{ id: string; hasText: boolean } | null>(null);
+
+  useEffect(() => {
+    setCompanion(null);
+    if (!row || row.category !== 'video' || !getTranscriptCompanion) return;
+    let active = true;
+    void getTranscriptCompanion(teamId, row.id)
+      .then(found => {
+        if (active) setCompanion(found ? { id: found.id, hasText: found.hasText } : null);
+      })
+      .catch(() => {
+        if (active) setCompanion(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [getTranscriptCompanion, row, teamId]);
 
   // A new row (or a new version of the same one) deserves a fresh attempt.
   useEffect(() => setBroken(false), [row?.id, row?.driveVersion]);
@@ -131,6 +157,14 @@ export function PreviewPane({
         <Button type="button" variant="primary" onClick={() => onOpen(previewSummary(row))}>
           {t('teamExplorerPreviewOpen')}
         </Button>
+      )}
+      {row.category === 'video' && onTranscribe && (
+        <div className="team-explorer-pane-transcript">
+          <p className="team-explorer-pane-transcript-title">{t('teamTranscriptSection')}</p>
+          <Button type="button" variant="secondary" onClick={() => onTranscribe(row)}>
+            {companion ? t('teamTranscriptRedo') : t('teamTranscriptStart')}
+          </Button>
+        </div>
       )}
     </aside>
   );

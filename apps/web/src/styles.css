@@ -14654,6 +14654,21 @@ button.team-landing-tile:hover {
   margin: 0;
   overflow-wrap: anywhere;
 }
+.team-explorer-pane-transcript {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+  display: grid;
+  gap: var(--space-2);
+}
+.team-explorer-pane-transcript-title {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
 .team-explorer-pane-facts {
   display: grid;
   grid-template-columns: auto 1fr;

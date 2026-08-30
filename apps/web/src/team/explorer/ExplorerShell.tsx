@@ -5,7 +5,7 @@ import type {
   TeamMaterialRow,
   TeamPermissions
 } from '@video-compressor/shared';
-import type { TeamMaterialSummary } from '../../api/team';
+import { teamApi, type TeamMaterialSummary } from '../../api/team';
 import { Button } from '../../components/ui';
 import { useToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';
@@ -624,7 +624,13 @@ function ExplorerBody({
         )}
         {dropping && <p className="team-explorer-muted">{t('teamExplorerDropHint')}</p>}
       </div>
-      <PreviewPane row={trash || searching ? null : focused} client={client} onOpen={onPreview} />
+      <PreviewPane
+        row={trash || searching ? null : focused}
+        client={client}
+        onOpen={onPreview}
+        onTranscribe={permissions?.process ? row => setProcessing(row) : undefined}
+        getTranscriptCompanion={teamApi.getTranscriptCompanion}
+      />
       {processing && (
         <MaterialProcessFlow
           teamId={teamId}

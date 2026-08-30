@@ -1389,6 +1389,25 @@ export const teamApi = {
     };
   },
 
+  async getTranscriptCompanion(
+    teamId: string,
+    materialId: string
+  ): Promise<{ id: string; name: string; ingestState: string; hasText: boolean } | null> {
+    const { data, error } = await requireSupabaseClient().rpc('get_material_transcript_companion', {
+      p_team: teamId,
+      p_material: materialId
+    });
+    throwRpc(error);
+    const row = data?.[0] as Record<string, unknown> | undefined;
+    if (!row || typeof row.id !== 'string') return null;
+    return {
+      id: row.id,
+      name: typeof row.name === 'string' ? row.name : '',
+      ingestState: typeof row.ingest_state === 'string' ? row.ingest_state : 'pending',
+      hasText: row.has_text === true
+    };
+  },
+
   async regenerateLandingPreview(teamId: string, materialId: string): Promise<void> {
     const { error } = await requireSupabaseClient().rpc('request_landing_render_refresh', {
       p_team: teamId,

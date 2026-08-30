@@ -56,7 +56,7 @@ Order is dependency-first. Each task is small and independently committable.
 
 ## Phase 5 — The side card
 
-- [ ] T016 Transcript block in `PreviewPane`: primary "Copy transcript" + overflow
+- [x] T016 Transcript block (card shows Transcribe / Re-transcribe by companion state; copy/translation land with T006) in `PreviewPane`: primary "Copy transcript" + overflow
       (re-transcribe / view translation / copy translation) when a companion exists; a single
       "Transcribe" when none. Compact, not a wall of buttons (FR-T8). Tests (jsdom).
 - [ ] T017 Copy-to-clipboard with a green toast for transcript and translation, mirroring the
