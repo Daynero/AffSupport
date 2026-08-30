@@ -161,7 +161,7 @@ function Row({
       {actions && (
         <div className="team-explorer-row-actions" onClick={event => event.stopPropagation()}>
           <ShareButton teamId={actions.teamId} row={row} />
-          {row.kind !== 'folder' && <RowActions {...actions} row={row} />}
+          <RowActions {...actions} row={row} />
         </div>
       )}
       {reason && <span className="team-explorer-row-reason">{t(reason)}</span>}

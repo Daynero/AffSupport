@@ -260,7 +260,7 @@ function Tile({
       {actions && (
         <div className="team-explorer-tile-actions" onClick={event => event.stopPropagation()}>
           <ShareButton teamId={actions.teamId} row={row} />
-          {row.kind !== 'folder' && <RowActions {...actions} row={row} />}
+          <RowActions {...actions} row={row} />
         </div>
       )}
       <div className="team-explorer-tile-caption">

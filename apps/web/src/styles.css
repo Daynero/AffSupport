@@ -15042,3 +15042,21 @@ button.team-landing-tile:hover {
   color: var(--color-text-muted);
   cursor: pointer;
 }
+
+/* Folder batch processing (015): one action per row, its scope beside it. */
+.team-folder-process-actions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.team-folder-process-actions li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.team-folder-process-progress {
+  display: grid;
+  gap: var(--space-2);
+}

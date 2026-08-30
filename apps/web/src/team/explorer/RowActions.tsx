@@ -26,6 +26,7 @@ export interface RowActionsProps {
   onChanged: () => void;
   onEditText?: (row: TeamMaterialRow) => void;
   onProcess?: (row: TeamMaterialRow) => void;
+  onProcessFolder?: (row: TeamMaterialRow) => void;
   /**
    * A video that was trashed — the shell decides what to do with its transcript
    * companion (012, T012). Kept out of this per-row component because it
@@ -44,6 +45,7 @@ export function RowActions({
   onChanged,
   onEditText,
   onProcess,
+  onProcessFolder,
   onVideoTrashed,
   row
 }: RowActionsProps & { row: TeamMaterialRow }) {
@@ -83,6 +85,9 @@ export function RowActions({
       replaceMaterialId={row.id}
       onEditText={row.kind === 'transcript' && onEditText ? () => onEditText(row) : undefined}
       onProcess={onProcess ? () => onProcess(row) : undefined}
+      onProcessFolder={
+        row.kind === 'folder' && onProcessFolder ? () => onProcessFolder(row) : undefined
+      }
       onRegeneratePreview={regeneratePreview}
       afterTrash={
         row.category === 'video' && onVideoTrashed ? () => onVideoTrashed(row.id) : undefined

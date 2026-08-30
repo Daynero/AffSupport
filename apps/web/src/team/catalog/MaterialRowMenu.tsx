@@ -25,6 +25,8 @@ export interface MaterialRowMenuProps {
   onChanged: () => void;
   onEditText?: () => void;
   onProcess?: () => void;
+  /** Batch actions for a folder's contents (transcribe videos, refresh previews). */
+  onProcessFolder?: () => void;
   onRegeneratePreview?: () => void;
   afterTrash?: () => void;
   storageKind?: TeamAnalyticsStorage | null;
@@ -101,6 +103,7 @@ function MaterialRowMenuContent({
   onChanged,
   onEditText,
   onProcess,
+  onProcessFolder,
   onRegeneratePreview,
   afterTrash,
   storageKind = null,
@@ -210,6 +213,11 @@ function MaterialRowMenuContent({
           {!isFolder && permissions.process && onProcess && (
             <Button type="button" variant="ghost" onClick={onProcess}>
               {t('teamFileProcess')}
+            </Button>
+          )}
+          {isFolder && permissions.process && onProcessFolder && (
+            <Button type="button" variant="ghost" onClick={onProcessFolder}>
+              {t('teamFolderProcess')}
             </Button>
           )}
           {!isFolder && permissions.edit && onRegeneratePreview && (

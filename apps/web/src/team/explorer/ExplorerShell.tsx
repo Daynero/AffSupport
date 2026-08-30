@@ -31,6 +31,7 @@ import { sortRows, readRememberedSort, rememberSort, type ExplorerSort } from '.
 import { PreviewPane } from './PreviewPane';
 import { Modal } from '../../components/Modal';
 import { MaterialProcessFlow } from '../processing/MaterialProcessFlow';
+import { FolderProcessDialog } from './FolderProcessDialog';
 import type { RowActionsProps } from './RowActions';
 import { useFolderPage } from './useFolderPage';
 
@@ -176,6 +177,7 @@ function ExplorerBody({
     mode: 'copy' | 'cut';
     items: { id: string; name: string; kind: string }[];
   } | null>(null);
+  const [folderProcessing, setFolderProcessing] = useState<TeamMaterialRow | null>(null);
   const [dropping, setDropping] = useState(false);
   const [storageKind, setStorageKind] = useState<TeamAnalyticsStorage | null>(null);
   const [companionDelete, setCompanionDelete] = useState<{
@@ -360,7 +362,10 @@ function ExplorerBody({
         onChanged: changed,
         onVideoTrashed: (videoId: string) => void onVideoTrashed(videoId),
         ...(permissions.process
-          ? { onProcess: (row: TeamMaterialRow) => setProcessing({ row }) }
+          ? {
+              onProcess: (row: TeamMaterialRow) => setProcessing({ row }),
+              onProcessFolder: (row: TeamMaterialRow) => setFolderProcessing(row)
+            }
           : {})
       }
     : undefined;
@@ -826,6 +831,15 @@ function ExplorerBody({
             </Button>
           </div>
         </Modal>
+      )}
+      {folderProcessing && (
+        <FolderProcessDialog
+          teamId={teamId}
+          folder={folderProcessing}
+          client={client}
+          onChanged={changed}
+          onClose={() => setFolderProcessing(null)}
+        />
       )}
       {processing && (
         <MaterialProcessFlow
