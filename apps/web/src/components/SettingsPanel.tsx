@@ -150,6 +150,23 @@ function CustomSettings({
 }) {
   // 'Оптимальний' is the CRF preset (DEFAULT_CRF); picking Gem keeps the
   // custom CRF editable even when its value happens to equal the preset.
+  // While the CRF slider is being dragged the gem button grows 30% and
+  // repaints from the live value instead of the debounced setting.
+  const [crfDrag, setCrfDrag] = useState<number | null>(null);
+  useEffect(() => {
+    if (crfDrag === null) return;
+    const release = () => setCrfDrag(null);
+    // Pointer release ends the zoom; the idle timer catches every other way
+    // a drag can end (keyboard arrows, focus loss, synthetic events).
+    const idle = window.setTimeout(release, 800);
+    window.addEventListener('pointerup', release);
+    window.addEventListener('pointercancel', release);
+    return () => {
+      window.clearTimeout(idle);
+      window.removeEventListener('pointerup', release);
+      window.removeEventListener('pointercancel', release);
+    };
+  }, [crfDrag]);
   const [rateMode, setRateMode] = useState<'optimal' | 'crf' | 'bitrate'>(
     settings.rateControl === 'bitrate'
       ? 'bitrate'
@@ -189,7 +206,7 @@ function CustomSettings({
           <button
             type="button"
             role="radio"
-            className={rateMode === 'crf' ? 'is-selected' : ''}
+            className={`${rateMode === 'crf' ? 'is-selected' : ''} ${crfDrag !== null ? 'is-zoomed' : ''}`.trim()}
             title={t('constantQuality')}
             aria-label={t('constantQuality')}
             aria-checked={rateMode === 'crf'}
@@ -199,7 +216,7 @@ function CustomSettings({
               updateSettings({ rateControl: 'crf' });
             }}
           >
-            <PixelGem crf={settings.crf} selected={rateMode === 'crf'} />
+            <PixelGem crf={crfDrag ?? settings.crf} selected={rateMode === 'crf'} />
           </button>
           <button
             type="button"
@@ -220,7 +237,13 @@ function CustomSettings({
         {rateMode === 'optimal' ? (
           <span className="rate-optimal-note">CRF {DEFAULT_CRF}</span>
         ) : rateMode === 'crf' ? (
-          <RateValueCrf settings={settings} disabled={disabled} updateSettings={updateSettings} t={t} />
+          <RateValueCrf
+            settings={settings}
+            disabled={disabled}
+            updateSettings={updateSettings}
+            onDrag={setCrfDrag}
+            t={t}
+          />
         ) : (
           <RateValueBitrate settings={settings} disabled={disabled} updateSettings={updateSettings} t={t} />
         )}
@@ -454,11 +477,13 @@ function RateValueCrf({
   settings,
   disabled,
   updateSettings,
+  onDrag,
   t
 }: {
   settings: AgentSettings;
   disabled: boolean;
   updateSettings: UpdateSettings;
+  onDrag: (value: number | null) => void;
   t: Translate;
 }) {
   // Local value keeps the thumb glued to the pointer; the settings update
@@ -478,9 +503,11 @@ function RateValueCrf({
           disabled={disabled}
           aria-label={t('crf')}
           title={t('crfTooltip')}
+          onPointerDown={event => onDrag(Number((event.target as HTMLInputElement).value))}
           onChange={event => {
             const next = Number(event.target.value);
             setValue(next);
+            onDrag(next);
             updateSettings({ crf: next }, true);
           }}
         />

@@ -15412,3 +15412,12 @@ input[type='number'] {
   display: grid;
   gap: var(--space-3);
 }
+
+/* The gem grows 30% while the CRF slider is dragged, shrinking back on release. */
+.fit-mode-pictos button {
+  transition: transform 0.15s ease;
+}
+.fit-mode-pictos button.is-zoomed {
+  transform: scale(1.3);
+  z-index: 1;
+}
