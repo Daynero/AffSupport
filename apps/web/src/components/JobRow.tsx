@@ -171,8 +171,8 @@ export function JobRow({
           failed/cancelled jobs never jump the layout. */}
       {/* A cancelled job already says so in its status pill; repeating it as an
           error strip is noise. */}
-      <Collapse open={Boolean(job.error) && job.status !== 'cancelled'}>
-        {job.error && job.status !== 'cancelled' ? (
+      <Collapse open={Boolean(job.error) && !['cancelled', 'interrupted'].includes(job.status)}>
+        {job.error && !['cancelled', 'interrupted'].includes(job.status) ? (
           <div className="job-error" role="alert">
             <span>{localizedJobError(job.error, t)}</span>
             {job.errorDetails && (

@@ -93,8 +93,8 @@ export default function CompressorPage() {
   };
   const [intake, setIntake] = useState<'ok' | 'fail' | null>(null);
   const [intakeMessage, setIntakeMessage] = useState<string | null>(null);
-  // Both outcomes hold for three seconds — long enough to read the line
-  // where the drop happened.
+  // Both outcomes hold for two seconds — long enough to read the line where
+  // the drop happened, short enough not to linger.
   const flashIntake = (outcome: 'ok' | 'fail', message?: string) => {
     setIntake(outcome);
     setIntakeMessage(outcome === 'fail' ? (message ?? null) : null);
@@ -105,7 +105,7 @@ export default function CompressorPage() {
           setIntakeMessage(null);
           return null;
         }),
-      3000
+      2000
     );
   };
   const [help, setHelp] = useState(false);

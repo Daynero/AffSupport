@@ -15661,27 +15661,29 @@ input[type='number'] {
     color var(--dur-control) var(--ease-standard),
     box-shadow var(--dur-control) var(--ease-standard);
 }
+/* Deep, dark-theme greens and reds — the flash reads as part of the page,
+   not as a bright card dropped onto it. */
 .drop-zone.is-ok,
 .drop-zone.is-ok:hover {
-  border-color: #1f7a3d;
-  color: #06301a;
-  background: #34c759;
+  border-color: #2f9e56;
+  color: #6fe08f;
+  background: color-mix(in oklab, #06301a 62%, var(--color-surface));
 }
 .drop-zone.is-fail,
 .drop-zone.is-fail:hover {
-  border-color: #8f2020;
-  color: #360a0a;
-  background: #ff6b6b;
+  border-color: #b34343;
+  color: #ff9b9b;
+  background: color-mix(in oklab, #360a0a 62%, var(--color-surface));
 }
 .drop-zone.is-ok .drop-icon,
 .drop-zone.is-ok strong,
 .drop-zone.is-ok span:not(.drop-icon):not(.spinner) {
-  color: #06301a;
+  color: #6fe08f;
 }
 .drop-zone.is-fail .drop-icon,
 .drop-zone.is-fail strong,
 .drop-zone.is-fail span:not(.drop-icon):not(.spinner) {
-  color: #360a0a;
+  color: #ff9b9b;
 }
 
 

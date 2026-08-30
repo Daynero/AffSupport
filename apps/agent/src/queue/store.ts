@@ -286,12 +286,9 @@ function migrateJob(value: unknown, settings: AgentSettings): CompressionJob | n
     progress: numberOrNull(raw.progress),
     processingStage: null,
     status,
-    error:
-      status === 'interrupted'
-        ? 'Compression was interrupted when the agent stopped.'
-        : typeof raw.error === 'string'
-          ? raw.error
-          : null,
+    // An interrupted job already says so in its status; carrying an English
+    // sentence about the agent stopping only turns a restart into a red alarm.
+    error: status === 'interrupted' ? null : typeof raw.error === 'string' ? raw.error : null,
     errorDetails: typeof raw.errorDetails === 'string' ? raw.errorDetails : null,
     encoding,
     imageEmbedding:
