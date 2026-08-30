@@ -59,6 +59,11 @@ export function MaterialRowMenu(props: MaterialRowMenuProps) {
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target;
       if (target instanceof Node && containerRef.current?.contains(target)) return;
+      // The folder picker (and rename modal) this menu opens are portaled to the
+      // body, outside the menu's own subtree. A press inside one is not "outside
+      // the menu": closing here would unmount the menu — and the picker with it —
+      // before the picker's own click handler runs, silently cancelling the move.
+      if (target instanceof Element && target.closest('[role="dialog"], .modal-backdrop')) return;
       setOpen(false);
     };
     document.addEventListener('keydown', onKeyDown);

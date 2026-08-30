@@ -303,10 +303,13 @@ export function useMaterialActions(input: {
   const move = useCallback(
     (folderId: string) =>
       run('move', async () => {
+        // The picker names the space root with a `'root'` sentinel; the move API
+        // expects `null` there. Passing the literal string moves nothing.
+        const destination = folderId === 'root' ? null : folderId;
         const result = await client.moveMaterial({
           teamId,
           materialId: material.id,
-          destinationFolderId: folderId,
+          destinationFolderId: destination,
           conflictMode: 'cancel',
           idempotencyKey: crypto.randomUUID()
         });
@@ -320,7 +323,7 @@ export function useMaterialActions(input: {
               .moveMaterial({
                 teamId,
                 materialId: companion.id,
-                destinationFolderId: folderId,
+                destinationFolderId: destination,
                 conflictMode: 'keep_both',
                 idempotencyKey: crypto.randomUUID()
               })
