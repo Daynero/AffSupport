@@ -18,7 +18,7 @@ import {
 import type { TranslationKey } from '../i18n';
 import { Checkbox, Collapse, IconButton, Spinner, Tooltip, type Translate } from './ui';
 import { imageContentPath } from '../api/subresource-paths';
-import { Crop, Image as ImageIcon, Minimize2, Plus, Timer, UnfoldVertical, X } from 'lucide-react';
+import { Crop, Dices, Image as ImageIcon, Minimize2, Plus, Timer, UnfoldVertical, X } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from './icons';
 import { useSubresourceUrl } from '../api/useSubresourceUrl';
 
@@ -225,22 +225,46 @@ export function ImageEmbeddingSection({
                   label={t('finalImageDuration')}
                   tooltip={t('finalImageDurationTooltip')}
                 />
-                <select
-                  value={settings.finalDurationMode}
-                  disabled={disabled}
-                  aria-label={t('finalImageDuration')}
-                  onChange={event =>
-                    update({
-                      finalDurationMode: event.target
-                        .value as ImageEmbeddingSettings['finalDurationMode']
-                    })
-                  }
-                >
-                  <option value="random-30-40">{t('randomDuration30To40')}</option>
-                  <option value="random-40-50">{t('randomDuration40To50')}</option>
-                  <option value="random-50-60">{t('randomDuration50To60')}</option>
-                  <option value="custom">{t('customDuration')}</option>
-                </select>
+                <div className="start-duration-row">
+                  <div
+                    className="fit-mode-pictos"
+                    role="group"
+                    aria-label={t('finalImageDuration')}
+                  >
+                    {(
+                      [
+                        ['random-30-40', t('randomDuration30To40'), '30–40'],
+                        ['random-40-50', t('randomDuration40To50'), '40–50'],
+                        ['random-50-60', t('randomDuration50To60'), '50–60']
+                      ] as const
+                    ).map(([value, label, range]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        className={`is-labeled${settings.finalDurationMode === value ? ' is-selected' : ''}`}
+                        disabled={disabled}
+                        title={label}
+                        aria-label={label}
+                        aria-pressed={settings.finalDurationMode === value}
+                        onClick={() => update({ finalDurationMode: value })}
+                      >
+                        <Dices size={16} strokeWidth={1.75} />
+                        <span>{range}</span>
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className={settings.finalDurationMode === 'custom' ? 'is-selected' : ''}
+                      disabled={disabled}
+                      title={t('customDuration')}
+                      aria-label={t('customDuration')}
+                      aria-pressed={settings.finalDurationMode === 'custom'}
+                      onClick={() => update({ finalDurationMode: 'custom' })}
+                    >
+                      <Timer size={20} strokeWidth={1.75} />
+                    </button>
+                  </div>
+                </div>
                 {/* The label says "40–50 min" and the unit is easy to read past.
                     A user found out from the file: a 2.5 minute video came back
                     47 minutes long, and about a hundred megabytes heavier. */}
