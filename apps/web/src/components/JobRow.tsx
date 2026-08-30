@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Ban, ExternalLink, FolderOpen, RefreshCw, Trash2 } from 'lucide-react';
+import { Ban, ExternalLink, FolderOpen, Pause, Play, RefreshCw, Trash2 } from 'lucide-react';
 import {
   COMPRESSION_LIFECYCLE,
   isSettled,
@@ -58,7 +58,7 @@ export function JobRow({
   compressionRunning: boolean;
   language: Language;
   onSelected: (checked: boolean, shiftKey: boolean) => void;
-  action: (url: string, method?: string) => void;
+  action: (url: string, method?: string, body?: unknown) => void;
   t: Translate;
   /**
    * Whether the local app is answering right now.
@@ -104,7 +104,7 @@ export function JobRow({
         />
         <div className="job-title-block">
           <div className="job-title-line">
-            <h3 title={job.fileName}>{job.fileName}</h3>
+            <h3 data-tip={job.fileName}>{job.fileName}</h3>
             <StatusBadge status={job.status} t={t} />
           </div>
           <JobTimer job={job} t={t} showRunning={false} live={connected} />
@@ -117,7 +117,9 @@ export function JobRow({
       <div className="job-side">
         {running ? (
           <div className="job-progress-panel">
-            <strong className="job-progress-title">{t('jobCompressingNow')}</strong>
+            <strong className="job-progress-title">
+              {t(job.paused ? 'jobPaused' : 'jobCompressingNow')}
+            </strong>
             <div className="job-progress-line">
               <ProgressBar
                 value={job.status === 'queued' ? 0 : job.progress}
@@ -132,7 +134,15 @@ export function JobRow({
               </strong>
             </div>
             <div className="job-progress-meta">
-              {job.processingStage && <span>{processingStage(job, t)}</span>}
+              <span className="job-progress-sizes">
+                {formatSize(job.originalSize, language)}
+                {job.estimatedOutputBytes ? (
+                  <>
+                    {' → ~'}
+                    {formatSize(job.estimatedOutputBytes, language)}
+                  </>
+                ) : null}
+              </span>
               <JobTimer job={job} t={t} live={connected} />
               <JobActions
                 job={job}
@@ -159,8 +169,10 @@ export function JobRow({
 
       {/* Errors expand softly (fade-rise inside an animated row track), so
           failed/cancelled jobs never jump the layout. */}
-      <Collapse open={Boolean(job.error)}>
-        {job.error ? (
+      {/* A cancelled job already says so in its status pill; repeating it as an
+          error strip is noise. */}
+      <Collapse open={Boolean(job.error) && job.status !== 'cancelled'}>
+        {job.error && job.status !== 'cancelled' ? (
           <div className="job-error" role="alert">
             <span>{localizedJobError(job.error, t)}</span>
             {job.errorDetails && (
@@ -382,16 +394,26 @@ function EstimatePanel({
         </>
       ) : (
         <div className="estimate-state">
-          {job.estimateStatus === 'estimating' || !current ? (
-            <SotyDots />
-          ) : (
-            <span className="skeleton skeleton-size" aria-hidden="true" />
-          )}
           <span>{status}</span>
           {job.estimateProgress && (
-            <small>
-              {job.estimateProgress.completed}/{job.estimateProgress.total}
-            </small>
+            <>
+              {/* A small, plain bar instead of the shimmering placeholder: it
+                  says how far the sampling has got, which the shimmer never
+                  did. */}
+              <span className="estimate-bar" aria-hidden="true">
+                <span
+                  style={{
+                    width: `${Math.round(
+                      (job.estimateProgress.completed / Math.max(1, job.estimateProgress.total)) *
+                        100
+                    )}%`
+                  }}
+                />
+              </span>
+              <small>
+                {job.estimateProgress.completed}/{job.estimateProgress.total}
+              </small>
+            </>
           )}
         </div>
       )}
@@ -493,21 +515,35 @@ function JobActions({
   job: CompressionJob;
   disabled: boolean;
   compressionRunning: boolean;
-  action: (url: string, method?: string) => void;
+  action: (url: string, method?: string, body?: unknown) => void;
   t: Translate;
 }) {
   const priority = estimatePriorityAction(job, compressionRunning);
   return (
     <div className="job-actions" aria-label={t('fileActions', { name: job.fileName })}>
       {job.status === 'processing' && (
-        <Button
-          variant="danger"
-          disabled={disabled}
-          onClick={() => action(`/api/jobs/${job.id}/cancel`)}
-        >
-          <Ban size={16} strokeWidth={1.75} aria-hidden="true" />
-          {t('cancel')}
-        </Button>
+        <>
+          <Button
+            variant="secondary"
+            disabled={disabled}
+            onClick={() => action(`/api/jobs/${job.id}/pause`, 'POST', { paused: !job.paused })}
+          >
+            {job.paused ? (
+              <Play size={16} strokeWidth={1.75} aria-hidden="true" />
+            ) : (
+              <Pause size={16} strokeWidth={1.75} aria-hidden="true" />
+            )}
+            {t(job.paused ? 'jobResume' : 'jobPause')}
+          </Button>
+          <Button
+            variant="danger"
+            disabled={disabled}
+            onClick={() => action(`/api/jobs/${job.id}/cancel`)}
+          >
+            <Ban size={16} strokeWidth={1.75} aria-hidden="true" />
+            {t('cancel')}
+          </Button>
+        </>
       )}
       {priority && (
         <Button

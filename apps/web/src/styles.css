@@ -15598,14 +15598,14 @@ input[type='number'] {
 .instant-tip {
   position: fixed;
   z-index: var(--layer-toast);
-  max-width: 260px;
-  padding: 7px 10px;
+  max-width: 320px;
+  padding: 9px 12px;
   transform: translateX(-50%);
   border-radius: var(--radius-sm);
   color: var(--color-on-accent);
   background: var(--purple-900);
   box-shadow: var(--shadow-menu);
-  font-size: var(--text-xl);
+  font-size: var(--text-2xl);
   font-weight: 500;
   line-height: 1.35;
   text-align: center;
@@ -16282,4 +16282,47 @@ input[type='number'] {
     color-mix(in oklab, var(--color-text) 20%, transparent) 88%,
     transparent 100%
   );
+}
+
+/* Estimation progress: a short, quiet bar. */
+.estimate-bar {
+  display: inline-block;
+  width: 96px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+}
+.estimate-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-accent);
+  transition: width var(--dur-control) var(--ease-standard);
+}
+
+/* Each card carries a faint wash of its rail colour. */
+.job-row[data-state='processing'],
+.job-row[data-state='queued'] {
+  background: color-mix(in oklab, #3b82f6 15%, var(--color-surface));
+}
+.job-row[data-state='completed'] {
+  background: color-mix(in oklab, #22c55e 14%, var(--color-surface));
+}
+.job-row[data-state='failed'] {
+  background: color-mix(in oklab, #ef4444 8%, var(--color-surface));
+}
+.job-row[data-state='cancelled'],
+.job-row[data-state='interrupted'] {
+  background: color-mix(in oklab, var(--color-text) 5%, var(--color-surface));
+}
+
+/* Processing panel: sizes on the left, timer, then the two actions in a row. */
+.job-progress-sizes {
+  color: var(--color-text);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.job-progress-panel .job-actions {
+  flex-wrap: nowrap;
 }

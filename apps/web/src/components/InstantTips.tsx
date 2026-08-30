@@ -26,7 +26,24 @@ export function InstantTips() {
       setTip({ text, left, top });
     };
     const onOver = (event: MouseEvent) => {
-      const host = (event.target as HTMLElement | null)?.closest?.('[data-tip]');
+      const target = event.target as HTMLElement | null;
+      // A native `title` waits about a second for the OS and then draws a tiny
+      // system bubble. Anything carrying one is adopted here on first hover:
+      // the attribute moves to data-tip (keeping its text as the accessible
+      // name when there is none), so every hint on the page is instant and
+      // reads at the app's own size.
+      const native = target?.closest?.('[title]');
+      if (native instanceof HTMLElement) {
+        const text = native.getAttribute('title') ?? '';
+        if (text) {
+          native.setAttribute('data-tip', text);
+          if (!native.getAttribute('aria-label') && !native.textContent?.trim()) {
+            native.setAttribute('aria-label', text);
+          }
+        }
+        native.removeAttribute('title');
+      }
+      const host = target?.closest?.('[data-tip]');
       if (!(host instanceof HTMLElement)) return;
       const text = host.getAttribute('data-tip');
       if (!text) return;

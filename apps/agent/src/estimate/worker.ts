@@ -193,8 +193,12 @@ export class EstimationWorker {
   }
 
   private nextWaitingJob(prioritizedOnly: boolean) {
+    // A stopped or failed job can be started again, so its estimate is worth
+    // having; leaving those out is what left cancelled cards without one.
     const waiting = this.jobs().filter(
-      job => ['ready', 'queued'].includes(job.status) && job.estimateStatus === 'waiting'
+      job =>
+        ['ready', 'queued', 'cancelled', 'failed', 'interrupted'].includes(job.status) &&
+        job.estimateStatus === 'waiting'
     );
     const prioritized = waiting
       .filter(job => job.estimatePriorityOrder !== null)
@@ -203,7 +207,9 @@ export class EstimationWorker {
       prioritized[0] ??
       (prioritizedOnly
         ? undefined
-        : waiting.find(job => job.status === 'ready' && job.estimatePriorityOrder === null))
+        : waiting.find(
+            job => job.status !== 'queued' && job.estimatePriorityOrder === null
+          ))
     );
   }
 

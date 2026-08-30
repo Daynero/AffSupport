@@ -147,7 +147,10 @@ export function isValidIntegerInput(value: string, minimum: number, maximum: num
 
 export function elapsedMilliseconds(job: CompressionJob, now = Date.now()) {
   if (job.startedAt === null) return null;
-  return Math.max(0, (job.finishedAt ?? now) - job.startedAt);
+  // A paused encode is not making progress, so its clock stands still: the
+  // current pause and every earlier one are subtracted from the reading.
+  const end = job.finishedAt ?? (job.paused && job.pausedAt ? job.pausedAt : now);
+  return Math.max(0, end - job.startedAt - (job.pausedTotalMs ?? 0));
 }
 
 export type TimerState = 'running' | 'completed' | 'failed' | 'cancelled' | null;

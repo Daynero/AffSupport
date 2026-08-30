@@ -290,6 +290,18 @@ export function registerCompressorRoutes(app: FastifyInstance, ctx: CompressorCo
     queue.clearCompleted();
     return queue.state();
   });
+  app.post<{ Params: { id: string }; Body?: { paused?: unknown } }>(
+    '/api/jobs/:id/pause',
+    async (request, reply) => {
+      const paused = request.body?.paused !== false;
+      const outcome = queue.setPaused(request.params.id, paused);
+      if (outcome === 'unsupported') {
+        return reply.code(501).send({ error: 'PAUSE_UNSUPPORTED' });
+      }
+      if (outcome === 'not-found') return reply.code(404).send({ error: 'NOT_FOUND' });
+      return queue.state();
+    }
+  );
   app.post<{ Params: { id: string } }>('/api/jobs/:id/retry', async (request, reply) => {
     if (await queue.revalidateSettingsImages()) {
       return reply.code(400).send({ error: 'IMAGE_UNAVAILABLE' });

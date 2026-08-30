@@ -405,6 +405,17 @@ export function expectedFrameRate(
 
 export interface CompressionJob {
   id: string;
+  /**
+   * The encode is suspended (SIGSTOP) and can be resumed where it stopped.
+   *
+   * Absent on every job that never paused, so an older client simply sees a
+   * running job — which it is, just not being scheduled at this instant.
+   */
+  paused?: boolean;
+  /** When the current pause began, so the elapsed timer can stand still. */
+  pausedAt?: number | null;
+  /** Total time already spent paused, excluded from the elapsed reading. */
+  pausedTotalMs?: number;
   inputPath: string;
   outputPath: string;
   fileName: string;

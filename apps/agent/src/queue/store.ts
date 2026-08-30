@@ -305,12 +305,13 @@ function migrateJob(value: unknown, settings: AgentSettings): CompressionJob | n
     estimateStatus:
       status === 'completed'
         ? 'cancelled'
-        : raw.estimateStatus === 'estimated' ||
-            raw.estimateStatus === 'waiting' ||
-            raw.estimateStatus === 'unavailable' ||
-            raw.estimateStatus === 'cancelled'
+        : raw.estimateStatus === 'estimated' || raw.estimateStatus === 'unavailable'
           ? raw.estimateStatus
-          : 'waiting',
+          : // Anything unfinished — including a stale 'cancelled' left by an
+            // older build that stopped a compression — goes back in the queue,
+            // instead of animating "estimation paused" for the rest of the
+            // session with nothing able to move it on.
+            'waiting',
     estimatedOutputBytes: numberOrNull(raw.estimatedOutputBytes),
     estimatedSavingPercent: numberOrNull(raw.estimatedSavingPercent),
     estimateRangeMinBytes: numberOrNull(raw.estimateRangeMinBytes),

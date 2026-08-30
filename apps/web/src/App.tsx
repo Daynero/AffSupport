@@ -222,9 +222,13 @@ export default function CompressorPage() {
     }
   };
 
-  const action = async (url: string, method = 'POST') => {
+  const action = async (url: string, method = 'POST', body?: unknown) => {
     try {
-      setState(await request<QueueState>(url, method));
+      setState(
+        body === undefined
+          ? await request<QueueState>(url, method)
+          : await requestBody<QueueState>(url, body)
+      );
     } catch (error) {
       handleError(error);
     }

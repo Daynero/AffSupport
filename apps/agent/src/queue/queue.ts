@@ -985,6 +985,39 @@ export class JobQueue {
     return true;
   }
 
+  /**
+   * Pauses or resumes the running encode.
+   *
+   * FFmpeg has no pause of its own, so the child is suspended with SIGSTOP and
+   * woken with SIGCONT: the process keeps its memory, its output file and its
+   * position, and simply stops being scheduled. POSIX only — Windows has no
+   * equivalent signal, so there the call reports back as unsupported and the
+   * interface keeps its pause button hidden.
+   */
+  setPaused(id: string, paused: boolean): 'ok' | 'not-found' | 'unsupported' {
+    if (process.platform === 'win32') return 'unsupported';
+    const job = this.jobs.find(candidate => candidate.id === id);
+    if (!job || job.status !== 'processing') return 'not-found';
+    const activity = this.current;
+    if (activity.kind !== 'encoding' || activity.jobId !== id) return 'not-found';
+    const child = activity.child;
+    if (!child || child.pid === undefined) return 'not-found';
+    try {
+      process.kill(child.pid, paused ? 'SIGSTOP' : 'SIGCONT');
+    } catch {
+      return 'not-found';
+    }
+    if (paused) {
+      job.pausedAt = Date.now();
+    } else if (job.pausedAt) {
+      job.pausedTotalMs = (job.pausedTotalMs ?? 0) + (Date.now() - job.pausedAt);
+      job.pausedAt = null;
+    }
+    job.paused = paused;
+    this.notify();
+    return 'ok';
+  }
+
   async cancel(id: string) {
     const cancelled = await this.cancelJob(id);
     if (cancelled) this.notify('estimate:queued');
@@ -1008,7 +1041,11 @@ export class JobQueue {
     // to `waiting` made a stopped row flash as if estimation had restarted,
     // even though terminal jobs are deliberately ignored by the estimator.
     if (job.estimateStatus !== 'estimated') {
-      job.estimateStatus = 'cancelled';
+      // Back to 'waiting', not 'cancelled': the estimate belongs to the current
+      // settings, not to the compression attempt that was just stopped. Marking
+      // it cancelled left the card animating "estimation paused" forever, since
+      // nothing ever moves a cancelled estimate back into the queue.
+      job.estimateStatus = 'waiting';
       job.estimateProgress = null;
       job.estimateError = null;
     }
