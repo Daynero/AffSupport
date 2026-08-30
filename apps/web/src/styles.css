@@ -15660,9 +15660,19 @@ input[type='number'] {
 
 /* A newly added file glows honey for a second, then settles. */
 @keyframes job-fresh-glow {
+  /* Ease up to full honey, hold it, then fade out — three seconds total, no
+     hard cut at either end. */
   0% {
-    background: color-mix(in oklab, var(--honey-400) 42%, var(--color-surface));
-    box-shadow: 0 0 22px 4px color-mix(in oklab, var(--honey-400) 45%, transparent);
+    background: var(--color-surface);
+    box-shadow: none;
+  }
+  12% {
+    background: color-mix(in oklab, var(--honey-400) 34%, var(--color-surface));
+    box-shadow: 0 0 24px 4px color-mix(in oklab, var(--honey-400) 38%, transparent);
+  }
+  45% {
+    background: color-mix(in oklab, var(--honey-400) 30%, var(--color-surface));
+    box-shadow: 0 0 22px 4px color-mix(in oklab, var(--honey-400) 32%, transparent);
   }
   100% {
     background: var(--color-surface);
@@ -15670,7 +15680,7 @@ input[type='number'] {
   }
 }
 .job-row.is-fresh {
-  animation: job-fresh-glow 1s var(--ease-standard) both;
+  animation: job-fresh-glow 3s var(--ease-standard) both;
 }
 
 /* Progress lives inside the toolbar block: bar, percentage, counters —

@@ -83,13 +83,13 @@ export default function CompressorPage() {
   const [importing, setImporting] = useState(false);
   // The intake zone flashes green or red for a second after an import so the
   // result is visible where the action happened, not only in a toast.
-  // Freshly imported rows glow honey for a second so the eye finds them in a
-  // long list without hunting for the checkbox.
+  // Freshly imported rows glow honey for three seconds — easing in, holding,
+  // fading out — so the eye finds them in a long list without hunting.
   const [freshJobs, setFreshJobs] = useState<ReadonlySet<string>>(new Set());
   const markFresh = (ids: string[]) => {
     if (!ids.length) return;
     setFreshJobs(new Set(ids));
-    window.setTimeout(() => setFreshJobs(new Set()), 1000);
+    window.setTimeout(() => setFreshJobs(new Set()), 3000);
   };
   const [intake, setIntake] = useState<'ok' | 'fail' | null>(null);
   const [intakeMessage, setIntakeMessage] = useState<string | null>(null);
