@@ -15848,28 +15848,65 @@ input[type='number'] {
 }
 
 
-/* The select-all box wears the action orange, like the reference. */
+/* The select-all box: a 20px orange-outlined square with an orange check. */
 .batch-toolbar .select-all-box input {
   accent-color: var(--color-action);
 }
 .batch-toolbar .select-all-box .checkbox-mark {
-  border-color: var(--honey-500);
+  width: 20px;
+  height: 20px;
+  border-width: 1.5px;
+  border-color: color-mix(in oklab, var(--honey-500) 70%, transparent);
+  border-radius: 6px;
+  background: transparent;
   color: var(--honey-400);
 }
 .batch-toolbar .select-all-box input:checked + .checkbox-mark {
-  border-color: var(--honey-400);
-  background: color-mix(in oklab, var(--honey-800) 45%, transparent);
-  color: var(--honey-300);
+  border-color: var(--honey-500);
+  background: transparent;
+  color: var(--honey-400);
 }
 
 /* ============================================================
    Batch toolbar — the reference look (scoped to this bar only)
    ============================================================ */
 .batch-toolbar {
-  padding: 12px 16px;
-  border: 1px solid color-mix(in oklab, var(--color-text) 10%, transparent);
-  border-radius: var(--radius-lg);
-  background: #131118;
+  padding: 14px 20px;
+  border: 1px solid color-mix(in oklab, var(--color-text) 9%, transparent);
+  border-radius: 14px;
+  background: #101014;
+}
+.batch-toolbar-row {
+  gap: 24px;
+}
+.batch-toolbar .selection-actions {
+  gap: 18px;
+}
+.batch-toolbar .primary-actions {
+  gap: 12px;
+}
+.batch-chips {
+  gap: 26px;
+  padding-left: 24px;
+}
+/* Every action in the bar shares one size and radius. */
+.batch-toolbar .primary-actions .button {
+  min-height: 44px;
+  padding: 0 24px;
+  border-radius: 10px;
+  font-size: var(--text-2xl);
+}
+.batch-toolbar .batch-chip {
+  font-size: var(--text-2xl);
+  font-weight: 500;
+}
+.batch-toolbar .selection-actions .checkbox span:last-child,
+.batch-toolbar .selection-actions button {
+  font-size: var(--text-2xl);
+  font-weight: 500;
+}
+.batch-toolbar .selection-actions .checkbox strong {
+  font-weight: 500;
 }
 /* Text-only selection actions. */
 .batch-toolbar .selection-actions .button,
