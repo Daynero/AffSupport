@@ -483,9 +483,6 @@ export default function CompressorPage() {
   const anythingStoppable = useMemo(() => state.jobs.some(stoppable), [state.jobs]);
   const metrics = useMemo(() => batchMetrics(state.jobs, state.batch), [state.jobs, state.batch]);
   const summary = useMemo(() => calculateQueueSummary(state.jobs), [state.jobs]);
-  const selectedLabel = selected.size
-    ? t(selectedCountKey(language, selected.size), { count: selected.size })
-    : t('noSelection');
   const blocked = compressBlock({
     running: state.running,
     embeddingEnabled: state.settings.imageEmbedding.enabled,
@@ -598,9 +595,6 @@ export default function CompressorPage() {
                 >
                   {t('clearSelection')}
                 </Button>
-                <span className="selected-count" aria-live="polite">
-                  {selectedLabel}
-                </span>
               </div>
               <div className="batch-chips" aria-hidden="true">
                 <span className="batch-chip">
@@ -1040,14 +1034,11 @@ function BlockingMessage({
 function BatchProgress({ metrics, t }: { metrics: ReturnType<typeof batchMetrics>; t: Translate }) {
   return (
     <div className="batch-progress" aria-label={t('batchProgress')}>
-      <div className="batch-progress-heading">
-        <ProgressBar
-          value={metrics.progress}
-          label={t('overallProgress')}
-          active={metrics.processing > 0}
-        />
-        <span className="batch-progress-value">{Math.round(metrics.progress)}%</span>
-      </div>
+      <ProgressBar
+        value={metrics.progress}
+        label={t('overallProgress')}
+        active={metrics.processing > 0}
+      />
       <div className="batch-counts">
         <span>{t('queuedCount', { count: metrics.queued })}</span>
         <span>{t('processingCount', { count: metrics.processing })}</span>

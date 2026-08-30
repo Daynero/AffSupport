@@ -15717,15 +15717,26 @@ input[type='number'] {
   animation: job-fresh-glow 3s var(--ease-standard) both;
 }
 
-/* Progress lives inside the toolbar block: bar, percentage, counters —
-   no separate card and no "Прогрес пакета" heading. */
+/* Progress is a hairline strip under the row — no heading, no percentage. */
 .batch-toolbar .batch-progress {
-  display: grid;
-  gap: 4px;
+  display: block;
   width: 100%;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--color-border);
+  margin-top: 10px;
+}
+.batch-toolbar .batch-progress.progress-track,
+.batch-toolbar .progress-track {
+  height: 3px;
+  min-height: 0;
+  border-radius: 999px;
+}
+.batch-toolbar .progress-track > span {
+  border-radius: 999px;
+}
+/* Chip line sits on the same baseline as the buttons. */
+.batch-chips {
+  align-self: stretch;
+  align-items: center;
+  line-height: 1;
 }
 .batch-toolbar .batch-progress-heading {
   display: flex;
@@ -15766,29 +15777,23 @@ input[type='number'] {
   gap: var(--space-2);
 }
 .batch-chip {
-  padding: 4px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
+  /* Plain coloured words, not pills — the reference reads as one status line. */
+  padding: 0;
+  border: none;
+  background: transparent;
   color: var(--color-text-muted);
-  background: var(--color-surface-subtle);
-  font-size: var(--text-lg);
+  font-size: var(--text-xl);
   font-weight: 600;
   white-space: nowrap;
 }
 .batch-chip.is-processing {
-  border-color: color-mix(in oklab, var(--honey-400) 45%, transparent);
-  color: var(--honey-300);
-  background: color-mix(in oklab, var(--honey-800) 30%, var(--color-surface));
+  color: var(--honey-400);
 }
 .batch-chip.is-done {
-  border-color: color-mix(in oklab, #34c759 45%, transparent);
   color: #6fe08f;
-  background: color-mix(in oklab, #06301a 45%, var(--color-surface));
 }
 .batch-chip.is-failed {
-  border-color: color-mix(in oklab, #ff6b6b 45%, transparent);
   color: #ff9b9b;
-  background: color-mix(in oklab, #360a0a 45%, var(--color-surface));
 }
 /* The progress row keeps the bar; its plain counters are now the chips. */
 .batch-toolbar .batch-counts {
@@ -15803,10 +15808,9 @@ input[type='number'] {
 }
 .batch-toolbar-row {
   display: flex;
-  /* Wraps rather than clipping the last action when the window is narrow. */
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-4);
   width: 100%;
 }
 .batch-toolbar-row .selection-actions,
@@ -15815,10 +15819,9 @@ input[type='number'] {
   flex-wrap: nowrap;
 }
 .batch-chips {
-  /* Never shrink: the row wraps before a chip is cut in half. */
-  flex: 0 0 auto;
-  margin-inline: auto;
-  overflow: visible;
+  flex: 0 1 auto;
+  margin-right: auto;
+  overflow: hidden;
 }
 /* Chips never truncate: below this width the row wraps instead. */
 .batch-chip {
