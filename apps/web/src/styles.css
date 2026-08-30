@@ -16037,9 +16037,11 @@ input[type='number'] {
   align-content: start;
   justify-items: stretch;
   gap: 8px;
+  /* One width for every card: the widest action ('Показати у папці') sets it,
+     so a card with two buttons is not narrower than its neighbour. */
   width: max-content;
-  min-width: 190px;
-  max-width: 260px;
+  min-width: 228px;
+  max-width: 280px;
 }
 .job-side .job-actions .button {
   justify-content: flex-start;
