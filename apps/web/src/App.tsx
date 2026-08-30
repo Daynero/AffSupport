@@ -639,9 +639,8 @@ export default function CompressorPage() {
                   </Button>
                 )}
               </div>
+              {state.batch && <BatchProgress metrics={metrics} t={t} />}
             </section>
-
-            {state.batch && <BatchProgress metrics={metrics} t={t} />}
           </>
         )}
 
@@ -1018,23 +1017,22 @@ function BlockingMessage({
 
 function BatchProgress({ metrics, t }: { metrics: ReturnType<typeof batchMetrics>; t: Translate }) {
   return (
-    <section className="batch-progress" aria-label={t('batchProgress')}>
+    <div className="batch-progress" aria-label={t('batchProgress')}>
       <div className="batch-progress-heading">
-        <strong>{t('batchProgress')}</strong>
-        <span>{Math.round(metrics.progress)}%</span>
+        <ProgressBar
+          value={metrics.progress}
+          label={t('overallProgress')}
+          active={metrics.processing > 0}
+        />
+        <span className="batch-progress-value">{Math.round(metrics.progress)}%</span>
       </div>
-      <ProgressBar
-        value={metrics.progress}
-        label={t('overallProgress')}
-        active={metrics.processing > 0}
-      />
       <div className="batch-counts">
         <span>{t('queuedCount', { count: metrics.queued })}</span>
         <span>{t('processingCount', { count: metrics.processing })}</span>
         <span>{t('completedCount', { count: metrics.completed })}</span>
         <span>{t('failedCount', { count: metrics.failed })}</span>
       </div>
-    </section>
+    </div>
   );
 }
 

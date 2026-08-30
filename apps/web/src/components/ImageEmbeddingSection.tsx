@@ -397,6 +397,21 @@ export function ImageDropArea({
   t: Translate;
 }) {
   const input = useRef<HTMLInputElement>(null);
+  // Scrolling is switched on only when the tiles actually overflow two rows,
+  // so a short gallery never swallows the page's wheel events.
+  const scrollHost = useRef<HTMLDivElement>(null);
+  const [scrollable, setScrollable] = useState(false);
+  useEffect(() => {
+    const host = scrollHost.current;
+    if (!host) return;
+    const measure = () => setScrollable(host.scrollHeight - host.clientHeight > 2);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(host);
+    for (const child of Array.from(host.children)) observer.observe(child);
+    return () => observer.disconnect();
+  }, [assets.length]);
   const dragDepth = useRef(0);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -482,7 +497,7 @@ export function ImageDropArea({
           void accept(Array.from(event.target.files ?? []))
         }
       />
-      <div className="image-grid-scroll">
+      <div className={`image-grid-scroll ${scrollable ? 'is-scrollable' : ''}`.trim()} ref={scrollHost}>
         <div
           className={`image-grid ${dragging ? 'is-dragging' : ''} ${errorKey ? 'has-error' : ''}`}
           role="group"
