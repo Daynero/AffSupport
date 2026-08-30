@@ -170,6 +170,12 @@ function ExplorerBody({
   const [transcribing, setTranscribing] = useState<{ videoId: string; progress: number } | null>(
     null
   );
+  // Cmd/Ctrl+C/X/V: what was copied or cut, held until the next paste. Files
+  // from any folder — paste lands them in the folder currently open.
+  const clipboard = useRef<{
+    mode: 'copy' | 'cut';
+    items: { id: string; name: string; kind: string }[];
+  } | null>(null);
   const [dropping, setDropping] = useState(false);
   const [storageKind, setStorageKind] = useState<TeamAnalyticsStorage | null>(null);
   const [companionDelete, setCompanionDelete] = useState<{
@@ -422,6 +428,54 @@ function ExplorerBody({
    * through here opened a preview on Enter and toggled the selection on every
    * space in the new name.
    */
+  const pasteClipboard = async () => {
+    const clip = clipboard.current;
+    if (!clip) return;
+    if (clip.mode === 'copy' && !permissions?.upload) return;
+    if (clip.mode === 'cut' && !permissions?.edit) return;
+    // The Drive API cannot copy folders; a cut (move) handles them fine.
+    const items = clip.mode === 'copy' ? clip.items.filter(item => item.kind !== 'folder') : clip.items;
+    const skipped = clip.items.length - items.length;
+    if (items.length === 0) {
+      push({ tone: 'error', text: t('teamExplorerPasteFoldersOnly') });
+      return;
+    }
+    let done = 0;
+    for (const item of items) {
+      try {
+        if (clip.mode === 'copy') {
+          await teamApi.copyMaterial({
+            teamId,
+            materialId: item.id,
+            destinationFolderId: currentFolderId ?? null,
+            idempotencyKey: crypto.randomUUID()
+          });
+        } else {
+          await actionsClient.moveMaterial({
+            teamId,
+            materialId: item.id,
+            destinationFolderId: currentFolderId ?? null,
+            conflictMode: 'keep_both',
+            idempotencyKey: crypto.randomUUID()
+          });
+        }
+        done += 1;
+      } catch (cause) {
+        push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+        break;
+      }
+    }
+    if (clip.mode === 'cut') clipboard.current = null;
+    if (done > 0) {
+      changed();
+      clearSelection();
+      push({ tone: 'success', text: t('teamExplorerPastedCount', { count: done }) });
+      if (skipped > 0) {
+        push({ tone: 'error', text: t('teamExplorerPasteFoldersSkipped', { count: skipped }) });
+      }
+    }
+  };
+
   const onContentKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (sortedRows.length === 0) return;
     const target = event.target instanceof HTMLElement ? event.target : null;
@@ -486,6 +540,40 @@ function ExplorerBody({
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [onQueryChange, searching, trash]);
+
+  // Cmd/Ctrl+C copies, +X cuts, +V pastes into the open folder — from anywhere
+  // on the folder screen, because focus rarely sits inside the list. The batch
+  // is the toggled selection (even from other folders), or the focused row.
+  useEffect(() => {
+    if (searching || trash || readOnly) return;
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+      if (isEditableTarget(event.target instanceof HTMLElement ? event.target : null)) return;
+      const key = event.key.toLowerCase();
+      if (key === 'c' || key === 'x') {
+        const rows = selectedRows.length > 0 ? selectedRows : focused ? [focused] : [];
+        if (rows.length === 0) return;
+        clipboard.current = {
+          mode: key === 'c' ? 'copy' : 'cut',
+          items: rows.map(row => ({ id: row.id, name: row.name, kind: row.kind }))
+        };
+        push({
+          tone: 'success',
+          text: t(key === 'c' ? 'teamExplorerCopiedCount' : 'teamExplorerCutCount', {
+            count: rows.length
+          })
+        });
+        event.preventDefault();
+        return;
+      }
+      if (key === 'v' && clipboard.current) {
+        event.preventDefault();
+        void pasteClipboard();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  });
 
   return (
     <div className={`team-explorer has-pane${treeOpen ? ' is-tree-open' : ''}`}>

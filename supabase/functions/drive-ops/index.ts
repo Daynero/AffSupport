@@ -1070,7 +1070,7 @@ async function startSimpleOperation(input: {
   service: RpcClient;
   teamId: string;
   actorId: string;
-  kind: 'rename' | 'move' | 'trash' | 'restore' | 'content_edit';
+  kind: 'rename' | 'move' | 'trash' | 'restore' | 'content_edit' | 'upload';
   idempotencyKey: string;
   sourceMaterialId: string;
   destinationFolderId?: string | null;
@@ -1312,6 +1312,102 @@ async function handleMove(
     return rpcValue(service, 'service_complete_material_group_intent', {
       p_intent: intent.intentId
     });
+  });
+}
+
+/**
+ * Drive-side duplicate of a file into a folder (Cmd/Ctrl+C → V). Folders are
+ * refused — the Drive API cannot copy them. The copy runs as an `upload`
+ * operation: it creates new content in the destination, reserves the name the
+ * way an upload would, and finalizes through the same commit, so the material
+ * row appears immediately.
+ */
+async function handleCopy(
+  request: Request,
+  body: Record<string, unknown>,
+  service: RpcClient,
+  actorId: string
+) {
+  const common = parseMutationBody(body);
+  const destinationFolderId = optionalDestination(body.destinationFolderId);
+  const source = await loadContext({
+    service,
+    teamId: common.teamId,
+    materialId: common.materialId,
+    actorId,
+    permission: 'view'
+  });
+  const sourceClient = await driveClient(service, source.credentialId, request);
+  const liveSource = await proveContext(source, sourceClient);
+  if (liveSource.mimeType === 'application/vnd.google-apps.folder') {
+    throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+  }
+  const destination = await destinationWithClient({
+    request,
+    service,
+    teamId: common.teamId,
+    destinationFolderId,
+    actorId,
+    permission: 'upload'
+  });
+  const names = await nameCandidates(destination.client, destination.live);
+  const plan = buildUploadConflictPlan(
+    {
+      teamId: common.teamId,
+      destinationFolderId: destination.context.materialId,
+      name: source.name,
+      mimeType: source.mimeType ?? 'application/octet-stream',
+      sizeBytes: source.sizeBytes ?? 0,
+      conflictMode: 'keep_both',
+      replaceMaterialId: null,
+      versionOfMaterialId: null,
+      idempotencyKey: common.idempotencyKey
+    },
+    names
+  );
+  const authority = await startSimpleOperation({
+    service,
+    teamId: common.teamId,
+    actorId,
+    kind: 'upload',
+    idempotencyKey: common.idempotencyKey,
+    sourceMaterialId: common.materialId,
+    destinationFolderId: destination.context.materialId,
+    reservedNameKey: plan.reservationKey,
+    bytesTotal: source.sizeBytes ?? null
+  });
+  await bindIntent({
+    service,
+    authority,
+    actorId,
+    expectedName: plan.name,
+    mimeType: source.mimeType ?? null,
+    expectedSize: source.sizeBytes ?? null
+  });
+  if (authority.reused && authority.state === 'succeeded') return operationRecord(authority);
+  return withOperationFailure(service, authority.operationId, async () => {
+    await transitionOperation({
+      service,
+      operationId: authority.operationId,
+      state: 'running',
+      stage: 'uploading',
+      progress: 30
+    });
+    const metadata = await sourceClient.copyFile({
+      fileId: liveSource.id,
+      name: plan.name,
+      parentId: destination.live.id,
+      resourceKey: liveSource.resourceKey
+    });
+    const committed = await rpcValue(service, 'service_finalize_uploaded_material', {
+      p_operation: authority.operationId,
+      p_actor: actorId,
+      p_drive: driveResult(metadata)
+    });
+    if (!isRecord(committed)) {
+      throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+    }
+    return committed;
   });
 }
 
@@ -1933,6 +2029,8 @@ Deno.serve(async request => {
       );
     } else if (path === '/rename') {
       value = await handleRename(request, body, configured.service, userId);
+    } else if (path === '/copy') {
+      value = await handleCopy(request, body, configured.service, userId);
     } else if (path === '/move') {
       value = await handleMove(request, body, configured.service, userId);
     } else if (path === '/trash') {

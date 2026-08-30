@@ -275,6 +275,37 @@ export class GoogleDriveClient {
     return metadata;
   }
 
+  /** Drive-side duplicate of a file (folders cannot be copied by the API). */
+  async copyFile(input: {
+    fileId: string;
+    name: string;
+    parentId: string;
+    resourceKey?: string | null;
+  }): Promise<DriveFileMetadata> {
+    if (
+      input.name.length < 1 ||
+      input.name.length > 1024 ||
+      input.parentId.length < 1 ||
+      /[\u0000\r\n]/u.test(input.name)
+    ) {
+      throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+    }
+    const url = new URL(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(input.fileId)}/copy`
+    );
+    url.searchParams.set('supportsAllDrives', 'true');
+    url.searchParams.set('fields', FILE_FIELDS);
+    if (input.resourceKey) url.searchParams.set('resourceKey', input.resourceKey);
+    const response = await this.#request(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ name: input.name, parents: [input.parentId] })
+    });
+    const metadata = parseMetadata(await response.json().catch(() => null));
+    if (!metadata) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+    return metadata;
+  }
+
   async listAnyonePermissions(fileId: string): Promise<Array<{ id: string; role: string }>> {
     const url = new URL(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions`

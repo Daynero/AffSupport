@@ -2037,6 +2037,18 @@ export const teamApi = {
     return parseTeamFileOperationResult(value) as TeamFileOperationResult;
   },
 
+  /** Drive-side duplicate of a file into a folder (folders cannot be copied). */
+  async copyMaterial(input: {
+    teamId: string;
+    materialId: string;
+    /** The folder's provider id, or null for the space root. */
+    destinationFolderId: string | null;
+    idempotencyKey: string;
+  }): Promise<TeamFileOperationResult> {
+    const value = await invokeTeamFunction('drive-ops/copy', { ...input }, fileOperationGuard);
+    return parseTeamFileOperationResult(value) as TeamFileOperationResult;
+  },
+
   async trashMaterial(input: {
     teamId: string;
     materialId: string;
