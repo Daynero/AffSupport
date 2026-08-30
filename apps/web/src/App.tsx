@@ -610,7 +610,7 @@ export default function CompressorPage() {
                     {t('chipCompleted', { count: metrics.completed })}
                   </span>
                 )}
-                <span className={`batch-chip ${metrics.failed > 0 ? 'is-failed' : ''}`.trim()}>
+                <span className="batch-chip is-failed">
                   {t('chipFailed', { count: metrics.failed })}
                 </span>
               </div>
@@ -1039,6 +1039,7 @@ function BatchProgress({ metrics, t }: { metrics: ReturnType<typeof batchMetrics
         label={t('overallProgress')}
         active={metrics.processing > 0}
       />
+      <span className="batch-progress-value">{Math.round(metrics.progress)}%</span>
       <div className="batch-counts">
         <span>{t('queuedCount', { count: metrics.queued })}</span>
         <span>{t('processingCount', { count: metrics.processing })}</span>

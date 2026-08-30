@@ -15717,11 +15717,20 @@ input[type='number'] {
   animation: job-fresh-glow 3s var(--ease-standard) both;
 }
 
-/* Progress is a hairline strip under the row — no heading, no percentage. */
+/* Progress is a hairline strip under the row with its percentage at the end. */
 .batch-toolbar .batch-progress {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
   width: 100%;
   margin-top: 10px;
+}
+.batch-toolbar .batch-progress .progress-track {
+  flex: 1;
+}
+.batch-toolbar .batch-progress-value {
+  flex: 0 0 auto;
+  font-size: var(--text-lg);
 }
 .batch-toolbar .batch-progress.progress-track,
 .batch-toolbar .progress-track {
@@ -15819,8 +15828,11 @@ input[type='number'] {
   flex-wrap: nowrap;
 }
 .batch-chips {
+  /* Left-aligned right after the divider, exactly as in the reference. */
   flex: 0 1 auto;
   margin-right: auto;
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--color-border);
   overflow: hidden;
 }
 /* Chips never truncate: below this width the row wraps instead. */
@@ -15833,4 +15845,19 @@ input[type='number'] {
     margin-inline: 0;
     justify-content: flex-start;
   }
+}
+
+
+/* The select-all box wears the action orange, like the reference. */
+.batch-toolbar .select-all-box input {
+  accent-color: var(--color-action);
+}
+.batch-toolbar .select-all-box .checkbox-mark {
+  border-color: var(--honey-500);
+  color: var(--honey-400);
+}
+.batch-toolbar .select-all-box input:checked + .checkbox-mark {
+  border-color: var(--honey-400);
+  background: color-mix(in oklab, var(--honey-800) 45%, transparent);
+  color: var(--honey-300);
 }
