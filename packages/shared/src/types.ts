@@ -115,6 +115,9 @@ export interface ImageAsset {
 
 export interface ImageEmbeddingSettings {
   enabled: boolean;
+  /** Per-slot switches: the start/final image can be disabled separately. */
+  startEnabled: boolean;
+  endEnabled: boolean;
   startImages: ImageAsset[];
   endImages: ImageAsset[];
   /** Images excluded from the random pick (toggled off by clicking the tile). */
@@ -188,6 +191,8 @@ export type AgentSettingsPatch = Omit<Partial<AgentSettings>, 'imageEmbedding'> 
 export function defaultImageEmbeddingSettings(): ImageEmbeddingSettings {
   return {
     enabled: false,
+    startEnabled: true,
+    endEnabled: true,
     startImages: [],
     endImages: [],
     disabledImageIds: [],
@@ -310,6 +315,11 @@ export function jobConfigurationKey(
 }
 
 export function activeEmbeddingImages(settings: ImageEmbeddingSettings, slot: 'start' | 'end') {
+  // A slot switched off contributes nothing — every consumer (draft, freeze,
+  // random draw, team delegate) goes through here, so one gate is enough.
+  if (slot === 'start' ? settings.startEnabled === false : settings.endEnabled === false) {
+    return [];
+  }
   const disabled = new Set(settings.disabledImageIds ?? []);
   const assets = slot === 'start' ? settings.startImages : settings.endImages;
   return assets.filter(asset => !disabled.has(asset.id));

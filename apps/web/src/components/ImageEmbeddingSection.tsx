@@ -18,7 +18,7 @@ import {
 import type { TranslationKey } from '../i18n';
 import { Checkbox, Collapse, IconButton, Spinner, Tooltip, type Translate } from './ui';
 import { imageContentPath } from '../api/subresource-paths';
-import { Crop, Dices, Image as ImageIcon, Minimize2, Plus, RefreshCw, Timer, UnfoldVertical, X } from 'lucide-react';
+import { Crop, Dices, Image as ImageIcon, Minimize2, Plus, Power, RefreshCw, Timer, UnfoldVertical, X } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from './icons';
 import { useSubresourceUrl } from '../api/useSubresourceUrl';
 
@@ -141,11 +141,26 @@ export function ImageEmbeddingSection({
                     <span className="field-hint">{t('fitStretchWarning')}</span>
                   )}
                 </div>
+
+
+</div>
+          <div className="image-columns">
+            <ImageColumn
+              slot="start"
+              title={t('startImageTitle')}
+              description={t('startImageDescription')}
+              slotEnabled={settings.startEnabled !== false}
+              onToggleSlot={() => update({ startEnabled: settings.startEnabled === false })}
+              assets={settings.startImages}
+              disabled={disabled}
+              uploadImages={uploadImages}
+              removeImage={removeImage}
+              disabledIds={disabledIds}
+              onToggleImage={toggleImage}
+              t={t}
+            >
+              <div className="embedding-column-fields">
 <div className="field-group start-duration-field">
-                  <FieldLabel
-                    label={t('startImageDuration')}
-                    tooltip={t('startImageDurationTooltip')}
-                  />
                   <div className="start-duration-row">
                   <div className="fit-mode-pictos" role="group" aria-label={t('startImageDuration')}>
                     <button
@@ -199,11 +214,24 @@ export function ImageEmbeddingSection({
                   )}
                   </div>
                 </div>
+              </div>
+            </ImageColumn>
+            <ImageColumn
+              slot="end"
+              title={t('endImageTitle')}
+              description={t('endImageDescription')}
+              slotEnabled={settings.endEnabled !== false}
+              onToggleSlot={() => update({ endEnabled: settings.endEnabled === false })}
+              assets={settings.endImages}
+              disabled={disabled}
+              uploadImages={uploadImages}
+              removeImage={removeImage}
+              disabledIds={disabledIds}
+              onToggleImage={toggleImage}
+              t={t}
+            >
+              <div className="embedding-column-fields">
 <div className="field-group final-duration-field">
-                <FieldLabel
-                  label={t('finalImageDuration')}
-                  tooltip={`${t('finalImageDurationTooltip')} ${t('finalImageDurationEffect')}`}
-                />
                 <div className="start-duration-row">
                   <div
                     className="fit-mode-pictos"
@@ -273,38 +301,7 @@ export function ImageEmbeddingSection({
                   </>
                 )}
               </div>
-</div>
-          <div className="image-columns">
-            <ImageColumn
-              slot="start"
-              title={t('startImageTitle')}
-              description={t('startImageDescription')}
-              assets={settings.startImages}
-              disabled={disabled}
-              uploadImages={uploadImages}
-              removeImage={removeImage}
-              disabledIds={disabledIds}
-              onToggleImage={toggleImage}
-              t={t}
-            >
-              <div className="embedding-column-fields">
-                
-                
               </div>
-            </ImageColumn>
-            <ImageColumn
-              slot="end"
-              title={t('endImageTitle')}
-              description={t('endImageDescription')}
-              assets={settings.endImages}
-              disabled={disabled}
-              uploadImages={uploadImages}
-              removeImage={removeImage}
-              disabledIds={disabledIds}
-              onToggleImage={toggleImage}
-              t={t}
-            >
-              
             </ImageColumn>
           </div>
 
@@ -323,6 +320,8 @@ function ImageColumn({
   slot,
   title,
   description,
+  slotEnabled,
+  onToggleSlot,
   assets,
   disabled,
   uploadImages,
@@ -332,6 +331,8 @@ function ImageColumn({
   children,
   t
 }: {
+  slotEnabled: boolean;
+  onToggleSlot: () => void;
   slot: ImageSlot;
   title: string;
   description: string;
@@ -345,11 +346,23 @@ function ImageColumn({
   children?: React.ReactNode;
 }) {
   return (
-    <section className="image-column" aria-label={title}>
+    <section className={`image-column ${slotEnabled ? '' : 'is-off'}`.trim()} aria-label={title}>
       <div className="image-column-heading">
         <h3>{title}</h3>
         <Tooltip label={description}>{description}</Tooltip>
+        <button
+          type="button"
+          role="switch"
+          className={`slot-switch ${slotEnabled ? 'is-selected' : ''}`.trim()}
+          title={title}
+          aria-label={title}
+          aria-checked={slotEnabled}
+          onClick={onToggleSlot}
+        >
+          <Power size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        </button>
       </div>
+      {children}
       <ImageDropArea
         slot={slot}
         assets={assets}
@@ -360,7 +373,6 @@ function ImageColumn({
         onToggleImage={onToggleImage}
         t={t}
       />
-      {children}
     </section>
   );
 }

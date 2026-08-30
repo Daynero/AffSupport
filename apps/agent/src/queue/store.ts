@@ -330,6 +330,8 @@ function migrateImageEmbeddingSettings(value: unknown): ImageEmbeddingSettings {
   const duration = Number(raw.customFinalDurationSeconds);
   return {
     enabled: raw.enabled === true,
+    startEnabled: raw.startEnabled !== false,
+    endEnabled: raw.endEnabled !== false,
     startImages: migrateImageAssets(raw.startImages, raw.startImage),
     endImages: migrateImageAssets(raw.endImages, raw.endImage),
     replaceExisting: raw.replaceExisting === true,

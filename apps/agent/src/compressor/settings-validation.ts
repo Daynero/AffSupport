@@ -145,6 +145,18 @@ export function parseSettingsPatch(
       }
       imageEmbedding.replaceExisting = body.imageEmbedding.replaceExisting;
     }
+    if (body.imageEmbedding.startEnabled !== undefined) {
+      if (typeof body.imageEmbedding.startEnabled !== 'boolean') {
+        return { ok: false, error: 'Invalid replace-existing setting.' };
+      }
+      imageEmbedding.startEnabled = body.imageEmbedding.startEnabled;
+    }
+    if (body.imageEmbedding.endEnabled !== undefined) {
+      if (typeof body.imageEmbedding.endEnabled !== 'boolean') {
+        return { ok: false, error: 'Invalid replace-existing setting.' };
+      }
+      imageEmbedding.endEnabled = body.imageEmbedding.endEnabled;
+    }
     if (body.imageEmbedding.finalDurationMode !== undefined) {
       if (
         !['random-30-40', 'random-40-50', 'random-50-60', 'custom'].includes(
