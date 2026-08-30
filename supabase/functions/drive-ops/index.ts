@@ -903,7 +903,8 @@ async function getOperation(service: RpcClient, operationId: string, actorId: st
 async function verifyBoundSource(
   service: RpcClient,
   operation: OperationContext,
-  request: Request
+  request: Request,
+  uploadedFileId?: string
 ) {
   if (!operation.sourceMaterialId) return;
   const binding = firstRecord(
@@ -913,6 +914,12 @@ async function verifyBoundSource(
     })
   );
   if (!binding) return;
+  // Overwrite runs write the result INTO the source file, so by finalize
+  // time the source's drive version has legitimately advanced past the
+  // binding taken at start. That is not a stale source — it is the result.
+  // (The intent RPC drops version_of_material_id on conflict, so compare
+  // file ids instead of trusting operation.versionOfMaterialId.)
+  if (uploadedFileId && stringValue(binding, 'drive_file_id') === uploadedFileId) return;
   const context = await loadContext({
     service,
     teamId: operation.teamId,
@@ -977,9 +984,16 @@ async function handleUploadFinalize(
     result.size !== operation.expectedSize ||
     (operation.replaceMaterialId && result.id !== driveFileId.value)
   ) {
+    console.error('[finalize] mismatch', JSON.stringify({
+      parentsOk: result.parents.includes(liveDestination.id),
+      name: [result.name, operation.expectedName],
+      mime: [result.mimeType, operation.mimeType],
+      size: [result.size, operation.expectedSize],
+      replace: [operation.replaceMaterialId, result.id, driveFileId.value]
+    }));
     throw new TeamFunctionError('SOURCE_CHANGED', { retryable: false });
   }
-  await verifyBoundSource(service, operation, request);
+  await verifyBoundSource(service, operation, request, driveFileId.value);
   try {
     const committed = await rpcValue(service, 'service_finalize_uploaded_material', {
       p_operation: operationId,
@@ -1022,6 +1036,7 @@ async function handleUploadFinalize(
     }
     return committed;
   } catch (error) {
+    console.error('[finalize] failed:', error instanceof Error ? `${error.message} ${String((error as { cause?: unknown }).cause ?? '')}` : String(error));
     await transitionOperation({
       service,
       operationId,
