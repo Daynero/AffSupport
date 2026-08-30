@@ -70,6 +70,7 @@ export function RowActions({
         teamId: row.teamId,
         name: row.name,
         kind: row.kind === 'folder' ? 'folder' : row.kind === 'shortcut' ? 'shortcut' : 'file',
+        category: row.category,
         fileExtension: row.fileExtension,
         sizeBytes: row.sizeBytes
       }}

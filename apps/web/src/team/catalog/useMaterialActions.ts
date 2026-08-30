@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
+import { teamApi } from '../../api/team';
 import type {
   MaterialKind,
   TeamAnalyticsAction,
@@ -35,6 +36,7 @@ export interface RowMaterial {
   teamId: string;
   name: string;
   kind: MaterialKind;
+  category?: string | null;
   fileExtension?: string | null;
   sizeBytes?: number | null;
   transcriptIngestState?: TranscriptIngestState;
@@ -267,30 +269,67 @@ export function useMaterialActions(input: {
 
   const rename = useCallback(
     (newName: string) =>
-      run('rename', () =>
-        client.renameMaterial({
+      run('rename', async () => {
+        const result = await client.renameMaterial({
           teamId,
           materialId: material.id,
           newName,
           conflictMode: 'cancel',
           idempotencyKey: crypto.randomUUID()
-        })
-      ),
-    [client, material.id, run, teamId]
+        });
+        // 012 (T008): the transcript companion follows the video's name.
+        if (material.category === 'video') {
+          const companion = await teamApi
+            .getTranscriptCompanion(teamId, material.id)
+            .catch(() => null);
+          if (companion) {
+            const stem = newName.replace(/\.[^.]+$/u, '');
+            await client
+              .renameMaterial({
+                teamId,
+                materialId: companion.id,
+                newName: `${stem}.txt`,
+                conflictMode: 'keep_both',
+                idempotencyKey: crypto.randomUUID()
+              })
+              .catch(() => undefined);
+          }
+        }
+        return result;
+      }),
+    [client, material.category, material.id, run, teamId]
   );
 
   const move = useCallback(
     (folderId: string) =>
-      run('move', () =>
-        client.moveMaterial({
+      run('move', async () => {
+        const result = await client.moveMaterial({
           teamId,
           materialId: material.id,
           destinationFolderId: folderId,
           conflictMode: 'cancel',
           idempotencyKey: crypto.randomUUID()
-        })
-      ),
-    [client, material.id, run, teamId]
+        });
+        // 012 (T009): the transcript companion follows the video's place.
+        if (material.category === 'video') {
+          const companion = await teamApi
+            .getTranscriptCompanion(teamId, material.id)
+            .catch(() => null);
+          if (companion) {
+            await client
+              .moveMaterial({
+                teamId,
+                materialId: companion.id,
+                destinationFolderId: folderId,
+                conflictMode: 'keep_both',
+                idempotencyKey: crypto.randomUUID()
+              })
+              .catch(() => undefined);
+          }
+        }
+        return result;
+      }),
+    [client, material.category, material.id, run, teamId]
   );
 
   const restore = useCallback(

@@ -32,9 +32,9 @@ Order is dependency-first. Each task is small and independently committable.
 
 ## Phase 3 — The tail (rename / move / copy / delete)
 
-- [ ] T008 On video rename (`drive-ops/rename`): rename the linked companion to `<new-stem>.txt`
+- [x] T008 rename tail (client orchestration in useMaterialActions). On video rename (`drive-ops/rename`): rename the linked companion to `<new-stem>.txt`
       in the same commit. Test.
-- [ ] T009 On video move (`drive-ops/move`): move the linked companion to the same destination.
+- [x] T009 move tail (client orchestration). On video move (`drive-ops/move`): move the linked companion to the same destination.
       Test.
 - [ ] T010 On video copy / compress finalize: copy the companion, named after the new file, linked
       to it. Test.
