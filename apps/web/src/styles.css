@@ -2067,9 +2067,9 @@ input.is-invalid {
 
 .drop-zone:hover:not(.is-disabled),
 .drop-zone.is-dragging {
-  /* Stay orange on hover and while dragging — just a touch brighter. */
-  border-color: var(--honey-800);
-  background: color-mix(in oklab, var(--color-action) 88%, #fff);
+  /* Hover and drag deepen the orange rather than lighten it. */
+  border-color: var(--honey-900);
+  background: var(--honey-600);
 }
 
 .drop-zone.is-dragging {
@@ -15557,8 +15557,8 @@ input[type='number'] {
 :root:not([data-theme='dark']) .drop-zone:hover:not(.is-disabled),
 :root[data-theme='light'] .drop-zone.is-dragging,
 :root:not([data-theme='dark']) .drop-zone.is-dragging {
-  border-color: var(--honey-300);
-  background: var(--purple-800);
+  border-color: var(--honey-200);
+  background: var(--purple-900);
 }
 
 /* The metadata toggle and its hint share one line. */
