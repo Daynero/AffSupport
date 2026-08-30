@@ -8,6 +8,7 @@ import { InvitationList } from '../team/lobby/InvitationList';
 import { Button, Checkbox, type Translate } from '../components/ui';
 import { UserAvatar } from '../components/UserAvatar';
 import { useI18n, type Language } from '../i18n';
+import { teamApi } from '../api/team';
 import { configuredEnvironment } from '../lib/config';
 import type { Profile } from '../lib/database.types';
 import { usePageEntrance } from '../lib/navigation';
@@ -112,6 +113,21 @@ function AccountContent({
   const [displayName, setDisplayName] = useState(profile.display_name ?? '');
   const [language, setFormLanguage] = useState<Language>(profile.language ?? currentLanguage);
   const [marketing, setMarketing] = useState(profile.marketing_consent ?? false);
+  const [transcriptPref, setTranscriptPref] = useState<'ask' | 'delete' | 'keep' | null>(null);
+  useEffect(() => {
+    let active = true;
+    void teamApi
+      .getTranscriptDeletePref()
+      .then(pref => {
+        if (active) setTranscriptPref(pref);
+      })
+      .catch(() => {
+        if (active) setTranscriptPref('ask');
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [formError, setFormError] = useState(false);
@@ -200,6 +216,23 @@ function AccountContent({
             onChange={event => setMarketing(event.target.checked)}
             label={t('marketingConsent')}
           />
+          {transcriptPref !== null && (
+            <label className="field">
+              <span>{t('accountTranscriptDeleteLabel')}</span>
+              <select
+                value={transcriptPref}
+                onChange={event => {
+                  const next = event.target.value as 'ask' | 'delete' | 'keep';
+                  setTranscriptPref(next);
+                  void teamApi.setTranscriptDeletePref(next).catch(() => undefined);
+                }}
+              >
+                <option value="ask">{t('accountTranscriptDeleteAsk')}</option>
+                <option value="delete">{t('accountTranscriptDeleteAlways')}</option>
+                <option value="keep">{t('accountTranscriptDeleteNever')}</option>
+              </select>
+            </label>
+          )}
           {formError && <div className="inline-alert inline-alert-error">{t('profileError')}</div>}
           {saved && <div className="inline-alert inline-alert-success">{t('changesSaved')}</div>}
           <Button variant="primary" loading={saving} onClick={() => void save()}>

@@ -677,6 +677,10 @@ function ExplorerBody({
           permissions?.process ? row => setProcessing({ row, tool: 'transcription' }) : undefined
         }
         getTranscriptCompanion={teamApi.getTranscriptCompanion}
+        getTranscriptText={async (team, id) => {
+          const preview = await teamApi.previewMaterial(team, id, 'transcript');
+          return preview.kind === 'transcript' ? preview.text : null;
+        }}
       />
       {companionDelete && (
         <Modal

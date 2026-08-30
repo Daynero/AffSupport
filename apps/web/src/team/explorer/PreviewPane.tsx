@@ -8,6 +8,7 @@ import type {
 import type { TeamMaterialSummary } from '../../api/team';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
+import { useToasts } from '../../components/toast';
 import { formatSize } from '../../format';
 import { KIND_LABEL, KIND_REASON, PREVIEWABLE_KINDS, previewSummary } from './rowKinds';
 import { KindIcon } from './KindIcon';
@@ -33,7 +34,8 @@ export function PreviewPane({
   client,
   onOpen,
   onTranscribe,
-  getTranscriptCompanion
+  getTranscriptCompanion,
+  getTranscriptText
 }: {
   /** The selected row, or null when nothing is selected. */
   row: TeamMaterialRow | null;
@@ -46,9 +48,13 @@ export function PreviewPane({
     teamId: string,
     materialId: string
   ) => Promise<{ id: string; name: string; ingestState: string; hasText: boolean } | null>;
+  /** Reads a transcript companion's text, so the card can copy it. */
+  getTranscriptText?: (teamId: string, materialId: string) => Promise<string | null>;
 }) {
   const { t } = useI18n();
+  const { push } = useToasts();
   const { teamId } = useExplorer();
+  const [copying, setCopying] = useState(false);
   const session = useThumbnailSession({ teamId, client, enabled: row !== null });
   const [render, setRender] = useState<RenderArtifactRef | null>(null);
   const [broken, setBroken] = useState(false);
@@ -161,6 +167,31 @@ export function PreviewPane({
       {row.category === 'video' && onTranscribe && (
         <div className="team-explorer-pane-transcript">
           <p className="team-explorer-pane-transcript-title">{t('teamTranscriptSection')}</p>
+          {companion?.hasText && getTranscriptText && (
+            <Button
+              type="button"
+              variant="primary"
+              loading={copying}
+              onClick={async () => {
+                setCopying(true);
+                try {
+                  const text = await getTranscriptText(teamId, companion.id);
+                  if (text) {
+                    await navigator.clipboard.writeText(text);
+                    push({ tone: 'success', text: t('teamTranscriptCopied') });
+                  } else {
+                    push({ tone: 'error', text: t('teamTranscriptCopyFailed') });
+                  }
+                } catch {
+                  push({ tone: 'error', text: t('teamTranscriptCopyFailed') });
+                } finally {
+                  setCopying(false);
+                }
+              }}
+            >
+              {t('teamTranscriptCopy')}
+            </Button>
+          )}
           <Button type="button" variant="secondary" onClick={() => onTranscribe(row)}>
             {companion ? t('teamTranscriptRedo') : t('teamTranscriptStart')}
           </Button>
