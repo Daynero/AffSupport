@@ -797,7 +797,7 @@ export default function CompressorPage() {
                   setSelected(update.selected);
                   setLastSelectedIndex(update.lastIndex ?? index);
                 }}
-                action={(url, method) => void action(url, method)}
+                action={(url, method, body) => void action(url, method, body)}
                 t={t}
               />
             ))
