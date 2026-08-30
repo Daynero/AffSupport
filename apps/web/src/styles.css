@@ -1316,7 +1316,6 @@ a {
   grid-column: 1 / -1;
   gap: var(--space-3);
   padding-top: var(--space-3);
-  border-top: 1px solid var(--color-border);
 }
 
 .image-embedding-toggle {
@@ -16209,4 +16208,25 @@ input[type='number'] {
 .metadata-settings .checkbox strong {
   font-size: var(--text-xl);
   font-weight: 600;
+}
+
+
+/* A fading hairline between the start and final image columns. */
+.image-columns > * + * {
+  position: relative;
+}
+.image-columns > * + *::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: calc(var(--space-5) / -2);
+  width: 1px;
+  height: 82%;
+  transform: translateY(-50%);
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    color-mix(in oklab, var(--color-text) 22%, transparent) 50%,
+    transparent 100%
+  );
 }
