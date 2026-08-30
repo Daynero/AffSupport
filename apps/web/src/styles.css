@@ -1846,7 +1846,8 @@ input.is-invalid {
   width: fit-content;
   min-height: 38px;
   align-items: center;
-  padding: 3px 11px;
+  /* The frame hugs the toggle — no wide side gutters (owner). */
+  padding: 3px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
   background: var(--color-surface-muted);
@@ -15324,8 +15325,6 @@ button.team-landing-tile:hover {
 }
 .fit-mode-pictos.is-single button {
   border-color: var(--color-border);
-  /* A lone toggle is a square plate — no extra air left and right. */
-  width: 38px;
 }
 .fit-mode-pictos.is-single button.is-selected {
   border-color: var(--color-accent);
