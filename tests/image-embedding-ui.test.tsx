@@ -128,8 +128,9 @@ describe('image embedding settings UI', () => {
           imageEmbedding: makeEmbeddingSettings({
             ...defaultImageEmbeddingSettings(),
             enabled: true,
-    startEnabled: true,
-    endEnabled: true,
+            startEnabled: true,
+            endEnabled: true,
+            replaceExisting: false,
             startImages: [asset('opening.png')]
           })
         }}
@@ -140,7 +141,7 @@ describe('image embedding settings UI', () => {
       />
     );
 
-    await userEvent.click(screen.getByText('Replace existing'));
+    await userEvent.click(screen.getByRole('switch', { name: 'Replace existing' }));
     expect(updateSettings.mock.calls.at(-1)?.[0]).toEqual({
       imageEmbedding: { replaceExisting: true }
     });
@@ -210,12 +211,15 @@ describe('image embedding settings UI', () => {
     const user = userEvent.setup();
     const validity = vi.fn();
     render(<SettingsHarness enabled endImage={asset('end.webp')} onValidity={validity} />);
-    const duration = screen.getByLabelText('Final image duration');
-    for (const value of ['random-30-40', 'random-40-50', 'random-50-60']) {
-      await user.selectOptions(duration, value);
-      expect((duration as HTMLSelectElement).value).toBe(value);
+    for (const name of [
+      'Random: 30–40 min',
+      'Random: 40–50 min',
+      'Random: 50–60 min'
+    ]) {
+      await user.click(screen.getByRole('button', { name }));
+      expect(screen.getByRole('button', { name, pressed: true })).toBeTruthy();
     }
-    await user.selectOptions(duration, 'custom');
+    await user.click(screen.getAllByRole('button', { name: 'Custom duration' })[1]);
     const custom = screen.getByLabelText('Custom duration in minutes');
     expect(screen.getByText('minutes')).toBeTruthy();
     await user.clear(custom);
@@ -236,13 +240,8 @@ describe('image embedding settings UI', () => {
     const user = userEvent.setup();
     const validity = vi.fn();
     render(<SettingsHarness enabled startImage={asset('opening.png')} onValidity={validity} />);
-    const duration = screen.getByLabelText('First frame duration');
-    expect((duration as HTMLSelectElement).value).toBe('one-frame');
-    for (const value of ['ms-2', 'ms-5', 'ms-10']) {
-      await user.selectOptions(duration, value);
-      expect((duration as HTMLSelectElement).value).toBe(value);
-    }
-    await user.selectOptions(duration, 'custom');
+    expect(screen.getByRole('button', { name: '1 frame', pressed: true })).toBeTruthy();
+    await user.click(screen.getAllByRole('button', { name: 'Custom duration' })[0]);
     const custom = screen.getByLabelText('Custom duration in milliseconds');
     await user.clear(custom);
     await user.type(custom, '0');
@@ -257,7 +256,7 @@ describe('image embedding settings UI', () => {
     const user = userEvent.setup();
     const validity = vi.fn();
     render(<SettingsHarness enabled startImage={asset('opening.png')} onValidity={validity} />);
-    await user.selectOptions(screen.getByLabelText('Final image duration'), 'custom');
+    await user.click(screen.getAllByRole('button', { name: 'Custom duration' })[1]);
     const custom = screen.getByLabelText('Custom duration in minutes');
     await user.clear(custom);
     await user.type(custom, '0');
