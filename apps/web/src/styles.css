@@ -16488,3 +16488,40 @@ input[type='number'] {
 .media-grid::after {
   left: calc(66.666% - var(--space-3) / 2);
 }
+
+
+/* The source metrics sink to the bottom of their column so they line up with
+   the outcome grid, which starts under its own heading and headline figure. */
+.job-main .original-panel {
+  margin-top: auto;
+}
+
+
+/* The percentage belongs to the bar, right beside it — not pushed to the far
+   edge of the panel. */
+.estimate-state {
+  justify-content: flex-start;
+}
+.estimate-state small {
+  margin-left: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The estimate badge sits in the panel's corner. */
+.estimate-panel .panel-heading,
+.estimate-panel > .media-panel-heading {
+  align-items: center;
+}
+.estimate-tag {
+  margin-left: auto;
+}
+
+
+/* The status pill mirrors the estimate badge: pinned to the right edge of the
+   card's left column. */
+.job-title-line {
+  width: 100%;
+}
+.job-title-line .status-badge {
+  margin-left: auto;
+}

@@ -1040,7 +1040,17 @@ export class JobQueue {
     // otherwise mark unfinished estimate work as paused. Resetting everything
     // to `waiting` made a stopped row flash as if estimation had restarted,
     // even though terminal jobs are deliberately ignored by the estimator.
-    if (job.estimateStatus !== 'estimated') {
+    // Starting a run freezes the embedding (its random final duration is drawn
+    // then), which changes the configuration key and makes the existing
+    // estimate look stale. Cancelling puts the draft back and recomputes the
+    // figure from the breakdown that was already measured — so a start/cancel
+    // round trip leaves the estimate exactly where it was.
+    if (this.settings.imageEmbedding.enabled || job.imageEmbedding) {
+      job.imageEmbedding = draftImageEmbedding(this.settings.imageEmbedding);
+    }
+    if (job.estimateStatus === 'estimated') {
+      refreshEstimateFromBreakdown(job);
+    } else {
       // Back to 'waiting', not 'cancelled': the estimate belongs to the current
       // settings, not to the compression attempt that was just stopped. Marking
       // it cancelled left the card animating "estimation paused" forever, since

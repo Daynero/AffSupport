@@ -390,8 +390,11 @@ function EstimatePanel({
       ) : null}
       <div className="panel-title-with-help">
         <h4>{t('expectedResult')}</h4>
-        <span className="estimate-tag">≈ {t('estimateLabel')}</span>
-        <Tooltip label={t('estimateTooltip')}>{t('estimateTooltip')}</Tooltip>
+        {/* The badge carries the explanation itself — no separate question
+            mark beside it. */}
+        <span className="estimate-tag" title={t('estimateTooltip')}>
+          ≈ {t('estimateLabel')}
+        </span>
       </div>
       {estimated ? (
         <>
