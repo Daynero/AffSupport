@@ -15142,6 +15142,12 @@ button.team-landing-tile:hover {
 /* 011 layout (owner, 2026-08-30): the toolbar row spans the breadcrumb and the
    corner actions across the whole right side, and the preview card starts a
    row lower — a long path no longer runs under the card. */
+.team-explorer {
+  /* Row 1 is exactly the toolbar's height; the spanning tree contributes only
+     to the 1fr second row — without this the span inflated row 1 and a wide
+     gap opened between the toolbar and the list. */
+  grid-template-rows: auto 1fr;
+}
 .team-explorer > .team-explorer-toolbar {
   grid-column: 2 / -1;
   grid-row: 1;
@@ -15212,4 +15218,30 @@ button.team-landing-tile:hover {
 }
 .fit-mode-pictos button:hover:not(:disabled):not(.is-selected) {
   color: var(--color-text);
+}
+
+/* The compact team compressor window (013 B2). */
+.team-compress-dialog {
+  display: grid;
+  gap: var(--space-3);
+}
+.team-compress-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.team-compress-suffix input {
+  width: 160px;
+}
+.team-compress-destination {
+  display: grid;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+}
+.team-compress-destination label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }

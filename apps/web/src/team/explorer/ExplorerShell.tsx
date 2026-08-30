@@ -35,6 +35,11 @@ import { MaterialProcessFlow } from '../processing/MaterialProcessFlow';
 import { useTeamOperation } from '../processing/useTeamOperation';
 import { startTeamAgentProcess } from '../../api/client';
 import { FolderProcessDialog, type FolderBatchPlan } from './FolderProcessDialog';
+import {
+  TeamCompressorDialog,
+  type CompressPlan,
+  type CompressPlanItem as CompressPlanItem_
+} from './TeamCompressorDialog';
 import type { RowActionsProps } from './RowActions';
 import { useFolderPage } from './useFolderPage';
 
@@ -179,15 +184,20 @@ function ExplorerBody({
   // in the background one after another — a corner panel shows the progress,
   // nothing blocks the screen.
   const agentCtx = useOptionalAgent();
-  const [tQueue, setTQueue] = useState<{ id: string; name: string; folderId: string | null }[]>(
-    []
-  );
-  const [tActive, setTActive] = useState<{
+  type QueueItem = {
     id: string;
     name: string;
     folderId: string | null;
-    operationId: string | null;
-  } | null>(null);
+    tool: 'transcription' | 'compressor';
+    outputName: string;
+    /** Overwrite-the-original: upload as a new version of this material. */
+    versionOf?: string;
+    options?: Record<string, unknown>;
+  };
+  const [tQueue, setTQueue] = useState<QueueItem[]>([]);
+  const [tActive, setTActive] = useState<(QueueItem & { operationId: string | null }) | null>(
+    null
+  );
   const [tDone, setTDone] = useState(0);
   const [tTotal, setTTotal] = useState(0);
   // Cmd/Ctrl+C/X/V: what was copied or cut, held until the next paste. Files
@@ -197,6 +207,7 @@ function ExplorerBody({
     items: { id: string; name: string; kind: string }[];
   } | null>(null);
   const [folderProcessing, setFolderProcessing] = useState<TeamMaterialRow | null>(null);
+  const [compressing, setCompressing] = useState<CompressPlanItem_[] | null>(null);
   const [dropping, setDropping] = useState(false);
   const [storageKind, setStorageKind] = useState<TeamAnalyticsStorage | null>(null);
   const [companionDelete, setCompanionDelete] = useState<{
@@ -452,11 +463,11 @@ function ExplorerBody({
    * through here opened a preview on Enter and toggled the selection on every
    * space in the new name.
    */
-  const enqueueTranscriptions = (
-    items: { id: string; name: string; folderId: string | null }[]
-  ) => {
-    const known = new Set([...tQueue.map(item => item.id), ...(tActive ? [tActive.id] : [])]);
-    const fresh = items.filter(item => !known.has(item.id));
+  const enqueueJobs = (items: QueueItem[]) => {
+    const known = new Set(
+      [...tQueue, ...(tActive ? [tActive] : [])].map(item => `${item.tool}:${item.id}`)
+    );
+    const fresh = items.filter(item => !known.has(`${item.tool}:${item.id}`));
     if (fresh.length === 0) return;
     setTQueue(current => [...current, ...fresh]);
     setTTotal(current => current + fresh.length);
@@ -465,6 +476,15 @@ function ExplorerBody({
     }
   };
 
+  const enqueueTranscriptions = (items: { id: string; name: string; folderId: string | null }[]) =>
+    enqueueJobs(
+      items.map(item => ({
+        ...item,
+        tool: 'transcription' as const,
+        outputName: `${item.name.replace(/\.[^.]+$/u, '')}.txt`
+      }))
+    );
+
   // Takes the next queued video whenever nothing is running.
   useEffect(() => {
     if (tActive || tQueue.length === 0) return;
@@ -472,20 +492,20 @@ function ExplorerBody({
     setTActive({ ...next, operationId: null });
     void (async () => {
       try {
-        const stem = next.name.replace(/\.[^.]+$/u, '');
         const result = await teamApi.startProcess({
           teamId,
           materialId: next.id,
-          toolId: 'transcription',
-          optionsSummary: {},
+          toolId: next.tool,
+          optionsSummary: next.options ?? {},
           // The server's optionalDestination treats null as the space root; the
           // client type predates that and still says string.
           destinationFolderId: (next.folderId ?? null) as unknown as string,
-          outputName: `${stem}.txt`,
+          outputName: next.outputName,
+          ...(next.versionOf ? { versionOfMaterialId: next.versionOf } : {}),
           conflictMode: 'keep_both',
           idempotencyKey: crypto.randomUUID(),
           agentContractVersion: 1,
-          toolContractVersion: agentCtx?.toolContracts?.transcription ?? 0
+          toolContractVersion: agentCtx?.toolContracts?.[next.tool] ?? 0
         });
         setTActive(current =>
           current && current.id === next.id
@@ -494,8 +514,8 @@ function ExplorerBody({
         );
         await startTeamAgentProcess({
           operationId: result.operationId,
-          toolId: 'transcription',
-          options: {},
+          toolId: next.tool,
+          options: next.options ?? {},
           sourceGrant: result.sourceGrant,
           finalizeGrant: result.finalizeGrant
         });
@@ -508,7 +528,7 @@ function ExplorerBody({
         changed();
       }
     })();
-  }, [agentCtx?.toolContracts?.transcription, changed, push, t, tActive, tQueue, teamId]);
+  }, [agentCtx?.toolContracts, changed, push, t, tActive, tQueue, teamId]);
 
   // The queue drained: one closing toast, counters reset.
   useEffect(() => {
@@ -526,6 +546,29 @@ function ExplorerBody({
     activeOperation.operation?.progress ?? 0,
     activeOperation.localProgress?.progress ?? 0
   );
+
+  const runCompressPlan = (plan: CompressPlan) => {
+    const suffix = plan.suffix;
+    const jobs: QueueItem[] = plan.items.map(item => {
+      const stem = item.name.replace(/\.[^.]+$/u, '');
+      const overwrite = plan.destination.kind === 'overwrite';
+      const outputName = overwrite
+        ? suffix
+          ? `${stem}${suffix}.mp4`
+          : item.name
+        : `${stem}${suffix || '_1'}.mp4`;
+      return {
+        id: item.id,
+        name: item.name,
+        folderId: plan.destination.kind === 'folder' ? plan.destination.folderId : item.folderId,
+        tool: 'compressor' as const,
+        outputName,
+        ...(overwrite ? { versionOf: item.id } : {}),
+        options: plan.embed ? { imageEmbedding: { enabled: true } } : {}
+      };
+    });
+    enqueueJobs(jobs);
+  };
 
   const runFolderBatch = (plan: FolderBatchPlan) => {
     if (plan.what !== 'landings' && plan.videos.length > 0) {
@@ -831,6 +874,25 @@ function ExplorerBody({
                 {t('teamExplorerProcessSelection')}
               </Button>
             )}
+            {permissions?.process && selectedRows.some(row => row.category === 'video') && (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() =>
+                  setCompressing(
+                    selectedRows
+                      .filter(row => row.category === 'video')
+                      .map(row => ({
+                        id: row.id,
+                        name: row.name,
+                        folderId: row.parentFolderId ?? currentFolderId ?? null
+                      }))
+                  )
+                }
+              >
+                {t('teamCompressSelected')}
+              </Button>
+            )}
             {permissions?.delete && (
               <Button type="button" variant="danger" onClick={() => void trashRows(selectedRows)}>
                 {t('teamFileTrash')}
@@ -961,18 +1023,34 @@ function ExplorerBody({
           </div>
         </Modal>
       )}
+      {compressing && (
+        <TeamCompressorDialog
+          teamId={teamId}
+          items={compressing}
+          client={client}
+          onRun={runCompressPlan}
+          onClose={() => setCompressing(null)}
+        />
+      )}
       {folderProcessing && (
         <FolderProcessDialog
           teamId={teamId}
           folder={folderProcessing}
           client={client}
           onRun={runFolderBatch}
+          onCompressAll={videos => {
+            const folderId = folderProcessing.driveFileId;
+            setFolderProcessing(null);
+            setCompressing(videos.map(video => ({ id: video.id, name: video.name, folderId })));
+          }}
           onClose={() => setFolderProcessing(null)}
         />
       )}
       {(tActive || tQueue.length > 0) && (
         <aside className="team-transcribe-queue" aria-live="polite">
-          <strong>{t('teamTranscribeQueueTitle')}</strong>
+          <strong>
+            {t(tActive?.tool === 'compressor' ? 'teamCompressQueueTitle' : 'teamTranscribeQueueTitle')}
+          </strong>
           {tActive && (
             <p>
               {t('teamTranscribeQueueProgress', {
