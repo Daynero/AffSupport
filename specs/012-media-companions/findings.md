@@ -141,3 +141,15 @@ reached the agent that time (the UI's `Promise.allSettled` hides a failed
 immediately. Also marked the two stale `awaiting_agent` operations `failed`
 to release their name reservations. Watch for recurrence before building
 anything — one occurrence, cause plausible but unproven.
+
+### The background queue survived its first real day (2026-08-30, batch verified)
+
+The folder batch + queue ran live: 16-tail.mp4 (folder «12») and 5.mp4 (queued
+from the card mid-run — «1 з 3») both transcribed to linked companions named
+after them; the corner panel showed progress without blocking anything. The
+third video (fd5e…, `transcript_ingest_state=unavailable`) was refused at
+start and the queue moved on — one bad file does not stop the rest. A macOS
+Intelligence indexing storm (load 144, AppleNeuralEngine + Virtualization)
+hit mid-run; whisper was killed as a precaution, yet both finished jobs were
+already committed. Queue survives per-item failure; page reload clears it
+(session-local by design).
