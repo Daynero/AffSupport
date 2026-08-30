@@ -7,6 +7,7 @@ export function DropZone({
   disabled,
   importing,
   outcome,
+  outcomeMessage,
   chooseFiles,
   addDroppedFiles,
   addDroppedFilePaths,
@@ -19,8 +20,10 @@ export function DropZone({
 }: {
   disabled: boolean;
   importing: boolean;
-  /** One-second confirmation flash after an import ('ok' | 'fail'). */
+  /** Confirmation flash after an import ('ok' | 'fail'). */
   outcome?: 'ok' | 'fail' | null;
+  /** Failure text shown on the zone itself, in place of the default. */
+  outcomeMessage?: string | null;
   chooseFiles: () => void;
   addDroppedFiles: (files: File[]) => void;
   addDroppedFilePaths?: (paths: string[]) => void;
@@ -98,11 +101,15 @@ export function DropZone({
       </span>
       <div>
         <strong>
-          {importing
-            ? (importingLabel ?? t('importingFiles'))
-            : dragging
-              ? (activeLabel ?? t('dropActive'))
-              : (title ?? t('dropTitle'))}
+          {outcome === 'ok'
+            ? t('dropOutcomeOk')
+            : outcome === 'fail'
+              ? (outcomeMessage ?? t('dropOutcomeFail'))
+              : importing
+                ? (importingLabel ?? t('importingFiles'))
+                : dragging
+                  ? (activeLabel ?? t('dropActive'))
+                  : (title ?? t('dropTitle'))}
         </strong>
         <span>{formats ?? t('dropFormats')}</span>
       </div>

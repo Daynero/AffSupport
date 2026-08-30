@@ -83,10 +83,30 @@ export default function CompressorPage() {
   const [importing, setImporting] = useState(false);
   // The intake zone flashes green or red for a second after an import so the
   // result is visible where the action happened, not only in a toast.
+  // Freshly imported rows glow honey for a second so the eye finds them in a
+  // long list without hunting for the checkbox.
+  const [freshJobs, setFreshJobs] = useState<ReadonlySet<string>>(new Set());
+  const markFresh = (ids: string[]) => {
+    if (!ids.length) return;
+    setFreshJobs(new Set(ids));
+    window.setTimeout(() => setFreshJobs(new Set()), 1000);
+  };
   const [intake, setIntake] = useState<'ok' | 'fail' | null>(null);
-  const flashIntake = (outcome: 'ok' | 'fail') => {
+  const [intakeMessage, setIntakeMessage] = useState<string | null>(null);
+  // Success clears after a second; a failure holds its message for three, so
+  // the reason can actually be read where the drop happened.
+  const flashIntake = (outcome: 'ok' | 'fail', message?: string) => {
     setIntake(outcome);
-    window.setTimeout(() => setIntake(current => (current === outcome ? null : current)), 1000);
+    setIntakeMessage(outcome === 'fail' ? (message ?? null) : null);
+    window.setTimeout(
+      () =>
+        setIntake(current => {
+          if (current !== outcome) return current;
+          setIntakeMessage(null);
+          return null;
+        }),
+      outcome === 'fail' ? 3000 : 1000
+    );
   };
   const [help, setHelp] = useState(false);
   const [embeddingFormValid, setEmbeddingFormValid] = useState(true);
@@ -303,9 +323,12 @@ export default function CompressorPage() {
         setState,
         setSelected
       );
-      if (added.length) flashIntake('ok');
+      if (added.length) {
+        markFresh(added.map(job => job.id));
+        flashIntake('ok');
+      }
     } catch (error) {
-      flashIntake('fail');
+      flashIntake('fail', localizedError(error, t));
       handleError(error);
     }
   };
@@ -317,6 +340,7 @@ export default function CompressorPage() {
     try {
       let addedCount = 0;
       let addedBytes = 0;
+      const freshIds: string[] = [];
       for (const file of files) {
         const result = await uploadFile(file);
         setState(result.state);
@@ -324,6 +348,7 @@ export default function CompressorPage() {
         const added = result.state.jobs.filter(job => !known.has(job.id));
         addedCount += added.length;
         addedBytes += added.reduce((total, job) => total + job.originalSize, 0);
+        freshIds.push(...added.map(job => job.id));
         for (const job of result.state.jobs) known.add(job.id);
         showSelectionWarnings(result.warnings, t, addToast);
       }
@@ -332,9 +357,10 @@ export default function CompressorPage() {
           video_count: addedCount,
           total_input_bytes: addedBytes
         });
+      markFresh(freshIds);
       flashIntake(addedCount ? 'ok' : 'fail');
     } catch (error) {
-      flashIntake('fail');
+      flashIntake('fail', localizedError(error, t));
       handleError(error);
     } finally {
       setImporting(false);
@@ -357,9 +383,10 @@ export default function CompressorPage() {
         });
       }
       showSelectionWarnings(result.warnings, t, addToast);
+      markFresh(added.map(job => job.id));
       flashIntake(added.length ? 'ok' : 'fail');
     } catch (error) {
-      flashIntake('fail');
+      flashIntake('fail', localizedError(error, t));
       handleError(error);
     } finally {
       setImporting(false);
@@ -521,6 +548,7 @@ export default function CompressorPage() {
             disabled={!connected || importing || !state.tools.ffprobe}
             importing={importing}
             outcome={intake}
+            outcomeMessage={intakeMessage}
             chooseFiles={() => void selectNativeFiles()}
             addDroppedFiles={files => void addDroppedFiles(files)}
             addDroppedFilePaths={
@@ -637,6 +665,7 @@ export default function CompressorPage() {
                 key={job.id}
                 job={job}
                 selected={selected.has(job.id)}
+                fresh={freshJobs.has(job.id)}
                 disabled={!connected}
                 connected={connected}
                 compressionRunning={state.running}

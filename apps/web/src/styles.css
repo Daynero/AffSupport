@@ -1118,11 +1118,10 @@ a {
   grid-template-columns: auto minmax(0, 1fr);
   gap: var(--space-3) var(--space-5);
   padding: var(--space-4);
-  /* A brighter, colour-neutral slab: it separates from the page by light
-     alone, so it competes with neither the orange intake zone nor the green
-     result cards. */
-  border: 1px solid color-mix(in oklab, var(--color-text) 14%, transparent);
-  background: color-mix(in oklab, var(--color-text) 9%, var(--color-surface));
+  /* Settings live on a dark green slab; the blocks nested inside go one
+     step deeper, so the hierarchy reads at a glance. */
+  border: 1px solid color-mix(in oklab, #1f7a3d 45%, transparent);
+  background: color-mix(in oklab, #1f7a3d 22%, var(--color-surface));
 }
 .settings-panel .settings-body {
   display: contents;
@@ -1207,10 +1206,11 @@ a {
   align-items: start;
   gap: var(--space-4) var(--space-6);
   padding: var(--space-3);
-  /* A standalone block now — rounded on all four corners, not just below. */
-  border: 1px solid var(--color-border);
+  /* A standalone block now — rounded on all four corners, not just below,
+     and a deeper green than the panel that holds it. */
+  border: 1px solid color-mix(in oklab, #1f7a3d 40%, transparent);
   border-radius: var(--radius-md);
-  background: var(--color-surface-subtle);
+  background: color-mix(in oklab, #06301a 55%, var(--color-surface));
 }
 
 .custom-column-primary,
@@ -2071,9 +2071,10 @@ input.is-invalid {
 
 .drop-zone:hover:not(.is-disabled),
 .drop-zone.is-dragging {
-  /* Hover and drag deepen the orange rather than lighten it. */
-  border-color: var(--honey-900);
-  background: var(--honey-600);
+  /* Hover lightens the field to a near-transparent wash — an invitation,
+     not a pressed button. */
+  border-color: var(--honey-700);
+  background: color-mix(in oklab, var(--color-action) 18%, transparent);
 }
 
 .drop-zone.is-dragging {
@@ -15582,8 +15583,8 @@ input[type='number'] {
 :root:not([data-theme='dark']) .drop-zone:hover:not(.is-disabled),
 :root[data-theme='light'] .drop-zone.is-dragging,
 :root:not([data-theme='dark']) .drop-zone.is-dragging {
-  border-color: var(--honey-200);
-  background: var(--purple-900);
+  border-color: var(--honey-300);
+  background: color-mix(in oklab, var(--purple-700) 18%, transparent);
 }
 
 /* The metadata toggle and its hint share one line. */
@@ -15624,4 +15625,27 @@ input[type='number'] {
 .drop-zone.is-fail strong,
 .drop-zone.is-fail span:not(.drop-icon):not(.spinner) {
   color: #360a0a;
+}
+
+
+/* Nested settings blocks share the deeper green of the custom section. */
+.settings-panel .image-embedding-panel {
+  border: 1px solid color-mix(in oklab, #1f7a3d 40%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, #06301a 55%, var(--color-surface));
+}
+
+/* A newly added file glows honey for a second, then settles. */
+@keyframes job-fresh-glow {
+  0% {
+    background: color-mix(in oklab, var(--honey-400) 42%, var(--color-surface));
+    box-shadow: 0 0 22px 4px color-mix(in oklab, var(--honey-400) 45%, transparent);
+  }
+  100% {
+    background: var(--color-surface);
+    box-shadow: none;
+  }
+}
+.job-row.is-fresh {
+  animation: job-fresh-glow 1s var(--ease-standard) both;
 }

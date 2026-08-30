@@ -48,6 +48,7 @@ export function JobRow({
   onSelected,
   action,
   t,
+  fresh,
   connected = true
 }: {
   job: CompressionJob;
@@ -66,13 +67,15 @@ export function JobRow({
    * defaults to true so no existing caller changes behaviour by omission.
    */
   connected?: boolean;
+  /** One-second honey glow right after the file was added. */
+  fresh?: boolean;
 }) {
   const [copiedDetails, setCopiedDetails] = useState(false);
   return (
     <article
       className={`job-row ${selected ? 'is-selected' : ''} ${
         job.status === 'processing' ? 'is-processing' : ''
-      }`.trim()}
+      } ${fresh ? 'is-fresh' : ''}`.trim()}
     >
       <div className="job-header">
         <Checkbox
