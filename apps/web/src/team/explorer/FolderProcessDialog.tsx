@@ -1,13 +1,10 @@
 import { useEffect, useState } from 'react';
 import type { TeamMaterialRow } from '@video-compressor/shared';
-import { teamApi, type TeamMaterialSummary, type TeamProcessStartInput } from '../../api/team';
-import { startTeamAgentProcess } from '../../api/client';
+import { teamApi, type TeamMaterialSummary } from '../../api/team';
 import { useOptionalAgent } from '../../AgentContext';
 import { Modal } from '../../components/Modal';
-import { Button, ProgressBar } from '../../components/ui';
-import { useToasts } from '../../components/toast';
+import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
-import { teamErrorMessageFor } from '../errors';
 import type { FolderPickerClient } from '../catalog/FolderPicker';
 
 /**
@@ -19,32 +16,31 @@ import type { FolderPickerClient } from '../catalog/FolderPicker';
  */
 const TRANSCRIPTION_CONTRACT = 5;
 
-type Batch = {
-  label: string;
-  done: number;
-  total: number;
-  current: string;
-};
+export interface FolderBatchPlan {
+  folder: TeamMaterialRow;
+  what: 'videos' | 'landings' | 'all';
+  videos: TeamMaterialSummary[];
+  landings: TeamMaterialSummary[];
+}
 
 export function FolderProcessDialog({
   teamId,
   folder,
   client,
   onClose,
-  onChanged
+  onRun
 }: {
   teamId: string;
   folder: TeamMaterialRow;
   client: FolderPickerClient;
   onClose: () => void;
-  onChanged: () => void;
+  /** The shell runs the batch in the background; the dialog only chooses. */
+  onRun: (plan: FolderBatchPlan) => void;
 }) {
   const { t } = useI18n();
-  const { push } = useToasts();
   const agent = useOptionalAgent();
   const [children, setChildren] = useState<TeamMaterialSummary[] | null>(null);
   const [skippedVideos, setSkippedVideos] = useState<Set<string>>(new Set());
-  const [batch, setBatch] = useState<Batch | null>(null);
   const [failed, setFailed] = useState(false);
 
   const transcriptionReady =
@@ -83,75 +79,12 @@ export function FolderProcessDialog({
     item => item.kind === 'file' && item.category === 'landing'
   );
 
-  const transcribeAll = async () => {
-    const contract = agent?.toolContracts?.transcription ?? 0;
-    let done = 0;
-    for (const video of videos) {
-      setBatch({
-        label: t('teamFolderProcessTranscribe'),
-        done,
-        total: videos.length,
-        current: video.name
-      });
-      const stem = video.name.replace(/\.[^.]+$/u, '');
-      const input: TeamProcessStartInput = {
-        teamId,
-        materialId: video.id,
-        toolId: 'transcription',
-        optionsSummary: {},
-        destinationFolderId: folder.driveFileId,
-        outputName: `${stem}.txt`,
-        conflictMode: 'keep_both',
-        idempotencyKey: crypto.randomUUID(),
-        agentContractVersion: 1,
-        toolContractVersion: contract
-      };
-      try {
-        const result = await teamApi.startProcess(input);
-        await startTeamAgentProcess({
-          operationId: result.operationId,
-          toolId: 'transcription',
-          options: {},
-          sourceGrant: result.sourceGrant,
-          finalizeGrant: result.finalizeGrant
-        });
-        done += 1;
-      } catch (cause) {
-        push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
-        break;
-      }
-    }
-    return done;
-  };
-
-  const refreshLandings = async () => {
-    let done = 0;
-    for (const landing of landings) {
-      setBatch({
-        label: t('teamFolderProcessLandings'),
-        done,
-        total: landings.length,
-        current: landing.name
-      });
-      // A landing with no render yet simply has nothing to refresh — the first
-      // preview is made automatically on open; that is not a failure.
-      await teamApi.regenerateLandingPreview(teamId, landing.id).catch(() => undefined);
-      done += 1;
-    }
-    return done;
-  };
-
-  const run = async (what: 'videos' | 'landings' | 'all') => {
-    let total = 0;
-    if (what !== 'landings') total += await transcribeAll();
-    if (what !== 'videos') total += await refreshLandings();
-    setBatch(null);
-    onChanged();
-    if (total > 0) push({ tone: 'success', text: t('teamFolderProcessDone') });
+  const run = (what: 'videos' | 'landings' | 'all') => {
+    onRun({ folder, what, videos, landings });
     onClose();
   };
 
-  const busy = batch !== null;
+  const busy = false;
   const loading = children === null && !failed;
 
   return (
@@ -181,7 +114,7 @@ export function FolderProcessDialog({
                   type="button"
                   variant="secondary"
                   disabled={videos.length === 0 || !transcriptionReady}
-                  onClick={() => void run('videos')}
+                  onClick={() => run('videos')}
                 >
                   {t('teamFolderProcessTranscribe')}
                 </Button>
@@ -197,7 +130,7 @@ export function FolderProcessDialog({
                   type="button"
                   variant="secondary"
                   disabled={landings.length === 0}
-                  onClick={() => void run('landings')}
+                  onClick={() => run('landings')}
                 >
                   {t('teamFolderProcessLandings')}
                 </Button>
@@ -212,7 +145,7 @@ export function FolderProcessDialog({
                   disabled={
                     (videos.length === 0 || !transcriptionReady) && landings.length === 0
                   }
-                  onClick={() => void run('all')}
+                  onClick={() => run('all')}
                 >
                   {t('teamFolderProcessAll')}
                 </Button>
@@ -220,22 +153,6 @@ export function FolderProcessDialog({
             </ul>
           )}
         </>
-      )}
-      {batch && (
-        <div className="team-folder-process-progress" aria-live="polite">
-          <p>
-            {t('teamFolderProcessRunning', {
-              done: batch.done + 1,
-              total: batch.total,
-              name: batch.current
-            })}
-          </p>
-          <ProgressBar
-            value={batch.total === 0 ? 0 : (batch.done / batch.total) * 100}
-            active
-            label={batch.label}
-          />
-        </div>
       )}
       {!busy && (
         <div className="team-dialog-actions">

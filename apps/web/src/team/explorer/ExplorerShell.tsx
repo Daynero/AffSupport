@@ -6,10 +6,11 @@ import type {
   TeamPermissions
 } from '@video-compressor/shared';
 import { teamApi, type TeamMaterialSummary } from '../../api/team';
-import { Button } from '../../components/ui';
+import { Button, ProgressBar } from '../../components/ui';
 import { useToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';
 import { useTeam } from '../TeamContext';
+import { useOptionalAgent } from '../../AgentContext';
 import { teamErrorMessageFor } from '../errors';
 import { TeamCatalog, type TeamCatalogClient } from '../catalog/TeamCatalog';
 import { TrashView } from '../catalog/TrashView';
@@ -31,7 +32,9 @@ import { sortRows, readRememberedSort, rememberSort, type ExplorerSort } from '.
 import { PreviewPane } from './PreviewPane';
 import { Modal } from '../../components/Modal';
 import { MaterialProcessFlow } from '../processing/MaterialProcessFlow';
-import { FolderProcessDialog } from './FolderProcessDialog';
+import { useTeamOperation } from '../processing/useTeamOperation';
+import { startTeamAgentProcess } from '../../api/client';
+import { FolderProcessDialog, type FolderBatchPlan } from './FolderProcessDialog';
 import type { RowActionsProps } from './RowActions';
 import { useFolderPage } from './useFolderPage';
 
@@ -171,6 +174,22 @@ function ExplorerBody({
   const [transcribing, setTranscribing] = useState<{ videoId: string; progress: number } | null>(
     null
   );
+  // One transcription queue for the whole explorer (owner, 2026-08-30): the
+  // card's Transcribe enqueues, the folder batch enqueues, and everything runs
+  // in the background one after another — a corner panel shows the progress,
+  // nothing blocks the screen.
+  const agentCtx = useOptionalAgent();
+  const [tQueue, setTQueue] = useState<{ id: string; name: string; folderId: string | null }[]>(
+    []
+  );
+  const [tActive, setTActive] = useState<{
+    id: string;
+    name: string;
+    folderId: string | null;
+    operationId: string | null;
+  } | null>(null);
+  const [tDone, setTDone] = useState(0);
+  const [tTotal, setTTotal] = useState(0);
   // Cmd/Ctrl+C/X/V: what was copied or cut, held until the next paste. Files
   // from any folder — paste lands them in the folder currently open.
   const clipboard = useRef<{
@@ -433,6 +452,103 @@ function ExplorerBody({
    * through here opened a preview on Enter and toggled the selection on every
    * space in the new name.
    */
+  const enqueueTranscriptions = (
+    items: { id: string; name: string; folderId: string | null }[]
+  ) => {
+    const known = new Set([...tQueue.map(item => item.id), ...(tActive ? [tActive.id] : [])]);
+    const fresh = items.filter(item => !known.has(item.id));
+    if (fresh.length === 0) return;
+    setTQueue(current => [...current, ...fresh]);
+    setTTotal(current => current + fresh.length);
+    if (tActive || tQueue.length > 0) {
+      push({ tone: 'success', text: t('teamTranscribeQueueAdded', { count: fresh.length }) });
+    }
+  };
+
+  // Takes the next queued video whenever nothing is running.
+  useEffect(() => {
+    if (tActive || tQueue.length === 0) return;
+    const next = tQueue[0];
+    setTActive({ ...next, operationId: null });
+    void (async () => {
+      try {
+        const stem = next.name.replace(/\.[^.]+$/u, '');
+        const result = await teamApi.startProcess({
+          teamId,
+          materialId: next.id,
+          toolId: 'transcription',
+          optionsSummary: {},
+          // The server's optionalDestination treats null as the space root; the
+          // client type predates that and still says string.
+          destinationFolderId: (next.folderId ?? null) as unknown as string,
+          outputName: `${stem}.txt`,
+          conflictMode: 'keep_both',
+          idempotencyKey: crypto.randomUUID(),
+          agentContractVersion: 1,
+          toolContractVersion: agentCtx?.toolContracts?.transcription ?? 0
+        });
+        setTActive(current =>
+          current && current.id === next.id
+            ? { ...current, operationId: result.operationId }
+            : current
+        );
+        await startTeamAgentProcess({
+          operationId: result.operationId,
+          toolId: 'transcription',
+          options: {},
+          sourceGrant: result.sourceGrant,
+          finalizeGrant: result.finalizeGrant
+        });
+      } catch (cause) {
+        push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+      } finally {
+        setTDone(current => current + 1);
+        setTActive(null);
+        setTQueue(current => current.slice(1));
+        changed();
+      }
+    })();
+  }, [agentCtx?.toolContracts?.transcription, changed, push, t, tActive, tQueue, teamId]);
+
+  // The queue drained: one closing toast, counters reset.
+  useEffect(() => {
+    if (tActive || tQueue.length > 0 || tTotal === 0) return;
+    push({ tone: 'success', text: t('teamTranscribeQueueDone', { count: tDone }) });
+    setTDone(0);
+    setTTotal(0);
+  }, [push, t, tActive, tDone, tQueue.length, tTotal]);
+
+  const activeOperation = useTeamOperation({
+    teamId,
+    operationId: tActive?.operationId ?? null
+  });
+  const activeProgress = Math.max(
+    activeOperation.operation?.progress ?? 0,
+    activeOperation.localProgress?.progress ?? 0
+  );
+
+  const runFolderBatch = (plan: FolderBatchPlan) => {
+    if (plan.what !== 'landings' && plan.videos.length > 0) {
+      enqueueTranscriptions(
+        plan.videos.map(video => ({
+          id: video.id,
+          name: video.name,
+          folderId: plan.folder.driveFileId
+        }))
+      );
+    }
+    if (plan.what !== 'videos' && plan.landings.length > 0) {
+      const landings = plan.landings;
+      push({ tone: 'success', text: t('teamFolderProcessLandingsQueued', { count: landings.length }) });
+      void (async () => {
+        for (const landing of landings) {
+          await teamApi.regenerateLandingPreview(teamId, landing.id).catch(() => undefined);
+        }
+        changed();
+      })();
+    }
+  };
+
   const pasteClipboard = async () => {
     const clip = clipboard.current;
     if (!clip) return;
@@ -780,9 +896,22 @@ function ExplorerBody({
         client={client}
         onOpen={onPreview}
         onTranscribe={
-          permissions?.process ? row => setProcessing({ row, tool: 'transcription' }) : undefined
+          permissions?.process
+            ? row =>
+                enqueueTranscriptions([
+                  {
+                    id: row.id,
+                    name: row.name,
+                    folderId: row.parentFolderId ?? currentFolderId ?? null
+                  }
+                ])
+            : undefined
         }
-        transcribing={transcribing}
+        transcribing={
+          tActive
+            ? { videoId: tActive.id, progress: activeProgress }
+            : transcribing
+        }
         onCreateTask={onCreateTask}
       />
       {companionDelete && (
@@ -837,9 +966,36 @@ function ExplorerBody({
           teamId={teamId}
           folder={folderProcessing}
           client={client}
-          onChanged={changed}
+          onRun={runFolderBatch}
           onClose={() => setFolderProcessing(null)}
         />
+      )}
+      {(tActive || tQueue.length > 0) && (
+        <aside className="team-transcribe-queue" aria-live="polite">
+          <strong>{t('teamTranscribeQueueTitle')}</strong>
+          {tActive && (
+            <p>
+              {t('teamTranscribeQueueProgress', {
+                done: tDone + 1,
+                total: tTotal,
+                name: tActive.name
+              })}
+            </p>
+          )}
+          <ProgressBar value={activeProgress} active label={t('teamTranscribeQueueTitle')} />
+          {tQueue.length > (tActive ? 0 : 1) && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setTQueue(tActive ? [] : current => current.slice(0, 1));
+                setTTotal(tDone + (tActive ? 1 : 1));
+              }}
+            >
+              {t('teamTranscribeQueueStop')}
+            </Button>
+          )}
+        </aside>
       )}
       {processing && (
         <MaterialProcessFlow

@@ -128,3 +128,16 @@ Also: cancelling a transcription no longer raises "Щось пішло не та
 expected abort rejection is swallowed for operations the person cancelled), and
 the move-from-menu bug (menu's outside-close ate the picker) is fixed earlier
 in this run.
+
+### Zombie whisper starved the agent queue (2026-08-30, one-off)
+
+The folder batch appeared stuck: its operation sat `awaiting_agent` while a
+whisper-cli from a transcription cancelled an hour earlier was still alive
+(57 min elapsed, 3.6 min CPU — starved by the docker VM). The agent's kill
+plumbing is correct (adopt → SIGTERM, SIGKILL after 10 s; a cancel between
+stages kills the next child on adopt), so the cancel signal simply never
+reached the agent that time (the UI's `Promise.allSettled` hides a failed
+`cancelTeamAgentProcess`). Killed the orphan; the queue picked the batch up
+immediately. Also marked the two stale `awaiting_agent` operations `failed`
+to release their name reservations. Watch for recurrence before building
+anything — one occurrence, cause plausible but unproven.
