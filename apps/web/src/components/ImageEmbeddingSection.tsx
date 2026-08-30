@@ -18,7 +18,7 @@ import {
 import type { TranslationKey } from '../i18n';
 import { Checkbox, Collapse, IconButton, Spinner, Tooltip, type Translate } from './ui';
 import { imageContentPath } from '../api/subresource-paths';
-import { Crop, Minimize2, Plus, UnfoldVertical, X } from 'lucide-react';
+import { Crop, Image as ImageIcon, Minimize2, Plus, Timer, UnfoldVertical, X } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from './icons';
 import { useSubresourceUrl } from '../api/useSubresourceUrl';
 
@@ -153,23 +153,30 @@ export function ImageEmbeddingSection({
                     label={t('startImageDuration')}
                     tooltip={t('startImageDurationTooltip')}
                   />
-                  <select
-                    value={settings.startDurationMode}
-                    disabled={disabled}
-                    aria-label={t('startImageDuration')}
-                    onChange={event =>
-                      update({
-                        startDurationMode: event.target
-                          .value as ImageEmbeddingSettings['startDurationMode']
-                      })
-                    }
-                  >
-                    <option value="one-frame">{t('startDurationOneFrame')}</option>
-                    <option value="ms-2">{t('startDuration2ms')}</option>
-                    <option value="ms-5">{t('startDuration5ms')}</option>
-                    <option value="ms-10">{t('startDuration10ms')}</option>
-                    <option value="custom">{t('customDuration')}</option>
-                  </select>
+                  <div className="fit-mode-pictos" role="group" aria-label={t('startImageDuration')}>
+                    <button
+                      type="button"
+                      className={settings.startDurationMode === 'one-frame' ? 'is-selected' : ''}
+                      disabled={disabled}
+                      title={t('startDurationOneFrame')}
+                      aria-label={t('startDurationOneFrame')}
+                      aria-pressed={settings.startDurationMode === 'one-frame'}
+                      onClick={() => update({ startDurationMode: 'one-frame' })}
+                    >
+                      <ImageIcon size={20} strokeWidth={1.75} />
+                    </button>
+                    <button
+                      type="button"
+                      className={settings.startDurationMode !== 'one-frame' ? 'is-selected' : ''}
+                      disabled={disabled}
+                      title={t('customDuration')}
+                      aria-label={t('customDuration')}
+                      aria-pressed={settings.startDurationMode !== 'one-frame'}
+                      onClick={() => update({ startDurationMode: 'custom' })}
+                    >
+                      <Timer size={20} strokeWidth={1.75} />
+                    </button>
+                  </div>
                   {settings.startDurationMode === 'custom' && (
                     <>
                       <div className="custom-duration-input">
