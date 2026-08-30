@@ -35,7 +35,8 @@ export function PreviewPane({
   client,
   onOpen,
   onTranscribe,
-  transcribing
+  transcribing,
+  onCreateTask
 }: {
   /** The selected row, or null when nothing is selected. */
   row: TeamMaterialRow | null;
@@ -45,6 +46,8 @@ export function PreviewPane({
   onTranscribe?: (row: TeamMaterialRow) => void;
   /** The video currently being transcribed and how far along, if any. */
   transcribing?: { videoId: string; progress: number } | null;
+  /** Create a task from this material (shown on a file's card). */
+  onCreateTask?: (asset: { id: string; name: string }) => void;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
@@ -139,6 +142,15 @@ export function PreviewPane({
       {onOpen && PREVIEWABLE_KINDS.has(row.kind) && (
         <Button type="button" variant="primary" onClick={() => onOpen(previewSummary(row))}>
           {t('teamExplorerPreviewOpen')}
+        </Button>
+      )}
+      {onCreateTask && row.kind !== 'folder' && (
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => onCreateTask({ id: row.id, name: row.name })}
+        >
+          {t('teamExplorerCreateTask')}
         </Button>
       )}
       {row.category === 'video' && onTranscribe && (

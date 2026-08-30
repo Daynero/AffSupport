@@ -11944,9 +11944,14 @@ body {
   gap: 4px;
 }
 .team-task-attachment-action.button {
-  flex: 1 1 0;
+  /* Fixed squares, not flex-stretched: a card with three actions was giving
+     wider (rectangular) buttons than one with four. min-height:0 clears the
+     44px tap target that stretched them taller than they are wide. */
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
   min-width: 0;
-  min-height: 32px;
+  min-height: 0;
   justify-content: center;
   gap: 0;
   border-width: 1px;
@@ -11966,12 +11971,19 @@ body {
   fill: currentColor;
   stroke: none;
 }
-/* One quiet row at rest; the colour is the hover, so four chips on a small
-   tile read as a toolbar rather than as four competing badges. */
+/* Neutral at rest; the two consequential actions carry their meaning in colour
+   even before hover — download reads green, detach reads red — so a person
+   picks them out at a glance. */
 .team-task-attachment-action.button {
   border-color: var(--color-border);
   background: var(--color-surface-muted);
   color: var(--color-text-muted);
+}
+.team-task-attachment-action.is-download {
+  color: #0f9f8f;
+}
+.team-task-attachment-action.is-detach {
+  color: var(--color-error);
 }
 .team-task-attachment-action.is-view:hover:not(:disabled) {
   border-color: #3b82f6;

@@ -690,6 +690,7 @@ function ExplorerBody({
           permissions?.process ? row => setProcessing({ row, tool: 'transcription' }) : undefined
         }
         transcribing={transcribing}
+        onCreateTask={onCreateTask}
       />
       {companionDelete && (
         <Modal
