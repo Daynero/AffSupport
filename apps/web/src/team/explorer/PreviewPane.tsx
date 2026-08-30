@@ -6,7 +6,7 @@ import type {
   ThumbnailSession
 } from '@video-compressor/shared';
 import type { TeamMaterialSummary } from '../../api/team';
-import { Button } from '../../components/ui';
+import { Button, ProgressBar } from '../../components/ui';
 import { useI18n } from '../../i18n';
 import { useToasts } from '../../components/toast';
 import { formatSize } from '../../format';
@@ -34,7 +34,8 @@ export function PreviewPane({
   row,
   client,
   onOpen,
-  onTranscribe
+  onTranscribe,
+  transcribing
 }: {
   /** The selected row, or null when nothing is selected. */
   row: TeamMaterialRow | null;
@@ -42,6 +43,8 @@ export function PreviewPane({
   onOpen?: (material: TeamMaterialSummary) => void;
   /** Start (re-)transcribing a video from its card. */
   onTranscribe?: (row: TeamMaterialRow) => void;
+  /** The video currently being transcribed and how far along, if any. */
+  transcribing?: { videoId: string; progress: number } | null;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
@@ -141,13 +144,27 @@ export function PreviewPane({
       {row.category === 'video' && onTranscribe && (
         <div className="team-explorer-pane-transcript">
           <p className="team-explorer-pane-transcript-title">{t('teamTranscriptSection')}</p>
-          <VideoTextActions
-            teamId={teamId}
-            videoId={row.id}
-            onTranscribe={() => onTranscribe(row)}
-            onRetranscribe={() => onTranscribe(row)}
-            onCopied={() => push({ tone: 'success', text: t('teamTranscriptCopied') })}
-          />
+          {transcribing && transcribing.videoId === row.id ? (
+            <div className="team-explorer-pane-transcribing" aria-live="polite">
+              <div className="team-explorer-pane-transcribing-head">
+                <span>{t('teamTranscriptInProgress')}</span>
+                <span>{Math.round(transcribing.progress)}%</span>
+              </div>
+              <ProgressBar
+                value={transcribing.progress}
+                active
+                label={t('teamTranscriptInProgress')}
+              />
+            </div>
+          ) : (
+            <VideoTextActions
+              teamId={teamId}
+              videoId={row.id}
+              onTranscribe={() => onTranscribe(row)}
+              onRetranscribe={() => onTranscribe(row)}
+              onCopied={() => push({ tone: 'success', text: t('teamTranscriptCopied') })}
+            />
+          )}
         </div>
       )}
     </aside>

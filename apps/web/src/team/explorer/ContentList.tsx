@@ -101,7 +101,7 @@ function Row({
   selected: boolean;
   checked: boolean;
   onSelect: (materialId: string | null) => void;
-  onToggle: (materialId: string) => void;
+  onToggle: (row: TeamMaterialRow) => void;
   onOpenFolder: (folderId: string) => void;
   onPreview?: (material: TeamMaterialSummary) => void;
   actions?: RowActionsProps;
@@ -129,7 +129,7 @@ function Row({
           type="checkbox"
           aria-label={t('teamExplorerSelectNamed', { name: row.name })}
           checked={checked}
-          onChange={() => onToggle(row.id)}
+          onChange={() => onToggle(row)}
         />
         <span aria-hidden="true" />
       </label>

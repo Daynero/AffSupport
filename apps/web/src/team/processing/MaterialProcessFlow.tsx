@@ -29,7 +29,8 @@ export function MaterialProcessFlow({
   destinationFolderId,
   browseClient,
   onClose,
-  initialTool
+  initialTool,
+  onProgress
 }: {
   teamId: string;
   material: ProcessableMaterial;
@@ -37,6 +38,8 @@ export function MaterialProcessFlow({
   browseClient: FolderPickerClient;
   onClose: () => void;
   initialTool?: 'compressor' | 'transcription' | 'imageEmbedding' | 'landingOptimizer';
+  /** Live progress of the running operation, for a caller that mirrors it. */
+  onProgress?: (info: { progress: number; state: string }) => void;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
@@ -92,6 +95,7 @@ export function MaterialProcessFlow({
         onClose={onClose}
         onRetry={() => setOperation(null)}
         onCancelIntent={() => canceledOps.current.add(operation.id)}
+        onProgress={onProgress}
       />
     );
   }
@@ -118,7 +122,8 @@ export function ActiveOperation({
   localFailureCode = null,
   onClose,
   onRetry,
-  onCancelIntent
+  onCancelIntent,
+  onProgress
 }: {
   teamId: string;
   operationId: string;
@@ -129,6 +134,8 @@ export function ActiveOperation({
   onRetry: () => void;
   /** Marks the run cancelled before aborting, so its rejection stays quiet. */
   onCancelIntent?: () => void;
+  /** Reports live progress so a caller (e.g. the side card) can mirror it. */
+  onProgress?: (info: { progress: number; state: string }) => void;
 }) {
   const { t } = useI18n();
   const state = useTeamOperation({ teamId, operationId, agentEnabled });
@@ -146,6 +153,13 @@ export function ActiveOperation({
       stage: operationStage(operation.stage)
     });
   }, [state.operation, workflow]);
+  useEffect(() => {
+    const operation = state.operation;
+    if (!operation || !onProgress) return;
+    const running = operation.state === 'pending' || operation.state === 'running';
+    const progress = Math.max(operation.progress, running ? (state.localProgress?.progress ?? 0) : 0);
+    onProgress({ progress, state: operation.state });
+  }, [state.operation, state.localProgress, onProgress]);
   if (!state.operation) return <p aria-live="polite">{t('teamOperationLoading')}</p>;
   return (
     <div className="team-operation-overlay">

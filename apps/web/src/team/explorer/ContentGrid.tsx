@@ -172,7 +172,7 @@ function Tile({
   checked: boolean;
   onOpenFolder: (folderId: string) => void;
   onSelect: (materialId: string | null) => void;
-  onToggle: (materialId: string) => void;
+  onToggle: (row: TeamMaterialRow) => void;
   onPreview?: (material: TeamMaterialSummary) => void;
   actions?: RowActionsProps;
 }) {
@@ -253,7 +253,7 @@ function Tile({
           type="checkbox"
           aria-label={t('teamExplorerSelectNamed', { name: row.name })}
           checked={checked}
-          onChange={() => onToggle(row.id)}
+          onChange={() => onToggle(row)}
         />
         <span aria-hidden="true" />
       </label>

@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode
 } from 'react';
-import type { TeamFolderNode } from '@video-compressor/shared';
+import type { TeamFolderNode, TeamMaterialRow } from '@video-compressor/shared';
 import { trackTeamIndexCompleted } from '../../analytics/service';
 
 /**
@@ -40,9 +40,11 @@ export interface ExplorerContextValue {
   /** The focused row's material id; the preview pane follows it (011). */
   selectedId: string | null;
   select: (materialId: string | null) => void;
-  /** Multi-selection for batch actions (011, US3). */
+  /** Multi-selection for batch actions (011, US3). Accumulates across folders. */
   selectedIds: ReadonlySet<string>;
-  toggleSelected: (materialId: string) => void;
+  /** The selected rows themselves, kept so a batch can span several folders. */
+  selectedRows: ReadonlyMap<string, TeamMaterialRow>;
+  toggleSelected: (row: TeamMaterialRow) => void;
   clearSelection: () => void;
 }
 
@@ -72,7 +74,13 @@ export function ExplorerProvider({
   const [error, setError] = useState(false);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(folderId);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [selectedRows, setSelectedRows] = useState<ReadonlyMap<string, TeamMaterialRow>>(
+    () => new Map()
+  );
+  const selectedIds = useMemo<ReadonlySet<string>>(
+    () => new Set(selectedRows.keys()),
+    [selectedRows]
+  );
   const activeRef = useRef(true);
   const indexingSince = useRef<number | null>(null);
 
@@ -119,7 +127,8 @@ export function ExplorerProvider({
   useEffect(() => {
     setCurrentFolderId(folderId);
     setSelectedId(null);
-    setSelectedIds(new Set());
+    // The multi-selection is intentionally NOT cleared here: a batch can be
+    // built up across folders — select a few, move on, select more.
   }, [folderId]);
 
   const byDriveId = useMemo(() => {
@@ -186,14 +195,15 @@ export function ExplorerProvider({
       selectedId,
       select: setSelectedId,
       selectedIds,
-      toggleSelected: (materialId: string) =>
-        setSelectedIds(current => {
-          const next = new Set(current);
-          if (next.has(materialId)) next.delete(materialId);
-          else next.add(materialId);
+      selectedRows,
+      toggleSelected: (row: TeamMaterialRow) =>
+        setSelectedRows(current => {
+          const next = new Map(current);
+          if (next.has(row.id)) next.delete(row.id);
+          else next.set(row.id, row);
           return next;
         }),
-      clearSelection: () => setSelectedIds(new Set())
+      clearSelection: () => setSelectedRows(new Map())
     }),
     [
       byDriveId,
@@ -207,6 +217,7 @@ export function ExplorerProvider({
       read,
       selectedId,
       selectedIds,
+      selectedRows,
       teamId,
       topLevelIds
     ]

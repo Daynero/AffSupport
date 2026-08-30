@@ -14392,13 +14392,7 @@ button.team-landing-tile:hover {
 /* A folder has no picture to show, so it does not need a picture's worth of
    height: full-size preview boxes full of the same glyph made a folder list
    scroll for no reason. */
-.team-explorer-tile.is-folder .team-explorer-tile-visual {
-  aspect-ratio: auto;
-  height: 74px;
-}
 .team-explorer-tile.is-folder .team-explorer-tile-icon .team-kind-icon {
-  width: 28px;
-  height: 28px;
   color: var(--color-accent);
 }
 .team-explorer-tile-visual {
@@ -14413,6 +14407,9 @@ button.team-landing-tile:hover {
   overflow: hidden;
   background: var(--color-surface-muted);
   cursor: pointer;
+  /* Lets the fallback glyph scale to the tile (cqmin), so a folder or a
+     no-preview file fills most of the frame instead of a small mark. */
+  container-type: size;
 }
 .team-explorer-tile-visual img {
   width: 100%;
@@ -14431,8 +14428,8 @@ button.team-landing-tile:hover {
   flex: 0 0 auto;
 }
 .team-explorer-tile-icon .team-kind-icon {
-  width: 34px;
-  height: 34px;
+  width: 72cqmin;
+  height: 72cqmin;
 }
 /* A play mark belongs over the frame it plays, centred, and only when there is
    a frame — on the fallback glyph it was a second icon saying the same thing. */
@@ -14514,9 +14511,12 @@ button.team-landing-tile:hover {
   place-items: center;
   width: 28px;
   height: 28px;
-  border: 1px solid var(--color-border);
+  /* A 1px border in --color-border all but vanished on the dark theme; a
+     stronger border and a lifted fill make the empty box legible over both the
+     dark surface and a video thumbnail. */
+  border: 1.5px solid var(--color-text-muted);
   border-radius: var(--radius-sm);
-  background: var(--color-surface);
+  background: var(--color-surface-muted);
 }
 .team-explorer-check > span::after {
   content: '';
@@ -14547,6 +14547,9 @@ button.team-landing-tile:hover {
   justify-content: center;
   width: 28px;
   height: 28px;
+  /* Without this the 44px min-height tap target stretches it tall, so it no
+     longer matched the ⋯ button beside it. */
+  min-height: 0;
   padding: 0;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);

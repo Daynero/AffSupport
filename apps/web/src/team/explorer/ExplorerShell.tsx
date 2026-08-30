@@ -149,13 +149,27 @@ function ExplorerBody({
   // Every write goes dark while storage needs a person (FR-033); nothing is lost.
   const permissions = readOnly ? null : loadedPermissions;
   const explorer = useExplorer();
-  const { currentFolderId, selectedId, select, selectedIds, clearSelection, pathTo, nodeOf } =
-    explorer;
+  const {
+    currentFolderId,
+    selectedId,
+    select,
+    selectedIds,
+    selectedRows: selectedRowsMap,
+    clearSelection,
+    pathTo,
+    nodeOf
+  } = explorer;
   const [treeOpen, setTreeOpen] = useState(false);
   const [processing, setProcessing] = useState<{
     row: TeamMaterialRow;
     tool?: 'transcription';
   } | null>(null);
+  // Live progress of a running transcription, so the selected video's card can
+  // show it in place of the Transcribe button (no re-clicking, and it is clear
+  // which video is being transcribed).
+  const [transcribing, setTranscribing] = useState<{ videoId: string; progress: number } | null>(
+    null
+  );
   const [dropping, setDropping] = useState(false);
   const [storageKind, setStorageKind] = useState<TeamAnalyticsStorage | null>(null);
   const [companionDelete, setCompanionDelete] = useState<{
@@ -345,10 +359,9 @@ function ExplorerBody({
       }
     : undefined;
 
-  const selectedRows = useMemo(
-    () => page.rows.filter(row => selectedIds.has(row.id)),
-    [page.rows, selectedIds]
-  );
+  // The batch spans folders, so it comes from the accumulated selection map
+  // rather than only the rows on the current page.
+  const selectedRows = useMemo(() => Array.from(selectedRowsMap.values()), [selectedRowsMap]);
   const focused = page.rows.find(row => row.id === selectedId) ?? null;
 
   /** Rows going to the trash from the keyboard or the selection bar, with the way back. */
@@ -441,7 +454,7 @@ function ExplorerBody({
         clearSelection();
         break;
       case ' ':
-        if (focused) explorer.toggleSelected(focused.id);
+        if (focused) explorer.toggleSelected(focused);
         break;
       case 'Delete':
       case 'Backspace': {
@@ -676,6 +689,7 @@ function ExplorerBody({
         onTranscribe={
           permissions?.process ? row => setProcessing({ row, tool: 'transcription' }) : undefined
         }
+        transcribing={transcribing}
       />
       {companionDelete && (
         <Modal
@@ -735,8 +749,19 @@ function ExplorerBody({
           initialTool={processing.tool}
           destinationFolderId={processing.row.parentFolderId ?? currentFolderId ?? null}
           browseClient={client}
+          onProgress={
+            processing.tool === 'transcription'
+              ? ({ progress, state }) =>
+                  setTranscribing(
+                    state === 'pending' || state === 'running'
+                      ? { videoId: processing.row.id, progress }
+                      : null
+                  )
+              : undefined
+          }
           onClose={() => {
             setProcessing(null);
+            setTranscribing(null);
             changed();
           }}
         />
