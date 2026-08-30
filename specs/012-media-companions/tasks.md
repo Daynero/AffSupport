@@ -40,7 +40,7 @@ Order is dependency-first. Each task is small and independently committable.
       to it. Test.
 - [~] T011 SQL done (get/set RPCs + default 'ask'); account-settings UI toggle remains. Account setting `transcript_delete_prompt` (default `ask`): migration + `get`/`set`
       RPCs; surface in account settings UI.
-- [ ] T012 Delete flow: when trashing a video with a companion and the setting is `ask`, the UI
+- [x] T012 delete flow (row-menu trash of a video asks, with remember + account setting; verified live). Delete flow: when trashing a video with a companion and the setting is `ask`, the UI
       asks "Delete the transcript too?" with a remember checkbox; on confirm, trash both; the
       checkbox writes the setting. `drive-ops/trash` gains an optional `includeCompanion` flag.
       Test the SQL and the dialog.

@@ -60,3 +60,12 @@ unverified would risk the move/rename/trash/process paths that were just repaire
    companions appear when a video is transcribed, and the side card (T016) becomes meaningful.
 2. Then the tail (T008–T010) and the delete flow (T011–T012), each with its SQL test and one
    live check on the reference folder (`quickstart` in the 011 spec), recording here.
+
+### T012 delete-with-companion, verified live (2026-08-30)
+
+Trashing a video that has a transcript companion now asks "Видалити також транскрипцію?" with
+a "Більше не запитувати" checkbox and Delete/Keep — verified on screen: the video went to the
+trash and the dialog appeared over the list. The dialog lives in `ExplorerShell`, not the row
+(which unmounts the instant the video leaves the list — an earlier attempt in `RowActions` was
+destroyed before it could show). The account setting (`transcript_delete_pref`) backs the
+checkbox and skips the question thereafter. Deleting the companion runs an ordinary trash.

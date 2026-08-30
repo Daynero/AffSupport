@@ -26,6 +26,13 @@ export interface RowActionsProps {
   onChanged: () => void;
   onEditText?: (row: TeamMaterialRow) => void;
   onProcess?: (row: TeamMaterialRow) => void;
+  /**
+   * A video that was trashed — the shell decides what to do with its transcript
+   * companion (012, T012). Kept out of this per-row component because it
+   * unmounts the instant the row leaves the list, which would take its own
+   * dialog with it.
+   */
+  onVideoTrashed?: (videoId: string) => void;
 }
 
 export function RowActions({
@@ -37,6 +44,7 @@ export function RowActions({
   onChanged,
   onEditText,
   onProcess,
+  onVideoTrashed,
   row
 }: RowActionsProps & { row: TeamMaterialRow }) {
   const { currentFolderId } = useExplorer();
@@ -75,6 +83,9 @@ export function RowActions({
       onEditText={row.kind === 'transcript' && onEditText ? () => onEditText(row) : undefined}
       onProcess={onProcess ? () => onProcess(row) : undefined}
       onRegeneratePreview={regeneratePreview}
+      afterTrash={
+        row.category === 'video' && onVideoTrashed ? () => onVideoTrashed(row.id) : undefined
+      }
     />
   );
 }

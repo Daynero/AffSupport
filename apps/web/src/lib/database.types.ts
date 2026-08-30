@@ -2377,6 +2377,14 @@ export type Database = {
         };
         Returns: string;
       };
+      get_transcript_delete_pref: {
+        Args: Record<string, never>;
+        Returns: string;
+      };
+      set_transcript_delete_pref: {
+        Args: { p_pref: string };
+        Returns: string;
+      };
       request_landing_render_refresh: {
         Args: { p_team: string; p_material: string };
         Returns: number;

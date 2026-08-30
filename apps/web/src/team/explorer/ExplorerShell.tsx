@@ -29,6 +29,7 @@ import { KindFilterMenu } from './KindFilterMenu';
 import { SortMenu } from './SortMenu';
 import { sortRows, readRememberedSort, rememberSort, type ExplorerSort } from './sort';
 import { PreviewPane } from './PreviewPane';
+import { Modal } from '../../components/Modal';
 import { MaterialProcessFlow } from '../processing/MaterialProcessFlow';
 import type { RowActionsProps } from './RowActions';
 import { useFolderPage } from './useFolderPage';
@@ -157,6 +158,10 @@ function ExplorerBody({
   } | null>(null);
   const [dropping, setDropping] = useState(false);
   const [storageKind, setStorageKind] = useState<TeamAnalyticsStorage | null>(null);
+  const [companionDelete, setCompanionDelete] = useState<{
+    companionId: string;
+    dontAsk: boolean;
+  } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const view: ExplorerView = query.view ?? readRememberedView();
   const [sort, setSortState] = useState<ExplorerSort>(() => readRememberedSort());
@@ -194,6 +199,40 @@ function ExplorerBody({
     onChanged?.();
     void page.reload();
   }, [onChanged, page]);
+
+  const trashCompanion = useCallback(
+    async (companionId: string) => {
+      try {
+        await actionsClient.trashMaterial({
+          teamId,
+          materialId: companionId,
+          idempotencyKey: crypto.randomUUID()
+        });
+      } catch (cause) {
+        push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+      }
+      changed();
+    },
+    [actionsClient, changed, push, t, teamId]
+  );
+
+  // A trashed video's transcript companion follows it: silently by the account
+  // setting, or after one question. Here, not in the row, so the dialog
+  // survives the row leaving the list (012, T012).
+  const onVideoTrashed = useCallback(
+    async (videoId: string) => {
+      const companion = await teamApi.getTranscriptCompanion(teamId, videoId).catch(() => null);
+      if (!companion) return;
+      const pref = await teamApi.getTranscriptDeletePref().catch(() => 'ask' as const);
+      if (pref === 'keep') return;
+      if (pref === 'delete') {
+        await trashCompanion(companion.id);
+        return;
+      }
+      setCompanionDelete({ companionId: companion.id, dontAsk: false });
+    },
+    [teamId, trashCompanion]
+  );
 
   const setView = (next: ExplorerView) => {
     rememberView(next);
@@ -299,6 +338,7 @@ function ExplorerBody({
         actionsClient,
         storageKind,
         onChanged: changed,
+        onVideoTrashed: (videoId: string) => void onVideoTrashed(videoId),
         ...(permissions.process
           ? { onProcess: (row: TeamMaterialRow) => setProcessing({ row }) }
           : {})
@@ -638,6 +678,53 @@ function ExplorerBody({
         }
         getTranscriptCompanion={teamApi.getTranscriptCompanion}
       />
+      {companionDelete && (
+        <Modal
+          labelledBy="team-companion-delete-title"
+          onClose={() => setCompanionDelete(null)}
+          className="team-companion-delete"
+        >
+          <h3 id="team-companion-delete-title">{t('teamTranscriptDeleteTitle')}</h3>
+          <p>{t('teamTranscriptDeleteBody')}</p>
+          <label className="team-companion-delete-remember">
+            <input
+              type="checkbox"
+              checked={companionDelete.dontAsk}
+              onChange={event =>
+                setCompanionDelete(current =>
+                  current ? { ...current, dontAsk: event.target.checked } : current
+                )
+              }
+            />
+            {t('teamTranscriptDeleteRemember')}
+          </label>
+          <div className="team-dialog-actions">
+            <Button
+              type="button"
+              variant="danger"
+              onClick={() => {
+                const { companionId, dontAsk } = companionDelete;
+                setCompanionDelete(null);
+                if (dontAsk) void teamApi.setTranscriptDeletePref('delete').catch(() => undefined);
+                void trashCompanion(companionId);
+              }}
+            >
+              {t('teamTranscriptDeleteYes')}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                const { dontAsk } = companionDelete;
+                setCompanionDelete(null);
+                if (dontAsk) void teamApi.setTranscriptDeletePref('keep').catch(() => undefined);
+              }}
+            >
+              {t('teamTranscriptDeleteNo')}
+            </Button>
+          </div>
+        </Modal>
+      )}
       {processing && (
         <MaterialProcessFlow
           teamId={teamId}

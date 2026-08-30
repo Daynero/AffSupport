@@ -26,6 +26,7 @@ export interface MaterialRowMenuProps {
   onEditText?: () => void;
   onProcess?: () => void;
   onRegeneratePreview?: () => void;
+  afterTrash?: () => void;
   storageKind?: TeamAnalyticsStorage | null;
   trashed?: boolean;
   replaceMaterialId?: string | null;
@@ -96,6 +97,7 @@ function MaterialRowMenuContent({
   onEditText,
   onProcess,
   onRegeneratePreview,
+  afterTrash,
   storageKind = null,
   trashed = false,
   replaceMaterialId = null,
@@ -223,7 +225,14 @@ function MaterialRowMenuContent({
               type="button"
               variant="danger"
               disabled={actions.busy}
-              onClick={() => void actions.trash().then(code => !code && onDone())}
+              onClick={() =>
+                void actions.trash().then(code => {
+                  if (!code) {
+                    onDone();
+                    afterTrash?.();
+                  }
+                })
+              }
             >
               {t('teamFileTrash')}
             </Button>

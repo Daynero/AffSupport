@@ -1389,6 +1389,19 @@ export const teamApi = {
     };
   },
 
+  async getTranscriptDeletePref(): Promise<'ask' | 'delete' | 'keep'> {
+    const { data, error } = await requireSupabaseClient().rpc('get_transcript_delete_pref');
+    throwRpc(error);
+    return data === 'delete' || data === 'keep' ? data : 'ask';
+  },
+
+  async setTranscriptDeletePref(pref: 'ask' | 'delete' | 'keep'): Promise<void> {
+    const { error } = await requireSupabaseClient().rpc('set_transcript_delete_pref', {
+      p_pref: pref
+    });
+    throwRpc(error);
+  },
+
   async getTranscriptCompanion(
     teamId: string,
     materialId: string
