@@ -1129,10 +1129,14 @@ a {
 }
 
 .settings-primary-row {
-  display: grid;
+  /* Compact left-packed shelf: each group is as wide as its controls,
+     one shared gap, no half-empty grid columns (owner: "компактно,
+     але не наляписто"). */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
   grid-column: 1 / -1;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-4);
+  gap: var(--space-4) var(--space-6);
 }
 
 .settings-primary-row .segmented {
@@ -1167,21 +1171,20 @@ a {
 }
 
 .custom-settings {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-4) var(--space-6);
   padding: var(--space-3);
   border-top: 1px solid var(--color-border);
   border-radius: 0 0 var(--radius-md) var(--radius-md);
   background: var(--color-surface-subtle);
 }
 
-.custom-column-primary {
-  width: min(100%, 302px);
-}
-
+.custom-column-primary,
 .custom-column-secondary {
-  width: min(100%, 302px);
+  width: fit-content;
+  min-width: 0;
 }
 
 .custom-column-primary > .segmented,
