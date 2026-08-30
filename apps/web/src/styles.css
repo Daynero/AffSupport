@@ -15560,3 +15560,11 @@ input[type='number'] {
   border-color: var(--honey-300);
   background: var(--purple-800);
 }
+
+/* The metadata toggle and its hint share one line. */
+.metadata-settings {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--space-2);
+}
