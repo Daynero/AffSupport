@@ -15531,7 +15531,7 @@ input[type='number'] {
 /* Per-slot pill toggle beside the column title; off = the whole column
    body collapses so it stops eating the eyes. */
 .image-column-heading .slot-feature-switch {
-  margin-left: 2px;
+  margin-right: 2px;
 }
 .image-column-body {
   display: grid;
@@ -16229,4 +16229,18 @@ input[type='number'] {
     color-mix(in oklab, var(--color-text) 22%, transparent) 50%,
     transparent 100%
   );
+}
+
+
+/* Columns keep their own height instead of stretching to the tallest, so a
+   short gallery leaves no dead band under it; the panel closes right after
+   the last tile. */
+.image-columns {
+  align-items: start;
+}
+.image-column-body {
+  align-content: start;
+}
+.image-drop-wrapper {
+  gap: 0;
 }

@@ -17,7 +17,7 @@ import {
 import type { TranslationKey } from '../i18n';
 import { Checkbox, Collapse, IconButton, Spinner, Tooltip, type Translate } from './ui';
 import { imageContentPath } from '../api/subresource-paths';
-import { Crop, Dices, Image as ImageIcon, Minimize2, Plus, RefreshCw, Timer, UnfoldVertical, X } from 'lucide-react';
+import { Crop, Dices, Image as ImageIcon, Minimize2, Plus, Timer, UnfoldVertical, X } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from './icons';
 import { useSubresourceUrl } from '../api/useSubresourceUrl';
 
@@ -87,22 +87,15 @@ export function ImageEmbeddingSection({
       <Collapse open={settings.enabled}>
         <div className="image-embedding-panel">
           <div className="embedding-settings-row">
-<div className="field-group">
-  <FieldLabel label={t('replaceExistingImages')} tooltip={t('replaceExistingImagesHint')} />
-  <div className="fit-mode-pictos is-single">
-    <button
-      type="button"
-      role="switch"
-      className={settings.replaceExisting ? 'is-selected' : ''}
-      data-tip={t('replaceExistingImages')}
-      aria-label={t('replaceExistingImages')}
-      aria-checked={settings.replaceExisting}
-      disabled={disabled}
-      onClick={() => update({ replaceExisting: !settings.replaceExisting })}
-    >
-      <RefreshCw size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-    </button>
-  </div>
+<div className="field-group metadata-settings replace-existing-setting">
+  <Checkbox
+    className="feature-switch"
+    checked={settings.replaceExisting}
+    disabled={disabled}
+    onChange={event => update({ replaceExisting: event.target.checked })}
+    label={<strong>{t('replaceExistingImages')}</strong>}
+  />
+  <Tooltip label={t('replaceExistingImagesHint')}>{t('replaceExistingImagesHint')}</Tooltip>
 </div>
 <div className="field-group embedding-fit-row">
                   <FieldLabel label={t('frameFit')} tooltip={t('frameFitTooltip')} />
@@ -347,8 +340,6 @@ function ImageColumn({
   return (
     <section className="image-column" aria-label={title}>
       <div className="image-column-heading">
-        <h3>{title}</h3>
-        <Tooltip label={description}>{description}</Tooltip>
         <Checkbox
           className="feature-switch slot-feature-switch"
           checked={slotEnabled}
@@ -356,6 +347,8 @@ function ImageColumn({
           onChange={onToggleSlot}
           label={null}
         />
+        <h3>{title}</h3>
+        <Tooltip label={description}>{description}</Tooltip>
       </div>
       <Collapse open={slotEnabled}>
         <div className="image-column-body">
