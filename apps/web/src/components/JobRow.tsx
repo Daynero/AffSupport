@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Ban, ExternalLink, FolderOpen, RefreshCw, Trash2 } from 'lucide-react';
 import {
   COMPRESSION_LIFECYCLE,
   isSettled,
@@ -71,12 +72,15 @@ export function JobRow({
   fresh?: boolean;
 }) {
   const [copiedDetails, setCopiedDetails] = useState(false);
+  const running = job.status === 'processing' || job.status === 'queued';
   return (
     <article
       className={`job-row ${selected ? 'is-selected' : ''} ${
         job.status === 'processing' ? 'is-processing' : ''
       } ${fresh ? 'is-fresh' : ''}`.trim()}
+      data-state={job.status}
     >
+      <div className="job-main">
       <div className="job-header">
         <Checkbox
           checked={selected}
@@ -105,39 +109,52 @@ export function JobRow({
           </div>
           <JobTimer job={job} t={t} showRunning={false} live={connected} />
         </div>
-        <JobActions
-          job={job}
-          disabled={disabled}
-          compressionRunning={compressionRunning}
-          action={action}
-          t={t}
-        />
       </div>
 
-      {/* The progress row stays mounted inside a Collapse, so reaching a
-          terminal state (completed/failed/cancelled) slides it away instead
-          of snapping the row height. */}
-      <Collapse open={job.status === 'processing' || job.status === 'queued'}>
-        <div className="job-progress">
-          <ProgressBar
-            value={job.status === 'queued' ? 0 : job.progress}
-            label={t('compressionProgress', { name: job.fileName })}
-            /* The flowing animation says "work is happening right now". With
-               no connection that claim cannot be checked, so the bar holds its
-               last known value instead of continuing to flow. */
-            active={job.status === 'processing' && connected}
-          />
-          <div className="job-progress-meta">
-            {job.processingStage && <span>{processingStage(job, t)}</span>}
-            <JobTimer job={job} t={t} live={connected} />
-            <strong>{job.status === 'queued' ? '0%' : `${Math.round(job.progress ?? 0)}%`}</strong>
-          </div>
-        </div>
-      </Collapse>
+      <OriginalPanel job={job} language={language} t={t} />
+      </div>
 
-      <div className={`job-comparison ${job.status === 'completed' ? 'has-result' : ''}`}>
-        <OriginalPanel job={job} language={language} t={t} />
-        <OutcomePanel job={job} language={language} t={t} />
+      <div className="job-side">
+        {running ? (
+          <div className="job-progress-panel">
+            <strong className="job-progress-title">{t('jobCompressingNow')}</strong>
+            <div className="job-progress-line">
+              <ProgressBar
+                value={job.status === 'queued' ? 0 : job.progress}
+                label={t('compressionProgress', { name: job.fileName })}
+                /* The flowing animation says "work is happening right now". With
+                   no connection that claim cannot be checked, so the bar holds its
+                   last known value instead of continuing to flow. */
+                active={job.status === 'processing' && connected}
+              />
+              <strong className="job-progress-value">
+                {job.status === 'queued' ? '0%' : `${Math.round(job.progress ?? 0)}%`}
+              </strong>
+            </div>
+            <div className="job-progress-meta">
+              {job.processingStage && <span>{processingStage(job, t)}</span>}
+              <JobTimer job={job} t={t} live={connected} />
+              <JobActions
+                job={job}
+                disabled={disabled}
+                compressionRunning={compressionRunning}
+                action={action}
+                t={t}
+              />
+            </div>
+          </div>
+        ) : (
+          <>
+            <OutcomePanel job={job} language={language} t={t} />
+            <JobActions
+              job={job}
+              disabled={disabled}
+              compressionRunning={compressionRunning}
+              action={action}
+              t={t}
+            />
+          </>
+        )}
       </div>
 
       {/* Errors expand softly (fade-rise inside an animated row track), so
@@ -293,7 +310,6 @@ function OriginalPanel({
 }) {
   return (
     <section className="media-panel original-panel" aria-label={t('originalVideoInfo')}>
-      <h4>{t('original')}</h4>
       {job.status === 'analyzing' ? (
         <div className="panel-loading">
           <Spinner small /> {t('statusAnalyzing')}
@@ -489,6 +505,7 @@ function JobActions({
           disabled={disabled}
           onClick={() => action(`/api/jobs/${job.id}/cancel`)}
         >
+          <Ban size={16} strokeWidth={1.75} aria-hidden="true" />
           {t('cancel')}
         </Button>
       )}
@@ -512,23 +529,18 @@ function JobActions({
           disabled={disabled || compressionRunning}
           onClick={() => action(`/api/jobs/${job.id}/retry`)}
         >
+          <RefreshCw size={16} strokeWidth={1.75} aria-hidden="true" />
           {t('retry')}
         </Button>
       )}
       {job.status === 'completed' && (
         <>
           <Button
-            variant="primary"
-            disabled={disabled || compressionRunning}
-            onClick={() => action(`/api/jobs/${job.id}/repeat`)}
-          >
-            {t('repeatCompression')}
-          </Button>
-          <Button
             variant="success"
             disabled={disabled}
             onClick={() => action(`/api/jobs/${job.id}/reveal`)}
           >
+            <FolderOpen size={16} strokeWidth={1.75} aria-hidden="true" />
             {t('showInFolder')}
           </Button>
           <Button
@@ -536,7 +548,16 @@ function JobActions({
             disabled={disabled}
             onClick={() => action(`/api/jobs/${job.id}/open`)}
           >
+            <ExternalLink size={16} strokeWidth={1.75} aria-hidden="true" />
             {t('openFile')}
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={disabled || compressionRunning}
+            onClick={() => action(`/api/jobs/${job.id}/repeat`)}
+          >
+            <RefreshCw size={16} strokeWidth={1.75} aria-hidden="true" />
+            {t('repeatCompression')}
           </Button>
         </>
       )}
@@ -546,6 +567,7 @@ function JobActions({
           disabled={disabled}
           onClick={() => action(`/api/jobs/${job.id}`, 'DELETE')}
         >
+          <Trash2 size={16} strokeWidth={1.75} aria-hidden="true" />
           {t('remove')}
         </Button>
       )}

@@ -15977,3 +15977,165 @@ input[type='number'] {
   border-color: color-mix(in oklab, var(--color-text) 30%, transparent);
   background: color-mix(in oklab, var(--color-text) 6%, transparent);
 }
+
+/* ============================================================
+   File cards — the reference layout
+   ============================================================ */
+.job-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  gap: var(--space-4);
+  overflow: hidden;
+}
+/* A status rail down the left edge: blue while running, green when done,
+   red on failure, quiet grey for anything not started (or cancelled). */
+.job-row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 4px;
+  background: color-mix(in oklab, var(--color-text) 22%, transparent);
+}
+.job-row[data-state='processing']::before,
+.job-row[data-state='queued']::before {
+  background: #3b82f6;
+}
+.job-row[data-state='completed']::before {
+  background: #22c55e;
+}
+.job-row[data-state='failed']::before {
+  background: #ef4444;
+}
+.job-main {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.job-side {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+/* Actions stack vertically to the right of the outcome panel. */
+.job-side .job-actions {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  width: 190px;
+}
+.job-side .job-actions .button {
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 10px;
+}
+/* Running: the progress panel owns the right side, cancel sits inline. */
+.job-progress-panel {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface-subtle);
+}
+.job-progress-title {
+  color: #ff8c1a;
+}
+.job-progress-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.job-progress-line .progress-track {
+  flex: 1;
+  height: 8px;
+}
+.job-progress-value {
+  min-width: 48px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.job-progress-panel .job-progress-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  color: var(--color-text-muted);
+}
+.job-progress-panel .job-actions {
+  display: flex;
+  gap: 8px;
+  width: auto;
+  margin-left: auto;
+}
+.job-progress-panel .job-actions .button {
+  width: auto;
+  min-height: 38px;
+}
+/* The card checkbox wears the same orange as the toolbar's. */
+.job-header .checkbox-mark {
+  width: 20px;
+  height: 20px;
+  border-width: 1.5px;
+  border-color: color-mix(in oklab, var(--honey-500) 70%, transparent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--honey-400);
+}
+.job-header input:checked + .checkbox-mark {
+  border-color: var(--honey-500);
+  background: transparent;
+  color: var(--honey-400);
+}
+
+
+/* The outcome panel and the action stack each keep their own cell. */
+.job-side > .media-panel,
+.job-side > .outcome-slot {
+  min-width: 0;
+  margin: 0;
+}
+.job-row {
+  padding-left: calc(var(--space-4) + 6px);
+}
+/* Left column: metadata without its own heading, as in the reference. */
+.job-main .original-panel {
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+/* Card status pills follow the rail colours: blue running, green done,
+   red failed, quiet grey for anything not started. */
+.job-row .status-badge {
+  min-height: 26px;
+  padding: 0 10px;
+}
+.job-row .status-processing,
+.job-row .status-queued,
+.job-row .status-analyzing {
+  color: #7cb2ff;
+  background: color-mix(in oklab, #3b82f6 20%, transparent);
+}
+.job-row .status-completed {
+  color: #4ade6a;
+  background: color-mix(in oklab, #22c55e 18%, transparent);
+}
+.job-row .status-failed {
+  color: #ff6b6b;
+  background: color-mix(in oklab, #ef4444 18%, transparent);
+}
+.job-row .status-cancelled,
+.job-row .status-ready,
+.job-row .status-interrupted {
+  color: var(--color-text-muted);
+  background: color-mix(in oklab, var(--color-text) 10%, transparent);
+}
