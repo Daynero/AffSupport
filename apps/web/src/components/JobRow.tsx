@@ -434,12 +434,16 @@ function EstimatePanel({
         items={[
           [t('videoResolution'), output ? dimensions(output.width, output.height) : '—'],
           [t('videoFps'), `${formatFps(fps, language)} FPS`],
-          [
-            t('videoBitrate'),
-            job.encoding.rateControl === 'bitrate' && job.encoding.videoBitrateKbps
-              ? `${job.encoding.videoBitrateKbps} ${t('bitrateUnit')}`
-              : '—'
-          ],
+          // In CRF mode the bitrate is the encoder's to decide, so the column
+          // is dropped rather than shown as a dash.
+          ...(job.encoding.rateControl === 'bitrate' && job.encoding.videoBitrateKbps
+            ? [
+                [t('videoBitrate'), `${job.encoding.videoBitrateKbps} ${t('bitrateUnit')}`] as [
+                  string,
+                  string
+                ]
+              ]
+            : []),
           [t('duration'), formatDuration(expectedOutputDurationSeconds(job))],
           [t('qualityMode'), qualityMode(job, t)]
         ]}
