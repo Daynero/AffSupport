@@ -15997,29 +15997,39 @@ input[type='number'] {
   overflow: hidden;
   border-radius: var(--radius-lg);
 }
-/* A status rail down the left edge: blue while running, green when done,
-   red on failure, light grey for anything not started (or cancelled).
-   It follows the card's rounded corners instead of cutting them square. */
+/* A status rail down the left edge with the card body floating beside it:
+   the rail paints the card's own background, and ::before lays the body over
+   it — inset by the rail's width and rounded on all four corners, so the dark
+   area meets the colour with a curve rather than a right angle. */
 .job-row::before {
   content: '';
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 8px;
-  /* No radius of its own: the card clips it, so the colour follows the very
-     same corner curve instead of leaving a square notch beside it. */
-  background: color-mix(in oklab, var(--color-text) 45%, transparent);
+  inset: 0 0 0 8px;
+  z-index: 0;
+  border-radius: var(--radius-lg);
+  background: inherit;
 }
-.job-row[data-state='processing']::before,
-.job-row[data-state='queued']::before {
-  background: #3b82f6;
+.job-row > * {
+  position: relative;
+  z-index: 1;
 }
-.job-row[data-state='completed']::before {
-  background: #22c55e;
+/* The rail's colour is the card's own background, showing through the 8px
+   the body does not cover. */
+.job-row[data-state='processing'],
+.job-row[data-state='queued'] {
+  background-color: #3b82f6;
 }
-.job-row[data-state='failed']::before {
-  background: #ef4444;
+.job-row[data-state='completed'] {
+  background-color: #22c55e;
+}
+.job-row[data-state='failed'] {
+  background-color: #ef4444;
+}
+.job-row[data-state='cancelled'],
+.job-row[data-state='interrupted'],
+.job-row[data-state='ready'],
+.job-row[data-state='analyzing'] {
+  background-color: color-mix(in oklab, var(--color-text) 45%, transparent);
 }
 .job-main {
   display: grid;
@@ -16315,19 +16325,23 @@ input[type='number'] {
 }
 
 /* Each card carries a faint wash of its rail colour. */
-.job-row[data-state='processing'],
-.job-row[data-state='queued'] {
+.job-row[data-state='processing']::before,
+.job-row[data-state='queued']::before {
   background: color-mix(in oklab, #3b82f6 15%, var(--color-surface));
 }
-.job-row[data-state='completed'] {
+.job-row[data-state='completed']::before {
   background: color-mix(in oklab, #22c55e 14%, var(--color-surface));
 }
-.job-row[data-state='failed'] {
+.job-row[data-state='failed']::before {
   background: color-mix(in oklab, #ef4444 8%, var(--color-surface));
 }
-.job-row[data-state='cancelled'],
-.job-row[data-state='interrupted'] {
+.job-row[data-state='cancelled']::before,
+.job-row[data-state='interrupted']::before {
   background: color-mix(in oklab, var(--color-text) 5%, var(--color-surface));
+}
+.job-row[data-state='ready']::before,
+.job-row[data-state='analyzing']::before {
+  background: var(--color-surface);
 }
 
 /* Processing panel: sizes on the left, timer, then the two actions in a row. */
