@@ -15988,7 +15988,10 @@ input[type='number'] {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
   gap: var(--space-4);
+  /* Clipped to the card's own radius so the status rail cannot square off the
+     corners behind it. */
   overflow: hidden;
+  border-radius: var(--radius-lg);
 }
 /* A status rail down the left edge: blue while running, green when done,
    red on failure, light grey for anything not started (or cancelled).
