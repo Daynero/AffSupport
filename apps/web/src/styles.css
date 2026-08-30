@@ -16260,3 +16260,26 @@ input[type='number'] {
 .settings-panel .image-embedding-panel {
   padding-bottom: 6px;
 }
+
+
+/* A full-width hairline between the embedding settings row and the two image
+   columns, fading out at both ends like the vertical ones. */
+.settings-panel .image-columns {
+  position: relative;
+  padding-top: var(--space-3);
+}
+.settings-panel .image-columns::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    color-mix(in oklab, var(--color-text) 20%, transparent) 12%,
+    color-mix(in oklab, var(--color-text) 20%, transparent) 88%,
+    transparent 100%
+  );
+}
