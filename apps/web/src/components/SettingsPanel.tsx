@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Eraser, Files, FolderOpen, Sparkles, SlidersHorizontal } from 'lucide-react';
+import { Eraser, Files, Film, FolderOpen, Monitor, Sparkles, SlidersHorizontal, Timer } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from './icons';
 import {
   CRF_MAX,
@@ -224,30 +224,60 @@ function FpsControl({
   return (
     <div className="field-group custom-column-primary">
       <FieldLabel label={t('frameRate')} tooltip={t('frameRateTooltip')} />
-      <div className={`compound-control ${choice === 'custom' ? 'has-custom-input' : ''}`}>
-        <select
-          value={choice}
-          disabled={disabled}
-          aria-label={t('frameRate')}
-          onChange={event => {
-            const value = event.target.value;
-            setChoice(value);
-            if (value === 'original') updateSettings({ frameRate: null });
-            else if (value !== 'custom') updateSettings({ frameRate: Number(value) });
-            else setCustom('');
-          }}
-        >
-          <option value="original">{t('asOriginal')}</option>
-          {FPS_OPTIONS.map(value => (
-            <option value={value} key={value}>
-              {value} FPS
-            </option>
+      <div className="start-duration-row">
+        <div className="fit-mode-pictos" role="radiogroup" aria-label={t('frameRate')}>
+          <button
+            type="button"
+            role="radio"
+            className={choice === 'original' ? 'is-selected' : ''}
+            title={t('asOriginal')}
+            aria-label={t('asOriginal')}
+            aria-checked={choice === 'original'}
+            disabled={disabled}
+            onClick={() => {
+              setChoice('original');
+              updateSettings({ frameRate: null });
+            }}
+          >
+            <Film size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </button>
+          {[24, 30, 60].map(value => (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              className={`is-labeled ${choice === String(value) ? 'is-selected' : ''}`}
+              title={`${value} FPS`}
+              aria-label={`${value} FPS`}
+              aria-checked={choice === String(value)}
+              disabled={disabled}
+              onClick={() => {
+                setChoice(String(value));
+                updateSettings({ frameRate: value });
+              }}
+            >
+              {value}
+            </button>
           ))}
-          <option value="custom">{t('customValue')}</option>
-        </select>
+          <button
+            type="button"
+            role="radio"
+            className={choice === 'custom' ? 'is-selected' : ''}
+            title={t('customValue')}
+            aria-label={t('customValue')}
+            aria-checked={choice === 'custom'}
+            disabled={disabled}
+            onClick={() => {
+              setChoice('custom');
+              setCustom('');
+            }}
+          >
+            <Timer size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </button>
+        </div>
         {choice === 'custom' && (
           <input
-            className={!valid && custom ? 'is-invalid' : ''}
+            className={`time-input ${!valid && custom ? 'is-invalid' : ''}`}
             type="number"
             inputMode="numeric"
             min={FRAME_RATE_MIN}
@@ -301,31 +331,61 @@ function ResolutionControl({
   return (
     <div className="field-group custom-column-secondary">
       <FieldLabel label={t('resolution')} tooltip={t('resolutionTooltip')} />
-      <div className={`compound-control ${choice === 'custom' ? 'has-custom-input' : ''}`}>
-        <select
-          value={choice}
-          disabled={disabled}
-          aria-label={t('resolution')}
-          onChange={event => {
-            const value = event.target.value;
-            setChoice(value);
-            if (value === 'original') updateSettings({ resolutionLimit: null });
-            else if (value !== 'custom') updateSettings({ resolutionLimit: Number(value) });
-            else setCustom('');
-          }}
-        >
-          <option value="original">{t('asOriginal')}</option>
-          {RESOLUTION_OPTIONS.map(value => (
-            <option value={value} key={value}>
+      <div className="start-duration-row">
+        <div className="fit-mode-pictos" role="radiogroup" aria-label={t('resolution')}>
+          <button
+            type="button"
+            role="radio"
+            className={choice === 'original' ? 'is-selected' : ''}
+            title={t('asOriginal')}
+            aria-label={t('asOriginal')}
+            aria-checked={choice === 'original'}
+            disabled={disabled}
+            onClick={() => {
+              setChoice('original');
+              updateSettings({ resolutionLimit: null });
+            }}
+          >
+            <Monitor size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </button>
+          {[720, 1080].map(value => (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              className={`is-labeled ${choice === String(value) ? 'is-selected' : ''}`}
+              title={`${value}p`}
+              aria-label={`${value}p`}
+              aria-checked={choice === String(value)}
+              disabled={disabled}
+              onClick={() => {
+                setChoice(String(value));
+                updateSettings({ resolutionLimit: value });
+              }}
+            >
               {value}p
-            </option>
+            </button>
           ))}
-          <option value="custom">{t('customValue')}</option>
-        </select>
+          <button
+            type="button"
+            role="radio"
+            className={choice === 'custom' ? 'is-selected' : ''}
+            title={t('customValue')}
+            aria-label={t('customValue')}
+            aria-checked={choice === 'custom'}
+            disabled={disabled}
+            onClick={() => {
+              setChoice('custom');
+              setCustom('');
+            }}
+          >
+            <Timer size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </button>
+        </div>
         {choice === 'custom' && (
           <div className="input-with-suffix">
             <input
-              className={!valid && custom ? 'is-invalid' : ''}
+              className={`time-input ${!valid && custom ? 'is-invalid' : ''}`}
               type="number"
               inputMode="numeric"
               min={RESOLUTION_MIN}
@@ -513,17 +573,17 @@ function OutputSettings({
               {settings.outputFolder ? compactPath(settings.outputFolder) : t('noFolderSelected')}
             </span>
           )}
-          <label className="output-suffix-field">
-            <span>{t('outputSuffixLabel')}</span>
-            <input
-              type="text"
-              maxLength={60}
-              placeholder="_compressed"
-              value={settings.outputSuffix ?? ''}
-              disabled={disabled}
-              onChange={event => updateSettings({ outputSuffix: event.target.value }, true)}
-            />
-          </label>
+          <input
+            className="time-input suffix-input"
+            type="text"
+            maxLength={60}
+            placeholder="_compressed"
+            title={t('outputSuffixLabel')}
+            aria-label={t('outputSuffixLabel')}
+            value={settings.outputSuffix ?? ''}
+            disabled={disabled}
+            onChange={event => updateSettings({ outputSuffix: event.target.value }, true)}
+          />
         </div>
       </div>
     </div>

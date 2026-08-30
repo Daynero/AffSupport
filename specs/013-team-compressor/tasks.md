@@ -89,3 +89,19 @@ real reason. Also flushed along the way: a stray duplicate CSS rule kept the
 tile delete at 10px; two stalled runs pinned the agent bridge (requests that
 never complete) — restarting the agent releases it, and reservations were
 freed by marking the dead operations failed.
+
+## Live findings (session 2026-08-30, overwrite saga continued)
+- The "75% hang with no connections" had TWO independent causes stacked:
+  1. undici treats Google's 308 chunk acks as redirects (`redirect: 'error'`
+     aborted multi-chunk uploads) — fixed with `redirect: 'manual'`.
+  2. `docker restart supabase_edge_runtime_wishly` kills in-flight requests:
+     an agent POST (process/fail, process/start) that hits the dying isolate
+     never completes, leaving ops stuck `running/uploading/75` and the web
+     queue silently dropping the click. Never redeploy edge while an op runs.
+- `team_operations` rows must satisfy `terminal_time_check`: manual SQL
+  cleanup needs `finished_at=now()` alongside `state='failed'`.
+- Postgres in the container runs UTC; local monitors print UTC+3 — compare
+  accordingly before declaring an op missing.
+- finalize's `verifyBoundSource` threw SOURCE_CHANGED on overwrite runs
+  (the run itself advances the source's drive version); drive-ops now skips
+  the stale-source comparison when `versionOfMaterialId === sourceMaterialId`.

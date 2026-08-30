@@ -15310,3 +15310,8 @@ button.team-landing-tile:hover {
 .embedding-settings-row .field-group {
   margin: 0;
 }
+
+/* Name-suffix input matches the picto-row inputs (same box as the ms field). */
+.suffix-input {
+  width: 150px;
+}
