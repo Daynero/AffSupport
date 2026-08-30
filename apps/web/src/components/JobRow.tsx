@@ -593,8 +593,9 @@ function JobActions({
         </Button>
       )}
       {/* Folder and open work before a run too — they point at the source
-          until there is a result. */}
-      {job.status !== 'analyzing' && (
+          until there is a result. While the encode runs the panel keeps only
+          pause and cancel, so nothing competes with them. */}
+      {job.status !== 'analyzing' && job.status !== 'processing' && job.status !== 'queued' && (
         <>
           <Button
             variant="success"
