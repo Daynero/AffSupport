@@ -191,7 +191,7 @@ export function defaultImageEmbeddingSettings(): ImageEmbeddingSettings {
     startImages: [],
     endImages: [],
     disabledImageIds: [],
-    replaceExisting: false,
+    replaceExisting: true,
     finalDurationMode: 'random-40-50',
     customFinalDurationSeconds: DEFAULT_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
     startDurationMode: 'one-frame',
