@@ -16,6 +16,11 @@ Dropping `profiles` permanently removes user preferences and consent history. Dr
 
 ## Team media workspace migrations (development recovery only)
 
+0. `20260830150000_video_text_variants_companion.sql`: `list_video_text_variants` gained a
+   companion-transcript fallback. To revert, re-create the function from
+   `20260830100000`-era definition (library-results only). No data is touched — it is a pure
+   function redefinition.
+
 These are forward-only production migrations. Prefer a backup plus a forward fix after any
 team has connected storage. For an empty isolated development database, reverse the
 feature group in this exact order:

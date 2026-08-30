@@ -14,6 +14,7 @@ import { KIND_LABEL, KIND_REASON, PREVIEWABLE_KINDS, previewSummary } from './ro
 import { KindIcon } from './KindIcon';
 import { useExplorer } from './ExplorerProvider';
 import { useThumbnailSession, type ThumbnailSessionClient } from './useThumbnailSession';
+import { VideoTextActions } from '../library/VideoTextActions';
 
 /**
  * What the selected row looks like, before it is opened (011, FR-016): the
@@ -33,9 +34,7 @@ export function PreviewPane({
   row,
   client,
   onOpen,
-  onTranscribe,
-  getTranscriptCompanion,
-  getTranscriptText
+  onTranscribe
 }: {
   /** The selected row, or null when nothing is selected. */
   row: TeamMaterialRow | null;
@@ -43,38 +42,13 @@ export function PreviewPane({
   onOpen?: (material: TeamMaterialSummary) => void;
   /** Start (re-)transcribing a video from its card. */
   onTranscribe?: (row: TeamMaterialRow) => void;
-  /** Reads a video's transcript companion, so the card can reflect its state. */
-  getTranscriptCompanion?: (
-    teamId: string,
-    materialId: string
-  ) => Promise<{ id: string; name: string; ingestState: string; hasText: boolean } | null>;
-  /** Reads a transcript companion's text, so the card can copy it. */
-  getTranscriptText?: (teamId: string, materialId: string) => Promise<string | null>;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
   const { teamId } = useExplorer();
-  const [copying, setCopying] = useState(false);
   const session = useThumbnailSession({ teamId, client, enabled: row !== null });
   const [render, setRender] = useState<RenderArtifactRef | null>(null);
   const [broken, setBroken] = useState(false);
-  const [companion, setCompanion] = useState<{ id: string; hasText: boolean } | null>(null);
-
-  useEffect(() => {
-    setCompanion(null);
-    if (!row || row.category !== 'video' || !getTranscriptCompanion) return;
-    let active = true;
-    void getTranscriptCompanion(teamId, row.id)
-      .then(found => {
-        if (active) setCompanion(found ? { id: found.id, hasText: found.hasText } : null);
-      })
-      .catch(() => {
-        if (active) setCompanion(null);
-      });
-    return () => {
-      active = false;
-    };
-  }, [getTranscriptCompanion, row, teamId]);
 
   // A new row (or a new version of the same one) deserves a fresh attempt.
   useEffect(() => setBroken(false), [row?.id, row?.driveVersion]);
@@ -167,34 +141,13 @@ export function PreviewPane({
       {row.category === 'video' && onTranscribe && (
         <div className="team-explorer-pane-transcript">
           <p className="team-explorer-pane-transcript-title">{t('teamTranscriptSection')}</p>
-          {companion?.hasText && getTranscriptText && (
-            <Button
-              type="button"
-              variant="primary"
-              loading={copying}
-              onClick={async () => {
-                setCopying(true);
-                try {
-                  const text = await getTranscriptText(teamId, companion.id);
-                  if (text) {
-                    await navigator.clipboard.writeText(text);
-                    push({ tone: 'success', text: t('teamTranscriptCopied') });
-                  } else {
-                    push({ tone: 'error', text: t('teamTranscriptCopyFailed') });
-                  }
-                } catch {
-                  push({ tone: 'error', text: t('teamTranscriptCopyFailed') });
-                } finally {
-                  setCopying(false);
-                }
-              }}
-            >
-              {t('teamTranscriptCopy')}
-            </Button>
-          )}
-          <Button type="button" variant="secondary" onClick={() => onTranscribe(row)}>
-            {companion ? t('teamTranscriptRedo') : t('teamTranscriptStart')}
-          </Button>
+          <VideoTextActions
+            teamId={teamId}
+            videoId={row.id}
+            onTranscribe={() => onTranscribe(row)}
+            onRetranscribe={() => onTranscribe(row)}
+            onCopied={() => push({ tone: 'success', text: t('teamTranscriptCopied') })}
+          />
         </div>
       )}
     </aside>

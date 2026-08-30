@@ -268,3 +268,35 @@ describe('transcript delete preference (012, T011)', () => {
     ).rejects.toThrow(/INVALID_INPUT/);
   }, 60_000);
 });
+
+describe('video text variants surface the explorer companion (012, T017)', () => {
+  it('returns the linked transcript companion as the original variant', async () => {
+    // A video the RPC can key on (it needs a drive_version or checksum).
+    const video = await harness.root<{ id: string }>(
+      `insert into public.team_materials
+         (team_id, connection_id, drive_file_id, parent_folder_id, name, kind, category, mime_type,
+          drive_version)
+       values ($1, $2, 'variant-vid', 'root', 'variant.mp4', 'file', 'video', 'video/mp4', 'v9')
+       returning id`,
+      [teamId, connectionId]
+    );
+    await harness.root<{ id: string }>(
+      `insert into public.team_materials
+         (team_id, connection_id, drive_file_id, parent_folder_id, name, kind, category, mime_type,
+          companion_of, companion_kind, transcript_ingest_state, transcript_truncated, transcript_text)
+       values ($1, $2, 'variant-txt', 'root', 'variant.txt', 'file', 'transcript', 'text/plain',
+               $3, 'transcript', 'full', false, 'the spoken words')
+       returning id`,
+      [teamId, connectionId, video[0]!.id]
+    );
+    const payload = await harness.asUser<{ list_video_text_variants: Record<string, unknown> }>(
+      OWNER,
+      'select public.list_video_text_variants($1, $2)',
+      [teamId, video[0]!.id]
+    );
+    const variants = (payload[0]!.list_video_text_variants as { variants: Array<Record<string, unknown>> })
+      .variants;
+    expect(variants).toHaveLength(1);
+    expect(variants[0]).toMatchObject({ kind: 'original', text: 'the spoken words', ingestState: 'full' });
+  }, 60_000);
+});

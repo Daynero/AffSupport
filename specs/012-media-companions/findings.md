@@ -84,3 +84,22 @@ and name **`16.txt`**. Re-ran the transcription to confirm the `.txt` companion 
 
 Also shipped T011 UI: account settings now has a "When deleting a video with a transcript"
 select (ask / delete too / keep), backed by `get/set_transcript_delete_pref`.
+
+## Cancel no longer looks like a failure; the card shows view/copy for text + translations (2026-08-30)
+
+Two things the owner hit while testing, both fixed and verified live:
+
+- **Cancelling a transcription showed "Щось пішло не так".** Cancelling aborts the agent's
+  still-running request, which then rejects; `MaterialProcessFlow.start`'s catch treated that
+  expected rejection as a failure and raised an error toast. It now remembers operations the
+  person cancelled (`canceledOps`, set from the overlay's cancel before the abort) and swallows
+  only their rejection. Live: cancel now shows "Операцію скасовано" with no error toast.
+- **No view/copy for the transcript or its translations in the card.** The card now embeds the
+  library's `VideoTextActions` — a variant selector (original / translation), View, Copy, and a
+  Re-transcribe control — so it is one compact widget, not a wall of buttons (FR-T8). Copy raises
+  the green toast (T017). Because that widget reads `list_video_text_variants`, which only saw
+  library-processing results, an explorer transcript companion was invisible; the RPC now also
+  surfaces the linked companion as the `original` variant (migration
+  `20260830150000_video_text_variants_companion.sql`, T003-adjacent). Translations already held by
+  the library appear automatically with a selector; none exists in beta yet, so only the original
+  showed, view + copy working end to end.

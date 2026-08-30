@@ -59,12 +59,12 @@ Order is dependency-first. Each task is small and independently committable.
 - [x] T016 Transcript block (card shows Transcribe / Re-transcribe by companion state; copy/translation land with T006) in `PreviewPane`: primary "Copy transcript" + overflow
       (re-transcribe / view translation / copy translation) when a companion exists; a single
       "Transcribe" when none. Compact, not a wall of buttons (FR-T8). Tests (jsdom).
-- [x] T017 Card's transcript block: primary "Copy transcript" (fetches the companion text via
-      `previewMaterial`, copies, green toast), with Transcribe/Re-transcribe below. Mirrors the share toast.
+- [x] T017 Card embeds `VideoTextActions` (variant selector + View + Copy + Re-transcribe); copy raises the green toast.
+      `list_video_text_variants` now also surfaces the explorer transcript companion as the original variant, so translations held by the library appear with a selector.
 
 ## Phase 6 — Verify
 
-- [ ] T018 Run the affected `tests/team-*` and `tests/catalog-*` single-worker; fix fallout.
+- [x] T018 Ran the affected suites single-worker (team-companions-sql 10, team-preview-transcript, team-file-operations, creative-library-sidecars, team-share-button): all green.
 - [ ] T019 Beta walkthrough on the real folder: transcribe a video, see the companion appear
       named after it; rename/move/trash and watch the companion follow; re-transcribe; delete a
       landing and confirm the render is gone; re-generate a preview. Record in `findings.md`.

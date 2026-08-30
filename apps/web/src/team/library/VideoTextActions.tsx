@@ -22,12 +22,18 @@ export function VideoTextActions({
   teamId,
   videoId,
   client = defaultClient,
-  onTranscribe
+  onTranscribe,
+  onRetranscribe,
+  onCopied
 }: {
   teamId: string;
   videoId: string;
   client?: VideoTextActionsClient;
   onTranscribe: () => void;
+  /** Re-run the transcription when text already exists (shown beside View/Copy). */
+  onRetranscribe?: () => void;
+  /** Notified after a successful copy — lets a host raise its own toast. */
+  onCopied?: () => void;
 }) {
   const { t } = useI18n();
   const [payload, setPayload] = useState<LibraryVideoTextVariants | null>(null);
@@ -71,6 +77,7 @@ export function VideoTextActions({
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
+      onCopied?.();
       window.setTimeout(() => setCopied(false), 1_500);
     } catch {
       setCopied(false);
@@ -115,6 +122,11 @@ export function VideoTextActions({
       <Button type="button" variant="ghost" disabled={!text} onClick={() => void copy()}>
         {copied ? t('creativeLibraryTextCopied') : t('creativeLibraryCopyText')}
       </Button>
+      {onRetranscribe && (
+        <Button type="button" variant="ghost" onClick={onRetranscribe}>
+          {t('teamTranscriptRedo')}
+        </Button>
+      )}
       {viewing && text && (
         <Modal
           labelledBy="creative-library-text-title"
