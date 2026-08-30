@@ -16461,3 +16461,23 @@ input[type='number'] {
 .job-row .result-path {
   margin-top: 2px;
 }
+
+/* Fading hairlines between the metric columns, like the settings rows. */
+.media-grid > div {
+  position: relative;
+}
+.media-grid > div:not(:nth-child(3n + 1))::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: calc(var(--space-3) / -2);
+  width: 1px;
+  height: 34px;
+  transform: translateY(-50%);
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    color-mix(in oklab, var(--color-text) 20%, transparent) 50%,
+    transparent 100%
+  );
+}
