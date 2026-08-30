@@ -180,17 +180,9 @@ function MaterialRowMenuContent({
               {t('teamFileDownload')}
             </Button>
           )}
-          {!isFolder && permissions.upload && destinationFolderId && (
-            <label className="button button-ghost">
-              {t('teamFileNewVersion')}
-              <input
-                type="file"
-                aria-label={t('teamFileNewVersion')}
-                hidden
-                onChange={event => selectUpload(event, material.id)}
-              />
-            </label>
-          )}
+          {/* "New version" was removed from the menu (owner: unclear, unused);
+              replacing content still works through upload + the name-conflict
+              "replace" choice. */}
           {!isFolder && permissions.edit && (
             <>
               <Button type="button" variant="ghost" onClick={() => setPrompt({ kind: 'rename' })}>

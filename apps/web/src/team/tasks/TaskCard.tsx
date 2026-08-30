@@ -27,8 +27,13 @@ export function TaskCard({
 
   useEffect(() => {
     setStatus(task.status);
+  }, [task.status]);
+  // The progress marker is manual: it follows a genuine change to its own value
+  // (or a different task), never a status flip or any other edit. Re-syncing on
+  // every updatedAt let a status change snap the marker back to the stored value.
+  useEffect(() => {
     setProgressValue(task.progressValue);
-  }, [task.progressValue, task.status, task.updatedAt]);
+  }, [task.id, task.progressValue]);
 
   const update = async (patch: TeamTaskPatch, reset: () => void) => {
     if (!canEdit || updating) return;

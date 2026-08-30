@@ -12009,8 +12009,14 @@ body {
   background: var(--color-surface-muted);
   color: var(--color-text-muted);
 }
+.team-task-attachment-action.is-view {
+  color: #3b82f6;
+}
 .team-task-attachment-action.is-download {
   color: #0f9f8f;
+}
+.team-task-attachment-action.is-copy-link {
+  color: #8b5cf6;
 }
 .team-task-attachment-action.is-detach {
   color: var(--color-error);

@@ -16,6 +16,10 @@ Dropping `profiles` permanently removes user preferences and consent history. Dr
 
 ## Team media workspace migrations (development recovery only)
 
+0. `20260830170000_task_progress_manual_only.sql`: restore `update_team_task` with the
+   auto-fill branch (`elsif next_status = 'done' and not next_manual then next_value := next_max`).
+   Pure function redefinition; no data changes.
+
 0. `20260830160000_task_progress_max_default.sql`: restore `create_team_task` to its prior body
    (no `progress_max` from the profile), drop `public.get_task_progress_max_default()` and
    `public.set_task_progress_max_default(integer)`, then drop the `task_progress_max_default`

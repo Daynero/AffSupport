@@ -105,8 +105,12 @@ export function TaskAttachmentTile({
     setRangeUrl(null);
     setThumbnailUrl(null);
     setVideoReady(false);
-    setUnavailable(attachment.availability !== 'ready');
-    if (attachment.availability !== 'ready' || attachment.previewState === 'unavailable') {
+    // No preview will ever come for these (a folder, an unpreviewable file):
+    // say so instead of "preparing…" forever.
+    const noPreview =
+      attachment.availability !== 'ready' || attachment.previewState === 'unavailable';
+    setUnavailable(noPreview);
+    if (noPreview) {
       return;
     }
     if (attachment.category === 'image' || attachment.category === 'video') {
