@@ -15990,7 +15990,8 @@ input[type='number'] {
 .job-row {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  /* Before and after get the same width; the action stack takes what it needs. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
   gap: var(--space-4);
   /* Clipped to the card's own radius so the status rail cannot square off the
      corners behind it. */
@@ -16009,7 +16010,8 @@ input[type='number'] {
   border-radius: var(--radius-lg);
   background: inherit;
 }
-.job-row > * {
+.job-row > *,
+.job-side > * {
   position: relative;
   z-index: 1;
 }
@@ -16425,4 +16427,37 @@ input[type='number'] {
 }
 .job-row.is-selected::before {
   box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--honey-500) 70%, transparent);
+}
+
+
+/* The side wrapper stops being a box of its own so the outcome panel and the
+   action stack sit directly on the card's grid — that is what keeps the two
+   information columns equal. */
+.job-side {
+  display: contents;
+}
+.job-progress-panel {
+  grid-column: 2 / -1;
+}
+.job-row > .job-main {
+  grid-column: 1;
+}
+
+
+/* The stack keeps its own height instead of stretching with the row. */
+.job-row > .job-actions {
+  align-self: start;
+}
+/* Compact outcome panels: the card should stand about as tall as its four
+   actions, not twice that. */
+.job-side .media-panel,
+.job-row .outcome-slot .media-panel {
+  padding: 10px 12px;
+  gap: 6px;
+}
+.job-row .media-panel .media-grid {
+  row-gap: 8px;
+}
+.job-row .result-path {
+  margin-top: 2px;
 }
