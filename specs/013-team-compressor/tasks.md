@@ -69,3 +69,23 @@ vitest single-worker, live-verify each phase in the beta browser.
   the same convention (24px, stroke 2, round caps, outlines only — no fills).
   The fit trio was redrawn accordingly after the filled version read as a
   battery gauge.
+
+### B3 proven live; the 75%-stall root cause (2026-08-30)
+
+Every team compression died at uploading/75% while 3 KB transcripts always
+passed. Cause (caught by unwrapping undici's error.cause on the agent):
+Google's resumable protocol answers **308 Resume Incomplete** for every
+intermediate chunk, and undici treats 308 as a redirect — with
+`redirect: 'error'` the first chunk of anything bigger than one chunk threw
+"fetch failed <= unexpected redirect". Transcripts fit in the single final
+chunk (200/201), so the bug hid behind them. Fix: `redirect: 'manual'` on the
+chunk PUT — the loop already handles 308. First green run right after:
+`16-tail_1.mp4` (default `_1` ending) landed beside the original, visible in
+the explorer next to `16-tail.mp4` and its transcript.
+
+Debug metho that got there: fetch-tap in the page caught the agent's 400
+(only generic PROCESS_FAILED), then agent-side cause-chain logging named the
+real reason. Also flushed along the way: a stray duplicate CSS rule kept the
+tile delete at 10px; two stalled runs pinned the agent bridge (requests that
+never complete) — restarting the agent releases it, and reservations were
+freed by marking the dead operations failed.
