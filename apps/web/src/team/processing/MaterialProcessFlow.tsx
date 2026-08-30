@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { TeamAnalyticsStage, TeamProcessStartResult } from '@video-compressor/shared';
 import { useOptionalAgent } from '../../AgentContext';
 import { startTeamAgentProcess } from '../../api/client';
@@ -46,6 +46,11 @@ export function MaterialProcessFlow({
     workflow: TeamWorkflowFlow;
     failureCode: string | null;
   } | null>(null);
+  // Cancelling aborts the agent's still-running request, which then rejects.
+  // That rejection is expected — the overlay already shows "canceled" — so it
+  // must not surface as an error toast. Remember which operations the person
+  // cancelled and swallow only their rejection.
+  const canceledOps = useRef<Set<string>>(new Set());
 
   const start = (result: TeamProcessStartResult, input: TeamProcessStartInput) => {
     const workflow = startTeamWorkflow({
@@ -62,6 +67,11 @@ export function MaterialProcessFlow({
       sourceGrant: result.sourceGrant,
       finalizeGrant: result.finalizeGrant
     }).catch(async (cause: unknown) => {
+      // A rejection from an operation the person cancelled is not a failure.
+      if (canceledOps.current.has(result.operationId)) {
+        canceledOps.current.delete(result.operationId);
+        return;
+      }
       const code = cause instanceof Error ? cause.message : 'PROCESS_FAILED';
       setOperation(current =>
         current && current.id === result.operationId ? { ...current, failureCode: code } : current
@@ -81,6 +91,7 @@ export function MaterialProcessFlow({
         agentEnabled={agent?.teamWorkspaceAvailable === true}
         onClose={onClose}
         onRetry={() => setOperation(null)}
+        onCancelIntent={() => canceledOps.current.add(operation.id)}
       />
     );
   }
@@ -106,7 +117,8 @@ export function ActiveOperation({
   agentEnabled,
   localFailureCode = null,
   onClose,
-  onRetry
+  onRetry,
+  onCancelIntent
 }: {
   teamId: string;
   operationId: string;
@@ -115,6 +127,8 @@ export function ActiveOperation({
   localFailureCode?: string | null;
   onClose: () => void;
   onRetry: () => void;
+  /** Marks the run cancelled before aborting, so its rejection stays quiet. */
+  onCancelIntent?: () => void;
 }) {
   const { t } = useI18n();
   const state = useTeamOperation({ teamId, operationId, agentEnabled });
@@ -139,7 +153,10 @@ export function ActiveOperation({
         operation={state.operation}
         localProgress={state.localProgress}
         localFailureCode={localFailureCode}
-        onCancel={state.cancel}
+        onCancel={async () => {
+          onCancelIntent?.();
+          await state.cancel();
+        }}
         onRetry={onRetry}
       />
       {(localFailureCode !== null || !['pending', 'running'].includes(state.operation.state)) && (
