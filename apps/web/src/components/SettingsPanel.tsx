@@ -96,7 +96,7 @@ export function SettingsPanel({
         <div className="field-group metadata-settings">
           <FieldLabel label={t('metadata')} tooltip={t('stripMetadataTooltip')} />
           <div className="metadata-control">
-            <div className="fit-mode-pictos">
+            <div className="fit-mode-pictos is-single">
               <button
                 type="button"
                 role="switch"

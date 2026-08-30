@@ -15318,3 +15318,17 @@ button.team-landing-tile:hover {
 .suffix-input {
   width: 150px;
 }
+
+/* A lone toggle needs no shelf around it — the shelf border read as a
+   second, oversized outline (owner, #33). */
+.fit-mode-pictos.is-single {
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+.fit-mode-pictos.is-single button {
+  border-color: var(--color-border);
+}
+.fit-mode-pictos.is-single button.is-selected {
+  border-color: var(--color-accent);
+}

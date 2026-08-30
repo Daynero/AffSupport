@@ -95,7 +95,19 @@ export async function selectLandingPreviewFolder(): Promise<string | null> {
   return runFolderScript(script, 'Could not open the folder picker.');
 }
 
-export async function selectOutputFolder(): Promise<string | null> {
+// Rapid repeat clicks on the folder button must not stack native dialogs:
+// while one picker is open, every additional request joins its promise.
+let activeFolderPick: Promise<string | null> | null = null;
+
+export function selectOutputFolder(): Promise<string | null> {
+  if (activeFolderPick) return activeFolderPick;
+  activeFolderPick = selectOutputFolderNative().finally(() => {
+    activeFolderPick = null;
+  });
+  return activeFolderPick;
+}
+
+async function selectOutputFolderNative(): Promise<string | null> {
   if (process.platform === 'win32') {
     const folders = await runWindowsPicker(
       windowsFolderScript('Choose output folder'),
