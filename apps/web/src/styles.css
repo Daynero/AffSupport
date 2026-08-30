@@ -1510,12 +1510,10 @@ a {
 
 .image-drop-icon,
 .drop-icon {
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  color: var(--color-accent);
-  background: var(--color-accent-soft);
-  transition: transform var(--dur-control) var(--ease-standard);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #f2a33c;
 }
 
 .image-drop-icon {
@@ -15455,4 +15453,11 @@ input[type='number'] {
 /* Resolution is four digits at most. */
 .start-duration-row .input-with-suffix input.res-input {
   width: 76px;
+}
+
+
+/* Big drag-and-drop glyph in the intake zone, Soty orange. */
+.drop-zone .drop-icon {
+  display: inline-flex;
+  color: #f2a33c;
 }

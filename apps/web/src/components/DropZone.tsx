@@ -1,6 +1,7 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 import { Spinner, type Translate } from './ui';
-import { SotyMark } from './SotyLogo';
+import { Upload } from 'lucide-react';
+import { ICON_STROKE } from './icons';
 
 export function DropZone({
   disabled,
@@ -80,7 +81,7 @@ export function DropZone({
       onDrop={onDrop}
     >
       <span className="drop-icon" aria-hidden="true">
-        {importing ? <Spinner /> : <SotyMark size={20} />}
+        {importing ? <Spinner /> : <Upload size={44} strokeWidth={ICON_STROKE} />}
       </span>
       <div>
         <strong>
