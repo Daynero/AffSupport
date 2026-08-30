@@ -1118,10 +1118,10 @@ a {
   grid-template-columns: auto minmax(0, 1fr);
   gap: var(--space-3) var(--space-5);
   padding: var(--space-4);
-  /* Settings live on a light violet slab; the blocks nested inside go one
-     step deeper, so the hierarchy reads at a glance. */
-  border: 1px solid color-mix(in oklab, var(--color-accent) 34%, transparent);
-  background: color-mix(in oklab, var(--color-accent) 16%, var(--color-surface));
+  /* Same dark surface as every other card on the page — the panel is told
+     apart by its border and its own blocks, not by a tint. */
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
 }
 .settings-panel .settings-body {
   display: contents;
@@ -1208,9 +1208,9 @@ a {
   padding: var(--space-3);
   /* A standalone block now — rounded on all four corners, not just below,
      and a deeper green than the panel that holds it. */
-  border: 1px solid color-mix(in oklab, var(--color-accent) 30%, transparent);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: color-mix(in oklab, var(--purple-950, var(--purple-900)) 55%, var(--color-surface));
+  background: var(--color-surface-subtle);
 }
 
 .custom-column-primary,
@@ -15653,9 +15653,9 @@ input[type='number'] {
 
 /* Nested settings blocks share the deeper green of the custom section. */
 .settings-panel .image-embedding-panel {
-  border: 1px solid color-mix(in oklab, var(--color-accent) 30%, transparent);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: color-mix(in oklab, var(--purple-950, var(--purple-900)) 55%, var(--color-surface));
+  background: var(--color-surface-subtle);
 }
 
 /* A newly added file glows honey for a second, then settles. */
