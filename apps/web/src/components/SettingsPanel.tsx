@@ -333,7 +333,7 @@ function FpsControl({
         {choice === 'custom' && (
           <div className="input-with-suffix">
             <input
-              className={`time-input ${!valid && custom ? 'is-invalid' : ''}`}
+              className={`time-input fps-input ${!valid && custom ? 'is-invalid' : ''}`}
               type="number"
               inputMode="numeric"
               min={FRAME_RATE_MIN}

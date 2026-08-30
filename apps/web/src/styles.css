@@ -15440,3 +15440,11 @@ input[type='number'] {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Custom pickers stay on one line with their picto group; fps is 3 digits. */
+.custom-settings .start-duration-row {
+  flex-wrap: nowrap;
+}
+.start-duration-row .input-with-suffix input.fps-input {
+  width: 52px;
+}
