@@ -119,10 +119,7 @@ export function SettingsPanel({
       <div id="settings-body" className="settings-body" hidden={!open}>
       <div className="settings-primary-row">
         <div className="field-group">
-          <FieldLabel
-            label={t('compressionMode')}
-            tooltip={settings.mode === 'optimal' ? t('optimalTooltip') : undefined}
-          />
+          <FieldLabel label={t('compressionMode')} />
           <div className="fit-mode-pictos" role="radiogroup" aria-label={t('compressionMode')}>
             <button
               type="button"
