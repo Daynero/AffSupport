@@ -153,6 +153,7 @@ export function ImageEmbeddingSection({
                     label={t('startImageDuration')}
                     tooltip={t('startImageDurationTooltip')}
                   />
+                  <div className="start-duration-row">
                   <div className="fit-mode-pictos" role="group" aria-label={t('startImageDuration')}>
                     <button
                       type="button"
@@ -203,6 +204,7 @@ export function ImageEmbeddingSection({
                       </Collapse>
                     </>
                   )}
+                  </div>
                 </div>
               </div>
             </ImageColumn>

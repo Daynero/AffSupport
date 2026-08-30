@@ -15270,3 +15270,20 @@ button.team-landing-tile:hover {
 .output-suffix-field input {
   height: 34px;
 }
+
+/* Start-frame duration: icons and the small ms field share one row. */
+.start-duration-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.start-duration-row .custom-duration-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.start-duration-row .custom-duration-input .time-input {
+  width: 72px;
+  min-height: 34px;
+}
