@@ -15324,6 +15324,8 @@ button.team-landing-tile:hover {
 }
 .fit-mode-pictos.is-single button {
   border-color: var(--color-border);
+  /* A lone toggle is a square plate — no extra air left and right. */
+  width: 38px;
 }
 .fit-mode-pictos.is-single button.is-selected {
   border-color: var(--color-accent);
