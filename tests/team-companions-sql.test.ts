@@ -249,3 +249,22 @@ describe('landing preview refresh (012, T014)', () => {
     ).rejects.toThrow(/NOT_FOUND/);
   }, 60_000);
 });
+
+describe('transcript delete preference (012, T011)', () => {
+  it('defaults to ask, and round-trips a set value', async () => {
+    const initial = await harness.asUser<{ get_transcript_delete_pref: string }>(
+      OWNER,
+      'select public.get_transcript_delete_pref()'
+    );
+    expect(initial[0]!.get_transcript_delete_pref).toBe('ask');
+    await harness.asUser(OWNER, 'select public.set_transcript_delete_pref($1)', ['delete']);
+    const after = await harness.asUser<{ get_transcript_delete_pref: string }>(
+      OWNER,
+      'select public.get_transcript_delete_pref()'
+    );
+    expect(after[0]!.get_transcript_delete_pref).toBe('delete');
+    await expect(
+      harness.asUser(OWNER, 'select public.set_transcript_delete_pref($1)', ['nonsense'])
+    ).rejects.toThrow(/INVALID_INPUT/);
+  }, 60_000);
+});
