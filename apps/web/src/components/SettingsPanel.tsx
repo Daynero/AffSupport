@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Eraser, Files, Film, FolderOpen, Monitor, Sparkles, SlidersHorizontal, Timer } from 'lucide-react';
+import { Eraser, Files, Film, FolderOpen, Gauge, Gem, Monitor, Sparkles, SlidersHorizontal, Timer } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from './icons';
 import {
   CRF_MAX,
@@ -158,41 +158,39 @@ function CustomSettings({
       />
       <div className="field-group rate-control-field custom-column-primary">
         <FieldLabel label={t('rateControl')} tooltip={t('rateControlTooltip')} />
-        <SegmentedControl<RateControl>
-          label={t('rateControl')}
-          value={settings.rateControl}
-          disabled={disabled}
-          options={[
-            { value: 'crf', label: t('constantQuality') },
-            { value: 'bitrate', label: t('targetBitrate') }
-          ]}
-          onChange={rateControl => updateSettings({ rateControl })}
-        />
-        {/* Constant quality means "hold this quality, whatever it costs" — not
-            "make the file smaller". On a source that is already efficiently
-            encoded it can honestly spend more bytes than the original, which is
-            how a 227 MB video came back at 500 MB. */}
+        <div className="start-duration-row">
+        <div className="fit-mode-pictos" role="radiogroup" aria-label={t('rateControl')}>
+          <button
+            type="button"
+            role="radio"
+            className={settings.rateControl === 'crf' ? 'is-selected' : ''}
+            title={t('constantQuality')}
+            aria-label={t('constantQuality')}
+            aria-checked={settings.rateControl === 'crf'}
+            disabled={disabled}
+            onClick={() => updateSettings({ rateControl: 'crf' })}
+          >
+            <Gem size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            role="radio"
+            className={settings.rateControl === 'bitrate' ? 'is-selected' : ''}
+            title={t('targetBitrate')}
+            aria-label={t('targetBitrate')}
+            aria-checked={settings.rateControl === 'bitrate'}
+            disabled={disabled}
+            onClick={() => updateSettings({ rateControl: 'bitrate' })}
+          >
+            <Gauge size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </button>
+        </div>
         {settings.rateControl === 'crf' ? (
-          <p className="rate-control-note">{t('constantQualityNote')}</p>
-        ) : null}
-      </div>
-      <div className="rate-value-field custom-column-secondary">
-        <Collapse open={settings.rateControl === 'crf'}>
-          <CrfControl
-            settings={settings}
-            disabled={disabled || settings.rateControl !== 'crf'}
-            updateSettings={updateSettings}
-            t={t}
-          />
-        </Collapse>
-        <Collapse open={settings.rateControl === 'bitrate'}>
-          <BitrateControl
-            settings={settings}
-            disabled={disabled || settings.rateControl !== 'bitrate'}
-            updateSettings={updateSettings}
-            t={t}
-          />
-        </Collapse>
+          <RateValueCrf settings={settings} disabled={disabled} updateSettings={updateSettings} t={t} />
+        ) : (
+          <RateValueBitrate settings={settings} disabled={disabled} updateSettings={updateSettings} t={t} />
+        )}
+        </div>
       </div>
     </div>
   );
@@ -418,7 +416,7 @@ function ResolutionControl({
   );
 }
 
-function CrfControl({
+function RateValueCrf({
   settings,
   disabled,
   updateSettings,
@@ -434,25 +432,26 @@ function CrfControl({
   const valid = isValidIntegerInput(value, CRF_MIN, CRF_MAX);
   const numeric = valid ? Number(value) : settings.crf;
   return (
-    <div className="field-group">
-      <FieldLabel label={t('crf')} tooltip={t('crfTooltip')} />
-      <div className="range-number-control">
+    <>
+      <input
+        type="range"
+        className="rate-slider"
+        min={CRF_MIN}
+        max={CRF_MAX}
+        step={1}
+        value={numeric}
+        disabled={disabled}
+        aria-label={t('crf')}
+        title={t('crfTooltip')}
+        onChange={event => {
+          const next = event.target.value;
+          setValue(next);
+          updateSettings({ crf: Number(next) }, true);
+        }}
+      />
+      <div className="input-with-suffix">
         <input
-          type="range"
-          min={CRF_MIN}
-          max={CRF_MAX}
-          step={1}
-          value={numeric}
-          disabled={disabled}
-          aria-label={t('crf')}
-          onChange={event => {
-            const next = event.target.value;
-            setValue(next);
-            updateSettings({ crf: Number(next) }, true);
-          }}
-        />
-        <input
-          className={!valid ? 'is-invalid' : ''}
+          className={`time-input ${!valid && value !== '' ? 'is-invalid' : ''}`}
           type="number"
           inputMode="numeric"
           min={CRF_MIN}
@@ -460,7 +459,7 @@ function CrfControl({
           value={value}
           disabled={disabled}
           aria-label={t('crf')}
-          aria-invalid={!valid}
+          aria-invalid={!valid && value !== ''}
           onChange={event => {
             const next = event.target.value;
             setValue(next);
@@ -469,15 +468,13 @@ function CrfControl({
             }
           }}
         />
+        <span>CRF</span>
       </div>
-      <Collapse fast open={!valid}>
-        <span className="field-error">{t('invalidCrf', { min: CRF_MIN, max: CRF_MAX })}</span>
-      </Collapse>
-    </div>
+    </>
   );
 }
 
-function BitrateControl({
+function RateValueBitrate({
   settings,
   disabled,
   updateSettings,
@@ -492,37 +489,27 @@ function BitrateControl({
   useEffect(() => setValue(String(settings.videoBitrateKbps)), [settings.videoBitrateKbps]);
   const valid = isValidIntegerInput(value, VIDEO_BITRATE_MIN_KBPS, VIDEO_BITRATE_MAX_KBPS);
   return (
-    <div className="field-group">
-      <FieldLabel label={t('bitrate')} tooltip={t('bitrateTooltip')} />
-      <div className="input-with-suffix bitrate-control">
-        <input
-          className={!valid ? 'is-invalid' : ''}
-          type="number"
-          inputMode="numeric"
-          min={VIDEO_BITRATE_MIN_KBPS}
-          max={VIDEO_BITRATE_MAX_KBPS}
-          value={value}
-          disabled={disabled}
-          aria-label={t('bitrate')}
-          aria-invalid={!valid}
-          onChange={event => {
-            const next = event.target.value;
-            setValue(next);
-            if (isValidIntegerInput(next, VIDEO_BITRATE_MIN_KBPS, VIDEO_BITRATE_MAX_KBPS)) {
-              updateSettings({ videoBitrateKbps: Number(next) }, true);
-            }
-          }}
-        />
-        <span>{t('bitrateUnit')}</span>
-      </div>
-      <Collapse fast open={!valid}>
-        <span className="field-error">
-          {t('invalidBitrate', {
-            min: VIDEO_BITRATE_MIN_KBPS,
-            max: VIDEO_BITRATE_MAX_KBPS
-          })}
-        </span>
-      </Collapse>
+    <div className="input-with-suffix">
+      <input
+        className={`time-input ${!valid && value !== '' ? 'is-invalid' : ''}`}
+        type="number"
+        inputMode="numeric"
+        min={VIDEO_BITRATE_MIN_KBPS}
+        max={VIDEO_BITRATE_MAX_KBPS}
+        value={value}
+        disabled={disabled}
+        aria-label={t('videoBitrate')}
+        title={t('bitrateTooltip')}
+        aria-invalid={!valid && value !== ''}
+        onChange={event => {
+          const next = event.target.value;
+          setValue(next);
+          if (isValidIntegerInput(next, VIDEO_BITRATE_MIN_KBPS, VIDEO_BITRATE_MAX_KBPS)) {
+            updateSettings({ videoBitrateKbps: Number(next) }, true);
+          }
+        }}
+      />
+      <span>kbps</span>
     </div>
   );
 }

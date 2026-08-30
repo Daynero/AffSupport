@@ -324,7 +324,7 @@ const en = {
   invalidResolution: 'Enter a whole number from {min} to {max} px.',
   rateControl: 'Quality / size control',
   rateControlTooltip:
-    'Constant quality adapts the bitrate to the video. Target bitrate gives more predictable file size.',
+    'Quality — the picture stays the same, size varies. Bitrate — predictable size, quality adapts. Detail: Soty converts to H.264, which needs a higher bitrate than newer formats, so an already-efficient video may even grow.',
   constantQuality: 'Constant quality (CRF)',
   targetBitrate: 'Target bitrate',
   crf: 'CRF',
@@ -427,8 +427,6 @@ const en = {
   pageTitleLanding: 'Landing Optimizer — Soty',
   pageTitleTranscription: 'Transcription — Soty',
   compressStuck: 'Stalled — restart Soty to clear it',
-  constantQualityNote:
-    'Holds this quality whatever it costs — it does not target a file size. Soty converts to H.264, which needs about twice the bitrate of newer formats for the same picture.',
   growthRiskCodec:
     'This video already uses a more efficient format. Converting it may produce a larger file — the original will be kept if that happens.',
   growthRiskBitrate:
@@ -2029,7 +2027,7 @@ const uk: Record<keyof typeof en, string> = {
   invalidResolution: 'Введіть ціле число від {min} до {max} px.',
   rateControl: 'Контроль якості / розміру',
   rateControlTooltip:
-    'Постійна якість адаптує бітрейт до відео. Цільовий бітрейт дає передбачуваніший розмір файлу.',
+    'Якість — картинка завжди однакова, розмір як вийде. Бітрейт — розмір передбачуваний, якість підлаштовується. Деталь: Soty конвертує у H.264, йому треба більший бітрейт, ніж новішим форматам, тож дуже стиснуте відео може навіть підрости.',
   constantQuality: 'Постійна якість (CRF)',
   targetBitrate: 'Цільовий бітрейт',
   crf: 'CRF',
@@ -2132,8 +2130,6 @@ const uk: Record<keyof typeof en, string> = {
   pageTitleLanding: 'Оптимізація лендингів — Soty',
   pageTitleTranscription: 'Транскрипція — Soty',
   compressStuck: 'Застрягло — перезапустіть Soty, щоб зняти',
-  constantQualityNote:
-    'Тримає задану якість, скільки б це не коштувало — це не ціль за розміром. Soty конвертує у H.264, якому для тієї ж картинки потрібно приблизно вдвічі більше бітрейту, ніж новішим форматам.',
   growthRiskCodec:
     'Це відео вже у більш ефективному форматі. Після конвертації воно може стати більшим — тоді залишимо оригінал.',
   growthRiskBitrate:

@@ -1833,8 +1833,8 @@ input.is-invalid {
   pointer-events: none;
 }
 
-.bitrate-control {
-  max-width: 230px;
+.bitrate-control input {
+  width: 96px;
 }
 
 .output-control-row {
