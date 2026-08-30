@@ -15874,9 +15874,11 @@ input[type='number'] {
    ============================================================ */
 .batch-toolbar {
   padding: 14px 20px;
-  border: 1px solid color-mix(in oklab, var(--color-text) 9%, transparent);
+  /* Same surface as the file cards, with a slightly brighter hairline than
+     they carry — the way the settings panel is outlined. */
+  border: 1px solid color-mix(in oklab, var(--color-text) 18%, transparent);
   border-radius: 14px;
-  background: #101014;
+  background: var(--color-surface);
 }
 .batch-toolbar-row {
   gap: 24px;
