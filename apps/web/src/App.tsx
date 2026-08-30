@@ -600,16 +600,13 @@ export default function CompressorPage() {
                 <span className="batch-chip">
                   {t(fileCountKey(language, state.jobs.length), { count: state.jobs.length })}
                 </span>
-                {metrics.processing > 0 && (
-                  <span className="batch-chip is-processing">
-                    {t('chipProcessing', { count: metrics.processing })}
-                  </span>
-                )}
-                {metrics.completed > 0 && (
-                  <span className="batch-chip is-done">
-                    {t('chipCompleted', { count: metrics.completed })}
-                  </span>
-                )}
+                {/* All four counters stay on screen — a zero is information too. */}
+                <span className="batch-chip is-processing">
+                  {t('chipProcessing', { count: metrics.processing })}
+                </span>
+                <span className="batch-chip is-done">
+                  {t('chipCompleted', { count: metrics.completed })}
+                </span>
                 <span className="batch-chip is-failed">
                   {t('chipFailed', { count: metrics.failed })}
                 </span>

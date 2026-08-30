@@ -15793,13 +15793,13 @@ input[type='number'] {
   white-space: nowrap;
 }
 .batch-chip.is-processing {
-  color: var(--honey-400);
+  color: #ff8c1a;
 }
 .batch-chip.is-done {
-  color: #6fe08f;
+  color: #4ade6a;
 }
 .batch-chip.is-failed {
-  color: #ff9b9b;
+  color: #ff4d4d;
 }
 /* The progress row keeps the bar; its plain counters are now the chips. */
 .batch-toolbar .batch-counts {
