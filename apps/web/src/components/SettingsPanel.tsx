@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Eraser, Files, Film, FolderOpen, Gauge, Gem, Grid3x3, Monitor, Sparkles, SlidersHorizontal, Timer } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Eraser, Files, Film, FolderOpen, Gauge, Gem, Monitor, Sparkles, SlidersHorizontal, Timer } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from './icons';
 import {
   CRF_MAX,
@@ -199,7 +199,7 @@ function CustomSettings({
               updateSettings({ rateControl: 'crf' });
             }}
           >
-            <Gem size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            <PixelGem crf={settings.crf} selected={rateMode === 'crf'} />
           </button>
           <button
             type="button"
@@ -461,64 +461,70 @@ function RateValueCrf({
   updateSettings: UpdateSettings;
   t: Translate;
 }) {
-  const [value, setValue] = useState(String(settings.crf));
-  useEffect(() => setValue(String(settings.crf)), [settings.crf]);
-  const valid = isValidIntegerInput(value, CRF_MIN, CRF_MAX);
-  const numeric = valid ? Number(value) : settings.crf;
+  return (
+    <span className="crf-track-wrap">
+      <input
+        type="range"
+        className="rate-slider crf-gradient"
+        min={CRF_MIN}
+        max={CRF_MAX}
+        step={1}
+        value={settings.crf}
+        disabled={disabled}
+        aria-label={t('crf')}
+        title={t('crfTooltip')}
+        onChange={event => updateSettings({ crf: Number(event.target.value) }, true)}
+      />
+      <span
+        className="crf-opt-mark"
+        aria-hidden="true"
+        style={{ left: `${((DEFAULT_CRF - CRF_MIN) / (CRF_MAX - CRF_MIN)) * 100}%` }}
+      >
+        <Sparkles size={12} strokeWidth={ICON_STROKE} />
+      </span>
+    </span>
+  );
+}
+
+/**
+ * The diamond that falls apart: the Gem icon is rasterized through a tiny
+ * canvas whose sample size shrinks as CRF grows, so dragging the slider
+ * visibly pixelates the crystal on the button itself.
+ */
+function PixelGem({ crf, selected }: { crf: number; selected: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const hiddenRef = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const svg = hiddenRef.current?.querySelector('svg');
+    if (!canvas || !svg) return;
+    const color = getComputedStyle(canvas).color;
+    const markup = svg.outerHTML.replaceAll('currentColor', color);
+    const img = new Image();
+    img.onload = () => {
+      const context = canvas.getContext('2d');
+      if (!context) return;
+      const SIZE = 40;
+      const ratio = (crf - CRF_MIN) / (CRF_MAX - CRF_MIN);
+      const sample = Math.max(5, Math.round(SIZE - ratio * (SIZE - 5)));
+      const tmp = document.createElement('canvas');
+      tmp.width = sample;
+      tmp.height = sample;
+      const tmpContext = tmp.getContext('2d');
+      if (!tmpContext) return;
+      tmpContext.drawImage(img, 0, 0, sample, sample);
+      context.imageSmoothingEnabled = false;
+      context.clearRect(0, 0, SIZE, SIZE);
+      context.drawImage(tmp, 0, 0, SIZE, SIZE);
+    };
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`;
+  }, [crf, selected]);
   return (
     <>
-      <span className="crf-edge crf-edge-quality" aria-hidden="true">
-        <Gem size={14} strokeWidth={ICON_STROKE} />
+      <span ref={hiddenRef} style={{ display: 'none' }} aria-hidden="true">
+        <Gem size={ICON_SIZE} strokeWidth={ICON_STROKE} />
       </span>
-      <span className="crf-track-wrap">
-        <input
-          type="range"
-          className="rate-slider crf-gradient"
-          min={CRF_MIN}
-          max={CRF_MAX}
-          step={1}
-          value={numeric}
-          disabled={disabled}
-          aria-label={t('crf')}
-          title={t('crfTooltip')}
-          onChange={event => {
-            const next = event.target.value;
-            setValue(next);
-            updateSettings({ crf: Number(next) }, true);
-          }}
-        />
-        <span
-          className="crf-opt-mark"
-          aria-hidden="true"
-          style={{ left: `${((DEFAULT_CRF - CRF_MIN) / (CRF_MAX - CRF_MIN)) * 100}%` }}
-        >
-          <Sparkles size={12} strokeWidth={ICON_STROKE} />
-        </span>
-      </span>
-      <span className="crf-edge crf-edge-pixel" aria-hidden="true">
-        <Grid3x3 size={14} strokeWidth={ICON_STROKE} />
-      </span>
-      <div className="input-with-suffix">
-        <input
-          className={`time-input crf-input ${!valid && value !== '' ? 'is-invalid' : ''}`}
-          type="number"
-          inputMode="numeric"
-          min={CRF_MIN}
-          max={CRF_MAX}
-          value={value}
-          disabled={disabled}
-          aria-label={t('crf')}
-          aria-invalid={!valid && value !== ''}
-          onChange={event => {
-            const next = event.target.value;
-            setValue(next);
-            if (isValidIntegerInput(next, CRF_MIN, CRF_MAX)) {
-              updateSettings({ crf: Number(next) }, true);
-            }
-          }}
-        />
-        <span>CRF</span>
-      </div>
+      <canvas ref={canvasRef} className="pixel-gem" width={40} height={40} aria-hidden="true" />
     </>
   );
 }
