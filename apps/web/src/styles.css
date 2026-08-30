@@ -15807,9 +15807,14 @@ input[type='number'] {
 }
 
 
-/* Two levels: one row of controls, the progress bar beneath it. */
+/* Two levels: one row of controls, the progress bar beneath it. Both stretch
+   edge to edge — the old flex `space-between` left the grid column sized to
+   its content, so the actions floated mid-bar. */
 .batch-toolbar {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-content: stretch;
+  justify-items: stretch;
   gap: 0;
 }
 .batch-toolbar-row {
