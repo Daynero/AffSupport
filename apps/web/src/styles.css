@@ -2079,8 +2079,9 @@ input.is-invalid {
   /* Hover lightens the field to a near-transparent wash — an invitation,
      not a pressed button — and the type turns bright honey so it stays
      legible over the see-through background. */
-  border-color: var(--honey-200);
-  color: var(--honey-200);
+  /* The most saturated orange in the scale — not the palest tint. */
+  border-color: var(--honey-400);
+  color: var(--honey-400);
   background: color-mix(in oklab, var(--color-action) 18%, transparent);
 }
 .drop-zone:hover:not(.is-disabled) .drop-icon,
@@ -2089,8 +2090,8 @@ input.is-invalid {
 .drop-zone.is-dragging strong,
 .drop-zone:hover:not(.is-disabled) span:not(.drop-icon):not(.spinner),
 .drop-zone.is-dragging span:not(.drop-icon):not(.spinner) {
-  /* Fully opaque, maximum-brightness honey — no wash on the type itself. */
-  color: var(--honey-200);
+  /* Fully opaque, fully saturated honey — no wash on the type itself. */
+  color: var(--honey-400);
   opacity: 1;
 }
 .drop-zone .drop-icon,
