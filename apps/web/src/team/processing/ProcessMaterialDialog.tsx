@@ -61,10 +61,10 @@ export function ProcessMaterialDialog({
   const { t } = useI18n();
   const { push } = useToasts();
   const tools = useMemo(() => toolsForMaterial(material), [material]);
-  const [toolId, setToolId] = useState<TeamProcessTool>(
-    initialTool && tools.includes(initialTool) ? initialTool : (tools[0] ?? 'compressor')
-  );
-  const [outputName, setOutputName] = useState(() => suggestedOutputName(material, tools[0]));
+  const initialToolId: TeamProcessTool =
+    initialTool && tools.includes(initialTool) ? initialTool : (tools[0] ?? 'compressor');
+  const [toolId, setToolId] = useState<TeamProcessTool>(initialToolId);
+  const [outputName, setOutputName] = useState(() => suggestedOutputName(material, initialToolId));
   const [destination, setDestination] = useState(destinationFolderId ?? '');
   const [destinationName, setDestinationName] = useState<string | null>(
     destinationFolderId ? t('teamFolderPickerCurrentFolder') : null
