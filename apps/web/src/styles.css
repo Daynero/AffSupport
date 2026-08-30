@@ -1819,21 +1819,17 @@ input.is-invalid {
   margin: 0;
 }
 
+/* The unit label (мс, px, fps, kbps) sits OUTSIDE the input box — matching
+   the ms field the owner approved as the reference. */
 .input-with-suffix {
-  position: relative;
-}
-
-.input-with-suffix input {
-  padding-right: 48px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .input-with-suffix > span {
-  position: absolute;
-  top: 50%;
-  right: 10px;
   color: var(--color-text-muted);
   font-size: var(--text-lg);
-  transform: translateY(-50%);
   pointer-events: none;
 }
 
@@ -15331,4 +15327,22 @@ button.team-landing-tile:hover {
 }
 .fit-mode-pictos.is-single button.is-selected {
   border-color: var(--color-accent);
+}
+
+/* Custom-value inputs inside a picto row: same compact box as the ms field. */
+.start-duration-row .input-with-suffix input {
+  width: 96px;
+  min-height: 34px;
+}
+
+
+/* No number-input spinners anywhere — values are typed, not clicked. */
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
 }

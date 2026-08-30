@@ -276,27 +276,30 @@ function FpsControl({
           </button>
         </div>
         {choice === 'custom' && (
-          <input
-            className={`time-input ${!valid && custom ? 'is-invalid' : ''}`}
-            type="number"
-            inputMode="numeric"
-            min={FRAME_RATE_MIN}
-            max={FRAME_RATE_MAX}
-            value={custom}
-            disabled={disabled}
-            aria-label={t('customFps')}
-            aria-invalid={!valid}
-            onChange={event => {
-              const value = event.target.value;
-              setCustom(value);
-              if (isValidIntegerInput(value, FRAME_RATE_MIN, FRAME_RATE_MAX)) {
-                updateSettings({ frameRate: Number(value) }, true);
-              }
-            }}
-          />
+          <div className="input-with-suffix">
+            <input
+              className={`time-input ${!valid && custom ? 'is-invalid' : ''}`}
+              type="number"
+              inputMode="numeric"
+              min={FRAME_RATE_MIN}
+              max={FRAME_RATE_MAX}
+              value={custom}
+              disabled={disabled}
+              aria-label={t('customFps')}
+              aria-invalid={!valid && custom !== ''}
+              onChange={event => {
+                const value = event.target.value;
+                setCustom(value);
+                if (isValidIntegerInput(value, FRAME_RATE_MIN, FRAME_RATE_MAX)) {
+                  updateSettings({ frameRate: Number(value) }, true);
+                }
+              }}
+            />
+            <span>fps</span>
+          </div>
         )}
       </div>
-      <Collapse fast open={choice === 'custom' && !valid}>
+      <Collapse fast open={choice === 'custom' && !valid && custom !== ''}>
         <span className="field-error">
           {t('invalidFrameRate', { min: FRAME_RATE_MIN, max: FRAME_RATE_MAX })}
         </span>
@@ -406,7 +409,7 @@ function ResolutionControl({
           </div>
         )}
       </div>
-      <Collapse fast open={choice === 'custom' && !valid}>
+      <Collapse fast open={choice === 'custom' && !valid && custom !== ''}>
         <span className="field-error">
           {t('invalidResolution', { min: RESOLUTION_MIN, max: RESOLUTION_MAX })}
         </span>
