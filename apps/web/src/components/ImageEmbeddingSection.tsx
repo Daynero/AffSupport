@@ -18,7 +18,7 @@ import {
 import type { TranslationKey } from '../i18n';
 import { Checkbox, Collapse, IconButton, Spinner, Tooltip, type Translate } from './ui';
 import { imageContentPath } from '../api/subresource-paths';
-import { Crop, Minimize2, StretchVertical } from 'lucide-react';
+import { Crop, Minimize2, UnfoldVertical } from 'lucide-react';
 import { useSubresourceUrl } from '../api/useSubresourceUrl';
 
 const supportedExtensions = new Set(['.png', '.jpg', '.jpeg', '.webp']);
@@ -125,7 +125,7 @@ export function ImageEmbeddingSection({
                         [
                           'stretch',
                           t('fitStretch'),
-                          <StretchVertical key="s" size={20} strokeWidth={1.75} />
+                          <UnfoldVertical key="s" size={20} strokeWidth={1.75} />
                         ]
                       ] as const
                     ).map(([value, label, icon]) => (

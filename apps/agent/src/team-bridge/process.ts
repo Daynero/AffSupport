@@ -261,9 +261,15 @@ export class TeamProcessBridge {
       // Debug (013): the generic PROCESS_FAILED hid every real upload error;
       // surface the underlying message in the agent's stdout.
       if (!canceled) {
+        const describe = (err: unknown, depth = 0): string => {
+          if (!(err instanceof Error)) return String(err);
+          const cause = depth < 3 && err.cause !== undefined ? describe(err.cause, depth + 1) : '';
+          return `${err.message}${cause ? ` <= cause: ${cause}` : ''}`;
+        };
         console.error(
           '[team-process] failed:',
-          error instanceof Error ? `${error.message}\n${error.stack ?? ''}` : String(error)
+          describe(error),
+          error instanceof Error ? (error.stack ?? '') : ''
         );
       }
       const code = canceled ? abortCode(controller.signal) : safeErrorCode(error);
