@@ -16007,7 +16007,8 @@ input[type='number'] {
   bottom: 0;
   left: 0;
   width: 8px;
-  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  /* No radius of its own: the card clips it, so the colour follows the very
+     same corner curve instead of leaving a square notch beside it. */
   background: color-mix(in oklab, var(--color-text) 45%, transparent);
 }
 .job-row[data-state='processing']::before,
@@ -16397,4 +16398,14 @@ input[type='number'] {
    chips' auto margin disappears once they shrink to bare numbers. */
 .batch-toolbar-row .primary-actions {
   margin-left: auto;
+}
+
+
+/* A selected card wears a slightly heavier outline. */
+.job-row {
+  cursor: pointer;
+}
+.job-row.is-selected {
+  outline: 2px solid color-mix(in oklab, var(--honey-500) 65%, transparent);
+  outline-offset: -2px;
 }

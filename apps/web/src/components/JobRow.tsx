@@ -79,6 +79,14 @@ export function JobRow({
         job.status === 'processing' ? 'is-processing' : ''
       } ${fresh ? 'is-fresh' : ''}`.trim()}
       data-state={job.status}
+      /* The whole card toggles its checkbox — except where a real control
+         lives, so buttons, links and the box itself keep their own click. */
+      onClick={event => {
+        if (job.status === 'analyzing') return;
+        const target = event.target as HTMLElement;
+        if (target.closest('button, a, input, label, [role="button"], details, summary')) return;
+        onSelected(!selected, (event.nativeEvent as MouseEvent).shiftKey === true);
+      }}
     >
       <div className="job-main">
       <div className="job-header">
