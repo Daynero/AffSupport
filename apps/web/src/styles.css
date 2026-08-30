@@ -2077,9 +2077,24 @@ input.is-invalid {
 .drop-zone:hover:not(.is-disabled),
 .drop-zone.is-dragging {
   /* Hover lightens the field to a near-transparent wash — an invitation,
-     not a pressed button. */
-  border-color: var(--honey-700);
+     not a pressed button — and the type turns bright honey so it stays
+     legible over the see-through background. */
+  border-color: var(--honey-500);
+  color: var(--honey-300);
   background: color-mix(in oklab, var(--color-action) 18%, transparent);
+}
+.drop-zone:hover:not(.is-disabled) .drop-icon,
+.drop-zone.is-dragging .drop-icon,
+.drop-zone:hover:not(.is-disabled) strong,
+.drop-zone.is-dragging strong,
+.drop-zone:hover:not(.is-disabled) span:not(.drop-icon):not(.spinner),
+.drop-zone.is-dragging span:not(.drop-icon):not(.spinner) {
+  color: var(--honey-300);
+}
+.drop-zone .drop-icon,
+.drop-zone strong,
+.drop-zone span:not(.drop-icon):not(.spinner) {
+  transition: color var(--dur-control) var(--ease-standard);
 }
 
 .drop-zone.is-dragging {
