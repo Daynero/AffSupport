@@ -461,28 +461,32 @@ function RateValueCrf({
   updateSettings: UpdateSettings;
   t: Translate;
 }) {
+  // Local value keeps the thumb glued to the pointer; the settings update
+  // itself is debounced behind it.
+  const [value, setValue] = useState(settings.crf);
+  useEffect(() => setValue(settings.crf), [settings.crf]);
   return (
-    <span className="crf-track-wrap">
-      <input
-        type="range"
-        className="rate-slider crf-gradient"
-        min={CRF_MIN}
-        max={CRF_MAX}
-        step={1}
-        value={settings.crf}
-        disabled={disabled}
-        aria-label={t('crf')}
-        title={t('crfTooltip')}
-        onChange={event => updateSettings({ crf: Number(event.target.value) }, true)}
-      />
-      <span
-        className="crf-opt-mark"
-        aria-hidden="true"
-        style={{ left: `${((DEFAULT_CRF - CRF_MIN) / (CRF_MAX - CRF_MIN)) * 100}%` }}
-      >
-        <Sparkles size={12} strokeWidth={ICON_STROKE} />
+    <>
+      <span className="crf-track-wrap">
+        <input
+          type="range"
+          className="rate-slider crf-gradient"
+          min={CRF_MIN}
+          max={CRF_MAX}
+          step={1}
+          value={value}
+          disabled={disabled}
+          aria-label={t('crf')}
+          title={t('crfTooltip')}
+          onChange={event => {
+            const next = Number(event.target.value);
+            setValue(next);
+            updateSettings({ crf: next }, true);
+          }}
+        />
       </span>
-    </span>
+      <span className="rate-optimal-note">CRF {value}</span>
+    </>
   );
 }
 

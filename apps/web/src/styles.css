@@ -15401,14 +15401,7 @@ input[type='number'] {
   height: 20px;
   image-rendering: pixelated;
 }
-.crf-opt-mark {
-  position: absolute;
-  top: -12px;
-  transform: translateX(-50%);
-  color: var(--color-accent);
-  pointer-events: none;
-  line-height: 1;
-}
+
 
 /* Per-slot pill toggle beside the column title; off = the whole column
    body collapses so it stops eating the eyes. */
