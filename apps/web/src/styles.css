@@ -15410,28 +15410,12 @@ input[type='number'] {
   line-height: 1;
 }
 
-/* Per-slot switch beside the column title; a switched-off column dims. */
-.image-column-heading .slot-switch {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 26px;
-  min-height: 0;
-  padding: 0;
-  /* Right beside the title, not parked at the far edge of the column. */
+/* Per-slot pill toggle beside the column title; off = the whole column
+   body collapses so it stops eating the eyes. */
+.image-column-heading .slot-feature-switch {
   margin-left: 2px;
-  border: 1px solid var(--color-border);
-  border-radius: calc(var(--radius-sm) - 2px);
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
 }
-.image-column-heading .slot-switch.is-selected {
-  border-color: var(--color-accent);
-  background: color-mix(in oklab, var(--color-accent) 16%, var(--color-surface));
-  color: var(--color-accent);
-}
-.image-column.is-off .image-drop-area,
-.image-column.is-off .embedding-column-fields {
-  opacity: 0.45;
+.image-column-body {
+  display: grid;
+  gap: var(--space-3);
 }

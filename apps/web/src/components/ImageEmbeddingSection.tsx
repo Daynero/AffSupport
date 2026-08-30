@@ -18,7 +18,7 @@ import {
 import type { TranslationKey } from '../i18n';
 import { Checkbox, Collapse, IconButton, Spinner, Tooltip, type Translate } from './ui';
 import { imageContentPath } from '../api/subresource-paths';
-import { Crop, Dices, Image as ImageIcon, Minimize2, Plus, Power, RefreshCw, Timer, UnfoldVertical, X } from 'lucide-react';
+import { Crop, Dices, Image as ImageIcon, Minimize2, Plus, RefreshCw, Timer, UnfoldVertical, X } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from './icons';
 import { useSubresourceUrl } from '../api/useSubresourceUrl';
 
@@ -346,33 +346,33 @@ function ImageColumn({
   children?: React.ReactNode;
 }) {
   return (
-    <section className={`image-column ${slotEnabled ? '' : 'is-off'}`.trim()} aria-label={title}>
+    <section className="image-column" aria-label={title}>
       <div className="image-column-heading">
         <h3>{title}</h3>
         <Tooltip label={description}>{description}</Tooltip>
-        <button
-          type="button"
-          role="switch"
-          className={`slot-switch ${slotEnabled ? 'is-selected' : ''}`.trim()}
-          title={title}
+        <Checkbox
+          className="feature-switch slot-feature-switch"
+          checked={slotEnabled}
           aria-label={title}
-          aria-checked={slotEnabled}
-          onClick={onToggleSlot}
-        >
-          <Power size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        </button>
+          onChange={onToggleSlot}
+          label={null}
+        />
       </div>
-      {children}
-      <ImageDropArea
-        slot={slot}
-        assets={assets}
-        disabled={disabled}
-        uploadImages={uploadImages}
-        removeImage={removeImage}
-        disabledIds={disabledIds}
-        onToggleImage={onToggleImage}
-        t={t}
-      />
+      <Collapse open={slotEnabled}>
+        <div className="image-column-body">
+          {children}
+          <ImageDropArea
+            slot={slot}
+            assets={assets}
+            disabled={disabled}
+            uploadImages={uploadImages}
+            removeImage={removeImage}
+            disabledIds={disabledIds}
+            onToggleImage={onToggleImage}
+            t={t}
+          />
+        </div>
+      </Collapse>
     </section>
   );
 }
