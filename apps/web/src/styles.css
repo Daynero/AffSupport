@@ -1387,9 +1387,8 @@ a {
 .replace-existing-setting {
   display: flex;
   align-items: center;
+  align-self: start;
   gap: 6px;
-  padding-bottom: var(--space-2);
-  border-bottom: 1px solid var(--color-border);
 }
 
 .image-columns {
@@ -15990,15 +15989,17 @@ input[type='number'] {
   overflow: hidden;
 }
 /* A status rail down the left edge: blue while running, green when done,
-   red on failure, quiet grey for anything not started (or cancelled). */
+   red on failure, light grey for anything not started (or cancelled).
+   It follows the card's rounded corners instead of cutting them square. */
 .job-row::before {
   content: '';
   position: absolute;
   top: 0;
   bottom: 0;
   left: 0;
-  width: 4px;
-  background: color-mix(in oklab, var(--color-text) 22%, transparent);
+  width: 8px;
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  background: color-mix(in oklab, var(--color-text) 45%, transparent);
 }
 .job-row[data-state='processing']::before,
 .job-row[data-state='queued']::before {
@@ -16243,4 +16244,19 @@ input[type='number'] {
 }
 .image-drop-wrapper {
   gap: 0;
+}
+
+
+/* The re-embed toggle rides at the top of its row, on the same line as the
+   'Заповнення кадру' label beside it (the shared metadata rule centres it). */
+.embedding-settings-row .replace-existing-setting {
+  align-self: start;
+  margin-top: 0;
+  min-height: 26px;
+}
+
+
+/* Half the air under the last tile row inside the embedding panel. */
+.settings-panel .image-embedding-panel {
+  padding-bottom: 6px;
 }
