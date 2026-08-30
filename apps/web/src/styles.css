@@ -16165,3 +16165,35 @@ input[type='number'] {
 .job-side .media-panel {
   padding: 12px 14px;
 }
+
+
+/* The primary settings row sits on the same dark slab as the embedding
+   block, with fading hairlines between its groups (like the toolbar's). */
+.settings-primary-row {
+  padding: var(--space-3);
+  border: 1px solid color-mix(in oklab, var(--color-accent) 30%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, var(--purple-950, var(--purple-900)) 55%, var(--color-surface));
+}
+.settings-primary-row > *,
+.custom-settings > *,
+.embedding-settings-row > * {
+  position: relative;
+}
+.settings-primary-row > * + *::before,
+.custom-settings > * + *::before,
+.embedding-settings-row > * + *::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: calc(var(--space-6) / -2);
+  width: 1px;
+  height: 64px;
+  transform: translateY(-50%);
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    color-mix(in oklab, var(--color-text) 22%, transparent) 50%,
+    transparent 100%
+  );
+}
