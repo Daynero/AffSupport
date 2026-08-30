@@ -2060,13 +2060,13 @@ input.is-invalid {
   justify-content: center;
   gap: var(--space-3);
   padding: var(--space-4);
-  /* A drop target, not a button: flat orange fill, dark-orange dashes,
-     and no plate behind it. */
-  border: 2px dashed var(--honey-700);
+  /* A drop target, not a button: the page's dark surface, an orange dashed
+     outline, white type and an orange glyph. */
+  border: 2px dashed var(--honey-500);
   box-shadow: none;
   border-radius: var(--radius-lg);
-  color: var(--color-on-action);
-  background: var(--color-action);
+  color: var(--color-text);
+  background: var(--color-surface);
   cursor: pointer;
   transition:
     border-color var(--dur-control) var(--ease-standard),
@@ -2076,13 +2076,10 @@ input.is-invalid {
 
 .drop-zone:hover:not(.is-disabled),
 .drop-zone.is-dragging {
-  /* Hover lightens the field to a near-transparent wash — an invitation,
-     not a pressed button — and the type turns bright honey so it stays
-     legible over the see-through background. */
-  /* The most saturated orange in the scale — not the palest tint. */
+  /* Hover warms the dark field a touch and brightens the dashed outline. */
   border-color: var(--honey-400);
   color: var(--honey-400);
-  background: color-mix(in oklab, var(--color-action) 18%, transparent);
+  background: color-mix(in oklab, var(--color-action) 10%, var(--color-surface));
 }
 .drop-zone:hover:not(.is-disabled) .drop-icon,
 .drop-zone.is-dragging .drop-icon,
@@ -15557,14 +15554,15 @@ input[type='number'] {
 /* Big drag-and-drop glyph in the intake zone, Soty orange. */
 .drop-zone .drop-icon {
   display: inline-flex;
-  color: var(--color-on-action);
+  color: var(--honey-500);
 }
 
-
-/* On the action-orange fill the zone's own text rides the same ink. */
-.drop-zone strong,
+/* Resting state on the dark field: white heading, muted format list. */
+.drop-zone strong {
+  color: var(--color-text);
+}
 .drop-zone span:not(.drop-icon):not(.spinner) {
-  color: var(--color-on-action);
+  color: var(--color-text-muted);
 }
 
 /* Instant hover hints: rendered into a body portal by InstantTips, so no
@@ -15590,9 +15588,9 @@ input[type='number'] {
 /* Light theme flips the intake zone: purple field, honey type and dashes. */
 :root[data-theme='light'] .drop-zone,
 :root:not([data-theme='dark']) .drop-zone {
-  border-color: var(--honey-400);
-  color: var(--honey-300);
-  background: var(--purple-700);
+  border-color: var(--honey-500);
+  color: var(--color-text);
+  background: var(--color-surface);
 }
 :root[data-theme='light'] .drop-zone .drop-icon,
 :root:not([data-theme='dark']) .drop-zone .drop-icon,
@@ -15600,14 +15598,22 @@ input[type='number'] {
 :root:not([data-theme='dark']) .drop-zone strong,
 :root[data-theme='light'] .drop-zone span:not(.drop-icon):not(.spinner),
 :root:not([data-theme='dark']) .drop-zone span:not(.drop-icon):not(.spinner) {
-  color: var(--honey-300);
+  color: var(--color-text-muted);
+}
+:root[data-theme='light'] .drop-zone strong,
+:root:not([data-theme='dark']) .drop-zone strong {
+  color: var(--color-text);
+}
+:root[data-theme='light'] .drop-zone .drop-icon,
+:root:not([data-theme='dark']) .drop-zone .drop-icon {
+  color: var(--honey-500);
 }
 :root[data-theme='light'] .drop-zone:hover:not(.is-disabled),
 :root:not([data-theme='dark']) .drop-zone:hover:not(.is-disabled),
 :root[data-theme='light'] .drop-zone.is-dragging,
 :root:not([data-theme='dark']) .drop-zone.is-dragging {
-  border-color: var(--honey-300);
-  background: color-mix(in oklab, var(--purple-700) 18%, transparent);
+  border-color: var(--honey-400);
+  background: color-mix(in oklab, var(--color-action) 10%, var(--color-surface));
 }
 
 /* The metadata toggle and its hint share one line. */
