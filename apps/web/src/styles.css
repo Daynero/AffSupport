@@ -16462,22 +16462,29 @@ input[type='number'] {
   margin-top: 2px;
 }
 
-/* Fading hairlines between the metric columns, like the settings rows. */
-.media-grid > div {
+/* Two full-height hairlines down the metric grid — one line per column
+   boundary, spanning both rows, fading out at both ends. */
+.media-grid {
   position: relative;
 }
-.media-grid > div:not(:nth-child(3n + 1))::before {
+.media-grid::before,
+.media-grid::after {
   content: '';
   position: absolute;
-  top: 50%;
-  left: calc(var(--space-3) / -2);
+  top: 0;
+  bottom: 0;
   width: 1px;
-  height: 34px;
-  transform: translateY(-50%);
   background: linear-gradient(
     to bottom,
     transparent 0%,
-    color-mix(in oklab, var(--color-text) 20%, transparent) 50%,
+    color-mix(in oklab, var(--color-text) 20%, transparent) 18%,
+    color-mix(in oklab, var(--color-text) 20%, transparent) 82%,
     transparent 100%
   );
+}
+.media-grid::before {
+  left: calc(33.333% - var(--space-3) / 2);
+}
+.media-grid::after {
+  left: calc(66.666% - var(--space-3) / 2);
 }
