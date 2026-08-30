@@ -1,48 +1,76 @@
 /**
- * The app's shared pictogram base (owner, 2026-08-30): small schematic icons
- * that explain a behaviour visually — a 9:16 screen and how the image sits in
- * it — so controls read at a glance in any language. Words move to tooltips.
+ * The app's shared pictogram base (owner, 2026-08-30).
  *
- * Conventions: 24×24 viewBox, stroke = currentColor, 1.6 stroke width, no
- * fills except deliberate accents; every icon takes the size via CSS (1em).
+ * Vocabulary: lucide-react is the app's icon system — thin 24px strokes,
+ * round caps — an open (ISC) set drawn in the same restrained spirit as
+ * SF Symbols. Anything it does not cover is drawn here by hand in the same
+ * convention: viewBox 24, hairline strokes (1.5), round caps and joins.
+ * Where meaning needs colour, it is a soft translucent wash, never a slab:
+ * green is what stays visible, red is what the crop takes away.
  */
 
-/** A 9:16 frame filled edge-to-edge; the picture overflows and is cropped. */
+const GREEN = '#34c759';
+const RED = '#ff453a';
+
+function Pictogram({ children }: { children: React.ReactNode }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className="pictogram"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {children}
+    </svg>
+  );
+}
+
+/** The 9:16 phone frame every fit icon shares. */
+function PhoneFrame() {
+  return (
+    <>
+      <rect x="7" y="2.75" width="10" height="18.5" rx="2.5" />
+      <path d="M10.6 5h2.8" strokeWidth="1.2" />
+    </>
+  );
+}
+
+/** Fill & crop: the picture is wider than the screen; the red ears are lost. */
 export function FitCoverIcon() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="pictogram">
-      <rect x="7" y="3" width="10" height="18" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.6" />
-      {/* the picture, wider than the frame, cropped by it */}
-      <path
-        d="M4 9.5h16M4 14.5h16"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeDasharray="2 2"
-        opacity="0.55"
-      />
-      <rect x="8.4" y="8" width="7.2" height="8" rx="0.8" fill="currentColor" opacity="0.85" />
-    </svg>
+    <Pictogram>
+      {/* the cropped ears — a soft red wash outside the frame */}
+      <rect x="3.4" y="8.6" width="3.6" height="7.4" rx="1" fill={RED} fillOpacity="0.28" stroke="none" />
+      <rect x="17" y="8.6" width="3.6" height="7.4" rx="1" fill={RED} fillOpacity="0.28" stroke="none" />
+      {/* the visible part — a soft green wash inside */}
+      <rect x="7.9" y="8.6" width="8.2" height="7.4" rx="1" fill={GREEN} fillOpacity="0.32" stroke="none" />
+      {/* the picture's own outline, running past both edges */}
+      <rect x="3.4" y="8.6" width="17.2" height="7.4" rx="1.4" stroke={GREEN} strokeOpacity="0.8" strokeWidth="1.2" />
+      <PhoneFrame />
+    </Pictogram>
   );
 }
 
-/** The whole picture inside the 9:16 frame, empty bands above and below. */
+/** Fit completely: the whole picture inside, air above and below. */
 export function FitContainIcon() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="pictogram">
-      <rect x="7" y="3" width="10" height="18" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.6" />
-      <rect x="8.4" y="9" width="7.2" height="6" rx="0.8" fill="currentColor" opacity="0.85" />
-    </svg>
+    <Pictogram>
+      <rect x="8.8" y="9.3" width="6.4" height="5.8" rx="1.2" fill={GREEN} fillOpacity="0.32" stroke={GREEN} strokeOpacity="0.8" strokeWidth="1.2" />
+      <PhoneFrame />
+    </Pictogram>
   );
 }
 
-/** The picture stretched to the frame's edges (distorted). */
+/** Stretch: the picture pulled to the screen's edges. */
 export function FitStretchIcon() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="pictogram">
-      <rect x="7" y="3" width="10" height="18" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.6" />
-      <rect x="8.4" y="4.4" width="7.2" height="15.2" rx="0.8" fill="currentColor" opacity="0.85" />
-      {/* stretch arrows */}
-      <path d="M12 6.6v-1m0 13v1" stroke="#0b0b12" strokeWidth="1.4" strokeLinecap="round" />
-    </svg>
+    <Pictogram>
+      <rect x="8.5" y="6.7" width="7" height="12.6" rx="1.4" fill={GREEN} fillOpacity="0.32" stroke={GREEN} strokeOpacity="0.8" strokeWidth="1.2" />
+      <PhoneFrame />
+    </Pictogram>
   );
 }

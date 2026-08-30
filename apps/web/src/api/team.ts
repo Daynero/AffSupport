@@ -375,6 +375,8 @@ export interface TeamProcessStartInput {
   optionsSummary: Record<string, unknown>;
   destinationFolderId: string;
   outputName: string;
+  /** Overwrite: upload the result as a new Drive version of this material (must equal materialId). */
+  versionOfMaterialId?: string;
   conflictMode: 'cancel' | 'keep_both';
   idempotencyKey: string;
   agentContractVersion: number;

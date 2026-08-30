@@ -258,6 +258,14 @@ export class TeamProcessBridge {
       return result;
     } catch (error) {
       const canceled = controller.signal.aborted;
+      // Debug (013): the generic PROCESS_FAILED hid every real upload error;
+      // surface the underlying message in the agent's stdout.
+      if (!canceled) {
+        console.error(
+          '[team-process] failed:',
+          error instanceof Error ? `${error.message}\n${error.stack ?? ''}` : String(error)
+        );
+      }
       const code = canceled ? abortCode(controller.signal) : safeErrorCode(error);
       this.#events.update(request.operationId, {
         state: canceled ? 'canceled' : 'failed',

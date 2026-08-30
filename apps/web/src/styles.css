@@ -15092,12 +15092,17 @@ button.team-landing-tile:hover {
 .selected-image-tile.is-active {
   outline: 2px solid #16a34a;
   outline-offset: 1px;
-  box-shadow: 0 0 10px color-mix(in oklab, #16a34a 55%, transparent);
+  /* A visible green glow, not just a hairline. */
+  box-shadow:
+    0 0 16px 3px color-mix(in oklab, #16a34a 75%, transparent),
+    0 0 4px 1px color-mix(in oklab, #16a34a 60%, transparent);
   cursor: pointer;
 }
 .selected-image-tile.is-inactive {
   cursor: pointer;
   position: relative;
+  /* The veil must cover the tile to its rounded edge — no bright rim. */
+  overflow: hidden;
 }
 .selected-image-tile.is-inactive img {
   filter: grayscale(1) blur(1px);
@@ -15107,8 +15112,14 @@ button.team-landing-tile:hover {
   content: '';
   position: absolute;
   inset: 0;
-  background: color-mix(in oklab, #808080 20%, transparent);
+  /* A light 10% gray veil across the whole tile; the delete button rides above. */
+  background: color-mix(in oklab, #808080 10%, transparent);
+  border-radius: inherit;
   pointer-events: none;
+  z-index: 1;
+}
+.selected-image-tile .selected-image-action {
+  z-index: 3;
 }
 .selected-image-off {
   position: absolute;
@@ -15121,8 +15132,10 @@ button.team-landing-tile:hover {
 .selected-image-off svg {
   width: 100%;
   height: 100%;
-  stroke: color-mix(in oklab, #fff 55%, transparent);
-  stroke-width: 1.2;
+  stroke: color-mix(in oklab, #fff 60%, transparent);
+  /* Thicker, rounded cross. */
+  stroke-width: 2.6;
+  stroke-linecap: round;
   fill: none;
 }
 .output-suffix-field {
@@ -15191,20 +15204,21 @@ button.team-landing-tile:hover {
 }
 .fit-mode-pictos {
   display: inline-flex;
-  gap: 4px;
-  padding: 3px;
+  /* Exactly as wide as its three buttons — no empty shelf trailing after. */
+  width: fit-content;
+  gap: 6px;
+  padding: 4px;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: var(--color-surface-muted);
 }
 .fit-mode-pictos button {
   display: grid;
   place-items: center;
-  width: 54px;
-  height: 44px;
+  width: 44px;
+  height: 38px;
   min-height: 0;
   padding: 0;
-  font-size: 34px;
   border: 1px solid transparent;
   border-radius: calc(var(--radius-sm) - 2px);
   background: transparent;
@@ -15244,4 +15258,12 @@ button.team-landing-tile:hover {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+}
+
+/* The name-ending sits on its own tidy row, flush with the control above. */
+.output-suffix-field {
+  margin-top: 2px;
+}
+.output-suffix-field input {
+  height: 34px;
 }

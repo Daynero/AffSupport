@@ -470,6 +470,18 @@ function OutputSettings({
               else updateSettings({ outputMode: value });
             }}
           />
+          {settings.outputMode === 'chosen-folder' && (
+            <Button variant="ghost" disabled={disabled} onClick={chooseOutputFolder}>
+              {t('selectFolder')}
+            </Button>
+          )}
+          {settings.outputMode === 'chosen-folder' && (
+            <span className="selected-folder" title={settings.outputFolder ?? t('noFolderSelected')}>
+              {settings.outputFolder ? compactPath(settings.outputFolder) : t('noFolderSelected')}
+            </span>
+          )}
+        </div>
+        <div className="output-control-row">
           <label className="output-suffix-field">
             <span>{t('outputSuffixLabel')}</span>
             <input
@@ -481,17 +493,7 @@ function OutputSettings({
               onChange={event => updateSettings({ outputSuffix: event.target.value }, true)}
             />
           </label>
-          {settings.outputMode === 'chosen-folder' && (
-            <Button variant="ghost" disabled={disabled} onClick={chooseOutputFolder}>
-              {t('selectFolder')}
-            </Button>
-          )}
         </div>
-        {settings.outputMode === 'chosen-folder' && (
-          <span className="selected-folder" title={settings.outputFolder ?? t('noFolderSelected')}>
-            {settings.outputFolder ? compactPath(settings.outputFolder) : t('noFolderSelected')}
-          </span>
-        )}
       </div>
     </div>
   );

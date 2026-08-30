@@ -28,7 +28,8 @@ export function FolderProcessDialog({
   folder,
   client,
   onClose,
-  onRun
+  onRun,
+  onCompressAll
 }: {
   teamId: string;
   folder: TeamMaterialRow;
@@ -36,6 +37,8 @@ export function FolderProcessDialog({
   onClose: () => void;
   /** The shell runs the batch in the background; the dialog only chooses. */
   onRun: (plan: FolderBatchPlan) => void;
+  /** Opens the compact compressor over every video inside (013 B2). */
+  onCompressAll?: (videos: TeamMaterialSummary[]) => void;
 }) {
   const { t } = useI18n();
   const agent = useOptionalAgent();
@@ -72,9 +75,10 @@ export function FolderProcessDialog({
     };
   }, [client, folder.driveFileId, teamId]);
 
-  const videos = (children ?? []).filter(
-    item => item.kind === 'file' && item.category === 'video' && !skippedVideos.has(item.id)
+  const allVideos = (children ?? []).filter(
+    item => item.kind === 'file' && item.category === 'video'
   );
+  const videos = allVideos.filter(item => !skippedVideos.has(item.id));
   const landings = (children ?? []).filter(
     item => item.kind === 'file' && item.category === 'landing'
   );
@@ -125,6 +129,21 @@ export function FolderProcessDialog({
                   })}
                 </span>
               </li>
+              {onCompressAll && (
+                <li>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={allVideos.length === 0}
+                    onClick={() => onCompressAll(allVideos)}
+                  >
+                    {t('teamFolderProcessCompress')}
+                  </Button>
+                  <span className="team-explorer-muted">
+                    {t('teamFolderProcessCompressCount', { count: allVideos.length })}
+                  </span>
+                </li>
+              )}
               <li>
                 <Button
                   type="button"

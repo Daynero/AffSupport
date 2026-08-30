@@ -1637,11 +1637,20 @@ async function handleProcessStart(
   const toolId = typeof body.toolId === 'string' ? body.toolId : '';
   const tool = TOOL_RULES[toolId];
   const outputName = displayDriveName(body.outputName);
+  // 013 (B4): overwrite-the-original. The compressed result is uploaded as a
+  // new Drive version of the source file itself — same material id, so every
+  // transcript companion stays attached; the modified date refreshes. Only the
+  // operation's own source may be overwritten.
+  const versionOfMaterialId =
+    body.versionOfMaterialId === undefined || body.versionOfMaterialId === null
+      ? null
+      : requireUuid(body.versionOfMaterialId);
   const conflictMode = parseEnum(body.conflictMode, ['cancel', 'keep_both'] as const);
   const agentContractVersion = safeInteger(body.agentContractVersion);
   const toolContractVersion = safeInteger(body.toolContractVersion);
   if (
     !tool ||
+    (versionOfMaterialId !== null && versionOfMaterialId !== materialId) ||
     !conflictMode.ok ||
     agentContractVersion === null ||
     agentContractVersion < 1 ||
@@ -1687,9 +1696,11 @@ async function handleProcessStart(
       name: outputName,
       mimeType: tool.outputMimeType,
       sizeBytes: 0,
-      conflictMode: conflictMode.value,
-      replaceMaterialId: null,
-      versionOfMaterialId: null,
+      // Overwrite may keep the source's own name: that "collision" is the
+      // point, so it resolves as a replace of the source instead of a rename.
+      conflictMode: versionOfMaterialId ? 'replace' : conflictMode.value,
+      replaceMaterialId: versionOfMaterialId,
+      versionOfMaterialId,
       idempotencyKey
     },
     names
@@ -1714,6 +1725,7 @@ async function handleProcessStart(
     expectedName: plan.name,
     mimeType: tool.outputMimeType,
     expectedSize: null,
+    versionOfMaterialId,
     toolId,
     toolContractVersion
   });
@@ -1815,6 +1827,22 @@ async function handleProcessOutputStart(
     actorId: grant.actorId,
     permission: 'process'
   });
+  // 013 (B4): an overwrite run uploads onto the source file itself — the PATCH
+  // keeps (or renames to) the expected name, and the finalize's
+  // on-conflict-by-drive-file-id update refreshes the same material row, so
+  // companions stay attached and the modified date moves.
+  let overwriteTarget: DriveFileMetadata | null = null;
+  if (operation.versionOfMaterialId) {
+    const context = await loadContext({
+      service,
+      teamId: operation.teamId,
+      materialId: operation.versionOfMaterialId,
+      actorId: grant.actorId,
+      permission: 'process'
+    });
+    const client = await driveClient(service, context.credentialId, request);
+    overwriteTarget = await proveContext(context, client);
+  }
   await rpcValue(service, 'service_set_team_operation_intent', {
     p_operation: operationId,
     p_actor: grant.actorId,
@@ -1822,7 +1850,7 @@ async function handleProcessOutputStart(
     p_mime_type: operation.mimeType,
     p_expected_size: sizeBytes,
     p_replace_material: null,
-    p_version_of_material: null,
+    p_version_of_material: operation.versionOfMaterialId,
     p_tool: operation.toolId,
     p_tool_contract_version: operation.toolContractVersion
   });
@@ -1830,7 +1858,8 @@ async function handleProcessOutputStart(
     name: operation.expectedName,
     mimeType: operation.mimeType,
     sizeBytes,
-    parentId: destination.live.id
+    parentId: destination.live.id,
+    existingFileId: overwriteTarget?.id ?? null
   });
   await transitionOperation({
     service,
