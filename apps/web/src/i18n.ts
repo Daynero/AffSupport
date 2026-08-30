@@ -315,7 +315,7 @@ const en = {
     'Frames shown each second. A lower value reduces size, but motion may look less smooth.',
   resolution: 'Resolution',
   resolutionTooltip:
-    'Sets the longest side of the video. Aspect ratio is preserved and the other side is made even. A lower value noticeably reduces file size.',
+    'How large the picture is. 1080p is what most videos use; 720p roughly halves the file. The frame shape stays the same.',
   asOriginal: 'As original',
   customValue: 'Custom',
   customFps: 'Custom FPS',
@@ -325,8 +325,8 @@ const en = {
   rateControl: 'Quality / size control',
   rateControlTooltip:
     'Gem: you fix the picture quality — file size varies. Gauge: you fix the size (bitrate) — quality adapts.',
-  constantQuality: 'Constant quality (CRF)',
-  targetBitrate: 'Target bitrate',
+  constantQuality: 'You fix the picture quality — file size varies',
+  targetBitrate: 'You fix the size (bitrate) — quality adapts',
   crf: 'CRF',
   crfTooltip:
     'Lower values mean better quality and a larger file. 26 is a good balance for most videos.',
@@ -2023,7 +2023,7 @@ const uk: Record<keyof typeof en, string> = {
     'Кількість кадрів за секунду. Менше значення зменшує файл, але рух може стати менш плавним.',
   resolution: 'Роздільна здатність',
   resolutionTooltip:
-    'Значення задає довшу сторону відео. Пропорції зберігаються, друга сторона буде парною. Менше значення помітно зменшує файл.',
+    'Наскільки великою буде картинка. 1080p — як у більшості відео, 720p — удвічі легший файл. Форма кадру не змінюється.',
   asOriginal: 'Як в оригіналі',
   customValue: 'Власне значення',
   customFps: 'Власний FPS',
@@ -2033,8 +2033,8 @@ const uk: Record<keyof typeof en, string> = {
   rateControl: 'Контроль якості / розміру',
   rateControlTooltip:
     'Діамант: фіксуєш якість картинки — розмір файлу як вийде. Спідометр: фіксуєш розмір (бітрейт) — якість підлаштовується.',
-  constantQuality: 'Постійна якість (CRF)',
-  targetBitrate: 'Цільовий бітрейт',
+  constantQuality: 'Фіксуєш якість картинки — розмір файлу як вийде',
+  targetBitrate: 'Фіксуєш розмір (бітрейт) — якість підлаштовується',
   crf: 'CRF',
   crfTooltip:
     'Менше значення — краща якість і більший файл. 26 — хороший баланс для більшості відео.',

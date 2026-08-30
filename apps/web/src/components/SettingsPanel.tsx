@@ -198,7 +198,7 @@ function CustomSettings({
         t={t}
       />
       <div className="field-group rate-control-field custom-column-primary">
-        <FieldLabel label={t('rateControl')} tooltip={t('rateControlTooltip')} />
+        <FieldLabel label={t('rateControl')} />
         <div className="start-duration-row">
         <div className="fit-mode-pictos" role="radiogroup" aria-label={t('rateControl')}>
           <button
