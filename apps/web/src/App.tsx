@@ -503,17 +503,6 @@ export default function CompressorPage() {
           <BlockingMessage title={localizedAgentText(state.warning, t)} tone="warning" />
         )}
 
-        <SettingsPanel
-          settings={state.settings}
-          disabled={!connected}
-          updateSettings={updateSettings}
-          chooseOutputFolder={() => void action('/api/output/select')}
-          uploadImages={setImages}
-          removeImage={removeImage}
-          onEmbeddingValidityChange={setEmbeddingFormValid}
-          t={t}
-        />
-
         <section className="add-files-section" aria-label={t('chooseFiles')}>
           <DropZone
             disabled={!connected || importing || !state.tools.ffprobe}
@@ -528,6 +517,17 @@ export default function CompressorPage() {
             t={t}
           />
         </section>
+
+        <SettingsPanel
+          settings={state.settings}
+          disabled={!connected}
+          updateSettings={updateSettings}
+          chooseOutputFolder={() => void action('/api/output/select')}
+          uploadImages={setImages}
+          removeImage={removeImage}
+          onEmbeddingValidityChange={setEmbeddingFormValid}
+          t={t}
+        />
 
         {state.jobs.length > 0 && (
           <>

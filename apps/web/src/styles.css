@@ -1993,6 +1993,8 @@ input.is-invalid {
 .add-files-section {
   display: grid;
   gap: 6px;
+  /* Pinned to the top of the page — no gap above it. */
+  margin-top: 0;
 }
 
 .add-files-section > p {
@@ -2006,10 +2008,11 @@ input.is-invalid {
   justify-content: center;
   gap: var(--space-3);
   padding: var(--space-4);
-  border: 1.5px dashed var(--color-border-strong);
+  /* The intake zone wears the Soty orange and sits pinned at the very top. */
+  border: 1.5px dashed #f2a33c;
   border-radius: var(--radius-lg);
   color: var(--color-text);
-  background: var(--color-surface);
+  background: color-mix(in oklab, #f2a33c 8%, var(--color-surface));
   cursor: pointer;
   transition:
     border-color var(--dur-control) var(--ease-standard),
