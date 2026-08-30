@@ -309,6 +309,11 @@ const en = {
   optimal: 'Optimal',
   custom: 'Custom settings',
   optimalSummary: '30 FPS · CRF 26 · 720p',
+  settingsSummaryPreset: 'Preset',
+  settingsSummaryResolution: 'Resolution',
+  settingsSummaryFps: 'FPS',
+  settingsSummaryQuality: 'Quality',
+  settingsSummaryOriginal: 'Original',
   optimalTooltip: 'Uses 30 FPS, CRF 26, a 720p longest-side limit, and H.264 in an MP4 container.',
   frameRate: 'Frame rate',
   frameRateTooltip:
@@ -2017,6 +2022,11 @@ const uk: Record<keyof typeof en, string> = {
   optimal: 'Оптимальний',
   custom: 'Власні налаштування',
   optimalSummary: '30 FPS · CRF 26 · 720p',
+  settingsSummaryPreset: 'Пресет',
+  settingsSummaryResolution: 'Роздільна',
+  settingsSummaryFps: 'FPS',
+  settingsSummaryQuality: 'Якість',
+  settingsSummaryOriginal: 'Як в оригіналі',
   optimalTooltip: '30 FPS, CRF 26, обмеження довшої сторони 720p та H.264 у контейнері MP4.',
   frameRate: 'Частота кадрів',
   frameRateTooltip:

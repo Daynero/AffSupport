@@ -1118,10 +1118,10 @@ a {
   grid-template-columns: auto minmax(0, 1fr);
   gap: var(--space-3) var(--space-5);
   padding: var(--space-4);
-  /* Same dark surface as every other card on the page — the panel is told
-     apart by its border and its own blocks, not by a tint. */
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
+  /* A violet-tinted slab behind a violet outline, so the settings read as
+     their own control surface. */
+  border: 1px solid color-mix(in oklab, var(--color-accent) 45%, transparent);
+  background: color-mix(in oklab, var(--purple-900) 55%, var(--color-surface));
 }
 .settings-panel .settings-body {
   display: contents;
@@ -1134,20 +1134,48 @@ a {
   grid-column: 1 / -1;
 }
 .settings-collapse {
-  display: inline-flex;
+  /* The whole strip is the toggle. */
+  display: flex;
+  width: 100%;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
   min-height: 0;
   padding: 0;
   border: none;
   background: transparent;
-  color: inherit;
+  color: var(--color-accent);
   cursor: pointer;
+  text-align: left;
 }
-.settings-collapse svg {
+.settings-collapse h2 {
+  color: var(--color-text);
+}
+.settings-collapse .settings-chevron {
+  margin-left: auto;
+  color: var(--color-accent);
+}
+.settings-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-5);
+  margin-left: auto;
+  color: var(--color-text);
+  font-size: var(--text-xl);
+  font-weight: 600;
+}
+.settings-summary-key {
+  margin-right: 6px;
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+.settings-summary + .settings-chevron {
+  margin-left: var(--space-4);
+}
+.settings-collapse .settings-chevron {
   transition: transform var(--dur-control) var(--ease-standard);
 }
-.settings-collapse svg.is-rotated {
+.settings-collapse .settings-chevron.is-rotated {
   transform: rotate(-90deg);
 }
 

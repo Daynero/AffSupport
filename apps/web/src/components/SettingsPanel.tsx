@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Eraser, Files, Film, FolderOpen, Gauge, Gem, Monitor, Sparkles, SlidersHorizontal, Timer } from 'lucide-react';
+import { ChevronDown, Eraser, Settings as SettingsIcon, Files, Film, FolderOpen, Gauge, Gem, Monitor, Sparkles, SlidersHorizontal, Timer } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from './icons';
 import {
   CRF_MAX,
@@ -54,23 +54,49 @@ export function SettingsPanel({
       className={`settings-panel ${open ? '' : 'is-collapsed'}`.trim()}
       aria-labelledby="settings-title"
     >
-      <div className="section-heading compact-heading">
-        <button
-          type="button"
-          className="settings-collapse"
-          aria-expanded={open}
-          aria-controls="settings-body"
-          onClick={() => setOpen(current => !current)}
-        >
-          <ChevronDown
-            size={ICON_SIZE}
-            strokeWidth={ICON_STROKE}
-            className={open ? '' : 'is-rotated'}
-            aria-hidden="true"
-          />
-          <h2 id="settings-title">{t('compressionSettings')}</h2>
-        </button>
-      </div>
+      {/* The whole header is the toggle: gear and title on the left, the
+          current choices in the middle (only while collapsed, so they never
+          duplicate the controls below), chevron in the corner. */}
+      <button
+        type="button"
+        className="settings-collapse section-heading compact-heading"
+        aria-expanded={open}
+        aria-controls="settings-body"
+        onClick={() => setOpen(current => !current)}
+      >
+        <SettingsIcon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        <h2 id="settings-title">{t('compressionSettings')}</h2>
+        {!open && (
+          <span className="settings-summary">
+            <span>
+              <span className="settings-summary-key">{t('settingsSummaryPreset')}</span>
+              {settings.mode === 'optimal' ? t('optimal') : t('custom')}
+            </span>
+            <span>
+              <span className="settings-summary-key">{t('settingsSummaryResolution')}</span>
+              {settings.resolutionLimit
+                ? `${settings.resolutionLimit}p`
+                : t('settingsSummaryOriginal')}
+            </span>
+            <span>
+              <span className="settings-summary-key">{t('settingsSummaryFps')}</span>
+              {settings.frameRate ?? t('settingsSummaryOriginal')}
+            </span>
+            <span>
+              <span className="settings-summary-key">{t('settingsSummaryQuality')}</span>
+              {settings.rateControl === 'crf'
+                ? `CRF ${settings.crf}`
+                : `${settings.videoBitrateKbps} kbps`}
+            </span>
+          </span>
+        )}
+        <ChevronDown
+          size={ICON_SIZE}
+          strokeWidth={ICON_STROKE}
+          className={`settings-chevron ${open ? '' : 'is-rotated'}`.trim()}
+          aria-hidden="true"
+        />
+      </button>
       <div id="settings-body" className="settings-body" hidden={!open}>
       <div className="settings-primary-row">
         <div className="field-group">
