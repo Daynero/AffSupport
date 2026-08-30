@@ -374,7 +374,10 @@ function EstimatePanel({
   return (
     <section
       className={`media-panel estimate-panel ${
-        (saving !== null && saving < 0) || job.growthRisk ? 'has-warning' : ''
+        // Amber only for the one thing a person can act on: the result would
+        // be larger than the source. A codec that merely *might* grow is not
+        // worth colouring a whole panel over.
+        saving !== null && saving < 0 ? 'has-warning' : ''
       }`}
       aria-label={t('expectedVideoInfo')}
     >
