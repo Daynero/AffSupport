@@ -2030,6 +2030,7 @@ input.is-invalid {
 .add-files-section {
   display: grid;
   gap: 6px;
+  background: transparent;
   /* Always reachable: the intake zone sticks below the fixed topbar while
      scrolling, and never over it. */
   position: sticky;
@@ -2037,7 +2038,6 @@ input.is-invalid {
   z-index: calc(var(--layer-header) + 1);
   margin-top: 0;
   padding-bottom: 6px;
-  background: var(--color-bg);
 }
 
 .add-files-section > p {
@@ -2051,13 +2051,13 @@ input.is-invalid {
   justify-content: center;
   gap: var(--space-3);
   padding: var(--space-4);
-  /* The intake zone wears the primary-action orange and stays pinned at the
-     very top of the page. */
-  border: 1.5px dashed color-mix(in srgb, var(--color-action-hover) 70%, transparent);
+  /* A drop target, not a button: flat orange fill, dark-orange dashes,
+     and no plate behind it. */
+  border: 2px dashed var(--honey-700);
+  box-shadow: none;
   border-radius: var(--radius-lg);
   color: var(--color-on-action);
-  background: linear-gradient(180deg, var(--color-action) 0%, var(--color-action-hover) 100%);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 40%);
+  background: var(--color-action);
   cursor: pointer;
   transition:
     border-color var(--dur-control) var(--ease-standard),
@@ -2067,12 +2067,13 @@ input.is-invalid {
 
 .drop-zone:hover:not(.is-disabled),
 .drop-zone.is-dragging {
-  border-color: var(--color-accent);
-  background: var(--color-accent-softer);
+  /* Stay orange on hover and while dragging — just a touch brighter. */
+  border-color: var(--honey-800);
+  background: color-mix(in oklab, var(--color-action) 88%, #fff);
 }
 
 .drop-zone.is-dragging {
-  box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent);
+  box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--honey-800) 25%, transparent);
 }
 
 .drop-zone.is-disabled {
@@ -15515,4 +15516,33 @@ input[type='number'] {
 .drop-zone strong,
 .drop-zone span:not(.drop-icon):not(.spinner) {
   color: var(--color-on-action);
+}
+
+/* Instant hover hints: native title tooltips wait about a second before the
+   OS shows them, which reads as lag on icon-only controls. Anything with
+   data-tip gets its own bubble the moment the pointer lands. */
+[data-tip] {
+  position: relative;
+}
+[data-tip]:hover::after,
+[data-tip]:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  z-index: var(--layer-toast);
+  width: max-content;
+  max-width: 260px;
+  padding: 7px 10px;
+  transform: translateX(-50%);
+  border-radius: var(--radius-sm);
+  color: var(--color-on-accent);
+  background: var(--purple-900);
+  box-shadow: var(--shadow-menu);
+  font-size: var(--text-xl);
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: center;
+  white-space: normal;
+  pointer-events: none;
 }

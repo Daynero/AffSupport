@@ -82,7 +82,7 @@ export function SettingsPanel({
             <button
               type="button"
               className={settings.mode === 'optimal' ? 'is-selected' : ''}
-              title={t('optimal')}
+              data-tip={t('optimal')}
               aria-label={t('optimal')}
               aria-checked={settings.mode === 'optimal'}
               role="radio"
@@ -94,7 +94,7 @@ export function SettingsPanel({
             <button
               type="button"
               className={settings.mode === 'custom' ? 'is-selected' : ''}
-              title={t('custom')}
+              data-tip={t('custom')}
               aria-label={t('custom')}
               aria-checked={settings.mode === 'custom'}
               role="radio"
@@ -123,7 +123,7 @@ export function SettingsPanel({
                 type="button"
                 role="switch"
                 className={settings.stripMetadata ? 'is-selected' : ''}
-                title={t('stripMetadata')}
+                data-tip={t('stripMetadata')}
                 aria-label={t('stripMetadata')}
                 aria-checked={settings.stripMetadata}
                 disabled={disabled}
@@ -214,7 +214,7 @@ function CustomSettings({
             type="button"
             role="radio"
             className={rateMode === 'optimal' ? 'is-selected' : ''}
-            title={t('optimal')}
+            data-tip={t('optimal')}
             aria-label={t('optimal')}
             aria-checked={rateMode === 'optimal'}
             disabled={disabled}
@@ -229,7 +229,7 @@ function CustomSettings({
             type="button"
             role="radio"
             className={`${rateMode === 'crf' ? 'is-selected' : ''} ${crfDrag !== null ? 'is-zoomed' : ''}`.trim()}
-            title={t('constantQuality')}
+            data-tip={t('constantQuality')}
             aria-label={t('constantQuality')}
             aria-checked={rateMode === 'crf'}
             disabled={disabled}
@@ -244,7 +244,7 @@ function CustomSettings({
             type="button"
             role="radio"
             className={rateMode === 'bitrate' ? 'is-selected' : ''}
-            title={t('targetBitrate')}
+            data-tip={t('targetBitrate')}
             aria-label={t('targetBitrate')}
             aria-checked={rateMode === 'bitrate'}
             disabled={disabled}
@@ -307,7 +307,7 @@ function FpsControl({
             type="button"
             role="radio"
             className={choice === 'original' ? 'is-selected' : ''}
-            title={t('asOriginal')}
+            data-tip={t('asOriginal')}
             aria-label={t('asOriginal')}
             aria-checked={choice === 'original'}
             disabled={disabled}
@@ -324,7 +324,7 @@ function FpsControl({
               type="button"
               role="radio"
               className={`is-labeled ${choice === String(value) ? 'is-selected' : ''}`}
-              title={`${value} FPS`}
+              data-tip={`${value} FPS`}
               aria-label={`${value} FPS`}
               aria-checked={choice === String(value)}
               disabled={disabled}
@@ -340,7 +340,7 @@ function FpsControl({
             type="button"
             role="radio"
             className={choice === 'custom' ? 'is-selected' : ''}
-            title={t('customValue')}
+            data-tip={t('customValue')}
             aria-label={t('customValue')}
             aria-checked={choice === 'custom'}
             disabled={disabled}
@@ -417,7 +417,7 @@ function ResolutionControl({
             type="button"
             role="radio"
             className={choice === 'original' ? 'is-selected' : ''}
-            title={t('asOriginal')}
+            data-tip={t('asOriginal')}
             aria-label={t('asOriginal')}
             aria-checked={choice === 'original'}
             disabled={disabled}
@@ -434,7 +434,7 @@ function ResolutionControl({
               type="button"
               role="radio"
               className={`is-labeled ${choice === String(value) ? 'is-selected' : ''}`}
-              title={`${value}p`}
+              data-tip={`${value}p`}
               aria-label={`${value}p`}
               aria-checked={choice === String(value)}
               disabled={disabled}
@@ -450,7 +450,7 @@ function ResolutionControl({
             type="button"
             role="radio"
             className={choice === 'custom' ? 'is-selected' : ''}
-            title={t('customValue')}
+            data-tip={t('customValue')}
             aria-label={t('customValue')}
             aria-checked={choice === 'custom'}
             disabled={disabled}
@@ -524,7 +524,7 @@ function RateValueCrf({
           value={value}
           disabled={disabled}
           aria-label={t('crf')}
-          title={t('crfTooltip')}
+          data-tip={t('crfTooltip')}
           onPointerDown={event => onDrag(Number((event.target as HTMLInputElement).value))}
           onChange={event => {
             const next = Number(event.target.value);
@@ -607,7 +607,7 @@ function RateValueBitrate({
         value={value}
         disabled={disabled}
         aria-label={t('videoBitrate')}
-        title={t('bitrateTooltip')}
+        data-tip={t('bitrateTooltip')}
         aria-invalid={!valid && value !== ''}
         onChange={event => {
           const next = event.target.value;
@@ -645,7 +645,7 @@ function OutputSettings({
               type="button"
               role="radio"
               className={settings.outputMode === 'next-to-originals' ? 'is-selected' : ''}
-              title={t('nextToOriginals')}
+              data-tip={t('nextToOriginals')}
               aria-label={t('nextToOriginals')}
               aria-checked={settings.outputMode === 'next-to-originals'}
               disabled={disabled}
@@ -657,7 +657,7 @@ function OutputSettings({
               type="button"
               role="radio"
               className={settings.outputMode === 'chosen-folder' ? 'is-selected' : ''}
-              title={t('chooseFolder')}
+              data-tip={t('chooseFolder')}
               aria-label={t('chooseFolder')}
               aria-checked={settings.outputMode === 'chosen-folder'}
               disabled={disabled}
@@ -667,7 +667,7 @@ function OutputSettings({
             </button>
           </div>
           {settings.outputMode === 'chosen-folder' && (
-            <span className="selected-folder" title={settings.outputFolder ?? t('noFolderSelected')}>
+            <span className="selected-folder" data-tip={settings.outputFolder ?? t('noFolderSelected')}>
               {settings.outputFolder ? compactPath(settings.outputFolder) : t('noFolderSelected')}
             </span>
           )}
@@ -676,7 +676,7 @@ function OutputSettings({
             type="text"
             maxLength={60}
             placeholder="_compressed"
-            title={t('outputSuffixLabel')}
+            data-tip={t('outputSuffixLabel')}
             aria-label={t('outputSuffixLabel')}
             value={settings.outputSuffix ?? ''}
             disabled={disabled}

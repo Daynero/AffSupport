@@ -95,7 +95,7 @@ export function ImageEmbeddingSection({
       type="button"
       role="switch"
       className={settings.replaceExisting ? 'is-selected' : ''}
-      title={t('replaceExistingImages')}
+      data-tip={t('replaceExistingImages')}
       aria-label={t('replaceExistingImages')}
       aria-checked={settings.replaceExisting}
       disabled={disabled}
@@ -128,7 +128,7 @@ export function ImageEmbeddingSection({
                         type="button"
                         className={settings.fitMode === value ? 'is-selected' : ''}
                         disabled={disabled}
-                        title={label}
+                        data-tip={label}
                         aria-label={label}
                         aria-pressed={settings.fitMode === value}
                         onClick={() => update({ fitMode: value })}
@@ -167,7 +167,7 @@ export function ImageEmbeddingSection({
                       type="button"
                       className={settings.startDurationMode === 'one-frame' ? 'is-selected' : ''}
                       disabled={disabled}
-                      title={t('startDurationOneFrame')}
+                      data-tip={t('startDurationOneFrame')}
                       aria-label={t('startDurationOneFrame')}
                       aria-pressed={settings.startDurationMode === 'one-frame'}
                       onClick={() => update({ startDurationMode: 'one-frame' })}
@@ -178,7 +178,7 @@ export function ImageEmbeddingSection({
                       type="button"
                       className={settings.startDurationMode !== 'one-frame' ? 'is-selected' : ''}
                       disabled={disabled}
-                      title={t('customDuration')}
+                      data-tip={t('customDuration')}
                       aria-label={t('customDuration')}
                       aria-pressed={settings.startDurationMode !== 'one-frame'}
                       onClick={() => update({ startDurationMode: 'custom' })}
@@ -250,7 +250,7 @@ export function ImageEmbeddingSection({
                         type="button"
                         className={`is-labeled${settings.finalDurationMode === value ? ' is-selected' : ''}`}
                         disabled={disabled}
-                        title={label}
+                        data-tip={label}
                         aria-label={label}
                         aria-pressed={settings.finalDurationMode === value}
                         onClick={() => update({ finalDurationMode: value })}
@@ -263,7 +263,7 @@ export function ImageEmbeddingSection({
                       type="button"
                       className={settings.finalDurationMode === 'custom' ? 'is-selected' : ''}
                       disabled={disabled}
-                      title={t('customDuration')}
+                      data-tip={t('customDuration')}
                       aria-label={t('customDuration')}
                       aria-pressed={settings.finalDurationMode === 'custom'}
                       onClick={() => update({ finalDurationMode: 'custom' })}
@@ -494,7 +494,7 @@ export function ImageDropArea({
                 disabledIds?.has(asset.id) ? 'is-inactive' : 'is-active'
               }`}
               key={asset.id}
-              title={
+              data-tip={
                 disabledIds?.has(asset.id) ? t('imageInactiveHint') : t('imageActiveHint')
               }
               role={onToggleImage ? 'button' : undefined}
@@ -532,7 +532,7 @@ export function ImageDropArea({
           <div
             className={`image-drop-zone image-add-tile ${disabled ? 'is-disabled' : ''}`}
             role="button"
-            title={`${t('addImage')} · ${t('imageFormats')}`}
+            data-tip={`${t('addImage')} · ${t('imageFormats')}`}
             aria-label={t('addImage')}
             tabIndex={!disabled ? 0 : -1}
             aria-disabled={disabled}
