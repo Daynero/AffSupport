@@ -345,7 +345,7 @@ const en = {
   metadata: 'Metadata',
   stripMetadata: 'Remove metadata',
   stripMetadataTooltip:
-    'Removes source, device, location, author and chapter metadata from every compressed file.',
+    'On — source, device, location, author and chapter data are dropped from every compressed file. Off — that data is carried over from the original.',
   embedImages: 'Embed images into video',
   imageActiveHint: 'Active — click to exclude from the random pick',
   imageInactiveHint: 'Inactive — click to include again',
@@ -2050,7 +2050,7 @@ const uk: Record<keyof typeof en, string> = {
   metadata: 'Метадані',
   stripMetadata: 'Видалити метадані',
   stripMetadataTooltip:
-    'Видаляє дані про джерело, пристрій, геолокацію, автора та розділи з кожного стисненого файла.',
+    'Увімкнено — з кожного стисненого файла зникають дані про джерело, пристрій, геолокацію, автора та розділи. Вимкнено — ці дані переносяться з оригіналу у стиснений файл.',
   embedImages: 'Зашити зображення у відео',
   imageActiveHint: 'Активна — клік вимикає її з рандому',
   imageInactiveHint: 'Неактивна — клік вмикає знову',
