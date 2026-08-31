@@ -16547,3 +16547,11 @@ input[type='number'] {
 .job-main .original-panel {
   padding-bottom: 11px;
 }
+
+
+/* A finished panel ends with the saved-file path, so its metric grid sits
+   higher than the panel's floor. The source grid lifts by exactly that
+   trailing block, keeping the two grids on one line. */
+.job-row[data-state='completed'] .job-main .original-panel {
+  padding-bottom: 72px;
+}
