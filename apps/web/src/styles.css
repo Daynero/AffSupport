@@ -15998,8 +15998,10 @@ input[type='number'] {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 228px;
   gap: var(--space-4);
   /* Clipped to the card's own radius so the status rail cannot square off the
-     corners behind it. */
+     corners behind it, and clipped to the padding box so the rail colour never
+     paints under the border — that sliver showed past the selection ring. */
   overflow: hidden;
+  background-clip: padding-box;
   border-radius: var(--radius-lg);
 }
 /* A status rail down the left edge with the card body floating beside it:
@@ -16009,7 +16011,7 @@ input[type='number'] {
 .job-row::before {
   content: '';
   position: absolute;
-  inset: 0 0 0 8px;
+  inset: -1px -1px -1px 8px;
   z-index: 0;
   border-radius: var(--radius-lg);
   background: inherit;
