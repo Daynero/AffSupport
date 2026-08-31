@@ -141,7 +141,7 @@ describe('image embedding settings UI', () => {
       />
     );
 
-    await userEvent.click(screen.getByRole('switch', { name: 'Replace existing' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Replace existing' }));
     expect(updateSettings.mock.calls.at(-1)?.[0]).toEqual({
       imageEmbedding: { replaceExisting: true }
     });
@@ -301,8 +301,10 @@ describe('image embedding settings UI', () => {
     expect(settings.imageEmbedding.startImages[0]?.id).toBe('asset-1');
   });
 
-  it('shows the concrete frozen duration and expected total in each video card', () => {
-    const job = makeJob('embedded-card', 'queued', {
+  it('shows the expected total duration of an embedded job in its card', () => {
+    // 'ready', not 'queued': a running card shows its progress panel, and the
+    // expected duration belongs to the estimate.
+    const job = makeJob('embedded-card', 'ready', {
       durationSeconds: 10,
       sourceFrameRate: 30,
       imageEmbedding: makeEmbedding({
@@ -328,11 +330,9 @@ describe('image embedding settings UI', () => {
         t={t('uk')}
       />
     );
-    expect(screen.getByText('Зашивання')).toBeTruthy();
-    expect(screen.getByText('Початок: 1 кадр')).toBeTruthy();
-    expect(screen.getByText('Фінальне зображення: 46 хв 18 с')).toBeTruthy();
-    expect(screen.getByText('Адаптація: Заповнити з обрізанням')).toBeTruthy();
-    expect(screen.getByText('Очікувана тривалість: 00:46:28')).toBeTruthy();
+    // The card no longer repeats the embedding settings; the frozen tail shows
+    // up in the expected duration of the estimate.
+    expect(screen.getByText('00:46:28')).toBeTruthy();
   });
 });
 

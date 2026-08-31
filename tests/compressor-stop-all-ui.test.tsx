@@ -69,7 +69,7 @@ describe('compressor stop all button', () => {
     api.request.mockResolvedValue(agent.state);
     render(<CompressorPage />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Stop all' }));
+    fireEvent.click(screen.getByRole('button', { name: /Stop all/ }));
     await waitFor(() => expect(api.request).toHaveBeenCalledWith('/api/queue/cancel-all', 'POST'));
   });
 });
