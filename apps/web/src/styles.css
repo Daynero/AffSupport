@@ -16645,3 +16645,31 @@ input[type='number'] {
 :root:not([data-theme='dark']) .batch-chip.is-failed {
   color: #c53030;
 }
+
+/* Each gallery sits on its own light slab, the same one the settings rows
+   use — so the tiles read as a group rather than floating on the panel. */
+.settings-panel .image-columns > .image-column {
+  padding: var(--space-3);
+  border: 1px solid color-mix(in oklab, var(--color-accent) 26%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, var(--color-accent) 6%, var(--color-surface));
+}
+:root[data-theme='light'] .settings-panel .image-columns > .image-column,
+:root:not([data-theme='dark']) .settings-panel .image-columns > .image-column {
+  border-color: color-mix(in oklab, var(--color-accent) 20%, transparent);
+  background: #fff;
+}
+/* The divider between the two galleries is redundant once each has a slab. */
+.image-columns > * + *::before {
+  display: none;
+}
+
+/* The error slot under a gallery reserves 16px even with nothing to say, and
+   the slab added its own padding on top — leaving a visible gap under the last
+   tile row. It collapses when empty and the slab keeps a thin margin. */
+.image-grid-error:empty {
+  display: none;
+}
+.settings-panel .image-columns > .image-column {
+  padding-bottom: 8px;
+}
