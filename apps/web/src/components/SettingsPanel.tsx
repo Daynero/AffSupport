@@ -739,12 +739,12 @@ function OutputSettings({
             disabled={disabled}
             onChange={event => updateSettings({ outputSuffix: event.target.value }, true)}
           />
-          <span className="optimal-summary output-mode-summary">
-            {settings.outputMode === 'next-to-originals'
-              ? t('nextToOriginals')
-              : t('chooseFolder')}
-          </span>
         </div>
+        {/* The chosen destination sits under its icons, like every other picto
+            group, and the folder path goes one line lower still. */}
+        <span className="optimal-summary output-mode-summary">
+          {settings.outputMode === 'next-to-originals' ? t('nextToOriginals') : t('chooseFolder')}
+        </span>
         {settings.outputMode === 'chosen-folder' && (
           <span
             className="selected-folder"
