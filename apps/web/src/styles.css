@@ -16281,7 +16281,7 @@ input[type='number'] {
    — the group beside it spends its first line on a label. */
 .embedding-settings-row .replace-existing-setting {
   align-self: center;
-  margin-top: 0;
+  margin-top: 16px;
   min-height: 26px;
 }
 
@@ -16431,7 +16431,7 @@ input[type='number'] {
   outline: none;
 }
 .job-row.is-selected::before {
-  box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--honey-500) 70%, transparent);
+  box-shadow: inset 0 0 0 4px color-mix(in oklab, var(--honey-500) 70%, transparent);
 }
 
 
@@ -16606,7 +16606,7 @@ input[type='number'] {
 }
 :root[data-theme='light'] .job-row.is-selected::before,
 :root:not([data-theme='dark']) .job-row.is-selected::before {
-  box-shadow: inset 0 0 0 2px var(--honey-600);
+  box-shadow: inset 0 0 0 4px var(--honey-600);
 }
 /* Card body tints: gentle washes on white, not saturated fills. */
 :root[data-theme='light'] .job-row[data-state='processing']::before,
