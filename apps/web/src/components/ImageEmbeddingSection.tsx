@@ -215,6 +215,7 @@ export function ImageEmbeddingSection({
                   )}
                   </div>
                   <span className="optimal-summary">
+                    {`${t('duration')}: `}
                     {settings.startDurationMode === 'one-frame'
                       ? t('startDurationOneFrame')
                       : `${settings.customStartDurationMs} ${t('millisecondsUnit')}`}
@@ -277,9 +278,7 @@ export function ImageEmbeddingSection({
                       <Timer size={20} strokeWidth={1.75} />
                     </button>
                   </div>
-                </div>
-
-                {settings.finalDurationMode === 'custom' && (
+                  {settings.finalDurationMode === 'custom' && (
                   <>
                     <div className="custom-duration-input">
                       <input
@@ -301,12 +300,14 @@ export function ImageEmbeddingSection({
                       />
                       <span>{t('minutesUnit')}</span>
                     </div>
-                    <Collapse fast open={!customTimeValid}>
-                      <span className="field-error">{t('invalidCustomDuration')}</span>
-                    </Collapse>
                   </>
-                )}
+                  )}
+                </div>
+                <Collapse fast open={!customTimeValid}>
+                  <span className="field-error">{t('invalidCustomDuration')}</span>
+                </Collapse>
                 <span className="optimal-summary">
+                  {`${t('duration')}: `}
                   {settings.finalDurationMode === 'custom'
                     ? `${Math.round(settings.customFinalDurationSeconds / 60)} ${t('minutesUnit')}`
                     : t(

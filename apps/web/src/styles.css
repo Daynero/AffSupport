@@ -16696,3 +16696,8 @@ input[type='number'] {
 .output-control-row {
   flex-wrap: nowrap;
 }
+
+/* The custom-minutes box holds four digits and sits on the picto line. */
+.final-duration-field .custom-duration-input .time-input {
+  width: 64px;
+}
