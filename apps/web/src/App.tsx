@@ -544,6 +544,22 @@ export default function CompressorPage() {
   );
   const allPaused = runningJob?.paused === true;
   const metrics = useMemo(() => batchMetrics(state.jobs, state.batch), [state.jobs, state.batch]);
+  /**
+   * What the counters above the list describe: the list itself.
+   *
+   * They used to read from the running batch, so a finished or failed card
+   * from an earlier run — or any card at all once no batch was active — left
+   * every counter at zero while the rows plainly said otherwise.
+   */
+  const counts = useMemo(
+    () => ({
+      processing: state.jobs.filter(job => job.status === 'processing').length,
+      completed: state.jobs.filter(job => job.status === 'completed').length,
+      failed: state.jobs.filter(job => job.status === 'failed' || job.status === 'interrupted')
+        .length
+    }),
+    [state.jobs]
+  );
   const summary = useMemo(() => calculateQueueSummary(state.jobs), [state.jobs]);
   const blocked = compressBlock({
     running: state.running,
@@ -676,37 +692,37 @@ export default function CompressorPage() {
                 {/* All four counters stay on screen — a zero is information too. */}
                 <span
                   className="batch-chip is-processing"
-                  title={t('chipProcessing', { count: metrics.processing })}
+                  title={t('chipProcessing', { count: counts.processing })}
                 >
-                  <b>{metrics.processing}</b>
+                  <b>{counts.processing}</b>
                   <span className="chip-word">
                     {' '}
-                    {t('chipProcessing', { count: metrics.processing })
-                      .replace(String(metrics.processing), '')
+                    {t('chipProcessing', { count: counts.processing })
+                      .replace(String(counts.processing), '')
                       .trim()}
                   </span>
                 </span>
                 <span
                   className="batch-chip is-done"
-                  title={t('chipCompleted', { count: metrics.completed })}
+                  title={t('chipCompleted', { count: counts.completed })}
                 >
-                  <b>{metrics.completed}</b>
+                  <b>{counts.completed}</b>
                   <span className="chip-word">
                     {' '}
-                    {t('chipCompleted', { count: metrics.completed })
-                      .replace(String(metrics.completed), '')
+                    {t('chipCompleted', { count: counts.completed })
+                      .replace(String(counts.completed), '')
                       .trim()}
                   </span>
                 </span>
                 <span
                   className="batch-chip is-failed"
-                  title={t('chipFailed', { count: metrics.failed })}
+                  title={t('chipFailed', { count: counts.failed })}
                 >
-                  <b>{metrics.failed}</b>
+                  <b>{counts.failed}</b>
                   <span className="chip-word">
                     {' '}
-                    {t('chipFailed', { count: metrics.failed })
-                      .replace(String(metrics.failed), '')
+                    {t('chipFailed', { count: counts.failed })
+                      .replace(String(counts.failed), '')
                       .trim()}
                   </span>
                 </span>
@@ -1155,12 +1171,6 @@ function BatchProgress({ metrics, t }: { metrics: ReturnType<typeof batchMetrics
         active={metrics.processing > 0}
       />
       <span className="batch-progress-value">{Math.round(metrics.progress)}%</span>
-      <div className="batch-counts">
-        <span>{t('queuedCount', { count: metrics.queued })}</span>
-        <span>{t('processingCount', { count: metrics.processing })}</span>
-        <span>{t('completedCount', { count: metrics.completed })}</span>
-        <span>{t('failedCount', { count: metrics.failed })}</span>
-      </div>
     </div>
   );
 }
