@@ -16555,3 +16555,84 @@ input[type='number'] {
 .job-row[data-state='completed'] .job-main .original-panel {
   padding-bottom: 72px;
 }
+
+/* ============================================================
+   Light theme corrections for the compressor
+   ============================================================ */
+:root[data-theme='light'] .settings-panel,
+:root:not([data-theme='dark']) .settings-panel {
+  /* The dark violet slab of the dark theme turns into a pale one here, so the
+     heading and its summary stay readable. */
+  border-color: color-mix(in oklab, var(--color-accent) 30%, transparent);
+  background: color-mix(in oklab, var(--color-accent) 8%, #fff);
+}
+:root[data-theme='light'] .settings-primary-row,
+:root:not([data-theme='dark']) .settings-primary-row,
+:root[data-theme='light'] .custom-settings,
+:root:not([data-theme='dark']) .custom-settings,
+:root[data-theme='light'] .settings-panel .image-embedding-panel,
+:root:not([data-theme='dark']) .settings-panel .image-embedding-panel {
+  border-color: color-mix(in oklab, var(--color-accent) 22%, transparent);
+  background: #fff;
+}
+/* Selection is unmistakable: a filled honey box with a white check. */
+:root[data-theme='light'] .job-header .checkbox-mark,
+:root:not([data-theme='dark']) .job-header .checkbox-mark,
+:root[data-theme='light'] .batch-toolbar .select-all-box .checkbox-mark,
+:root:not([data-theme='dark']) .batch-toolbar .select-all-box .checkbox-mark {
+  border-color: var(--honey-600);
+  color: var(--honey-700);
+}
+:root[data-theme='light'] .job-header input:checked + .checkbox-mark,
+:root:not([data-theme='dark']) .job-header input:checked + .checkbox-mark,
+:root[data-theme='light'] .batch-toolbar .select-all-box input:checked + .checkbox-mark,
+:root:not([data-theme='dark']) .batch-toolbar .select-all-box input:checked + .checkbox-mark {
+  border-color: var(--honey-600);
+  background: var(--honey-500);
+  color: #fff;
+}
+/* No violet-blue halo around cards — a soft neutral lift instead. */
+:root[data-theme='light'] .job-row,
+:root:not([data-theme='dark']) .job-row {
+  box-shadow: 0 1px 3px rgb(36 27 58 / 8%);
+}
+:root[data-theme='light'] .job-row.is-selected::before,
+:root:not([data-theme='dark']) .job-row.is-selected::before {
+  box-shadow: inset 0 0 0 2px var(--honey-600);
+}
+/* Card body tints: gentle washes on white, not saturated fills. */
+:root[data-theme='light'] .job-row[data-state='processing']::before,
+:root:not([data-theme='dark']) .job-row[data-state='processing']::before,
+:root[data-theme='light'] .job-row[data-state='queued']::before,
+:root:not([data-theme='dark']) .job-row[data-state='queued']::before {
+  background: color-mix(in oklab, #3b82f6 7%, #fff);
+}
+:root[data-theme='light'] .job-row[data-state='completed']::before,
+:root:not([data-theme='dark']) .job-row[data-state='completed']::before {
+  background: color-mix(in oklab, #22c55e 7%, #fff);
+}
+:root[data-theme='light'] .job-row[data-state='failed']::before,
+:root:not([data-theme='dark']) .job-row[data-state='failed']::before {
+  background: color-mix(in oklab, #ef4444 6%, #fff);
+}
+:root[data-theme='light'] .job-row[data-state='cancelled']::before,
+:root:not([data-theme='dark']) .job-row[data-state='cancelled']::before,
+:root[data-theme='light'] .job-row[data-state='ready']::before,
+:root:not([data-theme='dark']) .job-row[data-state='ready']::before,
+:root[data-theme='light'] .job-row[data-state='interrupted']::before,
+:root:not([data-theme='dark']) .job-row[data-state='interrupted']::before {
+  background: #fff;
+}
+/* Status counters keep their meaning but stop glowing on white. */
+:root[data-theme='light'] .batch-chip.is-processing,
+:root:not([data-theme='dark']) .batch-chip.is-processing {
+  color: #c2620a;
+}
+:root[data-theme='light'] .batch-chip.is-done,
+:root:not([data-theme='dark']) .batch-chip.is-done {
+  color: #1f7a3d;
+}
+:root[data-theme='light'] .batch-chip.is-failed,
+:root:not([data-theme='dark']) .batch-chip.is-failed {
+  color: #c53030;
+}
