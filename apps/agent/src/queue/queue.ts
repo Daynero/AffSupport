@@ -187,6 +187,24 @@ export function isSupportedVideoPath(filePath: string) {
   return SUPPORTED_VIDEO_EXTENSIONS.has(path.extname(filePath).toLowerCase());
 }
 
+/** What a finished run produced, kept while a repeat of it is in flight. */
+interface PreviousResult {
+  outputPath: string;
+  finalSize: number;
+  finalWidth: number | null;
+  finalHeight: number | null;
+  finalFrameRate: number | null;
+  finalBitrate: number | null;
+  finalDurationSeconds: number | null;
+  finalCodec: string | null;
+  startedAt: number | null;
+  finishedAt: number | null;
+  estimateStatus: CompressionJob['estimateStatus'];
+  estimatedOutputBytes: number | null;
+  estimatedSavingPercent: number | null;
+  estimateKey: string | null;
+}
+
 export class JobQueue {
   // Aborts background media work for the current job (static-edge detection in
   // `preparing-images`) whose ffmpeg children are not the tracked `active`
@@ -311,6 +329,9 @@ export class JobQueue {
    * derived view cannot promise more than the fields it derives from, and the point of the
    * inversion is that the three are created together or not at all.
    */
+  /** The finished result of a job that is being repeated, restored on cancel. */
+  private previousResults = new Map<string, PreviousResult | null>();
+
   private get activity(): CompressorActivity {
     return this.current;
   }
@@ -1029,7 +1050,41 @@ export class JobQueue {
     const job = this.jobs.find(candidate => candidate.id === id);
     if (!job || (job.status !== 'processing' && job.status !== 'queued')) return false;
     const wasProcessing = job.status === 'processing';
+    // A repeat that never produced anything: hand the card its finished state
+    // back rather than marking a file that still exists as cancelled.
+    const previous = this.previousResults.get(job.id) ?? null;
+    const outputUntouched = previous !== null && (await fileSize(previous.outputPath)) === previous.finalSize;
     if (job.estimatePriorityOrder !== null) this.estimateHooks?.cancelPrioritized?.(job.id);
+    if (previous && outputUntouched) {
+      // A queued repeat has not started, so the lifecycle has no direct road
+      // back to 'completed'; it goes through the state a stopped job lands in.
+      if (job.status === 'queued') this.transition(job, 'processing');
+      this.transition(job, 'completed');
+      job.outputPath = previous.outputPath;
+      job.finalSize = previous.finalSize;
+      job.finalWidth = previous.finalWidth;
+      job.finalHeight = previous.finalHeight;
+      job.finalFrameRate = previous.finalFrameRate;
+      job.finalBitrate = previous.finalBitrate;
+      job.finalDurationSeconds = previous.finalDurationSeconds;
+      job.finalCodec = previous.finalCodec;
+      job.startedAt = previous.startedAt;
+      job.finishedAt = previous.finishedAt;
+      job.estimateStatus = previous.estimateStatus;
+      job.estimatedOutputBytes = previous.estimatedOutputBytes;
+      job.estimatedSavingPercent = previous.estimatedSavingPercent;
+      job.estimateKey = previous.estimateKey;
+      job.progress = 100;
+      job.error = null;
+      job.errorDetails = null;
+      job.processingStage = null;
+      job.estimatePriorityOrder = null;
+      this.previousResults.delete(job.id);
+      if (wasProcessing) this.stopActiveEncode();
+      this.notify();
+      return true;
+    }
+    this.previousResults.delete(job.id);
     this.transition(job, 'cancelled');
     job.error = 'Compression was cancelled.';
     job.finishedAt = finishTimestamp(job);
@@ -1059,7 +1114,13 @@ export class JobQueue {
       job.estimateProgress = null;
       job.estimateError = null;
     }
-    if (wasProcessing) {
+    if (wasProcessing) this.stopActiveEncode();
+    return true;
+  }
+
+  /** Ends the encode that owns the compressor slot and frees it for the next job. */
+  private stopActiveEncode() {
+    {
       const activity = this.activity;
       const encoding = activity.kind === 'encoding' || activity.kind === 'encoding-held';
       // Stop untracked background work too (static-edge detection during
@@ -1093,7 +1154,6 @@ export class JobQueue {
         queueMicrotask(() => void this.pump());
       }
     }
-    return true;
   }
 
   /**
@@ -1463,6 +1523,30 @@ export class JobQueue {
   private async resetForRerun(job: CompressionJob) {
     const jobSettings = this.teamJobSettings.get(job.id) ?? this.settings;
     const previousImages = jobImages(job);
+    // Keep what the finished run produced. A repeat that is cancelled before it
+    // overwrites anything should leave the card exactly as it was — green, with
+    // its result — instead of demoting a good file to "cancelled".
+    this.previousResults.set(
+      job.id,
+      job.status === 'completed' && job.finalSize !== null
+        ? {
+            outputPath: job.outputPath,
+            finalSize: job.finalSize,
+            finalWidth: job.finalWidth,
+            finalHeight: job.finalHeight,
+            finalFrameRate: job.finalFrameRate,
+            finalBitrate: job.finalBitrate,
+            finalDurationSeconds: job.finalDurationSeconds,
+            finalCodec: job.finalCodec,
+            startedAt: job.startedAt,
+            finishedAt: job.finishedAt,
+            estimateStatus: job.estimateStatus,
+            estimatedOutputBytes: job.estimatedOutputBytes,
+            estimatedSavingPercent: job.estimatedSavingPercent,
+            estimateKey: job.estimateKey
+          }
+        : null
+    );
     this.transition(job, 'ready');
     job.error = null;
     job.errorDetails = null;

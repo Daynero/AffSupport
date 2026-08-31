@@ -151,6 +151,32 @@ describe('selected batch behavior', () => {
     await expect(access(completed.outputPath)).resolves.toBeUndefined();
   }, 15_000);
 
+  it('gives a finished job its result back when its repeat is cancelled', async () => {
+    // Pressing Repeat by accident used to cost the result: cancelling the new
+    // run marked the row 'cancelled' and sent it back for re-estimation, even
+    // though the finished file was still on disk untouched.
+    directory = await mkdtemp(path.join(os.tmpdir(), 'queue-repeat-cancel-'));
+    const input = path.join(directory, 'source.mp4');
+    expect(await makeVideo(input, 0.4, '160x90', 24)).toBe(0);
+    const queue = new JobQueue({ ffmpeg: true, ffprobe: true }, () => {});
+    await queue.add([input]);
+    const id = queue.state().jobs[0].id;
+    await queue.start([id]);
+    await idle(queue);
+    const finished = queue.state().jobs[0];
+    expect(finished.status).toBe('completed');
+
+    await queue.repeat(id);
+    await queue.cancel(id);
+
+    const restored = queue.state().jobs[0];
+    expect(restored.status).toBe('completed');
+    expect(restored.finalSize).toBe(finished.finalSize);
+    expect(restored.outputPath).toBe(finished.outputPath);
+    expect(restored.error).toBeNull();
+    await access(restored.outputPath);
+  }, 20_000);
+
   it('repeats completed jobs from the original with the currently selected settings', async () => {
     directory = await mkdtemp(path.join(os.tmpdir(), 'queue-repeat-'));
     const input = path.join(directory, 'source.mp4');
