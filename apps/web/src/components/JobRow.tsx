@@ -426,7 +426,7 @@ function EstimatePanel({
               ]
             : []),
           [t('duration'), formatDuration(expectedOutputDurationSeconds(job))],
-          [t('qualityMode'), qualityMode(job, t)]
+          [t('qualityMode'), qualityMode(job, t), qualityModeHint(job, t)]
         ]}
       />
     </section>
@@ -488,13 +488,13 @@ function ResultPanel({
   );
 }
 
-function MediaGrid({ items }: { items: [string, string][] }) {
+function MediaGrid({ items }: { items: (readonly [string, string] | readonly [string, string, string])[] }) {
   return (
     <dl className="media-grid">
-      {items.map(([label, value]) => (
+      {items.map(([label, value, hint]) => (
         <div key={label}>
           <dt>{label}</dt>
-          <dd>{value}</dd>
+          <dd title={hint ?? undefined}>{value}</dd>
         </div>
       ))}
     </dl>
@@ -672,10 +672,26 @@ function estimateStatus(job: CompressionJob, current: boolean, t: Translate) {
   return t('waitingEstimate');
 }
 
+/**
+ * The short label for the control column, and the long one for its hint.
+ *
+ * The cell is one grid column wide, so the full sentence ("Фіксуєш розмір
+ * (бітрейт) — якість підлаштовується · 2500 kbps") could only be shown
+ * truncated. The value now says what was chosen; the explanation waits under
+ * the pointer.
+ */
 function qualityMode(job: CompressionJob, t: Translate) {
-  return job.encoding.rateControl === 'bitrate' && job.encoding.videoBitrateKbps
-    ? `${t('targetBitrate')} · ${job.encoding.videoBitrateKbps} ${t('bitrateUnit')}`
-    : `CRF ${job.encoding.crf}`;
+  if (job.encoding.rateControl === 'bitrate' && job.encoding.videoBitrateKbps) {
+    return t('qualityModeFixed');
+  }
+  return job.encoding.mode === 'optimal' ? t('qualityModeOptimal') : `CRF ${job.encoding.crf}`;
+}
+
+function qualityModeHint(job: CompressionJob, t: Translate) {
+  if (job.encoding.rateControl === 'bitrate' && job.encoding.videoBitrateKbps) {
+    return `${t('targetBitrate')} · ${job.encoding.videoBitrateKbps} ${t('bitrateUnit')}`;
+  }
+  return `${t('constantQuality')} · CRF ${job.encoding.crf}`;
 }
 
 function dimensions(width: number | null | undefined, height: number | null | undefined) {

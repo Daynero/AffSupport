@@ -333,6 +333,8 @@ const en = {
     'Gem: you fix the picture quality — file size varies. Gauge: you fix the size (bitrate) — quality adapts.',
   constantQuality: 'You fix the picture quality — file size varies',
   targetBitrate: 'You fix the size (bitrate) — quality adapts',
+  qualityModeFixed: 'Fixed bitrate',
+  qualityModeOptimal: 'Optimal',
   crf: 'CRF',
   crfTooltip:
     'Lower values mean better quality and a larger file. 26 is a good balance for most videos.',
@@ -2061,6 +2063,8 @@ const uk: Record<keyof typeof en, string> = {
     'Діамант: фіксуєш якість картинки — розмір файлу як вийде. Спідометр: фіксуєш розмір (бітрейт) — якість підлаштовується.',
   constantQuality: 'Фіксуєш якість картинки — розмір файлу як вийде',
   targetBitrate: 'Фіксуєш розмір (бітрейт) — якість підлаштовується',
+  qualityModeFixed: 'Фіксований бітрейт',
+  qualityModeOptimal: 'Оптимальний',
   crf: 'CRF',
   crfTooltip:
     'Менше значення — краща якість і більший файл. 26 — хороший баланс для більшості відео.',
