@@ -2280,9 +2280,11 @@ input.is-invalid {
   contain-intrinsic-size: auto 132px;
 }
 
+/* One selection ring, in the same honey as the checkbox — the violet border
+   and its halo read as a second outline. */
 .job-row.is-selected {
-  border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-border));
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 10%, transparent);
+  border-color: color-mix(in oklab, var(--honey-500) 70%, transparent);
+  box-shadow: none;
 }
 
 .job-row.is-processing {
@@ -16033,7 +16035,9 @@ input[type='number'] {
 .job-row[data-state='interrupted'],
 .job-row[data-state='ready'],
 .job-row[data-state='analyzing'] {
-  background-color: color-mix(in oklab, var(--color-text) 45%, transparent);
+  /* A solid light grey, not a translucent wash, so the rail reads the same
+     over every background. */
+  background-color: #9aa0aa;
 }
 .job-main {
   display: grid;
@@ -16594,6 +16598,11 @@ input[type='number'] {
 /* No violet-blue halo around cards — a soft neutral lift instead. */
 :root[data-theme='light'] .job-row,
 :root:not([data-theme='dark']) .job-row {
+  box-shadow: 0 1px 3px rgb(36 27 58 / 8%);
+}
+:root[data-theme='light'] .job-row.is-selected,
+:root:not([data-theme='dark']) .job-row.is-selected {
+  border-color: var(--honey-600);
   box-shadow: 0 1px 3px rgb(36 27 58 / 8%);
 }
 :root[data-theme='light'] .job-row.is-selected::before,
