@@ -16264,11 +16264,10 @@ input[type='number'] {
 }
 
 
-/* Columns keep their own height instead of stretching to the tallest, so a
-   short gallery leaves no dead band under it; the panel closes right after
-   the last tile. */
+/* Both galleries occupy the same slab: their height comes from the taller of
+   the two, so a column with one image is not a stub beside a full one. */
 .image-columns {
-  align-items: start;
+  align-items: stretch;
 }
 .image-column-body {
   align-content: start;
@@ -16278,10 +16277,10 @@ input[type='number'] {
 }
 
 
-/* The re-embed toggle rides at the top of its row, on the same line as the
-   'Заповнення кадру' label beside it (the shared metadata rule centres it). */
+/* The re-embed toggle sits level with the picto buttons of 'Заповнення кадру'
+   — the group beside it spends its first line on a label. */
 .embedding-settings-row .replace-existing-setting {
-  align-self: start;
+  align-self: center;
   margin-top: 0;
   min-height: 26px;
 }
@@ -16672,4 +16671,15 @@ input[type='number'] {
 }
 .settings-panel .image-columns > .image-column {
   padding-bottom: 8px;
+}
+
+
+/* The gallery fills its slab, so both columns end on the same line. */
+.settings-panel .image-columns > .image-column {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  align-content: start;
+}
+.image-column-body {
+  min-height: 0;
 }
