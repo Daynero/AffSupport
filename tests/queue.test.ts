@@ -167,6 +167,8 @@ describe('selected batch behavior', () => {
     expect(finished.status).toBe('completed');
 
     await queue.repeat(id);
+    // The repeat aims at its own path, so the finished file is still there.
+    expect(queue.state().jobs[0].outputPath).not.toBe(finished.outputPath);
     await queue.cancel(id);
 
     const restored = queue.state().jobs[0];

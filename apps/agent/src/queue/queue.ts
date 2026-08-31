@@ -1053,7 +1053,9 @@ export class JobQueue {
     // A repeat that never produced anything: hand the card its finished state
     // back rather than marking a file that still exists as cancelled.
     const previous = this.previousResults.get(job.id) ?? null;
-    const outputUntouched = previous !== null && (await fileSize(previous.outputPath)) === previous.finalSize;
+    // The repeat wrote to its own path, so the finished file is intact unless
+    // it was removed from disk behind our back.
+    const outputUntouched = previous !== null && (await fileSize(previous.outputPath)) !== null;
     if (job.estimatePriorityOrder !== null) this.estimateHooks?.cancelPrioritized?.(job.id);
     if (previous && outputUntouched) {
       // A queued repeat has not started, so the lifecycle has no direct road
@@ -1085,8 +1087,12 @@ export class JobQueue {
       return true;
     }
     this.previousResults.delete(job.id);
+    // The status stays 'cancelled' — stop-all and the batch summary need to say
+    // what happened — but it no longer carries an error, and the row keeps its
+    // estimate, so a stopped file reads as "not compressed yet" rather than as
+    // something that went wrong.
     this.transition(job, 'cancelled');
-    job.error = 'Compression was cancelled.';
+    job.error = null;
     job.finishedAt = finishTimestamp(job);
     job.processingStage = null;
     job.estimatePriorityOrder = null;
@@ -1526,6 +1532,9 @@ export class JobQueue {
     // Keep what the finished run produced. A repeat that is cancelled before it
     // overwrites anything should leave the card exactly as it was — green, with
     // its result — instead of demoting a good file to "cancelled".
+    // While a repeat runs, the finished file stays where it is: the new encode
+    // writes beside it and only takes its place when it succeeds. A cancel or
+    // a crash then costs nothing.
     this.previousResults.set(
       job.id,
       job.status === 'completed' && job.finalSize !== null
@@ -1564,7 +1573,15 @@ export class JobQueue {
     job.batchId = null;
     job.encoding = encodingFromSettings(jobSettings);
     job.imageEmbedding = draftImageEmbedding(jobSettings.imageEmbedding);
-    job.outputPath = await this.outputPathFor(job.inputPath, job, jobSettings);
+    // A repeat must not aim at the file it is repeating: reserve the finished
+    // path so the new encode gets its own, and the old result survives a cancel.
+    const finished = this.previousResults.get(job.id);
+    job.outputPath = await this.outputPathFor(
+      job.inputPath,
+      job,
+      jobSettings,
+      finished ? [finished.outputPath] : []
+    );
     resetEstimate(job);
     for (const image of previousImages) void this.releaseImageIfUnused(image);
   }
