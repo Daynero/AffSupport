@@ -2087,7 +2087,7 @@ const uk: Record<keyof typeof en, string> = {
   embedImages: 'Зашити зображення у відео',
   imageActiveHint: 'Активна — клік вимикає її з рандому',
   imageInactiveHint: 'Неактивна — клік вмикає знову',
-  imageInactiveBadge: 'неактивне',
+  imageInactiveBadge: 'неактивна',
   outputSuffixLabel: 'Закінчення назви',
   embedImagesTooltip: 'Випадково вибирає зображення із сіток початку та фіналу без повторів.',
   replaceExistingImages: 'Перезашити існуюче',

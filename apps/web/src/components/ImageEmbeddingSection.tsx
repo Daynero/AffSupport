@@ -4,7 +4,10 @@ import {
   useState,
   type ChangeEvent,
   type DragEvent,
-  type KeyboardEvent, useLayoutEffect } from 'react';
+  type KeyboardEvent,
+  type RefObject,
+  useLayoutEffect
+} from 'react';
 import {
   MAX_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
   MAX_CUSTOM_START_IMAGE_DURATION_MS,
@@ -363,8 +366,17 @@ function ImageColumn({
   t: Translate;
   children?: React.ReactNode;
 }) {
+  // The whole panel is the drop target, not just the tile grid: a file let go
+  // over the heading, the duration row or the empty space below the tiles
+  // belongs to this gallery just as much as one dropped on the '+' tile.
+  const panel = useRef<HTMLElement>(null);
+  const [dragging, setDragging] = useState(false);
   return (
-    <section className="image-column" aria-label={title}>
+    <section
+      className={`image-column ${dragging ? 'is-dragging' : ''}`.trim()}
+      aria-label={title}
+      ref={panel}
+    >
       <div className="image-column-heading">
         <Checkbox
           className="feature-switch slot-feature-switch"
@@ -382,6 +394,8 @@ function ImageColumn({
           <ImageDropArea
             slot={slot}
             assets={assets}
+            dropTarget={panel}
+            onDraggingChange={setDragging}
             disabled={disabled}
             uploadImages={uploadImages}
             removeImage={removeImage}
@@ -403,11 +417,16 @@ export function ImageDropArea({
   removeImage,
   disabledIds,
   onToggleImage,
+  dropTarget,
+  onDraggingChange,
   t
 }: {
   slot: ImageSlot;
   assets: ImageAsset[];
   disabled: boolean;
+  /** When given, this element — not the tile grid — receives the drop. */
+  dropTarget?: RefObject<HTMLElement | null>;
+  onDraggingChange?: (dragging: boolean) => void;
   uploadImages: (slot: ImageSlot, files: File[]) => Promise<void>;
   removeImage: (slot: ImageSlot, id: string) => Promise<void>;
   disabledIds?: ReadonlySet<string>;
@@ -474,6 +493,45 @@ export function ImageDropArea({
       setBusy(false);
     }
   };
+  const acceptRef = useRef(accept);
+  acceptRef.current = accept;
+  useEffect(() => {
+    const host = dropTarget?.current;
+    if (!host) return;
+    const depth = { value: 0 };
+    const setActive = (active: boolean) => {
+      setDragging(active);
+      onDraggingChange?.(active);
+    };
+    const over = (event: Event) => event.preventDefault();
+    const enter = (event: Event) => {
+      event.preventDefault();
+      depth.value += 1;
+      setActive(true);
+    };
+    const leave = () => {
+      depth.value = Math.max(0, depth.value - 1);
+      if (!depth.value) setActive(false);
+    };
+    const drop = (event: Event) => {
+      event.preventDefault();
+      depth.value = 0;
+      setActive(false);
+      const files = (event as globalThis.DragEvent).dataTransfer?.files;
+      void acceptRef.current(Array.from(files ?? []));
+    };
+    host.addEventListener('dragenter', enter);
+    host.addEventListener('dragover', over);
+    host.addEventListener('dragleave', leave);
+    host.addEventListener('drop', drop);
+    return () => {
+      host.removeEventListener('dragenter', enter);
+      host.removeEventListener('dragover', over);
+      host.removeEventListener('dragleave', leave);
+      host.removeEventListener('drop', drop);
+      onDraggingChange?.(false);
+    };
+  }, [dropTarget, onDraggingChange]);
   const onDragEnter = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     if (disabled || busy) return;
@@ -511,10 +569,10 @@ export function ImageDropArea({
   return (
     <div
       className={`image-drop-wrapper ${dragging ? 'is-dragging' : ''}`}
-      onDragEnter={onDragEnter}
-      onDragOver={event => event.preventDefault()}
-      onDragLeave={onDragLeave}
-      onDrop={onDrop}
+      onDragEnter={dropTarget ? undefined : onDragEnter}
+      onDragOver={dropTarget ? undefined : event => event.preventDefault()}
+      onDragLeave={dropTarget ? undefined : onDragLeave}
+      onDrop={dropTarget ? undefined : onDrop}
     >
       <input
         ref={input}
