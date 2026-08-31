@@ -149,9 +149,14 @@ export function SettingsPanel({
               <SlidersHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
             </button>
           </div>
-          {settings.mode === 'optimal' && (
-            <span className="optimal-summary">{t('optimalSummary')}</span>
-          )}
+          {/* The picto pair says nothing on its own, so the chosen mode is
+              spelled out under it — the preset's numbers live in its tip. */}
+          <span
+            className="optimal-summary"
+            title={settings.mode === 'optimal' ? t('optimalSummary') : undefined}
+          >
+            {settings.mode === 'optimal' ? t('optimal') : t('custom')}
+          </span>
         </div>
         <OutputSettings
           settings={settings}
