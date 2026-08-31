@@ -87,7 +87,10 @@ export function SettingsPanel({
       >
         <SettingsIcon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
         <h2 id="settings-title">{t('compressionSettings')}</h2>
-        {!open && (
+        {/* The summary stays put when the panel opens: it is the shortest read
+            of what will actually run, and losing it mid-adjustment is exactly
+            when it is most useful. */}
+        {(
           <span className="settings-summary">
             <span>
               <span className="settings-summary-key">{t('settingsSummaryResolution')}</span>
