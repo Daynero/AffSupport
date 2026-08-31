@@ -155,7 +155,9 @@ export function SettingsPanel({
             className="optimal-summary"
             title={settings.mode === 'optimal' ? t('optimalSummary') : undefined}
           >
-            {settings.mode === 'optimal' ? t('optimal') : t('custom')}
+            {settings.mode === 'optimal'
+              ? `${t('optimal')} · ${t('optimalSummary')}`
+              : t('custom')}
           </span>
         </div>
         <OutputSettings
