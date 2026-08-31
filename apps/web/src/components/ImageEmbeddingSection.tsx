@@ -129,6 +129,15 @@ export function ImageEmbeddingSection({
                       </button>
                     ))}
                   </div>
+                  <span className="optimal-summary">
+                    {t(
+                      settings.fitMode === 'cover'
+                        ? 'fitCover'
+                        : settings.fitMode === 'contain'
+                          ? 'fitContain'
+                          : 'fitStretch'
+                    )}
+                  </span>
                   {settings.fitMode === 'stretch' && (
                     <span className="field-hint">{t('fitStretchWarning')}</span>
                   )}
@@ -205,6 +214,11 @@ export function ImageEmbeddingSection({
                     </>
                   )}
                   </div>
+                  <span className="optimal-summary">
+                    {settings.startDurationMode === 'one-frame'
+                      ? t('startDurationOneFrame')
+                      : `${settings.customStartDurationMs} ${t('millisecondsUnit')}`}
+                  </span>
                 </div>
               </div>
             </ImageColumn>
@@ -292,6 +306,17 @@ export function ImageEmbeddingSection({
                     </Collapse>
                   </>
                 )}
+                <span className="optimal-summary">
+                  {settings.finalDurationMode === 'custom'
+                    ? `${Math.round(settings.customFinalDurationSeconds / 60)} ${t('minutesUnit')}`
+                    : t(
+                        settings.finalDurationMode === 'random-30-40'
+                          ? 'randomDuration30To40'
+                          : settings.finalDurationMode === 'random-50-60'
+                            ? 'randomDuration50To60'
+                            : 'randomDuration40To50'
+                      )}
+                </span>
               </div>
               </div>
             </ImageColumn>

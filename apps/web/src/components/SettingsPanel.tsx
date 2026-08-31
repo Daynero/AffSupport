@@ -299,9 +299,7 @@ function CustomSettings({
             <Gauge size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
           </button>
         </div>
-        {rateMode === 'optimal' ? (
-          <span className="rate-optimal-note">CRF {DEFAULT_CRF}</span>
-        ) : rateMode === 'crf' ? (
+        {rateMode === 'optimal' ? null : rateMode === 'crf' ? (
           <RateValueCrf
             settings={settings}
             disabled={disabled}
@@ -313,6 +311,13 @@ function CustomSettings({
           <RateValueBitrate settings={settings} disabled={disabled} updateSettings={updateSettings} t={t} />
         )}
         </div>
+        <span className="optimal-summary">
+          {rateMode === 'optimal'
+            ? `${t('optimal')} · CRF ${DEFAULT_CRF}`
+            : rateMode === 'crf'
+              ? `CRF ${settings.crf}`
+              : `${settings.videoBitrateKbps} ${t('bitrateUnit')}`}
+        </span>
       </div>
     </div>
   );
@@ -419,6 +424,13 @@ function FpsControl({
           </div>
         )}
       </div>
+      <span className="optimal-summary">
+        {choice === 'original'
+          ? t('asOriginal')
+          : choice === 'custom'
+            ? `${custom || '—'} FPS`
+            : `${choice} FPS`}
+      </span>
       <Collapse fast open={choice === 'custom' && !valid && custom !== ''}>
         <span className="field-error">
           {t('invalidFrameRate', { min: FRAME_RATE_MIN, max: FRAME_RATE_MAX })}
@@ -529,6 +541,13 @@ function ResolutionControl({
           </div>
         )}
       </div>
+      <span className="optimal-summary">
+        {choice === 'original'
+          ? t('asOriginal')
+          : choice === 'custom'
+            ? `${custom || '—'}p`
+            : `${choice}p`}
+      </span>
       <Collapse fast open={choice === 'custom' && !valid && custom !== ''}>
         <span className="field-error">
           {t('invalidResolution', { min: RESOLUTION_MIN, max: RESOLUTION_MAX })}
@@ -725,6 +744,11 @@ function OutputSettings({
             disabled={disabled}
             onChange={event => updateSettings({ outputSuffix: event.target.value }, true)}
           />
+          <span className="optimal-summary output-mode-summary">
+            {settings.outputMode === 'next-to-originals'
+              ? t('nextToOriginals')
+              : t('chooseFolder')}
+          </span>
         </div>
       </div>
     </div>
