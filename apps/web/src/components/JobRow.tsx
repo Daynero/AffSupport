@@ -71,7 +71,6 @@ export function JobRow({
   /** One-second honey glow right after the file was added. */
   fresh?: boolean;
 }) {
-  const [copiedDetails, setCopiedDetails] = useState(false);
   const running = job.status === 'processing' || job.status === 'queued';
   return (
     <article
@@ -177,30 +176,6 @@ export function JobRow({
 
       {/* Errors expand softly (fade-rise inside an animated row track), so
           failed/cancelled jobs never jump the layout. */}
-      {/* A cancelled job already says so in its status pill; repeating it as an
-          error strip is noise. */}
-      <Collapse open={Boolean(job.error) && !['cancelled', 'interrupted'].includes(job.status)}>
-        {job.error && !['cancelled', 'interrupted'].includes(job.status) ? (
-          <div className="job-error" role="alert">
-            <span>{localizedJobError(job.error, t)}</span>
-            {job.errorDetails && (
-              <details>
-                <summary>{t('showDetails')}</summary>
-                <pre>{job.errorDetails}</pre>
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    void navigator.clipboard.writeText(job.errorDetails ?? '');
-                    setCopiedDetails(true);
-                  }}
-                >
-                  {copiedDetails ? t('detailsCopied') : t('copyDetails')}
-                </Button>
-              </details>
-            )}
-          </div>
-        ) : null}
-      </Collapse>
     </article>
   );
 }
@@ -731,21 +706,3 @@ function processingStage(job: CompressionJob, t: Translate) {
   return t('stageCompressing');
 }
 
-function localizedJobError(raw: string, t: Translate) {
-  if (/source file is no longer available/i.test(raw)) return t('sourceUnavailable');
-  if (/file could not be processed/i.test(raw)) return t('fileProcessFailed');
-  if (/compression was cancelled/i.test(raw)) return t('compressionCancelled');
-  if (/format is not supported|file is damaged/i.test(raw)) return t('unsupportedOrDamaged');
-  if (/ffmpeg could not compress/i.test(raw)) return t('compressionFailed');
-  if (/image is no longer available|can no longer read this image/i.test(raw)) {
-    return t('imageUnavailable');
-  }
-  if (/image is damaged|could not be decoded/i.test(raw)) return t('damagedImage');
-  if (/images could not be adapted/i.test(raw)) return t('imageAdaptationFailed');
-  if (/image filter graph|image processing pipeline/i.test(raw)) return t('imageFilterGraphFailed');
-  if (/did not pass ffprobe validation/i.test(raw)) return t('outputValidationFailed');
-  if (/analysis engine is unavailable|media tools became unavailable/i.test(raw)) {
-    return t('engineUnavailable');
-  }
-  return raw;
-}

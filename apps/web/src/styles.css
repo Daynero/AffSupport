@@ -15990,8 +15990,10 @@ input[type='number'] {
 .job-row {
   position: relative;
   display: grid;
-  /* Before and after get the same width; the action stack takes what it needs. */
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  /* Before and after get the same width; the action column keeps its width
+     even while a job runs (its buttons move into the progress panel), so the
+     two information columns never change size mid-run. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 228px;
   gap: var(--space-4);
   /* Clipped to the card's own radius so the status rail cannot square off the
      corners behind it. */
@@ -16437,6 +16439,8 @@ input[type='number'] {
   display: contents;
 }
 .job-progress-panel {
+  /* Starts where the estimate panel starts and runs to the card's right edge:
+     while a job runs there is no action stack beside it to make room for. */
   grid-column: 2 / -1;
 }
 .job-row > .job-main {
@@ -16530,4 +16534,16 @@ input[type='number'] {
 }
 .job-title-line .status-badge {
   margin-left: auto;
+}
+
+
+/* Pause and cancel sit centred in the progress panel — the left-aligned card
+   stack rule does not apply to them. */
+.job-progress-panel .job-actions .button {
+  justify-content: center;
+}
+/* The source metrics end exactly where the outcome grid does: the panel adds
+   its own padding and border below its last row. */
+.job-main .original-panel {
+  padding-bottom: 11px;
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react';
-import { Broom, Play, Trash2 } from 'lucide-react';
+import { Ban, Broom, Pause, Play, Trash2 } from 'lucide-react';
 import {
   COMPRESSION_LIFECYCLE,
   calculateQueueSummary,
@@ -538,6 +538,11 @@ export default function CompressorPage() {
     [state.jobs, selected]
   );
   const anythingStoppable = useMemo(() => state.jobs.some(stoppable), [state.jobs]);
+  const runningJob = useMemo(
+    () => state.jobs.find(job => job.status === 'processing') ?? null,
+    [state.jobs]
+  );
+  const allPaused = runningJob?.paused === true;
   const metrics = useMemo(() => batchMetrics(state.jobs, state.batch), [state.jobs, state.batch]);
   const summary = useMemo(() => calculateQueueSummary(state.jobs), [state.jobs]);
   const blocked = compressBlock({
@@ -707,30 +712,49 @@ export default function CompressorPage() {
                 </span>
               </div>
               <div className="primary-actions">
-                <Button
-                  variant="primary"
-                  disabled={!connected || blocked !== null}
-                  title={t('compressSelected')}
-                  onClick={() => void startSelected()}
-                >
-                  <Play size={18} strokeWidth={1.75} aria-hidden="true" />
-                  <span className="action-label">
-                    {`${t('compressSelected')}${selected.size ? ` (${selected.size})` : ''}`}
-                  </span>
-                </Button>
-                {connected && blockedReasonKey(blocked) && (
-                  <span className="compress-blocked-reason" role="status">
-                    {t(blockedReasonKey(blocked)!)}
-                  </span>
+                {/* While something is encoding the primary button becomes
+                    pause/resume for the whole run — the reason text it used to
+                    sit beside said the same thing and did nothing. */}
+                {runningJob ? (
+                  <Button
+                    variant="primary"
+                    disabled={!connected}
+                    title={t(allPaused ? 'resumeAll' : 'pauseAll')}
+                    onClick={() =>
+                      void action(`/api/jobs/${runningJob.id}/pause`, 'POST', {
+                        paused: !allPaused
+                      })
+                    }
+                  >
+                    {allPaused ? (
+                      <Play size={18} strokeWidth={1.75} aria-hidden="true" />
+                    ) : (
+                      <Pause size={18} strokeWidth={1.75} aria-hidden="true" />
+                    )}
+                    <span className="action-label">{t(allPaused ? 'resumeAll' : 'pauseAll')}</span>
+                  </Button>
+                ) : (
+                  <Button
+                    variant="primary"
+                    disabled={!connected || blocked !== null}
+                    title={t('compressSelected')}
+                    onClick={() => void startSelected()}
+                  >
+                    <Play size={18} strokeWidth={1.75} aria-hidden="true" />
+                    <span className="action-label">
+                      {`${t('compressSelected')}${selected.size ? ` (${selected.size})` : ''}`}
+                    </span>
+                  </Button>
                 )}
                 {anythingStoppable && (
                   <Button
                     variant="danger"
                     disabled={!connected || stopInFlight}
-                    title={t('stopAllHint')}
+                    title={t('stopAll')}
                     onClick={() => void stopAll()}
                   >
-                    {t('stopAll')}
+                    <Ban size={18} strokeWidth={1.75} aria-hidden="true" />
+                    <span className="action-label">{t('stopAll')}</span>
                   </Button>
                 )}
                 <Button

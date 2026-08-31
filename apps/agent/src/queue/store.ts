@@ -297,6 +297,12 @@ function migrateJob(value: unknown, settings: AgentSettings): CompressionJob | n
         ? draftImageEmbedding(settings.imageEmbedding)
         : null),
     batchId: null,
+    // A pause lives in the running process (SIGSTOP), so it cannot survive a
+    // restart: restoring the flag left a card claiming "На паузі" while ffmpeg
+    // ran, and a restored pausedTotalMs froze the elapsed timer at zero.
+    paused: false,
+    pausedAt: null,
+    pausedTotalMs: 0,
     startedAt: numberOrNull(raw.startedAt),
     finishedAt: status === 'interrupted' ? Date.now() : numberOrNull(raw.finishedAt),
     estimateStatus:

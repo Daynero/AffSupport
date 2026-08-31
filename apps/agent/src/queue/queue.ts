@@ -1808,45 +1808,13 @@ export class JobQueue {
     validateCompletedOutput(job, media);
     const producedSize = await fileSize(job.outputPath);
 
-    // The never-larger ceiling.
+    // No never-larger ceiling.
     //
-    // A user compressed a 227 MB video and got back roughly 500 MB. Nothing
-    // malfunctioned: the source was already H.265, the target is H.264, and
-    // that format needs about twice the bitrate for the same picture — so a
-    // quality-targeted encode honestly spent the bytes. But a tool called
-    // "compress" handing back a bigger file has failed at the one thing it is
-    // for, and no explanation makes that output useful. The original is kept
-    // and the reason is recorded.
-    //
-    // Image embedding is the deliberate exception: it appends a still tail the
-    // user asked for, so a larger file is the requested outcome rather than a
-    // surprise.
-    const embedding = Boolean(
-      job.imageEmbedding && (job.imageEmbedding.startImage || job.imageEmbedding.endImage)
-    );
-    if (!embedding && producedSize > job.originalSize) {
-      await unlink(job.outputPath).catch(() => {});
-      job.keptOriginalReason = 'larger-than-source';
-      // Pointing at the source is what makes "open" and "reveal" lead to the
-      // file the user actually has.
-      job.outputPath = job.inputPath;
-      this.transition(job, 'completed');
-      job.progress = 100;
-      job.processingStage = null;
-      job.finalSize = job.originalSize;
-      job.finalWidth = job.sourceWidth;
-      job.finalHeight = job.sourceHeight;
-      job.finalFrameRate = job.sourceFrameRate;
-      job.finalBitrate = job.sourceBitrate;
-      job.finalDurationSeconds = job.durationSeconds;
-      job.finalCodec = job.sourceCodec;
-      job.error = null;
-      job.errorDetails = null;
-      job.estimateStatus = 'cancelled';
-      job.estimateProgress = null;
-      job.finishedAt = finishTimestamp(job);
-      return;
-    }
+    // An encode that comes back bigger used to be thrown away and the source
+    // kept in its place. That decision belongs to the person, not the tool:
+    // they may have changed the settings deliberately, or embedded a still
+    // tail, and silently handing back the original hides what actually
+    // happened. The result is kept and the card reports the honest numbers.
 
     this.transition(job, 'completed');
     job.progress = 100;
@@ -2028,6 +1996,10 @@ export class JobQueue {
   ) {
     if (job.startedAt === null) {
       job.startedAt = Date.now();
+      // A fresh run is never paused, whatever an earlier one left behind.
+      job.paused = false;
+      job.pausedAt = null;
+      job.pausedTotalMs = 0;
       this.notify();
     }
     const operation = encodeVideo(
