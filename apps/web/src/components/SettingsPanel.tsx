@@ -728,11 +728,6 @@ function OutputSettings({
               <FolderOpen size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
             </button>
           </div>
-          {settings.outputMode === 'chosen-folder' && (
-            <span className="selected-folder" data-tip={settings.outputFolder ?? t('noFolderSelected')}>
-              {settings.outputFolder ? compactPath(settings.outputFolder) : t('noFolderSelected')}
-            </span>
-          )}
           <input
             className="time-input suffix-input"
             type="text"
@@ -750,6 +745,14 @@ function OutputSettings({
               : t('chooseFolder')}
           </span>
         </div>
+        {settings.outputMode === 'chosen-folder' && (
+          <span
+            className="selected-folder"
+            data-tip={settings.outputFolder ?? t('noFolderSelected')}
+          >
+            {settings.outputFolder ? compactPath(settings.outputFolder) : t('noFolderSelected')}
+          </span>
+        )}
       </div>
     </div>
   );

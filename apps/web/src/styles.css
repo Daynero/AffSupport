@@ -16685,3 +16685,14 @@ input[type='number'] {
 .image-column-body {
   min-height: 0;
 }
+
+/* The chosen folder gets its own line so it cannot push the name-suffix field
+   onto a second row. */
+.output-settings .selected-folder {
+  display: block;
+  max-width: 100%;
+  margin-top: 4px;
+}
+.output-control-row {
+  flex-wrap: nowrap;
+}
