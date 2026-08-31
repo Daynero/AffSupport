@@ -2280,10 +2280,10 @@ input.is-invalid {
   contain-intrinsic-size: auto 132px;
 }
 
-/* One selection ring, in the same honey as the checkbox — the violet border
-   and its halo read as a second outline. */
+/* One selection ring, and it belongs to the dark body only: an outer border
+   would wrap the coloured status rail as well. */
 .job-row.is-selected {
-  border-color: color-mix(in oklab, var(--honey-500) 70%, transparent);
+  border-color: transparent;
   box-shadow: none;
 }
 
@@ -16602,7 +16602,7 @@ input[type='number'] {
 }
 :root[data-theme='light'] .job-row.is-selected,
 :root:not([data-theme='dark']) .job-row.is-selected {
-  border-color: var(--honey-600);
+  border-color: transparent;
   box-shadow: 0 1px 3px rgb(36 27 58 / 8%);
 }
 :root[data-theme='light'] .job-row.is-selected::before,
