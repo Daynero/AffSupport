@@ -30,7 +30,8 @@ function manifestWith(artifacts: StableReleaseManifest['artifacts']): StableRele
       landingOptimizer: {},
       landingPreview: {},
       transcription: {},
-      teamWorkspace: {}
+      teamWorkspace: {},
+      stitcher: {}
     }
   };
 }

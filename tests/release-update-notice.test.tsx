@@ -39,7 +39,8 @@ function releaseManifest(
       landingOptimizer: { landingOptimizer: 2 },
       landingPreview: { landingPreview: 1 },
       transcription: { transcription: 5 },
-      teamWorkspace: {}
+      teamWorkspace: {},
+      stitcher: {}
     }
   };
 }

@@ -71,6 +71,8 @@ export const analyticsEventNames = [
   'estimate_completed',
   'estimate_failed',
   'compression_batch_started',
+  // The stitcher's one run event: a job accepted by the local app (014).
+  'stitch_started',
   'compression_started',
   'compression_completed',
   'compression_failed',
@@ -105,7 +107,7 @@ export const analyticsEventNames = [
 
 export type AnalyticsEventName = (typeof analyticsEventNames)[number];
 export type AnalyticsTool =
-  'compressor' | 'landing-optimizer' | 'landing-preview' | 'transcription';
+  'compressor' | 'landing-optimizer' | 'landing-preview' | 'transcription' | 'stitcher';
 export type CompressionMode = 'optimal' | 'custom';
 export type RateControl = 'crf' | 'bitrate';
 

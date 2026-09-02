@@ -2,6 +2,8 @@ import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import type { CompressionJob, TranscriptionJob } from '../../packages/shared/src/types.js';
+import type { StitchPipeline } from '../../apps/agent/src/stitcher/pipeline.js';
+import type { StitchRunRequest } from '../../apps/agent/src/stitcher/queue.js';
 import type { MediaInfo } from '../../apps/agent/src/ffmpeg/tools.js';
 import { observedEdges, resetObservedEdges } from '../../apps/agent/src/queue/transitions.js';
 import { makeJob, optimalSettings } from '../helpers.js';
@@ -117,6 +119,10 @@ const { loadTranscriptionState } =
 const { LandingOptimizer } = await import('../../apps/agent/src/landing/optimizer.js');
 const { MediaActionQueue } = await import('../../apps/agent/src/media-actions/queue.js');
 const { LandingPreviewCatalog } = await import('../../apps/agent/src/landing-preview/catalog.js');
+// Dynamic like the rest: a static import would pull `ffmpeg/tools.js` in before the stub
+// binaries above are installed, and that module captures the paths once.
+const { StitchQueue } = await import('../../apps/agent/src/stitcher/queue.js');
+const { PreparedBodyCache } = await import('../../apps/agent/src/stitcher/body-cache.js');
 const { TranscriptionDocumentStore } =
   await import('../../apps/agent/src/transcription/document-store.js');
 
@@ -1118,6 +1124,237 @@ const LANDING_PREVIEW_ITEM_DRIVERS: DriverMap = {
  * `queued->processing` exists in five of the seven — and a flat map would silently let one
  * tool's driver stand in for another's.
  */
+const stitchEdge = driverFor('stitch');
+
+/**
+ * A stitch queue whose media half is a stub the driver controls.
+ *
+ * The pipeline is injected for exactly this reason: the queue's guarantees are about order,
+ * cancellation and state, none of which need a media engine to demonstrate — and the stub
+ * FFmpeg installed for the other drivers could never satisfy the verification step, so a
+ * real pipeline here would only ever drive the failure edges.
+ */
+async function stitchQueue(pipeline?: StitchPipeline) {
+  const directory = await mkdtemp(path.join(workspace, 'stitcher-'));
+  const source = path.join(directory, 'creative.mp4');
+  await writeFile(source, 'not really a video');
+  const queue = new StitchQueue({
+    imagePathFor: async () => path.join(directory, 'photo.png'),
+    onChange: () => {},
+    bodies: new PreparedBodyCache({ root: directory }),
+    pipeline:
+      pipeline ??
+      (async context => {
+        const staged = path.join(context.workDir, 'result.mp4');
+        await writeFile(staged, 'stitched');
+        return { ok: true, stagedPath: staged, verification: PASSING_VERIFICATION };
+      })
+  });
+  return { queue, source, directory };
+}
+
+const PASSING_VERIFICATION = {
+  durationSeconds: 20,
+  frameCount: 600,
+  videoTrackSeconds: 20,
+  audioTrackSeconds: 20,
+  videoCodec: 'h264',
+  audioCodec: 'aac',
+  width: 1080,
+  height: 1080,
+  pixelFormat: 'yuv420p',
+  withinTolerance: true,
+  mismatches: []
+};
+
+const NOTHING_FOUND = { startSeconds: 0, endSeconds: 0, adjustedByUser: false };
+
+function stitchRequest(source: string): StitchRunRequest {
+  const profile = {
+    path: source,
+    sizeBytes: 1_000,
+    modifiedAtMs: 1_700_000_000,
+    container: 'mov,mp4,m4a,3gp,3g2,mj2',
+    videoCodec: 'h264',
+    profile: 'High',
+    level: 32,
+    width: 1080,
+    height: 1080,
+    pixelFormat: 'yuv420p',
+    colorRange: 'tv' as const,
+    frameRate: 30,
+    variableFrameRate: false,
+    videoTimescale: 15360,
+    durationSeconds: 20,
+    hasAudio: true,
+    audioCodec: 'aac',
+    audioSampleRate: 48000,
+    audioChannels: 2,
+    audioBitrateKbps: 96,
+    keyframeTimes: [0]
+  };
+  const screens = {
+    startImageId: null,
+    endImageId: 'photo',
+    fitMode: 'cover' as const,
+    endDurationSeconds: 45,
+    startDurationSeconds: null
+  };
+  return {
+    profile,
+    detected: NOTHING_FOUND,
+    screens,
+    operation: 'stitch',
+    destination: { kind: 'beside' },
+    outputSuffix: '_stitched'
+  };
+}
+
+/**
+ * One row in the list, added the way the routes add it.
+ *
+ * Adding and starting are two steps in this queue — a row exists before it runs, which is
+ * what makes it selectable — so the drivers hold on to both the id and the request.
+ */
+function addStitchRow(
+  queue: InstanceType<typeof StitchQueue>,
+  source: string
+): { id: string; request: StitchRunRequest } {
+  const request = stitchRequest(source);
+  const [job] = queue.add([{ profile: request.profile }]);
+  if (!job) throw new Error('the stitch row was not added');
+  return { id: job.id, request };
+}
+
+/** A pipeline held open until the driver lets it go, or until the run is stopped. */
+function heldPipeline() {
+  let release: (() => void) | null = null;
+  const started = { value: false };
+  const pipeline: StitchPipeline = context =>
+    new Promise(resolve => {
+      started.value = true;
+      const stop = () => resolve({ ok: false, error: 'STITCH_CANCELLED' });
+      release = () => resolve({ ok: false, error: 'STITCH_TOOL_FAILED' });
+      // An abort can already have happened by the time the pipeline is entered; a listener
+      // alone would then never fire, which is a hang rather than a cancellation.
+      if (context.signal.aborted) stop();
+      else context.signal.addEventListener('abort', stop, { once: true });
+    });
+  return { pipeline, started, release: () => release?.() };
+}
+
+const STITCH_DRIVERS: DriverMap = {
+  'ready->queued': async () => {
+    const held = heldPipeline();
+    const { queue, source } = await stitchQueue(held.pipeline);
+    const row = addStitchRow(queue, source);
+    const result = await stitchEdge('queued', async () => queue.start(row.id, row.request));
+    await queue.cancelAll();
+    await queue.shutdown();
+    return result;
+  },
+
+  'queued->running': async () => {
+    const held = heldPipeline();
+    const { queue, source } = await stitchQueue(held.pipeline);
+    const row = addStitchRow(queue, source);
+    const result = await stitchEdge('running', async () => queue.start(row.id, row.request));
+    await queue.shutdown();
+    return result;
+  },
+
+  'queued->cancelled': async () => {
+    // Two rows, one at a time. The second is still waiting when it is stopped.
+    const held = heldPipeline();
+    const { queue, source } = await stitchQueue(held.pipeline);
+    const first = addStitchRow(queue, source);
+    queue.start(first.id, first.request);
+    const second = addStitchRow(queue, source);
+    queue.start(second.id, second.request);
+    const result = await stitchEdge('cancelled', () => queue.cancel(second.id));
+    await queue.shutdown();
+    return result;
+  },
+
+  'running->done': async () => {
+    const { queue, source } = await stitchQueue();
+    const row = addStitchRow(queue, source);
+    const result = await stitchEdge('done', async () => queue.start(row.id, row.request));
+    await queue.shutdown();
+    return result;
+  },
+
+  'running->failed': async () => {
+    const { queue, source } = await stitchQueue(async () => ({
+      ok: false,
+      error: 'STITCH_VERIFICATION_FAILED'
+    }));
+    const row = addStitchRow(queue, source);
+    const result = await stitchEdge('failed', async () => queue.start(row.id, row.request));
+    await queue.shutdown();
+    return result;
+  },
+
+  'running->cancelled': async () => {
+    const held = heldPipeline();
+    const { queue, source } = await stitchQueue(held.pipeline);
+    const row = addStitchRow(queue, source);
+    queue.start(row.id, row.request);
+    await waitFor(() => held.started.value, { describe: 'the stitch pipeline to start' });
+    const result = await stitchEdge('cancelled', () => queue.cancel(row.id));
+    await queue.shutdown();
+    return result;
+  },
+
+  /* The three roads back. Running a settled row again returns it to `ready` first — that is
+     where the previous result is cleared, rather than lingering beside the new one. */
+  'done->ready': async () => {
+    const { queue, source } = await stitchQueue();
+    const row = addStitchRow(queue, source);
+    queue.start(row.id, row.request);
+    await waitFor(() => queue.state().jobs[0]?.status === 'done', {
+      describe: 'the first stitch run to finish'
+    });
+    const result = await stitchEdge('ready', async () => queue.start(row.id, row.request));
+    await queue.cancelAll();
+    await queue.shutdown();
+    return result;
+  },
+
+  'failed->ready': async () => {
+    const { queue, source } = await stitchQueue(async () => ({
+      ok: false,
+      error: 'STITCH_VERIFICATION_FAILED'
+    }));
+    const row = addStitchRow(queue, source);
+    queue.start(row.id, row.request);
+    await waitFor(() => queue.state().jobs[0]?.status === 'failed', {
+      describe: 'the first stitch run to fail'
+    });
+    const result = await stitchEdge('ready', async () => queue.start(row.id, row.request));
+    await queue.cancelAll();
+    await queue.shutdown();
+    return result;
+  },
+
+  'cancelled->ready': async () => {
+    const held = heldPipeline();
+    const { queue, source } = await stitchQueue(held.pipeline);
+    const first = addStitchRow(queue, source);
+    queue.start(first.id, first.request);
+    const second = addStitchRow(queue, source);
+    queue.start(second.id, second.request);
+    await queue.cancel(second.id);
+    await waitFor(() => queue.state().jobs[1]?.status === 'cancelled', {
+      describe: 'the waiting row to be stopped'
+    });
+    const result = await stitchEdge('ready', async () => queue.start(second.id, second.request));
+    await queue.cancelAll();
+    await queue.shutdown();
+    return result;
+  }
+};
+
 export const DRIVERS: Readonly<Record<string, DriverMap>> = {
   compression: COMPRESSION_DRIVERS,
   transcription: TRANSCRIPTION_DRIVERS,
@@ -1125,5 +1362,6 @@ export const DRIVERS: Readonly<Record<string, DriverMap>> = {
   'landing-job': LANDING_JOB_DRIVERS,
   'landing-asset': LANDING_ASSET_DRIVERS,
   'landing-preview-item': LANDING_PREVIEW_ITEM_DRIVERS,
-  'media-action': MEDIA_ACTION_DRIVERS
+  'media-action': MEDIA_ACTION_DRIVERS,
+  stitch: STITCH_DRIVERS
 };

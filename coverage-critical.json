@@ -41,6 +41,7 @@
     "packages/shared/src/environment.ts": 49,
     "packages/shared/src/lifecycle.ts": 99,
     "packages/shared/src/release.ts": 69,
+    "packages/shared/src/stitcher.ts": 90,
     "packages/shared/src/team/analytics.ts": 86,
     "packages/shared/src/team/catalog-search.ts": 95,
     "packages/shared/src/team/contract.ts": 92,

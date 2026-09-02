@@ -47,3 +47,14 @@ export function TeamWorkspaceIcon() {
     </svg>
   );
 }
+
+export function StitcherIcon() {
+  return (
+    <svg viewBox="0 0 32 32">
+      <rect x="3" y="8" width="7" height="16" rx="1.5" />
+      <rect x="22" y="8" width="7" height="16" rx="1.5" />
+      <path d="M10 16h12" />
+      <path d="m14.5 12.5-2 3.5 2 3.5m3-7 2 3.5-2 3.5" />
+    </svg>
+  );
+}

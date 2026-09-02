@@ -1,3 +1,7 @@
+# Unreleased
+
+- Add the Video Stitcher: swap the photo screens at the start and end of a video in seconds without recompressing the video itself. Ships with the agent release that publishes its tool contract.
+
 # v1.0.4
 
 - Make stopping or cancelling local work reliably terminate its child processes and release the shared CPU budget, including on Windows.

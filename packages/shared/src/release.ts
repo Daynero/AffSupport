@@ -86,6 +86,10 @@ export const AGENT_TOOL_CONTRACTS = {
   // read directly from the contract (teamBackgroundRenderSupported in shared),
   // never a tool page, so an older agent is not asked rather than rejected.
   teamBackgroundRender: 1,
+  // The stitcher rebuilds a video's edge screens without re-encoding its body (014). Its
+  // own contract rather than a compressor revision: the two tools share the image library
+  // but nothing of the encode path, and an agent can serve one without the other.
+  stitcher: 1,
   // Server-wide power throttle. Deliberately absent from WEB_TOOL_REQUIREMENTS:
   // that map is the set of user-facing *tool pages*, and it is byte-compared
   // against the signed, published stable.json by verify-release.mjs. The power
@@ -99,6 +103,13 @@ export const WEB_TOOL_REQUIREMENTS = {
   landingOptimizer: { landingOptimizer: 2 },
   landingPreview: { landingPreview: 2 },
   transcription: { transcription: 5 },
+  // `imageEmbedding` as well as its own contract: the screens come from the compressor's
+  // image library, so an agent without that library cannot serve this page either.
+  //
+  // Adding a key here changes the map `scripts/verify-release.mjs` byte-compares against the
+  // signed stable.json, so `deploy:web` fails until an agent release publishes it. That is
+  // the gate working: the tool ships with an agent release, never ahead of one.
+  stitcher: { stitcher: 1, imageEmbedding: 2 },
   // Existing team preview/download/process routes stay compatible with contract 1.
   // Feature-specific callers gate the new landing-render routes on contract 2.
   teamWorkspace: { teamWorkspace: 1 }

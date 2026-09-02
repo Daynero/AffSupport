@@ -32,6 +32,7 @@ import type {
   TranscriptionJobStatus,
   TranslationStatus
 } from './types.js';
+import type { StitchStatus } from './stitcher.js';
 
 /**
  * Every state maps to the states it may move to.
@@ -333,6 +334,31 @@ export const MEDIA_ACTION_LIFECYCLE: Lifecycle<MediaActionStatus> = defineLifecy
 });
 
 /**
+ * One stitch, re-stitch, or removal.
+ *
+ * The compressor's table with one state fewer: a source is probed before its row exists, so
+ * there is nothing to analyse. Everything else is the same shape, because the queue is the
+ * same queue — files wait as `ready`, a selection is started, and a finished row can be run
+ * again.
+ */
+export const STITCH_LIFECYCLE: Lifecycle<StitchStatus> = defineLifecycle({
+  id: 'stitch',
+  initial: 'ready',
+  transitions: {
+    // A file waits in the list until someone starts it, exactly as in the compressor.
+    ready: ['queued'],
+    queued: ['running', 'cancelled'],
+    running: ['done', 'failed', 'cancelled'],
+    // Every finished state can be run again; re-running returns the row to `ready` first,
+    // which is where the previous result is cleared.
+    done: ['ready'],
+    failed: ['ready'],
+    cancelled: ['ready']
+  },
+  settled: ['done', 'failed', 'cancelled']
+});
+
+/**
  * Every lifecycle, so tests iterate rather than enumerate.
  *
  * `as const` on purpose. A plain `readonly Lifecycle<string>[]` would widen each status union
@@ -347,7 +373,8 @@ export const LIFECYCLES = [
   LANDING_JOB_LIFECYCLE,
   LANDING_ASSET_LIFECYCLE,
   LANDING_PREVIEW_ITEM_LIFECYCLE,
-  MEDIA_ACTION_LIFECYCLE
+  MEDIA_ACTION_LIFECYCLE,
+  STITCH_LIFECYCLE
 ] as const;
 
 /**

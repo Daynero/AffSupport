@@ -28,6 +28,7 @@ import {
   type SourceKind
 } from '@video-compressor/shared';
 import { encodeVideo, isAudioCopyFailure, type EncodeEmbeddingOptions } from '../ffmpeg/encoder.js';
+import { heldFinalImageSeconds } from '../ffmpeg/presets.js';
 import {
   isMediaToolUnavailableError,
   MediaToolUnavailableError,
@@ -2114,7 +2115,11 @@ export class JobQueue {
         this.notifyProgress();
       },
       embedding,
-      this.power
+      this.power,
+      // A held final image is built in three passes; a stop has to reach whichever is running.
+      child => {
+        if (this.current.kind === 'encoding') this.setActivity({ ...this.current, child });
+      }
     );
     // Attached to the activity that already exists for this job. Reaching here with anything
     // other than an encode would mean `run()` was called outside the guarded region, and
@@ -2275,6 +2280,13 @@ function processingError(error: unknown) {
 
 class OutputValidationError extends Error {}
 
+/** Whether this job's final image is held long enough to be built as its own segment. */
+function heldFinalImage(job: CompressionJob): boolean {
+  const embedding = job.imageEmbedding;
+  if (!embedding) return false;
+  return heldFinalImageSeconds(embedding, outputFrameRate(job)) !== null;
+}
+
 function validateCompletedOutput(job: CompressionJob, media: MediaInfo) {
   const errors: string[] = [];
   if (!media.formatName || !/(?:^|,)mp4(?:,|$)|(?:^|,)mov(?:,|$)/.test(media.formatName)) {
@@ -2300,11 +2312,20 @@ function validateEmbeddedOutput(job: CompressionJob, media: MediaInfo) {
       `dimensions=${media.width ?? 'missing'}x${media.height ?? 'missing'}, expected=${dimensions?.width ?? 'missing'}x${dimensions?.height ?? 'missing'}`
     );
   }
-  if (
-    !media.frameRate ||
-    Math.abs(media.frameRate - frameRate) > Math.max(0.03, frameRate * 0.001)
-  ) {
-    errors.push(`fps=${media.frameRate ?? 'missing'}, expected=${frameRate}`);
+  /*
+   * The frame rate is judged on the moving part, not on the average.
+   *
+   * A final image held for half an hour is a few hundred pictures spread across it — that is
+   * the whole reason such a file encodes in a minute instead of twelve. Averaged over the
+   * finished file that reads as two frames a second, and this check called a correct output
+   * broken. `nominalFrameRate` is what the container declares the stream to be, which is the
+   * body's rate and the number this was ever meant to test.
+   */
+  const measured = heldFinalImage(job)
+    ? (media.nominalFrameRate ?? media.frameRate)
+    : media.frameRate;
+  if (!measured || Math.abs(measured - frameRate) > Math.max(0.03, frameRate * 0.001)) {
+    errors.push(`fps=${measured ?? 'missing'}, expected=${frameRate}`);
   }
   const durationTolerance = Math.max(0.2, 2 / frameRate);
   if (!media.duration || Math.abs(media.duration - duration) > durationTolerance) {

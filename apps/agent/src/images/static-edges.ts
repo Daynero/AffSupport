@@ -22,19 +22,113 @@ export async function detectStaticEdgeTrims(
   frameRate: number,
   signal?: AbortSignal
 ): Promise<StaticEdgeTrims> {
-  if (
-    !Number.isFinite(durationSeconds) ||
-    durationSeconds <= 0 ||
-    !Number.isFinite(frameRate) ||
-    frameRate <= 0
-  ) {
-    return { startSeconds: 0, endSeconds: 0 };
-  }
+  return staticEdgeScan(input, durationSeconds, frameRate, signal).trims();
+}
 
-  const nominalFrames = Math.max(1, Math.floor(durationSeconds * frameRate));
-  if (nominalFrames < 3) return { startSeconds: 0, endSeconds: 0 };
+/**
+ * Several questions about one file's edges, sharing one set of decoded frames.
+ *
+ * Asking them separately decodes the same pictures again: the searches all converge on the
+ * same two transitions, and each frame costs an FFmpeg seek. A caller that walks back through
+ * a tail asks four or five overlapping questions, so the cache is the difference between one
+ * pass over the edges and five.
+ */
+export interface StaticEdgeScan {
+  /** The runs that reach the first and last frames of the file. */
+  trims(): Promise<StaticEdgeTrims>;
+  /**
+   * How many seconds of one held picture end at `endSeconds`, looking back at most
+   * `availableSeconds`.
+   *
+   * `trims` measures the run that reaches the *last* frame, which is all a trim needs to know.
+   * A creative can carry more than one held picture at its tail — its own end card, and then a
+   * photo screen appended after it — and the appended one hides the card completely, because
+   * the card does not match the last frame. Anchoring the same search anywhere lets a caller
+   * walk back through them one at a time.
+   */
+  runEndingAt(endSeconds: number, availableSeconds: number): Promise<number>;
+}
+
+export function staticEdgeScan(
+  input: string,
+  durationSeconds: number,
+  frameRate: number,
+  signal?: AbortSignal
+): StaticEdgeScan {
+  const usable =
+    Number.isFinite(durationSeconds) &&
+    durationSeconds > 0 &&
+    Number.isFinite(frameRate) &&
+    frameRate > 0;
+  const nominalFrames = usable ? Math.max(1, Math.floor(durationSeconds * frameRate)) : 0;
+  const sample = usable
+    ? frameSampler(input, durationSeconds, frameRate, nominalFrames, signal)
+    : null;
+
+  return {
+    async trims() {
+      if (!sample || nominalFrames < 3) return { startSeconds: 0, endSeconds: 0 };
+
+      // `durationSeconds` comes from the container, which reports the longest
+      // stream: a soundtrack that outlives the picture (very common) pushes the
+      // nominal frame count past the last real video frame. Seeking there decodes
+      // nothing, and an empty sample compares as "different" against everything —
+      // which would report a single static trailing frame and leave a previously
+      // embedded still image in place. Anchor the tail on a frame that decodes.
+      const lastIndex = await lastDecodableIndex(nominalFrames - 1, sample);
+      if (lastIndex === null || lastIndex < 2) return { startSeconds: 0, endSeconds: 0 };
+      const totalFrames = lastIndex + 1;
+      // Whatever the container counts beyond the last picture is audio-only tail.
+      // It plays over a frozen frame, so it belongs to the trailing run that is
+      // being replaced rather than to the moving source that is being kept.
+      const audioOnlyTailSeconds = Math.max(0, durationSeconds - totalFrames / frameRate);
+
+      const leadingFrames = await matchingEdgeFrames(totalFrames, distance => distance, sample);
+      const remainingAfterStart = Math.max(2, totalFrames - leadingFrames);
+      const trailingFrames = await matchingEdgeFrames(
+        remainingAfterStart,
+        distance => lastIndex - distance,
+        sample
+      );
+      const safeLeading = Math.min(leadingFrames, totalFrames - 2);
+      const safeTrailing = Math.min(trailingFrames, totalFrames - safeLeading - 1);
+
+      return {
+        startSeconds: roundSeconds(safeLeading / frameRate),
+        endSeconds: roundSeconds(safeTrailing / frameRate + audioOnlyTailSeconds)
+      };
+    },
+
+    async runEndingAt(endSeconds: number, availableSeconds: number) {
+      if (!sample || nominalFrames < 3) return 0;
+      if (!Number.isFinite(endSeconds) || endSeconds < 0) return 0;
+      const endIndex = Math.min(nominalFrames - 1, Math.max(0, Math.round(endSeconds * frameRate)));
+      const available = Math.min(
+        endIndex + 1,
+        Math.max(0, Math.floor(availableSeconds * frameRate))
+      );
+      if (available < 2) return 0;
+      const frames = await matchingEdgeFrames(available, distance => endIndex - distance, sample);
+      return roundSeconds(frames / frameRate);
+    }
+  };
+}
+
+/**
+ * Decoded 32×32 grey samples by frame index, each fetched once.
+ *
+ * Shared so that a caller asking about one run and a caller asking about the next are looking
+ * at the same pictures, decoded the same way.
+ */
+function frameSampler(
+  input: string,
+  durationSeconds: number,
+  frameRate: number,
+  nominalFrames: number,
+  signal?: AbortSignal
+) {
   const cache = new Map<number, Promise<Buffer | null>>();
-  const sample = (index: number) => {
+  return (index: number) => {
     const safeIndex = Math.min(nominalFrames - 1, Math.max(0, index));
     let value = cache.get(safeIndex);
     if (!value) {
@@ -43,35 +137,6 @@ export async function detectStaticEdgeTrims(
       cache.set(safeIndex, value);
     }
     return value;
-  };
-
-  // `durationSeconds` comes from the container, which reports the longest
-  // stream: a soundtrack that outlives the picture (very common) pushes the
-  // nominal frame count past the last real video frame. Seeking there decodes
-  // nothing, and an empty sample compares as "different" against everything —
-  // which would report a single static trailing frame and leave a previously
-  // embedded still image in place. Anchor the tail on a frame that decodes.
-  const lastIndex = await lastDecodableIndex(nominalFrames - 1, sample);
-  if (lastIndex === null || lastIndex < 2) return { startSeconds: 0, endSeconds: 0 };
-  const totalFrames = lastIndex + 1;
-  // Whatever the container counts beyond the last picture is audio-only tail.
-  // It plays over a frozen frame, so it belongs to the trailing run that is
-  // being replaced rather than to the moving source that is being kept.
-  const audioOnlyTailSeconds = Math.max(0, durationSeconds - totalFrames / frameRate);
-
-  const leadingFrames = await matchingEdgeFrames(totalFrames, distance => distance, sample);
-  const remainingAfterStart = Math.max(2, totalFrames - leadingFrames);
-  const trailingFrames = await matchingEdgeFrames(
-    remainingAfterStart,
-    distance => lastIndex - distance,
-    sample
-  );
-  const safeLeading = Math.min(leadingFrames, totalFrames - 2);
-  const safeTrailing = Math.min(trailingFrames, totalFrames - safeLeading - 1);
-
-  return {
-    startSeconds: roundSeconds(safeLeading / frameRate),
-    endSeconds: roundSeconds(safeTrailing / frameRate + audioOnlyTailSeconds)
   };
 }
 

@@ -11402,7 +11402,6 @@ body {
   font-size: var(--text-xs);
 }
 
-
 .selected-image-tile .selected-image-action-icon {
   width: 6px;
   height: 6px;
@@ -15461,7 +15460,6 @@ button.team-landing-tile:hover {
   min-height: 34px;
 }
 
-
 /* No number-input spinners anywhere — values are typed, not clicked. */
 input[type='number']::-webkit-outer-spin-button,
 input[type='number']::-webkit-inner-spin-button {
@@ -15528,7 +15526,6 @@ input[type='number'] {
   image-rendering: pixelated;
 }
 
-
 /* Per-slot pill toggle beside the column title; off = the whole column
    body collapses so it stops eating the eyes. */
 .image-column-heading .slot-feature-switch {
@@ -15548,7 +15545,6 @@ input[type='number'] {
   transform: scale(1.35);
   z-index: 1;
 }
-
 
 /* The CRF track stretches to fill its grid column; the value label keeps
    its place at the end of the row. */
@@ -15580,7 +15576,6 @@ input[type='number'] {
 .start-duration-row .input-with-suffix input.res-input {
   width: 76px;
 }
-
 
 /* Big drag-and-drop glyph in the intake zone, Soty orange. */
 .drop-zone .drop-icon {
@@ -15619,7 +15614,6 @@ input[type='number'] {
   white-space: normal;
   pointer-events: none;
 }
-
 
 /* Light theme flips the intake zone: purple field, honey type and dashes. */
 :root[data-theme='light'] .drop-zone,
@@ -15693,7 +15687,6 @@ input[type='number'] {
 .drop-zone.is-fail span:not(.drop-icon):not(.spinner) {
   color: #ff9b9b;
 }
-
 
 /* Nested settings blocks share the deeper green of the custom section. */
 .settings-panel .image-embedding-panel {
@@ -15778,7 +15771,6 @@ input[type='number'] {
   font-variant-numeric: tabular-nums;
 }
 
-
 /* Toolbar per the reference: select-all checkbox, status chips in the middle,
    actions on the right. */
 .batch-toolbar .select-all-box {
@@ -15815,7 +15807,6 @@ input[type='number'] {
 .batch-toolbar .batch-counts {
   display: none;
 }
-
 
 /* Two levels: one row of controls, the progress bar beneath it. Both stretch
    edge to edge — the old flex `space-between` left the grid column sized to
@@ -15873,7 +15864,6 @@ input[type='number'] {
     justify-content: flex-start;
   }
 }
-
 
 /* The select-all box: a 20px orange-outlined square with an orange check. */
 .batch-toolbar .select-all-box input {
@@ -16139,7 +16129,6 @@ input[type='number'] {
   color: var(--honey-400);
 }
 
-
 /* The outcome panel and the action stack each keep their own cell. */
 .job-side > .media-panel,
 .job-side > .outcome-slot {
@@ -16183,7 +16172,6 @@ input[type='number'] {
   background: color-mix(in oklab, var(--color-text) 10%, transparent);
 }
 
-
 /* The error strip belongs to the whole card, not to its left column. */
 .job-row > .collapse,
 .job-row > .job-error {
@@ -16201,7 +16189,6 @@ input[type='number'] {
 .job-side .media-panel {
   padding: 12px 14px;
 }
-
 
 /* The primary settings row sits on the same dark slab as the embedding
    block, with fading hairlines between its groups (like the toolbar's). */
@@ -16234,7 +16221,6 @@ input[type='number'] {
   );
 }
 
-
 /* The metadata toggle is a control in the row, not a heading: same type size
    as the other group labels, centred against them. */
 .metadata-settings {
@@ -16244,7 +16230,6 @@ input[type='number'] {
   font-size: var(--text-xl);
   font-weight: 600;
 }
-
 
 /* A fading hairline between the start and final image columns. */
 .image-columns > * + * {
@@ -16266,7 +16251,6 @@ input[type='number'] {
   );
 }
 
-
 /* Both galleries occupy the same slab: their height comes from the taller of
    the two, so a column with one image is not a stub beside a full one. */
 .image-columns {
@@ -16279,7 +16263,6 @@ input[type='number'] {
   gap: 0;
 }
 
-
 /* The re-embed toggle sits level with the picto buttons of 'Заповнення кадру'
    — the group beside it spends its first line on a label. */
 .embedding-settings-row .replace-existing-setting {
@@ -16288,12 +16271,10 @@ input[type='number'] {
   min-height: 26px;
 }
 
-
 /* Half the air under the last tile row inside the embedding panel. */
 .settings-panel .image-embedding-panel {
   padding-bottom: 6px;
 }
-
 
 /* A full-width hairline between the embedding settings row and the two image
    columns, fading out at both ends like the vertical ones. */
@@ -16396,7 +16377,6 @@ input[type='number'] {
   justify-content: center;
 }
 
-
 /* Narrow windows: the card's two columns stack instead of squeezing. */
 @media (max-width: 1180px) {
   .job-row {
@@ -16407,7 +16387,6 @@ input[type='number'] {
   }
 }
 
-
 /* Second stage: the status words drop away and only their numbers remain,
    each keeping its colour and its hover hint. */
 .batch-toolbar-row.is-compact-chips .chip-word {
@@ -16417,13 +16396,11 @@ input[type='number'] {
   gap: 14px;
 }
 
-
 /* The actions stay pinned to the right edge in every collapse stage — the
    chips' auto margin disappears once they shrink to bare numbers. */
 .batch-toolbar-row .primary-actions {
   margin-left: auto;
 }
-
 
 /* A selected card wears a slightly heavier outline. */
 .job-row {
@@ -16436,7 +16413,6 @@ input[type='number'] {
 .job-row.is-selected::before {
   box-shadow: inset 0 0 0 4px color-mix(in oklab, var(--honey-500) 70%, transparent);
 }
-
 
 /* The side wrapper stops being a box of its own so the outcome panel and the
    action stack sit directly on the card's grid — that is what keeps the two
@@ -16452,7 +16428,6 @@ input[type='number'] {
 .job-row > .job-main {
   grid-column: 1;
 }
-
 
 /* The stack keeps its own height instead of stretching with the row. */
 .job-row > .job-actions {
@@ -16499,7 +16474,6 @@ input[type='number'] {
   left: calc(66.666% - var(--space-3) / 2);
 }
 
-
 /* The source metrics sink to the bottom of their column so they line up with
    the outcome grid, which starts under its own heading and headline figure.
    The second row takes the leftover height and the panel sits at its end —
@@ -16511,7 +16485,6 @@ input[type='number'] {
   align-self: end;
   margin-top: 0;
 }
-
 
 /* The percentage belongs to the bar, right beside it — not pushed to the far
    edge of the panel. */
@@ -16532,7 +16505,6 @@ input[type='number'] {
   margin-left: auto;
 }
 
-
 /* The status pill mirrors the estimate badge: pinned to the right edge of the
    card's left column. */
 .job-title-line {
@@ -16541,7 +16513,6 @@ input[type='number'] {
 .job-title-line .status-badge {
   margin-left: auto;
 }
-
 
 /* Pause and cancel sit centred in the progress panel — the left-aligned card
    stack rule does not apply to them. */
@@ -16553,7 +16524,6 @@ input[type='number'] {
 .job-main .original-panel {
   padding-bottom: 11px;
 }
-
 
 /* A finished panel ends with the saved-file path, so its metric grid sits
    higher than the panel's floor. The source grid lifts by exactly that
@@ -16676,7 +16646,6 @@ input[type='number'] {
   padding-bottom: 8px;
 }
 
-
 /* The gallery fills its slab, so both columns end on the same line. */
 .settings-panel .image-columns > .image-column {
   display: grid;
@@ -16714,4 +16683,79 @@ input[type='number'] {
 .settings-panel .image-columns > .image-column.is-dragging {
   border-color: color-mix(in oklab, var(--color-accent) 60%, transparent);
   background: color-mix(in oklab, var(--color-accent) 14%, var(--color-surface));
+}
+
+/* ============================================================
+   Video Stitcher (014)
+   ============================================================
+   Only what the compressor does not already provide. The drop zone, the
+   settings panel, the picto groups, the image tiles, the action bar and the
+   job rows are the compressor's own classes, so the two tools stay one
+   application rather than two that look alike. */
+
+/* The start slot has nothing to configure — its screen is one frame — so its
+   column sizes to its tiles instead of stretching to match the one beside it. */
+.stitcher-page .image-columns {
+  align-items: start;
+}
+
+.stitch-note {
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.stitch-note.is-error {
+  color: var(--color-danger, #e5484d);
+}
+
+/* "No screen" is a choice, so it is a tile like the photographs beside it —
+   the same size and the same selected outline, with a word instead of an image.
+   It carries its own surface because there is no photograph to cover the one
+   the other tiles inherit, which would leave it dark on a pale screen. */
+.stitch-none-tile {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: color-mix(in oklab, var(--color-accent) 10%, var(--color-surface));
+  /* Full-strength text: the unchosen tile carries the gallery's dimming veil,
+     and muted text under it stops being readable. */
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.stitch-none-tile.is-inactive > span {
+  opacity: 1;
+}
+
+.stitch-none-tile > span {
+  position: static;
+  padding: 0;
+  background: none;
+}
+
+/* A stitch has no progress bar to fill — it is over in a second — so the row
+   carries one line of state where the compressor carries its meters. */
+.stitch-runs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.stitch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+}
+
+.stitch-row-detail {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.stitch-row[data-state='failed'] .stitch-row-detail {
+  color: var(--color-danger, #e5484d);
 }

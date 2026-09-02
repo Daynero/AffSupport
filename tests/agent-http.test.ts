@@ -11,6 +11,7 @@ import {
   type LandingEvent,
   type LandingPreviewEvent,
   type LandingPreviewState,
+  type StitcherEvent,
   type TranscriptionEvent
 } from '../packages/shared/src/types.js';
 import { EntitlementGate } from '../apps/agent/src/entitlement/entitlement.js';
@@ -25,6 +26,7 @@ import { MediaActionQueue } from '../apps/agent/src/media-actions/queue.js';
 import { PowerGovernor } from '../apps/agent/src/power/governor.js';
 import { JobQueue } from '../apps/agent/src/queue/queue.js';
 import { TranscriptionQueue } from '../apps/agent/src/queue/transcription-queue.js';
+import { StitchQueue } from '../apps/agent/src/stitcher/queue.js';
 import { buildServer } from '../apps/agent/src/server/app.js';
 import { EventChannel } from '../apps/agent/src/server/sse.js';
 import { createToolModules } from '../apps/agent/src/server/tools.js';
@@ -135,6 +137,11 @@ async function makeServer(options: { entitlementPublicKey?: string } = {}) {
     type: 'transcription:state',
     state: transcriptionQueue.state()
   }));
+  const stitchQueue = new StitchQueue({ imagePathFor: async () => null, onChange: () => {} });
+  const stitcherEvents = new EventChannel<StitcherEvent>(allowedOrigins, () => ({
+    type: 'stitcher:state',
+    state: stitchQueue.state()
+  }));
   const transcriptionQueue = new TranscriptionQueue({ ffmpeg: true, whisper: false }, () =>
     transcriptionEvents.broadcast({
       type: 'transcription:state',
@@ -207,6 +214,12 @@ async function makeServer(options: { entitlementPublicKey?: string } = {}) {
       landing: { optimizer: landingOptimizer, events: landingEvents },
       landingPreview: { catalog: landingPreviewCatalog, events: landingPreviewEvents },
       transcription: { queue: transcriptionQueue, events: transcriptionEvents },
+      stitcher: {
+        queue: stitchQueue,
+        events: stitcherEvents,
+        tools: () => tools,
+        embedding: () => queue.state().settings.imageEmbedding
+      },
       teamWorkspace: {
         preview: teamPreviewBridge,
         process: teamProcessBridge,

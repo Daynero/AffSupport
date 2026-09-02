@@ -4,10 +4,13 @@ import {
   LANDING_JOB_LIFECYCLE,
   LANDING_PREVIEW_ITEM_LIFECYCLE,
   MEDIA_ACTION_LIFECYCLE,
+  STITCH_LIFECYCLE,
   TRANSCRIPTION_LIFECYCLE,
   type AnyLifecycle,
   type LandingEvent,
+  type ImageEmbeddingSettings,
   type LandingPreviewEvent,
+  type StitcherEvent,
   type TranscriptionEvent
 } from '@video-compressor/shared';
 import { registerCompressorRoutes, type CompressorContext } from '../compressor/routes.js';
@@ -23,6 +26,8 @@ import type { TeamLandingRenderBridge } from '../team-bridge/landing-gallery.js'
 import type { CreativeLibraryProcessBridge } from '../team-bridge/library.js';
 import type { TeamPreviewBridge } from '../team-bridge/preview.js';
 import type { TeamProcessBridge } from '../team-bridge/process.js';
+import type { StitchQueue } from '../stitcher/queue.js';
+import { registerStitcherRoutes } from '../stitcher/routes.js';
 import { registerTeamBridgeRoutes } from '../team-bridge/routes.js';
 import { registerLandingRoutes } from '../landing/routes.js';
 import { registerTranscriptionRoutes } from '../transcription/routes.js';
@@ -85,6 +90,13 @@ export interface ToolModulesDeps {
     events: EventChannel<LandingPreviewEvent>;
   };
   transcription: { queue: TranscriptionQueue; events: EventChannel<TranscriptionEvent> };
+  stitcher: {
+    queue: StitchQueue;
+    events: EventChannel<StitcherEvent>;
+    tools: () => { ffmpeg: boolean; ffprobe: boolean };
+    /** The compressor's live screen settings — the stitcher keeps no second copy. */
+    embedding: () => ImageEmbeddingSettings;
+  };
   teamWorkspace: {
     preview: TeamPreviewBridge;
     process: TeamProcessBridge;
@@ -102,6 +114,7 @@ export interface ToolModulesDeps {
  */
 export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
   const { compressor, mediaActions, landing, landingPreview, transcription, teamWorkspace } = deps;
+  const { stitcher } = deps;
   return [
     {
       id: 'compressor',
@@ -173,6 +186,22 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
       cancel: async id => transcription.queue.cancel(id),
       cancelAll: async () => transcription.queue.cancelAll(),
       shutdown: () => transcription.queue.shutdown()
+    },
+    {
+      id: 'stitcher',
+      lifecycle: STITCH_LIFECYCLE,
+      register: (app, ctx) =>
+        registerStitcherRoutes(app, {
+          queue: stitcher.queue,
+          events: stitcher.events,
+          tools: stitcher.tools,
+          embedding: stitcher.embedding,
+          acceptingNewTasks: ctx.acceptingNewTasks
+        }),
+      busy: () => stitcher.queue.workActive(),
+      cancel: id => stitcher.queue.cancel(id),
+      cancelAll: () => stitcher.queue.cancelAll(),
+      shutdown: () => stitcher.queue.shutdown()
     },
     {
       id: 'team-workspace',

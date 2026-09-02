@@ -7,6 +7,7 @@ import {
   CompressorIcon,
   LandingIcon,
   LandingPreviewIcon,
+  StitcherIcon,
   TranscriptionIcon
 } from '../components/tool-icons';
 import { lazy } from 'react';
@@ -27,6 +28,7 @@ const CompressorPage = lazy(() => import('../App'));
 const LandingOptimizerPage = lazy(() => import('../landing/LandingOptimizerPage'));
 const LandingPreviewPage = lazy(() => import('../landing-preview/LandingPreviewPage'));
 const TranscriptionPage = lazy(() => import('../transcription/TranscriptionPage'));
+const StitcherPage = lazy(() => import('../stitcher/StitcherPage'));
 
 // The single source of truth for the Soty web tools. Adding a tool here
 // registers its route (ProtectedSoty), its home-page tile (HomePage) and its
@@ -110,6 +112,20 @@ export const webTools: readonly WebTool[] = [
     status: statusFor('landingPreview'),
     capability: 'landing-preview',
     page: LandingPreviewPage
+  },
+  {
+    // Placed next to the compressor: the two share a screen library and answer the same
+    // question — "same video, new photo" goes here, "make it smaller" goes there.
+    id: 'stitcher',
+    analyticsId: 'stitcher',
+    path: '/stitcher',
+    labelKey: 'videoStitcher',
+    descriptionKey: 'videoStitcherDescription',
+    icon: StitcherIcon,
+    featureFlag: 'videoStitcher',
+    status: statusFor('videoStitcher'),
+    capability: 'stitcher',
+    page: StitcherPage
   },
   {
     id: 'transcription',

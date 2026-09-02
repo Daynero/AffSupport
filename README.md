@@ -163,6 +163,20 @@ Every image is adapted separately to the final dimensions of its video. **Fill a
 
 Starting a batch freezes its images, fit mode, encoding controls, and a separate random duration for every selected video. Later form changes cannot alter a queued or processing job. Embedded results use `_embedded_compressed.mp4` with the same collision-safe numbering as ordinary results. FFprobe validates the MP4, dimensions, frame rate, total duration, audio presence, and A/V duration before a job is marked complete.
 
+### Video stitching
+
+The Video Stitcher changes the photo screens at the edges of a video **without re-encoding the video**. It is a separate tool from the compressor and has no quality settings at all: the body's own packets are copied through, and only the screens are newly encoded.
+
+Pick a video and a photo, and the tool decides what to do from what it finds: screens present, they are replaced; none present, they are added. Removing the screens is the one operation asked for explicitly. Whatever it decides is stated in one line before anything runs — what was found, and how long the result will be — and every boundary in that line can be adjusted without any of it being required.
+
+Each screen is rendered to the source's own frame size, pixel format, colour range, audio parameters and video timescale, because the segments being joined have to agree. The long end screen is encoded at one picture per second: a single frame stamped with a long duration is faster still, but nothing can seek inside it, so thumbnails and scrubbing break. Silence is cut from a cached AAC bank by whole frames rather than re-encoded. The pieces are joined with FFmpeg's concat demuxer and `-c copy`.
+
+Preparing a source's body — trimming the old screens and normalising its timestamps — happens once per video and is cached, so the second and every later photo against the same video is markedly faster. Where the old screens cannot be separated at an exact point, which is normal for creatives made before this tool existed, the single group of frames at the cut is rebuilt and the rest copied; a video this tool produced itself never needs it.
+
+Every result is probed before it is handed over — duration, frame count, per-track durations, codecs, dimensions, pixel format — and a mismatch beyond one AAC frame plus one video frame fails the run and discards the file rather than delivering it. A source that cannot be served without re-encoding (not H.264, not AAC, a variable frame rate, an unsupported container) is declined by name, with the compressor named as the tool for that job; there is no silent slow path. Results follow the compressor's naming: an optional suffix, otherwise `_stitched` with collision-safe numbering, and "overwrite the original" replaces the source only after a verified success.
+
+Measured on a 50-second 1080×1080 creative: about 4.8 s for the first touch of a file made elsewhere, about 1.1 s for every later photo on the same body, and about 0.25 s to remove the screens.
+
 ### Size estimates
 
 New ready videos are estimated automatically, one at a time, by the local agent. The estimate uses short FFmpeg samples spread across the full timeline (including the beginning, 20/40/60/80%, and near the end), the exact per-job encoding snapshot, source audio information, and a small container allowance. Short videos may be sampled in full because that is both fast and more reliable. For embedded output, one short static-image encode supplies a separate static-video rate; dynamic video, static video, and audio/silence are then modeled independently instead of applying the source bitrate to 30–60 static minutes.

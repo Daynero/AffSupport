@@ -20,7 +20,16 @@ import {
 import type { TranslationKey } from '../i18n';
 import { Checkbox, Collapse, IconButton, Spinner, Tooltip, type Translate } from './ui';
 import { imageContentPath } from '../api/subresource-paths';
-import { Crop, Dices, Image as ImageIcon, Minimize2, Plus, Timer, UnfoldVertical, X } from 'lucide-react';
+import {
+  Crop,
+  Dices,
+  Image as ImageIcon,
+  Minimize2,
+  Plus,
+  Timer,
+  UnfoldVertical,
+  X
+} from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from './icons';
 import { useSubresourceUrl } from '../api/useSubresourceUrl';
 
@@ -34,6 +43,15 @@ export function ImageEmbeddingSection({
   uploadImages,
   removeImage,
   onValidityChange,
+  /**
+   * Whether embedding is a choice on this screen.
+   *
+   * It is for the compressor, where a run may or may not add images. It is not for the
+   * stitcher, whose entire purpose is the screens — and neither is "replace existing", which
+   * that tool decides for itself from what it finds at the edges. Both controls are hidden
+   * there rather than forked, so there is still one gallery and one set of settings.
+   */
+  optional = true,
   t
 }: {
   settings: ImageEmbeddingSettings;
@@ -42,6 +60,7 @@ export function ImageEmbeddingSection({
   uploadImages: (slot: ImageSlot, files: File[]) => Promise<void>;
   removeImage: (slot: ImageSlot, id: string) => Promise<void>;
   onValidityChange: (valid: boolean) => void;
+  optional?: boolean;
   t: Translate;
 }) {
   const [customTime, setCustomTime] = useState(() =>
@@ -76,78 +95,86 @@ export function ImageEmbeddingSection({
 
   return (
     <div className="image-embedding-settings">
-      <div className="image-embedding-toggle">
-        <Checkbox
-          className="feature-switch"
-          checked={settings.enabled}
-          disabled={disabled}
-          onChange={event => update({ enabled: event.target.checked })}
-          label={<strong>{t('embedImages')}</strong>}
-        />
-        <Tooltip label={t('embedImagesTooltip')}>{t('embedImagesTooltip')}</Tooltip>
-      </div>
+      {optional && (
+        <div className="image-embedding-toggle">
+          <Checkbox
+            className="feature-switch"
+            checked={settings.enabled}
+            disabled={disabled}
+            onChange={event => update({ enabled: event.target.checked })}
+            label={<strong>{t('embedImages')}</strong>}
+          />
+          <Tooltip label={t('embedImagesTooltip')}>{t('embedImagesTooltip')}</Tooltip>
+        </div>
+      )}
 
-      <Collapse open={settings.enabled}>
+      <Collapse open={settings.enabled || !optional}>
         <div className="image-embedding-panel">
           <div className="embedding-settings-row">
-<div className="field-group metadata-settings replace-existing-setting">
-  <Checkbox
-    className="feature-switch"
-    checked={settings.replaceExisting}
-    disabled={disabled}
-    onChange={event => update({ replaceExisting: event.target.checked })}
-    label={<strong>{t('replaceExistingImages')}</strong>}
-  />
-  <Tooltip label={t('replaceExistingImagesHint')}>{t('replaceExistingImagesHint')}</Tooltip>
-</div>
-<div className="field-group embedding-fit-row">
-                  <FieldLabel label={t('frameFit')} tooltip={t('frameFitTooltip')} />
-                  <div className="fit-mode-pictos" role="group" aria-label={t('frameFit')}>
-                    {(
-                      [
-                        ['cover', t('fitCover'), <Crop key="c" size={ICON_SIZE} strokeWidth={ICON_STROKE} />],
-                        [
-                          'contain',
-                          t('fitContain'),
-                          <Minimize2 key="i" size={ICON_SIZE} strokeWidth={ICON_STROKE} />
-                        ],
-                        [
-                          'stretch',
-                          t('fitStretch'),
-                          <UnfoldVertical key="s" size={ICON_SIZE} strokeWidth={ICON_STROKE} />
-                        ]
-                      ] as const
-                    ).map(([value, label, icon]) => (
-                      <button
-                        key={value}
-                        type="button"
-                        className={settings.fitMode === value ? 'is-selected' : ''}
-                        disabled={disabled}
-                        data-tip={label}
-                        aria-label={label}
-                        aria-pressed={settings.fitMode === value}
-                        onClick={() => update({ fitMode: value })}
-                      >
-                        {icon}
-                      </button>
-                    ))}
-                  </div>
-                  <span className="optimal-summary">
-                    {t(
-                      settings.fitMode === 'cover'
-                        ? 'fitCover'
-                        : settings.fitMode === 'contain'
-                          ? 'fitContain'
-                          : 'fitStretch'
-                    )}
-                  </span>
-                  {settings.fitMode === 'stretch' && (
-                    <span className="field-hint">{t('fitStretchWarning')}</span>
-                  )}
-                </div>
-
-
-</div>
+            {optional && (
+              <div className="field-group metadata-settings replace-existing-setting">
+                <Checkbox
+                  className="feature-switch"
+                  checked={settings.replaceExisting}
+                  disabled={disabled}
+                  onChange={event => update({ replaceExisting: event.target.checked })}
+                  label={<strong>{t('replaceExistingImages')}</strong>}
+                />
+                <Tooltip label={t('replaceExistingImagesHint')}>
+                  {t('replaceExistingImagesHint')}
+                </Tooltip>
+              </div>
+            )}
+            <div className="field-group embedding-fit-row">
+              <FieldLabel label={t('frameFit')} tooltip={t('frameFitTooltip')} />
+              <div className="fit-mode-pictos" role="group" aria-label={t('frameFit')}>
+                {(
+                  [
+                    [
+                      'cover',
+                      t('fitCover'),
+                      <Crop key="c" size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+                    ],
+                    [
+                      'contain',
+                      t('fitContain'),
+                      <Minimize2 key="i" size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+                    ],
+                    [
+                      'stretch',
+                      t('fitStretch'),
+                      <UnfoldVertical key="s" size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+                    ]
+                  ] as const
+                ).map(([value, label, icon]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={settings.fitMode === value ? 'is-selected' : ''}
+                    disabled={disabled}
+                    data-tip={label}
+                    aria-label={label}
+                    aria-pressed={settings.fitMode === value}
+                    onClick={() => update({ fitMode: value })}
+                  >
+                    {icon}
+                  </button>
+                ))}
+              </div>
+              <span className="optimal-summary">
+                {t(
+                  settings.fitMode === 'cover'
+                    ? 'fitCover'
+                    : settings.fitMode === 'contain'
+                      ? 'fitContain'
+                      : 'fitStretch'
+                )}
+              </span>
+              {settings.fitMode === 'stretch' && (
+                <span className="field-hint">{t('fitStretchWarning')}</span>
+              )}
+            </div>
+          </div>
           <div className="image-columns">
             <ImageColumn
               slot="start"
@@ -164,58 +191,62 @@ export function ImageEmbeddingSection({
               t={t}
             >
               <div className="embedding-column-fields">
-<div className="field-group start-duration-field">
+                <div className="field-group start-duration-field">
                   <div className="start-duration-row">
-                  <div className="fit-mode-pictos" role="group" aria-label={t('startImageDuration')}>
-                    <button
-                      type="button"
-                      className={settings.startDurationMode === 'one-frame' ? 'is-selected' : ''}
-                      disabled={disabled}
-                      data-tip={t('startDurationOneFrame')}
-                      aria-label={t('startDurationOneFrame')}
-                      aria-pressed={settings.startDurationMode === 'one-frame'}
-                      onClick={() => update({ startDurationMode: 'one-frame' })}
+                    <div
+                      className="fit-mode-pictos"
+                      role="group"
+                      aria-label={t('startImageDuration')}
                     >
-                      <ImageIcon size={20} strokeWidth={1.75} />
-                    </button>
-                    <button
-                      type="button"
-                      className={settings.startDurationMode !== 'one-frame' ? 'is-selected' : ''}
-                      disabled={disabled}
-                      data-tip={t('customDuration')}
-                      aria-label={t('customDuration')}
-                      aria-pressed={settings.startDurationMode !== 'one-frame'}
-                      onClick={() => update({ startDurationMode: 'custom' })}
-                    >
-                      <Timer size={20} strokeWidth={1.75} />
-                    </button>
-                  </div>
-                  {settings.startDurationMode === 'custom' && (
-                    <>
-                      <div className="custom-duration-input">
-                        <input
-                          className={`time-input ${customStartMs && !customStartMsValid ? 'is-invalid' : ''}`}
-                          type="text"
-                          inputMode="numeric"
-                          placeholder="100"
-                          value={customStartMs}
-                          disabled={disabled}
-                          aria-label={t('customStartDurationInput')}
-                          aria-invalid={!customStartMsValid}
-                          onChange={event => {
-                            const value = event.target.value;
-                            setCustomStartMs(value);
-                            const ms = parseMillisecondsInput(value);
-                            if (ms !== null) update({ customStartDurationMs: ms }, true);
-                          }}
-                        />
-                        <span>{t('millisecondsUnit')}</span>
-                      </div>
-                      <Collapse fast open={!customStartMsValid}>
-                        <span className="field-error">{t('invalidCustomStartDuration')}</span>
-                      </Collapse>
-                    </>
-                  )}
+                      <button
+                        type="button"
+                        className={settings.startDurationMode === 'one-frame' ? 'is-selected' : ''}
+                        disabled={disabled}
+                        data-tip={t('startDurationOneFrame')}
+                        aria-label={t('startDurationOneFrame')}
+                        aria-pressed={settings.startDurationMode === 'one-frame'}
+                        onClick={() => update({ startDurationMode: 'one-frame' })}
+                      >
+                        <ImageIcon size={20} strokeWidth={1.75} />
+                      </button>
+                      <button
+                        type="button"
+                        className={settings.startDurationMode !== 'one-frame' ? 'is-selected' : ''}
+                        disabled={disabled}
+                        data-tip={t('customDuration')}
+                        aria-label={t('customDuration')}
+                        aria-pressed={settings.startDurationMode !== 'one-frame'}
+                        onClick={() => update({ startDurationMode: 'custom' })}
+                      >
+                        <Timer size={20} strokeWidth={1.75} />
+                      </button>
+                    </div>
+                    {settings.startDurationMode === 'custom' && (
+                      <>
+                        <div className="custom-duration-input">
+                          <input
+                            className={`time-input ${customStartMs && !customStartMsValid ? 'is-invalid' : ''}`}
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="100"
+                            value={customStartMs}
+                            disabled={disabled}
+                            aria-label={t('customStartDurationInput')}
+                            aria-invalid={!customStartMsValid}
+                            onChange={event => {
+                              const value = event.target.value;
+                              setCustomStartMs(value);
+                              const ms = parseMillisecondsInput(value);
+                              if (ms !== null) update({ customStartDurationMs: ms }, true);
+                            }}
+                          />
+                          <span>{t('millisecondsUnit')}</span>
+                        </div>
+                        <Collapse fast open={!customStartMsValid}>
+                          <span className="field-error">{t('invalidCustomStartDuration')}</span>
+                        </Collapse>
+                      </>
+                    )}
                   </div>
                   <span className="optimal-summary">
                     {`${t('duration')}: `}
@@ -241,87 +272,87 @@ export function ImageEmbeddingSection({
               t={t}
             >
               <div className="embedding-column-fields">
-<div className="field-group final-duration-field">
-                <div className="start-duration-row">
-                  <div
-                    className="fit-mode-pictos"
-                    role="group"
-                    aria-label={t('finalImageDuration')}
-                  >
-                    {(
-                      [
-                        ['random-30-40', t('randomDuration30To40'), '30–40'],
-                        ['random-40-50', t('randomDuration40To50'), '40–50'],
-                        ['random-50-60', t('randomDuration50To60'), '50–60']
-                      ] as const
-                    ).map(([value, label, range]) => (
-                      <button
-                        key={value}
-                        type="button"
-                        className={`is-labeled${settings.finalDurationMode === value ? ' is-selected' : ''}`}
-                        disabled={disabled}
-                        data-tip={label}
-                        aria-label={label}
-                        aria-pressed={settings.finalDurationMode === value}
-                        onClick={() => update({ finalDurationMode: value })}
-                      >
-                        <Dices size={16} strokeWidth={1.75} />
-                        <span>{range}</span>
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      className={settings.finalDurationMode === 'custom' ? 'is-selected' : ''}
-                      disabled={disabled}
-                      data-tip={t('customDuration')}
-                      aria-label={t('customDuration')}
-                      aria-pressed={settings.finalDurationMode === 'custom'}
-                      onClick={() => update({ finalDurationMode: 'custom' })}
+                <div className="field-group final-duration-field">
+                  <div className="start-duration-row">
+                    <div
+                      className="fit-mode-pictos"
+                      role="group"
+                      aria-label={t('finalImageDuration')}
                     >
-                      <Timer size={20} strokeWidth={1.75} />
-                    </button>
-                  </div>
-                  {settings.finalDurationMode === 'custom' && (
-                  <>
-                    <div className="custom-duration-input">
-                      <input
-                        className={`time-input ${customTime && !customTimeValid ? 'is-invalid' : ''}`}
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="54"
-                        value={customTime}
+                      {(
+                        [
+                          ['random-30-40', t('randomDuration30To40'), '30–40'],
+                          ['random-40-50', t('randomDuration40To50'), '40–50'],
+                          ['random-50-60', t('randomDuration50To60'), '50–60']
+                        ] as const
+                      ).map(([value, label, range]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          className={`is-labeled${settings.finalDurationMode === value ? ' is-selected' : ''}`}
+                          disabled={disabled}
+                          data-tip={label}
+                          aria-label={label}
+                          aria-pressed={settings.finalDurationMode === value}
+                          onClick={() => update({ finalDurationMode: value })}
+                        >
+                          <Dices size={16} strokeWidth={1.75} />
+                          <span>{range}</span>
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        className={settings.finalDurationMode === 'custom' ? 'is-selected' : ''}
                         disabled={disabled}
-                        aria-label={t('customDurationInput')}
-                        aria-invalid={!customTimeValid}
-                        onChange={event => {
-                          const value = event.target.value;
-                          setCustomTime(value);
-                          const seconds = parseMinutesInput(value);
-                          if (seconds !== null)
-                            update({ customFinalDurationSeconds: seconds }, true);
-                        }}
-                      />
-                      <span>{t('minutesUnit')}</span>
+                        data-tip={t('customDuration')}
+                        aria-label={t('customDuration')}
+                        aria-pressed={settings.finalDurationMode === 'custom'}
+                        onClick={() => update({ finalDurationMode: 'custom' })}
+                      >
+                        <Timer size={20} strokeWidth={1.75} />
+                      </button>
                     </div>
-                  </>
-                  )}
+                    {settings.finalDurationMode === 'custom' && (
+                      <>
+                        <div className="custom-duration-input">
+                          <input
+                            className={`time-input ${customTime && !customTimeValid ? 'is-invalid' : ''}`}
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="54"
+                            value={customTime}
+                            disabled={disabled}
+                            aria-label={t('customDurationInput')}
+                            aria-invalid={!customTimeValid}
+                            onChange={event => {
+                              const value = event.target.value;
+                              setCustomTime(value);
+                              const seconds = parseMinutesInput(value);
+                              if (seconds !== null)
+                                update({ customFinalDurationSeconds: seconds }, true);
+                            }}
+                          />
+                          <span>{t('minutesUnit')}</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <Collapse fast open={!customTimeValid}>
+                    <span className="field-error">{t('invalidCustomDuration')}</span>
+                  </Collapse>
+                  <span className="optimal-summary">
+                    {`${t('duration')}: `}
+                    {settings.finalDurationMode === 'custom'
+                      ? `${Math.round(settings.customFinalDurationSeconds / 60)} ${t('minutesUnit')}`
+                      : t(
+                          settings.finalDurationMode === 'random-30-40'
+                            ? 'randomDuration30To40'
+                            : settings.finalDurationMode === 'random-50-60'
+                              ? 'randomDuration50To60'
+                              : 'randomDuration40To50'
+                        )}
+                  </span>
                 </div>
-                <Collapse fast open={!customTimeValid}>
-                  <span className="field-error">{t('invalidCustomDuration')}</span>
-                </Collapse>
-                <span className="optimal-summary">
-                  {`${t('duration')}: `}
-                  {settings.finalDurationMode === 'custom'
-                    ? `${Math.round(settings.customFinalDurationSeconds / 60)} ${t('minutesUnit')}`
-                    : t(
-                        settings.finalDurationMode === 'random-30-40'
-                          ? 'randomDuration30To40'
-                          : settings.finalDurationMode === 'random-50-60'
-                            ? 'randomDuration50To60'
-                            : 'randomDuration40To50'
-                      )}
-                </span>
-              </div>
               </div>
             </ImageColumn>
           </div>
@@ -586,7 +617,10 @@ export function ImageDropArea({
           void accept(Array.from(event.target.files ?? []))
         }
       />
-      <div className={`image-grid-scroll ${scrollable ? 'is-scrollable' : ''}`.trim()} ref={scrollHost}>
+      <div
+        className={`image-grid-scroll ${scrollable ? 'is-scrollable' : ''}`.trim()}
+        ref={scrollHost}
+      >
         <div
           className={`image-grid ${dragging ? 'is-dragging' : ''} ${errorKey ? 'has-error' : ''}`}
           role="group"
@@ -598,9 +632,7 @@ export function ImageDropArea({
                 disabledIds?.has(asset.id) ? 'is-inactive' : 'is-active'
               }`}
               key={asset.id}
-              data-tip={
-                disabledIds?.has(asset.id) ? t('imageInactiveHint') : t('imageActiveHint')
-              }
+              data-tip={disabledIds?.has(asset.id) ? t('imageInactiveHint') : t('imageActiveHint')}
               role={onToggleImage ? 'button' : undefined}
               tabIndex={onToggleImage && !disabled ? 0 : undefined}
               aria-pressed={onToggleImage ? !disabledIds?.has(asset.id) : undefined}

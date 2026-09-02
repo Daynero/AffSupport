@@ -292,6 +292,82 @@ describeRequiring(ffmpegBinaries, 'encode fidelity against real media', () => {
     expect(await sha256(input)).toBe(before);
   }, 180_000);
 
+  it('holds a long final image without encoding a frame for every frame period', async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'wishly-fidelity-held-'));
+    temporaryDirectories.push(directory);
+    const input = await sourceClip(directory, { rate: 30, size: '160x160' });
+    const image = path.join(directory, 'end.png');
+    await run('ffmpeg', [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-f',
+      'lavfi',
+      '-i',
+      'color=c=blue:s=160x160:d=1',
+      '-frames:v',
+      '1',
+      image
+    ]);
+    const output = path.join(directory, 'held.mp4');
+    const { done } = encodeVideo(
+      input,
+      output,
+      null,
+      optimalEncoding,
+      true,
+      () => {},
+      {
+        sourceStartSeconds: 0,
+        sourceDurationSeconds: 2,
+        sourceHasAudio: true,
+        width: 160,
+        height: 160,
+        frameRate: 30,
+        imageEmbedding: {
+          startImage: null,
+          endImage: {
+            id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            fileName: 'end.png',
+            width: 160,
+            height: 160,
+            size: 100,
+            mimeType: 'image/png',
+            extension: '.png'
+          },
+          startDurationMode: 'one-frame',
+          customStartDurationMs: 100,
+          finalDurationMode: 'custom',
+          finalDurationSeconds: 120,
+          fitMode: 'cover',
+          replaceExisting: false,
+          sourceTrimStartSeconds: 0,
+          sourceTrimEndSeconds: 0
+        },
+        startImagePath: null,
+        endImagePath: image
+      },
+      null
+    );
+    await done;
+    const media = await probeMedia(output);
+
+    /* Two minutes of held image on top of two seconds of video. At thirty frames a second
+       that would be 3600 pictures of one colour; it is 120, one a second, and the run costs
+       what the two seconds of video cost. */
+    expect(Math.abs((media.duration ?? 0) - 122)).toBeLessThan(0.2);
+    // The tracks have to agree — a join that loses the last picture's duration is exactly
+    // what the compressor rejects its own output for.
+    expect(Math.abs((media.videoDuration ?? 0) - (media.audioDuration ?? 0))).toBeLessThan(0.1);
+    // Averaged over a file that is mostly a held picture the rate is meaningless; what was
+    // asked for is what the stream declares itself to be.
+    expect(Math.abs((media.nominalFrameRate ?? 0) - 30)).toBeLessThan(0.02);
+    expect(media.width).toBe(160);
+    expect(media.hasAudio).toBe(true);
+    // Nothing left beside the finished file.
+    await expect(readFile(`${output}.body.mp4`)).rejects.toThrow();
+  }, 180_000);
+
   it('applies a custom frame rate and resolution limit', async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), 'wishly-fidelity-custom-'));
     temporaryDirectories.push(directory);

@@ -25,6 +25,11 @@ function stubDeps() {
     landing: { optimizer: { state: () => ({ running: false }), shutdown }, events: {} },
     landingPreview: { catalog: { busy, shutdown }, events: {} },
     transcription: { queue: queueLike, events: {} },
+    stitcher: {
+      queue: { workActive: busy, shutdown, cancel: async () => false, cancelAll: async () => 0 },
+      events: {},
+      tools: () => ({ ffmpeg: true, ffprobe: true })
+    },
     teamWorkspace: {
       preview: { busy, shutdown },
       process: { busy, shutdown },
@@ -83,6 +88,7 @@ describe('tool module registry', () => {
       'landing',
       'landing-preview',
       'transcription',
+      'stitcher',
       'team-workspace'
     ]);
   });

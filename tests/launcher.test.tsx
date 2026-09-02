@@ -18,6 +18,8 @@ describe('Soty product launcher', () => {
       { id: 'compressor', path: '/compressor', status: 'available' },
       { id: 'landingOptimizer', path: '/landing-optimizer', status: 'available' },
       { id: 'landingPreview', path: '/landing-preview', status: 'available' },
+      // In development until the release that ships its agent contract (014, T060).
+      { id: 'stitcher', path: '/stitcher', status: 'in-development' },
       { id: 'transcription', path: '/transcription', status: 'beta' }
     ]);
   });
@@ -28,6 +30,7 @@ describe('Soty product launcher', () => {
       'compressor',
       'landing-optimizer',
       'landing-preview',
+      'stitcher',
       'transcription'
     ]);
     expect(webTools.find(tool => tool.id === 'landingOptimizer')?.capability).toBe('landing');

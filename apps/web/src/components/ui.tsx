@@ -272,13 +272,18 @@ export function StatusBadge({
 }: {
   status: JobStatus;
   t: Translate;
-  context?: 'compression' | 'transcription';
+  context?: 'compression' | 'transcription' | 'stitch';
 }) {
   const keys: Record<JobStatus, TranslationKey> = {
     analyzing: 'statusAnalyzing',
     ready: 'statusReady',
     queued: 'statusQueued',
-    processing: context === 'transcription' ? 'transcriptionProcessing' : 'statusProcessing',
+    processing:
+      context === 'transcription'
+        ? 'transcriptionProcessing'
+        : context === 'stitch'
+          ? 'stitcherProcessing'
+          : 'statusProcessing',
     completed: 'statusCompleted',
     failed: 'statusFailed',
     cancelled: 'statusCancelled',

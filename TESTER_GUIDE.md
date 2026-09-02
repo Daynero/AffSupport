@@ -24,6 +24,30 @@ To add images, enable **Embed images into video** below the compression settings
 
 The original video is never overwritten. Embedded results use names such as `video_embedded_compressed.mp4`; an existing result receives a numeric suffix. If an image is moved, deleted, or damaged in the Agent's local storage, the affected card shows an error while the remaining queue continues.
 
+## Change the photo screens on a video
+
+The **Зашивка відео / Video Stitcher** tool swaps the photo screens at the start and end of a
+video without compressing it again. The video itself is copied through untouched, so it can
+be re-stitched as many times as you like without losing quality.
+
+1. Open the tool and press **Вибрати відео**. Soty asks the system for the file, so the result
+   can go next to the original.
+2. Pick a photo for the start, the end, or both. They come from the same library the
+   compressor uses.
+3. Read the one line above the button: it says what Soty found in the video and how long the
+   result will be. If a boundary looks wrong you can move it — but you do not have to.
+4. Press **Зашити**. It takes seconds, not minutes.
+
+**Прибрати зашивку** strips the screens back off and gives you the clean video.
+
+Worth reporting:
+
+- a video Soty declines — it will say why (not H.264, not AAC, a variable frame rate). That is
+  expected for some files, but tell us which ones you hit.
+- a result whose length is not what the line promised, or that will not play somewhere it
+  should. Soty checks every file before handing it over, so this should never reach you.
+- anything that takes longer than about five seconds after you press the button.
+
 ## Convert images from Finder
 
 On the first launch, choose **Open Settings** in Soty's Finder conversion

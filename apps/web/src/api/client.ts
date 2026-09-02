@@ -178,6 +178,7 @@ const TOOL_EVENT_PATHS = {
   landing: '/api/landing/events',
   'landing-preview': '/api/landing-preview/events',
   transcription: '/api/transcription/events',
+  stitcher: '/api/stitcher/events',
   team: '/api/team/events',
   'team-landings': '/api/team/landings/events',
   power: '/api/power/events'
@@ -615,7 +616,7 @@ export function landingGallerySettings(
 ): Promise<LandingPreviewState> {
   return requestBody<LandingPreviewState>('/api/landing-preview/settings', partial);
 }
-async function uploadForm<T>(url: string, body: FormData): Promise<T> {
+export async function uploadForm<T>(url: string, body: FormData): Promise<T> {
   let response: Response;
   try {
     response = await fetch(agentUrl + url, {

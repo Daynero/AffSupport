@@ -74,6 +74,7 @@ export {
 export type { AppEnvironment, ParsedAppEnvironment } from './environment-runtime.js';
 export * from './environment.js';
 export * from './lifecycle.js';
+export * from './stitcher.js';
 
 export const FRAME_RATE_MIN = 1;
 export const FRAME_RATE_MAX = 240;
@@ -597,6 +598,7 @@ export const AGENT_CAPABILITIES = [
   'landing-preview',
   'local-file-paths',
   'native-file-picker',
+  'stitcher',
   'team-workspace',
   'transcription'
 ] as const;

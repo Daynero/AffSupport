@@ -11,7 +11,12 @@ import { useEffect, useState } from 'react';
 // flag to false.
 
 export type FeatureId =
-  'videoCompressor' | 'landingOptimizer' | 'landingPreview' | 'transcription' | 'teamWorkspace';
+  | 'videoCompressor'
+  | 'landingOptimizer'
+  | 'landingPreview'
+  | 'transcription'
+  | 'teamWorkspace'
+  | 'videoStitcher';
 
 type FeatureFlag = { protected: boolean };
 
@@ -24,7 +29,10 @@ export const featureFlags: Record<FeatureId, FeatureFlag> = {
   transcription: { protected: false },
   // Team workspace is controlled by membership authorization, not a
   // browser-local development acknowledgement.
-  teamWorkspace: { protected: false }
+  teamWorkspace: { protected: false },
+  // The stitcher stays behind the acknowledgement until it has shipped with an
+  // agent release carrying its contract (014, T060).
+  videoStitcher: { protected: true }
 };
 
 const STORAGE_PREFIX = 'wishly.feature-unlock.';

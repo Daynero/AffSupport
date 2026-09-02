@@ -27,7 +27,8 @@ function baseManifest(): StableReleaseManifest {
       landingOptimizer: { landingOptimizer: 2 },
       landingPreview: { landingPreview: 1 },
       transcription: { transcription: 4 },
-      teamWorkspace: {}
+      teamWorkspace: {},
+      stitcher: {}
     }
   };
 }

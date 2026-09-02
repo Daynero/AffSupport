@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Ban, Broom, Pause, Play, Trash2 } from 'lucide-react';
 import {
   COMPRESSION_LIFECYCLE,
@@ -44,6 +44,7 @@ import { Button, ProgressBar, Spinner, type Translate, Checkbox } from './compon
 import { SotyLogo, SotyMark } from './components/SotyLogo';
 import { PowerThrottle } from './components/PowerThrottle';
 import { ThemeToggle } from './components/ThemeToggle';
+import { useCompactToolbar } from './components/useCompactToolbar';
 import { useAgent } from './AgentContext';
 import { internalLink, usePageEntrance } from './lib/navigation';
 import { UserMenu } from './components/UserMenu';
@@ -95,54 +96,8 @@ export default function CompressorPage() {
   // The toolbar collapses its action labels the moment the row would overflow,
   // measured rather than guessed at a breakpoint: the same window is wide
   // enough in English and too narrow in Ukrainian.
-  const toolbarRow = useRef<HTMLDivElement>(null);
-  const [compactActions, setCompactActions] = useState(false);
-  const [compactChips, setCompactChips] = useState(false);
-  useLayoutEffect(() => {
-    const row = toolbarRow.current;
-    if (!row) return;
-    /**
-     * How wide the row wants to be, asked of the layout rather than guessed.
-     *
-     * The chips container shrinks (and hides its overflow) instead of pushing
-     * the row wider, so comparing scrollWidth with clientWidth on the row
-     * itself always reported "fits" and the collapsed state could never lift.
-     * Summing what each group actually needs is the honest question.
-     */
-    const required = () => {
-      const gap = Number.parseFloat(getComputedStyle(row).columnGap) || 0;
-      const children = Array.from(row.children) as HTMLElement[];
-      return (
-        children.reduce((total, child) => total + child.scrollWidth, 0) +
-        gap * Math.max(0, children.length - 1)
-      );
-    };
-    const measure = () => {
-      const available = row.clientWidth;
-      // Measured with the words back on, so a window that grew can undo a
-      // collapse instead of staying compact forever.
-      row.classList.remove('is-compact', 'is-compact-chips');
-      const needsActions = required() > available;
-      let needsChips = false;
-      if (needsActions) {
-        row.classList.add('is-compact');
-        needsChips = required() > available;
-      }
-      row.classList.toggle('is-compact', needsActions);
-      row.classList.toggle('is-compact-chips', needsChips);
-      setCompactActions(needsActions);
-      setCompactChips(needsChips);
-    };
-    measure();
-    if (typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(row);
-    window.addEventListener('resize', measure);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('resize', measure);
-    };
-  });
+  // The same measurement the stitcher's toolbar uses; see `useCompactToolbar`.
+  const { ref: toolbarRow, compactActions, compactChips } = useCompactToolbar();
 
   const [intake, setIntake] = useState<'ok' | 'fail' | null>(null);
   const [intakeMessage, setIntakeMessage] = useState<string | null>(null);

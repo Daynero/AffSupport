@@ -51,6 +51,7 @@ describe('web tool registry', () => {
       { id: 'compressor', path: '/compressor' },
       { id: 'landingOptimizer', path: '/landing-optimizer' },
       { id: 'landingPreview', path: '/landing-preview' },
+      { id: 'stitcher', path: '/stitcher' },
       { id: 'transcription', path: '/transcription' }
     ]);
     // Every registered tool maps onto the shared agent contract.

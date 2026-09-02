@@ -179,6 +179,13 @@ Non-negotiable rules:
 - Do not move the tag, replace published assets, change the version, or rerun a
   heavy build merely to troubleshoot monitoring. Stop and inspect the failed
   job or command first.
+- A **new tool** adds a key to `WEB_TOOL_REQUIREMENTS`, and
+  `scripts/verify-release.mjs` byte-compares that map against the signed
+  `stable.json`. So `deploy:web` fails until an agent release publishes a
+  manifest carrying the new map: a tool ships **with** an agent release, never
+  ahead of one. The Video Stitcher (`stitcher`, feature 014) is the current
+  example — its web page stays behind the `videoStitcher` acknowledgement flag
+  until that release goes out.
 
 ## Cross-platform agent code
 

@@ -8,6 +8,7 @@ import type {
   LandingEvent,
   LandingEventType,
   LandingPreviewEvent,
+  StitcherEvent,
   TranscriptionEvent,
   TranscriptionEventType
 } from '@video-compressor/shared';
@@ -43,6 +44,8 @@ import { hasCapability } from './server/capabilities.js';
 import { resolveSessionToken } from './server/session-token.js';
 import { ChannelHub, EventChannel } from './server/sse.js';
 import { createToolModules } from './server/tools.js';
+import { StitchQueue } from './stitcher/queue.js';
+import { loadStitcherState, saveStitcherState } from './stitcher/store.js';
 import { TeamPreviewBridge } from './team-bridge/preview.js';
 import { TeamOperationEvents, type TeamOperationEvent } from './team-bridge/events.js';
 import { TeamDownloadBridge } from './team-bridge/download.js';
@@ -157,6 +160,37 @@ const agentEvents = new EventChannel<AgentEvent>(allowedOrigins, () => ({
   state: queue.state()
 }));
 agentEvents.publishOn(channelHub, 'compressor');
+
+/**
+ * The stitcher's screens come from the compressor's own image library (FR-003), so the id
+ * the browser sends is resolved against the same settings and the same store rather than a
+ * second copy of either.
+ */
+const stitcherEvents = new EventChannel<StitcherEvent>(allowedOrigins, () => ({
+  type: 'stitcher:state',
+  state: stitchQueue.state()
+}));
+const restoredStitcher = await loadStitcherState();
+const stitchQueue = new StitchQueue({
+  imagePathFor: async id => {
+    const embedding = queue.state().settings.imageEmbedding;
+    const asset = [...embedding.startImages, ...embedding.endImages].find(
+      candidate => candidate.id === id
+    );
+    if (!asset) return null;
+    try {
+      return await imageStore.validate(asset);
+    } catch {
+      return null;
+    }
+  },
+  onChange: () => stitcherEvents.broadcast({ type: 'stitcher:state', state: stitchQueue.state() }),
+  settings: restoredStitcher.settings,
+  jobs: restoredStitcher.jobs,
+  threads: () => activeThreadBudget(),
+  save: state => void saveStitcherState(state)
+});
+stitcherEvents.publishOn(channelHub, 'stitcher');
 
 function broadcast(type: AgentEventType = 'state') {
   agentEvents.broadcast({ type, state: queue.state() });
@@ -343,7 +377,10 @@ const teamProcessBridge = new TeamProcessBridge({
 const creativeLibraryProcessBridge = new CreativeLibraryProcessBridge({
   process: teamProcessBridge
 });
-const teamDownloadBridge = new TeamDownloadBridge({ transfer: teamTransfer, delegates: teamDelegates });
+const teamDownloadBridge = new TeamDownloadBridge({
+  transfer: teamTransfer,
+  delegates: teamDelegates
+});
 const teamLandingRenderBridge = new TeamLandingRenderBridge({
   preview: teamPreviewBridge,
   events: teamOperationEvents
@@ -355,6 +392,12 @@ const modules = createToolModules({
   landing: { optimizer: landingOptimizer, events: landingEvents },
   landingPreview: { catalog: landingPreviewCatalog, events: landingPreviewEvents },
   transcription: { queue: transcriptionQueue, events: transcriptionEvents },
+  stitcher: {
+    queue: stitchQueue,
+    events: stitcherEvents,
+    tools: () => tools,
+    embedding: () => queue.state().settings.imageEmbedding
+  },
   teamWorkspace: {
     preview: teamPreviewBridge,
     process: teamProcessBridge,

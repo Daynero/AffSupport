@@ -50,6 +50,14 @@ export interface MediaInfo {
   width: number | null;
   height: number | null;
   frameRate: number | null;
+  /**
+   * What the container declares the stream's rate to be, as opposed to its average.
+   *
+   * The two differ whenever a file deliberately holds a picture: a final image held for half
+   * an hour drags the average down to a couple of frames a second while the moving part is
+   * still thirty. Checks about "did we encode at the rate we asked for" want this one.
+   */
+  nominalFrameRate: number | null;
   bitrate: number | null;
   codec: string | null;
   formatName: string | null;
@@ -68,6 +76,7 @@ const emptyMedia: MediaInfo = {
   width: null,
   height: null,
   frameRate: null,
+  nominalFrameRate: null,
   bitrate: null,
   codec: null,
   formatName: null,
@@ -116,6 +125,7 @@ export async function probeMedia(inputPath: string, command = ffprobePath): Prom
     width: rotated ? codedHeight : codedWidth,
     height: rotated ? codedWidth : codedHeight,
     frameRate: parseFrameRate(video.avg_frame_rate) ?? parseFrameRate(video.r_frame_rate),
+    nominalFrameRate: parseFrameRate(video.r_frame_rate) ?? parseFrameRate(video.avg_frame_rate),
     bitrate: streamBitrate ?? formatBitrate,
     codec: nonEmptyString(video.codec_name),
     formatName: nonEmptyString(data.format?.format_name),

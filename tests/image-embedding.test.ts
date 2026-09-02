@@ -16,6 +16,8 @@ import {
 } from '../apps/agent/src/images/embedding.js';
 import {
   buildEmbeddedFfmpegArgs,
+  buildHeldScreenArgs,
+  heldFinalImageSeconds,
   imageAdaptationFilter
 } from '../apps/agent/src/ffmpeg/presets.js';
 import { calculateEncodeProgress } from '../apps/agent/src/ffmpeg/encoder.js';
@@ -268,6 +270,78 @@ describe('embedded output model and FFmpeg graph', () => {
       expect(filter).toContain('setsar=1');
       expect(filter).toContain('format=yuv420p');
     }
+  });
+
+  it('builds a long final image as its own segment, and a short one inside the encode', () => {
+    const held = makeEmbedding({
+      endImage: asset('end'),
+      finalDurationMode: 'custom',
+      finalDurationSeconds: 45 * 60
+    });
+    // Long enough that a picture a second is fewer than a picture a frame: build it apart.
+    expect(heldFinalImageSeconds(held, 30)).toBe(45 * 60);
+    // A second and a half is a handful of frames either way, and a join costs two processes.
+    expect(
+      heldFinalImageSeconds(
+        makeEmbedding({
+          endImage: asset('end'),
+          finalDurationMode: 'custom',
+          finalDurationSeconds: 1.5
+        }),
+        30
+      )
+    ).toBeNull();
+    expect(heldFinalImageSeconds(makeEmbedding({ endImage: null }), 30)).toBeNull();
+  });
+
+  it('spreads a held final image over a few hundred pictures', () => {
+    const args = buildHeldScreenArgs({
+      imagePath: '/tmp/end.png',
+      output: '/tmp/screen.mp4',
+      width: 720,
+      height: 720,
+      frameRate: 30,
+      durationSeconds: 45 * 60,
+      fitMode: 'cover',
+      settings: optimalEncoding
+    });
+    const line = args.join(' ');
+    /* Forty-five minutes at thirty frames a second is eighty-one thousand copies of one
+       photograph — seven hundred seconds of encoding, measured. Three hundred pictures over
+       the same time cost nothing and the run stops growing with the image. */
+    expect(line).toContain('-framerate 0.111111111 -t 2700');
+    expect(line).toContain('anullsrc=r=48000:cl=stereo:d=2700');
+    /* No B-frames: a picture held nine seconds reorders decode against presentation by nine
+       seconds, and the join then lands on a timestamp that has gone backwards. */
+    expect(args[args.indexOf('-bf') + 1]).toBe('0');
+    // Both halves of the join count time the same way.
+    expect(args[args.indexOf('-video_track_timescale') + 1]).toBe('15360');
+  });
+
+  it('gives the body pass the join timescale and no final image', () => {
+    const args = buildEmbeddedFfmpegArgs({
+      input: '/tmp/creative.mp4',
+      output: '/tmp/body.mp4',
+      sourceStartSeconds: 0,
+      sourceDurationSeconds: 120,
+      sourceHasAudio: true,
+      width: 720,
+      height: 720,
+      frameRate: 30,
+      settings: optimalEncoding,
+      imageEmbedding: makeEmbedding({
+        endImage: asset('end'),
+        finalDurationMode: 'custom',
+        finalDurationSeconds: 45 * 60
+      }),
+      startImagePath: null,
+      endImagePath: null,
+      videoTrackTimescale: 15360
+    });
+    expect(args.join(' ')).not.toContain('[endv]');
+    expect(args[args.indexOf('-video_track_timescale') + 1]).toBe('15360');
+    // The body is still exactly what it always was.
+    expect(args[args.indexOf('-fps_mode') + 1]).toBe('cfr');
   });
 
   it('keeps special paths as individual arguments and uses one filter graph/encode', () => {

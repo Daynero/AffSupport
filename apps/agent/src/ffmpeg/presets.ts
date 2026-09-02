@@ -1,4 +1,6 @@
 import {
+  STITCH_MIN_SCREEN_FRAMES,
+  endScreenFrameRate,
   startImageDurationSeconds,
   type EncodingSettings,
   type ImageFitMode,
@@ -96,6 +98,8 @@ export interface EmbeddedFfmpegOptions {
   imageEmbedding: JobImageEmbedding;
   startImagePath: string | null;
   endImagePath: string | null;
+  /** Set when this encode is one half of a join, so both halves count time the same way. */
+  videoTrackTimescale?: number | null;
 }
 
 export function buildEmbeddedFfmpegArgs(options: EmbeddedFfmpegOptions): string[] {
@@ -180,12 +184,114 @@ export function buildEmbeddedFfmpegArgs(options: EmbeddedFfmpegOptions): string[
     '2',
     '-fps_mode',
     'cfr',
+    ...(options.videoTrackTimescale
+      ? ['-video_track_timescale', String(options.videoTrackTimescale)]
+      : []),
     ...metadataArgs(options.settings),
     '-movflags',
     '+faststart',
     '-progress',
     'pipe:1',
     '-nostats',
+    options.output
+  ];
+}
+
+/**
+ * Is this final image held long enough to be worth building on its own?
+ *
+ * Below a couple of seconds it is cheaper to leave it inside the main encode: the saving is
+ * a handful of frames and the join costs two more processes. Above it, the saving is the
+ * whole run — a forty-five-minute image at thirty frames a second is eighty-one thousand
+ * copies of one photograph.
+ */
+export function heldFinalImageSeconds(
+  embedding: JobImageEmbedding,
+  frameRate: number
+): number | null {
+  const seconds = embedding.finalDurationSeconds;
+  if (!embedding.endImage || !seconds || !(seconds > 0)) return null;
+  return endScreenFrameRate(seconds, frameRate) < frameRate ? seconds : null;
+}
+
+export interface HeldScreenOptions {
+  imagePath: string;
+  output: string;
+  width: number;
+  height: number;
+  frameRate: number;
+  durationSeconds: number;
+  fitMode: ImageFitMode;
+  settings: EncodingSettings;
+  threads?: number | null;
+}
+
+/**
+ * The held final image as its own segment: a few hundred pictures instead of one per frame.
+ *
+ * Measured on a two-minute creative with a forty-five-minute image: seven hundred seconds
+ * when every frame period gets its own picture, sixty-six when the image is three hundred
+ * pictures spread over the same time. The picture count comes from `endScreenFrameRate`, the
+ * rule the stitcher already uses, so both tools hold an image the same way — one a second
+ * when it is short, evenly spread and capped when it is long. It is never a single frame:
+ * nothing can seek inside one.
+ *
+ * Built as a file rather than a branch of the main filter graph, and that is the whole
+ * reason this function exists. Joined inside the graph, FFmpeg writes a video track two
+ * picture-intervals shorter than its own audio and the output fails its own validation. A
+ * segment carries its exact duration in its container, and the concat demuxer honours it.
+ */
+export function buildHeldScreenArgs(options: HeldScreenOptions): string[] {
+  const rate = endScreenFrameRate(options.durationSeconds, options.frameRate);
+  const pictures = Math.max(STITCH_MIN_SCREEN_FRAMES, Math.round(options.durationSeconds * rate));
+  const held = pictures / rate;
+  return [
+    '-hide_banner',
+    '-nostdin',
+    '-n',
+    ...threadArgs(options.threads ?? null),
+    '-loop',
+    '1',
+    '-framerate',
+    decimal(rate, 9),
+    '-t',
+    decimal(held),
+    '-i',
+    options.imagePath,
+    '-f',
+    'lavfi',
+    '-i',
+    `anullsrc=r=48000:cl=stereo:d=${decimal(held)}`,
+    '-filter_complex',
+    [
+      `[0:v]${imageAdaptationFilter(options.width, options.height, options.fitMode)},setpts=PTS-STARTPTS[v]`,
+      '[1:a]aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[a]'
+    ].join(';'),
+    '-map',
+    '[v]',
+    '-map',
+    '[a]',
+    ...videoCodecArgs(options.settings),
+    /*
+     * No B-frames. A held picture nine seconds long reorders decode against presentation by
+     * nine seconds, and the join then places the next segment on top of a timestamp that has
+     * gone backwards. The stitcher found this the hard way; the cost here is nothing, because
+     * every picture is the same picture.
+     */
+    '-bf',
+    '0',
+    '-c:a',
+    'aac',
+    '-b:a',
+    '96k',
+    '-ar',
+    '48000',
+    '-ac',
+    '2',
+    '-fps_mode',
+    'passthrough',
+    '-video_track_timescale',
+    '15360',
     options.output
   ];
 }
