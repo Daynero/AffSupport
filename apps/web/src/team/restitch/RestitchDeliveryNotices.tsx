@@ -11,14 +11,7 @@ import { useEffect, useRef } from 'react';
 import { useI18n } from '../../i18n';
 import { useToasts } from '../../components/toast';
 import { useTeam } from '../TeamContext';
-import type { RestitchDeliveryPhase, RestitchDeliveryState } from './useRestitchDelivery';
-
-const PHASE_KEYS = {
-  transferring: 'teamRestitchPhaseTransferring',
-  inspecting: 'teamRestitchPhaseInspecting',
-  stitching: 'teamRestitchPhaseStitching',
-  saving: 'teamRestitchPhaseSaving'
-} as const satisfies Record<RestitchDeliveryPhase, string>;
+import type { RestitchDeliveryState } from './useRestitchDelivery';
 
 export function RestitchDeliveryNotices({
   states,
@@ -45,9 +38,10 @@ export function RestitchDeliveryNotices({
     }
 
     function describe(state: RestitchDeliveryState) {
-      if (state.kind === 'running') {
-        return { tone: 'info' as const, text: t(PHASE_KEYS[state.phase]), sticky: true };
-      }
+      // A run in flight belongs to the process panel, which shows the same step beside a bar
+      // and a way to stop it. Saying it here as well put the sentence on the screen twice and
+      // parked a toast on top of the panel's own buttons.
+      if (state.kind === 'running') return null;
       if (state.kind === 'delivered') {
         return {
           tone: 'success' as const,

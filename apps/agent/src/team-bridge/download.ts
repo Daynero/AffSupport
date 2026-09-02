@@ -157,6 +157,10 @@ export class TeamDownloadBridge {
           saved: true as const,
           fileName: path.basename(target),
           sizeBytes: written.size,
+          // Where it landed, so the caller can offer the same folder next time instead of
+          // opening the picker again. A dialog nobody asked for is most of the wait on a
+          // delivery that is otherwise seconds long.
+          destination: destinationRoot,
           // Present only when the run had to look for itself; the caller stores it so the
           // next delivery of this material does not.
           ...(discovered ? { discovered } : {})

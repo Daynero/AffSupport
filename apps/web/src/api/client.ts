@@ -449,6 +449,8 @@ export async function downloadTeamFileWithAgent(input: {
   saved: true;
   fileName: string;
   sizeBytes: number;
+  /** The folder it landed in, so the caller can stop asking. */
+  destination: string | null;
   /** What the run had to work out for itself, when nobody had prepared this material. */
   discovered?: unknown;
 }> {
@@ -463,6 +465,7 @@ export async function downloadTeamFileWithAgent(input: {
     saved?: unknown;
     fileName?: unknown;
     sizeBytes?: unknown;
+    destination?: unknown;
     discovered?: unknown;
   }>('/api/team/download', {
     operationId: input.operationId ?? crypto.randomUUID(),
@@ -486,6 +489,7 @@ export async function downloadTeamFileWithAgent(input: {
     saved: true,
     fileName: value.fileName,
     sizeBytes: value.sizeBytes,
+    destination: typeof value.destination === 'string' ? value.destination : null,
     // Passed through untouched: the caller narrows it before storing, and a run that had
     // nothing to work out returns nothing here.
     ...(value.discovered === undefined ? {} : { discovered: value.discovered })
@@ -726,6 +730,15 @@ export async function requestTeamPosterFrame(input: {
     // agent that went away: none of them is worth surfacing over a picture.
     return false;
   }
+}
+
+/** Stops a download the app is running, transfer and local work together. */
+export async function cancelTeamDownload(operationId: string): Promise<boolean> {
+  const value = await requestBody<{ canceled?: unknown }>(
+    `/api/team/download/${encodeURIComponent(operationId)}/cancel`,
+    {}
+  );
+  return value.canceled === true;
 }
 
 export async function cancelTeamAgentProcess(operationId: string): Promise<boolean> {

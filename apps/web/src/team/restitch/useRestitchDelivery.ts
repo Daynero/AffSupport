@@ -15,17 +15,27 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MaterialRestitchPrep, TeamRestitchDefaults } from '@video-compressor/shared';
 import { usablePrep } from '@video-compressor/shared';
-import { agentCanRestitch, downloadTeamFileWithAgent } from '../../api/client';
+import {
+  agentCanRestitch,
+  cancelTeamDownload,
+  downloadTeamFileWithAgent
+} from '../../api/client';
 import { teamApi } from '../../api/team';
 import { completeTeamWorkflow, startTeamWorkflow } from '../../analytics/service';
 import { useI18n } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
 
-export type RestitchDeliveryPhase = 'transferring' | 'inspecting' | 'stitching' | 'saving';
+export type RestitchDeliveryPhase =
+  /** Waiting for the person to say where it goes — asked once per space, then remembered. */
+  | 'choosing'
+  | 'transferring'
+  | 'inspecting'
+  | 'stitching'
+  | 'saving';
 
 export type RestitchDeliveryState =
   | { kind: 'idle' }
-  | { kind: 'running'; phase: RestitchDeliveryPhase }
+  | { kind: 'running'; phase: RestitchDeliveryPhase; fileName: string }
   | { kind: 'delivered'; fileName: string }
   | { kind: 'failed'; message: string }
   /** The space has no defaults yet; the caller raises the toast that offers to set them. */
@@ -51,6 +61,15 @@ function rememberedFolder(teamId: string): string | null {
   }
 }
 
+function rememberFolder(teamId: string, folder: string): void {
+  try {
+    localStorage.setItem(folderKey(teamId), folder);
+  } catch {
+    // A browser that refuses storage simply asks where to save every time, which is the
+    // behaviour this exists to avoid rather than to guarantee.
+  }
+}
+
 export function forgetRestitchFolder(teamId: string): void {
   try {
     localStorage.removeItem(folderKey(teamId));
@@ -73,6 +92,8 @@ export function useRestitchDelivery(teamId: string) {
   const [pending, setPending] = useState<RestitchDeliveryTarget | null>(null);
   const defaults = useRef<TeamRestitchDefaults | null>(null);
   const running = useRef(new AbortController());
+  /** The agent-side run behind each material, so it can be stopped by name. */
+  const operations = useRef(new Map<string, string>());
 
   // Leaving the folder or the page ends a delivery as cleanly as pressing cancel: the run is
   // abandoned rather than left writing into a view nobody is looking at (FR-013).
@@ -101,7 +122,17 @@ export function useRestitchDelivery(teamId: string) {
         return;
       }
 
-      set(target.materialId, { kind: 'running', phase: 'transferring' });
+      const operationId = crypto.randomUUID();
+      operations.current.set(target.materialId, operationId);
+      const folder = rememberedFolder(teamId);
+      // The first delivery in a space opens the app's own folder picker, and the wait for it
+      // is a person deciding — not a machine working. Saying "transferring" through that is
+      // how a two-second choice reads as a thirty-second hang.
+      set(target.materialId, {
+        kind: 'running',
+        phase: folder ? 'transferring' : 'choosing',
+        fileName: target.fileName
+      });
       // Timed from the click, and told apart by whether the space had been prepared — the one
       // comparison that says whether preparation is earning its keep (SC-001, SC-003).
       let flow: ReturnType<typeof startTeamWorkflow> | null = null;
@@ -115,17 +146,19 @@ export function useRestitchDelivery(teamId: string) {
         });
         set(target.materialId, {
           kind: 'running',
-          phase: prepared ? 'stitching' : 'inspecting'
+          phase: prepared ? 'stitching' : 'inspecting',
+          fileName: target.fileName
         });
 
         const grant = await teamApi.requestDownload(teamId, target.materialId, 'agent');
         if (grant.kind !== 'agent') throw new Error('AGENT_UPDATE_REQUIRED');
 
         const saved = await downloadTeamFileWithAgent({
+          operationId,
           transferUrl: grant.transferUrl,
           transferGrant: grant.grant,
           fileName: target.fileName,
-          destination: rememberedFolder(teamId),
+          destination: folder,
           process: { tool: 'restitch', defaults: known, prepared }
         });
 
@@ -147,10 +180,20 @@ export function useRestitchDelivery(teamId: string) {
               // the member already has.
             });
         }
+        // Asked once, then never again for this space.
+        if (saved.destination) rememberFolder(teamId, saved.destination);
         set(target.materialId, { kind: 'delivered', fileName: saved.fileName });
         if (flow) completeTeamWorkflow(flow, { outcome: 'success', retryable: false });
       } catch (error) {
-        set(target.materialId, { kind: 'failed', message: teamErrorMessageFor(error, t) });
+        const canceled = error instanceof Error && error.message === 'DOWNLOAD_CANCELED';
+        // A download somebody stopped is not a failure, and a red message for a button they
+        // pressed themselves reads as one.
+        set(
+          target.materialId,
+          canceled
+            ? { kind: 'idle' }
+            : { kind: 'failed', message: teamErrorMessageFor(error, t) }
+        );
         if (flow) {
           const canceled = error instanceof Error && error.message === 'PROCESS_CANCELED';
           completeTeamWorkflow(flow, {
@@ -177,11 +220,19 @@ export function useRestitchDelivery(teamId: string) {
     await deliver(target);
   }, [pending, deliver]);
 
+  /** Abandons the run behind one material; the agent stops the transfer and the work with it. */
+  const cancel = useCallback((materialId: string) => {
+    const operationId = operations.current.get(materialId);
+    if (!operationId) return;
+    void cancelTeamDownload(operationId).catch(() => undefined);
+  }, []);
+
   return {
     states,
     pending,
     deliver,
     resume,
+    cancel,
     clearPending: () => setPending(null),
     phaseFor
   };

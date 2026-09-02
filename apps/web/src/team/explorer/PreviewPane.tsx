@@ -6,7 +6,9 @@ import type {
   ThumbnailSession
 } from '@video-compressor/shared';
 import type { TeamMaterialSummary } from '../../api/team';
+import { Download, Trash2 } from 'lucide-react';
 import { Button, ProgressBar } from '../../components/ui';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { useToasts } from '../../components/toast';
 import { formatSize } from '../../format';
@@ -36,7 +38,9 @@ export function PreviewPane({
   onOpen,
   onTranscribe,
   transcribing,
-  onCreateTask
+  onCreateTask,
+  onDownload,
+  onDelete
 }: {
   /** The selected row, or null when nothing is selected. */
   row: TeamMaterialRow | null;
@@ -48,6 +52,10 @@ export function PreviewPane({
   transcribing?: { videoId: string; progress: number } | null;
   /** Create a task from this material (shown on a file's card). */
   onCreateTask?: (asset: { id: string; name: string }) => void;
+  /** Save the original to this computer; absent when the member may not download. */
+  onDownload?: (row: TeamMaterialRow) => void;
+  /** Move it to the space's bin; absent when the member may not delete. */
+  onDelete?: (row: TeamMaterialRow) => void;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
@@ -138,6 +146,35 @@ export function PreviewPane({
                 : 'teamExplorerRenderNone'
           )}
         </p>
+      )}
+      {/* The two things done to a file most often, as icons rather than a second column of
+          sentences — the same treatment the compressor gives its own row actions. Named for
+          screen readers and on hover, because an icon alone is a guess. */}
+      {(onDownload || onDelete) && row.kind !== 'folder' && (
+        <div className="team-explorer-pane-icons">
+          {onDownload && (
+            <button
+              type="button"
+              className="team-explorer-pane-icon"
+              aria-label={t('teamFileDownload')}
+              data-tip={t('teamFileDownload')}
+              onClick={() => onDownload(row)}
+            >
+              <Download size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            </button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              className="team-explorer-pane-icon is-destructive"
+              aria-label={t('teamFileTrash')}
+              data-tip={t('teamFileTrash')}
+              onClick={() => onDelete(row)}
+            >
+              <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            </button>
+          )}
+        </div>
       )}
       {onOpen && PREVIEWABLE_KINDS.has(row.kind) && (
         <Button type="button" variant="primary" onClick={() => onOpen(previewSummary(row))}>

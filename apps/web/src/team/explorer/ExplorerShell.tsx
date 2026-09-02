@@ -8,7 +8,7 @@ import type {
 } from '@video-compressor/shared';
 import { teamApi, type TeamMaterialSummary } from '../../api/team';
 import { downloadTeamFileWithAgent } from '../../api/client';
-import { Button, ProgressBar } from '../../components/ui';
+import { Button } from '../../components/ui';
 import { useToasts } from '../../components/toast';
 import {
   copyMaterialWithTail,
@@ -54,6 +54,7 @@ import {
 import type { RowActionsProps } from './RowActions';
 import { useRestitchDelivery } from '../restitch/useRestitchDelivery';
 import { RestitchDeliveryNotices } from '../restitch/RestitchDeliveryNotices';
+import { ProcessPanel } from './ProcessPanel';
 import { navigateTo } from '../../lib/navigation';
 import { buildTeamRoute } from '../routes';
 import { useFolderPage } from './useFolderPage';
@@ -86,6 +87,29 @@ function deliberateStop(cause: unknown): boolean {
   const code = cause instanceof Error ? cause.message : String(cause);
   return code === 'PROCESS_CANCELED' || code === 'DOWNLOAD_CANCELED' || code === 'PREVIEW_CANCELED';
 }
+
+/**
+ * What a re-stitched download is doing, in words and as a share.
+ *
+ * The shares are the honest shape of the work rather than a guess at seconds: the transfer is
+ * most of a prepared delivery, and the cut that follows it is quick. They only ever move
+ * forward, which is what the panel needs.
+ */
+const RESTITCH_PHASE_KEYS = {
+  choosing: 'teamRestitchPhaseChoosing',
+  transferring: 'teamRestitchPhaseTransferring',
+  inspecting: 'teamRestitchPhaseInspecting',
+  stitching: 'teamRestitchPhaseStitching',
+  saving: 'teamRestitchPhaseSaving'
+} as const;
+
+const RESTITCH_PHASE_PROGRESS = {
+  choosing: 5,
+  transferring: 15,
+  inspecting: 40,
+  stitching: 70,
+  saving: 95
+} as const;
 
 export function ExplorerShell({
   teamId,
@@ -185,6 +209,18 @@ function ExplorerBody({
   /* 015 — one running re-stitched delivery per material, held here rather than in the row:
      a delivery outlives the menu that started it and the row that scrolled past. */
   const restitch = useRestitchDelivery(teamId);
+  /*
+   * The one delivery worth a panel.
+   *
+   * Only ever one runs at a time — the menu starts a single file — so the first running state
+   * is the answer, and the toasts keep carrying everything that has already finished.
+   */
+  const deliveringMaterial = useMemo(() => {
+    for (const [materialId, state] of Object.entries(restitch.states)) {
+      if (state.kind === 'running') return { materialId, state };
+    }
+    return null;
+  }, [restitch.states]);
   /* The delivery that met an unconfigured space waits for the settings to close, then
      continues by itself — the member gets the file they asked for without a second click. */
   const settingsOpen = query?.settings === true;
@@ -501,6 +537,38 @@ function ExplorerBody({
   // rather than only the rows on the current page.
   const selectedRows = useMemo(() => Array.from(selectedRowsMap.values()), [selectedRowsMap]);
   const focused = page.rows.find(row => row.id === selectedId) ?? null;
+
+  /**
+   * The original, saved to this computer.
+   *
+   * The same two doors the row menu already uses: the paired app when the cloud says the file
+   * is its business, the browser otherwise. Repeated here rather than reached for through the
+   * row menu's hook, because the card is not a row and has no menu to borrow from.
+   */
+  const downloadOriginal = useCallback(
+    async (row: TeamMaterialRow) => {
+      try {
+        const grant = await teamApi.requestDownload(teamId, row.id, 'browser');
+        if (grant.kind === 'agent') {
+          await downloadTeamFileWithAgent({
+            transferUrl: grant.transferUrl,
+            transferGrant: grant.grant,
+            fileName: row.name
+          });
+          push({ tone: 'success', text: t('teamRestitchDelivered', { name: row.name }) });
+          return;
+        }
+        const anchor = document.createElement('a');
+        anchor.href = grant.rangeUrl;
+        anchor.download = row.name;
+        anchor.rel = 'noreferrer';
+        anchor.click();
+      } catch (cause) {
+        push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+      }
+    },
+    [push, t, teamId]
+  );
 
   /** Rows going to the trash from the keyboard or the selection bar, with the way back. */
   const trashRows = useCallback(
@@ -1222,6 +1290,8 @@ function ExplorerBody({
         row={trash || searching ? null : focused}
         client={client}
         onOpen={onPreview}
+        onDownload={permissions?.download ? row => void downloadOriginal(row) : undefined}
+        onDelete={permissions?.delete ? row => void trashRows([row]) : undefined}
         onTranscribe={
           permissions?.process
             ? row =>
@@ -1265,76 +1335,80 @@ function ExplorerBody({
         />
       )}
       {(tActive || tQueue.length > 0) && (
-        <aside className="team-transcribe-queue" aria-live="polite">
-          <strong>
-            {t(tActive?.tool === 'compressor' ? 'teamCompressQueueTitle' : 'teamTranscribeQueueTitle')}
-          </strong>
-          {tActive && (
-            <p>
-              {t('teamTranscribeQueueProgress', {
-                done: tDone + 1,
-                total: tTotal,
-                name: tActive.name
-              })}
-            </p>
+        <ProcessPanel
+          title={t(
+            tActive?.tool === 'compressor' ? 'teamCompressQueueTitle' : 'teamTranscribeQueueTitle'
           )}
-          <ProgressBar
-            value={activeProgress}
-            active={!tPaused}
-            label={t('teamTranscribeQueueTitle')}
-          />
-          {tPaused && (
-            <p className="team-transcribe-queue-paused">
-              {t(
-                tActive
-                  ? tHeld
-                    ? 'teamQueuePausedHeld'
-                    : 'teamQueuePausedRunning'
-                  : 'teamQueuePausedIdle',
-                { count: tQueue.length }
-              )}
-            </p>
-          )}
-          <div className="team-transcribe-queue-actions">
-            <Button type="button" variant="ghost" onClick={() => pauseQueue(!tPaused)}>
-              {t(tPaused ? 'teamQueueResume' : 'teamQueuePause')}
-            </Button>
-            {tQueue.length > (tActive ? 0 : 1) && (
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  setTQueue(tActive ? [] : current => current.slice(0, 1));
-                  setTTotal(tDone + (tActive ? 1 : 1));
-                  // "After the current one" has to have a current one that is
-                  // still moving; stopping while paused would otherwise leave a
-                  // suspended file as the last thing this panel ever did.
-                  if (tPaused) pauseQueue(false);
-                }}
-              >
-                {t('teamTranscribeQueueStop')}
-              </Button>
-            )}
-            {/*
-              Stop now, as opposed to "after this one".
-              
-              Pausing a file that has half an hour left is not the same as deciding you do
-              not want it, and until now the panel only offered the first. The rest of the
-              queue goes with it: keeping it would start the next file straight away, which
-              is the opposite of what "stop" means when you press it.
-            */}
-            {tActive && (
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => void stopNow()}
-              >
-                {t('teamQueueStopNow')}
-              </Button>
-            )}
-          </div>
-        </aside>
+          detail={
+            tActive
+              ? t('teamTranscribeQueueProgress', {
+                  done: tDone + 1,
+                  total: tTotal,
+                  name: tActive.name
+                })
+              : null
+          }
+          phase={
+            tPaused
+              ? t(
+                  tActive
+                    ? tHeld
+                      ? 'teamQueuePausedHeld'
+                      : 'teamQueuePausedRunning'
+                    : 'teamQueuePausedIdle',
+                  { count: tQueue.length }
+                )
+              : null
+          }
+          progress={activeProgress}
+          active={!tPaused}
+          actions={[
+            {
+              label: t(tPaused ? 'teamQueueResume' : 'teamQueuePause'),
+              run: () => pauseQueue(!tPaused)
+            },
+            ...(tQueue.length > (tActive ? 0 : 1)
+              ? [
+                  {
+                    label: t('teamTranscribeQueueStop'),
+                    run: () => {
+                      setTQueue(tActive ? [] : current => current.slice(0, 1));
+                      setTTotal(tDone + 1);
+                      // "After the current one" has to have a current one that is still
+                      // moving; stopping while paused would leave a suspended file as the
+                      // last thing this panel ever did.
+                      if (tPaused) pauseQueue(false);
+                    }
+                  }
+                ]
+              : []),
+            ...(tActive
+              ? [{ label: t('teamQueueStopNow'), run: () => void stopNow(), destructive: true }]
+              : [])
+          ]}
+        />
       )}
+
+      {/* 015 — a re-stitched download reports itself the same way every other long job does:
+          one panel, a named step, and a way out. It used to say only "downloading…" in a
+          toast, which on a thirty-second wait reads as a hang. */}
+      {deliveringMaterial && (
+        <ProcessPanel
+          title={t('teamRestitchDownloadTitle')}
+          detail={deliveringMaterial.state.fileName}
+          phase={t(RESTITCH_PHASE_KEYS[deliveringMaterial.state.phase])}
+          progress={RESTITCH_PHASE_PROGRESS[deliveringMaterial.state.phase]}
+          active
+          actions={[
+            {
+              label: t('teamQueueStopNow'),
+              run: () => restitch.cancel(deliveringMaterial.materialId),
+              destructive: true
+            }
+          ]}
+        />
+      )}
+
       {/* 015 — the running deliveries speak for themselves; nothing is rendered inline. */}
       <RestitchDeliveryNotices
         states={restitch.states}

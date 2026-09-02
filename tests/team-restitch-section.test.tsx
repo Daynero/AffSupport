@@ -229,7 +229,7 @@ describe('a member who meets a space nobody has set up', () => {
     expect(screen.queryByRole('button', { name: 'Set it up now' })).toBeNull();
   });
 
-  it('follows a running delivery through its phases without stacking notices', async () => {
+  it('leaves a running delivery to the panel, and speaks only when it is done', async () => {
     const { RestitchDeliveryNotices } = await import(
       '../apps/web/src/team/restitch/RestitchDeliveryNotices'
     );
@@ -237,13 +237,18 @@ describe('a member who meets a space nobody has set up', () => {
       <TeamProvider initialTeams={[owned]} realtime={false}>
         <ToastProvider>
           <RestitchDeliveryNotices
-            states={{ 'material-1': { kind: 'running', phase: 'inspecting' } }}
+            states={{
+              'material-1': { kind: 'running', phase: 'inspecting', fileName: 'creative.mp4' }
+            }}
             onConfigure={null}
           />
         </ToastProvider>
       </TeamProvider>
     );
-    expect(await screen.findByText('Looking at the video…')).toBeTruthy();
+    // The step, the bar and the way to stop belong to the process panel. Saying the same
+    // sentence here as well put it on screen twice and parked a toast over the panel's own
+    // buttons.
+    expect(screen.queryByText('Looking at the video…')).toBeNull();
 
     view.rerender(
       <TeamProvider initialTeams={[owned]} realtime={false}>
@@ -255,9 +260,7 @@ describe('a member who meets a space nobody has set up', () => {
         </ToastProvider>
       </TeamProvider>
     );
-    // One notice per material: the finished line replaces its own progress rather than
-    // appearing beside it.
+    // What the panel cannot say, because by then it is gone: the file has landed.
     expect(await screen.findByText('Saved as creative_restitched.mp4')).toBeTruthy();
-    expect(screen.queryByText('Looking at the video…')).toBeNull();
   });
 });
