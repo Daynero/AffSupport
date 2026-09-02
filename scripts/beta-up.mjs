@@ -13,6 +13,7 @@ import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { BETA_LOCAL_STACK_PORTS, BETA_PROFILE } from '../packages/shared/dist/environment.js';
 import { parseEnvFile } from './verify-beta-env.mjs';
+import { workerSecretStatements } from './lib/beta-worker-secrets.mjs';
 
 // Colima is the documented macOS runtime. Starting an existing instance is
 // idempotent and turns the common "Docker is installed but not running" case
@@ -167,6 +168,11 @@ function functionNames() {
  *
  * Unauthenticated is on purpose: every function refuses such a call (401/403/
  * 400/303) after its worker has booted, so the status only has to not be 503.
+ *
+ * The redirect is deliberately not followed. `drive-oauth-callback` refuses with a 303 back
+ * to the web app, which is not listening yet at this point in startup — following it made the
+ * probe report "fetch failed" and fail a stack whose functions had all booted perfectly well.
+ * A redirect *is* the answer this probe is looking for.
  */
 async function requireEveryFunctionBoots() {
   const names = functionNames();
@@ -178,6 +184,7 @@ async function requireEveryFunctionBoots() {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: '{}',
+          redirect: 'manual',
           signal: AbortSignal.timeout(30_000)
         });
         if (response.status !== 503) return;
@@ -211,6 +218,30 @@ function projectId() {
   return /^project_id\s*=\s*"([^"]+)"/m.exec(config)?.[1] ?? 'wishly';
 }
 
+/**
+ * Makes the scheduled Drive workers runnable on this machine.
+ *
+ * Written on every start rather than once, because the rows live in the database and any
+ * reset takes them with it — see `scripts/lib/beta-worker-secrets.mjs` for what that failure
+ * looks like from the outside.
+ */
+function seedWorkerSecrets() {
+  const statements = workerSecretStatements(functionsRuntimeEnv);
+  if (statements.length === 0) return;
+  const result = spawnSync(
+    'docker',
+    ['exec', '-i', `supabase_db_${projectId()}`, 'psql', '-U', 'postgres', '-d', 'postgres', '-q'],
+    { shell: false, input: statements.join('\n'), encoding: 'utf8' }
+  );
+  if (result.status !== 0) {
+    // Not fatal: the stack is usable, only the background scan is not. Said plainly rather
+    // than left to be discovered as "the last sync failed" a quarter of an hour later.
+    process.stdout.write(
+      'Warning: could not seed the worker secrets; Drive scanning will not run.\n'
+    );
+  }
+}
+
 process.on('SIGINT', () => shutdown(0));
 process.on('SIGTERM', () => shutdown(0));
 
@@ -230,6 +261,7 @@ if (existsSync(functionsLocalEnv)) {
 const stack = spawnSync('npx', ['supabase', 'start'], { shell: false, stdio: 'inherit' });
 if (stack.status !== 0) fail('the local Supabase stack did not start.');
 await requireEdgeFunctions();
+seedWorkerSecrets();
 
 start('agent', process.execPath, ['apps/agent/dist/index.js']);
 // Run through the web workspace so npm resolves that workspace's pinned Vite

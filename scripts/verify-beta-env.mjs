@@ -11,6 +11,7 @@
  * the I/O: reading the profile, probing ports and prerequisites, asking git.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
+import { parseEnvFile } from './lib/env-file.mjs';
 import { createServer } from 'node:net';
 import { existsSync, readFileSync } from 'node:fs';
 import {
@@ -36,18 +37,9 @@ function fail(message) {
   process.exit(1);
 }
 
-/** Parses a dotenv-style file into a plain object. Values are not expanded. */
-export function parseEnvFile(contents) {
-  const result = {};
-  for (const line of contents.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const separator = trimmed.indexOf('=');
-    if (separator < 1) continue;
-    result[trimmed.slice(0, separator).trim()] = trimmed.slice(separator + 1).trim();
-  }
-  return result;
-}
+// Re-exported so every existing caller keeps working; the parser itself now lives where it
+// can be used without running this file's checks.
+export { parseEnvFile };
 
 function commandAvailable(command, args = ['--version']) {
   const result = spawnSync(command, args, { shell: false, stdio: 'ignore' });

@@ -17,6 +17,7 @@ import os from 'node:os';
 import path from 'node:path';
 import pg from 'pg';
 import { BETA_PROFILE, evaluateResetTarget } from '../packages/shared/dist/environment.js';
+import { workerSecretStatements } from './lib/beta-worker-secrets.mjs';
 
 function fail(problem) {
   const message =
@@ -57,6 +58,10 @@ const client = new pg.Client({ connectionString: target });
 try {
   await client.connect();
   await client.query(readFileSync(seed, 'utf8'));
+  // The reset took the Vault with it, and the workers read their endpoint and secret from
+  // there. Without this the baseline is a space that can never scan a drive, and says so
+  // only fifteen minutes later, as "the last sync failed".
+  for (const statement of workerSecretStatements()) await client.query(statement);
 } catch (error) {
   fail(
     `the fixtures in ${seed} could not be applied; the database is migrated but not seeded. ` +
@@ -92,6 +97,7 @@ if (existsSync(supportDirectory)) {
 process.stdout.write(
   `Beta reset complete.\n` +
     `  Database: migrations re-applied, fixtures seeded from ${seed}\n` +
+    `  Workers: Drive scan and preview warm secrets restored in the Vault\n` +
     `  Baseline: account beta@soty.local (password beta-password), workspace "Beta Workspace"\n` +
     `  Local state: cleared ${clearedSupportEntries} resettable entr${clearedSupportEntries === 1 ? 'y' : 'ies'} in ${supportDirectory}\n` +
     `  Cached assets: preserved models/ and runtime/ (including resumable .part downloads)\n`
