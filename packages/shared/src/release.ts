@@ -95,6 +95,10 @@ export const AGENT_TOOL_CONTRACTS = {
   // interface asks about, not a tool page, so an older agent simply keeps the
   // pause button hidden instead of being told it is out of date.
   teamProcessPause: 1,
+  // Making a poster frame for a video Google Drive never made a thumbnail for.
+  // Same shape of capability: without it the tile keeps the kind glyph, which
+  // is exactly where it was before.
+  teamPosterFrame: 1,
   // Server-wide power throttle. Deliberately absent from WEB_TOOL_REQUIREMENTS:
   // that map is the set of user-facing *tool pages*, and it is byte-compared
   // against the signed, published stable.json by verify-release.mjs. The power
@@ -215,6 +219,15 @@ export function normalizeToolContracts(
  */
 export function teamProcessPauseSupported(contracts: ToolContracts | null): boolean {
   return (contracts?.teamProcessPause ?? 0) >= AGENT_TOOL_CONTRACTS.teamProcessPause;
+}
+
+/**
+ * Whether this agent can make a poster frame for a video the provider has no
+ * thumbnail for. Read straight from the contract, like the two capabilities
+ * above: it is something the interface asks for, not a tool page.
+ */
+export function teamPosterFrameSupported(contracts: ToolContracts | null): boolean {
+  return (contracts?.teamPosterFrame ?? 0) >= AGENT_TOOL_CONTRACTS.teamPosterFrame;
 }
 
 export function toolContractCompatible(

@@ -51,6 +51,7 @@ import { TeamOperationEvents, type TeamOperationEvent } from './team-bridge/even
 import { TeamDownloadBridge } from './team-bridge/download.js';
 import { TeamLandingRenderBridge } from './team-bridge/landing-gallery.js';
 import { createTeamProcessDelegates, TeamProcessBridge } from './team-bridge/process.js';
+import { TeamPosterBridge } from './team-bridge/poster.js';
 import { CreativeLibraryProcessBridge } from './team-bridge/library.js';
 import { TeamTransferClient } from './team-bridge/transfer.js';
 import { createAligner } from './translation/aligner.js';
@@ -374,6 +375,7 @@ const teamProcessBridge = new TeamProcessBridge({
   delegates: teamDelegates,
   events: teamOperationEvents
 });
+const teamPosterBridge = new TeamPosterBridge({ transfer: teamTransfer });
 const creativeLibraryProcessBridge = new CreativeLibraryProcessBridge({
   process: teamProcessBridge
 });
@@ -401,6 +403,7 @@ const modules = createToolModules({
   teamWorkspace: {
     preview: teamPreviewBridge,
     process: teamProcessBridge,
+    poster: teamPosterBridge,
     download: teamDownloadBridge,
     landings: teamLandingRenderBridge,
     library: creativeLibraryProcessBridge,

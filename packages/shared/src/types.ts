@@ -48,6 +48,7 @@ export {
   normalizeToolContracts,
   powerThrottleSupported,
   releaseManifestSigningPayload,
+  teamPosterFrameSupported,
   teamProcessPauseSupported,
   toolContractCompatible,
   MIN_POWER_CONTRACT,

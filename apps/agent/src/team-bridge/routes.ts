@@ -12,10 +12,12 @@ import { TeamLandingRenderError, type TeamLandingRenderBridge } from './landing-
 import type { CreativeLibraryProcessBridge, CreativeLibraryProcessRequest } from './library.js';
 import type { TeamPreviewBridge, TeamPreviewTransferRequest } from './preview.js';
 import type { TeamProcessBridge, TeamProcessRequest } from './process.js';
+import type { TeamPosterBridge, TeamPosterRequest } from './poster.js';
 
 export interface TeamBridgeRoutesDeps {
   preview: TeamPreviewBridge;
   process: TeamProcessBridge;
+  poster: TeamPosterBridge;
   download: TeamDownloadBridge;
   landings: TeamLandingRenderBridge;
   library: CreativeLibraryProcessBridge;
@@ -25,7 +27,16 @@ export interface TeamBridgeRoutesDeps {
 
 export function registerTeamBridgeRoutes(
   app: FastifyInstance,
-  { preview, process, download, landings, library, events, acceptingNewTasks }: TeamBridgeRoutesDeps
+  {
+    preview,
+    process,
+    poster,
+    download,
+    landings,
+    library,
+    events,
+    acceptingNewTasks
+  }: TeamBridgeRoutesDeps
 ) {
   app.get('/api/team/events', events.handler);
   app.get('/api/team/landings/events', events.handler);
@@ -89,6 +100,17 @@ export function registerTeamBridgeRoutes(
       return await process.process(input);
     } catch (error) {
       return routeFailure(reply, error, 'PROCESS_FAILED');
+    }
+  });
+
+  app.post<{ Body?: unknown }>('/api/team/poster', async (request, reply) => {
+    if (!acceptingNewTasks()) return reply.code(409).send({ error: 'UPDATE_PENDING' });
+    const input = posterRequest(request.body);
+    if (!input) return reply.code(400).send({ error: 'INVALID_INPUT' });
+    try {
+      return await poster.render(input);
+    } catch (error) {
+      return routeFailure(reply, error, 'POSTER_FAILED');
     }
   });
 
@@ -241,6 +263,25 @@ function landingRenderJob(value: unknown): TeamLandingRenderJob | null {
   };
 }
 
+function posterRequest(value: unknown): TeamPosterRequest | null {
+  if (!record(value)) return null;
+  const grant = parseTeamTransferGrant(value.grant);
+  if (
+    typeof value.materialId !== 'string' ||
+    typeof value.transferUrl !== 'string' ||
+    typeof value.cloudBaseUrl !== 'string' ||
+    !grant
+  ) {
+    return null;
+  }
+  return {
+    materialId: value.materialId,
+    transferUrl: value.transferUrl,
+    cloudBaseUrl: value.cloudBaseUrl,
+    grant
+  };
+}
+
 function processRequest(value: unknown): TeamProcessRequest | null {
   if (!record(value)) return null;
   const sourceGrant = parseTeamTransferGrant(value.sourceGrant);
@@ -346,7 +387,7 @@ function record(value: unknown): value is Record<string, unknown> {
 function routeFailure(
   reply: FastifyReply,
   error: unknown,
-  fallback: 'PREVIEW_FAILED' | 'PROCESS_FAILED' | 'DOWNLOAD_FAILED' | 'RENDER_FAILED'
+  fallback: 'PREVIEW_FAILED' | 'PROCESS_FAILED' | 'DOWNLOAD_FAILED' | 'RENDER_FAILED' | 'POSTER_FAILED'
 ) {
   const code = safeErrorCode(error, fallback);
   const status =
@@ -374,7 +415,12 @@ function routeFailure(
 
 function safeErrorCode(
   error: unknown,
-  fallback: 'PREVIEW_FAILED' | 'PROCESS_FAILED' | 'DOWNLOAD_FAILED' | 'RENDER_FAILED'
+  fallback:
+    | 'PREVIEW_FAILED'
+    | 'PROCESS_FAILED'
+    | 'DOWNLOAD_FAILED'
+    | 'RENDER_FAILED'
+    | 'POSTER_FAILED'
 ) {
   const value = error instanceof Error ? error.message : '';
   return [

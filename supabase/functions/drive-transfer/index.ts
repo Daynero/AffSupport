@@ -57,6 +57,12 @@ import { thumbnailCachePath as sharedThumbnailCachePath } from '../_shared/thumb
 const WEBP_MIME_TYPE = 'image/webp';
 const LANDING_RENDER_GRANT_TTL_MS = 20 * 60 * 1000;
 const MAX_THUMBNAIL_BYTES = 4 * 1024 * 1024;
+/**
+ * A poster arrives base64 in JSON, so the cap is on the encoded string: 1 MB of
+ * text is ~768 KB of image, far more than a 320 px webp frame needs and small
+ * enough that a bad actor cannot use this route as storage.
+ */
+const POSTER_MAX_BASE64 = 1024 * 1024;
 const THUMBNAIL_CACHE_BUCKET = 'team-thumbnail-cache';
 const THUMBNAIL_SESSION_TTL_MS = 15 * 60 * 1000;
 const THUMBNAIL_SESSION_MAX_USES = 5000;
@@ -747,6 +753,63 @@ async function consumeSessionGrant(
   return teamId && actorId ? { teamId, actorId } : null;
 }
 
+/**
+ * Takes a poster frame the local app made for a video Drive never thumbnailed.
+ *
+ * Authorized by the same grant that let the agent read the file: proving it may
+ * read those bytes is a stronger claim than storing a small picture derived
+ * from them, and it means no new grant kind to mint, expire or leak. The image
+ * lands at the one cache path the relay reads, so nothing downstream changes.
+ */
+async function handlePosterFrame(
+  service: RpcClient,
+  thumbnailStorage: ThumbnailStorage,
+  body: Record<string, unknown>,
+  cors: Record<string, string>
+) {
+  const ticket = typeof body.grant === 'string' ? body.grant : '';
+  const image = typeof body.image === 'string' ? body.image : '';
+  if (!ticket || !image || image.length > POSTER_MAX_BASE64) {
+    throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+  }
+  const grant = await consumeRangeGrant(service, ticket);
+  if (!grant) throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+  const context = transferContext(
+    await rpcValue(service, 'service_get_material_transfer_context', {
+      p_team: grant.teamId,
+      p_material: grant.materialId,
+      p_actor: grant.actorId
+    })
+  );
+  if (!context) throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+  let bytes: Uint8Array;
+  try {
+    bytes = Uint8Array.from(atob(image), character => character.charCodeAt(0));
+  } catch {
+    throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+  }
+  if (!validThumbnail('image/webp', bytes.byteLength)) {
+    throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+  }
+  const path = await thumbnailCachePath(context, null, null);
+  if (!path || !context.driveVersion) {
+    throw new TeamFunctionError('WRONG_STATE', { retryable: false });
+  }
+  const stored = await thumbnailStorage.from(THUMBNAIL_CACHE_BUCKET).upload(path, bytes, {
+    cacheControl: '31536000',
+    contentType: 'image/webp',
+    upsert: true
+  });
+  if (stored.error) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+  await rpcValue(service, 'service_commit_thumbnail', {
+    p_material: context.materialId,
+    p_state: 'ready',
+    p_reason: null,
+    p_version: context.driveVersion
+  });
+  return successResponse({ stored: true }, cors);
+}
+
 async function handleThumbnailSession(
   request: Request,
   caller: RpcClient,
@@ -1381,6 +1444,14 @@ Deno.serve(async request => {
         request,
         configured.caller,
         configured.service,
+        parsed.value,
+        cors
+      );
+    }
+    if (parsed.value.action === 'poster_frame') {
+      return await handlePosterFrame(
+        configured.service,
+        configured.thumbnailStorage,
         parsed.value,
         cors
       );

@@ -48,6 +48,7 @@ import {
 } from './TeamCompressorDialog';
 import type { RowActionsProps } from './RowActions';
 import { useFolderPage } from './useFolderPage';
+import { usePosterFrames } from './usePosterFrames';
 
 export type ExplorerShellClient = ExplorerClient &
   ContentGridClient &
@@ -242,6 +243,14 @@ function ExplorerBody({
     revision
   });
   const sortedRows = useMemo(() => sortRows(page.rows, sort), [page.rows, sort]);
+  // Drive has no picture for some videos and never will. The paired app makes
+  // one, for what is on screen, one at a time.
+  usePosterFrames({
+    teamId,
+    rows: page.rows,
+    enabled: agentCtx?.teamWorkspaceAvailable === true && !readOnly,
+    onRendered: () => void page.reload()
+  });
 
   useEffect(() => {
     let active = true;

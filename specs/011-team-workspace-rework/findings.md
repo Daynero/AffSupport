@@ -520,3 +520,40 @@ linked transcript, text readable on its card; **copy+paste** a landing → a lan
 `validated`, five segments ready, no second render; **cut+paste** → both files in the new
 folder; **drag onto a folder in the tree** → both; **rename** → `demo-tail.mp4` and
 `demo-tail.txt`; **delete**, from the keyboard and from the row menu → both trashed.
+
+## T — a picture for the videos Drive never made one for (2026-09-02)
+
+Owner: "а це шо за мініатюру, а коли буде, по дебільному" — the tile said "Google Drive ще
+немає мініатюри", and for that file it never would.
+
+Three separate things were wrong, and only the third needed building.
+
+**Nothing asked twice.** The warm pass claims `pending` rows, so the first look — often seconds
+after an upload, before Google has processed the file — recorded `unavailable /
+provider_missing` and that was the end of it. Drive commonly produces the thumbnail a minute
+later. A file modified in the last day is now retried at most once an hour; the window bounds
+the work by itself.
+
+**The copy said "not yet" for something permanent.** Now "Google Drive не дав мініатюри для
+цього файлу".
+
+**A copy waited for a picture it already had.** The cache holds one object per (material,
+identity); the copy takes the original's object rather than waiting for Drive to thumbnail a
+file created a second ago. Instant, and certain.
+
+**And the real answer: the paired app makes the frame.** For files Drive never thumbnails —
+odd codecs, files it has not processed, anything it simply declines — the machine that can
+answer is already there. `POST /api/team/poster` downloads the file through the grant the
+interface already mints for reading it, takes one frame a second in with FFmpeg, encodes WebP
+with the same wasm encoder the landing optimizer uses (the bundled FFmpeg has no WebP
+encoder — that cost one round of debugging), and hands the picture back to
+`drive-transfer` with the same grant. The cloud stores it at the one cache path the relay
+reads and commits the row `ready`, so every surface shows it without knowing where it came
+from. Gated on `teamPosterFrame: 1`; an older app leaves the glyph exactly where it was.
+
+The explorer asks for one video at a time, only for rows on screen, once per material per
+session — a folder of two hundred videos must not become two hundred downloads.
+
+Verified live end to end: a video whose provider thumbnail was `unavailable` got its poster in
+6.5 s (download, frame, encode, upload, commit) and the tile filled in; the file that is gone
+from Drive failed the download and kept its glyph, which is the honest outcome.

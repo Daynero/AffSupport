@@ -27,6 +27,7 @@ import {
   normalizeToolContracts,
   parseTeamAgentPreviewResult,
   parseTeamFileOperationResult,
+  teamPosterFrameSupported,
   teamProcessPauseSupported,
   toolContractCompatible
 } from '@video-compressor/shared';
@@ -527,6 +528,35 @@ export async function cancelTeamLibraryAgentProcess(attemptId: string): Promise<
     {}
   );
   return value.canceled === true;
+}
+
+/**
+ * Asks the local app for a poster frame of a video Drive has no thumbnail for.
+ *
+ * Resolves false when this build cannot make one — the tile then keeps the kind
+ * glyph, which is where it was before. The grant is the one minted for reading
+ * the file; the agent hands the picture straight to the cloud with it.
+ */
+export async function requestTeamPosterFrame(input: {
+  materialId: string;
+  grant: TeamTransferGrant;
+}): Promise<boolean> {
+  const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
+  if (!teamPosterFrameSupported(health.toolContracts ?? {})) return false;
+  try {
+    const value = await requestBody<{ stored?: unknown }>('/api/team/poster', {
+      ...input,
+      transferUrl: teamTransferRangeUrl(),
+      // The picture goes back to the transfer function, which owns the cache
+      // the whole interface already reads.
+      cloudBaseUrl: teamTransferRangeUrl().replace(/\/range$/u, '')
+    });
+    return value.stored === true;
+  } catch {
+    // A video whose first second will not decode, a file that vanished, an
+    // agent that went away: none of them is worth surfacing over a picture.
+    return false;
+  }
 }
 
 export async function cancelTeamAgentProcess(operationId: string): Promise<boolean> {

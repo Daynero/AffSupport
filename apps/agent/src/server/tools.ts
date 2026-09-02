@@ -26,6 +26,7 @@ import type { TeamLandingRenderBridge } from '../team-bridge/landing-gallery.js'
 import type { CreativeLibraryProcessBridge } from '../team-bridge/library.js';
 import type { TeamPreviewBridge } from '../team-bridge/preview.js';
 import type { TeamProcessBridge } from '../team-bridge/process.js';
+import type { TeamPosterBridge } from '../team-bridge/poster.js';
 import type { StitchQueue } from '../stitcher/queue.js';
 import { registerStitcherRoutes } from '../stitcher/routes.js';
 import { registerTeamBridgeRoutes } from '../team-bridge/routes.js';
@@ -100,6 +101,7 @@ export interface ToolModulesDeps {
   teamWorkspace: {
     preview: TeamPreviewBridge;
     process: TeamProcessBridge;
+    poster: TeamPosterBridge;
     download: TeamDownloadBridge;
     landings: TeamLandingRenderBridge;
     library: CreativeLibraryProcessBridge;
@@ -213,6 +215,7 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
         registerTeamBridgeRoutes(app, {
           preview: teamWorkspace.preview,
           process: teamWorkspace.process,
+          poster: teamWorkspace.poster,
           download: teamWorkspace.download,
           landings: teamWorkspace.landings,
           library: teamWorkspace.library,
@@ -222,6 +225,7 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
       busy: () =>
         teamWorkspace.preview.busy() ||
         teamWorkspace.process.busy() ||
+        teamWorkspace.poster.busy() ||
         teamWorkspace.download.busy() ||
         teamWorkspace.landings.busy() ||
         teamWorkspace.library.busy(),
@@ -230,6 +234,7 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
       cancel: async () => false,
       cancelAll: async () => 0,
       shutdown: async () => {
+        await teamWorkspace.poster.shutdown();
         await teamWorkspace.library.shutdown();
         await teamWorkspace.landings.shutdown();
         await teamWorkspace.download.shutdown();

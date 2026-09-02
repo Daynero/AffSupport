@@ -39,6 +39,7 @@ import {
   type TeamOperationEvent
 } from '../apps/agent/src/team-bridge/events.js';
 import { TeamProcessBridge } from '../apps/agent/src/team-bridge/process.js';
+import { TeamPosterBridge } from '../apps/agent/src/team-bridge/poster.js';
 import { TeamTransferClient } from '../apps/agent/src/team-bridge/transfer.js';
 import { optimalSettings } from './helpers.js';
 import { waitFor } from './support/wait.js';
@@ -165,6 +166,7 @@ async function makeServer(options: { entitlementPublicKey?: string } = {}) {
     delegates: {},
     events: teamOperationEvents
   });
+  const teamPosterBridge = new TeamPosterBridge({ transfer: teamTransfer });
   const creativeLibraryProcessBridge = new CreativeLibraryProcessBridge({
     process: teamProcessBridge
   });
@@ -223,6 +225,7 @@ async function makeServer(options: { entitlementPublicKey?: string } = {}) {
       teamWorkspace: {
         preview: teamPreviewBridge,
         process: teamProcessBridge,
+        poster: teamPosterBridge,
         download: teamDownloadBridge,
         landings: teamLandingRenderBridge,
         library: creativeLibraryProcessBridge,

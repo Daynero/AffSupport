@@ -43,19 +43,24 @@ function client() {
       materialId: `copy-of-${input.materialId}`,
       reused: false
     })),
-    moveMaterial: vi.fn(async (input: { materialId: string }) => ({
-      operationId: `move:${input.materialId}`,
-      state: 'succeeded' as const,
-      materialId: input.materialId,
-      reused: false
-    })),
-    renameMaterial: vi.fn(async (input: { materialId: string }) => ({
+    moveMaterial: vi.fn(
+      async (input: { materialId: string; destinationFolderId: string | null }) => ({
+        operationId: `move:${input.materialId}`,
+        state: 'succeeded' as const,
+        materialId: input.materialId,
+        reused: false
+      })
+    ),
+    renameMaterial: vi.fn(async (input: { materialId: string; newName: string }) => ({
       operationId: `rename:${input.materialId}`,
       state: 'succeeded' as const,
       materialId: input.materialId,
       reused: false
     })),
-    trashMaterial: vi.fn(async () => undefined)
+    trashMaterial: vi.fn(async (input: { materialId: string }) => {
+      void input;
+      return undefined;
+    })
   };
 }
 
@@ -140,7 +145,10 @@ describe('a material and what belongs to it', () => {
       'video-1',
       'txt-1'
     ]);
-    expect(api.moveMaterial.mock.calls[1]![0].destinationFolderId).toBe('folder-2');
+    expect(api.moveMaterial.mock.calls[1]![0]).toMatchObject({
+      materialId: 'txt-1',
+      destinationFolderId: 'folder-2'
+    });
   });
 
   it('renames the transcript after the video', async () => {
