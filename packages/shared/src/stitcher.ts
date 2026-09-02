@@ -340,9 +340,6 @@ export function screenSegmentPlan(
 /** A body shorter than this is not a body, whatever the detector thinks it found. */
 export const STITCH_MIN_BODY_SECONDS = 1;
 
-/** …and neither is one that is a rounding error next to the source. */
-export const STITCH_MIN_BODY_SHARE = 0.02;
-
 /**
  * Refuses a detection that would swallow the video.
  *
@@ -362,7 +359,21 @@ export function believableDetection(
 ): DetectedStitching {
   // A boundary the user moved themselves is theirs to choose.
   if (detected.adjustedByUser) return detected;
-  const floor = Math.max(STITCH_MIN_BODY_SECONDS, profile.durationSeconds * STITCH_MIN_BODY_SHARE);
+  /*
+   * An absolute floor, and deliberately no proportional one.
+   *
+   * There used to be a second rule: the body had to be at least two percent of the source.
+   * It was meant to catch a detector that had swallowed the whole file, but it fought the
+   * shape this application itself produces. A stitched creative is a short body under a very
+   * long held photo — seventy seconds of content beneath fifty-eight minutes of screen is
+   * ordinary, not implausible — and against an hour-long file the rule demanded seventy-two.
+   * So a real detection of the real screen was thrown away, `restitch` fell back to `stitch`,
+   * and the old screen was kept with a new one added after it. The longer the screen someone
+   * chose, the more certainly their next re-stitch refused to cut it.
+   *
+   * A detector that swallowed everything is already caught: what it leaves is under a second.
+   */
+  const floor = STITCH_MIN_BODY_SECONDS;
   const body = profile.durationSeconds - detected.startSeconds - detected.endSeconds;
   if (body >= floor) return detected;
   return { startSeconds: 0, endSeconds: 0, adjustedByUser: false };

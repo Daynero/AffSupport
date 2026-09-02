@@ -168,6 +168,16 @@ describe('a detection that would swallow the video', () => {
     expect(STITCH_MIN_BODY_SECONDS).toBe(1);
     expect(believableDetection(profile(), detected(49.9, 0))).toMatchObject({ startSeconds: 0 });
   });
+
+  it('believes a short body under a very long screen, because that is what we make', () => {
+    // The real shape of a stitched creative, measured: 3573.8 s of file, 3504 s of held photo
+    // at the end, seventy seconds of content. A proportional floor called this implausible
+    // and threw the detection away, so the old screen was kept and a new one added after it.
+    const long = { ...profile(), durationSeconds: 3573.8 };
+    expect(
+      believableDetection(long, { startSeconds: 0.033333, endSeconds: 3504, adjustedByUser: false })
+    ).toMatchObject({ endSeconds: 3504 });
+  });
 });
 
 describe('screen segments', () => {
