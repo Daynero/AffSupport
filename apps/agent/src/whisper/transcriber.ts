@@ -1,11 +1,12 @@
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { activeGovernorOrNull, activeThreadBudget, spawnTracked } from '../power/spawn.js';
-import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { ffmpegPath } from '../ffmpeg/tools.js';
-import { currentModelPath, whisperPath, whisperVadModelPath } from './tools.js';
+import { currentModelPath, whisperPath, whisperVadModelPathOrNull } from './tools.js';
+import { ProgressSmoother } from './progress-smoother.js';
+import { measureSpeechExtent } from './silence-tail.js';
 import { mergeChunkWords, parseWhisperFullJson, type WhisperWord } from './words.js';
 
 export interface TranscribeOptions {
@@ -18,6 +19,8 @@ export interface TranscribeOptions {
    */
   createEnglishPivot?: boolean;
   onProgress: (value: number | null) => void;
+  /** Length of the source, already probed by the queue; drives the extract's share. */
+  durationSeconds?: number | null;
 }
 
 export interface TranscribeResult {
@@ -57,6 +60,8 @@ export interface TranscribeHandle {
 // Audio extraction is quick relative to inference; give it the first slice of
 // the progress bar so the whisper phase reads as steady forward motion.
 const EXTRACT_SHARE = 6;
+/** How often the estimate advances between real reports. Four times a second reads as smooth. */
+const PROGRESS_TICK_MS = 250;
 // The source transcription pass covers almost the whole bar. The optional
 // hi/ur English pivot is a rare, additive second pass that advances only the
 // final sliver, so the bar never moves backward for the common single-pass run.
@@ -186,16 +191,32 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
     else applyHold();
   };
 
+  /*
+   * The figure the caller sees, kept moving between the ones the work reports.
+   *
+   * Whisper prints its position rarely and unevenly, and the extract before it says nothing
+   * at all. Left raw, that is ten seconds of zero, a jump to twenty, a few four-percent steps
+   * and long silences — from which nobody can tell a run that is working from one that has
+   * hung. The smoother creeps towards where the next report is expected and never past it,
+   * and stops creeping when the reports do, so a real stall still looks like one.
+   */
+  const smoother = new ProgressSmoother({ emit: value => onProgress(value) });
+  smoother.startPhase(0, EXTRACT_SHARE);
+  const ticker = setInterval(() => smoother.tick(), PROGRESS_TICK_MS);
+  ticker.unref();
+
   const done = (async (): Promise<TranscribeResult> => {
     const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'wishly-transcribe-'));
     const wavPath = path.join(tmpDir, 'audio.wav');
     const cleanup = () => void rm(tmpDir, { recursive: true, force: true }).catch(() => {});
     try {
-      onProgress(0);
+      smoother.report(0);
       // Cancelled while the temp directory was being created: never start the
       // work at all.
       if (cancelled) return result(null, true, '', null, '', null, null);
-      const extract = await runExtract(inputPath, wavPath, adopt);
+      const extract = await runExtract(inputPath, wavPath, adopt, options.durationSeconds ?? null, value =>
+        smoother.report((value * EXTRACT_SHARE) / 100)
+      );
       if (cancelled) return result(null, true, '', null, extract.stderr, null, null);
       if (extract.spawnErrorCode) {
         return result(null, false, '', null, extract.stderr, 'extract', extract.spawnErrorCode);
@@ -203,17 +224,31 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
       if (extract.code !== 0) {
         return result(extract.code, false, '', null, extract.stderr, 'extract', null);
       }
-      onProgress(EXTRACT_SHARE);
+      /*
+       * How much of it is worth listening to.
+       *
+       * A third of a second to read backwards through the extract, against the hour of
+       * generated silence a stitched creative carries under its final photo. Nothing is cut
+       * unless the quiet runs for half a minute at the very end of the file, so an ordinary
+       * recording is handed over whole and this costs it only the scan.
+       */
+      const extent = await measureSpeechExtent(wavPath);
+      if (cancelled) return result(null, true, '', null, extract.stderr, null, null);
+      // Recognition runs slower than real time on every machine this ships to; twice the
+      // audio's length is a deliberately pessimistic first guess, replaced by the run's own
+      // rate as soon as it reports one.
+      smoother.startPhase(EXTRACT_SHARE, SOURCE_END, extent.audibleSeconds * 2);
 
-      // Source transcription: one long-form pass over the whole file.
+      // Source transcription: one long-form pass over everything that has sound in it.
       const sourceBase = path.join(tmpDir, 'transcript');
       const source = await runWhisper(
-        { wavPath, outputBase: sourceBase, language },
+        { wavPath, outputBase: sourceBase, language, audibleSeconds: extent.audibleSeconds },
         adopt,
-        value =>
-          onProgress(
-            value === null ? null : EXTRACT_SHARE + (value * (SOURCE_END - EXTRACT_SHARE)) / 100
-          ),
+        value => {
+          if (value !== null) {
+            smoother.report(EXTRACT_SHARE + (value * (SOURCE_END - EXTRACT_SHARE)) / 100);
+          }
+        },
         () => paused
       );
       if (cancelled)
@@ -252,19 +287,24 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
       let englishText = '';
       let englishWords: WhisperWord[] = [];
       if (shouldCreateEnglishPivot(detectedLanguage, options.createEnglishPivot === true)) {
+        smoother.startPhase(SOURCE_END, PIVOT_END, extent.audibleSeconds * 2);
         const englishBase = path.join(tmpDir, 'english');
         const pivot = await runWhisper(
           {
             wavPath,
             outputBase: englishBase,
             language: detectedLanguage ?? language,
-            translateToEnglish: true
+            translateToEnglish: true,
+            // The same stopping point: the pivot has no more use for the tail than the
+            // source pass did, and the two must cover the same audio to line up.
+            audibleSeconds: extent.audibleSeconds
           },
           adopt,
-          value =>
-            onProgress(
-              value === null ? null : SOURCE_END + (value * (PIVOT_END - SOURCE_END)) / 100
-            ),
+          value => {
+            if (value !== null) {
+              smoother.report(SOURCE_END + (value * (PIVOT_END - SOURCE_END)) / 100);
+            }
+          },
           () => paused
         );
         diagnostics = appendDiagnostics(diagnostics, pivot.stderr);
@@ -275,7 +315,7 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
         }
       }
 
-      onProgress(100);
+      smoother.finish(100);
       return result(
         0,
         false,
@@ -289,6 +329,8 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
         englishWords
       );
     } finally {
+      // The estimate must not outlive the run it was estimating.
+      clearInterval(ticker);
       cleanup();
     }
   })();
@@ -325,11 +367,20 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
 function runExtract(
   inputPath: string,
   wavPath: string,
-  onChild: (child: ChildProcessWithoutNullStreams) => void
+  onChild: (child: ChildProcessWithoutNullStreams) => void,
+  /** Total length of the source, so the machine-readable position becomes a percentage. */
+  durationSeconds: number | null = null,
+  onProgress: (value: number) => void = () => {}
 ): Promise<{ code: number | null; stderr: string; spawnErrorCode: string | null }> {
   const args = [
     '-hide_banner',
     '-nostdin',
+    // Machine-readable position on stdout. Without it the first stretch of a transcription
+    // reports nothing at all — an hour-long source spends real seconds here, and a bar that
+    // sits at zero is indistinguishable from one that has hung.
+    '-progress',
+    'pipe:1',
+    '-nostats',
     '-i',
     inputPath,
     '-vn',
@@ -359,6 +410,14 @@ function runExtract(
     child.stderr.on('data', chunk => {
       stderr = (stderr + chunk.toString()).slice(-8_000);
     });
+    if (durationSeconds && durationSeconds > 0) {
+      child.stdout.on('data', chunk => {
+        const position = lastOutTimeSeconds(chunk.toString());
+        if (position !== null) {
+          onProgress(Math.min(100, (position / durationSeconds) * 100));
+        }
+      });
+    }
     child.once('error', error => {
       spawnErrorCode =
         'code' in error && typeof error.code === 'string' ? error.code : 'SPAWN_FAILED';
@@ -367,8 +426,25 @@ function runExtract(
   });
 }
 
+/** The most recent `out_time_ms` in a `-progress` block, in seconds. */
+export function lastOutTimeSeconds(chunk: string): number | null {
+  let seconds: number | null = null;
+  for (const line of chunk.split(/\r?\n/)) {
+    const matched = /^out_time_ms=(\d+)$/u.exec(line.trim());
+    // Microseconds despite the name — ffmpeg has reported it that way for years.
+    if (matched) seconds = Number(matched[1]) / 1_000_000;
+  }
+  return seconds;
+}
+
 function runWhisper(
-  params: { wavPath: string; outputBase: string; language: string; translateToEnglish?: boolean },
+  params: {
+    wavPath: string;
+    outputBase: string;
+    language: string;
+    translateToEnglish?: boolean;
+    audibleSeconds?: number | null;
+  },
   onChild: (child: ChildProcessWithoutNullStreams) => void,
   onProgress: (value: number | null) => void,
   /** A paused child produces nothing; the stall watchdog must not read that as a stall. */
@@ -417,6 +493,8 @@ export function buildWhisperArgs(
     outputBase: string;
     language: string;
     translateToEnglish?: boolean;
+    /** Stop here instead of at the end of the file; see `silence-tail.ts`. */
+    audibleSeconds?: number | null;
   },
   options: { threads?: number; vadModelPath?: string | null } = {}
 ): string[] {
@@ -426,11 +504,7 @@ export function buildWhisperArgs(
   // transcription hotter by default than it was before the throttle existed.
   const threads = options.threads ?? activeThreadBudget() ?? Math.max(4, os.cpus().length - 2);
   const vadModelPath =
-    options.vadModelPath === undefined
-      ? existsSync(whisperVadModelPath)
-        ? whisperVadModelPath
-        : null
-      : options.vadModelPath;
+    options.vadModelPath === undefined ? whisperVadModelPathOrNull() : options.vadModelPath;
   const args = [
     '-m',
     currentModelPath(),
@@ -459,6 +533,12 @@ export function buildWhisperArgs(
     '5',
     // Suppress non-speech tokens (harmless to real words) to trim noise symbols.
     '-sns',
+    // Everything after the last sound is not listened to. A stitched creative carries its
+    // final photo — and the silence under it — for half an hour or more, and that silence was
+    // costing more than the whole of the speech.
+    ...(params.audibleSeconds && params.audibleSeconds > 0
+      ? ['-d', String(Math.ceil(params.audibleSeconds * 1000))]
+      : []),
     '-t',
     String(threads),
     // Silero VAD: whisper runs only on detected speech, so the classic

@@ -69,13 +69,39 @@ export function modelPresent(): boolean {
   ].some(existsSync);
 }
 
+const VAD_MODEL_FILE = 'ggml-silero-v5.1.2.bin';
+
 /**
- * Silero VAD model. When present, whisper only runs on detected speech, which
- * prevents the classic "hallucinated text on trailing silence" loop. It is tiny
- * (~0.9 MB) so it always ships in the bundle rather than being downloaded.
+ * Silero VAD model. When present, whisper only runs on detected speech, which prevents the
+ * classic "hallucinated text on trailing silence" loop. It is tiny (~0.9 MB) so it ships in
+ * the bundle rather than being downloaded.
+ *
+ * Resolved the same way the speech model is — writable directory first, then the bundle —
+ * because `apps/agent/runtime/` exists only in a packaged app. A run from source therefore
+ * found nothing here and transcribed in the one configuration this application never ships:
+ * no VAD at all, listening to every second of silence and free to invent text over it. The
+ * environment the product is tested in must not be the one configuration it is never shipped
+ * in, so a copy left in the writable models directory now counts.
  */
-export const whisperVadModelPath =
-  process.env.WHISPER_VAD_MODEL_PATH ?? path.join(bundledModelsDir, 'ggml-silero-v5.1.2.bin');
+export function whisperVadModelPathOrNull(): string | null {
+  if (process.env.WHISPER_VAD_MODEL_PATH) {
+    return existsSync(process.env.WHISPER_VAD_MODEL_PATH)
+      ? process.env.WHISPER_VAD_MODEL_PATH
+      : null;
+  }
+  for (const candidate of [
+    path.join(downloadModelsDir, VAD_MODEL_FILE),
+    path.join(bundledModelsDir, VAD_MODEL_FILE)
+  ]) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+/** Where a run from source should put its copy, so the bundle stays read-only. */
+export function vadModelDownloadPath(): string {
+  return path.join(downloadModelsDir, VAD_MODEL_FILE);
+}
 
 export class WhisperUnavailableError extends Error {
   readonly code = 'WHISPER_UNAVAILABLE';

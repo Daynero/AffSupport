@@ -10,10 +10,25 @@
  * applied to the orchestrator.
  */
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { BETA_LOCAL_STACK_PORTS, BETA_PROFILE } from '../packages/shared/dist/environment.js';
 import { parseEnvFile } from './verify-beta-env.mjs';
 import { workerSecretStatements } from './lib/beta-worker-secrets.mjs';
+
+const VAD_MODEL_FILE = 'ggml-silero-v5.1.2.bin';
+
+/** Same rule the agent uses; duplicated rather than imported from its TypeScript build. */
+function applicationSupportRoot() {
+  if (process.platform === 'darwin') {
+    return path.join(os.homedir(), 'Library', 'Application Support');
+  }
+  if (process.platform === 'win32') {
+    return process.env.APPDATA?.trim() || path.join(os.homedir(), 'AppData', 'Roaming');
+  }
+  return process.env.XDG_DATA_HOME?.trim() || path.join(os.homedir(), '.local', 'share');
+}
 
 // Colima is the documented macOS runtime. Starting an existing instance is
 // idempotent and turns the common "Docker is installed but not running" case
@@ -242,6 +257,40 @@ function seedWorkerSecrets() {
   }
 }
 
+/**
+ * Puts the voice-activity model where a run from source can find it.
+ *
+ * `apps/agent/runtime/` exists only inside a packaged app, so a beta started from source found
+ * no VAD model and ran whisper in the one configuration the product never ships: listening to
+ * every second of silence, and free to invent text over it. A creative with a stitched final
+ * screen carries a *hour* of that silence, which made a seventy-second transcript cost two
+ * hours of work. Testing in that configuration teaches the wrong lesson about both speed and
+ * quality, so the copy is made here from whichever packaged build is at hand.
+ */
+function seedVadModel() {
+  const target = path.join(
+    applicationSupportRoot(),
+    BETA_PROFILE.supportDirectoryName,
+    'models',
+    VAD_MODEL_FILE
+  );
+  if (existsSync(target)) return;
+  const source = [
+    `release/beta/${BETA_PROFILE.appName}.app/Contents/Resources/runtime/models/${VAD_MODEL_FILE}`,
+    `apps/agent/runtime/models/${VAD_MODEL_FILE}`
+  ].find(candidate => existsSync(candidate));
+  if (!source) {
+    process.stdout.write(
+      `Note: no ${VAD_MODEL_FILE} to copy, so this beta transcribes without voice detection.\n` +
+        `  It will listen to silence as well as speech, which a stitched creative has a lot of.\n`
+    );
+    return;
+  }
+  mkdirSync(path.dirname(target), { recursive: true });
+  copyFileSync(source, target);
+  process.stdout.write('Voice detection model installed for this beta.\n');
+}
+
 process.on('SIGINT', () => shutdown(0));
 process.on('SIGTERM', () => shutdown(0));
 
@@ -262,6 +311,7 @@ const stack = spawnSync('npx', ['supabase', 'start'], { shell: false, stdio: 'in
 if (stack.status !== 0) fail('the local Supabase stack did not start.');
 await requireEdgeFunctions();
 seedWorkerSecrets();
+seedVadModel();
 
 start('agent', process.execPath, ['apps/agent/dist/index.js']);
 // Run through the web workspace so npm resolves that workspace's pinned Vite
