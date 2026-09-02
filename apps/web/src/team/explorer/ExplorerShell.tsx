@@ -40,7 +40,11 @@ import { sortRows, readRememberedSort, rememberSort, type ExplorerSort } from '.
 import { PreviewPane } from './PreviewPane';
 import { MaterialProcessFlow } from '../processing/MaterialProcessFlow';
 import { useTeamOperation } from '../processing/useTeamOperation';
-import { pauseTeamAgentProcess, startTeamAgentProcess } from '../../api/client';
+import {
+  cancelTeamAgentProcess,
+  pauseTeamAgentProcess,
+  startTeamAgentProcess
+} from '../../api/client';
 import { FolderProcessDialog, type FolderBatchPlan } from './FolderProcessDialog';
 import {
   TeamCompressorDialog,
@@ -71,6 +75,18 @@ export type { ExplorerView };
  * state lives in the address, so a refresh and a pasted link land on the same
  * screen.
  */
+/**
+ * Was this the person stopping the work, rather than the work going wrong?
+ *
+ * The agent answers a cancelled run with the same shape as a failed one — a machine code on a
+ * rejected promise — so the only thing separating "I pressed stop" from "it broke" is which
+ * code it is.
+ */
+function deliberateStop(cause: unknown): boolean {
+  const code = cause instanceof Error ? cause.message : String(cause);
+  return code === 'PROCESS_CANCELED' || code === 'DOWNLOAD_CANCELED' || code === 'PREVIEW_CANCELED';
+}
+
 export function ExplorerShell({
   teamId,
   client,
@@ -649,7 +665,10 @@ function ExplorerBody({
             .catch(() => undefined);
         }
       } catch (cause) {
-        push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+        // A run somebody stopped on purpose is not a failure, and saying so in red is how a
+        // deliberate act starts looking like a fault. Everything below still happens — the
+        // space is told the run is over either way.
+        if (!deliberateStop(cause)) push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
         // Tell the space the run is over. Without this a failed item stays
         // `running` for good: nothing else ever revisits it, it holds its
         // output name reserved, and the next attempt at the same file is
@@ -729,6 +748,21 @@ function ExplorerBody({
       .then(held => setTHeld(held))
       .catch(() => undefined);
   }, [tActive?.operationId, tHeld, tPaused]);
+
+  /**
+   * Abandons the file being worked on, and everything queued behind it.
+   *
+   * The pause is lifted first: a stopped process is not delivered its termination signal
+   * until it runs again, so cancelling a held run would otherwise wait for a resume nobody
+   * is coming to give it.
+   */
+  const stopNow = useCallback(async () => {
+    const operationId = tActive?.operationId ?? null;
+    setTQueue([]);
+    if (tPaused) pauseQueue(false);
+    if (!operationId) return;
+    await cancelTeamAgentProcess(operationId).catch(() => false);
+  }, [pauseQueue, tActive?.operationId, tPaused]);
 
   const activeOperation = useTeamOperation({
     teamId,
@@ -1279,6 +1313,23 @@ function ExplorerBody({
                 }}
               >
                 {t('teamTranscribeQueueStop')}
+              </Button>
+            )}
+            {/*
+              Stop now, as opposed to "after this one".
+              
+              Pausing a file that has half an hour left is not the same as deciding you do
+              not want it, and until now the panel only offered the first. The rest of the
+              queue goes with it: keeping it would start the next file straight away, which
+              is the opposite of what "stop" means when you press it.
+            */}
+            {tActive && (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => void stopNow()}
+              >
+                {t('teamQueueStopNow')}
               </Button>
             )}
           </div>
