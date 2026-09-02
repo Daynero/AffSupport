@@ -350,8 +350,22 @@ function byteaHex(value: Uint8Array): string {
   return `\\x${[...value].map(byte => byte.toString(16).padStart(2, '0')).join('')}`;
 }
 
+/** The port the local stack publishes; absent in production, where the URL is already right. */
+/**
+ * Where the caller actually reached the gateway, as the gateway reports it.
+ *
+ * `SUPABASE_INTERNAL_HOST_PORT` is set in the container but not exposed to functions, so the
+ * headers are the only source. `publicEndpointUrl` decides how far to trust them.
+ */
+function forwardedOrigin(request: Request) {
+  return {
+    host: request.headers.get('x-forwarded-host'),
+    port: request.headers.get('x-forwarded-port')
+  };
+}
+
 function rangeEndpoint(request: Request) {
-  const url = publicEndpointUrl(new URL(request.url));
+  const url = publicEndpointUrl(new URL(request.url), forwardedOrigin(request));
   url.search = '';
   url.hash = '';
   if (!url.pathname.endsWith('/range')) url.pathname = `${url.pathname.replace(/\/$/u, '')}/range`;
@@ -359,7 +373,7 @@ function rangeEndpoint(request: Request) {
 }
 
 function driveTransferEndpoint(request: Request): URL {
-  const url = publicEndpointUrl(new URL(request.url));
+  const url = publicEndpointUrl(new URL(request.url), forwardedOrigin(request));
   const marker = '/drive-transfer';
   const markerIndex = url.pathname.indexOf(marker);
   if (markerIndex < 0) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });

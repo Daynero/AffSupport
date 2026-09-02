@@ -13,21 +13,56 @@ export const MAX_LANDING_RENDER_SEGMENTS = 64;
 const MAX_EDITABLE_TEXT_BYTES = 1024 * 1024;
 
 /**
- * Supabase's edge runtime can expose the internal hop as `http:` and omit
- * `/functions/v1` even when the public function is served over HTTPS. Browser
- * and Agent transfer URLs must use the public address or Chromium blocks them
- * as mixed content (and the public gateway cannot route the shortened path)
- * before the scoped range grant can be consumed. Keep local loopback endpoints
- * unchanged for the local stack and agent tests.
+ * The address of this function as something outside the container can reach it.
+ *
+ * The edge runtime sees the internal hop, not the public one: `http:` where the function is
+ * served over HTTPS, its own port rather than the published one, and a path the gateway has
+ * already stripped `/functions/v1` from. Every one of those is wrong for the two readers of
+ * this URL — a browser, which blocks mixed content, and the paired app, which refuses a
+ * transfer URL that does not name the function it expects.
+ *
+ * **The local stack needed the port as well, and used to be left alone entirely.** The runtime
+ * reports `http://127.0.0.1:8081/drive-transfer/range` there: a port nothing outside the
+ * container listens on. The app rejected that out of hand — a team download answered
+ * `INVALID_INPUT` in three milliseconds, having never reached the network — which made agent
+ * transfers impossible to test anywhere but production.
+ *
+ * The gateway's `x-forwarded-*` headers carry the address the caller actually used, and they
+ * are what repairs it. **They are trusted for loopback and nothing else**: a client can send
+ * those headers too, and this URL is handed out with a grant ticket attached, so letting one
+ * name an arbitrary host would be handing the ticket to whoever asked. A public request needs
+ * no repair beyond the two it already had.
  */
-export function publicEndpointUrl(input: URL): URL {
+export interface ForwardedOrigin {
+  host?: string | null;
+  port?: string | null;
+}
+
+const LOOPBACK_HOSTS = ['localhost', '127.0.0.1', '[::1]', '::1'];
+
+export function publicEndpointUrl(input: URL, forwarded: ForwardedOrigin = {}): URL {
   const url = new URL(input);
-  const loopback = ['localhost', '127.0.0.1', '[::1]', '::1'].includes(url.hostname);
-  if (!loopback) {
-    if (url.protocol === 'http:') url.protocol = 'https:';
-    if (url.hostname.endsWith('.supabase.co') && !url.pathname.startsWith('/functions/v1/')) {
-      url.pathname = `/functions/v1${url.pathname.startsWith('/') ? '' : '/'}${url.pathname}`;
+  const loopback = LOOPBACK_HOSTS.includes(url.hostname);
+  if (loopback) {
+    const host = forwarded.host?.trim();
+    // Host and port are taken together or not at all, and only ever loopback to loopback:
+    // a header naming somewhere else is something this function was told, not an address it
+    // knows, and the URL it would build carries a grant ticket.
+    if (!host || LOOPBACK_HOSTS.includes(host)) {
+      if (host) url.hostname = host;
+      const port = forwarded.port?.trim();
+      if (port && /^\d{1,5}$/u.test(port)) url.port = port;
     }
+  } else if (url.protocol === 'http:') {
+    url.protocol = 'https:';
+  }
+  // The gateway routes on this prefix and the app checks for it, so it belongs on every
+  // address handed out — the local stack included.
+  if (
+    !url.pathname.startsWith('/functions/v1/') &&
+    (loopback || url.hostname.endsWith('.supabase.co'))
+  ) {
+    url.pathname = `/functions/v1${url.pathname.startsWith('/') ? '' : '/'}${url.pathname}`;
   }
   return url;
 }

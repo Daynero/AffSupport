@@ -71,6 +71,49 @@ describe('team preview transfer contract', () => {
     ).toBe('http://127.0.0.1:54321/functions/v1/drive-transfer/range');
   });
 
+  it('repairs the address the local stack reports for itself', () => {
+    // What the edge runtime actually sees inside the container: its own port, and a path the
+    // gateway has already stripped the prefix from. Handed out unrepaired, the paired app
+    // refused it in three milliseconds without ever reaching the network, and no team
+    // download could be tested anywhere but production.
+    expect(
+      publicEndpointUrl(new URL('http://127.0.0.1:8081/drive-transfer/range'), {
+        host: '127.0.0.1',
+        port: '54321'
+      }).toString()
+    ).toBe('http://127.0.0.1:54321/functions/v1/drive-transfer/range');
+    // Loopback stays http — it is the one place that is not mixed content.
+    expect(
+      publicEndpointUrl(new URL('http://localhost:8081/drive-ops'), {
+        host: 'localhost',
+        port: '54321'
+      }).toString()
+    ).toBe('http://localhost:54321/functions/v1/drive-ops');
+    // Nothing forwarded: the path is still repaired, the address is left alone.
+    expect(publicEndpointUrl(new URL('http://127.0.0.1:54321/drive-transfer/range')).toString()).toBe(
+      'http://127.0.0.1:54321/functions/v1/drive-transfer/range'
+    );
+  });
+
+  it('will not be told to hand its grant to somebody else', () => {
+    // The headers are the gateway's, but a client can send them too, and this URL travels
+    // with a ticket. A loopback request may only be repaired to loopback.
+    expect(
+      publicEndpointUrl(new URL('http://127.0.0.1:8081/drive-transfer/range'), {
+        host: 'evil.example',
+        port: '443'
+      }).toString()
+      // Nothing is taken: not the host, and not the port that came with it.
+    ).toBe('http://127.0.0.1:8081/functions/v1/drive-transfer/range');
+    // And a public request takes nothing from them at all.
+    expect(
+      publicEndpointUrl(new URL('http://project.supabase.co/drive-transfer/range'), {
+        host: 'evil.example',
+        port: '8443'
+      }).toString()
+    ).toBe('https://project.supabase.co/functions/v1/drive-transfer/range');
+  });
+
   it('binds opaque landing artifact grants to one render and segment', () => {
     const renderId = '41000000-0000-4000-8000-000000000010';
     const operationId = '41000000-0000-4000-8000-000000000011';
