@@ -443,3 +443,35 @@ it holds its output name reserved, so the next attempt at the same file is refus
 conflict with a run that is not happening (which is exactly what a re-transcribe of
 `16-tail.mp4` hit here, `409`). The queue now closes the operation it started when the local
 half fails.
+
+## R — a repeat transcript kept collecting parentheses (2026-09-02)
+
+Owner, from a screenshot of the folder: the transcripts no longer match their videos.
+`16-tail.mp4` had `16-tail (2).txt` beside it, and 012's FR-T2 says the transcript is named
+after its video.
+
+Both halves were working as written, and together they were wrong. A repeat is written while
+the transcript it replaces is still live, so the name it asks for is taken and the conflict
+rule (`keep_both`) hands it `16-tail (2).txt`. The old companion is retired and trashed during
+that _same_ finalize — which frees the canonical name a second later — but nothing goes back
+for it. Run it again and the file is `16-tail (3).txt`; the parenthesis is permanent and the
+count grows with every repeat.
+
+The deeper half: `service_link_transcript_companion` retired the old companion **in the catalog
+only**. The file stayed in the Drive folder — invisible in Soty, still holding the name — so
+the folder Soty showed and the folder Drive held had quietly diverged, and every plan after
+that saw the name as taken. Proof, from the page's own console:
+`renameMaterial(… '16-tail.txt' …)` answered `NAME_CONFLICT` while Soty listed no such file.
+The function now reports what it retired and `finalize` trashes those files in Drive too,
+best-effort and logged.
+
+With the name free, the batch asks for the canonical one once the run lands, with
+`conflictMode: 'cancel'`:
+if something live still holds it, the output keeps the name it landed with rather than
+becoming a duplicate. First transcriptions are unaffected — they already get the name they
+asked for, and the rename is a no-op.
+
+Not chosen: uploading the repeat as a new Drive version of the existing transcript. That is
+the nicer outcome (one file, Drive's own history) but `process/start` only allows a version
+target that _is_ the source material, and widening that is a change to the finalize
+authorization path — worth doing deliberately, not as a naming fix.

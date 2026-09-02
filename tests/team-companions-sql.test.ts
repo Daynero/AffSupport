@@ -152,11 +152,11 @@ describe('transcript companion linking (012, T005)', () => {
       [teamId, connectionId]
     );
     expect(
-      await harness.root<{ ok: boolean }>(
+      await harness.root<{ ok: { linked: boolean } }>(
         `select public.service_link_transcript_companion($1, $2, $3, $4, $5) as ok`,
         [teamId, video, first[0]!.id, FP, 'the full text of the lecture']
       )
-    ).toEqual([{ ok: true }]);
+    ).toEqual([{ ok: { linked: true, retired: [] } }]);
 
     // A second identical audio finds the text without recomputing it.
     const found = await harness.root<{ transcript_text: string }>(
@@ -173,12 +173,15 @@ describe('transcript companion linking (012, T005)', () => {
        returning id`,
       [teamId, connectionId]
     );
-    await harness.root(`select public.service_link_transcript_companion($1, $2, $3, $4, $5)`, [
-      teamId,
-      video,
-      second[0]!.id,
-      'c'.repeat(64),
-      'a fresh transcription'
+    const replaced = await harness.root<{ ok: { retired: Array<{ driveFileId: string }> } }>(
+      `select public.service_link_transcript_companion($1, $2, $3, $4, $5) as ok`,
+      [teamId, video, second[0]!.id, 'c'.repeat(64), 'a fresh transcription']
+    );
+    // Named back, so the caller can trash the file itself: a row retired in the
+    // catalog and left in Drive keeps holding the name the video expects, and
+    // the next transcription is written as "lecture (2).txt".
+    expect(replaced[0]!.ok.retired).toEqual([
+      expect.objectContaining({ driveFileId: 'lecture-txt' })
     ]);
     const live = await harness.asUser<{ id: string }>(
       OWNER,
@@ -204,11 +207,11 @@ describe('transcript companion linking (012, T005)', () => {
       [teamId, connectionId]
     );
     expect(
-      await harness.root<{ ok: boolean }>(
+      await harness.root<{ ok: { linked: boolean } }>(
         `select public.service_link_transcript_companion($1, $2, $3, null, 't') as ok`,
         [teamId, notVideo, txt[0]!.id]
       )
-    ).toEqual([{ ok: false }]);
+    ).toEqual([{ ok: { linked: false, retired: [] } }]);
   }, 60_000);
 });
 
@@ -294,9 +297,14 @@ describe('video text variants surface the explorer companion (012, T017)', () =>
       'select public.list_video_text_variants($1, $2)',
       [teamId, video[0]!.id]
     );
-    const variants = (payload[0]!.list_video_text_variants as { variants: Array<Record<string, unknown>> })
-      .variants;
+    const variants = (
+      payload[0]!.list_video_text_variants as { variants: Array<Record<string, unknown>> }
+    ).variants;
     expect(variants).toHaveLength(1);
-    expect(variants[0]).toMatchObject({ kind: 'original', text: 'the spoken words', ingestState: 'full' });
+    expect(variants[0]).toMatchObject({
+      kind: 'original',
+      text: 'the spoken words',
+      ingestState: 'full'
+    });
   }, 60_000);
 });

@@ -163,7 +163,6 @@ function ExplorerBody({
     currentFolderId,
     selectedId,
     select,
-    selectedIds,
     selectedRows: selectedRowsMap,
     clearSelection,
     pathTo,
@@ -539,13 +538,34 @@ function ExplorerBody({
             : current
         );
         started = result.operationId;
-        await startTeamAgentProcess({
+        const finished = await startTeamAgentProcess({
           operationId: result.operationId,
           toolId: next.tool,
           options: next.options ?? {},
           sourceGrant: result.sourceGrant,
           finalizeGrant: result.finalizeGrant
         });
+        /*
+         * A transcript is named after its video, including the second time.
+         *
+         * A repeat is written while the transcript it replaces is still there,
+         * so the name it asked for is taken and the conflict rule hands it
+         * "16-tail (2).txt". The old one is retired during that same finalize —
+         * which frees the name — and the file keeps the parenthesis forever,
+         * one more each time. Asking for the canonical name here costs one call
+         * and is refused (never duplicated) if something live still holds it.
+         */
+        if (next.tool === 'transcription' && finished.materialId) {
+          await actionsClient
+            .renameMaterial({
+              teamId,
+              materialId: finished.materialId,
+              newName: next.outputName,
+              conflictMode: 'cancel',
+              idempotencyKey: crypto.randomUUID()
+            })
+            .catch(() => undefined);
+        }
       } catch (cause) {
         push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
         // Tell the space the run is over. Without this a failed item stays
@@ -560,7 +580,7 @@ function ExplorerBody({
         changed();
       }
     })();
-  }, [agentCtx?.toolContracts, changed, push, t, tActive, tPaused, tQueue, teamId]);
+  }, [actionsClient, agentCtx?.toolContracts, changed, push, t, tActive, tPaused, tQueue, teamId]);
 
   // The queue drained: one closing toast, counters reset. A pause dies with the
   // queue it was holding; leaving it set would silently swallow the next batch.

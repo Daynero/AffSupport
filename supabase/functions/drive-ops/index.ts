@@ -1040,13 +1040,18 @@ async function handleUploadFinalize(
       operation.toolId === 'transcription' &&
       operation.sourceMaterialId
     ) {
-      await rpcValue(service, 'service_link_transcript_companion', {
+      const linked = await rpcValue(service, 'service_link_transcript_companion', {
         p_team: operation.teamId,
         p_video: operation.sourceMaterialId,
         p_companion: resultMaterialId,
         p_fingerprint: null,
         p_text: null
-      }).catch(() => undefined);
+      }).catch(() => null);
+      // The transcript this one replaces leaves Drive as well as the catalog.
+      // Retiring only the row left the file in the folder — invisible in Soty,
+      // still holding the name the video expects, so the next run was written
+      // as "name (2).txt" and the folder stopped matching what Soty showed.
+      await trashRetiredCompanions(client, linked);
     }
     return committed;
   } catch (error) {
@@ -1616,6 +1621,36 @@ function randomTicket(): string {
     .replaceAll('+', '-')
     .replaceAll('/', '_')
     .replace(/=+$/u, '');
+}
+
+/**
+ * Sends the companions a link retired into Drive's trash.
+ *
+ * Best-effort by design: the new transcript is committed either way, and a
+ * Drive that refuses the trash (a permission changed, the file already gone)
+ * must not turn a finished transcription into a failed operation. It is logged
+ * so the divergence is findable rather than silent.
+ */
+async function trashRetiredCompanions(client: GoogleDriveClient, linked: unknown): Promise<void> {
+  if (!isRecord(linked) || !Array.isArray(linked.retired)) return;
+  for (const entry of linked.retired) {
+    if (!isRecord(entry)) continue;
+    const fileId = stringValue(entry, 'driveFileId');
+    if (!fileId) continue;
+    try {
+      await client.updateFileMetadata({
+        fileId,
+        resourceKey: stringValue(entry, 'resourceKey'),
+        trashed: true
+      });
+    } catch (error) {
+      console.error(
+        '[finalize] retired companion stayed in Drive:',
+        fileId,
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+  }
 }
 
 async function operationGrant(input: {

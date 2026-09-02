@@ -12,10 +12,13 @@ import {
 } from '../apps/web/src/team/explorer/ExplorerShell';
 import { emptyTeamRouteQuery } from '../apps/web/src/team/routes';
 import { clearThumbnailSessions } from '../apps/web/src/team/explorer/useThumbnailSession';
+import type { MaterialActionsClient } from '../apps/web/src/team/catalog/material-actions-client';
 import { makeTeam } from './team-space-fixtures';
 
 /**
- * Pausing the batch (owner brief, 2026-09-02).
+ * The team batch queue: what it starts, what it holds, and what it names.
+ *
+ * Pausing (owner brief, 2026-09-02).
  *
  * Two halves, and the panel has to be honest about both: nothing new starts,
  * and the file already in flight is suspended too when the local app can do
@@ -32,6 +35,7 @@ const shared = vi.hoisted(() => ({
   holds: true,
   operations: 0,
   canceled: [] as string[],
+  renamed: [] as Array<{ materialId: string; newName: string; conflictMode: string }>,
   /** Makes the agent's half of the run fail instead of hanging. */
   failStart: false
 }));
@@ -46,7 +50,12 @@ vi.mock('../apps/web/src/api/client', async importOriginal => {
       await new Promise<void>(resolve => {
         shared.finish = resolve;
       });
-      return { operationId: input.operationId, state: 'succeeded', reused: false };
+      return {
+        operationId: input.operationId,
+        state: 'succeeded',
+        materialId: `result-${input.operationId}`,
+        reused: false
+      };
     }),
     pauseTeamAgentProcess: vi.fn(async (operationId: string, paused: boolean) => {
       shared.pauses.push({ operationId, paused });
@@ -122,6 +131,7 @@ afterEach(() => {
   shared.holds = true;
   shared.operations = 0;
   shared.canceled.length = 0;
+  shared.renamed.length = 0;
   shared.failStart = false;
   vi.clearAllMocks();
 });
@@ -148,9 +158,11 @@ function video(index: number): TeamMaterialRow {
 function makeClient(rows: TeamMaterialRow[]): ExplorerShellClient {
   return {
     listFolderTree: vi.fn().mockResolvedValue([]),
-    listFolderPage: vi.fn(
-      async (): Promise<FolderPage> => ({ rows, total: rows.length, next: null })
-    ),
+    listFolderPage: vi.fn(async (): Promise<FolderPage> => ({
+      rows,
+      total: rows.length,
+      next: null
+    })),
     mintThumbnailSession: vi.fn().mockRejectedValue(new Error('no session in this test')),
     thumbnailUrl: () => '',
     listMaterials: vi.fn().mockResolvedValue([]),
@@ -161,6 +173,26 @@ function makeClient(rows: TeamMaterialRow[]): ExplorerShellClient {
     updateMaterialMetadata: vi.fn()
   } as unknown as ExplorerShellClient;
 }
+
+/** Records what the queue asks of the file actions, and agrees to all of it. */
+const actionsClient = {
+  renameMaterial: vi.fn(
+    async (input: { materialId: string; newName: string; conflictMode: string }) => {
+      shared.renamed.push({
+        materialId: input.materialId,
+        newName: input.newName,
+        conflictMode: input.conflictMode
+      });
+      return {
+        operationId: 'rename',
+        state: 'succeeded',
+        materialId: input.materialId,
+        reused: false
+      };
+    }
+  ),
+  trashMaterial: vi.fn(async () => undefined)
+} as unknown as MaterialActionsClient;
 
 function renderShell(rows: TeamMaterialRow[]) {
   // The space the person is in comes from the device, and the batch only exists
@@ -177,6 +209,7 @@ function renderShell(rows: TeamMaterialRow[]) {
           onFolderChange={vi.fn()}
           onSearched={vi.fn()}
           onPreview={vi.fn()}
+          actionsClient={actionsClient}
         />
       </TeamProvider>
     </ToastProvider>
@@ -199,9 +232,7 @@ describe('pausing the team batch', () => {
     await waitFor(() => expect(shared.started).toEqual(['op-1']));
 
     fireEvent.click(await screen.findByRole('button', { name: 'Pause' }));
-    await waitFor(() =>
-      expect(shared.pauses).toEqual([{ operationId: 'op-1', paused: true }])
-    );
+    await waitFor(() => expect(shared.pauses).toEqual([{ operationId: 'op-1', paused: true }]));
     await screen.findByText('Paused — the file in flight is suspended too');
 
     // The first run ends while the batch is held: the second must stay where it is.
@@ -256,5 +287,31 @@ describe('pausing the team batch', () => {
     shared.finish?.();
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Resume' })).toBeNull());
     expect(shared.started).toEqual(['op-1']);
+  });
+});
+
+describe('what the batch names its output', () => {
+  it("gives a transcript its video's name, even on a repeat", async () => {
+    // A repeat is written while the transcript it replaces is still there, so
+    // the conflict rule hands it "clip-1 (2).txt" and the old one is retired
+    // moments later — leaving a parenthesis on the file for good, one more with
+    // every run. The canonical name is asked for once the name is free.
+    renderShell([video(1)]);
+    await transcribe('clip-1.mp4');
+    await waitFor(() => expect(shared.started).toEqual(['op-1']));
+
+    shared.finish?.();
+
+    await waitFor(() =>
+      expect(shared.renamed).toEqual([
+        {
+          materialId: 'result-op-1',
+          newName: 'clip-1.txt',
+          // Never a duplicate: if something live still holds the name, the
+          // rename is refused and the output keeps the one it landed with.
+          conflictMode: 'cancel'
+        }
+      ])
+    );
   });
 });
