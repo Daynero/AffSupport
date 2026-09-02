@@ -596,7 +596,10 @@ function ExplorerBody({
         plan.videos.map(video => ({
           id: video.id,
           name: video.name,
-          folderId: plan.folder.driveFileId
+          // Beside the video itself, not in the folder the batch started from:
+          // the batch reaches into subfolders, and a hundred transcripts piled
+          // at the top would be worse than no transcripts at all.
+          folderId: video.parentFolderId ?? plan.folder.driveFileId
         }))
       );
     }

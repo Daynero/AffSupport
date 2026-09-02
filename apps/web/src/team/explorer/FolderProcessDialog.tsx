@@ -6,6 +6,7 @@ import { Modal } from '../../components/Modal';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
 import type { FolderPickerClient } from '../catalog/FolderPicker';
+import { scanFolderTree, type FolderScanResult } from './folderScan';
 
 /**
  * Batch processing for a folder (owner brief, 2026-08-30): pick a folder,
@@ -13,6 +14,10 @@ import type { FolderPickerClient } from '../catalog/FolderPicker';
  * or run the whole list at once. Videos that already carry a transcript
  * companion are skipped. Transcriptions run one after another — the agent is
  * one machine — with a visible "n of m" progress.
+ *
+ * "Inside" means the whole subtree (owner, 2026-09-02). Reading one level made
+ * the command useless on the shape libraries actually have — a folder of
+ * folders answered "nothing inside needs processing".
  */
 const TRANSCRIPTION_CONTRACT = 5;
 
@@ -42,7 +47,8 @@ export function FolderProcessDialog({
 }) {
   const { t } = useI18n();
   const agent = useOptionalAgent();
-  const [children, setChildren] = useState<TeamMaterialSummary[] | null>(null);
+  const [scan, setScan] = useState<FolderScanResult | null>(null);
+  const [scanned, setScanned] = useState(0);
   const [skippedVideos, setSkippedVideos] = useState<Set<string>>(new Set());
   const [failed, setFailed] = useState(false);
 
@@ -52,20 +58,21 @@ export function FolderProcessDialog({
 
   useEffect(() => {
     let active = true;
-    void client
-      .listMaterials(teamId, folder.driveFileId)
-      .then(async items => {
+    void scanFolderTree({
+      teamId,
+      client,
+      rootFolderId: folder.driveFileId,
+      isCancelled: () => !active,
+      onProgress: visited => {
+        if (active) setScanned(visited);
+      }
+    })
+      .then(async result => {
         if (!active) return;
-        setChildren(items);
+        setScan(result);
         // Which videos already have their transcript, so they can be skipped.
-        const videos = items.filter(item => item.kind === 'file' && item.category === 'video');
-        const done = new Set<string>();
-        for (const video of videos) {
-          const companion = await teamApi.getTranscriptCompanion(teamId, video.id).catch(() => null);
-          if (companion?.hasText) done.add(video.id);
-          if (!active) return;
-        }
-        setSkippedVideos(done);
+        const done = await videosWithTranscripts(teamId, result.videos, () => !active);
+        if (active) setSkippedVideos(done);
       })
       .catch(() => {
         if (active) setFailed(true);
@@ -75,13 +82,9 @@ export function FolderProcessDialog({
     };
   }, [client, folder.driveFileId, teamId]);
 
-  const allVideos = (children ?? []).filter(
-    item => item.kind === 'file' && item.category === 'video'
-  );
+  const allVideos = scan?.videos ?? [];
   const videos = allVideos.filter(item => !skippedVideos.has(item.id));
-  const landings = (children ?? []).filter(
-    item => item.kind === 'file' && item.category === 'landing'
-  );
+  const landings = scan?.landings ?? [];
 
   const run = (what: 'videos' | 'landings' | 'all') => {
     onRun({ folder, what, videos, landings });
@@ -89,7 +92,7 @@ export function FolderProcessDialog({
   };
 
   const busy = false;
-  const loading = children === null && !failed;
+  const loading = scan === null && !failed;
 
   return (
     <Modal
@@ -101,14 +104,21 @@ export function FolderProcessDialog({
       <h3 id="team-folder-process-title">
         {t('teamFolderProcessTitle', { name: folder.name })}
       </h3>
-      {loading && <p className="ui-skeleton-label">{t('teamFolderPickerLoading')}</p>}
+      {loading && (
+        <p className="ui-skeleton-label" aria-live="polite">
+          {t('teamFolderProcessScanning', { count: scanned })}
+        </p>
+      )}
       {failed && (
         <p className="team-inline-error" role="alert">
           {t('teamFolderPickerFailed')}
         </p>
       )}
-      {children !== null && !busy && (
+      {scan !== null && !busy && (
         <>
+          <p className="team-explorer-muted team-folder-process-scope">
+            {t('teamFolderProcessSubfolders', { count: scan.foldersVisited })}
+          </p>
           {videos.length === 0 && landings.length === 0 ? (
             <p className="team-explorer-muted">{t('teamFolderProcessEmpty')}</p>
           ) : (
@@ -171,6 +181,11 @@ export function FolderProcessDialog({
               </li>
             </ul>
           )}
+          {scan.truncated && (
+            <p className="team-explorer-muted">
+              {t('teamFolderProcessTruncated', { count: scan.foldersVisited })}
+            </p>
+          )}
         </>
       )}
       {!busy && (
@@ -182,4 +197,29 @@ export function FolderProcessDialog({
       )}
     </Modal>
   );
+}
+
+/**
+ * The videos that already have a transcript, asked a few at a time.
+ *
+ * One question per video, and a subtree can hold hundreds; sequential was fine
+ * for a single folder and is a visible wait for a library.
+ */
+async function videosWithTranscripts(
+  teamId: string,
+  videos: TeamMaterialSummary[],
+  cancelled: () => boolean
+): Promise<Set<string>> {
+  const done = new Set<string>();
+  const queue = [...videos];
+  const ask = async () => {
+    for (;;) {
+      const video = queue.shift();
+      if (!video || cancelled()) return;
+      const companion = await teamApi.getTranscriptCompanion(teamId, video.id).catch(() => null);
+      if (companion?.hasText) done.add(video.id);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(6, videos.length) }, ask));
+  return done;
 }
