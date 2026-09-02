@@ -20,6 +20,7 @@ interface PickerView {
   setIncludeFolders(value: boolean): PickerView;
   setMimeTypes(value: string): PickerView;
   setEnableDrives?(value: boolean): PickerView;
+  setMode?(value: unknown): PickerView;
 }
 
 interface PickerResponse {
@@ -39,7 +40,8 @@ interface PickerBuilder {
 }
 
 export interface PickerNamespace {
-  ViewId: { FOLDERS: unknown };
+  ViewId: { FOLDERS: unknown; DOCS: unknown };
+  DocsViewMode?: { LIST: unknown; GRID: unknown };
   Feature: { SUPPORT_DRIVES: unknown; MULTISELECT_ENABLED: unknown };
   Action: { PICKED: string; CANCEL: string };
   DocsView: new (viewId?: unknown) => PickerView;
@@ -150,13 +152,29 @@ export const openFolderPicker: PickFolders = async input => {
      * not both. Configured as a single view with `setEnableDrives(true)` the
      * chooser opened on "Shared drives" alone, so anyone without a Workspace
      * shared drive was shown "No folders." and could not pick anything at all.
+     *
+     * **`DOCS`, not `FOLDERS`.** `ViewId.FOLDERS` lists every folder the account owns as one
+     * flat heap, at every depth, with no sense of where any of them live — which is useless
+     * to anyone who has more than a handful and has named two of them "Creatives". `DOCS`
+     * with folders included shows My Drive as it is actually organised, so the tree is walked
+     * downwards and the folder is picked where it lives. Restricting the MIME types to
+     * folders keeps files out of a listing where they could never be chosen anyway.
+     *
+     * `setParent` is deliberately *not* used to force a starting folder: the documentation
+     * says it overrides `setEnableDrives`, which the second view depends on, and it is
+     * reported to disable folder selection outright — the one thing this chooser exists for.
+     *
+     * `LIST` rather than the thumbnail grid because Google says so for exactly our case: a
+     * `drive.file` app has not been granted access to thumbnails, so a grid is a grid of
+     * blanks.
      */
     const folderView = (sharedDrives: boolean) => {
-      const view = new picker.DocsView(picker.ViewId.FOLDERS)
+      const view = new picker.DocsView(picker.ViewId.DOCS)
         .setSelectFolderEnabled(true)
         .setIncludeFolders(true)
         .setMimeTypes('application/vnd.google-apps.folder');
       view.setEnableDrives?.(sharedDrives);
+      if (picker.DocsViewMode) view.setMode?.(picker.DocsViewMode.LIST);
       return view;
     };
     let builder = new picker.PickerBuilder()
