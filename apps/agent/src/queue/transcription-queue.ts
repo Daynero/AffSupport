@@ -214,6 +214,8 @@ export interface TranscriptionTooling {
  */
 export class TranscriptionQueue {
   private active: TranscribeHandle | null = null;
+  /** Which job `active` belongs to, so a pause can name the run it means. */
+  private activeJobId: string | null = null;
   private inFlight = false;
   /** Uploaded temp files to unlink once their job leaves the queue. */
   private importedSources = new Set<string>();
@@ -1413,6 +1415,25 @@ export class TranscriptionQueue {
   }
 
   /**
+   * Suspends or resumes the running transcription.
+   *
+   * Whisper has no pause of its own, so the child is held by the power governor
+   * — it keeps its memory and its position and simply stops being scheduled.
+   * Only the running job can be paused: a queued one is not costing anything
+   * yet, and the caller that wants it to stay queued simply does not start it.
+   */
+  setPaused(id: string, paused: boolean): 'ok' | 'not-found' | 'unsupported' {
+    const job = this.jobs.find(item => item.id === id);
+    if (!job || job.status !== 'processing') return 'not-found';
+    if (this.activeJobId !== id || !this.active) return 'not-found';
+    // Resuming always succeeds: it releases a hold, and having none is the
+    // state the caller asked for. Only a pause can find nothing to hold —
+    // between two stages there is no child yet.
+    if (!this.active.setPaused(paused) && paused) return 'unsupported';
+    return 'ok';
+  }
+
+  /**
    * Cancels one job without broadcasting; the caller decides when to notify.
    *
    * Everything the job owns stops, not just whisper. A job also drives a proxy
@@ -1609,6 +1630,7 @@ export class TranscriptionQueue {
     const active = this.active;
     active?.cancel();
     this.active = null;
+    this.activeJobId = null;
     this.activeTranslation?.controller.abort();
     // Wait for whisper to actually be gone before the agent exits. Nothing
     // reaps a child of a process that has already left: an update handoff that
@@ -1648,8 +1670,10 @@ export class TranscriptionQueue {
         }
       });
       this.active = handle;
+      this.activeJobId = job.id;
       const result = await handle.done;
       this.active = null;
+      this.activeJobId = null;
 
       // A cancel during the await flips job.status to 'cancelled'; TS still sees
       // the pre-await 'processing' literal, so widen before comparing. Don't
@@ -1701,6 +1725,7 @@ export class TranscriptionQueue {
       }
     } catch (error) {
       this.active = null;
+      this.activeJobId = null;
       transitionJob(job, 'failed');
       job.progress = null;
       job.error = 'The transcription could not be completed.';

@@ -219,6 +219,8 @@ export class JobQueue {
    * found rather than remembered.
    */
   private current: CompressorActivity = { kind: 'idle' };
+  /** Governor holds taken by a user pause, by job id. */
+  private readonly pauseHolds = new Map<string, () => void>();
   /**
    * Encoders that have been told to stop and have not finished doing so.
    *
@@ -379,8 +381,41 @@ export class JobQueue {
    * can un-stick it, whichever route made it busy.
    */
   private setActivity(next: CompressorActivity): void {
+    const previous = this.current;
     this.current = next;
+    /*
+     * A pause is a hold on one particular child, so it has to follow the child.
+     *
+     * Two things end it: the encode being over (done, cancelled, replaced),
+     * where a surviving hold would promise to resume a process that no longer
+     * exists; and the same job moving to its next child — a held final image is
+     * built in three passes, and a pause taken during the first would otherwise
+     * lift itself the moment the second started.
+     */
+    if (previous.kind === 'encoding' && this.pauseHolds.has(previous.jobId)) {
+      const sameJob = next.kind === 'encoding' && next.jobId === previous.jobId;
+      const nextChild = next.kind === 'encoding' ? next.child : null;
+      if (!sameJob) this.releasePauseHold(previous.jobId);
+      else if (nextChild !== previous.child) {
+        this.releasePauseHold(previous.jobId);
+        this.takePauseHold(previous.jobId, nextChild ?? null);
+      }
+    }
     if (next.kind !== 'idle') this.startDrainWatchdog();
+  }
+
+  /** Suspends one encode's child through the governor, remembering the release. */
+  private takePauseHold(jobId: string, child: ChildProcessWithoutNullStreams | null): boolean {
+    if (!child || child.pid === undefined || !this.power) return false;
+    this.pauseHolds.set(jobId, this.power.hold(child, 'compressor:paused'));
+    return true;
+  }
+
+  private releasePauseHold(jobId: string): void {
+    const release = this.pauseHolds.get(jobId);
+    if (!release) return;
+    this.pauseHolds.delete(jobId);
+    release();
   }
 
   /**
@@ -1017,17 +1052,21 @@ export class JobQueue {
    * interface keeps its pause button hidden.
    */
   setPaused(id: string, paused: boolean): 'ok' | 'not-found' | 'unsupported' {
-    if (process.platform === 'win32') return 'unsupported';
     const job = this.jobs.find(candidate => candidate.id === id);
     if (!job || job.status !== 'processing') return 'not-found';
     const activity = this.current;
     if (activity.kind !== 'encoding' || activity.jobId !== id) return 'not-found';
     const child = activity.child;
     if (!child || child.pid === undefined) return 'not-found';
-    try {
-      process.kill(child.pid, paused ? 'SIGSTOP' : 'SIGCONT');
-    } catch {
-      return 'not-found';
+    // Through the governor, never by signalling the child here: it is the only
+    // thing that may stop a managed process, and its duty cycler would wake, at
+    // its next on-window, an encode the person deliberately stopped. It also
+    // knows how to suspend on Windows, which has no such signal to send.
+    if (!this.pauseSupported()) return 'unsupported';
+    if (paused) {
+      if (!this.pauseHolds.has(id) && !this.takePauseHold(id, child)) return 'unsupported';
+    } else {
+      this.releasePauseHold(id);
     }
     if (paused) {
       job.pausedAt = Date.now();

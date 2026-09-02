@@ -34,7 +34,7 @@ import { PreviewPane } from './PreviewPane';
 import { Modal } from '../../components/Modal';
 import { MaterialProcessFlow } from '../processing/MaterialProcessFlow';
 import { useTeamOperation } from '../processing/useTeamOperation';
-import { startTeamAgentProcess } from '../../api/client';
+import { pauseTeamAgentProcess, startTeamAgentProcess } from '../../api/client';
 import { FolderProcessDialog, type FolderBatchPlan } from './FolderProcessDialog';
 import {
   TeamCompressorDialog,
@@ -203,6 +203,14 @@ function ExplorerBody({
   );
   const [tDone, setTDone] = useState(0);
   const [tTotal, setTTotal] = useState(0);
+  // The batch is held: nothing new starts, and the file already in flight is
+  // suspended too when the local app can do that (`tHeld`). Both are needed —
+  // a pause that leaves the machine at full load for the next twenty minutes
+  // is not the pause anyone pressed.
+  const [tPaused, setTPaused] = useState(false);
+  const [tHeld, setTHeld] = useState(false);
+  /** The operation this browser has already asked the local app to hold. */
+  const heldAsked = useRef<string | null>(null);
   // Cmd/Ctrl+C/X/V: what was copied or cut, held until the next paste. Files
   // from any folder — paste lands them in the folder currently open.
   const clipboard = useRef<{
@@ -490,7 +498,7 @@ function ExplorerBody({
 
   // Takes the next queued video whenever nothing is running.
   useEffect(() => {
-    if (tActive || tQueue.length === 0) return;
+    if (tActive || tQueue.length === 0 || tPaused) return;
     const next = tQueue[0];
     setTActive({ ...next, operationId: null });
     void (async () => {
@@ -545,15 +553,55 @@ function ExplorerBody({
         changed();
       }
     })();
-  }, [agentCtx?.toolContracts, changed, push, t, tActive, tQueue, teamId]);
+  }, [agentCtx?.toolContracts, changed, push, t, tActive, tPaused, tQueue, teamId]);
 
-  // The queue drained: one closing toast, counters reset.
+  // The queue drained: one closing toast, counters reset. A pause dies with the
+  // queue it was holding; leaving it set would silently swallow the next batch.
   useEffect(() => {
     if (tActive || tQueue.length > 0 || tTotal === 0) return;
     push({ tone: 'success', text: t('teamTranscribeQueueDone', { count: tDone }) });
     setTDone(0);
     setTTotal(0);
+    setTPaused(false);
+    setTHeld(false);
   }, [push, t, tActive, tDone, tQueue.length, tTotal]);
+
+  /**
+   * Holds the batch, and the running file with it where that is possible.
+   *
+   * The local app is asked separately from the queue on purpose: an older build,
+   * a transfer rather than an encode, or the moment between two children all
+   * answer "nothing held", and the panel then says the current file is finishing
+   * rather than claiming a quiet machine it cannot deliver.
+   */
+  const pauseQueue = useCallback(
+    (paused: boolean) => {
+      setTPaused(paused);
+      const operationId = tActive?.operationId ?? null;
+      heldAsked.current = paused ? operationId : null;
+      if (!operationId) {
+        setTHeld(false);
+        return;
+      }
+      void pauseTeamAgentProcess(operationId, paused)
+        .then(held => setTHeld(paused && held))
+        .catch(() => setTHeld(false));
+    },
+    [tActive?.operationId]
+  );
+
+  // Pause pressed in the second between "started" and "the operation has an
+  // id": there was nothing to hold then, so the hold is taken as soon as there
+  // is. Asked once per operation — an agent that cannot hold has answered, and
+  // repeating the question on every render would be a request per frame.
+  useEffect(() => {
+    const operationId = tActive?.operationId ?? null;
+    if (!tPaused || !operationId || tHeld || heldAsked.current === operationId) return;
+    heldAsked.current = operationId;
+    void pauseTeamAgentProcess(operationId, true)
+      .then(held => setTHeld(held))
+      .catch(() => undefined);
+  }, [tActive?.operationId, tHeld, tPaused]);
 
   const activeOperation = useTeamOperation({
     teamId,
@@ -1083,19 +1131,44 @@ function ExplorerBody({
               })}
             </p>
           )}
-          <ProgressBar value={activeProgress} active label={t('teamTranscribeQueueTitle')} />
-          {tQueue.length > (tActive ? 0 : 1) && (
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setTQueue(tActive ? [] : current => current.slice(0, 1));
-                setTTotal(tDone + (tActive ? 1 : 1));
-              }}
-            >
-              {t('teamTranscribeQueueStop')}
-            </Button>
+          <ProgressBar
+            value={activeProgress}
+            active={!tPaused}
+            label={t('teamTranscribeQueueTitle')}
+          />
+          {tPaused && (
+            <p className="team-transcribe-queue-paused">
+              {t(
+                tActive
+                  ? tHeld
+                    ? 'teamQueuePausedHeld'
+                    : 'teamQueuePausedRunning'
+                  : 'teamQueuePausedIdle',
+                { count: tQueue.length }
+              )}
+            </p>
           )}
+          <div className="team-transcribe-queue-actions">
+            <Button type="button" variant="ghost" onClick={() => pauseQueue(!tPaused)}>
+              {t(tPaused ? 'teamQueueResume' : 'teamQueuePause')}
+            </Button>
+            {tQueue.length > (tActive ? 0 : 1) && (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setTQueue(tActive ? [] : current => current.slice(0, 1));
+                  setTTotal(tDone + (tActive ? 1 : 1));
+                  // "After the current one" has to have a current one that is
+                  // still moving; stopping while paused would otherwise leave a
+                  // suspended file as the last thing this panel ever did.
+                  if (tPaused) pauseQueue(false);
+                }}
+              >
+                {t('teamTranscribeQueueStop')}
+              </Button>
+            )}
+          </div>
         </aside>
       )}
       {processing && (

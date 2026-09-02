@@ -42,6 +42,15 @@ export interface TeamProcessDelegateInput {
   options: unknown;
   signal: AbortSignal;
   onProgress: (progress: number) => void;
+  /**
+   * Offers a way to suspend this run's local work, and withdraws it (`null`)
+   * once there is nothing left to suspend.
+   *
+   * A delegate that never calls it simply cannot be paused, and the bridge says
+   * so rather than reporting a pause it did not perform — a landing
+   * optimization, for instance, has no pausable child of its own.
+   */
+  pausable: (setPaused: ((paused: boolean) => boolean) | null) => void;
 }
 
 export interface TeamProcessDelegateResult {
@@ -93,7 +102,13 @@ export function createTeamProcessDelegates(
 
 interface ActiveProcess {
   controller: AbortController;
-  promise: Promise<TeamFileOperationResult>;
+  /** Assigned the moment `#run` is called; nothing reads it before that. */
+  promise: Promise<TeamFileOperationResult> | null;
+  paused: boolean;
+  /** What the running delegate offers, while it is in a phase that can be held. */
+  pause: ((paused: boolean) => boolean) | null;
+  /** Stops and restarts the run's wall-clock budget across a pause. */
+  watchdog: { hold: () => void; resume: () => void } | null;
 }
 
 /** Coordinates a cloud-authorized team operation with an existing local tool. */
@@ -120,8 +135,16 @@ export class TeamProcessBridge {
     }
 
     const controller = new AbortController();
-    const promise = this.#run(request, delegate, controller);
-    this.#active.set(request.operationId, { controller, promise });
+    const active: ActiveProcess = {
+      controller,
+      promise: null,
+      paused: false,
+      pause: null,
+      watchdog: null
+    };
+    const promise = this.#run(request, delegate, controller, active);
+    active.promise = promise;
+    this.#active.set(request.operationId, active);
     void promise
       .finally(() => {
         this.#active.delete(request.operationId);
@@ -133,8 +156,58 @@ export class TeamProcessBridge {
   cancel(operationId: string): boolean {
     const active = this.#active.get(operationId);
     if (!active) return false;
+    // A suspended process is not delivered its termination signal until it runs
+    // again, so a cancel during a pause would otherwise wait for a resume that
+    // is never coming.
+    this.#resume(active);
     active.controller.abort(new Error('PROCESS_CANCELED'));
     return true;
+  }
+
+  /**
+   * Suspends or resumes the local work behind one operation.
+   *
+   * The run stays `running` as far as the cloud is concerned: the file is still
+   * checked out, the grants are still spent, and only this machine's CPU is
+   * given back. Nothing here is persisted: a pause belongs to the page that
+   * pressed it, and `resume()` is what the route calls when that page goes
+   * away — a run whose only means of being resumed has closed would otherwise
+   * hold a suspended child for as long as the app stays open.
+   */
+  setPaused(operationId: string, paused: boolean): 'ok' | 'not-found' | 'unsupported' {
+    const active = this.#active.get(operationId);
+    if (!active) return 'not-found';
+    if (!paused) {
+      this.#resume(active);
+      return 'ok';
+    }
+    if (!active.pause || !active.pause(true)) return 'unsupported';
+    active.paused = true;
+    active.watchdog?.hold();
+    return 'ok';
+  }
+
+  paused(operationId: string): boolean {
+    return this.#active.get(operationId)?.paused === true;
+  }
+
+  /**
+   * Lets a held run go again without touching the queue that held it.
+   *
+   * The work is deliberately not cancelled: the agent finishes and uploads the
+   * result on its own, so a closed page loses nothing, while a pause it can no
+   * longer lift would strand a stopped process indefinitely.
+   */
+  resume(operationId: string): void {
+    const active = this.#active.get(operationId);
+    if (active) this.#resume(active);
+  }
+
+  #resume(active: ActiveProcess): void {
+    if (!active.paused) return;
+    active.paused = false;
+    active.pause?.(false);
+    active.watchdog?.resume();
   }
 
   busy(): boolean {
@@ -147,15 +220,21 @@ export class TeamProcessBridge {
 
   async shutdown(): Promise<void> {
     for (const active of this.#active.values()) {
+      // Resume first, for the same reason a cancel does: a stopped child never
+      // sees the signal, and the agent would wait out its grace period.
+      this.#resume(active);
       active.controller.abort(new Error('PROCESS_CANCELED'));
     }
-    await Promise.allSettled([...this.#active.values()].map(active => active.promise));
+    await Promise.allSettled(
+      [...this.#active.values()].map(active => active.promise).filter(promise => promise !== null)
+    );
   }
 
   async #run(
     request: TeamProcessRequest,
     delegate: TeamProcessDelegate,
-    controller: AbortController
+    controller: AbortController,
+    active: ActiveProcess
   ): Promise<TeamFileOperationResult> {
     let downloaded: DownloadedTeamSource | null = null;
     let cleanupOutput: (() => Promise<void>) | null = null;
@@ -164,13 +243,14 @@ export class TeamProcessBridge {
     // child, so at a 20% limit the work legitimately takes roughly five times as
     // long, and an unscaled six-hour budget would abort a job for honouring the
     // user's own limit.
-    const watchdog = setTimeout(
-      () => {
-        controller.abort(new Error('PROCESS_TIMEOUT'));
-      },
-      activeGovernorOrNull()?.scaleTimeout(this.#watchdogMs) ?? this.#watchdogMs
+    const watchdog = pausableDeadline(
+      activeGovernorOrNull()?.scaleTimeout(this.#watchdogMs) ?? this.#watchdogMs,
+      () => controller.abort(new Error('PROCESS_TIMEOUT'))
     );
-    watchdog.unref();
+    // Paused time is not spent time: a run held for an hour has not been
+    // running for an hour, and letting the budget expire during a pause would
+    // fail work the person only meant to set aside.
+    active.watchdog = watchdog;
 
     try {
       this.#events.update(request.operationId, {
@@ -202,6 +282,12 @@ export class TeamProcessBridge {
         sourceChecksum: downloaded.sourceChecksum,
         options: request.options,
         signal: controller.signal,
+        pausable: setPaused => {
+          active.pause = setPaused;
+          // A run paused before its local job existed is honoured the moment
+          // one does, rather than quietly starting at full speed.
+          if (active.paused && setPaused) setPaused(true);
+        },
         onProgress: progress => {
           this.#events.update(request.operationId, {
             stage: 'processing',
@@ -280,7 +366,13 @@ export class TeamProcessBridge {
       });
       throw new Error(code, { cause: error });
     } finally {
-      clearTimeout(watchdog);
+      watchdog.clear();
+      // Nothing local is left to hold: transfers are not pausable, and pausing
+      // an operation that has finished its work would hold nothing while
+      // telling the person it had.
+      active.pause = null;
+      active.paused = false;
+      active.watchdog = null;
       await cleanupOutput?.().catch(() => undefined);
       await downloaded?.cleanup().catch(() => undefined);
     }
@@ -302,6 +394,7 @@ function compressionDelegate(queue: JobQueue, embedding: boolean): TeamProcessDe
     let handoff = false;
     try {
       if (!(await queue.start([job.id]))) throw new Error('WRONG_STATE');
+      input.pausable(paused => queue.setPaused(job!.id, paused) === 'ok');
       job = await waitForTerminal({
         read: () => queue.teamJob(sourceKey),
         signal: input.signal,
@@ -323,6 +416,7 @@ function compressionDelegate(queue: JobQueue, embedding: boolean): TeamProcessDe
         }
       };
     } finally {
+      input.pausable(null);
       if (!handoff && job) await queue.discardTeamJob(job.id);
     }
   };
@@ -391,6 +485,7 @@ function transcriptionDelegate(queue: TranscriptionQueue, translate = false): Te
     let handoff = false;
     try {
       if (!(await queue.start([job.id]))) throw new Error('WRONG_STATE');
+      input.pausable(paused => queue.setPaused(job!.id, paused) === 'ok');
       job = await waitForTerminal({
         read: () => queue.teamJob(sourceKey),
         signal: input.signal,
@@ -436,6 +531,9 @@ function transcriptionDelegate(queue: TranscriptionQueue, translate = false): Te
         }
       };
     } finally {
+      // The translation pass that may follow is not the same child and cannot be
+      // held, so the offer is withdrawn with the transcription it belonged to.
+      input.pausable(null);
       if (!handoff && job) await queue.remove(job.id);
     }
   };
@@ -585,6 +683,44 @@ function waitForTerminal<T>(observer: TerminalObserver<T>): Promise<T> {
     if (observer.signal.aborted) abort();
     tick();
   });
+}
+
+/**
+ * A wall-clock deadline that can be stopped and started again.
+ *
+ * The remaining time is what is left of the budget, not what is left of the
+ * original timer: a pause holds the clock rather than resetting it, so a run
+ * cannot buy itself an unlimited budget by pausing repeatedly.
+ */
+function pausableDeadline(
+  totalMs: number,
+  onExpiry: () => void
+): { hold: () => void; resume: () => void; clear: () => void } {
+  let remaining = totalMs;
+  let startedAt = Date.now();
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const arm = () => {
+    startedAt = Date.now();
+    timer = setTimeout(onExpiry, Math.max(1, remaining));
+    timer.unref();
+  };
+  arm();
+  return {
+    hold: () => {
+      if (!timer) return;
+      clearTimeout(timer);
+      timer = null;
+      remaining = Math.max(1, remaining - (Date.now() - startedAt));
+    },
+    resume: () => {
+      if (timer) return;
+      arm();
+    },
+    clear: () => {
+      if (timer) clearTimeout(timer);
+      timer = null;
+    }
+  };
 }
 
 function record(value: unknown): value is Record<string, unknown> {

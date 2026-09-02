@@ -364,4 +364,223 @@ describe('team processing orchestration and SSE state', () => {
     );
     expect(bridge.supportedTools()).toEqual(['compressor']);
   });
+
+  /**
+   * A run that hangs until the test stops it, offering the bridge a hold the
+   * way the real compressor and transcription delegates do.
+   */
+  function heldRun(options: { offersPause?: boolean } = {}) {
+    const asked: boolean[] = [];
+    const transfer: TeamProcessTransfer = {
+      downloadSource: vi.fn().mockResolvedValue({
+        workspace: '/tmp/opaque-workspace',
+        file: '/tmp/opaque-workspace/source',
+        sizeBytes: 1,
+        sourceVersion: null,
+        sourceChecksum: null,
+        cleanup: vi.fn().mockResolvedValue(undefined)
+      }),
+      uploadResult: vi.fn()
+    };
+    const offer = (input: { pausable: (fn: ((paused: boolean) => boolean) | null) => void }) =>
+      input.pausable(paused => {
+        asked.push(paused);
+        return true;
+      });
+    const delegate: TeamProcessDelegate = vi.fn().mockImplementation(
+      input =>
+        new Promise((_resolve, reject) => {
+          if (options.offersPause !== false) offer(input);
+          input.signal.addEventListener('abort', () => reject(input.signal.reason), { once: true });
+        })
+    );
+    return { transfer, delegate, asked, offer };
+  }
+
+  it('holds the running work and lets it go again', async () => {
+    const { transfer, delegate, asked } = heldRun();
+    const bridge = new TeamProcessBridge({
+      transfer,
+      delegates: { compressor: delegate },
+      events: new TeamOperationEvents()
+    });
+    const running = bridge.process(processRequest());
+    await vi.waitFor(() => expect(delegate).toHaveBeenCalledOnce());
+
+    expect(bridge.setPaused('operation-process', true)).toBe('ok');
+    expect(bridge.paused('operation-process')).toBe(true);
+    expect(bridge.setPaused('operation-process', false)).toBe('ok');
+    expect(bridge.paused('operation-process')).toBe(false);
+    expect(asked).toEqual([true, false]);
+
+    bridge.cancel('operation-process');
+    await expect(running).rejects.toThrow('PROCESS_CANCELED');
+  });
+
+  it('says nothing was held rather than claiming a pause it did not perform', async () => {
+    // A transfer, a landing optimization, the moment between two children: the
+    // interface has to be able to tell a quiet machine from a busy one.
+    const { transfer, delegate } = heldRun({ offersPause: false });
+    const bridge = new TeamProcessBridge({
+      transfer,
+      delegates: { compressor: delegate },
+      events: new TeamOperationEvents()
+    });
+    const running = bridge.process(processRequest());
+    await vi.waitFor(() => expect(delegate).toHaveBeenCalledOnce());
+
+    expect(bridge.setPaused('operation-process', true)).toBe('unsupported');
+    expect(bridge.paused('operation-process')).toBe(false);
+    // Releasing something that was never held is the state the caller asked for.
+    expect(bridge.setPaused('operation-process', false)).toBe('ok');
+
+    bridge.cancel('operation-process');
+    await expect(running).rejects.toThrow('PROCESS_CANCELED');
+  });
+
+  it('re-applies a standing pause to the next hold a run offers', async () => {
+    // A job that changes children mid-run — a held final image is three passes —
+    // must not resume itself by starting the next one.
+    const asked: boolean[] = [];
+    const second: { offer: (() => void) | null } = { offer: null };
+    const transfer: TeamProcessTransfer = {
+      downloadSource: vi.fn().mockResolvedValue({
+        workspace: '/tmp/opaque-workspace',
+        file: '/tmp/opaque-workspace/source',
+        sizeBytes: 1,
+        sourceVersion: null,
+        sourceChecksum: null,
+        cleanup: vi.fn().mockResolvedValue(undefined)
+      }),
+      uploadResult: vi.fn()
+    };
+    const delegate: TeamProcessDelegate = vi.fn().mockImplementation(
+      input =>
+        new Promise((_resolve, reject) => {
+          const hold = (label: string) => (paused: boolean) => {
+            asked.push(paused);
+            void label;
+            return true;
+          };
+          input.pausable(hold('first'));
+          second.offer = () => input.pausable(hold('second'));
+          input.signal.addEventListener('abort', () => reject(input.signal.reason), { once: true });
+        })
+    );
+    const bridge = new TeamProcessBridge({
+      transfer,
+      delegates: { compressor: delegate },
+      events: new TeamOperationEvents()
+    });
+    const running = bridge.process(processRequest());
+    await vi.waitFor(() => expect(delegate).toHaveBeenCalledOnce());
+
+    expect(bridge.setPaused('operation-process', true)).toBe('ok');
+    asked.length = 0;
+    second.offer?.();
+    expect(asked).toEqual([true]);
+
+    bridge.cancel('operation-process');
+    await expect(running).rejects.toThrow('PROCESS_CANCELED');
+  });
+
+  it('lets a held run go before stopping it', async () => {
+    // A suspended process is not delivered its termination signal until it runs
+    // again: a cancel that did not resume first would wait for a resume nobody
+    // is coming back to give.
+    const { transfer, delegate, asked } = heldRun();
+    const bridge = new TeamProcessBridge({
+      transfer,
+      delegates: { compressor: delegate },
+      events: new TeamOperationEvents()
+    });
+    const running = bridge.process(processRequest());
+    await vi.waitFor(() => expect(delegate).toHaveBeenCalledOnce());
+    expect(bridge.setPaused('operation-process', true)).toBe('ok');
+
+    expect(bridge.cancel('operation-process')).toBe(true);
+    expect(asked).toEqual([true, false]);
+    await expect(running).rejects.toThrow('PROCESS_CANCELED');
+  });
+
+  it('does not spend the run\'s time budget while it is held', async () => {
+    const { transfer, delegate } = heldRun();
+    const bridge = new TeamProcessBridge({
+      transfer,
+      delegates: { compressor: delegate },
+      events: new TeamOperationEvents(),
+      watchdogMs: 300
+    });
+    const running = bridge.process(processRequest());
+    const settled = running.catch((error: unknown) => error);
+    await vi.waitFor(() => expect(delegate).toHaveBeenCalledOnce());
+    expect(bridge.setPaused('operation-process', true)).toBe('ok');
+
+    // Well past the budget, and the run is still there because none of that
+    // time was spent running.
+    await new Promise(resolve => setTimeout(resolve, 600));
+    expect(bridge.busy()).toBe(true);
+
+    expect(bridge.setPaused('operation-process', false)).toBe('ok');
+    await expect(settled).resolves.toMatchObject({ message: 'PROCESS_TIMEOUT' });
+  });
+
+  it('lets a held run go when the page that held it closes', async () => {
+    // The run itself is not cancelled: the agent uploads the result on its own,
+    // so a closed tab costs nobody their work — but a pause nothing can lift
+    // would keep a stopped process on the machine until the app is quit.
+    const { transfer, delegate, asked } = heldRun();
+    const bridge = new TeamProcessBridge({
+      transfer,
+      delegates: { compressor: delegate },
+      events: new TeamOperationEvents()
+    });
+    const running = bridge.process(processRequest());
+    await vi.waitFor(() => expect(delegate).toHaveBeenCalledOnce());
+    expect(bridge.setPaused('operation-process', true)).toBe('ok');
+
+    bridge.resume('operation-process');
+    expect(asked).toEqual([true, false]);
+    expect(bridge.paused('operation-process')).toBe(false);
+    expect(bridge.busy()).toBe(true);
+
+    bridge.cancel('operation-process');
+    await expect(running).rejects.toThrow('PROCESS_CANCELED');
+  });
+
+  it('has nothing to hold once the work is over', async () => {
+    const root = await temporaryRoot();
+    const sourceFile = path.join(root, 'source.mp4');
+    const outputFile = path.join(root, 'output.mp4');
+    await writeFile(sourceFile, 'source');
+    await writeFile(outputFile, 'result');
+    const transfer: TeamProcessTransfer = {
+      downloadSource: vi.fn().mockResolvedValue({
+        workspace: root,
+        file: sourceFile,
+        sizeBytes: 6,
+        sourceVersion: '1',
+        sourceChecksum: 'check-1',
+        cleanup: vi.fn().mockResolvedValue(undefined)
+      }),
+      uploadResult: vi.fn().mockResolvedValue({
+        operationId: 'operation-process',
+        state: 'succeeded',
+        materialId: 'result-material',
+        reused: false
+      })
+    };
+    const delegate: TeamProcessDelegate = vi.fn().mockImplementation(async input => {
+      input.pausable(() => true);
+      return { file: outputFile, mimeType: 'video/mp4', sizeBytes: 6 };
+    });
+    const bridge = new TeamProcessBridge({
+      transfer,
+      delegates: { compressor: delegate },
+      events: new TeamOperationEvents()
+    });
+
+    await expect(bridge.process(processRequest())).resolves.toMatchObject({ state: 'succeeded' });
+    expect(bridge.setPaused('operation-process', true)).toBe('not-found');
+  });
 });

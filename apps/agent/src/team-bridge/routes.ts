@@ -77,6 +77,14 @@ export function registerTeamBridgeRoutes(
     if (!acceptingNewTasks()) return reply.code(409).send({ error: 'UPDATE_PENDING' });
     const input = processRequest(request.body);
     if (!input) return reply.code(400).send({ error: 'INVALID_INPUT' });
+    /*
+     * The run outlives its page on purpose — the agent uploads the result
+     * itself, so a reload costs nobody their work. A *pause* must not outlive
+     * it: the page that pressed it is the only thing that would ever lift it,
+     * and a stopped child with nothing left to resume it would sit on the
+     * machine's memory until the app is quit.
+     */
+    request.raw.once('close', () => process.resume(input.operationId));
     try {
       return await process.process(input);
     } catch (error) {
@@ -110,6 +118,25 @@ export function registerTeamBridgeRoutes(
       const canceled = process.cancel(request.params.operationId);
       if (!canceled) return reply.code(404).send({ error: 'NOT_FOUND' });
       return { canceled: true };
+    }
+  );
+
+  /**
+   * Holds one running operation's local work, or lets it go again.
+   *
+   * `409 NOT_PAUSABLE` rather than a quiet success when there is nothing to
+   * hold — a transfer, a landing optimization, a moment between two children:
+   * the interface has to be able to tell "paused" from "asked, and nothing
+   * happened", because the difference is whether the machine is still busy.
+   */
+  app.post<{ Params: { operationId: string }; Body?: { paused?: unknown } }>(
+    '/api/team/process/:operationId/pause',
+    async (request, reply) => {
+      const paused = request.body?.paused !== false;
+      const outcome = process.setPaused(request.params.operationId, paused);
+      if (outcome === 'not-found') return reply.code(404).send({ error: 'NOT_FOUND' });
+      if (outcome === 'unsupported') return reply.code(409).send({ error: 'NOT_PAUSABLE' });
+      return { paused };
     }
   );
 

@@ -86,7 +86,10 @@ export class TeamDownloadBridge {
           sourceChecksum: source.sourceChecksum,
           options: {},
           signal: controller.signal,
-          onProgress: () => {}
+          onProgress: () => {},
+          // A download-and-compress has no interface of its own to pause from;
+          // the offer is accepted and dropped.
+          pausable: () => {}
         });
         produced = output.file;
         producedCleanup = output.cleanup ?? null;

@@ -90,6 +90,11 @@ export const AGENT_TOOL_CONTRACTS = {
   // own contract rather than a compressor revision: the two tools share the image library
   // but nothing of the encode path, and an agent can serve one without the other.
   stitcher: 1,
+  // Holding a running team operation's local work (015). Its own key, like
+  // teamBackgroundRender above and for the same reason: it is a capability the
+  // interface asks about, not a tool page, so an older agent simply keeps the
+  // pause button hidden instead of being told it is out of date.
+  teamProcessPause: 1,
   // Server-wide power throttle. Deliberately absent from WEB_TOOL_REQUIREMENTS:
   // that map is the set of user-facing *tool pages*, and it is byte-compared
   // against the signed, published stable.json by verify-release.mjs. The power
@@ -198,6 +203,18 @@ export function normalizeToolContracts(
   if (capabilities.includes('landing-preview')) normalized.landingPreview ??= 1;
   if (capabilities.includes('transcription')) normalized.transcription ??= 1;
   return normalized;
+}
+
+/**
+ * Whether this agent can hold a running team operation, rather than only
+ * cancel it.
+ *
+ * Read from the contract directly for the same reason background rendering is:
+ * `WEB_TOOL_REQUIREMENTS` is the map of user-facing tool pages, byte-compared
+ * against the signed release manifest, and a capability is not a page.
+ */
+export function teamProcessPauseSupported(contracts: ToolContracts | null): boolean {
+  return (contracts?.teamProcessPause ?? 0) >= AGENT_TOOL_CONTRACTS.teamProcessPause;
 }
 
 export function toolContractCompatible(

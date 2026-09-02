@@ -362,3 +362,57 @@ worth making load-tolerant once that stream is free.
 ## Production (after the next agent release, research R8)
 
 Date: ____ · owner account: ____ · §6 result: ____
+
+## P — the batch, and a way to stop it burning the machine (2026-09-02)
+
+Two owner briefs, one afternoon, both about the same panel.
+
+### "Process this folder" meant one level
+
+A creative library is folders of folders, so reading only the open folder's direct children
+made the command useless where it matters: on a country folder it answered "nothing inside
+needs processing", and on a folder of shoots it offered the single landing sitting at the top
+while ignoring the six below. `scanFolderTree` (`apps/web/src/team/explorer/folderScan.ts`)
+now walks the subtree breadth-first through the same listing the explorer uses, skips a folder
+it has already listed (a shortcut can point back up), and stops at 500 folders — which it says
+out loud rather than pretending the tree ended. Each transcript is written beside its own
+video; a hundred of them piled at the batch's root would be worse than none.
+
+Verified in the beta on `spy суглоби`: 6 folders, 16 videos to transcribe (2 already had
+transcripts), **6 landings where the old dialog saw 1**. "Refresh landing previews" marked all
+six stale and the background render loop brought every one back to `ready`.
+
+### Pausing the batch
+
+`Пауза` in the queue panel holds two things: nothing new starts, and the file already in
+flight is suspended too. The second half is the point — a pause that leaves twenty minutes of
+whisper running is not what anyone pressed it for — and it needed a path all the way down:
+
+| Layer                              | What it does                                                                                                                                                                                                                                                  |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `transcribe()` handle              | `setPaused` takes a governor **hold** on the whisper child (never a SIGSTOP of its own: the duty cycler would wake it at the next on-window, and Windows has no such signal), re-applies it to the next child of a multi-stage run, and lets go before a kill |
+| `TranscriptionQueue.setPaused`     | names the running job, or reports `not-found`                                                                                                                                                                                                                 |
+| `JobQueue.setPaused`               | converted from a raw `SIGSTOP` to the same hold, so a paused encode stays paused under a reduced power limit, and the hold follows the child a held final image changes mid-run                                                                               |
+| `TeamProcessBridge`                | delegates offer a `pausable`; the run's wall-clock budget stops while held (paused time is not spent time); cancel and shutdown resume first, because a stopped process never sees SIGTERM                                                                    |
+| `POST /api/team/process/:id/pause` | `409 NOT_PAUSABLE` rather than a quiet success when there is nothing to hold                                                                                                                                                                                  |
+| Explorer panel                     | says which pause it got: "поточний файл теж призупинено" or "поточний файл дороблюється"                                                                                                                                                                      |
+
+Corner cases that shaped it, in case they come back:
+
+- **A page that goes away.** The agent does _not_ stop a team run when the browser
+  disconnects — it finishes and uploads the result, which is right, a reload should not cost
+  anyone fifteen minutes. But the page is the only thing that would ever lift a pause, so the
+  process route resumes (never cancels) a held run when its request closes.
+- **"Stop after current" while paused** would leave a suspended file as the last thing the
+  panel ever did, so it lets the current one go.
+- **Pause pressed in the second before the operation has an id**: the hold is taken as soon as
+  there is one, asked once per operation.
+- **The stall watchdog** was killing a silent child after ten minutes; a held child is silent
+  by construction, so it re-arms instead.
+- **An older agent** answers "nothing held" and the panel says the current file is finishing —
+  which is exactly what the beta showed live, since its bundled agent predates the contract.
+
+The pause of the _running_ file needs an agent carrying `teamProcessPause: 1`
+(`npm run beta:down && npm run beta:up` rebuilds the local one); the queue half works against
+any agent. Covered by `tests/team-bridge.test.ts` (six cases) and
+`tests/team-queue-pause.test.ts`.

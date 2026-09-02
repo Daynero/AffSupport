@@ -48,6 +48,7 @@ export {
   normalizeToolContracts,
   powerThrottleSupported,
   releaseManifestSigningPayload,
+  teamProcessPauseSupported,
   toolContractCompatible,
   MIN_POWER_CONTRACT,
   RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64,

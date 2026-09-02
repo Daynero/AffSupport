@@ -42,6 +42,15 @@ export interface TranscribeResult {
 
 export interface TranscribeHandle {
   cancel: () => void;
+  /**
+   * Suspends or resumes the running child, keeping its memory and its position.
+   *
+   * Reports back whether anything is actually held: between two stages there is
+   * no child to stop, and a caller that pretends otherwise would show a paused
+   * interface over a machine still at full load. The wish is remembered either
+   * way, so the next child starts suspended.
+   */
+  setPaused: (paused: boolean) => boolean;
   done: Promise<TranscribeResult>;
 }
 
@@ -67,13 +76,23 @@ function scaled(milliseconds: number): number {
  * Inactivity watchdog: re-armed on every stdout/stderr chunk; on expiry the
  * child gets SIGTERM, escalating to SIGKILL when it ignores that too.
  */
-function attachInactivityWatchdog(child: ChildProcessWithoutNullStreams): {
+function attachInactivityWatchdog(
+  child: ChildProcessWithoutNullStreams,
+  isPaused: () => boolean = () => false
+): {
   reset: () => void;
 } {
   let timer: NodeJS.Timeout | null = null;
   const arm = () => {
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
+      // A suspended child is silent by construction. Killing it for that would
+      // turn "pause" into "lose the run after ten minutes", so the window is
+      // simply started again and the deadline effectively waits for the resume.
+      if (isPaused()) {
+        arm();
+        return;
+      }
       child.kill('SIGTERM');
       const force = setTimeout(() => child.kill('SIGKILL'), 10_000);
       force.unref();
@@ -106,9 +125,43 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
   const { inputPath, language, onProgress } = options;
   let activeChild: ChildProcessWithoutNullStreams | null = null;
   let cancelled = false;
+  let paused = false;
+  let releaseHold: (() => void) | null = null;
+
+  /*
+   * The governor is the only thing allowed to suspend a managed child, so a
+   * pause is a hold rather than a SIGSTOP of our own: the duty cycler would
+   * otherwise wake, at its next on-window, a process the person deliberately
+   * stopped — and on Windows there is no such signal to send in the first
+   * place.
+   */
+  const applyHold = () => {
+    if (!paused || releaseHold || !activeChild) return;
+    releaseHold = activeGovernorOrNull()?.hold(activeChild, 'transcription:paused') ?? null;
+  };
+  const dropHold = () => {
+    releaseHold?.();
+    releaseHold = null;
+  };
+
+  const setPaused = (next: boolean) => {
+    paused = next;
+    if (!next) {
+      dropHold();
+      return true;
+    }
+    applyHold();
+    return releaseHold !== null;
+  };
 
   const kill = () => {
     cancelled = true;
+    // A stopped process is not delivered SIGTERM until it runs again, so the
+    // hold goes first — otherwise "stop" during a pause would hang until the
+    // person happened to resume.
+    paused = false;
+    dropHold();
+    if (activeChild) activeGovernorOrNull()?.resumeForTermination(activeChild);
     // SIGTERM alone is enough for a healthy child; the spawn seam escalates it
     // to SIGKILL if this one has stopped listening.
     activeChild?.kill('SIGTERM');
@@ -126,8 +179,11 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
    * prevent.
    */
   const adopt = (child: ChildProcessWithoutNullStreams) => {
+    // The hold belonged to the child that just finished; this one needs its own.
+    dropHold();
     activeChild = child;
     if (cancelled) child.kill('SIGTERM');
+    else applyHold();
   };
 
   const done = (async (): Promise<TranscribeResult> => {
@@ -151,10 +207,14 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
 
       // Source transcription: one long-form pass over the whole file.
       const sourceBase = path.join(tmpDir, 'transcript');
-      const source = await runWhisper({ wavPath, outputBase: sourceBase, language }, adopt, value =>
-        onProgress(
-          value === null ? null : EXTRACT_SHARE + (value * (SOURCE_END - EXTRACT_SHARE)) / 100
-        )
+      const source = await runWhisper(
+        { wavPath, outputBase: sourceBase, language },
+        adopt,
+        value =>
+          onProgress(
+            value === null ? null : EXTRACT_SHARE + (value * (SOURCE_END - EXTRACT_SHARE)) / 100
+          ),
+        () => paused
       );
       if (cancelled)
         return result(null, true, '', source.detectedLanguage, source.stderr, null, null);
@@ -204,7 +264,8 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
           value =>
             onProgress(
               value === null ? null : SOURCE_END + (value * (PIVOT_END - SOURCE_END)) / 100
-            )
+            ),
+          () => paused
         );
         diagnostics = appendDiagnostics(diagnostics, pivot.stderr);
         if (cancelled) return result(null, true, '', detectedLanguage, diagnostics, null, null);
@@ -232,7 +293,7 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
     }
   })();
 
-  return { cancel: kill, done };
+  return { cancel: kill, setPaused, done };
 
   function result(
     code: number | null,
@@ -309,7 +370,9 @@ function runExtract(
 function runWhisper(
   params: { wavPath: string; outputBase: string; language: string; translateToEnglish?: boolean },
   onChild: (child: ChildProcessWithoutNullStreams) => void,
-  onProgress: (value: number | null) => void
+  onProgress: (value: number | null) => void,
+  /** A paused child produces nothing; the stall watchdog must not read that as a stall. */
+  isPaused: () => boolean = () => false
 ): Promise<{
   code: number | null;
   stderr: string;
@@ -322,7 +385,7 @@ function runWhisper(
       toolId: 'transcription'
     }) as ChildProcessWithoutNullStreams;
     onChild(child);
-    const watchdog = attachInactivityWatchdog(child);
+    const watchdog = attachInactivityWatchdog(child, isPaused);
     let stderr = '';
     let detectedLanguage: string | null =
       params.language && params.language !== 'auto' ? params.language : null;

@@ -15197,6 +15197,19 @@ button.team-landing-tile:hover {
   background: var(--color-surface);
   box-shadow: 0 12px 32px color-mix(in oklab, #000 35%, transparent);
 }
+.team-transcribe-queue-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+/* Specific enough to beat the one-line clipping the panel's paragraphs share:
+   the file name above is meant to be cut, this sentence is the answer to "is my
+   machine still busy?" and has to be readable whole. */
+.team-transcribe-queue p.team-transcribe-queue-paused {
+  color: var(--color-text-muted);
+  white-space: normal;
+  overflow: visible;
+}
 .team-transcribe-queue p {
   margin: 0;
   overflow: hidden;

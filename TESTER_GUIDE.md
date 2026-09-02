@@ -92,6 +92,13 @@ starting a replacement can create the duplicate that the safe-recovery path is d
 avoid. Trash recovery follows the current Google Drive retention/admin policy and cannot be
 guaranteed after someone purges the item directly in Drive.
 
+Processing a folder covers everything inside it, subfolders included: it transcribes each
+video that has no transcript yet and refreshes every landing preview it finds, and each
+transcript is written beside its own video rather than at the top. A running batch can be
+paused — nothing new starts, and the file already in flight is suspended too when the local
+app is new enough to hold it; the panel says which of the two you are getting. "Stop after
+current" drops the rest of the queue and lets the current file finish.
+
 Moderators must use the copy-ready 20-person SC-001, SC-005, and SC-008 scripts in
 [`docs/TEAM_WORKSPACE_PILOT_PROTOCOL.md`](docs/TEAM_WORKSPACE_PILOT_PROTOCOL.md). Those
 scripts define exactly when timing starts, when to stop, what counts as help, and what must be

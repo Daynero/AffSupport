@@ -27,6 +27,7 @@ import {
   normalizeToolContracts,
   parseTeamAgentPreviewResult,
   parseTeamFileOperationResult,
+  teamProcessPauseSupported,
   toolContractCompatible
 } from '@video-compressor/shared';
 import { agentFetchOptions, pairingPath, probeAgent, versionState } from '../connection';
@@ -534,6 +535,33 @@ export async function cancelTeamAgentProcess(operationId: string): Promise<boole
     {}
   );
   return value.canceled === true;
+}
+
+/**
+ * Holds the local half of a running team operation, or lets it go again.
+ *
+ * Resolves false when this build of the local app cannot hold anything — an
+ * older agent, a transfer rather than an encode, a moment between two children.
+ * The caller keeps its queue paused either way; what changes is only what it
+ * can honestly say about the file already in flight.
+ */
+export async function pauseTeamAgentProcess(
+  operationId: string,
+  paused: boolean
+): Promise<boolean> {
+  const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
+  if (!teamProcessPauseSupported(health.toolContracts ?? {})) return false;
+  try {
+    const value = await requestBody<{ paused?: unknown }>(
+      `/api/team/process/${encodeURIComponent(operationId)}/pause`,
+      { paused }
+    );
+    return value.paused === paused;
+  } catch {
+    // NOT_PAUSABLE (409) and a vanished operation (404) are both answers, not
+    // failures: the queue's own pause stands regardless.
+    return false;
+  }
 }
 
 export function landingGallerySelect(): Promise<LandingPreviewState> {

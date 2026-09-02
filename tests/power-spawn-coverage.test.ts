@@ -113,7 +113,10 @@ describe('managed spawn coverage', () => {
     // Going through spawnManaged is insufficient if its governor argument is
     // null. This exact omission made the UI measure only the lightweight agent
     // (~0.1%) while libx264 saturated the machine outside the limit.
-    expect(runMethod).toMatch(/encodeVideo\([\s\S]*?embedding,\s*this\.power\s*\)/);
+    // The governor has to be *an* argument, not the last one: the held-image
+    // work (014) appended a child observer after it, and pinning the closing
+    // parenthesis made this read as "the governor was dropped".
+    expect(runMethod).toMatch(/encodeVideo\([\s\S]*?embedding,\s*this\.power\s*[,)]/);
   });
 
   it('gives other encoder callers the process-wide governor by default', async () => {

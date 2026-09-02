@@ -34,6 +34,13 @@ export interface ManagedSpawnGovernor {
   scaleTimeout(milliseconds: number): number;
   /** Resumes a child and pins it resumed, so a termination signal reaches it. */
   resumeForTermination(child: ChildProcess): void;
+  /**
+   * Holds a child suspended for the caller's own reason until the returned
+   * function is called. The governor is the only thing allowed to stop a
+   * managed child, so a tool that wants one paused asks for a hold rather than
+   * signalling the process itself.
+   */
+  hold(child: ChildProcess, reason: string): () => void;
 }
 
 export interface ManagedSpawnOptions extends SpawnOptions {
