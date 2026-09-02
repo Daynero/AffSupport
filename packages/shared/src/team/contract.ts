@@ -106,6 +106,19 @@ export const AGENT_INTAKE_MAX_BYTES = 100 * 1024 * 1024 * 1024;
 export const UPLOAD_CHUNK_MULTIPLE_BYTES = 256 * 1024;
 export const OAUTH_TRANSACTION_TTL_SECONDS = 10 * 60;
 export const TRANSFER_GRANT_TTL_SECONDS = 10 * 60;
+/**
+ * How long the grants of a *running operation* stay usable.
+ *
+ * A transfer grant is minted for a transfer that starts immediately, so ten
+ * minutes is generous. An operation's grants are minted before the work and
+ * spent after it, and the work is a whole transcription or encode: measured on
+ * the beta, a three-minute video took eight minutes to transcribe, and a
+ * forty-minute one on a throttled machine takes an hour. At the transfer TTL
+ * every long run reached its upload with an expired ticket and lost everything
+ * it had just computed (PERMISSION_DENIED from the agent's own grant check).
+ * This matches the agent's own watchdog for a single run.
+ */
+export const OPERATION_GRANT_TTL_SECONDS = 6 * 60 * 60;
 /** Change replay and preview warming tick at this interval; the storage chip shows it. */
 export const TEAM_RECONCILIATION_INTERVAL_MS = 5 * 60 * 1000;
 /** Published limit for the one-call folder tree read (beside 50,000 materials). */

@@ -30,7 +30,10 @@ const shared = vi.hoisted(() => ({
   finish: null as (() => void) | null,
   /** Whether the local app admits to holding the running file. */
   holds: true,
-  operations: 0
+  operations: 0,
+  canceled: [] as string[],
+  /** Makes the agent's half of the run fail instead of hanging. */
+  failStart: false
 }));
 
 vi.mock('../apps/web/src/api/client', async importOriginal => {
@@ -39,6 +42,7 @@ vi.mock('../apps/web/src/api/client', async importOriginal => {
     ...actual,
     startTeamAgentProcess: vi.fn(async (input: { operationId: string }) => {
       shared.started.push(input.operationId);
+      if (shared.failStart) throw new Error('PROCESS_FAILED');
       await new Promise<void>(resolve => {
         shared.finish = resolve;
       });
@@ -70,6 +74,19 @@ vi.mock('../apps/web/src/api/team', async importOriginal => {
           operationId: `op-${shared.operations}`,
           sourceGrant: grant,
           finalizeGrant: { ...grant, purpose: 'finalize' }
+        };
+      }),
+      cancelOperation: vi.fn(async (_team: string, operationId: string) => {
+        shared.canceled.push(operationId);
+        return {
+          operationId,
+          state: 'canceled',
+          stage: 'canceled',
+          progress: 0,
+          errorCode: null,
+          retryable: false,
+          resultMaterialId: null,
+          updatedAt: new Date().toISOString()
         };
       }),
       getOperation: vi.fn(async (_team: string, operationId: string) => ({
@@ -104,6 +121,8 @@ afterEach(() => {
   shared.finish = null;
   shared.holds = true;
   shared.operations = 0;
+  shared.canceled.length = 0;
+  shared.failStart = false;
   vi.clearAllMocks();
 });
 
@@ -207,6 +226,17 @@ describe('pausing the team batch', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Pause' }));
     await screen.findByText('Paused — the file in flight is finishing first');
     expect(shared.started).toEqual(['op-1']);
+  });
+
+  it('closes the operation of an item that failed on the local app', async () => {
+    // Left running, it would hold its output name reserved for good and the
+    // next attempt at the same file would be refused for conflicting with a run
+    // that is not happening.
+    shared.failStart = true;
+    renderShell([video(1)]);
+    await transcribe('clip-1.mp4');
+
+    await waitFor(() => expect(shared.canceled).toEqual(['op-1']));
   });
 
   it('lets the current file go when the rest of the queue is dropped', async () => {

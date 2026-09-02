@@ -7,6 +7,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 // appeared, until the stack was restarted — for code this function never uses.
 import {
   AGENT_INTAKE_MAX_BYTES,
+  OPERATION_GRANT_TTL_SECONDS,
   RANGE_REQUEST_MAX_BYTES,
   TRANSCRIPT_INDEX_MAX_BYTES,
   TRANSFER_GRANT_TTL_SECONDS,
@@ -1627,9 +1628,17 @@ async function operationGrant(input: {
   destinationFolderId: string | null;
   toolId: string;
   maxUses: number;
+  /**
+   * Defaults to the transfer TTL, which suits a transfer that begins at once.
+   * A grant spent *after* a whole transcription or encode needs the operation
+   * TTL instead, or the work is finished and then thrown away.
+   */
+  ttlSeconds?: number;
 }): Promise<TeamTransferGrant> {
   const ticket = randomTicket();
-  const expiresAt = new Date(Date.now() + TRANSFER_GRANT_TTL_SECONDS * 1000).toISOString();
+  const expiresAt = new Date(
+    Date.now() + (input.ttlSeconds ?? TRANSFER_GRANT_TTL_SECONDS) * 1000
+  ).toISOString();
   await issueTransferGrant({
     service: input.service,
     token: ticket,
@@ -1786,7 +1795,8 @@ async function handleProcessStart(
       materialId,
       destinationFolderId,
       toolId,
-      maxUses: Math.min(Math.max(ranges, 1), 10_000)
+      maxUses: Math.min(Math.max(ranges, 1), 10_000),
+      ttlSeconds: OPERATION_GRANT_TTL_SECONDS
     }),
     operationGrant({
       service,
@@ -1797,7 +1807,8 @@ async function handleProcessStart(
       materialId,
       destinationFolderId,
       toolId,
-      maxUses: 2
+      maxUses: 2,
+      ttlSeconds: OPERATION_GRANT_TTL_SECONDS
     })
   ]);
   return {

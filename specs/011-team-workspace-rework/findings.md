@@ -420,3 +420,26 @@ The pause of the _running_ file needs an agent carrying `teamProcessPause: 1`
 (`npm run beta:down && npm run beta:up` rebuilds the local one); the queue half works against
 any agent. Covered by `tests/team-bridge.test.ts` (six cases) and
 `tests/team-queue-pause.test.ts`.
+
+## Q — the ten-minute cliff (2026-09-02)
+
+Found while proving the pause, and worth more than the pause itself: **every team
+operation longer than ten minutes finished its work and then threw it away.**
+
+A transcription that ran through a busy period reached its upload and died with
+`PERMISSION_DENIED` — raised by the agent's own grant check, before the request even left the
+machine. The grants a run is given were minted with `TRANSFER_GRANT_TTL_SECONDS` (10 minutes),
+which is right for a transfer that begins at once and wrong for a ticket spent _after_ a whole
+transcription. Every run that succeeded on the beta took 1:38, 3:00, 6:09, 8:20 — under the
+line. Nothing above it ever could.
+
+`OPERATION_GRANT_TTL_SECONDS` (6 hours, matching the agent's own watchdog for one run) now
+covers both grants `process/start` issues; the short TTL stays for the transfers it was meant
+for. Verified live: the grants minted after the change carry `05:59:59`, the ones before it
+`00:09:59`.
+
+A failed item also used to leave its operation `running` for good — nothing revisits it, and
+it holds its output name reserved, so the next attempt at the same file is refused for a
+conflict with a run that is not happening (which is exactly what a re-transcribe of
+`16-tail.mp4` hit here, `409`). The queue now closes the operation it started when the local
+half fails.

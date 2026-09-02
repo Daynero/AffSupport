@@ -502,6 +502,7 @@ function ExplorerBody({
     const next = tQueue[0];
     setTActive({ ...next, operationId: null });
     void (async () => {
+      let started: string | null = null;
       try {
         if (next.local) {
           // 013 (B5): no team operation — the agent downloads the source,
@@ -537,6 +538,7 @@ function ExplorerBody({
             ? { ...current, operationId: result.operationId }
             : current
         );
+        started = result.operationId;
         await startTeamAgentProcess({
           operationId: result.operationId,
           toolId: next.tool,
@@ -546,6 +548,11 @@ function ExplorerBody({
         });
       } catch (cause) {
         push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+        // Tell the space the run is over. Without this a failed item stays
+        // `running` for good: nothing else ever revisits it, it holds its
+        // output name reserved, and the next attempt at the same file is
+        // refused for a conflict with a run that is not happening.
+        if (started) await teamApi.cancelOperation(teamId, started).catch(() => undefined);
       } finally {
         setTDone(current => current + 1);
         setTActive(null);

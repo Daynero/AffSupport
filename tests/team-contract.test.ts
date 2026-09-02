@@ -14,7 +14,9 @@ import {
   TEAM_INVITE_TTL_DAYS,
   TEAM_MAX_ACTIVE_MEMBERS,
   TEAM_PERMISSION_FLAGS,
+  OPERATION_GRANT_TTL_SECONDS,
   TRANSCRIPT_INDEX_MAX_BYTES,
+  TRANSFER_GRANT_TTL_SECONDS,
   UPLOAD_CHUNK_MULTIPLE_BYTES,
   classifyMaterial,
   ingestTranscript,
@@ -304,6 +306,29 @@ describe('011 — storage analytics and the background-render contract', () => {
     expect(teamBackgroundRenderSupported(null)).toBe(false);
     // Legacy negotiation is untouched by the new key.
     expect(toolContractCompatible('teamWorkspace', { teamWorkspace: 1 })).toBe(true);
+  });
+});
+
+describe("an operation's grants outlive the work they authorize", () => {
+  it('keeps a running operation usable for as long as the agent may take', () => {
+    // A three-minute video took eight minutes to transcribe on the beta; a
+    // forty-minute one on a throttled machine takes an hour. The transfer TTL
+    // is for a transfer that starts at once, and every run longer than it
+    // reached its upload with an expired ticket — the work finished and was
+    // thrown away with PERMISSION_DENIED.
+    expect(TRANSFER_GRANT_TTL_SECONDS).toBe(10 * 60);
+    expect(OPERATION_GRANT_TTL_SECONDS).toBeGreaterThanOrEqual(60 * 60);
+  });
+
+  it('mints both process grants with that ttl', () => {
+    // Read from the function's own source: there is no other way to hold a
+    // Deno edge handler to this from here, and the failure it prevents is
+    // silent — a completed transcription that never becomes a file.
+    const source = readFileSync('supabase/functions/drive-ops/index.ts', 'utf8');
+    const start = source.slice(source.indexOf('async function handleProcessStart'));
+    const grants = start.slice(0, start.indexOf('return {'));
+    const withOperationTtl = grants.match(/ttlSeconds:\s*OPERATION_GRANT_TTL_SECONDS/gu) ?? [];
+    expect(withOperationTtl).toHaveLength(2);
   });
 });
 
