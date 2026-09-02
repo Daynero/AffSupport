@@ -48,6 +48,9 @@ const CONTENT_TABS: { section: TeamSection; label: TranslationKey }[] = [
   { section: 'members', label: 'teamSectionMembers' }
 ];
 
+/** How often the listing re-reads itself while the catalogue is being written. */
+const INDEXING_REFRESH_MS = 5_000;
+
 /**
  * Content-first workspace for a single entered space. The connected folder's
  * contents are the central, default element. Management (members, invitations,
@@ -108,6 +111,27 @@ export function WorkspaceShell({
   const storageAttention =
     connectionNeedsPerson || (health?.kind === 'attention' && health.reason !== 'sync_failed');
   const [browserRevision, setBrowserRevision] = useState(0);
+
+  /*
+   * Keep the explorer in step with a scan that is still running.
+   *
+   * The chip counts upwards while the catalogue fills, but the folder listing is read once
+   * and then only when something the person did changes it — so a space being indexed for the
+   * first time said "76 files so far" above a listing that said "this folder is empty". The
+   * rows existed; nothing had asked for them again.
+   *
+   * Only while indexing, and only then: the catalogue is being written to by somebody else,
+   * which is the one situation where re-reading on a timer is the honest thing to do rather
+   * than a poll for its own sake.
+   */
+  useEffect(() => {
+    if (health?.kind !== 'indexing') return;
+    const timer = window.setInterval(() => {
+      setBrowserRevision(current => current + 1);
+      void refreshHealth();
+    }, INDEXING_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [health?.kind, refreshHealth]);
   const [batchDialogOpen, setBatchDialogOpen] = useState(false);
   const [taskAsset, setTaskAsset] = useState<{ ids: string[]; name: string } | null>(null);
   const [previewing, setPreviewing] = useState<TeamMaterialSummary | null>(null);
