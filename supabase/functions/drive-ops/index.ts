@@ -24,6 +24,7 @@ import {
   type TeamTransferGrant
 } from '../../../packages/shared/dist/team/transport.js';
 import { authorizeCaller, type OAuthProductionSignals } from '../_shared/auth.ts';
+import { THUMBNAIL_CACHE_BUCKET, thumbnailCachePath } from '../_shared/thumbnails.ts';
 import { corsHeadersForRequest, corsPreflight } from '../_shared/cors.ts';
 import {
   readDriveCredential,
@@ -1458,6 +1459,21 @@ async function handleCopy(
         p_source: common.materialId,
         p_copy: copyMaterialId
       }).catch(() => undefined);
+      await copyCachedThumbnail({
+        service,
+        teamId: common.teamId,
+        source: {
+          materialId: common.materialId,
+          identity: source.driveVersion ?? source.checksum,
+          mimeType: source.mimeType
+        },
+        copy: {
+          materialId: copyMaterialId,
+          identity: metadata.version ?? metadata.checksum,
+          mimeType: metadata.mimeType,
+          driveVersion: metadata.version
+        }
+      });
     }
     return committed;
   });
@@ -1634,6 +1650,60 @@ function randomTicket(): string {
     .replaceAll('+', '-')
     .replaceAll('/', '_')
     .replace(/=+$/u, '');
+}
+
+/**
+ * Gives a copy the picture its original already has.
+ *
+ * The cache holds one object per (material, source identity), so the copy needs
+ * its own — but not its own *fetch*: the bytes are the same picture of the same
+ * frame. Copying the object is instant and, unlike waiting for Drive to make a
+ * thumbnail for a file created a second ago, it is certain.
+ *
+ * Best-effort: a copy with no cached picture yet simply goes through the
+ * ordinary warm pass, which is where it would have been anyway.
+ */
+async function copyCachedThumbnail(input: {
+  service: RpcClient;
+  teamId: string;
+  source: { materialId: string; identity: string | null; mimeType: string | null };
+  copy: {
+    materialId: string;
+    identity: string | null;
+    mimeType: string | null;
+    driveVersion: string | null;
+  };
+}): Promise<void> {
+  if (!input.copy.driveVersion) return;
+  const from = await thumbnailCachePath({
+    teamId: input.teamId,
+    materialId: input.source.materialId,
+    sourceIdentity: input.source.identity,
+    mimeType: input.source.mimeType
+  });
+  const to = await thumbnailCachePath({
+    teamId: input.teamId,
+    materialId: input.copy.materialId,
+    sourceIdentity: input.copy.identity,
+    mimeType: input.copy.mimeType
+  });
+  if (!from || !to) return;
+  const storage = (input.service as unknown as { storage: SupabaseStorage }).storage;
+  const { error } = await storage.from(THUMBNAIL_CACHE_BUCKET).copy(from, to);
+  if (error) return;
+  await rpcValue(input.service, 'service_commit_thumbnail', {
+    p_material: input.copy.materialId,
+    p_state: 'ready',
+    p_reason: null,
+    p_version: input.copy.driveVersion
+  }).catch(() => undefined);
+}
+
+/** The sliver of the storage client this function uses. */
+interface SupabaseStorage {
+  from(bucket: string): {
+    copy(from: string, to: string): Promise<{ error: unknown }>;
+  };
 }
 
 /**
