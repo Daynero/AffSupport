@@ -492,20 +492,31 @@ thing, and three of the four forgot the tail entirely. That is the bug behind ev
 `trashMaterialWithTail`. The row menu, the drag, the paste, the keyboard delete and the
 selection bar all call it. Adding the next kind of tail is one change instead of six.
 
-| Piece                                                                                                                                                | Where                                                                                                    |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| The transcript is _copied_ and linked to the copy, so re-transcribing a copy replaces only its own text                                              | `tail.ts` + `link_transcript_companion` (caller-authorized)                                              |
-| A copy keeps the picture and the landing preview it already had — same bytes, so the render points at the same artifact rather than being made again | `service_clone_material_extras`, called by `drive-ops` `handleCopy`                                      |
-| A copied zip stays a _landing_: its classification and validation travel too, or the copy arrives as a plain archive with an inspection to wait for  | same function                                                                                            |
-| Deleting a video takes its transcript, no question asked                                                                                             | `trashMaterialWithTail`; 012's dialog is gone                                                            |
-| A shared artifact folder is only deleted when nothing points at it any more                                                                          | `service_invalidate_landing_renders`                                                                     |
-| Copying says how many, pasting shows a line that counts                                                                                              | `teamExplorerCopiedCount`, new `teamExplorerPastingCopy/Move` on a toast that now carries a progress bar |
+| Piece                                                                                                                                               | Where                                                                                                    |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| The transcript is _copied_ and linked to the copy, so re-transcribing a copy replaces only its own text                                             | `tail.ts` + `link_transcript_companion` (caller-authorized)                                              |
+| A copy keeps the landing preview it already had — same bytes, so the render points at the same artifact rather than being made again                | `service_clone_material_extras`, called by `drive-ops` `handleCopy`                                      |
+| A copied zip stays a _landing_: its classification and validation travel too, or the copy arrives as a plain archive with an inspection to wait for | same function                                                                                            |
+| Deleting a video takes its transcript, no question asked                                                                                            | `trashMaterialWithTail`; 012's dialog is gone                                                            |
+| A shared artifact folder is only deleted when nothing points at it any more                                                                         | `service_invalidate_landing_renders`                                                                     |
+| Copying says how many, pasting shows a line that counts                                                                                             | `teamExplorerCopiedCount`, new `teamExplorerPastingCopy/Move` on a toast that now carries a progress bar |
 
 012 asked before deleting a transcript in case it was shared. It never is, so the question
 only stood between a person and the tidy-up they had already asked for; both files land in the
 trash and come back together.
 
-Verified live: pasting `16-tail_1.mp4` produced `16-tail_1 (2).mp4` **and** `16-tail_1 (2).txt`
-linked to the copy, with the tile's picture already there; pasting the landing produced a copy
-that was a landing, `validated`, with a ready five-segment render and no second render run;
-deleting the video copy took its transcript with it.
+Two things the first cut got wrong, both visible in one owner screenshot of a paste:
+
+- The copied transcript was linked but **empty as far as the catalog knew** (`pending` is where
+  a new file starts), so the card offered Transcribe for text sitting right there. Its text,
+  ingest state and indexed size are cloned now — same bytes, same words.
+- The copy claimed the original's **provider thumbnail**. That picture belongs to a particular
+  Drive file and does not exist for one made a second ago, so the tile asked for an image that
+  was not there — and nothing revisits a `ready` row, so it stayed a broken glyph. Copies go
+  through the ordinary pending pass instead, which fills them in within a minute.
+
+Verified live, every operation the owner listed: **copy+paste** a video → the copy plus its own
+linked transcript, text readable on its card; **copy+paste** a landing → a landing,
+`validated`, five segments ready, no second render; **cut+paste** → both files in the new
+folder; **drag onto a folder in the tree** → both; **rename** → `demo-tail.mp4` and
+`demo-tail.txt`; **delete**, from the keyboard and from the row menu → both trashed.

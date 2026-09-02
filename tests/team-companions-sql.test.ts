@@ -197,25 +197,15 @@ describe('transcript companion linking (012, T005)', () => {
     expect(oldState[0]).toMatchObject({ lifecycle: 'trashed', companion_of: null });
   }, 60_000);
 
-  it('gives a copy the original\'s picture and its rendered preview', async () => {
-    // A copy is the same bytes, so everything already known describes it too:
-    // the tile fills in at once and the landing is not rendered a second time.
+  it('gives a copy the rendered preview the original already had', async () => {
+    // A copy is the same bytes, so the landing is not rendered a second time.
+    // Its provider thumbnail is deliberately NOT copied: that picture belongs to
+    // a particular Drive file and does not exist for one made a second ago.
     const landing = await material('promo.zip', 'file', 'landing');
-    const copy = await material('promo (2).zip', 'file', 'landing');
-    // The thumbnail trigger keeps 'ready' only while its version matches the
-    // row's own drive_version, so the fixture sets the version first.
-    await harness.root(`update public.team_materials set drive_version = 'v1' where id = $1`, [
-      landing
-    ]);
+    const copy = await material('promo (2).zip', 'file', 'archive');
     await harness.root(`update public.team_materials set drive_version = 'v2' where id = $1`, [
       copy
     ]);
-    await harness.root(
-      `update public.team_materials
-          set provider_thumbnail_state = 'ready', provider_thumbnail_version = 'v1'
-        where id = $1`,
-      [landing]
-    );
     await harness.root(
       `insert into public.team_landing_renders
          (team_id, material_id, preset, render_state, artifact_root, segment_count, fingerprint)
@@ -235,11 +225,41 @@ describe('transcript companion linking (012, T005)', () => {
       [copy]
     );
     expect(cloned[0]).toMatchObject({ artifact_root: 'drive-artifact-root', segment_count: 3 });
-    const thumbnail = await harness.root<{ provider_thumbnail_state: string }>(
-      'select provider_thumbnail_state from public.team_materials where id = $1',
+    // A copied zip is filed as a landing rather than waiting for an inspection
+    // to tell it what the original already knows.
+    const classified = await harness.root<{ category: string }>(
+      'select category from public.team_materials where id = $1',
       [copy]
     );
-    expect(thumbnail[0]!.provider_thumbnail_state).toBe('ready');
+    expect(classified[0]!.category).toBe('landing');
+  }, 60_000);
+
+  it('gives a copied transcript the text it is a copy of', async () => {
+    // Without this the copy is linked to the copied video and still reads as
+    // "no transcript yet" — the card offers Transcribe for text already there.
+    const source = await material('speech.txt', 'file', 'transcript');
+    const copy = await material('speech (2).txt', 'file', 'transcript');
+    await harness.root(
+      `update public.team_materials
+          set transcript_text = 'the words', transcript_ingest_state = 'full'
+        where id = $1`,
+      [source]
+    );
+
+    await harness.root('select public.service_clone_material_extras($1, $2, $3)', [
+      teamId,
+      source,
+      copy
+    ]);
+
+    const cloned = await harness.root<{ transcript_text: string; transcript_ingest_state: string }>(
+      'select transcript_text, transcript_ingest_state from public.team_materials where id = $1',
+      [copy]
+    );
+    expect(cloned[0]).toMatchObject({
+      transcript_text: 'the words',
+      transcript_ingest_state: 'full'
+    });
   }, 60_000);
 
   it('refuses to link a non-transcript or a non-video', async () => {

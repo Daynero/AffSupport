@@ -11,8 +11,10 @@
 --     belongs to that video", so a copy can link the copy it just made. The
 --     service function behind it stays service-only.
 --   * service_clone_material_extras — everything about a copy that is already
---     known because the bytes are identical: the provider thumbnail state and
---     the landing render, pointed at the same artifact.
+--     known because the bytes are identical: a transcript's text, a zip's
+--     landing classification, and the landing render, pointed at the same
+--     artifact. Not the provider thumbnail: that picture belongs to a
+--     particular Drive file and does not exist for one made a second ago.
 --   * service_invalidate_landing_renders — now that two rows can share an
 --     artifact folder, only hand one to the worker for deletion when nothing
 --     else still points at it.
@@ -64,22 +66,30 @@ begin
     return jsonb_build_object('thumbnail', false, 'renders', 0);
   end if;
 
-  -- The picture Drive already made for the source describes the copy too. The
-  -- version column is the copy's own, because `team_material_thumbnail_state`
-  -- keeps a 'ready' state only while it matches that row's `drive_version` —
-  -- which is also why a copy that has no version yet is left to the ordinary
-  -- pending path rather than being told a lie it would immediately undo.
+  -- Deliberately NOT copied: the provider thumbnail. It is a picture Google
+  -- makes for a particular file, and it does not exist for one created a second
+  -- ago. Marking the copy 'ready' produced a tile that asked for an image that
+  -- was not there and, because nothing revisits a ready row, kept the broken
+  -- glyph for good. The ordinary pending pass fills it in within a minute.
+
+  -- A transcript copy is the same bytes, so it is the same text. Without this
+  -- the copy is linked to the copied video and still reads as "no transcript
+  -- yet" until something re-reads the file — the card offers Transcribe for
+  -- text that is already sitting there.
   update public.team_materials as target
-     set preview_state = source_row.preview_state,
-         preview_error_code = source_row.preview_error_code,
-         provider_thumbnail_state = source_row.provider_thumbnail_state,
-         provider_thumbnail_reason = source_row.provider_thumbnail_reason,
-         provider_thumbnail_version = target.drive_version,
+     set transcript_text = source_row.transcript_text,
+         transcript_ingest_state = source_row.transcript_ingest_state,
+         transcript_truncated = source_row.transcript_truncated,
+         transcript_indexed_bytes = source_row.transcript_indexed_bytes,
+         transcript_source_version = target.drive_version,
+         transcript_source_checksum = target.checksum,
+         transcript_ingested_at = pg_catalog.clock_timestamp(),
+         transcript_error_code = source_row.transcript_error_code,
          updated_at = pg_catalog.clock_timestamp()
    where target.id = p_copy
      and target.team_id = p_team
-     and target.drive_version is not null
-     and source_row.provider_thumbnail_state = 'ready';
+     and source_row.category = 'transcript'
+     and source_row.transcript_ingest_state in ('full', 'truncated');
 
   -- A zip is filed as an archive until something looks inside it and finds a
   -- landing page. The copy is the same bytes, so it is the same answer: without
@@ -127,8 +137,7 @@ begin
   insert into public.team_catalog_events (team_id, material_id, event_kind)
   values (p_team, p_copy, 'upserted');
   return jsonb_build_object(
-    'thumbnail',
-    source_row.provider_thumbnail_state = 'ready' and copy_row.drive_version is not null,
+    'transcript', source_row.transcript_ingest_state in ('full', 'truncated'),
     'landing', source_row.category = 'landing',
     'renders', renders
   );
