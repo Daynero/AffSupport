@@ -498,6 +498,9 @@ export class PowerGovernor {
     return {
       limitPercent: this.limit,
       mode: powerModeFor(this.limit),
+      // The cycler's own answer, not an inference from the limit: those two disagreeing is
+      // exactly the failure this field exists to make visible.
+      holdingToLimit: this.cycleTimer !== null,
       sample,
       // Read through the accessor, never the field: a snapshot is exactly where
       // a stale capability would become a promise the lever cannot keep.

@@ -1,5 +1,6 @@
 import os from 'node:os';
 import { processCpuSeconds, processMetricsSupported } from '../platform/platform.js';
+import { graphicsUtilizationPercent } from './graphics.js';
 import type { PowerSample } from '@video-compressor/shared';
 import type { PowerGovernor } from './governor.js';
 
@@ -42,6 +43,7 @@ export interface PowerSamplerOptions {
     supported: () => boolean;
     cpuSeconds: (pids: readonly number[]) => Promise<Map<number, number>>;
     selfCpuSeconds: () => number;
+    graphicsPercent?: () => Promise<number | null>;
   };
 }
 
@@ -130,7 +132,19 @@ export class PowerSampler {
         return;
       }
       const pids = this.governor.trackedPids();
-      const byPid = await this.probes.cpuSeconds(pids);
+      /*
+       * The graphics figure is the machine's, not this application's — macOS publishes no
+       * per-process one without elevated privileges. So it is read only while Soty actually
+       * has work running. Reported the rest of the time it would be somebody else's browser
+       * or video call, shown next to Soty's name.
+       *
+       * Read alongside the processor figure rather than after it: two probes a second apart
+       * describe two different moments and invite a comparison that does not hold.
+       */
+      const [byPid, graphics] = await Promise.all([
+        this.probes.cpuSeconds(pids),
+        pids.length > 0 ? (this.probes.graphicsPercent ?? graphicsUtilizationPercent)() : null
+      ]);
       const selfSeconds = this.probes.selfCpuSeconds();
 
       const now = Date.now();
@@ -155,6 +169,7 @@ export class PowerSampler {
       this.publish({
         availability: 'ok',
         systemSharePercent: Math.round(share * 10) / 10,
+        graphicsSharePercent: graphics,
         activity: 'idle',
         cpuCount: this.cpuCount,
         sampledAt: new Date(now).toISOString()

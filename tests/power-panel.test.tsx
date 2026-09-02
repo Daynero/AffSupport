@@ -27,6 +27,7 @@ function stateWith(sample: PowerSample, limitPercent = POWER_LIMIT_MAX): PowerSt
     mode: limitPercent >= POWER_LIMIT_MAX ? 'unrestricted' : 'limited',
     sample,
     throttlingSupported: true,
+    holdingToLimit: limitPercent < POWER_LIMIT_MAX && sample.activity === 'active',
     activeChildren: sample.activity === 'active' ? 1 : 0,
     updatedAt: '2026-08-20T09:00:00.000Z'
   };
@@ -177,6 +178,58 @@ describe('the readout', () => {
   it('reports the share while work is running', async () => {
     const dialog = await openWith({});
     expect(dialog.textContent).toContain('38.4');
+  });
+
+  it('says the limit is being applied, which no percentage on this panel can show', async () => {
+    const dialog = await openWith({
+      state: stateWith(
+        {
+          availability: 'ok',
+          systemSharePercent: 0.3,
+          graphicsSharePercent: 100,
+          activity: 'active',
+          cpuCount: 10,
+          sampledAt: '2026-08-20T09:00:00.000Z'
+        },
+        60
+      )
+    });
+    // Moving the lever changed no number here, because the work is on the graphics processor
+    // and uses no CPU. The lever does work — so the panel says so in words.
+    expect(dialog.textContent).toContain('60');
+  });
+
+  it('names the graphics as well, for work that does not touch the processor', async () => {
+    const dialog = await openWith({
+      state: stateWith({
+        availability: 'ok',
+        systemSharePercent: 0.4,
+        graphicsSharePercent: 95,
+        activity: 'active',
+        cpuCount: 10,
+        sampledAt: '2026-08-20T09:00:00.000Z'
+      })
+    });
+    // Speech recognition runs on the graphics processor. Showing only "0.4%" while the
+    // machine was on its knees read as a lever that had done its job.
+    expect(dialog.textContent).toContain('0.4');
+    expect(dialog.textContent).toContain('95');
+  });
+
+  it('says nothing of the graphics when they are quiet', async () => {
+    const dialog = await openWith({
+      state: stateWith({
+        availability: 'ok',
+        systemSharePercent: 38.4,
+        graphicsSharePercent: 1,
+        activity: 'active',
+        cpuCount: 10,
+        sampledAt: '2026-08-20T09:00:00.000Z'
+      })
+    });
+    // A second number that is always there is a second number nobody reads.
+    expect(dialog.textContent).toContain('38.4');
+    expect(dialog.textContent).not.toContain('1%');
   });
 
   it('reports idle without pretending nothing is measurable', async () => {

@@ -1555,8 +1555,18 @@ export type PowerSampleUnavailable = 'warming-up' | 'unsupported' | 'error';
 export type PowerSample =
   | {
       availability: 'ok';
-      /** Soty's share of total system capacity, 0–100, one decimal. */
+      /** Soty's share of total processor capacity, 0–100, one decimal. */
       systemSharePercent: number;
+      /**
+       * The machine's graphics utilisation, 0–100, or null where it cannot be read.
+       *
+       * **The device's figure, not Soty's**: no per-process graphics usage is available
+       * without elevated privileges. It is here because speech recognition runs on the GPU,
+       * where the processor share above reports a fraction of a percent for work that has the
+       * whole machine struggling — and a reading that says "nearly nothing" while the fans are
+       * at full is worse than no reading at all.
+       */
+      graphicsSharePercent: number | null;
       activity: PowerActivity;
       cpuCount: number;
       sampledAt: string;
@@ -1575,6 +1585,15 @@ export interface PowerState {
   sample: PowerSample;
   /** False when this host cannot throttle work that is already running. */
   throttlingSupported: boolean;
+  /**
+   * True while the limit is actually being applied to work in flight.
+   *
+   * Distinct from `throttlingSupported` and from a limit below 100 — both can be true while
+   * nothing is in fact being held. Reported because the alternative is a person moving the
+   * lever, seeing no change, and having no way to tell whether the setting failed or the
+   * readout is measuring the wrong thing.
+   */
+  holdingToLimit: boolean;
   activeChildren: number;
   updatedAt: string;
 }
