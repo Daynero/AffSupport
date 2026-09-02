@@ -1,17 +1,27 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+// Narrow module imports, never the `types.js` barrel: the barrel re-exports the
+// whole shared package (release, environment, lifecycle, the stitcher…), and the
+// local Supabase stack bind-mounts one file per module in the import graph, each
+// resolved when the stack starts. Importing the barrel therefore made every
+// team operation answer 503 (`BOOT_ERROR`) as soon as a new shared module
+// appeared, until the stack was restarted — for code this function never uses.
 import {
   AGENT_INTAKE_MAX_BYTES,
   RANGE_REQUEST_MAX_BYTES,
-  TEAM_ERROR_CODES,
   TRANSCRIPT_INDEX_MAX_BYTES,
   TRANSFER_GRANT_TTL_SECONDS,
-  UPLOAD_CHUNK_MULTIPLE_BYTES,
+  UPLOAD_CHUNK_MULTIPLE_BYTES
+} from '../../../packages/shared/dist/team/contract.js';
+import {
   classifyMaterial,
-  ingestTranscript,
-  type MaterialCategory,
+  type MaterialCategory
+} from '../../../packages/shared/dist/team/material-category.js';
+import { ingestTranscript } from '../../../packages/shared/dist/team/transcript.js';
+import {
+  TEAM_ERROR_CODES,
   type TeamErrorCode,
   type TeamTransferGrant
-} from '../../../packages/shared/dist/types.js';
+} from '../../../packages/shared/dist/team/transport.js';
 import { authorizeCaller, type OAuthProductionSignals } from '../_shared/auth.ts';
 import { corsHeadersForRequest, corsPreflight } from '../_shared/cors.ts';
 import {
@@ -984,13 +994,16 @@ async function handleUploadFinalize(
     result.size !== operation.expectedSize ||
     (operation.replaceMaterialId && result.id !== driveFileId.value)
   ) {
-    console.error('[finalize] mismatch', JSON.stringify({
-      parentsOk: result.parents.includes(liveDestination.id),
-      name: [result.name, operation.expectedName],
-      mime: [result.mimeType, operation.mimeType],
-      size: [result.size, operation.expectedSize],
-      replace: [operation.replaceMaterialId, result.id, driveFileId.value]
-    }));
+    console.error(
+      '[finalize] mismatch',
+      JSON.stringify({
+        parentsOk: result.parents.includes(liveDestination.id),
+        name: [result.name, operation.expectedName],
+        mime: [result.mimeType, operation.mimeType],
+        size: [result.size, operation.expectedSize],
+        replace: [operation.replaceMaterialId, result.id, driveFileId.value]
+      })
+    );
     throw new TeamFunctionError('SOURCE_CHANGED', { retryable: false });
   }
   await verifyBoundSource(service, operation, request, driveFileId.value);
@@ -1036,7 +1049,12 @@ async function handleUploadFinalize(
     }
     return committed;
   } catch (error) {
-    console.error('[finalize] failed:', error instanceof Error ? `${error.message} ${String((error as { cause?: unknown }).cause ?? '')}` : String(error));
+    console.error(
+      '[finalize] failed:',
+      error instanceof Error
+        ? `${error.message} ${String((error as { cause?: unknown }).cause ?? '')}`
+        : String(error)
+    );
     await transitionOperation({
       service,
       operationId,

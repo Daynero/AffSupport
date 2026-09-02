@@ -10,7 +10,7 @@
  * applied to the orchestrator.
  */
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, readFileSync, realpathSync } from 'node:fs';
+import { copyFileSync, existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { BETA_LOCAL_STACK_PORTS, BETA_PROFILE } from '../packages/shared/dist/environment.js';
 import { parseEnvFile } from './verify-beta-env.mjs';
 
@@ -122,7 +122,10 @@ async function requireEdgeFunctions() {
   const deadline = Date.now() + 60_000;
   let restarted = false;
   while (Date.now() < deadline) {
-    if (await edgeRuntimeServing()) return;
+    if (await edgeRuntimeServing()) {
+      await requireEveryFunctionBoots();
+      return;
+    }
     if (!restarted) {
       restarted = true;
       process.stdout.write('Edge runtime is not serving; restarting it.\n');
@@ -137,6 +140,69 @@ async function requireEdgeFunctions() {
     'the local Supabase edge runtime is not serving, so every server-side team ' +
       'feature would answer 503. Check `docker logs supabase_edge_runtime_' +
       `${projectId()}\`.`
+  );
+}
+
+/** Every deployable function directory: `_shared` holds modules, not functions. */
+function functionNames() {
+  return readdirSync('supabase/functions', { withFileTypes: true })
+    .filter(
+      entry => entry.isDirectory() && !entry.name.startsWith('_') && !entry.name.startsWith('.')
+    )
+    .map(entry => entry.name)
+    .sort();
+}
+
+/**
+ * Boots each function once and refuses to report beta up while any of them
+ * cannot start.
+ *
+ * A serving runtime is not the same as a working function: the local stack
+ * bind-mounts one file per module of each function's import graph, resolved
+ * when the stack starts, so a shared module added afterwards makes that
+ * function -- and only that one -- answer 503 `BOOT_ERROR` forever. The
+ * readiness probe above asks for a function that does not exist, which a broken
+ * drive-ops passes happily; the product then looks broken in team mode ("the
+ * server answered unexpectedly") with nothing in the startup output to say why.
+ *
+ * Unauthenticated is on purpose: every function refuses such a call (401/403/
+ * 400/303) after its worker has booted, so the status only has to not be 503.
+ */
+async function requireEveryFunctionBoots() {
+  const names = functionNames();
+  const failures = [];
+  await Promise.all(
+    names.map(async name => {
+      try {
+        const response = await fetch(`http://127.0.0.1:${functionsPort}/functions/v1/${name}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{}',
+          signal: AbortSignal.timeout(30_000)
+        });
+        if (response.status !== 503) return;
+        const body = await response.text().catch(() => '');
+        // A 503 carrying the team error envelope came from the function itself
+        // (a refusal it chose), which is proof enough that its worker booted.
+        // A boot failure answers with the runtime's own `{"code":"BOOT_ERROR"}`.
+        try {
+          const parsed = JSON.parse(body);
+          if (parsed?.ok === false && parsed?.error) return;
+        } catch {
+          // Not JSON: treat as a boot failure and report the body below.
+        }
+        failures.push(`${name}: ${body.slice(0, 300) || '503 with no body'}`);
+      } catch (error) {
+        failures.push(`${name}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    })
+  );
+  if (failures.length === 0) return;
+  fail(
+    `these edge functions cannot boot, so the features behind them would answer 503:\n  ` +
+      `${failures.join('\n  ')}\n` +
+      'A "Module not found" boot error usually means a shared module appeared after ' +
+      'the stack started; `npm run beta:down && npm run beta:up` remounts them.'
   );
 }
 

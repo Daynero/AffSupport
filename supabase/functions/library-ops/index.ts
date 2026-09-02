@@ -1,15 +1,20 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+// Narrow module imports rather than the `types.js` barrel — see the note in
+// drive-ops/index.ts: the barrel drags the whole shared package into this
+// function's module graph, and a module it never uses could stop it booting.
 import {
-  TEAM_ERROR_CODES,
   parseLibraryPlacementMutation,
-  parseLibraryJobFinalize,
   parseLibraryShareCopyRequest,
   parseUploadBatchRequest,
   type LibraryPlacementMutationRequest,
   type LibraryShareCopyRequest,
-  type TeamErrorCode,
   type UploadBatchRequest
-} from '../../../packages/shared/dist/types.js';
+} from '../../../packages/shared/dist/team/creative-library.js';
+import { parseLibraryJobFinalize } from '../../../packages/shared/dist/team/library-processing.js';
+import {
+  TEAM_ERROR_CODES,
+  type TeamErrorCode
+} from '../../../packages/shared/dist/team/transport.js';
 import { authorizeCaller, type OAuthProductionSignals } from '../_shared/auth.ts';
 import { corsHeadersForRequest, corsPreflight } from '../_shared/cors.ts';
 import {

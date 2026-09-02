@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -304,5 +304,30 @@ describe('011 — storage analytics and the background-render contract', () => {
     expect(teamBackgroundRenderSupported(null)).toBe(false);
     // Legacy negotiation is untouched by the new key.
     expect(toolContractCompatible('teamWorkspace', { teamWorkspace: 1 })).toBe(true);
+  });
+});
+
+describe('edge functions import narrow shared modules, never the barrel', () => {
+  /** Every `.ts` under supabase/functions, at any depth. */
+  function functionSources(directory: string): string[] {
+    return readdirSync(directory).flatMap(entry => {
+      const full = join(directory, entry);
+      if (statSync(full).isDirectory()) return functionSources(full);
+      return entry.endsWith('.ts') ? [full] : [];
+    });
+  }
+
+  it('never imports packages/shared/dist/types.js', () => {
+    // The local Supabase stack bind-mounts one file per module in a function's
+    // import graph, resolved when the stack starts. `types.js` re-exports the
+    // whole shared package, so adding any new shared module (the stitcher's, in
+    // 014) put a file in that graph which no running stack had mounted: every
+    // drive-ops call answered 503 BOOT_ERROR — "the server answered
+    // unexpectedly" in team mode — until someone restarted the stack. Functions
+    // import the `team/*` module they actually need instead.
+    const offenders = functionSources('supabase/functions').filter(file =>
+      /from\s+'[^']*shared\/dist\/types\.js'/u.test(readFileSync(file, 'utf8'))
+    );
+    expect(offenders).toEqual([]);
   });
 });
