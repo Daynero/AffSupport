@@ -373,3 +373,48 @@ describe('video text variants surface the explorer companion (012, T017)', () =>
     });
   }, 60_000);
 });
+
+describe('the thumbnail warm pass', () => {
+  it('asks Drive again for a file whose picture was not ready the first time', async () => {
+    // Drive makes a thumbnail when it feels like it, often a minute after the
+    // upload. The first look recorded "no thumbnail" and nothing ever asked
+    // again, so a tile stayed blank for a file that had a picture all along.
+    // The thumbnail trigger owns the state on insert (always 'pending'), so the
+    // "we already asked and Drive had nothing" state is set afterwards.
+    const recent = await harness.root<{ id: string }>(
+      `insert into public.team_materials
+         (team_id, connection_id, drive_file_id, parent_folder_id, name, kind, category,
+          mime_type, modified_at)
+       values ($1, $2, 'fresh-clip', 'root', 'fresh.mp4', 'file', 'video', 'video/mp4',
+               clock_timestamp())
+       returning id`,
+      [teamId, connectionId]
+    );
+    const old = await harness.root<{ id: string }>(
+      `insert into public.team_materials
+         (team_id, connection_id, drive_file_id, parent_folder_id, name, kind, category,
+          mime_type, modified_at)
+       values ($1, $2, 'old-clip', 'root', 'old.mp4', 'file', 'video', 'video/mp4',
+               clock_timestamp() - interval '9 days')
+       returning id`,
+      [teamId, connectionId]
+    );
+    await harness.root(
+      `update public.team_materials
+          set provider_thumbnail_state = 'unavailable',
+              provider_thumbnail_reason = 'provider_missing',
+              provider_thumbnail_claimed_at = clock_timestamp() - interval '2 hours'
+        where id = any($1::uuid[])`,
+      [[recent[0]!.id, old[0]!.id]]
+    );
+
+    const claimed = await harness.root<{ material_id: string }>(
+      'select material_id from public.service_claim_preview_warm(50)'
+    );
+    const ids = claimed.map(row => row.material_id);
+
+    expect(ids).toContain(recent[0]!.id);
+    // Nine days on, Drive was never going to make one; asking forever is noise.
+    expect(ids).not.toContain(old[0]!.id);
+  }, 60_000);
+});
