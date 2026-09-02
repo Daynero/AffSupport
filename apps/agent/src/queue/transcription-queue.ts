@@ -1249,6 +1249,8 @@ export class TranscriptionQueue {
 
   private resumeAutomaticTranslations(): void {
     for (const job of this.jobs) {
+      // Team jobs never had one to resume, for the reason `pump` gives.
+      if (this.teamJobIds.has(job.id)) continue;
       if (
         job.status === 'completed' &&
         (job.characters ?? 0) > 0 &&
@@ -1663,6 +1665,9 @@ export class TranscriptionQueue {
         inputPath: job.inputPath,
         language: job.requestedLanguage,
         createEnglishPivot: true,
+        // Already probed when the file was added; it turns the extract's own position into a
+        // share, so the first seconds of a run report something instead of nothing.
+        durationSeconds: job.durationSeconds ?? null,
         onProgress: value => {
           if (job.status !== 'processing') return;
           job.progress = value;
@@ -1709,10 +1714,19 @@ export class TranscriptionQueue {
           // disagree.
           await this.withDocumentLock(job.id, () => this.documents.remove(job.id)).catch(() => {});
         });
-        // Queue the preferred local translation without delaying the next
-        // Whisper job. Inference remains blocked until the transcription queue
-        // is empty and is served instantly when already cached.
-        void this.requestAutomaticTranslation(job.id).catch(() => {});
+        /*
+         * Queue the preferred local translation without delaying the next Whisper job.
+         * Inference remains blocked until the transcription queue is empty and is served
+         * instantly when already cached.
+         *
+         * Never for a team job. Nothing on that path reads it: the bridge takes the source
+         * text, uploads it, and then removes the job — which cancels the translation it just
+         * asked for. What that bought was a Gemma run competing with the upload and the next
+         * file's transfer for a machine that is already the bottleneck, and then thrown away.
+         */
+        if (!this.teamJobIds.has(job.id)) {
+          void this.requestAutomaticTranslation(job.id).catch(() => {});
+        }
       } else {
         transitionJob(job, 'failed');
         job.progress = null;
