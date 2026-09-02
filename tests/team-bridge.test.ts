@@ -525,6 +525,40 @@ describe('team processing orchestration and SSE state', () => {
     await expect(settled).resolves.toMatchObject({ message: 'PROCESS_TIMEOUT' });
   });
 
+  it('lets a hold go when the page stops saying it still wants it', async () => {
+    // A reload leaves the request's socket open, so the agent cannot see the
+    // page go; the pause is re-asserted instead, and lapses when that stops.
+    vi.useFakeTimers();
+    try {
+      const { transfer, delegate, asked } = heldRun();
+      const bridge = new TeamProcessBridge({
+        transfer,
+        delegates: { compressor: delegate },
+        events: new TeamOperationEvents()
+      });
+      const running = bridge.process(processRequest());
+      running.catch(() => undefined);
+      await vi.waitFor(() => expect(delegate).toHaveBeenCalledOnce());
+
+      expect(bridge.setPaused('operation-process', true)).toBe('ok');
+      // Still there, and asking again does not take a second hold.
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(bridge.setPaused('operation-process', true)).toBe('ok');
+      await vi.advanceTimersByTimeAsync(90_000);
+      expect(bridge.paused('operation-process')).toBe(true);
+      expect(asked).toEqual([true]);
+
+      // Nobody speaks for it again.
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(bridge.paused('operation-process')).toBe(false);
+      expect(asked).toEqual([true, false]);
+
+      bridge.cancel('operation-process');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('lets a held run go when the page that held it closes', async () => {
     // The run itself is not cancelled: the agent uploads the result on its own,
     // so a closed tab costs nobody their work — but a pause nothing can lift

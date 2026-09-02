@@ -400,9 +400,13 @@ whisper running is not what anyone pressed it for — and it needed a path all t
 Corner cases that shaped it, in case they come back:
 
 - **A page that goes away.** The agent does _not_ stop a team run when the browser
-  disconnects — it finishes and uploads the result, which is right, a reload should not cost
-  anyone fifteen minutes. But the page is the only thing that would ever lift a pause, so the
-  process route resumes (never cancels) a held run when its request closes.
+  disconnects — it finishes and uploads the result, which is right: a reload should not cost
+  anyone fifteen minutes. Measured in the beta, it does not even _see_ the disconnect — after
+  a reload the socket stayed `ESTABLISHED` and the handler kept running, so `request.raw`
+  never emitted `close` and a resume wired to it never fired. A pause therefore cannot be tied
+  to the connection: the page re-asserts it every 30 s and the agent lets a hold go after 120 s
+  of silence. Verified live — the child sat at `T` with the tab gone, then went back to `S` two
+  minutes later and finished the transcription on its own.
 - **"Stop after current" while paused** would leave a suspended file as the last thing the
   panel ever did, so it lets the current one go.
 - **Pause pressed in the second before the operation has an id**: the hold is taken as soon as

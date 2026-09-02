@@ -590,6 +590,24 @@ function ExplorerBody({
     [tActive?.operationId]
   );
 
+  /*
+   * A hold the local app keeps only while this page keeps asking for it.
+   *
+   * A reload does not close the request the run is riding on — the socket stays
+   * open and the agent keeps working, which is why a refresh costs no work. The
+   * pause would survive that reload too, with nothing left to lift it, so the
+   * page says "still paused" every half minute and the agent lets go on its own
+   * if that stops arriving.
+   */
+  useEffect(() => {
+    const operationId = tActive?.operationId ?? null;
+    if (!tPaused || !tHeld || !operationId) return;
+    const timer = window.setInterval(() => {
+      void pauseTeamAgentProcess(operationId, true).catch(() => undefined);
+    }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [tActive?.operationId, tHeld, tPaused]);
+
   // Pause pressed in the second between "started" and "the operation has an
   // id": there was nothing to hold then, so the hold is taken as soon as there
   // is. Asked once per operation — an agent that cannot hold has answered, and

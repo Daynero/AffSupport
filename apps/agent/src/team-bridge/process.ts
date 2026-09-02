@@ -24,6 +24,17 @@ import type {
 } from './transfer.js';
 
 const DEFAULT_WATCHDOG_MS = 6 * 60 * 60 * 1000;
+/**
+ * How long a hold stands without being re-asserted by the page that took it.
+ *
+ * A browser does not always tell the agent it has gone: a reload leaves the
+ * socket open and the request handler simply keeps running, which is why the
+ * run itself survives a refresh. A *pause* must not survive one — nothing would
+ * ever lift it, and a stopped child would sit on the machine until the app is
+ * quit. So the interface re-asserts a pause it still wants, and a hold nobody
+ * has spoken for in this long is let go.
+ */
+const PAUSE_LAPSE_MS = 120_000;
 const JOB_OBSERVE_INTERVAL_MS = 75;
 const CANCEL_SETTLE_MS = 5_000;
 
@@ -105,6 +116,8 @@ interface ActiveProcess {
   /** Assigned the moment `#run` is called; nothing reads it before that. */
   promise: Promise<TeamFileOperationResult> | null;
   paused: boolean;
+  /** Lets a hold go if the page that took it stops saying it still wants it. */
+  lapse: ReturnType<typeof setTimeout> | null;
   /** What the running delegate offers, while it is in a phase that can be held. */
   pause: ((paused: boolean) => boolean) | null;
   /** Stops and restarts the run's wall-clock budget across a pause. */
@@ -139,6 +152,7 @@ export class TeamProcessBridge {
       controller,
       promise: null,
       paused: false,
+      lapse: null,
       pause: null,
       watchdog: null
     };
@@ -181,10 +195,21 @@ export class TeamProcessBridge {
       this.#resume(active);
       return 'ok';
     }
-    if (!active.pause || !active.pause(true)) return 'unsupported';
-    active.paused = true;
-    active.watchdog?.hold();
+    // Asking again for a pause already in force is how the interface says it is
+    // still there; it must not take a second hold.
+    if (!active.paused) {
+      if (!active.pause || !active.pause(true)) return 'unsupported';
+      active.paused = true;
+      active.watchdog?.hold();
+    }
+    this.#armLapse(active);
     return 'ok';
+  }
+
+  #armLapse(active: ActiveProcess): void {
+    if (active.lapse) clearTimeout(active.lapse);
+    active.lapse = setTimeout(() => this.#resume(active), PAUSE_LAPSE_MS);
+    active.lapse.unref();
   }
 
   paused(operationId: string): boolean {
@@ -204,6 +229,8 @@ export class TeamProcessBridge {
   }
 
   #resume(active: ActiveProcess): void {
+    if (active.lapse) clearTimeout(active.lapse);
+    active.lapse = null;
     if (!active.paused) return;
     active.paused = false;
     active.pause?.(false);
@@ -372,6 +399,8 @@ export class TeamProcessBridge {
       // telling the person it had.
       active.pause = null;
       active.paused = false;
+      if (active.lapse) clearTimeout(active.lapse);
+      active.lapse = null;
       active.watchdog = null;
       await cleanupOutput?.().catch(() => undefined);
       await downloaded?.cleanup().catch(() => undefined);
