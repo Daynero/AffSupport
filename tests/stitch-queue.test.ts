@@ -305,7 +305,11 @@ describe('what survives a restart', () => {
             codec: 'h264'
           },
           result: null,
-          plan: requestFor('/videos/a.mp4').plan,
+          // A row saved mid-run: what it found and what it planned went with the
+          // process that died, which is exactly why it cannot be resumed.
+          detected: null,
+          plan: null,
+          operation: 'stitch',
           destination: { kind: 'beside' },
           outputSuffix: '',
           status: 'running',

@@ -17,10 +17,12 @@ import { removeTemporaryDirectory } from './support/temp-dir.js';
  * "hold this quality whatever it costs", and at CRF 26 on an already-efficient
  * source, that costs more than the original.
  *
- * Two things follow, and both are tested here: the tool must not hand back a
- * bigger file when it was asked to make a smaller one, and it must say so
- * *before* the work starts rather than after a long estimate the user does not
- * wait for.
+ * The warning still stands: a source that is likely to grow is flagged *before*
+ * the work starts, rather than after a long estimate the user does not wait for.
+ *
+ * The ceiling that used to swap the original back in is gone (`e32f988`, owner):
+ * quietly returning a file nobody asked for hid what the encoder actually did.
+ * A bigger result is kept and reported, and this file tests that too.
  */
 
 const directories: string[] = [];
@@ -71,6 +73,7 @@ function probeOf(job: CompressionJob): MediaInfo {
     width: job.sourceWidth,
     height: job.sourceHeight,
     frameRate: job.sourceFrameRate,
+    nominalFrameRate: job.sourceFrameRate,
     bitrate: job.sourceBitrate,
     codec: 'h264',
     formatName: 'mp4',
@@ -111,20 +114,19 @@ describe('growth risk, known before the estimate', () => {
   });
 });
 
-describe('the never-larger ceiling', () => {
-  it('keeps the original when the encode came out bigger', async () => {
+describe('a result that came out bigger', () => {
+  it('is kept and reported, not swapped back for the original', async () => {
     const instance = queue();
     // The complaint, in miniature: the finished encode is larger than what it
-    // started from.
+    // started from. It is still what the encoder produced from the settings
+    // that were asked for, so it is what the person gets — with its real size.
     const job = await jobWithFiles(2_270, 5_000);
     (instance as unknown as { jobs: CompressionJob[] }).jobs = [job];
 
     await complete(instance, job, probeOf(job));
 
-    expect(job.keptOriginalReason).toBe('larger-than-source');
-    // The size reported is the file the user actually still has.
-    expect(job.finalSize).toBe(job.originalSize);
-    expect(job.outputPath).toBe(job.inputPath);
+    expect(job.finalSize).toBe(5_000);
+    expect(job.outputPath).not.toBe(job.inputPath);
     expect(job.status).toBe('completed');
   });
 
@@ -135,7 +137,6 @@ describe('the never-larger ceiling', () => {
 
     await complete(instance, job, probeOf(job));
 
-    expect(job.keptOriginalReason).toBeUndefined();
     expect(job.finalSize).toBe(800);
   });
 
@@ -169,6 +170,9 @@ describe('the never-larger ceiling', () => {
       width: 720,
       height: 406,
       frameRate: 30,
+      // What the container declares, which is the body's rate: the still tail
+      // drags the average down without changing what was encoded.
+      nominalFrameRate: 30,
       hasAudio: true,
       audioCodec: 'aac',
       audioDuration: total

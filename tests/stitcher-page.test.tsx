@@ -119,6 +119,7 @@ function job(overrides: Partial<StitchJob>): StitchJob {
     sourceName: 'creative.mp4',
     plan: PLAN,
     detected: { startSeconds: 0.033333, endSeconds: 30, adjustedByUser: false },
+    operation: 'stitch',
     destination: { kind: 'beside' },
     outputSuffix: '',
     status: 'done',

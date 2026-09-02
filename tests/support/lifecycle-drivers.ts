@@ -143,6 +143,7 @@ function goodMedia(overrides: Partial<MediaInfo> = {}): MediaInfo {
     width: 1920,
     height: 1080,
     frameRate: 30,
+    nominalFrameRate: 30,
     bitrate: 2_000_000,
     codec: 'h264',
     formatName: 'mov,mp4,m4a,3gp,3g2,mj2',
