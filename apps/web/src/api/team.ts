@@ -79,7 +79,11 @@ import {
   type TeamTaskPatch,
   type TeamTaskStatus,
   type TeamTaskSummary,
-  type TeamTaskAttachmentSummary
+  type TeamTaskAttachmentSummary,
+  parseMaterialRestitchPrep,
+  parseTeamRestitchDefaults,
+  type MaterialRestitchPrep,
+  type TeamRestitchDefaults
 } from '@video-compressor/shared';
 import type { Json } from '../lib/database.types';
 import { publicConfig } from '../lib/config';
@@ -785,6 +789,19 @@ function fileOperationGuard(value: unknown): value is TeamFileOperationResult {
 
 function downloadGrantGuard(value: unknown): value is TeamDownloadGrantResult {
   return parseTeamDownloadGrantResult(value) !== null;
+}
+
+function workspaceFolderGuard(
+  value: unknown
+): value is { folderId: string; created: boolean; name: string } {
+  const row = asRecord(value);
+  return Boolean(
+    row &&
+      typeof row.folderId === 'string' &&
+      row.folderId.length > 0 &&
+      typeof row.created === 'boolean' &&
+      typeof row.name === 'string'
+  );
 }
 
 function processStartGuard(value: unknown): value is TeamProcessStartResult {
@@ -2115,6 +2132,23 @@ export const teamApi = {
       : parsed;
   },
 
+  /**
+   * The space's own folder on the connected drive, made if it is not there yet.
+   *
+   * Nobody is ever asked to create it, name it or find it. It is recognised by a mark this
+   * application writes into it, so a member may rename or move it and it is still the same
+   * folder — the name is never the identity (FR-016, FR-017).
+   */
+  async ensureWorkspaceFolder(
+    teamId: string
+  ): Promise<{ folderId: string; created: boolean; name: string }> {
+    return invokeTeamFunction(
+      'drive-ops/ensure-workspace-folder',
+      { teamId },
+      workspaceFolderGuard
+    );
+  },
+
   async startProcess(input: TeamProcessStartInput): Promise<TeamProcessStartResult> {
     const value = await invokeTeamFunction(
       'drive-ops/process/start',
@@ -2678,5 +2712,119 @@ export const teamApi = {
     const rows = (data ?? []).map(mapTrashedMaterial);
     if (rows.some(row => row === null)) throw new TeamApiError('INVALID_RESPONSE', false);
     return rows.filter((row): row is TeamTrashedMaterial => row !== null);
+  },
+
+  /**
+   * The space's re-stitching defaults, or `null` when nobody has set them.
+   *
+   * A space with no row and a space whose row says it is not configured are the same answer
+   * to everyone who asks, so both arrive here as `null` and the interface has one condition
+   * to branch on rather than two.
+   */
+  async getRestitchDefaults(teamId: string): Promise<TeamRestitchDefaults | null> {
+    const { data, error } = await requireSupabaseClient().rpc('get_restitch_defaults', {
+      p_team: teamId
+    });
+    throwRpc(error);
+    if (data === null || data === undefined) return null;
+    const parsed = parseTeamRestitchDefaults(mapRestitchRow(data));
+    if (!parsed.ok) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed.value.configured ? parsed.value : null;
+  },
+
+  /** Stores the space's defaults. Refusals arrive as their own codes, not as sentences. */
+  async setRestitchDefaults(
+    teamId: string,
+    defaults: Pick<
+      TeamRestitchDefaults,
+      | 'operation'
+      | 'startImageIds'
+      | 'endImageIds'
+      | 'fitMode'
+      | 'finalDurationMode'
+      | 'customFinalDurationSeconds'
+    >
+  ): Promise<TeamRestitchDefaults> {
+    const { data, error } = await requireSupabaseClient().rpc('set_restitch_defaults', {
+      p_team: teamId,
+      p_defaults: defaults as unknown as Json
+    });
+    throwRpc(error);
+    const parsed = parseTeamRestitchDefaults(mapRestitchRow(data));
+    if (!parsed.ok) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed.value;
+  },
+
+  /**
+   * What is already known about these materials.
+   *
+   * Batched because the explorer asks once per page of rows, not once per row. A material
+   * whose record no longer describes its current content is simply absent — the read applies
+   * the invalidation rule so no caller has to remember it.
+   */
+  async getMaterialRestitchPrep(
+    teamId: string,
+    materialIds: string[]
+  ): Promise<Map<string, MaterialRestitchPrep>> {
+    const found = new Map<string, MaterialRestitchPrep>();
+    if (!materialIds.length) return found;
+    const { data, error } = await requireSupabaseClient().rpc('get_material_restitch_prep', {
+      p_team: teamId,
+      p_materials: materialIds
+    });
+    throwRpc(error);
+    for (const row of Array.isArray(data) ? data : []) {
+      const parsed = parseMaterialRestitchPrep(mapRestitchPrepRow(row));
+      // A record that cannot be trusted is treated as absent rather than as a failure: the
+      // run then inspects for itself, which is slower and always correct.
+      if (parsed.ok) found.set(parsed.value.materialId, parsed.value);
+    }
+    return found;
+  },
+
+  /** Records what a run found, so the next one does not pay for it again. */
+  async setMaterialRestitchPrep(prep: MaterialRestitchPrep): Promise<void> {
+    const { error } = await requireSupabaseClient().rpc('set_material_restitch_prep', {
+      p_material: prep.materialId,
+      p_drive_version: prep.driveVersion,
+      p_prep: {
+        detectedStartSeconds: prep.detectedStartSeconds,
+        detectedEndSeconds: prep.detectedEndSeconds,
+        profile: prep.profile,
+        unsupportedReason: prep.unsupportedReason
+      } as unknown as Json
+    });
+    throwRpc(error);
   }
 };
+
+/** Postgres answers in its own column names; the contract speaks the app's. */
+function mapRestitchRow(value: unknown): unknown {
+  const row = asRecord(value);
+  if (!row) return null;
+  return {
+    operation: row.operation,
+    startImageIds: row.start_image_ids,
+    endImageIds: row.end_image_ids,
+    fitMode: row.fit_mode,
+    finalDurationMode: row.final_duration_mode,
+    customFinalDurationSeconds: row.custom_final_duration_seconds,
+    configured: row.configured,
+    updatedAt: row.updated_at,
+    updatedBy: row.updated_by
+  };
+}
+
+function mapRestitchPrepRow(value: unknown): unknown {
+  const row = asRecord(value);
+  if (!row) return null;
+  return {
+    materialId: row.material_id,
+    driveVersion: row.drive_version,
+    detectedStartSeconds: Number(row.detected_start_seconds),
+    detectedEndSeconds: Number(row.detected_end_seconds),
+    profile: row.source_profile,
+    unsupportedReason: row.unsupported_reason,
+    preparedAt: row.prepared_at
+  };
+}

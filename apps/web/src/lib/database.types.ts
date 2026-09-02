@@ -1668,6 +1668,60 @@ export type Database = {
       };
     };
     Functions: {
+      /* 015 — the space's re-stitching defaults and what a run already knows about a
+         material. Added by hand rather than by regenerating the whole file: the committed
+         types predate several unrelated columns in the local schema, and a wholesale
+         regeneration would drag that drift into this feature's diff. */
+      get_restitch_defaults: {
+        Args: { p_team: string };
+        Returns: {
+          team_id: string;
+          operation: string;
+          start_image_ids: string[];
+          end_image_ids: string[];
+          fit_mode: string;
+          final_duration_mode: string;
+          custom_final_duration_seconds: number;
+          configured: boolean;
+          updated_by: string | null;
+          created_at: string;
+          updated_at: string;
+        } | null;
+      };
+      set_restitch_defaults: {
+        Args: { p_team: string; p_defaults: Json };
+        Returns: {
+          team_id: string;
+          operation: string;
+          start_image_ids: string[];
+          end_image_ids: string[];
+          fit_mode: string;
+          final_duration_mode: string;
+          custom_final_duration_seconds: number;
+          configured: boolean;
+          updated_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+      };
+      get_material_restitch_prep: {
+        Args: { p_team: string; p_materials: string[] };
+        Returns: {
+          material_id: string;
+          team_id: string;
+          drive_version: string;
+          detected_start_seconds: number;
+          detected_end_seconds: number;
+          source_profile: Json;
+          unsupported_reason: string | null;
+          prepared_at: string;
+          prepared_by: string | null;
+        }[];
+      };
+      set_material_restitch_prep: {
+        Args: { p_material: string; p_drive_version: string; p_prep: Json };
+        Returns: boolean;
+      };
       accept_invitation: {
         Args: { p_invitation: string; p_plain_token?: string };
         Returns: {

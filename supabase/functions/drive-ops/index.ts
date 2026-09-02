@@ -50,6 +50,7 @@ import {
   type OperationAuthority
 } from '../_shared/operations.ts';
 import { applyLibraryGroupMutation, parseLibraryGroupIntent } from '../_shared/library.ts';
+import { resolveWorkspaceFolder } from './workspace-folder.ts';
 import {
   isRecord,
   parseBoundedString,
@@ -2165,6 +2166,43 @@ async function handleRelay(
   return { complete: true, driveFileId };
 }
 
+/**
+ * The space's own folder on the connected drive.
+ *
+ * The resolution order — cached id, then the mark, then create — lives in `workspace-folder.ts`
+ * so it can be proved against a stubbed drive. What is here is what surrounds it: who may ask,
+ * which connection answers, and recording the result.
+ */
+async function handleEnsureWorkspaceFolder(
+  request: Request,
+  body: Record<string, unknown>,
+  service: RpcClient,
+  actorId: string
+) {
+  const teamId = requireUuid(body.teamId);
+  // Making the space's own folder is a change to the space, not to a material — the same
+  // permission that lets somebody set the defaults it exists to serve.
+  const root = await rootDestination({ service, teamId, actorId, permission: 'manage_metadata' });
+  const client = await driveClient(service, root.credentialId, request);
+  const cached = firstRecord(
+    await rpcValue(service, 'service_get_workspace_folder', { p_team: teamId })
+  );
+  const resolved = await resolveWorkspaceFolder({
+    teamId,
+    rootFolderId: root.rootFolderId,
+    drive: client,
+    cachedFolderId: cached ? stringValue(cached, 'drive_folder_id') : null
+  });
+  // Written every time, not only when it changes: `verified_at` is the record of when the id
+  // was last known to be that folder.
+  await rpcValue(service, 'service_commit_workspace_folder', {
+    p_team: teamId,
+    p_drive_folder_id: resolved.folderId,
+    p_marker: resolved.marker
+  });
+  return { folderId: resolved.folderId, created: resolved.created, name: resolved.name };
+}
+
 function routePath(url: URL) {
   const marker = '/drive-ops';
   const index = url.pathname.lastIndexOf(marker);
@@ -2232,6 +2270,8 @@ Deno.serve(async request => {
       value = await handleTrashRestore(request, body, configured.service, userId, 'restore');
     } else if (path === '/text-edit') {
       value = await handleTextEdit(request, body, configured.service, userId);
+    } else if (path === '/ensure-workspace-folder') {
+      value = await handleEnsureWorkspaceFolder(request, body, configured.service, userId);
     } else if (path === '/process/start') {
       value = await handleProcessStart(request, body, configured.service, userId);
       status = 202;

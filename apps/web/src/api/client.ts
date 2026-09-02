@@ -24,6 +24,9 @@ import {
   type TeamLandingPreviewCatalogRequest,
   type TeamLandingRenderJob,
   type TeamTransferGrant,
+  type TeamRestitchDefaults,
+  parseMaterialRestitchPrep,
+  type MaterialRestitchPrep,
   normalizeToolContracts,
   parseTeamAgentPreviewResult,
   parseTeamFileOperationResult,
@@ -425,25 +428,49 @@ export async function cancelTeamLandingRender(operationId: string): Promise<bool
 }
 
 export async function downloadTeamFileWithAgent(input: {
+  operationId?: string;
   transferUrl: string;
   transferGrant: TeamTransferGrant;
   fileName: string;
+  /** A folder already chosen for this space; without it the agent opens its picker. */
+  destination?: string | null;
   /** 013 (B5): compress after downloading, before saving locally. */
   compress?: { embed: boolean; suffix: string };
-}): Promise<{ saved: true; fileName: string; sizeBytes: number }> {
+  /** 015: re-stitch after downloading, with the space's defaults. */
+  process?:
+    | { tool: 'compressor'; embed: boolean; suffix: string }
+    | {
+        tool: 'restitch';
+        defaults: TeamRestitchDefaults;
+        prepared?: MaterialRestitchPrep | null;
+        suffix?: string;
+      };
+}): Promise<{
+  saved: true;
+  fileName: string;
+  sizeBytes: number;
+  /** What the run had to work out for itself, when nobody had prepared this material. */
+  discovered?: unknown;
+}> {
   const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
   if (!toolContractCompatible('teamWorkspace', health.toolContracts ?? {})) {
+    throw new Error('AGENT_UPDATE_REQUIRED');
+  }
+  if (input.process?.tool === 'restitch' && !toolContractCompatible('stitcher', health.toolContracts ?? {})) {
     throw new Error('AGENT_UPDATE_REQUIRED');
   }
   const value = await requestBody<{
     saved?: unknown;
     fileName?: unknown;
     sizeBytes?: unknown;
+    discovered?: unknown;
   }>('/api/team/download', {
-    operationId: crypto.randomUUID(),
+    operationId: input.operationId ?? crypto.randomUUID(),
     transferUrl: input.transferUrl,
     transferGrant: input.transferGrant,
     fileName: input.fileName,
+    ...(input.destination ? { destination: input.destination } : {}),
+    ...(input.process ? { process: input.process } : {}),
     ...(input.compress ? { compress: input.compress } : {})
   });
   if (
@@ -455,7 +482,149 @@ export async function downloadTeamFileWithAgent(input: {
   ) {
     throw new Error('INVALID_RESPONSE');
   }
-  return { saved: true, fileName: value.fileName, sizeBytes: value.sizeBytes };
+  return {
+    saved: true,
+    fileName: value.fileName,
+    sizeBytes: value.sizeBytes,
+    // Passed through untouched: the caller narrows it before storing, and a run that had
+    // nothing to work out returns nothing here.
+    ...(value.discovered === undefined ? {} : { discovered: value.discovered })
+  };
+}
+
+/**
+ * Preparing a whole space's materials, so no later download pays for the looking.
+ *
+ * Answers as soon as the agent has accepted the list. Progress and findings are read back with
+ * `readTeamRestitchPreparation` — the run outlives the request on purpose, so a reload does not
+ * abandon minutes of work.
+ */
+export async function prepareTeamRestitchMaterials(input: {
+  operationId: string;
+  teamId: string;
+  transferUrl: string;
+  materials: {
+    materialId: string;
+    driveVersion: string;
+    fileName: string;
+    transferGrant: TeamTransferGrant;
+  }[];
+  audio?: { sampleRate: number; channels: number } | null;
+}): Promise<{ accepted: true }> {
+  const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
+  const contracts = health.toolContracts ?? {};
+  if (!toolContractCompatible('teamWorkspace', contracts) || !toolContractCompatible('stitcher', contracts)) {
+    throw new Error('AGENT_UPDATE_REQUIRED');
+  }
+  const value = await requestBody<{ accepted?: unknown }>('/api/team/restitch/prepare', {
+    operationId: input.operationId,
+    teamId: input.teamId,
+    transferUrl: input.transferUrl,
+    materials: input.materials,
+    ...(input.audio ? { audio: input.audio } : {})
+  });
+  if (value.accepted !== true) throw new Error('INVALID_RESPONSE');
+  return { accepted: true };
+}
+
+export interface TeamRestitchPreparationReport {
+  state: 'running' | 'finished' | 'canceled';
+  done: number;
+  total: number;
+  current: string | null;
+  findings: {
+    materialId: string;
+    state: 'inspecting' | 'prepared' | 'unsupported' | 'failed';
+    prep: MaterialRestitchPrep | null;
+    reason: string | null;
+  }[];
+}
+
+/** What a preparation run has found so far; `null` when the agent has never heard of it. */
+export async function readTeamRestitchPreparation(
+  operationId: string
+): Promise<TeamRestitchPreparationReport | null> {
+  let value: Record<string, unknown>;
+  try {
+    value = await request<Record<string, unknown>>(
+      `/api/team/restitch/prepare/${encodeURIComponent(operationId)}`,
+      'GET'
+    );
+  } catch {
+    // A run the agent has forgotten, or an agent that is no longer there: the page stops
+    // waiting rather than treating it as a failure of the materials.
+    return null;
+  }
+  const state = value.state;
+  if (
+    (state !== 'running' && state !== 'finished' && state !== 'canceled') ||
+    typeof value.done !== 'number' ||
+    typeof value.total !== 'number' ||
+    !Array.isArray(value.findings)
+  ) {
+    throw new Error('INVALID_RESPONSE');
+  }
+  const findings: TeamRestitchPreparationReport['findings'] = [];
+  for (const entry of value.findings) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const finding = entry as Record<string, unknown>;
+    const reported = finding.state;
+    if (
+      typeof finding.materialId !== 'string' ||
+      (reported !== 'inspecting' &&
+        reported !== 'prepared' &&
+        reported !== 'unsupported' &&
+        reported !== 'failed')
+    ) {
+      continue;
+    }
+    const prep = parseMaterialRestitchPrep(finding.prep);
+    findings.push({
+      materialId: finding.materialId,
+      state: reported,
+      // An unreadable record is reported as no record: the material simply stays unprepared,
+      // which is slower and always correct.
+      prep: prep.ok ? prep.value : null,
+      reason: typeof finding.reason === 'string' ? finding.reason : null
+    });
+  }
+  return {
+    state,
+    done: value.done,
+    total: value.total,
+    current: typeof value.current === 'string' ? value.current : null,
+    findings
+  };
+}
+
+export async function cancelTeamRestitchPreparation(operationId: string): Promise<boolean> {
+  const value = await requestBody<{ canceled?: unknown }>(
+    `/api/team/restitch/prepare/${encodeURIComponent(operationId)}/cancel`,
+    {}
+  );
+  return value.canceled === true;
+}
+
+/**
+ * Can the agent on this machine re-stitch at all?
+ *
+ * Asked before the choice is offered, so an agent that predates the tool says so instead of
+ * failing halfway through a download. This is the *live* contract from `/api/health` — nothing
+ * here touches `WEB_TOOL_REQUIREMENTS`, which is compared byte-for-byte with the signed
+ * manifest and therefore cannot gain an entry until the release that ships the agent.
+ */
+export async function agentCanRestitch(): Promise<boolean> {
+  try {
+    const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
+    const contracts = health.toolContracts ?? {};
+    return (
+      toolContractCompatible('teamWorkspace', contracts) &&
+      toolContractCompatible('stitcher', contracts)
+    );
+  } catch {
+    // No agent, or one that cannot answer: the caller offers the original instead.
+    return false;
+  }
 }
 
 export async function startTeamAgentProcess(

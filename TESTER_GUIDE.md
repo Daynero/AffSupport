@@ -99,6 +99,16 @@ paused — nothing new starts, and the file already in flight is suspended too w
 app is new enough to hold it; the panel says which of the two you are getting. "Stop after
 current" drops the rest of the queue and lets the current file finish.
 
+A space can also carry one answer for re-stitching. In **Space settings → Re-stitching**, a
+manager picks the operation, the photos and the hold length once; every member then gets
+**Download re-stitched** beside **Download the original** on any video. **Prepare material**
+looks at every video in the space once — this takes minutes for a large space and can be
+stopped without losing what it already found — and afterwards a re-stitched download is a few
+seconds rather than half a minute. It also creates the space's `Soty` folder on the connected
+drive; you may rename or move that folder freely, Soty finds it either way. If you press the
+button before anyone has saved the settings, the toast offers to open them and then continues
+the download you asked for.
+
 Moderators must use the copy-ready 20-person SC-001, SC-005, and SC-008 scripts in
 [`docs/TEAM_WORKSPACE_PILOT_PROTOCOL.md`](docs/TEAM_WORKSPACE_PILOT_PROTOCOL.md). Those
 scripts define exactly when timing starts, when to stop, what counts as help, and what must be

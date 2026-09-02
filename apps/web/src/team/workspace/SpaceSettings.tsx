@@ -11,6 +11,10 @@ import { MemberList, type MemberManagementClient } from '../members/MemberList';
 import { InvitationPanel, type InvitationPanelClient } from '../members/InvitationPanel';
 import { TeamAuditPanel, type TeamAuditClient } from '../members/TeamAuditPanel';
 import { DriveConnectionPanel, type DrivePanelClient } from '../drive/DriveConnectionPanel';
+import {
+  RestitchDefaultsSection,
+  type RestitchDefaultsClient
+} from './RestitchDefaultsSection';
 
 export interface SharePreferenceSettingsClient {
   resetLibrarySharePreference: (teamId: string) => Promise<boolean>;
@@ -22,7 +26,7 @@ export type SpaceSettingsClient = MemberManagementClient &
   DrivePanelClient & {
     resetLibrarySharePreference: SharePreferenceSettingsClient['resetLibrarySharePreference'];
     leaveTeam: (teamId: string) => Promise<{ ok: true; warningCode: string }>;
-  };
+  } & RestitchDefaultsClient;
 
 export function SharePreferenceSettings({
   teamId,
@@ -106,6 +110,7 @@ export function SpaceSettings({
 
       <div className="team-space-settings-grid">
         <SharePreferenceSettings teamId={teamId} client={client} />
+        <RestitchDefaultsSection teamId={teamId} client={client} />
         <MemberList
           teamId={teamId}
           client={client}

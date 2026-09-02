@@ -34,6 +34,17 @@ export interface RowActionsProps {
    * dialog with it.
    */
   onVideoTrashed?: (videoId: string) => void;
+  /**
+   * 015 — offered on videos only. The shell owns the running delivery, because a delivery
+   * outlives the menu that started it and the row that scrolled past.
+   */
+  onDownloadRestitched?: (row: TeamMaterialRow) => void;
+  /**
+   * 015 — the videos this space has already looked at, read once for the whole page. A row
+   * that is in here downloads re-stitched in seconds; one that is not still works, it just
+   * pays for the looking first.
+   */
+  preparedIds?: ReadonlySet<string>;
 }
 
 export function RowActions({
@@ -47,6 +58,8 @@ export function RowActions({
   onProcess,
   onProcessFolder,
   onVideoTrashed,
+  onDownloadRestitched,
+  preparedIds,
   row
 }: RowActionsProps & { row: TeamMaterialRow }) {
   const { currentFolderId } = useExplorer();
@@ -85,6 +98,12 @@ export function RowActions({
       replaceMaterialId={row.id}
       onEditText={row.kind === 'transcript' && onEditText ? () => onEditText(row) : undefined}
       onProcess={onProcess ? () => onProcess(row) : undefined}
+      onDownloadRestitched={
+        row.kind === 'video' && onDownloadRestitched
+          ? () => onDownloadRestitched(row)
+          : undefined
+      }
+      restitchPrepared={row.kind === 'video' ? (preparedIds?.has(row.id) ?? false) : false}
       onProcessFolder={
         row.kind === 'folder' && onProcessFolder ? () => onProcessFolder(row) : undefined
       }

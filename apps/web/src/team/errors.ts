@@ -50,7 +50,10 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
   ROOT_MISSING: 'teamErrorRootMissing',
   TREE_TOO_LARGE: 'teamErrorTreeTooLarge',
   THUMBNAIL_SESSION_EXPIRED: 'teamErrorThumbnailSessionExpired',
-  RESTRICTED_SCOPE_NOT_APPROVED: 'teamErrorRestrictedScopeNotApproved'
+  RESTRICTED_SCOPE_NOT_APPROVED: 'teamErrorRestrictedScopeNotApproved',
+  RESTITCH_FORBIDDEN: 'teamRestitchForbidden',
+  RESTITCH_NO_SCREENS: 'teamRestitchNoScreens',
+  RESTITCH_INVALID: 'teamRestitchInvalid'
 };
 
 const KNOWN = new Set<string>(TEAM_ERROR_CODES);

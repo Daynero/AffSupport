@@ -48,9 +48,11 @@ import { StitchQueue } from './stitcher/queue.js';
 import { loadStitcherState, saveStitcherState } from './stitcher/store.js';
 import { TeamPreviewBridge } from './team-bridge/preview.js';
 import { TeamOperationEvents, type TeamOperationEvent } from './team-bridge/events.js';
+import { RestitchPrepareBridge } from './team-bridge/restitch-prepare.js';
 import { TeamDownloadBridge } from './team-bridge/download.js';
 import { TeamLandingRenderBridge } from './team-bridge/landing-gallery.js';
 import { createTeamProcessDelegates, TeamProcessBridge } from './team-bridge/process.js';
+import { createRestitchDelegate } from './team-bridge/restitch.js';
 import { TeamPosterBridge } from './team-bridge/poster.js';
 import { CreativeLibraryProcessBridge } from './team-bridge/library.js';
 import { TeamTransferClient } from './team-bridge/transfer.js';
@@ -172,19 +174,21 @@ const stitcherEvents = new EventChannel<StitcherEvent>(allowedOrigins, () => ({
   state: stitchQueue.state()
 }));
 const restoredStitcher = await loadStitcherState();
+/** One resolver, shared by the tool's own queue and by a team delivery. */
+const screenImagePath = async (id: string): Promise<string | null> => {
+  const embedding = queue.state().settings.imageEmbedding;
+  const asset = [...embedding.startImages, ...embedding.endImages].find(
+    candidate => candidate.id === id
+  );
+  if (!asset) return null;
+  try {
+    return await imageStore.validate(asset);
+  } catch {
+    return null;
+  }
+};
 const stitchQueue = new StitchQueue({
-  imagePathFor: async id => {
-    const embedding = queue.state().settings.imageEmbedding;
-    const asset = [...embedding.startImages, ...embedding.endImages].find(
-      candidate => candidate.id === id
-    );
-    if (!asset) return null;
-    try {
-      return await imageStore.validate(asset);
-    } catch {
-      return null;
-    }
-  },
+  imagePathFor: screenImagePath,
   onChange: () => stitcherEvents.broadcast({ type: 'stitcher:state', state: stitchQueue.state() }),
   settings: restoredStitcher.settings,
   jobs: restoredStitcher.jobs,
@@ -365,11 +369,27 @@ const teamEvents = new EventChannel<TeamOperationEvent>(allowedOrigins, () =>
 teamEvents.publishOn(channelHub, 'team');
 teamOperationEvents.setNotify(event => teamEvents.broadcast(event));
 const teamTransfer = new TeamTransferClient();
-const teamDelegates = createTeamProcessDelegates({
-  compressor: queue,
-  transcription: transcriptionQueue,
-  landing: landingOptimizer
+/*
+ * 015 — the delegate a re-stitched download runs.
+ *
+ * Kept beside the others rather than inside `createTeamProcessDelegates`, because it needs
+ * two things the process pipelines do not: the compressor's image library read live (the
+ * space stores ids, not pictures) and a way to hand back what it had to discover, so the
+ * caller can store it and nobody pays for the same inspection twice.
+ */
+const restitchDelegate = createRestitchDelegate({
+  embedding: () => queue.state().settings.imageEmbedding,
+  imagePathFor: screenImagePath,
+  threads: () => activeThreadBudget()
 });
+const teamDelegates = {
+  ...createTeamProcessDelegates({
+    compressor: queue,
+    transcription: transcriptionQueue,
+    landing: landingOptimizer
+  }),
+  restitch: restitchDelegate
+};
 const teamProcessBridge = new TeamProcessBridge({
   transfer: teamTransfer,
   delegates: teamDelegates,
@@ -381,7 +401,18 @@ const creativeLibraryProcessBridge = new CreativeLibraryProcessBridge({
 });
 const teamDownloadBridge = new TeamDownloadBridge({
   transfer: teamTransfer,
-  delegates: teamDelegates
+  delegates: teamDelegates,
+  events: teamOperationEvents
+});
+/**
+ * Looking at a space's materials ahead of time, so a download does not have to.
+ *
+ * Shares the transfer client with every other bridge and publishes the same coarse progress;
+ * what it finds is read back over its own route, because the event channel carries no content.
+ */
+const teamRestitchPrepareBridge = new RestitchPrepareBridge({
+  transfer: teamTransfer,
+  events: teamOperationEvents
 });
 const teamLandingRenderBridge = new TeamLandingRenderBridge({
   preview: teamPreviewBridge,
@@ -407,6 +438,7 @@ const modules = createToolModules({
     download: teamDownloadBridge,
     landings: teamLandingRenderBridge,
     library: creativeLibraryProcessBridge,
+    restitch: teamRestitchPrepareBridge,
     events: teamEvents
   }
 });

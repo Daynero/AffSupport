@@ -31,6 +31,14 @@ export interface DriveFileMetadata {
   checksum: string | null;
   webViewLink?: string | null;
   thumbnailLink?: string | null;
+  /**
+   * The marks this application put on the file, invisible to every other one.
+   *
+   * Drive shows these to nobody but the app that wrote them, which is what makes them the
+   * right place to record that a folder is ours: a member may rename or move it, and the
+   * mark survives both.
+   */
+  appProperties: Record<string, string>;
 }
 
 export interface DriveChange {
@@ -54,8 +62,18 @@ const FILE_FIELDS = [
   'version',
   'md5Checksum',
   'webViewLink',
-  'thumbnailLink'
+  'thumbnailLink',
+  'appProperties'
 ].join(',');
+
+function parseAppProperties(value: unknown): Record<string, string> {
+  if (!isRecord(value)) return {};
+  const marks: Record<string, string> = {};
+  for (const [key, mark] of Object.entries(value)) {
+    if (typeof mark === 'string') marks[key] = mark;
+  }
+  return marks;
+}
 
 function parseCapabilities(value: unknown): DriveCapabilities | null {
   if (!isRecord(value)) return null;
@@ -110,7 +128,8 @@ function parseMetadata(value: unknown): DriveFileMetadata | null {
     version: typeof value.version === 'string' ? value.version : null,
     checksum: typeof value.md5Checksum === 'string' ? value.md5Checksum : null,
     webViewLink: typeof value.webViewLink === 'string' ? value.webViewLink : null,
-    thumbnailLink: typeof value.thumbnailLink === 'string' ? value.thumbnailLink : null
+    thumbnailLink: typeof value.thumbnailLink === 'string' ? value.thumbnailLink : null,
+    appProperties: parseAppProperties(value.appProperties)
   };
 }
 
@@ -247,7 +266,52 @@ export class GoogleDriveClient {
     };
   }
 
-  async createFolder(input: { name: string; parentId: string }): Promise<DriveFileMetadata> {
+  /**
+   * Finds a folder this application marked, wherever the member has since put it.
+   *
+   * `appProperties` are private to the app that wrote them, so this cannot collide with
+   * anybody else's marks, and it is searched across the whole drive on purpose: the answer
+   * must survive the folder being dragged somewhere else.
+   */
+  async findFolderByAppProperty(input: {
+    key: string;
+    value: string;
+    driveId?: string | null;
+  }): Promise<DriveFileMetadata | null> {
+    const escape = (text: string) => text.replaceAll('\\', '\\\\').replaceAll("'", "\\'");
+    const url = new URL('https://www.googleapis.com/drive/v3/files');
+    url.searchParams.set(
+      'q',
+      `appProperties has { key='${escape(input.key)}' and value='${escape(input.value)}' } ` +
+        `and mimeType = 'application/vnd.google-apps.folder' and trashed = false`
+    );
+    url.searchParams.set('fields', `files(${FILE_FIELDS})`);
+    url.searchParams.set('pageSize', '10');
+    url.searchParams.set('supportsAllDrives', 'true');
+    url.searchParams.set('includeItemsFromAllDrives', 'true');
+    if (input.driveId) {
+      url.searchParams.set('corpora', 'drive');
+      url.searchParams.set('driveId', input.driveId);
+    }
+    const response = await this.#request(url);
+    const payload: unknown = await response.json().catch(() => null);
+    if (!isRecord(payload) || !Array.isArray(payload.files)) {
+      throw new TeamFunctionError('INVALID_RESPONSE');
+    }
+    // More than one would mean somebody duplicated the folder; the oldest id wins simply by
+    // being the one Drive lists first, and a second one is left alone rather than deleted.
+    for (const file of payload.files) {
+      const parsed = parseMetadata(file);
+      if (parsed) return parsed;
+    }
+    return null;
+  }
+
+  async createFolder(input: {
+    name: string;
+    parentId: string;
+    appProperties?: Record<string, string>;
+  }): Promise<DriveFileMetadata> {
     if (
       input.name.length < 1 ||
       input.name.length > 1024 ||
@@ -265,7 +329,8 @@ export class GoogleDriveClient {
       body: JSON.stringify({
         name: input.name,
         mimeType: 'application/vnd.google-apps.folder',
-        parents: [input.parentId]
+        parents: [input.parentId],
+        ...(input.appProperties ? { appProperties: input.appProperties } : {})
       })
     });
     const metadata = parseMetadata(await response.json().catch(() => null));

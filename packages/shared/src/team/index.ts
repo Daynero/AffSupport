@@ -5,6 +5,7 @@ export * from './creative-library.js';
 export * from './landing-gallery.js';
 export * from './library-processing.js';
 export * from './material-category.js';
+export * from './restitch.js';
 export * from './tasks.js';
 export * from './transcript.js';
 export * from './transport.js';

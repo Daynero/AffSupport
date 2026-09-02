@@ -35,6 +35,18 @@ export interface MaterialRowMenuProps {
   /** The folder this row is being shown in; where a new version lands. */
   destinationFolderId?: string | null;
   folderUploadLabel?: string;
+  /**
+   * 015 — offered on videos only, beside the original.
+   *
+   * Absent for every other kind of material, and absent when the shell has nothing to run it
+   * with: a menu entry that cannot do anything is worse than no entry.
+   */
+  onDownloadRestitched?: () => void;
+  /**
+   * 015 — whether this space has already looked at this video. It changes nothing about what
+   * the entry does; it tells the member whether to expect seconds or a wait.
+   */
+  restitchPrepared?: boolean;
 }
 
 /**
@@ -111,6 +123,8 @@ function MaterialRowMenuContent({
   replaceMaterialId = null,
   destinationFolderId = null,
   folderUploadLabel,
+  onDownloadRestitched,
+  restitchPrepared = false,
   onDone
 }: MaterialRowMenuProps & { onDone: () => void }) {
   const { t } = useI18n();
@@ -180,7 +194,33 @@ function MaterialRowMenuContent({
               disabled={actions.busy}
               onClick={() => void actions.download()}
             >
-              {t('teamFileDownload')}
+              {/* Named "the original" only when there is something else it could be. */}
+              {onDownloadRestitched ? t('teamRestitchDownloadOriginal') : t('teamFileDownload')}
+            </Button>
+          )}
+          {!isFolder && permissions.download && onDownloadRestitched && (
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={actions.busy}
+              onClick={() => {
+                onDone();
+                onDownloadRestitched();
+              }}
+              title={
+                restitchPrepared
+                  ? t('teamRestitchMaterialPrepared')
+                  : t('teamRestitchMaterialNotPrepared')
+              }
+            >
+              {t('teamRestitchDownloadRestitched')}
+              {/* A quiet mark, not a second sentence: the entry works either way. */}
+              {restitchPrepared && <span aria-hidden="true"> ·</span>}
+              <span className="visually-hidden">
+                {restitchPrepared
+                  ? ` — ${t('teamRestitchMaterialPrepared')}`
+                  : ` — ${t('teamRestitchMaterialNotPrepared')}`}
+              </span>
             </Button>
           )}
           {/* "New version" was removed from the menu (owner: unclear, unused);

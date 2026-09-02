@@ -33,9 +33,11 @@ function stubDeps() {
     teamWorkspace: {
       preview: { busy, shutdown },
       process: { busy, shutdown },
+      poster: { busy, shutdown },
       download: { busy, shutdown },
       landings: { busy, shutdown },
       library: { busy, shutdown },
+      restitch: { busy, shutdown },
       events: {}
     }
   };

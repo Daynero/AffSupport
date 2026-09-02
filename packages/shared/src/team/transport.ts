@@ -62,7 +62,11 @@ export const TEAM_ERROR_CODES = [
   'ROOT_MISSING',
   'TREE_TOO_LARGE',
   'THUMBNAIL_SESSION_EXPIRED',
-  'RESTRICTED_SCOPE_NOT_APPROVED'
+  'RESTRICTED_SCOPE_NOT_APPROVED',
+  // 015 — the space's re-stitching defaults and the material preparation behind them.
+  'RESTITCH_FORBIDDEN',
+  'RESTITCH_NO_SCREENS',
+  'RESTITCH_INVALID'
 ] as const;
 export type TeamErrorCode = (typeof TEAM_ERROR_CODES)[number];
 

@@ -69,6 +69,14 @@ export interface TeamProcessDelegateResult {
   mimeType: string;
   sizeBytes: number;
   cleanup?: () => Promise<void>;
+  /**
+   * Anything the run had to work out for itself and that is worth keeping.
+   *
+   * 015 uses it for what an inspection found: the caller stores it, and the next member's
+   * delivery of the same material skips the six to fourteen seconds it cost. The bridge only
+   * carries it — it does not look inside, and it does not write it anywhere.
+   */
+  discovered?: unknown;
 }
 
 export type TeamProcessDelegate = (

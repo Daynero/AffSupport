@@ -1,8 +1,10 @@
-import { mkdtemp } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdtemp, readFile, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { planStitch, type StitchScreens } from '../packages/shared/src/stitcher.js';
+import { createRestitchDelegate } from '../apps/agent/src/team-bridge/restitch.js';
 import { PreparedBodyCache } from '../apps/agent/src/stitcher/body-cache.js';
 import { runStitchPipeline } from '../apps/agent/src/stitcher/pipeline.js';
 import { detectStitching } from '../apps/agent/src/stitcher/plan.js';
@@ -36,6 +38,55 @@ const SCREENS: StitchScreens = {
   fitMode: 'cover',
   endDurationSeconds: 6,
   startDurationSeconds: null
+};
+
+/** The compressor library the space draws from, as the agent would report it. */
+const library = {
+  enabled: true,
+  startEnabled: true,
+  endEnabled: true,
+  startImages: [
+    {
+      id: 'start',
+      fileName: 'start.png',
+      width: 320,
+      height: 320,
+      size: 10,
+      mimeType: 'image/png',
+      extension: '.png'
+    }
+  ],
+  endImages: [
+    {
+      id: 'end',
+      fileName: 'end.png',
+      width: 320,
+      height: 320,
+      size: 10,
+      mimeType: 'image/png',
+      extension: '.png'
+    }
+  ],
+  disabledImageIds: [],
+  replaceExisting: true,
+  finalDurationMode: 'custom' as const,
+  customFinalDurationSeconds: 6,
+  startDurationMode: 'one-frame' as const,
+  customStartDurationMs: 100,
+  fitMode: 'cover' as const
+};
+
+/** What a space stores: ids and choices, never pictures. */
+const spaceDefaults = {
+  operation: 'restitch' as const,
+  startImageIds: ['start'],
+  endImageIds: ['end'],
+  fitMode: 'cover' as const,
+  finalDurationMode: 'custom' as const,
+  customFinalDurationSeconds: 6,
+  configured: true,
+  updatedAt: '2026-09-02T00:00:00.000Z',
+  updatedBy: 'someone'
 };
 
 /**
@@ -469,6 +520,69 @@ describeRequiring(ffmpegBinaries, 'stitching a real creative', () => {
     expect(produced.verification.durationSeconds).toBeGreaterThan(5.5);
     expect(produced.verification.durationSeconds).toBeLessThan(7);
   }, 120_000);
+
+  /**
+   * A team delivery, end to end against the real engine.
+   *
+   * The rest of this file proves the pipeline; this proves the path a member actually takes —
+   * the space's defaults in, a finished file out, the member's own bytes untouched, and the
+   * body carried over rather than rebuilt.
+   */
+  it('delivers a space’s re-stitch from a prepared record, in seconds', async () => {
+    const probed = unwrap(await probeSource(legacy));
+    const detected = await detectStitching(probed);
+    const before = createHash('sha256')
+      .update(await readFile(legacy))
+      .digest('hex');
+
+    const workDir = await mkdtemp(path.join(directory, 'delivery-'));
+    const delegate = createRestitchDelegate({
+      embedding: () => library,
+      imagePathFor: async () => photo,
+      bodies: new PreparedBodyCache({ root: directory })
+    });
+    const started = Date.now();
+    const delivered = await delegate({
+      operationId: 'delivery-1',
+      workspace: workDir,
+      sourceFile: legacy,
+      sourceSizeBytes: (await stat(legacy)).size,
+      sourceVersion: '7',
+      sourceChecksum: null,
+      options: {
+        defaults: spaceDefaults,
+        // Prepared on some other machine: the path in it is theirs, and this run must work on
+        // the copy in front of it.
+        prepared: {
+          materialId: 'material-1',
+          driveVersion: '7',
+          detectedStartSeconds: detected.startSeconds,
+          detectedEndSeconds: detected.endSeconds,
+          profile: { ...probed, path: '/somewhere/else/legacy.mp4' },
+          unsupportedReason: null,
+          preparedAt: '2026-09-02T00:00:00.000Z'
+        }
+      },
+      signal: new AbortController().signal,
+      onProgress: () => {},
+      pausable: () => {}
+    });
+
+    expect(delivered.sizeBytes).toBeGreaterThan(0);
+    // Prepared means the six-to-fourteen seconds of looking is not spent; what is left is the
+    // local half of the budget, which is asserted rather than only recorded (SC-002).
+    expect(Date.now() - started).toBeLessThan(5_000);
+    // The one guarantee this cannot be forgiven for breaking: the member's file is theirs.
+    expect(
+      createHash('sha256')
+        .update(await readFile(legacy))
+        .digest('hex')
+    ).toBe(before);
+    // And the body it handed back is the source's own packets, not a re-encode of them.
+    const output = await frameHashes(delivered.file);
+    const source = await frameHashes(legacy);
+    expect(source.filter(hash => output.includes(hash)).length).toBeGreaterThan(100);
+  }, 180_000);
 
   it('declines a source the fast path cannot serve, without touching it', async () => {
     const hevc = path.join(directory, 'hevc.mp4');

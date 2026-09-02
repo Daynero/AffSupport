@@ -34,6 +34,12 @@ export function makeClient(overrides: Partial<TeamSpaceClient> = {}): TeamSpaceC
     leaveTeam: vi
       .fn()
       .mockResolvedValue({ ok: true, warningCode: 'EXTERNAL_DRIVE_ACCESS_REMAINS' }),
+    // 015 — the space's re-stitching defaults. Unset by default, which is the state most
+    // surfaces should be able to render.
+    getRestitchDefaults: vi.fn().mockResolvedValue(null),
+    setRestitchDefaults: vi.fn(),
+    getMaterialRestitchPrep: vi.fn().mockResolvedValue(new Map()),
+    setMaterialRestitchPrep: vi.fn(),
     listMembers: vi.fn().mockResolvedValue([]),
     updateMembership: vi.fn(),
     removeMember: vi.fn(),

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { usablePrep } from '@video-compressor/shared';
 import type {
   CatalogMaterialItem,
   TeamAnalyticsStorage,
@@ -47,6 +48,10 @@ import {
   type CompressPlanItem as CompressPlanItem_
 } from './TeamCompressorDialog';
 import type { RowActionsProps } from './RowActions';
+import { useRestitchDelivery } from '../restitch/useRestitchDelivery';
+import { RestitchDeliveryNotices } from '../restitch/RestitchDeliveryNotices';
+import { navigateTo } from '../../lib/navigation';
+import { buildTeamRoute } from '../routes';
 import { useFolderPage } from './useFolderPage';
 import { usePosterFrames } from './usePosterFrames';
 
@@ -161,6 +166,17 @@ function ExplorerBody({
 }) {
   const { t } = useI18n();
   const { push, update, dismiss } = useToasts();
+  /* 015 — one running re-stitched delivery per material, held here rather than in the row:
+     a delivery outlives the menu that started it and the row that scrolled past. */
+  const restitch = useRestitchDelivery(teamId);
+  /* The delivery that met an unconfigured space waits for the settings to close, then
+     continues by itself — the member gets the file they asked for without a second click. */
+  const settingsOpen = query?.settings === true;
+  const settingsWasOpen = useRef(false);
+  useEffect(() => {
+    if (settingsWasOpen.current && !settingsOpen && restitch.pending) void restitch.resume();
+    settingsWasOpen.current = settingsOpen;
+  }, [settingsOpen, restitch]);
   const { permissions: loadedPermissions } = useTeam();
   // Every write goes dark while storage needs a person (FR-033); nothing is lost.
   const permissions = readOnly ? null : loadedPermissions;
@@ -243,6 +259,42 @@ function ExplorerBody({
     revision
   });
   const sortedRows = useMemo(() => sortRows(page.rows, sort), [page.rows, sort]);
+
+  /**
+   * Which of the videos in view have already been looked at.
+   *
+   * One read for the whole page rather than one per row, and re-read when the page changes so
+   * a material that was just prepared elsewhere stops claiming otherwise (FR-021).
+   */
+  const [preparedIds, setPreparedIds] = useState<ReadonlySet<string>>(new Set());
+  useEffect(() => {
+    const videos = page.rows.filter(row => row.kind === 'video');
+    if (videos.length === 0) {
+      setPreparedIds(new Set());
+      return;
+    }
+    let active = true;
+    void teamApi
+      .getMaterialRestitchPrep(
+        teamId,
+        videos.map(row => row.id)
+      )
+      .then(found => {
+        if (!active) return;
+        const ready = new Set<string>();
+        for (const row of videos) {
+          const prep = usablePrep(found.get(row.id) ?? null, row.driveVersion);
+          if (prep && !prep.unsupportedReason) ready.add(row.id);
+        }
+        setPreparedIds(ready);
+      })
+      .catch(() => {
+        // Not knowing is the same as not prepared: the menu simply says nothing.
+      });
+    return () => {
+      active = false;
+    };
+  }, [teamId, page.rows]);
   // Drive has no picture for some videos and never will. The paired app makes
   // one, for what is on screen, one at a time.
   usePosterFrames({
@@ -409,6 +461,17 @@ function ExplorerBody({
         actionsClient,
         storageKind,
         onChanged: changed,
+        preparedIds,
+        ...(permissions.download
+          ? {
+              onDownloadRestitched: (row: TeamMaterialRow) =>
+                void restitch.deliver({
+                  materialId: row.id,
+                  fileName: row.name,
+                  driveVersion: row.driveVersion
+                })
+            }
+          : {}),
         ...(permissions.process
           ? {
               onProcess: (row: TeamMaterialRow) => setProcessing({ row }),
@@ -1221,6 +1284,19 @@ function ExplorerBody({
           </div>
         </aside>
       )}
+      {/* 015 — the running deliveries speak for themselves; nothing is rendered inline. */}
+      <RestitchDeliveryNotices
+        states={restitch.states}
+        onConfigure={() =>
+          navigateTo(
+            buildTeamRoute({
+              spaceId: teamId,
+              section: 'explorer',
+              query: { ...query, settings: true }
+            })
+          )
+        }
+      />
       {processing && (
         <MaterialProcessFlow
           teamId={teamId}

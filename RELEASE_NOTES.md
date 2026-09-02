@@ -3,6 +3,7 @@
 - Add the Video Stitcher: swap the photo screens at the start and end of a video in seconds without recompressing the video itself. Ships with the agent release that publishes its tool contract.
 - Process a whole folder in Team workspace, subfolders included: transcribe every video inside and refresh every landing preview, with each transcript saved beside its own video.
 - Pause a running batch in Team workspace. Nothing new starts, and the file already being processed is suspended too rather than left running.
+- Set one re-stitching answer for a whole Team workspace space, and download any video re-stitched with it. Preparing the space's material once makes those downloads take seconds instead of half a minute; the space's Soty folder is created for you and stays findable after you rename or move it.
 
 # v1.0.4
 

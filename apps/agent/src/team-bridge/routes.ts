@@ -1,4 +1,5 @@
 import { createReadStream } from 'node:fs';
+import path from 'node:path';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import {
   LIBRARY_JOB_KINDS,
@@ -6,12 +7,17 @@ import {
   type TeamLandingRenderJob
 } from '@video-compressor/shared';
 import type { EventChannel } from '../server/sse.js';
-import type { TeamAgentDownloadRequest, TeamDownloadBridge } from './download.js';
+import type {
+  TeamAgentDownloadProcess,
+  TeamAgentDownloadRequest,
+  TeamDownloadBridge
+} from './download.js';
 import type { TeamOperationEvent } from './events.js';
 import { TeamLandingRenderError, type TeamLandingRenderBridge } from './landing-gallery.js';
 import type { CreativeLibraryProcessBridge, CreativeLibraryProcessRequest } from './library.js';
 import type { TeamPreviewBridge, TeamPreviewTransferRequest } from './preview.js';
 import type { TeamProcessBridge, TeamProcessRequest } from './process.js';
+import type { RestitchPrepareBridge, RestitchPrepareRequest } from './restitch-prepare.js';
 import type { TeamPosterBridge, TeamPosterRequest } from './poster.js';
 
 export interface TeamBridgeRoutesDeps {
@@ -21,6 +27,7 @@ export interface TeamBridgeRoutesDeps {
   download: TeamDownloadBridge;
   landings: TeamLandingRenderBridge;
   library: CreativeLibraryProcessBridge;
+  restitch: RestitchPrepareBridge;
   events: EventChannel<TeamOperationEvent>;
   acceptingNewTasks: () => boolean;
 }
@@ -34,6 +41,7 @@ export function registerTeamBridgeRoutes(
     download,
     landings,
     library,
+    restitch,
     events,
     acceptingNewTasks
   }: TeamBridgeRoutesDeps
@@ -79,6 +87,50 @@ export function registerTeamBridgeRoutes(
     '/api/team/download/:operationId/cancel',
     async (request, reply) => {
       const canceled = download.cancel(request.params.operationId);
+      if (!canceled) return reply.code(404).send({ error: 'NOT_FOUND' });
+      return { canceled: true };
+    }
+  );
+
+  /*
+   * Preparation answers at once and works afterwards.
+   *
+   * A space of fifty videos is minutes of reading, which outlives any page's patience for a
+   * pending request and must survive a reload; so the run is named by its operation id, every
+   * finding arrives on the event channel, and the same id stops it.
+   */
+  app.post<{ Body?: unknown }>('/api/team/restitch/prepare', async (request, reply) => {
+    if (!acceptingNewTasks()) return reply.code(409).send({ error: 'UPDATE_PENDING' });
+    const input = restitchPrepareRequest(request.body);
+    if (!input) return reply.code(400).send({ error: 'INVALID_INPUT' });
+    try {
+      restitch.start(input);
+      return reply.code(202).send({ accepted: true });
+    } catch (error) {
+      return routeFailure(reply, error, 'PREPARE_FAILED');
+    }
+  });
+
+  /*
+   * What the run found, read rather than pushed.
+   *
+   * A finding names a file and describes its shape, and the event channel next door is a
+   * broadcast that carries no content on purpose — so the channel says how far along the run
+   * is and this says what it learned.
+   */
+  app.get<{ Params: { operationId: string } }>(
+    '/api/team/restitch/prepare/:operationId',
+    async (request, reply) => {
+      const report = restitch.report(request.params.operationId);
+      if (!report) return reply.code(404).send({ error: 'NOT_FOUND' });
+      return report;
+    }
+  );
+
+  app.post<{ Params: { operationId: string } }>(
+    '/api/team/restitch/prepare/:operationId/cancel',
+    async (request, reply) => {
+      const canceled = restitch.cancel(request.params.operationId);
       if (!canceled) return reply.code(404).send({ error: 'NOT_FOUND' });
       return { canceled: true };
     }
@@ -371,12 +423,103 @@ function downloadRequest(value: unknown): TeamAgentDownloadRequest | null {
     if (suffix.length > 60) return null;
     compress = { embed: value.compress.embed === true, suffix };
   }
+  let step: TeamAgentDownloadProcess | null = null;
+  if (value.process !== undefined && value.process !== null) {
+    if (!record(value.process)) return null;
+    if (value.process.tool === 'restitch') {
+      // The defaults and the preparation are narrowed by the delegate, which owns their
+      // shapes; here it is enough that they are objects and that the name ending is sane.
+      const suffix = typeof value.process.suffix === 'string' ? value.process.suffix : '';
+      if (suffix.length > 60 || !record(value.process.defaults)) return null;
+      step = {
+        tool: 'restitch',
+        defaults: value.process.defaults,
+        prepared: record(value.process.prepared) ? value.process.prepared : null,
+        suffix
+      };
+    } else if (value.process.tool === 'compressor') {
+      const suffix = typeof value.process.suffix === 'string' ? value.process.suffix : '';
+      if (suffix.length > 60) return null;
+      step = { tool: 'compressor', embed: value.process.embed === true, suffix };
+    } else {
+      return null;
+    }
+  }
+  // An absolute local path the caller was already granted; anything else falls back to the
+  // picker rather than being written to.
+  const destination =
+    typeof value.destination === 'string' && path.isAbsolute(value.destination)
+      ? value.destination
+      : null;
   return {
     operationId: value.operationId,
     transferUrl: value.transferUrl,
     transferGrant,
     fileName: value.fileName,
+    destination,
+    process: step,
     compress
+  };
+}
+
+function restitchPrepareRequest(value: unknown): RestitchPrepareRequest | null {
+  if (!record(value)) return null;
+  if (
+    typeof value.operationId !== 'string' ||
+    typeof value.teamId !== 'string' ||
+    typeof value.transferUrl !== 'string' ||
+    !Array.isArray(value.materials) ||
+    value.materials.length < 1 ||
+    value.materials.length > 500
+  ) {
+    return null;
+  }
+  const materials: RestitchPrepareRequest['materials'] = [];
+  for (const entry of value.materials) {
+    if (!record(entry)) return null;
+    const transferGrant = parseTeamTransferGrant(entry.transferGrant);
+    if (
+      typeof entry.materialId !== 'string' ||
+      typeof entry.driveVersion !== 'string' ||
+      typeof entry.fileName !== 'string' ||
+      transferGrant?.purpose !== 'download_range'
+    ) {
+      return null;
+    }
+    materials.push({
+      materialId: entry.materialId,
+      driveVersion: entry.driveVersion,
+      fileName: entry.fileName,
+      transferGrant
+    });
+  }
+  // Absent audio simply means no silence is built ahead of time; a malformed one is refused
+  // rather than guessed, because a bank at the wrong rate is worse than no bank at all.
+  let audio: RestitchPrepareRequest['audio'] = null;
+  if (value.audio !== undefined && value.audio !== null) {
+    if (!record(value.audio)) return null;
+    const sampleRate = value.audio.sampleRate;
+    const channels = value.audio.channels;
+    if (
+      typeof sampleRate !== 'number' ||
+      typeof channels !== 'number' ||
+      !Number.isInteger(sampleRate) ||
+      !Number.isInteger(channels) ||
+      sampleRate < 8000 ||
+      sampleRate > 192000 ||
+      channels < 1 ||
+      channels > 8
+    ) {
+      return null;
+    }
+    audio = { sampleRate, channels };
+  }
+  return {
+    operationId: value.operationId,
+    teamId: value.teamId,
+    transferUrl: value.transferUrl,
+    materials,
+    audio
   };
 }
 
@@ -387,7 +530,13 @@ function record(value: unknown): value is Record<string, unknown> {
 function routeFailure(
   reply: FastifyReply,
   error: unknown,
-  fallback: 'PREVIEW_FAILED' | 'PROCESS_FAILED' | 'DOWNLOAD_FAILED' | 'RENDER_FAILED' | 'POSTER_FAILED'
+  fallback:
+    | 'PREVIEW_FAILED'
+    | 'PROCESS_FAILED'
+    | 'DOWNLOAD_FAILED'
+    | 'RENDER_FAILED'
+    | 'POSTER_FAILED'
+    | 'PREPARE_FAILED'
 ) {
   const code = safeErrorCode(error, fallback);
   const status =
@@ -421,6 +570,7 @@ function safeErrorCode(
     | 'DOWNLOAD_FAILED'
     | 'RENDER_FAILED'
     | 'POSTER_FAILED'
+    | 'PREPARE_FAILED'
 ) {
   const value = error instanceof Error ? error.message : '';
   return [
