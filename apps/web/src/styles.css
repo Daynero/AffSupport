@@ -13734,10 +13734,32 @@ button.team-landing-tile:hover {
   border-left-color: var(--color-accent);
 }
 
+/* Text and, while something is running, the line that shows how far. */
+.ui-toast-body {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 6px;
+  min-width: 0;
+}
+
 .ui-toast-text {
   margin: 0;
   font-size: 0.9375rem;
   line-height: 1.4;
+}
+
+.ui-toast-progress {
+  height: 3px;
+  overflow: hidden;
+  background: var(--color-border);
+  border-radius: 999px;
+}
+.ui-toast-progress span {
+  display: block;
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: inherit;
+  transition: width var(--dur-pop) var(--ease-enter);
 }
 
 .ui-toast-controls {

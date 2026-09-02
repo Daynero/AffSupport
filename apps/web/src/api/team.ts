@@ -1417,6 +1417,25 @@ export const teamApi = {
     throwRpc(error);
   },
 
+  /**
+   * Says that a .txt is the transcript of a video — the caller-authorized half
+   * of the companion link, used when a copy needs its own text attached to the
+   * copy of the video.
+   */
+  async linkTranscriptCompanion(
+    teamId: string,
+    videoId: string,
+    companionId: string
+  ): Promise<boolean> {
+    const { data, error } = await requireSupabaseClient().rpc('link_transcript_companion', {
+      p_team: teamId,
+      p_video: videoId,
+      p_companion: companionId
+    });
+    throwRpc(error);
+    return typeof data === 'object' && data !== null && (data as { linked?: unknown }).linked === true;
+  },
+
   async getTranscriptCompanion(
     teamId: string,
     materialId: string

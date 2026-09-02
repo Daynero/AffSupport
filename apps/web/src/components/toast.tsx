@@ -29,6 +29,12 @@ export interface ToastInput {
   action?: ToastAction;
   /** Survives the auto-dismiss timer; the reader closes it. */
   sticky?: boolean;
+  /**
+   * 0–100 while work is in flight, for a toast that reports on something that
+   * takes long enough to wonder about — pasting twenty files, say. Omitted for
+   * the ordinary one-line outcome.
+   */
+  progress?: number;
 }
 
 export interface ToastMessage extends ToastInput {
@@ -39,6 +45,12 @@ export interface ToastContextValue {
   toasts: readonly ToastMessage[];
   /** Show a toast; returns its id so a caller can dismiss it early. */
   push: (input: ToastInput) => number;
+  /**
+   * Change a toast that is already showing — the count as it climbs, and the
+   * turn from "copying" into "copied". A running job that raised a new toast
+   * per file would bury the screen; this keeps it to one line that moves.
+   */
+  update: (id: number, patch: Partial<ToastInput>) => void;
   dismiss: (id: number) => void;
 }
 
@@ -95,6 +107,24 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     [dismiss]
   );
 
+  const update = useCallback(
+    (id: number, patch: Partial<ToastInput>) => {
+      setToasts(current =>
+        current.map(toast => (toast.id === id ? { ...toast, ...patch } : toast))
+      );
+      // A toast that stops being sticky starts its clock now, so "copied" fades
+      // like any other confirmation instead of waiting to be closed by hand.
+      const stopsBeingSticky = patch.sticky === false;
+      if (stopsBeingSticky && !timers.current.has(id)) {
+        timers.current.set(
+          id,
+          window.setTimeout(() => dismiss(id), lifetimeMs({ tone: 'success', text: '', ...patch }))
+        );
+      }
+    },
+    [dismiss]
+  );
+
   useEffect(() => {
     const pending = timers.current;
     return () => {
@@ -104,8 +134,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<ToastContextValue>(
-    () => ({ toasts, push, dismiss }),
-    [dismiss, push, toasts]
+    () => ({ toasts, push, update, dismiss }),
+    [dismiss, push, toasts, update]
   );
 
   return (
@@ -129,7 +159,20 @@ function ToastRegion({
     <div className="ui-toast-region" aria-live="polite" aria-atomic="false">
       {toasts.map(toast => (
         <div key={toast.id} className={`ui-toast ui-toast-${toast.tone}`} role="status">
-          <p className="ui-toast-text">{toast.text}</p>
+          <div className="ui-toast-body">
+            <p className="ui-toast-text">{toast.text}</p>
+            {toast.progress !== undefined && (
+              <div
+                className="ui-toast-progress"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(toast.progress)}
+              >
+                <span style={{ width: `${Math.max(0, Math.min(100, toast.progress))}%` }} />
+              </div>
+            )}
+          </div>
           <div className="ui-toast-controls">
             {toast.action && (
               <button

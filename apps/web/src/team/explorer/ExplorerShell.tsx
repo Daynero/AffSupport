@@ -9,6 +9,12 @@ import { teamApi, type TeamMaterialSummary } from '../../api/team';
 import { downloadTeamFileWithAgent } from '../../api/client';
 import { Button, ProgressBar } from '../../components/ui';
 import { useToasts } from '../../components/toast';
+import {
+  copyMaterialWithTail,
+  moveMaterialWithTail,
+  trashMaterialWithTail,
+  type TailClient
+} from '../materials/tail';
 import { useI18n } from '../../i18n';
 import { useTeam } from '../TeamContext';
 import { useOptionalAgent } from '../../AgentContext';
@@ -31,7 +37,6 @@ import { KindFilterMenu } from './KindFilterMenu';
 import { SortMenu } from './SortMenu';
 import { sortRows, readRememberedSort, rememberSort, type ExplorerSort } from './sort';
 import { PreviewPane } from './PreviewPane';
-import { Modal } from '../../components/Modal';
 import { MaterialProcessFlow } from '../processing/MaterialProcessFlow';
 import { useTeamOperation } from '../processing/useTeamOperation';
 import { pauseTeamAgentProcess, startTeamAgentProcess } from '../../api/client';
@@ -154,7 +159,7 @@ function ExplorerBody({
   readOnly: boolean;
 }) {
   const { t } = useI18n();
-  const { push } = useToasts();
+  const { push, update, dismiss } = useToasts();
   const { permissions: loadedPermissions } = useTeam();
   // Every write goes dark while storage needs a person (FR-033); nothing is lost.
   const permissions = readOnly ? null : loadedPermissions;
@@ -214,16 +219,13 @@ function ExplorerBody({
   // from any folder — paste lands them in the folder currently open.
   const clipboard = useRef<{
     mode: 'copy' | 'cut';
-    items: { id: string; name: string; kind: string }[];
+    /** Category as well as kind: what travels with a file depends on it. */
+    items: { id: string; name: string; kind: string; category: string | null }[];
   } | null>(null);
   const [folderProcessing, setFolderProcessing] = useState<TeamMaterialRow | null>(null);
   const [compressing, setCompressing] = useState<CompressPlanItem_[] | null>(null);
   const [dropping, setDropping] = useState(false);
   const [storageKind, setStorageKind] = useState<TeamAnalyticsStorage | null>(null);
-  const [companionDelete, setCompanionDelete] = useState<{
-    companionId: string;
-    dontAsk: boolean;
-  } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const view: ExplorerView = query.view ?? readRememberedView();
   const [sort, setSortState] = useState<ExplorerSort>(() => readRememberedSort());
@@ -257,44 +259,42 @@ function ExplorerBody({
     };
   }, [client, teamId]);
 
+  /*
+   * Every file operation in this screen goes through the tail module, and it
+   * needs exactly these four. Built once so a drag, a paste, a menu and a
+   * delete cannot drift apart in what they remember to carry.
+   */
+  const tailClient = useMemo<TailClient>(
+    () => ({
+      copyMaterial: input => teamApi.copyMaterial(input),
+      moveMaterial: input => actionsClient.moveMaterial(input),
+      renameMaterial: input => actionsClient.renameMaterial(input),
+      trashMaterial: input => actionsClient.trashMaterial(input)
+    }),
+    [actionsClient]
+  );
+
+  /** What the tail module needs to know about a row the drag only names by id. */
+  const rowFor = useCallback(
+    (materialId: string) => {
+      const row = page.rows.find(candidate => candidate.id === materialId);
+      return { id: materialId, name: row?.name ?? '', category: row?.category ?? null };
+    },
+    [page.rows]
+  );
+
   const changed = useCallback(() => {
     onChanged?.();
     void page.reload();
   }, [onChanged, page]);
 
-  const trashCompanion = useCallback(
-    async (companionId: string) => {
-      try {
-        await actionsClient.trashMaterial({
-          teamId,
-          materialId: companionId,
-          idempotencyKey: crypto.randomUUID()
-        });
-      } catch (cause) {
-        push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
-      }
-      changed();
-    },
-    [actionsClient, changed, push, t, teamId]
-  );
-
-  // A trashed video's transcript companion follows it: silently by the account
-  // setting, or after one question. Here, not in the row, so the dialog
-  // survives the row leaving the list (012, T012).
-  const onVideoTrashed = useCallback(
-    async (videoId: string) => {
-      const companion = await teamApi.getTranscriptCompanion(teamId, videoId).catch(() => null);
-      if (!companion) return;
-      const pref = await teamApi.getTranscriptDeletePref().catch(() => 'ask' as const);
-      if (pref === 'keep') return;
-      if (pref === 'delete') {
-        await trashCompanion(companion.id);
-        return;
-      }
-      setCompanionDelete({ companionId: companion.id, dontAsk: false });
-    },
-    [teamId, trashCompanion]
-  );
+  /*
+   * A trashed video takes its transcript with it, without asking (owner,
+   * 2026-09-02). 012 asked the question because a transcript might have been
+   * shared; it never is — each video owns one, and a copy gets its own — so the
+   * question only stood between a person and the tidy-up they had already
+   * asked for. Both files are recoverable from the trash.
+   */
 
   const setView = (next: ExplorerView) => {
     rememberView(next);
@@ -318,12 +318,12 @@ function ExplorerBody({
       const previous = currentFolderId ?? null;
       for (const materialId of materialIds) {
         try {
-          await actionsClient.moveMaterial({
+          await moveMaterialWithTail({
             teamId,
-            materialId,
+            material: rowFor(materialId),
             destinationFolderId: folderDriveId,
             conflictMode: 'keep_both',
-            idempotencyKey: crypto.randomUUID()
+            client: tailClient
           });
         } catch (cause) {
           push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
@@ -400,7 +400,6 @@ function ExplorerBody({
         actionsClient,
         storageKind,
         onChanged: changed,
-        onVideoTrashed: (videoId: string) => void onVideoTrashed(videoId),
         ...(permissions.process
           ? {
               onProcess: (row: TeamMaterialRow) => setProcessing({ row }),
@@ -423,10 +422,11 @@ function ExplorerBody({
       for (const row of rows) {
         if (row.kind === 'folder') continue;
         try {
-          await actionsClient.trashMaterial({
+          // The transcript goes with its video, here as everywhere else.
+          await trashMaterialWithTail({
             teamId,
-            materialId: row.id,
-            idempotencyKey: crypto.randomUUID()
+            material: { id: row.id, name: row.name, category: row.category },
+            client: tailClient
           });
           trashed.push(row.id);
         } catch (cause) {
@@ -463,7 +463,17 @@ function ExplorerBody({
         action: { label: t('teamUndo'), run: () => void restore() }
       });
     },
-    [actionsClient, changed, clearSelection, permissions?.delete, push, select, t, teamId]
+    [
+      actionsClient,
+      changed,
+      clearSelection,
+      permissions?.delete,
+      push,
+      select,
+      t,
+      tailClient,
+      teamId
+    ]
   );
 
   /**
@@ -721,25 +731,46 @@ function ExplorerBody({
       return;
     }
     let done = 0;
+    // Copying a file is a Drive-side operation per file, and each one brings its
+    // transcript with it — twenty pasted videos is forty round trips. A single
+    // line that counts is the difference between "nothing is happening" and
+    // "this is going to take a moment".
+    const progress = push({
+      tone: 'info',
+      sticky: true,
+      progress: 0,
+      text: t(clip.mode === 'copy' ? 'teamExplorerPastingCopy' : 'teamExplorerPastingMove', {
+        done: 0,
+        total: items.length
+      })
+    });
     for (const item of items) {
       try {
+        const material = { id: item.id, name: item.name, category: item.category };
         if (clip.mode === 'copy') {
-          await teamApi.copyMaterial({
+          await copyMaterialWithTail({
             teamId,
-            materialId: item.id,
+            material,
             destinationFolderId: currentFolderId ?? null,
-            idempotencyKey: crypto.randomUUID()
+            client: tailClient
           });
         } else {
-          await actionsClient.moveMaterial({
+          await moveMaterialWithTail({
             teamId,
-            materialId: item.id,
+            material,
             destinationFolderId: currentFolderId ?? null,
             conflictMode: 'keep_both',
-            idempotencyKey: crypto.randomUUID()
+            client: tailClient
           });
         }
         done += 1;
+        update(progress, {
+          progress: (done / items.length) * 100,
+          text: t(clip.mode === 'copy' ? 'teamExplorerPastingCopy' : 'teamExplorerPastingMove', {
+            done,
+            total: items.length
+          })
+        });
       } catch (cause) {
         push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
         break;
@@ -749,10 +780,17 @@ function ExplorerBody({
     if (done > 0) {
       changed();
       clearSelection();
-      push({ tone: 'success', text: t('teamExplorerPastedCount', { count: done }) });
+      update(progress, {
+        tone: 'success',
+        sticky: false,
+        progress: undefined,
+        text: t('teamExplorerPastedCount', { count: done })
+      });
       if (skipped > 0) {
         push({ tone: 'error', text: t('teamExplorerPasteFoldersSkipped', { count: skipped }) });
       }
+    } else {
+      dismiss(progress);
     }
   };
 
@@ -835,7 +873,12 @@ function ExplorerBody({
         if (rows.length === 0) return;
         clipboard.current = {
           mode: key === 'c' ? 'copy' : 'cut',
-          items: rows.map(row => ({ id: row.id, name: row.name, kind: row.kind }))
+          items: rows.map(row => ({
+            id: row.id,
+            name: row.name,
+            kind: row.kind,
+            category: row.category
+          }))
         };
         push({
           tone: 'success',
@@ -1092,53 +1135,6 @@ function ExplorerBody({
         }
         onCreateTask={onCreateTask}
       />
-      {companionDelete && (
-        <Modal
-          labelledBy="team-companion-delete-title"
-          onClose={() => setCompanionDelete(null)}
-          className="team-companion-delete"
-        >
-          <h3 id="team-companion-delete-title">{t('teamTranscriptDeleteTitle')}</h3>
-          <p>{t('teamTranscriptDeleteBody')}</p>
-          <label className="team-companion-delete-remember">
-            <input
-              type="checkbox"
-              checked={companionDelete.dontAsk}
-              onChange={event =>
-                setCompanionDelete(current =>
-                  current ? { ...current, dontAsk: event.target.checked } : current
-                )
-              }
-            />
-            {t('teamTranscriptDeleteRemember')}
-          </label>
-          <div className="team-dialog-actions">
-            <Button
-              type="button"
-              variant="danger"
-              onClick={() => {
-                const { companionId, dontAsk } = companionDelete;
-                setCompanionDelete(null);
-                if (dontAsk) void teamApi.setTranscriptDeletePref('delete').catch(() => undefined);
-                void trashCompanion(companionId);
-              }}
-            >
-              {t('teamTranscriptDeleteYes')}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                const { dontAsk } = companionDelete;
-                setCompanionDelete(null);
-                if (dontAsk) void teamApi.setTranscriptDeletePref('keep').catch(() => undefined);
-              }}
-            >
-              {t('teamTranscriptDeleteNo')}
-            </Button>
-          </div>
-        </Modal>
-      )}
       {compressing && (
         <TeamCompressorDialog
           teamId={teamId}

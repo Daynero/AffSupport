@@ -1,5 +1,9 @@
-import { useCallback, useRef, useState } from 'react';
-import { teamApi } from '../../api/team';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import {
+  moveMaterialWithTail,
+  renameMaterialWithTail,
+  trashMaterialWithTail
+} from '../materials/tail';
 import type {
   MaterialKind,
   TeamAnalyticsAction,
@@ -89,6 +93,11 @@ export function useMaterialActions(input: {
 
   const { t } = useI18n();
   const { push } = useToasts();
+  /** What the tail module needs of this material, stable across renders. */
+  const tailMaterial = useMemo(
+    () => ({ id: material.id, name: material.name, category: material.category ?? null }),
+    [material.category, material.id, material.name]
+  );
   const [busy, setBusy] = useState(false);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [conflictFile, setConflictFile] = useState<File | null>(null);
@@ -267,72 +276,37 @@ export function useMaterialActions(input: {
     [client, material.id, material.name, run, teamId]
   );
 
+  // Rename, move and trash all take the material's tail with them, and all of
+  // them ask the same module how (012 T008/T009, generalized 2026-09-02): the
+  // rule lives in one place so a surface cannot forget half of it.
   const rename = useCallback(
     (newName: string) =>
-      run('rename', async () => {
-        const result = await client.renameMaterial({
+      run('rename', () =>
+        renameMaterialWithTail({
           teamId,
-          materialId: material.id,
+          material: tailMaterial,
           newName,
           conflictMode: 'cancel',
-          idempotencyKey: crypto.randomUUID()
-        });
-        // 012 (T008): the transcript companion follows the video's name.
-        if (material.category === 'video') {
-          const companion = await teamApi
-            .getTranscriptCompanion(teamId, material.id)
-            .catch(() => null);
-          if (companion) {
-            const stem = newName.replace(/\.[^.]+$/u, '');
-            await client
-              .renameMaterial({
-                teamId,
-                materialId: companion.id,
-                newName: `${stem}.txt`,
-                conflictMode: 'keep_both',
-                idempotencyKey: crypto.randomUUID()
-              })
-              .catch(() => undefined);
-          }
-        }
-        return result;
-      }),
-    [client, material.category, material.id, run, teamId]
+          client
+        })
+      ),
+    [client, run, tailMaterial, teamId]
   );
 
   const move = useCallback(
     (folderId: string) =>
-      run('move', async () => {
-        // The picker names the space root with a `'root'` sentinel; the move API
-        // expects `null` there. Passing the literal string moves nothing.
-        const destination = folderId === 'root' ? null : folderId;
-        const result = await client.moveMaterial({
+      run('move', () =>
+        moveMaterialWithTail({
           teamId,
-          materialId: material.id,
-          destinationFolderId: destination,
+          material: tailMaterial,
+          // The picker names the space root with a `'root'` sentinel; the move
+          // API expects `null` there. Passing the literal string moves nothing.
+          destinationFolderId: folderId === 'root' ? null : folderId,
           conflictMode: 'cancel',
-          idempotencyKey: crypto.randomUUID()
-        });
-        // 012 (T009): the transcript companion follows the video's place.
-        if (material.category === 'video') {
-          const companion = await teamApi
-            .getTranscriptCompanion(teamId, material.id)
-            .catch(() => null);
-          if (companion) {
-            await client
-              .moveMaterial({
-                teamId,
-                materialId: companion.id,
-                destinationFolderId: destination,
-                conflictMode: 'keep_both',
-                idempotencyKey: crypto.randomUUID()
-              })
-              .catch(() => undefined);
-          }
-        }
-        return result;
-      }),
-    [client, material.category, material.id, run, teamId]
+          client
+        })
+      ),
+    [client, run, tailMaterial, teamId]
   );
 
   const restore = useCallback(
@@ -362,12 +336,7 @@ export function useMaterialActions(input: {
   const trash = useCallback(async () => {
     const code = await run(
       'trash',
-      () =>
-        client.trashMaterial({
-          teamId,
-          materialId: material.id,
-          idempotencyKey: crypto.randomUUID()
-        }),
+      () => trashMaterialWithTail({ teamId, material: tailMaterial, client }),
       null
     );
     if (code) return code;
@@ -377,7 +346,7 @@ export function useMaterialActions(input: {
       action: { label: t('teamUndo'), run: () => void restore() }
     });
     return null;
-  }, [client, material.id, push, restore, run, t, teamId]);
+  }, [client, push, restore, run, t, tailMaterial, teamId]);
 
   return {
     busy,

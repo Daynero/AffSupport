@@ -475,3 +475,37 @@ Not chosen: uploading the repeat as a new Drive version of the existing transcri
 the nicer outcome (one file, Drive's own history) but `process/start` only allows a version
 target that _is_ the source material, and widening that is a change to the finalize
 authorization path — worth doing deliberately, not as a naming fix.
+
+## S — one mechanism for a file and what belongs to it (2026-09-02)
+
+Owner, after copy-and-paste: the pasted video arrived without its transcript, nothing said the
+copy was happening, and the folder was collecting stray `.txt` files. The model he named is
+the one to build to — **a video owns exactly one transcript, a copy owns its own, and deleting
+the video deletes the text with it.**
+
+What was actually there: rename and move carried the transcript (012, T008/T009) — from the
+row menu only. The same move by drag, a cut-and-paste, a copy and a delete each did their own
+thing, and three of the four forgot the tail entirely. That is the bug behind every symptom.
+
+`apps/web/src/team/materials/tail.ts` is now the only way any of them happens:
+`copyMaterialWithTail`, `moveMaterialWithTail`, `renameMaterialWithTail`,
+`trashMaterialWithTail`. The row menu, the drag, the paste, the keyboard delete and the
+selection bar all call it. Adding the next kind of tail is one change instead of six.
+
+| Piece                                                                                                                                                | Where                                                                                                    |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| The transcript is _copied_ and linked to the copy, so re-transcribing a copy replaces only its own text                                              | `tail.ts` + `link_transcript_companion` (caller-authorized)                                              |
+| A copy keeps the picture and the landing preview it already had — same bytes, so the render points at the same artifact rather than being made again | `service_clone_material_extras`, called by `drive-ops` `handleCopy`                                      |
+| A copied zip stays a _landing_: its classification and validation travel too, or the copy arrives as a plain archive with an inspection to wait for  | same function                                                                                            |
+| Deleting a video takes its transcript, no question asked                                                                                             | `trashMaterialWithTail`; 012's dialog is gone                                                            |
+| A shared artifact folder is only deleted when nothing points at it any more                                                                          | `service_invalidate_landing_renders`                                                                     |
+| Copying says how many, pasting shows a line that counts                                                                                              | `teamExplorerCopiedCount`, new `teamExplorerPastingCopy/Move` on a toast that now carries a progress bar |
+
+012 asked before deleting a transcript in case it was shared. It never is, so the question
+only stood between a person and the tidy-up they had already asked for; both files land in the
+trash and come back together.
+
+Verified live: pasting `16-tail_1.mp4` produced `16-tail_1 (2).mp4` **and** `16-tail_1 (2).txt`
+linked to the copy, with the tile's picture already there; pasting the landing produced a copy
+that was a landing, `validated`, with a ready five-segment render and no second render run;
+deleting the video copy took its transcript with it.

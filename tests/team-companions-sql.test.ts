@@ -197,6 +197,51 @@ describe('transcript companion linking (012, T005)', () => {
     expect(oldState[0]).toMatchObject({ lifecycle: 'trashed', companion_of: null });
   }, 60_000);
 
+  it('gives a copy the original\'s picture and its rendered preview', async () => {
+    // A copy is the same bytes, so everything already known describes it too:
+    // the tile fills in at once and the landing is not rendered a second time.
+    const landing = await material('promo.zip', 'file', 'landing');
+    const copy = await material('promo (2).zip', 'file', 'landing');
+    // The thumbnail trigger keeps 'ready' only while its version matches the
+    // row's own drive_version, so the fixture sets the version first.
+    await harness.root(`update public.team_materials set drive_version = 'v1' where id = $1`, [
+      landing
+    ]);
+    await harness.root(`update public.team_materials set drive_version = 'v2' where id = $1`, [
+      copy
+    ]);
+    await harness.root(
+      `update public.team_materials
+          set provider_thumbnail_state = 'ready', provider_thumbnail_version = 'v1'
+        where id = $1`,
+      [landing]
+    );
+    await harness.root(
+      `insert into public.team_landing_renders
+         (team_id, material_id, preset, render_state, artifact_root, segment_count, fingerprint)
+       values ($1, $2, 'default', 'ready', 'drive-artifact-root', 3, $3)`,
+      [teamId, landing, 'a'.repeat(64)]
+    );
+
+    await harness.root('select public.service_clone_material_extras($1, $2, $3)', [
+      teamId,
+      landing,
+      copy
+    ]);
+
+    const cloned = await harness.root<{ artifact_root: string; segment_count: number }>(
+      `select artifact_root, segment_count from public.team_landing_renders
+        where material_id = $1`,
+      [copy]
+    );
+    expect(cloned[0]).toMatchObject({ artifact_root: 'drive-artifact-root', segment_count: 3 });
+    const thumbnail = await harness.root<{ provider_thumbnail_state: string }>(
+      'select provider_thumbnail_state from public.team_materials where id = $1',
+      [copy]
+    );
+    expect(thumbnail[0]!.provider_thumbnail_state).toBe('ready');
+  }, 60_000);
+
   it('refuses to link a non-transcript or a non-video', async () => {
     const notVideo = await material('pic.png', 'file', 'image');
     const txt = await harness.root<{ id: string }>(

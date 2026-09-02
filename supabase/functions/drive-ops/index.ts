@@ -1446,6 +1446,19 @@ async function handleCopy(
     if (!isRecord(committed)) {
       throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
     }
+    // The copy is the same bytes, so everything already known about the
+    // original describes it too: Drive's thumbnail state, and a landing's
+    // rendered preview, which points at the same artifact rather than being
+    // rendered a second time. Best-effort — a copy that lands is a copy that
+    // landed, even if its tile takes a moment longer to fill in.
+    const copyMaterialId = stringValue(committed, 'materialId');
+    if (copyMaterialId) {
+      await rpcValue(service, 'service_clone_material_extras', {
+        p_team: common.teamId,
+        p_source: common.materialId,
+        p_copy: copyMaterialId
+      }).catch(() => undefined);
+    }
     return committed;
   });
 }

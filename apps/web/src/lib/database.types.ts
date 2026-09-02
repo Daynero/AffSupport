@@ -2397,6 +2397,10 @@ export type Database = {
         Args: { p_team: string; p_material: string };
         Returns: number;
       };
+      link_transcript_companion: {
+        Args: { p_team: string; p_video: string; p_companion: string };
+        Returns: Json;
+      };
       get_material_transcript_companion: {
         Args: { p_team: string; p_material: string };
         Returns: {
