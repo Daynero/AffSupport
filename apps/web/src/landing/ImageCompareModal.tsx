@@ -108,6 +108,8 @@ export function ImageCompareModal({
    */
   useEffect(() => {
     if (!ready || !comparison || touched) return;
+    // A person who asked the system for less motion is not shown a divider sliding about.
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
     const out = window.setTimeout(() => {
       setNudging(true);
       setPosition(NUDGE_TO);
@@ -166,18 +168,26 @@ export function ImageCompareModal({
     ...(ratio ? { '--compare-ratio': String(ratio) } : {})
   } as CSSProperties;
 
-  const image = (side: 'before' | 'after', src: string | null | undefined) => (
-    <img
-      key={`${side}-${attempt}`}
-      decoding="async"
-      className={`landing-compare-image landing-compare-${side}`}
-      src={src ?? ''}
-      alt=""
-      draggable={false}
-      onLoad={() => setLoaded(value => ({ ...value, [side]: true }))}
-      onError={() => setFailed(true)}
-    />
-  );
+  /*
+   * Nothing is mounted until there is a URL to put in it.
+   *
+   * `src=""` does not mean "nothing yet" to a browser: it re-requests the document, gets HTML,
+   * and fires `error` — which set `failed` permanently, so a ticket that was merely slow
+   * became a preview that was broken for good.
+   */
+  const image = (side: 'before' | 'after', src: string | null | undefined) =>
+    src ? (
+      <img
+        key={`${side}-${attempt}`}
+        decoding="async"
+        className={`landing-compare-image landing-compare-${side}`}
+        src={src}
+        alt=""
+        draggable={false}
+        onLoad={() => setLoaded(value => ({ ...value, [side]: true }))}
+        onError={() => setFailed(true)}
+      />
+    ) : null;
 
   return (
     <Modal
@@ -193,7 +203,9 @@ export function ImageCompareModal({
         <div className="landing-compare-heading">
           <h2 id={titleId}>
             {t(comparison ? 'landingPreviewTitle' : 'landingPreviewTitleSingle', {
-              name: asset.fileName
+              // The name the file has now. `fileName` is fixed when the landing is scanned, so
+              // a renumbered file put `hero.jpg` above a row that says `img7.webp`.
+              name: (asset.newRelPath ?? asset.relPath).split('/').pop() ?? asset.fileName
             })}
           </h2>
           {/* The instruction is needed once. After the first drag it is a line of text taking

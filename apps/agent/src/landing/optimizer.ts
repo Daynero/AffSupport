@@ -120,6 +120,17 @@ class LandingJobOptimizer {
   private activeChild: ChildProcess | null = null;
   /** Release for the hold the person asked for; non-null exactly while paused. */
   private releaseHold: (() => void) | null = null;
+  /**
+   * Resolved when the run may continue; null when it is not held.
+   *
+   * A landing of nothing but images has no long-running child to suspend — each image is a
+   * decode and a WebP encode, over in a fraction of a second — so holding the encoder held
+   * nothing and the request came back "unsupported" on exactly the landings people have most
+   * of. The gate is checked between files, which is where a landing can honestly be stopped:
+   * whatever is in flight finishes, and nothing else starts until it is let go.
+   */
+  private resume: (() => void) | null = null;
+  private gate: Promise<void> | null = null;
 
   constructor(
     private tools: { ffmpeg: boolean; ffprobe: boolean },
@@ -127,6 +138,19 @@ class LandingJobOptimizer {
     initialSettings: LandingSettings
   ) {
     this.settings = { ...initialSettings };
+  }
+
+  /**
+   * The settings this landing is actually built with.
+   *
+   * `queue()` pins them onto the job, and everything in the run reads them from there rather
+   * than from the live object. Reading the live one meant a switch flipped at forty percent
+   * produced a landing built half one way and half the other — while the card went on showing
+   * the pinned copy, so nothing on screen ever admitted it. Outside a run the two are the
+   * same, because `updateSettings` keeps a prepared job's copy up to date.
+   */
+  private get active(): LandingSettings {
+    return this.job?.settings ?? this.settings;
   }
 
   /** What this landing could be prepared from again, if anything. */
@@ -182,6 +206,10 @@ class LandingJobOptimizer {
   }
 
   async cancel(): Promise<boolean> {
+    /* A stopped run must not be waiting at the gate for a resume that is never coming: the
+       abort is checked immediately after it, so opening it lets the loop reach the check. */
+    this.openGate();
+    this.dropHold();
     if (!this.running || !this.controller) return false;
     this.cancelling = true;
     this.controller.abort(new Error('PROCESS_CANCELED'));
@@ -244,8 +272,8 @@ class LandingJobOptimizer {
    * answer rather than inventing a location.
    */
   private destinationFor(sourcePath: string | null): string {
-    if (this.settings.outputMode === 'chosen-folder' && this.settings.outputFolder) {
-      return this.settings.outputFolder;
+    if (this.active.outputMode === 'chosen-folder' && this.active.outputFolder) {
+      return this.active.outputFolder;
     }
     return sourcePath ? path.dirname(sourcePath) : uploadedOutputDir();
   }
@@ -343,6 +371,22 @@ class LandingJobOptimizer {
 
   /* ------------------------------ processing ------------------------------ */
 
+  /**
+   * Refuses a landing the machine cannot process, rather than queueing it for ever.
+   *
+   * Returning false here left the job `queued` — a status nothing else moves it out of — and
+   * the pump walked past it, so the tool reported itself busy from then until it was
+   * restarted. A landing that cannot run says why it cannot.
+   */
+  private refuse(reason: string): boolean {
+    if (!this.job) return false;
+    transitionJob(this.job, 'failed');
+    this.job.error = reason;
+    this.job.finishedAt = Date.now();
+    this.notify();
+    return false;
+  }
+
   async start(): Promise<boolean> {
     if (
       this.running ||
@@ -351,8 +395,8 @@ class LandingJobOptimizer {
     ) {
       return false;
     }
-    if (!this.landingRoot || !this.destinationDir) return false;
-    if (!this.tools.ffmpeg || !this.tools.ffprobe) return false;
+    if (!this.landingRoot || !this.destinationDir) return this.refuse('LANDING_WORKSPACE_LOST');
+    if (!this.tools.ffmpeg || !this.tools.ffprobe) return this.refuse('MEDIA_TOOL_UNAVAILABLE');
     this.running = true;
     this.cancelling = false;
     const controller = new AbortController();
@@ -378,7 +422,10 @@ class LandingJobOptimizer {
       advanceStep(this.job, 'packaging');
       this.job.progress = Math.max(this.job.progress ?? 0, 96);
       this.notify();
-      await this.produceOutput();
+      await this.produceOutput(controller.signal);
+      /* Checked before the path is announced, not after. Stopping during the copy used to
+         leave a complete `-optimized` folder on disk with the card saying "cancelled" and no
+         way to open the thing that was written. */
       throwIfAborted(controller.signal);
       transitionJob(this.job, 'completed');
       this.job.progress = 100;
@@ -396,6 +443,7 @@ class LandingJobOptimizer {
       /* A held run that finishes — or is stopped — must not leave the governor holding a
          process that no longer exists, and must not come back reported as paused. */
       this.dropHold();
+      this.openGate();
       this.activeChild = null;
       this.job.paused = false;
       this.cancelling = false;
@@ -422,6 +470,9 @@ class LandingJobOptimizer {
     const scanned = new Set((await walkFiles(root)).map(file => file.relPath));
     applyJobProgress(this.job!);
     for (const item of this.job!.assets) {
+      throwIfAborted(signal);
+      // Held between files: the one in flight finishes, and the next does not begin.
+      if (this.gate) await this.gate;
       throwIfAborted(signal);
       if (item.status !== 'pending') continue;
       transitionAsset(item, 'processing');
@@ -482,7 +533,11 @@ class LandingJobOptimizer {
    * copy, so nothing here is re-compressed, and a failure leaves the file as it was.
    */
   private async stripKeptMetadata(root: string, item: LandingAsset): Promise<void> {
-    if (!this.settings.stripMetadata || item.status !== 'skipped') return;
+    /* A failed asset too. It stays in the output exactly as it arrived, so leaving it out of
+       this meant the one file with a problem was also the one still carrying the camera and
+       the co-ordinates, under a switch that said otherwise. */
+    if (!this.active.stripMetadata) return;
+    if (item.status !== 'skipped' && item.status !== 'failed') return;
     await stripFileMetadata(path.join(root, item.newRelPath ?? item.relPath)).catch(() => false);
   }
 
@@ -502,13 +557,27 @@ class LandingJobOptimizer {
     if (!this.job || !this.running) return 'unsupported';
     if (paused === this.job.paused) return 'ok';
     if (paused) {
-      if (!this.takeHold()) return 'unsupported';
+      // The gate always works; the hold is the extra that stops a video mid-encode rather
+      // than at the end of it. A platform that cannot suspend a child still gets a pause.
+      this.gate = new Promise<void>(release => {
+        this.resume = release;
+      });
+      this.takeHold();
     } else {
       this.dropHold();
+      this.openGate();
     }
     this.job.paused = paused;
     this.notify();
     return 'ok';
+  }
+
+  /** Lets a held run continue, and forgets the gate. */
+  private openGate(): void {
+    const release = this.resume;
+    this.resume = null;
+    this.gate = null;
+    release?.();
   }
 
   private takeHold(): boolean {
@@ -542,8 +611,8 @@ class LandingJobOptimizer {
 
   /** Is this kind of media in scope for the run? */
   private wanted(type: LandingAsset['type']): boolean {
-    if (type === 'image') return this.settings.optimizeImages;
-    if (type === 'video') return this.settings.optimizeVideos;
+    if (type === 'image') return this.active.optimizeImages;
+    if (type === 'video') return this.active.optimizeVideos;
     return true;
   }
 
@@ -566,7 +635,7 @@ class LandingJobOptimizer {
 
   private async processImage(root: string, item: LandingAsset, scanned: Set<string>) {
     const absPath = path.join(root, item.relPath);
-    const { webp, width, height } = await encodeImageToWebp(absPath, this.settings.imageQuality);
+    const { webp, width, height } = await encodeImageToWebp(absPath, this.active.imageQuality);
     const extension = path.posix.extname(item.relPath).toLowerCase();
     if (extension === '.webp') {
       if (webp.byteLength > item.originalSize) {
@@ -607,14 +676,14 @@ class LandingJobOptimizer {
     const result = await optimizeVideo(
       absPath,
       temporary,
-      this.settings.videoQuality,
+      this.active.videoQuality,
       value => {
         item.progress = value;
         applyJobProgress(this.job!);
         this.notify('landing:progress');
       },
       signal,
-      this.settings.stripMetadata,
+      this.active.stripMetadata,
       child => this.adoptChild(child)
     );
     this.adoptChild(null);
@@ -652,7 +721,7 @@ class LandingJobOptimizer {
      * where a file ended up: `hero.jpg` became `hero.webp` and is now `img3.webp`, and what
      * the HTML gets told is the end of that chain, not the middle of it.
      */
-    if (this.settings.renameMedia) {
+    if (this.active.renameMedia) {
       const onDisk = new Set((await walkFiles(root)).map(file => file.relPath));
       const numbered = numberedRenames(this.job!.assets, onDisk);
       for (const item of this.job!.assets) {
@@ -694,23 +763,23 @@ class LandingJobOptimizer {
     }
   }
 
-  private async produceOutput() {
+  private async produceOutput(signal: AbortSignal) {
     const root = this.landingRoot!;
     /* Read now rather than at preparation: a person who drops three landings, then picks a
        folder, then presses Optimize meant all three to go there. */
     const destination = this.destinationFor(this.sourcePath);
-    if (this.settings.archive) {
-      this.job!.outputPath = await writeZipOutput(
-        root,
-        destination,
-        this.pendingName,
-        this.workspace!
-      );
-      this.job!.outputIsArchive = true;
-    } else {
-      this.job!.outputPath = await writeFolderOutput(root, destination, this.pendingName);
-      this.job!.outputIsArchive = false;
+    throwIfAborted(signal);
+    const written = this.active.archive
+      ? await writeZipOutput(root, destination, this.pendingName, this.workspace!)
+      : await writeFolderOutput(root, destination, this.pendingName);
+    /* A stop that arrived while this was copying takes the copy with it: a result nobody can
+       reach from the card is litter, not a result. */
+    if (signal.aborted) {
+      await rm(written, { recursive: true, force: true }).catch(() => {});
+      throwIfAborted(signal);
     }
+    this.job!.outputPath = written;
+    this.job!.outputIsArchive = this.active.archive;
   }
 }
 
@@ -761,7 +830,12 @@ export class LandingOptimizer {
 
   updateSettings(patch: Partial<LandingSettings>) {
     this.settings = { ...this.settings, ...patch };
-    for (const worker of this.workers) worker.updateSettings(patch);
+    /* Never the team's landings. Those are built with settings the space chose and a person
+       looking at this panel cannot see them — a click here used to change the quality and the
+       destination of work belonging to somebody else's screen. */
+    for (const worker of this.workers) {
+      if (!this.teamWorkers.has(worker)) worker.updateSettings(patch);
+    }
     // Saved, not awaited: a preference that fails to reach the disk still applies to this
     // run, and making the person wait on a write to see their own click is worse than losing
     // the write.
@@ -887,8 +961,37 @@ export class LandingOptimizer {
     if (!queued.length) return false;
     this.pendingJobIds.push(...queued);
     this.ensurePump();
-    while (this.pumpPromise) await this.pumpPromise;
+    await this.drain();
     return true;
+  }
+
+  /**
+   * Queues the same landings and returns as soon as they are queued.
+   *
+   * What an HTTP request wants. `start` waits for the pump to drain, which held the request
+   * open for the length of the whole run — an hour on a heavy landing — and any blip on a
+   * connection held that long reached the page as `CONNECTION_FAILED`, which put an error
+   * toast and a forced reconnect over a run that was going perfectly well. Progress travels
+   * on the event stream; the request only has to say the queue took the job.
+   */
+  queueStart(jobIds?: string[]): boolean {
+    const latestId = this.workers.at(-1)?.state().job?.id;
+    const requested = new Set(jobIds ?? (latestId ? [latestId] : []));
+    const queued: string[] = [];
+    for (const worker of this.workers) {
+      const job = worker.state().job;
+      if (!job || job.status !== 'ready' || !requested.has(job.id)) continue;
+      if (worker.queue()) queued.push(job.id);
+    }
+    if (!queued.length) return false;
+    this.pendingJobIds.push(...queued);
+    this.ensurePump();
+    return true;
+  }
+
+  /** Waits for everything queued to finish. Used by tests and by callers that must block. */
+  async drain(): Promise<void> {
+    while (this.pumpPromise) await this.pumpPromise;
   }
 
   async remove(jobId: string): Promise<boolean> {
@@ -1075,12 +1178,16 @@ export class LandingOptimizer {
  * megabyte, and the reference pass that already exists rewrites every mention of it.
  */
 export function freeRelPath(wanted: string, taken: ReadonlySet<string>): string {
-  if (!taken.has(wanted)) return wanted;
+  /* Compared without case: this machine's file system does not distinguish `Doc.webp` from
+     `doc.webp`, so a set that does would call a taken name free and overwrite the file that
+     already had it. */
+  const owned = new Set([...taken].map(name => name.toLowerCase()));
+  if (!owned.has(wanted.toLowerCase())) return wanted;
   const extension = path.posix.extname(wanted);
   const stem = wanted.slice(0, wanted.length - extension.length);
   for (let n = 2; n < 1_000; n += 1) {
     const candidate = `${stem}-${n}${extension}`;
-    if (!taken.has(candidate)) return candidate;
+    if (!owned.has(candidate.toLowerCase())) return candidate;
   }
   // A thousand files of one name is not a landing; leaving it alone is the honest answer.
   return wanted;

@@ -25,7 +25,10 @@ export function numberedRenames(
   taken: ReadonlySet<string>
 ): Map<string, string> {
   const renames = new Map<string, string>();
-  const claimed = new Set(taken);
+  /* Compared without case. macOS and Windows do not distinguish `A.png` from `a.PNG`, so a
+     set that does would hand two files the same target and let the second overwrite the
+     first. */
+  const claimed = new Set([...taken].map(name => name.toLowerCase()));
   const counters = { image: 0, video: 0 };
   for (const asset of assets) {
     if (asset.type !== 'image' && asset.type !== 'video') continue;
@@ -39,9 +42,9 @@ export function numberedRenames(
       `${prefix}${counters[asset.type]}${path.posix.extname(current)}`
     );
     if (target === current) continue;
-    if (claimed.has(target)) continue;
-    claimed.delete(current);
-    claimed.add(target);
+    if (claimed.has(target.toLowerCase())) continue;
+    claimed.delete(current.toLowerCase());
+    claimed.add(target.toLowerCase());
     renames.set(current, target);
   }
   return renames;

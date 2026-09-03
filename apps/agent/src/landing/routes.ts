@@ -182,11 +182,20 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
     }
   });
 
-  app.post<{ Body: { name?: unknown } }>('/api/landing/upload/folder/begin', async request => {
-    const name = typeof request.body?.name === 'string' ? request.body.name : 'landing';
-    await optimizer.beginUpload('folder', name);
-    return optimizer.state();
-  });
+  app.post<{ Body: { name?: unknown } }>(
+    '/api/landing/upload/folder/begin',
+    async (request, reply) => {
+      const name = typeof request.body?.name === 'string' ? request.body.name : 'landing';
+      try {
+        await optimizer.beginUpload('folder', name);
+        return optimizer.state();
+      } catch (error) {
+        /* An upload already in progress used to reach the browser as a bare 500, and the one
+           that was in progress was usually a dead one nobody could clear. */
+        return failPreparation(reply, optimizer, error);
+      }
+    }
+  );
 
   app.post('/api/landing/upload/folder/file', async (request, reply) => {
     const part = await request.file({ limits: { fileSize: MAX_LANDING_ASSET_BYTES } });
@@ -216,8 +225,17 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
     try {
       await mkdir(path.dirname(target), { recursive: true });
       await pipeline(part.file, createWriteStream(target));
+      /* The ZIP route has always checked this; the folder route never did, so a file over the
+         limit was written at half its length and answered `ok`, and the run went on to ship a
+         corrupt image without a word. */
+      if (part.file.truncated) throw new Error('That file is too large.');
       return { ok: true };
     } catch (error) {
+      /* One failed file used to leave the upload open for ever: nothing cleared
+         `activeUpload`, so every later drop answered "another upload is still in progress"
+         and the only way out was restarting the local app. A file that cannot be written
+         ends the upload it belonged to. */
+      await optimizer.abortUpload().catch(() => {});
       return reply.code(400).send({ error: failureCode(error) });
     }
   });
@@ -242,7 +260,7 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
     ) {
       return reply.code(400).send({ error: 'Invalid landing ids.' });
     }
-    const started = await optimizer.start(rawIds as string[] | undefined);
+    const started = optimizer.queueStart(rawIds as string[] | undefined);
     return started ? optimizer.state() : reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' });
   });
 
@@ -252,7 +270,7 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
       if (!acceptingNewTasks()) {
         return reply.code(409).send({ error: 'UPDATE_PENDING' });
       }
-      const started = await optimizer.start([request.params.jobId]);
+      const started = optimizer.queueStart([request.params.jobId]);
       return started
         ? optimizer.state()
         : reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' });

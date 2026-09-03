@@ -11,6 +11,21 @@ import type { Translate } from '../apps/web/src/components/ui';
 
 const t: Translate = (key, values) => translate('en', key, values);
 
+/*
+ * A ticket the browser can actually put in an `<img src>`.
+ *
+ * Without one the hook answers null, and nothing mounts — which is the point of the fix these
+ * tests sit on: `src=""` makes a browser re-request the document and fire `error`, so a slow
+ * ticket used to become a permanently broken preview. The tests want the working case, so
+ * they mint a ticket rather than assert on the failure.
+ */
+vi.mock('../apps/web/src/api/subresource-paths', async () => {
+  const actual = await vi.importActual<typeof import('../apps/web/src/api/subresource-paths')>(
+    '../apps/web/src/api/subresource-paths'
+  );
+  return { ...actual, subresourceTicket: async () => 'test-ticket' };
+});
+
 afterEach(cleanup);
 
 describe('landing optimizer batch card', () => {
@@ -89,7 +104,9 @@ describe('landing optimizer batch card', () => {
     await user.click(previewButton);
 
     const dialog = screen.getByRole('dialog');
-    const images = dialog.querySelectorAll('img');
+    /* The blurred stand-in the card already fetched sits under the real one until it
+       decodes, so "one image" means one that is not the placeholder. */
+    const images = dialog.querySelectorAll('img:not(.landing-compare-placeholder)');
     expect(images).toHaveLength(1);
     fireEvent.load(images[0]);
     expect(screen.queryByRole('slider')).toBeNull();

@@ -7462,6 +7462,21 @@ body:has(.public-home) {
     display: none;
   }
 
+  /* The rest of this tool. One rule was covered and six were not, so a person who asked the
+     system for less motion still got a card that flew in, a summary that slid, a highlight
+     that pulsed, and every one of twenty-two rows animating as it finished. */
+  .landing-batch-card,
+  .landing-batch-card.is-completed,
+  .landing-success-summary,
+  .landing-asset-item.is-finished,
+  .landing-current-asset,
+  .landing-compare-modal,
+  .landing-compare-stage.is-nudging .landing-compare-before-layer,
+  .landing-compare-stage.is-nudging .landing-compare-divider {
+    animation: none !important;
+    transition: none !important;
+  }
+
   .activity-bar,
   .google-sign-in,
   .theme-toggle,
@@ -7751,6 +7766,33 @@ body:has(.public-home) {
   min-height: 34px;
   padding-inline: 11px;
   font-size: var(--text-xl);
+}
+
+/*
+ * The card's actions collapse the way the toolbar's do.
+ *
+ * Four buttons of prose in a header whose other column is a landing's name: at anything under
+ * a wide window they took the room the name needed, and "Лендінг успішно оптимізовано" was
+ * cut off mid-word behind "Відкрити результат". The toolbar has done this for as long as it
+ * has existed; the card measures itself rather than the window, because a card in a narrow
+ * column has the same problem a card in a narrow window does.
+ */
+.landing-batch-header {
+  container-type: inline-size;
+}
+
+@container (max-width: 860px) {
+  .landing-batch-actions .action-label {
+    display: none;
+  }
+
+  .landing-batch-actions .button {
+    width: 38px;
+    min-width: 38px;
+    flex: 0 0 auto;
+    padding: 0;
+    justify-content: center;
+  }
 }
 
 .landing-batch-progress {
@@ -8080,6 +8122,25 @@ body:has(.public-home) {
 
 /* The two figures the percentage came from: present for anyone who wants them, quiet enough
    that a column of twenty-two rows reads as one number each. */
+/* A file the run decided to keep. Its own neutral, not the amber a cancelled job wears:
+   "kept" is the pipeline agreeing the original was already the better file. */
+.status-badge.status-kept {
+  color: var(--color-text-muted);
+  background: var(--color-surface-muted);
+}
+
+/* The name a renumbered file arrived with, kept beside the one it has now. */
+.landing-asset-was {
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+}
+
+.landing-asset-was i {
+  margin: 0 4px;
+  font-style: normal;
+  opacity: 0.55;
+}
+
 .landing-asset-bytes {
   color: var(--color-text-muted);
   font-size: var(--text-lg);
@@ -8089,13 +8150,6 @@ body:has(.public-home) {
   margin: 0 4px;
   font-style: normal;
   opacity: 0.55;
-}
-
-/* One green, one meaning. The status badge used to wear the same colour as a saving and as
-   the "show in folder" button, so the eye had nothing to follow. */
-.landing-asset-item .status-badge.is-optimized {
-  color: var(--color-text-muted);
-  background: var(--color-surface-muted);
 }
 
 /* The name and its numbers are a target, and look like one on hover. */
@@ -8544,18 +8598,31 @@ body:has(.public-home) {
   inset: 0;
 }
 
+/*
+ * Legible on whatever is behind it.
+ *
+ * Both of these were white — one at 78%, one via `--color-on-accent` — and the modal's own
+ * surface is white in the light theme. A preview that failed printed "this preview is no
+ * longer available" in white on white: the only thing anybody could see was the button.
+ * They carry their own dark card now, so the words do not depend on the theme or on whether
+ * an image happens to be behind them.
+ */
 .landing-preview-loading {
   position: absolute;
   display: grid;
   place-items: center;
   gap: var(--space-3);
-  color: rgb(255 255 255 / 78%);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-md);
+  color: #fff;
+  background: rgb(24 18 39 / 82%);
+  box-shadow: 0 8px 30px rgb(0 0 0 / 30%);
+  backdrop-filter: blur(6px);
 }
 
 .landing-preview-loading.is-error {
   max-width: 360px;
-  padding: var(--space-4);
-  color: var(--color-on-accent);
+  color: #fff;
   text-align: center;
 }
 

@@ -213,13 +213,13 @@ export function LandingJobCard({
               ) : (
                 <Pause size={16} strokeWidth={1.75} aria-hidden="true" />
               )}
-              {t(job.paused ? 'jobResume' : 'jobPause')}
+              <span className="action-label">{t(job.paused ? 'jobResume' : 'jobPause')}</span>
             </Button>
           )}
           {running && onStop && (
             <Button variant="danger" disabled={!connected} onClick={onStop}>
               <Ban size={16} strokeWidth={1.75} aria-hidden="true" />
-              {t('teamQueueStopNow')}
+              <span className="action-label">{t('teamQueueStopNow')}</span>
             </Button>
           )}
           {ready && (
@@ -229,24 +229,26 @@ export function LandingJobCard({
               onClick={onStart}
             >
               <Play size={16} strokeWidth={1.75} aria-hidden="true" />
-              {t('landingOptimizeButton')}
+              <span className="action-label">{t('landingOptimizeButton')}</span>
             </Button>
           )}
-          {(ready || queued) && (
+          {/* Including `preparing`. A landing whose upload died sat there with no action at
+              all, and the only way past it was restarting the local app. */}
+          {(ready || queued || job.status === 'preparing') && (
             <Button variant="danger" disabled={!connected} onClick={onReset}>
               <Trash2 size={16} strokeWidth={1.75} aria-hidden="true" />
-              {t('landingReset')}
+              <span className="action-label">{t('landingReset')}</span>
             </Button>
           )}
           {completed && job.outputPath && (
             <>
               <Button variant="primary" disabled={!connected} onClick={() => onReveal('open')}>
                 <ExternalLink size={16} strokeWidth={1.75} aria-hidden="true" />
-                {t('landingOpenResult')}
+                <span className="action-label">{t('landingOpenResult')}</span>
               </Button>
               <Button variant="success" disabled={!connected} onClick={() => onReveal('reveal')}>
                 <FolderOpen size={16} strokeWidth={1.75} aria-hidden="true" />
-                {t('landingShowResult')}
+                <span className="action-label">{t('landingShowResult')}</span>
               </Button>
             </>
           )}
@@ -255,18 +257,21 @@ export function LandingJobCard({
           {(completed || failed || cancelled) && onRepeat && (
             <Button variant="secondary" disabled={!connected} onClick={onRepeat}>
               <RefreshCw size={16} strokeWidth={1.75} aria-hidden="true" />
-              {t('landingRepeat')}
+              <span className="action-label">{t('landingRepeat')}</span>
             </Button>
           )}
           {(completed || failed || cancelled) && (
             <Button variant="danger" disabled={!connected} onClick={onReset}>
               <Trash2 size={16} strokeWidth={1.75} aria-hidden="true" />
-              {t('landingRemove')}
+              <span className="action-label">{t('landingRemove')}</span>
             </Button>
           )}
         </div>
       </div>
 
+      {/* The one place this card speaks. It used to have three overlapping polite regions —
+          this bar, the file list, and the summary — so a screen reader read the whole card
+          aloud on every progress tick, continuously, for as long as the run took. */}
       {(running || queued || job.status === 'preparing') && (
         <div className="landing-batch-progress" aria-live="polite">
           <div className="landing-progress-copy">
@@ -297,10 +302,10 @@ export function LandingJobCard({
               className="landing-assets-list"
               role="region"
               aria-label={t('landingAssetsTitle')}
-              aria-live="polite"
             >
               <LandingAssetControls
                 total={job.assets.length}
+                sortable={job.status !== 'processing' && job.status !== 'queued'}
                 sharedFolder={sharedFolder}
                 skipped={job.assets.filter(item => item.status === 'skipped').length}
                 filter={filter}
@@ -390,6 +395,7 @@ function LandingHeaviest({
 
 function LandingAssetControls({
   total,
+  sortable,
   sharedFolder,
   skipped,
   filter,
@@ -399,6 +405,8 @@ function LandingAssetControls({
   t
 }: {
   total: number;
+  /** False while the run is going, when the list deliberately keeps its walked order. */
+  sortable: boolean;
   /** Printed once here when every file lives in it, instead of on every row. */
   sharedFolder: string | null;
   skipped: number;
@@ -408,8 +416,16 @@ function LandingAssetControls({
   onSort: (value: 'saving' | 'size') => void;
   t: Translate;
 }) {
-  // Under a dozen rows the whole list is on screen; controls for it are furniture.
-  if (total < 8) return null;
+  /* Under a dozen rows the filters and the sort are furniture — but the folder every file
+     lives in is not, and suppressing this row suppressed that too, so a seven-file landing
+     showed the folder nowhere at all. */
+  if (total < 8) {
+    return sharedFolder ? (
+      <div className="landing-asset-controls">
+        <span className="landing-shared-folder">{sharedFolder}/</span>
+      </div>
+    ) : null;
+  }
   return (
     <div className="landing-asset-controls">
       {/* Where the files are and which of them are shown belong together on the left; the
@@ -438,10 +454,14 @@ function LandingAssetControls({
         </div>
       </div>
       <div className="landing-asset-filters" role="group">
+        {/* Off while the run is going: the list holds the order it was walked in so rows do
+            not jump under the cursor as each file finishes, and a control that visibly
+            responds while changing nothing is worse than one that says it cannot. */}
         <button
           type="button"
           className={sort === 'saving' ? 'is-selected' : ''}
           aria-pressed={sort === 'saving'}
+          disabled={!sortable}
           onClick={() => onSort('saving')}
         >
           {t('landingAssetSortSaving')}
@@ -450,6 +470,7 @@ function LandingAssetControls({
           type="button"
           className={sort === 'size' ? 'is-selected' : ''}
           aria-pressed={sort === 'size'}
+          disabled={!sortable}
           onClick={() => onSort('size')}
         >
           {t('landingAssetSortSize')}
@@ -469,7 +490,7 @@ function LandingSuccessSummary({
   t: Translate;
 }) {
   return (
-    <div className="landing-success-summary" aria-live="polite">
+    <div className="landing-success-summary">
       <div className="landing-size-result">
         <span>{formatSize(job.originalMediaSize, language)}</span>
         <span aria-hidden="true">→</span>
@@ -536,6 +557,11 @@ function LandingAssetRow({
   const fileName = pathParts.pop() ?? asset.fileName;
   const parentPath = pathParts.join('/');
   const openable = asset.type === 'image' && asset.preview?.available === true;
+  /* Only when the name itself changed. An extension swapped by the conversion — `hero.png`
+     to `hero.webp` — is not news; `hero.png` becoming `img7.webp` is. */
+  const originalName = asset.relPath.split('/').pop() ?? asset.fileName;
+  const stem = (name: string) => name.slice(0, name.lastIndexOf('.') + 1 || undefined);
+  const renamedFrom = stem(originalName) !== stem(fileName) ? originalName : null;
   return (
     <article
       className={`landing-asset-item is-${asset.status} ${current ? 'is-current' : ''}`.trim()}
@@ -567,6 +593,15 @@ function LandingAssetRow({
         {/* No type tag: the thumbnail beside it has already said what kind of file this is,
             on every row, twenty-two times. */}
         <div className="landing-asset-name-line">
+          {/* A renumbered file keeps a trace of the name it arrived with. Without it the list
+              says `img7.webp` and nothing else, and the person who asked for the renumbering
+              is the one who most needs to know which file that was. */}
+          {renamedFrom && (
+            <span className="landing-asset-was" title={asset.relPath}>
+              {renamedFrom}
+              <i aria-hidden="true">→</i>
+            </span>
+          )}
           <h3 title={displayPath}>{fileName}</h3>
           {parentPath && !hideFolder && (
             <span className="landing-asset-path" title={parentPath}>
@@ -694,39 +729,54 @@ function ImagePreviewThumbnail({
     <button
       type="button"
       className={`landing-preview-thumbnail ${comparison ? 'is-comparison' : 'is-single'}`}
+      /* Out of the tab order: the name and numbers beside it open the same comparison with a
+         better label, and two adjacent stops per row is forty-four for a landing of
+         twenty-two files. It stays a mouse target, and stays named for anyone who lands on
+         it another way. */
+      tabIndex={-1}
       aria-label={t(comparison ? 'landingPreviewOpen' : 'landingPreviewOpenSingle', {
         name: asset.fileName
       })}
       onClick={event => onOpen(event.currentTarget)}
     >
+      {/* Nothing is mounted until there is a URL. An empty `src` is not "nothing yet" to a
+          browser: it re-requests the document and fires `error`, which here retried the
+          thumbnail as a full-size image and then gave up on it altogether — a slow ticket
+          turning into a thumbnail that never appeared. */}
       {comparison ? (
         <>
-          <img
-            src={after ?? ''}
-            alt=""
-            loading="lazy"
-            draggable={false}
-            onError={() => retryFull(afterVariant, setAfterVariant)}
-          />
-          <span aria-hidden="true">
+          {after && (
             <img
-              src={before ?? ''}
+              src={after}
               alt=""
               loading="lazy"
               draggable={false}
-              onError={() => retryFull(beforeVariant, setBeforeVariant)}
+              onError={() => retryFull(afterVariant, setAfterVariant)}
             />
+          )}
+          <span aria-hidden="true">
+            {before && (
+              <img
+                src={before}
+                alt=""
+                loading="lazy"
+                draggable={false}
+                onError={() => retryFull(beforeVariant, setBeforeVariant)}
+              />
+            )}
           </span>
           <i aria-hidden="true" />
         </>
       ) : (
-        <img
-          src={before ?? ''}
-          alt=""
-          loading="lazy"
-          draggable={false}
-          onError={() => retryFull(beforeVariant, setBeforeVariant)}
-        />
+        before && (
+          <img
+            src={before}
+            alt=""
+            loading="lazy"
+            draggable={false}
+            onError={() => retryFull(beforeVariant, setBeforeVariant)}
+          />
+        )
       )}
     </button>
   );
@@ -750,7 +800,7 @@ function LandingBatchStatus({
         : job.status === 'queued'
           ? t('landingStatusQueued')
           : job.status === 'completed'
-            ? t('landingResultTitle')
+            ? t('landingStatusDone')
             : job.status === 'failed'
               ? t('landingStatusFailed')
               : job.status === 'cancelled'
@@ -826,27 +876,42 @@ function landingStatusKey(status: LandingAsset['status']): TranslationKey {
   return map[status];
 }
 
+/* A kept file used to wear the amber of a cancelled job. It is a correct outcome — the run
+   looked and decided the original was better — so it wears the neutral of a plain statement. */
 function landingStatusClass(status: LandingAsset['status']): string {
   const map: Record<LandingAsset['status'], string> = {
     pending: 'status-queued',
     processing: 'status-processing',
     optimized: 'status-completed',
-    skipped: 'status-cancelled',
+    skipped: 'status-kept',
     failed: 'status-failed'
   };
   return map[status];
 }
 
+/**
+ * The note a row shows, and what to do with one nobody wrote a sentence for.
+ *
+ * Falling through to "could not be processed" was wrong twice over. A file excluded by a
+ * switch the person themselves set is not a failure, and every one of them read as broken.
+ * And a genuine failure carries the reason the run recorded — which the fall-through threw
+ * away, leaving nothing to diagnose from.
+ */
 function localizedNote(note: string, t: Translate): string {
   const map: Record<string, TranslationKey> = {
     'already-optimized': 'noteAlreadyOptimized',
     'no-gain': 'noteNoGain',
     'name-collision': 'noteNameCollision',
     'animated-safe': 'noteAnimatedSafe',
-    'vector-safe': 'noteVectorSafe'
+    'vector-safe': 'noteVectorSafe',
+    'images-off': 'noteImagesOff',
+    'videos-off': 'noteVideosOff'
   };
   const key = map[note];
-  return key ? t(key) : t('noteFailedGeneric');
+  if (key) return t(key);
+  // Whatever the run actually said. A short machine word on its own tells nobody anything,
+  // so it is introduced; a whole sentence stands by itself.
+  return note.includes(' ') ? note : `${t('noteFailedGeneric')} (${note})`;
 }
 
 function SourceIcon({ kind }: { kind: LandingJob['sourceKind'] }) {
