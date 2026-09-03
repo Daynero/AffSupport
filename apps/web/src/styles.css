@@ -8126,10 +8126,42 @@ body:has(.public-home) {
   border-bottom: 1px solid var(--color-border);
 }
 
-.landing-compare-header > div {
+.landing-compare-heading {
   display: grid;
   min-width: 0;
   gap: 2px;
+}
+
+.landing-compare-tools {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.landing-compare-zoom {
+  display: inline-flex;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.landing-compare-zoom:hover,
+.landing-compare-zoom[aria-pressed='true'] {
+  border-color: var(--color-accent);
+  color: var(--color-text);
+}
+
+/* The hint line keeps its room whether or not it has words, so the picture below it does not
+   jump the first time somebody drags the divider. */
+.landing-compare-header p {
+  min-height: 1.4em;
 }
 
 .landing-compare-header h2 {
@@ -8182,20 +8214,40 @@ body:has(.public-home) {
     #17131f;
 }
 
+/*
+ * The frame is the picture's shape, held before the picture arrives.
+ *
+ * The stage used to be sized by whatever the `<img>` turned out to be, so until the full
+ * preview decoded there was nothing on screen at all — a modal opened at full width around a
+ * hole. The asset already knows its dimensions, so the box takes them, the thumbnail the card
+ * fetched paints inside it blurred, and the full image sharpens into the same frame without
+ * moving anything.
+ */
 .landing-compare-stage {
   position: relative;
-  display: inline-block;
+  display: block;
+  width: 100%;
   max-width: 100%;
   overflow: hidden;
   border-radius: var(--radius-md);
   box-shadow: 0 12px 40px rgb(0 0 0 / 38%);
-  opacity: 0;
   user-select: none;
-  transition: opacity var(--dur-section) var(--ease-enter);
 }
 
-.landing-compare-stage.is-ready {
-  opacity: 1;
+.landing-compare-stage.has-ratio {
+  aspect-ratio: var(--compare-ratio);
+  max-height: calc(100dvh - 240px);
+  /* `aspect-ratio` needs one axis to solve for the other: without this the box takes the full
+     width of a wide modal and a tall image is cropped rather than fitted. */
+  width: auto;
+  height: min(calc(100dvh - 240px), 100%);
+  margin-inline: auto;
+}
+
+/* No ratio to go on — an older record without dimensions. The image sizes the box, as before. */
+.landing-compare-stage:not(.has-ratio) {
+  display: inline-block;
+  width: auto;
 }
 
 .landing-compare-image {
@@ -8205,6 +8257,62 @@ body:has(.public-home) {
   width: auto;
   height: auto;
   user-select: none;
+}
+
+/* Inside a frame that already has its shape, both images fill it exactly — which is also what
+   keeps them superimposed to the pixel while the divider moves. */
+.landing-compare-stage.has-ratio .landing-compare-image {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  object-fit: contain;
+  inset: 0;
+}
+
+/* The card's thumbnail, standing in until the real one is decoded. */
+.landing-compare-placeholder {
+  z-index: 0;
+  filter: blur(14px) saturate(1.06);
+  transform: scale(1.04);
+}
+
+.landing-compare-stage:not(.is-ready) .landing-compare-after,
+.landing-compare-stage:not(.is-ready) .landing-compare-before-layer,
+.landing-compare-stage:not(.is-ready) .landing-compare-single {
+  opacity: 0;
+}
+
+.landing-compare-stage .landing-compare-after,
+.landing-compare-stage .landing-compare-before-layer,
+.landing-compare-stage .landing-compare-single {
+  transition: opacity var(--dur-section) var(--ease-enter);
+}
+
+/* Actual size: the pixels the file really has, panned by dragging. Fitted to a modal, a WebP
+   at quality 80 and its original look identical — which is the one thing a comparison must
+   not conclude for you. */
+.landing-compare-stage.is-zoomed {
+  cursor: grab;
+}
+
+.landing-compare-stage.is-zoomed:active {
+  cursor: grabbing;
+}
+
+.landing-compare-stage.is-zoomed .landing-compare-image {
+  object-fit: none;
+  object-position: calc(50% + var(--compare-pan-x)) calc(50% + var(--compare-pan-y));
+}
+
+/* The one-off nudge that shows the divider is draggable. */
+.landing-compare-stage.is-nudging .landing-compare-before-layer {
+  transition: clip-path 420ms var(--ease-standard);
+}
+
+.landing-compare-stage.is-nudging .landing-compare-divider {
+  transition: left 420ms var(--ease-standard);
 }
 
 .landing-compare-before-layer {
@@ -8316,6 +8424,10 @@ body:has(.public-home) {
   text-align: center;
 }
 
+.landing-preview-loading.is-error .button {
+  justify-self: center;
+}
+
 .landing-compare-footer {
   display: flex;
   min-width: 0;
@@ -8341,16 +8453,28 @@ body:has(.public-home) {
   font-variant-numeric: tabular-nums;
 }
 
-.landing-compare-arrow {
-  font-size: var(--text-3xl) !important;
-}
-
+/* The answer first and largest; the two figures that produced it are the working, not the
+   result. Three equal fragments with the point at the end is what this was. */
 .landing-compare-saving {
-  padding: 4px 9px;
+  padding: 5px 12px;
   border-radius: 999px;
   color: var(--color-success);
   background: var(--color-success-soft);
-  font-size: var(--text-xl);
+  font-size: var(--text-3xl);
+  font-weight: 750;
+}
+
+.landing-compare-sizes {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.landing-compare-sizes i {
+  font-style: normal;
+  opacity: 0.6;
 }
 
 .landing-compare-dimensions {
@@ -17613,9 +17737,12 @@ input[type='number'] {
 }
 
 /* Beside the code, not under the name: both of a row's copyable values then
-   live in one place under one gesture. */
-.tfa-cell-code {
+   live in one place under one gesture. The flex is on a wrapper inside the cell,
+   because a `td` set to `display: flex` is no longer a table cell — it stops
+   taking its column's width and the row's outline comes apart at the seams. */
+.tfa-code-cell {
   display: flex;
+  min-width: 0;
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-3);
@@ -17748,9 +17875,30 @@ input[type='number'] {
 }
 
 .tfa-edit-error {
+  display: block;
+  margin-top: var(--space-1);
   color: var(--color-danger, #e5484d);
   font-size: var(--text-sm);
+  letter-spacing: normal;
+  text-align: left;
+  text-transform: none;
   white-space: normal;
+}
+
+/* The key is the longer of the two values, so the field that takes it fills its
+   column rather than shrinking to the placeholder. */
+.tfa-row.is-editing .tfa-field {
+  width: 100%;
+}
+
+/* Top-aligned, so a message under one field does not push the other out of
+   line: the cells are middle-aligned by default and grow by different amounts. */
+.tfa-row.is-editing td {
+  vertical-align: top;
+}
+
+.tfa-row.is-editing .tfa-cell-code {
+  text-align: left;
 }
 
 /* --- Notices --------------------------------------------------------------- */

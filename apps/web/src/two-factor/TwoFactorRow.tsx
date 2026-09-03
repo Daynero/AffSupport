@@ -108,26 +108,31 @@ export function TwoFactorRow({
       </td>
 
       <td className="tfa-cell-code">
-        {revealed && (
-          <button
-            type="button"
-            className="tfa-seed"
-            aria-label={t('twoFactorCopyKey')}
-            // A key longer than the column is cut rather than wrapped, and the
-            // point of revealing one is to check it against the service that
-            // issued it — so the whole of it stays readable on hover.
-            title={entry.seed}
-            onClick={copySeed}
-          >
-            {entry.seed}
-          </button>
-        )}
-        <CodeCell
-          seed={entry.seed}
-          step={step}
-          label={entry.name}
-          onCopyFailed={() => push({ tone: 'error', text: t('twoFactorCopyFailed') })}
-        />
+        {/* The flex lives on this wrapper, never on the cell: a `td` set to
+            `display: flex` leaves the table layout, which cost the edit row's
+            key field most of its width and broke the selected row's outline. */}
+        <div className="tfa-code-cell">
+          {revealed && (
+            <button
+              type="button"
+              className="tfa-seed"
+              aria-label={t('twoFactorCopyKey')}
+              /* A key longer than the column is cut rather than wrapped, and the
+                 point of revealing one is to check it against the service that
+                 issued it — so the whole of it stays readable on hover. */
+              title={entry.seed}
+              onClick={copySeed}
+            >
+              {entry.seed}
+            </button>
+          )}
+          <CodeCell
+            seed={entry.seed}
+            step={step}
+            label={entry.name}
+            onCopyFailed={() => push({ tone: 'error', text: t('twoFactorCopyFailed') })}
+          />
+        </div>
       </td>
 
       <td className="tfa-cell-actions">
@@ -273,6 +278,11 @@ export function TwoFactorEditRow({
           onKeyDown={onKeyDown}
           focused
         />
+        {error === 'twoFactorNameRequired' && (
+          <span className="tfa-edit-error" role="alert">
+            {t(error)}
+          </span>
+        )}
       </td>
       <td className="tfa-cell-code">
         <ClearableField
@@ -281,14 +291,14 @@ export function TwoFactorEditRow({
           onChange={takeSeed}
           onKeyDown={onKeyDown}
         />
+        {error !== null && error !== 'twoFactorNameRequired' && (
+          <span className="tfa-edit-error" role="alert">
+            {t(error)}
+          </span>
+        )}
       </td>
       <td className="tfa-cell-actions">
         <div className="tfa-actions">
-          {error && (
-            <span className="tfa-edit-error" role="alert">
-              {t(error)}
-            </span>
-          )}
           <IconButton
             label={t('twoFactorSave')}
             className="tfa-confirm"
