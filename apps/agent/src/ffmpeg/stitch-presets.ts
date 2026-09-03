@@ -331,10 +331,7 @@ export function buildBodyRemuxArgs(options: BodyRemuxOptions): string[] {
      * One AAC-LC generation on a body of seconds-to-minutes is the price of a track that
      * every player can read. The video is still copied, which is where the cost would be.
      */
-    '-c:a',
-    'aac',
-    '-b:a',
-    String(Math.max(128, Math.round(options.audioBitrateKbps ?? 128))) + 'k',
+    ...bodyAudioArgs(options.audioBitrateKbps),
     '-video_track_timescale',
     String(options.videoTimescale),
     ...MOVIE_TIMESCALE,
@@ -356,6 +353,11 @@ export interface HeadReencodeOptions {
   profile: SourceProfile;
   crf?: number;
   threads?: number | null;
+}
+
+/** What the body's audio is rebuilt as, wherever it is rebuilt. See {@link buildBodyRemuxArgs}. */
+export function bodyAudioArgs(bitrateKbps: number | null | undefined): string[] {
+  return ['-c:a', 'aac', '-b:a', `${Math.max(128, Math.round(bitrateKbps ?? 128))}k`];
 }
 
 /**
@@ -392,10 +394,20 @@ export function buildHeadReencodeArgs(options: HeadReencodeOptions): string[] {
     ...h264MatchArgs(profile),
     '-fps_mode',
     'cfr',
-    '-c:a',
-    'copy',
+    /*
+     * The sound is rebuilt here too, and it has to be.
+     *
+     * The head is joined to a body whose audio is AAC-LC, and copying leaves it as whatever
+     * the source was — HE-AAC on a phone-shot creative. One track, two AAC configurations,
+     * and CoreAudio refuses the whole thing: measured on a sixteen-second body as
+     * `ExtAudioFileRead failed ('bada')`, with FFmpeg reading it perfectly throughout. The
+     * head is seconds long and its picture is being re-encoded anyway; its sound costs
+     * nothing beside that.
+     */
+    ...bodyAudioArgs(profile.audioBitrateKbps),
     '-video_track_timescale',
     String(profile.videoTimescale),
+    ...MOVIE_TIMESCALE,
     '-avoid_negative_ts',
     'make_zero',
     '-muxdelay',

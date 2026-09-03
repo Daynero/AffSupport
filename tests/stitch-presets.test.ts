@@ -322,9 +322,34 @@ describe('preparing the body (D6)', () => {
     expect(valueAfter(args, '-t')).toBe('8.3');
     expect(args).not.toContain('-to');
     expect(valueAfter(args, '-c:v')).toBe('libx264');
-    // The audio is never re-encoded even here: only the picture cannot be copied mid-GOP.
-    expect(valueAfter(args, '-c:a')).toBe('copy');
+    /* The sound is rebuilt here too, and it has to be: this head is joined to a tail whose
+       audio is AAC-LC, and copying leaves it as whatever the source was. One track with two
+       AAC configurations is a body CoreAudio refuses — measured on sixteen seconds as
+       `ExtAudioFileRead failed ('bada')`, with FFmpeg reading it perfectly throughout. */
+    expect(valueAfter(args, '-c:a')).toBe('aac');
     expect(valueAfter(args, '-video_track_timescale')).toBe('15360');
+    expect(valueAfter(args, '-movie_timescale')).toBe('1000');
+  });
+
+  it('gives the head and the tail the same sound, so the two can be copied into one track', () => {
+    const range = { startSeconds: 0, endSeconds: 8, videoTimescale: 15360 };
+    const head = buildHeadReencodeArgs({
+      input: '/videos/creative.mp4',
+      output: '/cache/head.mp4',
+      ...range,
+      profile
+    });
+    const tail = buildBodyRemuxArgs({
+      input: '/videos/creative.mp4',
+      output: '/cache/tail.mp4',
+      ...range,
+      frameRate: 30,
+      audioBitrateKbps: profile.audioBitrateKbps
+    });
+    // Not "both happen to say aac": the same codec, the same rate, the same everything the
+    // sample description carries — because the join writes only one of them.
+    expect(valueAfter(head, '-c:a')).toBe(valueAfter(tail, '-c:a'));
+    expect(valueAfter(head, '-b:a')).toBe(valueAfter(tail, '-b:a'));
   });
 });
 

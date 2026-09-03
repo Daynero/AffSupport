@@ -56,6 +56,19 @@ export function threadArgs(threads: number | null): string[] {
   return ['-threads', String(threads), '-filter_threads', String(threads)];
 }
 
+/**
+ * The sound of anything that will be joined to something else.
+ *
+ * A compressed body and the held screen that follows it are copied into one track with a
+ * single sample description, and every frame after the first is decoded against it. Two
+ * different AAC configurations there — a different profile, rate or channel count — give a
+ * file FFmpeg reads perfectly and CoreAudio refuses outright, which is a video that plays
+ * without sound in QuickTime, Safari, Telegram and Finder. The two passes used to carry
+ * identical settings by coincidence; they carry them by construction now, so neither can be
+ * tuned without the other.
+ */
+const JOINED_AUDIO = ['-c:a', 'aac', '-b:a', '96k', '-ar', '48000', '-ac', '2'] as const;
+
 export function buildFfmpegArgs(
   input: string,
   output: string,
@@ -174,14 +187,7 @@ export function buildEmbeddedFfmpegArgs(options: EmbeddedFfmpegOptions): string[
     '-map',
     '[aout]',
     ...videoCodecArgs(options.settings),
-    '-c:a',
-    'aac',
-    '-b:a',
-    '96k',
-    '-ar',
-    '48000',
-    '-ac',
-    '2',
+    ...JOINED_AUDIO,
     '-fps_mode',
     'cfr',
     ...(options.videoTrackTimescale
@@ -280,14 +286,7 @@ export function buildHeldScreenArgs(options: HeldScreenOptions): string[] {
      */
     '-bf',
     '0',
-    '-c:a',
-    'aac',
-    '-b:a',
-    '96k',
-    '-ar',
-    '48000',
-    '-ac',
-    '2',
+    ...JOINED_AUDIO,
     '-fps_mode',
     'passthrough',
     '-video_track_timescale',

@@ -26,6 +26,7 @@ import {
   buildHeadReencodeArgs,
   concatListContents
 } from '../ffmpeg/stitch-presets.js';
+import { audioShapeDisagreements, measureAudioShape } from './audio-shape.js';
 import { runTool, toolSucceeded } from './run.js';
 
 const DEFAULT_MAX_BYTES = 4 * 1024 * 1024 * 1024;
@@ -38,8 +39,10 @@ const DEFAULT_MAX_BYTES = 4 * 1024 * 1024 * 1024;
  * the seek-length fix landed and the verification kept failing against a stale body.
  */
 // 4: the body's audio is AAC-LC now, so a cached v3 body may carry HE-AAC that no player
-// can read once the silence is joined to it.
-const PREPARED_BODY_FORMAT = 4;
+//    can read once the silence is joined to it.
+// 5: and so is the re-encoded head's, which v4 still copied — a body cut off a keyframe
+//    carried both configurations at once and went silent at the seam.
+const PREPARED_BODY_FORMAT = 5;
 
 export interface PreparedBody {
   path: string;
@@ -209,6 +212,16 @@ async function buildBody(
     run
   );
   if (!toolSucceeded(tail)) return { ok: false, error: failureOf(tail, 'BODY_TAIL') };
+
+  // The same check the finished film gets, for the same reason: these two halves are copied
+  // into one track with one sample description, and a rebuilt head that disagreed with the
+  // copied tail about its AAC configuration would be a body no player could hear past the seam.
+  const shapes = await Promise.all([
+    measureAudioShape(headPath, run),
+    measureAudioShape(tailPath, run)
+  ]);
+  if (audioShapeDisagreements(shapes).length > 0)
+    return { ok: false, error: 'BODY_AUDIO_MISMATCH' };
 
   const listPath = path.join(workDir, 'body.txt');
   await writeFile(listPath, concatListContents([headPath, tailPath]), 'utf8');
