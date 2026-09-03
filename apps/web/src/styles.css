@@ -17539,6 +17539,11 @@ input[type='number'] {
 
 .tfa-code {
   display: inline-flex;
+  /* Never shrinks. It shares a flex row with a revealed key, and a long enough
+     key was squeezing the digits until they wrapped onto a second line and took
+     the row's height with them. The key gives way instead; it is the one with
+     an ellipsis. */
+  flex: 0 0 auto;
   align-items: center;
   gap: var(--space-2);
   height: 34px;
@@ -17590,6 +17595,7 @@ input[type='number'] {
 }
 
 .tfa-code-digits {
+  white-space: nowrap;
   transition: filter 0.25s var(--ease-standard);
   animation: tfa-code-in 0.4s var(--ease-standard);
 }
@@ -17856,6 +17862,7 @@ input[type='number'] {
 
 .tfa-seed {
   display: inline-flex;
+  flex: 0 1 auto;
   min-width: 0;
   min-height: 0;
   align-items: center;

@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // `act` from the testing library rather than from React: it sets the act
@@ -566,6 +568,33 @@ describe('removing an account', () => {
     await waitFor(() => expect(api.deleteEntry).toHaveBeenCalledTimes(2));
     expect(api.deleteEntry).toHaveBeenCalledWith('a');
     expect(api.deleteEntry).toHaveBeenCalledWith('b');
+  });
+});
+
+describe('the one invariant jsdom cannot see', () => {
+  /**
+   * A revealed key and its code share one flex row, and a long key squeezed the
+   * digits until they wrapped onto a second line — which took the row's height
+   * with them and broke the list's rhythm. jsdom has no layout, so no rendered
+   * assertion in this file can catch that coming back; the stylesheet rule that
+   * prevents it is asserted directly instead.
+   */
+  const css = readFileSync(path.join(process.cwd(), 'apps/web/src/styles.css'), 'utf8');
+
+  it('never lets the code give way to a long key', () => {
+    const rule = /^\.tfa-code \{[^}]*\}/mu.exec(css)?.[0] ?? '';
+    expect(rule).toContain('flex: 0 0 auto');
+  });
+
+  it('keeps the digits on one line', () => {
+    const rule = /^\.tfa-code-digits \{[^}]*\}/mu.exec(css)?.[0] ?? '';
+    expect(rule).toContain('white-space: nowrap');
+  });
+
+  it('lets the key be the part that yields', () => {
+    const rule = /^\.tfa-seed \{[^}]*\}/mu.exec(css)?.[0] ?? '';
+    expect(rule).toContain('flex: 0 1 auto');
+    expect(rule).toContain('min-width: 0');
   });
 });
 
