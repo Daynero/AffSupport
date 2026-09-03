@@ -123,8 +123,9 @@ function openAdd() {
   fireEvent.click(screen.getByRole('button', { name: en('twoFactorAdd') }));
 }
 
-function openRowMenu(name: string) {
-  fireEvent.click(within(rowFor(name)).getByRole('button', { name: en('twoFactorRowMenu') }));
+/** A row's own action, now that they sit in the row rather than behind a menu. */
+function rowAction(name: string, action: Parameters<typeof translate>[1]): HTMLElement {
+  return within(rowFor(name)).getByRole('button', { name: en(action) });
 }
 
 const names = () => [...document.querySelectorAll('.tfa-name')].map(node => node.textContent);
@@ -380,29 +381,46 @@ describe('a code for a key that is not stored', () => {
 });
 
 describe('the key itself', () => {
-  it('is copied from the overflow menu, unchanged', async () => {
+  it('is copied from the row, unchanged and without being shown', async () => {
     await openWallet([entry()]);
-    openRowMenu('Facebook — main BM');
-    fireEvent.click(screen.getByRole('menuitem', { name: en('twoFactorCopyKey') }));
+    fireEvent.click(rowAction('Facebook — main BM', 'twoFactorCopyKey'));
+
+    expect(writeText).toHaveBeenCalledWith(SEED);
+    // Handing a key to a colleague mid-screen-share should not flash it at the
+    // call, so copying it never puts it on screen.
+    expect(screen.queryByText(SEED)).toBeNull();
+  });
+
+  it('appears beside the code when revealed, and copies from there too', async () => {
+    await openWallet([entry(), entry({ id: 'entry-2', name: 'Second', seed: OTHER_SEED })]);
+
+    fireEvent.click(rowAction('Facebook — main BM', 'twoFactorReveal'));
+
+    const shown = screen.getByText(SEED);
+    expect(shown).toBeTruthy();
+    // Only the row that asked.
+    expect(screen.queryByText(OTHER_SEED)).toBeNull();
+    // In the same cell as the digits, not under the name.
+    expect(shown.closest('td')).toBe(codeButton('Facebook — main BM').closest('td'));
+
+    fireEvent.click(shown);
     expect(writeText).toHaveBeenCalledWith(SEED);
   });
 
-  it('is shown only for the row that asked for it', async () => {
-    await openWallet([entry(), entry({ id: 'entry-2', name: 'Second', seed: OTHER_SEED })]);
-
-    openRowMenu('Facebook — main BM');
-    fireEvent.click(screen.getByRole('menuitem', { name: en('twoFactorReveal') }));
-
+  it('goes back out of sight when asked', async () => {
+    await openWallet([entry()]);
+    fireEvent.click(rowAction('Facebook — main BM', 'twoFactorReveal'));
     expect(screen.getByText(SEED)).toBeTruthy();
-    expect(screen.queryByText(OTHER_SEED)).toBeNull();
+
+    fireEvent.click(rowAction('Facebook — main BM', 'twoFactorHide'));
+    expect(screen.queryByText(SEED)).toBeNull();
   });
 
   it('is put on screen when the clipboard refuses it', async () => {
     await openWallet([entry()]);
     writeText.mockReturnValue(Promise.reject(new Error('NotAllowedError')));
 
-    openRowMenu('Facebook — main BM');
-    fireEvent.click(screen.getByRole('menuitem', { name: en('twoFactorCopyKey') }));
+    fireEvent.click(rowAction('Facebook — main BM', 'twoFactorCopyKey'));
 
     // A failed copy must never look like a success — the value goes on screen
     // so it can be selected by hand instead.
@@ -466,8 +484,7 @@ describe('correcting an account', () => {
     await openWallet(two);
     api.updateEntry.mockResolvedValue({ ...two[0]!, name: 'Alpha renamed' });
 
-    openRowMenu('Alpha');
-    fireEvent.click(screen.getByRole('menuitem', { name: en('twoFactorEdit') }));
+    fireEvent.click(rowAction('Alpha', 'twoFactorEdit'));
     fireEvent.change(within(editRow()).getByLabelText(en('twoFactorNamePlaceholder')), {
       target: { value: 'Alpha renamed' }
     });
@@ -483,8 +500,7 @@ describe('correcting an account', () => {
     await openWallet(two);
     api.updateEntry.mockResolvedValue({ ...two[0]!, seed: 'MFRGGZDFMZTWQ2LK' });
 
-    openRowMenu('Alpha');
-    fireEvent.click(screen.getByRole('menuitem', { name: en('twoFactorEdit') }));
+    fireEvent.click(rowAction('Alpha', 'twoFactorEdit'));
     fireEvent.change(within(editRow()).getByLabelText(en('twoFactorKeyPlaceholderKeep')), {
       target: { value: 'mfrg gzdf mztw q2lk' }
     });
@@ -499,8 +515,7 @@ describe('correcting an account', () => {
 describe('removing an account', () => {
   it('asks first, and says the removal is final', async () => {
     await openWallet([entry()]);
-    openRowMenu('Facebook — main BM');
-    fireEvent.click(screen.getByRole('menuitem', { name: en('twoFactorDelete') }));
+    fireEvent.click(rowAction('Facebook — main BM', 'twoFactorDelete'));
 
     expect(screen.getByText(en('twoFactorDeleteTitle'))).toBeTruthy();
     // Nothing has happened yet — asking is not doing.
@@ -511,8 +526,7 @@ describe('removing an account', () => {
     await openWallet([entry()]);
     api.deleteEntry.mockResolvedValue(undefined);
 
-    openRowMenu('Facebook — main BM');
-    fireEvent.click(screen.getByRole('menuitem', { name: en('twoFactorDelete') }));
+    fireEvent.click(rowAction('Facebook — main BM', 'twoFactorDelete'));
     fireEvent.click(screen.getByRole('button', { name: en('twoFactorDeleteConfirm') }));
 
     await waitFor(() => expect(api.deleteEntry).toHaveBeenCalledWith('entry-1'));

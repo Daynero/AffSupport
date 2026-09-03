@@ -255,10 +255,14 @@ entry and delete another, then reload to confirm both changes stuck.
   secret is not a column: the list stays one line per account, and a screen full
   of seeds is never on display in an office or on a shared screen.
 - **FR-023**: A row MUST offer an explicit reveal that shows that one entry's
-  secret in place, so a person can check a seed by eye against the service that
-  issued it. Revealing MUST be per-entry and MUST NOT persist: leaving the tool
-  or reloading hides every secret again. It MAY live behind the row's overflow
-  menu, since it is not a daily action.
+  secret **beside its code**, so a person can check a seed by eye against the
+  service that issued it and copy it from where it is shown. Revealing MUST be
+  per-entry and MUST NOT persist: leaving the tool or reloading hides every
+  secret again.
+- **FR-023a**: A row's actions MUST be reachable in the row itself rather than
+  behind an overflow control. They MAY be visually quiet — an action nobody can
+  find is worse than one that is merely understated, and a "…" tells a newcomer
+  nothing about what is inside it.
 - **FR-024**: Copying the secret MUST NOT require revealing it first.
 
 #### Presentation

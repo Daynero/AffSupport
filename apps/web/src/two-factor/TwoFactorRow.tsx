@@ -6,14 +6,18 @@
  * row already is — adding an account uses the same row, so there is one editor
  * and not two that drift apart.
  *
- * The key itself is never a column, and the actions that touch it — copying it,
- * showing it, renaming, deleting — live behind one overflow button. A row that
- * carried them all would be four targets for the sake of things done once a
- * month, beside the one thing done twenty times a day.
+ * The actions sit in the row rather than behind an overflow button, and they are
+ * quiet rather than absent: borderless and muted at rest, full contrast when the
+ * pointer is on the row. Hiding them cost a click on everything that is not
+ * copying a code, and a "…" tells a newcomer nothing about what is inside it.
+ *
+ * The key, when shown, appears beside the code and copies the same way the code
+ * does. Both of a row's copyable values then live in one place under one
+ * gesture, instead of the key hanging under the name where nothing acts on it.
  */
 
 import { useEffect, useId, useRef, useState, type RefObject } from 'react';
-import { Check, Copy, Eye, EyeOff, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react';
+import { Check, Eye, EyeOff, KeyRound, Pencil, Trash2, X } from 'lucide-react';
 import { parseTwoFactorSeed, type TwoFactorSeedError } from '@video-compressor/shared';
 import { Modal } from '../components/Modal';
 import { Button, IconButton } from '../components/ui';
@@ -61,12 +65,10 @@ export function TwoFactorRow({
   const { push } = useToasts();
   const titleId = useId();
   const [revealed, setRevealed] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [removing, setRemoving] = useState(false);
 
   const copySeed = () => {
-    setMenuOpen(false);
     void copyText(entry.seed).then(ok => {
       if (ok) {
         push({ tone: 'success', text: t('twoFactorCopied') });
@@ -103,10 +105,23 @@ export function TwoFactorRow({
         <span className="tfa-name" title={entry.name}>
           {entry.name}
         </span>
-        {revealed && <span className="tfa-seed">{entry.seed}</span>}
       </td>
 
       <td className="tfa-cell-code">
+        {revealed && (
+          <button
+            type="button"
+            className="tfa-seed"
+            aria-label={t('twoFactorCopyKey')}
+            // A key longer than the column is cut rather than wrapped, and the
+            // point of revealing one is to check it against the service that
+            // issued it — so the whole of it stays readable on hover.
+            title={entry.seed}
+            onClick={copySeed}
+          >
+            {entry.seed}
+          </button>
+        )}
         <CodeCell
           seed={entry.seed}
           step={step}
@@ -116,34 +131,34 @@ export function TwoFactorRow({
       </td>
 
       <td className="tfa-cell-actions">
-        <div className="tfa-menu-anchor">
-          <IconButton
-            label={t('twoFactorRowMenu')}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen(open => !open)}
-          >
-            <MoreHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        <div className="tfa-actions">
+          {/* Copying the key without putting it on screen stays its own action:
+              handing a key to a colleague mid-screen-share should not flash it
+              at the call. */}
+          <IconButton label={t('twoFactorCopyKey')} onClick={copySeed}>
+            <KeyRound size={18} strokeWidth={ICON_STROKE} aria-hidden="true" />
           </IconButton>
-          {menuOpen && (
-            <RowMenu
-              revealed={revealed}
-              onEdit={() => {
-                setMenuOpen(false);
-                onEdit();
-              }}
-              onCopySeed={copySeed}
-              onToggleReveal={() => {
-                setRevealed(current => !current);
-                setMenuOpen(false);
-              }}
-              onDelete={() => {
-                setMenuOpen(false);
-                setConfirming(true);
-              }}
-              onClose={() => setMenuOpen(false)}
-            />
-          )}
+          <IconButton
+            label={revealed ? t('twoFactorHide') : t('twoFactorReveal')}
+            aria-pressed={revealed}
+            onClick={() => setRevealed(current => !current)}
+          >
+            {revealed ? (
+              <EyeOff size={18} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            ) : (
+              <Eye size={18} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            )}
+          </IconButton>
+          <IconButton label={t('twoFactorEdit')} onClick={onEdit}>
+            <Pencil size={18} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </IconButton>
+          <IconButton
+            label={t('twoFactorDelete')}
+            className="tfa-danger"
+            onClick={() => setConfirming(true)}
+          >
+            <Trash2 size={18} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </IconButton>
         </div>
 
         {confirming && (
@@ -164,65 +179,6 @@ export function TwoFactorRow({
         )}
       </td>
     </tr>
-  );
-}
-
-function RowMenu({
-  revealed,
-  onEdit,
-  onCopySeed,
-  onToggleReveal,
-  onDelete,
-  onClose
-}: {
-  revealed: boolean;
-  onEdit: () => void;
-  onCopySeed: () => void;
-  onToggleReveal: () => void;
-  onDelete: () => void;
-  onClose: () => void;
-}) {
-  const { t } = useI18n();
-  const menu = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const away = (event: MouseEvent) => {
-      if (!menu.current?.contains(event.target as Node)) onClose();
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.addEventListener('mousedown', away);
-    document.addEventListener('keydown', escape);
-    return () => {
-      document.removeEventListener('mousedown', away);
-      document.removeEventListener('keydown', escape);
-    };
-  }, [onClose]);
-
-  return (
-    <div className="tfa-menu" role="menu" ref={menu}>
-      <button type="button" role="menuitem" onClick={onEdit}>
-        <Pencil size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        {t('twoFactorEdit')}
-      </button>
-      <button type="button" role="menuitem" onClick={onCopySeed}>
-        <Copy size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        {t('twoFactorCopyKey')}
-      </button>
-      <button type="button" role="menuitem" onClick={onToggleReveal}>
-        {revealed ? (
-          <EyeOff size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        ) : (
-          <Eye size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        )}
-        {revealed ? t('twoFactorHide') : t('twoFactorReveal')}
-      </button>
-      <button type="button" role="menuitem" className="tfa-menu-danger" onClick={onDelete}>
-        <Trash2 size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        {t('twoFactorDelete')}
-      </button>
-    </div>
   );
 }
 

@@ -87,6 +87,9 @@ name and a button is the reason to look at the page.
 
 Everything else is deliberately quiet. The add control is not the loud thing on
 screen, because an account is added once and a code is taken twenty times a day.
+The row's four actions — copy the key, show it, rename, delete — sit in the row
+at 55% opacity and come to full contrast when the pointer is on it: present at a
+glance, one click away, and not competing with the digits.
 Editing happens in the row itself — and adding uses the same row, so there is one
 editor rather than two that drift apart. Sorting, selection and a bulk delete sit
 where a table puts them, and the checkboxes stay out of sight until the table is
@@ -99,8 +102,11 @@ the eye cannot carry a row across.
 ### Why the codes can be on screen and the keys cannot
 
 A code lives thirty seconds and is single-use; a key is standing account access.
-That is the whole of the reasoning. The keys stay behind the overflow menu, and
-the codes blur after two minutes without interaction — any movement brings them
+That is the whole of the reasoning. A key is shown only when its row is asked to
+show it — and then it appears beside that row's code, where clicking it copies it
+the same way clicking the digits does. Copying a key **without** showing it stays
+its own action, because handing a key to a colleague mid-screen-share should not
+flash it at the call. The codes blur after two minutes without interaction — any movement brings them
 back, with no control to find and nothing to configure. See
 `totp-clock.ts` for the one step counter and the one idle watch that serve every
 row: N timers would be N re-renders a second and rows whose digits change a beat

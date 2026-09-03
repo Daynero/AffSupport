@@ -41,11 +41,11 @@ the desktop app closed.
 3. Leave the page alone for a couple of minutes and the codes blur, so a screen left on a desk
    is not a list of live codes. Move the mouse and they are back. There is nothing to switch
    on or off.
-4. The key itself is never shown in the table. The **…** button on the line copies it, or
-   shows it when you need to check it against the service — and it is hidden again as soon as
-   you leave the page.
-5. The **…** button also renames a line, editing it in place. Leave the key field empty to
-   change only the name.
+4. The key icon on the line copies the key without showing it — useful when you are sharing
+   your screen. The eye beside it shows the key next to the code, where you can read it or
+   click it to copy; it is hidden again as soon as you leave the page.
+5. The pencil renames a line, editing it in place. Leave the key field empty to change only
+   the name. The bin deletes it, and asks first.
 6. The search box at the top finds a line by name **or** by the key — paste a fragment of a
    key to find out which account it belongs to. **⌘K** jumps to it from anywhere on the page.
 7. The **Швидкий код** field above the table is for a key that is _not_ in the wallet: paste

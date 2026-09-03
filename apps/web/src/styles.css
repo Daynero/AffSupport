@@ -17050,7 +17050,7 @@ input[type='number'] {
   /* One number, so the countdown, the stored codes and the one-off code all
      end on the same pixel instead of drifting apart whenever the actions
      column changes width. */
-  --tfa-actions-width: 56px;
+  --tfa-actions-width: 152px;
   --tfa-code-inset: calc(var(--space-2) + 1px);
   width: min(100%, 1180px);
   margin: 0 auto;
@@ -17612,12 +17612,35 @@ input[type='number'] {
   white-space: nowrap;
 }
 
+/* Beside the code, not under the name: both of a row's copyable values then
+   live in one place under one gesture. */
+.tfa-cell-code {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
 .tfa-seed {
-  display: block;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: none;
   color: var(--color-text-muted);
+  cursor: pointer;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: var(--text-sm);
-  overflow-wrap: anywhere;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tfa-seed:hover {
+  border-color: var(--color-border);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
 }
 
 .tfa-actions {
@@ -17628,16 +17651,44 @@ input[type='number'] {
 }
 
 .tfa-cell-actions .icon-button {
-  width: 34px;
-  min-width: 34px;
-  height: 34px;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  border: 0;
   border-radius: var(--radius-md);
   color: var(--color-text-muted);
+  opacity: 0.55;
+  transition:
+    opacity var(--dur-control) var(--ease-standard),
+    background-color var(--dur-control) var(--ease-standard),
+    color var(--dur-control) var(--ease-standard);
+}
+
+.tfa-row:hover .icon-button,
+.tfa-row:focus-within .icon-button,
+.tfa-row .icon-button[aria-pressed='true'] {
+  opacity: 1;
 }
 
 .tfa-cell-actions .icon-button:hover {
   background: var(--color-surface-muted);
   color: var(--color-text);
+  opacity: 1;
+}
+
+.tfa-cell-actions .icon-button[aria-pressed='true'] {
+  color: var(--color-accent);
+}
+
+.tfa-cell-actions .tfa-danger:hover {
+  background: color-mix(in srgb, var(--color-danger, #e5484d) 14%, transparent);
+  color: var(--color-danger, #e5484d);
+}
+
+@media (hover: none) {
+  .tfa-cell-actions .icon-button {
+    opacity: 1;
+  }
 }
 
 .tfa-cell-actions .tfa-confirm {
