@@ -7809,14 +7809,22 @@ body:has(.public-home) {
   margin: 0;
 }
 
+/* Plain words, not boxes.
+ *
+ * They were bordered pills sitting directly above the filter row — which *is* a row of
+ * pressable pills. Two things the same shape, one of them clickable, is a worse answer than
+ * either shape on its own; the counters are a status line, so they read as one. */
 .landing-success-metrics > div {
   display: flex;
   align-items: baseline;
   gap: 6px;
-  padding: 6px 9px;
-  border: 1px solid color-mix(in srgb, var(--color-success) 13%, var(--color-border));
-  border-radius: var(--radius-md);
-  background: rgb(255 255 255 / 72%);
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.landing-success-metrics {
+  gap: var(--space-4);
 }
 
 .landing-success-metrics dt {
@@ -8079,6 +8087,24 @@ body:has(.public-home) {
   background: var(--color-surface-muted);
 }
 
+/* The name and its numbers are a target, and look like one on hover. */
+.landing-asset-copy.is-openable {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.landing-asset-item:hover .landing-asset-copy.is-openable h3,
+.landing-asset-copy.is-openable:focus-visible h3 {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* Where the weight actually ended up, when one file decides it. */
 .landing-heaviest {
   margin: 0;
@@ -8100,6 +8126,18 @@ body:has(.public-home) {
   padding: 8px var(--space-4);
   border-bottom: 1px solid var(--color-border);
   background: var(--color-surface-muted);
+}
+
+.landing-asset-scope {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.landing-shared-folder {
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+  font-variant-numeric: tabular-nums;
 }
 
 .landing-asset-filters {
@@ -17772,8 +17810,11 @@ input[type='number'] {
   width: 48px;
 }
 
+/* 40%, not 44%: the four points buy the revealed key the 24px it was short of,
+   and a 32-character key — the long end of what services actually issue — now
+   sits on one line. Names lose nothing they were using. */
 .tfa-cell-name {
-  width: 44%;
+  width: 40%;
 }
 
 /* Right-aligned so the digits form a column with a shared edge — that is what
@@ -17878,15 +17919,19 @@ input[type='number'] {
   letter-spacing: 0.02em;
 }
 
+/* Wraps rather than truncates. Asking to see a key and being shown two thirds
+   of one is not an answer, so the rare key too long for its line takes a second
+   line and its own row grows — the code beside it never does, because
+   `.tfa-code` cannot shrink. */
 .tfa-seed-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: left;
 }
 
 .tfa-seed:hover {
-  border-color: var(--color-border);
-  background: var(--color-surface-muted);
+  border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
   color: var(--color-text);
 }
 
