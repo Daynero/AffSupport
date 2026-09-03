@@ -217,6 +217,26 @@ export function buildSilenceSliceArgs(options: SilenceSliceOptions): string[] {
   ];
 }
 
+/*
+ * A movie timescale we choose, rather than one FFmpeg derives.
+ *
+ * Left alone, the muxer picks a timescale that can express both tracks exactly — for a held
+ * screen at 15360 against 44.1 kHz audio that is 180,633,600 — and the movie duration then
+ * needs 64 bits, so it writes version-1 `mvhd` and `elst` boxes. CoreAudio truncates that
+ * edit list to 32 bits, which at such a timescale overflows after **twenty-four seconds**:
+ * it then reads a forty-minute film as five seconds of valid audio and refuses the track
+ * outright (`ExtAudioFileRead 'bada'`).
+ *
+ * The visible result was a re-stitched video that played with no sound at all in QuickTime,
+ * Safari, Telegram and Finder's preview — while FFmpeg, which reads the tracks' own headers
+ * and ignores the broken edit list, decoded it perfectly and reported nothing wrong. Every
+ * check we had was an FFmpeg check.
+ *
+ * A thousand ticks a second is the muxer's own default elsewhere, keeps a forty-minute film
+ * at 2.4 million units, and holds every box in 32 bits.
+ */
+const MOVIE_TIMESCALE = ['-movie_timescale', '1000'];
+
 export interface SegmentMuxOptions {
   videoPath: string;
   audioPath: string | null;
@@ -235,6 +255,7 @@ export function buildSegmentMuxArgs(options: SegmentMuxOptions): string[] {
     'copy',
     '-video_track_timescale',
     String(options.videoTimescale),
+    ...MOVIE_TIMESCALE,
     '-avoid_negative_ts',
     'make_zero',
     '-muxdelay',
@@ -251,6 +272,8 @@ export interface BodyRemuxOptions {
   startSeconds: number;
   endSeconds: number;
   videoTimescale: number;
+  /** The source's audio rate, so the one re-encode it takes is not a downgrade. */
+  audioBitrateKbps?: number | null;
   /** The source's frame rate, which turns the range into an exact number of pictures. */
   frameRate: number;
 }
@@ -293,10 +316,28 @@ export function buildBodyRemuxArgs(options: BodyRemuxOptions): string[] {
       : []),
     '-map',
     '0',
-    '-c',
+    '-c:v',
     'copy',
+    /*
+     * The audio is re-encoded, and only the audio.
+     *
+     * The screen's silence is AAC-LC, because that is what our encoder makes. A phone-shot
+     * creative is very often HE-AAC, and joining the two puts two incompatible AAC
+     * configurations in one track: CoreAudio reads the track description, meets frames it
+     * does not fit, and refuses the whole track — a re-stitched video that plays with no
+     * sound at all in QuickTime, Safari and Telegram. FFmpeg re-syncs per frame and never
+     * noticed, so nothing we measured saw it.
+     *
+     * One AAC-LC generation on a body of seconds-to-minutes is the price of a track that
+     * every player can read. The video is still copied, which is where the cost would be.
+     */
+    '-c:a',
+    'aac',
+    '-b:a',
+    String(Math.max(128, Math.round(options.audioBitrateKbps ?? 128))) + 'k',
     '-video_track_timescale',
     String(options.videoTimescale),
+    ...MOVIE_TIMESCALE,
     '-avoid_negative_ts',
     'make_zero',
     '-muxdelay',
@@ -390,6 +431,7 @@ export function buildConcatArgs(options: ConcatOptions): string[] {
     '0',
     '-c',
     'copy',
+    ...MOVIE_TIMESCALE,
     '-movflags',
     '+faststart',
     options.output

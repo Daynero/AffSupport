@@ -187,6 +187,8 @@ const en = {
   stitcherOpenCompressor: 'Open the compressor',
   stitcherFailedVerification:
     'The result did not match what was promised, so it was discarded. Nothing was changed.',
+  stitcherFailedAudioMismatch:
+    'The parts of this video carry incompatible sound, so joining them would produce a file that plays without audio. Nothing was changed.',
   stitcherFailedUnwritable: 'The destination could not be written to.',
   stitcherFailedTool: 'The media engine stopped with an error.',
   stitcherFailedPath: 'That file is not available any more.',
@@ -2078,6 +2080,8 @@ const uk: Record<keyof typeof en, string> = {
   stitcherOpenCompressor: 'Відкрити компресор',
   stitcherFailedVerification:
     'Результат не збігся з обіцяним, тому його відкинуто. Нічого не змінилося.',
+  stitcherFailedAudioMismatch:
+    'Частини цього відео мають несумісний звук, тож після склеювання файл програвався б без звуку. Нічого не змінилося.',
   stitcherFailedUnwritable: 'Не вдалося записати у вибране місце.',
   stitcherFailedTool: 'Медіарушій зупинився з помилкою.',
   stitcherFailedPath: 'Цього файлу вже немає.',

@@ -225,6 +225,11 @@ describe('muxing a segment', () => {
     });
     expect(valueAfter(args, '-c')).toBe('copy');
     expect(valueAfter(args, '-avoid_negative_ts')).toBe('make_zero');
+    // A movie timescale we choose. Left to FFmpeg it becomes the tracks' common multiple —
+    // 180,633,600 for a held screen against 44.1 kHz — the duration then needs 64 bits, and
+    // CoreAudio truncates the edit list it writes: a forty-minute film reads as five seconds
+    // of valid audio and the track is refused outright.
+    expect(valueAfter(args, '-movie_timescale')).toBe('1000');
     expect(valueAfter(args, '-muxdelay')).toBe('0');
     expect(valueAfter(args, '-video_track_timescale')).toBe('15360');
   });
@@ -250,13 +255,17 @@ describe('preparing the body (D6)', () => {
       videoTimescale: 15360,
       frameRate: 30
     });
-    expect(valueAfter(args, '-c')).toBe('copy');
+    // The picture is copied; the sound is not, and deliberately. The screen's silence is
+    // AAC-LC, a phone-shot creative is often HE-AAC, and two AAC configurations in one track
+    // is a file CoreAudio refuses outright.
+    expect(valueAfter(args, '-c:v')).toBe('copy');
+    expect(valueAfter(args, '-c:a')).toBe('aac');
     expect(valueAfter(args, '-avoid_negative_ts')).toBe('make_zero');
+    expect(valueAfter(args, '-movie_timescale')).toBe('1000');
     // A length rather than an end time: with input seeking FFmpeg reads `-to` from the seek
     // point, which once produced a body twice as long as promised.
     expect(valueAfter(args, '-t')).toBe('20.033333');
     expect(args).not.toContain('-to');
-    expect(args).not.toContain('-c:v');
   });
 
   it('omits an -ss of zero rather than seeking to the start', () => {

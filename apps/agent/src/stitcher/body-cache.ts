@@ -37,7 +37,9 @@ const DEFAULT_MAX_BYTES = 4 * 1024 * 1024 * 1024;
  * happily serves the ones the previous build got wrong — which is exactly what happened when
  * the seek-length fix landed and the verification kept failing against a stale body.
  */
-const PREPARED_BODY_FORMAT = 3;
+// 4: the body's audio is AAC-LC now, so a cached v3 body may carry HE-AAC that no player
+// can read once the silence is joined to it.
+const PREPARED_BODY_FORMAT = 4;
 
 export interface PreparedBody {
   path: string;
@@ -163,7 +165,8 @@ async function buildBody(
         startSeconds: plan.bodyStartSeconds,
         endSeconds: plan.bodyEndSeconds,
         videoTimescale: profile.videoTimescale,
-        frameRate: profile.frameRate
+        frameRate: profile.frameRate,
+        audioBitrateKbps: profile.audioBitrateKbps
       }),
       run
     );
@@ -200,7 +203,8 @@ async function buildBody(
       startSeconds: headEnd,
       endSeconds: plan.bodyEndSeconds,
       videoTimescale: profile.videoTimescale,
-      frameRate: profile.frameRate
+      frameRate: profile.frameRate,
+      audioBitrateKbps: profile.audioBitrateKbps
     }),
     run
   );

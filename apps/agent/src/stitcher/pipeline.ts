@@ -21,6 +21,7 @@ import type {
 } from '@video-compressor/shared';
 import { ffmpegPath } from '../ffmpeg/tools.js';
 import { buildConcatArgs, concatListContents } from '../ffmpeg/stitch-presets.js';
+import { audioShapeDisagreements, measureAudioShape } from './audio-shape.js';
 import { PreparedBodyCache } from './body-cache.js';
 import { buildScreenSegment } from './segments.js';
 import { ensureSilenceBank } from './silence.js';
@@ -174,6 +175,22 @@ export const runStitchPipeline: StitchPipeline = async context => {
     );
     if (!toolSucceeded(copy)) return { ok: false, error: failureOf(copy, 'STITCH_JOIN') };
   } else {
+    /*
+     * The parts have to agree about their sound before they are copied into one track.
+     *
+     * The concat demuxer writes a single sample description per track, taken from the first
+     * input, and every later frame is decoded against it. A screen's AAC-LC silence in front
+     * of an HE-AAC body therefore produces a file FFmpeg reads perfectly and CoreAudio — so
+     * QuickTime, Safari, Telegram and Finder — refuses after the first seconds: a re-stitched
+     * video with the picture right and no sound at all. It shipped once, because every check
+     * we had was an FFmpeg check.
+     */
+    const shapes = await Promise.all(
+      segments.map(segment => measureAudioShape(segment, { signal: context.signal }))
+    );
+    const disagreements = audioShapeDisagreements(shapes);
+    if (disagreements.length > 0) return { ok: false, error: 'STITCH_AUDIO_MISMATCH' };
+
     const listPath = path.join(workDir, 'segments.txt');
     await writeFile(listPath, concatListContents(segments), 'utf8');
     const joined = await runTool(ffmpegPath, buildConcatArgs({ listPath, output: staged }), run);

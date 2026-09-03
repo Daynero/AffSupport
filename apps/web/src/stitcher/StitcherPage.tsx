@@ -862,6 +862,7 @@ const STAGE_KEYS = {
 
 const ERROR_KEYS: Record<string, string> = {
   STITCH_VERIFICATION_FAILED: 'stitcherFailedVerification',
+  STITCH_AUDIO_MISMATCH: 'stitcherFailedAudioMismatch',
   STITCH_OUTPUT_UNWRITABLE: 'stitcherFailedUnwritable',
   STITCH_IMAGE_UNAVAILABLE: 'stitcherFailedPath',
   STITCH_PATH_INVALID: 'stitcherFailedPath',
