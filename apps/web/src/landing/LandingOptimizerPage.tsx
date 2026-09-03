@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  Award,
+  Ban,
+  ChevronDown,
+  Files,
+  FolderOpen,
+  Settings as SettingsIcon,
+  Sparkles
+} from 'lucide-react';
 import {
   LANDING_JOB_LIFECYCLE,
   canTransition,
@@ -7,6 +16,7 @@ import {
   type LandingJobStatus,
   type LandingSettings,
   isNewerSnapshot,
+  defaultLandingSettings,
   type LandingState
 } from '@video-compressor/shared';
 
@@ -40,6 +50,8 @@ import {
   Tooltip,
   type Translate
 } from '../components/ui';
+import { ICON_SIZE, ICON_STROKE } from '../components/icons';
+import { compactPath } from '../format';
 import { useI18n } from '../i18n';
 import { usePageEntrance } from '../lib/navigation';
 import { analytics } from '../analytics/service';
@@ -142,11 +154,8 @@ export default function LandingOptimizerPage() {
 
   const jobs = state?.jobs ?? (state?.job ? [state.job] : []);
   const visibleJobs = useMemo(() => [...jobs].sort((a, b) => b.createdAt - a.createdAt), [jobs]);
-  const settings = state?.settings ?? {
-    imageQuality: 'optimal',
-    videoQuality: 'optimal',
-    archive: false
-  };
+  // Before the first snapshot arrives, the same defaults the agent would have sent.
+  const settings = state?.settings ?? defaultLandingSettings();
   const readyJobs = jobs.filter(job => job.status === 'ready');
   const finishedJobs = jobs.filter(job => isSettled(LANDING_JOB_LIFECYCLE, job.status));
   const stoppable = jobs.some(job => landingStoppable(job.status));
@@ -154,6 +163,16 @@ export default function LandingOptimizerPage() {
   const updateSettings = async (patch: Partial<LandingSettings>) => {
     try {
       applyState(await requestBody<LandingState>('/api/landing/settings', patch));
+    } catch (error) {
+      handleError(error);
+    }
+  };
+
+  /* The system dialog, then whatever it returned. A cancelled dialog changes nothing — the
+     agent leaves the mode alone rather than switching to a folder nobody chose. */
+  const chooseOutputFolder = async () => {
+    try {
+      applyState(await request<LandingState>('/api/landing/output/select', 'POST'));
     } catch (error) {
       handleError(error);
     }
@@ -301,13 +320,10 @@ export default function LandingOptimizerPage() {
           </section>
         )}
 
-        <LandingSettingsPanel
-          settings={settings}
-          disabled={!connected || importing}
-          update={updateSettings}
-          t={t}
-        />
-
+        {/* The drop zone first and the settings under it, as in the compressor: the thing you
+            came to do, then the way it will be done. Nothing sits under the zone — the two
+            pickers are the zone's own, because a landing arrives as either an archive or a
+            folder and no system dialog offers both at once. */}
         <section className="add-files-section" aria-label={t('landingDropTitle')}>
           <DropZone
             disabled={!connected || importing || !state?.tools.ffmpeg}
@@ -319,26 +335,22 @@ export default function LandingOptimizerPage() {
             activeLabel={t('landingDropActive')}
             formats={t('landingDropFormats')}
             importingLabel={t('landingImporting')}
+            secondaryAction={{
+              label: t('landingChooseFolder'),
+              run: () => void pick('/api/landing/select/folder'),
+              disabled: !connected || importing
+            }}
             t={t}
           />
-          <div className="inline-actions landing-pick-actions">
-            <Button
-              variant="ghost"
-              disabled={!connected || importing}
-              onClick={() => void pick('/api/landing/select/zip')}
-            >
-              {t('landingChooseZip')}
-            </Button>
-            <Button
-              variant="ghost"
-              disabled={!connected || importing}
-              onClick={() => void pick('/api/landing/select/folder')}
-            >
-              {t('landingChooseFolder')}
-            </Button>
-          </div>
-          <p>{t('landingProcessedLocally')}</p>
         </section>
+
+        <LandingSettingsPanel
+          settings={settings}
+          disabled={!connected || importing}
+          update={updateSettings}
+          chooseOutputFolder={() => void chooseOutputFolder()}
+          t={t}
+        />
 
         {jobs.length > 0 && (
           <section className="landing-queue-toolbar" aria-label={t('landingQueueTitle')}>
@@ -397,6 +409,14 @@ export default function LandingOptimizerPage() {
                     'POST'
                   ).catch(handleError)
                 }
+                onPause={paused =>
+                  void requestBody<LandingState>(
+                    `/api/landing/jobs/${encodeURIComponent(job.id)}/pause`,
+                    { paused }
+                  )
+                    .then(applyState)
+                    .catch(handleError)
+                }
                 t={t}
               />
             ))}
@@ -415,76 +435,305 @@ export default function LandingOptimizerPage() {
   );
 }
 
+const LANDING_SETTINGS_OPEN_KEY = 'wishly.landing.settings-open.v1';
+
 export function LandingSettingsPanel({
   settings,
   disabled,
   update,
+  chooseOutputFolder,
   t
 }: {
   settings: LandingSettings;
   disabled: boolean;
   update: (patch: Partial<LandingSettings>) => void;
+  /** Opens the system dialog; the agent stores whatever comes back. */
+  chooseOutputFolder: () => void;
   t: Translate;
 }) {
+  // Folds to its title line, and remembers: the compressor's panel does both, and re-opening
+  // this one after every reload is the kind of small chore that makes a tool feel forgetful.
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem(LANDING_SETTINGS_OPEN_KEY) !== 'closed';
+    } catch {
+      return true;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(LANDING_SETTINGS_OPEN_KEY, open ? 'open' : 'closed');
+    } catch {
+      // Private windows and blocked site data: the panel simply opens by default.
+    }
+  }, [open]);
+
+  const mediaName = (on: boolean, quality: 'optimal' | 'high') =>
+    !on ? t('landingMediaOff') : quality === 'high' ? t('highQuality') : t('optimal');
+
   return (
     <section
-      className="settings-panel landing-settings-panel"
+      className={`settings-panel landing-settings-panel ${open ? '' : 'is-collapsed'}`.trim()}
       aria-labelledby="landing-settings-title"
     >
-      <div className="section-heading compact-heading">
+      {/* The whole header is the toggle: gear and title on the left, what will actually run in
+          the middle, chevron in the corner — the compressor's own header, because this is the
+          same panel doing the same job. */}
+      <button
+        type="button"
+        className="settings-collapse section-heading compact-heading"
+        aria-expanded={open}
+        aria-controls="landing-settings-body"
+        onClick={() => setOpen(current => !current)}
+      >
+        <SettingsIcon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
         <h2 id="landing-settings-title">{t('landingQualityTitle')}</h2>
-      </div>
-      <div className="settings-primary-row landing-settings-primary-row">
-        <div className="field-group landing-settings-field">
-          <LandingFieldLabel
+        <span className="settings-summary">
+          <span>
+            <span className="settings-summary-key">{t('landingSettingsSummaryImages')}</span>
+            {mediaName(settings.optimizeImages, settings.imageQuality)}
+          </span>
+          <span>
+            <span className="settings-summary-key">{t('landingSettingsSummaryVideos')}</span>
+            {mediaName(settings.optimizeVideos, settings.videoQuality)}
+          </span>
+          <span>
+            {settings.outputMode === 'next-to-originals'
+              ? t('nextToOriginals')
+              : t('chooseFolder')}
+          </span>
+          {/* Each of these is worth a word only when it is on. */}
+          {settings.archive && <span>{t('landingArchive')}</span>}
+          {settings.renameMedia && <span>{t('landingRenameMedia')}</span>}
+        </span>
+        <ChevronDown
+          size={ICON_SIZE}
+          strokeWidth={ICON_STROKE}
+          className={`settings-chevron ${open ? '' : 'is-rotated'}`.trim()}
+          aria-hidden="true"
+        />
+      </button>
+
+      <div id="landing-settings-body" className="settings-body" hidden={!open}>
+        <div className="settings-primary-row landing-settings-primary-row">
+          {/*
+            Off, optimal, high — one row of pictos per kind of media rather than a switch
+            beside a choice. The two questions a person has about images are "are you touching
+            them?" and "how hard?", and answering both in one row is the shape the compressor
+            gives its own mode, down to the grey line that spells the answer out underneath.
+
+            The same three glyphs in both rows, deliberately: a sparkle means optimal here for
+            the same reason it means optimal in the compressor, and an icon that changed its
+            meaning between two adjacent controls would be worse than no icon at all.
+          */}
+          <LandingMediaField
             label={t('landingImageQuality')}
-            tooltip={t(
-              settings.imageQuality === 'high' ? 'landingImageHighHint' : 'landingImageOptimalHint'
-            )}
-          />
-          <SegmentedControl<'optimal' | 'high'>
-            label={t('landingImageQuality')}
-            value={settings.imageQuality}
+            value={settings.optimizeImages ? settings.imageQuality : 'off'}
             disabled={disabled}
-            options={[
-              { value: 'optimal', label: t('optimal') },
-              { value: 'high', label: t('highQuality') }
-            ]}
-            onChange={imageQuality => update({ imageQuality })}
+            offHint={t('landingImagesOffHint')}
+            optimalHint={t('landingImageOptimalHint')}
+            highHint={t('landingImageHighHint')}
+            onChange={choice =>
+              update(
+                choice === 'off'
+                  ? { optimizeImages: false }
+                  : { optimizeImages: true, imageQuality: choice }
+              )
+            }
+            t={t}
           />
-        </div>
-        <div className="field-group landing-settings-field">
-          <LandingFieldLabel
+          <LandingMediaField
             label={t('landingVideoQuality')}
-            tooltip={t(
-              settings.videoQuality === 'high' ? 'landingVideoHighHint' : 'landingVideoOptimalHint'
-            )}
-          />
-          <SegmentedControl<'optimal' | 'high'>
-            label={t('landingVideoQuality')}
-            value={settings.videoQuality}
+            value={settings.optimizeVideos ? settings.videoQuality : 'off'}
             disabled={disabled}
-            options={[
-              { value: 'optimal', label: t('optimal') },
-              { value: 'high', label: t('highQuality') }
-            ]}
-            onChange={videoQuality => update({ videoQuality })}
+            offHint={t('landingVideosOffHint')}
+            optimalHint={t('landingVideoOptimalHint')}
+            highHint={t('landingVideoHighHint')}
+            onChange={choice =>
+              update(
+                choice === 'off'
+                  ? { optimizeVideos: false }
+                  : { optimizeVideos: true, videoQuality: choice }
+              )
+            }
+            t={t}
           />
-        </div>
-        <div className="field-group landing-settings-field landing-archive-settings">
-          <LandingFieldLabel label={t('landingOutput')} tooltip={t('landingArchiveHint')} />
-          <div className="metadata-control landing-archive-control">
-            <Checkbox
-              className="feature-switch"
+
+          {/* The compressor's own destination control, in the compressor's own markup: a
+              landing used to go beside its original or into Downloads depending on how it had
+              arrived, and nothing said which. */}
+          <div className="field-group landing-settings-field">
+            <LandingFieldLabel label={t('saveResults')} tooltip={t('saveTooltip')} />
+            <div className="fit-mode-pictos" role="radiogroup" aria-label={t('saveResults')}>
+              <button
+                type="button"
+                role="radio"
+                className={settings.outputMode === 'next-to-originals' ? 'is-selected' : ''}
+                data-tip={t('nextToOriginals')}
+                aria-label={t('nextToOriginals')}
+                aria-checked={settings.outputMode === 'next-to-originals'}
+                disabled={disabled}
+                onClick={() => update({ outputMode: 'next-to-originals' })}
+              >
+                <Files size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                role="radio"
+                className={settings.outputMode === 'chosen-folder' ? 'is-selected' : ''}
+                data-tip={t('chooseFolder')}
+                aria-label={t('chooseFolder')}
+                aria-checked={settings.outputMode === 'chosen-folder'}
+                disabled={disabled}
+                onClick={chooseOutputFolder}
+              >
+                <FolderOpen size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              </button>
+            </div>
+            <span className="optimal-summary output-mode-summary">
+              {settings.outputMode === 'next-to-originals'
+                ? t('nextToOriginals')
+                : t('chooseFolder')}
+            </span>
+            {settings.outputMode === 'chosen-folder' && (
+              <span
+                className="selected-folder"
+                data-tip={settings.outputFolder ?? t('noFolderSelected')}
+              >
+                {settings.outputFolder
+                  ? compactPath(settings.outputFolder)
+                  : t('noFolderSelected')}
+              </span>
+            )}
+          </div>
+
+          {/* Three yes-or-no answers about the landing as a whole. Each is its own line with
+              its own tooltip and nothing above it — the same weight the compressor gives
+              "Remove metadata", because that is exactly what they are. */}
+          <div className="field-group landing-switch-column">
+            <LandingSwitch
+              label={t('landingArchive')}
+              hint={t('landingArchiveHint')}
               checked={settings.archive}
               disabled={disabled}
-              label={<strong>{t('landingArchive')}</strong>}
-              onChange={event => update({ archive: event.target.checked })}
+              onChange={archive => update({ archive })}
+            />
+            <LandingSwitch
+              label={t('stripMetadata')}
+              hint={t('landingStripMetadataHint')}
+              checked={settings.stripMetadata}
+              disabled={disabled}
+              onChange={stripMetadata => update({ stripMetadata })}
+            />
+            <LandingSwitch
+              label={t('landingRenameMedia')}
+              hint={t('landingRenameMediaHint')}
+              checked={settings.renameMedia}
+              disabled={disabled}
+              onChange={renameMedia => update({ renameMedia })}
             />
           </div>
         </div>
       </div>
     </section>
+  );
+}
+
+/** A switch, its name and its question mark on one line — the compressor's metadata control. */
+function LandingSwitch({
+  label,
+  hint,
+  checked,
+  disabled,
+  onChange
+}: {
+  label: string;
+  hint: string;
+  checked: boolean;
+  disabled: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <div className="metadata-control">
+      <Checkbox
+        className="feature-switch"
+        checked={checked}
+        disabled={disabled}
+        label={<strong>{label}</strong>}
+        onChange={event => onChange(event.target.checked)}
+      />
+      <Tooltip label={hint}>{hint}</Tooltip>
+    </div>
+  );
+}
+
+/** Off, optimal or high for one kind of media — the compressor's picto row, three wide. */
+function LandingMediaField({
+  label,
+  value,
+  disabled,
+  offHint,
+  optimalHint,
+  highHint,
+  onChange,
+  t
+}: {
+  label: string;
+  value: 'off' | 'optimal' | 'high';
+  disabled: boolean;
+  offHint: string;
+  optimalHint: string;
+  highHint: string;
+  onChange: (value: 'off' | 'optimal' | 'high') => void;
+  t: Translate;
+}) {
+  const hint = value === 'off' ? offHint : value === 'high' ? highHint : optimalHint;
+  const name =
+    value === 'off' ? t('landingMediaOff') : value === 'high' ? t('highQuality') : t('optimal');
+  return (
+    <div className="field-group landing-settings-field">
+      <LandingFieldLabel label={label} tooltip={hint} />
+      <div className="fit-mode-pictos" role="radiogroup" aria-label={label}>
+        <button
+          type="button"
+          role="radio"
+          className={value === 'off' ? 'is-selected' : ''}
+          data-tip={offHint}
+          aria-label={`${label}: ${t('landingMediaOff')}`}
+          aria-checked={value === 'off'}
+          disabled={disabled}
+          onClick={() => onChange('off')}
+        >
+          <Ban size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          role="radio"
+          className={value === 'optimal' ? 'is-selected' : ''}
+          data-tip={optimalHint}
+          aria-label={`${label}: ${t('optimal')}`}
+          aria-checked={value === 'optimal'}
+          disabled={disabled}
+          onClick={() => onChange('optimal')}
+        >
+          <Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          role="radio"
+          className={value === 'high' ? 'is-selected' : ''}
+          data-tip={highHint}
+          aria-label={`${label}: ${t('highQuality')}`}
+          aria-checked={value === 'high'}
+          disabled={disabled}
+          onClick={() => onChange('high')}
+        >
+          <Award size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        </button>
+      </div>
+      {/* Three pictos say nothing on their own, so the answer is spelled out under them. */}
+      <span className="optimal-summary">{name}</span>
+    </div>
   );
 }
 

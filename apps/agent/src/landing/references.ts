@@ -78,8 +78,15 @@ function splitSuffix(token: string): { pathPart: string; suffix: string } {
 /**
  * Rewrites every local asset reference in a file's text according to the rename
  * map. Query strings and hash fragments are preserved, external/data/blob URLs
- * are left untouched, and relative/`../` paths keep their exact form (only the
- * final extension changes).
+ * are left untouched, and relative/`../` paths keep their exact form: only the
+ * final segment is replaced.
+ *
+ * It used to replace only the extension, which was all a `.jpg` → `.webp` change
+ * needed. Renumbering the media changes the name as well, and a reference left
+ * pointing at `hero.webp` when the file is now `img3.webp` is a landing with a
+ * hole in it. The prefix a file wrote — `./`, `../../assets/`, a leading `/` —
+ * is kept exactly as it was, because that is what makes the reference resolve
+ * from where it is written.
  */
 export function rewriteReferences(
   text: string,
@@ -96,8 +103,19 @@ export function rewriteReferences(
     if (!resolved) return match;
     const target = lookupRename(lookup, resolved);
     if (!target) return match;
-    const newExtension = path.posix.extname(target);
-    const rewrittenPath = pathPart.replace(/\.[^./\\]+$/, newExtension);
+    // Only the last segment, and only when the file stayed where it was: a rename that also
+    // moved the file would need every prefix recomputed per referring file, and nothing here
+    // produces one.
+    if (path.posix.dirname(target) !== path.posix.dirname(resolved)) return match;
+    // Written as it was written. A file that spells its reference percent-encoded gets a
+    // percent-encoded replacement; one that spells it plainly gets a plain one. Swapping only
+    // the extension used to preserve this for free.
+    const written = /[^/\\]+$/u.exec(pathPart)?.[0] ?? '';
+    const basename = path.posix.basename(target);
+    const rewrittenPath = pathPart.replace(
+      /[^/\\]+$/u,
+      safeDecode(written) === written ? basename : encodeURIComponent(basename)
+    );
     if (rewrittenPath === pathPart) return match;
     count += 1;
     return `${rewrittenPath}${suffix}`;

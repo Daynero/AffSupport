@@ -16,6 +16,7 @@ export function DropZone({
   formats,
   activeLabel,
   importingLabel,
+  secondaryAction,
   t
 }: {
   disabled: boolean;
@@ -33,6 +34,15 @@ export function DropZone({
   formats?: string;
   activeLabel?: string;
   importingLabel?: string;
+  /**
+   * A second way in, inside the zone rather than under it.
+   *
+   * The compressor needs one: clicking the zone opens a file dialog and that is the whole
+   * story. A landing arrives as either an archive or a folder, and no system dialog offers
+   * both at once — so the zone's click takes the archives and this takes the folders, without
+   * a row of buttons growing underneath and turning the zone into a header for them.
+   */
+  secondaryAction?: { label: string; run: () => void; disabled?: boolean };
   t: Translate;
 }) {
   const depth = useRef(0);
@@ -113,6 +123,21 @@ export function DropZone({
         </strong>
         <span>{formats ?? t('dropFormats')}</span>
       </div>
+      {secondaryAction && (
+        <button
+          type="button"
+          className="drop-zone-secondary"
+          disabled={disabled || secondaryAction.disabled}
+          // The zone itself is a button; without this the click reaches it as well and both
+          // dialogs open, one on top of the other.
+          onClick={event => {
+            event.stopPropagation();
+            secondaryAction.run();
+          }}
+        >
+          {secondaryAction.label}
+        </button>
+      )}
     </div>
   );
 }

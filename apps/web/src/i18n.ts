@@ -459,6 +459,16 @@ const en = {
   selectFolder: 'Choose folder',
   noFolderSelected: 'No folder selected',
   metadata: 'Metadata',
+  landingMediaOff: 'Off',
+  landingImagesOffHint: 'Images are left exactly as they arrived, names and references included.',
+  landingVideosOffHint: 'Videos are left exactly as they arrived, names and references included.',
+  landingRenameMedia: 'Wipe names',
+  landingRenameMediaHint:
+    'Replaces every file name: images become img1, img2 … and videos vid1, vid2 …, in the order they appear. Every reference to them is rewritten.',
+  landingSettingsSummaryImages: 'Images',
+  landingSettingsSummaryVideos: 'Video',
+  landingStripMetadataHint:
+    'Removes camera, editing and location data from the landing’s media — including the files the run leaves as they are.',
   stripMetadata: 'Remove metadata',
   stripMetadataTooltip:
     'On — source, device, location, author and chapter data are dropped from every compressed file. Off — that data is carried over from the original.',
@@ -927,6 +937,7 @@ const en = {
   landingArchiveHint: 'Deliver the result as a single ZIP instead of a folder.',
   landingOptimizeButton: 'Optimize landing',
   landingOptimizeAll: 'Optimize all',
+  landingStatusCancelled: 'Cancelled',
   landingRemove: 'Remove',
   landingClearFinished: 'Clear finished',
   landingQueueTitle: 'Landing queue',
@@ -2347,6 +2358,16 @@ const uk: Record<keyof typeof en, string> = {
   selectFolder: 'Вибрати папку',
   noFolderSelected: 'Папку не вибрано',
   metadata: 'Метадані',
+  landingMediaOff: 'Вимкнено',
+  landingImagesOffHint: 'Картинки лишаються такими, як прийшли — з іменами й посиланнями.',
+  landingVideosOffHint: 'Відео лишаються такими, як прийшли — з іменами й посиланнями.',
+  landingRenameMedia: 'Затерти назви',
+  landingRenameMediaHint:
+    'Замінює всі імена файлів: картинки стають img1, img2 …, відео — vid1, vid2 … по порядку. Усі посилання на них переписуються.',
+  landingSettingsSummaryImages: 'Зображення',
+  landingSettingsSummaryVideos: 'Відео',
+  landingStripMetadataHint:
+    'Прибирає дані камери, редактора й місця зйомки з медіа лендінга — зокрема з файлів, які прогін лишає як є.',
   stripMetadata: 'Витерти метадані',
   stripMetadataTooltip:
     'Увімкнено — з кожного стисненого файла зникають дані про джерело, пристрій, геолокацію, автора та розділи. Вимкнено — ці дані переносяться з оригіналу у стиснений файл.',
@@ -2818,6 +2839,7 @@ const uk: Record<keyof typeof en, string> = {
   landingArchiveHint: 'Отримати результат одним ZIP замість папки.',
   landingOptimizeButton: 'Оптимізувати лендінг',
   landingOptimizeAll: 'Оптимізувати все',
+  landingStatusCancelled: 'Скасовано',
   landingRemove: 'Прибрати',
   landingClearFinished: 'Очистити завершені',
   landingQueueTitle: 'Черга лендінгів',

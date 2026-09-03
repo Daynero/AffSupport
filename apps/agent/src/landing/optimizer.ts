@@ -1,3 +1,4 @@
+import type { ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { access, mkdir, readFile, rename, rm, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -17,12 +18,16 @@ import {
   type LandingSourceKind,
   type LandingState
 } from '@video-compressor/shared';
+import { activeGovernorOrNull } from '../power/spawn.js';
 import { fileSize } from '../files/paths.js';
 import { decideTransition } from '../queue/transitions.js';
 import { encodeImageToWebp } from './images.js';
 import { isRewritableFile, rewriteReferences, type RenameMap } from './references.js';
 import { classifyAsset, detectLandingRoot, walkFiles } from './scan.js';
 import { optimizeVideo } from './video.js';
+import { stripFileMetadata } from './metadata.js';
+import { loadLandingSettings, saveLandingSettings } from './store.js';
+import { numberedRenames } from './numbering.js';
 import {
   LandingPreviewStore,
   type LandingPreviewSide,
@@ -100,6 +105,8 @@ class LandingJobOptimizer {
   private inputDir: string | null = null;
   private landingRoot: string | null = null;
   private destinationDir: string | null = null;
+  /** The landing's own file or folder, when it has one on this machine. */
+  private sourcePath: string | null = null;
   private pendingName = 'landing';
   private running = false;
   private controller: AbortController | null = null;
@@ -107,6 +114,10 @@ class LandingJobOptimizer {
   private cancelling = false;
   private idleWaiters: Array<() => void> = [];
   private previews = new LandingPreviewStore();
+  /** The encoder running right now, so a pause has something to hold. */
+  private activeChild: ChildProcess | null = null;
+  /** Release for the hold the person asked for; non-null exactly while paused. */
+  private releaseHold: (() => void) | null = null;
 
   constructor(
     private tools: { ffmpeg: boolean; ffprobe: boolean },
@@ -212,10 +223,31 @@ class LandingJobOptimizer {
     return this.inputDir;
   }
 
+  /**
+   * Where this landing's result belongs.
+   *
+   * One rule for all three sources, because there was not one before: a landing chosen with
+   * the picker landed beside its original, and the same landing dropped onto the page landed
+   * in `Downloads/Soty Landings` — the same person, the same landing, two places, and nothing
+   * in the interface said which. The choice is now the compressor's own, made in the settings
+   * panel and honoured here.
+   *
+   * `next-to-originals` still needs an original to be next to. A landing that arrived through
+   * the browser has none on this machine, so that one keeps the Downloads folder as its
+   * answer rather than inventing a location.
+   */
+  private destinationFor(sourcePath: string | null): string {
+    if (this.settings.outputMode === 'chosen-folder' && this.settings.outputFolder) {
+      return this.settings.outputFolder;
+    }
+    return sourcePath ? path.dirname(sourcePath) : uploadedOutputDir();
+  }
+
   /** Prepares from a ZIP already present on disk (native picker). */
   async prepareFromZipPath(zipPath: string, uploaded = false) {
     const input = await this.freshWorkspace('zip', zipPath);
-    this.destinationDir = uploaded ? uploadedOutputDir() : path.dirname(zipPath);
+    this.sourcePath = uploaded ? null : zipPath;
+    this.destinationDir = this.destinationFor(this.sourcePath);
     await unzip(zipPath, input);
     await this.finalizePreparation();
   }
@@ -223,7 +255,8 @@ class LandingJobOptimizer {
   /** Prepares from a folder already present on disk (native picker). */
   async prepareFromFolderPath(folderPath: string) {
     const input = await this.freshWorkspace('folder', folderPath);
-    this.destinationDir = path.dirname(folderPath);
+    this.sourcePath = folderPath;
+    this.destinationDir = this.destinationFor(this.sourcePath);
     await copyDir(folderPath, path.join(input, path.basename(folderPath)));
     await this.finalizePreparation();
   }
@@ -231,7 +264,8 @@ class LandingJobOptimizer {
   /** Begins a browser upload; returns the directory routes must write into. */
   async beginUpload(sourceKind: LandingSourceKind, name: string): Promise<string> {
     const input = await this.freshWorkspace(sourceKind, name);
-    this.destinationDir = uploadedOutputDir();
+    this.sourcePath = null;
+    this.destinationDir = this.destinationFor(null);
     return input;
   }
 
@@ -311,6 +345,7 @@ class LandingJobOptimizer {
     const controller = new AbortController();
     this.controller = controller;
     transitionJob(this.job, 'processing', 'optimizing');
+    this.job.paused = false;
     this.job.progress = 0;
     this.job.totalAssets = this.job.assets.length;
     this.job.completedAssets = terminalAssetCount(this.job.assets);
@@ -345,6 +380,11 @@ class LandingJobOptimizer {
           ? error.message
           : 'The landing could not be optimized.';
     } finally {
+      /* A held run that finishes — or is stopped — must not leave the governor holding a
+         process that no longer exists, and must not come back reported as paused. */
+      this.dropHold();
+      this.activeChild = null;
+      this.job.paused = false;
       this.cancelling = false;
       applySummary(this.job);
       this.job.finishedAt = Date.now();
@@ -353,6 +393,7 @@ class LandingJobOptimizer {
       this.inputDir = null;
       this.landingRoot = null;
       this.destinationDir = null;
+      this.sourcePath = null;
       this.controller = null;
       this.notify();
       for (const resolve of this.idleWaiters.splice(0)) resolve();
@@ -372,8 +413,16 @@ class LandingJobOptimizer {
       applyJobProgress(this.job!);
       this.notify();
       try {
-        if (item.type === 'image') await this.processImage(root, item, scanned);
-        else await this.processVideo(root, item, scanned, signal);
+        if (!this.wanted(item.type)) {
+          /* Turned off in the settings. The file is left exactly as it arrived — including
+             its name and every reference to it — and says so on the card rather than
+             disappearing from the count. */
+          await this.passThrough(root, item);
+        } else if (item.type === 'image') {
+          await this.processImage(root, item, scanned);
+        } else {
+          await this.processVideo(root, item, scanned, signal);
+        }
         throwIfAborted(signal);
       } catch (error) {
         await this.previews.remove(item.id);
@@ -389,12 +438,114 @@ class LandingJobOptimizer {
           if (previewCached) attachPreview(item, this.previews);
         }
       }
+      /*
+       * Whatever the run decided not to rewrite still gets its metadata dropped.
+       *
+       * Re-encoded media loses it on the way through — an image becomes raw pixels before it
+       * becomes WebP, and the video preset asks for the tags to go. Everything else keeps the
+       * camera, the editing software and, on a phone-shot clip, where it was shot: on a
+       * landing that ships to a client, that is the file that says more than the page does.
+       * A stream copy, so nothing here is re-compressed.
+       */
+      await this.stripKeptMetadata(root, item);
       applySummary(this.job!);
       applyJobProgress(this.job!);
       this.notify();
     }
     this.job!.currentAssetId = null;
     this.job!.progress = Math.max(this.job!.progress ?? 0, 88);
+  }
+
+  /**
+   * Whatever the run decided not to rewrite still gets its metadata dropped.
+   *
+   * Re-encoded media loses it on the way through — an image becomes raw pixels before it
+   * becomes WebP, and the video preset asks for the tags to go. Everything else keeps the
+   * camera, the editing software and, on a phone-shot clip, where it was shot: on a landing
+   * that ships to a client, that is the file that says more than the page does. A stream
+   * copy, so nothing here is re-compressed, and a failure leaves the file as it was.
+   */
+  private async stripKeptMetadata(root: string, item: LandingAsset): Promise<void> {
+    if (!this.settings.stripMetadata || item.status !== 'skipped') return;
+    await stripFileMetadata(path.join(root, item.newRelPath ?? item.relPath)).catch(() => false);
+  }
+
+  /**
+   * Holding a landing mid-encode, the way a compression is held.
+   *
+   * Through the governor, never by signalling the child here: it is the only thing allowed to
+   * stop a managed process, and its duty cycler would otherwise wake, at its next on-window,
+   * an encode the person deliberately stopped. It also knows how to suspend on Windows, which
+   * has no such signal to send.
+   *
+   * Only a video encode can be held — it is the one step long enough to be worth holding, and
+   * the only one with a child to hold. An image is a fraction of a second; a request that
+   * arrives between two of them is answered `unsupported` rather than silently doing nothing.
+   */
+  setPaused(paused: boolean): 'ok' | 'unsupported' {
+    if (!this.job || !this.running) return 'unsupported';
+    if (paused === this.job.paused) return 'ok';
+    if (paused) {
+      if (!this.takeHold()) return 'unsupported';
+    } else {
+      this.dropHold();
+    }
+    this.job.paused = paused;
+    this.notify();
+    return 'ok';
+  }
+
+  private takeHold(): boolean {
+    const governor = activeGovernorOrNull();
+    if (!governor?.throttlingSupported()) return false;
+    const child = this.activeChild;
+    if (!child || child.pid === undefined) return false;
+    this.releaseHold = governor.hold(child, 'landing:paused');
+    return true;
+  }
+
+  private dropHold(): void {
+    const release = this.releaseHold;
+    this.releaseHold = null;
+    release?.();
+  }
+
+  /**
+   * The encoder that is running now, and the hold that follows it.
+   *
+   * The audio-copy fallback spawns a second encoder for the same file. A run the person held
+   * must stay held across that swap, or it quietly resumes on a retry nobody asked for.
+   */
+  private adoptChild(child: ChildProcess | null): void {
+    if (child === this.activeChild) return;
+    const held = this.releaseHold !== null;
+    this.dropHold();
+    this.activeChild = child;
+    if (held && child) this.takeHold();
+  }
+
+  /** Is this kind of media in scope for the run? */
+  private wanted(type: LandingAsset['type']): boolean {
+    if (type === 'image') return this.settings.optimizeImages;
+    if (type === 'video') return this.settings.optimizeVideos;
+    return true;
+  }
+
+  /**
+   * A file the run is not optimizing, handled honestly.
+   *
+   * The metadata pass that follows in the loop still reaches it — the setting says the
+   * landing's media carries no metadata, and a file excused from re-encoding is exactly the
+   * one that would otherwise keep all of it. An image also gets its preview cached here, so
+   * the card can still show what is in the file.
+   */
+  private async passThrough(root: string, item: LandingAsset) {
+    const absPath = path.join(root, item.relPath);
+    if (item.type === 'image') {
+      const cached = await this.previews.cacheOriginal(item.id, absPath);
+      if (cached) attachPreview(item, this.previews);
+    }
+    markSkipped(item, this.wanted(item.type) ? 'no-gain' : `${item.type}s-off`);
   }
 
   private async processImage(root: string, item: LandingAsset, scanned: Set<string>) {
@@ -453,8 +604,11 @@ class LandingJobOptimizer {
         applyJobProgress(this.job!);
         this.notify('landing:progress');
       },
-      signal
+      signal,
+      this.settings.stripMetadata,
+      child => this.adoptChild(child)
     );
+    this.adoptChild(null);
     item.progress = null;
     if (result.code !== 0) {
       await unlink(temporary).catch(() => {});
@@ -485,6 +639,30 @@ class LandingJobOptimizer {
         renames.set(item.relPath, item.newRelPath);
       }
     }
+    /*
+     * Renumbering rides on the pass that was already going to rewrite the references.
+     *
+     * An extension change and a renumber are the same operation seen twice — a file is at one
+     * path and needs to be at another, and everything pointing at it has to follow. Doing them
+     * in one map means one walk of the landing, and it means the two can never disagree about
+     * where a file ended up: `hero.jpg` became `hero.webp` and is now `img3.webp`, and what
+     * the HTML gets told is the end of that chain, not the middle of it.
+     */
+    if (this.settings.renameMedia) {
+      const onDisk = new Set((await walkFiles(root)).map(file => file.relPath));
+      const numbered = numberedRenames(this.job!.assets, onDisk);
+      for (const item of this.job!.assets) {
+        const current = item.newRelPath ?? item.relPath;
+        const target = numbered.get(current);
+        if (!target) continue;
+        throwIfAborted(signal);
+        await rename(path.join(root, current), path.join(root, target));
+        // From the name the landing was written with, so a reference that was never touched
+        // by the extension change is still found by its original spelling.
+        renames.set(item.relPath, target);
+        item.newRelPath = target === item.relPath ? null : target;
+      }
+    }
     if (renames.size) {
       let updated = 0;
       for (const file of await walkFiles(root)) {
@@ -499,10 +677,12 @@ class LandingJobOptimizer {
         }
       }
       this.job!.referencesUpdated = updated;
-      // Only after references point to the new assets do we drop the originals,
-      // and only once the replacement is confirmed on disk.
-      for (const [from] of renames) {
-        const target = renames.get(from)!;
+      /* Only after references point to the new assets do we drop the originals, and only
+         once the replacement is confirmed on disk. A renumber moved the file rather than
+         copying it, so `from` is usually gone already — `unlink` of a missing path is
+         exactly the no-op we want, and never the deletion of something still in use. */
+      for (const [from, target] of renames) {
+        if (from === target) continue;
         if (await exists(path.join(root, target))) {
           await unlink(path.join(root, from)).catch(() => {});
         }
@@ -512,7 +692,9 @@ class LandingJobOptimizer {
 
   private async produceOutput() {
     const root = this.landingRoot!;
-    const destination = this.destinationDir!;
+    /* Read now rather than at preparation: a person who drops three landings, then picks a
+       folder, then presses Optimize meant all three to go there. */
+    const destination = this.destinationFor(this.sourcePath);
     if (this.settings.archive) {
       this.job!.outputPath = await writeZipOutput(
         root,
@@ -576,7 +758,21 @@ export class LandingOptimizer {
   updateSettings(patch: Partial<LandingSettings>) {
     this.settings = { ...this.settings, ...patch };
     for (const worker of this.workers) worker.updateSettings(patch);
+    // Saved, not awaited: a preference that fails to reach the disk still applies to this
+    // run, and making the person wait on a write to see their own click is worse than losing
+    // the write.
+    void saveLandingSettings(this.settings);
     this.notify();
+  }
+
+  /**
+   * Reads back what was saved last time.
+   *
+   * Called once at startup rather than in the constructor, because reading a file is
+   * asynchronous and the optimizer has to exist before anything can await it.
+   */
+  async restoreSettings(): Promise<void> {
+    this.updateSettings(await loadLandingSettings());
   }
 
   async prepareFromZipPath(zipPath: string, uploaded = false) {
@@ -727,6 +923,19 @@ export class LandingOptimizer {
   }
 
   /**
+   * Holds one landing where it is, or lets it go again.
+   *
+   * `not-found` means no such landing; `unsupported` means it cannot be held right now —
+   * this platform has no way to stop a running child, or the landing is between files rather
+   * than inside a video encode, which is the only step long enough to hold.
+   */
+  setPaused(jobId: string, paused: boolean): 'ok' | 'not-found' | 'unsupported' {
+    const worker = this.findWorker(jobId);
+    if (!worker) return 'not-found';
+    return worker.setPaused(paused);
+  }
+
+  /**
    * Stops every landing the user can see. Queued ones are dropped first so the
    * pump cannot pick another one up while the running landing is torn down,
    * and team landings are skipped: they are invisible in this tool, so a
@@ -853,6 +1062,7 @@ function preparingJob(
     savedPercent: 0,
     outputPath: null,
     outputIsArchive: settings.archive,
+    paused: false,
     error: null,
     warnings: [],
     createdAt: Date.now(),

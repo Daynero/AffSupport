@@ -5,6 +5,7 @@ import { useSubresourceUrl } from '../api/useSubresourceUrl';
 import { formatSize } from '../format';
 import type { Language, TranslationKey } from '../i18n';
 import { Card } from '../components/Card';
+import { Pause, Play } from 'lucide-react';
 import { Button, Collapse, ProgressBar, SotyLoader, type Translate } from '../components/ui';
 import { ImageCompareModal } from './ImageCompareModal';
 
@@ -16,6 +17,7 @@ export function LandingJobCard({
   onStart,
   onReset,
   onReveal,
+  onPause,
   t
 }: {
   job: NonNullable<LandingState['job']>;
@@ -25,6 +27,8 @@ export function LandingJobCard({
   onStart: () => void;
   onReset: () => void;
   onReveal: (action: 'open' | 'reveal') => void;
+  /** Hold the run where it is, or let it go again — absent when the tool cannot. */
+  onPause?: (paused: boolean) => void;
   t: Translate;
 }) {
   const listId = useId();
@@ -123,6 +127,27 @@ export function LandingJobCard({
         </button>
 
         <div className="landing-batch-actions">
+          {/* Same button, same place, same words as a compression: a landing is the same kind
+              of long local work, and a person who has learned to hold one has learned both. */}
+          {running && onPause && (
+            <Button
+              variant="secondary"
+              disabled={!connected}
+              onClick={() => onPause(!job.paused)}
+            >
+              {job.paused ? (
+                <Play size={16} strokeWidth={1.75} aria-hidden="true" />
+              ) : (
+                <Pause size={16} strokeWidth={1.75} aria-hidden="true" />
+              )}
+              {t(job.paused ? 'jobResume' : 'jobPause')}
+            </Button>
+          )}
+          {running && (
+            <Button variant="danger" disabled={!connected} onClick={onReset}>
+              {t('teamQueueStopNow')}
+            </Button>
+          )}
           {ready && (
             <Button
               variant="primary"
@@ -158,10 +183,14 @@ export function LandingJobCard({
       {(running || queued || job.status === 'preparing') && (
         <div className="landing-batch-progress" aria-live="polite">
           <div className="landing-progress-copy">
-            <span>{landingPhaseLabel(job, t)}</span>
+            <span>{job.paused ? t('jobPaused') : landingPhaseLabel(job, t)}</span>
             {progress !== null && <strong>{Math.round(progress)}%</strong>}
           </div>
-          <ProgressBar value={progress} label={t('landingOverallProgress')} active={running} />
+          <ProgressBar
+            value={progress}
+            label={t('landingOverallProgress')}
+            active={running && !job.paused}
+          />
         </div>
       )}
 
@@ -445,7 +474,9 @@ function LandingBatchStatus({
             : job.status === 'failed'
               ? t('landingStatusFailed')
               : job.status === 'cancelled'
-                ? t('statusCancelled')
+                /* Its own word: the shared one reads "Not compressed", which is the
+                   compressor talking about a video, not this tool about a landing. */
+                ? t('landingStatusCancelled')
                 : finalizing
                   ? t('landingStatusFinalizing')
                   : t('landingStatusProcessing');

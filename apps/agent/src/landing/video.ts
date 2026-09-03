@@ -1,3 +1,4 @@
+import type { ChildProcess } from 'node:child_process';
 import {
   DEFAULT_CRF,
   LANDING_HIGH_QUALITY_CRF,
@@ -15,11 +16,14 @@ import { probeMedia } from '../ffmpeg/tools.js';
  * pipeline but compresses far more gently — a lower CRF, no resolution or
  * frame-rate changes — so quality stays visually intact.
  */
-export function landingVideoEncoding(quality: LandingVideoQuality): EncodingSettings {
+export function landingVideoEncoding(
+  quality: LandingVideoQuality,
+  stripMetadata = true
+): EncodingSettings {
   if (quality === 'high') {
     return {
       mode: 'custom',
-      stripMetadata: true,
+      stripMetadata,
       frameRate: null,
       resolutionLimit: null,
       rateControl: 'crf',
@@ -29,7 +33,7 @@ export function landingVideoEncoding(quality: LandingVideoQuality): EncodingSett
   }
   return {
     mode: 'optimal',
-    stripMetadata: true,
+    stripMetadata,
     frameRate: null,
     resolutionLimit: null,
     rateControl: 'crf',
@@ -48,10 +52,13 @@ export async function optimizeVideo(
   outputPath: string,
   quality: LandingVideoQuality,
   onProgress: (value: number | null) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  stripMetadata = true,
+  /** Handed the encoder as it starts, so the caller can hold or release it. */
+  onChild?: (child: ChildProcess) => void
 ): Promise<EncodeResult> {
   const media = await probeMedia(inputPath);
-  const settings = landingVideoEncoding(quality);
+  const settings = landingVideoEncoding(quality, stripMetadata);
   let result = await runEncoding(
     inputPath,
     outputPath,
@@ -59,7 +66,8 @@ export async function optimizeVideo(
     settings,
     false,
     onProgress,
-    signal
+    signal,
+    onChild
   );
   if (result.code !== 0 && isAudioCopyFailure(result.stderr)) {
     onProgress(0);
@@ -70,7 +78,8 @@ export async function optimizeVideo(
       settings,
       true,
       onProgress,
-      signal
+      signal,
+      onChild
     );
   }
   return result;
@@ -83,7 +92,8 @@ async function runEncoding(
   settings: EncodingSettings,
   transcodeAudio: boolean,
   onProgress: (value: number | null) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onChild?: (child: ChildProcess) => void
 ) {
   if (signal?.aborted) throw signal.reason ?? new Error('PROCESS_CANCELED');
   const operation = encodeVideo(
@@ -94,6 +104,9 @@ async function runEncoding(
     transcodeAudio,
     onProgress
   );
+  // Both attempts report themselves: the audio-copy fallback spawns a second encoder, and a
+  // run held by the person must stay held across that swap.
+  onChild?.(operation.child);
   const abort = () => operation.child.kill('SIGTERM');
   signal?.addEventListener('abort', abort, { once: true });
   try {

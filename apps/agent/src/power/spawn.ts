@@ -41,6 +41,14 @@ export interface ManagedSpawnGovernor {
    * signalling the process itself.
    */
   hold(child: ChildProcess, reason: string): () => void;
+  /**
+   * True while the host can stop work that is already running.
+   *
+   * A tool asks before offering a Pause: on a platform that cannot suspend a child, a button
+   * that does nothing is worse than no button. The compressor's queue reads it from the
+   * concrete governor; anything reaching the governor through `spawnTracked` needs it here.
+   */
+  throttlingSupported(): boolean;
 }
 
 export interface ManagedSpawnOptions extends SpawnOptions {

@@ -9,7 +9,8 @@ import {
   type AgentSettingsPatch,
   type LandingSettings,
   type TeamAgentProcessRequest,
-  type TeamFileOperationResult
+  type TeamFileOperationResult,
+  landingSettingsFrom
 } from '@video-compressor/shared';
 import { parseSettingsPatch } from '../compressor/settings-validation.js';
 import type { LandingOptimizer } from '../landing/optimizer.js';
@@ -664,11 +665,9 @@ function landingSettings(current: LandingSettings, value: unknown): LandingSetti
   ) {
     throw new Error('INVALID_INPUT');
   }
-  return {
-    imageQuality: imageQuality as LandingSettings['imageQuality'],
-    videoQuality: videoQuality as LandingSettings['videoQuality'],
-    archive: true
-  };
+  // Everything else takes its default from one place, so a field added to the contract does
+  // not silently arrive here as undefined.
+  return landingSettingsFrom({ imageQuality, videoQuality, archive: true });
 }
 
 interface TerminalObserver<T> {

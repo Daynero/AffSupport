@@ -5,7 +5,7 @@ import { pipeline } from 'node:stream/promises';
 import type { FastifyInstance } from 'fastify';
 import type { LandingEvent, LandingSettings } from '@video-compressor/shared';
 import { findDroppedSource } from '../files/dropped-source.js';
-import { selectLandingFolders, selectLandingZips } from '../files/picker.js';
+import { selectOutputFolder, selectLandingFolders, selectLandingZips } from '../files/picker.js';
 import { uploadIntakeMeta } from '../files/upload-intake.js';
 import { showInFileManager, capabilities } from '../platform/platform.js';
 import type { EventChannel } from '../server/sse.js';
@@ -70,13 +70,56 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
       }
       patch.videoQuality = body.videoQuality;
     }
-    if (body.archive !== undefined) {
-      if (typeof body.archive !== 'boolean') {
-        return reply.code(400).send({ error: 'Invalid archive option.' });
+    for (const key of [
+      'archive',
+      'optimizeImages',
+      'optimizeVideos',
+      'stripMetadata',
+      'renameMedia'
+    ] as const) {
+      if (body[key] === undefined) continue;
+      if (typeof body[key] !== 'boolean') {
+        return reply.code(400).send({ error: `Invalid ${key} option.` });
       }
-      patch.archive = body.archive;
+      patch[key] = body[key];
+    }
+    if (body.outputMode !== undefined) {
+      if (body.outputMode !== 'next-to-originals' && body.outputMode !== 'chosen-folder') {
+        return reply.code(400).send({ error: 'Invalid output mode.' });
+      }
+      patch.outputMode = body.outputMode;
+    }
+    if (body.outputFolder !== undefined) {
+      if (body.outputFolder !== null && typeof body.outputFolder !== 'string') {
+        return reply.code(400).send({ error: 'Invalid output folder.' });
+      }
+      patch.outputFolder = body.outputFolder || null;
     }
     optimizer.updateSettings(patch);
+    return optimizer.state();
+  });
+
+  app.post<{ Params: { id: string }; Body?: { paused?: unknown } }>(
+    '/api/landing/jobs/:id/pause',
+    async (request, reply) => {
+      const paused = request.body?.paused !== false;
+      const outcome = optimizer.setPaused(request.params.id, paused);
+      if (outcome === 'unsupported') return reply.code(501).send({ error: 'PAUSE_UNSUPPORTED' });
+      if (outcome === 'not-found') return reply.code(404).send({ error: 'NOT_FOUND' });
+      return optimizer.state();
+    }
+  );
+
+  /* The compressor's own control, offered here for the same reason: a landing had no say in
+     where its result went, and the answer differed by how the landing had arrived. */
+  app.post('/api/landing/output/select', async (_request, reply) => {
+    if (!capabilities().nativeFilePicker) {
+      return reply.code(501).send({ error: 'The native picker is unavailable on this system.' });
+    }
+    const folder = await selectOutputFolder();
+    // A cancelled dialog changes nothing — least of all the mode, which would otherwise leave
+    // the tool pointing at a folder that was never chosen.
+    if (folder) optimizer.updateSettings({ outputMode: 'chosen-folder', outputFolder: folder });
     return optimizer.state();
   });
 

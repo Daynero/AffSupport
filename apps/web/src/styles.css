@@ -7485,18 +7485,67 @@ body:has(.public-home) {
 /* Landing Optimizer                                                      */
 /* ---------------------------------------------------------------------- */
 
-.landing-pick-actions {
-  margin-top: var(--space-3);
-  justify-content: center;
-  flex-wrap: wrap;
+/* Four groups rather than the compressor's three — the two kinds of media, the destination,
+   and the switches that apply to the landing as a whole. The shared row is a three-column
+   grid, so it gets a fourth here and falls back to two, then one, as the column narrows. */
+.landing-settings-primary-row {
+  align-items: start;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.landing-settings-primary-row {
-  align-items: end;
+@media (max-width: 1100px) {
+  .landing-settings-primary-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .landing-settings-primary-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .landing-settings-field {
   min-width: 0;
+}
+
+/* Three switches in a column, each on its own line with its own tooltip — no heading above
+   them, because each of them is its own heading, exactly as the compressor's is. And at the
+   compressor's own weight: `strong` on its own renders a step larger than a group heading,
+   which is how these ended up shouting over the labels they sit beside. */
+.landing-switch-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  justify-content: center;
+}
+
+.landing-switch-column .checkbox strong {
+  font-size: var(--text-xl);
+  font-weight: 600;
+}
+
+/* The second way into the zone, sitting inside it rather than under it, so the zone stays
+   one object instead of becoming a title for a row of buttons. */
+.drop-zone-secondary {
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 4px 12px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.drop-zone-secondary:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-text);
+}
+
+.drop-zone-secondary:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .landing-queue-toolbar {

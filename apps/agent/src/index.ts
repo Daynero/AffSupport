@@ -118,6 +118,8 @@ const landingOptimizer = new LandingOptimizer(tools, (type: LandingEventType = '
   landingEvents.broadcast({ type, state: landingOptimizer.state() })
 );
 landingEvents.publishOn(channelHub, 'landing');
+// Whatever was chosen last time, before the first request can read the settings back.
+await landingOptimizer.restoreSettings();
 
 const landingPreviewCatalog = new LandingPreviewCatalog({
   // Read through the process-wide governor rather than captured here: the

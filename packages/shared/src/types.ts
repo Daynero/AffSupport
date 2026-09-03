@@ -705,11 +705,41 @@ export function phaseOf(status: LandingJobStatus, step: LandingStep | null): Lan
 /** High Quality re-encode: keep resolution and frame rate, compress gently. */
 export const LANDING_HIGH_QUALITY_CRF = 20;
 
+/** Where an optimized landing is written — the compressor's own two choices. */
+export type LandingOutputMode = 'next-to-originals' | 'chosen-folder';
+
 export interface LandingSettings {
   imageQuality: LandingImageQuality;
   videoQuality: LandingVideoQuality;
   /** When true the result is a `<name>-optimized.zip`, otherwise a folder. */
   archive: boolean;
+  /**
+   * Which media the run touches. Both on by default, because a landing is normally optimized
+   * whole; turning one off leaves those files exactly as they arrived, references included.
+   */
+  optimizeImages: boolean;
+  optimizeVideos: boolean;
+  /**
+   * Strip camera, editor and location metadata from the landing's media.
+   *
+   * Re-encoded media already loses it — an image goes through raw pixels on its way to WebP,
+   * and the video preset has always asked for it. What this adds is the files the run would
+   * otherwise pass through untouched: a video already small enough to leave alone still
+   * carries where it was shot.
+   */
+  stripMetadata: boolean;
+  /**
+   * Renumber every media file: `img1`, `img2`, …, `vid1`, `vid2`, …
+   *
+   * Off unless asked for. It rewrites the landing's own file names, which is a change to what
+   * the person handed over rather than a smaller version of it, and every reference to them
+   * has to be rewritten with it.
+   */
+  renameMedia: boolean;
+  /** Beside the landing it came from, or in one folder the person chose. */
+  outputMode: LandingOutputMode;
+  /** Absolute path; only meaningful with `chosen-folder`. */
+  outputFolder: string | null;
 }
 
 export interface LandingAsset {
@@ -764,6 +794,8 @@ export interface LandingJob {
   savedPercent: number;
   outputPath: string | null;
   outputIsArchive: boolean;
+  /** Held mid-encode by the person, the way a compression is. */
+  paused: boolean;
   error: string | null;
   warnings: string[];
   createdAt: number;
@@ -803,7 +835,43 @@ export interface LandingEvent {
 }
 
 export function defaultLandingSettings(): LandingSettings {
-  return { imageQuality: 'optimal', videoQuality: 'optimal', archive: false };
+  return {
+    imageQuality: 'optimal',
+    videoQuality: 'optimal',
+    archive: false,
+    optimizeImages: true,
+    optimizeVideos: true,
+    stripMetadata: true,
+    renameMedia: false,
+    outputMode: 'next-to-originals',
+    outputFolder: null
+  };
+}
+
+/**
+ * One settings object from whatever a client or a stored file offers.
+ *
+ * Every field an older build never wrote falls back to the default, so a saved settings file
+ * from before a field existed reads as "the default for that", not as `undefined` reaching
+ * the optimizer.
+ */
+export function landingSettingsFrom(value: unknown): LandingSettings {
+  const base = defaultLandingSettings();
+  if (typeof value !== 'object' || value === null) return base;
+  const raw = value as Record<string, unknown>;
+  const flag = (key: keyof LandingSettings, fallback: boolean) =>
+    typeof raw[key] === 'boolean' ? (raw[key] as boolean) : fallback;
+  return {
+    imageQuality: raw.imageQuality === 'high' ? 'high' : base.imageQuality,
+    videoQuality: raw.videoQuality === 'high' ? 'high' : base.videoQuality,
+    archive: flag('archive', base.archive),
+    optimizeImages: flag('optimizeImages', base.optimizeImages),
+    optimizeVideos: flag('optimizeVideos', base.optimizeVideos),
+    stripMetadata: flag('stripMetadata', base.stripMetadata),
+    renameMedia: flag('renameMedia', base.renameMedia),
+    outputMode: raw.outputMode === 'chosen-folder' ? 'chosen-folder' : base.outputMode,
+    outputFolder: typeof raw.outputFolder === 'string' && raw.outputFolder ? raw.outputFolder : null
+  };
 }
 
 export interface LandingSummary {
