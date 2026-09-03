@@ -41,37 +41,37 @@ export function QuickCode({ step }: { step: TotpStep }) {
 
   return (
     <section className="tfa-quick" aria-label={t('twoFactorQuickCode')}>
-      <p className="tfa-quick-heading">{t('twoFactorQuickCode')}</p>
-      <div className="tfa-quick-row">
-        <div className="tfa-quick-field">
-          <KeyRound size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          <input
-            type="text"
-            value={value}
-            spellCheck={false}
-            autoComplete="off"
-            aria-label={t('twoFactorQuickPlaceholder')}
-            placeholder={t('twoFactorQuickPlaceholder')}
-            onChange={event => setValue(event.target.value)}
-          />
-        </div>
-
-        {parsed?.ok && (
-          <CodeCell
-            seed={parsed.secret}
-            step={step}
-            label={t('twoFactorQuickCode')}
-            onCopyFailed={() => push({ tone: 'error', text: t('twoFactorCopyFailed') })}
-          />
-        )}
-        {/* Only once there is enough typed to be wrong about: complaining at the
-            first character would be shouting at somebody mid-paste. */}
-        {parsed && !parsed.ok && trimmed.length > 3 && (
-          <span className="tfa-quick-error" role="alert">
-            {t(SEED_ERROR_KEYS[parsed.error])}
-          </span>
-        )}
+      {/* One line, and a small one. This is the least-used thing on the page and
+          it was the second-largest, sitting above the content it is not. */}
+      <span className="tfa-quick-heading">{t('twoFactorQuickCode')}</span>
+      <div className="tfa-quick-field">
+        <KeyRound size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        <input
+          type="text"
+          value={value}
+          spellCheck={false}
+          autoComplete="off"
+          aria-label={t('twoFactorQuickPlaceholder')}
+          placeholder={t('twoFactorQuickPlaceholder')}
+          onChange={event => setValue(event.target.value)}
+        />
       </div>
+
+      {parsed?.ok && (
+        <CodeCell
+          seed={parsed.secret}
+          step={step}
+          label={t('twoFactorQuickCode')}
+          onCopyFailed={() => push({ tone: 'error', text: t('twoFactorCopyFailed') })}
+        />
+      )}
+      {/* Only once there is enough typed to be wrong about: complaining at the
+          first character would be shouting at somebody mid-paste. */}
+      {parsed && !parsed.ok && trimmed.length > 3 && (
+        <span className="tfa-quick-error" role="alert">
+          {t(SEED_ERROR_KEYS[parsed.error])}
+        </span>
+      )}
     </section>
   );
 }

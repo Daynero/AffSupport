@@ -76,7 +76,12 @@ export function CodeCell({
           <Copy size={16} strokeWidth={ICON_STROKE} />
         )}
       </span>
-      <span className="tfa-code-digits">{grouped(digits)}</span>
+      {/* Keyed on the digits, so React remounts the span when the step turns
+          over and the fade replays. Six numbers silently becoming six other
+          numbers is the one moment this page changes on its own. */}
+      <span key={digits} className="tfa-code-digits">
+        {grouped(digits)}
+      </span>
     </button>
   );
 }

@@ -117,10 +117,6 @@ export function TwoFactorRow({
               type="button"
               className="tfa-seed"
               aria-label={t('twoFactorCopyKey')}
-              /* A key longer than the column is cut rather than wrapped, and the
-                 point of revealing one is to check it against the service that
-                 issued it — so the whole of it stays readable on hover. */
-              title={entry.seed}
               onClick={copySeed}
             >
               {entry.seed}

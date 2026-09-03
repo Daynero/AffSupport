@@ -97,14 +97,19 @@ touched.
 
 The page is capped at 1180px rather than filling the display: two meaningful
 columns do not improve with a 2560px monitor, they just move further apart until
-the eye cannot carry a row across.
+the eye cannot carry a row across. The table's header is sticky below the app's
+own topbar, because the countdown is one indicator for the whole page and a
+wallet of forty accounts would otherwise scroll it out of sight along with any
+sense of how long the codes on screen have left.
 
 ### Why the codes can be on screen and the keys cannot
 
 A code lives thirty seconds and is single-use; a key is standing account access.
 That is the whole of the reasoning. A key is shown only when its row is asked to
 show it — and then it appears beside that row's code, where clicking it copies it
-the same way clicking the digits does. Copying a key **without** showing it stays
+the same way clicking the digits does. It carries no `title`: a native tooltip
+put the key on screen a second time, in a box that hung over the row below, which
+is the opposite of what the rest of this design is for. Copying a key **without** showing it stays
 its own action, because handing a key to a colleague mid-screen-share should not
 flash it at the call. The codes blur after two minutes without interaction — any movement brings them
 back, with no control to find and nothing to configure. See

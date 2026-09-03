@@ -44,6 +44,8 @@ the desktop app closed.
 4. The key icon on the line copies the key without showing it — useful when you are sharing
    your screen. The eye beside it shows the key next to the code, where you can read it or
    click it to copy; it is hidden again as soon as you leave the page.
+   The bar at the top of the list stays put while you scroll, so you can always see how long
+   the codes have left.
 5. The pencil renames a line, editing it in place. Leave the key field empty to change only
    the name. The bin deletes it, and asks first.
 6. The search box at the top finds a line by name **or** by the key — paste a fragment of a

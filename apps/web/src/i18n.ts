@@ -1973,7 +1973,7 @@ const en = {
   twoFactorClearField: 'Clear',
   twoFactorNamePlaceholder: 'Account name',
   twoFactorKeyPlaceholder: '2FA key or otpauth://',
-  twoFactorKeyPlaceholderKeep: 'New key — leave empty to keep the stored one',
+  twoFactorKeyPlaceholderKeep: 'New key — optional',
   // 2FA notebook (016) — the code cell is itself the copy button.
   twoFactorCopyCodeFor: 'Copy the code for {name}'
 } as const;
@@ -3945,7 +3945,7 @@ const uk: Record<keyof typeof en, string> = {
   twoFactorClearField: 'Очистити',
   twoFactorNamePlaceholder: 'Назва акаунта',
   twoFactorKeyPlaceholder: 'Ключ 2FA або otpauth://',
-  twoFactorKeyPlaceholderKeep: 'Новий ключ — лиши порожнім, щоб зберегти наявний',
+  twoFactorKeyPlaceholderKeep: 'Новий ключ — необовʼязково',
   // 2FA notebook (016) — the code cell is itself the copy button.
   twoFactorCopyCodeFor: 'Скопіювати код для {name}'
 };
