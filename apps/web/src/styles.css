@@ -14562,7 +14562,7 @@ button.team-landing-tile:hover {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
   /* Not `hidden`: the row menu is absolutely positioned inside the tile, and
      clipping it meant the button opened a panel nobody could see. Only the
@@ -14573,9 +14573,17 @@ button.team-landing-tile:hover {
     transform var(--dur-control) var(--ease-standard),
     box-shadow var(--dur-control) var(--ease-standard);
 }
+/* The compressor's card, in the space.
+   Its tiles lift on hover, take the purple edge and press in when clicked, and that
+   tactility is most of what makes them read as things you can pick up. The space's tiles
+   are the same kind of object and were the only ones behaving like a static list. */
 .team-explorer-tile:hover {
-  border-color: var(--color-border-strong);
-  box-shadow: var(--shadow-sm);
+  border-color: var(--purple-300);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+.team-explorer-tile:active {
+  transform: translateY(-1px) scale(0.992);
 }
 .team-explorer-tile:focus-within {
   border-color: var(--color-accent);
@@ -14834,16 +14842,20 @@ button.team-landing-tile:hover {
   border-color: var(--color-accent);
   background: var(--color-accent-softer);
 }
+/* The file's own card, and read as one: the same corner, the same surface and a little more
+   room to breathe than a tile, because this is the thing being looked at rather than one of
+   many being scanned. */
 .team-explorer-pane {
   position: sticky;
   top: var(--space-3);
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3);
+  gap: var(--space-3);
+  padding: var(--space-4);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
 }
 .team-explorer-pane-visual {
   display: grid;
@@ -14858,10 +14870,29 @@ button.team-landing-tile:hover {
   height: 100%;
   object-fit: contain;
 }
+/* The file's name leads its card, at the weight the compressor gives a card title. It used
+   to sit at body size under a picture, so the card had no head and read as a list of facts. */
 .team-explorer-pane-name {
   margin: 0;
+  font-size: var(--text-lg);
   overflow-wrap: anywhere;
 }
+/* On the file's card every action is a control, not a link: the transcript row used to be
+   three bare words under two boxed buttons, which read as a caption rather than as things to
+   press. Scoped to the card so the creative library's own dense rows keep their look. */
+.team-explorer-pane .creative-library-text-actions {
+  flex-direction: column;
+  align-items: stretch;
+}
+.team-explorer-pane .creative-library-text-actions > .button {
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  padding: var(--space-2) var(--space-3);
+}
+.team-explorer-pane .creative-library-text-actions > .button:hover:not(:disabled) {
+  border-color: var(--purple-300);
+}
+
 .team-explorer-pane-transcript {
   margin-top: var(--space-3);
   padding-top: var(--space-3);
@@ -15263,7 +15294,7 @@ button.team-landing-tile:hover {
   width: min(340px, calc(100vw - 2 * var(--space-4)));
   padding: var(--space-3);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
   box-shadow: 0 12px 32px color-mix(in oklab, #000 35%, transparent);
 }
