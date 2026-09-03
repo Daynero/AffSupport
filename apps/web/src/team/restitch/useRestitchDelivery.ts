@@ -166,12 +166,19 @@ export function useRestitchDelivery(teamId: string) {
         // member's download of the same material skips it entirely.
         const discovered = (saved as { discovered?: unknown }).discovered;
         if (discovered && target.driveVersion) {
-          const record = discovered as Omit<MaterialRestitchPrep, 'materialId' | 'driveVersion' | 'preparedAt'>;
+          const record = discovered as Omit<
+            MaterialRestitchPrep,
+            'materialId' | 'driveVersion' | 'preparedAt'
+          > & { detectorVersion?: number };
           await teamApi
             .setMaterialRestitchPrep({
               ...record,
               materialId: target.materialId,
               driveVersion: target.driveVersion,
+              /* The agent's own stamp, never one invented here: the agent ships separately
+                 and can be older than this page. An agent that sends none leaves a record at
+                 version zero, which no build claims, so it is simply never reused. */
+              detectorVersion: Math.max(0, Math.trunc(record.detectorVersion ?? 0)),
               unsupportedReason: null,
               preparedAt: new Date().toISOString()
             })

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  RESTITCH_DETECTOR_VERSION,
   parseMaterialRestitchPrep,
   parseTeamRestitchDefaults,
   parseTeamRestitchPrepareProgress,
@@ -139,6 +140,7 @@ describe('what a run already knows about a material', () => {
   const wirePrep = {
     materialId: 'material-1',
     driveVersion: '7',
+    detectorVersion: RESTITCH_DETECTOR_VERSION,
     detectedStartSeconds: 0.033,
     detectedEndSeconds: 1800,
     profile,
@@ -169,6 +171,9 @@ describe('what a run already knows about a material', () => {
     expect(usablePrep(value, '8')).toBeNull();
     expect(usablePrep(value, null)).toBeNull();
     expect(usablePrep(null, '7')).toBeNull();
+    // And a record whose edges were found by a detector we have since fixed: the file is the
+    // same, the reading of it is not.
+    expect(usablePrep({ ...value, detectorVersion: 0 }, '7')).toBeNull();
   });
 });
 

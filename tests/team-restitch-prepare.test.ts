@@ -2,7 +2,11 @@ import { mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { usablePrep, type MaterialRestitchPrep } from '../packages/shared/src/team/restitch.js';
+import {
+  RESTITCH_DETECTOR_VERSION,
+  usablePrep,
+  type MaterialRestitchPrep
+} from '../packages/shared/src/team/restitch.js';
 import {
   resolveWorkspaceFolder,
   WORKSPACE_FOLDER_MARK
@@ -275,6 +279,7 @@ describe('a preparation stops being true', () => {
   const prepared: MaterialRestitchPrep = {
     materialId: 'a',
     driveVersion: '7',
+    detectorVersion: RESTITCH_DETECTOR_VERSION,
     detectedStartSeconds: 0.033333,
     detectedEndSeconds: 1800,
     profile: profile('/wherever/it/was.mp4'),
@@ -288,6 +293,14 @@ describe('a preparation stops being true', () => {
     expect(usablePrep(prepared, '8')).toBeNull();
   });
 
+  it('when the detector that read it has been fixed since', () => {
+    /* `driveVersion` says the file has not changed. It says nothing about the code that read
+       it — and when the tail search was taught to see through a screen that was already
+       there, every material prepared by the previous build kept being cut by the previous
+       build's answer, so the fix was invisible on exactly the files it was written for. */
+    expect(usablePrep({ ...prepared, detectorVersion: 0 }, '7')).toBeNull();
+  });
+
   it('but not when the space changes what it draws', () => {
     // The photos, the fit, the hold length and the operation are all daily choices, and none
     // of them changes what was found inside the file — so none of them is in the record, and
@@ -295,6 +308,7 @@ describe('a preparation stops being true', () => {
     expect(Object.keys(prepared)).toEqual([
       'materialId',
       'driveVersion',
+      'detectorVersion',
       'detectedStartSeconds',
       'detectedEndSeconds',
       'profile',

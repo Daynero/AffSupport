@@ -2788,6 +2788,7 @@ export const teamApi = {
       p_material: prep.materialId,
       p_drive_version: prep.driveVersion,
       p_prep: {
+        detectorVersion: prep.detectorVersion,
         detectedStartSeconds: prep.detectedStartSeconds,
         detectedEndSeconds: prep.detectedEndSeconds,
         profile: prep.profile,
@@ -2821,6 +2822,7 @@ function mapRestitchPrepRow(value: unknown): unknown {
   return {
     materialId: row.material_id,
     driveVersion: row.drive_version,
+    detectorVersion: Number(row.detector_version ?? 0),
     detectedStartSeconds: Number(row.detected_start_seconds),
     detectedEndSeconds: Number(row.detected_end_seconds),
     profile: row.source_profile,

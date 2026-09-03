@@ -28,7 +28,8 @@ import {
   type MaterialRestitchPrep,
   type SourceProfile,
   type StitchScreens,
-  type TeamRestitchDefaults
+  type TeamRestitchDefaults,
+  RESTITCH_DETECTOR_VERSION
 } from '@video-compressor/shared';
 import { runStitchPipeline, type StitchPipeline } from '../stitcher/pipeline.js';
 import { detectStitching, screensFromEmbedding } from '../stitcher/plan.js';
@@ -60,6 +61,8 @@ export interface RestitchDelegateDeps {
  * this feature is not the reason to start.
  */
 export interface RestitchDelegateDiscovery {
+  /** Which detector found these edges, so a newer one is not held to an older one's answer. */
+  detectorVersion: number;
   detectedStartSeconds: number;
   detectedEndSeconds: number;
   profile: SourceProfile;
@@ -137,6 +140,7 @@ export function createRestitchDelegate(
     if (!looked) throw new Error('UNSUPPORTED_MEDIA');
     if (!options.prepared) {
       discovery = {
+        detectorVersion: RESTITCH_DETECTOR_VERSION,
         detectedStartSeconds: looked.detected.startSeconds,
         detectedEndSeconds: looked.detected.endSeconds,
         profile: looked.profile

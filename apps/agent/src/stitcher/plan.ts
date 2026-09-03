@@ -161,11 +161,22 @@ async function heldTail(
   signal?: AbortSignal
 ): Promise<number> {
   let boundary = profile.durationSeconds - endSeconds;
-  // However calm a creative is, its tail is a tail. This is the ceiling on being wrong.
-  const floor = Math.max(
-    startSeconds + STITCH_MIN_BODY_SECONDS,
-    boundary - Math.max(10, boundary * 0.1)
-  );
+  /*
+   * The walk may go back as far as the body's own minimum, and no further.
+   *
+   * There used to be a second ceiling here — at most ten percent of the tail per run — meant
+   * as protection against walking a calm creative away. It quietly capped the *measured* run
+   * instead: a video that had been stitched once already, then stitched again, carried a
+   * fifty-minute screen behind the new one, and the cap let the walk reclaim five minutes of
+   * it and stop. The rest was delivered as body. Worse, truncating a run mid-picture cuts a
+   * held picture in half and leaves the front of it in front of the new screen.
+   *
+   * What actually protects a calm creative is the two tests inside the loop — the run has to
+   * be visually static, and its frames have to cost a fraction of a moving one — plus the
+   * limit on how many pictures may be walked through at all. Those are about the content.
+   * A percentage of the tail never was.
+   */
+  const floor = startSeconds + STITCH_MIN_BODY_SECONDS;
   for (let step = 0; step < MAX_TAIL_PICTURES; step += 1) {
     if (boundary - floor < MIN_TAIL_PICTURE_SECONDS) break;
 
@@ -239,30 +250,60 @@ const MIN_TAIL_PICTURE_SECONDS = 1;
  * happens to be doing, and the moment right before an end screen — where this used to sample —
  * is the calmest of the whole creative.
  *
- * All three sit in the **opening** of the body, and that is the point. What is called the body
- * here is everything the trailing search did not claim, which still contains any held card in
- * front of the screen — the very thing being looked for. Sampled across the whole of it, a
+ * They sit in the **opening** of the body, and that is the point. What is called the body here
+ * is everything the trailing search did not claim, which still contains any held card in front
+ * of the screen — the very thing being looked for. Sampled across the whole of it, a
  * five-second card in an eleven-second body took two of the three samples and the figure came
  * back as the cost of the card, so the card was compared against itself. A creative does not
  * open on a held card.
+ *
+ * Shares of the body alone were not enough, and a real file said so. A video that had already
+ * been stitched once was stitched again: its body was fifty-two minutes, of which the first
+ * two were the creative and the other fifty were the previous screen. A tenth, a quarter and
+ * two fifths of that body all landed inside the old screen, so a moving frame was reported as
+ * **27 bytes** — and the walk that should have removed the old screen refused it for costing
+ * more than a third of "the body". It kept fifty minutes of held photograph as content.
+ *
+ * So the opening is sampled by the clock as well as by proportion, and the samples that come
+ * back far below the busiest one are dropped rather than averaged in: they are held picture,
+ * and a held picture has nothing to say about what a moving frame costs. Measured on that
+ * file, the samples were 1848, 463 and 27 bytes; the answer is the middle of the first two,
+ * not the middle of all three.
  */
 async function bodyFrameBytes(
   profile: SourceProfile,
   body: { from: number; to: number },
   signal?: AbortSignal
 ): Promise<number | null> {
-  if (body.to - body.from < 2) return null;
   const span = body.to - body.from;
+  if (span < 2) return null;
+  // By the clock first — an opening is an opening whether the body is a minute or an hour —
+  // then by proportion, which is what covers a body too short for the fixed offsets.
+  const points = [5, 15, 30]
+    .filter(offset => offset < span * 0.9)
+    .map(offset => body.from + offset)
+    .concat([0.1, 0.25, 0.4].map(share => body.from + span * share));
   const measured: number[] = [];
-  for (const share of [0.1, 0.25, 0.4]) {
-    const at = keyframeNear(profile, body.from + span * share);
+  for (const point of points) {
+    const at = keyframeNear(profile, point);
     if (at === null) continue;
     const bytes = await typicalFrameBytes(profile.path, at, 2, signal);
     if (bytes !== null) measured.push(bytes);
   }
-  if (!measured.length) return null;
-  measured.sort((left, right) => left - right);
-  return measured[Math.floor(measured.length / 2)] ?? null;
+  return movingFrameBytes(measured);
+}
+
+/** Below this share of the busiest sample, a sample is a held picture and says nothing. */
+const HELD_SAMPLE_SHARE = 0.25;
+
+/** Split out so the rule that ignores held samples can be read without a file. */
+export function movingFrameBytes(samples: number[]): number | null {
+  const usable = samples.filter(value => value > 0);
+  if (!usable.length) return null;
+  const busiest = Math.max(...usable);
+  const moving = usable.filter(value => value >= busiest * HELD_SAMPLE_SHARE);
+  moving.sort((left, right) => left - right);
+  return moving[Math.floor(moving.length / 2)] ?? null;
 }
 
 /** A held photograph measured 2% of the body's typical frame; real footage measured 100%. */

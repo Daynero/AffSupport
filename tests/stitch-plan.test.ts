@@ -17,6 +17,7 @@ import {
   type SourceProfile,
   type StitchScreens
 } from '../packages/shared/src/stitcher.js';
+import { movingFrameBytes } from '../apps/agent/src/stitcher/plan.js';
 
 /**
  * The planner is the only place the promise shown to the user is computed, and the finished
@@ -319,5 +320,40 @@ describe('end duration', () => {
     expect(clampStitchEndDuration(0)).toBe(1);
     expect(clampStitchEndDuration(10 * 60 * 60)).toBe(60 * 60);
     expect(clampStitchEndDuration('nonsense')).toBe(45 * 60);
+  });
+});
+
+/**
+ * What a moving frame costs, when most of the "body" is not moving.
+ *
+ * A video that had been stitched once was stitched again. Its body — everything the trailing
+ * search had not claimed — was fifty-two minutes, of which the first two were the creative and
+ * the other fifty were the previous screen. Sampled at a tenth, a quarter and two fifths of
+ * that body, every sample landed inside the old screen, and a moving frame was reported as 27
+ * bytes. The walk that exists to remove exactly that old screen then refused it for costing
+ * more than a third of "the body", and fifty minutes of held photograph were delivered as
+ * content.
+ *
+ * Samples far below the busiest one are held picture. They are dropped, not averaged in.
+ */
+describe('the body figure the tail search is compared against', () => {
+  it('ignores the samples that landed in a held picture', () => {
+    // The real file: 1848 and 463 bytes in the creative, 27 in the old screen.
+    expect(movingFrameBytes([1848, 463, 27, 27, 27])).toBe(1848);
+  });
+
+  it('keeps every sample when the body is moving throughout', () => {
+    expect(movingFrameBytes([900, 1000, 1100])).toBe(1000);
+  });
+
+  it('answers with the held figure when the whole body is held', () => {
+    // Nothing here is far below anything else, so nothing is dropped — and a file that is
+    // held from end to end has no moving frame to report.
+    expect(movingFrameBytes([27, 26, 28])).toBe(27);
+  });
+
+  it('has no answer without a sample', () => {
+    expect(movingFrameBytes([])).toBeNull();
+    expect(movingFrameBytes([0, 0])).toBeNull();
   });
 });

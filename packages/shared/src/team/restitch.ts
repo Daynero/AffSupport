@@ -54,9 +54,25 @@ export interface TeamRestitchDefaults {
  * nothing about photos, fit modes or hold lengths — which is why changing the space's
  * defaults leaves every one of these standing.
  */
+/**
+ * Bumped whenever the detector would answer differently about the same bytes.
+ *
+ * A preparation record is a cached answer, and `driveVersion` only says the file has not
+ * changed — it says nothing about whether the code that read it has. A build that taught the
+ * detector to see through an old screen shipped, and every material already prepared kept
+ * being cut by the answer the previous build had given: the fix was invisible on exactly the
+ * files it was written for.
+ *
+ * 1: the tail walk measures a moving frame outside the held regions of the body, and is no
+ *    longer capped at a tenth of the tail — a video stitched twice loses both screens.
+ */
+export const RESTITCH_DETECTOR_VERSION = 1;
+
 export interface MaterialRestitchPrep {
   materialId: string;
   driveVersion: string;
+  /** Which detector found these edges. See {@link RESTITCH_DETECTOR_VERSION}. */
+  detectorVersion: number;
   detectedStartSeconds: number;
   detectedEndSeconds: number;
   /**
@@ -180,6 +196,9 @@ export function parseMaterialRestitchPrep(value: unknown): RestitchParse<Materia
     value: {
       materialId,
       driveVersion,
+      // Absent means a record written before the detector was versioned, which is exactly the
+      // case this exists to retire: zero is never the current version.
+      detectorVersion: Math.max(0, Math.trunc(finite(value.detectorVersion) ?? 0)),
       detectedStartSeconds: start,
       detectedEndSeconds: end,
       profile: profile.ok ? profile.value : null,
@@ -231,5 +250,8 @@ export function usablePrep(
   driveVersion: string | null
 ): MaterialRestitchPrep | null {
   if (!prep || !driveVersion) return null;
-  return prep.driveVersion === driveVersion ? prep : null;
+  if (prep.driveVersion !== driveVersion) return null;
+  // The file is the same; the reading of it may not be. A record from an older detector is
+  // treated as no record — the run inspects for itself and stores the newer answer.
+  return prep.detectorVersion === RESTITCH_DETECTOR_VERSION ? prep : null;
 }

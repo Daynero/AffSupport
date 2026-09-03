@@ -22,7 +22,11 @@
  * separates a prepared space from an unprepared one.
  */
 
-import { stitchUnsupportedReason, type MaterialRestitchPrep } from '@video-compressor/shared';
+import {
+  RESTITCH_DETECTOR_VERSION,
+  stitchUnsupportedReason,
+  type MaterialRestitchPrep
+} from '@video-compressor/shared';
 import { detectStitching } from '../stitcher/plan.js';
 import { probeSource } from '../stitcher/probe.js';
 import { ensureSilenceBank } from '../stitcher/silence.js';
@@ -254,6 +258,9 @@ export class RestitchPrepareBridge {
         prep: {
           materialId: material.materialId,
           driveVersion: material.driveVersion,
+          // Stamped by whoever did the reading. The agent ships separately from the web, so a
+          // member running an older one must not have its findings passed off as this build's.
+          detectorVersion: RESTITCH_DETECTOR_VERSION,
           detectedStartSeconds: detected.startSeconds,
           detectedEndSeconds: detected.endSeconds,
           // The path belongs to this machine's copy and is replaced by whoever uses the
@@ -288,6 +295,7 @@ function unsupported(material: RestitchPrepareMaterial, reason: string): Restitc
     prep: {
       materialId: material.materialId,
       driveVersion: material.driveVersion,
+      detectorVersion: RESTITCH_DETECTOR_VERSION,
       detectedStartSeconds: 0,
       detectedEndSeconds: 0,
       profile: null,
