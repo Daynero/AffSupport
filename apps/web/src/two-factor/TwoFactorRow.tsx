@@ -17,7 +17,7 @@
  */
 
 import { useEffect, useId, useRef, useState, type RefObject } from 'react';
-import { Check, Eye, EyeOff, KeyRound, Pencil, Trash2, X } from 'lucide-react';
+import { Check, Copy, Eye, EyeOff, KeyRound, Pencil, Trash2, X } from 'lucide-react';
 import { parseTwoFactorSeed, type TwoFactorSeedError } from '@video-compressor/shared';
 import { Modal } from '../components/Modal';
 import { Button, IconButton } from '../components/ui';
@@ -65,13 +65,26 @@ export function TwoFactorRow({
   const { push } = useToasts();
   const titleId = useId();
   const [revealed, setRevealed] = useState(false);
+  const [seedCopied, setSeedCopied] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [removing, setRemoving] = useState(false);
 
-  const copySeed = () => {
+  useEffect(() => {
+    if (!seedCopied) return;
+    const timer = window.setTimeout(() => setSeedCopied(false), 2000);
+    return () => window.clearTimeout(timer);
+  }, [seedCopied]);
+
+  /**
+   * The confirmation lands where the press did: a mark on the key itself when it
+   * is on screen and was clicked, a toast when the press was the icon in the
+   * actions and there is nothing on the row to mark.
+   */
+  const copySeed = (inline: boolean) => {
     void copyText(entry.seed).then(ok => {
       if (ok) {
-        push({ tone: 'success', text: t('twoFactorCopied') });
+        if (inline) setSeedCopied(true);
+        else push({ tone: 'success', text: t('twoFactorCopied') });
         return;
       }
       // A failed copy must never look like a success: show the value instead so
@@ -115,11 +128,21 @@ export function TwoFactorRow({
           {revealed && (
             <button
               type="button"
-              className="tfa-seed"
+              className={seedCopied ? 'tfa-seed is-copied' : 'tfa-seed'}
               aria-label={t('twoFactorCopyKey')}
-              onClick={copySeed}
+              onClick={() => copySeed(true)}
             >
-              {entry.seed}
+              {/* The same mark the code carries, in the same place: two
+                  copyable values on one row should not be copied by two
+                  different-looking gestures. */}
+              <span className="tfa-code-mark" aria-hidden="true">
+                {seedCopied ? (
+                  <Check size={14} strokeWidth={ICON_STROKE} />
+                ) : (
+                  <Copy size={14} strokeWidth={ICON_STROKE} />
+                )}
+              </span>
+              <span className="tfa-seed-text">{entry.seed}</span>
             </button>
           )}
           <CodeCell
@@ -136,7 +159,7 @@ export function TwoFactorRow({
           {/* Copying the key without putting it on screen stays its own action:
               handing a key to a colleague mid-screen-share should not flash it
               at the call. */}
-          <IconButton label={t('twoFactorCopyKey')} onClick={copySeed}>
+          <IconButton label={t('twoFactorCopyKey')} onClick={() => copySeed(false)}>
             <KeyRound size={18} strokeWidth={ICON_STROKE} aria-hidden="true" />
           </IconButton>
           <IconButton

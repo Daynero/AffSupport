@@ -107,7 +107,9 @@ sense of how long the codes on screen have left.
 A code lives thirty seconds and is single-use; a key is standing account access.
 That is the whole of the reasoning. A key is shown only when its row is asked to
 show it — and then it appears beside that row's code, where clicking it copies it
-the same way clicking the digits does. It carries no `title`: a native tooltip
+the same way clicking the digits does, down to the copy mark that fades in under
+the pointer and the tick that replaces it. Two copyable values on one row should
+not be copied by two different-looking gestures. It carries no `title`: a native tooltip
 put the key on screen a second time, in a box that hung over the row below, which
 is the opposite of what the rest of this design is for. Copying a key **without** showing it stays
 its own action, because handing a key to a colleague mid-screen-share should not

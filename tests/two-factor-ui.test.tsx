@@ -407,6 +407,29 @@ describe('the key itself', () => {
     expect(writeText).toHaveBeenCalledWith(SEED);
   });
 
+  it('marks the key it just copied, where the press happened', async () => {
+    await openWallet([entry()]);
+    fireEvent.click(rowAction('Facebook — main BM', 'twoFactorReveal'));
+
+    const key = screen.getByText(SEED).closest('button')!;
+    expect(key.className).not.toContain('is-copied');
+
+    fireEvent.click(key);
+
+    // The confirmation lands on the thing that was pressed, rather than as a
+    // toast in the corner: there is something on the row to mark.
+    await waitFor(() => expect(key.className).toContain('is-copied'));
+    expect(screen.queryByText(en('twoFactorCopied'))).toBeNull();
+  });
+
+  it('confirms with a toast when the press had nothing to mark', async () => {
+    await openWallet([entry()]);
+    // The key is not on screen, so the icon in the actions has no inline place
+    // to put a confirmation.
+    fireEvent.click(rowAction('Facebook — main BM', 'twoFactorCopyKey'));
+    await waitFor(() => expect(screen.getByText(en('twoFactorCopied'))).toBeTruthy());
+  });
+
   it('goes back out of sight when asked', async () => {
     await openWallet([entry()]);
     fireEvent.click(rowAction('Facebook — main BM', 'twoFactorReveal'));

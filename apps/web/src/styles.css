@@ -7865,10 +7865,12 @@ body:has(.public-home) {
   position: relative;
   display: grid;
   min-width: 0;
-  grid-template-columns: 74px minmax(0, 1fr) auto;
+  /* Half the height it was. Twenty-two files at 120px each is two and a half screens of
+     scrolling for a list whose whole job is to be scanned. */
+  grid-template-columns: 50px minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-3);
-  padding: 11px var(--space-4);
+  padding: 7px var(--space-4);
   border-bottom: 1px solid var(--color-border);
   background: var(--color-surface);
   content-visibility: auto;
@@ -7894,9 +7896,9 @@ body:has(.public-home) {
 
 .landing-asset-visual {
   display: grid;
-  width: 68px;
-  height: 68px;
-  flex: 0 0 68px;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
   place-items: center;
 }
 
@@ -8053,7 +8055,83 @@ body:has(.public-home) {
 
 .landing-saved {
   color: var(--color-success);
-  font-weight: 600;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The two figures the percentage came from: present for anyone who wants them, quiet enough
+   that a column of twenty-two rows reads as one number each. */
+.landing-asset-bytes {
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+}
+
+.landing-asset-bytes i {
+  margin: 0 4px;
+  font-style: normal;
+  opacity: 0.55;
+}
+
+/* One green, one meaning. The status badge used to wear the same colour as a saving and as
+   the "show in folder" button, so the eye had nothing to follow. */
+.landing-asset-item .status-badge.is-optimized {
+  color: var(--color-text-muted);
+  background: var(--color-surface-muted);
+}
+
+/* Where the weight actually ended up, when one file decides it. */
+.landing-heaviest {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-xl);
+}
+
+.landing-heaviest.is-untouched {
+  color: var(--color-warning);
+}
+
+/* What the list is showing, and in what order. */
+.landing-asset-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 8px var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface-muted);
+}
+
+.landing-asset-filters {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.landing-asset-filters button {
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-lg);
+}
+
+.landing-asset-filters button b {
+  margin-left: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.landing-asset-filters button:hover {
+  color: var(--color-text);
+}
+
+.landing-asset-filters button.is-selected {
+  border-color: var(--color-accent);
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
 }
 
 .landing-note {
@@ -17496,7 +17574,10 @@ input[type='number'] {
 
 .tfa-code:hover .tfa-code-mark,
 .tfa-code:focus-visible .tfa-code-mark,
-.tfa-code.is-copied .tfa-code-mark {
+.tfa-code.is-copied .tfa-code-mark,
+.tfa-seed:hover .tfa-code-mark,
+.tfa-seed:focus-visible .tfa-code-mark,
+.tfa-seed.is-copied .tfa-code-mark {
   opacity: 1;
 }
 
@@ -17774,9 +17855,12 @@ input[type='number'] {
 }
 
 .tfa-seed {
+  display: inline-flex;
   min-width: 0;
-  overflow: hidden;
-  padding: 0 var(--space-2);
+  min-height: 0;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   background: none;
@@ -17785,6 +17869,10 @@ input[type='number'] {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: var(--text-sm);
   letter-spacing: 0.02em;
+}
+
+.tfa-seed-text {
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -17793,6 +17881,10 @@ input[type='number'] {
   border-color: var(--color-border);
   background: var(--color-surface-muted);
   color: var(--color-text);
+}
+
+.tfa-seed.is-copied {
+  color: var(--color-success);
 }
 
 .tfa-actions {
