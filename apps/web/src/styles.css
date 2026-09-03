@@ -17051,29 +17051,261 @@ input[type='number'] {
   color: var(--color-danger, #e5484d);
 }
 
-/* ---------------------------------------------------------------------------
-   2FA notebook (016)
+/* ===========================================================================
+   2FA Wallet (016)
 
-   The compressor's card language at row scale: one surface, one border, the
-   same radius and spacing tokens. Nothing here introduces a colour — a tool
-   that stores account keys is not the place to start a second visual system.
+   A table tool rather than a settings page: a header that carries the brand,
+   the search and the two ways to act, then a framed table where every row is
+   one account. Built on the app's own tokens so the light theme keeps working —
+   the purple and the orange in the design are Soty's accent and action colours
+   already.
+   =========================================================================== */
 
-   The row is a grid rather than a flex line so the name column absorbs every
-   spare pixel and the action cluster never moves between rows: a copy button
-   that shifts left because the neighbour has a shorter name is a button that
-   gets mis-clicked.
-   --------------------------------------------------------------------------- */
+/* The tool is one dark panel rather than controls floating on the honeycomb.
+   The decorative field is fine behind a page of cards; behind a header of thin
+   text and quiet buttons it eats the contrast, and the brand and the search
+   stopped being readable. Inside the panel the table and the quick bar keep
+   their own lighter surfaces, so the depth order matches the design. */
+.tfa-page {
+  display: grid;
+  gap: var(--space-3);
+  width: min(100%, var(--shell-width));
+  margin: 0 auto;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg);
+}
 
-/* A surface, like the compressor's settings header and its drop zone — not a
-   translucent band. It is sticky, so it needs to be opaque anyway, and a card is
-   what the rest of the workspace is made of. */
-.two-factor-toolbar {
-  position: sticky;
-  /* Below the fixed topbar, not under it: `.topbar` is `position: fixed`, so a
-     sticky bar at `top: 0` slides beneath it and disappears exactly when a long
-     list makes it useful. */
-  top: calc(var(--topbar-h) + var(--space-2));
-  z-index: var(--layer-sticky);
+/* --- Header ---------------------------------------------------------------- */
+
+.tfa-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-1);
+}
+
+.tfa-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.tfa-brand-mark {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 45%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  color: var(--color-accent);
+}
+
+.tfa-brand-name {
+  font-size: var(--text-xl);
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.tfa-search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  justify-self: center;
+  width: min(100%, 520px);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+}
+
+.tfa-search:focus-within {
+  border-color: var(--color-focus);
+}
+
+.tfa-search input {
+  width: 100%;
+  height: 42px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  font-size: var(--text-md);
+}
+
+.tfa-search input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.tfa-search input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.tfa-search kbd {
+  padding: 2px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.tfa-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* The toggle for the quick-code bar. Tinted rather than filled: it opens a
+   panel, it does not commit anything. */
+.tfa-quick-toggle,
+.tfa-sort {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  font-size: var(--text-base);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tfa-quick-toggle {
+  border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-accent);
+}
+
+.tfa-quick-toggle:hover,
+.tfa-quick-toggle.is-on {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+.tfa-sort:hover {
+  border-color: var(--color-border-strong);
+}
+
+/* The one committing action on the page, in the action colour the rest of the
+   product reserves for exactly that. */
+.tfa-add {
+  display: flex;
+  align-items: stretch;
+  border-radius: var(--radius-md);
+  background: var(--color-action);
+  color: var(--color-on-action);
+  overflow: hidden;
+}
+
+.tfa-add-main {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: var(--text-base);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tfa-add-main:hover {
+  background: color-mix(in srgb, #000 10%, transparent);
+}
+
+.tfa-add .tfa-add-more {
+  width: 38px;
+  min-width: 38px;
+  height: auto;
+  border: 0;
+  border-left: 1px solid color-mix(in srgb, #000 18%, transparent);
+  border-radius: 0;
+  background: none;
+  color: inherit;
+}
+
+.tfa-add .tfa-add-more:hover {
+  background: color-mix(in srgb, #000 10%, transparent);
+}
+
+/* --- Menus ----------------------------------------------------------------- */
+
+.tfa-menu-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.tfa-menu {
+  position: absolute;
+  z-index: var(--layer-dropdown);
+  top: calc(100% + var(--space-2));
+  left: 0;
+  display: grid;
+  min-width: 210px;
+  padding: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-menu);
+}
+
+.tfa-menu-right,
+.tfa-actions .tfa-menu {
+  right: 0;
+  left: auto;
+}
+
+/* The last rows' menus would open below the fold; they open upward instead. */
+.tfa-table tbody tr:nth-last-child(-n + 2) .tfa-actions .tfa-menu {
+  top: auto;
+  bottom: calc(100% + var(--space-2));
+}
+
+.tfa-menu button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text);
+  cursor: pointer;
+  font-size: var(--text-base);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.tfa-menu button:hover {
+  background: var(--color-surface-muted);
+}
+
+.tfa-menu button[aria-checked='true'] {
+  color: var(--color-accent);
+  font-weight: 650;
+}
+
+.tfa-menu .tfa-menu-danger {
+  color: var(--color-danger, #e5484d);
+}
+
+/* --- The quick-code bar ---------------------------------------------------- */
+
+.tfa-quick {
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -17083,117 +17315,422 @@ input[type='number'] {
   background: var(--color-surface);
 }
 
-.two-factor-toolbar input {
-  width: 100%;
-}
-
-.two-factor-list {
+.tfa-quick-field {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.two-factor-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  flex: 0 1 420px;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  transition: border-color var(--dur-control) var(--ease-standard);
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
 }
 
-.two-factor-row:hover {
-  border-color: var(--color-border-strong);
+.tfa-quick-field:focus-within {
+  border-color: var(--color-accent);
 }
 
-/* The workspace grid puts its own gap between children; the form and the list
-   are separate children, so neither needs a margin of its own. */
-.two-factor-failed strong {
-  color: var(--color-danger, #e5484d);
-}
-
-/* One line, always. A long name is cut here rather than allowed to wrap and
-   turn a list of rows into a list of paragraphs; the full name stays in the
-   title attribute and in search. */
-.two-factor-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.tfa-quick-field input {
+  width: 100%;
+  height: 42px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text);
   font-size: var(--text-md);
 }
 
-/* What stands in for the key. Not the key: a screen full of seeds is a screen
-   anyone behind you can photograph, and the copy button never needed it shown. */
-.two-factor-marker {
-  padding: 2px var(--space-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-muted);
-  color: var(--color-text-muted);
-  font-size: var(--text-xs);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+.tfa-quick-field input:focus {
+  outline: none;
+  box-shadow: none;
 }
 
-.two-factor-seed {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+.tfa-quick .tfa-quick-run {
+  border-color: color-mix(in srgb, var(--color-accent) 50%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+}
+
+.tfa-quick .tfa-quick-run:hover {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 24%, transparent);
+}
+
+.tfa-quick-error {
+  color: var(--color-danger, #e5484d);
   font-size: var(--text-sm);
-  overflow-wrap: anywhere;
-  color: var(--color-text);
 }
 
-.two-factor-actions {
+.tfa-quick .tfa-quick-close {
+  margin-left: auto;
+}
+
+/* --- The code, wherever it appears ----------------------------------------- */
+
+/* Grouped `483 921`, because six digits are read and typed in two threes. */
+.tfa-readout {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-3);
 }
 
-/* The catalogue's icon buttons are sized for a toolbar; a notebook row carries
-   four of them and has to stay one line tall. */
-.two-factor-row .icon-button {
-  width: 32px;
-  height: 32px;
-  min-width: 32px;
+.tfa-readout-digits {
+  color: var(--color-text);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
 }
 
-.two-factor-code {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: var(--text-lg);
-  letter-spacing: 0.08em;
-  color: var(--color-accent);
-}
-
-/* How much of the code is left, as a shrinking bar rather than a number: the
-   question is "do I still have time to paste this", not "how many seconds". */
-.two-factor-code-life {
-  width: 34px;
-  height: 4px;
-  border-radius: 2px;
+/* Drains rather than fills: the question is "have I still got time to paste
+   this", not "how long has it been". */
+.tfa-readout-life {
+  width: 120px;
+  min-width: 60px;
+  height: 5px;
+  border-radius: 3px;
   background: var(--color-surface-muted);
   overflow: hidden;
 }
 
-.two-factor-code-life span {
+.tfa-readout-life span {
   display: block;
   height: 100%;
-  border-radius: 2px;
+  border-radius: 3px;
   background: var(--color-accent);
-  transition: width 1s linear;
+  transition: width 0.25s linear;
 }
 
-/* A wrong device clock makes every code fail, and the natural conclusion is
-   that the stored keys are wrong. Say which it is. */
-.two-factor-clock-warning {
-  margin-bottom: var(--space-4);
+.tfa-readout-seconds {
+  color: var(--color-text-muted);
+  font-size: var(--text-base);
+  font-variant-numeric: tabular-nums;
+}
+
+.tfa-readout-copied {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-success);
+  font-size: var(--text-base);
+  white-space: nowrap;
+}
+
+.tfa-readout-failed {
+  color: var(--color-danger, #e5484d);
+  font-size: var(--text-sm);
+}
+
+/* --- The table ------------------------------------------------------------- */
+
+/* No `overflow: hidden` here, however tempting for the rounded corners: it
+   clipped the row's own overflow menu, which opens past the frame's edge. The
+   corners are rounded on the cells that sit in them instead. */
+.tfa-table-frame {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+/* Fixed, so the columns are the frame's to give rather than the content's to
+   take. With automatic layout the edit row's two fields widened the table past
+   its own frame and pushed the confirm/cancel pair off the right edge. */
+.tfa-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.tfa-table thead th {
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+/* Roomy on purpose: a wallet is scanned, not read, and the design gives each
+   account the height that lets the eye land on one row at a time. */
+.tfa-table tbody td {
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tfa-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.tfa-table thead th:first-child {
+  border-top-left-radius: var(--radius-lg);
+}
+
+.tfa-table thead th:last-child {
+  border-top-right-radius: var(--radius-lg);
+}
+
+.tfa-table tbody tr:last-child td:first-child {
+  border-bottom-left-radius: var(--radius-lg);
+}
+
+.tfa-table tbody tr:last-child td:last-child {
+  border-bottom-right-radius: var(--radius-lg);
+}
+
+.tfa-row {
+  transition:
+    background-color var(--dur-control) var(--ease-standard),
+    box-shadow var(--dur-control) var(--ease-standard);
+}
+
+.tfa-row:hover td {
+  background: var(--color-surface-subtle);
+}
+
+/* A selected row is outlined rather than tinted alone: with one action per row
+   the outline is what says "these are the ones a bulk action would take". */
+.tfa-row.is-selected td,
+.tfa-row.is-editing td {
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  box-shadow:
+    inset 0 1px 0 var(--color-accent),
+    inset 0 -1px 0 var(--color-accent);
+}
+
+.tfa-row.is-selected td:first-child,
+.tfa-row.is-editing td:first-child {
+  border-top-left-radius: var(--radius-md);
+  border-bottom-left-radius: var(--radius-md);
+  box-shadow:
+    inset 0 1px 0 var(--color-accent),
+    inset 0 -1px 0 var(--color-accent),
+    inset 1px 0 0 var(--color-accent);
+}
+
+.tfa-row.is-selected td:last-child,
+.tfa-row.is-editing td:last-child {
+  border-top-right-radius: var(--radius-md);
+  border-bottom-right-radius: var(--radius-md);
+  box-shadow:
+    inset 0 1px 0 var(--color-accent),
+    inset 0 -1px 0 var(--color-accent),
+    inset -1px 0 0 var(--color-accent);
+}
+
+.tfa-cell-check {
+  width: 52px;
+}
+
+.tfa-cell-name {
+  width: 34%;
+}
+
+.tfa-cell-live {
+  width: auto;
+}
+
+/* Wide enough for the labelled copy button and the two icon buttons beside it,
+   so the actions never reflow between rows. */
+.tfa-cell-actions {
+  width: 290px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Drawn rather than borrowed: the platform checkbox renders as a pale filled
+   square that reads as "already ticked" against a dark row. */
+.tfa-check {
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  appearance: none;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-control) var(--ease-standard),
+    background-color var(--dur-control) var(--ease-standard);
+}
+
+.tfa-check:hover {
+  border-color: var(--color-accent);
+}
+
+.tfa-check:checked {
+  border-color: var(--color-accent);
+  background-color: var(--color-accent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3.5 8.5 3 3 6-6'/%3E%3C/svg%3E");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 14px;
+}
+
+.tfa-check:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* One line, always. A long name is cut rather than allowed to wrap and turn a
+   table of rows into a table of paragraphs; the whole name stays in the title
+   attribute, and in search. */
+.tfa-name {
+  display: block;
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: var(--text-md);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tfa-seed {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.tfa-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  min-height: 44px;
+}
+
+.tfa-copy-code {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-accent);
+  cursor: pointer;
+  font-size: var(--text-base);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tfa-copy-code:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
+/* The table's icon buttons are square and quiet; the catalogue's 44px default
+   would make every row two lines tall. */
+.tfa-actions .icon-button,
+.tfa-quick .icon-button {
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+}
+
+.tfa-actions .icon-button:hover,
+.tfa-quick .icon-button:hover {
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
+}
+
+.tfa-actions .tfa-confirm {
+  border-color: color-mix(in srgb, var(--color-success) 55%, var(--color-border));
+  background: color-mix(in srgb, var(--color-success) 18%, transparent);
+  color: var(--color-success);
+}
+
+.tfa-actions .tfa-reject {
+  border-color: color-mix(in srgb, var(--color-danger, #e5484d) 55%, var(--color-border));
+  color: var(--color-danger, #e5484d);
+}
+
+.tfa-bulk-delete {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-danger, #e5484d) 45%, var(--color-border));
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-danger, #e5484d);
+  cursor: pointer;
+  font-size: var(--text-xs);
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+/* --- Editing a row --------------------------------------------------------- */
+
+.tfa-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.tfa-field.is-focus,
+.tfa-field:focus-within {
+  border-color: var(--color-accent);
+}
+
+.tfa-field input {
+  width: 100%;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  font-size: var(--text-md);
+}
+
+.tfa-field input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.tfa-field .icon-button {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  border: 0;
+}
+
+.tfa-edit-error {
+  color: var(--color-danger, #e5484d);
+  font-size: var(--text-sm);
+  white-space: normal;
+}
+
+/* --- Notices --------------------------------------------------------------- */
+
+.tfa-notice {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-6);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.tfa-notice strong {
+  color: var(--color-text);
+}
+
+.tfa-notice-error strong,
+.tfa-notice-error {
+  color: var(--color-danger, #e5484d);
+}
+
+.tfa-clock-warning {
+  margin: 0;
   padding: var(--space-3) var(--space-4);
   border: 1px solid color-mix(in srgb, var(--color-warning) 40%, var(--color-border));
   border-radius: var(--radius-md);
@@ -17202,35 +17739,29 @@ input[type='number'] {
   font-size: var(--text-sm);
 }
 
-.two-factor-form {
-  display: grid;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-}
-
-.two-factor-form label {
-  display: grid;
-  gap: var(--space-1);
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-}
-
-.two-factor-form-actions {
+.tfa-modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
+  margin-top: var(--space-4);
 }
 
-.two-factor-form-hint {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-}
+@media (max-width: 900px) {
+  .tfa-header {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
 
-.two-factor-form-error {
-  color: var(--color-danger, #e5484d);
-  font-size: var(--text-sm);
+  .tfa-search {
+    justify-self: stretch;
+    width: 100%;
+  }
+
+  .tfa-header-actions {
+    flex-wrap: wrap;
+  }
+
+  .tfa-cell-live {
+    display: none;
+  }
 }

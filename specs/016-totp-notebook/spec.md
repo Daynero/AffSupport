@@ -211,6 +211,17 @@ entry and delete another, then reload to confirm both changes stuck.
   failed copy MUST be reported as a failure with the value left available to
   copy by hand.
 
+#### A code for a key that is not stored
+
+- **FR-025**: A field pinned above the list MUST accept a 2FA key — bare or as
+  an `otpauth://` link — and produce its current code, for a key that is not in
+  the wallet and is not being added to it.
+- **FR-026**: Nothing entered there MUST be stored: it never reaches the
+  database, and it is gone when the bar is closed.
+- **FR-027**: That code MUST reach the clipboard from the same single press, and
+  MUST show its remaining validity like any other, so the two paths to a code
+  behave identically.
+
 #### Search
 
 - **FR-019**: A search field MUST be pinned to the top of the tool and MUST
@@ -222,15 +233,26 @@ entry and delete another, then reload to confirm both changes stuck.
 
 #### Presentation of the secret
 
-- **FR-022**: A row MUST NOT show the secret by default. It MUST show a short
-  "2fa" marker in the secret's place, so the list stays one line per entry and
-  a screen full of seeds is never on display in an office or on a shared
-  screen.
+- **FR-022**: A row MUST NOT show the secret at all in its resting state. The
+  secret is not a column: the list stays one line per account, and a screen full
+  of seeds is never on display in an office or on a shared screen.
 - **FR-023**: A row MUST offer an explicit reveal that shows that one entry's
   secret in place, so a person can check a seed by eye against the service that
   issued it. Revealing MUST be per-entry and MUST NOT persist: leaving the tool
-  or reloading returns every row to the marker.
+  or reloading hides every secret again. It MAY live behind the row's overflow
+  menu, since it is not a daily action.
 - **FR-024**: Copying the secret MUST NOT require revealing it first.
+
+#### Presentation
+
+- **FR-028**: The list MUST be a table of accounts — a name and its actions on
+  one line — with the code, when asked for, appearing in the row that produced
+  it rather than elsewhere.
+- **FR-029**: Accounts MUST be sortable by name in both directions and by when
+  they were added.
+- **FR-030**: Rows MUST be selectable, and a selection MUST offer to delete
+  every account in it at once, with the same confirmation a single deletion asks
+  for.
 
 ### Key Entities
 

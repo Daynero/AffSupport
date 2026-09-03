@@ -26,27 +26,32 @@ The original video is never overwritten. Embedded results use names such as `vid
 
 ## Keep your 2FA keys where you work
 
-The **Записник 2FA / 2FA notebook** tool holds the two-factor keys for the accounts you log
+The **Записник 2FA / 2FA Wallet** tool holds the two-factor keys for the accounts you log
 into all day, one line each. It is the only tool that needs nothing installed — it works with
 the desktop app closed.
 
-1. Open the tool and press **Додати ключ / Add a key**. Give it a name you will recognise and
-   paste the key the service showed you when you turned two-factor on. A whole
-   `otpauth://` link works too — Soty takes the key out of it and fills in the name.
-2. The row shows a `2fa` marker, not the key itself, so a screen share or someone walking
-   past does not collect your keys. The eye button shows one key when you need to check it,
-   and stops showing it as soon as you leave the page.
-3. The **key button** makes the six-digit code and puts it on the clipboard in one press —
-   switch to the login page and paste. The little bar beside it drains as the code's thirty
-   seconds run out; when it is gone the code disappears rather than sitting there stale.
-4. The **copy button** copies the key itself, for when a service or a colleague asks for the
-   key rather than a code.
-5. The search box at the top finds a row by name **or** by the key — paste a fragment of a
-   key to find out which account it belongs to.
+1. Press **Додати / Add**. A new line appears in the table itself: give it a name you will
+   recognise, paste the key the service showed you, and confirm with the green tick. A whole
+   `otpauth://` link works too — Soty takes the key out of it and fills in the name. The
+   little arrow beside **Додати** pastes a key straight from your clipboard.
+2. Each line has one button: **Скопіювати код / Copy code**. One press and the six digits are
+   on your clipboard — switch to the login page and paste. The code appears in the line with
+   a bar that drains as its thirty seconds run out; when the bar is gone the code goes too,
+   rather than sitting there stale.
+3. The key itself is never shown in the table. The **…** button on the line copies it, or
+   shows it when you need to check it against the service — and it is hidden again as soon as
+   you leave the page.
+4. The pencil edits the line in place. Leave the key field empty to change only the name.
+5. The search box at the top finds a line by name **or** by the key — paste a fragment of a
+   key to find out which account it belongs to. **⌘K** jumps to it from anywhere on the page.
+6. **Швидкий код / Quick code** opens a field for a key that is _not_ in the wallet: paste it,
+   take the code, and nothing is saved. Useful when somebody sends you a key or you are
+   half-way through setting an account up.
+7. Tick several lines to delete them together. Deleting asks first, and is permanent.
 
 Your keys are stored privately: only your own account can read them, they are encrypted in
-Soty's vault rather than sitting in a table, and deleting one is permanent — Soty cannot
-bring it back, and you would have to set two-factor up again with the service.
+Soty's vault rather than sitting in a table, and a deleted key is gone — Soty cannot bring it
+back, and you would have to set two-factor up again with the service.
 
 If every code you produce is rejected, check the computer's clock. Soty warns you when it is
 far enough out to break codes, because a wrong clock looks exactly like a wrong key.

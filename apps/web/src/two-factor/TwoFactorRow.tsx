@@ -1,176 +1,395 @@
 /**
- * One stored key, on one line (feature 016).
+ * One account in the table, in whichever of its three states it is in.
  *
- * What the row shows in the key's place is a marker, not the key. The copy
- * button never needed it visible, and a list of seeds on screen is a list
- * anyone standing behind you can photograph. Revealing is a separate, per-row
- * press, and it does not persist: leaving the page covers everything again.
+ * Reading it: a name and the actions. Asked for a code: the digits, their
+ * draining life and whether they reached the clipboard, in place of the button
+ * that produced them. Being corrected: two fields and a confirm/cancel pair,
+ * edited where the row already is rather than in a form somewhere else — adding
+ * a key uses the same row, so there is one editor and not two that drift.
  *
- * The middle cell shows, in this order: the code you just asked for, then the
- * key if you asked to see it, then the marker. The code wins because it is the
- * thing with a deadline.
+ * The key itself is never a column. Copying it and showing it live in the
+ * overflow menu, because a list of keys on screen is a list anyone behind you
+ * can photograph, and neither action is the one anybody needs every day.
  */
 
-import { useEffect, useId, useState } from 'react';
-import { Copy, Eye, EyeOff, KeyRound, Pencil, Trash2 } from 'lucide-react';
-import { TOTP_STEP_SECONDS, generateTotp, totpStepEndsAt } from '@video-compressor/shared';
+import { useEffect, useId, useRef, useState, type RefObject } from 'react';
+import { Check, Copy, Eye, EyeOff, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react';
+import { parseTwoFactorSeed, type TwoFactorSeedError } from '@video-compressor/shared';
 import { Modal } from '../components/Modal';
 import { Button, IconButton } from '../components/ui';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { useToasts } from '../components/toast';
-import { useI18n } from '../i18n';
-import type { TwoFactorEntry } from '../api/two-factor';
+import { useI18n, type TranslationKey } from '../i18n';
+import type { TwoFactorEntry, TwoFactorErrorCode } from '../api/two-factor';
 import { copyText } from './clipboard';
-import { useTwoFactor } from './TwoFactorContext';
+import { CodeReadout, makeCode, type LiveCode } from './CodeReadout';
 
-const STEP_MS = TOTP_STEP_SECONDS * 1000;
+const SEED_ERROR_KEYS: Record<TwoFactorSeedError, TranslationKey> = {
+  EMPTY: 'twoFactorSeedErrorEmpty',
+  NOT_BASE32: 'twoFactorSeedErrorNotBase32',
+  TOO_SHORT: 'twoFactorSeedErrorTooShort',
+  URI_WITHOUT_SECRET: 'twoFactorSeedErrorUriWithoutSecret'
+};
 
-/** Transient: shown on the row, put on the clipboard, and never stored. */
-interface GeneratedCode {
-  digits: string;
-  validUntil: number;
+function apiErrorKey(code: TwoFactorErrorCode): TranslationKey {
+  if (code === 'INVALID_SECRET') return 'twoFactorSeedErrorNotBase32';
+  if (code === 'INVALID_NAME') return 'twoFactorNameRequired';
+  return 'twoFactorSaveFailed';
 }
+
+// ---------------------------------------------------------------------------
+// Reading a row
+// ---------------------------------------------------------------------------
 
 export function TwoFactorRow({
   entry,
-  onEdit
+  selected,
+  onSelectedChange,
+  onEdit,
+  onDelete
 }: {
   entry: TwoFactorEntry;
-  onEdit: (entry: TwoFactorEntry) => void;
+  selected: boolean;
+  onSelectedChange: (selected: boolean) => void;
+  onEdit: () => void;
+  onDelete: () => Promise<TwoFactorErrorCode | null>;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
-  const { remove } = useTwoFactor();
   const titleId = useId();
+  const [code, setCode] = useState<LiveCode | null>(null);
+  const [revealed, setRevealed] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [removing, setRemoving] = useState(false);
-  const [revealed, setRevealed] = useState(false);
-  const [code, setCode] = useState<GeneratedCode | null>(null);
-  const [remainingMs, setRemainingMs] = useState(0);
 
-  /**
-   * A code outlives its step by no time at all. Once the window passes the row
-   * drops it rather than leaving it on screen: a stale code presented as current
-   * is worse than none, because it gets pasted, rejected, and blamed on the key.
-   */
-  useEffect(() => {
-    if (!code) return;
-    const tick = () => {
-      const left = code.validUntil - Date.now();
-      if (left <= 0) {
-        setCode(null);
-        setRemainingMs(0);
-        return;
-      }
-      setRemainingMs(left);
-    };
-    tick();
-    const timer = setInterval(tick, 1000);
-    return () => clearInterval(timer);
-  }, [code]);
-
-  const reportCopy = (ok: boolean, fallbackToReveal: boolean) => {
-    if (ok) {
-      push({ tone: 'success', text: t('twoFactorCopied') });
-      return;
-    }
-    // A failed copy must not look like a success. Showing the value is the
-    // fallback that still lets the person get it: select it by hand.
-    if (fallbackToReveal) setRevealed(true);
-    push({ tone: 'error', text: t('twoFactorCopyFailed') });
+  const copyCode = () => {
+    // Arithmetic only, on this turn: no await stands between the click and the
+    // clipboard write, which is the whole reason the TOTP module is synchronous.
+    const made = makeCode(entry.seed);
+    setCode(made);
+    void copyText(made.digits).then(ok =>
+      setCode(current =>
+        current && current.digits === made.digits ? { ...current, copied: ok } : current
+      )
+    );
   };
 
   const copySeed = () => {
-    // Synchronous by construction: the key is already here, so the write
-    // happens on this turn and keeps the user activation a browser demands.
-    void copyText(entry.seed).then(ok => reportCopy(ok, true));
-  };
-
-  const generateAndCopy = () => {
-    // Everything here is arithmetic, not I/O — no await stands between the
-    // click and the clipboard write, which is the whole reason the TOTP
-    // implementation is synchronous (research D2/D3).
-    const now = Date.now();
-    const digits = generateTotp(entry.seed, now);
-    setCode({ digits, validUntil: totpStepEndsAt(now) });
-    void copyText(digits).then(ok => reportCopy(ok, false));
+    setMenuOpen(false);
+    void copyText(entry.seed).then(ok => {
+      if (ok) {
+        push({ tone: 'success', text: t('twoFactorCopied') });
+        return;
+      }
+      // A failed copy must never look like a success: show the value instead so
+      // it can still be selected by hand.
+      setRevealed(true);
+      push({ tone: 'error', text: t('twoFactorCopyFailed') });
+    });
   };
 
   const confirmRemoval = async () => {
     setRemoving(true);
-    const failure = await remove(entry.id);
+    const failure = await onDelete();
     setRemoving(false);
     setConfirming(false);
     if (failure) push({ tone: 'error', text: t('twoFactorDeleteFailed') });
   };
 
-  const secondsLeft = Math.ceil(remainingMs / 1000);
+  return (
+    <tr className={selected ? 'tfa-row is-selected' : 'tfa-row'}>
+      <td className="tfa-cell-check">
+        <input
+          type="checkbox"
+          className="tfa-check"
+          checked={selected}
+          aria-label={t('twoFactorSelectRow', { name: entry.name })}
+          onChange={event => onSelectedChange(event.target.checked)}
+        />
+      </td>
+
+      <td className="tfa-cell-name">
+        <span className="tfa-name" title={entry.name}>
+          {entry.name}
+        </span>
+      </td>
+
+      <td className="tfa-cell-live">
+        {code && <CodeReadout code={code} onExpired={() => setCode(null)} />}
+        {!code && revealed && <span className="tfa-seed">{entry.seed}</span>}
+      </td>
+
+      <td className="tfa-cell-actions">
+        <div className="tfa-actions">
+          {!code && (
+            <button type="button" className="tfa-copy-code" onClick={copyCode}>
+              <Copy size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              {t('twoFactorCopyCode')}
+            </button>
+          )}
+          <IconButton label={t('twoFactorEdit')} onClick={onEdit}>
+            <Pencil size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </IconButton>
+          <div className="tfa-menu-anchor">
+            <IconButton
+              label={t('twoFactorRowMenu')}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen(open => !open)}
+            >
+              <MoreHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            </IconButton>
+            {menuOpen && (
+              <RowMenu
+                revealed={revealed}
+                onCopySeed={copySeed}
+                onToggleReveal={() => {
+                  setRevealed(current => !current);
+                  setMenuOpen(false);
+                }}
+                onDelete={() => {
+                  setMenuOpen(false);
+                  setConfirming(true);
+                }}
+                onClose={() => setMenuOpen(false)}
+              />
+            )}
+          </div>
+        </div>
+
+        {confirming && (
+          <Modal labelledBy={titleId} onClose={() => setConfirming(false)} size="sm">
+            <h3 id={titleId}>{t('twoFactorDeleteTitle')}</h3>
+            {/* Said plainly, because it is true and there is no undo: the vault
+                secret goes with the row. */}
+            <p>{t('twoFactorDeleteBody', { name: entry.name })}</p>
+            <div className="tfa-modal-actions">
+              <Button type="button" variant="ghost" onClick={() => setConfirming(false)}>
+                {t('twoFactorCancel')}
+              </Button>
+              <Button type="button" variant="danger" loading={removing} onClick={confirmRemoval}>
+                {t('twoFactorDeleteConfirm')}
+              </Button>
+            </div>
+          </Modal>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+function RowMenu({
+  revealed,
+  onCopySeed,
+  onToggleReveal,
+  onDelete,
+  onClose
+}: {
+  revealed: boolean;
+  onCopySeed: () => void;
+  onToggleReveal: () => void;
+  onDelete: () => void;
+  onClose: () => void;
+}) {
+  const { t } = useI18n();
+  const menu = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const away = (event: MouseEvent) => {
+      if (!menu.current?.contains(event.target as Node)) onClose();
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('mousedown', away);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('mousedown', away);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [onClose]);
 
   return (
-    <li className="two-factor-row">
-      <span className="two-factor-name" title={entry.name}>
-        {entry.name}
-      </span>
-      {code ? (
-        <span className="two-factor-code" title={t('twoFactorCodeLife', { seconds: secondsLeft })}>
-          {code.digits}
-          <span
-            className="two-factor-code-life"
-            role="progressbar"
-            aria-label={t('twoFactorCodeLife', { seconds: secondsLeft })}
-            aria-valuenow={secondsLeft}
-            aria-valuemin={0}
-            aria-valuemax={TOTP_STEP_SECONDS}
-          >
-            <span style={{ width: `${Math.max(0, (remainingMs / STEP_MS) * 100)}%` }} />
-          </span>
-        </span>
-      ) : revealed ? (
-        <span className="two-factor-seed">{entry.seed}</span>
-      ) : (
-        <span className="two-factor-marker">2fa</span>
-      )}
-      <div className="two-factor-actions">
-        <IconButton label={t('twoFactorGenerate')} onClick={generateAndCopy}>
-          <KeyRound size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        </IconButton>
-        <IconButton label={t('twoFactorCopyKey')} onClick={copySeed}>
-          <Copy size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        </IconButton>
-        <IconButton
-          label={revealed ? t('twoFactorHide') : t('twoFactorReveal')}
-          onClick={() => setRevealed(current => !current)}
-        >
-          {revealed ? (
-            <EyeOff size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          ) : (
-            <Eye size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          )}
-        </IconButton>
-        <IconButton label={t('twoFactorEdit')} onClick={() => onEdit(entry)}>
-          <Pencil size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        </IconButton>
-        <IconButton label={t('twoFactorDelete')} onClick={() => setConfirming(true)}>
-          <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        </IconButton>
-      </div>
+    <div className="tfa-menu" role="menu" ref={menu}>
+      <button type="button" role="menuitem" onClick={onCopySeed}>
+        <Copy size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        {t('twoFactorCopyKey')}
+      </button>
+      <button type="button" role="menuitem" onClick={onToggleReveal}>
+        {revealed ? (
+          <EyeOff size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        ) : (
+          <Eye size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        )}
+        {revealed ? t('twoFactorHide') : t('twoFactorReveal')}
+      </button>
+      <button type="button" role="menuitem" className="tfa-menu-danger" onClick={onDelete}>
+        <Trash2 size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        {t('twoFactorDelete')}
+      </button>
+    </div>
+  );
+}
 
-      {confirming && (
-        <Modal labelledBy={titleId} onClose={() => setConfirming(false)} size="sm">
-          <h3 id={titleId}>{t('twoFactorDeleteTitle')}</h3>
-          {/* Said plainly, because it is true and because there is no undo to
-              fall back on: the vault secret goes with the row. */}
-          <p>{t('twoFactorDeleteBody', { name: entry.name })}</p>
-          <div className="two-factor-form-actions">
-            <Button type="button" variant="ghost" onClick={() => setConfirming(false)}>
-              {t('twoFactorCancel')}
-            </Button>
-            <Button type="button" variant="danger" loading={removing} onClick={confirmRemoval}>
-              {t('twoFactorDeleteConfirm')}
-            </Button>
-          </div>
-        </Modal>
+// ---------------------------------------------------------------------------
+// Correcting a row, and adding one
+// ---------------------------------------------------------------------------
+
+export function TwoFactorEditRow({
+  initialName = '',
+  /** A new row must be given a key; an existing one may be renamed alone. */
+  requireSeed,
+  onSave,
+  onCancel
+}: {
+  initialName?: string;
+  requireSeed: boolean;
+  onSave: (name: string, seed: string | null) => Promise<TwoFactorErrorCode | null>;
+  onCancel: () => void;
+}) {
+  const { t } = useI18n();
+  const [name, setName] = useState(initialName);
+  const [seed, setSeed] = useState('');
+  const [error, setError] = useState<TranslationKey | null>(null);
+  const [saving, setSaving] = useState(false);
+  const nameField = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    nameField.current?.focus();
+  }, []);
+
+  /**
+   * An enrolment link carries the account it belongs to, so an empty name is
+   * filled from it — the one piece of typing a paste cannot avoid. A name
+   * already written is never overwritten.
+   */
+  const takeSeed = (value: string) => {
+    setSeed(value);
+    setError(null);
+    if (name.trim() !== '') return;
+    const parsed = parseTwoFactorSeed(value);
+    if (parsed.ok && parsed.label) setName(parsed.label);
+  };
+
+  const submit = async () => {
+    const cleanName = name.trim();
+    if (cleanName === '') {
+      setError('twoFactorNameRequired');
+      return;
+    }
+
+    let value: string | null = null;
+    if (requireSeed || seed.trim() !== '') {
+      const parsed = parseTwoFactorSeed(seed);
+      if (!parsed.ok) {
+        setError(SEED_ERROR_KEYS[parsed.error]);
+        return;
+      }
+      value = parsed.secret;
+    }
+
+    setSaving(true);
+    const failure = await onSave(cleanName, value);
+    setSaving(false);
+    // Typed values survive a refusal: retyping a 32-character key because the
+    // name was too long would be its own small punishment.
+    if (failure) setError(apiErrorKey(failure));
+  };
+
+  const onKeyDown = (event: { key: string; preventDefault: () => void }) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      void submit();
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      onCancel();
+    }
+  };
+
+  return (
+    <tr className="tfa-row is-editing">
+      <td className="tfa-cell-check" />
+      <td className="tfa-cell-name">
+        <ClearableField
+          inputRef={nameField}
+          value={name}
+          label={t('twoFactorNamePlaceholder')}
+          onChange={next => {
+            setName(next);
+            setError(null);
+          }}
+          onKeyDown={onKeyDown}
+          focused
+        />
+      </td>
+      <td className="tfa-cell-live">
+        <ClearableField
+          value={seed}
+          label={requireSeed ? t('twoFactorKeyPlaceholder') : t('twoFactorKeyPlaceholderKeep')}
+          onChange={takeSeed}
+          onKeyDown={onKeyDown}
+        />
+      </td>
+      <td className="tfa-cell-actions">
+        <div className="tfa-actions">
+          {error && (
+            <span className="tfa-edit-error" role="alert">
+              {t(error)}
+            </span>
+          )}
+          <IconButton
+            label={t('twoFactorSave')}
+            className="tfa-confirm"
+            disabled={saving}
+            onClick={() => void submit()}
+          >
+            <Check size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </IconButton>
+          <IconButton label={t('twoFactorCancel')} className="tfa-reject" onClick={onCancel}>
+            <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </IconButton>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function ClearableField({
+  value,
+  label,
+  onChange,
+  onKeyDown,
+  inputRef,
+  focused = false
+}: {
+  value: string;
+  label: string;
+  onChange: (value: string) => void;
+  onKeyDown: (event: { key: string; preventDefault: () => void }) => void;
+  inputRef?: RefObject<HTMLInputElement | null>;
+  focused?: boolean;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className={focused ? 'tfa-field is-focus' : 'tfa-field'}>
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        spellCheck={false}
+        autoComplete="off"
+        aria-label={label}
+        placeholder={label}
+        onChange={event => onChange(event.target.value)}
+        onKeyDown={onKeyDown}
+      />
+      {value !== '' && (
+        <IconButton label={t('twoFactorClearField')} onClick={() => onChange('')}>
+          <X size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        </IconButton>
       )}
-    </li>
+    </div>
   );
 }

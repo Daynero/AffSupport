@@ -329,3 +329,31 @@ without one (T049).
   exercised either — the storage is server-side and the SQL suite covers
   ownership, but nobody has signed in twice.
 
+---
+
+## After the first pass: the owner's design
+
+The owner supplied three design frames after the feature was working, and the
+interface was rebuilt to them. What changed, and what did not:
+
+- **Not the algorithm, the storage, or the contracts.** `totp.ts`, the migration,
+  the four RPCs and `api/two-factor.ts` are untouched. Every decision in
+  `research.md` still holds — including the synchronous clipboard rule, which the
+  new quick-code bar depends on exactly as the rows do.
+- **A new requirement, asked for explicitly**: a pinned field for a key that is
+  *not* stored — paste it, take the code, save nothing (FR-025 – FR-027).
+- **The list became a table** (FR-028 – FR-030): a header carrying the brand, the
+  search with its ⌘K hint, sorting and the add control; checkboxes and a bulk
+  delete; one labelled `Скопіювати код` per row with the code appearing in the
+  row that produced it; editing in the row itself, which also serves as the add
+  form — so `TwoFactorForm.tsx` was deleted rather than kept beside it.
+- **The key stopped being a column.** Copying and revealing it moved into the
+  row's overflow menu (FR-022 – FR-024 restated), which is stricter than before:
+  the resting table shows no key at all.
+- **Three defects found while checking against the frames**: the edit row's two
+  fields widened the table past its own frame and pushed confirm/cancel off the
+  right edge (fixed with `table-layout: fixed`); the frame's `overflow: hidden`
+  clipped the row's own overflow menu (fixed by rounding the corner cells
+  instead); and the header sat on the honeycomb, where the brand and the search
+  lost their contrast (the tool is one panel now).
+

@@ -1918,10 +1918,7 @@ const en = {
   twoFactorNotebookDescription:
     'Keep your two-factor keys in one place and copy a code with one press.',
   // 2FA notebook (016) — adding a key, and the row’s own actions.
-  twoFactorAdd: 'Add a key',
-  twoFactorNameLabel: 'Name',
-  twoFactorSeedLabel: '2FA key',
-  twoFactorSeedHint: 'Paste the key the service showed you, or the whole otpauth:// link.',
+  twoFactorAdd: 'Add',
   twoFactorSave: 'Save',
   twoFactorCancel: 'Cancel',
   twoFactorNameRequired: 'Give it a name, so you can find it later.',
@@ -1936,7 +1933,6 @@ const en = {
   twoFactorCopied: 'Copied',
   twoFactorCopyFailed: 'Could not copy. The key is on screen — select it by hand.',
   // 2FA notebook (016) — the code, and the clock it depends on.
-  twoFactorGenerate: 'Make a code and copy it',
   twoFactorCodeLife: 'This code is good for {seconds} more seconds',
   twoFactorClockOff:
     'This computer’s clock is about {seconds} seconds off, so services will reject these codes. Fix the clock, then reload.',
@@ -1952,7 +1948,32 @@ const en = {
   twoFactorDeleteFailed: 'Could not delete it. Try again.',
   // 2FA notebook (016) — the empty states, in the compressor’s two-line shape.
   twoFactorEmptyBody: 'Paste a key from the service that issued it, or the whole otpauth:// link.',
-  twoFactorNoMatchesBody: 'Try part of the name, or part of the key.'
+  twoFactorNoMatchesBody: 'Try part of the name, or part of the key.',
+  // 2FA notebook (016) — the wallet: header, quick code, table.
+  twoFactorSearchPlaceholder: 'Search accounts…',
+  twoFactorQuickCode: 'Quick code',
+  twoFactorQuickPlaceholder: 'Paste a 2FA key or otpauth://',
+  twoFactorQuickClose: 'Close quick code',
+  twoFactorCopyCode: 'Copy code',
+  twoFactorSecondsLeft: '{seconds}s',
+  twoFactorColumnAccount: 'Account',
+  twoFactorColumnActions: 'Actions',
+  twoFactorSelectAll: 'Select every account shown',
+  twoFactorSelectRow: 'Select {name}',
+  twoFactorDeleteSelected: 'Delete selected ({count})',
+  twoFactorRowMenu: 'More actions',
+  twoFactorSort: 'Sort: {order}',
+  twoFactorSortAz: 'A–Z',
+  twoFactorSortZa: 'Z–A',
+  twoFactorSortNewest: 'Newest first',
+  twoFactorSortOldest: 'Oldest first',
+  twoFactorAddOptions: 'Other ways to add',
+  twoFactorAddFromClipboard: 'Paste from the clipboard',
+  twoFactorClipboardBlocked: 'The browser did not let Soty read the clipboard.',
+  twoFactorClearField: 'Clear',
+  twoFactorNamePlaceholder: 'Account name',
+  twoFactorKeyPlaceholder: '2FA key or otpauth://',
+  twoFactorKeyPlaceholderKeep: 'New key — leave empty to keep the stored one'
 } as const;
 
 const uk: Record<keyof typeof en, string> = {
@@ -3867,10 +3888,7 @@ const uk: Record<keyof typeof en, string> = {
   twoFactorNotebook: 'Записник 2FA',
   twoFactorNotebookDescription: 'Тримай ключі 2FA в одному місці й копіюй код одним натиском.',
   // 2FA notebook (016) — adding a key, and the row’s own actions.
-  twoFactorAdd: 'Додати ключ',
-  twoFactorNameLabel: 'Назва',
-  twoFactorSeedLabel: 'Ключ 2FA',
-  twoFactorSeedHint: 'Встав ключ, який показав сервіс, або цілий лінк otpauth://.',
+  twoFactorAdd: 'Додати',
   twoFactorSave: 'Зберегти',
   twoFactorCancel: 'Скасувати',
   twoFactorNameRequired: 'Дай назву, щоб потім знайти.',
@@ -3885,7 +3903,6 @@ const uk: Record<keyof typeof en, string> = {
   twoFactorCopied: 'Скопійовано',
   twoFactorCopyFailed: 'Не вдалося скопіювати. Ключ на екрані — виділи вручну.',
   // 2FA notebook (016) — the code, and the clock it depends on.
-  twoFactorGenerate: 'Зробити код і скопіювати',
   twoFactorCodeLife: 'Код дійсний ще {seconds} с',
   twoFactorClockOff:
     'Годинник цього компʼютера збився приблизно на {seconds} с, тому сервіси відхилятимуть ці коди. Виправ годинник і перезавантаж сторінку.',
@@ -3901,7 +3918,32 @@ const uk: Record<keyof typeof en, string> = {
   twoFactorDeleteFailed: 'Не вдалося видалити. Спробуй ще раз.',
   // 2FA notebook (016) — the empty states, in the compressor’s two-line shape.
   twoFactorEmptyBody: 'Встав ключ із сервісу, який його видав, або цілий лінк otpauth://.',
-  twoFactorNoMatchesBody: 'Спробуй частину назви або частину ключа.'
+  twoFactorNoMatchesBody: 'Спробуй частину назви або частину ключа.',
+  // 2FA notebook (016) — the wallet: header, quick code, table.
+  twoFactorSearchPlaceholder: 'Пошук акаунта…',
+  twoFactorQuickCode: 'Швидкий код',
+  twoFactorQuickPlaceholder: 'Вставте 2FA ключ або otpauth://',
+  twoFactorQuickClose: 'Закрити швидкий код',
+  twoFactorCopyCode: 'Скопіювати код',
+  twoFactorSecondsLeft: '{seconds}с',
+  twoFactorColumnAccount: 'Акаунт',
+  twoFactorColumnActions: 'Дії',
+  twoFactorSelectAll: 'Вибрати всі показані акаунти',
+  twoFactorSelectRow: 'Вибрати {name}',
+  twoFactorDeleteSelected: 'Видалити вибрані ({count})',
+  twoFactorRowMenu: 'Ще дії',
+  twoFactorSort: 'Сортування: {order}',
+  twoFactorSortAz: 'А–Я',
+  twoFactorSortZa: 'Я–А',
+  twoFactorSortNewest: 'Спочатку нові',
+  twoFactorSortOldest: 'Спочатку старі',
+  twoFactorAddOptions: 'Інші способи додати',
+  twoFactorAddFromClipboard: 'Вставити з буфера обміну',
+  twoFactorClipboardBlocked: 'Браузер не дав Soty прочитати буфер обміну.',
+  twoFactorClearField: 'Очистити',
+  twoFactorNamePlaceholder: 'Назва акаунта',
+  twoFactorKeyPlaceholder: 'Ключ 2FA або otpauth://',
+  twoFactorKeyPlaceholderKeep: 'Новий ключ — лиши порожнім, щоб зберегти наявний'
 };
 
 export type TranslationKey = keyof typeof en;

@@ -15,7 +15,10 @@ a later feature and is deliberately not half-built here.
 | Algorithm (Base32, HMAC-SHA-1, TOTP, `otpauth://`) | `packages/shared/src/totp.ts`                                |
 | Table, vault link, four RPCs                       | `supabase/migrations/20260903100000_two_factor_notebook.sql` |
 | Client wrappers and row mapping                    | `apps/web/src/api/two-factor.ts`                             |
-| Page, context, row, form                           | `apps/web/src/two-factor/`                                   |
+| Page, header, sorting, selection                   | `apps/web/src/two-factor/TwoFactorPage.tsx`                  |
+| Row: reading, editing, adding, overflow menu       | `apps/web/src/two-factor/TwoFactorRow.tsx`                   |
+| The code cluster, shared by row and quick bar      | `apps/web/src/two-factor/CodeReadout.tsx`                    |
+| A code for a key that is not stored                | `apps/web/src/two-factor/QuickCode.tsx`                      |
 | Clipboard helper                                   | `apps/web/src/two-factor/clipboard.ts`                       |
 | Clock check                                        | `apps/web/src/two-factor/clock-skew.ts`                      |
 | Registry entry (`runtime: 'browser'`)              | `apps/web/src/lib/tool-registry.ts`                          |
@@ -73,11 +76,24 @@ Registering a tool also breaks three existing expectations on purpose — the tw
 `tests/route-matrix-contract.test.ts`, which needs the new path added to `ROUTES`
 in `scripts/verify-a11y.mjs`.
 
+## The shape of the interface
+
+A table, not a list of cards: a name, and one labelled button that hands over a
+code. Editing happens in the row itself — and adding uses the same row, so there
+is one editor rather than two that drift apart. Sorting, selection and a bulk
+delete sit where a table puts them.
+
+Above the table is the **quick-code bar**: paste a key that is not stored — bare
+or as an `otpauth://` link — and take its code without saving anything. It is
+the case a wallet otherwise handles badly, when somebody sends you a key or you
+are half-way through enrolling an account.
+
 ## What the interface deliberately does not do
 
-- **It does not show a key.** The row shows a `2fa` marker; revealing is a
-  separate per-row press and does not persist across a reload. Copying never
-  needs the reveal.
+- **It does not show a key.** The key is not a column at all. Copying it and
+  revealing it live in the row's overflow menu, because neither is a daily
+  action, and a screen full of keys is a screen anyone behind you can
+  photograph. Copying never needs the reveal.
 - **It does not keep a stale code on screen.** The row drops a code when its step
   ends, because a code presented as current and then rejected gets blamed on the
   key.
