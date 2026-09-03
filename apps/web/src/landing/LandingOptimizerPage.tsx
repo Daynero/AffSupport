@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
-  Award,
   Ban,
+  Broom,
   ChevronDown,
   Files,
   FolderOpen,
+  Crown,
+  Play,
   Settings as SettingsIcon,
   Sparkles
 } from 'lucide-react';
@@ -17,6 +19,9 @@ import {
   type LandingSettings,
   isNewerSnapshot,
   defaultLandingSettings,
+  DEFAULT_CRF,
+  LANDING_HIGH_QUALITY_CRF,
+  LANDING_IMAGE_QUALITY as IMAGE_QUALITY,
   type LandingState
 } from '@video-compressor/shared';
 
@@ -51,6 +56,7 @@ import {
   type Translate
 } from '../components/ui';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
+import { useCompactToolbar } from '../components/useCompactToolbar';
 import { compactPath } from '../format';
 import { useI18n } from '../i18n';
 import { usePageEntrance } from '../lib/navigation';
@@ -152,8 +158,17 @@ export default function LandingOptimizerPage() {
     addToast(message && message.length < 120 ? message : t('landingResultFailedTitle'), 'error');
   };
 
+  const { ref: toolbarRow, compactActions, compactChips } = useCompactToolbar();
   const jobs = state?.jobs ?? (state?.job ? [state.job] : []);
   const visibleJobs = useMemo(() => [...jobs].sort((a, b) => b.createdAt - a.createdAt), [jobs]);
+  const counts = useMemo(
+    () => ({
+      processing: jobs.filter(job => job.status === 'processing').length,
+      completed: jobs.filter(job => job.status === 'completed').length,
+      failed: jobs.filter(job => job.status === 'failed').length
+    }),
+    [jobs]
+  );
   // Before the first snapshot arrives, the same defaults the agent would have sent.
   const settings = state?.settings ?? defaultLandingSettings();
   const readyJobs = jobs.filter(job => job.status === 'ready');
@@ -374,36 +389,72 @@ export default function LandingOptimizerPage() {
         />
 
         {jobs.length > 0 && (
-          <section className="landing-queue-toolbar" aria-label={t('landingQueueTitle')}>
-            <div>
-              <strong>{t('landingQueueTitle')}</strong>
-              <span>{t('landingQueueCount', { count: jobs.length })}</span>
-            </div>
-            <div>
-              <Button
-                variant="primary"
-                disabled={!connected || readyJobs.length === 0}
-                onClick={() => void startAll()}
-              >
-                {t('landingOptimizeAll')}
-              </Button>
-              {stoppable && (
+          /* The compressor's toolbar, because it is the same toolbar: counters on the left,
+             actions on the right, and when the row runs out of room the actions drop their
+             words and keep their icons — the measurement is the shared one, so the two tools
+             cannot disagree about when a window is too narrow. */
+          <section className="batch-toolbar" aria-label={t('landingQueueTitle')}>
+            <div
+              className={`batch-toolbar-row ${compactActions ? 'is-compact' : ''} ${
+                compactChips ? 'is-compact-chips' : ''
+              }`.trim()}
+              ref={toolbarRow}
+            >
+              <div className="batch-chips" aria-hidden="true">
+                <LandingChip
+                  count={jobs.length}
+                  phrase={t('landingQueueCount', { count: jobs.length })}
+                />
+                {/* All four stay on screen — a zero is information too. */}
+                <LandingChip
+                  className="is-processing"
+                  count={counts.processing}
+                  phrase={t('chipProcessing', { count: counts.processing })}
+                />
+                <LandingChip
+                  className="is-done"
+                  count={counts.completed}
+                  phrase={t('chipCompleted', { count: counts.completed })}
+                />
+                <LandingChip
+                  className="is-failed"
+                  count={counts.failed}
+                  phrase={t('chipFailed', { count: counts.failed })}
+                />
+              </div>
+              <div className="primary-actions">
                 <Button
-                  variant="danger"
-                  disabled={!connected}
-                  title={t('stopAllHint')}
-                  onClick={() => void stopAll()}
+                  variant="primary"
+                  disabled={!connected || readyJobs.length === 0}
+                  title={t('landingOptimizeAll')}
+                  onClick={() => void startAll()}
                 >
-                  {t('stopAll')}
+                  <Play size={18} strokeWidth={1.75} aria-hidden="true" />
+                  <span className="action-label">{t('landingOptimizeAll')}</span>
                 </Button>
-              )}
-              <Button
-                variant="ghost"
-                disabled={!connected || finishedJobs.length === 0}
-                onClick={() => void clearFinished()}
-              >
-                {t('landingClearFinished')}
-              </Button>
+                {stoppable && (
+                  <Button
+                    variant="danger"
+                    disabled={!connected}
+                    title={t('stopAllHint')}
+                    onClick={() => void stopAll()}
+                  >
+                    <Ban size={18} strokeWidth={1.75} aria-hidden="true" />
+                    <span className="action-label">{t('stopAll')}</span>
+                  </Button>
+                )}
+                {finishedJobs.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    disabled={!connected}
+                    title={t('landingClearFinished')}
+                    onClick={() => void clearFinished()}
+                  >
+                    <Broom size={18} strokeWidth={1.75} aria-hidden="true" />
+                    <span className="action-label">{t('landingClearFinished')}</span>
+                  </Button>
+                )}
+              </div>
             </div>
           </section>
         )}
@@ -493,6 +544,12 @@ export function LandingSettingsPanel({
   const mediaName = (on: boolean, quality: 'optimal' | 'high') =>
     !on ? t('landingMediaOff') : quality === 'high' ? t('highQuality') : t('optimal');
 
+  /* The number behind the word, as the compressor prints "Optimal · 30 FPS · CRF 26 · 720p".
+     "Optimal" on its own says which of two buttons is pressed and nothing about what it does;
+     the dial is the whole answer, and it is the first thing anyone asks. */
+  const imageDial = { optimal: `WebP ${IMAGE_QUALITY.optimal}`, high: `WebP ${IMAGE_QUALITY.high}` };
+  const videoDial = { optimal: `CRF ${DEFAULT_CRF}`, high: `CRF ${LANDING_HIGH_QUALITY_CRF}` };
+
   return (
     <section
       className={`settings-panel landing-settings-panel ${open ? '' : 'is-collapsed'}`.trim()}
@@ -555,6 +612,7 @@ export function LandingSettingsPanel({
             offHint={t('landingImagesOffHint')}
             optimalHint={t('landingImageOptimalHint')}
             highHint={t('landingImageHighHint')}
+            dial={imageDial}
             onChange={choice =>
               update(
                 choice === 'off'
@@ -571,6 +629,7 @@ export function LandingSettingsPanel({
             offHint={t('landingVideosOffHint')}
             optimalHint={t('landingVideoOptimalHint')}
             highHint={t('landingVideoHighHint')}
+            dial={videoDial}
             onChange={choice =>
               update(
                 choice === 'off'
@@ -661,6 +720,30 @@ export function LandingSettingsPanel({
   );
 }
 
+/**
+ * One counter in the toolbar: the figure, then the word.
+ *
+ * The word comes out of the translated phrase with the number removed, so "3 landings" and
+ * "3 лендінгів" both give the same two pieces without a second string to keep in step. It is
+ * the word that disappears first when the row runs out of room.
+ */
+function LandingChip({
+  count,
+  phrase,
+  className = ''
+}: {
+  count: number;
+  phrase: string;
+  className?: string;
+}) {
+  return (
+    <span className={`batch-chip ${className}`.trim()} title={phrase}>
+      <b>{count}</b>
+      <span className="chip-word"> {phrase.replace(String(count), '').trim()}</span>
+    </span>
+  );
+}
+
 /** A switch, its name and its question mark on one line — the compressor's metadata control. */
 function LandingSwitch({
   label,
@@ -697,6 +780,7 @@ function LandingMediaField({
   offHint,
   optimalHint,
   highHint,
+  dial,
   onChange,
   t
 }: {
@@ -706,12 +790,18 @@ function LandingMediaField({
   offHint: string;
   optimalHint: string;
   highHint: string;
+  /** The figure each mode actually asks the encoder for, printed beside its name. */
+  dial: { optimal: string; high: string };
   onChange: (value: 'off' | 'optimal' | 'high') => void;
   t: Translate;
 }) {
   const hint = value === 'off' ? offHint : value === 'high' ? highHint : optimalHint;
   const name =
-    value === 'off' ? t('landingMediaOff') : value === 'high' ? t('highQuality') : t('optimal');
+    value === 'off'
+      ? t('landingMediaOff')
+      : value === 'high'
+        ? `${t('highQuality')} · ${dial.high}`
+        : `${t('optimal')} · ${dial.optimal}`;
   return (
     <div className="field-group landing-settings-field">
       <LandingFieldLabel label={label} tooltip={hint} />
@@ -750,7 +840,7 @@ function LandingMediaField({
           disabled={disabled}
           onClick={() => onChange('high')}
         >
-          <Award size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          <Crown size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
         </button>
       </div>
       {/* Three pictos say nothing on their own, so the answer is spelled out under them. */}

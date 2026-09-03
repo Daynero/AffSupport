@@ -5,7 +5,9 @@ import { useSubresourceUrl } from '../api/useSubresourceUrl';
 import { formatSize } from '../format';
 import type { Language, TranslationKey } from '../i18n';
 import { Card } from '../components/Card';
-import { Pause, Play } from 'lucide-react';
+/* The compressor's own set, at the compressor's own size: every action on a card wears
+   the icon that action wears everywhere else in Soty. */
+import { Ban, ExternalLink, FolderOpen, Pause, Play, Trash2 } from 'lucide-react';
 import { Button, Collapse, ProgressBar, SotyLoader, type Translate } from '../components/ui';
 import { ImageCompareModal } from './ImageCompareModal';
 
@@ -148,6 +150,7 @@ export function LandingJobCard({
           )}
           {running && onStop && (
             <Button variant="danger" disabled={!connected} onClick={onStop}>
+              <Ban size={16} strokeWidth={1.75} aria-hidden="true" />
               {t('teamQueueStopNow')}
             </Button>
           )}
@@ -157,26 +160,31 @@ export function LandingJobCard({
               disabled={!connected || job.assets.length === 0}
               onClick={onStart}
             >
+              <Play size={16} strokeWidth={1.75} aria-hidden="true" />
               {t('landingOptimizeButton')}
             </Button>
           )}
           {(ready || queued) && (
             <Button variant="danger" disabled={!connected} onClick={onReset}>
+              <Trash2 size={16} strokeWidth={1.75} aria-hidden="true" />
               {t('landingReset')}
             </Button>
           )}
           {completed && job.outputPath && (
             <>
               <Button variant="primary" disabled={!connected} onClick={() => onReveal('open')}>
+                <ExternalLink size={16} strokeWidth={1.75} aria-hidden="true" />
                 {t('landingOpenResult')}
               </Button>
               <Button variant="success" disabled={!connected} onClick={() => onReveal('reveal')}>
+                <FolderOpen size={16} strokeWidth={1.75} aria-hidden="true" />
                 {t('landingShowResult')}
               </Button>
             </>
           )}
           {(completed || failed || cancelled) && (
             <Button variant="danger" disabled={!connected} onClick={onReset}>
+              <Trash2 size={16} strokeWidth={1.75} aria-hidden="true" />
               {t('landingRemove')}
             </Button>
           )}

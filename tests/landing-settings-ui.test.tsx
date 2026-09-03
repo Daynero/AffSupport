@@ -57,17 +57,9 @@ describe('landing optimizer settings', () => {
       row?.children[3]
     );
 
-    expect(
-      screen.queryByText('Balanced WebP that noticeably reduces weight while looking clean.')
-    ).toBeNull();
-    await user.click(
-      screen.getByRole('button', {
-        name: 'Balanced WebP that noticeably reduces weight while looking clean.'
-      })
-    );
-    expect(screen.getByRole('tooltip').textContent).toBe(
-      'Balanced WebP that noticeably reduces weight while looking clean.'
-    );
+    expect(screen.queryByText('Much lighter, still clean.')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Much lighter, still clean.' }));
+    expect(screen.getByRole('tooltip').textContent).toBe('Much lighter, still clean.');
   });
 
   it('turns one kind of media off without touching the other', async () => {

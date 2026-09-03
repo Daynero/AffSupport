@@ -2035,7 +2035,12 @@ input.is-invalid {
 .tooltip-popover {
   position: fixed;
   z-index: var(--layer-toast);
-  width: min(280px, calc(100vw - 24px));
+  /* As wide as its words, and no wider. A fixed 280px box put a four-word hint in the middle
+     of a wide slab of purple; the cap is still there, but it is a ceiling rather than a width.
+     Raised to 460 because at this font 280 was under one line for almost every short hint —
+     roughly fifty-five characters, which is inside the measure a line wants to be anyway. */
+  width: max-content;
+  max-width: min(460px, calc(100vw - 24px));
   padding: 9px 11px;
   border-radius: var(--radius-sm);
   color: var(--color-on-accent);
@@ -7548,29 +7553,6 @@ body:has(.public-home) {
   cursor: default;
 }
 
-.landing-queue-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-}
-
-.landing-queue-toolbar > div {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.landing-queue-toolbar > div:first-child span {
-  color: var(--color-text-muted);
-  font-size: var(--text-xl);
-}
-
 .landing-jobs-list {
   display: grid;
   gap: var(--space-3);
@@ -8426,15 +8408,6 @@ body:has(.public-home) {
 }
 
 @media (max-width: 760px) {
-  .landing-queue-toolbar {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .landing-queue-toolbar > div:last-child .button {
-    flex: 1;
-  }
-
   .landing-batch-header {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-3);
@@ -16662,6 +16635,10 @@ input[type='number'] {
   display: none;
 }
 .batch-toolbar-row.is-compact .primary-actions .button {
+  /* A fixed square, and it must not grow: something further down the sheet gives buttons a
+     flex-grow on narrow screens, and a growing button in a `nowrap` row pushes the row off
+     the side of the screen instead of shrinking to its icon. */
+  flex: 0 0 auto;
   width: 44px;
   min-width: 44px;
   padding: 0;
@@ -17054,22 +17031,23 @@ input[type='number'] {
 /* ===========================================================================
    2FA Wallet (016)
 
-   A table tool rather than a settings page: a header that carries the brand,
-   the search and the two ways to act, then a framed table where every row is
-   one account. Built on the app's own tokens so the light theme keeps working —
-   the purple and the orange in the design are Soty's accent and action colours
-   already.
+   A table whose content is the codes. Every account shows its live six digits,
+   all of them turning over together under one countdown, and the digits are the
+   button that copies them — so the column that used to be several hundred pixels
+   of nothing between a name and a button is now the reason to look at the page.
+
+   Built on the app's own tokens, so the light theme keeps working. The accent is
+   spent on the codes and on nothing else: the add control is quiet because an
+   account is added once and a code is taken twenty times a day.
    =========================================================================== */
 
-/* The tool is one dark panel rather than controls floating on the honeycomb.
-   The decorative field is fine behind a page of cards; behind a header of thin
-   text and quiet buttons it eats the contrast, and the brand and the search
-   stopped being readable. Inside the panel the table and the quick bar keep
-   their own lighter surfaces, so the depth order matches the design. */
+/* Capped rather than full-bleed. Two meaningful columns do not improve with a
+   2560px monitor — they just move further apart until the eye cannot carry a row
+   across. */
 .tfa-page {
   display: grid;
   gap: var(--space-3);
-  width: min(100%, var(--shell-width));
+  width: min(100%, 1180px);
   margin: 0 auto;
   padding: var(--space-4);
   border: 1px solid var(--color-border);
@@ -17079,12 +17057,15 @@ input[type='number'] {
 
 /* --- Header ---------------------------------------------------------------- */
 
+/* The horizontal padding matches the inner padding of the frames below, so the
+   brand, the quick-code field and the table's first column share one left edge
+   instead of the four they had. */
 .tfa-header {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-4);
-  padding: var(--space-2) var(--space-1);
+  padding: var(--space-2) var(--space-4);
 }
 
 .tfa-brand {
@@ -17095,8 +17076,8 @@ input[type='number'] {
 
 .tfa-brand-mark {
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   place-items: center;
   border: 1px solid color-mix(in srgb, var(--color-accent) 45%, transparent);
   border-radius: var(--radius-md);
@@ -17105,7 +17086,7 @@ input[type='number'] {
 }
 
 .tfa-brand-name {
-  font-size: var(--text-xl);
+  font-size: var(--text-lg);
   font-weight: 650;
   white-space: nowrap;
 }
@@ -17115,7 +17096,7 @@ input[type='number'] {
   align-items: center;
   gap: var(--space-2);
   justify-self: center;
-  width: min(100%, 520px);
+  width: min(100%, 440px);
   padding: 0 var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -17127,9 +17108,10 @@ input[type='number'] {
   border-color: var(--color-focus);
 }
 
-.tfa-search input {
+.tfa-search input,
+.tfa-quick-field input,
+.tfa-field input {
   width: 100%;
-  height: 42px;
   padding: 0;
   border: 0;
   background: none;
@@ -17137,9 +17119,15 @@ input[type='number'] {
   font-size: var(--text-md);
 }
 
-.tfa-search input:focus {
+.tfa-search input:focus,
+.tfa-quick-field input:focus,
+.tfa-field input:focus {
   outline: none;
   box-shadow: none;
+}
+
+.tfa-search input {
+  height: 38px;
 }
 
 .tfa-search input::-webkit-search-cancel-button {
@@ -17162,12 +17150,13 @@ input[type='number'] {
   gap: var(--space-2);
 }
 
-.tfa-sort {
+.tfa-sort,
+.tfa-add-main {
   display: inline-flex;
-  min-height: 42px;
+  min-height: 38px;
   align-items: center;
   gap: var(--space-2);
-  padding: 0 var(--space-4);
+  padding: 0 var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
@@ -17178,53 +17167,34 @@ input[type='number'] {
   white-space: nowrap;
 }
 
-.tfa-sort:hover {
+.tfa-sort:hover,
+.tfa-add-main:hover {
   border-color: var(--color-border-strong);
 }
 
-/* The one committing action on the page, in the action colour the rest of the
-   product reserves for exactly that. */
 .tfa-add {
   display: flex;
   align-items: stretch;
-  border-radius: var(--radius-md);
-  background: var(--color-action);
-  color: var(--color-on-action);
-  overflow: hidden;
 }
 
 .tfa-add-main {
-  display: inline-flex;
-  min-height: 42px;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 0 var(--space-4);
-  border: 0;
-  background: none;
-  color: inherit;
-  cursor: pointer;
-  font-size: var(--text-base);
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.tfa-add-main:hover {
-  background: color-mix(in srgb, #000 10%, transparent);
+  border-right: 0;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
 }
 
 .tfa-add .tfa-add-more {
-  width: 38px;
-  min-width: 38px;
+  width: 34px;
+  min-width: 34px;
   height: auto;
-  border: 0;
-  border-left: 1px solid color-mix(in srgb, #000 18%, transparent);
-  border-radius: 0;
-  background: none;
-  color: inherit;
+  border: 1px solid var(--color-border);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
 }
 
 .tfa-add .tfa-add-more:hover {
-  background: color-mix(in srgb, #000 10%, transparent);
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
 }
 
 /* --- Menus ----------------------------------------------------------------- */
@@ -17249,13 +17219,13 @@ input[type='number'] {
 }
 
 .tfa-menu-right,
-.tfa-actions .tfa-menu {
+.tfa-cell-actions .tfa-menu {
   right: 0;
   left: auto;
 }
 
 /* The last rows' menus would open below the fold; they open upward instead. */
-.tfa-table tbody tr:nth-last-child(-n + 2) .tfa-actions .tfa-menu {
+.tfa-table tbody tr:nth-last-child(-n + 2) .tfa-cell-actions .tfa-menu {
   top: auto;
   bottom: calc(100% + var(--space-2));
 }
@@ -17288,16 +17258,33 @@ input[type='number'] {
   color: var(--color-danger, #e5484d);
 }
 
-/* --- The quick-code bar ---------------------------------------------------- */
+/* --- A code for a key that is not stored ----------------------------------- */
 
+/* Its own heading, because without one it was a wide input with a placeholder
+   directly under a wide input with a placeholder, and people typed account
+   searches into it. */
 .tfa-quick {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3);
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
+}
+
+.tfa-quick-heading {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.tfa-quick-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
 }
 
 .tfa-quick-field {
@@ -17306,7 +17293,7 @@ input[type='number'] {
   align-items: center;
   gap: var(--space-2);
   padding: 0 var(--space-3);
-  border: 1px solid color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-bg);
   color: var(--color-text-muted);
@@ -17317,28 +17304,7 @@ input[type='number'] {
 }
 
 .tfa-quick-field input {
-  width: 100%;
-  height: 42px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--color-text);
-  font-size: var(--text-md);
-}
-
-.tfa-quick-field input:focus {
-  outline: none;
-  box-shadow: none;
-}
-
-.tfa-quick .tfa-quick-run {
-  border-color: color-mix(in srgb, var(--color-accent) 50%, var(--color-border));
-  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
-}
-
-.tfa-quick .tfa-quick-run:hover {
-  border-color: var(--color-accent);
-  background: color-mix(in srgb, var(--color-accent) 24%, transparent);
+  height: 38px;
 }
 
 .tfa-quick-error {
@@ -17346,67 +17312,122 @@ input[type='number'] {
   font-size: var(--text-sm);
 }
 
-/* --- The code, wherever it appears ----------------------------------------- */
+/* --- The code, which is also the button that copies it --------------------- */
 
-/* Grouped `483 921`, because six digits are read and typed in two threes. */
-.tfa-readout {
-  display: flex;
+.tfa-code {
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
-}
-
-.tfa-readout-digits {
-  color: var(--color-text);
-  font-size: 1.5rem;
+  gap: var(--space-2);
+  height: 34px;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-accent);
+  cursor: pointer;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.0625rem;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  white-space: nowrap;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
 }
 
-/* Drains rather than fills: the question is "have I still got time to paste
-   this", not "how long has it been". */
-.tfa-readout-life {
-  width: 120px;
-  min-width: 60px;
-  height: 5px;
-  border-radius: 3px;
+.tfa-code:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
+.tfa-code.is-copied {
+  color: var(--color-success);
+}
+
+/* The copy mark keeps its space at all times: a glyph that appears on hover
+   would nudge six digits sideways under the pointer. */
+.tfa-code-mark {
+  display: inline-flex;
+  opacity: 0;
+  transition: opacity var(--dur-control) var(--ease-standard);
+}
+
+.tfa-code:hover .tfa-code-mark,
+.tfa-code:focus-visible .tfa-code-mark,
+.tfa-code.is-copied .tfa-code-mark {
+  opacity: 1;
+}
+
+/* Codes live thirty seconds and are single-use, which is why they can be on
+   screen at all. A wallet left open on a desk is still a wallet left open,
+   though, so after a quiet spell they blur and any movement brings them back. */
+.tfa-page.is-idle .tfa-code-digits {
+  filter: blur(7px);
+  user-select: none;
+}
+
+.tfa-code-digits {
+  transition: filter 0.25s var(--ease-standard);
+}
+
+/* --- One countdown for all of them ----------------------------------------- */
+
+.tfa-countdown {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.tfa-countdown-track {
+  display: block;
+  width: 84px;
+  height: 4px;
+  border-radius: 2px;
   background: var(--color-surface-muted);
   overflow: hidden;
 }
 
-.tfa-readout-life span {
+/* Animated, not re-rendered: a hundred codes draining costs the compositor a
+   single interpolation and React nothing at all. */
+.tfa-countdown-fill {
   display: block;
+  width: 100%;
   height: 100%;
-  border-radius: 3px;
+  border-radius: 2px;
   background: var(--color-accent);
-  transition: width 0.25s linear;
+  animation: tfa-drain 30s linear infinite;
 }
 
-.tfa-readout-seconds {
+@keyframes tfa-drain {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tfa-countdown-fill {
+    animation-duration: 30s;
+    animation-timing-function: steps(30, end);
+  }
+}
+
+.tfa-countdown-seconds {
+  min-width: 34px;
   color: var(--color-text-muted);
-  font-size: var(--text-base);
-  font-variant-numeric: tabular-nums;
-}
-
-.tfa-readout-copied {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  color: var(--color-success);
-  font-size: var(--text-base);
-  white-space: nowrap;
-}
-
-.tfa-readout-failed {
-  color: var(--color-danger, #e5484d);
   font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: normal;
+  text-align: right;
+  text-transform: none;
 }
 
 /* --- The table ------------------------------------------------------------- */
 
-/* No `overflow: hidden` here, however tempting for the rounded corners: it
-   clipped the row's own overflow menu, which opens past the frame's edge. The
-   corners are rounded on the cells that sit in them instead. */
+/* No `overflow: hidden`, however tempting for the rounded corners: it clipped
+   the row's own overflow menu. The corners are rounded on the cells that sit in
+   them instead. */
 .tfa-table-frame {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -17414,8 +17435,8 @@ input[type='number'] {
 }
 
 /* Fixed, so the columns are the frame's to give rather than the content's to
-   take. With automatic layout the edit row's two fields widened the table past
-   its own frame and pushed the confirm/cancel pair off the right edge. */
+   take: with automatic layout the edit row's fields widened the table past its
+   own frame and pushed confirm/cancel off the right edge. */
 .tfa-table {
   width: 100%;
   border-collapse: collapse;
@@ -17423,7 +17444,8 @@ input[type='number'] {
 }
 
 .tfa-table thead th {
-  padding: var(--space-4);
+  height: 44px;
+  padding: 0 var(--space-4);
   border-bottom: 1px solid var(--color-border);
   color: var(--color-text-muted);
   font-size: var(--text-xs);
@@ -17431,17 +17453,7 @@ input[type='number'] {
   letter-spacing: 0.12em;
   text-align: left;
   text-transform: uppercase;
-}
-
-/* Roomy on purpose: a wallet is scanned, not read, and the design gives each
-   account the height that lets the eye land on one row at a time. */
-.tfa-table tbody td {
-  padding: var(--space-4);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.tfa-table tbody tr:last-child td {
-  border-bottom: 0;
+  vertical-align: middle;
 }
 
 .tfa-table thead th:first-child {
@@ -17452,6 +17464,17 @@ input[type='number'] {
   border-top-right-radius: var(--radius-lg);
 }
 
+/* Tight enough that forty accounts are a page rather than a scroll: each row
+   holds one line of text and had no use for the height it was given. */
+.tfa-table tbody td {
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tfa-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
 .tfa-table tbody tr:last-child td:first-child {
   border-bottom-left-radius: var(--radius-lg);
 }
@@ -17460,18 +17483,10 @@ input[type='number'] {
   border-bottom-right-radius: var(--radius-lg);
 }
 
-.tfa-row {
-  transition:
-    background-color var(--dur-control) var(--ease-standard),
-    box-shadow var(--dur-control) var(--ease-standard);
-}
-
 .tfa-row:hover td {
   background: var(--color-surface-subtle);
 }
 
-/* A selected row is outlined rather than tinted alone: with one action per row
-   the outline is what says "these are the ones a bulk action would take". */
 .tfa-row.is-selected td,
 .tfa-row.is-editing td {
   background: color-mix(in srgb, var(--color-accent) 8%, transparent);
@@ -17501,38 +17516,52 @@ input[type='number'] {
 }
 
 .tfa-cell-check {
-  width: 52px;
+  width: 48px;
 }
 
 .tfa-cell-name {
-  width: 34%;
+  width: 32%;
 }
 
-.tfa-cell-live {
-  width: auto;
-}
-
-/* Wide enough for the labelled copy button and the two icon buttons beside it,
-   so the actions never reflow between rows. */
-.tfa-cell-actions {
-  width: 290px;
+/* Right-aligned so the digits form a column with a shared edge — that is what
+   makes a wallet scannable — and so the code sits next to the button that acts
+   on the row rather than a screen away from it. */
+.tfa-cell-code {
   text-align: right;
-  white-space: nowrap;
 }
 
-/* Drawn rather than borrowed: the platform checkbox renders as a pale filled
-   square that reads as "already ticked" against a dark row. */
+.tfa-cell-actions {
+  width: 56px;
+  text-align: right;
+}
+
+/* Present for the rare bulk delete, out of the way the rest of the time. Kept
+   in the layout (opacity, not display) so they stay focusable by keyboard. */
 .tfa-check {
-  width: 18px;
-  height: 18px;
+  width: 17px;
+  height: 17px;
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-sm);
   background: var(--color-bg);
   appearance: none;
   cursor: pointer;
+  opacity: 0;
   transition:
+    opacity var(--dur-control) var(--ease-standard),
     border-color var(--dur-control) var(--ease-standard),
     background-color var(--dur-control) var(--ease-standard);
+}
+
+.tfa-table-frame:hover .tfa-check,
+.tfa-table-frame:focus-within .tfa-check,
+.tfa-check:checked {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .tfa-check {
+    opacity: 1;
+  }
 }
 
 .tfa-check:hover {
@@ -17545,10 +17574,11 @@ input[type='number'] {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3.5 8.5 3 3 6-6'/%3E%3C/svg%3E");
   background-position: center;
   background-repeat: no-repeat;
-  background-size: 14px;
+  background-size: 13px;
 }
 
 .tfa-check:focus-visible {
+  opacity: 1;
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
 }
@@ -17566,6 +17596,8 @@ input[type='number'] {
 }
 
 .tfa-seed {
+  display: block;
+  color: var(--color-text-muted);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: var(--text-sm);
   overflow-wrap: anywhere;
@@ -17576,54 +17608,29 @@ input[type='number'] {
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-2);
-  min-height: 44px;
 }
 
-.tfa-copy-code {
-  display: inline-flex;
-  min-height: 38px;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 0 var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-accent);
-  cursor: pointer;
-  font-size: var(--text-base);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.tfa-copy-code:hover {
-  border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
-  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
-}
-
-/* The table's icon buttons are square and quiet; the catalogue's 44px default
-   would make every row two lines tall. */
-.tfa-actions .icon-button {
-  width: 38px;
-  min-width: 38px;
-  height: 38px;
-  border: 1px solid var(--color-border);
+.tfa-cell-actions .icon-button {
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
   border-radius: var(--radius-md);
   color: var(--color-text-muted);
 }
 
-.tfa-actions .icon-button:hover {
-  border-color: var(--color-border-strong);
+.tfa-cell-actions .icon-button:hover {
+  background: var(--color-surface-muted);
   color: var(--color-text);
 }
 
-.tfa-actions .tfa-confirm {
-  border-color: color-mix(in srgb, var(--color-success) 55%, var(--color-border));
+.tfa-cell-actions .tfa-confirm {
+  border: 1px solid color-mix(in srgb, var(--color-success) 55%, var(--color-border));
   background: color-mix(in srgb, var(--color-success) 18%, transparent);
   color: var(--color-success);
 }
 
-.tfa-actions .tfa-reject {
-  border-color: color-mix(in srgb, var(--color-danger, #e5484d) 55%, var(--color-border));
+.tfa-cell-actions .tfa-reject {
+  border: 1px solid color-mix(in srgb, var(--color-danger, #e5484d) 55%, var(--color-border));
   color: var(--color-danger, #e5484d);
 }
 
@@ -17649,10 +17656,11 @@ input[type='number'] {
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  padding: 0 var(--space-2) 0 var(--space-3);
+  padding: 0 var(--space-1) 0 var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-bg);
+  text-align: left;
 }
 
 .tfa-field.is-focus,
@@ -17661,24 +17669,13 @@ input[type='number'] {
 }
 
 .tfa-field input {
-  width: 100%;
-  height: 40px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--color-text);
-  font-size: var(--text-md);
-}
-
-.tfa-field input:focus {
-  outline: none;
-  box-shadow: none;
+  height: 34px;
 }
 
 .tfa-field .icon-button {
-  width: 28px;
-  min-width: 28px;
-  height: 28px;
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
   border: 0;
 }
 
@@ -17703,8 +17700,8 @@ input[type='number'] {
   color: var(--color-text);
 }
 
-.tfa-notice-error strong,
-.tfa-notice-error {
+.tfa-notice-error,
+.tfa-notice-error strong {
   color: var(--color-danger, #e5484d);
 }
 
@@ -17725,7 +17722,7 @@ input[type='number'] {
   margin-top: var(--space-4);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 860px) {
   .tfa-header {
     grid-template-columns: 1fr;
     gap: var(--space-3);
@@ -17740,7 +17737,7 @@ input[type='number'] {
     flex-wrap: wrap;
   }
 
-  .tfa-cell-live {
+  .tfa-cell-check {
     display: none;
   }
 }

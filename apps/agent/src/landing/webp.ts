@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { simd } from 'wasm-feature-detect';
 import { init as initWebpEncode, default as encodeWebpModule } from '@jsquash/webp/encode.js';
 import { init as initPngDecode, default as decodePngModule } from '@jsquash/png/decode.js';
-import type { LandingImageQuality } from '@video-compressor/shared';
+import { LANDING_IMAGE_QUALITY, type LandingImageQuality } from '@video-compressor/shared';
 
 const require = createRequire(import.meta.url);
 export type WebpQualityProfile = LandingImageQuality | 'conversion';
@@ -23,10 +23,10 @@ export interface RawImage {
  */
 function webpOptions(quality: WebpQualityProfile) {
   return quality === 'high'
-    ? { quality: 90, method: 6, alpha_quality: 100 }
+    ? { quality: LANDING_IMAGE_QUALITY.high, method: 6, alpha_quality: 100 }
     : quality === 'conversion'
       ? { quality: 85, method: 6, alpha_quality: 100 }
-      : { quality: 80, method: 5, alpha_quality: 100 };
+      : { quality: LANDING_IMAGE_QUALITY.optimal, method: 5, alpha_quality: 100 };
 }
 
 let codecs: Promise<void> | null = null;

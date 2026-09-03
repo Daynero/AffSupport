@@ -706,6 +706,15 @@ export function phaseOf(status: LandingJobStatus, step: LandingStep | null): Lan
 /** High Quality re-encode: keep resolution and frame rate, compress gently. */
 export const LANDING_HIGH_QUALITY_CRF = 20;
 
+/**
+ * The WebP quality each image mode asks for.
+ *
+ * Here rather than beside the encoder because the settings panel prints them: a control that
+ * says "Optimal · WebP 80" and an encoder that asks for 75 would be a lie with a number in it,
+ * and the only way to be sure they agree is for there to be one of them.
+ */
+export const LANDING_IMAGE_QUALITY = { optimal: 80, high: 90 } as const;
+
 /** Where an optimized landing is written — the compressor's own two choices. */
 export type LandingOutputMode = 'next-to-originals' | 'chosen-folder';
 
