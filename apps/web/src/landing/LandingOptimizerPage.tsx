@@ -256,6 +256,27 @@ export default function LandingOptimizerPage() {
     }
   };
 
+  /*
+   * Stopping one landing, not removing it.
+   *
+   * `remove` refuses while a landing is running — a job in flight has a workspace and a child
+   * process behind it, and dropping the row would leave both. The agent has had a per-job
+   * cancel for exactly this since stopping one of four became possible; nothing in the
+   * interface had ever called it.
+   */
+  const stop = async (jobId: string) => {
+    try {
+      applyState(
+        await request<LandingState>(
+          `/api/landing/jobs/${encodeURIComponent(jobId)}/cancel`,
+          'POST'
+        )
+      );
+    } catch (error) {
+      handleError(error);
+    }
+  };
+
   const remove = async (jobId: string) => {
     try {
       applyState(
@@ -403,6 +424,7 @@ export default function LandingOptimizerPage() {
                 language={language}
                 onStart={() => void start(job.id)}
                 onReset={() => void remove(job.id)}
+                onStop={() => void stop(job.id)}
                 onReveal={action =>
                   void request(
                     `/api/landing/jobs/${encodeURIComponent(job.id)}/output/${action}`,

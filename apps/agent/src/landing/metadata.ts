@@ -33,18 +33,17 @@ export async function stripFileMetadata(absPath: string): Promise<boolean> {
     '0',
     '-c',
     'copy',
-    // Everything a container can carry about where the file came from.
+    /* The compressor's own three, and only those. Per-stream metadata as well as the
+       container's, because a stream can carry a title and a handler of its own. Asking for a
+       bit-exact mux on top would also drop the muxer's `encoder` tag, but the compressor
+       leaves that and the two tools saying different things about "remove metadata" is worse
+       than a line naming the library that wrote the file. */
     '-map_metadata',
+    '-1',
+    '-map_metadata:s',
     '-1',
     '-map_chapters',
     '-1',
-    // A stripped file that still names its encoder has not been stripped.
-    '-fflags',
-    '+bitexact',
-    '-flags:v',
-    '+bitexact',
-    '-flags:a',
-    '+bitexact',
     temporary
   ]);
   if (result.code !== 0) {

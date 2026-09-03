@@ -237,3 +237,83 @@ function asset(
     preview: null
   };
 }
+
+/**
+ * A landing in flight is stopped, not removed.
+ *
+ * The card's stop button was first wired to the same handler as "Discard", and the agent
+ * refuses that while a landing is running — a job in flight has a workspace and a child
+ * process behind it, so dropping the row would leave both. The per-job cancel had existed on
+ * the agent since stopping one of four became possible; nothing in the interface called it.
+ */
+describe('stopping one running landing', () => {
+  it('asks to cancel it rather than to remove the row', async () => {
+    const user = userEvent.setup();
+    const onReset = vi.fn();
+    const onStop = vi.fn();
+    const onPause = vi.fn();
+    const job = makeJob('processing', [asset('hero.jpg', 'processing')]);
+    job.phase = 'optimizing';
+    render(
+      <LandingJobCard
+        job={job}
+        connected
+        running
+        language="en"
+        onStart={vi.fn()}
+        onReset={onReset}
+        onReveal={vi.fn()}
+        onPause={onPause}
+        onStop={onStop}
+        t={t}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Stop now' }));
+    expect(onStop).toHaveBeenCalledOnce();
+    expect(onReset).not.toHaveBeenCalled();
+  });
+
+  it('offers a hold, and says so while it is held', async () => {
+    const user = userEvent.setup();
+    const onPause = vi.fn();
+    const job = makeJob('processing', [asset('hero.jpg', 'processing')]);
+    job.phase = 'optimizing';
+    const view = render(
+      <LandingJobCard
+        job={job}
+        connected
+        running
+        language="en"
+        onStart={vi.fn()}
+        onReset={vi.fn()}
+        onReveal={vi.fn()}
+        onPause={onPause}
+        onStop={vi.fn()}
+        t={t}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Pause' }));
+    expect(onPause).toHaveBeenCalledWith(true);
+
+    view.rerender(
+      <LandingJobCard
+        job={{ ...job, paused: true }}
+        connected
+        running
+        language="en"
+        onStart={vi.fn()}
+        onReset={vi.fn()}
+        onReveal={vi.fn()}
+        onPause={onPause}
+        onStop={vi.fn()}
+        t={t}
+      />
+    );
+    // The step it was on is replaced by why it is not moving, and the button offers the way back.
+    expect(screen.getByText('Paused')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Resume' }));
+    expect(onPause).toHaveBeenLastCalledWith(false);
+  });
+});

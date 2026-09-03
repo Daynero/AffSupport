@@ -18,6 +18,7 @@ export function LandingJobCard({
   onReset,
   onReveal,
   onPause,
+  onStop,
   t
 }: {
   job: NonNullable<LandingState['job']>;
@@ -29,6 +30,8 @@ export function LandingJobCard({
   onReveal: (action: 'open' | 'reveal') => void;
   /** Hold the run where it is, or let it go again — absent when the tool cannot. */
   onPause?: (paused: boolean) => void;
+  /** Abandon a run in flight. Not the same as removing the row, which a run refuses. */
+  onStop?: () => void;
   t: Translate;
 }) {
   const listId = useId();
@@ -143,8 +146,8 @@ export function LandingJobCard({
               {t(job.paused ? 'jobResume' : 'jobPause')}
             </Button>
           )}
-          {running && (
-            <Button variant="danger" disabled={!connected} onClick={onReset}>
+          {running && onStop && (
+            <Button variant="danger" disabled={!connected} onClick={onStop}>
               {t('teamQueueStopNow')}
             </Button>
           )}
