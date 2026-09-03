@@ -17047,6 +17047,11 @@ input[type='number'] {
 .tfa-page {
   display: grid;
   gap: var(--space-3);
+  /* One number, so the countdown, the stored codes and the one-off code all
+     end on the same pixel instead of drifting apart whenever the actions
+     column changes width. */
+  --tfa-actions-width: 56px;
+  --tfa-code-inset: calc(var(--space-2) + 1px);
   width: min(100%, 1180px);
   margin: 0 auto;
   padding: var(--space-4);
@@ -17287,9 +17292,20 @@ input[type='number'] {
   gap: var(--space-3);
 }
 
+/* The one-off code sits where the stored ones sit, so the eye finds it in the
+   place it already knows to look. The table's actions column is what stands
+   between that edge and the frame's, so the bar reserves the same width. */
+.tfa-quick-row {
+  padding-right: var(--tfa-actions-width);
+}
+
+.tfa-quick-row .tfa-code {
+  flex: 0 0 auto;
+}
+
 .tfa-quick-field {
   display: flex;
-  flex: 0 1 420px;
+  flex: 1 1 auto;
   align-items: center;
   gap: var(--space-2);
   padding: 0 var(--space-3);
@@ -17319,14 +17335,14 @@ input[type='number'] {
   align-items: center;
   gap: var(--space-2);
   height: 34px;
-  padding: 0 var(--space-2) 0 var(--space-3);
+  padding: 0 var(--space-2);
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   background: none;
   color: var(--color-accent);
   cursor: pointer;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 1.0625rem;
+  font-size: 1.15rem;
   font-weight: 600;
   letter-spacing: 0.08em;
   font-variant-numeric: tabular-nums;
@@ -17375,6 +17391,7 @@ input[type='number'] {
   gap: var(--space-2);
   justify-content: flex-end;
   width: 100%;
+  padding-right: var(--tfa-code-inset);
 }
 
 .tfa-countdown-track {
@@ -17520,7 +17537,7 @@ input[type='number'] {
 }
 
 .tfa-cell-name {
-  width: 32%;
+  width: 44%;
 }
 
 /* Right-aligned so the digits form a column with a shared edge — that is what
@@ -17531,7 +17548,7 @@ input[type='number'] {
 }
 
 .tfa-cell-actions {
-  width: 56px;
+  width: var(--tfa-actions-width);
   text-align: right;
 }
 

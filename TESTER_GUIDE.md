@@ -34,20 +34,25 @@ the desktop app closed.
    recognise, paste the key the service showed you, and confirm with the green tick. A whole
    `otpauth://` link works too — Soty takes the key out of it and fills in the name. The
    little arrow beside **Додати** pastes a key straight from your clipboard.
-2. Each line has one button: **Скопіювати код / Copy code**. One press and the six digits are
-   on your clipboard — switch to the login page and paste. The code appears in the line with
-   a bar that drains as its thirty seconds run out; when the bar is gone the code goes too,
-   rather than sitting there stale.
-3. The key itself is never shown in the table. The **…** button on the line copies it, or
+2. Every line already shows its current code — you do not press anything to see one. Click the
+   digits and they are on your clipboard; switch to the login page and paste. The bar above
+   the column drains as the thirty seconds run out, and all the codes change together when it
+   empties.
+3. Leave the page alone for a couple of minutes and the codes blur, so a screen left on a desk
+   is not a list of live codes. Move the mouse and they are back. There is nothing to switch
+   on or off.
+4. The key itself is never shown in the table. The **…** button on the line copies it, or
    shows it when you need to check it against the service — and it is hidden again as soon as
    you leave the page.
-4. The pencil edits the line in place. Leave the key field empty to change only the name.
-5. The search box at the top finds a line by name **or** by the key — paste a fragment of a
+5. The **…** button also renames a line, editing it in place. Leave the key field empty to
+   change only the name.
+6. The search box at the top finds a line by name **or** by the key — paste a fragment of a
    key to find out which account it belongs to. **⌘K** jumps to it from anywhere on the page.
-6. The field above the table is for a key that is _not_ in the wallet: paste it, press
-   **Скопіювати код**, and the code is on your clipboard with nothing saved. Useful when
-   somebody sends you a key or you are half-way through setting an account up.
-7. Tick several lines to delete them together. Deleting asks first, and is permanent.
+7. The **Швидкий код** field above the table is for a key that is _not_ in the wallet: paste
+   it and its code appears at once, in the same column as all the others. Click the digits to
+   copy. Nothing is saved. Useful when somebody sends you a key or you are half-way through
+   setting an account up.
+8. Tick several lines to delete them together. Deleting asks first, and is permanent.
 
 Your keys are stored privately: only your own account can read them, they are encrypted in
 Soty's vault rather than sitting in a table, and a deleted key is gone — Soty cannot bring it

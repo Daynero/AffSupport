@@ -19,11 +19,20 @@ import { useI18n, type TranslationKey } from '../i18n';
 import { usePageEntrance } from '../lib/navigation';
 import { currentBrowserPlatform } from '../lib/platform';
 import { measureClockSkew } from './clock-skew';
+import { Countdown } from './Countdown';
 import { QuickCode } from './QuickCode';
+import { useIdle, useTotpStep } from './totp-clock';
 import { TwoFactorProvider, useTwoFactor } from './TwoFactorContext';
 import { TwoFactorEditRow, TwoFactorRow } from './TwoFactorRow';
 
 type SortOrder = 'az' | 'za' | 'newest' | 'oldest';
+
+/**
+ * How long a wallet may sit untouched before its codes blur. Long enough not to
+ * interrupt anybody mid-task, short enough that a screen left on a desk is not
+ * a list of live codes.
+ */
+const IDLE_BLUR_MS = 120_000;
 
 const SORT_LABELS: Record<SortOrder, TranslationKey> = {
   az: 'twoFactorSortAz',
@@ -47,6 +56,10 @@ function TwoFactorWallet() {
   const { push } = useToasts();
   const entering = usePageEntrance();
   const { entries, status, errorCode, add, edit, remove } = useTwoFactor();
+  // One step counter for every code on the page, and one idle watch for all of
+  // them — see totp-clock.ts for why neither belongs to a row.
+  const step = useTotpStep();
+  const idle = useIdle(IDLE_BLUR_MS);
 
   const [query, setQuery] = useState('');
   const [order, setOrder] = useState<SortOrder>('az');
@@ -146,7 +159,7 @@ function TwoFactorWallet() {
     // The draft row mounts on the next paint; fill its key field once it exists.
     window.setTimeout(() => {
       const field = document.querySelector<HTMLInputElement>(
-        '.tfa-row.is-editing .tfa-cell-live input'
+        '.tfa-row.is-editing .tfa-cell-code input'
       );
       if (!field) return;
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
@@ -158,7 +171,11 @@ function TwoFactorWallet() {
   const shortcutHint = currentBrowserPlatform() === 'macos' ? '⌘K' : 'Ctrl K';
 
   return (
-    <main className={entering ? 'tfa-page page-enter' : 'tfa-page'}>
+    <main
+      className={['tfa-page', entering ? 'page-enter' : '', idle ? 'is-idle' : '']
+        .filter(Boolean)
+        .join(' ')}
+    >
       <header className="tfa-header">
         <div className="tfa-brand">
           <span className="tfa-brand-mark" aria-hidden="true">
@@ -183,6 +200,8 @@ function TwoFactorWallet() {
         <div className="tfa-header-actions">
           <SortMenu order={order} onChange={setOrder} />
 
+          {/* Deliberately quiet. An account is added once; a code is taken
+              twenty times a day, so the loud thing on this page is the codes. */}
           <div className="tfa-add">
             <button
               type="button"
@@ -209,7 +228,7 @@ function TwoFactorWallet() {
       {/* Always there, never behind a toggle: the moment somebody needs a code
           for a key they have not stored is not a moment to go looking for the
           control that produces one. */}
-      <QuickCode />
+      <QuickCode step={step} />
 
       <div className="tfa-table-frame">
         <table className="tfa-table">
@@ -230,10 +249,7 @@ function TwoFactorWallet() {
                 />
               </th>
               <th scope="col" className="tfa-cell-name">
-                {t('twoFactorColumnAccount')}
-              </th>
-              <th scope="col" className="tfa-cell-live">
-                {selected.size > 0 && (
+                {selected.size > 0 ? (
                   <button
                     type="button"
                     className="tfa-bulk-delete"
@@ -242,10 +258,17 @@ function TwoFactorWallet() {
                     <Trash2 size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
                     {t('twoFactorDeleteSelected', { count: selected.size })}
                   </button>
+                ) : (
+                  t('twoFactorColumnAccount')
                 )}
               </th>
+              {/* The countdown sits directly over the column of digits it
+                  governs, which is the only placement that needs no explaining. */}
+              <th scope="col" className="tfa-cell-code">
+                {entries.length > 0 && <Countdown step={step} />}
+              </th>
               <th scope="col" className="tfa-cell-actions">
-                {t('twoFactorColumnActions')}
+                <span className="visually-hidden">{t('twoFactorColumnActions')}</span>
               </th>
             </tr>
           </thead>
@@ -285,6 +308,7 @@ function TwoFactorWallet() {
                 <TwoFactorRow
                   key={entry.id}
                   entry={entry}
+                  step={step}
                   selected={selected.has(entry.id)}
                   onSelectedChange={on => selectOne(entry.id, on)}
                   onEdit={() => {

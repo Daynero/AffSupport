@@ -78,10 +78,33 @@ in `scripts/verify-a11y.mjs`.
 
 ## The shape of the interface
 
-A table, not a list of cards: a name, and one labelled button that hands over a
-code. Editing happens in the row itself — and adding uses the same row, so there
-is one editor rather than two that drift apart. Sorting, selection and a bulk
-delete sit where a table puts them.
+A table whose content is the codes. Every account shows its live six digits, all
+of them turning over together under one countdown above the column, and the
+digits are the button that copies them — press them and they are on the
+clipboard. There is no separate copy button and no press needed to see a code:
+the column that would otherwise be several hundred pixels of nothing between a
+name and a button is the reason to look at the page.
+
+Everything else is deliberately quiet. The add control is not the loud thing on
+screen, because an account is added once and a code is taken twenty times a day.
+Editing happens in the row itself — and adding uses the same row, so there is one
+editor rather than two that drift apart. Sorting, selection and a bulk delete sit
+where a table puts them, and the checkboxes stay out of sight until the table is
+touched.
+
+The page is capped at 1180px rather than filling the display: two meaningful
+columns do not improve with a 2560px monitor, they just move further apart until
+the eye cannot carry a row across.
+
+### Why the codes can be on screen and the keys cannot
+
+A code lives thirty seconds and is single-use; a key is standing account access.
+That is the whole of the reasoning. The keys stay behind the overflow menu, and
+the codes blur after two minutes without interaction — any movement brings them
+back, with no control to find and nothing to configure. See
+`totp-clock.ts` for the one step counter and the one idle watch that serve every
+row: N timers would be N re-renders a second and rows whose digits change a beat
+apart.
 
 Above the table, always, is the **quick-code bar**: paste a key that is not
 stored — bare or as an `otpauth://` link — and take its code without saving

@@ -1,15 +1,15 @@
 /**
- * One account in the table, in whichever of its three states it is in.
+ * One account in the table, in whichever of its two states it is in.
  *
- * Reading it: a name and the actions. Asked for a code: the digits, their
- * draining life and whether they reached the clipboard, in place of the button
- * that produced them. Being corrected: two fields and a confirm/cancel pair,
- * edited where the row already is rather than in a form somewhere else — adding
- * a key uses the same row, so there is one editor and not two that drift.
+ * Reading it: a name and its live code, which is also the button that copies
+ * it. Being corrected: two fields and a confirm/cancel pair, edited where the
+ * row already is — adding an account uses the same row, so there is one editor
+ * and not two that drift apart.
  *
- * The key itself is never a column. Copying it and showing it live in the
- * overflow menu, because a list of keys on screen is a list anyone behind you
- * can photograph, and neither action is the one anybody needs every day.
+ * The key itself is never a column, and the actions that touch it — copying it,
+ * showing it, renaming, deleting — live behind one overflow button. A row that
+ * carried them all would be four targets for the sake of things done once a
+ * month, beside the one thing done twenty times a day.
  */
 
 import { useEffect, useId, useRef, useState, type RefObject } from 'react';
@@ -22,7 +22,8 @@ import { useToasts } from '../components/toast';
 import { useI18n, type TranslationKey } from '../i18n';
 import type { TwoFactorEntry, TwoFactorErrorCode } from '../api/two-factor';
 import { copyText } from './clipboard';
-import { CodeReadout, makeCode, type LiveCode } from './CodeReadout';
+import { CodeCell } from './CodeCell';
+import type { TotpStep } from './totp-clock';
 
 const SEED_ERROR_KEYS: Record<TwoFactorSeedError, TranslationKey> = {
   EMPTY: 'twoFactorSeedErrorEmpty',
@@ -43,12 +44,14 @@ function apiErrorKey(code: TwoFactorErrorCode): TranslationKey {
 
 export function TwoFactorRow({
   entry,
+  step,
   selected,
   onSelectedChange,
   onEdit,
   onDelete
 }: {
   entry: TwoFactorEntry;
+  step: TotpStep;
   selected: boolean;
   onSelectedChange: (selected: boolean) => void;
   onEdit: () => void;
@@ -57,23 +60,10 @@ export function TwoFactorRow({
   const { t } = useI18n();
   const { push } = useToasts();
   const titleId = useId();
-  const [code, setCode] = useState<LiveCode | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [removing, setRemoving] = useState(false);
-
-  const copyCode = () => {
-    // Arithmetic only, on this turn: no await stands between the click and the
-    // clipboard write, which is the whole reason the TOTP module is synchronous.
-    const made = makeCode(entry.seed);
-    setCode(made);
-    void copyText(made.digits).then(ok =>
-      setCode(current =>
-        current && current.digits === made.digits ? { ...current, copied: ok } : current
-      )
-    );
-  };
 
   const copySeed = () => {
     setMenuOpen(false);
@@ -113,49 +103,47 @@ export function TwoFactorRow({
         <span className="tfa-name" title={entry.name}>
           {entry.name}
         </span>
+        {revealed && <span className="tfa-seed">{entry.seed}</span>}
       </td>
 
-      <td className="tfa-cell-live">
-        {code && <CodeReadout code={code} onExpired={() => setCode(null)} />}
-        {!code && revealed && <span className="tfa-seed">{entry.seed}</span>}
+      <td className="tfa-cell-code">
+        <CodeCell
+          seed={entry.seed}
+          step={step}
+          label={entry.name}
+          onCopyFailed={() => push({ tone: 'error', text: t('twoFactorCopyFailed') })}
+        />
       </td>
 
       <td className="tfa-cell-actions">
-        <div className="tfa-actions">
-          {!code && (
-            <button type="button" className="tfa-copy-code" onClick={copyCode}>
-              <Copy size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              {t('twoFactorCopyCode')}
-            </button>
-          )}
-          <IconButton label={t('twoFactorEdit')} onClick={onEdit}>
-            <Pencil size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        <div className="tfa-menu-anchor">
+          <IconButton
+            label={t('twoFactorRowMenu')}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen(open => !open)}
+          >
+            <MoreHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
           </IconButton>
-          <div className="tfa-menu-anchor">
-            <IconButton
-              label={t('twoFactorRowMenu')}
-              aria-haspopup="menu"
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen(open => !open)}
-            >
-              <MoreHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            </IconButton>
-            {menuOpen && (
-              <RowMenu
-                revealed={revealed}
-                onCopySeed={copySeed}
-                onToggleReveal={() => {
-                  setRevealed(current => !current);
-                  setMenuOpen(false);
-                }}
-                onDelete={() => {
-                  setMenuOpen(false);
-                  setConfirming(true);
-                }}
-                onClose={() => setMenuOpen(false)}
-              />
-            )}
-          </div>
+          {menuOpen && (
+            <RowMenu
+              revealed={revealed}
+              onEdit={() => {
+                setMenuOpen(false);
+                onEdit();
+              }}
+              onCopySeed={copySeed}
+              onToggleReveal={() => {
+                setRevealed(current => !current);
+                setMenuOpen(false);
+              }}
+              onDelete={() => {
+                setMenuOpen(false);
+                setConfirming(true);
+              }}
+              onClose={() => setMenuOpen(false)}
+            />
+          )}
         </div>
 
         {confirming && (
@@ -181,12 +169,14 @@ export function TwoFactorRow({
 
 function RowMenu({
   revealed,
+  onEdit,
   onCopySeed,
   onToggleReveal,
   onDelete,
   onClose
 }: {
   revealed: boolean;
+  onEdit: () => void;
   onCopySeed: () => void;
   onToggleReveal: () => void;
   onDelete: () => void;
@@ -212,6 +202,10 @@ function RowMenu({
 
   return (
     <div className="tfa-menu" role="menu" ref={menu}>
+      <button type="button" role="menuitem" onClick={onEdit}>
+        <Pencil size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        {t('twoFactorEdit')}
+      </button>
       <button type="button" role="menuitem" onClick={onCopySeed}>
         <Copy size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
         {t('twoFactorCopyKey')}
@@ -324,7 +318,7 @@ export function TwoFactorEditRow({
           focused
         />
       </td>
-      <td className="tfa-cell-live">
+      <td className="tfa-cell-code">
         <ClearableField
           value={seed}
           label={requireSeed ? t('twoFactorKeyPlaceholder') : t('twoFactorKeyPlaceholderKeep')}

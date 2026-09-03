@@ -53,6 +53,13 @@ function entry(overrides: Partial<TwoFactorEntry> = {}): TwoFactorEntry {
 }
 
 const en = (key: Parameters<typeof translate>[1]) => translate('en', key);
+const enWith = (key: Parameters<typeof translate>[1], values: Record<string, string | number>) =>
+  translate('en', key, values);
+
+/** The digits shown for an account — which are also the button that copies them. */
+function codeButton(name: string): HTMLElement {
+  return screen.getByRole('button', { name: enWith('twoFactorCopyCodeFor', { name }) });
+}
 
 let writeText: ReturnType<typeof vi.fn>;
 
@@ -221,7 +228,7 @@ describe('adding an account', () => {
   });
 });
 
-describe('taking a code from a stored account', () => {
+describe('the code of a stored account', () => {
   const AT = Date.parse('2026-09-03T10:00:05.000Z');
 
   beforeEach(() => {
@@ -233,62 +240,66 @@ describe('taking a code from a stored account', () => {
     vi.useRealTimers();
   });
 
-  const pressCopyCode = () =>
-    fireEvent.click(
-      within(rowFor('Facebook — main BM')).getByRole('button', { name: en('twoFactorCopyCode') })
-    );
-
-  it('writes the code into the row and onto the clipboard from one press', async () => {
+  it('is on screen without being asked for', async () => {
     await openWallet([entry()]);
     const expected = generateTotp(SEED, AT);
-
-    pressCopyCode();
-
-    // The whole point of the synchronous implementation: by the time the click
-    // handler returns, the write has already been issued. Nothing is awaited in
-    // between, which is what keeps the user activation Safari demands.
-    expect(writeText).toHaveBeenCalledWith(expected);
-    // Shown grouped, the way six digits are read and typed.
+    // The reason the tool exists, visible rather than one click away. Shown
+    // grouped, the way six digits are read and typed.
     expect(screen.getByText(`${expected.slice(0, 3)} ${expected.slice(3)}`)).toBeTruthy();
   });
 
   it('matches what any authenticator would produce for the same key', async () => {
     await openWallet([entry()]);
-    pressCopyCode();
+    fireEvent.click(codeButton('Facebook — main BM'));
     const shown = writeText.mock.calls[0]![0] as string;
     expect(shown).toMatch(/^\d{6}$/u);
     expect(shown).toBe(generateTotp(SEED, AT));
   });
 
-  it('stops presenting a code once its step has passed', async () => {
+  it('reaches the clipboard from one press on the digits themselves', async () => {
     await openWallet([entry()]);
-    pressCopyCode();
-    const shown = writeText.mock.calls[0]![0] as string;
-    const grouped = `${shown.slice(0, 3)} ${shown.slice(3)}`;
-    expect(screen.getByText(grouped)).toBeTruthy();
+    fireEvent.click(codeButton('Facebook — main BM'));
 
-    // Past the end of the step the code belonged to. A stale code presented as
-    // current is worse than none: it is rejected, and the person retypes it.
+    // The whole point of the synchronous implementation: by the time the click
+    // handler returns, the write has already been issued. Nothing is awaited in
+    // between, which is what keeps the user activation Safari demands.
+    expect(writeText).toHaveBeenCalledWith(generateTotp(SEED, AT));
+  });
+
+  it('turns over when its step does, rather than going stale', async () => {
+    await openWallet([entry()]);
+    const first = generateTotp(SEED, AT);
+    expect(screen.getByText(`${first.slice(0, 3)} ${first.slice(3)}`)).toBeTruthy();
+
+    // Just past the boundary, so exactly one step turns over. The assertion is
+    // synchronous: the state change happens inside `act`, and a `waitFor` here
+    // would race the countdown's own interval under fake timers.
+    const later = AT + 25_100;
     act(() => {
-      vi.setSystemTime(AT + 60_000);
-      vi.advanceTimersByTime(60_000);
+      vi.setSystemTime(later);
+      vi.advanceTimersByTime(25_100);
     });
 
-    await waitFor(() => expect(screen.queryByText(grouped)).toBeNull());
-    // And the button that produces one is back.
-    expect(
-      within(rowFor('Facebook — main BM')).getByRole('button', { name: en('twoFactorCopyCode') })
-    ).toBeTruthy();
+    const next = generateTotp(SEED, later);
+    expect(next).not.toBe(first);
+    expect(screen.getByText(`${next.slice(0, 3)} ${next.slice(3)}`)).toBeTruthy();
+    expect(screen.queryByText(`${first.slice(0, 3)} ${first.slice(3)}`)).toBeNull();
+  });
+
+  it('shares one countdown with every other code on the page', async () => {
+    await openWallet([entry(), entry({ id: 'entry-2', name: 'Second', seed: OTHER_SEED })]);
+    // Two accounts, two codes, one indicator — they all turn over together, so
+    // a countdown per row would be the same number repeated.
+    expect(screen.getAllByRole('progressbar')).toHaveLength(1);
   });
 
   it('reports a refused copy as a failure rather than a success', async () => {
     await openWallet([entry()]);
     writeText.mockReturnValue(Promise.reject(new Error('NotAllowedError')));
 
-    pressCopyCode();
+    fireEvent.click(codeButton('Facebook — main BM'));
 
     await waitFor(() => expect(screen.getByText(en('twoFactorCopyFailed'))).toBeTruthy());
-    expect(screen.queryByText(en('twoFactorCopied'))).toBeNull();
   });
 });
 
@@ -312,9 +323,6 @@ describe('a code for a key that is not stored', () => {
     });
   }
 
-  const run = () =>
-    fireEvent.click(within(quickBar()).getByRole('button', { name: en('twoFactorCopyCode') }));
-
   it('is there without being asked for', async () => {
     await openWallet([]);
     // Not behind a toggle: the moment somebody needs a code for a key they have
@@ -323,34 +331,51 @@ describe('a code for a key that is not stored', () => {
     expect(within(quickBar()).getByLabelText(en('twoFactorQuickPlaceholder'))).toBeTruthy();
   });
 
-  it('takes a pasted key and hands back the code, storing nothing', async () => {
+  it('answers as the key is pasted, with nothing to press first', async () => {
     await openWallet([]);
     paste(SEED);
-    run();
 
     const expected = generateTotp(SEED, AT);
-    expect(writeText).toHaveBeenCalledWith(expected);
     expect(
       within(quickBar()).getByText(`${expected.slice(0, 3)} ${expected.slice(3)}`)
     ).toBeTruthy();
-    // Nothing typed here reaches the database.
+    // And nothing typed here reaches the database.
     expect(api.createEntry).not.toHaveBeenCalled();
+  });
+
+  it('copies from a press on the digits, like any other code', async () => {
+    await openWallet([]);
+    paste(SEED);
+    fireEvent.click(
+      within(quickBar()).getByRole('button', {
+        name: enWith('twoFactorCopyCodeFor', { name: en('twoFactorQuickCode') })
+      })
+    );
+    expect(writeText).toHaveBeenCalledWith(generateTotp(SEED, AT));
   });
 
   it('accepts an enrolment link as readily as a bare key', async () => {
     await openWallet([]);
     paste(`otpauth://totp/Example?secret=${SEED}`);
-    run();
-    expect(writeText).toHaveBeenCalledWith(generateTotp(SEED, AT));
+    const expected = generateTotp(SEED, AT);
+    expect(
+      within(quickBar()).getByText(`${expected.slice(0, 3)} ${expected.slice(3)}`)
+    ).toBeTruthy();
   });
 
   it('says which rule a bad key breaks instead of producing digits', async () => {
     await openWallet([]);
     paste('nope!');
-    run();
-
     expect(within(quickBar()).getByText(en('twoFactorSeedErrorNotBase32'))).toBeTruthy();
     expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it('stays quiet while there is too little typed to be wrong about', async () => {
+    await openWallet([]);
+    paste('JB');
+    // Complaining at the second character would be shouting at somebody
+    // mid-paste.
+    expect(within(quickBar()).queryByRole('alert')).toBeNull();
   });
 });
 
@@ -441,7 +466,8 @@ describe('correcting an account', () => {
     await openWallet(two);
     api.updateEntry.mockResolvedValue({ ...two[0]!, name: 'Alpha renamed' });
 
-    fireEvent.click(within(rowFor('Alpha')).getByRole('button', { name: en('twoFactorEdit') }));
+    openRowMenu('Alpha');
+    fireEvent.click(screen.getByRole('menuitem', { name: en('twoFactorEdit') }));
     fireEvent.change(within(editRow()).getByLabelText(en('twoFactorNamePlaceholder')), {
       target: { value: 'Alpha renamed' }
     });
@@ -457,7 +483,8 @@ describe('correcting an account', () => {
     await openWallet(two);
     api.updateEntry.mockResolvedValue({ ...two[0]!, seed: 'MFRGGZDFMZTWQ2LK' });
 
-    fireEvent.click(within(rowFor('Alpha')).getByRole('button', { name: en('twoFactorEdit') }));
+    openRowMenu('Alpha');
+    fireEvent.click(screen.getByRole('menuitem', { name: en('twoFactorEdit') }));
     fireEvent.change(within(editRow()).getByLabelText(en('twoFactorKeyPlaceholderKeep')), {
       target: { value: 'mfrg gzdf mztw q2lk' }
     });

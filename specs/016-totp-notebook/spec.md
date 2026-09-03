@@ -233,6 +233,22 @@ entry and delete another, then reload to confirm both changes stuck.
 - **FR-021**: A search that matches nothing MUST show an empty state distinct
   from the empty state of a notebook with no entries.
 
+#### The codes themselves
+
+- **FR-031**: Every account MUST show its current code at rest, without being
+  asked. The code is the reason the tool exists; a wallet that hides it behind a
+  press spends its whole screen on waiting.
+- **FR-032**: All codes on the page MUST turn over together under one shared
+  countdown, placed so it plainly governs them. A countdown per row would be the
+  same number repeated once per account.
+- **FR-033**: Pressing a code MUST copy it. It MUST NOT need a separate button:
+  the digits are the target.
+- **FR-034**: After a period with no interaction the codes MUST become
+  unreadable, and any interaction MUST restore them. Codes may be on screen
+  because they expire in thirty seconds and are single-use — unlike the keys,
+  which stay hidden — but a wallet left open on a shared desk is still a wallet
+  left open.
+
 #### Presentation of the secret
 
 - **FR-022**: A row MUST NOT show the secret at all in its resting state. The
@@ -247,9 +263,12 @@ entry and delete another, then reload to confirm both changes stuck.
 
 #### Presentation
 
-- **FR-028**: The list MUST be a table of accounts — a name and its actions on
-  one line — with the code, when asked for, appearing in the row that produced
-  it rather than elsewhere.
+- **FR-028**: The list MUST be a table of accounts — a name, its code and its
+  actions on one line — and the codes MUST form a column with a shared edge, so
+  the list can be scanned rather than read.
+- **FR-028a**: The tool's width MUST be capped rather than filling any display:
+  two meaningful columns do not improve with a wider monitor, they only move
+  further apart than the eye can carry a row.
 - **FR-029**: Accounts MUST be sortable by name in both directions and by when
   they were added.
 - **FR-030**: Rows MUST be selectable, and a selection MUST offer to delete
