@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { Share2 } from 'lucide-react';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import type { TeamMaterialRow } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
 import { useToasts } from '../../components/toast';
@@ -10,7 +12,16 @@ import { teamErrorMessageFor } from '../errors';
  * access and copies it, with a green confirmation. The same control on files
  * and folders, level with the row's menu.
  */
-export function ShareButton({ teamId, row }: { teamId: string; row: TeamMaterialRow }) {
+export function ShareButton({
+  teamId,
+  row,
+  className = 'team-explorer-share'
+}: {
+  teamId: string;
+  row: TeamMaterialRow;
+  /** The tile shows it as its own control; the detail card shows it among its icons. */
+  className?: string;
+}) {
   const { t } = useI18n();
   const { push } = useToasts();
   const [busy, setBusy] = useState(false);
@@ -47,8 +58,9 @@ export function ShareButton({ teamId, row }: { teamId: string; row: TeamMaterial
   return (
     <button
       type="button"
-      className="team-explorer-share"
+      className={className}
       aria-label={t('teamShareAction', { name: row.name })}
+      data-tip={t('teamShareAction', { name: row.name })}
       title={t('teamShareAction', { name: row.name })}
       disabled={busy}
       onClick={event => {
@@ -56,18 +68,7 @@ export function ShareButton({ teamId, row }: { teamId: string; row: TeamMaterial
         void share();
       }}
     >
-      <ShareIcon />
+      <Share2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
     </button>
-  );
-}
-
-function ShareIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" focusable="false">
-      <path
-        fill="currentColor"
-        d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 1 0-3-3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0 0 6c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65a2.92 2.92 0 1 0 2.92-2.92z"
-      />
-    </svg>
   );
 }

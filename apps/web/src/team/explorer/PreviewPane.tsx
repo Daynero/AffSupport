@@ -6,7 +6,7 @@ import type {
   ThumbnailSession
 } from '@video-compressor/shared';
 import type { TeamMaterialSummary } from '../../api/team';
-import { Download, Trash2 } from 'lucide-react';
+import { Download, Replace, Trash2 } from 'lucide-react';
 import { Button, ProgressBar } from '../../components/ui';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
@@ -17,6 +17,7 @@ import { KindIcon } from './KindIcon';
 import { useExplorer } from './ExplorerProvider';
 import { useThumbnailSession, type ThumbnailSessionClient } from './useThumbnailSession';
 import { VideoTextActions } from '../library/VideoTextActions';
+import { ShareButton } from './ShareButton';
 
 /**
  * What the selected row looks like, before it is opened (011, FR-016): the
@@ -40,6 +41,9 @@ export function PreviewPane({
   transcribing,
   onCreateTask,
   onDownload,
+  onDownloadRestitched,
+  restitchPrepared,
+  onShare,
   onDelete
 }: {
   /** The selected row, or null when nothing is selected. */
@@ -54,6 +58,12 @@ export function PreviewPane({
   onCreateTask?: (asset: { id: string; name: string }) => void;
   /** Save the original to this computer; absent when the member may not download. */
   onDownload?: (row: TeamMaterialRow) => void;
+  /** Cut this video's stitching and save that instead; videos only. */
+  onDownloadRestitched?: (row: TeamMaterialRow) => void;
+  /** Whether this space has already looked inside the file, so the cut is seconds away. */
+  restitchPrepared?: boolean;
+  /** Share by link; absent when the member may not share. */
+  onShare?: boolean;
   /** Move it to the space's bin; absent when the member may not delete. */
   onDelete?: (row: TeamMaterialRow) => void;
 }) {
@@ -147,21 +157,45 @@ export function PreviewPane({
           )}
         </p>
       )}
-      {/* The two things done to a file most often, as icons rather than a second column of
-          sentences — the same treatment the compressor gives its own row actions. Named for
-          screen readers and on hover, because an icon alone is a guess. */}
-      {(onDownload || onDelete) && row.kind !== 'folder' && (
+      {/* Everything done to a file often enough to deserve a press rather than a menu, as
+          icons rather than a second column of sentences — the same treatment the compressor
+          gives its own row actions, down to the icon that means re-stitching. Named for screen
+          readers and on hover, because an icon alone is a guess. */}
+      {(onDownload || onDownloadRestitched || onShare || onDelete) && row.kind !== 'folder' && (
         <div className="team-explorer-pane-icons">
           {onDownload && (
             <button
               type="button"
               className="team-explorer-pane-icon"
-              aria-label={t('teamFileDownload')}
-              data-tip={t('teamFileDownload')}
+              aria-label={onDownloadRestitched ? t('teamRestitchDownloadOriginal') : t('teamFileDownload')}
+              data-tip={
+                onDownloadRestitched ? t('teamRestitchDownloadOriginal') : t('teamFileDownload')
+              }
               onClick={() => onDownload(row)}
             >
               <Download size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
             </button>
+          )}
+          {onDownloadRestitched && (
+            <button
+              type="button"
+              className="team-explorer-pane-icon"
+              aria-label={t('teamRestitchDownloadRestitched')}
+              /* The tooltip carries what the label cannot: a prepared video is delivered in
+                 seconds, one that is not pays for the looking first. The press works either
+                 way, so this is a hint rather than a warning. */
+              data-tip={`${t('teamRestitchDownloadRestitched')} — ${
+                restitchPrepared
+                  ? t('teamRestitchMaterialPrepared')
+                  : t('teamRestitchMaterialNotPrepared')
+              }`}
+              onClick={() => onDownloadRestitched(row)}
+            >
+              <Replace size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            </button>
+          )}
+          {onShare && (
+            <ShareButton teamId={teamId} row={row} className="team-explorer-pane-icon" />
           )}
           {onDelete && (
             <button

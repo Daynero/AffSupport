@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode
+} from 'react';
 import { usablePrep } from '@video-compressor/shared';
 import type {
   CatalogMaterialItem,
@@ -8,7 +16,9 @@ import type {
 } from '@video-compressor/shared';
 import { teamApi, type TeamMaterialSummary } from '../../api/team';
 import { downloadTeamFileWithAgent } from '../../api/client';
+import { ListPlus, Play, Replace, Shrink, Trash2, X } from 'lucide-react';
 import { Button } from '../../components/ui';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import {
   copyMaterialWithTail,
@@ -221,6 +231,27 @@ function ExplorerBody({
     }
     return null;
   }, [restitch.states]);
+  /*
+   * Several videos, one at a time.
+   *
+   * A re-stitch is the heaviest thing this machine does — it reads a whole file and writes
+   * another — so a selection of five started at once would fight itself for the same cores
+   * and finish later than five in a row. The panel shows whichever is running; the rest wait
+   * their turn, and a failure stops that video rather than the queue.
+   */
+  const deliverRestitched = useCallback(
+    async (rows: TeamMaterialRow[]) => {
+      for (const row of rows) {
+        if (row.category !== 'video') continue;
+        await restitch
+          .deliver({ materialId: row.id, fileName: row.name, driveVersion: row.driveVersion })
+          .catch(() => {
+            // Each delivery already reports its own outcome; one refusal is not the others'.
+          });
+      }
+    },
+    [restitch]
+  );
   /* The delivery that met an unconfigured space waits for the settings to close, then
      continues by itself — the member gets the file they asked for without a second click. */
   const settingsOpen = query?.settings === true;
@@ -516,12 +547,7 @@ function ExplorerBody({
         preparedIds,
         ...(permissions.download
           ? {
-              onDownloadRestitched: (row: TeamMaterialRow) =>
-                void restitch.deliver({
-                  materialId: row.id,
-                  fileName: row.name,
-                  driveVersion: row.driveVersion
-                })
+              onDownloadRestitched: (row: TeamMaterialRow) => void deliverRestitched([row])
             }
           : {}),
         ...(permissions.process
@@ -536,6 +562,12 @@ function ExplorerBody({
   // The batch spans folders, so it comes from the accumulated selection map
   // rather than only the rows on the current page.
   const selectedRows = useMemo(() => Array.from(selectedRowsMap.values()), [selectedRowsMap]);
+  /* The videos in the selection, once: three of the bar's actions ask for exactly this
+     and one of them decides whether it is offered at all. */
+  const selectedVideos = useMemo(
+    () => selectedRows.filter(row => row.category === 'video'),
+    [selectedRows]
+  );
   const focused = page.rows.find(row => row.id === selectedId) ?? null;
 
   /**
@@ -1183,57 +1215,81 @@ function ExplorerBody({
           </div>
         )}
         {selectedRows.length > 0 && !trash && (
+          /*
+           * What to do with a selection, in the compressor's idiom.
+           *
+           * It was five full-width buttons of prose that wrapped onto three lines above the
+           * files and pushed them down the page — the bar meant to help was the widest thing
+           * on the screen. Each action is now the icon it already has elsewhere in this
+           * workspace, named on hover and to a screen reader; the count leads, and the way out
+           * sits at the far end where a dismissal belongs.
+           */
           <div
             className="team-explorer-selection-bar"
             role="region"
             aria-label={t('teamExplorerSelectedCount', { count: selectedRows.length })}
           >
-            <span>{t('teamExplorerSelectedCount', { count: selectedRows.length })}</span>
-            {onCreateTaskFromSelection && (
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() =>
-                  onCreateTaskFromSelection(
-                    selectedRows.map(row => ({ id: row.id, name: row.name }))
-                  )
-                }
-              >
-                {t('teamExplorerCreateTaskFromSelection')}
-              </Button>
-            )}
-            {onProcessSelection && permissions?.process && (
-              <Button type="button" variant="secondary" onClick={onProcessSelection}>
-                {t('teamExplorerProcessSelection')}
-              </Button>
-            )}
-            {permissions?.process && selectedRows.some(row => row.category === 'video') && (
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() =>
-                  setCompressing(
-                    selectedRows
-                      .filter(row => row.category === 'video')
-                      .map(row => ({
+            <span className="team-explorer-selection-count">
+              {t('teamExplorerSelectedCount', { count: selectedRows.length })}
+            </span>
+            <div className="team-explorer-selection-actions">
+              {onCreateTaskFromSelection && (
+                <SelectionAction
+                  label={t('teamExplorerCreateTaskFromSelection')}
+                  onClick={() =>
+                    onCreateTaskFromSelection(
+                      selectedRows.map(row => ({ id: row.id, name: row.name }))
+                    )
+                  }
+                >
+                  <ListPlus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                </SelectionAction>
+              )}
+              {onProcessSelection && permissions?.process && (
+                <SelectionAction
+                  label={t('teamExplorerProcessSelection')}
+                  onClick={onProcessSelection}
+                >
+                  <Play size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                </SelectionAction>
+              )}
+              {permissions?.process && selectedVideos.length > 0 && (
+                <SelectionAction
+                  label={t('teamCompressSelected')}
+                  onClick={() =>
+                    setCompressing(
+                      selectedVideos.map(row => ({
                         id: row.id,
                         name: row.name,
                         folderId: row.parentFolderId ?? currentFolderId ?? null
                       }))
-                  )
-                }
-              >
-                {t('teamCompressSelected')}
-              </Button>
-            )}
-            {permissions?.delete && (
-              <Button type="button" variant="danger" onClick={() => void trashRows(selectedRows)}>
-                {t('teamFileTrash')}
-              </Button>
-            )}
-            <Button type="button" variant="ghost" onClick={clearSelection}>
-              {t('teamExplorerClearSelection')}
-            </Button>
+                    )
+                  }
+                >
+                  <Shrink size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                </SelectionAction>
+              )}
+              {permissions?.download && selectedVideos.length > 0 && (
+                <SelectionAction
+                  label={t('teamRestitchDownloadRestitched')}
+                  onClick={() => void deliverRestitched(selectedVideos)}
+                >
+                  <Replace size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                </SelectionAction>
+              )}
+              {permissions?.delete && (
+                <SelectionAction
+                  label={t('teamFileTrash')}
+                  destructive
+                  onClick={() => void trashRows(selectedRows)}
+                >
+                  <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                </SelectionAction>
+              )}
+            </div>
+            <SelectionAction label={t('teamExplorerClearSelection')} onClick={clearSelection}>
+              <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            </SelectionAction>
           </div>
         )}
         {trash ? (
@@ -1291,6 +1347,14 @@ function ExplorerBody({
         client={client}
         onOpen={onPreview}
         onDownload={permissions?.download ? row => void downloadOriginal(row) : undefined}
+        onDownloadRestitched={
+          permissions?.download && focused?.kind === 'video'
+            ? row => void deliverRestitched([row])
+            : undefined
+        }
+        restitchPrepared={focused ? preparedIds.has(focused.id) : false}
+        // Shared the way the tile shares: a member who can see a file can hand out a link.
+        onShare={Boolean(permissions)}
         onDelete={permissions?.delete ? row => void trashRows([row]) : undefined}
         onTranscribe={
           permissions?.process
@@ -1535,3 +1599,35 @@ function summaryOf(row: TeamMaterialRow): TeamMaterialSummary {
 
 // Keeps the unused-permissions typing honest for callers that pass a partial set.
 export type ExplorerPermissions = TeamPermissions;
+
+/**
+ * One action on the selection: an icon, and its name where a name belongs.
+ *
+ * The bar used to spell each of these out in a button, and at the content column's width the
+ * five of them wrapped onto three lines above the files. The names have not gone anywhere —
+ * they are the tooltip and the accessible label, exactly as on a file's own card.
+ */
+function SelectionAction({
+  label,
+  onClick,
+  destructive,
+  children
+}: {
+  label: string;
+  onClick: () => void;
+  /** The one that throws things away; coloured apart from the rest. */
+  destructive?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={`team-explorer-selection-action ${destructive ? 'is-destructive' : ''}`.trim()}
+      aria-label={label}
+      data-tip={label}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}

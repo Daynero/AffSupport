@@ -15055,9 +15055,10 @@ button.team-landing-tile:hover {
   border-color: var(--color-accent);
   color: var(--color-text);
 }
-/* The selection bar wraps and its buttons keep caption weight: at the content
-   column's width four full-height buttons ran past the bar's own border, and
-   the count broke across two lines beside them. */
+/* What to do with a selection: the count, then the actions as icons, then the way out at the
+   far end. It was five buttons of prose that wrapped onto three lines at the content column's
+   width and pushed the files down the page — a bar meant to help, being the widest thing on
+   the screen. One line now, and it holds one whether the selection has one file or fifty. */
 .team-explorer-selection-bar {
   display: flex;
   flex-wrap: wrap;
@@ -15069,15 +15070,44 @@ button.team-landing-tile:hover {
   border-radius: var(--radius-sm);
   background: var(--color-accent-softer);
 }
-.team-explorer-selection-bar > span {
+.team-explorer-selection-count {
   white-space: nowrap;
   font-weight: 600;
 }
-.team-explorer-selection-bar > .button {
-  min-height: 32px;
-  padding-block: 0;
-  font-size: 0.9rem;
-  white-space: nowrap;
+/* The group takes the slack, so the dismissal lands at the right edge rather than beside the
+   last action, where it reads as one more thing to do. */
+.team-explorer-selection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  margin-right: auto;
+}
+.team-explorer-selection-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.team-explorer-selection-action:hover {
+  color: var(--color-text);
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+}
+.team-explorer-selection-action:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.team-explorer-selection-action.is-destructive:hover {
+  color: var(--color-error);
+  border-color: color-mix(in srgb, var(--color-error) 45%, transparent);
+  background: color-mix(in srgb, var(--color-error) 12%, transparent);
 }
 .team-explorer-dropzone.is-over {
   outline: 2px dashed var(--color-accent);
