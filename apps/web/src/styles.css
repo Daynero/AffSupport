@@ -8235,12 +8235,14 @@ body:has(.public-home) {
 }
 
 .landing-compare-stage.has-ratio {
+  /* The largest box that fits both limits at the picture's own shape: as wide as the modal
+     allows, or as wide as the height allows once multiplied by the ratio — whichever is
+     smaller. Sizing by height alone left a wide image in a small box with the modal empty
+     around it. */
   aspect-ratio: var(--compare-ratio);
-  max-height: calc(100dvh - 240px);
-  /* `aspect-ratio` needs one axis to solve for the other: without this the box takes the full
-     width of a wide modal and a tall image is cropped rather than fitted. */
-  width: auto;
-  height: min(calc(100dvh - 240px), 100%);
+  width: min(100%, calc((100dvh - 260px) * var(--compare-ratio)));
+  max-height: calc(100dvh - 260px);
+  height: auto;
   margin-inline: auto;
 }
 
@@ -8304,6 +8306,12 @@ body:has(.public-home) {
 .landing-compare-stage.is-zoomed .landing-compare-image {
   object-fit: none;
   object-position: calc(50% + var(--compare-pan-x)) calc(50% + var(--compare-pan-y));
+}
+
+/* At actual size the surface belongs to panning, so the invisible slider stops taking
+   pointers — it keeps the focus and the arrow keys, which is how the divider moves here. */
+.landing-compare-stage.is-zoomed .landing-compare-range {
+  pointer-events: none;
 }
 
 /* The one-off nudge that shows the divider is draggable. */
