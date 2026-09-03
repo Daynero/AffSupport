@@ -58,7 +58,7 @@ import {
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { useCompactToolbar } from '../components/useCompactToolbar';
 import { compactPath } from '../format';
-import { useI18n } from '../i18n';
+import { landingCountKey, useI18n } from '../i18n';
 import { usePageEntrance } from '../lib/navigation';
 import { analytics } from '../analytics/service';
 import { LandingJobCard } from './LandingJobCard';
@@ -403,7 +403,7 @@ export default function LandingOptimizerPage() {
               <div className="batch-chips" aria-hidden="true">
                 <LandingChip
                   count={jobs.length}
-                  phrase={t('landingQueueCount', { count: jobs.length })}
+                  phrase={t(landingCountKey(language, jobs.length), { count: jobs.length })}
                 />
                 {/* All four stay on screen — a zero is information too. */}
                 <LandingChip
@@ -424,7 +424,9 @@ export default function LandingOptimizerPage() {
               </div>
               <div className="primary-actions">
                 <Button
-                  variant="primary"
+                  /* Ghost while there is nothing to run: a dimmed primary reads as broken,
+                     not as "nothing to do". */
+                  variant={readyJobs.length === 0 ? 'ghost' : 'primary'}
                   disabled={!connected || readyJobs.length === 0}
                   title={t('landingOptimizeAll')}
                   onClick={() => void startAll()}

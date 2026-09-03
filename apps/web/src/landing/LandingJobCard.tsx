@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { LandingAsset, LandingJob, LandingState } from '@video-compressor/shared';
 import { landingPreviewPath } from '../api/client';
 import { useSubresourceUrl } from '../api/useSubresourceUrl';
@@ -40,6 +40,49 @@ export function LandingJobCard({
   const [expanded, setExpanded] = useState(false);
   const [listMounted, setListMounted] = useState(false);
   const [comparisonId, setComparisonId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<'all' | 'skipped'>('all');
+  const [sort, setSort] = useState<'saving' | 'size'>('saving');
+  /*
+   * The order the disk was walked in is nobody's idea of useful.
+   *
+   * A landing of twenty-two files opens on whichever one happened to be first, and the rows
+   * worth looking at — the biggest win, the one left untouched — are somewhere in the scroll.
+   * Sorted by what was saved, the list answers "did this work" from the top; sorted by size,
+   * it answers "where is the weight". While the run is going the order stays as it was, so
+   * rows do not jump under the cursor as each file finishes.
+   */
+  /*
+   * The folder every file is in, when there is only one.
+   *
+   * Most landings keep their media in a single `assets/`, and printing it beside twenty-two
+   * file names says the same word twenty-two times. Said once above the list it is still
+   * there, and the names have the row to themselves.
+   */
+  const sharedFolder = useMemo(() => {
+    const folders = new Set(
+      job.assets.map(asset => {
+        const parts = (asset.newRelPath ?? asset.relPath).split('/');
+        parts.pop();
+        return parts.join('/');
+      })
+    );
+    const only = folders.size === 1 ? [...folders][0] : null;
+    return only ? only : null;
+  }, [job.assets]);
+
+  const listedAssets = useMemo(() => {
+    const rows = job.assets.filter(item => filter === 'all' || item.status === 'skipped');
+    if (job.status === 'processing' || job.status === 'queued') return rows;
+    /* By the figure the row actually shows. Ordering by bytes saved is the more useful
+       question — where the win came from — but the column the eye reads is the percentage,
+       and a leading column that jumps 97, 94, 92, 94 looks broken however good the order
+       behind it is. "By size" answers the other question, and answers it visibly. */
+    return [...rows].sort((a, b) =>
+      sort === 'size'
+        ? (b.optimizedSize ?? b.originalSize) - (a.optimizedSize ?? a.originalSize)
+        : (b.savedPercent ?? 0) - (a.savedPercent ?? 0)
+    );
+  }, [job.assets, job.status, filter, sort]);
   const comparisonTrigger = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -223,12 +266,23 @@ export function LandingJobCard({
               aria-label={t('landingAssetsTitle')}
               aria-live="polite"
             >
-              {job.assets.map(asset => (
+              <LandingAssetControls
+                total={job.assets.length}
+                sharedFolder={sharedFolder}
+                skipped={job.assets.filter(item => item.status === 'skipped').length}
+                filter={filter}
+                sort={sort}
+                onFilter={setFilter}
+                onSort={setSort}
+                t={t}
+              />
+              {listedAssets.map(asset => (
                 <LandingAssetRow
                   key={asset.id}
                   jobId={job.id}
                   asset={asset}
                   current={asset.id === currentAsset?.id}
+                  hideFolder={sharedFolder !== null}
                   language={language}
                   onCompare={openComparison}
                   t={t}
@@ -250,6 +304,125 @@ export function LandingJobCard({
         />
       )}
     </Card>
+  );
+}
+
+/**
+ * What the list is showing, and in what order.
+ *
+ * Two questions, two controls: "everything or only what was left alone", and "sorted by what
+ * was saved or by what still weighs". The counters in the summary above are the same numbers;
+ * these are where they become something to press.
+ */
+/**
+ * The one file that decides how heavy the result is.
+ *
+ * A landing of twenty-two files came out at 2.58 MB, and 1.66 MB of that was a single image
+ * the run had left alone — two thirds of the finished weight, sitting seventh in a list of
+ * twenty-two, styled exactly like everything else. The summary counts what was done; this
+ * says where what is left actually is, and only when one file dominates enough to be worth
+ * saying: a third of the result is a fact, a twentieth is trivia.
+ */
+function LandingHeaviest({
+  job,
+  language,
+  t
+}: {
+  job: LandingJob;
+  language: Language;
+  t: Translate;
+}) {
+  const heaviest = job.assets.reduce<LandingAsset | null>((worst, asset) => {
+    const weight = asset.optimizedSize ?? asset.originalSize;
+    const best = worst ? (worst.optimizedSize ?? worst.originalSize) : -1;
+    return weight > best ? asset : worst;
+  }, null);
+  if (!heaviest || job.optimizedMediaSize <= 0) return null;
+  const weight = heaviest.optimizedSize ?? heaviest.originalSize;
+  const share = Math.round((weight / job.optimizedMediaSize) * 100);
+  if (share < 33) return null;
+  const untouched = heaviest.status === 'skipped';
+  return (
+    <p className={`landing-heaviest ${untouched ? 'is-untouched' : ''}`.trim()}>
+      {t(untouched ? 'landingHeaviestUntouched' : 'landingHeaviest', {
+        // The name it has now, not the one it arrived with: the line points at a file the
+        // person can go and find.
+        name: (heaviest.newRelPath ?? heaviest.relPath).split('/').pop() ?? heaviest.fileName,
+        share,
+        size: formatSize(weight, language)
+      })}
+    </p>
+  );
+}
+
+function LandingAssetControls({
+  total,
+  sharedFolder,
+  skipped,
+  filter,
+  sort,
+  onFilter,
+  onSort,
+  t
+}: {
+  total: number;
+  /** Printed once here when every file lives in it, instead of on every row. */
+  sharedFolder: string | null;
+  skipped: number;
+  filter: 'all' | 'skipped';
+  sort: 'saving' | 'size';
+  onFilter: (value: 'all' | 'skipped') => void;
+  onSort: (value: 'saving' | 'size') => void;
+  t: Translate;
+}) {
+  // Under a dozen rows the whole list is on screen; controls for it are furniture.
+  if (total < 8) return null;
+  return (
+    <div className="landing-asset-controls">
+      {/* Where the files are and which of them are shown belong together on the left; the
+          order they are shown in belongs on the right. */}
+      <div className="landing-asset-scope">
+        {sharedFolder && <span className="landing-shared-folder">{sharedFolder}/</span>}
+        <div className="landing-asset-filters" role="group">
+        <button
+          type="button"
+          className={filter === 'all' ? 'is-selected' : ''}
+          aria-pressed={filter === 'all'}
+          onClick={() => onFilter('all')}
+        >
+          {t('landingAssetFilterAll')} <b>{total}</b>
+        </button>
+        {skipped > 1 && (
+          <button
+            type="button"
+            className={filter === 'skipped' ? 'is-selected' : ''}
+            aria-pressed={filter === 'skipped'}
+            onClick={() => onFilter('skipped')}
+          >
+            {t('landingAssetFilterSkipped')} <b>{skipped}</b>
+          </button>
+          )}
+        </div>
+      </div>
+      <div className="landing-asset-filters" role="group">
+        <button
+          type="button"
+          className={sort === 'saving' ? 'is-selected' : ''}
+          aria-pressed={sort === 'saving'}
+          onClick={() => onSort('saving')}
+        >
+          {t('landingAssetSortSaving')}
+        </button>
+        <button
+          type="button"
+          className={sort === 'size' ? 'is-selected' : ''}
+          aria-pressed={sort === 'size'}
+          onClick={() => onSort('size')}
+        >
+          {t('landingAssetSortSize')}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -275,15 +448,19 @@ function LandingSuccessSummary({
           </span>
         )}
       </div>
+      <LandingHeaviest job={job} language={language} t={t} />
       <dl className="landing-success-metrics">
         <div>
           <dt>{t('landingImagesOptimized')}</dt>
           <dd>{job.imagesOptimized}</dd>
         </div>
-        <div>
-          <dt>{t('landingVideosOptimized')}</dt>
-          <dd>{job.videosOptimized}</dd>
-        </div>
+        {/* A zero where there were no videos at all reads as "it failed at videos". */}
+        {job.assets.some(asset => asset.type === 'video') && (
+          <div>
+            <dt>{t('landingVideosOptimized')}</dt>
+            <dd>{job.videosOptimized}</dd>
+          </div>
+        )}
         <div>
           <dt>{t('landingFilesSkipped')}</dt>
           <dd>{job.filesSkipped}</dd>
@@ -307,6 +484,7 @@ function LandingAssetRow({
   jobId,
   asset,
   current,
+  hideFolder,
   language,
   onCompare,
   t
@@ -314,6 +492,8 @@ function LandingAssetRow({
   jobId: string;
   asset: LandingAsset;
   current: boolean;
+  /** True when the list already says which folder every file is in. */
+  hideFolder: boolean;
   language: Language;
   onCompare: (assetId: string, trigger: HTMLElement) => void;
   t: Translate;
@@ -322,6 +502,7 @@ function LandingAssetRow({
   const pathParts = displayPath.split('/');
   const fileName = pathParts.pop() ?? asset.fileName;
   const parentPath = pathParts.join('/');
+  const openable = asset.type === 'image' && asset.preview?.available === true;
   return (
     <article
       className={`landing-asset-item is-${asset.status} ${current ? 'is-current' : ''}`.trim()}
@@ -341,42 +522,97 @@ function LandingAssetRow({
         )}
       </div>
 
-      <div className="landing-asset-copy">
+      {/* The name and its numbers open the comparison too. The thumbnail alone was a 44px
+          target on a row six hundred wide, and nothing about the name suggested it was one. */}
+      {openable ? (
+        <button
+          type="button"
+          className="landing-asset-copy is-openable"
+          aria-label={t('landingAssetOpen', { name: fileName })}
+          onClick={event => onCompare(asset.id, event.currentTarget)}
+        >
+        {/* No type tag: the thumbnail beside it has already said what kind of file this is,
+            on every row, twenty-two times. */}
         <div className="landing-asset-name-line">
           <h3 title={displayPath}>{fileName}</h3>
-          <span className="landing-type-tag">
-            {t(asset.type === 'video' ? 'landingTypeVideo' : 'landingTypeImage')}
-          </span>
-        </div>
-        {parentPath && (
-          <span className="landing-asset-path" title={parentPath}>
-            {parentPath}
-          </span>
-        )}
-        <div className="landing-asset-sizes">
-          <span>{formatSize(asset.originalSize, language)}</span>
-          {asset.status === 'optimized' && asset.optimizedSize !== null && (
-            <>
-              <span aria-hidden="true">→</span>
-              <strong>{formatSize(asset.optimizedSize, language)}</strong>
-              {asset.savedPercent !== null && asset.savedPercent > 0 && (
-                <span className="landing-saved">
-                  {t('landingSaved', { value: asset.savedPercent })}
-                </span>
-              )}
-            </>
+          {parentPath && !hideFolder && (
+            <span className="landing-asset-path" title={parentPath}>
+              {parentPath}
+            </span>
           )}
+        </div>
+        <div className="landing-asset-sizes">
+          {/* The percentage leads and the two figures follow it quietly: on a list this long
+              the third number is the one that is scanned, and it is the one derived from the
+              other two. */}
+          {asset.status === 'optimized' &&
+            asset.optimizedSize !== null &&
+            asset.savedPercent !== null &&
+            asset.savedPercent > 0 && (
+              <span className="landing-saved">
+                {t('landingSaved', { value: asset.savedPercent })}
+              </span>
+            )}
+          <span className="landing-asset-bytes">
+            {formatSize(asset.originalSize, language)}
+            {asset.status === 'optimized' && asset.optimizedSize !== null && (
+              <>
+                <i aria-hidden="true">→</i>
+                {formatSize(asset.optimizedSize, language)}
+              </>
+            )}
+          </span>
           {asset.note && <span className="landing-note">{localizedNote(asset.note, t)}</span>}
         </div>
-      </div>
+        </button>
+      ) : (
+        <div className="landing-asset-copy">
+        {/* No type tag: the thumbnail beside it has already said what kind of file this is,
+            on every row, twenty-two times. */}
+        <div className="landing-asset-name-line">
+          <h3 title={displayPath}>{fileName}</h3>
+          {parentPath && !hideFolder && (
+            <span className="landing-asset-path" title={parentPath}>
+              {parentPath}
+            </span>
+          )}
+        </div>
+        <div className="landing-asset-sizes">
+          {/* The percentage leads and the two figures follow it quietly: on a list this long
+              the third number is the one that is scanned, and it is the one derived from the
+              other two. */}
+          {asset.status === 'optimized' &&
+            asset.optimizedSize !== null &&
+            asset.savedPercent !== null &&
+            asset.savedPercent > 0 && (
+              <span className="landing-saved">
+                {t('landingSaved', { value: asset.savedPercent })}
+              </span>
+            )}
+          <span className="landing-asset-bytes">
+            {formatSize(asset.originalSize, language)}
+            {asset.status === 'optimized' && asset.optimizedSize !== null && (
+              <>
+                <i aria-hidden="true">→</i>
+                {formatSize(asset.optimizedSize, language)}
+              </>
+            )}
+          </span>
+          {asset.note && <span className="landing-note">{localizedNote(asset.note, t)}</span>}
+        </div>
+        </div>
+      )}
 
-      <div className="landing-asset-state">
-        <span className={`status-badge ${landingStatusClass(asset.status)}`}>
-          {asset.status === 'processing' && <SotyLoader size={15} />}
-          {asset.status === 'optimized' && <CheckIcon />}
-          {t(landingStatusKey(asset.status))}
-        </span>
-      </div>
+      {/* A badge on every row that says "optimized" is a badge that says nothing. It stays for
+          the outcomes that are not the ordinary one — left alone, failed, still running. */}
+      {asset.status !== 'optimized' && (
+        <div className="landing-asset-state">
+          <span className={`status-badge ${landingStatusClass(asset.status)}`}>
+            {asset.status === 'processing' && <SotyLoader size={15} />}
+            {t(landingStatusKey(asset.status))}
+          </span>
+        </div>
+      )}
 
       {asset.status === 'processing' && (
         <div className="landing-asset-progress">

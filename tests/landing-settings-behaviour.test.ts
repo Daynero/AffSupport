@@ -277,3 +277,59 @@ describe('renumbering a whole landing', () => {
     await optimizer.shutdown();
   }, 60_000);
 });
+
+describe('a name that is already taken', () => {
+  it('optimizes beside it rather than giving the file up', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'landing-collide-'));
+    roots.push(root);
+    vi.stubEnv('AGENT_LANDING_WORKSPACE', path.join(root, 'workspaces'));
+    vi.stubEnv('AGENT_LANDING_SETTINGS_PATH', path.join(root, 'settings.json'));
+    const source = path.join(root, 'promo');
+    await mkdir(source, { recursive: true });
+    /* A landing that ships `doc.png` and a different `doc.webp`. Converting the PNG wants a
+       name the WebP already has — and the run used to answer that by keeping the PNG whole.
+       On the landing this was found on, that one file was 1.66 MB of a 2.58 MB result. */
+    const { execFile } = await import('node:child_process');
+    const { promisify } = await import('node:util');
+    const run = promisify(execFile);
+    await run('ffmpeg', [
+      '-hide_banner', '-nostdin', '-y', '-f', 'lavfi',
+      '-i', 'testsrc2=size=600x400:rate=1', '-frames:v', '1',
+      path.join(source, 'doc.png')
+    ]);
+    // A real one-pixel WebP, written directly: this FFmpeg has no WebP encoder, and all this
+    // file has to do is own the name.
+    await writeFile(
+      path.join(source, 'doc.webp'),
+      Buffer.from('UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==', 'base64')
+    );
+    await writeFile(
+      path.join(source, 'index.html'),
+      '<img src="doc.png"><img src="doc.webp">'
+    );
+
+    const optimizer = new LandingOptimizer({ ffmpeg: true, ffprobe: true }, () => {});
+    optimizer.updateSettings({ archive: false, renameMedia: false });
+    await optimizer.prepareFromFolderPath(source);
+    const job = optimizer.state().jobs[0] ?? optimizer.state().job!;
+    await optimizer.start([job.id]);
+    const finished = optimizer.state().jobs[0] ?? optimizer.state().job!;
+
+    const written = await readdir(finished.outputPath!);
+    // The PNG became a WebP under a name nothing owned, and the file that owned the first one
+    // is untouched.
+    expect(written).toContain('doc-2.webp');
+    expect(written).toContain('doc.webp');
+    expect(written).not.toContain('doc.png');
+
+    const html = await readFile(path.join(finished.outputPath!, 'index.html'), 'utf8');
+    expect(html).toContain('src="doc-2.webp"');
+    // The other reference still points where it always did.
+    expect(html).toContain('src="doc.webp"');
+
+    const converted = finished.assets.find(item => item.fileName === 'doc.png');
+    expect(converted?.status).toBe('optimized');
+    expect(converted?.note).toBeNull();
+    await optimizer.shutdown();
+  }, 60_000);
+});

@@ -86,7 +86,10 @@ export function ImageCompareModal({
 
   const refused = beforeUrl === null || (comparison && afterUrl === null);
   const ready = loaded.before && (!comparison || loaded.after) && !failed;
-  const broken = failed || refused || timedOut;
+  /* A picture that is on screen is not broken, whatever the ticket said afterwards: the two
+     could both be true at once, and the modal would have shown an error over a working
+     comparison. */
+  const broken = !ready && (failed || refused || timedOut);
   const saving = asset.savedPercent ?? 0;
 
   // Every attempt starts its own clock, and a preview that arrives stops it.

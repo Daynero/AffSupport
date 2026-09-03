@@ -571,14 +571,7 @@ class LandingJobOptimizer {
       if (previewCached) attachPreview(item, this.previews);
       return;
     }
-    const newRel = replaceExtension(item.relPath, '.webp');
-    if (newRel !== item.relPath && scanned.has(newRel)) {
-      // A different file already owns the WebP name — never clobber it.
-      const previewCached = await this.previews.cacheOriginal(item.id, absPath, width, height);
-      markSkipped(item, 'name-collision');
-      if (previewCached) attachPreview(item, this.previews);
-      return;
-    }
+    const newRel = freeRelPath(replaceExtension(item.relPath, '.webp'), scanned);
     const previewCached = await this.previews.cache(item.id, absPath, webp, width, height);
     await writeFile(path.join(root, newRel), webp);
     scanned.add(newRel);
@@ -620,12 +613,7 @@ class LandingJobOptimizer {
       markSkipped(item, 'no-gain');
       return;
     }
-    const newRel = replaceExtension(item.relPath, '.mp4');
-    if (newRel !== item.relPath && scanned.has(newRel)) {
-      await unlink(temporary).catch(() => {});
-      markSkipped(item, 'name-collision');
-      return;
-    }
+    const newRel = freeRelPath(replaceExtension(item.relPath, '.mp4'), scanned);
     await rename(temporary, path.join(root, newRel));
     scanned.add(newRel);
     markOptimized(item, newSize, newRel === item.relPath ? null : newRel);
@@ -1032,6 +1020,30 @@ export class LandingOptimizer {
 }
 
 /* -------------------------------- helpers -------------------------------- */
+
+/**
+ * The wanted path, or the next one beside it that nothing owns.
+ *
+ * A landing that ships both `doc.png` and `doc.webp` used to cost the run the whole of the
+ * PNG: converting it would have produced a name a different file already had, so the file was
+ * left alone. On the landing this was found on that one skipped file was **1.66 MB of a
+ * 2.58 MB result** — two thirds of the finished weight, given up to avoid a name clash, with
+ * nothing on screen saying so.
+ *
+ * Never overwriting was right; stopping was not. `doc-2.webp` costs a suffix and saves the
+ * megabyte, and the reference pass that already exists rewrites every mention of it.
+ */
+export function freeRelPath(wanted: string, taken: ReadonlySet<string>): string {
+  if (!taken.has(wanted)) return wanted;
+  const extension = path.posix.extname(wanted);
+  const stem = wanted.slice(0, wanted.length - extension.length);
+  for (let n = 2; n < 1_000; n += 1) {
+    const candidate = `${stem}-${n}${extension}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+  // A thousand files of one name is not a landing; leaving it alone is the honest answer.
+  return wanted;
+}
 
 function preparingJob(
   sourceKind: LandingSourceKind,

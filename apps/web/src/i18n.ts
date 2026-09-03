@@ -939,6 +939,8 @@ const en = {
   landingRemove: 'Remove',
   landingClearFinished: 'Clear finished',
   landingQueueTitle: 'Landing queue',
+  landingQueueCountOne: '{count} landing',
+  landingQueueCountFew: '{count} landings',
   landingQueueCount: '{count} landings',
   landingReset: 'Discard',
   landingPreparing: 'Preparing landing…',
@@ -972,6 +974,13 @@ const en = {
   landingResultFailedTitle: 'The landing could not be optimized',
   landingImagesOptimized: 'Images optimized',
   landingVideosOptimized: 'Videos optimized',
+  landingAssetFilterAll: 'All',
+  landingAssetFilterSkipped: 'Untouched',
+  landingAssetSortSaving: 'By saving',
+  landingAssetSortSize: 'By size',
+  landingHeaviest: '{name} is {share}% of the result — {size}',
+  landingHeaviestUntouched: '{name} was left as it was and is now {share}% of the result — {size}',
+  landingAssetOpen: 'Compare {name} before and after',
   landingFilesSkipped: 'Files skipped',
   landingFilesFailed: 'Files failed',
   landingReferencesUpdated: 'References updated',
@@ -2911,6 +2920,8 @@ const uk: Record<keyof typeof en, string> = {
   landingRemove: 'Прибрати',
   landingClearFinished: 'Очистити завершені',
   landingQueueTitle: 'Черга лендінгів',
+  landingQueueCountOne: '{count} лендінг',
+  landingQueueCountFew: '{count} лендінги',
   landingQueueCount: '{count} лендінгів',
   landingReset: 'Скасувати',
   landingPreparing: 'Підготовка лендінгу…',
@@ -2944,6 +2955,13 @@ const uk: Record<keyof typeof en, string> = {
   landingResultFailedTitle: 'Не вдалося оптимізувати лендінг',
   landingImagesOptimized: 'Оптимізовано зображень',
   landingVideosOptimized: 'Оптимізовано відео',
+  landingAssetFilterAll: 'Усі',
+  landingAssetFilterSkipped: 'Незмінені',
+  landingAssetSortSaving: 'За економією',
+  landingAssetSortSize: 'За розміром',
+  landingHeaviest: '{name} — {share}% ваги результату, {size}',
+  landingHeaviestUntouched: '{name} залишено як є, і це {share}% ваги результату — {size}',
+  landingAssetOpen: 'Порівняти {name} до і після',
   landingFilesSkipped: 'Пропущено файлів',
   landingFilesFailed: 'Файлів із помилкою',
   landingReferencesUpdated: 'Оновлено посилань',
@@ -3997,6 +4015,13 @@ export function fileCountKey(language: Language, count: number): TranslationKey 
   const category = pluralCategory(language, count);
   if (category === 'one') return 'chipFilesOne';
   return category === 'few' ? 'chipFilesFew' : 'chipFilesMany';
+}
+
+/** Ukrainian has three forms and the toolbar prints the number: "1 лендінгів" is not one. */
+export function landingCountKey(language: Language, count: number): TranslationKey {
+  const category = pluralCategory(language, count);
+  if (category === 'one') return 'landingQueueCountOne';
+  return category === 'few' ? 'landingQueueCountFew' : 'landingQueueCount';
 }
 
 export function selectedCountKey(language: Language, count: number): TranslationKey {
