@@ -17182,7 +17182,7 @@ input[type='number'] {
   /* One number, so the countdown, the stored codes and the one-off code all
      end on the same pixel instead of drifting apart whenever the actions
      column changes width. */
-  --tfa-actions-width: 152px;
+  --tfa-actions-width: 164px;
   --tfa-code-inset: calc(var(--space-2) + 1px);
   width: min(100%, 1180px);
   margin: 0 auto;
@@ -17799,13 +17799,22 @@ input[type='number'] {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
+/* 44.2px tall because the project sets that floor on every button and it is
+   the right floor — the row is 61px, so it fits without argument. Narrower than
+   it is tall, and explicitly a centred flex box: a `button` is not one by
+   default, and the browser's own `1px 6px` padding was pushing every glyph two
+   pixels right and five pixels up inside it. */
 .tfa-cell-actions .icon-button {
-  width: 32px;
-  min-width: 32px;
-  height: 32px;
+  display: inline-flex;
+  width: 36px;
+  min-width: 36px;
+  height: 44.2px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border: 0;
   border-radius: var(--radius-md);
   color: var(--color-text-muted);
@@ -17891,13 +17900,21 @@ input[type='number'] {
 /* Sized so a row keeps its height when it turns into an editor: the list below
    used to jump twenty pixels the moment you pressed the pencil. */
 .tfa-field input {
-  height: 32px;
+  height: 42px;
 }
 
+/* The one place the 44.2px floor is wrong: this is the clear affordance inside
+   a text field, not a control standing on its own, and at full size it made the
+   field taller than every other row on the page. */
 .tfa-field .icon-button {
-  width: 26px;
-  min-width: 26px;
-  height: 26px;
+  display: inline-flex;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border: 0;
 }
 
@@ -17912,9 +17929,22 @@ input[type='number'] {
   white-space: normal;
 }
 
-/* The key is the longer of the two values, so the field that takes it fills its
-   column rather than shrinking to the placeholder. */
-.tfa-row.is-editing .tfa-field {
+/* The editor spans the name and code columns as one cell, so its two fields can
+   be equal. Left in their own columns they inherited a split meant for a name
+   and six digits — 471px against 409px — which is a difference with no reason
+   behind it once both hold a line of text you are typing. */
+.tfa-edit-fields {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.tfa-edit-field {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.tfa-edit-field .tfa-field {
   width: 100%;
 }
 

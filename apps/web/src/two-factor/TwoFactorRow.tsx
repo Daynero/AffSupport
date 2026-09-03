@@ -262,36 +262,43 @@ export function TwoFactorEditRow({
   return (
     <tr className="tfa-row is-editing">
       <td className="tfa-cell-check" />
-      <td className="tfa-cell-name">
-        <ClearableField
-          inputRef={nameField}
-          value={name}
-          label={t('twoFactorNamePlaceholder')}
-          onChange={next => {
-            setName(next);
-            setError(null);
-          }}
-          onKeyDown={onKeyDown}
-          focused
-        />
-        {error === 'twoFactorNameRequired' && (
-          <span className="tfa-edit-error" role="alert">
-            {t(error)}
-          </span>
-        )}
-      </td>
-      <td className="tfa-cell-code">
-        <ClearableField
-          value={seed}
-          label={requireSeed ? t('twoFactorKeyPlaceholder') : t('twoFactorKeyPlaceholderKeep')}
-          onChange={takeSeed}
-          onKeyDown={onKeyDown}
-        />
-        {error !== null && error !== 'twoFactorNameRequired' && (
-          <span className="tfa-edit-error" role="alert">
-            {t(error)}
-          </span>
-        )}
+      {/* One cell across both columns, so the two fields can be equal. The read
+          row's split is sized for a name and six digits; a name you are typing
+          and a key you are pasting are the same shape as each other. */}
+      <td colSpan={2}>
+        <div className="tfa-edit-fields">
+          <div className="tfa-edit-field">
+            <ClearableField
+              inputRef={nameField}
+              value={name}
+              label={t('twoFactorNamePlaceholder')}
+              onChange={next => {
+                setName(next);
+                setError(null);
+              }}
+              onKeyDown={onKeyDown}
+              focused
+            />
+            {error === 'twoFactorNameRequired' && (
+              <span className="tfa-edit-error" role="alert">
+                {t(error)}
+              </span>
+            )}
+          </div>
+          <div className="tfa-edit-field tfa-edit-key">
+            <ClearableField
+              value={seed}
+              label={requireSeed ? t('twoFactorKeyPlaceholder') : t('twoFactorKeyPlaceholderKeep')}
+              onChange={takeSeed}
+              onKeyDown={onKeyDown}
+            />
+            {error !== null && error !== 'twoFactorNameRequired' && (
+              <span className="tfa-edit-error" role="alert">
+                {t(error)}
+              </span>
+            )}
+          </div>
+        </div>
       </td>
       <td className="tfa-cell-actions">
         <div className="tfa-actions">

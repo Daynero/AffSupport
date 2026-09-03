@@ -159,7 +159,7 @@ function TwoFactorWallet() {
     // The draft row mounts on the next paint; fill its key field once it exists.
     window.setTimeout(() => {
       const field = document.querySelector<HTMLInputElement>(
-        '.tfa-row.is-editing .tfa-cell-code input'
+        '.tfa-row.is-editing .tfa-edit-key input'
       );
       if (!field) return;
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
