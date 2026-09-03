@@ -1256,7 +1256,8 @@ const en = {
   teamQueuePausedIdle: 'Paused — {count} waiting',
   teamFolderProcessScanning: 'Looking inside — {count} folders so far…',
   teamFolderProcessSubfolders: 'Everything inside, subfolders included — {count} folders',
-  teamFolderProcessTruncated: 'Stopped after the first {count} folders; run it again deeper inside for the rest',
+  teamFolderProcessTruncated:
+    'Stopped after the first {count} folders; run it again deeper inside for the rest',
   teamTranscriptSection: 'Transcript',
   teamTranscriptInProgress: 'Transcribing…',
   teamTranscriptStart: 'Transcribe',
@@ -1905,7 +1906,53 @@ const en = {
     'This space has more folders than Soty can show at once (10,000). Split it into smaller spaces.',
   teamErrorThumbnailSessionExpired: 'Thumbnails need a refresh. Reload the page.',
   teamErrorRestrictedScopeNotApproved:
-    'This Google Drive access level is not approved for production yet.'
+    'This Google Drive access level is not approved for production yet.',
+  // 2FA notebook (016) — the page itself.
+  twoFactorListLabel: 'Stored 2FA keys',
+  twoFactorLoading: 'Opening your notebook…',
+  twoFactorLoadFailed: 'Could not open your notebook. Reload the page to try again.',
+  twoFactorLoadFailedSignedOut: 'Sign in again to open your notebook.',
+  twoFactorEmpty: 'No keys yet',
+  // 2FA notebook (016) — its tile in the catalogue.
+  twoFactorNotebook: '2FA notebook',
+  twoFactorNotebookDescription:
+    'Keep your two-factor keys in one place and copy a code with one press.',
+  // 2FA notebook (016) — adding a key, and the row’s own actions.
+  twoFactorAdd: 'Add a key',
+  twoFactorNameLabel: 'Name',
+  twoFactorSeedLabel: '2FA key',
+  twoFactorSeedHint: 'Paste the key the service showed you, or the whole otpauth:// link.',
+  twoFactorSave: 'Save',
+  twoFactorCancel: 'Cancel',
+  twoFactorNameRequired: 'Give it a name, so you can find it later.',
+  twoFactorSeedErrorEmpty: 'Paste the 2FA key.',
+  twoFactorSeedErrorNotBase32: 'That is not a 2FA key — it contains characters a key never has.',
+  twoFactorSeedErrorTooShort: 'That key is too short. Check that you pasted all of it.',
+  twoFactorSeedErrorUriWithoutSecret: 'That link carries no key.',
+  twoFactorSaveFailed: 'Could not save it. Try again.',
+  twoFactorCopyKey: 'Copy the key',
+  twoFactorReveal: 'Show the key',
+  twoFactorHide: 'Hide the key',
+  twoFactorCopied: 'Copied',
+  twoFactorCopyFailed: 'Could not copy. The key is on screen — select it by hand.',
+  // 2FA notebook (016) — the code, and the clock it depends on.
+  twoFactorGenerate: 'Make a code and copy it',
+  twoFactorCodeLife: 'This code is good for {seconds} more seconds',
+  twoFactorClockOff:
+    'This computer’s clock is about {seconds} seconds off, so services will reject these codes. Fix the clock, then reload.',
+  // 2FA notebook (016) — finding, correcting and removing a key.
+  twoFactorSearchLabel: 'Search by name or key',
+  twoFactorNoMatches: 'Nothing matches “{query}”',
+  twoFactorEdit: 'Edit',
+  twoFactorDelete: 'Delete',
+  twoFactorDeleteTitle: 'Delete this key?',
+  twoFactorDeleteBody:
+    '“{name}” goes for good. Nobody can bring it back — you would have to set two-factor up again with the service.',
+  twoFactorDeleteConfirm: 'Delete it',
+  twoFactorDeleteFailed: 'Could not delete it. Try again.',
+  // 2FA notebook (016) — the empty states, in the compressor’s two-line shape.
+  twoFactorEmptyBody: 'Paste a key from the service that issued it, or the whole otpauth:// link.',
+  twoFactorNoMatchesBody: 'Try part of the name, or part of the key.'
 } as const;
 
 const uk: Record<keyof typeof en, string> = {
@@ -3808,7 +3855,53 @@ const uk: Record<keyof typeof en, string> = {
     'У цьому просторі більше папок, ніж Soty може показати за раз (10 000). Розділи його на менші простори.',
   teamErrorThumbnailSessionExpired: 'Мініатюри потребують оновлення. Перезавантаж сторінку.',
   teamErrorRestrictedScopeNotApproved:
-    'Цей рівень доступу до Google Drive ще не схвалено для продакшну.'
+    'Цей рівень доступу до Google Drive ще не схвалено для продакшну.',
+  // 2FA notebook (016) — the page itself.
+  twoFactorListLabel: 'Збережені ключі 2FA',
+  twoFactorLoading: 'Відкриваю записник…',
+  twoFactorLoadFailed:
+    'Не вдалося відкрити записник. Перезавантаж сторінку, щоб спробувати ще раз.',
+  twoFactorLoadFailedSignedOut: 'Увійди знову, щоб відкрити записник.',
+  twoFactorEmpty: 'Ключів ще немає',
+  // 2FA notebook (016) — its tile in the catalogue.
+  twoFactorNotebook: 'Записник 2FA',
+  twoFactorNotebookDescription: 'Тримай ключі 2FA в одному місці й копіюй код одним натиском.',
+  // 2FA notebook (016) — adding a key, and the row’s own actions.
+  twoFactorAdd: 'Додати ключ',
+  twoFactorNameLabel: 'Назва',
+  twoFactorSeedLabel: 'Ключ 2FA',
+  twoFactorSeedHint: 'Встав ключ, який показав сервіс, або цілий лінк otpauth://.',
+  twoFactorSave: 'Зберегти',
+  twoFactorCancel: 'Скасувати',
+  twoFactorNameRequired: 'Дай назву, щоб потім знайти.',
+  twoFactorSeedErrorEmpty: 'Встав ключ 2FA.',
+  twoFactorSeedErrorNotBase32: 'Це не ключ 2FA — у ньому є символи, яких у ключі не буває.',
+  twoFactorSeedErrorTooShort: 'Ключ закороткий. Перевір, чи вставив його цілком.',
+  twoFactorSeedErrorUriWithoutSecret: 'У цьому лінку немає ключа.',
+  twoFactorSaveFailed: 'Не вдалося зберегти. Спробуй ще раз.',
+  twoFactorCopyKey: 'Скопіювати ключ',
+  twoFactorReveal: 'Показати ключ',
+  twoFactorHide: 'Сховати ключ',
+  twoFactorCopied: 'Скопійовано',
+  twoFactorCopyFailed: 'Не вдалося скопіювати. Ключ на екрані — виділи вручну.',
+  // 2FA notebook (016) — the code, and the clock it depends on.
+  twoFactorGenerate: 'Зробити код і скопіювати',
+  twoFactorCodeLife: 'Код дійсний ще {seconds} с',
+  twoFactorClockOff:
+    'Годинник цього компʼютера збився приблизно на {seconds} с, тому сервіси відхилятимуть ці коди. Виправ годинник і перезавантаж сторінку.',
+  // 2FA notebook (016) — finding, correcting and removing a key.
+  twoFactorSearchLabel: 'Пошук за назвою або ключем',
+  twoFactorNoMatches: 'Нічого не збігається з «{query}»',
+  twoFactorEdit: 'Редагувати',
+  twoFactorDelete: 'Видалити',
+  twoFactorDeleteTitle: 'Видалити цей ключ?',
+  twoFactorDeleteBody:
+    '«{name}» зникне назавжди. Ніхто його не поверне — двофакторку доведеться налаштовувати в сервісі заново.',
+  twoFactorDeleteConfirm: 'Видалити',
+  twoFactorDeleteFailed: 'Не вдалося видалити. Спробуй ще раз.',
+  // 2FA notebook (016) — the empty states, in the compressor’s two-line shape.
+  twoFactorEmptyBody: 'Встав ключ із сервісу, який його видав, або цілий лінк otpauth://.',
+  twoFactorNoMatchesBody: 'Спробуй частину назви або частину ключа.'
 };
 
 export type TranslationKey = keyof typeof en;

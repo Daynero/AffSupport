@@ -1668,6 +1668,47 @@ export type Database = {
       };
     };
     Functions: {
+      /* 016 — the 2FA notebook. Added by hand for the same reason 015 was: the
+         committed types predate several unrelated columns in the local schema, and a
+         wholesale regeneration would drag that drift into this feature's diff.
+
+         `secret` is the vault's word for the value; the client entity calls it `seed`.
+         `mapEntry` in api/two-factor.ts is where the rename happens. */
+      list_two_factor_entries: {
+        Args: Record<string, never>;
+        Returns: {
+          id: string;
+          name: string;
+          secret: string;
+          created_at: string;
+          updated_at: string;
+        }[];
+      };
+      create_two_factor_entry: {
+        Args: { p_name: string; p_secret: string };
+        Returns: {
+          id: string;
+          name: string;
+          secret: string;
+          created_at: string;
+          updated_at: string;
+        }[];
+      };
+      update_two_factor_entry: {
+        /* `p_secret: null` renames without touching the stored seed. */
+        Args: { p_entry: string; p_name: string; p_secret: string | null };
+        Returns: {
+          id: string;
+          name: string;
+          secret: string;
+          created_at: string;
+          updated_at: string;
+        }[];
+      };
+      delete_two_factor_entry: {
+        Args: { p_entry: string };
+        Returns: undefined;
+      };
       /* 015 — the space's re-stitching defaults and what a run already knows about a
          material. Added by hand rather than by regenerating the whole file: the committed
          types predate several unrelated columns in the local schema, and a wholesale

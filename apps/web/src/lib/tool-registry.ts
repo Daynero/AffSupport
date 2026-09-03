@@ -8,7 +8,8 @@ import {
   LandingIcon,
   LandingPreviewIcon,
   StitcherIcon,
-  TranscriptionIcon
+  TranscriptionIcon,
+  TwoFactorIcon
 } from '../components/tool-icons';
 import { lazy } from 'react';
 
@@ -29,6 +30,7 @@ const LandingOptimizerPage = lazy(() => import('../landing/LandingOptimizerPage'
 const LandingPreviewPage = lazy(() => import('../landing-preview/LandingPreviewPage'));
 const TranscriptionPage = lazy(() => import('../transcription/TranscriptionPage'));
 const StitcherPage = lazy(() => import('../stitcher/StitcherPage'));
+const TwoFactorPage = lazy(() => import('../two-factor/TwoFactorPage'));
 
 // The single source of truth for the Soty web tools. Adding a tool here
 // registers its route (ProtectedSoty), its home-page tile (HomePage) and its
@@ -42,9 +44,29 @@ const StitcherPage = lazy(() => import('../stitcher/StitcherPage'));
 
 export type WebToolStatus = 'available' | 'beta' | 'coming-soon' | 'in-development';
 
-export type WebTool = {
-  /** Canonical id, aligned with the SotyToolId agent contract. */
-  id: SotyToolId;
+/**
+ * A tool that runs entirely in the browser and asks the local app for nothing.
+ *
+ * These ids are deliberately NOT in `WEB_TOOL_REQUIREMENTS`. That map is the set
+ * of agent contracts a tool page needs, and `verify-release.mjs` byte-compares
+ * it against the signed, published `stable.json` — so adding a key there blocks
+ * `deploy:web` until an agent release publishes it. That gate is right for a
+ * tool that needs the agent and exactly wrong for one that does not: it would
+ * hold a browser-only page hostage to a release it has no stake in.
+ */
+export type BrowserToolId = 'twoFactor';
+
+/**
+ * Where a tool actually runs.
+ *
+ * `'agent'` tools are gated on a connected, compatible local app — the
+ * capability check, the setup dialog, the whole path that existed before this
+ * field. `'browser'` tools skip all of it: there is nothing to install, so an
+ * offer to install something would be a lie.
+ */
+export type WebToolRuntime = 'agent' | 'browser';
+
+type WebToolShared = {
   /** Kebab-case identifier used by analytics events and route classification. */
   analyticsId: AnalyticsTool;
   path: `/${string}`;
@@ -54,15 +76,40 @@ export type WebTool = {
   /** Web-only acknowledgment gate; null when the tool has no flag. */
   featureFlag: FeatureId | null;
   status: WebToolStatus;
+  /** Rendered synchronously inside the ProtectedSoty chunk. */
+  page: ComponentType;
+};
+
+export type AgentWebTool = WebToolShared & {
+  runtime: 'agent';
+  /** Canonical id, aligned with the SotyToolId agent contract. */
+  id: SotyToolId;
   /**
    * Agent capability the tool needs. Capability tools render their own
    * pairing/onboarding while disconnected instead of the generic setup dialog,
    * and a connected agent without the capability redirects home.
    */
   capability: string | null;
-  /** Rendered synchronously inside the ProtectedSoty chunk. */
-  page: ComponentType;
 };
+
+export type BrowserWebTool = WebToolShared & {
+  runtime: 'browser';
+  id: BrowserToolId;
+  /**
+   * Absent by construction. A browser tool has no agent capability to wait for,
+   * and `runtime` is the discriminant that keeps the capability checks — and
+   * `toolAvailable`, whose argument is a `SotyToolId` — off this branch at the
+   * type level rather than by remembering to check.
+   */
+  capability?: never;
+};
+
+/**
+ * Discriminated on `runtime`, so a branch that has established "this is an agent
+ * tool" also has a `SotyToolId` in hand, and a browser tool cannot be passed to
+ * a capability check by accident.
+ */
+export type WebTool = AgentWebTool | BrowserWebTool;
 
 /**
  * A tool ships as 'in-development' while its feature flag is still protected;
@@ -77,6 +124,7 @@ function statusFor(featureFlag: FeatureId | null): WebToolStatus {
 export const webTools: readonly WebTool[] = [
   {
     id: 'compressor',
+    runtime: 'agent',
     analyticsId: 'compressor',
     path: '/compressor',
     labelKey: 'videoCompressor',
@@ -91,6 +139,7 @@ export const webTools: readonly WebTool[] = [
     // The Landing Optimizer stays visible in the catalogue before the local
     // app is installed. Agent capabilities only determine whether it opens.
     id: 'landingOptimizer',
+    runtime: 'agent',
     analyticsId: 'landing-optimizer',
     path: '/landing-optimizer',
     labelKey: 'landingOptimizer',
@@ -103,6 +152,7 @@ export const webTools: readonly WebTool[] = [
   },
   {
     id: 'landingPreview',
+    runtime: 'agent',
     analyticsId: 'landing-preview',
     path: '/landing-preview',
     labelKey: 'landingGallery',
@@ -117,6 +167,7 @@ export const webTools: readonly WebTool[] = [
     // Placed next to the compressor: the two share a screen library and answer the same
     // question — "same video, new photo" goes here, "make it smaller" goes there.
     id: 'stitcher',
+    runtime: 'agent',
     analyticsId: 'stitcher',
     path: '/stitcher',
     labelKey: 'videoStitcher',
@@ -128,7 +179,23 @@ export const webTools: readonly WebTool[] = [
     page: StitcherPage
   },
   {
+    // The first tool in the catalogue that runs entirely in the browser. It sits
+    // after the stitcher because it answers a different question from the media
+    // tools above it, and because the tile order is the reading order.
+    id: 'twoFactor',
+    runtime: 'browser',
+    analyticsId: 'two-factor',
+    path: '/2fa',
+    labelKey: 'twoFactorNotebook',
+    descriptionKey: 'twoFactorNotebookDescription',
+    icon: TwoFactorIcon,
+    featureFlag: 'twoFactorNotebook',
+    status: statusFor('twoFactorNotebook'),
+    page: TwoFactorPage
+  },
+  {
     id: 'transcription',
+    runtime: 'agent',
     analyticsId: 'transcription',
     path: '/transcription',
     labelKey: 'transcription',

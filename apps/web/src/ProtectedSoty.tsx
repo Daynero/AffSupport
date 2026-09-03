@@ -80,6 +80,10 @@ function ToolRoute({ tool }: { tool: WebTool }) {
   // direct URL visit until this browser has acknowledged the warning.
   const locked = useToolLock(tool.featureFlag);
   if (locked && tool.featureFlag) return <FeatureLockScreen feature={tool.featureFlag} />;
+  // Nothing below this line applies to a tool that runs in the browser: there is
+  // no capability to check, no version to be compatible with, and no setup
+  // screen that would tell the truth.
+  if (tool.runtime === 'browser') return <ToolPage tool={tool} />;
   if (tool.capability) {
     if (capabilities.includes(tool.capability) && toolAvailable(tool.id))
       return <ToolPage tool={tool} />;

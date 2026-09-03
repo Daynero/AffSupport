@@ -24,6 +24,33 @@ To add images, enable **Embed images into video** below the compression settings
 
 The original video is never overwritten. Embedded results use names such as `video_embedded_compressed.mp4`; an existing result receives a numeric suffix. If an image is moved, deleted, or damaged in the Agent's local storage, the affected card shows an error while the remaining queue continues.
 
+## Keep your 2FA keys where you work
+
+The **Записник 2FA / 2FA notebook** tool holds the two-factor keys for the accounts you log
+into all day, one line each. It is the only tool that needs nothing installed — it works with
+the desktop app closed.
+
+1. Open the tool and press **Додати ключ / Add a key**. Give it a name you will recognise and
+   paste the key the service showed you when you turned two-factor on. A whole
+   `otpauth://` link works too — Soty takes the key out of it and fills in the name.
+2. The row shows a `2fa` marker, not the key itself, so a screen share or someone walking
+   past does not collect your keys. The eye button shows one key when you need to check it,
+   and stops showing it as soon as you leave the page.
+3. The **key button** makes the six-digit code and puts it on the clipboard in one press —
+   switch to the login page and paste. The little bar beside it drains as the code's thirty
+   seconds run out; when it is gone the code disappears rather than sitting there stale.
+4. The **copy button** copies the key itself, for when a service or a colleague asks for the
+   key rather than a code.
+5. The search box at the top finds a row by name **or** by the key — paste a fragment of a
+   key to find out which account it belongs to.
+
+Your keys are stored privately: only your own account can read them, they are encrypted in
+Soty's vault rather than sitting in a table, and deleting one is permanent — Soty cannot
+bring it back, and you would have to set two-factor up again with the service.
+
+If every code you produce is rejected, check the computer's clock. Soty warns you when it is
+far enough out to break codes, because a wrong clock looks exactly like a wrong key.
+
 ## Change the photo screens on a video
 
 The **Зашивка відео / Video Stitcher** tool swaps the photo screens at the start and end of a

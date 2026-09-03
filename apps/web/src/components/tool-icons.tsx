@@ -58,3 +58,13 @@ export function StitcherIcon() {
     </svg>
   );
 }
+
+export function TwoFactorIcon() {
+  return (
+    <svg viewBox="0 0 32 32">
+      <circle cx="12.5" cy="12.5" r="6" />
+      <path d="m16.8 16.8 8.7 8.7" />
+      <path d="m21.5 21.5-2.8 2.8" />
+    </svg>
+  );
+}

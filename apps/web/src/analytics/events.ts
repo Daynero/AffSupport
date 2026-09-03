@@ -106,8 +106,17 @@ export const analyticsEventNames = [
 ] as const;
 
 export type AnalyticsEventName = (typeof analyticsEventNames)[number];
+// `two-factor`, never anything with "token" in it: the database guard
+// `analytics_properties_are_safe_v2` rejects any property value matching
+// `bearer|oauth|token=|authorization`, and a rejected event is a silently lost
+// event rather than a loud one.
 export type AnalyticsTool =
-  'compressor' | 'landing-optimizer' | 'landing-preview' | 'transcription' | 'stitcher';
+  | 'compressor'
+  | 'landing-optimizer'
+  | 'landing-preview'
+  | 'transcription'
+  | 'stitcher'
+  | 'two-factor';
 export type CompressionMode = 'optimal' | 'custom';
 export type RateControl = 'crf' | 'bitrate';
 

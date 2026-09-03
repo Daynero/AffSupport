@@ -9,7 +9,7 @@ import { isLocked } from './lib/feature-flags';
 import { usePageEntrance } from './lib/navigation';
 import LocalAppDialog from './components/LocalAppDialog';
 import { TeamWorkspaceIcon } from './components/tool-icons';
-import { webTools, type WebTool } from './lib/tool-registry';
+import { webTools, type AgentWebTool, type WebTool } from './lib/tool-registry';
 import { teamApi } from './api/team';
 
 export default function HomePage({ navigate }: { navigate: (path: string) => void }) {
@@ -19,7 +19,7 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
   const [help, setHelp] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [lockedTool, setLockedTool] = useState<WebTool | null>(null);
-  const [setupTool, setSetupTool] = useState<WebTool | null>(null);
+  const [setupTool, setSetupTool] = useState<AgentWebTool | null>(null);
   const panel = useRef<HTMLDivElement>(null);
   const connected = connection === 'connected';
 
@@ -50,6 +50,13 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
     // developer-pass modal instead of opening.
     if (tool.featureFlag && isLocked(tool.featureFlag)) {
       setLockedTool(tool);
+      return;
+    }
+    // A browser tool has nothing to wait for. Running it through the checks
+    // below would offer to install software it never calls, to someone whose
+    // only problem is that the local app happens to be closed.
+    if (tool.runtime === 'browser') {
+      navigate(tool.path);
       return;
     }
     if (connected && toolAvailable(tool.id)) {
@@ -180,12 +187,15 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
             const openable = tool.status !== 'coming-soon';
             const underDevelopment = tool.status === 'in-development';
             const beta = tool.status === 'beta';
-            const available = openable && connected && toolAvailable(tool.id);
+            const available =
+              openable && (tool.runtime === 'browser' || (connected && toolAvailable(tool.id)));
             // The card told assistive technology it was disabled and then acted
             // on a click and on Enter anyway. Announcing a control as
             // unavailable and having it work is worse than either alone: it is
             // the one state a user cannot reason about.
-            const inert = openable && !connected;
+            // A browser tool is never inert: there is nothing to connect to, so
+            // "unavailable because the local app is closed" would be false.
+            const inert = openable && tool.runtime === 'agent' && !connected;
             const activate = () => {
               if (inert) return;
               openTool(tool);
@@ -247,7 +257,7 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
           onUnlocked={() => {
             const tool = lockedTool;
             setLockedTool(null);
-            if (connected) navigate(tool.path);
+            if (tool.runtime === 'browser' || connected) navigate(tool.path);
           }}
         />
       )}

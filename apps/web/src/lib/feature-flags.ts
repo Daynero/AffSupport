@@ -16,7 +16,8 @@ export type FeatureId =
   | 'landingPreview'
   | 'transcription'
   | 'teamWorkspace'
-  | 'videoStitcher';
+  | 'videoStitcher'
+  | 'twoFactorNotebook';
 
 type FeatureFlag = { protected: boolean };
 
@@ -32,7 +33,11 @@ export const featureFlags: Record<FeatureId, FeatureFlag> = {
   teamWorkspace: { protected: false },
   // The stitcher stays behind the acknowledgement until it has shipped with an
   // agent release carrying its contract (014, T060).
-  videoStitcher: { protected: true }
+  videoStitcher: { protected: true },
+  // The 2FA notebook waits on no agent release — it needs nothing from the
+  // local app. It stays behind the acknowledgement only until it has been used
+  // against production data, because it stores account credentials.
+  twoFactorNotebook: { protected: true }
 };
 
 const STORAGE_PREFIX = 'wishly.feature-unlock.';

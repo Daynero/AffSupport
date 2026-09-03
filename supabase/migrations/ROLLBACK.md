@@ -232,3 +232,31 @@ restores the old behavior (overwrite finalize rejected with SOURCE_CHANGED).
 Re-apply the prior `service_complete_material_group_intent` definition (drop
 the added `reservation_released_at` line in the succeeded update). Stale
 held reservations released manually during this fix stay released.
+
+## 20260903100000_two_factor_notebook.sql
+Destructive and irreversible for stored data: the seeds live in Vault, and
+dropping the table alone would leave every secret behind as an orphan nobody can
+reach or account for. Delete the secrets **first**, through the pointer, and only
+then the table:
+
+```sql
+delete from vault.secrets
+where id in (select vault_secret_id from private.two_factor_entries);
+
+revoke all on function public.list_two_factor_entries() from authenticated;
+revoke all on function public.create_two_factor_entry(text, text) from authenticated;
+revoke all on function public.update_two_factor_entry(uuid, text, text) from authenticated;
+revoke all on function public.delete_two_factor_entry(uuid) from authenticated;
+
+drop function if exists public.delete_two_factor_entry(uuid);
+drop function if exists public.update_two_factor_entry(uuid, text, text);
+drop function if exists public.create_two_factor_entry(text, text);
+drop function if exists public.list_two_factor_entries();
+drop function if exists private.two_factor_secret_is_plausible(text);
+
+drop table if exists private.two_factor_entries;
+```
+
+Every stored 2FA seed is gone at that point, with no export and no recovery —
+each affected person has to re-enrol two-factor authentication with the service
+that issued it. Keep the `private` schema; other migrations use it.

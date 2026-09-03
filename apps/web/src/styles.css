@@ -17050,3 +17050,187 @@ input[type='number'] {
 .stitch-row[data-state='failed'] .stitch-row-detail {
   color: var(--color-danger, #e5484d);
 }
+
+/* ---------------------------------------------------------------------------
+   2FA notebook (016)
+
+   The compressor's card language at row scale: one surface, one border, the
+   same radius and spacing tokens. Nothing here introduces a colour — a tool
+   that stores account keys is not the place to start a second visual system.
+
+   The row is a grid rather than a flex line so the name column absorbs every
+   spare pixel and the action cluster never moves between rows: a copy button
+   that shifts left because the neighbour has a shorter name is a button that
+   gets mis-clicked.
+   --------------------------------------------------------------------------- */
+
+/* A surface, like the compressor's settings header and its drop zone — not a
+   translucent band. It is sticky, so it needs to be opaque anyway, and a card is
+   what the rest of the workspace is made of. */
+.two-factor-toolbar {
+  position: sticky;
+  /* Below the fixed topbar, not under it: `.topbar` is `position: fixed`, so a
+     sticky bar at `top: 0` slides beneath it and disappears exactly when a long
+     list makes it useful. */
+  top: calc(var(--topbar-h) + var(--space-2));
+  z-index: var(--layer-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.two-factor-toolbar input {
+  width: 100%;
+}
+
+.two-factor-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.two-factor-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  transition: border-color var(--dur-control) var(--ease-standard);
+}
+
+.two-factor-row:hover {
+  border-color: var(--color-border-strong);
+}
+
+/* The workspace grid puts its own gap between children; the form and the list
+   are separate children, so neither needs a margin of its own. */
+.two-factor-failed strong {
+  color: var(--color-danger, #e5484d);
+}
+
+/* One line, always. A long name is cut here rather than allowed to wrap and
+   turn a list of rows into a list of paragraphs; the full name stays in the
+   title attribute and in search. */
+.two-factor-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-md);
+}
+
+/* What stands in for the key. Not the key: a screen full of seeds is a screen
+   anyone behind you can photograph, and the copy button never needed it shown. */
+.two-factor-marker {
+  padding: 2px var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.two-factor-seed {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+  color: var(--color-text);
+}
+
+.two-factor-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* The catalogue's icon buttons are sized for a toolbar; a notebook row carries
+   four of them and has to stay one line tall. */
+.two-factor-row .icon-button {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+}
+
+.two-factor-code {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--text-lg);
+  letter-spacing: 0.08em;
+  color: var(--color-accent);
+}
+
+/* How much of the code is left, as a shrinking bar rather than a number: the
+   question is "do I still have time to paste this", not "how many seconds". */
+.two-factor-code-life {
+  width: 34px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-surface-muted);
+  overflow: hidden;
+}
+
+.two-factor-code-life span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--color-accent);
+  transition: width 1s linear;
+}
+
+/* A wrong device clock makes every code fail, and the natural conclusion is
+   that the stored keys are wrong. Say which it is. */
+.two-factor-clock-warning {
+  margin-bottom: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 40%, var(--color-border));
+  border-radius: var(--radius-md);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+  font-size: var(--text-sm);
+}
+
+.two-factor-form {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.two-factor-form label {
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.two-factor-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.two-factor-form-hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.two-factor-form-error {
+  color: var(--color-danger, #e5484d);
+  font-size: var(--text-sm);
+}

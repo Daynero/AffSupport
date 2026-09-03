@@ -45,7 +45,8 @@ const ROUTES = [
   '/transcription',
   '/landing-optimizer',
   '/landing-preview',
-  '/stitcher'
+  '/stitcher',
+  '/2fa'
 ];
 const THEMES = ['light', 'dark'];
 

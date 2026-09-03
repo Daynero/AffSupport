@@ -77,6 +77,7 @@ export type { AppEnvironment, ParsedAppEnvironment } from './environment-runtime
 export * from './environment.js';
 export * from './lifecycle.js';
 export * from './stitcher.js';
+export * from './totp.js';
 
 export const FRAME_RATE_MIN = 1;
 export const FRAME_RATE_MAX = 240;
