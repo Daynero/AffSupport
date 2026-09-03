@@ -284,6 +284,26 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
       : reply.code(409).send({ error: 'An active landing cannot be removed.' });
   });
 
+  app.post<{ Params: { jobId: string } }>(
+    '/api/landing/jobs/:jobId/repeat',
+    async (request, reply) => {
+      if (!acceptingNewTasks()) return reply.code(409).send({ error: 'UPDATE_PENDING' });
+      const repeated = await optimizer.repeat(request.params.jobId);
+      return repeated
+        ? optimizer.state()
+        : reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' });
+    }
+  );
+
+  app.post<{ Body?: { ids?: unknown } }>('/api/landing/remove', async (request, reply) => {
+    const ids = request.body?.ids;
+    if (!Array.isArray(ids) || ids.some(id => typeof id !== 'string')) {
+      return reply.code(400).send({ error: 'Invalid landing ids.' });
+    }
+    await optimizer.removeMany(ids as string[]);
+    return optimizer.state();
+  });
+
   app.delete('/api/landing/completed', async () => {
     await optimizer.clearFinished();
     return optimizer.state();

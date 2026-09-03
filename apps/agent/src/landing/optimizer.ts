@@ -107,6 +107,8 @@ class LandingJobOptimizer {
   private destinationDir: string | null = null;
   /** The landing's own file or folder, when it has one on this machine. */
   private sourcePath: string | null = null;
+  /** What "run it again" would prepare from. Null for anything that arrived as bytes. */
+  private repeatSource: { kind: 'zip' | 'folder'; path: string } | null = null;
   private pendingName = 'landing';
   private running = false;
   private controller: AbortController | null = null;
@@ -125,6 +127,11 @@ class LandingJobOptimizer {
     initialSettings: LandingSettings
   ) {
     this.settings = { ...initialSettings };
+  }
+
+  /** What this landing could be prepared from again, if anything. */
+  repeatFrom(): { kind: 'zip' | 'folder'; path: string } | null {
+    return this.repeatSource;
   }
 
   state(): LandingJobOptimizerState {
@@ -248,6 +255,7 @@ class LandingJobOptimizer {
     const input = await this.freshWorkspace('zip', zipPath);
     this.sourcePath = uploaded ? null : zipPath;
     this.destinationDir = this.destinationFor(this.sourcePath);
+    this.repeatSource = this.sourcePath ? { kind: 'zip', path: this.sourcePath } : null;
     await unzip(zipPath, input);
     await this.finalizePreparation();
   }
@@ -257,6 +265,7 @@ class LandingJobOptimizer {
     const input = await this.freshWorkspace('folder', folderPath);
     this.sourcePath = folderPath;
     this.destinationDir = this.destinationFor(this.sourcePath);
+    this.repeatSource = { kind: 'folder', path: folderPath };
     await copyDir(folderPath, path.join(input, path.basename(folderPath)));
     await this.finalizePreparation();
   }
@@ -323,6 +332,10 @@ class LandingJobOptimizer {
     job.assets = assets;
     job.totalAssets = assets.length;
     job.completedAssets = terminalAssetCount(assets);
+    /* Known from the moment the landing is prepared, not only once it has run: the flag says
+       whether there is still something on this machine to prepare from, and that is decided
+       by how the landing arrived. */
+    job.repeatable = this.repeatSource !== null;
     applySummary(job);
     this.job = job;
     this.notify();
@@ -386,6 +399,7 @@ class LandingJobOptimizer {
       this.activeChild = null;
       this.job.paused = false;
       this.cancelling = false;
+      this.job.repeatable = this.repeatSource !== null;
       applySummary(this.job);
       this.job.finishedAt = Date.now();
       this.running = false;
@@ -393,7 +407,9 @@ class LandingJobOptimizer {
       this.inputDir = null;
       this.landingRoot = null;
       this.destinationDir = null;
-      this.sourcePath = null;
+      /* `sourcePath` deliberately survives: it is what "run it again" needs, and it is a path
+         rather than anything held open. A landing that arrived through the browser has none,
+         and says so. */
       this.controller = null;
       this.notify();
       for (const resolve of this.idleWaiters.splice(0)) resolve();
@@ -911,6 +927,31 @@ export class LandingOptimizer {
   }
 
   /**
+   * Runs a finished landing again, from where it came from.
+   *
+   * A new card rather than the old one reborn: the previous result is on disk and its row is
+   * the only record of what it cost, so replacing it in place would erase the comparison the
+   * person is most likely to want. Only landings whose source is still on this machine can be
+   * repeated — one that arrived through the browser was uploaded into a working copy the run
+   * deletes.
+   */
+  async repeat(jobId: string): Promise<boolean> {
+    const worker = this.findWorker(jobId);
+    const source = worker?.repeatFrom();
+    if (!source) return false;
+    if (source.kind === 'zip') await this.prepareFromZipPath(source.path);
+    else await this.prepareFromFolderPath(source.path);
+    return true;
+  }
+
+  /** Drops several prepared or finished landings at once, the way the compressor's queue does. */
+  async removeMany(ids: readonly string[]): Promise<number> {
+    let removed = 0;
+    for (const id of ids) if (await this.remove(id)) removed += 1;
+    return removed;
+  }
+
+  /**
    * Holds one landing where it is, or lets it go again.
    *
    * `not-found` means no such landing; `unsupported` means it cannot be held right now —
@@ -1075,6 +1116,7 @@ function preparingJob(
     outputPath: null,
     outputIsArchive: settings.archive,
     paused: false,
+    repeatable: false,
     error: null,
     warnings: [],
     createdAt: Date.now(),

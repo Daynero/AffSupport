@@ -7600,10 +7600,21 @@ body:has(.public-home) {
   position: relative;
   z-index: var(--layer-raised);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  /* The selection box first, then the landing, then what can be done to it — the order the
+     compressor's rows have had since they gained a selection. */
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-4);
   padding: var(--space-4);
+}
+
+/* A card with nothing to select — one that is running — keeps its two columns. */
+.landing-batch-header:not(:has(.landing-batch-select)) {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.landing-batch-select {
+  gap: 0;
 }
 
 .landing-batch-toggle {

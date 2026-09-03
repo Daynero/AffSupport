@@ -806,6 +806,14 @@ export interface LandingJob {
   outputIsArchive: boolean;
   /** Held mid-encode by the person, the way a compression is. */
   paused: boolean;
+  /**
+   * Can this landing be run again from where it came from?
+   *
+   * Only when the source is still on this machine. A landing dropped through the browser was
+   * uploaded into a working copy that the run deletes, so there is nothing left to repeat —
+   * and an offer that cannot be honoured is worse than no offer.
+   */
+  repeatable: boolean;
   error: string | null;
   warnings: string[];
   createdAt: number;

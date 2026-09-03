@@ -333,3 +333,70 @@ describe('a name that is already taken', () => {
     await optimizer.shutdown();
   }, 60_000);
 });
+
+describe('running a finished landing again', () => {
+  it('prepares a fresh one from where the first came from', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'landing-repeat-'));
+    roots.push(root);
+    vi.stubEnv('AGENT_LANDING_WORKSPACE', path.join(root, 'workspaces'));
+    vi.stubEnv('AGENT_LANDING_SETTINGS_PATH', path.join(root, 'settings.json'));
+    const source = await landingFolder(root, 'promo');
+
+    const optimizer = new LandingOptimizer({ ffmpeg: true, ffprobe: true }, () => {});
+    optimizer.updateSettings({ archive: false });
+    await optimizer.prepareFromFolderPath(source);
+    const first = optimizer.state().jobs[0]!;
+    await optimizer.start([first.id]);
+
+    const finished = optimizer.state().jobs.find(job => job.id === first.id)!;
+    // The source is a path, and a path outlives the run — so this one can be repeated.
+    expect(finished.repeatable).toBe(true);
+
+    expect(await optimizer.repeat(first.id)).toBe(true);
+    const jobs = optimizer.state().jobs;
+    /* A new card rather than the old one reborn: the first result is on disk and its row is
+       the only record of what it cost. */
+    expect(jobs).toHaveLength(2);
+    expect(jobs.some(job => job.id !== first.id && job.status === 'ready')).toBe(true);
+    await optimizer.shutdown();
+  }, 60_000);
+
+  it('refuses a landing whose source only ever existed in the browser', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'landing-repeat-upload-'));
+    roots.push(root);
+    vi.stubEnv('AGENT_LANDING_WORKSPACE', path.join(root, 'workspaces'));
+    vi.stubEnv('AGENT_LANDING_SETTINGS_PATH', path.join(root, 'settings.json'));
+
+    const optimizer = new LandingOptimizer({ ffmpeg: true, ffprobe: true }, () => {});
+    const input = await optimizer.beginUpload('folder', 'promo');
+    await mkdir(path.join(input, 'promo'), { recursive: true });
+    await writeFile(path.join(input, 'promo', 'index.html'), '<html></html>');
+    await optimizer.finishFolderUpload();
+    const job = optimizer.state().jobs[0]!;
+    await optimizer.start([job.id]);
+
+    // Uploaded into a working copy the run deletes: there is nothing left to prepare from,
+    // and an offer that cannot be honoured is worse than no offer.
+    expect(optimizer.state().jobs[0]!.repeatable).toBe(false);
+    expect(await optimizer.repeat(job.id)).toBe(false);
+    await optimizer.shutdown();
+  }, 60_000);
+});
+
+describe('dropping several landings at once', () => {
+  it('removes the ones that were picked out', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'landing-remove-many-'));
+    roots.push(root);
+    vi.stubEnv('AGENT_LANDING_WORKSPACE', path.join(root, 'workspaces'));
+    vi.stubEnv('AGENT_LANDING_SETTINGS_PATH', path.join(root, 'settings.json'));
+
+    const optimizer = new LandingOptimizer({ ffmpeg: true, ffprobe: true }, () => {});
+    for (const name of ['one', 'two', 'three']) {
+      await optimizer.prepareFromFolderPath(await landingFolder(root, name));
+    }
+    const ids = optimizer.state().jobs.map(job => job.id);
+    expect(await optimizer.removeMany(ids.slice(0, 2))).toBe(2);
+    expect(optimizer.state().jobs).toHaveLength(1);
+    await optimizer.shutdown();
+  }, 60_000);
+});

@@ -3,6 +3,8 @@ import {
   Ban,
   Broom,
   ChevronDown,
+  Pause,
+  Trash2,
   Files,
   FolderOpen,
   Crown,
@@ -159,8 +161,30 @@ export default function LandingOptimizerPage() {
   };
 
   const { ref: toolbarRow, compactActions, compactChips } = useCompactToolbar();
+  /* The compressor's own selection, for the same reason it has one: a queue of landings is a
+     list of things you want to act on some of, not all of. */
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const jobs = state?.jobs ?? (state?.job ? [state.job] : []);
   const visibleJobs = useMemo(() => [...jobs].sort((a, b) => b.createdAt - a.createdAt), [jobs]);
+  /* Selecting is only meaningful for landings the buttons can actually act on, and a landing
+     that is running is not one of them — it has its own pause and stop on its card. */
+  const selectableIds = useMemo(
+    () => jobs.filter(job => job.status !== 'processing').map(job => job.id),
+    [jobs]
+  );
+  // A selection cannot outlive the rows it names.
+  useEffect(() => {
+    setSelected(current => {
+      const next = new Set([...current].filter(id => selectableIds.includes(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [selectableIds]);
+  const selectedReady = useMemo(
+    () => jobs.filter(job => selected.has(job.id) && job.status === 'ready'),
+    [jobs, selected]
+  );
+  const runningJob = useMemo(() => jobs.find(job => job.status === 'processing') ?? null, [jobs]);
+
   const counts = useMemo(
     () => ({
       processing: jobs.filter(job => job.status === 'processing').length,
@@ -174,6 +198,8 @@ export default function LandingOptimizerPage() {
   const readyJobs = jobs.filter(job => job.status === 'ready');
   const finishedJobs = jobs.filter(job => isSettled(LANDING_JOB_LIFECYCLE, job.status));
   const stoppable = jobs.some(job => landingStoppable(job.status));
+  /** What the primary would start right now: the selection when there is one, else everything. */
+  const runnable = selected.size ? selectedReady : readyJobs;
 
   const updateSettings = async (patch: Partial<LandingSettings>) => {
     try {
@@ -307,6 +333,61 @@ export default function LandingOptimizerPage() {
    * what this window could see before the call, so a click that lands just
    * after the last one finished reports honestly.
    */
+  const startSelected = async () => {
+    const ids = (selected.size ? selectedReady : readyJobs).map(job => job.id);
+    if (!ids.length) return;
+    try {
+      applyState(await requestBody<LandingState>('/api/landing/start', { ids }));
+      analytics.track('landing_optimization_started', {
+        tool_identifier: 'landing-optimizer',
+        file_count: ids.length
+      });
+    } catch (error) {
+      handleError(error);
+    }
+  };
+
+  const removeSelected = async () => {
+    if (!selected.size) return;
+    try {
+      applyState(
+        await requestBody<LandingState>('/api/landing/remove', { ids: [...selected] })
+      );
+      setSelected(new Set());
+    } catch (error) {
+      handleError(error);
+    }
+  };
+
+  const repeat = async (jobId: string) => {
+    try {
+      applyState(
+        await request<LandingState>(
+          `/api/landing/jobs/${encodeURIComponent(jobId)}/repeat`,
+          'POST'
+        )
+      );
+    } catch (error) {
+      handleError(error);
+    }
+  };
+
+  /* Holding the whole run means holding the one landing that is running: the rest are queued,
+     and a queued landing is already as stopped as it gets. */
+  const pauseAll = async (paused: boolean) => {
+    if (!runningJob) return;
+    try {
+      applyState(
+        await requestBody<LandingState>(
+          `/api/landing/jobs/${encodeURIComponent(runningJob.id)}/pause`,
+          { paused }
+        )
+      );
+    } catch (error) {
+      handleError(error);
+    }
+  };
+
   const stopAll = async () => {
     const stopping = jobs.filter(job => landingStoppable(job.status)).length;
     try {
@@ -400,6 +481,26 @@ export default function LandingOptimizerPage() {
               }`.trim()}
               ref={toolbarRow}
             >
+              {/* Select-all and the way out of a selection, exactly where the compressor
+                  keeps them. */}
+              <div className="selection-actions">
+                <Checkbox
+                  className="select-all-box"
+                  checked={selectableIds.length > 0 && selected.size === selectableIds.length}
+                  disabled={!connected || selectableIds.length === 0}
+                  onChange={event =>
+                    setSelected(event.target.checked ? new Set(selectableIds) : new Set())
+                  }
+                  label={<strong>{t('selectAll')}</strong>}
+                />
+                <Button
+                  variant="ghost"
+                  disabled={!connected || selected.size === 0}
+                  onClick={() => setSelected(new Set())}
+                >
+                  {t('clearSelection')}
+                </Button>
+              </div>
               <div className="batch-chips" aria-hidden="true">
                 <LandingChip
                   count={jobs.length}
@@ -423,17 +524,42 @@ export default function LandingOptimizerPage() {
                 />
               </div>
               <div className="primary-actions">
-                <Button
-                  /* Ghost while there is nothing to run: a dimmed primary reads as broken,
-                     not as "nothing to do". */
-                  variant={readyJobs.length === 0 ? 'ghost' : 'primary'}
-                  disabled={!connected || readyJobs.length === 0}
-                  title={t('landingOptimizeAll')}
-                  onClick={() => void startAll()}
-                >
-                  <Play size={18} strokeWidth={1.75} aria-hidden="true" />
-                  <span className="action-label">{t('landingOptimizeAll')}</span>
-                </Button>
+                {/* While something is running the primary becomes the hold for the whole run,
+                    which is what the compressor's does and for the same reason: it is the one
+                    thing anybody wants from this row mid-encode. */}
+                {runningJob ? (
+                  <Button
+                    variant="primary"
+                    disabled={!connected}
+                    title={t(runningJob.paused ? 'resumeAll' : 'pauseAll')}
+                    onClick={() => void pauseAll(!runningJob.paused)}
+                  >
+                    {runningJob.paused ? (
+                      <Play size={18} strokeWidth={1.75} aria-hidden="true" />
+                    ) : (
+                      <Pause size={18} strokeWidth={1.75} aria-hidden="true" />
+                    )}
+                    <span className="action-label">
+                      {t(runningJob.paused ? 'resumeAll' : 'pauseAll')}
+                    </span>
+                  </Button>
+                ) : (
+                  <Button
+                    /* Ghost while there is nothing to run: a dimmed primary reads as broken,
+                       not as "nothing to do". */
+                    variant={runnable.length === 0 ? 'ghost' : 'primary'}
+                    disabled={!connected || runnable.length === 0}
+                    title={selected.size ? t('landingOptimizeSelected') : t('landingOptimizeAll')}
+                    onClick={() => void startSelected()}
+                  >
+                    <Play size={18} strokeWidth={1.75} aria-hidden="true" />
+                    <span className="action-label">
+                      {selected.size
+                        ? `${t('landingOptimizeSelected')} (${runnable.length})`
+                        : t('landingOptimizeAll')}
+                    </span>
+                  </Button>
+                )}
                 {stoppable && (
                   <Button
                     variant="danger"
@@ -445,6 +571,15 @@ export default function LandingOptimizerPage() {
                     <span className="action-label">{t('stopAll')}</span>
                   </Button>
                 )}
+                <Button
+                  variant="danger"
+                  disabled={!connected || selected.size === 0}
+                  title={t('removeSelected')}
+                  onClick={() => void removeSelected()}
+                >
+                  <Trash2 size={18} strokeWidth={1.75} aria-hidden="true" />
+                  <span className="action-label">{t('removeSelected')}</span>
+                </Button>
                 {finishedJobs.length > 0 && (
                   <Button
                     variant="ghost"
@@ -483,6 +618,19 @@ export default function LandingOptimizerPage() {
                     `/api/landing/jobs/${encodeURIComponent(job.id)}/output/${action}`,
                     'POST'
                   ).catch(handleError)
+                }
+                onRepeat={job.repeatable ? () => void repeat(job.id) : undefined}
+                selected={selected.has(job.id)}
+                onSelect={
+                  job.status === 'processing'
+                    ? undefined
+                    : next =>
+                        setSelected(current => {
+                          const copy = new Set(current);
+                          if (next) copy.add(job.id);
+                          else copy.delete(job.id);
+                          return copy;
+                        })
                 }
                 onPause={paused =>
                   void requestBody<LandingState>(

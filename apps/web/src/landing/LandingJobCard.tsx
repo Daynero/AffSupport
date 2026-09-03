@@ -7,8 +7,15 @@ import type { Language, TranslationKey } from '../i18n';
 import { Card } from '../components/Card';
 /* The compressor's own set, at the compressor's own size: every action on a card wears
    the icon that action wears everywhere else in Soty. */
-import { Ban, ExternalLink, FolderOpen, Pause, Play, Trash2 } from 'lucide-react';
-import { Button, Collapse, ProgressBar, SotyLoader, type Translate } from '../components/ui';
+import { Ban, ExternalLink, FolderOpen, Pause, Play, RefreshCw, Trash2 } from 'lucide-react';
+import {
+  Button,
+  Checkbox,
+  Collapse,
+  ProgressBar,
+  SotyLoader,
+  type Translate
+} from '../components/ui';
 import { ImageCompareModal } from './ImageCompareModal';
 
 export function LandingJobCard({
@@ -21,6 +28,9 @@ export function LandingJobCard({
   onReveal,
   onPause,
   onStop,
+  onRepeat,
+  selected,
+  onSelect,
   t
 }: {
   job: NonNullable<LandingState['job']>;
@@ -34,6 +44,11 @@ export function LandingJobCard({
   onPause?: (paused: boolean) => void;
   /** Abandon a run in flight. Not the same as removing the row, which a run refuses. */
   onStop?: () => void;
+  /** Prepare this landing again from where it came from; absent when it cannot be. */
+  onRepeat?: () => void;
+  /** Part of the toolbar's selection. Absent while the landing is running. */
+  selected?: boolean;
+  onSelect?: (selected: boolean) => void;
   t: Translate;
 }) {
   const listId = useId();
@@ -122,6 +137,16 @@ export function LandingJobCard({
       aria-labelledby={`${listId}-title`}
     >
       <div className="landing-batch-header">
+        {onSelect && (
+          <Checkbox
+            className="landing-batch-select"
+            checked={selected === true}
+            aria-label={t('landingSelectOne', { name: job.name })}
+            // The name is beside it already; the box carries the label for a screen reader.
+            label={null}
+            onChange={event => onSelect(event.target.checked)}
+          />
+        )}
         <button
           type="button"
           className="landing-batch-toggle"
@@ -224,6 +249,14 @@ export function LandingJobCard({
                 {t('landingShowResult')}
               </Button>
             </>
+          )}
+          {/* The compressor offers a repeat on anything that has finished; so does this, when
+              the landing it came from is still on the machine. */}
+          {(completed || failed || cancelled) && onRepeat && (
+            <Button variant="secondary" disabled={!connected} onClick={onRepeat}>
+              <RefreshCw size={16} strokeWidth={1.75} aria-hidden="true" />
+              {t('landingRepeat')}
+            </Button>
           )}
           {(completed || failed || cancelled) && (
             <Button variant="danger" disabled={!connected} onClick={onReset}>
