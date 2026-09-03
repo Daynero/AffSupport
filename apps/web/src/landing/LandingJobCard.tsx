@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode
+} from 'react';
 import {
   LANDING_MEDIA_PROGRESS_SHARE,
   type LandingAsset,
@@ -539,6 +547,38 @@ function LandingSuccessSummary({
   );
 }
 
+/**
+ * The row's text, as a button when there is something to open and a plain block when there is
+ * not.
+ *
+ * Described rather than relabelled: an `aria-label` replaces an element's contents, so the
+ * saving and both sizes went unread for exactly the rows that had them. The title is the
+ * hover hint; the row's own words are its name.
+ */
+function RowCopy({
+  openable,
+  title,
+  onOpen,
+  children
+}: {
+  openable: boolean;
+  title: string;
+  onOpen: (trigger: HTMLElement) => void;
+  children: ReactNode;
+}) {
+  if (!openable) return <div className="landing-asset-copy">{children}</div>;
+  return (
+    <button
+      type="button"
+      className="landing-asset-copy is-openable"
+      title={title}
+      onClick={event => onOpen(event.currentTarget)}
+    >
+      {children}
+    </button>
+  );
+}
+
 function LandingAssetRow({
   jobId,
   asset,
@@ -587,16 +627,15 @@ function LandingAssetRow({
       </div>
 
       {/* The name and its numbers open the comparison too. The thumbnail alone was a 44px
-          target on a row six hundred wide, and nothing about the name suggested it was one. */}
-      {openable ? (
-        <button
-          type="button"
-          className="landing-asset-copy is-openable"
-          /* Described, not relabelled: an `aria-label` replaces the contents, so the saving
-             and both sizes were never read out for exactly the rows that had them. */
-          title={t('landingAssetOpen', { name: fileName })}
-          onClick={event => onCompare(asset.id, event.currentTarget)}
-        >
+          target on a row six hundred wide, and nothing about the name suggested it was one.
+
+          One copy of the contents, wrapped in whichever element the row deserves. Two branches
+          of identical markup had already cost this file one fix written twice. */}
+      <RowCopy
+        openable={openable}
+        title={t('landingAssetOpen', { name: fileName })}
+        onOpen={trigger => onCompare(asset.id, trigger)}
+      >
         {/* No type tag: the thumbnail beside it has already said what kind of file this is,
             on every row, twenty-two times. */}
         <div className="landing-asset-name-line">
@@ -639,44 +678,7 @@ function LandingAssetRow({
           </span>
           {asset.note && <span className="landing-note">{localizedNote(asset.note, t)}</span>}
         </div>
-        </button>
-      ) : (
-        <div className="landing-asset-copy">
-        {/* No type tag: the thumbnail beside it has already said what kind of file this is,
-            on every row, twenty-two times. */}
-        <div className="landing-asset-name-line">
-          <h3 title={displayPath}>{fileName}</h3>
-          {parentPath && !hideFolder && (
-            <span className="landing-asset-path" title={parentPath}>
-              {parentPath}
-            </span>
-          )}
-        </div>
-        <div className="landing-asset-sizes">
-          {/* The percentage leads and the two figures follow it quietly: on a list this long
-              the third number is the one that is scanned, and it is the one derived from the
-              other two. */}
-          {asset.status === 'optimized' &&
-            asset.optimizedSize !== null &&
-            asset.savedPercent !== null &&
-            asset.savedPercent > 0 && (
-              <span className="landing-saved">
-                {t('landingSaved', { value: asset.savedPercent })}
-              </span>
-            )}
-          <span className="landing-asset-bytes">
-            {formatSize(asset.originalSize, language)}
-            {asset.status === 'optimized' && asset.optimizedSize !== null && (
-              <>
-                <i aria-hidden="true">→</i>
-                {formatSize(asset.optimizedSize, language)}
-              </>
-            )}
-          </span>
-          {asset.note && <span className="landing-note">{localizedNote(asset.note, t)}</span>}
-        </div>
-        </div>
-      )}
+      </RowCopy>
 
       {/* A badge on every row that says "optimized" is a badge that says nothing. It stays for
           the outcomes that are not the ordinary one — left alone, failed, still running. */}

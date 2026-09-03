@@ -122,8 +122,12 @@ landingEvents.publishOn(channelHub, 'landing');
 // Whatever was chosen last time, before the first request can read the settings back.
 await landingOptimizer.restoreSettings();
 /* And whatever the last run left behind. A working copy is a whole copy of a landing; it is
-   cleared when its job goes, which does not happen if this process was killed. */
-void sweepWorkspaces();
+   cleared when its job goes, which does not happen if this process was killed.
+   Awaited: the sweep deletes every `landing-*` directory, and `createWorkspace` makes its
+   directories with exactly that prefix — so a drop that arrived while a fire-and-forget sweep
+   was still walking could have its working copy removed underneath it. Nothing can arrive
+   before the server listens, and this finishes first. */
+await sweepWorkspaces();
 
 const landingPreviewCatalog = new LandingPreviewCatalog({
   // Read through the process-wide governor rather than captured here: the

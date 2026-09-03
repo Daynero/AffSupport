@@ -8084,17 +8084,6 @@ body:has(.public-home) {
   white-space: nowrap;
 }
 
-.landing-type-tag {
-  padding: 1px 6px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  color: var(--color-text-muted);
-  background: var(--color-surface-muted);
-  font-size: var(--text-base);
-  font-weight: 650;
-  letter-spacing: 0.05em;
-}
-
 .landing-asset-sizes {
   display: flex;
   align-items: center;
@@ -8859,11 +8848,7 @@ body:has(.public-home) {
     grid-template-columns: 74px minmax(0, 1fr);
   }
 
-  .landing-type-tag {
-    display: none;
-  }
-
-  .landing-compare-backdrop {
+    .landing-compare-backdrop {
     padding: 0;
   }
 
