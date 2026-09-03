@@ -83,10 +83,12 @@ code. Editing happens in the row itself — and adding uses the same row, so the
 is one editor rather than two that drift apart. Sorting, selection and a bulk
 delete sit where a table puts them.
 
-Above the table is the **quick-code bar**: paste a key that is not stored — bare
-or as an `otpauth://` link — and take its code without saving anything. It is
-the case a wallet otherwise handles badly, when somebody sends you a key or you
-are half-way through enrolling an account.
+Above the table, always, is the **quick-code bar**: paste a key that is not
+stored — bare or as an `otpauth://` link — and take its code without saving
+anything. It is the case a wallet otherwise handles badly, when somebody sends
+you a key or you are half-way through enrolling an account. It sits behind no
+toggle on purpose: a bar you have to open first is a bar nobody remembers exists
+at the moment they need it.
 
 ## What the interface deliberately does not do
 

@@ -44,9 +44,9 @@ the desktop app closed.
 4. The pencil edits the line in place. Leave the key field empty to change only the name.
 5. The search box at the top finds a line by name **or** by the key — paste a fragment of a
    key to find out which account it belongs to. **⌘K** jumps to it from anywhere on the page.
-6. **Швидкий код / Quick code** opens a field for a key that is _not_ in the wallet: paste it,
-   take the code, and nothing is saved. Useful when somebody sends you a key or you are
-   half-way through setting an account up.
+6. The field above the table is for a key that is _not_ in the wallet: paste it, press
+   **Скопіювати код**, and the code is on your clipboard with nothing saved. Useful when
+   somebody sends you a key or you are half-way through setting an account up.
 7. Tick several lines to delete them together. Deleting asks first, and is permanent.
 
 Your keys are stored privately: only your own account can read them, they are encrypted in

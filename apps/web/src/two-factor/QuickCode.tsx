@@ -1,20 +1,21 @@
 /**
  * A code for a key that is not in the notebook (feature 016).
  *
- * Pinned above the list, because the case it answers is urgent and one-off:
+ * Always above the list, because the case it answers arrives without warning:
  * somebody sends you a key, or you are half-way through enrolling an account,
- * and you need the six digits once without storing anything. Nothing typed here
- * is saved — it never reaches the database, and it is gone when the bar closes.
+ * and you need the six digits once without storing anything. A bar that had to
+ * be opened first would be a bar nobody remembers exists at the moment they
+ * need it. Nothing typed here is saved — it never reaches the database, and it
+ * is gone on the next reload.
  *
  * The same synchronous rule as everywhere else: the key is parsed and the code
  * computed inside the click, so the clipboard write keeps the user activation a
  * browser demands.
  */
 
-import { useEffect, useRef, useState } from 'react';
-import { Copy, KeyRound, X } from 'lucide-react';
+import { useState } from 'react';
+import { Copy, KeyRound } from 'lucide-react';
 import { parseTwoFactorSeed, type TwoFactorSeedError } from '@video-compressor/shared';
-import { IconButton } from '../components/ui';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { useI18n, type TranslationKey } from '../i18n';
 import { copyText } from './clipboard';
@@ -27,16 +28,11 @@ const SEED_ERROR_KEYS: Record<TwoFactorSeedError, TranslationKey> = {
   URI_WITHOUT_SECRET: 'twoFactorSeedErrorUriWithoutSecret'
 };
 
-export function QuickCode({ onClose }: { onClose: () => void }) {
+export function QuickCode() {
   const { t } = useI18n();
   const [value, setValue] = useState('');
   const [code, setCode] = useState<LiveCode | null>(null);
   const [error, setError] = useState<TranslationKey | null>(null);
-  const field = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    field.current?.focus();
-  }, []);
 
   const run = () => {
     const parsed = parseTwoFactorSeed(value);
@@ -60,7 +56,6 @@ export function QuickCode({ onClose }: { onClose: () => void }) {
       <div className="tfa-quick-field">
         <KeyRound size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
         <input
-          ref={field}
           type="text"
           value={value}
           spellCheck={false}
@@ -92,10 +87,6 @@ export function QuickCode({ onClose }: { onClose: () => void }) {
           {t(error)}
         </span>
       )}
-
-      <IconButton label={t('twoFactorQuickClose')} className="tfa-quick-close" onClick={onClose}>
-        <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-      </IconButton>
     </section>
   );
 }

@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Clipboard, Plus, Search, Shield, Trash2, Zap } from 'lucide-react';
+import { ChevronDown, Clipboard, Plus, Search, Shield, Trash2 } from 'lucide-react';
 import { analytics } from '../analytics/service';
 import { IconButton } from '../components/ui';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
@@ -50,7 +50,6 @@ function TwoFactorWallet() {
 
   const [query, setQuery] = useState('');
   const [order, setOrder] = useState<SortOrder>('az');
-  const [quickOpen, setQuickOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -182,16 +181,6 @@ function TwoFactorWallet() {
         </div>
 
         <div className="tfa-header-actions">
-          <button
-            type="button"
-            className={quickOpen ? 'tfa-quick-toggle is-on' : 'tfa-quick-toggle'}
-            aria-pressed={quickOpen}
-            onClick={() => setQuickOpen(open => !open)}
-          >
-            <Zap size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            {t('twoFactorQuickCode')}
-          </button>
-
           <SortMenu order={order} onChange={setOrder} />
 
           <div className="tfa-add">
@@ -217,7 +206,10 @@ function TwoFactorWallet() {
         </p>
       )}
 
-      {quickOpen && <QuickCode onClose={() => setQuickOpen(false)} />}
+      {/* Always there, never behind a toggle: the moment somebody needs a code
+          for a key they have not stored is not a moment to go looking for the
+          control that produces one. */}
+      <QuickCode />
 
       <div className="tfa-table-frame">
         <table className="tfa-table">

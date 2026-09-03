@@ -306,11 +306,6 @@ describe('a code for a key that is not stored', () => {
 
   const quickBar = () => screen.getByRole('region', { name: en('twoFactorQuickCode') });
 
-  async function openQuick() {
-    fireEvent.click(screen.getByRole('button', { name: en('twoFactorQuickCode') }));
-    await waitFor(() => expect(quickBar()).toBeTruthy());
-  }
-
   function paste(value: string) {
     fireEvent.change(within(quickBar()).getByLabelText(en('twoFactorQuickPlaceholder')), {
       target: { value }
@@ -320,9 +315,16 @@ describe('a code for a key that is not stored', () => {
   const run = () =>
     fireEvent.click(within(quickBar()).getByRole('button', { name: en('twoFactorCopyCode') }));
 
+  it('is there without being asked for', async () => {
+    await openWallet([]);
+    // Not behind a toggle: the moment somebody needs a code for a key they have
+    // not stored is not a moment to go looking for the control that makes one.
+    expect(quickBar()).toBeTruthy();
+    expect(within(quickBar()).getByLabelText(en('twoFactorQuickPlaceholder'))).toBeTruthy();
+  });
+
   it('takes a pasted key and hands back the code, storing nothing', async () => {
     await openWallet([]);
-    await openQuick();
     paste(SEED);
     run();
 
@@ -337,7 +339,6 @@ describe('a code for a key that is not stored', () => {
 
   it('accepts an enrolment link as readily as a bare key', async () => {
     await openWallet([]);
-    await openQuick();
     paste(`otpauth://totp/Example?secret=${SEED}`);
     run();
     expect(writeText).toHaveBeenCalledWith(generateTotp(SEED, AT));
@@ -345,7 +346,6 @@ describe('a code for a key that is not stored', () => {
 
   it('says which rule a bad key breaks instead of producing digits', async () => {
     await openWallet([]);
-    await openQuick();
     paste('nope!');
     run();
 

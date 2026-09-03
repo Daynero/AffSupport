@@ -23,7 +23,7 @@ password manager: no folders, no sharing UI, no history, no QR camera. It borrow
 language — the same palette, icon weight, card and row shapes — so it reads as
 part of the same product rather than a bolted-on utility.
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Keep a secret and hand it over (Priority: P1)
 
@@ -141,7 +141,7 @@ entry and delete another, then reload to confirm both changes stuck.
 - **Leaving the tool.** Navigating away or locking the screen does not leave a
   generated code sitting on screen indefinitely.
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
@@ -215,7 +215,9 @@ entry and delete another, then reload to confirm both changes stuck.
 
 - **FR-025**: A field pinned above the list MUST accept a 2FA key — bare or as
   an `otpauth://` link — and produce its current code, for a key that is not in
-  the wallet and is not being added to it.
+  the wallet and is not being added to it. It MUST be present at all times, not
+  behind a control that has to be found first: the moment it is needed is not a
+  moment to go looking for it.
 - **FR-026**: Nothing entered there MUST be stored: it never reaches the
   database, and it is gone when the bar is closed.
 - **FR-027**: That code MUST reach the clipboard from the same single press, and
@@ -265,7 +267,7 @@ entry and delete another, then reload to confirm both changes stuck.
 - **Notebook**: The collection of entries belonging to one owner; the unit that
   search filters and that access rules protect.
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 
