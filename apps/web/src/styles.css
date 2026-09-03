@@ -17289,9 +17289,12 @@ input[type='number'] {
    account is added once and a code is taken twenty times a day.
    =========================================================================== */
 
-/* Capped rather than full-bleed. Two meaningful columns do not improve with a
-   2560px monitor — they just move further apart until the eye cannot carry a row
-   across. */
+/* Capped, but not pinned to one number. The cap is there because a row the full
+   width of a 2560px display is a row the eye loses halfway across; 1180px was
+   the wrong cap, though — it was tuned against a 1264px window and left the tool
+   a small island on anything larger, while every other tool in the product runs
+   at `--shell-width` (80vw). It grows with the viewport now and stops at 1560px,
+   which is about as long as a row can get and still be read as one thing. */
 .tfa-page {
   display: grid;
   gap: var(--space-3);
@@ -17300,7 +17303,7 @@ input[type='number'] {
      column changes width. */
   --tfa-actions-width: 164px;
   --tfa-code-inset: calc(var(--space-2) + 1px);
-  width: min(100%, 1180px);
+  width: min(100%, max(1180px, 78vw), 1560px);
   margin: 0 auto;
   padding: var(--space-4);
   border: 1px solid var(--color-border);
