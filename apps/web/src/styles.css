@@ -15310,15 +15310,33 @@ button.team-landing-tile:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* One row that wraps as a row. `margin-left: auto` on the last action used to push it onto a
+   line of its own the moment the others needed two, which read as three unrelated controls
+   stacked in a corner rather than one set of choices. */
 .team-process-panel-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
 }
-/* The way out sits apart from the rest, and reads like it. */
+.team-process-panel-actions > .button {
+  /* Every action carries the same chrome: a bare word beside a boxed one reads as a label,
+     not a button. */
+  border: 1px solid var(--color-border);
+  padding: var(--space-1) var(--space-3);
+  white-space: nowrap;
+}
+.team-process-panel-actions > .button:hover {
+  border-color: var(--color-border-strong);
+}
+/* The way out reads like one, without being torn out of the row. */
 .team-process-panel-stop {
-  margin-left: auto;
   color: var(--color-error);
+  border-color: color-mix(in srgb, var(--color-error) 40%, transparent) !important;
+}
+.team-process-panel-stop:hover {
+  background: color-mix(in srgb, var(--color-error) 12%, transparent);
+  border-color: color-mix(in srgb, var(--color-error) 60%, transparent) !important;
 }
 
 .team-transcribe-queue {
