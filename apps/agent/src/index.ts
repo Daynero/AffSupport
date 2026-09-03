@@ -23,6 +23,7 @@ import {
   MediaToolUnavailableError
 } from './ffmpeg/tools.js';
 import { ImageAssetStore } from './images/store.js';
+import { sweepWorkspaces } from './landing/workspace.js';
 import { LandingOptimizer } from './landing/optimizer.js';
 import { LandingPreviewCatalog } from './landing-preview/catalog.js';
 import { MediaActionQueue } from './media-actions/queue.js';
@@ -120,6 +121,9 @@ const landingOptimizer = new LandingOptimizer(tools, (type: LandingEventType = '
 landingEvents.publishOn(channelHub, 'landing');
 // Whatever was chosen last time, before the first request can read the settings back.
 await landingOptimizer.restoreSettings();
+/* And whatever the last run left behind. A working copy is a whole copy of a landing; it is
+   cleared when its job goes, which does not happen if this process was killed. */
+void sweepWorkspaces();
 
 const landingPreviewCatalog = new LandingPreviewCatalog({
   // Read through the process-wide governor rather than captured here: the

@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import type { LandingAsset, LandingJob, LandingState } from '@video-compressor/shared';
+import {
+  LANDING_MEDIA_PROGRESS_SHARE,
+  type LandingAsset,
+  type LandingJob,
+  type LandingState
+} from '@video-compressor/shared';
 import { landingPreviewPath } from '../api/client';
 import { useSubresourceUrl } from '../api/useSubresourceUrl';
 import { formatSize } from '../format';
@@ -237,7 +242,7 @@ export function LandingJobCard({
           {(ready || queued || job.status === 'preparing') && (
             <Button variant="danger" disabled={!connected} onClick={onReset}>
               <Trash2 size={16} strokeWidth={1.75} aria-hidden="true" />
-              <span className="action-label">{t('landingReset')}</span>
+              <span className="action-label">{t('landingRemove')}</span>
             </Button>
           )}
           {completed && job.outputPath && (
@@ -587,7 +592,9 @@ function LandingAssetRow({
         <button
           type="button"
           className="landing-asset-copy is-openable"
-          aria-label={t('landingAssetOpen', { name: fileName })}
+          /* Described, not relabelled: an `aria-label` replaces the contents, so the saving
+             and both sizes were never read out for exactly the rows that had them. */
+          title={t('landingAssetOpen', { name: fileName })}
           onClick={event => onCompare(asset.id, event.currentTarget)}
         >
         {/* No type tag: the thumbnail beside it has already said what kind of file this is,
@@ -836,10 +843,21 @@ export function landingJobProgress(job: LandingJob): number | null {
   if (job.status === 'completed') return 100;
   if (typeof job.progress === 'number') return Math.min(100, Math.max(0, job.progress));
   if (!job.assets.length) return 0;
+  /*
+   * Only for an agent too old to send its own figure, and on the agent's own scale.
+   *
+   * The media pass ends at 88 because two phases follow it — rewriting every reference, then
+   * writing the result — and a bar that reaches 100 while a landing is still being copied is
+   * a bar that lies. Reading `MEDIA_SHARE` here rather than repeating the number keeps the
+   * fallback and the agent from drifting into two different accounts of the same run.
+   */
   const completed = terminalCount(job.assets);
   const active = job.assets.find(asset => asset.status === 'processing');
   const fraction = active?.progress ? active.progress / 100 : 0;
-  return Math.min(99, ((completed + fraction) / job.assets.length) * 88);
+  return Math.min(
+    LANDING_MEDIA_PROGRESS_SHARE,
+    ((completed + fraction) / job.assets.length) * LANDING_MEDIA_PROGRESS_SHARE
+  );
 }
 
 function currentLandingAsset(job: LandingJob) {
@@ -911,7 +929,9 @@ function localizedNote(note: string, t: Translate): string {
   if (key) return t(key);
   // Whatever the run actually said. A short machine word on its own tells nobody anything,
   // so it is introduced; a whole sentence stands by itself.
-  return note.includes(' ') ? note : `${t('noteFailedGeneric')} (${note})`;
+  // Capped: an FFmpeg stderr blob has spaces too, and a row is not the place for a paragraph.
+  const readable = note.length > 140 ? `${note.slice(0, 139)}…` : note;
+  return readable.includes(' ') ? readable : `${t('noteFailedGeneric')} (${readable})`;
 }
 
 function SourceIcon({ kind }: { kind: LandingJob['sourceKind'] }) {

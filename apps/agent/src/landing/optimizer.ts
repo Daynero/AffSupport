@@ -16,7 +16,8 @@ import {
   type LandingStep,
   type LandingSettings,
   type LandingSourceKind,
-  type LandingState
+  type LandingState,
+  LANDING_MEDIA_PROGRESS_SHARE
 } from '@video-compressor/shared';
 import { activeGovernorOrNull } from '../power/spawn.js';
 import { fileSize } from '../files/paths.js';
@@ -520,7 +521,7 @@ class LandingJobOptimizer {
       this.notify();
     }
     this.job!.currentAssetId = null;
-    this.job!.progress = Math.max(this.job!.progress ?? 0, 88);
+    this.job!.progress = Math.max(this.job!.progress ?? 0, LANDING_MEDIA_PROGRESS_SHARE);
   }
 
   /**

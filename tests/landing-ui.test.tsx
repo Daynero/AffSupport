@@ -144,7 +144,7 @@ describe('landing optimizer batch card', () => {
     expect(screen.getByText('Queued')).toBeTruthy();
     expect(screen.getByText('Waiting in queue…')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Optimize landing' })).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Discard' }));
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
     expect(onReset).toHaveBeenCalledOnce();
   });
 

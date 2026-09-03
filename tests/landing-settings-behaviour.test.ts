@@ -400,3 +400,47 @@ describe('dropping several landings at once', () => {
     await optimizer.shutdown();
   }, 60_000);
 });
+
+describe('a landing the machine cannot process', () => {
+  it('fails with a reason instead of queueing for ever', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'landing-no-engine-'));
+    roots.push(root);
+    vi.stubEnv('AGENT_LANDING_WORKSPACE', path.join(root, 'workspaces'));
+    vi.stubEnv('AGENT_LANDING_SETTINGS_PATH', path.join(root, 'settings.json'));
+    const source = await landingFolder(root, 'promo');
+
+    /* No media engine. This used to leave the job `queued` — a status nothing moves it out of
+       — so the pump walked past it and the tool reported itself busy until it was restarted.
+       The refusal needs an edge in the lifecycle table to exist at all: without `ready →
+       failed` the transition was silently ignored and the job kept a spinner while carrying
+       an error and a finish time. */
+    const optimizer = new LandingOptimizer({ ffmpeg: false, ffprobe: false }, () => {});
+    await optimizer.prepareFromFolderPath(source);
+    const job = optimizer.state().jobs[0]!;
+    await optimizer.start([job.id]);
+
+    const settled = optimizer.state().jobs[0]!;
+    expect(settled.status).toBe('failed');
+    expect(settled.error).toBe('MEDIA_TOOL_UNAVAILABLE');
+    expect(optimizer.state().running).toBe(false);
+    await optimizer.shutdown();
+  }, 60_000);
+});
+
+describe('working copies left by a previous run', () => {
+  it('are swept, and nothing else is', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'landing-sweep-'));
+    roots.push(root);
+    const workspaces = path.join(root, 'workspaces');
+    vi.stubEnv('AGENT_LANDING_WORKSPACE', workspaces);
+    await mkdir(path.join(workspaces, 'landing-abandoned', 'promo'), { recursive: true });
+    await writeFile(path.join(workspaces, 'landing-abandoned', 'promo', 'index.html'), 'hi');
+    // Something that is not a working copy: the sweep knows its own by name.
+    await mkdir(path.join(workspaces, 'keep-me'), { recursive: true });
+
+    const { sweepWorkspaces } = await import('../apps/agent/src/landing/workspace.js');
+    expect(await sweepWorkspaces()).toBe(1);
+    const left = await readdir(workspaces);
+    expect(left).toEqual(['keep-me']);
+  });
+});

@@ -7468,7 +7468,7 @@ body:has(.public-home) {
   .landing-batch-card,
   .landing-batch-card.is-completed,
   .landing-success-summary,
-  .landing-asset-item.is-finished,
+  .landing-asset-item.is-optimized,
   .landing-current-asset,
   .landing-compare-modal,
   .landing-compare-stage.is-nudging .landing-compare-before-layer,
@@ -7621,11 +7621,6 @@ body:has(.public-home) {
   align-items: center;
   gap: var(--space-4);
   padding: var(--space-4);
-}
-
-/* A card with nothing to select — one that is running — keeps its two columns. */
-.landing-batch-header:not(:has(.landing-batch-select)) {
-  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .landing-batch-select {
@@ -8596,6 +8591,26 @@ body:has(.public-home) {
   opacity: 0;
   cursor: col-resize;
   inset: 0;
+}
+
+/* The keyboard route to the divider was an invisible control with an invisible focus ring:
+   tab to it and nothing on screen changed, so there was no way to know the arrows would
+   work. The stage says it has the focus instead. */
+.landing-compare-range:focus-visible {
+  outline: none;
+}
+
+.landing-compare-stage:has(.landing-compare-range:focus-visible) {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+/* The header keeps its three columns whether or not a job can be selected, so the title and
+   its icon do not slide sideways the moment a run starts and back when it ends. */
+.landing-batch-header:not(:has(.landing-batch-select))::before {
+  content: '';
+  display: block;
+  width: 20px;
 }
 
 /*

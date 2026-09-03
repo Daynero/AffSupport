@@ -703,6 +703,16 @@ export function phaseOf(status: LandingJobStatus, step: LandingStep | null): Lan
   return status;
 }
 
+/**
+ * Where the media pass ends on a landing's progress bar.
+ *
+ * Two phases follow it — rewriting every reference in the HTML, CSS and JS, then writing the
+ * result — so a bar that reached 100 when the last image was converted would sit there while
+ * a landing was still being copied. Shared so the agent's figure and the interface's fallback
+ * cannot drift into two different accounts of the same run.
+ */
+export const LANDING_MEDIA_PROGRESS_SHARE = 88;
+
 /** High Quality re-encode: keep resolution and frame rate, compress gently. */
 export const LANDING_HIGH_QUALITY_CRF = 20;
 

@@ -1,5 +1,5 @@
 import { spawnTracked } from '../power/spawn.js';
-import { access, cp, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { access, cp, mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { applicationSupportRoot } from '../files/support-dir.js';
@@ -42,6 +42,29 @@ export async function createWorkspace(): Promise<string> {
 
 export async function removeWorkspace(workspace: string): Promise<void> {
   await rm(workspace, { recursive: true, force: true }).catch(() => {});
+}
+
+/**
+ * Clears working copies left behind by a previous run of the app.
+ *
+ * A workspace holds a whole copy of a landing, and it is removed when its job is discarded or
+ * the app shuts down. Neither happens if the app is killed — and nothing ever looked at the
+ * directory again, so every crash left a full copy of every landing in Application Support,
+ * for ever. Nothing here can be in use: this runs before any job exists.
+ */
+export async function sweepWorkspaces(): Promise<number> {
+  const root = landingWorkspacesRoot();
+  let removed = 0;
+  try {
+    for (const entry of await readdir(root, { withFileTypes: true })) {
+      if (!entry.isDirectory() || !entry.name.startsWith('landing-')) continue;
+      await rm(path.join(root, entry.name), { recursive: true, force: true }).catch(() => {});
+      removed += 1;
+    }
+  } catch {
+    // No root yet, or one this process may not read: nothing to sweep either way.
+  }
+  return removed;
 }
 
 /** Extracts a ZIP archive into a destination directory. */

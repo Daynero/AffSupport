@@ -267,8 +267,15 @@ export const LANDING_JOB_LIFECYCLE: Lifecycle<LandingJobStatus> = defineLifecycl
     // Not `preparing → failed`. Preparation either produces a scanned, ready job or throws
     // before a job exists at all — there is no landing to mark as broken.
     preparing: ['ready'],
-    ready: ['queued'],
-    queued: ['processing', 'cancelled'],
+    /*
+     * `ready → failed` and `queued → failed` exist because a run can be refused before it
+     * starts: no media engine, or a working copy that is gone. Without them the refusal was
+     * silently ignored by the table and the landing sat `queued` for ever, which is precisely
+     * the state it was written to escape — and the job carried an error and a finish time
+     * while still showing a spinner.
+     */
+    ready: ['queued', 'failed'],
+    queued: ['processing', 'cancelled', 'failed'],
     processing: ['completed', 'failed', 'cancelled'],
     completed: [],
     failed: [],
