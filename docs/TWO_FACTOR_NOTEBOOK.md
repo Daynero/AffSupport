@@ -169,7 +169,16 @@ has to re-enrol two-factor with the service that issued the key. Steps are in
 
 ## Release
 
-The tool ships behind the `twoFactorNotebook` acknowledgement flag in
-`apps/web/src/lib/feature-flags.ts`. Flipping `protected` to `false` releases it.
-No agent release is involved, and `node scripts/verify-release.mjs` must keep
-passing without one.
+Released: `twoFactorNotebook` is `protected: false` in
+`apps/web/src/lib/feature-flags.ts`, so nothing gates the tool any more. No agent
+release is involved, and `node scripts/verify-release.mjs` must keep passing
+without one.
+
+**The migration has to be in production before a web deploy carries this.**
+Nothing else stands between a signed-in person and the tool, so a deploy that
+arrives ahead of `20260903100000_two_factor_notebook.sql` opens the wallet for
+everyone and fails on its first call for everyone.
+
+The home screen orders its tiles by readiness — available, then beta, then
+in-development — from `catalogueTools`, so releasing a tool moves its tile
+without anyone having to remember to.

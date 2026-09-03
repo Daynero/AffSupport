@@ -44,7 +44,7 @@ vi.mock('../apps/web/src/analytics/service.js', () => ({
 }));
 
 import HomePage from '../apps/web/src/HomePage';
-import { routeKind, toolByPath, webTools } from '../apps/web/src/lib/tool-registry';
+import { catalogueTools, routeKind, toolByPath, webTools } from '../apps/web/src/lib/tool-registry';
 import { featureFlags } from '../apps/web/src/lib/feature-flags';
 import { translate } from '../apps/web/src/i18n';
 
@@ -79,6 +79,19 @@ describe('web tool registry', () => {
       if (tool.runtime !== 'agent') continue;
       expect(WEB_TOOL_REQUIREMENTS[tool.id]).toBeDefined();
     }
+  });
+
+  it('shows what is ready first, then beta, then what is not there yet', () => {
+    const rank = { available: 0, beta: 1, 'coming-soon': 2, 'in-development': 3 } as const;
+    const shown = catalogueTools.map(tool => rank[tool.status]);
+    expect(shown).toEqual([...shown].sort((a, b) => a - b));
+    // Every tool is still in it, and equal standing keeps declaration order —
+    // the sort carries the catalogue, it does not filter it.
+    expect(catalogueTools).toHaveLength(webTools.length);
+    const available = catalogueTools.filter(tool => tool.status === 'available');
+    expect(available.map(tool => tool.id)).toEqual(
+      webTools.filter(tool => tool.status === 'available').map(tool => tool.id)
+    );
   });
 
   it('keeps tool paths unique and rooted', () => {

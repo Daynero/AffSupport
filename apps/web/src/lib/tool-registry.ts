@@ -120,7 +120,8 @@ function statusFor(featureFlag: FeatureId | null): WebToolStatus {
   return featureFlag && isProtected(featureFlag) ? 'in-development' : 'available';
 }
 
-// Order defines the home-page tile order.
+// Declaration order is the tie-breaker; `catalogueTools` below is what the
+// home screen actually renders.
 export const webTools: readonly WebTool[] = [
   {
     id: 'compressor',
@@ -207,6 +208,30 @@ export const webTools: readonly WebTool[] = [
     page: TranscriptionPage
   }
 ];
+
+/**
+ * What a tile is worth arriving at, in order: something you can use, then
+ * something you can try, then something that is not there yet.
+ */
+const STATUS_ORDER: Record<WebToolStatus, number> = {
+  available: 0,
+  beta: 1,
+  'coming-soon': 2,
+  'in-development': 3
+};
+
+/**
+ * The catalogue as the home screen shows it.
+ *
+ * Sorted rather than hand-ordered, because a tool's status follows its feature
+ * flag: flipping one released the 2FA wallet without anybody remembering to move
+ * its tile, and the next flag flip would have left the order stale in the same
+ * way. `sort` is stable, so tools of equal standing keep the order they are
+ * declared in above — which is still where the deliberate grouping lives.
+ */
+export const catalogueTools: readonly WebTool[] = [...webTools].sort(
+  (first, second) => STATUS_ORDER[first.status] - STATUS_ORDER[second.status]
+);
 
 export function toolByPath(path: string): WebTool | undefined {
   return webTools.find(tool => tool.path === path);

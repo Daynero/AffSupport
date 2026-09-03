@@ -9,7 +9,7 @@ import { isLocked } from './lib/feature-flags';
 import { usePageEntrance } from './lib/navigation';
 import LocalAppDialog from './components/LocalAppDialog';
 import { TeamWorkspaceIcon } from './components/tool-icons';
-import { webTools, type AgentWebTool, type WebTool } from './lib/tool-registry';
+import { catalogueTools, type AgentWebTool, type WebTool } from './lib/tool-registry';
 import { teamApi } from './api/team';
 
 export default function HomePage({ navigate }: { navigate: (path: string) => void }) {
@@ -29,7 +29,7 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
       .querySelector('meta[name="description"]')
       ?.setAttribute('content', 'A collection of local Soty tools for working with your files.');
     analytics.track('home_viewed', {});
-    for (const tool of webTools) {
+    for (const tool of catalogueTools) {
       analytics.track('tool_impression', { tool_identifier: tool.analyticsId });
     }
   }, []);
@@ -183,7 +183,7 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
         </div>
 
         <section className="tool-grid" aria-label={t('toolsTitle')}>
-          {webTools.map(tool => {
+          {catalogueTools.map(tool => {
             const openable = tool.status !== 'coming-soon';
             const underDevelopment = tool.status === 'in-development';
             const beta = tool.status === 'beta';

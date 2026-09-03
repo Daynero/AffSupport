@@ -20,9 +20,9 @@ describe('Soty product launcher', () => {
       { id: 'landingPreview', path: '/landing-preview', status: 'available' },
       // In development until the release that ships its agent contract (014, T060).
       { id: 'stitcher', path: '/stitcher', status: 'in-development' },
-      // In development until it has been used against production data (016). It
-      // waits on no agent release — it is the first tool that never calls one.
-      { id: 'twoFactor', path: '/2fa', status: 'in-development' },
+      // Released (016). It waits on no agent release — it is the first tool that
+      // never calls one — so nothing gates it but its own flag.
+      { id: 'twoFactor', path: '/2fa', status: 'available' },
       { id: 'transcription', path: '/transcription', status: 'beta' }
     ]);
   });

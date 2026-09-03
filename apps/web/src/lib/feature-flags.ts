@@ -34,10 +34,12 @@ export const featureFlags: Record<FeatureId, FeatureFlag> = {
   // The stitcher stays behind the acknowledgement until it has shipped with an
   // agent release carrying its contract (014, T060).
   videoStitcher: { protected: true },
-  // The 2FA notebook waits on no agent release — it needs nothing from the
-  // local app. It stays behind the acknowledgement only until it has been used
-  // against production data, because it stores account credentials.
-  twoFactorNotebook: { protected: true }
+  // Released. It needs nothing from the local app and no agent contract, so
+  // nothing gates it but this line — which means the migration that creates
+  // `private.two_factor_entries` and its four functions MUST be in production
+  // before a web deploy carries this. Without it every account opens the tool
+  // and every account sees it fail on its first call.
+  twoFactorNotebook: { protected: false }
 };
 
 const STORAGE_PREFIX = 'wishly.feature-unlock.';
