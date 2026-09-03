@@ -38,6 +38,9 @@ export function ImageCompareModal({
     variant: 'full'
   });
 
+  /* A refused ticket is a failure, not a slow start: an `<img>` with an empty `src` fires
+     neither `load` nor `error`, so without this the spinner has nothing that can ever end it. */
+  const refused = beforeUrl === null || (comparison && afterUrl === null);
   const ready = loaded.before && (!comparison || loaded.after) && !failed;
   const saving = asset.savedPercent ?? 0;
   const style = { '--compare-position': `${position}%` } as CSSProperties;
@@ -136,13 +139,13 @@ export function ImageCompareModal({
             </>
           )}
         </div>
-        {!ready && !failed && (
+        {!ready && !failed && !refused && (
           <div className="landing-preview-loading">
             <Spinner />
             <span>{t('landingPreviewLoading')}</span>
           </div>
         )}
-        {failed && (
+        {(failed || refused) && (
           <div className="landing-preview-loading is-error" role="alert">
             <span>{t('landingPreviewUnavailable')}</span>
           </div>

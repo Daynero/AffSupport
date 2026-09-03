@@ -952,6 +952,26 @@ describe('ticket issuing', () => {
     expect(typeof response.json().ticket).toBe('string');
   });
 
+  it('mints one for the Landing Optimizer’s own before/after preview', async () => {
+    const app = await makeServer();
+    /* The allowlist named the landing *viewer* and not the optimizer, so every comparison in
+       that tool asked for a ticket, was refused, and sat on a spinner that could never end —
+       an `<img>` with an empty `src` fires neither `load` nor `error`. */
+    const response = await ask(app, {
+      path: '/api/landing/jobs/job-1/assets/asset-1/preview/before'
+    });
+    expect(response.statusCode).toBe(200);
+    expect(typeof response.json().ticket).toBe('string');
+  });
+
+  it('still refuses the rest of the landing tool', async () => {
+    const app = await makeServer();
+    // The prefix is the jobs' previews, not everything the optimizer serves.
+    const response = await ask(app, { path: '/api/landing/state' });
+    expect(response.statusCode).toBe(403);
+    expect(response.json().error).toBe('PATH_NOT_TICKETABLE');
+  });
+
   it('refuses a path outside the allowlist', async () => {
     const app = await makeServer();
     // A ticket for /api/queue would be a five-minute bearer token for the

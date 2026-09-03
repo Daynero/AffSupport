@@ -31,9 +31,19 @@ import { pathGrants } from '../files/path-grants.js';
  * reason a credential has to travel in the URL at all. Nothing that changes
  * state is here, and nothing that returns a list of what exists.
  */
+/*
+ * What may be reached with a ticket in the URL instead of the token in a header.
+ *
+ * `/api/landing-preview/` is the viewer; `/api/landing/jobs/` is the optimizer, and it was
+ * missing — so every before/after comparison in the Landing Optimizer asked for a ticket, was
+ * refused, and sat on a spinner that could never end. The prefix is exactly as wide as it
+ * needs to be: the preview is the only GET under it, and tickets are refused for anything
+ * that is not a GET or a HEAD.
+ */
 const TICKETABLE_PREFIXES = [
   '/api/images/',
   '/api/transcription/jobs/',
+  '/api/landing/jobs/',
   '/api/landing-preview/'
 ] as const;
 
