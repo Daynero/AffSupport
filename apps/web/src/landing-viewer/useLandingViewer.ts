@@ -4,11 +4,26 @@ import { useI18n } from '../i18n';
 import { emptyState, type LandingViewerSource } from './types';
 import { readViewerPreferences } from './viewerPreferences';
 
+const NARROW_QUERY = '(max-width: 820px)';
+
+/** Below this width the tree overlays the page instead of sitting beside it (see the CSS). */
+export function narrowViewport() {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    ? window.matchMedia(NARROW_QUERY).matches
+    : false;
+}
+
 /** Skip the auto re-scan when the catalogue was refreshed within this window. */
 const AUTO_RESCAN_STALE_MS = 60_000;
 
 export interface UseLandingViewerInput {
   source: LandingViewerSource;
+  /**
+   * Whether the source can be asked yet. The local page passes the agent connection: asking
+   * before pairing finished produced a failed first fetch, a red banner that outlived the
+   * retry, and a live stream opened without a token.
+   */
+  enabled?: boolean;
 }
 
 /**
@@ -17,44 +32,74 @@ export interface UseLandingViewerInput {
  * action returns a full state that simply replaces the current one — the hook never patches state
  * locally. It is transport-agnostic: give it any {@link LandingViewerSource}.
  */
-export function useLandingViewer({ source }: UseLandingViewerInput) {
+export function useLandingViewer({ source, enabled = true }: UseLandingViewerInput) {
   const { t } = useI18n();
   const [state, setState] = useState<LandingPreviewState>(emptyState);
   const [loaded, setLoaded] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [sidebarOpen, setSidebarOpen] = useState(() => readViewerPreferences().sidebarOpen);
+  // On a phone the tree is an overlay over the page, so it starts closed there whatever the
+  // preference says, and closes again once a landing is picked from it.
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => readViewerPreferences().sidebarOpen && !narrowViewport()
+  );
   const [gridMode, setGridMode] = useState(false);
   const [connectionLost, setConnectionLost] = useState(false);
+  const [narrow, setNarrow] = useState(narrowViewport);
+
+  // A window shrunk under the threshold turns the tree into a sheet over the page; it must
+  // not stay open across that crossing, and the toolbar wants to know which side it is on.
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const query = window.matchMedia(NARROW_QUERY);
+    const onChange = () => {
+      setNarrow(query.matches);
+      if (query.matches) setSidebarOpen(false);
+    };
+    query.addEventListener?.('change', onChange);
+    return () => query.removeEventListener?.('change', onChange);
+  }, []);
 
   useEffect(() => {
+    if (!enabled) return;
+    let active = true;
     source
       .fetchState()
       .then(next => {
+        if (!active) return;
         setState(next);
         setLoaded(true);
+        // A failure from an earlier source (the page opened before pairing) is over.
+        setMessage(null);
         const fresh = next.updatedAt !== null && Date.now() - next.updatedAt < AUTO_RESCAN_STALE_MS;
         if (next.activeCatalogId && !next.running && !fresh) {
           void source
             .activate(next.activeCatalogId)
-            .then(setState)
+            .then(state => {
+              if (active) setState(state);
+            })
             .catch(() => {});
         }
       })
       .catch(() => {
+        if (!active) return;
         setMessage(t('landingGalleryActionFailed'));
         setLoaded(true);
       });
-    return source.subscribe({
+    const unsubscribe = source.subscribe({
       onState: next => {
         setState(next);
         setLoaded(true);
       },
       onStatus: status => setConnectionLost(status === 'lost')
     });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
     // `source` is stable (memoised by the caller); `t` is captured once, as in the original.
-  }, [source]);
+  }, [source, enabled]);
 
   useEffect(() => {
     if (selectedId && state.landings.some(item => item.id === selectedId)) return;
@@ -179,6 +224,7 @@ export function useLandingViewer({ source }: UseLandingViewerInput) {
     setGridMode,
     sidebarOpen,
     setSidebarOpen,
+    narrow,
     source,
     capabilities: source.capabilities,
     apply,

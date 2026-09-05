@@ -954,7 +954,10 @@ export class JobQueue {
               'start',
               activeEmbeddingImages(jobSettings.imageEmbedding, 'start')
             ),
-            endImage: this.drawImage('end', activeEmbeddingImages(jobSettings.imageEmbedding, 'end'))
+            endImage: this.drawImage(
+              'end',
+              activeEmbeddingImages(jobSettings.imageEmbedding, 'end')
+            )
           }
         : { startImage: null, endImage: null };
       const imageEmbedding = freezeImageEmbedding(

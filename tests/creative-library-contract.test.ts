@@ -155,6 +155,12 @@ describe('Creative Library shared contract', () => {
       status: 'in_progress'
     });
     expect(parseTeamTaskPatch({ progressMax: 0 })).toBeNull();
+    // A description keeps its lines: a column of facts stays a column. Only
+    // spaces within a line fold, blank-line runs cap at one, ends trim.
+    expect(
+      parseTeamTaskPatch({ note: '  Offer UZ \r\nGEO:   Uzbeks\n\n\n\nBudget up to $25  \n' })
+    ).toEqual({ note: 'Offer UZ\nGEO: Uzbeks\n\nBudget up to $25' });
+    expect(parseTeamTaskPatch({ note: '   \n  ' })).toBeNull();
     const bounds = localTaskDayBounds('2026-08-14');
     expect(new Date(bounds.to).getTime() - new Date(bounds.from).getTime()).toBeGreaterThanOrEqual(
       23 * 60 * 60 * 1000

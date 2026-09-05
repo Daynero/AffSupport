@@ -99,9 +99,7 @@ export function RowActions({
       onEditText={row.kind === 'transcript' && onEditText ? () => onEditText(row) : undefined}
       onProcess={onProcess ? () => onProcess(row) : undefined}
       onDownloadRestitched={
-        row.kind === 'video' && onDownloadRestitched
-          ? () => onDownloadRestitched(row)
-          : undefined
+        row.kind === 'video' && onDownloadRestitched ? () => onDownloadRestitched(row) : undefined
       }
       restitchPrepared={row.kind === 'video' ? (preparedIds?.has(row.id) ?? false) : false}
       onProcessFolder={

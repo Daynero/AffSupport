@@ -289,10 +289,7 @@ function busy(phase: RestitchPreparationState['phase']): boolean {
 }
 
 /** The run in one sentence, in whichever state it is. */
-function progressLine(
-  state: RestitchPreparationState,
-  t: ReturnType<typeof useI18n>['t']
-): string {
+function progressLine(state: RestitchPreparationState, t: ReturnType<typeof useI18n>['t']): string {
   if (state.phase === 'idle') return '';
   if (state.phase === 'folder') return t('teamRestitchPrepareFolder');
   if (state.phase === 'listing') return t('teamRestitchPrepareListing');

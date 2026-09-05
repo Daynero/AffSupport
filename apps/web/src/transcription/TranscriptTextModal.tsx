@@ -1,37 +1,24 @@
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type {
   CSSProperties,
-  ChangeEvent,
-  MouseEvent as ReactMouseEvent,
-  PointerEvent as ReactPointerEvent
+  KeyboardEvent as ReactKeyboardEvent,
+  MouseEvent as ReactMouseEvent
 } from 'react';
+import { ChevronDown, FolderDown, Play, X } from 'lucide-react';
 import type {
   TranscriptionDocument,
   TranscriptionJob,
-  TranscriptionMediaPreview,
   TranscriptionModelInfo,
   TranscriptSegment,
   TranscriptWord,
-  TranslatedSegment,
-  TranslationDocument
+  TranslatedSegment
 } from '@video-compressor/shared';
 import { TRANSLATEGEMMA_LANGUAGE_CODES } from '@video-compressor/shared';
 import { Modal } from '../components/Modal';
-import { SotyMark } from '../components/SotyLogo';
-import { Button, ProgressBar, type Translate } from '../components/ui';
-import { formatSize } from '../format';
-import {
-  transcriptionDocument,
-  transcriptionMediaCancel,
-  transcriptionMediaPrepare,
-  transcriptionMediaStatus,
-  transcriptionMediaPath,
-  transcriptionSaveWithTranslation,
-  transcriptionTranslate,
-  transcriptionTranslation,
-  transcriptionTranslationCancel
-} from '../api/client';
-import { defaultTranslationTarget, isRtlLanguage, languageDisplayName } from './language';
+import { Button, ProgressBar, Tooltip, type Translate } from '../components/ui';
+import { transcriptionMediaPath, transcriptionSaveWithTranslation } from '../api/client';
+import { isRtlLanguage, languageDisplayName } from './language';
+import { useTranslationFollow } from './useTranslationFollow';
 import type { Language } from '../i18n';
 import {
   confidenceColor,
@@ -39,12 +26,22 @@ import {
   resolveMirroredSelection,
   type CharRange
 } from './alignment';
-import { charOffsetWithin, joinRanges, splitTextByRanges } from './selection-dom';
-import { activeWordIndex, flattenWords } from './karaoke';
+import { selectedPart, useSemanticSelection, type SemanticSelection } from './useSemanticSelection';
+import { joinRanges, splitTextByRanges } from './selection-dom';
 import { useSubresourceUrl } from '../api/useSubresourceUrl';
+import { loadTranscriptDocument } from './document-cache';
+import { useMediaPreview } from './useMediaPreview';
+import { TranscriptPlayer } from './TranscriptPlayer';
+import { TranslationElapsed } from './TranslationElapsed';
+import { LanguageCombobox } from './LanguageCombobox';
+import { TranslationCaveat, TranslatorNotice } from './TranslatorNotice';
+import { ExportMenu } from './ExportMenu';
+import { type KaraokeStore, useActiveWordInSegment } from './karaoke-store';
+import { useScrollSync } from './useScrollSync';
+import { useKaraoke } from './useKaraoke';
+import { hasTimings, type TranscriptExportContent, type TranscriptExportFormat } from './export';
 
 const TARGET_LANGUAGES = [...TRANSLATEGEMMA_LANGUAGE_CODES];
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const AUDIO_EXTENSIONS = new Set([
   'mp3',
@@ -76,235 +73,191 @@ function useReducedMotion(): boolean {
   return reduced;
 }
 
-function formatMediaTime(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
-  const whole = Math.floor(seconds);
-  const hours = Math.floor(whole / 3600);
-  const minutes = Math.floor((whole % 3600) / 60);
-  const rest = whole % 60;
-  return hours > 0
-    ? `${hours}:${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`
-    : `${minutes}:${String(rest).padStart(2, '0')}`;
-}
-
-function fallbackDocument(job: TranscriptionJob): TranscriptionDocument {
-  const segments: TranscriptSegment[] = (job.text ?? '')
-    .split(/\r?\n/)
-    .map(line => line.trim())
-    .filter(Boolean)
-    .map((sourceText, index) => ({
-      id: `${job.id}-s${index}`,
-      startMs: 0,
-      endMs: 0,
-      sourceText,
-      words: []
-    }));
+function emptyDocument(job: TranscriptionJob): TranscriptionDocument {
   return {
     jobId: job.id,
     sourceLanguage: job.detectedLanguage ?? job.requestedLanguage ?? 'auto',
     modelVersion: '',
-    segments,
+    segments: [],
     translations: {}
   };
-}
-
-/** The resolved, persistent semantic selection spanning both columns. */
-interface SemanticSelectionPart {
-  segmentId: string;
-  sourceRanges: CharRange[];
-  targetRanges: CharRange[];
-  confidence: number;
-  usedFallback: boolean;
-}
-
-interface SemanticSelection {
-  origin: 'source' | 'target';
-  parts: SemanticSelectionPart[];
-  confidence: number;
-  usedFallback: boolean;
-}
-
-function selectedPart(
-  selection: SemanticSelection | null,
-  segmentId: string
-): SemanticSelectionPart | undefined {
-  return selection?.parts.find(part => part.segmentId === segmentId);
-}
-
-/** The karaoke word currently under the playhead. */
-interface ActiveWord {
-  segmentId: string;
-  range: CharRange;
 }
 
 /** Shared empty-range constant so memoized segments skip re-render when idle. */
 const NO_RANGES: CharRange[] = [];
 
 /**
- * One rendered segment with its selection + karaoke highlight layers. Memoized
- * so a karaoke tick only re-renders the segment gaining/losing the active word
- * (and the one it left) — not the whole transcript, which is what made the
- * highlight trail the audio on long documents.
+ * One rendered segment with its selection + karaoke highlight layers.
+ *
+ * Memoized, and the word lookup is a map rather than a scan: a dense segment has eighty
+ * words and twice as many pieces, and finding each piece's word by walking the list was
+ * quadratic on every render of every segment.
  */
 const SegmentText = memo(function SegmentText({
   text,
   segmentId,
   selectedRanges,
   activeRanges,
-  words = []
+  words = NO_WORDS,
+  focusable = false,
+  tabStop = true,
+  activeWordId = null
 }: {
   text: string;
   segmentId: string;
   selectedRanges: CharRange[];
   activeRanges: CharRange[];
   words?: TranscriptWord[];
+  /** A keyboard stop, so Enter can seek the player to this segment. */
+  focusable?: boolean;
+  /** One segment is the column's Tab stop; the arrows reach the rest. */
+  tabStop?: boolean;
+  /** The karaoke word, so a re-render of this segment keeps its highlight. */
+  activeWordId?: string | null;
 }) {
-  const wordBoundaries = words.flatMap(word => [word.sourceStart, word.sourceEnd]);
-  const pieces = splitTextByRanges(text, selectedRanges, activeRanges, wordBoundaries);
+  const wordBoundaries = useMemo(
+    () => words.flatMap(word => [word.sourceStart, word.sourceEnd]),
+    [words]
+  );
+  const wordAtOffset = useMemo(() => {
+    const map = new Map<number, TranscriptWord>();
+    for (const word of words) map.set(word.sourceStart, word);
+    return map;
+  }, [words]);
+  const pieces = useMemo(
+    () => splitTextByRanges(text, selectedRanges, activeRanges, wordBoundaries),
+    [text, selectedRanges, activeRanges, wordBoundaries]
+  );
+  const focus = focusable ? { tabIndex: tabStop ? 0 : -1 } : {};
+  if (pieces.length === 0) {
+    return (
+      <p className="ts-segment" data-segment-id={segmentId} {...focus}>
+        {text}
+      </p>
+    );
+  }
+  // Pieces arrive in order, so the word that contains a piece is the last word that
+  // started at or before it — tracked with a cursor instead of searched.
+  let current: TranscriptWord | undefined;
   return (
-    <p className="ts-segment" data-segment-id={segmentId}>
-      {pieces.length === 0
-        ? text
-        : pieces.map((piece, index) => {
-            const word = words.find(
-              candidate => piece.start >= candidate.sourceStart && piece.end <= candidate.sourceEnd
-            );
-            return (
-              <span
-                key={index}
-                className={`${piece.selected ? 'ts-selected' : ''} ${
-                  piece.active ? 'ts-active' : ''
-                }`.trim()}
-                data-char-start={piece.start}
-                data-char-end={piece.end}
-                data-word-id={word?.id}
-                data-word-start-ms={word?.startMs}
-              >
-                {piece.text}
-              </span>
-            );
-          })}
+    <p className="ts-segment" data-segment-id={segmentId} {...focus}>
+      {pieces.map((piece, index) => {
+        const started = wordAtOffset.get(piece.start);
+        if (started) current = started;
+        const word =
+          current && piece.end <= current.sourceEnd && piece.start >= current.sourceStart
+            ? current
+            : undefined;
+        return (
+          <span
+            key={index}
+            className={`${piece.selected ? 'ts-selected' : ''} ${piece.active || (word !== undefined && word.id === activeWordId) ? 'ts-active' : ''}`.trim()}
+            data-char-start={piece.start}
+            data-char-end={piece.end}
+            data-word-id={word?.id}
+            data-word-start-ms={word?.startMs}
+          >
+            {piece.text}
+          </span>
+        );
+      })}
     </p>
   );
 });
 
-function LanguageCombobox({
-  value,
-  codes,
-  language,
-  label,
-  onChange
+const NO_WORDS: TranscriptWord[] = [];
+
+/**
+ * A source segment that knows the karaoke word.
+ *
+ * The playhead marks words on the DOM directly, for speed; but React rewrites a span's class
+ * whenever a selection re-splits the segment, and the mark vanished until the next word.
+ * Subscribed to its own segment only, the segment renders the mark itself, so a rewrite
+ * keeps it.
+ */
+const SourceSegment = memo(function SourceSegment({
+  segment,
+  selectedRanges,
+  store,
+  focusable,
+  tabStop
 }: {
-  value: string;
-  codes: readonly string[];
-  language: Language;
-  label: string;
-  onChange: (code: string) => void;
+  segment: TranscriptSegment;
+  selectedRanges: CharRange[];
+  store: KaraokeStore;
+  focusable: boolean;
+  tabStop: boolean;
 }) {
-  const listId = useId();
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
-  const [activeIndex, setActiveIndex] = useState(0);
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase(language);
-    return codes
-      .map(code => ({ code, name: languageDisplayName(code, language) }))
-      .filter(item => !needle || item.name.toLocaleLowerCase(language).includes(needle))
-      .sort((left, right) => left.name.localeCompare(right.name, language));
-  }, [codes, language, query]);
-
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [query]);
-
-  const choose = (code: string) => {
-    onChange(code);
-    setOpen(false);
-    setQuery('');
-  };
-
+  const active = useActiveWordInSegment(store, segment.id);
   return (
-    <div
-      className="transcript-language-combobox"
-      onBlur={event => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-          setOpen(false);
-          setQuery('');
-        }
-      }}
-    >
-      <input
-        role="combobox"
-        aria-label={label}
-        aria-autocomplete="list"
-        aria-expanded={open}
-        aria-controls={listId}
-        aria-activedescendant={
-          open && filtered[activeIndex]
-            ? `${listId}-${filtered[activeIndex].code.replace(/[^A-Za-z0-9]/gu, '-')}`
-            : undefined
-        }
-        value={open ? query : languageDisplayName(value, language)}
-        onFocus={event => {
-          setOpen(true);
-          setQuery('');
-          event.currentTarget.select();
-        }}
-        onClick={() => setOpen(true)}
-        onChange={event => {
-          setOpen(true);
-          setQuery(event.target.value);
-        }}
-        onKeyDown={event => {
-          if (event.key === 'ArrowDown') {
-            event.preventDefault();
-            setOpen(true);
-            setActiveIndex(index => Math.min(filtered.length - 1, index + 1));
-          } else if (event.key === 'ArrowUp') {
-            event.preventDefault();
-            setActiveIndex(index => Math.max(0, index - 1));
-          } else if (event.key === 'Enter' && open && filtered[activeIndex]) {
-            event.preventDefault();
-            choose(filtered[activeIndex].code);
-          } else if (event.key === 'Escape') {
-            event.stopPropagation();
-            setOpen(false);
-            setQuery('');
-          }
-        }}
-      />
-      {open && (
-        <ul id={listId} role="listbox">
-          {filtered.length ? (
-            filtered.map((item, index) => (
-              <li
-                id={`${listId}-${item.code.replace(/[^A-Za-z0-9]/gu, '-')}`}
-                key={item.code}
-                role="option"
-                aria-selected={item.code === value}
-                className={index === activeIndex ? 'is-active' : ''}
-                onPointerDown={event => event.preventDefault()}
-                onClick={() => choose(item.code)}
-              >
-                {item.name}
-              </li>
-            ))
-          ) : (
-            <li className="is-empty">{label}</li>
-          )}
-        </ul>
-      )}
-    </div>
+    <SegmentText
+      text={segment.sourceText}
+      segmentId={segment.id}
+      words={segment.words}
+      selectedRanges={selectedRanges}
+      activeRanges={NO_RANGES}
+      focusable={focusable}
+      tabStop={tabStop}
+      activeWordId={active?.wordId ?? null}
+    />
   );
-}
+});
 
-export function TranscriptTextModal({
+/**
+ * A translated segment that follows the karaoke word on its own.
+ *
+ * Subscribes to the store for its own segment only, so the playhead moving through the
+ * rest of the document never reaches it.
+ */
+const TargetSegment = memo(function TargetSegment({
+  segmentId,
+  translated,
+  selectedRanges,
+  store,
+  focusable,
+  tabStop
+}: {
+  segmentId: string;
+  translated: TranslatedSegment;
+  selectedRanges: CharRange[];
+  store: KaraokeStore;
+  focusable: boolean;
+  tabStop: boolean;
+}) {
+  const active = useActiveWordInSegment(store, segmentId);
+  const activeRanges = useMemo(
+    () =>
+      active
+        ? resolveMirroredSelection(
+            active.range,
+            translated.alignments,
+            'source',
+            translated.translatedText.length
+          ).ranges
+        : NO_RANGES,
+    [active, translated]
+  );
+  return (
+    <SegmentText
+      text={translated.translatedText}
+      segmentId={segmentId}
+      selectedRanges={selectedRanges}
+      activeRanges={activeRanges}
+      focusable={focusable}
+      tabStop={tabStop}
+    />
+  );
+});
+
+export const TranscriptTextModal = memo(function TranscriptTextModal({
   job,
   language,
   returnFocus,
   translatorModel,
   onInstallTranslator,
   onCancelTranslator,
+  onExport,
+  onToast,
   onClose,
   t
 }: {
@@ -314,282 +267,84 @@ export function TranscriptTextModal({
   translatorModel: TranscriptionModelInfo;
   onInstallTranslator: () => void;
   onCancelTranslator: () => void;
+  onExport?: (format: TranscriptExportFormat, content: TranscriptExportContent) => void;
+  /** The page's toasts; the viewer has no second notification system of its own. */
+  onToast?: (text: string, tone?: 'neutral' | 'success' | 'warning' | 'error') => void;
   onClose: () => void;
   t: Translate;
 }) {
-  // Ticketed rather than token-carrying: the player seeks, so this URL is used
-  // repeatedly and sits in the element for as long as the modal is open — the
-  // worst possible place for a session token to live.
+  // Ticketed rather than token-carrying: the player seeks, so this URL is used repeatedly
+  // and sits in the element for as long as the modal is open — the worst possible place
+  // for a session token to live.
   const mediaUrl = useSubresourceUrl(job ? transcriptionMediaPath(job.id) : null);
   const titleId = useId();
-  const matchHintId = useId();
   const previewId = useId();
   const dialog = useRef<HTMLDivElement>(null);
-  const bodyRef = useRef<HTMLDivElement>(null);
-  const sourceScrollRef = useRef<HTMLDivElement>(null);
-  const targetScrollRef = useRef<HTMLDivElement>(null);
-  const syncingScroll = useRef(false);
-  const manualScrollUntil = useRef(0);
-  // While a karaoke auto-scroll animation is in flight, its own scroll events
-  // must not read as a manual scroll (which would pause following) nor bounce
-  // back through the mirror sync. This timestamp marks that suppression window.
-  const programmaticScrollUntil = useRef(0);
-  // True while the user is dragging out a text selection. Karaoke pauses its
-  // per-word DOM rebuild during a drag so it never collapses the live selection.
-  const pointerSelecting = useRef(false);
-  const playerRef = useRef<HTMLDivElement>(null);
   const mediaRef = useRef<HTMLVideoElement>(null);
-  const rafRef = useRef<number | null>(null);
-  const videoFrameRef = useRef<number | null>(null);
-  const activeWordId = useRef<string>('');
 
   const [document_, setDocument] = useState<TranscriptionDocument | null>(null);
-  const [target, setTarget] = useState<string>(() => {
-    const sourceLanguage = job.detectedLanguage ?? job.requestedLanguage ?? 'auto';
-    const sourceBase = sourceLanguage.replaceAll('_', '-').split('-')[0].toLowerCase();
-    const selected = job.translation?.targetLanguage;
-    if (selected && selected.replaceAll('_', '-').split('-')[0].toLowerCase() !== sourceBase) {
-      return selected;
-    }
-    return defaultTranslationTarget(sourceLanguage, language);
-  });
-  const [translation, setTranslation] = useState<TranslationDocument | null>(null);
-  /** True only while the ensure/join POST is in flight (covers the SSE gap). */
-  const [requesting, setRequesting] = useState(false);
-  const [translationElapsedMs, setTranslationElapsedMs] = useState(0);
-  const [translationError, setTranslationError] = useState<'failed' | 'unavailable' | null>(null);
-  const [translatorTermsAccepted, setTranslatorTermsAccepted] = useState(false);
   const [copied, setCopied] = useState<{
     side: 'source' | 'target';
     scope: 'selection' | 'all';
   } | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  // How the columns answer the keyboard, said once for screen readers.
+  const hintId = useId();
   const [previewActivated, setPreviewActivated] = useState(false);
-  const [mediaPreview, setMediaPreview] = useState<TranscriptionMediaPreview | null>(null);
-  const [retryNonce, setRetryNonce] = useState(0);
+  const {
+    preview: mediaPreview,
+    prepare: prepareMedia,
+    cancel: cancelMedia,
+    fail: failPreview
+  } = useMediaPreview(job.id);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [selection, setSelection] = useState<SemanticSelection | null>(null);
-  const [activeWord, setActiveWord] = useState<ActiveWord | null>(null);
-  const [playback, setPlayback] = useState({
-    playing: false,
-    currentTime: 0,
-    duration: 0,
-    volume: 1,
-    rate: 1
-  });
-  const generation = useRef(0);
-  const validatedTranslations = useRef(new Map<string, TranslationDocument>());
-  const lastDistinctTarget = useRef<string | null>(null);
-  const translatorWasPresent = useRef(translatorModel.present);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectionRef = useRef<SemanticSelection | null>(null);
   const onCloseRef = useRef(onClose);
-  selectionRef.current = selection;
   onCloseRef.current = onClose;
 
   const reducedMotion = useReducedMotion();
 
+  // A load that failed is said to have failed. It used to fall back to an empty document,
+  // and the viewer then announced that the file had no speech — over a transcript of a
+  // thousand characters that was on disk the whole time.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   useEffect(() => {
     let active = true;
-    const controller = new AbortController();
-    validatedTranslations.current.clear();
-    setTranslation(null);
-    setSelection(null);
-    transcriptionDocument(job.id, controller.signal)
+    setDocument(null);
+    setLoadFailed(false);
+    loadTranscriptDocument(job)
       .then(doc => {
-        if (active) setDocument(doc.segments.length ? doc : fallbackDocument(job));
+        if (active) setDocument(doc);
       })
       .catch(() => {
-        if (active) setDocument(fallbackDocument(job));
-      });
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [job.id, job.text, job.detectedLanguage, job.requestedLanguage]);
-
-  // The `job` prop is live SSE state, so its translation summary is the single
-  // source of truth for status/progress/ETA whenever it matches the modal's
-  // target — the modal runs no polling loop of its own.
-  const summary =
-    job.translation && job.translation.targetLanguage.toLowerCase() === target.toLowerCase()
-      ? job.translation
-      : null;
-  const summaryTranslating = summary?.status === 'queued' || summary?.status === 'processing';
-  const translating = !translationError && (requesting || summaryTranslating);
-
-  // Ensure/join backend work for the chosen target. Thanks to the shared
-  // target resolver this JOINS the automatic translation the list already
-  // started instead of superseding it — opening the modal never restarts a
-  // running translation, and a completed one resolves instantly.
-  useEffect(() => {
-    if (!document_) return;
-    const source = document_.sourceLanguage.split('-')[0].toLowerCase();
-    if (source === target.split('-')[0].toLowerCase()) {
-      setTranslation(null);
-      setRequesting(false);
-      setTranslationError(null);
-      return;
-    }
-    // A response validated by the backend in this modal session renders
-    // instantly; the POST below still revalidates model/cache versions.
-    const validated = validatedTranslations.current.get(target);
-    if (validated) {
-      setTranslation(validated);
-      setTranslationError(null);
-    }
-    const gen = ++generation.current;
-    const requestId =
-      typeof crypto !== 'undefined' && 'randomUUID' in crypto
-        ? crypto.randomUUID()
-        : `${job.id}-${gen}-${Date.now()}`;
-    let active = true;
-    setRequesting(!validated);
-    setTranslationError(null);
-    void transcriptionTranslate(job.id, target, requestId)
-      .then(result => {
-        if (!active || generation.current !== gen) return;
-        if (result.status === 'completed') {
-          validatedTranslations.current.set(result.targetLanguage, result);
-          setTranslation(result);
-        } else if (result.segments.length) {
-          // Partials persisted by a still-running translation render right away.
-          setTranslation(result);
-        }
-      })
-      .catch(error => {
-        if (!active || generation.current !== gen) return;
-        const message = error instanceof Error ? error.message : '';
-        setTranslationError(message.includes('TRANSLATOR_UNAVAILABLE') ? 'unavailable' : 'failed');
-      })
-      .finally(() => {
-        if (active && generation.current === gen) setRequesting(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [document_, target, job.id, retryNonce]);
-
-  // Follow the live summary: fetch newly streamed segments while the backend
-  // translates, the final document on completion, and surface failures.
-  const summaryStatus = summary?.status ?? null;
-  const summaryCompletedSegments = summary?.completedSegments ?? 0;
-  useEffect(() => {
-    if (!document_ || !summaryStatus) return;
-    if (summaryStatus === 'failed') {
-      // While the retry POST is in flight the summary may still say failed.
-      if (!requesting) setTranslationError('failed');
-      return;
-    }
-    if (summaryStatus === 'unavailable') {
-      setTranslationError('unavailable');
-      return;
-    }
-    const matching =
-      translation && translation.targetLanguage.toLowerCase() === target.toLowerCase()
-        ? translation
-        : null;
-    const wantsFinal = summaryStatus === 'completed' && matching?.status !== 'completed';
-    const wantsPartial =
-      summaryStatus === 'processing' &&
-      matching?.status !== 'completed' &&
-      summaryCompletedSegments > (matching?.segments.length ?? 0);
-    if (!wantsFinal && !wantsPartial) return;
-    const gen = generation.current;
-    let active = true;
-    const controller = new AbortController();
-    transcriptionTranslation(job.id, target, controller.signal)
-      .then(result => {
-        if (!active || generation.current !== gen) return;
-        if (result.targetLanguage.toLowerCase() !== target.toLowerCase()) return;
-        if (result.status === 'completed') {
-          validatedTranslations.current.set(result.targetLanguage, result);
-          setTranslation(result);
-          setTranslationError(null);
-        } else if (result.segments.length) {
-          setTranslation(result);
-        }
-      })
-      .catch(() => {
-        // Progress keeps flowing over SSE; the next change retries the fetch.
-      });
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [document_, summaryStatus, summaryCompletedSegments, requesting, target, job.id, translation]);
-
-  // Elapsed time is anchored to the backend's startedAt, so it is continuous
-  // across the list, reopened modals, and preemption — never a fresh stopwatch.
-  const translationStartedAt = summary?.startedAt ?? null;
-  useEffect(() => {
-    if (!translating) return;
-    const compute = () =>
-      setTranslationElapsedMs(
-        translationStartedAt ? Math.max(0, Date.now() - translationStartedAt) : 0
-      );
-    compute();
-    const id = window.setInterval(compute, 500);
-    return () => window.clearInterval(id);
-  }, [translating, translationStartedAt]);
-
-  useEffect(() => {
-    if (!document_) return;
-    const source = document_.sourceLanguage.split('-')[0].toLowerCase();
-    setTarget(current => {
-      if (current.split('-')[0].toLowerCase() !== source) return current;
-      return defaultTranslationTarget(
-        document_.sourceLanguage,
-        language,
-        lastDistinctTarget.current
-      );
-    });
-  }, [document_, language]);
-
-  // Once the translation model finishes installing, resume translation
-  // automatically — the user just waits for the animated download to finish.
-  useEffect(() => {
-    if (!translatorWasPresent.current && translatorModel.present) {
-      setRetryNonce(nonce => nonce + 1);
-    }
-    translatorWasPresent.current = translatorModel.present;
-  }, [translatorModel.present]);
-
-  useEffect(() => {
-    if (!previewActivated || mediaPreview?.state !== 'preparing') return;
-    let active = true;
-    const controller = new AbortController();
-    const poll = async () => {
-      while (active) {
-        await sleep(350);
         if (!active) return;
-        try {
-          const status = await transcriptionMediaStatus(job.id, controller.signal);
-          if (!active) return;
-          setMediaPreview(status);
-          if (status.state !== 'preparing') return;
-        } catch {
-          if (active) {
-            setMediaPreview({
-              state: 'failed',
-              variant: null,
-              progress: null,
-              hasVideo: null,
-              mimeType: null,
-              error: 'PREVIEW_FAILED'
-            });
-          }
-          return;
-        }
-      }
-    };
-    void poll();
+        setLoadFailed(true);
+        setDocument(emptyDocument(job));
+      });
     return () => {
       active = false;
-      controller.abort();
     };
-  }, [previewActivated, mediaPreview?.state, job.id]);
+  }, [job.id, job.finishedAt, loadAttempt]);
+
+  const {
+    target,
+    chooseTarget,
+    translation,
+    summary,
+    translating,
+    requesting,
+    error: translationError,
+    retry: retryTranslation,
+    cancel: cancelTranslation
+  } = useTranslationFollow({
+    job,
+    document: document_,
+    language,
+    translatorPresent: translatorModel.present
+  });
 
   useEffect(() => {
     const media = mediaRef.current;
@@ -597,58 +352,24 @@ export function TranscriptTextModal({
     void media.play().catch(() => {});
   }, [previewOpen, mediaPreview?.state]);
 
-  // Re-align the target side of an existing selection when a new translation
-  // arrives (the source selection is preserved across a language switch).
   const translatedBySegment = useMemo(() => {
     const map = new Map<string, TranslatedSegment>();
     for (const segment of translation?.segments ?? []) map.set(segment.sourceSegmentId, segment);
     return map;
   }, [translation]);
+  const segments = document_?.segments ?? NO_SEGMENTS;
+  // Once per document, not once per render: an O(n) scan of every word on every frame.
+  const timed = useMemo(() => hasTimings(segments), [segments]);
+  const segmentById = useMemo(
+    () => new Map(segments.map(segment => [segment.id, segment])),
+    [segments]
+  );
 
-  useEffect(() => {
-    if (!translation) return;
-    setSelection(current => {
-      if (!current) return current;
-      const parts = current.parts.map(part => {
-        const translated = translatedBySegment.get(part.segmentId);
-        if (!translated || !part.sourceRanges.length) return part;
-        const sourceText = document_?.segments.find(
-          segment => segment.id === part.segmentId
-        )?.sourceText;
-        const mirrors = part.sourceRanges.map(range =>
-          resolveMirroredSelection(
-            range,
-            translated.alignments,
-            'source',
-            translated.translatedText.length,
-            sourceText !== undefined
-              ? { origin: sourceText, opposite: translated.translatedText }
-              : undefined
-          )
-        );
-        return {
-          ...part,
-          targetRanges: mirrors.flatMap(mirror => mirror.ranges),
-          confidence:
-            mirrors.reduce((sum, mirror) => sum + mirror.confidence, 0) /
-            Math.max(1, mirrors.length),
-          usedFallback: mirrors.some(mirror => mirror.usedFallback)
-        };
-      });
-      return {
-        ...current,
-        parts,
-        confidence:
-          parts.reduce((sum, part) => sum + part.confidence, 0) / Math.max(1, parts.length),
-        usedFallback: parts.some(part => part.usedFallback)
-      };
-    });
-  }, [translation, translatedBySegment, document_]);
-
-  const clearSelection = useCallback(() => setSelection(null), []);
+  const { selection, clearSelection, pointerSelecting, onSelectionEnd, onColumnPointerDown } =
+    useSemanticSelection({ dialog, segmentById, translatedBySegment, translation });
+  selectionRef.current = selection;
 
   // Escape/backdrop clear a semantic selection first, then close the modal.
-  // The Modal primitive owns scroll lock, focus trap and focus restore.
   const dismiss = useCallback(() => {
     if (selectionRef.current) {
       clearSelection();
@@ -660,372 +381,60 @@ export function TranscriptTextModal({
   useEffect(
     () => () => {
       if (copyTimer.current) clearTimeout(copyTimer.current);
+      if (savedTimer.current) clearTimeout(savedTimer.current);
     },
     []
   );
 
   const sourceLanguage = document_?.sourceLanguage ?? job.detectedLanguage ?? 'auto';
-  const segments = document_?.segments ?? [];
-  const hasWordTimings = segments.some(segment =>
-    segment.words.some(word => word.endMs > word.startMs)
+  const hasWordTimings = useMemo(
+    () => segments.some(segment => segment.words.some(word => word.endMs > word.startMs)),
+    [segments]
+  );
+  const firstTranslatedSegmentId = useMemo(
+    () => segments.find(segment => translatedBySegment.get(segment.id)?.translatedText)?.id ?? null,
+    [segments, translatedBySegment]
   );
   const hasTargetText = useMemo(
     () => segments.some(segment => translatedBySegment.get(segment.id)?.translatedText),
     [segments, translatedBySegment]
   );
 
-  const synchronizeScroll = useCallback((from: HTMLDivElement, to: HTMLDivElement) => {
-    if (syncingScroll.current) return;
-    // Ignore the echo of our own karaoke auto-scroll — otherwise it would both
-    // register as a manual scroll and fight the counterpart's own centering.
-    if (Date.now() < programmaticScrollUntil.current) return;
-    manualScrollUntil.current = Date.now() + 2500;
-    // Snap to the boundaries so the mirror reaches the very top/bottom instead of
-    // stopping short — the 25%-line anchor below never resolves to the edges.
-    const maxScroll = Math.max(0, to.scrollHeight - to.clientHeight);
-    if (from.scrollTop <= 1) {
-      syncingScroll.current = true;
-      to.scrollTop = 0;
-      requestAnimationFrame(() => {
-        syncingScroll.current = false;
-      });
-      return;
-    }
-    if (from.scrollTop + from.clientHeight >= from.scrollHeight - 1) {
-      syncingScroll.current = true;
-      to.scrollTop = maxScroll;
-      requestAnimationFrame(() => {
-        syncingScroll.current = false;
-      });
-      return;
-    }
-    const candidates = Array.from(from.querySelectorAll<HTMLElement>('[data-segment-id]'));
-    const anchor =
-      candidates.find(
-        element =>
-          element.offsetTop + element.offsetHeight >= from.scrollTop + from.clientHeight * 0.25
-      ) ?? candidates.at(-1);
-    const id = anchor?.dataset.segmentId;
-    const counterpart = id
-      ? to.querySelector<HTMLElement>(`[data-segment-id="${CSS.escape(id)}"]`)
-      : null;
-    if (!counterpart) return;
-    syncingScroll.current = true;
-    to.scrollTop = Math.min(maxScroll, Math.max(0, counterpart.offsetTop - to.clientHeight * 0.25));
-    requestAnimationFrame(() => {
-      syncingScroll.current = false;
-    });
-  }, []);
+  const { sourceScrollRef, targetScrollRef, synchronizeScroll, centerActiveWord } = useScrollSync({
+    layoutKey: `${job.id}@${job.finishedAt ?? 0}|${translation?.targetLanguage ?? ''}:${translation?.segments.length ?? 0}|${hasTargetText}`,
+    reducedMotion
+  });
 
-  // Keep the karaoke word vertically centered in both columns. Called on every
-  // word change so following stays smooth even inside a long segment. Position
-  // is measured with getBoundingClientRect relative to the scroller — offsetTop
-  // is relative to the offsetParent (neither scroller is positioned), so it does
-  // not map to scrollTop and produced the miscentered scroll.
-  const centerActiveWord = useCallback(
-    (segmentId: string, wordId: string) => {
-      // Never fight a scroll the user just made by hand.
-      if (Date.now() < manualScrollUntil.current) return;
-      let scrolled = false;
-      for (const scroller of [sourceScrollRef.current, targetScrollRef.current]) {
-        if (!scroller) continue;
-        // Center the exact word on the source side; the target has no matching
-        // word element, so fall back to keeping its mirrored segment centered.
-        const element =
-          (wordId
-            ? scroller.querySelector<HTMLElement>(`[data-word-id="${CSS.escape(wordId)}"]`)
-            : null) ??
-          scroller.querySelector<HTMLElement>(`[data-segment-id="${CSS.escape(segmentId)}"]`);
-        if (!element) continue;
-        const scRect = scroller.getBoundingClientRect();
-        const elRect = element.getBoundingClientRect();
-        // Where the element sits in the scroller's own scroll coordinate space.
-        const elTopInContent = elRect.top - scRect.top + scroller.scrollTop;
-        const maxScroll = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
-        const target = Math.max(
-          0,
-          Math.min(maxScroll, elTopInContent - scroller.clientHeight / 2 + elRect.height / 2)
-        );
-        // Words on the same visual line share a top, so this is a no-op until the
-        // line changes — the view glides line-by-line instead of jittering.
-        if (Math.abs(target - scroller.scrollTop) < 4) continue;
-        scroller.scrollTo({ top: target, behavior: reducedMotion ? 'auto' : 'smooth' });
-        scrolled = true;
-      }
-      // Cover the smooth animation so its scroll events don't read as manual.
-      if (scrolled) programmaticScrollUntil.current = Date.now() + (reducedMotion ? 60 : 650);
-    },
-    [reducedMotion]
-  );
+  // Below this height the player shows its controls and no picture (see the stylesheet),
+  // and the button that opens it says so.
+  const pictureFolded = useMediaQueryMatch('(max-height: 820px)');
+  const { store: karaoke, clear: clearKaraoke } = useKaraoke({
+    mediaRef,
+    sourceScrollRef,
+    segments,
+    enabled: previewOpen && hasWordTimings && mediaPreview?.state === 'ready',
+    pointerSelecting,
+    centerActiveWord
+  });
 
-  // Capture a native selection, map it to segment char offsets, resolve the
-  // mirror through alignment links, then replace it with a persistent highlight.
-  const resolveNativeSelection = useCallback(() => {
-    const native = window.getSelection();
-    if (!native || native.isCollapsed || native.rangeCount === 0) return false;
-    const range = native.getRangeAt(0);
-    const closest = <T extends Element>(node: Node, selector: string): T | null =>
-      (node instanceof Element ? node : node.parentElement)?.closest<T>(selector) ?? null;
-    const startEl = closest<HTMLElement>(range.startContainer, '[data-segment-id]');
-    const endEl = closest<HTMLElement>(range.endContainer, '[data-segment-id]');
-    const column = closest<HTMLElement>(range.startContainer, '[data-side]');
-    const endColumn = closest<HTMLElement>(range.endContainer, '[data-side]');
-    if (!startEl || !endEl || !column || column !== endColumn) return false;
-    const origin = column.dataset.side === 'target' ? 'target' : 'source';
-    const rendered = Array.from(
-      column.querySelectorAll<HTMLElement>('.transcript-column-scroll [data-segment-id]')
-    );
-    const firstIndex = rendered.indexOf(startEl);
-    const lastIndex = rendered.indexOf(endEl);
-    if (firstIndex < 0 || lastIndex < firstIndex) return false;
-
-    const parts: SemanticSelectionPart[] = [];
-    for (const element of rendered.slice(firstIndex, lastIndex + 1)) {
-      const segmentId = element.dataset.segmentId;
-      const segment = segments.find(item => item.id === segmentId);
-      const translated = segmentId ? translatedBySegment.get(segmentId) : undefined;
-      if (!segmentId || !segment || (origin === 'target' && !translated)) continue;
-      const columnLength =
-        origin === 'source' ? segment.sourceText.length : (translated?.translatedText.length ?? 0);
-      const rawStart =
-        element === startEl
-          ? charOffsetWithin(element, range.startContainer, range.startOffset)
-          : 0;
-      const rawEnd =
-        element === endEl
-          ? charOffsetWithin(element, range.endContainer, range.endOffset)
-          : columnLength;
-      const chosen = {
-        start: Math.max(0, Math.min(rawStart, columnLength)),
-        end: Math.max(0, Math.min(rawEnd, columnLength))
-      };
-      if (chosen.end <= chosen.start) continue;
-      if (!translated) {
-        parts.push({
-          segmentId,
-          sourceRanges: [chosen],
-          targetRanges: [],
-          confidence: 0,
-          usedFallback: false
-        });
-        continue;
-      }
-      const mirror = resolveMirroredSelection(
-        chosen,
-        translated.alignments,
-        origin,
-        origin === 'source' ? translated.translatedText.length : segment.sourceText.length,
-        origin === 'source'
-          ? { origin: segment.sourceText, opposite: translated.translatedText }
-          : { origin: translated.translatedText, opposite: segment.sourceText }
-      );
-      parts.push({
-        segmentId,
-        sourceRanges: origin === 'source' ? [chosen] : mirror.ranges,
-        targetRanges: origin === 'target' ? [chosen] : mirror.ranges,
-        confidence: mirror.confidence,
-        usedFallback: mirror.usedFallback
-      });
-    }
-    if (!parts.length) return false;
-    const totalWeight = parts.reduce(
-      (sum, part) =>
-        sum +
-        (origin === 'source' ? part.sourceRanges : part.targetRanges).reduce(
-          (inner, selected) => inner + selected.end - selected.start,
-          0
-        ),
-      0
-    );
-    setSelection({
-      origin,
-      parts,
-      confidence:
-        parts.reduce((sum, part) => {
-          const weight = (origin === 'source' ? part.sourceRanges : part.targetRanges).reduce(
-            (inner, selected) => inner + selected.end - selected.start,
-            0
-          );
-          return sum + part.confidence * weight;
-        }, 0) / Math.max(1, totalWeight),
-      usedFallback: parts.some(part => part.usedFallback)
-    });
-    native.removeAllRanges();
-    return true;
-  }, [segments, translatedBySegment]);
-
-  const onSelectionEnd = (event: ReactPointerEvent) => {
-    // Never react to pointer-ups on controls: Copy must preserve the resolved
-    // selection and a combobox click is not a text selection.
-    if (
-      (event.target as Element).closest(
-        'button, select, input, .transcript-column-head, .transcript-player'
-      )
-    ) {
-      return;
-    }
-    const native = window.getSelection();
-    if (!native || native.isCollapsed) {
-      const target = event.target as Element;
-      // A word click seeks without disturbing a persistent semantic selection.
-      // Only whitespace outside rendered text is the specified "click outside".
-      if (
-        target.closest('.transcript-column-scroll') &&
-        !target.closest('.ts-segment') &&
-        !target.closest('[data-word-start-ms]')
-      ) {
-        clearSelection();
-      }
-      return;
-    }
-    resolveNativeSelection();
-  };
-
-  // Keyboard selection has no pointer-up. Let the native highlight remain
-  // while Shift+Arrow is active, then resolve it after a short quiet period.
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const onSelectionChange = () => {
-      const native = window.getSelection();
-      if (
-        !native ||
-        native.isCollapsed ||
-        !dialog.current?.contains(native.anchorNode) ||
-        !dialog.current?.contains(native.focusNode)
-      ) {
-        return;
-      }
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => resolveNativeSelection(), 160);
-    };
-    window.document.addEventListener('selectionchange', onSelectionChange);
-    return () => {
-      if (timer) clearTimeout(timer);
-      window.document.removeEventListener('selectionchange', onSelectionChange);
-    };
-  }, [resolveNativeSelection]);
-
-  // A drag can end anywhere (even outside the column), so clear the selecting
-  // flag on a window-level pointer release rather than a per-column handler.
-  useEffect(() => {
-    const end = () => {
-      pointerSelecting.current = false;
-    };
-    window.addEventListener('pointerup', end);
-    window.addEventListener('pointercancel', end);
-    return () => {
-      window.removeEventListener('pointerup', end);
-      window.removeEventListener('pointercancel', end);
-    };
-  }, []);
-
-  // Karaoke: follow the playhead with a binary search over the flat word list.
-  const flatWords = useMemo(() => flattenWords(segments), [segments]);
-  // Precompute the plain word array once so the animation frame doesn't
-  // re-allocate it 60×/second.
-  const flatWordList = useMemo(() => flatWords.map(entry => entry.word), [flatWords]);
-  useEffect(() => {
+  const seekTo = (startMs: number) => {
     const media = mediaRef.current;
-    if (!media || !previewOpen || !hasWordTimings) return;
-    const video = media as HTMLVideoElement & {
-      requestVideoFrameCallback?: (
-        callback: (now: number, metadata: { mediaTime: number }) => void
-      ) => number;
-      cancelVideoFrameCallback?: (handle: number) => void;
-    };
-    const stop = () => {
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-      if (videoFrameRef.current !== null) {
-        video.cancelVideoFrameCallback?.(videoFrameRef.current);
-        videoFrameRef.current = null;
-      }
-    };
-    const clear = () => {
-      stop();
-      activeWordId.current = '';
-      setActiveWord(null);
-    };
-    const update = (mediaTimeSeconds: number) => {
-      const index = activeWordIndex(flatWordList, mediaTimeSeconds * 1000);
-      if (index < 0) {
-        if (activeWordId.current) {
-          activeWordId.current = '';
-          setActiveWord(null);
-        }
-      } else {
-        const entry = flatWords[index];
-        if (entry.word.id !== activeWordId.current) {
-          // While the user is dragging a selection, leave the DOM untouched so
-          // the live selection survives; pick up the current word next tick.
-          if (pointerSelecting.current) return;
-          activeWordId.current = entry.word.id;
-          setActiveWord({
-            segmentId: entry.segmentId,
-            range: { start: entry.word.sourceStart, end: entry.word.sourceEnd }
-          });
-          centerActiveWord(entry.segmentId, entry.word.id);
-        }
-      }
-    };
-    const rafFrame = () => {
-      update(media.currentTime);
-      rafRef.current = requestAnimationFrame(rafFrame);
-    };
-    const videoFrame = (_now: number, metadata: { mediaTime: number }) => {
-      update(metadata.mediaTime);
-      videoFrameRef.current = video.requestVideoFrameCallback?.(videoFrame) ?? null;
-    };
-    const schedule = () => {
-      // Video frame metadata tracks the frame actually presented on screen,
-      // avoiding currentTime/render skew. Audio-only media has no presented
-      // frames, so it keeps the high-frequency RAF clock.
-      if (video.requestVideoFrameCallback && media.videoWidth > 0) {
-        videoFrameRef.current = video.requestVideoFrameCallback(videoFrame);
-      } else {
-        rafRef.current = requestAnimationFrame(rafFrame);
-      }
-    };
-    const onPlay = () => {
-      stop();
-      schedule();
-    };
-    media.addEventListener('play', onPlay);
-    media.addEventListener('pause', clear);
-    media.addEventListener('ended', clear);
-    if (!media.paused) onPlay();
-    return () => {
-      media.removeEventListener('play', onPlay);
-      media.removeEventListener('pause', clear);
-      media.removeEventListener('ended', clear);
-      clear();
-    };
-  }, [previewOpen, hasWordTimings, flatWordList, mediaPreview?.state, centerActiveWord]);
-
-  // Click a source word to seek the player to its start time.
-  const onSourceClick = (event: ReactMouseEvent) => {
-    const media = mediaRef.current;
-    if (!media) return;
-    const native = window.getSelection();
-    if (native && !native.isCollapsed) return; // a drag-select, not a click
-    const word = (event.target as Element).closest<HTMLElement>('[data-word-start-ms]');
-    const startMs = Number(word?.dataset.wordStartMs);
-    if (!Number.isFinite(startMs)) return;
+    if (!media || !Number.isFinite(startMs)) return;
     const wasPlaying = !media.paused;
     media.currentTime = startMs / 1000;
     if (wasPlaying) void media.play().catch(() => {});
   };
-
-  const cancelTranslation = async () => {
-    try {
-      await transcriptionTranslationCancel(job.id);
-    } catch {
-      // Status keeps streaming over SSE; a failed cancel simply changes nothing.
-    }
+  // Click a source word to seek the player to its start time.
+  const onSourceClick = (event: ReactMouseEvent) => {
+    if (!mediaRef.current) return;
+    const native = window.getSelection();
+    if (native && !native.isCollapsed) return;
+    const word = (event.target as Element).closest<HTMLElement>('[data-word-start-ms]');
+    seekTo(Number(word?.dataset.wordStartMs));
   };
-
-  // Packages the creative + transcript + translation into a folder next to the
-  // source file; the agent reveals the new folder in the file manager.
+  // The keyboard's way to the same place: a segment takes focus, Enter seeks to its start.
+  // Thousands of focusable words would be a Tab key nobody could get through; one stop per
+  // segment is a list a person can move along.
   const saveWithTranslation = async () => {
     if (saveState === 'saving') return;
     setSaveState('saving');
@@ -1035,18 +444,22 @@ export function TranscriptTextModal({
         fileName: `${t('transcriptionExportFileName')}.txt`
       });
       setSaveState('saved');
+      onToast?.(t('transcriptionSavedWithTranslation'), 'success');
     } catch {
       setSaveState('failed');
+      onToast?.(t('transcriptionSaveWithTranslationFailed'), 'error');
     }
     if (savedTimer.current) clearTimeout(savedTimer.current);
     savedTimer.current = setTimeout(() => setSaveState('idle'), 2500);
   };
-  useEffect(
-    () => () => {
-      if (savedTimer.current) clearTimeout(savedTimer.current);
-    },
-    []
-  );
+
+  const columnText = (which: 'source' | 'target'): string =>
+    which === 'source'
+      ? segments.map(segment => segment.sourceText).join('\n')
+      : segments
+          .map(segment => translatedBySegment.get(segment.id)?.translatedText ?? '')
+          .filter(Boolean)
+          .join('\n');
 
   const copyColumn = async (which: 'source' | 'target') => {
     let text: string;
@@ -1077,71 +490,20 @@ export function TranscriptTextModal({
       setCopied({ side: which, scope: full ? 'all' : 'selection' });
       if (copyTimer.current) clearTimeout(copyTimer.current);
       copyTimer.current = setTimeout(() => setCopied(null), 1800);
-      return full;
+      onToast?.(full ? t('transcriptionCopiedAll') : t('transcriptionCopiedSelection'), 'success');
     } catch {
-      return full;
+      onToast?.(t('transcriptionFailedTitle'), 'error');
     }
-  };
-
-  const columnText = (which: 'source' | 'target'): string =>
-    which === 'source'
-      ? segments.map(segment => segment.sourceText).join('\n')
-      : segments
-          .map(segment => translatedBySegment.get(segment.id)?.translatedText ?? '')
-          .filter(Boolean)
-          .join('\n');
-
-  const syncPlayback = () => {
-    const media = mediaRef.current;
-    if (!media) return;
-    setPlayback({
-      playing: !media.paused && !media.ended,
-      currentTime: media.currentTime,
-      duration: Number.isFinite(media.duration) ? media.duration : 0,
-      volume: media.volume,
-      rate: media.playbackRate
-    });
-  };
-
-  const togglePlayback = () => {
-    const media = mediaRef.current;
-    if (!media) return;
-    if (media.paused) void media.play().catch(() => {});
-    else media.pause();
-  };
-
-  const seekPlayback = (event: ChangeEvent<HTMLInputElement>) => {
-    const media = mediaRef.current;
-    if (!media) return;
-    media.currentTime = Number(event.target.value);
-    syncPlayback();
-  };
-
-  const changeVolume = (event: ChangeEvent<HTMLInputElement>) => {
-    const media = mediaRef.current;
-    if (!media) return;
-    media.volume = Number(event.target.value);
-    syncPlayback();
-  };
-
-  const changeRate = (event: ChangeEvent<HTMLSelectElement>) => {
-    const media = mediaRef.current;
-    if (!media) return;
-    media.playbackRate = Number(event.target.value);
-    syncPlayback();
-  };
-
-  const enterFullscreen = () => {
-    const element = playerRef.current;
-    if (element?.requestFullscreen) void element.requestFullscreen().catch(() => {});
   };
 
   const targetName = languageDisplayName(target, language);
   const displayedLanguage = translation?.targetLanguage ?? target;
   const sourceBaseLanguage = sourceLanguage.split('-')[0].toLowerCase();
-  const targetLanguageOptions = TARGET_LANGUAGES.filter(
-    code => code.split('-')[0].toLowerCase() !== sourceBaseLanguage
+  const targetLanguageOptions = useMemo(
+    () => TARGET_LANGUAGES.filter(code => code.split('-')[0].toLowerCase() !== sourceBaseLanguage),
+    [sourceBaseLanguage]
   );
+
   const preparePreview = async () => {
     setPreviewActivated(true);
     setPreviewOpen(true);
@@ -1149,45 +511,79 @@ export function TranscriptTextModal({
       await mediaRef.current?.play().catch(() => {});
       return;
     }
-    try {
-      setMediaPreview(await transcriptionMediaPrepare(job.id));
-    } catch {
-      setMediaPreview({
-        state: 'failed',
-        variant: null,
-        progress: null,
-        hasVideo: null,
-        mimeType: null,
-        error: 'PREVIEW_FAILED'
-      });
-    }
+    await prepareMedia();
   };
-
   const togglePreview = async () => {
     if (!previewOpen) {
       await preparePreview();
       return;
     }
     mediaRef.current?.pause();
-    activeWordId.current = '';
-    setActiveWord(null);
+    clearKaraoke();
+    setPreviewOpen(false);
+  };
+  const cancelPreviewPreparation = async () => {
+    await cancelMedia();
     setPreviewOpen(false);
   };
 
-  const cancelPreviewPreparation = async () => {
-    await transcriptionMediaCancel(job.id).catch(() => {});
-    setMediaPreview(current =>
-      current ? { ...current, state: 'checking', progress: null, error: null } : current
+  // Enter on a segment before the player is open: the player opens and seeks there once
+  // it has its metadata, so the keyboard reaches the transcript without a detour through
+  // the footer.
+  const [pendingSeekMs, setPendingSeekMs] = useState<number | null>(null);
+  useEffect(() => {
+    if (pendingSeekMs === null || !previewOpen) return;
+    const media = mediaRef.current;
+    if (!media) return;
+    const go = () => {
+      seekTo(pendingSeekMs);
+      setPendingSeekMs(null);
+    };
+    if (media.readyState >= 1) {
+      go();
+      return;
+    }
+    media.addEventListener('loadedmetadata', go, { once: true });
+    return () => media.removeEventListener('loadedmetadata', go);
+    // `seekTo` reads the media element through its ref, so the seek needs no dependency.
+  }, [pendingSeekMs, previewOpen, mediaPreview?.state]);
+  const onSegmentKeyDown = (event: ReactKeyboardEvent) => {
+    const segment = (event.target as Element).closest<HTMLElement>('[data-segment-id]');
+    if (!segment) return;
+    // One Tab stop for the column; the arrows walk the segments. Every segment as a stop
+    // was ninety presses to reach the footer of a six-minute file.
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      const all = Array.from(
+        event.currentTarget.querySelectorAll<HTMLElement>('[data-segment-id]')
+      );
+      const next = all[all.indexOf(segment) + (event.key === 'ArrowDown' ? 1 : -1)];
+      if (next) {
+        event.preventDefault();
+        next.focus();
+      }
+      return;
+    }
+    if (event.key !== 'Enter') return;
+    // The translation column shares the source's segment ids, so its Enter seeks to the
+    // words of the source segment it mirrors.
+    const id = segment.dataset.segmentId ?? '';
+    const first = sourceScrollRef.current?.querySelector<HTMLElement>(
+      `[data-segment-id="${CSS.escape(id)}"] [data-word-start-ms]`
     );
-    setPreviewOpen(false);
+    if (!first) return;
+    event.preventDefault();
+    const startMs = Number(first.dataset.wordStartMs);
+    if (mediaRef.current) {
+      seekTo(startMs);
+      return;
+    }
+    setPendingSeekMs(startMs);
+    void togglePreview();
   };
 
   const audioOnly =
     mediaPreview?.hasVideo === false ||
     AUDIO_EXTENSIONS.has(job.fileName.split('.').at(-1)?.toLowerCase() ?? '');
-  // The match meter only means something when there is a translation to compare
-  // against. With no translator/translation a source selection is just a plain
-  // highlight — never show a fabricated percentage.
   const showMatch =
     !!selection && hasTargetText && selection.parts.some(part => part.targetRanges.length > 0);
   const hasSourceSelection = selection?.parts.some(part => part.sourceRanges.length > 0) === true;
@@ -1202,17 +598,19 @@ export function TranscriptTextModal({
           ? t('transcriptionMatchApprox')
           : '';
 
-  // Determinate, character-weighted progress straight from the backend summary,
-  // and an ETA anchored to the backend's continuous startedAt.
   const translationPercent = translating ? (summary?.progress ?? null) : null;
-  const translationEtaMs =
-    translationPercent !== null &&
-    translationPercent > 0 &&
-    translationPercent < 100 &&
-    translationElapsedMs > 0
-      ? (translationElapsedMs * (100 - translationPercent)) / translationPercent
-      : null;
   const translationQueued = summary?.status === 'queued' && !requesting;
+  const translationCompleted = translation?.status === 'completed';
+  const loading = document_ === null;
+
+  const copyLabel = (side: 'source' | 'target', hasSelection: boolean) =>
+    copied?.side === side
+      ? copied.scope === 'selection'
+        ? t('transcriptionCopiedSelection')
+        : t('transcriptionCopiedAll')
+      : hasSelection
+        ? t('transcriptionCopySelection')
+        : t('transcriptionCopyAll');
 
   return (
     <Modal
@@ -1226,15 +624,18 @@ export function TranscriptTextModal({
       dialogRef={dialog}
       style={
         {
-          '--ts-selection-color': selection
-            ? confidenceColor(selection.confidence)
-            : 'var(--color-success)'
+          '--ts-selection-color':
+            selection && hasTargetText
+              ? confidenceColor(selection.confidence)
+              : 'var(--color-accent)'
         } as CSSProperties
       }
     >
       <header className="transcript-modal-header">
-        <div>
-          <h2 id={titleId}>{job.fileName}</h2>
+        <div className="transcript-modal-heading">
+          <h2 id={titleId} title={job.fileName}>
+            {job.fileName}
+          </h2>
           <p>
             <span>
               {t('transcriptionDetected', {
@@ -1244,98 +645,118 @@ export function TranscriptTextModal({
             {job.characters !== null && (
               <span>{t('transcriptionCharacters', { count: job.characters })}</span>
             )}
+            {job.quality && (
+              <span>
+                {job.quality === 'fast'
+                  ? t('transcriptionQualityFast')
+                  : t('transcriptionQualityAccurate')}
+              </span>
+            )}
           </p>
         </div>
-        {/* Confidence meter */}
-        <div
-          className={`transcript-match${showMatch ? '' : ' is-empty'}`}
-          role="group"
-          aria-label={t('transcriptionMatchLabel')}
-        >
-          <span className="transcript-match-label">{t('transcriptionMatchLabel')}</span>
-          <div className="transcript-match-bar" aria-hidden="true">
-            {showMatch && (
-              <span
-                className="transcript-match-pointer"
-                style={{ left: `${Math.round((1 - selection!.confidence) * 100)}%` }}
-              />
-            )}
-          </div>
-          <span className="transcript-match-value">
-            {showMatch
-              ? `${gradeLabel} · ${Math.round(selection!.confidence * 100)}%`
-              : t('transcriptionMatchEmpty')}
-          </span>
-          <button
-            type="button"
-            className="transcript-match-help"
-            aria-label={t('transcriptionMatchHint')}
-            aria-describedby={matchHintId}
+        {/* Nothing to match against until a translation exists: a row of inert dots above
+            the text was the second thing in the dialog, and said nothing. */}
+        {hasTargetText && (
+          <div
+            className={`transcript-match${showMatch ? '' : ' is-empty'}`}
+            role="group"
+            aria-label={t('transcriptionMatchLabel')}
           >
-            ?
-          </button>
-          <span id={matchHintId} className="transcript-match-tooltip" role="tooltip">
-            {t('transcriptionMatchHint')}
-          </span>
-        </div>
+            <span className="transcript-match-label">{t('transcriptionMatchLabel')}</span>
+            <div className="transcript-match-bar" aria-hidden="true">
+              {showMatch && (
+                <span
+                  className="transcript-match-pointer"
+                  style={{ left: `${Math.round((1 - selection!.confidence) * 100)}%` }}
+                />
+              )}
+            </div>
+            <span className="transcript-match-value">
+              {showMatch
+                ? `${gradeLabel} · ${Math.round(selection!.confidence * 100)}%`
+                : selection
+                  ? t('transcriptionMatchNoTranslation')
+                  : t('transcriptionMatchEmpty')}
+            </span>
+            <Tooltip label={t('transcriptionMatchHint')}>{t('transcriptionMatchHint')}</Tooltip>
+          </div>
+        )}
         <button
           type="button"
           className="transcript-modal-close"
           aria-label={t('transcriptionModalClose')}
           onClick={onClose}
         >
-          <span aria-hidden="true">×</span>
+          <X size={18} strokeWidth={2} aria-hidden="true" />
         </button>
       </header>
 
-      <div className="transcript-split-body" ref={bodyRef} onPointerUp={onSelectionEnd}>
+      <div className="transcript-split-body" onPointerUp={onSelectionEnd}>
         <section
           className="transcript-column"
           data-side="source"
+          aria-describedby={hintId}
           aria-label={t('transcriptionSourceColumn')}
-          dir={isRtlLanguage(sourceLanguage) ? 'rtl' : 'ltr'}
+          aria-busy={loading}
         >
           <div className="transcript-column-head">
             <span className="transcript-column-title">
               {languageDisplayName(sourceLanguage, language)}
             </span>
-            <Button variant="ghost" onClick={() => void copyColumn('source')}>
-              {copied?.side === 'source'
-                ? copied.scope === 'selection'
-                  ? t('transcriptionCopiedSelection')
-                  : t('transcriptionCopiedAll')
-                : hasSourceSelection
-                  ? t('transcriptionCopySelection')
-                  : t('transcriptionCopyAll')}
+            <Button variant="ghost" disabled={loading} onClick={() => void copyColumn('source')}>
+              {copyLabel('source', hasSourceSelection)}
             </Button>
           </div>
           <div
             ref={sourceScrollRef}
             className="transcript-column-scroll"
             onClick={onSourceClick}
-            onPointerDown={event => {
-              if ((event.target as Element).closest('.ts-segment')) pointerSelecting.current = true;
-            }}
+            onKeyDown={onSegmentKeyDown}
+            onPointerDown={onColumnPointerDown}
             onScroll={event => {
               const other = targetScrollRef.current;
               if (other) synchronizeScroll(event.currentTarget, other);
             }}
           >
-            {segments.length ? (
-              segments.map(segment => (
-                <SegmentText
-                  key={segment.id}
-                  text={segment.sourceText}
-                  segmentId={segment.id}
-                  words={segment.words}
-                  selectedRanges={selectedPart(selection, segment.id)?.sourceRanges ?? NO_RANGES}
-                  activeRanges={
-                    activeWord?.segmentId === segment.id ? [activeWord.range] : NO_RANGES
-                  }
-                />
-              ))
+            {loading ? (
+              <div className="transcript-modal-loading" role="status">
+                <span className="spinner" aria-hidden="true" />
+                <span>{t('transcriptionModalLoading')}</span>
+              </div>
+            ) : segments.length ? (
+              /* The direction belongs to the transcript, not the column: on the column it
+                 also flipped the interface's own loading and failure sentences for an
+                 Arabic or Pashto file, period first. */
+              <div
+                className="transcript-column-text"
+                dir={isRtlLanguage(sourceLanguage) ? 'rtl' : 'ltr'}
+              >
+                {segments.map((segment, index) => (
+                  <SourceSegment
+                    key={segment.id}
+                    segment={segment}
+                    selectedRanges={selectedPart(selection, segment.id)?.sourceRanges ?? NO_RANGES}
+                    store={karaoke}
+                    // Reachable whether or not the words are timed: Enter seeks only when
+                    // they are, but reading by keyboard needs no timestamps.
+                    focusable
+                    tabStop={index === 0}
+                  />
+                ))}
+              </div>
             ) : (
-              <div className="transcript-modal-empty">{t('transcriptionModalEmpty')}</div>
+              <div className="transcript-modal-empty">
+                {loadFailed ? (
+                  <>
+                    <span>{t('transcriptionModalLoadFailed')}</span>
+                    <Button variant="secondary" onClick={() => setLoadAttempt(count => count + 1)}>
+                      {t('tryAgain')}
+                    </Button>
+                  </>
+                ) : (
+                  t('transcriptionModalEmpty')
+                )}
+              </div>
             )}
           </div>
         </section>
@@ -1343,12 +764,13 @@ export function TranscriptTextModal({
         <section
           className="transcript-column"
           data-side="target"
+          aria-describedby={hintId}
           aria-label={t('transcriptionTranslationColumn')}
-          dir={isRtlLanguage(displayedLanguage) ? 'rtl' : 'ltr'}
           aria-busy={translating}
         >
           <div className="transcript-column-head">
-            <span className="transcript-column-title">
+            {/* The picker names the language; a title saying it again above was noise. */}
+            <span className="transcript-column-title visually-hidden">
               {languageDisplayName(displayedLanguage, language)}
             </span>
             <div className="transcript-column-actions">
@@ -1357,33 +779,23 @@ export function TranscriptTextModal({
                 codes={targetLanguageOptions}
                 language={language}
                 label={t('transcriptionLanguageSearch')}
-                onChange={code => {
-                  lastDistinctTarget.current = code;
-                  const cached = validatedTranslations.current.get(code);
-                  if (cached) {
-                    setTranslation(cached);
-                    setTranslationError(null);
-                  }
-                  setTarget(code);
-                }}
+                onChange={chooseTarget}
               />
-              <Button variant="ghost" onClick={() => void copyColumn('target')}>
-                {copied?.side === 'target'
-                  ? copied.scope === 'selection'
-                    ? t('transcriptionCopiedSelection')
-                    : t('transcriptionCopiedAll')
-                  : hasTargetSelection
-                    ? t('transcriptionCopySelection')
-                    : t('transcriptionCopyAll')}
+              <Button
+                variant="ghost"
+                disabled={!hasTargetText}
+                onClick={() => void copyColumn('target')}
+              >
+                {copyLabel('target', hasTargetSelection)}
               </Button>
             </div>
           </div>
 
+          <TranslationCaveat t={t} />
+
           {(translating || translationError) && (
             <div
-              className={`transcript-translation-status${
-                translationError === 'failed' ? ' is-error' : ''
-              }`}
+              className={`transcript-translation-status${translationError === 'failed' ? ' is-error' : ''}`}
               role={translationError === 'failed' ? 'alert' : 'status'}
             >
               {translating && (
@@ -1402,13 +814,10 @@ export function TranscriptTextModal({
                       active
                       label={t('transcriptionTranslating', { language: targetName })}
                     />
-                    <span className="transcript-translation-elapsed">
-                      {translationPercent !== null && `${translationPercent}% · `}
-                      {translationStartedAt !== null &&
-                        formatMediaTime(translationElapsedMs / 1000)}
-                      {translationEtaMs !== null &&
-                        ` · ~${formatMediaTime(translationEtaMs / 1000)}`}
-                    </span>
+                    <TranslationElapsed
+                      startedAt={summary?.startedAt ?? null}
+                      percent={translationPercent}
+                    />
                     <Button variant="ghost" onClick={() => void cancelTranslation()}>
                       {t('transcriptionCancel')}
                     </Button>
@@ -1437,126 +846,68 @@ export function TranscriptTextModal({
           <div
             ref={targetScrollRef}
             className="transcript-column-scroll"
-            onPointerDown={event => {
-              if ((event.target as Element).closest('.ts-segment')) pointerSelecting.current = true;
-            }}
+            onKeyDown={onSegmentKeyDown}
+            onPointerDown={onColumnPointerDown}
             onScroll={event => {
               const other = sourceScrollRef.current;
               if (other) synchronizeScroll(event.currentTarget, other);
             }}
           >
             {translationError === 'unavailable' && (
-              <div className="transcript-translation-notice">
-                {translatorModel.downloading ? (
-                  <>
-                    <span>
-                      {t('transcriptionTranslatorInstalling', {
-                        progress: translatorModel.progress ?? 0
-                      })}
-                    </span>
-                    <ProgressBar
-                      value={translatorModel.progress}
-                      active
-                      label={t('transcriptionTranslatorInstall')}
-                    />
-                    <Button variant="ghost" onClick={onCancelTranslator}>
-                      {t('transcriptionModelCancelBtn')}
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <span>
-                      {t('transcriptionTranslatorIntro', {
-                        size: formatSize(translatorModel.sizeBytes || 2_500_000_000, language)
-                      })}
-                    </span>
-                    <label className="transcription-gemma-consent">
-                      <input
-                        type="checkbox"
-                        checked={translatorTermsAccepted}
-                        onChange={event => setTranslatorTermsAccepted(event.target.checked)}
-                      />
-                      <span>
-                        {t('transcriptionGemmaConsent')}{' '}
-                        <a
-                          href="https://ai.google.dev/gemma/terms"
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {t('transcriptionGemmaTerms')}
-                        </a>{' '}
-                        {t('transcriptionGemmaAnd')}{' '}
-                        <a
-                          href="https://ai.google.dev/gemma/prohibited_use_policy"
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {t('transcriptionGemmaPolicy')}
-                        </a>
-                        .
-                      </span>
-                    </label>
-                    {translatorModel.error && (
-                      <span className="transcription-model-error">
-                        {translatorModel.error === 'MODEL_SOURCE_NOT_CONFIGURED'
-                          ? t('transcriptionTranslatorNotConfigured')
-                          : t('transcriptionTranslationFailed')}
-                      </span>
-                    )}
-                    <Button
-                      variant="primary"
-                      disabled={!translatorTermsAccepted}
-                      onClick={onInstallTranslator}
-                    >
-                      {t('transcriptionTranslatorInstall')}
-                    </Button>
-                  </>
-                )}
-              </div>
+              <TranslatorNotice
+                translatorModel={translatorModel}
+                language={language}
+                onInstall={onInstallTranslator}
+                onCancel={onCancelTranslator}
+                t={t}
+              />
             )}
             {translationError === 'failed' && (
               <div className="transcript-translation-notice" role="alert">
-                <Button variant="secondary" onClick={() => setRetryNonce(nonce => nonce + 1)}>
+                <Button variant="secondary" onClick={retryTranslation}>
                   {t('transcriptionTranslationRetry')}
                 </Button>
               </div>
             )}
             {hasTargetText ? (
-              // Segments stream in progressively, so the content stays fully
-              // readable while the remainder translates — no blur overlay.
-              <div className="transcript-translation-content">
+              <div
+                className="transcript-translation-content"
+                dir={isRtlLanguage(displayedLanguage) ? 'rtl' : 'ltr'}
+              >
                 {segments.map(segment => {
                   const translated = translatedBySegment.get(segment.id);
                   if (!translated) return null;
-                  const activeRanges =
-                    activeWord?.segmentId === segment.id
-                      ? resolveMirroredSelection(
-                          activeWord.range,
-                          translated.alignments,
-                          'source',
-                          translated.translatedText.length
-                        ).ranges
-                      : NO_RANGES;
                   return (
-                    <SegmentText
+                    <TargetSegment
                       key={segment.id}
-                      text={translated.translatedText}
                       segmentId={segment.id}
+                      translated={translated}
                       selectedRanges={
                         selectedPart(selection, segment.id)?.targetRanges ?? NO_RANGES
                       }
-                      activeRanges={activeRanges}
+                      store={karaoke}
+                      focusable
+                      // The first segment that has a translation, not the first segment:
+                      // during a streaming translation the two can differ.
+                      tabStop={segment.id === firstTranslatedSegmentId}
                     />
                   );
                 })}
               </div>
-            ) : !translationError && !translating ? (
+            ) : !translationError && !translating && !loading ? (
               <div className="transcript-modal-empty">{t('transcriptionTranslationEmpty')}</div>
             ) : null}
           </div>
 
+          <p id={hintId} className="visually-hidden">
+            {t('transcriptionSeekHint')}
+          </p>
           <p className="visually-hidden" role="status" aria-live="polite">
-            {translating ? t('transcriptionTranslating', { language: targetName }) : ''}
+            {translating
+              ? t('transcriptionTranslating', { language: targetName })
+              : translationCompleted
+                ? t('transcriptionTranslationReady', { language: targetName })
+                : ''}
           </p>
         </section>
       </div>
@@ -1569,97 +920,16 @@ export function TranscriptTextModal({
             {...(!previewOpen ? { inert: true } : {})}
           >
             {mediaPreview?.state === 'ready' ? (
-              <div ref={playerRef} className={`transcript-player${audioOnly ? ' audio-only' : ''}`}>
-                <video
-                  ref={mediaRef}
-                  className="transcript-preview-media"
-                  src={mediaUrl ?? ''}
-                  playsInline
-                  preload="metadata"
-                  onLoadedMetadata={syncPlayback}
-                  onDurationChange={syncPlayback}
-                  onTimeUpdate={syncPlayback}
-                  onPlay={syncPlayback}
-                  onPause={syncPlayback}
-                  onEnded={syncPlayback}
-                  onVolumeChange={syncPlayback}
-                  onRateChange={syncPlayback}
-                />
-                {audioOnly && (
-                  <div className="transcript-audio-poster" aria-hidden="true">
-                    <span className="transcript-audio-mark">
-                      <SotyMark size={38} />
-                    </span>
-                    <span className="transcript-audio-bars">
-                      <i />
-                      <i />
-                      <i />
-                      <i />
-                      <i />
-                    </span>
-                  </div>
-                )}
-                <div className="transcript-player-controls">
-                  <button
-                    type="button"
-                    className="transcript-player-icon"
-                    onClick={togglePlayback}
-                    aria-label={
-                      playback.playing
-                        ? t('transcriptionPlayerPause')
-                        : t('transcriptionPlayerPlay')
-                    }
-                  >
-                    <span aria-hidden="true">{playback.playing ? 'Ⅱ' : '▶'}</span>
-                  </button>
-                  <span className="transcript-player-time">
-                    {formatMediaTime(playback.currentTime)} / {formatMediaTime(playback.duration)}
-                  </span>
-                  <input
-                    className="transcript-player-seek"
-                    type="range"
-                    min="0"
-                    max={Math.max(0, playback.duration)}
-                    step="0.01"
-                    value={Math.min(playback.currentTime, playback.duration || 0)}
-                    onChange={seekPlayback}
-                    aria-label={t('transcriptionPlayerSeek')}
-                  />
-                  <label className="transcript-player-volume">
-                    <span aria-hidden="true">◕</span>
-                    <span className="visually-hidden">{t('transcriptionPlayerVolume')}</span>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      value={playback.volume}
-                      onChange={changeVolume}
-                    />
-                  </label>
-                  <label className="transcript-player-rate">
-                    <span className="visually-hidden">{t('transcriptionPlayerSpeed')}</span>
-                    <select value={playback.rate} onChange={changeRate}>
-                      {[0.75, 1, 1.25, 1.5, 2].map(rate => (
-                        <option key={rate} value={rate}>
-                          {rate}×
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <button
-                    type="button"
-                    className="transcript-player-icon"
-                    onClick={enterFullscreen}
-                    aria-label={t('transcriptionPlayerFullscreen')}
-                  >
-                    <span aria-hidden="true">⛶</span>
-                  </button>
-                </div>
-                {!hasWordTimings && (
-                  <p className="transcript-preview-note">{t('transcriptionKaraokeUnavailable')}</p>
-                )}
-              </div>
+              <TranscriptPlayer
+                ref={mediaRef}
+                src={mediaUrl ?? ''}
+                audioOnly={audioOnly}
+                onError={failPreview}
+                note={
+                  hasWordTimings ? t('transcriptionSeekHint') : t('transcriptionKaraokeUnavailable')
+                }
+                t={t}
+              />
             ) : mediaPreview?.state === 'failed' ? (
               <div className="transcript-preview-status" role="alert">
                 <span>{t('transcriptionPreviewUnavailable')}</span>
@@ -1696,41 +966,63 @@ export function TranscriptTextModal({
           aria-expanded={previewOpen}
           aria-controls={previewId}
         >
-          <span aria-hidden="true">{previewOpen ? '⌄' : '▶'}</span>
-          {previewOpen ? t('transcriptionPreviewCollapse') : t('transcriptionPreview')}
+          {previewOpen ? (
+            <ChevronDown size={16} strokeWidth={1.75} aria-hidden="true" />
+          ) : (
+            <Play size={16} strokeWidth={1.75} aria-hidden="true" />
+          )}
+          {previewOpen
+            ? t('transcriptionPreviewCollapse')
+            : pictureFolded
+              ? t('transcriptionPreviewSound')
+              : t('transcriptionPreview')}
         </Button>
+        {onExport && (
+          <ExportMenu
+            hasTimings={timed}
+            hasTranslation={translationCompleted}
+            disabled={loading || segments.length === 0}
+            onExport={onExport}
+            t={t}
+          />
+        )}
         {job.sourceKind === 'local' && (
           <Button
             variant="secondary"
             loading={saveState === 'saving'}
             disabled={job.translation?.status !== 'completed' || saveState === 'saving'}
+            title={
+              job.translation?.status !== 'completed'
+                ? t('transcriptionErrorTranslationNotReady')
+                : undefined
+            }
             onClick={() => void saveWithTranslation()}
           >
+            <FolderDown size={16} strokeWidth={1.75} aria-hidden="true" />
             {saveState === 'saved'
               ? t('transcriptionSavedWithTranslation')
               : t('transcriptionSaveWithTranslation')}
           </Button>
         )}
-        {saveState === 'failed' && (
-          <span className="transcription-model-error" role="alert">
-            {t('transcriptionSaveWithTranslationFailed')}
-          </span>
-        )}
-        <Button variant="ghost" onClick={onClose}>
+        <Button variant="ghost" className="transcript-modal-footer-close" onClick={onClose}>
           {t('transcriptionModalClose')}
         </Button>
       </footer>
-      <div
-        className={`transcript-copy-toast${copied ? ' is-visible' : ''}`}
-        role="status"
-        aria-live="polite"
-      >
-        {copied
-          ? copied.scope === 'selection'
-            ? t('transcriptionCopiedSelection')
-            : t('transcriptionCopiedAll')
-          : ''}
-      </div>
     </Modal>
   );
+});
+
+const NO_SEGMENTS: TranscriptSegment[] = [];
+
+function useMediaQueryMatch(query: string): boolean {
+  const [matches, setMatches] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia?.(query);
+    if (!media) return;
+    const update = () => setMatches(media.matches);
+    update();
+    media.addEventListener?.('change', update);
+    return () => media.removeEventListener?.('change', update);
+  }, [query]);
+  return matches;
 }

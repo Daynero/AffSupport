@@ -1029,6 +1029,8 @@ export interface LandingPreviewItem {
   previewHeight: number | null;
   /** Number of seamless full-resolution image slices that form this preview. */
   previewSegments?: number;
+  /** A small top-of-page picture was saved beside the preview, for the grid. */
+  thumbnailAvailable?: boolean;
   renderedAt: number | null;
   blockedExternalRequests: number;
   warning: string | null;
@@ -1198,10 +1200,110 @@ export const TRANSCRIPTION_LANGUAGE_CODES = [
   'zh',
   'vi',
   'id',
-  'th'
+  'th',
+  // Turkic, Central Asian and South Asian speech is where automatic detection is at its
+  // weakest — Uzbek in particular comes back as Azerbaijani, Turkish or Pashto — so every
+  // language of those families a person is likely to be handed is offered by name.
+  'az',
+  'uz',
+  'kk',
+  'ky',
+  'tk',
+  'tg',
+  'tt',
+  'ba',
+  'ug',
+  'mn',
+  'ps',
+  'ur',
+  'bn',
+  'pa',
+  'ta',
+  'te',
+  'ml',
+  'kn',
+  'mr',
+  'gu',
+  'ne',
+  'si',
+  'my',
+  'km',
+  'lo',
+  'ka',
+  'hy',
+  'be',
+  'sr',
+  'hr',
+  'bs',
+  'sl',
+  'mk',
+  'sq',
+  'hu',
+  'et',
+  'lv',
+  'lt',
+  'ms',
+  'tl',
+  'sw',
+  'am',
+  'yo',
+  'ha'
 ] as const;
 
 export type TranscriptionLanguageCode = (typeof TRANSCRIPTION_LANGUAGE_CODES)[number];
+
+/**
+ * Languages Whisper's own detector routinely mistakes for one another.
+ *
+ * Its language head was trained on wildly uneven amounts of speech, and for a handful of
+ * families the top answer is close to a coin toss: Uzbek reliably comes back as
+ * Azerbaijani, Turkish or Turkmen, and the same recording in Arabic script comes back as
+ * Pashto or Persian. Measured on a 57-minute Uzbek recording, seven separate 30-second
+ * windows produced `az` three times, `fa` twice and `en` twice — and never `uz`.
+ *
+ * Nothing here changes what the detector answers. It is what the interface uses to say the
+ * answer is worth checking, and to put the likely alternatives at the top of the picker so
+ * a correction is one click rather than a search through a hundred names.
+ */
+export const CONFUSABLE_TRANSCRIPTION_LANGUAGES: Readonly<Record<string, readonly string[]>> =
+  Object.freeze({
+    az: ['uz', 'tr', 'tk', 'kk'],
+    uz: ['az', 'tr', 'tk', 'kk'],
+    tr: ['az', 'uz', 'tk'],
+    tk: ['uz', 'az', 'tr'],
+    kk: ['ky', 'uz', 'tt', 'ba'],
+    ky: ['kk', 'uz', 'tt'],
+    tt: ['ba', 'kk', 'ky'],
+    ba: ['tt', 'kk'],
+    ug: ['uz', 'kk'],
+    ps: ['fa', 'ur', 'tg', 'uz'],
+    fa: ['ps', 'tg', 'ur'],
+    tg: ['fa', 'uz', 'ps'],
+    ur: ['hi', 'fa', 'ps', 'pa'],
+    hi: ['ur', 'ne', 'mr', 'pa'],
+    ne: ['hi', 'mr'],
+    mr: ['hi', 'ne'],
+    bs: ['hr', 'sr', 'sl'],
+    hr: ['bs', 'sr', 'sl'],
+    sr: ['bs', 'hr', 'mk'],
+    mk: ['bg', 'sr'],
+    bg: ['mk', 'ru'],
+    be: ['ru', 'uk'],
+    sk: ['cs'],
+    cs: ['sk'],
+    ms: ['id'],
+    id: ['ms']
+  });
+
+/**
+ * The alternatives worth offering first when this language was detected, most likely one
+ * first. Empty for every language the detector gets right, which is most of them.
+ */
+export function confusableLanguages(code: string | null | undefined): readonly string[] {
+  if (!code) return [];
+  const base = code.trim().replaceAll('_', '-').split('-')[0].toLowerCase();
+  return CONFUSABLE_TRANSCRIPTION_LANGUAGES[base] ?? [];
+}
 
 /**
  * Target languages covered by TranslateGemma's published WMT24++ evaluation.
@@ -1315,11 +1417,37 @@ export function resolveTranslationTarget(
   return isValidTargetLanguage(fallback) ? normalizeTargetLanguage(fallback) : null;
 }
 
+/**
+ * Which speech model a transcription runs on.
+ *
+ * `fast` is large-v3-turbo (a 574 MB 5-bit build, greedy decoding): the same encoder as
+ * large-v3 with a four-layer decoder, which on a CPU-only Windows machine is the difference
+ * between a usable tool and one that runs slower than the recording. `accurate` is the full
+ * large-v3 with beam search, for noisy or accented speech where every word matters.
+ */
+export type TranscriptionQualityMode = 'fast' | 'accurate';
+
+export const TRANSCRIPTION_QUALITY_MODES: readonly TranscriptionQualityMode[] = [
+  'fast',
+  'accurate'
+];
+
+export function isTranscriptionQualityMode(value: unknown): value is TranscriptionQualityMode {
+  return value === 'fast' || value === 'accurate';
+}
+
 export interface TranscriptionSettings {
   /** `auto` detects the spoken language; otherwise an ISO 639-1 code. */
   language: string;
   /** Preferred automatic translation target (normally the Soty UI language). */
   translationLanguage: string;
+  /** Speed/accuracy trade-off; decides which model a new run loads. */
+  quality: TranscriptionQualityMode;
+  /**
+   * The user chose to transcribe without the local translation models. Remembered so the
+   * download prompt is shown once, not on every start.
+   */
+  translationDeclined?: boolean;
 }
 
 /**
@@ -1344,6 +1472,23 @@ export interface TranscriptionTranslationSummary {
   error: 'TRANSLATION_FAILED' | 'TRANSLATION_CANCELLED' | 'TRANSLATOR_UNAVAILABLE' | null;
 }
 
+/** How a job's language was arrived at; see `TranscriptionJob.languageSource`. */
+export type TranscriptionLanguageSource = 'probe' | 'run' | 'manual';
+
+/**
+ * One language the detector named, and how much of its confidence that language carried.
+ *
+ * The confidence this language won with, averaged over every fragment the probe listened
+ * to. Shares do not add up to one: whisper.cpp publishes only the winner of each
+ * thirty-second window, so the rest of each window's probability went to languages it
+ * never named, and that remainder is the honest measure of how open the question still is.
+ */
+export interface TranscriptionLanguageCandidate {
+  language: string;
+  /** 0–1. */
+  share: number;
+}
+
 export interface TranscriptionJob {
   id: string;
   inputPath: string;
@@ -1358,10 +1503,55 @@ export interface TranscriptionJob {
   requestedLanguage: string;
   /** Language Whisper actually used, once known. */
   detectedLanguage: string | null;
+  /**
+   * Where `detectedLanguage` came from.
+   *
+   * `probe` is the few-second guess taken when the file was added, `run` is what the
+   * transcription itself reported, and `manual` is a person's correction — which outranks
+   * both and is what the next run is told to listen for.
+   */
+  languageSource?: TranscriptionLanguageSource;
+  /** The probe's own confidence, 0–1, when the language came from one. */
+  languageConfidence?: number;
+  /**
+   * Every language the probe's fragments named, most confident first.
+   *
+   * Present only where the probe went past its first fragment — that is, where the answer
+   * was in doubt. It is what the row's uncertainty popover lists, so a person can see the
+   * detector wavering and pick the right language from the same place.
+   */
+  languageCandidates?: TranscriptionLanguageCandidate[];
+  /** How many fragments the probe listened to, so a share can be read for what it is. */
+  languageSamples?: number;
+  /** True while the quick language probe is still listening. */
+  languageProbing?: boolean;
+  /** Which model the run used; absent on jobs recorded before the setting existed. */
+  quality?: TranscriptionQualityMode;
+  /**
+   * How much of the source had sound in it, in seconds — the length minus the silent tail
+   * the run skipped. With `characters` it says whether a transcript is suspiciously short
+   * for its recording, which is the one signal that the fast model has missed speech.
+   */
+  audibleSeconds?: number;
+  /**
+   * Whether the document carries word timings. Subtitles need them; a transcript restored
+   * from plain text has none, and the export menu should say so before, not after.
+   */
+  timed?: boolean;
+  /**
+   * Whether the running transcription is held. Absent on every job that never
+   * paused, so an older client simply sees a running job.
+   */
+  paused?: boolean;
   /** Full plain-text transcript once completed. */
   text: string | null;
   /** Transcript length in characters, for quick UI hints. */
   characters: number | null;
+  /**
+   * The opening of the transcript, a sentence or two, so the list can show what a file
+   * says without a round trip for the whole document. Absent on runs recorded before it.
+   */
+  preview?: string;
   /**
    * Small status for the selected/automatic translation. Optional keeps the
    * web client compatible with queue snapshots produced before this field.
@@ -1425,10 +1615,23 @@ export interface TranscriptionState {
    * guard degrades to the behaviour that existed before it.
    */
   revision?: number;
+  /**
+   * Which run of the local app produced this snapshot. `revision` restarts from zero with
+   * the process, so a client that only compared numbers would refuse every snapshot after a
+   * restart — and freeze on the old one until reloaded. Optional because an older agent
+   * omits it; a client then falls back to the number alone.
+   */
+  instance?: string;
   jobs: TranscriptionJob[];
   running: boolean;
   tools: TranscriptionTools;
+  /** The speech model of the selected quality mode. */
   model: TranscriptionModelInfo;
+  /**
+   * Both speech models, so the mode switch can say what each one costs before it is chosen.
+   * Optional because an older agent reports only the one it runs.
+   */
+  models?: Record<TranscriptionQualityMode, TranscriptionModelInfo>;
   /** First-run download state for the local translation model (TranslateGemma). */
   translatorModel: TranscriptionModelInfo;
   /** Raw pinned llama.cpp runtime state, exposed for install diagnostics. */
@@ -1436,6 +1639,53 @@ export interface TranscriptionState {
   /** Multilingual E5 model used for local semantic phrase alignment. */
   alignmentModel: TranscriptionModelInfo;
   settings: TranscriptionSettings;
+}
+
+/**
+ * Byte-weighted progress across several models installed from one confirmation.
+ *
+ * Models already present count as done; a model still downloading counts by its bytes; a
+ * model with an unknown size makes the whole thing indeterminate rather than wrong. Written
+ * once for the agent and the interface: two copies had already started to disagree about
+ * which parts belong to the current download.
+ */
+export function combineModelInfo(
+  label: string,
+  parts: readonly TranscriptionModelInfo[],
+  downloadBatchId?: string | null
+): TranscriptionModelInfo {
+  const activeBatchId =
+    downloadBatchId ??
+    parts.find(part => part.downloading && part.downloadBatchId)?.downloadBatchId ??
+    null;
+  const participants = activeBatchId
+    ? parts.filter(part => part.downloadBatchId === activeBatchId)
+    : parts.filter(part => !part.present);
+  const sizeBytes = participants.reduce((sum, part) => sum + Math.max(0, part.sizeBytes), 0);
+  const downloadedBytes = participants.reduce(
+    (sum, part) =>
+      sum +
+      (part.present
+        ? Math.max(0, part.sizeBytes)
+        : Math.min(Math.max(0, part.downloadedBytes), Math.max(0, part.sizeBytes))),
+    0
+  );
+  const present = parts.every(part => part.present);
+  const downloading = parts.some(part => part.downloading);
+  return {
+    present,
+    downloading,
+    progress: present
+      ? 100
+      : downloading && sizeBytes > 0
+        ? Math.min(99, Math.floor((downloadedBytes / sizeBytes) * 100))
+        : null,
+    sizeBytes,
+    downloadedBytes,
+    downloadBatchId: activeBatchId,
+    label,
+    error: parts.map(part => part.error).find((error): error is string => Boolean(error)) ?? null
+  };
 }
 
 export type TranscriptionEventType = 'transcription:state' | 'transcription:progress';
@@ -1446,7 +1696,7 @@ export interface TranscriptionEvent {
 }
 
 export function defaultTranscriptionSettings(): TranscriptionSettings {
-  return { language: 'auto', translationLanguage: 'uk' };
+  return { language: 'auto', translationLanguage: 'uk', quality: 'fast' };
 }
 
 /* -------------------------------------------------------------------------- */

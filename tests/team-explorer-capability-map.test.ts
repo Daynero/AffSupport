@@ -55,7 +55,7 @@ describe('the explorer capability map', () => {
     }
   });
 
-  it('keeps the shell on the three destinations and the explorer', () => {
+  it('keeps the shell on the four destinations and the explorer', () => {
     const shell = read('apps/web/src/team/workspace/WorkspaceShell.tsx');
     for (const gone of ['MaterialBrowser', 'TeamLandings', 'CreativeLibrary', 'LandingGallery']) {
       expect(shell.includes(gone), gone).toBe(false);
@@ -64,8 +64,9 @@ describe('the explorer capability map', () => {
     expect(shell).toContain('MembersSection');
     expect(shell).toContain('SettingsDialog');
     const routes = read('apps/web/src/team/routes.ts');
+    // 017 added Accounts beside Tasks; the explorer stays canonical.
     expect(routes).toContain(
-      "export const TEAM_SECTIONS = ['explorer', 'tasks', 'members'] as const;"
+      "export const TEAM_SECTIONS = ['explorer', 'tasks', 'accounts', 'members'] as const;"
     );
   });
 

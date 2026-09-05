@@ -8,12 +8,13 @@ import {
 } from '@video-compressor/shared';
 
 /**
- * The three destinations a space has (011, FR-029): the explorer, tasks and
- * members. Everything the old Files, Landings, Creatives, Settings and Trash
- * screens did is a view or a dialog of the explorer now; their old addresses
- * still resolve, as aliases, so a pasted link keeps meaning what it meant.
+ * The destinations a space has (011, FR-029): the explorer, tasks, accounts
+ * (017) and members. Everything the old Files, Landings, Creatives, Settings
+ * and Trash screens did is a view or a dialog of the explorer now; their old
+ * addresses still resolve, as aliases, so a pasted link keeps meaning what it
+ * meant.
  */
-export const TEAM_SECTIONS = ['explorer', 'tasks', 'members'] as const;
+export const TEAM_SECTIONS = ['explorer', 'tasks', 'accounts', 'members'] as const;
 export type TeamSection = (typeof TEAM_SECTIONS)[number];
 
 /** The explorer is canonical and carries no path suffix: `/team/<id>` *is* it. */
@@ -31,6 +32,10 @@ export interface TeamRouteQuery {
   filters: CatalogSearchFilters;
   /** Opens the task editor over the Tasks section. */
   taskId: string | null;
+  /** Tasks tagged with one agent (017) — how the Accounts tab links into the list. */
+  agentId: string | null;
+  /** Tasks tagged with any agent of one account (017). */
+  accountId: string | null;
   /** Explorer position: the open folder's provider id, null for the root. */
   folderId: string | null;
   /** Explorer kind filters; empty for all. */
@@ -113,6 +118,8 @@ export function emptyTeamRouteQuery(): TeamRouteQuery {
     q: '',
     filters: emptyFilters(),
     taskId: null,
+    agentId: null,
+    accountId: null,
     folderId: null,
     kinds: [],
     view: null,
@@ -219,6 +226,8 @@ export function parseTeamRoute(route: string): TeamRoute | null {
     q: params.get('q')?.trim() ?? '',
     filters: readFilters(params),
     taskId: trimmedParam(params, 'task'),
+    agentId: trimmedParam(params, 'agent'),
+    accountId: trimmedParam(params, 'account'),
     folderId: trimmedParam(params, 'folder'),
     kinds: readKinds(params),
     view: rawView === 'grid' || rawView === 'list' ? rawView : null,
@@ -275,7 +284,12 @@ export function buildTeamRoute(input: TeamRouteInput): string {
     if (query.settings) params.set('settings', '1');
     if (query.itemId) params.set('item', query.itemId);
   }
-  if (section === 'tasks' && query.taskId) params.set('task', query.taskId);
+  if (section === 'tasks') {
+    if (query.taskId) params.set('task', query.taskId);
+    // One scope at a time: an agent is narrower than its account, so it wins.
+    if (query.agentId) params.set('agent', query.agentId);
+    else if (query.accountId) params.set('account', query.accountId);
+  }
 
   const search = params.toString();
   return search ? `${path}?${search}` : path;

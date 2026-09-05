@@ -1,3 +1,4 @@
+import { combineModelInfo } from '../packages/shared/src/types.js';
 import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -22,7 +23,6 @@ import { TranscriptionDocumentStore } from '../apps/agent/src/transcription/docu
 import { waitFor } from './support/wait.js';
 import {
   automaticTranslationTarget,
-  combinedModelStatus,
   TranscriptionQueue,
   translationInputForDocument
 } from '../apps/agent/src/queue/transcription-queue.js';
@@ -62,7 +62,7 @@ describe('weightedDownloadProgress', () => {
   });
 
   it('combines runtime and weights using byte-weighted progress', () => {
-    const status = combinedModelStatus('translator', [
+    const status = combineModelInfo('translator', [
       {
         present: false,
         downloading: true,
@@ -92,7 +92,7 @@ describe('weightedDownloadProgress', () => {
   });
 
   it('keeps completed bytes in the same composite download batch', () => {
-    const status = combinedModelStatus(
+    const status = combineModelInfo(
       'local models',
       [
         {

@@ -62,7 +62,9 @@ const DISMISS_MS: Record<ToastTone, number> = {
   info: 5_000,
   error: 8_000
 };
-const ACTION_DISMISS_MS = 9_000;
+// Long enough to read what happened and reach the button: an undo on an
+// inline, unconfirmed delete is the one place nine seconds proved short.
+const ACTION_DISMISS_MS = 14_000;
 
 function lifetimeMs(input: ToastInput): number {
   if (input.action) return Math.max(ACTION_DISMISS_MS, DISMISS_MS[input.tone]);

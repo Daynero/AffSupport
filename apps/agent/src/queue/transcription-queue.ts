@@ -1,16 +1,17 @@
 import { randomUUID } from 'node:crypto';
-import { access, constants, unlink } from 'node:fs/promises';
+import { access, constants, readdir, rm, stat, unlink } from 'node:fs/promises';
+import { currentPlatform } from '../platform/platform.js';
 import path from 'node:path';
 import {
   TRANSCRIPTION_LIFECYCLE,
-  TRANSLATION_LIFECYCLE,
   canTransition,
   defaultTranscriptionSettings,
   isTranscribableFileName,
+  isTranscriptionQualityMode,
   isValidTargetLanguage,
   normalizeTargetLanguage,
-  resolveTranslationTarget,
-  translationCacheKey,
+  TRANSCRIPTION_QUALITY_MODES,
+  combineModelInfo,
   type SelectionWarning,
   type SourceKind,
   type TranscriptionDocument,
@@ -19,11 +20,10 @@ import {
   type TranscriptionJobStatus,
   type TranscriptionModelInfo,
   type TranscriptionMediaPreview,
+  type TranscriptionQualityMode,
   type TranscriptionSettings,
   type TranscriptionState,
-  type TranscriptionTranslationSummary,
-  type TranslationDocument,
-  type TranslationStatus
+  type TranslationDocument
 } from '@video-compressor/shared';
 export { isValidTargetLanguage, normalizeTargetLanguage } from '@video-compressor/shared';
 import { probeDuration } from '../ffmpeg/tools.js';
@@ -32,8 +32,19 @@ import { applicationSupportRoot } from '../files/support-dir.js';
 import { selectionWarning } from './shared.js';
 import { decideTransition } from './transitions.js';
 import { transcribe, type TranscribeHandle } from '../whisper/transcriber.js';
+import {
+  probeLanguage,
+  probeQuality,
+  type LanguageProbeHandle,
+  type LanguageProbeResult
+} from '../whisper/language-probe.js';
 import { ModelDownloader } from '../whisper/downloader.js';
-import { downloadedModelPath, MODEL_DESCRIPTOR, modelPresent } from '../whisper/tools.js';
+import {
+  downloadedModelPath,
+  MODEL_DESCRIPTOR,
+  modelPresent,
+  WHISPER_MODELS
+} from '../whisper/tools.js';
 import {
   installTranslationRuntimeArchive,
   finalizeTranslationModelArtifact,
@@ -50,7 +61,6 @@ import {
 import {
   buildTranscriptionDocument,
   buildTextTranscriptionDocument,
-  sourceContentHash,
   transcriptionDocumentsRoot,
   TranscriptionDocumentStore,
   TranslationCacheStore
@@ -59,8 +69,17 @@ import type { PersistedTranscriptionState } from './transcription-store.js';
 import { mediaMimeType } from '../transcription/media.js';
 import { saveWithTranslation as exportWithTranslation } from '../transcription/export.js';
 import { MediaPreviewManager, type PreviewSource } from '../transcription/media-preview.js';
-import type { TranslationOutputSegment, Translator } from '../translation/translator.js';
+import type { Translator } from '../translation/translator.js';
 import type { Aligner } from '../translation/aligner.js';
+import {
+  TranslationCoordinator,
+  type TranslationRequestOutcome
+} from './translation-coordinator.js';
+export {
+  automaticTranslationTarget,
+  translationInputForDocument,
+  type TranslationRequestOutcome
+} from './translation-coordinator.js';
 
 /**
  * The one place a transcription's status changes.
@@ -77,34 +96,6 @@ function transitionJob(job: TranscriptionJob, next: TranscriptionJobStatus): boo
   if (!decideTransition(TRANSCRIPTION_LIFECYCLE, job.status, next)) return false;
   job.status = next;
   return true;
-}
-
-/** The same, for a translation — a sub-run of a transcription. */
-function transitionTranslation(translation: TranslationDocument, next: TranslationStatus): boolean {
-  if (!decideTransition(TRANSLATION_LIFECYCLE, translation.status, next)) return false;
-  translation.status = next;
-  return true;
-}
-
-/**
- * Installs a translation document, deciding the move from the one it replaces.
- *
- * A translation finishes, fails, or is re-requested by building a **new** document and
- * dropping it into the map — never by editing the old one. That meant three of the four
- * transitions in its lifecycle happened without the decision ever being consulted: the
- * enforcement was live and the tool it was supposed to govern simply went around it. Deciding
- * against the document being replaced is what puts them back inside.
- */
-function replaceTranslation(
-  translations: Record<string, TranslationDocument>,
-  language: string,
-  next: TranslationDocument
-): void {
-  const previous = translations[language];
-  // A language with no translation yet is a creation, not a transition; there is no state to
-  // move from.
-  if (previous) transitionTranslation(previous, next.status);
-  translations[language] = next;
 }
 
 /**
@@ -129,12 +120,81 @@ function settledWithin(work: Promise<unknown>, milliseconds: number): Promise<un
   ]);
 }
 
-/** A pending translation request; `generation` guards against stale results. */
-interface TranslationTask {
-  jobId: string;
-  language: string;
-  generation: number;
-  requestId?: string;
+/**
+ * Whether a file can be listened to right now.
+ *
+ * Anything but a run in flight: a finished file is still on disk, and asking for its
+ * language again is a fair thing to want. `analyzing` has not been probed for a duration
+ * yet, and a queued or running job's language belongs to the run.
+ */
+function probeableStatus(status: TranscriptionJobStatus): boolean {
+  return status !== 'analyzing' && status !== 'queued' && status !== 'processing';
+}
+
+/**
+ * The language to hand Whisper for this run.
+ *
+ * An explicit request always wins. Otherwise a language already established for the file —
+ * the probe's, or a person's correction — is used instead of `auto`, because it was
+ * decided on thirty seconds of speech while Whisper's own detector reads whatever the
+ * file happens to open with.
+ */
+export function languageForRun(job: TranscriptionJob): string {
+  if (job.requestedLanguage && job.requestedLanguage !== 'auto') return job.requestedLanguage;
+  if (job.languageSource === 'manual' || job.languageSource === 'probe') {
+    return job.detectedLanguage ?? 'auto';
+  }
+  return 'auto';
+}
+
+/**
+ * How long a run started before its own language probe finished waits for it.
+ *
+ * The probe takes a handful of seconds and its answer is the better one — it listens to
+ * thirty seconds of speech rather than to whatever the first thirty seconds of the file
+ * happen to contain. Past this the run goes ahead on automatic detection: a person who
+ * pressed Transcribe is owed a running job, not a spinner.
+ */
+const LANGUAGE_PROBE_WAIT_MS = 20_000;
+
+/** A cached translation nobody has opened in this long is not worth its disk. */
+const TRANSLATION_CACHE_MAX_AGE_MS = 60 * 24 * 60 * 60_000;
+
+/** How much of a transcript the list shows: enough to recognise the file, not to read it. */
+const PREVIEW_CHARACTERS = 220;
+/** Least time between two progress frames for the same run. */
+const PROGRESS_BROADCAST_MS = 500;
+
+/**
+ * The opening of a transcript, cut at a word.
+ */
+
+/**
+ * One file, whatever the letter case.
+ *
+ * Windows and the default macOS volume do not tell `Clip.mp4` from `clip.mp4`; a
+ * case-sensitive APFS volume does. So a match that differs only in case is confirmed by
+ * asking the filesystem whether the two names are one inode.
+ */
+async function samePath(left: string, right: string): Promise<boolean> {
+  const a = path.resolve(left);
+  const b = path.resolve(right);
+  if (a === b) return true;
+  if (currentPlatform() === 'linux' || a.toLowerCase() !== b.toLowerCase()) return false;
+  try {
+    const [first, second] = await Promise.all([stat(a), stat(b)]);
+    return first.dev === second.dev && first.ino === second.ino;
+  } catch {
+    return false;
+  }
+}
+
+export function transcriptPreview(text: string): string {
+  const flat = text.replace(/\s+/gu, ' ').trim();
+  if (flat.length <= PREVIEW_CHARACTERS) return flat;
+  const cut = flat.slice(0, PREVIEW_CHARACTERS);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > PREVIEW_CHARACTERS / 2 ? cut.slice(0, space) : cut).trimEnd()}…`;
 }
 
 /** Where the raw source media lives, for the token-gated media endpoint. */
@@ -142,62 +202,6 @@ export interface TranscriptionMediaSource {
   path: string;
   mimeType: string;
   fileName: string;
-}
-
-/** Result of asking the queue to (re)translate a document into a language. */
-export type TranslationRequestOutcome =
-  | { outcome: 'completed'; translation: TranslationDocument }
-  | { outcome: 'queued'; translation: TranslationDocument }
-  | { outcome: 'no-document' }
-  | { outcome: 'invalid-language' }
-  | { outcome: 'unavailable' };
-
-/**
- * Resolves the per-file automatic target from the preferred UI language via
- * the shared resolver, so the web viewer's default can never disagree with
- * (and thereby supersede) the automatic translation.
- */
-export function automaticTranslationTarget(
-  sourceLanguage: string,
-  preferredLanguage: string
-): string | null {
-  return resolveTranslationTarget(sourceLanguage, preferredLanguage);
-}
-
-export function translationInputForDocument(
-  document: TranscriptionDocument,
-  targetLanguage: string
-): { language: string; segments: Array<{ id: string; text: string }> } {
-  const targetBase = normalizeTargetLanguage(targetLanguage).split('-')[0];
-  const sourceBase = document.sourceLanguage
-    .trim()
-    .replaceAll('_', '-')
-    .toLowerCase()
-    .split('-')[0];
-  const pivot = document.translationSource;
-  if (pivot && targetBase !== sourceBase) {
-    const pivotById = new Map(
-      pivot.segments
-        .filter(segment => segment.text.trim())
-        .map(segment => [segment.sourceSegmentId, segment.text.trim()])
-    );
-    if (
-      pivotById.size === document.segments.length &&
-      document.segments.every(segment => pivotById.has(segment.id))
-    ) {
-      return {
-        language: pivot.language,
-        segments: document.segments.map(segment => ({
-          id: segment.id,
-          text: pivotById.get(segment.id) ?? segment.sourceText
-        }))
-      };
-    }
-  }
-  return {
-    language: document.sourceLanguage,
-    segments: document.segments.map(segment => ({ id: segment.id, text: segment.sourceText }))
-  };
 }
 
 type Notify = (event?: TranscriptionEventType) => void;
@@ -216,10 +220,17 @@ export class TranscriptionQueue {
   private active: TranscribeHandle | null = null;
   /** Which job `active` belongs to, so a pause can name the run it means. */
   private activeJobId: string | null = null;
+  /** Files waiting for the few-second language guess, oldest first. */
+  private probeQueue: string[] = [];
+  /** The one probe allowed to run at a time, and the job it belongs to. */
+  private probing: { jobId: string; handle: LanguageProbeHandle } | null = null;
+  /** Non-null while `drainProbes` is walking the queue; keeps it to one walker. */
+  private probeLoop: Promise<void> | null = null;
   private inFlight = false;
   /** Uploaded temp files to unlink once their job leaves the queue. */
   private importedSources = new Set<string>();
-  private downloader: ModelDownloader;
+  /** One downloader per speech model; the selected quality decides which one `state` shows. */
+  private speechDownloaders: Record<TranscriptionQualityMode, ModelDownloader>;
   /** On-demand download of the local translation model (TranslateGemma). */
   private translatorDownloader: ModelDownloader;
   /** Pinned llama.cpp arm64 runtime; installed beside its dylibs from a verified archive. */
@@ -230,22 +241,8 @@ export class TranscriptionQueue {
   private documents: TranscriptionDocumentStore;
   private translationCache: TranslationCacheStore;
   private mediaPreviews: MediaPreviewManager;
-  /** Local translation engine; null until one is wired (then reports availability). */
-  private translator: Translator | null = null;
-  private aligner: Aligner | null = null;
-  /** True while a translation inference is running (mutually exclusive with whisper). */
-  private translating = false;
-  private translationTasks: TranslationTask[] = [];
-  /** Latest requested generation per `${jobId}|${language}` for stale-result guarding. */
-  private translationGenerations = new Map<string, number>();
-  private activeTranslation: {
-    key: string;
-    generation: number;
-    controller: AbortController;
-    preemptedByTranscription: boolean;
-  } | null = null;
-  /** Last wall-clock a translation-progress counter was flushed to the sidecar. */
-  private lastProgressWrite = 0;
+  /** Translation and alignment of finished transcripts; see its file for the split. */
+  private readonly translations: TranslationCoordinator;
   /** Current user-confirmed byte accounting groups for composite downloads. */
   private translationDownloadBatchId: string | null = null;
   /**
@@ -254,14 +251,16 @@ export class TranscriptionQueue {
    * snapshots from overwriting each other's language/generation updates.
    */
   private documentOperations = new Map<string, Promise<void>>();
-  /** Serializes target choices for one job so rapid UI changes preserve order. */
-  private translationRequestOperations = new Map<string, Promise<void>>();
   /** Ephemeral cloud-team jobs never enter the interactive or persisted list. */
   private teamJobIds = new Set<string>();
   private teamJobLanguages = new Map<string, string>();
 
   /** Bumped once per broadcast by the wrapper below, never at a call site. */
   private revision = 0;
+  /** Identity of this agent process, stamped on every snapshot; see the shared type. */
+  private instanceId: string | null = null;
+  /** Wall-clock of the last progress broadcast, so the smoother's ticks are coalesced. */
+  private lastProgressBroadcast = 0;
   /** Every broadcast goes through here, so no site can forget the increment. */
   private readonly notify: Notify;
 
@@ -273,17 +272,25 @@ export class TranscriptionQueue {
     private jobs: TranscriptionJob[] = [],
     private settings: TranscriptionSettings = defaultTranscriptionSettings()
   ) {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const self = this;
     this.notify = ((event?: Parameters<Notify>[0]) => {
+      // Progress frames are coalesced here, for every sender: the transcriber's smoother
+      // ticks four times a second and a translation finishes several segments a second,
+      // and each frame is the whole state to every listener. Two a second is already more
+      // than a bar can show; the next non-progress frame carries the final value anyway.
+      if (event === 'transcription:progress') {
+        const now = Date.now();
+        if (now - this.lastProgressBroadcast < PROGRESS_BROADCAST_MS) return;
+        this.lastProgressBroadcast = now;
+      }
       this.revision += 1;
       this.notifyRaw(event);
     }) as Notify;
-    this.downloader = new ModelDownloader(
-      MODEL_DESCRIPTOR,
-      downloadedModelPath,
-      modelPresent,
-      () => this.notify(),
-      () => void this.pump()
-    );
+    this.speechDownloaders = {
+      fast: this.speechDownloader('fast'),
+      accurate: this.speechDownloader('accurate')
+    };
     this.translatorDownloader = new ModelDownloader(
       TRANSLATION_MODEL_DESCRIPTOR,
       translationModelDownloadPath,
@@ -291,7 +298,7 @@ export class TranscriptionQueue {
       () => this.notify(),
       // When the translator model finishes installing, resume any queued
       // translation automatically — the user just waits for the animation.
-      () => this.translationToolingChanged(),
+      () => this.translations.translationToolingChanged(),
       finalizeTranslationModelArtifact
     );
     this.translatorRuntimeDownloader = new ModelDownloader(
@@ -299,20 +306,46 @@ export class TranscriptionQueue {
       translationRuntimeArchiveDownloadPath,
       translationRuntimePresent,
       () => this.notify(),
-      () => this.translationToolingChanged(),
-      installTranslationRuntimeArchive
+      () => this.translations.translationToolingChanged(),
+      // Windows cannot replace a directory whose executable is still mapped: the servers
+      // that would hold `llama-server.exe` are stopped first.
+      async archivePath => {
+        await this.translations.close();
+        await installTranslationRuntimeArchive(archivePath);
+      }
     );
     this.alignmentDownloader = new ModelDownloader(
       ALIGNMENT_MODEL_DESCRIPTOR,
       alignmentModelDownloadPath,
       alignmentModelPresent,
       () => this.notify(),
-      () => this.translationToolingChanged()
+      () => this.translations.translationToolingChanged()
     );
     this.documents = new TranscriptionDocumentStore(transcriptionDocumentsRoot());
     this.translationCache = new TranslationCacheStore(
       process.env.AGENT_TRANSLATION_CACHE_PATH ??
         path.join(applicationSupportRoot(), 'TranslationCache')
+    );
+    this.translations = new TranslationCoordinator(
+      {
+        get jobs() {
+          return self.jobs;
+        },
+        teamJobIds: this.teamJobIds,
+        get settings() {
+          return self.settings;
+        },
+        notify: event => this.notify(event),
+        document: id => this.document(id),
+        mutateDocument: (jobId, mutate) => this.mutateDocument(jobId, mutate),
+        transcriptionWorkPending: () => this.transcriptionWorkPending(),
+        resumeTranscription: () => {
+          queueMicrotask(() => void this.pump());
+          // A probe that gave way to a translation has nothing else to wake it.
+          queueMicrotask(() => this.pumpProbes());
+        }
+      },
+      this.translationCache
     );
     this.mediaPreviews = new MediaPreviewManager(
       process.env.AGENT_TRANSCRIBE_PREVIEWS_PATH ??
@@ -323,6 +356,76 @@ export class TranscriptionQueue {
     for (const job of this.jobs) {
       if (job.sourceKind === 'uploaded') this.importedSources.add(path.resolve(job.inputPath));
     }
+    // Files restored from the last session have never been listened to. Deferred to a
+    // microtask so the queue is fully built first, and so the boot's own work goes ahead of
+    // a guess about a file nobody has started.
+    queueMicrotask(() => this.resumeLanguageProbes());
+  }
+
+  private speechDownloader(quality: TranscriptionQualityMode): ModelDownloader {
+    return new ModelDownloader(
+      WHISPER_MODELS[quality],
+      () => downloadedModelPath(quality),
+      () => modelPresent(quality),
+      () => this.notify(),
+      () => {
+        void this.pump();
+        // The first model to land is also the first that can name a language.
+        this.resumeLanguageProbes();
+      }
+    );
+  }
+
+  /** The downloader of the model the selected quality runs on. */
+  private get downloader(): ModelDownloader {
+    return this.speechDownloaders[this.settings.quality];
+  }
+
+  setInstanceId(instanceId: string): void {
+    this.instanceId = instanceId;
+  }
+
+  /**
+   * Housekeeping for the caches this queue owns, run once at boot.
+   *
+   * Never awaited by the boot path: a slow disk must not delay the first request, and
+   * nothing here is needed for the queue to work — it only keeps two directories from
+   * growing for the life of the installation.
+   */
+  async sweepCaches(): Promise<{ translations: number; previews: number }> {
+    const translations = await this.translationCache
+      .sweep({
+        currentModelVersion: this.translations.modelVersion(),
+        maxAgeMs: TRANSLATION_CACHE_MAX_AGE_MS
+      })
+      .catch(() => 0);
+    const previews = await this.mediaPreviews
+      .sweepOrphans(new Set(this.jobs.map(job => job.id)))
+      .catch(() => 0);
+    return { translations, previews };
+  }
+
+  /** Injects the local translation engine (see createTranslator). */
+  setTranslator(translator: Translator | null): void {
+    this.translations.setTranslator(translator);
+  }
+
+  setAligner(aligner: Aligner | null): void {
+    this.translations.setAligner(aligner);
+  }
+
+  /** See {@link TranslationCoordinator.requestTranslation}. */
+  requestTranslation(
+    id: string,
+    language: string,
+    requestId?: string
+  ): Promise<TranslationRequestOutcome> {
+    return this.translations.requestTranslation(id, language, requestId);
+  }
+
+  /** See {@link TranslationCoordinator.cancelTranslation}. */
+  cancelTranslation(id: string): Promise<boolean> {
+    return this.translations.cancelTranslation(id);
   }
 
   /** The structured document for a known job, or null if none is stored yet. */
@@ -389,130 +492,6 @@ export class TranscriptionQueue {
     return document?.translations[normalizeTargetLanguage(language)] ?? null;
   }
 
-  /** Injects the local translation engine (see createTranslator). */
-  setTranslator(translator: Translator | null): void {
-    this.translator = translator;
-    this.translationToolingChanged();
-  }
-
-  setAligner(aligner: Aligner | null): void {
-    this.aligner = aligner;
-  }
-
-  private translationKey(jobId: string, language: string): string {
-    return `${jobId}|${language}`;
-  }
-
-  private translationModelVersion(): string | undefined {
-    return this.translator?.modelVersion();
-  }
-
-  private translationToolingChanged(): void {
-    for (const job of this.jobs) {
-      const summary = job.translation;
-      if (job.status === 'completed' && summary?.status === 'unavailable') {
-        void this.requestTranslation(job.id, summary.targetLanguage);
-      }
-    }
-    void this.pumpTranslations();
-  }
-
-  private setTranslationSummary(
-    jobId: string,
-    translation: TranslationDocument
-  ): TranscriptionTranslationSummary | null {
-    const job = this.jobs.find(candidate => candidate.id === jobId);
-    if (!job) return null;
-    const total = Math.max(0, translation.totalSegments ?? translation.segments.length);
-    const completed =
-      translation.status === 'completed'
-        ? total
-        : Math.min(total, Math.max(0, translation.completedSegments ?? 0));
-    // Progress is weighted by source characters when available — segment counts
-    // lie when segment lengths vary. Queued work that already carries resumed
-    // segments shows its real percentage instead of an indeterminate bar that
-    // reads as "restarted".
-    const totalCharacters = Math.max(0, translation.totalCharacters ?? 0);
-    const completedCharacters = Math.min(
-      totalCharacters,
-      Math.max(0, translation.completedCharacters ?? 0)
-    );
-    const ratio =
-      totalCharacters > 0
-        ? completedCharacters / totalCharacters
-        : total > 0
-          ? completed / total
-          : 0;
-    const progress =
-      translation.status === 'completed'
-        ? 100
-        : total > 0 && (translation.status === 'processing' || completed > 0)
-          ? Math.min(99, Math.round(ratio * 100))
-          : null;
-    const summary: TranscriptionTranslationSummary = {
-      targetLanguage: translation.targetLanguage,
-      status: translation.status,
-      progress,
-      completedSegments: completed,
-      totalSegments: total,
-      startedAt: translation.startedAt ?? null,
-      error:
-        translation.status === 'failed'
-          ? translation.error === 'TRANSLATION_CANCELLED'
-            ? 'TRANSLATION_CANCELLED'
-            : 'TRANSLATION_FAILED'
-          : null
-    };
-    job.translation = summary;
-    return summary;
-  }
-
-  private setTranslationUnavailable(jobId: string, targetLanguage: string): void {
-    const job = this.jobs.find(candidate => candidate.id === jobId);
-    if (!job) return;
-    job.translation = {
-      targetLanguage,
-      status: 'unavailable',
-      progress: null,
-      completedSegments: 0,
-      totalSegments: 0,
-      error: 'TRANSLATOR_UNAVAILABLE'
-    };
-  }
-
-  /**
-   * Cache entries can be shared by separate jobs whose transcript text is
-   * identical. Rebind their segment ids to the receiving document so the
-   * translated column and semantic selection still line up.
-   */
-  private bindCachedTranslation(
-    cached: TranslationDocument,
-    document: TranscriptionDocument,
-    requestId?: string
-  ): TranslationDocument | null {
-    if (cached.segments.length !== document.segments.length) return null;
-    return {
-      ...cached,
-      requestId,
-      totalSegments: document.segments.length,
-      completedSegments: document.segments.length,
-      segments: cached.segments.map((segment, index) => ({
-        ...segment,
-        sourceSegmentId: document.segments[index].id,
-        alignments: segment.alignments.map(link => ({ ...link }))
-      }))
-    };
-  }
-
-  private alignmentIsCurrent(translation: TranslationDocument): boolean {
-    const aligner = this.aligner;
-    return (
-      !aligner?.available() ||
-      (translation.alignmentStatus === 'completed' &&
-        translation.alignmentModelVersion === aligner.modelVersion())
-    );
-  }
-
   private async withDocumentLock<T>(jobId: string, operation: () => Promise<T>): Promise<T> {
     const previous = this.documentOperations.get(jobId) ?? Promise.resolve();
     const current = previous.catch(() => undefined).then(operation);
@@ -541,603 +520,22 @@ export class TranscriptionQueue {
     });
   }
 
-  private async withTranslationRequestLock<T>(
-    jobId: string,
-    operation: () => Promise<T>
-  ): Promise<T> {
-    const previous = this.translationRequestOperations.get(jobId) ?? Promise.resolve();
-    const current = previous.catch(() => undefined).then(operation);
-    const tail = current.then(
-      () => undefined,
-      () => undefined
-    );
-    this.translationRequestOperations.set(jobId, tail);
-    try {
-      return await current;
-    } finally {
-      if (this.translationRequestOperations.get(jobId) === tail) {
-        this.translationRequestOperations.delete(jobId);
-      }
-    }
-  }
-
-  /**
-   * Flushes an in-flight translation's segment counter to the sidecar so the
-   * polling client can show a real progress bar + ETA. Throttled to at most one
-   * write every 300ms (the final segment always lands via the completed doc),
-   * and guarded by generation so a superseded task can't rewrite progress.
-   */
-  private async persistTranslationProgress(
-    task: TranslationTask,
-    key: string,
-    completed: number,
-    total: number,
-    segments?: TranslationOutputSegment[],
-    completedCharacters?: number
-  ): Promise<void> {
-    const now = Date.now();
-    if (completed < total && now - this.lastProgressWrite < 300) return;
-    this.lastProgressWrite = now;
-    const updated = await this.mutateDocument(task.jobId, fresh => {
-      if ((this.translationGenerations.get(key) ?? 0) !== task.generation) return null;
-      const doc = fresh.translations[task.language];
-      if (!doc || doc.status !== 'processing') return null;
-      doc.completedSegments = completed;
-      doc.totalSegments = total;
-      if (completedCharacters !== undefined) doc.completedCharacters = completedCharacters;
-      // Stream finished segments: the viewer renders them while the rest are
-      // still translating, and an interrupted run resumes from them instead of
-      // starting over from segment 0.
-      if (segments) doc.segments = segments;
-      return doc;
-    });
-    if (updated) {
-      this.setTranslationSummary(task.jobId, updated);
-      this.notify('transcription:progress');
-    }
-  }
-
-  /**
-   * Requests a translation into `language`. A cached completed translation from
-   * the current model resolves instantly. Otherwise the request is queued with
-   * a fresh generation number. Repeating the current in-flight target joins
-   * that work instead of restarting it; choosing another target supersedes the
-   * old task. Requires an available translator; without one it reports
-   * `unavailable` while retaining the requested target in lightweight state.
-   */
-  async requestTranslation(
-    id: string,
-    language: string,
-    requestId?: string
-  ): Promise<TranslationRequestOutcome> {
-    return this.withTranslationRequestLock(id, () =>
-      this.requestTranslationUnlocked(id, language, requestId)
-    );
-  }
-
-  private async requestTranslationUnlocked(
-    id: string,
-    language: string,
-    requestId?: string
-  ): Promise<TranslationRequestOutcome> {
-    const document = await this.document(id);
-    if (!document) return { outcome: 'no-document' };
-    if (!isValidTargetLanguage(language)) return { outcome: 'invalid-language' };
-    const lang = normalizeTargetLanguage(language);
-    const modelVersion = this.translationModelVersion();
-    const translatorAvailable = this.translator?.available() === true;
-    const translationInput = translationInputForDocument(document, lang);
-    const cacheInputSegments = document.segments.map((segment, index) => ({
-      ...segment,
-      sourceText: translationInput.segments[index].text
-    }));
-    const cacheKey =
-      modelVersion === undefined
-        ? undefined
-        : translationCacheKey({
-            sourceContentHash: sourceContentHash(cacheInputSegments),
-            sourceLanguage: translationInput.language,
-            targetLanguage: lang,
-            translatorModelVersion: modelVersion
-          });
-    const cached = document.translations[lang];
-    const key = this.translationKey(id, lang);
-    const currentGeneration = this.translationGenerations.get(key);
-    const taskIsCurrent =
-      currentGeneration !== undefined &&
-      ((this.activeTranslation?.key === key &&
-        this.activeTranslation.generation === currentGeneration) ||
-        this.translationTasks.some(
-          task =>
-            task.jobId === id && task.language === lang && task.generation === currentGeneration
-        ));
-
-    if (
-      cached &&
-      (cached.status === 'queued' || cached.status === 'processing') &&
-      cached.modelVersion === modelVersion &&
-      cached.cacheKey === cacheKey &&
-      taskIsCurrent
-    ) {
-      this.setTranslationSummary(id, cached);
-      return { outcome: 'queued', translation: cached };
-    }
-
-    // A new target (including one served from cache) supersedes all older work
-    // for this document so an obsolete task cannot consume the shared queue.
-    this.cancelTranslationsForJob(id);
-
-    if (
-      cached &&
-      cached.status === 'completed' &&
-      modelVersion !== undefined &&
-      cached.modelVersion === modelVersion &&
-      cached.cacheKey === cacheKey &&
-      (this.alignmentIsCurrent(cached) || !translatorAvailable)
-    ) {
-      this.setTranslationSummary(id, cached);
-      this.notify();
-      return { outcome: 'completed', translation: cached };
-    }
-
-    let previousTranslation = cached;
-    if (cacheKey) {
-      const sharedCached = await this.translationCache.load(cacheKey);
-      if (sharedCached && (this.alignmentIsCurrent(sharedCached) || !translatorAvailable)) {
-        const rebound = this.bindCachedTranslation(sharedCached, document, requestId);
-        if (!rebound) {
-          previousTranslation = cached;
-        } else {
-          const saved = await this.mutateDocument(id, fresh => {
-            replaceTranslation(fresh.translations, lang, rebound);
-            return true;
-          });
-          if (!saved) return { outcome: 'no-document' };
-          this.setTranslationSummary(id, rebound);
-          this.notify();
-          return { outcome: 'completed', translation: rebound };
-        }
-      } else {
-        previousTranslation = cached;
-      }
-    }
-
-    if (!translatorAvailable || !this.translator) {
-      this.setTranslationUnavailable(id, lang);
-      this.notify();
-      return { outcome: 'unavailable' };
-    }
-
-    const generation = (this.translationGenerations.get(key) ?? 0) + 1;
-    this.translationGenerations.set(key, generation);
-
-    // Partials persisted by an earlier interrupted run of this same request
-    // (matching cacheKey ⇒ identical source text, languages, and model) are
-    // carried over so the queue resumes instead of re-translating from
-    // segment 0. A different cacheKey means the transcript or model changed —
-    // those segments are neither displayable nor resumable.
-    const sourceCharactersById = new Map(
-      document.segments.map(segment => [segment.id, segment.sourceText.length])
-    );
-    const resumableSegments =
-      cacheKey !== undefined && previousTranslation?.cacheKey === cacheKey
-        ? previousTranslation.segments.filter(
-            segment =>
-              segment.translatedText.trim() && sourceCharactersById.has(segment.sourceSegmentId)
-          )
-        : [];
-
-    const pending: TranslationDocument = {
-      requestId,
-      targetLanguage: lang,
-      modelVersion: modelVersion ?? this.translator.modelVersion(),
-      cacheKey,
-      alignmentModelVersion: this.aligner?.modelVersion(),
-      alignmentStatus: 'fallback',
-      status: 'queued',
-      totalSegments: document.segments.length,
-      completedSegments: resumableSegments.length,
-      totalCharacters: document.segments.reduce(
-        (sum, segment) => sum + segment.sourceText.length,
-        0
-      ),
-      completedCharacters: resumableSegments.reduce(
-        (sum, segment) => sum + (sourceCharactersById.get(segment.sourceSegmentId) ?? 0),
-        0
-      ),
-      startedAt: resumableSegments.length > 0 ? (previousTranslation?.startedAt ?? null) : null,
-      segments: resumableSegments,
-      error: null
-    };
-    const saved = await this.mutateDocument(id, fresh => {
-      replaceTranslation(fresh.translations, lang, pending);
-      return true;
-    });
-    if (!saved) return { outcome: 'no-document' };
-    // A concurrent newer request for the same target won the sidecar lock.
-    // It owns cancellation/queue mutation from this point onward.
-    if ((this.translationGenerations.get(key) ?? 0) !== generation) {
-      return { outcome: 'queued', translation: pending };
-    }
-
-    this.translationTasks.push({ jobId: id, language: lang, generation, requestId });
-    this.setTranslationSummary(id, pending);
-    this.notify();
-    void this.pumpTranslations();
-    return { outcome: 'queued', translation: pending };
-  }
-
-  /**
-   * User-initiated cancel of the job's current translation. Partials persisted
-   * so far are kept, so a later retry resumes instead of restarting.
-   */
-  async cancelTranslation(id: string): Promise<boolean> {
-    const job = this.jobs.find(candidate => candidate.id === id);
-    const lang = job?.translation?.targetLanguage;
-    if (!job || !lang) return false;
-    return this.withTranslationRequestLock(id, async () => {
-      this.cancelTranslationsForJob(id);
-      const cancelled = await this.mutateDocument(id, document => {
-        const translation = document.translations[lang];
-        if (
-          !translation ||
-          (translation.status !== 'queued' && translation.status !== 'processing')
-        ) {
-          return null;
-        }
-        transitionTranslation(translation, 'failed');
-        translation.error = 'TRANSLATION_CANCELLED';
-        return translation;
-      });
-      if (cancelled) this.setTranslationSummary(id, cancelled);
-      this.notify();
-      return cancelled !== null;
-    });
-  }
-
   private transcriptionWorkPending(): boolean {
     return (
       this.inFlight || this.jobs.some(job => job.status === 'queued' || job.status === 'processing')
     );
   }
 
-  /**
-   * Whisper always owns the shared resource. A translation that was already
-   * running when a new transcription batch starts is aborted and requeued by
-   * `pumpTranslations`, preserving its generation and FIFO position.
-   */
-  private preemptTranslationForTranscription(): void {
-    const active = this.activeTranslation;
-    if (!active || active.preemptedByTranscription) return;
-    active.preemptedByTranscription = true;
-    active.controller.abort();
-  }
-
-  /**
-   * Counts work already persisted on a translation doc (segments + weighted
-   * source characters) that a resumed run will adopt instead of re-translating.
-   */
-  private resumedProgress(
-    document: TranscriptionDocument,
-    translation: TranslationDocument
-  ): { segments: number; characters: number; totalCharacters: number } {
-    const charactersById = new Map(
-      document.segments.map(segment => [segment.id, segment.sourceText.length])
-    );
-    let segments = 0;
-    let characters = 0;
-    for (const segment of translation.segments) {
-      if (!segment.translatedText.trim()) continue;
-      const sourceCharacters = charactersById.get(segment.sourceSegmentId);
-      if (sourceCharacters === undefined) continue;
-      segments += 1;
-      characters += sourceCharacters;
-    }
-    return {
-      segments,
-      characters,
-      totalCharacters: document.segments.reduce(
-        (sum, segment) => sum + segment.sourceText.length,
-        0
-      )
-    };
-  }
-
-  private async requeuePreemptedTranslation(task: TranslationTask, key: string): Promise<void> {
-    const queued = await this.mutateDocument(task.jobId, document => {
-      if ((this.translationGenerations.get(key) ?? 0) !== task.generation) return null;
-      const translation = document.translations[task.language];
-      if (!translation || translation.status === 'completed') return null;
-      transitionTranslation(translation, 'queued');
-      // Segments persisted incrementally before the preemption stay counted;
-      // the resumed run skips them, so the bar must not fall back to zero.
-      const resumed = this.resumedProgress(document, translation);
-      translation.completedSegments = resumed.segments;
-      translation.totalSegments = document.segments.length;
-      translation.completedCharacters = resumed.characters;
-      translation.totalCharacters = resumed.totalCharacters;
-      translation.error = null;
-      return translation;
-    });
-    if (!queued) return;
-
-    const alreadyQueued = this.translationTasks.some(
-      candidate =>
-        candidate.jobId === task.jobId &&
-        candidate.language === task.language &&
-        candidate.generation === task.generation
-    );
-    if (!alreadyQueued) this.translationTasks.unshift(task);
-    this.setTranslationSummary(task.jobId, queued);
-  }
-
-  /**
-   * Processes queued translations one at a time only after every queued
-   * transcription has finished. Stale tasks (a newer generation was requested)
-   * are skipped; a result whose generation is no longer current is discarded
-   * rather than written, so it cannot clobber a newer translation.
-   */
-  private async pumpTranslations(): Promise<void> {
-    if (this.translating || this.transcriptionWorkPending()) return;
-    const translator = this.translator;
-    if (!translator?.available()) return;
-
-    const task = this.translationTasks.shift();
-    if (!task) return;
-    const key = this.translationKey(task.jobId, task.language);
-    if ((this.translationGenerations.get(key) ?? 0) !== task.generation) {
-      queueMicrotask(() => void this.pumpTranslations());
-      return;
-    }
-
-    // Acquire the shared resource lock before the first filesystem await. The
-    // whisper pump can otherwise observe both flags as false in this gap and
-    // start a multi-gigabyte model concurrently with TranslateGemma.
-    this.translating = true;
-    const controller = new AbortController();
-    this.activeTranslation = {
-      key,
-      generation: task.generation,
-      controller,
-      preemptedByTranscription: false
-    };
-
-    try {
-      const preparation = await this.mutateDocument(task.jobId, document => {
-        if ((this.translationGenerations.get(key) ?? 0) !== task.generation) return null;
-        const processing = document.translations[task.language];
-        if (!processing) return null;
-        transitionTranslation(processing, 'processing');
-        // First inference start only; a resumed run keeps the original stamp so
-        // elapsed/ETA stay continuous across preemption and surfaces.
-        processing.startedAt = processing.startedAt ?? Date.now();
-        processing.totalSegments = document.segments.length;
-        const resumed = this.resumedProgress(document, processing);
-        processing.completedSegments = resumed.segments;
-        processing.completedCharacters = resumed.characters;
-        processing.totalCharacters = resumed.totalCharacters;
-        return { document, cacheKey: processing.cacheKey, processing };
-      });
-      if (!preparation) return;
-      if (controller.signal.aborted) throw new Error('aborted');
-      const { document, cacheKey, processing } = preparation;
-      this.setTranslationSummary(task.jobId, processing);
-      this.notify('transcription:progress');
-
-      // Another identical document may have finished while this task waited in
-      // the single local inference queue. Re-check the shared cache at execution
-      // time so the same source/language/model tuple is never inferred twice.
-      if (cacheKey) {
-        const sharedCached = await this.translationCache.load(cacheKey);
-        if (controller.signal.aborted) throw new Error('aborted');
-        if (sharedCached && this.alignmentIsCurrent(sharedCached)) {
-          const rebound = this.bindCachedTranslation(sharedCached, document, task.requestId);
-          if (rebound) {
-            const reused = await this.mutateDocument(task.jobId, fresh => {
-              if ((this.translationGenerations.get(key) ?? 0) !== task.generation) return false;
-              fresh.translations[task.language] = rebound;
-              return true;
-            });
-            if (reused) this.setTranslationSummary(task.jobId, rebound);
-            return;
-          }
-        }
-      }
-
-      const total = document.segments.length;
-      const sourceById = new Map(document.segments.map(segment => [segment.id, segment]));
-      const translationInput = translationInputForDocument(document, task.language);
-      const translationTextById = new Map(
-        translationInput.segments.map(segment => [segment.id, segment.text])
-      );
-      const aligned: TranslationOutputSegment[] = new Array(total);
-      const alignPromises: Promise<void>[] = new Array(total);
-      /** Raw results in document order, snapshotted for incremental persistence. */
-      const partial: TranslationOutputSegment[] = new Array(total);
-      let translatedCount = 0;
-      let translatedCharacters = 0;
-
-      // Align a translated segment on the CPU E5 model. Runs concurrently with
-      // the remaining GPU translations (different process + device), so the
-      // alignment pass overlaps translation instead of following it. Never
-      // throws: an alignment failure falls back to the approximate whole-segment
-      // highlight, matching the original per-segment behavior.
-      const startAlign = (translated: TranslationOutputSegment, index: number): void => {
-        alignPromises[index] = (async () => {
-          const source = sourceById.get(translated.sourceSegmentId);
-          let alignments = translated.alignments;
-          if (source && this.aligner?.available()) {
-            try {
-              alignments = await this.aligner.align(
-                {
-                  source,
-                  translatedText: translated.translatedText,
-                  sourceLanguage: document.sourceLanguage,
-                  targetLanguage: task.language
-                },
-                controller.signal
-              );
-            } catch {
-              alignments = [];
-            }
-          }
-          aligned[index] = { ...translated, alignments };
-        })();
-      };
-
-      // Adopt segments a previous interrupted run of this same request already
-      // translated (provenance is guaranteed by the cacheKey guard where
-      // `processing.segments` was populated). They re-align concurrently with
-      // the remaining GPU translations but are never re-translated.
-      const resumedBySourceId = new Map(
-        processing.segments
-          .filter(segment => segment.translatedText.trim())
-          .map(segment => [segment.sourceSegmentId, segment])
-      );
-      const missing: { id: string; text: string; index: number }[] = [];
-      document.segments.forEach((segment, index) => {
-        const resumed = resumedBySourceId.get(segment.id);
-        if (resumed) {
-          partial[index] = resumed;
-          translatedCount += 1;
-          translatedCharacters += segment.sourceText.length;
-          startAlign(resumed, index);
-        } else {
-          missing.push({
-            id: segment.id,
-            text: translationTextById.get(segment.id) ?? segment.sourceText,
-            index
-          });
-        }
-      });
-      const snapshotSegments = (): TranslationOutputSegment[] =>
-        document.segments.map((_, index) => aligned[index] ?? partial[index]).filter(Boolean);
-
-      const output = missing.length
-        ? await translator.translate(
-            {
-              sourceLanguage: translationInput.language,
-              targetLanguage: task.language,
-              segments: missing.map(segment => ({ id: segment.id, text: segment.text })),
-              onSegment: (translated, subsetIndex) => {
-                const index = missing[subsetIndex].index;
-                partial[index] = translated;
-                startAlign(translated, index);
-                translatedCount += 1;
-                // Progress is displayed against the visible source transcript.
-                // A speech-derived English pivot can have a different character
-                // count and must not make the bar jump ahead or reach 100% early.
-                translatedCharacters += document.segments[index].sourceText.length;
-                void this.persistTranslationProgress(
-                  task,
-                  key,
-                  translatedCount,
-                  total,
-                  snapshotSegments(),
-                  translatedCharacters
-                );
-              }
-            },
-            controller.signal
-          )
-        : [];
-      // Translators that don't emit onSegment (or any segment it missed) still
-      // get aligned here; already-started indices are left untouched.
-      output.forEach((translated, subsetIndex) => {
-        const index = missing[subsetIndex].index;
-        if (translated && !alignPromises[index]) startAlign(translated, index);
-      });
-      await Promise.all(alignPromises.filter(Boolean));
-      if (controller.signal.aborted) throw new Error('aborted');
-      const alignedOutput: TranslationOutputSegment[] = aligned.filter(Boolean);
-      // Only persist if this is still the current generation. A stale result is
-      // dropped (a newer request already superseded it).
-      let completedForCache: TranslationDocument | null = null;
-      await this.mutateDocument(task.jobId, fresh => {
-        if ((this.translationGenerations.get(key) ?? 0) !== task.generation) return false;
-        const completed: TranslationDocument = {
-          requestId: task.requestId,
-          targetLanguage: task.language,
-          modelVersion: translator.modelVersion(),
-          cacheKey,
-          alignmentModelVersion: this.aligner?.modelVersion(),
-          alignmentStatus:
-            this.aligner?.available() &&
-            alignedOutput.every(
-              segment => !segment.translatedText.trim() || segment.alignments.length > 0
-            )
-              ? 'completed'
-              : 'fallback',
-          status: 'completed',
-          totalSegments: alignedOutput.length,
-          completedSegments: alignedOutput.length,
-          totalCharacters: processing.totalCharacters,
-          completedCharacters: processing.totalCharacters,
-          startedAt: processing.startedAt ?? null,
-          segments: alignedOutput,
-          error: null
-        };
-        replaceTranslation(fresh.translations, task.language, completed);
-        completedForCache = completed;
-        return true;
-      });
-      if (completedForCache) {
-        this.setTranslationSummary(task.jobId, completedForCache);
-        await this.translationCache.save(completedForCache).catch(() => {});
-      }
-    } catch (error) {
-      const aborted = controller.signal.aborted;
-      const preempted =
-        aborted &&
-        this.activeTranslation?.key === key &&
-        this.activeTranslation.generation === task.generation &&
-        this.activeTranslation.preemptedByTranscription;
-      if (preempted && (this.translationGenerations.get(key) ?? 0) === task.generation) {
-        await this.requeuePreemptedTranslation(task, key);
-      } else if (!aborted) {
-        const failed = await this.mutateDocument(task.jobId, fresh => {
-          if ((this.translationGenerations.get(key) ?? 0) !== task.generation) return null;
-          const previous = fresh.translations[task.language];
-          const failure: TranslationDocument = {
-            requestId: task.requestId,
-            targetLanguage: task.language,
-            modelVersion: translator.modelVersion(),
-            cacheKey: previous?.cacheKey,
-            alignmentModelVersion: this.aligner?.modelVersion(),
-            alignmentStatus: previous?.alignmentStatus ?? 'fallback',
-            status: 'failed',
-            // Partials persisted before the failure are kept (and counted) so a
-            // retry resumes instead of restarting from segment 0.
-            totalSegments: previous?.totalSegments,
-            completedSegments: previous?.completedSegments,
-            totalCharacters: previous?.totalCharacters,
-            completedCharacters: previous?.completedCharacters,
-            startedAt: previous?.startedAt ?? null,
-            segments: previous?.segments ?? [],
-            error: error instanceof Error ? error.message : 'TRANSLATION_FAILED'
-          };
-          replaceTranslation(fresh.translations, task.language, failure);
-          return failure;
-        });
-        if (failed) this.setTranslationSummary(task.jobId, failed);
-      }
-    } finally {
-      this.translating = false;
-      this.activeTranslation = null;
-      this.notify();
-      queueMicrotask(() => void this.pump());
-      queueMicrotask(() => void this.pumpTranslations());
-    }
-  }
-
   state(): TranscriptionState {
-    const translatorModel = combinedModelStatus(
+    const translatorModel = combineModelInfo(
       TRANSLATION_MODEL_DESCRIPTOR.label,
       [this.translatorDownloader.status(), this.translatorRuntimeDownloader.status()],
       this.translationDownloadBatchId
     );
+    const model = this.downloader.status();
     return {
       revision: this.revision,
+      ...(this.instanceId ? { instance: this.instanceId } : {}),
       // The browser operates exclusively on opaque job ids. Keep local source,
       // and diagnostic paths inside the agent process instead of exposing them
       // through state/SSE.
@@ -1149,9 +547,13 @@ export class TranscriptionQueue {
           text: null,
           errorDetails: null
         })),
-      running: this.inFlight || this.translating || this.translationTasks.length > 0,
-      tools: { ...this.tools, model: modelPresent() },
-      model: this.downloader.status(),
+      running: this.inFlight || this.translations.busy || this.translations.pendingCount > 0,
+      tools: { ...this.tools, model: model.present },
+      model,
+      models: {
+        fast: this.speechDownloaders.fast.status(),
+        accurate: this.speechDownloaders.accurate.status()
+      },
       translatorModel,
       translatorRuntime: this.translatorRuntimeDownloader.status(),
       alignmentModel: this.alignmentDownloader.status(),
@@ -1198,8 +600,10 @@ export class TranscriptionQueue {
   workActive(): boolean {
     return (
       this.inFlight ||
-      this.translating ||
-      this.downloader.status().downloading ||
+      this.translations.busy ||
+      TRANSCRIPTION_QUALITY_MODES.some(
+        quality => this.speechDownloaders[quality].status().downloading
+      ) ||
       this.translatorDownloader.status().downloading ||
       this.translatorRuntimeDownloader.status().downloading ||
       this.alignmentDownloader.status().downloading
@@ -1210,29 +614,67 @@ export class TranscriptionQueue {
     return this.downloader.status();
   }
 
-  startModelDownload(): void {
+  /**
+   * Installs a speech model — the selected quality's unless one is named — and, unless
+   * asked for the speech model alone, the translation bundle with it.
+   *
+   * A single first-run confirmation installs every local model needed by the bilingual
+   * transcript. Transcription itself remains usable if either translation component fails,
+   * and a user who declined translation gets the speech model on its own.
+   */
+  startModelDownload(
+    options: { quality?: TranscriptionQualityMode; speechOnly?: boolean } = {}
+  ): void {
     const downloadBatchId = randomUUID();
-    void this.downloader.start(downloadBatchId);
-    // A single first-run confirmation installs every local model needed by the
-    // bilingual transcript. Transcription itself remains usable if either
-    // translation component fails.
-    this.startTranslatorModelDownload(downloadBatchId);
+    void this.speechDownloaders[options.quality ?? this.settings.quality].start(downloadBatchId);
+    if (!options.speechOnly && !this.settings.translationDeclined) {
+      this.startTranslatorModelDownload(downloadBatchId);
+    }
   }
 
   cancelModelDownload(): void {
-    this.downloader.cancel();
+    for (const quality of TRANSCRIPTION_QUALITY_MODES) this.speechDownloaders[quality].cancel();
     this.cancelTranslatorModelDownload();
   }
 
   setToolAvailability(tools: TranscriptionTooling): void {
     const changed = this.tools.ffmpeg !== tools.ffmpeg || this.tools.whisper !== tools.whisper;
     this.tools = { ...tools };
-    if (changed) this.notify();
+    if (changed) {
+      // Files restored from the last session have never been probed; the tools only become
+      // known here, which is the first moment one could have run.
+      this.resumeLanguageProbes();
+      this.notify();
+    }
+  }
+
+  /** Every waiting file nothing has listened to yet, offered to the probe again. */
+  private resumeLanguageProbes(): void {
+    for (const job of this.jobs) {
+      if (job.status !== 'ready') continue;
+      // A language with no source behind it was recorded before the probe existed: it is a
+      // label nobody can say anything about, so it is measured like a fresh file.
+      if (job.detectedLanguage && job.languageSource !== undefined) continue;
+      this.scheduleLanguageProbe(job);
+    }
   }
 
   updateSettings(patch: Partial<TranscriptionSettings>): void {
     if (typeof patch.language === 'string' && patch.language) {
       this.settings.language = patch.language;
+    }
+    if (isTranscriptionQualityMode(patch.quality)) {
+      const changed = patch.quality !== this.settings.quality;
+      this.settings.quality = patch.quality;
+      // A queue waiting on the other model may be runnable now.
+      if (changed) queueMicrotask(() => void this.pump());
+    }
+    if (typeof patch.translationDeclined === 'boolean') {
+      if (patch.translationDeclined) this.settings.translationDeclined = true;
+      else delete this.settings.translationDeclined;
+      // Changing their mind the other way: the models can be fetched now, and any file
+      // waiting on a translator is asked again once they arrive.
+      if (!patch.translationDeclined) this.startTranslatorModelDownload();
     }
     let translationLanguageChanged = false;
     if (
@@ -1244,32 +686,7 @@ export class TranscriptionQueue {
       this.settings.translationLanguage = next;
     }
     this.notify();
-    if (translationLanguageChanged) this.resumeAutomaticTranslations();
-  }
-
-  private resumeAutomaticTranslations(): void {
-    for (const job of this.jobs) {
-      // Team jobs never had one to resume, for the reason `pump` gives.
-      if (this.teamJobIds.has(job.id)) continue;
-      if (
-        job.status === 'completed' &&
-        (job.characters ?? 0) > 0 &&
-        (!job.translation || job.translation.status === 'unavailable')
-      ) {
-        void this.requestAutomaticTranslation(job.id);
-      }
-    }
-  }
-
-  private async requestAutomaticTranslation(jobId: string): Promise<void> {
-    const document = await this.document(jobId);
-    if (!document?.segments.length) return;
-    const target = automaticTranslationTarget(
-      document.sourceLanguage,
-      this.settings.translationLanguage
-    );
-    if (!target) return;
-    await this.requestTranslation(jobId, target);
+    if (translationLanguageChanged) this.translations.resumeAutomaticTranslations();
   }
 
   async add(paths: string[]): Promise<SelectionWarning[]> {
@@ -1321,11 +738,12 @@ export class TranscriptionQueue {
     if (!isTranscribableFileName(fileName)) {
       return selectionWarning(fileName, 'unsupported-format', 'This file format is not supported.');
     }
-    if (
-      sourceKind === 'local' &&
-      this.jobs.some(job => path.resolve(job.inputPath) === path.resolve(inputPath))
-    ) {
-      return selectionWarning(fileName, 'duplicate', 'This file is already in the queue.');
+    if (sourceKind === 'local') {
+      for (const job of this.jobs) {
+        if (await samePath(job.inputPath, inputPath)) {
+          return selectionWarning(fileName, 'duplicate', 'This file is already in the queue.');
+        }
+      }
     }
     try {
       await access(inputPath, constants.R_OK);
@@ -1364,13 +782,178 @@ export class TranscriptionQueue {
 
     // Probe duration so the progress bar has a denominator; a probe failure is
     // not fatal — whisper can still run, the bar just stays indeterminate.
-    job.durationSeconds = await probeDuration(inputPath).catch(() => null);
+    const durationSeconds = await probeDuration(inputPath).catch(() => null);
+    // Removed while the probe ran: there is nothing to mark ready and nobody to tell.
+    if (!this.jobs.includes(job)) return null;
+    job.durationSeconds = durationSeconds;
     transitionJob(job, 'ready');
+    this.scheduleLanguageProbe(job);
     this.notify();
     return null;
   }
 
-  async start(ids: string[]): Promise<boolean> {
+  /**
+   * Puts a freshly added file in line for the quick language guess.
+   *
+   * Skipped when the language is not in question — a person who chose one in the settings,
+   * or a Team Workspace job that arrives with its own — because the row would then show
+   * one language and the run would use another.
+   */
+  private scheduleLanguageProbe(job: TranscriptionJob): void {
+    if (!this.tools.ffmpeg || !this.tools.whisper) return;
+    if (probeQuality() === null) return;
+    if (job.languageSource === 'manual') return;
+    if (!probeableStatus(job.status)) return;
+    if ((this.teamJobLanguages.get(job.id) ?? this.settings.language) !== 'auto') return;
+    if (this.probeQueue.includes(job.id) || this.probing?.jobId === job.id) return;
+    job.languageProbing = true;
+    this.probeQueue.push(job.id);
+    this.pumpProbes();
+  }
+
+  /** Starts the walker unless one is already going; every caller may call it blindly. */
+  private pumpProbes(): void {
+    if (this.probeLoop) return;
+    this.probeLoop = this.drainProbes().finally(() => {
+      this.probeLoop = null;
+    });
+  }
+
+  /**
+   * Names the language of each waiting file, one at a time.
+   *
+   * Whisper and the translator own the machine when they are working; a guess about a file
+   * nobody has started yet gives way to them and is taken up again from `pump`'s exit.
+   */
+  private async drainProbes(): Promise<void> {
+    while (this.probeQueue.length) {
+      if (this.inFlight || this.translations.busy) return;
+      const jobId = this.probeQueue.shift() as string;
+      const job = this.jobs.find(item => item.id === jobId);
+      if (!job || !probeableStatus(job.status) || job.languageSource === 'manual') {
+        if (job && job.languageProbing) {
+          delete job.languageProbing;
+          this.notify();
+        }
+        continue;
+      }
+      const handle = probeLanguage({
+        inputPath: job.inputPath,
+        // The first fragment lands in a few seconds and the rest refine it; the row shows
+        // each answer as it arrives instead of waiting for the last one.
+        onPartial: partial => this.applyProbeResult(jobId, partial)
+      });
+      this.probing = { jobId, handle };
+      let result: LanguageProbeResult;
+      try {
+        result = await handle.done;
+      } catch {
+        result = { language: null, confidence: null, candidates: [], samples: 0, cancelled: true };
+      } finally {
+        if (this.probing?.jobId === jobId) this.probing = null;
+      }
+      // Requeued by `settleLanguageProbe` when a run needed the machine: leave the row
+      // saying it is still listening, because it is.
+      if (this.probeQueue.includes(jobId)) continue;
+      const current = this.jobs.find(item => item.id === jobId);
+      if (!current) continue;
+      delete current.languageProbing;
+      this.applyProbeResult(jobId, result);
+      this.notify();
+    }
+  }
+
+  /**
+   * Writes what the probe has heard so far onto the job.
+   *
+   * Called after every fragment and once more at the end. A person who named the language
+   * while the probe listened outranks it, and so does the run itself when it got there
+   * first — so an answer is only ever written where nothing has claimed the field yet.
+   */
+  private applyProbeResult(jobId: string, result: Omit<LanguageProbeResult, 'cancelled'>): void {
+    const job = this.jobs.find(item => item.id === jobId);
+    if (!job || !result.language) return;
+    if (job.languageSource !== undefined && job.languageSource !== 'probe') return;
+    job.detectedLanguage = result.language;
+    job.languageSource = 'probe';
+    if (result.confidence !== null) job.languageConfidence = result.confidence;
+    // A single fragment is an answer, not a distribution; the popover only has something
+    // to show once the probe went looking for a second opinion.
+    if (result.candidates.length > 1 || result.samples > 1) {
+      job.languageCandidates = result.candidates;
+      job.languageSamples = result.samples;
+    }
+    this.notify();
+  }
+
+  /**
+   * Clears the way for a run that is about to start.
+   *
+   * Its own probe is worth the short wait — it is seconds from an answer the run would
+   * otherwise have to make for itself. Another file's is not: it is cancelled, put back in
+   * line, and picked up when the machine is free again.
+   */
+  private async settleLanguageProbe(jobId: string): Promise<void> {
+    const current = this.probing;
+    if (!current) return;
+    if (current.jobId !== jobId) {
+      current.handle.cancel();
+      if (!this.probeQueue.includes(current.jobId)) this.probeQueue.unshift(current.jobId);
+      return;
+    }
+    await settledWithin(current.handle.done, LANGUAGE_PROBE_WAIT_MS);
+  }
+
+  /**
+   * Records a person's own answer to "what language is this?".
+   *
+   * It outranks every guess and is what the next run is told to listen for, so a file the
+   * detector called Azerbaijani is transcribed as the Uzbek it is. `auto` hands the
+   * question back to the machine and asks it again.
+   */
+  setJobLanguage(id: string, language: string): boolean {
+    const job = this.jobs.find(item => item.id === id);
+    if (!job) return false;
+    this.cancelLanguageProbe(id);
+    delete job.languageCandidates;
+    delete job.languageSamples;
+    if (language === 'auto') {
+      job.detectedLanguage = null;
+      delete job.languageSource;
+      delete job.languageConfidence;
+      // "Detect it again" has to actually detect again — including for a file that has
+      // already been transcribed, which is where the question usually comes up. Without
+      // this the row was left saying "language unknown" with nothing able to answer it.
+      this.scheduleLanguageProbe(job);
+    } else {
+      job.detectedLanguage = language;
+      job.languageSource = 'manual';
+      delete job.languageConfidence;
+      delete job.languageProbing;
+    }
+    this.notify();
+    return true;
+  }
+
+  /** Drops a file out of the probe queue, stopping its probe when that one is running. */
+  private cancelLanguageProbe(id: string): void {
+    this.probeQueue = this.probeQueue.filter(jobId => jobId !== id);
+    if (this.probing?.jobId === id) {
+      this.probing.handle.cancel();
+      this.probing = null;
+    }
+    const job = this.jobs.find(item => item.id === id);
+    if (job) delete job.languageProbing;
+  }
+
+  /**
+   * Queues files to run.
+   *
+   * A quality named here applies to these files only and does not touch the setting: it is
+   * how "try this one again with the full model" works without changing what the next drop
+   * of files will get.
+   */
+  async start(ids: string[], quality?: TranscriptionQualityMode): Promise<boolean> {
     // Asked of the table rather than listed here. The list this replaces named four states
     // and, the moment `interrupted` existed, was wrong by one: a run cut short by a restart
     // could not be started again, and the retry button reported a refusal with no way past.
@@ -1391,7 +974,7 @@ export class TranscriptionQueue {
       // so the previous one simply stays readable until a new one replaces it,
       // and nothing shows it in the meantime because the job is no longer
       // `completed`.
-      if (job.status === 'completed') this.cancelTranslationsForJob(job.id);
+      if (job.status === 'completed') this.translations.cancelTranslationsForJob(job.id);
       transitionJob(job, 'queued');
       job.batchId = batchId;
       job.progress = null;
@@ -1399,12 +982,25 @@ export class TranscriptionQueue {
       job.errorDetails = null;
       job.text = null;
       job.characters = null;
+      delete job.preview;
       job.translation = null;
-      job.detectedLanguage = null;
+      // What is known about the language survives a re-run: a probe listened to this exact
+      // audio, and a person's correction is the whole point of having one. Only the
+      // previous run's own guess is dropped, so the new run may reach a different one.
+      if (job.languageSource === 'run') {
+        job.detectedLanguage = null;
+        delete job.languageSource;
+        delete job.languageConfidence;
+        delete job.languageCandidates;
+        delete job.languageSamples;
+      }
       job.finishedAt = null;
+      delete job.paused;
+      delete job.audibleSeconds;
+      job.quality = quality ?? this.settings.quality;
       job.requestedLanguage = this.teamJobLanguages.get(job.id) ?? this.settings.language;
     }
-    this.preemptTranslationForTranscription();
+    this.translations.preemptTranslationForTranscription();
     this.notify();
     void this.pump();
     return true;
@@ -1424,14 +1020,22 @@ export class TranscriptionQueue {
    * Only the running job can be paused: a queued one is not costing anything
    * yet, and the caller that wants it to stay queued simply does not start it.
    */
-  setPaused(id: string, paused: boolean): 'ok' | 'not-found' | 'unsupported' {
+  setPaused(id: string, paused: boolean): 'ok' | 'not-found' | 'unsupported' | 'retry' {
     const job = this.jobs.find(item => item.id === id);
     if (!job || job.status !== 'processing') return 'not-found';
     if (this.activeJobId !== id || !this.active) return 'not-found';
     // Resuming always succeeds: it releases a hold, and having none is the
     // state the caller asked for. Only a pause can find nothing to hold —
     // between two stages there is no child yet.
-    if (!this.active.setPaused(paused) && paused) return 'unsupported';
+    const outcome = this.active.setPaused(paused);
+    if (outcome === 'unsupported') return 'unsupported';
+    // Between two stages there is no child yet; the hold is remembered and applies to the
+    // next one, but the caller should not show a held interface over a stage that is
+    // still starting — it can ask again in a moment.
+    if (outcome === 'no-child') return 'retry';
+    if (paused) job.paused = true;
+    else delete job.paused;
+    this.notify();
     return 'ok';
   }
 
@@ -1449,11 +1053,12 @@ export class TranscriptionQueue {
     if (job.status === 'queued') {
       transitionJob(job, 'cancelled');
       this.stopJobSideWork(id);
-      queueMicrotask(() => void this.pumpTranslations());
+      queueMicrotask(() => void this.translations.pumpTranslations());
       return true;
     }
     if (job.status === 'processing') {
       transitionJob(job, 'cancelled');
+      delete job.paused;
       this.active?.cancel();
       this.stopJobSideWork(id);
       return true;
@@ -1461,10 +1066,11 @@ export class TranscriptionQueue {
     return false;
   }
 
-  /** The non-whisper work a single job owns: its proxy transcode and translation. */
+  /** The non-whisper work a single job owns: its language probe, proxy transcode, translation. */
   private stopJobSideWork(id: string): void {
+    this.cancelLanguageProbe(id);
     this.mediaPreviews.cancel(id);
-    this.cancelTranslationsForJob(id);
+    this.translations.cancelTranslationsForJob(id);
   }
 
   /**
@@ -1488,46 +1094,23 @@ export class TranscriptionQueue {
     // already finished transcribing, so it is never in `ids` — yet it holds the
     // machine exactly as hard as whisper does, and leaving it running is what
     // makes a stopped queue still read as busy.
-    stopped += this.cancelVisibleTranslations();
+    stopped += this.translations.cancelVisibleTranslations();
     if (stopped) this.notify();
     return stopped;
-  }
-
-  /**
-   * Stops every translation the transcription tool shows: the running one and
-   * everything still waiting behind it. Team jobs are skipped for the same
-   * reason they are skipped above — they are invisible here, so a stop in this
-   * tool must not reach into Team Workspace.
-   *
-   * Partial segments already persisted are kept, so a retry resumes rather than
-   * restarting; this is the same outcome as the per-job translation stop.
-   */
-  private cancelVisibleTranslations(): number {
-    const owned = this.jobs
-      .filter(job => !this.teamJobIds.has(job.id))
-      .map(job => job.id)
-      .filter(id => this.hasTranslationWork(id));
-    for (const id of owned) void this.cancelTranslation(id);
-    return owned.length;
-  }
-
-  /** True when a job has a translation running or waiting in the local queue. */
-  private hasTranslationWork(jobId: string): boolean {
-    if (this.translationTasks.some(task => task.jobId === jobId)) return true;
-    return this.activeTranslation?.key.startsWith(`${jobId}|`) === true;
   }
 
   async remove(id: string): Promise<boolean> {
     const job = this.jobs.find(item => item.id === id);
     if (!job) return false;
     if (job.status === 'processing') return false;
-    this.cancelTranslationsForJob(id);
+    this.cancelLanguageProbe(id);
+    this.translations.forgetJob(id);
     this.jobs = this.jobs.filter(item => item.id !== id);
     this.teamJobIds.delete(id);
     this.teamJobLanguages.delete(id);
     await this.cleanupSource(job);
     this.notify();
-    queueMicrotask(() => void this.pumpTranslations());
+    queueMicrotask(() => void this.translations.pumpTranslations());
     return true;
   }
 
@@ -1535,7 +1118,10 @@ export class TranscriptionQueue {
     const removable = this.jobs.filter(job => ids.includes(job.id) && job.status !== 'processing');
     if (!removable.length) return;
     const removableIds = new Set(removable.map(job => job.id));
-    for (const id of removableIds) this.cancelTranslationsForJob(id);
+    for (const id of removableIds) {
+      this.cancelLanguageProbe(id);
+      this.translations.forgetJob(id);
+    }
     this.jobs = this.jobs.filter(job => !removableIds.has(job.id));
     for (const id of removableIds) {
       this.teamJobIds.delete(id);
@@ -1543,7 +1129,7 @@ export class TranscriptionQueue {
     }
     for (const job of removable) await this.cleanupSource(job);
     this.notify();
-    queueMicrotask(() => void this.pumpTranslations());
+    queueMicrotask(() => void this.translations.pumpTranslations());
   }
 
   async clearCompleted(): Promise<void> {
@@ -1552,7 +1138,10 @@ export class TranscriptionQueue {
     );
     if (!cleared.length) return;
     const clearedIds = new Set(cleared.map(job => job.id));
-    for (const id of clearedIds) this.cancelTranslationsForJob(id);
+    for (const id of clearedIds) {
+      this.cancelLanguageProbe(id);
+      this.translations.forgetJob(id);
+    }
     this.jobs = this.jobs.filter(job => !clearedIds.has(job.id));
     for (const id of clearedIds) {
       this.teamJobIds.delete(id);
@@ -1562,11 +1151,13 @@ export class TranscriptionQueue {
     this.notify();
   }
 
-  async retry(id: string): Promise<boolean> {
+  async retry(id: string, quality?: TranscriptionQualityMode): Promise<boolean> {
     const job = this.jobs.find(item => item.id === id);
     // Same question, same table. A retry is a start that the interface labels differently.
     if (!job || !canTransition(TRANSCRIPTION_LIFECYCLE, job.status, 'queued')) return false;
-    return this.start([id]);
+    // The run again, as it was: a failure retried after the setting changed used to come
+    // back in the other mode without anyone choosing that.
+    return this.start([id], quality ?? job.quality ?? undefined);
   }
 
   sourcePath(id: string): string | null {
@@ -1633,7 +1224,7 @@ export class TranscriptionQueue {
     active?.cancel();
     this.active = null;
     this.activeJobId = null;
-    this.activeTranslation?.controller.abort();
+    this.translations.abortActive();
     // Wait for whisper to actually be gone before the agent exits. Nothing
     // reaps a child of a process that has already left: an update handoff that
     // did not wait would strand a full-speed inference the replacement agent
@@ -1642,20 +1233,44 @@ export class TranscriptionQueue {
     // shutdown that hangs is its own failure — the spawn seam's SIGKILL
     // escalation is what makes the wait terminate.
     if (active) await settledWithin(active.done, SHUTDOWN_GRACE_MS);
-    await this.translator?.close?.();
-    await this.aligner?.close?.();
+    await this.translations.close();
     await this.mediaPreviews.close();
   }
 
   private async pump(): Promise<void> {
     // Whisper and translation share one local resource and never run together.
-    if (this.inFlight || this.translating) return;
-    if (!this.tools.ffmpeg || !this.tools.whisper || !modelPresent()) return;
+    if (this.inFlight || this.translations.busy) return;
+    if (!this.tools.ffmpeg || !this.tools.whisper) return;
     const job = this.jobs.find(item => item.status === 'queued');
     if (!job) return;
+    // The model the job was queued with; a job restored from before the setting existed
+    // takes whatever is selected now.
+    const quality = job.quality ?? this.settings.quality;
+    const model = this.speechDownloaders[quality].status();
+    if (!model.present) {
+      // Still arriving: its completion pumps again. Gone for good — deleted from disk, or
+      // its download cancelled — and the job would sit "queued" for the life of the process,
+      // holding the translation pump with it. It fails with a reason the row can act on.
+      if (model.downloading) return;
+      // A refusal here would be a job neither running nor failing: no second pump, or the
+      // two would chase each other through the microtask queue forever.
+      if (!transitionJob(job, 'failed')) return;
+      job.progress = null;
+      job.error = 'The speech model for this run is not installed.';
+      job.errorDetails = 'MODEL_MISSING';
+      job.finishedAt = Date.now();
+      this.notify();
+      queueMicrotask(() => void this.pump());
+      queueMicrotask(() => void this.translations.pumpTranslations());
+      return;
+    }
 
     this.inFlight = true;
+    // A file the person started before its guess landed still gets it, and any other
+    // file's probe steps aside for this run.
+    await this.settleLanguageProbe(job.id);
     transitionJob(job, 'processing');
+    job.quality = quality;
     job.startedAt = Date.now();
     job.progress = null;
     this.notify();
@@ -1663,7 +1278,11 @@ export class TranscriptionQueue {
     try {
       const handle = transcribe({
         inputPath: job.inputPath,
-        language: job.requestedLanguage,
+        // A language already established — probed from thirty seconds of speech, or named
+        // by the person — is what the run listens for. Whisper's own detection reads
+        // whatever the file opens with, which for a creative is as often music as speech.
+        language: languageForRun(job),
+        quality,
         createEnglishPivot: true,
         // Already probed when the file was added; it turns the extract's own position into a
         // share, so the first seconds of a run report something instead of nothing.
@@ -1671,7 +1290,21 @@ export class TranscriptionQueue {
         onProgress: value => {
           if (job.status !== 'processing') return;
           job.progress = value;
+          // Coalesced in `notify`; the completed frame follows as a state event.
           this.notify('transcription:progress');
+        },
+        // Named minutes before the transcript exists, so a row that started with nothing
+        // but a file name says what is being spoken while the run is still going.
+        onLanguage: detected => {
+          if (job.status !== 'processing') return;
+          if (job.languageSource === 'manual' || job.detectedLanguage === detected) return;
+          job.detectedLanguage = detected;
+          job.languageSource = 'run';
+          delete job.languageConfidence;
+          // The run heard the whole file; the probe's four fragments no longer describe it.
+          delete job.languageCandidates;
+          delete job.languageSamples;
+          this.notify();
         }
       });
       this.active = handle;
@@ -1679,6 +1312,7 @@ export class TranscriptionQueue {
       const result = await handle.done;
       this.active = null;
       this.activeJobId = null;
+      delete job.paused;
 
       // A cancel during the await flips job.status to 'cancelled'; TS still sees
       // the pre-await 'processing' literal, so widen before comparing. Don't
@@ -1687,33 +1321,62 @@ export class TranscriptionQueue {
       if (cancelledMidRun || result.cancelled) {
         transitionJob(job, 'cancelled');
         job.progress = null;
+        job.finishedAt = Date.now();
       } else if (result.code === 0) {
-        transitionJob(job, 'completed');
-        job.progress = 100;
         job.text = result.text;
         job.characters = result.text.length;
-        job.detectedLanguage = result.detectedLanguage;
+        job.preview = transcriptPreview(result.text);
+        job.timed = result.words.some(word => word.endMs > word.startMs);
+        if (result.audibleSeconds !== null) job.audibleSeconds = result.audibleSeconds;
+        // A person's correction is not overwritten by the run it drove.
+        if (job.languageSource !== 'manual' && result.detectedLanguage) {
+          job.detectedLanguage = result.detectedLanguage;
+          if (job.languageSource !== 'probe') job.languageSource = 'run';
+        }
         job.finishedAt = Date.now();
-        // Persist the private structured document (segments + word timestamps);
-        // failure here must not fail the job.
-        await this.withDocumentLock(job.id, () =>
+        // The structured document (segments + word timestamps) is what the reader,
+        // the export and the translation all read; the job is complete only once it
+        // is on disk.
+        const saved = await this.withDocumentLock(job.id, () =>
           this.documents.save(
             buildTranscriptionDocument(
               job,
-              MODEL_DESCRIPTOR.label,
+              result.modelLabel,
               result.words,
               result.englishText,
               result.englishWords
             )
           )
-        ).catch(async () => {
-          // The job now reports text that the stored document does not contain.
-          // On a re-run that stored document is the PREVIOUS transcript, and
-          // handing it to the reader beside the new job state would be worse
-          // than handing back nothing — so drop it rather than let the two
-          // disagree.
-          await this.withDocumentLock(job.id, () => this.documents.remove(job.id)).catch(() => {});
-        });
+        ).then(
+          () => null,
+          async (error: unknown) => {
+            // On a re-run the stored document is the PREVIOUS transcript, and handing
+            // it to the reader beside the new job state would be worse than handing
+            // back nothing — so drop it rather than let the two disagree. And the job
+            // is a failure with a reason: a "completed" job with no document used to
+            // be silently dropped from the list at the next restart, which read as
+            // the file never having been transcribed at all.
+            await this.withDocumentLock(job.id, () => this.documents.remove(job.id)).catch(
+              () => {}
+            );
+            return error instanceof Error ? error.message : String(error);
+          }
+        );
+        if (saved !== null) {
+          // `transitionJob` refuses for a job cancelled during the save; a refused job keeps
+          // its own fields rather than being labelled with a failure it did not have.
+          if (transitionJob(job, 'failed')) {
+            job.progress = null;
+            job.error = 'The transcript could not be saved to disk.';
+            job.errorDetails = `DOCUMENT_WRITE_FAILED: ${saved}`;
+          }
+          return;
+        }
+        transitionJob(job, 'completed');
+        job.progress = 100;
+        // The sidecar is the transcript from here on; the copy in memory only served the
+        // save, and kept for every finished file it was megabytes nothing read.
+        job.text = null;
         /*
          * Queue the preferred local translation without delaying the next Whisper job.
          * Inference remains blocked until the transcription queue is empty and is served
@@ -1725,10 +1388,9 @@ export class TranscriptionQueue {
          * file's transfer for a machine that is already the bottleneck, and then thrown away.
          */
         if (!this.teamJobIds.has(job.id)) {
-          void this.requestAutomaticTranslation(job.id).catch(() => {});
+          void this.translations.requestAutomaticTranslation(job.id).catch(() => {});
         }
-      } else {
-        transitionJob(job, 'failed');
+      } else if (transitionJob(job, 'failed')) {
         job.progress = null;
         job.error =
           result.failedStage === 'extract'
@@ -1740,17 +1402,20 @@ export class TranscriptionQueue {
     } catch (error) {
       this.active = null;
       this.activeJobId = null;
-      transitionJob(job, 'failed');
-      job.progress = null;
-      job.error = 'The transcription could not be completed.';
-      job.errorDetails = error instanceof Error ? error.message : String(error);
-      job.finishedAt = Date.now();
+      if (transitionJob(job, 'failed')) {
+        job.progress = null;
+        job.error = 'The transcription could not be completed.';
+        job.errorDetails = error instanceof Error ? error.message : String(error);
+        job.finishedAt = Date.now();
+      }
     } finally {
       this.inFlight = false;
       this.notify();
       // Drain every queued Whisper job before allowing background translation.
       queueMicrotask(() => void this.pump());
-      queueMicrotask(() => void this.pumpTranslations());
+      queueMicrotask(() => void this.translations.pumpTranslations());
+      // Files added while this one ran, and probes that stepped aside for it.
+      queueMicrotask(() => this.pumpProbes());
     }
   }
 
@@ -1765,55 +1430,41 @@ export class TranscriptionQueue {
     if (this.jobs.some(item => path.resolve(item.inputPath) === resolved)) return;
     this.importedSources.delete(resolved);
     await unlink(resolved).catch(() => {});
+    // The upload landed in a directory of its own; an empty one left behind per removed
+    // upload is how an imports folder fills with nothing.
+    await rm(path.dirname(resolved), { recursive: false }).catch(() => {});
   }
 
-  private cancelTranslationsForJob(jobId: string): void {
-    this.translationTasks = this.translationTasks.filter(task => task.jobId !== jobId);
-    for (const [key, generation] of this.translationGenerations) {
-      if (key.startsWith(`${jobId}|`)) this.translationGenerations.set(key, generation + 1);
+  /**
+   * Removes upload directories no job points at any more.
+   *
+   * An upload directory outlives its job when the agent is killed between the removal and
+   * the unlink, or when an older build removed the file and not the folder. Run at boot,
+   * beside the other sweeps; a directory a queued job still uses is never touched.
+   */
+  async sweepImports(importRoot: string): Promise<number> {
+    let entries: string[];
+    try {
+      entries = await readdir(importRoot);
+    } catch {
+      return 0;
     }
-    if (this.activeTranslation?.key.startsWith(`${jobId}|`)) {
-      this.activeTranslation.controller.abort();
+    const inUse = new Set(
+      this.jobs
+        .filter(job => job.sourceKind === 'uploaded')
+        .map(job => path.dirname(path.resolve(job.inputPath)))
+    );
+    let removed = 0;
+    for (const entry of entries) {
+      if (!entry.startsWith('import-')) continue;
+      const directory = path.join(importRoot, entry);
+      if (inUse.has(path.resolve(directory))) continue;
+      const gone = await rm(directory, { recursive: true, force: true }).then(
+        () => true,
+        () => false
+      );
+      if (gone) removed += 1;
     }
+    return removed;
   }
-}
-
-/**
- * The translator is usable only when both weights and runtime are present.
- * Report one byte-weighted component to the UI while retaining the raw runtime
- * state separately for diagnostics.
- */
-export function combinedModelStatus(
-  label: string,
-  parts: readonly TranscriptionModelInfo[],
-  downloadBatchId?: string | null
-): TranscriptionModelInfo {
-  const participants = downloadBatchId
-    ? parts.filter(part => part.downloadBatchId === downloadBatchId)
-    : parts.filter(part => !part.present);
-  const sizeBytes = participants.reduce((total, part) => total + Math.max(0, part.sizeBytes), 0);
-  const downloadedBytes = participants.reduce(
-    (total, part) =>
-      total +
-      (part.present
-        ? Math.max(0, part.sizeBytes)
-        : Math.min(Math.max(0, part.downloadedBytes), Math.max(0, part.sizeBytes))),
-    0
-  );
-  const present = parts.every(part => part.present);
-  const downloading = parts.some(part => part.downloading);
-  return {
-    present,
-    downloading,
-    progress: present
-      ? 100
-      : downloading && sizeBytes > 0
-        ? Math.min(99, Math.floor((downloadedBytes / sizeBytes) * 100))
-        : null,
-    sizeBytes,
-    downloadedBytes,
-    downloadBatchId,
-    label,
-    error: parts.map(part => part.error).find(Boolean) ?? null
-  };
 }

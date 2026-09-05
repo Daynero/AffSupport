@@ -11,6 +11,12 @@ import { getSupabaseClient } from '../../lib/supabase';
 
 export type TaskDateFilter = { kind: 'all' } | { kind: 'range'; from: string; to: string };
 export type TaskStatusFilter = 'all' | TeamTaskStatus;
+/**
+ * Which accounts' tasks the list shows (017): everything, one account's, or
+ * one agent's. Carried by the address, so the Accounts tab can link to it.
+ */
+export type TaskAccountScope =
+  { kind: 'all' } | { kind: 'account'; accountId: string } | { kind: 'agent'; agentRowId: string };
 
 export interface TasksClient {
   listTasks(input: {
@@ -18,6 +24,8 @@ export interface TasksClient {
     createdFrom?: string | null;
     createdTo?: string | null;
     status?: TeamTaskStatus | null;
+    agentRowId?: string | null;
+    accountId?: string | null;
     cursor?: string | null;
     pageSize?: number;
   }): Promise<TeamTaskSummary[]>;
@@ -33,6 +41,14 @@ export interface TasksClient {
 
 const defaultClient: TasksClient = teamApi;
 const PAGE_SIZE = 50;
+
+/**
+ * The last first page each (space, filters) pair showed, for the life of the
+ * page. The Tasks section unmounts on every trip to another tab; without this
+ * every return began with "Loading…". Realtime re-reads on anyone's change,
+ * so the cached page is at most a moment old. Production client only.
+ */
+const cache = new Map<string, { tasks: TeamTaskSummary[]; hasMore: boolean }>();
 
 export function localDateValue(date: Date): string {
   const year = date.getFullYear();
@@ -62,32 +78,49 @@ function mergeTasks(current: TeamTaskSummary[], incoming: TeamTaskSummary[]) {
 export function useTasks({
   teamId,
   revision = 0,
+  scope = { kind: 'all' },
   client = defaultClient
 }: {
   teamId: string;
   revision?: number;
+  scope?: TaskAccountScope;
   client?: TasksClient;
 }) {
-  const [tasks, setTasks] = useState<TeamTaskSummary[]>([]);
   const [filter, setFilter] = useState<TaskDateFilter>({ kind: 'all' });
   const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>('all');
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const generation = useRef(0);
   const bounds = useMemo(() => taskFilterBounds(filter), [filter]);
   const status = statusFilter === 'all' ? null : statusFilter;
+  const agentRowId = scope.kind === 'agent' ? scope.agentRowId : null;
+  const accountId = scope.kind === 'account' ? scope.accountId : null;
+  const cacheKey = [
+    teamId,
+    bounds?.from ?? '',
+    bounds?.to ?? '',
+    status ?? '',
+    agentRowId ?? '',
+    accountId ?? ''
+  ].join('|');
+  const cached = client === defaultClient ? cache.get(cacheKey) : undefined;
+  const [tasks, setTasks] = useState<TeamTaskSummary[]>(cached?.tasks ?? []);
+  const [loading, setLoading] = useState(cached === undefined);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(cached?.hasMore ?? false);
+  const [error, setError] = useState<string | null>(null);
+  const generation = useRef(0);
 
   const refetch = useCallback(async () => {
     const requestGeneration = ++generation.current;
-    setLoading(true);
+    // A cached page stays on screen while it is re-read; the loading line is
+    // for a view never seen before, or one whose filters just changed.
+    if (!(client === defaultClient && cache.has(cacheKey))) setLoading(true);
     try {
       const next = await client.listTasks({
         teamId,
         createdFrom: bounds?.from,
         createdTo: bounds?.to,
         status,
+        agentRowId,
+        accountId,
         pageSize: PAGE_SIZE
       });
       if (requestGeneration !== generation.current) return;
@@ -101,7 +134,7 @@ export function useTasks({
     } finally {
       if (requestGeneration === generation.current) setLoading(false);
     }
-  }, [bounds?.from, bounds?.to, client, status, teamId]);
+  }, [accountId, agentRowId, bounds?.from, bounds?.to, cacheKey, client, status, teamId]);
 
   useEffect(() => {
     void refetch();
@@ -109,6 +142,20 @@ export function useTasks({
       generation.current += 1;
     };
   }, [refetch, revision]);
+
+  // Filters changed: show that view's last page at once if there is one.
+  useEffect(() => {
+    if (client !== defaultClient) return;
+    const entry = cache.get(cacheKey);
+    if (entry) {
+      setTasks(entry.tasks);
+      setHasMore(entry.hasMore);
+    }
+  }, [cacheKey, client]);
+
+  useEffect(() => {
+    if (client === defaultClient && !loading) cache.set(cacheKey, { tasks, hasMore });
+  }, [cacheKey, client, hasMore, loading, tasks]);
 
   // Live sync: refetch whenever any team member creates, edits, or (de)attaches
   // a task. The team_tasks / team_task_attachments tables are published over
@@ -156,6 +203,24 @@ export function useTasks({
         },
         scheduleRefetch
       )
+      // The tags a card shows (017) — and whether each tagged agent is free —
+      // live in two more tables. A teammate marking a run must turn the dot
+      // on the card without a reload.
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'team_task_agents', filter: `team_id=eq.${teamId}` },
+        scheduleRefetch
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'team_account_agents',
+          filter: `team_id=eq.${teamId}`
+        },
+        scheduleRefetch
+      )
       .subscribe();
 
     return () => {
@@ -175,6 +240,8 @@ export function useTasks({
         createdFrom: bounds?.from,
         createdTo: bounds?.to,
         status,
+        agentRowId,
+        accountId,
         cursor,
         pageSize: PAGE_SIZE
       });
@@ -186,7 +253,19 @@ export function useTasks({
     } finally {
       setLoadingMore(false);
     }
-  }, [bounds?.from, bounds?.to, client, hasMore, loading, loadingMore, status, tasks, teamId]);
+  }, [
+    accountId,
+    agentRowId,
+    bounds?.from,
+    bounds?.to,
+    client,
+    hasMore,
+    loading,
+    loadingMore,
+    status,
+    tasks,
+    teamId
+  ]);
 
   const create = useCallback(
     async (input: {
@@ -211,15 +290,21 @@ export function useTasks({
       // update_team_task returns a team_tasks row, which deliberately does not
       // include the derived attachment count. A quick status/progress edit must
       // not make an otherwise attached card briefly look empty.
-      const next = { ...updated, attachmentCount: task.attachmentCount };
+      const next = { ...updated, attachmentCount: task.attachmentCount, agents: task.agents };
       setTasks(current => current.map(item => (item.id === next.id ? next : item)));
       return next;
     },
     [client, teamId]
   );
 
+  /** The editor tagged or untagged a task; the card follows without a round trip. */
+  const setTaskAgents = useCallback((taskId: string, agents: TeamTaskSummary['agents']) => {
+    setTasks(current => current.map(item => (item.id === taskId ? { ...item, agents } : item)));
+  }, []);
+
   return {
     tasks,
+    setTaskAgents,
     filter,
     setFilter,
     statusFilter,

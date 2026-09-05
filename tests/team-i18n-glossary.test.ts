@@ -90,6 +90,8 @@ describe('canonical section labels', () => {
     // 011: Files, Creatives and Landings merged into the explorer; Members became a destination.
     ['teamSectionExplorer', 'Explorer', 'Провідник'],
     ['teamSectionTasks', 'Tasks', 'Завдання'],
+    // 017: the accounts a space runs from, beside the tasks they will tag.
+    ['teamSectionAccounts', 'Accounts', 'Акаунти'],
     ['teamSectionMembers', 'Members', 'Учасники'],
     ['teamSpaceSettings', 'Space settings', 'Налаштування простору']
   ] as const)('%s is the agreed label in both locales', (key, en, uk) => {

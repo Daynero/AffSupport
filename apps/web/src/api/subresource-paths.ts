@@ -38,14 +38,34 @@ export function transcriptionMediaPath(id: string): string {
  */
 const ticketCache = new Map<string, { ticket: string; expiresAt: number }>();
 const TICKET_REFRESH_MARGIN_MS = 60_000;
+/** Requests still on the wire, so two callers a moment apart share one ticket. */
+const ticketsInFlight = new Map<string, Promise<string | null>>();
 
-export async function subresourceTicket(
+export function subresourceTicket(
   agentOrigin: string,
   token: string,
   path: string
 ): Promise<string | null> {
   const cached = ticketCache.get(path);
-  if (cached && cached.expiresAt - TICKET_REFRESH_MARGIN_MS > Date.now()) return cached.ticket;
+  if (cached && cached.expiresAt - TICKET_REFRESH_MARGIN_MS > Date.now()) {
+    return Promise.resolve(cached.ticket);
+  }
+  // A player mounting twice (React's development double-invocation, or two components for
+  // one file) asked twice; the second answer is the first one's.
+  const pending = ticketsInFlight.get(path);
+  if (pending) return pending;
+  const request = requestTicket(agentOrigin, token, path).finally(() =>
+    ticketsInFlight.delete(path)
+  );
+  ticketsInFlight.set(path, request);
+  return request;
+}
+
+async function requestTicket(
+  agentOrigin: string,
+  token: string,
+  path: string
+): Promise<string | null> {
   try {
     const response = await fetch(`${agentOrigin}/api/tickets`, {
       method: 'POST',

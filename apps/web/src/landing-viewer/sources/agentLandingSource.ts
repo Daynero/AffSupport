@@ -5,6 +5,7 @@ import {
   landingGalleryClearCache,
   toolEventUrl,
   landingGalleryImageUrl,
+  landingGalleryThumbnailUrl,
   landingGalleryOpen,
   landingGalleryOpenExtracted,
   landingGalleryRefresh,
@@ -16,7 +17,7 @@ import {
   request
 } from '../../api/client';
 import type { LandingViewerSource } from '../types';
-
+import { pairingToken } from '../../api/pairing-token';
 import { streamClient } from '../../api/stream-client';
 
 /**
@@ -46,12 +47,22 @@ export function agentLandingSource(multiplexed = false): LandingViewerSource {
       // told instead.
       if (multiplexed) {
         onStatus?.('open');
-        return streamClient.subscribe('landing-preview', event => {
+        const unsubscribe = streamClient.subscribe('landing-preview', event => {
           onStatus?.('open');
           onState((event as LandingPreviewEvent).state);
         });
+        // The shared connection knows when it drops; without this the banner could never
+        // appear on the path every current client takes.
+        const unwatch = streamClient.watchConnection(open => onStatus?.(open ? 'open' : 'lost'));
+        return () => {
+          unwatch();
+          unsubscribe();
+        };
       }
 
+      // No token, no stream: the endpoint would answer 401 and the browser would keep
+      // reconnecting to it. The page re-subscribes once pairing gives it a token.
+      if (!pairingToken()) return () => {};
       const source = new EventSource(toolEventUrl('landing-preview'));
       source.onmessage = event => {
         onStatus?.('open');
@@ -66,6 +77,7 @@ export function agentLandingSource(multiplexed = false): LandingViewerSource {
       return () => source.close();
     },
     imageUrl: (item, segment) => landingGalleryImageUrl(item.id, item.renderedAt, segment),
+    thumbnailUrl: item => landingGalleryThumbnailUrl(item.id, item.renderedAt),
     activate: landingGalleryActivate,
     chooseFolder: landingGallerySelect,
     openPaths: landingGalleryOpen,

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import type {
+  TeamTaskAgentTag,
   TeamTaskAttachmentSummary,
   TeamTaskPatch,
   TeamTaskSummary
@@ -17,9 +18,11 @@ import {
 import { TaskAttachmentTile, type TaskAttachmentPreviewClient } from './TaskAttachmentTile';
 import { TaskProgressScale } from './TaskProgressScale';
 import { TaskStatusControl } from './TaskStatusControl';
+import { TaskAgentTagsEditor, type TaskAgentTagsClient } from './TaskAgentTags';
 import { useToasts } from '../../components/toast';
 
-export interface TaskEditorClient extends TaskAttachmentPickerClient, TaskAttachmentPreviewClient {
+export interface TaskEditorClient
+  extends TaskAttachmentPickerClient, TaskAttachmentPreviewClient, TaskAgentTagsClient {
   getTask(input: {
     teamId: string;
     taskId: string;
@@ -72,6 +75,7 @@ export function TaskEditor({
   client = defaultClient,
   onClose,
   onChanged,
+  onTagsChange,
   onDelete
 }: {
   teamId: string;
@@ -81,6 +85,8 @@ export function TaskEditor({
   client?: TaskEditorClient;
   onClose: () => void;
   onChanged: (task: TeamTaskSummary) => void;
+  /** The tags changed (017) — written at once, unlike the staged form. */
+  onTagsChange?: (tags: TeamTaskAgentTag[]) => void;
   /** Deletes the task; absent when the viewer may not. */
   onDelete?: (task: TeamTaskSummary) => Promise<void>;
 }) {
@@ -125,15 +131,28 @@ export function TaskEditor({
     };
   }, []);
 
+  /**
+   * Refresh the form from the server's copy — but never over typing. The
+   * first read resolves after the editor opens, and a person who started on
+   * the title at once had it wiped by a slow round trip. Each field is
+   * replaced only while it still holds the value the editor opened with;
+   * anything edited in the meantime stays.
+   */
   const hydrateTask = (next: TeamTaskSummary) => {
     setTask(next);
-    setTitle(next.title);
-    setNote(next.note ?? '');
-    setStatus(next.status);
-    setAssigneeId(next.assigneeId ?? '');
-    setProgressMax(next.progressMax);
-    setProgressMaxInput(String(next.progressMax));
-    setProgressValue(next.progressValue);
+    setTitle(current => (current === initialTask.title ? next.title : current));
+    setNote(current => (current === (initialTask.note ?? '') ? (next.note ?? '') : current));
+    setStatus(current => (current === initialTask.status ? next.status : current));
+    setAssigneeId(current =>
+      current === (initialTask.assigneeId ?? '') ? (next.assigneeId ?? '') : current
+    );
+    setProgressMax(current => (current === initialTask.progressMax ? next.progressMax : current));
+    setProgressMaxInput(current =>
+      current === String(initialTask.progressMax) ? String(next.progressMax) : current
+    );
+    setProgressValue(current =>
+      current === initialTask.progressValue ? next.progressValue : current
+    );
   };
 
   const load = useCallback(
@@ -310,7 +329,7 @@ export function TaskEditor({
         });
         // The update RPC returns the physical row, while attachmentCount is
         // derived by the read RPC. Keep the known count while this editor stays open.
-        updated = { ...response, attachmentCount: task.attachmentCount };
+        updated = { ...response, attachmentCount: task.attachmentCount, agents: task.agents };
         setTask(updated);
       }
       if (draftAttachments.length > 0) {
@@ -351,7 +370,11 @@ export function TaskEditor({
         status: next,
         expectedUpdatedAt: previousTask.updatedAt
       });
-      const updated = { ...response, attachmentCount: previousTask.attachmentCount };
+      const updated = {
+        ...response,
+        attachmentCount: previousTask.attachmentCount,
+        agents: previousTask.agents
+      };
       setTask(updated);
       // Preserve a locally edited scale; otherwise reflect automatic completion progress.
       setProgressMax(current =>
@@ -400,6 +423,20 @@ export function TaskEditor({
                 onChange={next => void saveStatus(next)}
               />
             </section>
+            {/* The accounts this task is about (017). Written at once, like
+                status: a tag is a fact about the task, not a draft of one. */}
+            <TaskAgentTagsEditor
+              teamId={teamId}
+              taskId={task.id}
+              taskTitle={title}
+              tags={task.agents}
+              canEdit={canEdit}
+              client={client}
+              onTagsChange={agents => {
+                setTask(current => ({ ...current, agents }));
+                onTagsChange?.(agents);
+              }}
+            />
             <label>
               <span>{t('teamTaskTitle')}</span>
               <input

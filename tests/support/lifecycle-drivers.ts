@@ -525,6 +525,19 @@ const TRANSLATION_DRIVERS: DriverMap = {
     return result;
   },
 
+  'queued->failed': async () => {
+    // A cancel before the translation started: a second language asked for while the first
+    // is still running waits its turn, and stopping it there has to stick.
+    const harnessed = await transcriptionHarness();
+    await translationInFlight(harnessed);
+    await harnessed.queue.requestTranslation(harnessed.jobId, 'de');
+    const result = await translationEdge('failed', () =>
+      harnessed.queue.cancelTranslation(harnessed.jobId)
+    );
+    await harnessed.queue.shutdown();
+    return result;
+  },
+
   'failed->queued': async () => {
     const harnessed = await transcriptionHarness();
     await translationInFlight(harnessed);
@@ -623,6 +636,21 @@ const TRANSCRIPTION_DRIVERS: DriverMap = {
     const result = await transcriptionEdge('cancelled', async () => queue.cancel('waiting'));
     await queue.shutdown();
     return result;
+  },
+
+  'queued->failed': async () => {
+    // The model deleted after the job was queued: the run can neither start nor wait for a
+    // download, and says so rather than sitting in the queue with the translations behind it.
+    const model = process.env.WHISPER_MODEL_PATH;
+    process.env.WHISPER_MODEL_PATH = path.join(workspace, 'no-such-model.bin');
+    try {
+      const { queue } = await seededTranscription([{ id: 'orphaned', status: 'ready' }]);
+      const result = await transcriptionEdge('failed', () => queue.start(['orphaned']));
+      await queue.shutdown();
+      return result;
+    } finally {
+      process.env.WHISPER_MODEL_PATH = model;
+    }
   },
 
   'processing->cancelled': async () => {

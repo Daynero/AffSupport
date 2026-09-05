@@ -44,7 +44,7 @@ describe('team sections are addresses', () => {
     renderSpace(client);
 
     const tabs = await screen.findByRole('navigation', { name: 'Space sections' });
-    for (const label of ['Explorer', 'Tasks', 'Members']) {
+    for (const label of ['Explorer', 'Tasks', 'Accounts', 'Members']) {
       expect(screen.getByRole('link', { name: label })).toBeTruthy();
     }
     // The explorer is the canonical default and carries no path suffix of its own.

@@ -1,14 +1,27 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  AlertTriangle,
+  Ban,
+  Broom,
+  Check,
+  Download,
+  Files,
+  Loader,
+  Pause,
+  Play,
+  Trash2
+} from 'lucide-react';
 import type {
   TranscriptionDocument,
   TranscriptionJob,
+  TranscriptionModelInfo,
+  TranscriptionQualityMode,
   TranscriptionState
 } from '@video-compressor/shared';
 import {
-  TRANSCRIPTION_LANGUAGE_CODES,
   TRANSCRIPTION_LIFECYCLE,
-  TRANSLATEGEMMA_LANGUAGE_CODES,
   canTransition,
+  defaultTranscriptionSettings,
   isSettled,
   isNewerSnapshot
 } from '@video-compressor/shared';
@@ -18,18 +31,20 @@ import {
   transcriptionCancel,
   transcriptionCancelAll,
   transcriptionClearFinished,
-  transcriptionDocument,
   toolEventUrl,
   transcriptionModelCancel,
   transcriptionModelDownload,
+  transcriptionPause,
   transcriptionTranslatorCancel,
   transcriptionTranslatorDownload,
   transcriptionRemove,
+  transcriptionRemoveMany,
   transcriptionRetry,
   transcriptionReveal,
   transcriptionSelect,
   transcriptionSettings,
   transcriptionStart,
+  transcriptionJobLanguage,
   transcriptionTranslate,
   transcriptionUpload,
   type TranscriptionSelectionResponse
@@ -38,19 +53,11 @@ import { Onboarding } from '../App';
 import { useAgent } from '../AgentContext';
 import { useAgentEventStream } from '../api/useAgentEventStream';
 import { DropZone } from '../components/DropZone';
-import { Modal } from '../components/Modal';
-import {
-  Button,
-  Checkbox,
-  ProgressBar,
-  Spinner,
-  StatusBadge,
-  Tooltip,
-  type Translate
-} from '../components/ui';
-import { formatSize } from '../format';
+import { Button, Checkbox, ProgressBar, Spinner } from '../components/ui';
+import { useCompactToolbar } from '../components/useCompactToolbar';
 import { toggleSelection } from '../queue-ui';
-import { selectedCountKey, useI18n, type Language } from '../i18n';
+import { useI18n } from '../i18n';
+import { describeError } from './errors';
 import { usePageEntrance } from '../lib/navigation';
 import { analytics } from '../analytics/service';
 import { languageDisplayName } from './language';
@@ -63,62 +70,46 @@ import {
   type TranscriptionCopyScope
 } from './copy';
 import { TranscriptionCopyMenu } from './TranscriptionCopyMenu';
+import { TranscriptionRow, type TranscriptionRowActions } from './TranscriptionRow';
+import { TranscriptionSettingsPanel } from './TranscriptionSettingsPanel';
+import { ConfirmDownloadModal, ModelGate, combineModelInfo } from './ModelGate';
+import {
+  forgetTranscriptDocuments,
+  loadTranscriptDocument,
+  loadTranscriptDocuments
+} from './document-cache';
+import {
+  buildTranscriptExport,
+  downloadTranscriptExport,
+  hasTimings,
+  type TranscriptExportContent,
+  type TranscriptExportFormat
+} from './export';
 
-type TranscriptionModelInfo = NonNullable<TranscriptionState['model']>;
-
-function combineModelInfo(
-  label: string,
-  parts: readonly TranscriptionModelInfo[]
-): TranscriptionModelInfo {
-  const activeBatchId =
-    parts.find(part => part.downloading && part.downloadBatchId)?.downloadBatchId ?? null;
-  const participants = activeBatchId
-    ? parts.filter(part => part.downloadBatchId === activeBatchId)
-    : parts.filter(part => !part.present);
-  const sizeBytes = participants.reduce((sum, part) => sum + Math.max(0, part.sizeBytes), 0);
-  const downloadedBytes = participants.reduce(
-    (sum, part) =>
-      sum +
-      (part.present
-        ? Math.max(0, part.sizeBytes)
-        : Math.min(Math.max(0, part.downloadedBytes), Math.max(0, part.sizeBytes))),
-    0
-  );
-  const present = parts.every(part => part.present);
-  const downloading = parts.some(part => part.downloading);
-  return {
-    present,
-    downloading,
-    progress: present
-      ? 100
-      : downloading && sizeBytes > 0
-        ? Math.min(99, Math.floor((downloadedBytes / sizeBytes) * 100))
-        : null,
-    sizeBytes,
-    downloadedBytes,
-    downloadBatchId: activeBatchId,
-    label,
-    error: parts.map(part => part.error).find((error): error is string => Boolean(error)) ?? null
-  };
-}
+const EMPTY_MODEL: TranscriptionModelInfo = {
+  present: false,
+  downloading: false,
+  progress: null,
+  sizeBytes: 0,
+  downloadedBytes: 0,
+  label: '',
+  error: null
+};
 
 /**
  * Which translation belongs on the clipboard when a file has more than one.
  *
- * The job carries the language the reader currently has selected, so that is
- * the one to copy. Taking whichever key happened to come first in the sidecar
- * would hand over a language nobody is looking at — and a different one from
- * run to run, since key order is storage order.
+ * The job carries the language the reader currently has selected, so that is the one to
+ * copy. Taking whichever key happened to come first in the sidecar would hand over a
+ * language nobody is looking at — and a different one from run to run.
  */
-function selectedTranslation(document: TranscriptionDocument, job: TranscriptionJob) {
+export function selectedTranslation(document: TranscriptionDocument, job: TranscriptionJob) {
   const completed = Object.values(document.translations).filter(
     translation => translation.status === 'completed'
   );
   const selected = job.translation?.targetLanguage;
   return (
     completed.find(translation => translation.targetLanguage === selected) ??
-    // Nothing selected — a sidecar older than the selection, or a job restored
-    // without one. Sorting keeps the choice stable rather than incidental.
     [...completed].sort((left, right) =>
       left.targetLanguage.localeCompare(right.targetLanguage)
     )[0] ??
@@ -126,11 +117,6 @@ function selectedTranslation(document: TranscriptionDocument, job: Transcription
   );
 }
 
-/**
- * Flattens one stored document into clipboard-ready text. The translation is
- * walked in source-segment order — the sidecar keys translated segments by
- * source id, and pasting them in storage order would scramble long files.
- */
 function copyEntry(
   document: TranscriptionDocument,
   job: TranscriptionJob,
@@ -154,6 +140,8 @@ function copyEntry(
   };
 }
 
+export { describeError };
+
 interface ToastMessage {
   id: number;
   text: string;
@@ -169,13 +157,25 @@ export default function TranscriptionPage() {
   /**
    * The one place this page's snapshot is written.
    *
-   * Same rule as the queue context: a request in flight when an event fires
-   * resolves second and would otherwise overwrite a newer snapshot with an
-   * older one, showing work as running that has already finished.
+   * Same rule as the queue context: a request in flight when an event fires resolves
+   * second and would otherwise overwrite a newer snapshot with an older one.
    */
   const applyState = useCallback((next: TranscriptionState | null) => {
     if (!next) return;
-    setStateRaw(current => (isNewerSnapshot(next, current) ? next : current));
+    setStateRaw(current => {
+      // A restarted agent counts from zero again. Its snapshots carry the new process's
+      // identity, and the first one from a different process is accepted whatever its
+      // number says — comparing numbers alone froze the page on the previous run's last
+      // state until a reload.
+      const accepted = isNewerSnapshot(next, current, {
+        sameInstance: !current?.instance || !next.instance || current.instance === next.instance
+      });
+      if (!accepted) return current;
+      // A job that did not change keeps its object. The agent builds fresh objects for every
+      // job on every frame, which made every memoised row re-render on every progress tick
+      // of one file; identity is what the memo compares, so identity is kept.
+      return current ? { ...next, jobs: reuseUnchangedJobs(current.jobs, next.jobs) } : next;
+    });
   }, []);
   const [help, setHelp] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -184,16 +184,30 @@ export default function TranscriptionPage() {
   );
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
-  const [confirmingDownload, setConfirmingDownload] = useState(false);
+  const lastSelectedIndex = useRef<number | null>(null);
+  /** What the confirmation is for: a run that needs models, or the translator on its own. */
+  const [confirmingDownload, setConfirmingDownload] = useState<false | 'run' | 'translator'>(false);
   const [copyingAll, setCopyingAll] = useState(false);
   const [copyScope, setCopyScope] = useState<TranscriptionCopyScope>('finished');
   const [copyContent, setCopyContent] = useState<TranscriptionCopyContent>('both');
   const toastId = useRef(0);
-  /** Live toast dismissal timers, so none of them outlives the page. */
   const toastTimers = useRef(new Set<number>());
+  const { ref: toolbarRow, compactActions, compactChips } = useCompactToolbar();
+  // The toolbar pins itself under the intake zone by the zone's real height, not a guess.
+  const intakeRef = useRef<HTMLElement>(null);
+  const workspaceRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const zone = intakeRef.current;
+    const workspace = workspaceRef.current;
+    if (!zone || !workspace) return;
+    const apply = () => workspace.style.setProperty('--intake-h', `${zone.offsetHeight}px`);
+    apply();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(apply);
+    observer.observe(zone);
+    return () => observer.disconnect();
+  }, [connection, connectedOnce]);
 
-  // Every dismissal timer dies with the page that scheduled it.
   useEffect(() => {
     const timers = toastTimers.current;
     return () => {
@@ -201,9 +215,9 @@ export default function TranscriptionPage() {
       timers.clear();
     };
   }, []);
-  // Job ids the user asked to transcribe before the model was present; started
-  // automatically once the download completes.
-  const pendingStart = useRef<string[] | null>(null);
+  // What the user asked to transcribe before the model was present; started automatically
+  // once the download completes, on the quality it was asked for.
+  const pendingStart = useRef<{ ids: string[]; quality?: TranscriptionQualityMode } | null>(null);
   const connected = connection === 'connected';
   const stateReady = state !== null;
   const canUseLocalPaths = capabilities.includes('local-file-paths');
@@ -226,8 +240,6 @@ export default function TranscriptionPage() {
     };
   }, [connection]);
 
-  // Through the shared hook rather than a socket of this page's own — see the same change in
-  // the landing optimiser.
   useAgentEventStream<{ state: TranscriptionState }>({
     url: connection === 'connected' ? toolEventUrl('transcription') : null,
     channel: 'transcription',
@@ -236,23 +248,24 @@ export default function TranscriptionPage() {
     onMessage: update => applyState(update.state)
   });
 
-  const addToast = (text: string, tone: ToastMessage['tone'] = 'neutral') => {
+  const addToast = useCallback((text: string, tone: ToastMessage['tone'] = 'neutral') => {
     const id = ++toastId.current;
     setToasts(current => [...current, { id, text, tone }]);
-    // D12. Tracked so unmount can clear it: a dismissal timer that fires after
-    // the page is gone updates state on a tree that no longer exists.
     const timer = window.setTimeout(() => {
       toastTimers.current.delete(timer);
       setToasts(current => current.filter(toast => toast.id !== id));
     }, 3600);
     toastTimers.current.add(timer);
-  };
+  }, []);
 
-  const handleError = (error: unknown) => {
-    const message = error instanceof Error ? error.message : '';
-    if (['CONNECTION_FAILED', 'TIMEOUT', 'PAIRING_REQUIRED'].includes(message)) reconnect();
-    addToast(message && message.length < 120 ? message : t('transcriptionFailedTitle'), 'error');
-  };
+  const handleError = useCallback(
+    (error: unknown) => {
+      const message = error instanceof Error ? error.message : '';
+      if (['CONNECTION_FAILED', 'TIMEOUT', 'PAIRING_REQUIRED'].includes(message)) reconnect();
+      addToast(describeError(error, t), 'error');
+    },
+    [addToast, reconnect, t]
+  );
 
   const applySelection = (response: TranscriptionSelectionResponse) => {
     applyState(response.state);
@@ -261,59 +274,80 @@ export default function TranscriptionPage() {
     }
   };
 
-  const jobs = state?.jobs ?? [];
+  const jobs = state?.jobs ?? EMPTY_JOBS;
   const visibleJobs = useMemo(() => [...jobs].sort((a, b) => b.createdAt - a.createdAt), [jobs]);
-  const settings = state?.settings ?? { language: 'auto', translationLanguage: language };
-  const tools = state?.tools ?? { ffmpeg: false, whisper: false, model: false };
-  const emptyModelInfo: TranscriptionModelInfo = {
-    present: false,
-    downloading: false,
-    progress: null,
-    sizeBytes: 0,
-    downloadedBytes: 0,
-    label: '',
-    error: null
+  const settings = state?.settings ?? {
+    ...defaultTranscriptionSettings(),
+    translationLanguage: language
   };
-  const model: TranscriptionModelInfo = state?.model ?? emptyModelInfo;
-  const translatorModel: TranscriptionModelInfo = state?.translatorModel ?? emptyModelInfo;
-  const alignmentModel: TranscriptionModelInfo = state?.alignmentModel ?? emptyModelInfo;
-  const localModelBundle = combineModelInfo(t('transcriptionLocalModels'), [
-    model,
-    translatorModel,
-    alignmentModel
-  ]);
-  const translationBundle = combineModelInfo(t('transcriptionTranslationModels'), [
-    translatorModel,
-    alignmentModel
-  ]);
-  // The whisper binary + ffmpeg are what make the tool operable; the model is a
-  // separate, on-demand download handled by its own gate.
+  const tools = state?.tools ?? { ffmpeg: false, whisper: false, model: false };
+  const model: TranscriptionModelInfo = state?.model ?? EMPTY_MODEL;
+  const translatorModel: TranscriptionModelInfo = state?.translatorModel ?? EMPTY_MODEL;
+  const alignmentModel: TranscriptionModelInfo = state?.alignmentModel ?? EMPTY_MODEL;
+  const translationBundle = useMemo(
+    () => combineModelInfo(t('transcriptionTranslationModels'), [translatorModel, alignmentModel]),
+    [translatorModel, alignmentModel, t]
+  );
   const binaryReady = tools.ffmpeg && tools.whisper;
   const modelReady = tools.model;
-  // Asked of the shared table rather than matched against a list of status names. The lists
-  // that used to be here were the interface's own second opinion about the lifecycle, and
-  // they were already wrong: none of them mentioned `interrupted`, so a run cut short by a
-  // restart would have been unstartable, unselectable and invisible in every group.
+
+  const counts = useMemo(() => {
+    let processing = 0;
+    let completed = 0;
+    let failed = 0;
+    for (const job of jobs) {
+      if (job.status === 'processing' || job.status === 'queued') processing += 1;
+      else if (job.status === 'completed') completed += 1;
+      else if (job.status === 'failed' || job.status === 'interrupted') failed += 1;
+    }
+    return { processing, completed, failed };
+  }, [jobs]);
   const startable = (job: TranscriptionJob) =>
     canTransition(TRANSCRIPTION_LIFECYCLE, job.status, 'queued');
-  const readyJobs = jobs.filter(job => job.status === 'ready' || job.status === 'cancelled');
-  const finishedJobs = jobs.filter(job => isSettled(TRANSCRIPTION_LIFECYCLE, job.status));
-  // Anything already transcribed can be transcribed again, so a completed job
-  // is startable too — that is what makes "Transcribe selected" a re-run.
-  const selectableIds = visibleJobs.filter(job => job.status !== 'analyzing').map(job => job.id);
-  const startableSelected = jobs
-    .filter(job => selected.has(job.id) && startable(job))
-    .map(job => job.id);
+  const { readyJobs, finishedJobs } = useMemo(
+    () => ({
+      readyJobs: jobs.filter(job => job.status === 'ready' || job.status === 'cancelled'),
+      finishedJobs: jobs.filter(job => isSettled(TRANSCRIPTION_LIFECYCLE, job.status))
+    }),
+    [jobs]
+  );
+  const selectableIds = useMemo(
+    () => visibleJobs.filter(job => job.status !== 'analyzing').map(job => job.id),
+    [visibleJobs]
+  );
+  const { startableSelected, removableSelected } = useMemo(
+    () => ({
+      startableSelected: jobs
+        .filter(job => selected.has(job.id) && startable(job))
+        .map(job => job.id),
+      removableSelected: jobs
+        .filter(job => selected.has(job.id) && job.status !== 'processing')
+        .map(job => job.id)
+    }),
+    [jobs, selected]
+  );
+  const runningJob = jobs.find(job => job.status === 'processing') ?? null;
   const stoppable = jobs.some(job => job.status === 'processing' || job.status === 'queued');
-  const selectedLabel = selected.size
-    ? t(selectedCountKey(language, selected.size), { count: selected.size })
-    : t('noSelection');
   const copyableJobs = visibleJobs.filter(
     job => job.status === 'completed' && (job.characters ?? 0) > 0
   );
   const selectedCopyableJobs = copyableJobs.filter(job => selected.has(job.id));
   const copyJobs = copyScope === 'selected' ? selectedCopyableJobs : copyableJobs;
   const previewJob = preview ? jobs.find(job => job.id === preview.jobId) : null;
+  const batchProgress = useMemo(() => {
+    const running = jobs.filter(job => job.status === 'processing' || job.status === 'queued');
+    if (!running.length) return null;
+    // Weighted by duration when it is known: a ten-minute file and a ten-second one are not
+    // the same share of the wait.
+    let total = 0;
+    let done = 0;
+    for (const job of running) {
+      const weight = job.durationSeconds ?? 60;
+      total += weight;
+      done += (weight * (job.status === 'processing' ? (job.progress ?? 0) : 0)) / 100;
+    }
+    return total > 0 ? Math.min(99, Math.round((done / total) * 100)) : null;
+  }, [jobs]);
 
   const jobIdsKey = jobs.map(job => job.id).join('|');
   useEffect(() => {
@@ -325,17 +359,27 @@ export default function TranscriptionPage() {
     });
   }, [jobIdsKey, stateReady]);
 
-  const updateLanguage = async (value: string) => {
-    try {
-      applyState(await transcriptionSettings({ language: value }));
-    } catch (error) {
-      handleError(error);
-    }
-  };
+  const updateSettings = useCallback(
+    async (patch: Parameters<typeof transcriptionSettings>[0]) => {
+      try {
+        applyState(await transcriptionSettings(patch));
+      } catch (error) {
+        handleError(error);
+      }
+    },
+    [applyState, handleError]
+  );
+  const updateLanguage = useCallback(
+    (value: string) => void updateSettings({ language: value }),
+    [updateSettings]
+  );
+  const updateQuality = useCallback(
+    (value: TranscriptionQualityMode) => void updateSettings({ quality: value }),
+    [updateSettings]
+  );
 
-  // The interface language is the default translation target. Keep that small
-  // preference in the local agent so translation starts even before the viewer
-  // is opened and continues if this page is closed.
+  // The interface language is the default translation target. Keep that small preference in
+  // the local agent so translation starts even before the viewer is opened.
   useEffect(() => {
     if (!connected || !stateReady || settings.translationLanguage === language) return;
     let active = true;
@@ -360,21 +404,17 @@ export default function TranscriptionPage() {
       setImporting(false);
     }
   };
-
   const addDroppedFiles = async (files: File[]) => {
     if (importing || !files.length) return;
     setImporting(true);
     try {
-      for (const file of files) {
-        applySelection(await transcriptionUpload(file));
-      }
+      for (const file of files) applySelection(await transcriptionUpload(file));
     } catch (error) {
       handleError(error);
     } finally {
       setImporting(false);
     }
   };
-
   const addDroppedFilePaths = async (paths: string[]) => {
     if (importing || !paths.length) return;
     setImporting(true);
@@ -387,109 +427,213 @@ export default function TranscriptionPage() {
     }
   };
 
-  const startNow = async (ids: string[]) => {
-    if (!ids.length) return;
-    try {
-      // The preferred translation target is synced by the mount/language effect
-      // above; starting a transcription must not rewrite global settings.
-      applyState(await transcriptionStart(ids));
-    } catch (error) {
-      handleError(error);
-    }
+  const run = useCallback(
+    async (action: () => Promise<TranscriptionState>) => {
+      try {
+        applyState(await action());
+      } catch (error) {
+        handleError(error);
+      }
+    },
+    [applyState, handleError]
+  );
+  const startNow = useCallback(
+    (ids: string[], quality?: TranscriptionQualityMode) =>
+      run(() => (quality ? transcriptionStart(ids, quality) : transcriptionStart(ids))),
+    [run]
+  );
+  /** Runs what was waiting on a download, if anything was. */
+  const startPending = () => {
+    const pending = pendingStart.current;
+    pendingStart.current = null;
+    if (pending) void startNow(pending.ids, pending.quality);
   };
 
-  // Clicking transcribe with no model yet opens the one-time download prompt and
-  // remembers what to start once it finishes.
-  const requestStart = (ids: string[]) => {
+  /**
+   * Starts, or asks first.
+   *
+   * The speech model is a hard requirement; the translation bundle is not. Someone who has
+   * chosen to go without translation is not asked again — the agent remembers the choice —
+   * and someone whose speech model is present but whose translation is downloading in the
+   * background simply starts. A quality named here is for these files only; when its model
+   * is missing the setting is switched to it so the gate above the queue fetches the right
+   * one, and the files start on it the moment it lands.
+   */
+  const requestStart = (ids: string[], quality?: TranscriptionQualityMode) => {
     if (!ids.length) return;
-    if (!localModelBundle.present) {
-      pendingStart.current = ids;
-      setConfirmingDownload(true);
+    const speechModel = quality ? (state?.models?.[quality] ?? model) : model;
+    const askAboutTranslation =
+      !translationBundle.present && !translationBundle.downloading && !settings.translationDeclined;
+    if (!speechModel.present || askAboutTranslation) {
+      if (quality && quality !== settings.quality && !speechModel.present) {
+        void updateSettings({ quality });
+      }
+      pendingStart.current = { ids, quality };
+      setConfirmingDownload('run');
       return;
     }
-    void startNow(ids);
+    void startNow(ids, quality);
   };
 
-  const confirmDownload = async () => {
+  /** From a row that says the translator is missing: the consent, then the download. */
+  const installTranslator = useCallback(() => {
+    pendingStart.current = null;
+    setConfirmingDownload('translator');
+  }, []);
+
+  const confirmDownload = async (includeTranslation: boolean) => {
+    const purpose = confirmingDownload;
     setConfirmingDownload(false);
+    if (purpose === 'translator') {
+      await updateSettings({ translationDeclined: false });
+      await run(transcriptionTranslatorDownload);
+      return;
+    }
     try {
-      applyState(await transcriptionModelDownload());
-      // If Whisper was already installed, translation/alignment can continue
-      // downloading in the background while the shared resource queue starts
-      // transcription immediately.
-      if (model.present && pendingStart.current) {
-        const ids = pendingStart.current;
-        pendingStart.current = null;
-        await startNow(ids);
-      }
+      applyState(
+        await transcriptionModelDownload({
+          quality: pendingStart.current?.quality,
+          speechOnly: !includeTranslation
+        })
+      );
+      const pendingQuality = pendingStart.current?.quality;
+      const speechModel = pendingQuality ? (state?.models?.[pendingQuality] ?? model) : model;
+      if (speechModel.present) startPending();
     } catch (error) {
       handleError(error);
     }
   };
-
-  const continueWithoutTranslation = () => {
-    const ids = pendingStart.current;
-    pendingStart.current = null;
+  const continueWithoutTranslation = async () => {
     setConfirmingDownload(false);
-    if (model.present && ids) void startNow(ids);
+    await updateSettings({ translationDeclined: true });
+    const pendingQuality = pendingStart.current?.quality;
+    const speechModel = pendingQuality ? (state?.models?.[pendingQuality] ?? model) : model;
+    if (!speechModel.present) {
+      // The speech model is still needed; fetch only that and start when it lands.
+      await run(() => transcriptionModelDownload({ quality: pendingQuality, speechOnly: true }));
+      return;
+    }
+    startPending();
   };
-
   const cancelDownloadConfirmation = () => {
     pendingStart.current = null;
     setConfirmingDownload(false);
   };
 
-  const cancelDownload = async () => {
-    try {
-      applyState(await transcriptionModelCancel());
-    } catch (error) {
-      handleError(error);
-    }
-  };
-
-  // Auto-start whatever the user queued for download once the model arrives.
+  // Auto-start whatever the user queued for download once its model arrives.
+  const pendingModelPresent = pendingStart.current
+    ? (state?.models?.[pendingStart.current.quality ?? settings.quality]?.present ?? model.present)
+    : false;
+  // Not while the dialog is still asking: with the speech model already on disk the flag
+  // is true from the first render, and the files started behind an open question.
   useEffect(() => {
-    if (model.present && pendingStart.current) {
-      const ids = pendingStart.current;
-      pendingStart.current = null;
-      void startNow(ids);
-    }
-  }, [model.present]);
+    if (pendingModelPresent && confirmingDownload === false) startPending();
+  }, [pendingModelPresent, confirmingDownload]);
 
-  const run = async (action: () => Promise<TranscriptionState>) => {
-    try {
-      applyState(await action());
-    } catch (error) {
-      handleError(error);
-    }
-  };
+  const jobsRef = useRef(jobs);
+  jobsRef.current = jobs;
+  const jobById = useCallback((id: string) => jobsRef.current.find(job => job.id === id), []);
 
-  const copyTranscript = async (jobId: string) => {
-    try {
-      const document = await transcriptionDocument(jobId);
-      const text = document.segments.map(segment => segment.sourceText).join('\n');
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch {
-      addToast(t('transcriptionFailedTitle'), 'error');
-      return false;
-    }
-  };
+  const copyTranscript = useCallback(
+    async (jobId: string) => {
+      const job = jobById(jobId);
+      if (!job) return false;
+      try {
+        const document = await loadTranscriptDocument(job);
+        await navigator.clipboard.writeText(
+          document.segments.map(segment => segment.sourceText).join('\n')
+        );
+        return true;
+      } catch {
+        addToast(t('transcriptionCopyFailed'), 'error');
+        return false;
+      }
+    },
+    [jobById, addToast, t]
+  );
 
-  const translateJob = async (jobId: string, targetLanguage: string) => {
-    try {
-      await transcriptionTranslate(jobId, targetLanguage);
-    } catch (error) {
-      handleError(error);
-      throw error;
-    }
-  };
+  const exportTranscript = useCallback(
+    async (jobId: string, format: TranscriptExportFormat, content: TranscriptExportContent) => {
+      const job = jobById(jobId);
+      if (!job) return;
+      try {
+        const document = await loadTranscriptDocument(job);
+        const translation = selectedTranslation(document, job);
+        if (format !== 'txt' && !hasTimings(document.segments)) {
+          addToast(t('transcriptionExportNoTimings'), 'warning');
+          return;
+        }
+        if (content !== 'transcript' && !translation) {
+          addToast(t('transcriptionExportNoTranslation'), 'warning');
+          return;
+        }
+        downloadTranscriptExport(
+          buildTranscriptExport({
+            fileName: job.fileName,
+            segments: document.segments,
+            translation,
+            content,
+            format
+          })
+        );
+      } catch {
+        addToast(t('transcriptionExportFailed'), 'error');
+      }
+    },
+    [jobById, addToast, t]
+  );
 
-  /**
-   * Stops the queue and says how much was stopped. The count is taken from what
-   * this window could see before the call, so a click that lands just after the
-   * last file finished reports honestly instead of implying it did something.
-   */
+  const translateJob = useCallback(
+    async (jobId: string, targetLanguage: string) => {
+      try {
+        await transcriptionTranslate(jobId, targetLanguage);
+      } catch (error) {
+        handleError(error);
+        throw error;
+      }
+    },
+    [handleError]
+  );
+
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+  const selectableRef = useRef(selectableIds);
+  selectableRef.current = selectableIds;
+  const requestStartRef = useRef(requestStart);
+  requestStartRef.current = requestStart;
+
+  /** One stable object, so every row can be memoised against the job it shows. */
+  const rowActions = useMemo<TranscriptionRowActions>(
+    () => ({
+      select: (id, index, checked, shiftKey) => {
+        const update = toggleSelection(
+          selectedRef.current,
+          id,
+          checked,
+          selectableRef.current,
+          lastSelectedIndex.current,
+          shiftKey
+        );
+        setSelected(update.selected);
+        lastSelectedIndex.current = update.lastIndex ?? index;
+      },
+      start: id => requestStartRef.current([id]),
+      startWith: (id, quality) => requestStartRef.current([id], quality),
+      cancel: id => void run(() => transcriptionCancel(id)),
+      pause: (id, paused) => void run(() => transcriptionPause(id, paused)),
+      retry: id => void run(() => transcriptionRetry(id)),
+      remove: id => void run(() => transcriptionRemove(id)),
+      reveal: id => void run(() => transcriptionReveal(id)),
+      setLanguage: (id, code) => void run(() => transcriptionJobLanguage(id, code)),
+      installTranslator,
+      view: (id, trigger) => setPreview({ jobId: id, trigger }),
+      copy: copyTranscript,
+      translate: translateJob,
+      export: (id, format, content) => void exportTranscript(id, format, content)
+    }),
+    [run, copyTranscript, translateJob, exportTranscript, installTranslator]
+  );
+
   const stopAll = async () => {
     const stopping = jobs.filter(
       job => job.status === 'processing' || job.status === 'queued'
@@ -501,12 +645,21 @@ export default function TranscriptionPage() {
       handleError(error);
     }
   };
+  const removeSelected = async () => {
+    if (!removableSelected.length) return;
+    await run(() => transcriptionRemoveMany(removableSelected));
+    setSelected(new Set());
+  };
+  const clearFinished = async () => {
+    await run(transcriptionClearFinished);
+    forgetTranscriptDocuments();
+  };
 
   const copyBatch = async () => {
     if (!copyJobs.length || copyingAll) return;
     setCopyingAll(true);
     try {
-      const documents = await Promise.all(copyJobs.map(job => transcriptionDocument(job.id)));
+      const documents = await loadTranscriptDocuments(copyJobs);
       const entries = documents.map((document, index) =>
         copyEntry(document, copyJobs[index], code => languageDisplayName(code, language))
       );
@@ -522,21 +675,35 @@ export default function TranscriptionPage() {
           translation: t('transcriptionCopyTranslationLabel')
         })
       );
-      // "Translation only" skips files that have none yet, so the toast names
-      // both numbers instead of quietly copying fewer than the button promised.
       addToast(
-        t('transcriptionCopiedTranscripts', {
-          count: included.length,
-          total: entries.length
-        }),
+        t('transcriptionCopiedTranscripts', { count: included.length, total: entries.length }),
         'success'
       );
     } catch {
-      addToast(t('transcriptionFailedTitle'), 'error');
+      addToast(t('transcriptionCopyFailed'), 'error');
     } finally {
       setCopyingAll(false);
     }
   };
+
+  // The viewer is memoised on its props; handlers that were fresh arrows re-rendered it —
+  // and its thousand segments — on every progress frame of some other file.
+  const installTranslatorFromViewer = useCallback(() => {
+    void updateSettings({ translationDeclined: false });
+    void run(transcriptionTranslatorDownload);
+  }, [updateSettings, run]);
+  const cancelTranslatorFromViewer = useCallback(
+    () => void run(transcriptionTranslatorCancel),
+    [run]
+  );
+  const previewJobId = preview?.jobId ?? null;
+  const exportFromViewer = useCallback(
+    (format: TranscriptExportFormat, content: TranscriptExportContent) => {
+      if (previewJobId) void exportTranscript(previewJobId, format, content);
+    },
+    [previewJobId, exportTranscript]
+  );
+  const closeViewer = useCallback(() => setPreview(null), []);
 
   if (connection === 'checking') {
     return (
@@ -558,9 +725,17 @@ export default function TranscriptionPage() {
     );
   }
 
+  const translatorMissing =
+    !translationBundle.present &&
+    !translationBundle.downloading &&
+    jobs.some(job => job.translation?.status === 'unavailable');
+
   return (
     <>
-      <main className={`workspace${entering ? ' page-enter' : ''}`}>
+      <main
+        ref={workspaceRef}
+        className={`workspace transcription-workspace${entering ? ' page-enter' : ''}`}
+      >
         {connected && state && !binaryReady && (
           <section className="blocking-message blocking-error" role="alert">
             <div>
@@ -570,49 +745,11 @@ export default function TranscriptionPage() {
           </section>
         )}
 
-        {connected && binaryReady && !modelReady && (
-          <ModelGate
-            model={localModelBundle}
-            parts={[model, translatorModel, alignmentModel]}
-            language={language}
-            onDownload={() => setConfirmingDownload(true)}
-            onCancel={cancelDownload}
-            t={t}
-          />
-        )}
-
         <section
-          className="settings-panel transcription-settings-panel"
-          aria-labelledby="transcription-settings-title"
+          ref={intakeRef}
+          className="add-files-section"
+          aria-label={t('transcriptionDropTitle')}
         >
-          <div className="section-heading compact-heading">
-            <h2 id="transcription-settings-title">{t('transcriptionSettingsTitle')}</h2>
-          </div>
-          <div className="field-group transcription-language-field">
-            <div className="field-label">
-              <span>{t('transcriptionLanguage')}</span>
-              <Tooltip label={t('transcriptionLanguageHint')}>
-                {t('transcriptionLanguageHint')}
-              </Tooltip>
-            </div>
-            <select
-              className="transcription-language-select"
-              value={settings.language}
-              disabled={!connected || !binaryReady}
-              onChange={event => void updateLanguage(event.target.value)}
-            >
-              {TRANSCRIPTION_LANGUAGE_CODES.map(code => (
-                <option key={code} value={code}>
-                  {code === 'auto'
-                    ? t('transcriptionLanguageAuto')
-                    : languageDisplayName(code, language)}
-                </option>
-              ))}
-            </select>
-          </div>
-        </section>
-
-        <section className="add-files-section" aria-label={t('transcriptionDropTitle')}>
           <DropZone
             disabled={!connected || importing || !binaryReady}
             importing={importing}
@@ -627,91 +764,223 @@ export default function TranscriptionPage() {
             importingLabel={t('transcriptionImporting')}
             t={t}
           />
-          <p>{t('transcriptionProcessedLocally')}</p>
         </section>
+
+        {connected && binaryReady && !modelReady && (
+          <ModelGate
+            model={model}
+            parts={[model, translatorModel, alignmentModel]}
+            language={language}
+            onDownload={() => setConfirmingDownload('run')}
+            onCancel={() => void run(transcriptionModelCancel)}
+            t={t}
+          />
+        )}
+
+        <TranscriptionSettingsPanel
+          settings={settings}
+          language={language}
+          disabled={!connected || !binaryReady}
+          // An empty queue is the moment to choose; with files on the page the files come
+          // first and the settings fold to their summary line.
+          defaultOpen={jobs.length === 0}
+          onLanguage={updateLanguage}
+          onQuality={updateQuality}
+          t={t}
+        />
 
         {jobs.length > 0 && (
           <section className="batch-toolbar" aria-label={t('transcriptionQueueTitle')}>
-            <div className="batch-toolbar-info">
-              <strong>{t('transcriptionQueueTitle')}</strong>
-              <span>{t('transcriptionQueueCount', { count: jobs.length })}</span>
-            </div>
-            <div className="selection-actions">
-              <Button
-                variant="ghost"
-                disabled={!connected || selectableIds.length === 0}
-                onClick={() => setSelected(new Set(selectableIds))}
-              >
-                {t('selectAll')}
-              </Button>
-              <Button
-                variant="ghost"
-                disabled={!connected || selected.size === 0}
-                onClick={() => {
-                  setSelected(new Set());
-                  setLastSelectedIndex(null);
-                }}
-              >
-                {t('clearSelection')}
-              </Button>
-              <span className="selected-count" aria-live="polite">
-                {selectedLabel}
-              </span>
-            </div>
-            <div className="batch-toolbar-actions">
-              <Button
-                variant="primary"
-                disabled={!connected || !binaryReady || model.downloading || readyJobs.length === 0}
-                onClick={() => requestStart(readyJobs.map(job => job.id))}
-              >
-                {t('transcriptionStartAll')}
-              </Button>
-              <Button
-                variant="secondary"
-                disabled={
-                  !connected || !binaryReady || model.downloading || startableSelected.length === 0
-                }
-                onClick={() => requestStart(startableSelected)}
-              >
-                {t('transcriptionStartSelected')}
-              </Button>
-              {stoppable && (
+            <div
+              className={`batch-toolbar-row ${compactActions ? 'is-compact' : ''} ${
+                compactChips ? 'is-compact-chips' : ''
+              }`.trim()}
+              ref={toolbarRow}
+            >
+              <div className="selection-actions">
+                <Checkbox
+                  className="select-all-box"
+                  checked={selectableIds.length > 0 && selected.size === selectableIds.length}
+                  disabled={!connected || selectableIds.length === 0}
+                  onChange={event =>
+                    setSelected(event.target.checked ? new Set(selectableIds) : new Set())
+                  }
+                  label={<strong>{t('selectAll')}</strong>}
+                />
                 <Button
-                  variant="danger"
-                  disabled={!connected}
-                  title={t('stopAllHint')}
-                  onClick={() => void stopAll()}
+                  variant="ghost"
+                  disabled={!connected || selected.size === 0}
+                  onClick={() => {
+                    setSelected(new Set());
+                    lastSelectedIndex.current = null;
+                  }}
                 >
-                  {t('stopAll')}
+                  {t('clearSelection')}
                 </Button>
-              )}
-              <TranscriptionCopyMenu
-                scope={copyScope}
-                content={copyContent}
-                finishedCount={copyableJobs.length}
-                selectedCount={selectedCopyableJobs.length}
-                busy={copyingAll}
-                disabled={!connected || copyJobs.length === 0}
-                onScopeChange={setCopyScope}
-                onContentChange={setCopyContent}
-                onCopy={() => void copyBatch()}
-                t={t}
-              />
-              <Button
-                variant="ghost"
-                disabled={!connected || finishedJobs.length === 0}
-                onClick={() => void run(transcriptionClearFinished)}
-              >
-                {t('transcriptionClearFinished')}
-              </Button>
+              </div>
+              {/* Not a live region: a summary re-read on every job transition talked over
+                  the row that had just changed. Each chip carries its own words. */}
+              <div className="batch-chips">
+                <Chip
+                  count={jobs.length}
+                  phrase={t('transcriptionFilesCount', { count: jobs.length })}
+                  icon={<Files size={12} strokeWidth={2} aria-hidden="true" />}
+                />
+                {/* A zero says nothing worth the room; the total is always shown. */}
+                {counts.processing > 0 && (
+                  <Chip
+                    className="is-processing"
+                    count={counts.processing}
+                    phrase={t('chipProcessing', { count: counts.processing })}
+                    icon={<Loader size={12} strokeWidth={2} aria-hidden="true" />}
+                  />
+                )}
+                {counts.completed > 0 && (
+                  <Chip
+                    className="is-done"
+                    count={counts.completed}
+                    phrase={t('chipCompleted', { count: counts.completed })}
+                    icon={<Check size={12} strokeWidth={2.2} aria-hidden="true" />}
+                  />
+                )}
+                {counts.failed > 0 && (
+                  <Chip
+                    className="is-failed"
+                    count={counts.failed}
+                    phrase={t('chipFailed', { count: counts.failed })}
+                    icon={<AlertTriangle size={12} strokeWidth={2} aria-hidden="true" />}
+                  />
+                )}
+              </div>
+              <div className="primary-actions">
+                {runningJob ? (
+                  <Button
+                    variant="primary"
+                    className="is-primary-action"
+                    disabled={!connected}
+                    title={t(runningJob.paused ? 'jobResume' : 'jobPause')}
+                    aria-label={t(runningJob.paused ? 'jobResume' : 'jobPause')}
+                    onClick={() => rowActions.pause(runningJob.id, !runningJob.paused)}
+                  >
+                    {runningJob.paused ? (
+                      <Play size={18} strokeWidth={1.75} aria-hidden="true" />
+                    ) : (
+                      <Pause size={18} strokeWidth={1.75} aria-hidden="true" />
+                    )}
+                    <span className="action-label">
+                      {t(runningJob.paused ? 'jobResume' : 'jobPause')}
+                    </span>
+                  </Button>
+                ) : (selected.size ? startableSelected : readyJobs).length === 0 ? null : (
+                  /* Shown only when there is something it can start: a greyed primary in the
+                     most prominent slot for a whole session read as a broken button. A
+                     finished file is re-run from its own row. */
+                  <Button
+                    className="is-primary-action"
+                    variant="primary"
+                    disabled={!connected || !binaryReady || model.downloading}
+                    title={
+                      selected.size ? t('transcriptionStartSelected') : t('transcriptionStartAll')
+                    }
+                    // The words fold away when the toolbar is narrow; the name must not — and
+                    // it is the visible label, count included, so the two never disagree.
+                    aria-label={
+                      selected.size
+                        ? `${t('transcriptionStartSelected')} (${startableSelected.length})`
+                        : t('transcriptionStartAll')
+                    }
+                    onClick={() =>
+                      requestStart(selected.size ? startableSelected : readyJobs.map(job => job.id))
+                    }
+                  >
+                    <Play size={18} strokeWidth={1.75} aria-hidden="true" />
+                    <span className="action-label">
+                      {selected.size
+                        ? `${t('transcriptionStartSelected')} (${startableSelected.length})`
+                        : t('transcriptionStartAll')}
+                    </span>
+                  </Button>
+                )}
+                {stoppable && (
+                  <Button
+                    variant="danger"
+                    disabled={!connected}
+                    title={t('stopAllHint')}
+                    aria-label={t('stopAll')}
+                    onClick={() => void stopAll()}
+                  >
+                    <Ban size={18} strokeWidth={1.75} aria-hidden="true" />
+                    <span className="action-label">{t('stopAll')}</span>
+                  </Button>
+                )}
+                <TranscriptionCopyMenu
+                  scope={copyScope}
+                  content={copyContent}
+                  finishedCount={copyableJobs.length}
+                  selectedCount={selectedCopyableJobs.length}
+                  busy={copyingAll}
+                  disabled={!connected || copyJobs.length === 0}
+                  onScopeChange={setCopyScope}
+                  onContentChange={setCopyContent}
+                  onCopy={() => void copyBatch()}
+                  t={t}
+                />
+                {selected.size > 0 && (
+                  <Button
+                    variant="danger"
+                    disabled={!connected || removableSelected.length === 0}
+                    title={t('removeSelected')}
+                    aria-label={t('removeSelected')}
+                    onClick={() => void removeSelected()}
+                  >
+                    <Trash2 size={18} strokeWidth={1.75} aria-hidden="true" />
+                    <span className="action-label">{t('removeSelected')}</span>
+                  </Button>
+                )}
+                {finishedJobs.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    disabled={!connected}
+                    title={t('transcriptionClearFinished')}
+                    aria-label={t('transcriptionClearFinished')}
+                    onClick={() => void clearFinished()}
+                  >
+                    <Broom size={18} strokeWidth={1.75} aria-hidden="true" />
+                    <span className="action-label">{t('transcriptionClearFinished')}</span>
+                  </Button>
+                )}
+              </div>
             </div>
+            {batchProgress !== null && (
+              <div className="batch-progress-heading transcription-batch-progress">
+                <ProgressBar
+                  value={batchProgress}
+                  active={connected && !runningJob?.paused}
+                  label={t('transcriptionQueueTitle')}
+                />
+                <span>{batchProgress}%</span>
+              </div>
+            )}
           </section>
         )}
 
-        {/* Not a live region — see the compressor queue. A transcription job
-            list that announces itself on every progress tick is a screen reader
-            that cannot be interrupted. */}
-        <section className="video-list">
+        {translatorMissing && (
+          <div className="transcription-translator-banner">
+            <span>
+              {t('transcriptionTranslatorBanner', {
+                language: languageDisplayName(settings.translationLanguage, language)
+              })}
+            </span>
+            <Button variant="secondary" disabled={!connected} onClick={installTranslator}>
+              <Download size={16} strokeWidth={1.75} aria-hidden="true" />
+              {t('transcriptionInstallTranslator')}
+            </Button>
+          </div>
+        )}
+
+        {/* Not a live region — see the compressor queue. A list that announces itself on
+            every progress tick is a screen reader that cannot be interrupted. */}
+        <section className="video-list transcription-list">
           {jobs.length === 0 ? (
             <div className="empty-state">
               <strong>{t('transcriptionEmpty')}</strong>
@@ -722,34 +991,20 @@ export default function TranscriptionPage() {
               <TranscriptionRow
                 key={job.id}
                 job={job}
+                index={index}
                 language={language}
                 connected={connected}
                 selected={selected.has(job.id)}
-                onSelected={(checked, shiftKey) => {
-                  const update = toggleSelection(
-                    selected,
-                    job.id,
-                    checked,
-                    selectableIds,
-                    lastSelectedIndex,
-                    shiftKey
-                  );
-                  setSelected(update.selected);
-                  setLastSelectedIndex(update.lastIndex ?? index);
-                }}
-                onStart={() => requestStart([job.id])}
-                onCancel={() => void run(() => transcriptionCancel(job.id))}
-                onRetry={() => void run(() => transcriptionRetry(job.id))}
-                onRemove={() => void run(() => transcriptionRemove(job.id))}
-                onReveal={() => void run(() => transcriptionReveal(job.id))}
-                onView={trigger => setPreview({ jobId: job.id, trigger })}
-                onCopy={copyTranscript}
-                onTranslate={target => translateJob(job.id, target)}
+                actions={rowActions}
                 t={t}
               />
             ))
           )}
         </section>
+        <p className="transcription-processed-locally">{t('transcriptionProcessedLocally')}</p>
+        <p className="visually-hidden" role="status" aria-live="polite">
+          {runningJob ? (runningJob.paused ? t('jobPaused') : t('transcriptionProcessing')) : ''}
+        </p>
       </main>
       <ToastRegion toasts={toasts} />
       {previewJob && (
@@ -758,25 +1013,23 @@ export default function TranscriptionPage() {
           language={language}
           returnFocus={preview?.trigger ?? null}
           translatorModel={translationBundle}
-          onInstallTranslator={() => void run(transcriptionTranslatorDownload)}
-          onCancelTranslator={() => void run(transcriptionTranslatorCancel)}
-          onClose={() => setPreview(null)}
+          onInstallTranslator={installTranslatorFromViewer}
+          onCancelTranslator={cancelTranslatorFromViewer}
+          onExport={exportFromViewer}
+          onToast={addToast}
+          onClose={closeViewer}
           t={t}
         />
       )}
       {confirmingDownload && (
         <ConfirmDownloadModal
-          sizeLabel={formatSize(
-            [model, translatorModel, alignmentModel].reduce(
-              (sum, part) => sum + (part.present ? 0 : part.sizeBytes),
-              0
-            ),
-            language
-          )}
-          canContinueWithoutTranslation={model.present}
-          requiresGemmaConsent={!translatorModel.present}
-          onConfirm={() => void confirmDownload()}
-          onContinueWithoutTranslation={continueWithoutTranslation}
+          speechModel={confirmingDownload === 'translator' ? PRESENT_MODEL : model}
+          translationBundle={translationBundle}
+          language={language}
+          willStart={pendingStart.current !== null}
+          translatorOnly={confirmingDownload === 'translator'}
+          onConfirm={includeTranslation => void confirmDownload(includeTranslation)}
+          onContinueWithoutTranslation={() => void continueWithoutTranslation()}
           onClose={cancelDownloadConfirmation}
           t={t}
         />
@@ -785,391 +1038,73 @@ export default function TranscriptionPage() {
   );
 }
 
-function ModelGate({
-  model,
-  parts,
-  language,
-  onDownload,
-  onCancel,
-  t
-}: {
-  model: TranscriptionModelInfo;
-  parts: readonly TranscriptionModelInfo[];
-  language: Language;
-  onDownload: () => void;
-  onCancel: () => void;
-  t: Translate;
-}) {
-  const size = formatSize(model.sizeBytes, language);
+const EMPTY_JOBS: TranscriptionJob[] = [];
+
+/** Fields of a job that change; `translation` is compared one level deeper. */
+function sameJob(previous: TranscriptionJob, next: TranscriptionJob): boolean {
+  const keys = Object.keys(next) as (keyof TranscriptionJob)[];
+  if (keys.length !== Object.keys(previous).length) return false;
+  for (const key of keys) {
+    if (key === 'translation') continue;
+    if (previous[key] !== next[key]) return false;
+  }
+  const a = previous.translation;
+  const b = next.translation;
+  if (a === b) return true;
+  if (!a || !b) return false;
   return (
-    <section className="transcription-model-gate" aria-live="polite">
-      <div className="transcription-model-gate-body">
-        <strong>{t('transcriptionModelTitle')}</strong>
-        {model.downloading ? (
-          <>
-            <span>
-              {t('transcriptionModelDownloading', {
-                progress: model.progress ?? 0,
-                done: formatSize(model.downloadedBytes, language),
-                total: size
-              })}
-            </span>
-            <ProgressBar value={model.progress} active label={t('transcriptionModelTitle')} />
-            <ul className="transcription-model-parts">
-              {parts.map(part => (
-                <li key={part.label}>
-                  <span>{part.label}</span>
-                  <span>
-                    {part.present
-                      ? t('transcriptionModelReady')
-                      : part.downloading
-                        ? `${part.progress ?? 0}%`
-                        : part.error
-                          ? t('statusFailed')
-                          : t('statusQueued')}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </>
-        ) : model.error ? (
-          <span className="transcription-model-error">
-            {t('transcriptionModelError', { error: model.error })}
-          </span>
-        ) : (
-          <span>{t('transcriptionModelBody', { size })}</span>
-        )}
-      </div>
-      <div className="transcription-model-gate-actions">
-        {model.downloading ? (
-          <Button variant="ghost" onClick={onCancel}>
-            {t('transcriptionModelCancelBtn')}
-          </Button>
-        ) : (
-          <Button variant="primary" onClick={onDownload}>
-            {model.error
-              ? t('transcriptionModelRetry')
-              : t('transcriptionModelDownloadBtn', { size })}
-          </Button>
-        )}
-      </div>
-    </section>
+    a.targetLanguage === b.targetLanguage &&
+    a.status === b.status &&
+    a.progress === b.progress &&
+    a.completedSegments === b.completedSegments &&
+    a.totalSegments === b.totalSegments &&
+    a.startedAt === b.startedAt &&
+    a.error === b.error
   );
 }
 
-function ConfirmDownloadModal({
-  sizeLabel,
-  canContinueWithoutTranslation,
-  requiresGemmaConsent,
-  onConfirm,
-  onContinueWithoutTranslation,
-  onClose,
-  t
-}: {
-  sizeLabel: string;
-  canContinueWithoutTranslation: boolean;
-  requiresGemmaConsent: boolean;
-  onConfirm: () => void;
-  onContinueWithoutTranslation: () => void;
-  onClose: () => void;
-  t: Translate;
-}) {
-  const [accepted, setAccepted] = useState(!requiresGemmaConsent);
-  const titleId = useId();
-
-  return (
-    <Modal size="sm" className="transcription-confirm-modal" labelledBy={titleId} onClose={onClose}>
-      <h2 id={titleId}>{t('transcriptionConfirmTitle')}</h2>
-      <p>{t('transcriptionConfirmBody', { size: sizeLabel })}</p>
-      {requiresGemmaConsent && (
-        <label className="transcription-gemma-consent">
-          <input
-            type="checkbox"
-            checked={accepted}
-            onChange={event => setAccepted(event.target.checked)}
-          />
-          <span>
-            {t('transcriptionGemmaConsent')}{' '}
-            <a href="https://ai.google.dev/gemma/terms" target="_blank" rel="noreferrer">
-              {t('transcriptionGemmaTerms')}
-            </a>{' '}
-            {t('transcriptionGemmaAnd')}{' '}
-            <a
-              href="https://ai.google.dev/gemma/prohibited_use_policy"
-              target="_blank"
-              rel="noreferrer"
-            >
-              {t('transcriptionGemmaPolicy')}
-            </a>
-            .
-          </span>
-        </label>
-      )}
-      <div className="inline-actions">
-        {canContinueWithoutTranslation ? (
-          <Button variant="ghost" onClick={onContinueWithoutTranslation}>
-            {t('transcriptionContinueWithoutTranslation')}
-          </Button>
-        ) : (
-          <Button variant="ghost" onClick={onClose}>
-            {t('transcriptionConfirmCancel')}
-          </Button>
-        )}
-        <Button variant="primary" disabled={!accepted} onClick={onConfirm}>
-          {t('transcriptionConfirmDownload')}
-        </Button>
-      </div>
-    </Modal>
-  );
+function reuseUnchangedJobs(
+  previous: readonly TranscriptionJob[],
+  next: readonly TranscriptionJob[]
+): TranscriptionJob[] {
+  const byId = new Map(previous.map(job => [job.id, job]));
+  let changed = previous.length !== next.length;
+  const merged = next.map((job, index) => {
+    const known = byId.get(job.id);
+    if (known && sameJob(known, job)) {
+      if (previous[index] !== known) changed = true;
+      return known;
+    }
+    changed = true;
+    return job;
+  });
+  return changed ? merged : (previous as TranscriptionJob[]);
 }
+/** Stands in for the speech model when the confirmation is about the translator alone. */
+const PRESENT_MODEL: TranscriptionModelInfo = { ...EMPTY_MODEL, present: true, progress: 100 };
 
-function TranscriptionRow({
-  job,
-  language,
-  connected,
-  selected,
-  onSelected,
-  onStart,
-  onCancel,
-  onRetry,
-  onRemove,
-  onReveal,
-  onView,
-  onCopy,
-  onTranslate,
-  t
+function Chip({
+  count,
+  phrase,
+  icon,
+  className = ''
 }: {
-  job: TranscriptionJob;
-  language: Language;
-  connected: boolean;
-  selected: boolean;
-  onSelected: (checked: boolean, shiftKey: boolean) => void;
-  onStart: () => void;
-  onCancel: () => void;
-  onRetry: () => void;
-  onRemove: () => void;
-  onReveal: () => void;
-  onView: (trigger: HTMLElement | null) => void;
-  onCopy: (jobId: string) => Promise<boolean>;
-  onTranslate: (targetLanguage: string) => Promise<void>;
-  t: Translate;
+  count: number;
+  phrase: string;
+  /** What stands in for the word when the toolbar folds the words away. */
+  icon: ReactNode;
+  className?: string;
 }) {
-  const [copied, setCopied] = useState(false);
-  const [requestedTranslationLanguage, setRequestedTranslationLanguage] = useState<string | null>(
-    null
-  );
-  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const translationRequest = useRef(0);
-  useEffect(() => () => void (copyTimer.current && clearTimeout(copyTimer.current)), []);
-
-  useEffect(() => {
-    if (
-      requestedTranslationLanguage &&
-      job.translation?.targetLanguage === requestedTranslationLanguage
-    ) {
-      setRequestedTranslationLanguage(null);
-    }
-  }, [
-    job.translation?.progress,
-    job.translation?.status,
-    job.translation?.targetLanguage,
-    requestedTranslationLanguage
-  ]);
-
-  const detected = job.detectedLanguage
-    ? languageDisplayName(job.detectedLanguage, language)
-    : null;
-  const active = job.status === 'processing' || job.status === 'queued';
-  const done = job.status === 'completed';
-  // The real backend summary always drives status/progress — a synthetic
-  // "queued/0%" placeholder here made every language pick look like a restart.
-  // Only the <select> shows the requested language optimistically until the
-  // summary catches up over SSE.
-  const translation = job.translation ?? null;
-  const displayedTargetLanguage = requestedTranslationLanguage ?? translation?.targetLanguage;
-  const awaitingRequestedLanguage =
-    requestedTranslationLanguage !== null &&
-    requestedTranslationLanguage !== translation?.targetLanguage;
-  const sourceLanguage = (job.detectedLanguage ?? job.requestedLanguage)
-    .replaceAll('_', '-')
-    .split('-')[0]
-    .toLowerCase();
-  const translationLanguages = useMemo(
-    () =>
-      TRANSLATEGEMMA_LANGUAGE_CODES.filter(
-        code =>
-          code === displayedTargetLanguage || code.split('-')[0].toLowerCase() !== sourceLanguage
-      ).map(code => ({ code, name: languageDisplayName(code, language) })),
-    [language, sourceLanguage, displayedTargetLanguage]
-  );
-  const translating =
-    awaitingRequestedLanguage ||
-    translation?.status === 'queued' ||
-    translation?.status === 'processing';
-
-  const copy = async () => {
-    if (await onCopy(job.id)) {
-      setCopied(true);
-      if (copyTimer.current) clearTimeout(copyTimer.current);
-      copyTimer.current = setTimeout(() => setCopied(false), 1800);
-    }
-  };
-
-  const changeTranslationLanguage = (targetLanguage: string) => {
-    const requestNumber = ++translationRequest.current;
-    setRequestedTranslationLanguage(targetLanguage);
-    void onTranslate(targetLanguage).catch(() => {
-      if (translationRequest.current === requestNumber) {
-        setRequestedTranslationLanguage(null);
-      }
-    });
-  };
-
-  const translationStatusLabel = awaitingRequestedLanguage
-    ? t('transcriptionRowTranslating')
-    : translation?.status === 'completed'
-      ? t('transcriptionRowTranslated')
-      : translation?.status === 'failed'
-        ? t('transcriptionRowTranslationFailed')
-        : translation?.status === 'unavailable'
-          ? t('transcriptionRowTranslationUnavailable')
-          : t('transcriptionRowTranslating');
-
+  // The phrases all lead with the number; the word is what follows it.
+  const word = phrase.replace(new RegExp(`^\\s*${count}\\s*`, 'u'), '');
   return (
-    <article
-      className={`job-row ${selected ? 'is-selected' : ''} ${
-        job.status === 'processing' ? 'is-processing' : ''
-      }`.trim()}
-    >
-      <div className="job-row-header">
-        <Checkbox
-          checked={selected}
-          disabled={job.status === 'analyzing'}
-          aria-label={t('fileSelection', { name: job.fileName })}
-          label={<span className="sr-only">{t('fileSelection', { name: job.fileName })}</span>}
-          onChange={() => {}}
-          onClick={event => onSelected(!selected, event.shiftKey)}
-        />
-        <span className="job-row-name" title={job.fileName}>
-          {job.fileName}
-        </span>
-        <StatusBadge status={job.status} t={t} context="transcription" />
-        <div className="job-row-actions">
-          {done && (
-            <>
-              <Button
-                variant="primary"
-                onClick={event => onView(event.currentTarget as HTMLElement)}
-              >
-                {t('transcriptionView')}
-              </Button>
-              <Button variant="secondary" onClick={() => void copy()}>
-                {copied ? t('transcriptionCopied') : t('transcriptionCopy')}
-              </Button>
-              <Button variant="success" onClick={onReveal}>
-                {t('transcriptionReveal')}
-              </Button>
-              <Button variant="ghost" disabled={!connected} onClick={onStart}>
-                {t('transcriptionRepeat')}
-              </Button>
-            </>
-          )}
-          {job.status === 'ready' && (
-            <Button variant="primary" disabled={!connected} onClick={onStart}>
-              {t('transcriptionStart')}
-            </Button>
-          )}
-          {(job.status === 'processing' || job.status === 'queued') && (
-            <Button variant="ghost" onClick={onCancel}>
-              {t('transcriptionCancel')}
-            </Button>
-          )}
-          {isSettled(TRANSCRIPTION_LIFECYCLE, job.status) && job.status !== 'completed' && (
-            <Button variant="primary" disabled={!connected} onClick={onRetry}>
-              {t('transcriptionRetry')}
-            </Button>
-          )}
-          {job.status !== 'processing' && (
-            <Button variant="danger" onClick={onRemove}>
-              {t('transcriptionRemove')}
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {active && (
-        <div className="job-progress">
-          <ProgressBar
-            value={job.progress}
-            active={job.status === 'processing'}
-            label={job.fileName}
-          />
-          <div className="job-progress-meta">
-            {job.progress !== null ? `${Math.round(job.progress)}%` : t('transcriptionProcessing')}
-          </div>
-        </div>
-      )}
-
-      {done && (detected || job.characters !== null) && (
-        <div className="transcription-row-meta">
-          {detected && <span>{t('transcriptionDetected', { language: detected })}</span>}
-          {job.characters !== null && (
-            <span>{t('transcriptionCharacters', { count: job.characters })}</span>
-          )}
-        </div>
-      )}
-
-      {done && translation && (
-        <div
-          className={`transcription-row-translation is-${translation.status}`}
-          aria-live="polite"
-        >
-          <div className="transcription-row-translation-line">
-            <span>{translationStatusLabel}</span>
-            <span aria-hidden="true">→</span>
-            <select
-              aria-label={t('transcriptionTranslateTo')}
-              value={displayedTargetLanguage ?? translation.targetLanguage}
-              disabled={!connected}
-              onChange={event => changeTranslationLanguage(event.target.value)}
-            >
-              {translationLanguages.map(option => (
-                <option key={option.code} value={option.code}>
-                  {option.name}
-                </option>
-              ))}
-            </select>
-            {translation.status === 'processing' && translation.progress !== null && (
-              <span className="transcription-row-translation-percent">
-                {Math.round(translation.progress)}%
-              </span>
-            )}
-            {translation.status === 'failed' && !awaitingRequestedLanguage && (
-              <Button
-                variant="ghost"
-                disabled={!connected}
-                onClick={() => changeTranslationLanguage(translation.targetLanguage)}
-              >
-                {t('transcriptionTranslationRetry')}
-              </Button>
-            )}
-          </div>
-          {translating && (
-            <ProgressBar
-              value={translation.progress}
-              active
-              label={t('transcriptionRowTranslationProgress', { file: job.fileName })}
-            />
-          )}
-        </div>
-      )}
-
-      {job.status === 'failed' && job.error && (
-        <div className="transcription-row-error" role="alert">
-          {job.error}
-        </div>
-      )}
-    </article>
+    <span className={`batch-chip ${className}`.trim()} title={phrase}>
+      <span className="chip-icon">{icon}</span>
+      <b>{count}</b>
+      <span className="chip-word"> {word}</span>
+      {/* Read out even when the visible word has folded away. */}
+      <span className="sr-only"> {word}</span>
+    </span>
   );
 }
 

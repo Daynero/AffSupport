@@ -14,6 +14,7 @@ import {
   type ToolContracts,
   type TranscriptionDocument,
   type TranscriptionMediaPreview,
+  type TranscriptionQualityMode,
   type TranscriptionSettings,
   type TranscriptionState,
   type TranslationDocument,
@@ -332,6 +333,15 @@ export function landingGalleryImageUrl(
   });
 }
 
+/** The grid's small picture of a landing: the same route and ticket, the `thumb` slice. */
+export function landingGalleryThumbnailUrl(
+  landingId: string,
+  revision: number | null
+): Promise<string | null> {
+  const path = `/api/landing-preview/landings/${encodeURIComponent(landingId)}/image`;
+  return ticketedUrl(path, { segment: 'thumb', ...(revision ? { v: String(revision) } : {}) });
+}
+
 function teamTransferRangeUrl() {
   if (!publicConfig.ok) throw new Error('SUPABASE_CONFIGURATION_MISSING');
   return `${publicConfig.value.supabaseUrl}/functions/v1/drive-transfer/range`;
@@ -458,7 +468,10 @@ export async function downloadTeamFileWithAgent(input: {
   if (!toolContractCompatible('teamWorkspace', health.toolContracts ?? {})) {
     throw new Error('AGENT_UPDATE_REQUIRED');
   }
-  if (input.process?.tool === 'restitch' && !toolContractCompatible('stitcher', health.toolContracts ?? {})) {
+  if (
+    input.process?.tool === 'restitch' &&
+    !toolContractCompatible('stitcher', health.toolContracts ?? {})
+  ) {
     throw new Error('AGENT_UPDATE_REQUIRED');
   }
   const value = await requestBody<{
@@ -517,7 +530,10 @@ export async function prepareTeamRestitchMaterials(input: {
 }): Promise<{ accepted: true }> {
   const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
   const contracts = health.toolContracts ?? {};
-  if (!toolContractCompatible('teamWorkspace', contracts) || !toolContractCompatible('stitcher', contracts)) {
+  if (
+    !toolContractCompatible('teamWorkspace', contracts) ||
+    !toolContractCompatible('stitcher', contracts)
+  ) {
     throw new Error('AGENT_UPDATE_REQUIRED');
   }
   const value = await requestBody<{ accepted?: unknown }>('/api/team/restitch/prepare', {
@@ -924,11 +940,25 @@ export async function transcriptionUpload(file: File): Promise<TranscriptionSele
   body.append('file', file, file.name);
   return uploadForm<TranscriptionSelectionResponse>('/api/transcription/files/upload', body);
 }
-export function transcriptionStart(ids: string[]): Promise<TranscriptionState> {
-  return requestBody<TranscriptionState>('/api/transcription/start', { ids });
+export function transcriptionStart(
+  ids: string[],
+  quality?: TranscriptionQualityMode
+): Promise<TranscriptionState> {
+  return requestBody<TranscriptionState>('/api/transcription/start', {
+    ids,
+    ...(quality ? { quality } : {})
+  });
 }
-export function transcriptionModelDownload(): Promise<TranscriptionState> {
-  return request<TranscriptionState>('/api/transcription/model/download', 'POST');
+export function transcriptionModelDownload(
+  options: { quality?: TranscriptionQualityMode; speechOnly?: boolean } = {}
+): Promise<TranscriptionState> {
+  return requestBody<TranscriptionState>('/api/transcription/model/download', options);
+}
+export function transcriptionPause(id: string, paused: boolean): Promise<TranscriptionState> {
+  return requestBody<TranscriptionState>(
+    `/api/transcription/jobs/${encodeURIComponent(id)}/pause`,
+    { paused }
+  );
 }
 export function transcriptionModelCancel(): Promise<TranscriptionState> {
   return request<TranscriptionState>('/api/transcription/model/cancel', 'POST');
@@ -947,6 +977,16 @@ export function transcriptionCancel(id: string): Promise<TranscriptionState> {
 }
 export function transcriptionCancelAll(): Promise<TranscriptionState> {
   return request<TranscriptionState>('/api/transcription/cancel-all', 'POST');
+}
+/** Names the spoken language of one file by hand; `auto` hands the question back. */
+export function transcriptionJobLanguage(
+  id: string,
+  language: string
+): Promise<TranscriptionState> {
+  return requestBody<TranscriptionState>(
+    `/api/transcription/jobs/${encodeURIComponent(id)}/language`,
+    { language }
+  );
 }
 export function transcriptionRetry(id: string): Promise<TranscriptionState> {
   return request<TranscriptionState>(
@@ -1037,16 +1077,7 @@ export function transcriptionMediaCancel(id: string): Promise<{ ok: boolean }> {
     'POST'
   );
 }
-/**
- * URL for the local, range-capable source media, carrying a capability ticket.
- *
- * The player seeks, which means range requests, which means the URL is used
- * repeatedly and stays in the element for as long as the modal is open — the
- * worst possible place for a session token.
- */
-export function transcriptionMediaUrl(id: string): Promise<string | null> {
-  return ticketedUrl(transcriptionMediaPath(id));
-}
+
 async function assertOk(response: Response) {
   // Decided before the body is read: a 401 came *from* the Agent, so it is
   // running and only this token is stale — the normal state after a restart

@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import type { ChildProcess } from 'node:child_process';
-import { activeGovernorOrNull, spawnTracked } from '../power/spawn.js';
+import { inferenceThreads, scaled, spawnTracked } from '../power/spawn.js';
 import http from 'node:http';
 import net from 'node:net';
 import type { AlignmentLink } from '@video-compressor/shared';
@@ -13,6 +13,7 @@ import {
   translationRuntimePresent
 } from './tools.js';
 import { splitTextForTranslation } from './segmentation.js';
+import { currentPlatform } from '../platform/platform.js';
 
 export interface TranslationInputSegment {
   id: string;
@@ -93,6 +94,22 @@ const TRANSLATION_PIPELINE_VERSION = 'faithful-segments-v2';
 // dominates — six slots keep the GPU fed without exhausting the shared context
 // (which scales with the slot count below).
 const TRANSLATION_CONCURRENCY = 6;
+/**
+ * On a CPU-only runtime the slots share the cores and the context shares an 8 GB laptop's
+ * memory with the model itself; six slots and a 12k context paged. Three keeps the server
+ * busy without that.
+ */
+const TRANSLATION_CONCURRENCY_CPU = 3;
+
+/** How many layers to offload; see the launch arguments. */
+export function gpuLayers(platform: NodeJS.Platform = currentPlatform()): number {
+  return platform === 'darwin' ? 99 : 0;
+}
+
+/** How many segments run at once on this machine. */
+export function translationConcurrency(platform: NodeJS.Platform = currentPlatform()): number {
+  return platform === 'darwin' ? TRANSLATION_CONCURRENCY : TRANSLATION_CONCURRENCY_CPU;
+}
 
 function normalizedLanguage(code: string): string {
   const parts = code.trim().replaceAll('_', '-').split('-').filter(Boolean);
@@ -115,6 +132,9 @@ function normalizedLanguage(code: string): string {
  * an idle timer terminates it to release RAM.
  */
 export class LlamaTranslator implements Translator {
+  /** The wire, injectable so the retry and error paths can be driven without a server. */
+  constructor(private readonly httpRequest: typeof localLlamaHttpRequest = localLlamaHttpRequest) {}
+
   private child: ChildProcess | null = null;
   private port: number | null = null;
   private apiKey = '';
@@ -171,6 +191,16 @@ export class LlamaTranslator implements Translator {
       const segments = request.segments;
       const out: TranslationOutputSegment[] = new Array(segments.length);
       let nextIndex = 0;
+      // One failure ends the whole pool. `Promise.all` rejects on the first worker but
+      // does nothing about the other five, which used to go on translating — and
+      // reporting segments — into a task that was already marked failed, while the
+      // inference lock had been released to the next job. The pool's own signal is
+      // what stops them, and it also carries the caller's cancel.
+      const pool = new AbortController();
+      // The first worker's error, so the pool reports it rather than a later worker's abort.
+      let poolFailure: unknown = null;
+      const onOuterAbort = () => pool.abort();
+      signal.addEventListener('abort', onOuterAbort, { once: true });
       try {
         // A bounded pool: each worker pulls the next segment index and issues its
         // own /completion request. The server batches the concurrent requests
@@ -179,14 +209,15 @@ export class LlamaTranslator implements Translator {
           for (;;) {
             const index = nextIndex++;
             if (index >= segments.length) return;
-            if (signal.aborted) throw abortError();
+            if (pool.signal.aborted) throw signal.aborted ? abortError() : poolFailure;
             const segment = segments[index];
             const translatedText = await this.runOne(
               sourceLanguage,
               targetLanguage,
               segment.text,
-              signal
+              pool.signal
             );
+            if (pool.signal.aborted) return;
             const result: TranslationOutputSegment = {
               sourceSegmentId: segment.id,
               translatedText,
@@ -196,10 +227,26 @@ export class LlamaTranslator implements Translator {
             request.onSegment?.(result, index);
           }
         };
-        const pool = Math.min(TRANSLATION_CONCURRENCY, segments.length);
-        await Promise.all(Array.from({ length: pool }, () => worker()));
+        const workers = Math.min(translationConcurrency(), segments.length);
+        const settled = await Promise.allSettled(
+          Array.from({ length: workers }, () =>
+            worker().catch(error => {
+              if (!pool.signal.aborted) {
+                poolFailure = error;
+                pool.abort();
+              }
+              throw error;
+            })
+          )
+        );
+        if (signal.aborted) throw abortError();
+        const failure = settled.find(
+          (entry): entry is PromiseRejectedResult => entry.status === 'rejected'
+        );
+        if (failure) throw poolFailure ?? failure.reason;
         return out;
       } finally {
+        signal.removeEventListener('abort', onOuterAbort);
         this.scheduleIdleExit();
       }
     });
@@ -274,16 +321,22 @@ export class LlamaTranslator implements Translator {
         '127.0.0.1',
         '--port',
         String(port),
-        '--api-key',
-        apiKey,
         // Context is shared across slots, so scale it with the slot count to
         // keep ~2048 tokens per concurrent segment.
         '--ctx-size',
-        String(2048 * TRANSLATION_CONCURRENCY),
+        String(2048 * translationConcurrency()),
         '--parallel',
-        String(TRANSLATION_CONCURRENCY),
+        String(translationConcurrency()),
+        // Every layer on the GPU on Apple Silicon, where Metal has the unified memory for
+        // it. The pinned Windows runtime is the CPU build, and a laptop's shared-memory
+        // iGPU would not fit a 2.5 GB model anyway: asking for offload there either fails
+        // the load or thrashes, with an error that points nowhere near the cause.
         '--n-gpu-layers',
-        '99',
+        String(gpuLayers()),
+        // The same budget whisper runs on: on a CPU build the server otherwise takes every
+        // core, and a four-core laptop translating was a laptop doing nothing else.
+        '--threads',
+        String(inferenceThreads()),
         // TranslateGemma's intentionally strict structured Jinja template
         // cannot pass llama-server's startup-time generic string-message
         // autoparser probe. Keep inference on the raw /completion endpoint and
@@ -299,6 +352,10 @@ export class LlamaTranslator implements Translator {
       ],
       {
         toolId: 'translation',
+        // The key travels in the environment, not in argv: a command line is readable by
+        // every process on the machine, and the key is what keeps other local processes
+        // out of the model.
+        env: { ...process.env, LLAMA_API_KEY: apiKey },
         // Prompts and translations must never be copied into Soty logs.
         stdio: ['ignore', 'ignore', 'ignore']
       }
@@ -392,7 +449,7 @@ export class LlamaTranslator implements Translator {
     isRetry: boolean
   ): Promise<{ text: string; stoppedAtLimit: boolean }> {
     if (!this.port) throw new Error('TRANSLATOR_UNAVAILABLE');
-    const result = await localLlamaHttpRequest(
+    const result = await this.httpRequest(
       this.port,
       this.apiKey,
       'POST',
@@ -400,16 +457,16 @@ export class LlamaTranslator implements Translator {
       translationCompletionBody(sourceLanguage, targetLanguage, text, isRetry),
       signal
     );
+    if (result.statusCode < 200 || result.statusCode >= 300) {
+      // Deliberately do not include the server body; a model error can echo its
+      // prompt, which contains private transcript text.
+      throw new Error('The local translator rejected the translation request.');
+    }
     let parsed: CompletionResponse;
     try {
       parsed = JSON.parse(result.body) as CompletionResponse;
     } catch {
       throw new Error('The local translator returned an invalid response.');
-    }
-    if (result.statusCode < 200 || result.statusCode >= 300) {
-      // Deliberately do not include the server body; a model error can echo its
-      // prompt, which contains private transcript text.
-      throw new Error('The local translator rejected the translation request.');
     }
     const content = parsed.content;
     if (typeof content !== 'string' || !content.trim()) {
@@ -578,10 +635,14 @@ export function reserveLoopbackPort(): Promise<number> {
   });
 }
 
-/** A wall-clock budget stretched to match the resource limit in force. */
-function scaled(milliseconds: number): number {
-  return activeGovernorOrNull()?.scaleTimeout(milliseconds) ?? milliseconds;
-}
+/**
+ * How long one local inference request may take, unscaled.
+ *
+ * A segment is at most thirty-two words; a minute is generous even for a cold cache on a
+ * slow CPU. Whisper has an inactivity watchdog; without a deadline here a wedged
+ * llama-server held the single inference queue until somebody pressed cancel.
+ */
+const LLAMA_REQUEST_TIMEOUT_MS = 60_000;
 
 export function localLlamaHttpRequest(
   port: number,
@@ -589,7 +650,8 @@ export function localLlamaHttpRequest(
   method: 'GET' | 'POST',
   requestPath: string,
   json?: unknown,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  timeoutMs = LLAMA_REQUEST_TIMEOUT_MS
 ): Promise<LocalLlamaHttpResult> {
   if (signal?.aborted) return Promise.reject(abortError());
   const body = json === undefined ? '' : JSON.stringify(json);
@@ -624,6 +686,11 @@ export function localLlamaHttpRequest(
     );
     const onAbort = () => request.destroy(abortError());
     signal?.addEventListener('abort', onAbort, { once: true });
+    // Scaled like every other deadline over managed work: a duty-cycled server is slow on
+    // purpose, and a fixed budget would fail it for honouring the user's own limit.
+    request.setTimeout(scaled(timeoutMs), () =>
+      request.destroy(new Error('The local model did not answer in time.'))
+    );
     request.once('error', reject);
     request.once('close', () => signal?.removeEventListener('abort', onAbort));
     if (body) request.write(body);

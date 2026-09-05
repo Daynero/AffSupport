@@ -7,6 +7,15 @@ import type { TranscriptWord } from '@video-compressor/shared';
  * search keeps this cheap enough to call every animation frame without
  * re-scanning the whole document.
  */
+/**
+ * How long after a word ends it stays lit while the next has not begun.
+ *
+ * Whisper's word spans leave small gaps between words and larger ones at every breath;
+ * dropping the highlight in each gap made the follow-along blink several times a sentence.
+ * Held for the length of a short pause, cleared at a real one.
+ */
+export const WORD_HOLD_MS = 300;
+
 export function activeWordIndex(words: readonly TranscriptWord[], currentMs: number): number {
   let low = 0;
   let high = words.length - 1;
@@ -21,7 +30,12 @@ export function activeWordIndex(words: readonly TranscriptWord[], currentMs: num
     }
   }
   if (candidate === -1) return -1;
-  return currentMs <= words[candidate].endMs ? candidate : -1;
+  if (currentMs <= words[candidate].endMs) return candidate;
+  // In the gap after a word: keep it unless the gap is long, or the next word is about to
+  // start and would only flicker.
+  const next = words[candidate + 1];
+  const withinHold = currentMs - words[candidate].endMs <= WORD_HOLD_MS;
+  return withinHold && (!next || next.startMs > currentMs) ? candidate : -1;
 }
 
 /** Flattens a document's segments into one ordered word list with segment ids. */

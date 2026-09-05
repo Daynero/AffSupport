@@ -17,6 +17,7 @@ const client = vi.hoisted(() => ({
   clearCache: vi.fn(),
   toolEventUrl: vi.fn(() => 'http://127.0.0.1/events'),
   imageUrl: vi.fn(() => 'http://127.0.0.1/image'),
+  thumbnailUrl: vi.fn(() => 'http://127.0.0.1/thumb'),
   open: vi.fn(),
   openExtracted: vi.fn(),
   refresh: vi.fn(),
@@ -34,6 +35,7 @@ vi.mock('../apps/web/src/api/client.js', () => ({
   landingGalleryClearCache: client.clearCache,
   toolEventUrl: client.toolEventUrl,
   landingGalleryImageUrl: client.imageUrl,
+  landingGalleryThumbnailUrl: client.thumbnailUrl,
   landingGalleryOpen: client.open,
   landingGalleryOpenExtracted: client.openExtracted,
   landingGalleryRefresh: client.refresh,
@@ -42,6 +44,21 @@ vi.mock('../apps/web/src/api/client.js', () => ({
   landingGalleryReveal: client.reveal,
   landingGallerySelect: client.select,
   landingGallerySettings: client.settings
+}));
+
+// The shared live connection, so the multiplexed source can be told the link dropped.
+const stream = vi.hoisted(() => ({
+  watchers: [] as Array<(open: boolean) => void>
+}));
+
+vi.mock('../apps/web/src/api/stream-client.js', () => ({
+  streamClient: {
+    subscribe: vi.fn(() => () => {}),
+    watchConnection: vi.fn((listener: (open: boolean) => void) => {
+      stream.watchers.push(listener);
+      return () => {};
+    })
+  }
 }));
 
 const landing: LandingPreviewItem = {
@@ -138,7 +155,7 @@ describe('LandingViewer (source-agnostic)', () => {
     expect(screen.queryByLabelText('Show source')).toBeNull();
     // …while advertised capabilities keep their controls.
     expect(screen.getByRole('button', { name: 'Refresh folder' })).toBeTruthy();
-    expect(screen.getByLabelText('View settings')).toBeTruthy();
+    expect(screen.getByLabelText('Preview settings')).toBeTruthy();
   });
 
   it('routes actions back through the source', async () => {
@@ -147,6 +164,86 @@ describe('LandingViewer (source-agnostic)', () => {
     await screen.findByAltText('Acme');
     await userEvent.click(screen.getByRole('button', { name: 'Refresh folder' }));
     expect(source.refresh).toHaveBeenCalledWith('changed', undefined);
+  });
+
+  it('closes the phone sheet from the scrim and from Escape', async () => {
+    const listeners: Array<() => void> = [];
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query.includes('820'),
+      media: query,
+      addEventListener: (_type: string, listener: () => void) => listeners.push(listener),
+      removeEventListener: () => {}
+    }));
+    render(<Harness source={fakeTeamSource()} />);
+    await screen.findByAltText('Acme');
+    const viewer = document.querySelector('.lv-viewer') as HTMLElement;
+    // A phone starts with the tree closed whatever the saved preference says.
+    expect(viewer.classList.contains('sidebar-collapsed')).toBe(true);
+    const toggle = screen.getByRole('button', { name: 'Show or hide folder tree' });
+    await userEvent.click(toggle);
+    expect(viewer.classList.contains('sidebar-collapsed')).toBe(false);
+    await userEvent.keyboard('{Escape}');
+    expect(viewer.classList.contains('sidebar-collapsed')).toBe(true);
+    await userEvent.click(toggle);
+    await userEvent.click(document.querySelector('.lv-scrim') as HTMLElement);
+    expect(viewer.classList.contains('sidebar-collapsed')).toBe(true);
+    vi.unstubAllGlobals();
+  });
+
+  it('moves through the tree with the arrow keys from one tab stop', async () => {
+    const source = fakeTeamSource();
+    const state = memoryState();
+    state.landings = [
+      landing,
+      { ...landing, id: 'landing-b', name: 'Beta', relativePath: 'offers/beta' }
+    ];
+    source.fetchState = () => Promise.resolve(state);
+    render(<Harness source={source} />);
+    await screen.findByAltText('Acme');
+    const rows = screen.getAllByRole('treeitem');
+    expect(rows.map(row => row.getAttribute('tabindex'))).toEqual(['-1', '-1', '0']);
+    rows[2].focus();
+    await userEvent.keyboard('{ArrowUp}');
+    expect(document.activeElement).toBe(rows[1]);
+    await userEvent.keyboard('{ArrowLeft}');
+    expect(document.activeElement).toBe(rows[0]);
+    await userEvent.keyboard('{ArrowLeft}');
+    expect(rows[0].getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getAllByRole('treeitem')).toHaveLength(2);
+    // Selecting Beta and collapsing its folder must not leave the tree without a tab stop.
+    rows[0].focus();
+    await userEvent.keyboard('{ArrowRight}');
+    // Rows are named by their path segment, which is what the tree shows.
+    await userEvent.click(screen.getByRole('treeitem', { name: /beta/ }));
+    rows[0].focus();
+    await userEvent.keyboard('{ArrowLeft}');
+    expect(screen.getAllByRole('treeitem').map(row => row.getAttribute('tabindex'))).toEqual([
+      '0',
+      '-1'
+    ]);
+  });
+
+  it('shows the small picture in the grid only for landings that have one', async () => {
+    const source = fakeTeamSource();
+    const withThumbnail: LandingPreviewItem = {
+      ...landing,
+      id: 'landing-b',
+      name: 'Beta',
+      relativePath: 'beta',
+      thumbnailAvailable: true
+    };
+    const state = memoryState();
+    state.landings = [landing, withThumbnail];
+    source.fetchState = () => Promise.resolve(state);
+    source.thumbnailUrl = item => `mem://thumb/${item.id}`;
+    render(<Harness source={source} />);
+    await screen.findByAltText('Acme');
+    await userEvent.click(screen.getByRole('button', { name: 'Grid' }));
+    const pictures = await screen.findAllByRole('presentation');
+    expect(pictures.map(image => image.getAttribute('src'))).toEqual([
+      'mem://landing-a/0',
+      'mem://thumb/landing-b'
+    ]);
   });
 });
 
@@ -183,5 +280,18 @@ describe('agentLandingSource', () => {
     expect(client.resolveDrop).toHaveBeenCalledWith(sample);
     source.imageUrl(landing, 2);
     expect(client.imageUrl).toHaveBeenCalledWith('landing-a', 10, 2);
+  });
+
+  it('reports the shared connection dropping, on the multiplexed path', async () => {
+    const { agentLandingSource } =
+      await import('../apps/web/src/landing-viewer/sources/agentLandingSource.js');
+    const onStatus = vi.fn();
+    const unsubscribe = agentLandingSource(true).subscribe({ onState: () => {}, onStatus });
+    expect(onStatus).toHaveBeenLastCalledWith('open');
+    for (const watcher of stream.watchers) watcher(false);
+    expect(onStatus).toHaveBeenLastCalledWith('lost');
+    for (const watcher of stream.watchers) watcher(true);
+    expect(onStatus).toHaveBeenLastCalledWith('open');
+    unsubscribe();
   });
 });

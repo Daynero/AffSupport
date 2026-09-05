@@ -27,8 +27,49 @@ import { open } from 'node:fs/promises';
 /** 16-bit mono PCM at 16 kHz — what `runExtract` writes, and all this reads. */
 const BYTES_PER_SAMPLE = 2;
 const SAMPLE_RATE = 16_000;
-/** Header of a canonical RIFF/WAVE file; the extract writes exactly this shape. */
-const HEADER_BYTES = 44;
+/** Where the samples start when the header cannot be parsed: a canonical 44-byte RIFF/WAVE. */
+const CANONICAL_HEADER_BYTES = 44;
+
+/**
+ * Finds the PCM samples inside a RIFF/WAVE file.
+ *
+ * FFmpeg does not write the canonical forty-four bytes: it puts a `LIST/INFO` chunk with an
+ * encoder tag before `data`, so the samples start later than the textbook says. Reading
+ * from byte forty-four treated that chunk as audio — loud enough to count as sound, which
+ * meant a file of pure silence was never recognised as one — and shifted every sample
+ * position by the chunk's length. Walking the chunks is the only reading that is right for
+ * every writer.
+ */
+async function locateDataChunk(
+  handle: import('node:fs/promises').FileHandle,
+  size: number
+): Promise<{ offset: number; bytes: number }> {
+  const header = Buffer.alloc(12);
+  const { bytesRead } = await handle.read(header, 0, 12, 0);
+  if (
+    bytesRead < 12 ||
+    header.toString('ascii', 0, 4) !== 'RIFF' ||
+    header.toString('ascii', 8, 12) !== 'WAVE'
+  ) {
+    return { offset: CANONICAL_HEADER_BYTES, bytes: Math.max(0, size - CANONICAL_HEADER_BYTES) };
+  }
+  const chunk = Buffer.alloc(8);
+  let position = 12;
+  while (position + 8 <= size) {
+    const read = await handle.read(chunk, 0, 8, position);
+    if (read.bytesRead < 8) break;
+    const id = chunk.toString('ascii', 0, 4);
+    const length = chunk.readUInt32LE(4);
+    if (id === 'data') {
+      // A streamed WAV may carry a placeholder length; the file's own size is the truth.
+      const available = size - (position + 8);
+      return { offset: position + 8, bytes: Math.max(0, Math.min(length, available) || available) };
+    }
+    // Chunks are word-aligned: an odd length is followed by one pad byte.
+    position += 8 + length + (length % 2);
+  }
+  return { offset: CANONICAL_HEADER_BYTES, bytes: Math.max(0, size - CANONICAL_HEADER_BYTES) };
+}
 
 /**
  * Peak amplitude that still counts as silence, as a fraction of full scale.
@@ -69,8 +110,8 @@ export async function measureSpeechExtent(wavPath: string): Promise<SpeechExtent
   const handle = await open(wavPath, 'r');
   try {
     const { size } = await handle.stat();
-    const dataBytes = Math.max(0, size - HEADER_BYTES);
-    const totalSamples = Math.floor(dataBytes / BYTES_PER_SAMPLE);
+    const data = await locateDataChunk(handle, size);
+    const totalSamples = Math.floor(data.bytes / BYTES_PER_SAMPLE);
     const durationSeconds = totalSamples / SAMPLE_RATE;
     if (totalSamples === 0) {
       return { durationSeconds: 0, lastSoundSeconds: 0, audibleSeconds: 0, trimmedSeconds: 0 };
@@ -86,7 +127,7 @@ export async function measureSpeechExtent(wavPath: string): Promise<SpeechExtent
         buffer,
         0,
         count * BYTES_PER_SAMPLE,
-        HEADER_BYTES + start * BYTES_PER_SAMPLE
+        data.offset + start * BYTES_PER_SAMPLE
       );
       const samples = Math.floor(bytesRead / BYTES_PER_SAMPLE);
       for (let index = samples - 1; index >= 0; index -= 1) {
@@ -102,7 +143,12 @@ export async function measureSpeechExtent(wavPath: string): Promise<SpeechExtent
     // A file with nothing in it at all is left alone: whisper returning nothing is the right
     // answer, and a zero-length input is not.
     if (lastSoundSample < 0 || tail < MIN_TAIL_SECONDS) {
-      return { durationSeconds, lastSoundSeconds, audibleSeconds: durationSeconds, trimmedSeconds: 0 };
+      return {
+        durationSeconds,
+        lastSoundSeconds,
+        audibleSeconds: durationSeconds,
+        trimmedSeconds: 0
+      };
     }
     const audibleSeconds = Math.min(durationSeconds, lastSoundSeconds + TAIL_PAD_SECONDS);
     return {

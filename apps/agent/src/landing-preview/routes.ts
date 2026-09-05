@@ -25,8 +25,13 @@ export function registerLandingPreviewRoutes(
   app.get<{ Params: { landingId: string }; Querystring: { segment?: string } }>(
     '/api/landing-preview/landings/:landingId/image',
     async (request, reply) => {
-      const segment = request.query.segment === undefined ? 0 : Number(request.query.segment);
-      if (!Number.isInteger(segment) || segment < 0) {
+      const segment =
+        request.query.segment === 'thumb'
+          ? 'thumb'
+          : request.query.segment === undefined
+            ? 0
+            : Number(request.query.segment);
+      if (segment !== 'thumb' && (!Number.isInteger(segment) || segment < 0)) {
         return reply.code(400).send({ error: 'Preview segment is invalid.' });
       }
       const preview = await catalog.previewPath(request.params.landingId, segment);

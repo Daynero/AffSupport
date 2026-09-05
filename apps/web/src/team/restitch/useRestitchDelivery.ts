@@ -15,11 +15,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MaterialRestitchPrep, TeamRestitchDefaults } from '@video-compressor/shared';
 import { usablePrep } from '@video-compressor/shared';
-import {
-  agentCanRestitch,
-  cancelTeamDownload,
-  downloadTeamFileWithAgent
-} from '../../api/client';
+import { agentCanRestitch, cancelTeamDownload, downloadTeamFileWithAgent } from '../../api/client';
 import { teamApi } from '../../api/team';
 import { completeTeamWorkflow, startTeamWorkflow } from '../../analytics/service';
 import { useI18n } from '../../i18n';
@@ -27,11 +23,7 @@ import { teamErrorMessageFor } from '../errors';
 
 export type RestitchDeliveryPhase =
   /** Waiting for the person to say where it goes — asked once per space, then remembered. */
-  | 'choosing'
-  | 'transferring'
-  | 'inspecting'
-  | 'stitching'
-  | 'saving';
+  'choosing' | 'transferring' | 'inspecting' | 'stitching' | 'saving';
 
 export type RestitchDeliveryState =
   | { kind: 'idle' }
@@ -197,9 +189,7 @@ export function useRestitchDelivery(teamId: string) {
         // pressed themselves reads as one.
         set(
           target.materialId,
-          canceled
-            ? { kind: 'idle' }
-            : { kind: 'failed', message: teamErrorMessageFor(error, t) }
+          canceled ? { kind: 'idle' } : { kind: 'failed', message: teamErrorMessageFor(error, t) }
         );
         if (flow) {
           const canceled = error instanceof Error && error.message === 'PROCESS_CANCELED';

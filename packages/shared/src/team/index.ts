@@ -1,3 +1,4 @@
+export * from './accounts.js';
 export * from './analytics.js';
 export * from './catalog-search.js';
 export * from './contract.js';

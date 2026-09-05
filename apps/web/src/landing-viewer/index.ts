@@ -3,6 +3,7 @@ export * from './viewerPreferences';
 export { phaseKey } from './internal/phaseKey';
 export { GalleryEmpty } from './internal/GalleryEmpty';
 export { GalleryIconButton } from './internal/GalleryIconButton';
+export { ViewerMenu, MenuItem, MenuHeading, MenuSeparator } from './internal/ViewerMenu';
 export { LandingTree } from './LandingTree';
 export { LandingGalleryGrid } from './LandingGalleryGrid';
 export { GallerySettingsMenu } from './GallerySettingsMenu';

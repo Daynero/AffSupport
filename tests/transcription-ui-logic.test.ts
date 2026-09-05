@@ -144,7 +144,10 @@ describe('karaoke active word', () => {
     expect(activeWordIndex(words, -1)).toBe(-1);
     expect(activeWordIndex(words, 0)).toBe(0);
     expect(activeWordIndex(words, 500)).toBe(0);
-    expect(activeWordIndex(words, 550)).toBe(-1); // gap between word 0 and 1
+    // A short gap between words keeps the previous word lit; a long one clears it.
+    expect(activeWordIndex(words, 550)).toBe(0);
+    expect(activeWordIndex([{ ...words[0], startMs: 0, endMs: 100 }], 401)).toBe(-1);
+    expect(activeWordIndex([{ ...words[0], startMs: 0, endMs: 100 }], 300)).toBe(0);
     expect(activeWordIndex(words, 600)).toBe(1);
     expect(activeWordIndex(words, 1000)).toBe(2); // boundary favors the later word
     expect(activeWordIndex(words, 5000)).toBe(-1);

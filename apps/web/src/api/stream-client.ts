@@ -28,13 +28,62 @@ interface Config {
  */
 const RETRY_MS = [500, 1_000, 2_000, 4_000, 8_000];
 
+/**
+ * How long a tab may stay hidden before it gives its socket back.
+ *
+ * The browser allows six connections to the local app across every Soty tab, and a live
+ * stream holds one for as long as the tab exists. Six forgotten tabs from last week were
+ * enough to leave the seventh — the one actually being looked at — spinning forever, its
+ * first request queued behind sockets nobody was reading. A hidden tab needs no live
+ * updates: it reconnects the moment it is looked at again, and the first frame is a full
+ * snapshot, so nothing that happened meanwhile is lost. A minute keeps a quick
+ * cmd-tab away from costing a reconnect.
+ */
+const HIDDEN_RELEASE_MS = 60_000;
+
 class StreamClient {
   private config: Config | null = null;
   private readonly listeners = new Map<string, Set<ChannelListener>>();
   private abort: AbortController | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private hiddenTimer: ReturnType<typeof setTimeout> | null = null;
+  /** True while the socket has been given back because the tab is hidden. */
+  private parked = false;
   private failures = 0;
   private openListeners = new Set<(open: boolean) => void>();
+
+  constructor() {
+    if (typeof document === 'undefined') return;
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        if (this.hiddenTimer) return;
+        this.hiddenTimer = setTimeout(() => {
+          this.hiddenTimer = null;
+          this.park();
+        }, HIDDEN_RELEASE_MS);
+        return;
+      }
+      if (this.hiddenTimer) clearTimeout(this.hiddenTimer);
+      this.hiddenTimer = null;
+      if (this.parked) {
+        this.parked = false;
+        this.restart();
+      }
+    });
+  }
+
+  /**
+   * Gives the socket back without telling anyone the connection dropped: nothing is wrong
+   * with the local app, and a tab nobody is looking at has no banner worth showing.
+   */
+  private park(): void {
+    this.parked = true;
+    this.abort?.abort();
+    this.abort = null;
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
+    this.failures = 0;
+  }
 
   /**
    * Points the client at a local app, or at nothing.
@@ -62,6 +111,8 @@ class StreamClient {
     else {
       this.listeners.set(channel, new Set([listener]));
       // A channel nobody was listening to is a channel the open connection did not ask for.
+      // While parked (the tab hidden for a while) this asks for nothing yet: the channel is
+      // remembered and joins the connection the moment the tab is looked at again.
       this.restart();
     }
 
@@ -81,6 +132,9 @@ class StreamClient {
     this.abort = null;
     if (this.retryTimer) clearTimeout(this.retryTimer);
     this.retryTimer = null;
+    if (this.hiddenTimer) clearTimeout(this.hiddenTimer);
+    this.hiddenTimer = null;
+    this.parked = false;
     this.failures = 0;
   }
 
@@ -96,7 +150,7 @@ class StreamClient {
   private async connect(): Promise<void> {
     const config = this.config;
     const channels = [...this.listeners.keys()];
-    if (!config || channels.length === 0) return;
+    if (!config || channels.length === 0 || this.parked) return;
 
     const abort = new AbortController();
     this.abort = abort;

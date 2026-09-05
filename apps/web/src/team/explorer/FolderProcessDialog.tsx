@@ -101,9 +101,7 @@ export function FolderProcessDialog({
       className="team-folder-process"
       onClose={busy ? undefined : onClose}
     >
-      <h3 id="team-folder-process-title">
-        {t('teamFolderProcessTitle', { name: folder.name })}
-      </h3>
+      <h3 id="team-folder-process-title">{t('teamFolderProcessTitle', { name: folder.name })}</h3>
       {loading && (
         <p className="ui-skeleton-label" aria-live="polite">
           {t('teamFolderProcessScanning', { count: scanned })}
@@ -171,9 +169,7 @@ export function FolderProcessDialog({
                 <Button
                   type="button"
                   variant="primary"
-                  disabled={
-                    (videos.length === 0 || !transcriptionReady) && landings.length === 0
-                  }
+                  disabled={(videos.length === 0 || !transcriptionReady) && landings.length === 0}
                   onClick={() => run('all')}
                 >
                   {t('teamFolderProcessAll')}

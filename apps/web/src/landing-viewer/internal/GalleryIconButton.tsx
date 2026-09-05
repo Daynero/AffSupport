@@ -1,13 +1,27 @@
-import type { ComponentProps } from 'react';
-import { IconButton } from '../../components/ui';
+import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
-export function GalleryIconButton({ className = '', ...props }: ComponentProps<typeof IconButton>) {
+/**
+ * An icon control in the viewer's toolbar.
+ *
+ * The accessible name doubles as a delayed hint (see `.lv-tip`): it appears after a second's
+ * hover, never on a click, and never as the browser's own title box.
+ */
+export function GalleryIconButton({
+  label,
+  className = '',
+  children,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; children: ReactNode }) {
   return (
-    <IconButton
+    <button
+      type="button"
       {...props}
-      className={`landing-gallery-delayed-tooltip ${className}`.trim()}
-      data-tooltip={props.label}
+      className={`lv-btn lv-tip ${className}`.trim()}
+      aria-label={label}
+      data-tooltip={label}
       title=""
-    />
+    >
+      {children}
+    </button>
   );
 }

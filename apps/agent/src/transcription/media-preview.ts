@@ -1,7 +1,12 @@
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
-import { spawnTracked } from '../power/spawn.js';
+import { activeThreadBudget, spawnTracked } from '../power/spawn.js';
+import os from 'node:os';
+
+/** No progress line for this long and the transcode is treated as stuck. */
+const PREVIEW_STALL_TIMEOUT_MS = 2 * 60_000;
 import { createHash } from 'node:crypto';
-import { access, chmod, mkdir, rename, rm, stat } from 'node:fs/promises';
+import { access, chmod, mkdir, readdir, rm, stat } from 'node:fs/promises';
+import { replaceFile } from '../files/replace-file.js';
 import path from 'node:path';
 import type { TranscriptionMediaPreview } from '@video-compressor/shared';
 import { ffmpegPath, probeMedia } from '../ffmpeg/tools.js';
@@ -25,6 +30,8 @@ interface PreviewEntry {
   outputPath: string | null;
   child: ChildProcessWithoutNullStreams | null;
   promise: Promise<TranscriptionMediaPreview> | null;
+  /** A stop that landed while the transcode was still waiting for its turn. */
+  cancelled: boolean;
 }
 
 const ORIGINAL_VIDEO_CODECS = new Set(['h264', 'vp8', 'vp9', 'av1']);
@@ -56,7 +63,10 @@ const ORIGINAL_AUDIO_EXTENSIONS = new Set([
  * and ffmpeg output is intentionally not logged because it can contain paths.
  */
 export class MediaPreviewManager {
+  /** The transcode in progress, so the next one queues behind it. */
+  private transcodeTail: Promise<void> = Promise.resolve();
   private readonly entries = new Map<string, PreviewEntry>();
+  private readonly pendingEntries = new Map<string, Promise<PreviewEntry>>();
 
   constructor(private readonly cacheDir: string) {}
 
@@ -83,7 +93,17 @@ export class MediaPreviewManager {
       error: null,
       mimeType: entry.status.hasVideo ? 'video/mp4' : 'audio/mp4'
     };
-    entry.promise = this.transcode(jobId, source, entry).catch(() => {
+    entry.cancelled = false;
+    // One transcode at a time. Two open viewers used to mean two x264 encodes beside the
+    // transcription; the second waits for the first, and its status stays "preparing" —
+    // which is exactly what it is doing.
+    const turn = this.transcodeTail.catch(() => undefined);
+    const run = turn.then(() => this.transcode(jobId, source, entry));
+    this.transcodeTail = run.then(
+      () => undefined,
+      () => undefined
+    );
+    entry.promise = run.catch(() => {
       entry.child = null;
       entry.promise = null;
       entry.status = {
@@ -107,7 +127,13 @@ export class MediaPreviewManager {
    * a job the user had already stopped.
    */
   cancel(jobId: string): void {
-    this.entries.get(jobId)?.child?.kill('SIGTERM');
+    const entry = this.entries.get(jobId);
+    if (!entry) return;
+    // Waiting for its turn behind another transcode there is no child yet; the flag is
+    // read the moment the turn comes, so the stop is honoured instead of starting a full
+    // encode the person had already stopped.
+    entry.cancelled = true;
+    entry.child?.kill('SIGTERM');
   }
 
   async prepared(jobId: string, source: PreviewSource): Promise<PreparedMedia | null> {
@@ -136,6 +162,31 @@ export class MediaPreviewManager {
     if (entry?.outputPath) await rm(entry.outputPath, { force: true }).catch(() => {});
   }
 
+  /**
+   * Removes proxies of jobs that no longer exist.
+   *
+   * A proxy is a 720p re-encode of the person's own creative, written for the player and
+   * removed with its job — unless the process was killed first, in which case it sat in the
+   * cache directory with no owner for as long as the application stayed installed.
+   */
+  async sweepOrphans(knownJobIds: ReadonlySet<string>): Promise<number> {
+    let entries: string[];
+    try {
+      entries = await readdir(this.cacheDir);
+    } catch {
+      return 0;
+    }
+    let removed = 0;
+    for (const entry of entries) {
+      // `<jobId>-<digest>.mp4`, or a `.part` a transcode never finished.
+      const jobId = entry.replace(/\.mp4(\.part)?$/u, '').replace(/-[0-9a-f]{16}$/u, '');
+      if (jobId !== entry && knownJobIds.has(jobId) && !entry.endsWith('.part')) continue;
+      await rm(path.join(this.cacheDir, entry), { force: true }).catch(() => {});
+      removed += 1;
+    }
+    return removed;
+  }
+
   async close(): Promise<void> {
     for (const entry of this.entries.values()) entry.child?.kill('SIGTERM');
     await Promise.allSettled(
@@ -143,7 +194,19 @@ export class MediaPreviewManager {
     );
   }
 
-  private async entry(jobId: string, source: PreviewSource): Promise<PreviewEntry> {
+  private entry(jobId: string, source: PreviewSource): Promise<PreviewEntry> {
+    // Two callers arriving while the probe is still running share one entry; each making
+    // its own used to start two transcodes and delete the first one's output.
+    const pending = this.pendingEntries.get(jobId);
+    if (pending) return pending;
+    const creating = this.createEntry(jobId, source).finally(() =>
+      this.pendingEntries.delete(jobId)
+    );
+    this.pendingEntries.set(jobId, creating);
+    return creating;
+  }
+
+  private async createEntry(jobId: string, source: PreviewSource): Promise<PreviewEntry> {
     const sourceStat = await stat(source.path);
     const sourceKey = `${source.path}\0${sourceStat.size}\0${sourceStat.mtimeMs}`;
     const existing = this.entries.get(jobId);
@@ -173,7 +236,8 @@ export class MediaPreviewManager {
       },
       outputPath,
       child: null,
-      promise: null
+      promise: null,
+      cancelled: false
     };
     this.entries.set(jobId, entry);
     return entry;
@@ -192,6 +256,10 @@ export class MediaPreviewManager {
   ): Promise<TranscriptionMediaPreview> {
     const output = entry.outputPath;
     if (!output) return { ...entry.status };
+    if (entry.cancelled) {
+      entry.status = { ...entry.status, state: 'checking', progress: null, error: null };
+      return { ...entry.status };
+    }
     const partial = `${output}.part`;
     await mkdir(this.cacheDir, { recursive: true });
     await rm(partial, { force: true }).catch(() => {});
@@ -212,8 +280,10 @@ export class MediaPreviewManager {
             "scale=w='min(1280,iw)':h='min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2",
             '-c:v',
             'libx264',
+            // A preview, not a deliverable: the cheapest preset that still looks like the
+            // source at 720p, on a machine that is probably also running whisper.
             '-preset',
-            'veryfast',
+            'ultrafast',
             '-crf',
             '23',
             '-pix_fmt',
@@ -224,6 +294,10 @@ export class MediaPreviewManager {
             '160k'
           ]
         : ['-map', '0:a:0', '-vn', '-c:a', 'aac', '-b:a', '192k']),
+      // Bounded like every other managed encode; without it x264 takes every core beside
+      // the transcription that is already running.
+      '-threads',
+      String(activeThreadBudget() ?? Math.max(2, Math.min(4, os.cpus().length - 2))),
       '-movflags',
       '+faststart',
       '-progress',
@@ -239,8 +313,22 @@ export class MediaPreviewManager {
       toolId: 'transcription-preview'
     }) as ChildProcessWithoutNullStreams;
     entry.child = child;
+    // A proxy transcode that stops reporting has stopped working: its source is on a volume
+    // that went away, or the demuxer is spinning. Without this the player would show
+    // "preparing" for as long as the modal stayed open.
+    let stallTimer: NodeJS.Timeout | null = null;
+    const armStall = () => {
+      if (stallTimer) clearTimeout(stallTimer);
+      stallTimer = setTimeout(() => child.kill('SIGKILL'), PREVIEW_STALL_TIMEOUT_MS);
+      stallTimer.unref();
+    };
+    armStall();
+    child.once('close', () => {
+      if (stallTimer) clearTimeout(stallTimer);
+    });
     let progressBuffer = '';
     child.stdout.on('data', chunk => {
+      armStall();
       progressBuffer += chunk.toString();
       const lines = progressBuffer.split(/\r?\n/u);
       progressBuffer = lines.pop() ?? '';
@@ -273,7 +361,7 @@ export class MediaPreviewManager {
 
     if (result.code === 0) {
       try {
-        await rename(partial, output);
+        await replaceFile(partial, output);
         await chmod(output, 0o600);
         entry.status = { ...entry.status, state: 'ready', progress: 100, error: null };
       } catch {

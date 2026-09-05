@@ -91,7 +91,23 @@ function preferredBoundary(
 }
 
 function textUnits(text: string): TextUnit[] {
-  const units: TextUnit[] = [];
+  return lexicalUnitSpans(text);
+}
+
+export interface LexicalUnitSpan {
+  start: number;
+  end: number;
+}
+
+/**
+ * The lexical units of a text, as character spans: runs of letters, marks and digits — or,
+ * in scripts that normally omit spaces, single visible code points with their combining
+ * marks kept on the base character, because whisper emits several timestamped tokens where
+ * such a line would otherwise be one unit. Shared by translation segmentation and word
+ * alignment, which used to carry the same loop each.
+ */
+export function lexicalUnitSpans(text: string): LexicalUnitSpan[] {
+  const units: LexicalUnitSpan[] = [];
   for (const match of text.matchAll(LEXICAL_RUN)) {
     const value = match[0];
     const start = match.index;
@@ -99,7 +115,6 @@ function textUnits(text: string): TextUnit[] {
       units.push({ start, end: start + value.length });
       continue;
     }
-
     let cursor = start;
     for (const point of Array.from(value)) {
       const end = cursor + point.length;

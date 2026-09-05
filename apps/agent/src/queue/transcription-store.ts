@@ -1,12 +1,16 @@
 import { randomUUID } from 'node:crypto';
-import { stat, chmod, access, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
+import { stat, chmod, access, mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { replaceFile } from '../files/replace-file.js';
 import path from 'node:path';
 import {
   TRANSCRIPTION_LIFECYCLE,
   defaultTranscriptionSettings,
+  isTranscriptionQualityMode,
   isValidTargetLanguage,
   normalizeTargetLanguage,
   type TranscriptionJob,
+  type TranscriptionLanguageCandidate,
+  type TranscriptionQualityMode,
   type TranscriptionSettings,
   type TranscriptionTranslationSummary
 } from '@video-compressor/shared';
@@ -76,11 +80,18 @@ export function defaultTranscriptionStatePath() {
  * playback then degrades gracefully); every other job needs a readable source.
  */
 export async function loadTranscriptionState(
-  file = defaultTranscriptionStatePath()
+  file = defaultTranscriptionStatePath(),
+  options: {
+    /**
+     * The quality a state file written before the setting existed should get. The caller
+     * knows which models are installed; this module does not look.
+     */
+    fallbackQuality?: TranscriptionQualityMode;
+  } = {}
 ): Promise<PersistedTranscriptionState> {
   try {
     const data = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
-    const settings = migrateSettings(data.settings);
+    const settings = migrateSettings(data.settings, options.fallbackQuality);
     const rawJobs = Array.isArray(data.jobs) ? data.jobs : [];
     const documentsRoot = transcriptionDocumentsRoot();
     const jobs = (
@@ -103,7 +114,13 @@ export async function loadTranscriptionState(
     ).filter((job): job is TranscriptionJob => Boolean(job));
     return { jobs, settings };
   } catch {
-    return { jobs: [], settings: defaultTranscriptionSettings() };
+    return {
+      jobs: [],
+      settings: {
+        ...defaultTranscriptionSettings(),
+        ...(options.fallbackQuality ? { quality: options.fallbackQuality } : {})
+      }
+    };
   }
 }
 
@@ -116,24 +133,31 @@ export async function saveTranscriptionState(
   await tightenDirectory(directory);
   const temporary = `${file}.${process.pid}.${randomUUID()}.tmp`;
   try {
-    await writeFile(temporary, JSON.stringify(state, null, 2), {
+    // Compact on purpose: the list is rewritten on every status change, and the indentation
+    // of a two-hundred-file queue is a third of the bytes for nobody's benefit.
+    await writeFile(temporary, JSON.stringify(state), {
       encoding: 'utf8',
       mode: OWNER_ONLY_FILE
     });
-    await rename(temporary, file);
+    await replaceFile(temporary, file);
   } finally {
     await unlink(temporary).catch(() => {});
   }
 }
 
-function migrateSettings(value: unknown): TranscriptionSettings {
+function migrateSettings(
+  value: unknown,
+  fallbackQuality: TranscriptionQualityMode = defaultTranscriptionSettings().quality
+): TranscriptionSettings {
   const defaults = defaultTranscriptionSettings();
   const raw = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
   return {
     language: typeof raw.language === 'string' && raw.language ? raw.language : defaults.language,
     translationLanguage: isValidTargetLanguage(raw.translationLanguage)
       ? normalizeTargetLanguage(raw.translationLanguage)
-      : defaults.translationLanguage
+      : defaults.translationLanguage,
+    quality: isTranscriptionQualityMode(raw.quality) ? raw.quality : fallbackQuality,
+    ...(raw.translationDeclined === true ? { translationDeclined: true } : {})
   };
 }
 
@@ -186,6 +210,20 @@ function migrateJob(value: unknown, settings: TranscriptionSettings): Transcript
         ? raw.requestedLanguage
         : settings.language,
     detectedLanguage: typeof raw.detectedLanguage === 'string' ? raw.detectedLanguage : null,
+    // What was known about the language survives the restart. A person's correction most of
+    // all: without it a file put back on the right language would come back on the wrong
+    // one, and the next run would listen for the wrong one too.
+    ...restoredLanguageKnowledge(raw),
+    ...(isTranscriptionQualityMode(raw.quality) ? { quality: raw.quality } : {}),
+    ...(status === 'completed' && typeof raw.timed === 'boolean' ? { timed: raw.timed } : {}),
+    ...(status === 'completed' &&
+    Number.isFinite(Number(raw.audibleSeconds)) &&
+    Number(raw.audibleSeconds) > 0
+      ? { audibleSeconds: Number(raw.audibleSeconds) }
+      : {}),
+    ...(status === 'completed' && typeof raw.preview === 'string' && raw.preview
+      ? { preview: raw.preview.slice(0, 400) }
+      : {}),
     // Transcript text lives in the document sidecar and is re-attached by job
     // id on demand; the persisted state never duplicates it.
     text: null,
@@ -219,28 +257,92 @@ function migrateJob(value: unknown, settings: TranscriptionSettings): Transcript
 }
 
 /**
- * Only a finished translation summary survives a restart. Queued/processing
- * work died with the process, and its results live in the shared translation
- * cache anyway — re-requesting the language after the restart is served from
- * there without re-running inference.
+ * What a restart keeps of the probe's findings.
+ *
+ * Only alongside a language: a source or a share with nothing to describe would be a claim
+ * about a file whose language is unknown. `languageProbing` is deliberately not restored —
+ * no probe is running at boot, and the queue schedules a fresh one where it is still needed.
+ */
+function restoredLanguageKnowledge(raw: Record<string, unknown>): Partial<TranscriptionJob> {
+  if (typeof raw.detectedLanguage !== 'string' || !raw.detectedLanguage) return {};
+  const source =
+    raw.languageSource === 'probe' ||
+    raw.languageSource === 'run' ||
+    raw.languageSource === 'manual'
+      ? raw.languageSource
+      : null;
+  const confidence = Number(raw.languageConfidence);
+  const candidates = Array.isArray(raw.languageCandidates)
+    ? raw.languageCandidates
+        .filter(
+          (entry): entry is TranscriptionLanguageCandidate =>
+            !!entry &&
+            typeof entry === 'object' &&
+            typeof (entry as TranscriptionLanguageCandidate).language === 'string' &&
+            Number.isFinite((entry as TranscriptionLanguageCandidate).share)
+        )
+        .map(entry => ({ language: entry.language, share: entry.share }))
+    : [];
+  const samples = Number(raw.languageSamples);
+  return {
+    ...(source ? { languageSource: source } : {}),
+    ...(Number.isFinite(confidence) && confidence >= 0 && confidence <= 1
+      ? { languageConfidence: confidence }
+      : {}),
+    ...(candidates.length ? { languageCandidates: candidates } : {}),
+    ...(Number.isFinite(samples) && samples > 0 ? { languageSamples: samples } : {})
+  };
+}
+
+/**
+ * What a restart keeps of a translation.
+ *
+ * A finished one comes back as it was. One that was queued or running when the process
+ * stopped comes back as `queued`, with no progress claimed: the work itself died with the
+ * process, but the segments it had already produced are on disk in the sidecar, and the
+ * queue re-requests the language on boot and resumes from them. It used to be dropped
+ * altogether, which left a half-translated file showing no translation at all until the
+ * user happened to pick the language again.
  */
 function migrateTranslationSummary(value: unknown): TranscriptionTranslationSummary | null {
   if (!value || typeof value !== 'object') return null;
   const raw = value as Record<string, unknown>;
-  if (
-    raw.status !== 'completed' ||
-    typeof raw.targetLanguage !== 'string' ||
-    !isValidTargetLanguage(raw.targetLanguage)
-  ) {
+  if (typeof raw.targetLanguage !== 'string' || !isValidTargetLanguage(raw.targetLanguage)) {
     return null;
   }
+  const targetLanguage = normalizeTargetLanguage(raw.targetLanguage);
   const total = Math.max(0, Number(raw.totalSegments) || 0);
-  return {
-    targetLanguage: normalizeTargetLanguage(raw.targetLanguage),
-    status: 'completed',
-    progress: 100,
-    completedSegments: total,
-    totalSegments: total,
-    error: null
-  };
+  if (raw.status === 'completed') {
+    return {
+      targetLanguage,
+      status: 'completed',
+      progress: 100,
+      completedSegments: total,
+      totalSegments: total,
+      error: null
+    };
+  }
+  if (raw.status === 'queued' || raw.status === 'processing') {
+    return {
+      targetLanguage,
+      status: 'queued',
+      progress: null,
+      completedSegments: 0,
+      totalSegments: total,
+      error: null
+    };
+  }
+  // A file waiting for a translator that is not installed keeps saying so — and keeps the
+  // way to install it — across a restart; it is re-requested the moment the models land.
+  if (raw.status === 'unavailable') {
+    return {
+      targetLanguage,
+      status: 'unavailable',
+      progress: null,
+      completedSegments: 0,
+      totalSegments: 0,
+      error: 'TRANSLATOR_UNAVAILABLE'
+    };
+  }
+  return null;
 }

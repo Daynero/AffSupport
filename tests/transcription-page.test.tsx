@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   TranscriptionDocument,
@@ -38,13 +38,15 @@ const api = vi.hoisted(() => ({
 }));
 
 vi.mock('../apps/web/src/api/client.js', () => api);
+/** Mutable, so a test can mount the page before the agent has answered and then connect. */
+const agent = vi.hoisted(() => ({
+  connection: 'connected' as 'checking' | 'connected' | 'disconnected',
+  connectedOnce: true,
+  reconnect: vi.fn(),
+  capabilities: ['local-file-paths']
+}));
 vi.mock('../apps/web/src/AgentContext.js', () => ({
-  useAgent: () => ({
-    connection: 'connected',
-    connectedOnce: true,
-    reconnect: vi.fn(),
-    capabilities: ['local-file-paths']
-  })
+  useAgent: () => ({ ...agent })
 }));
 vi.mock('../apps/web/src/App.js', async () => {
   const ReactModule = await import('react');
@@ -61,6 +63,7 @@ vi.mock('../apps/web/src/analytics/service.js', () => ({
 }));
 
 import TranscriptionPage from '../apps/web/src/transcription/TranscriptionPage.js';
+import { forgetTranscriptDocuments } from '../apps/web/src/transcription/document-cache.js';
 
 const installedModel: TranscriptionModelInfo = {
   present: true,
@@ -145,11 +148,25 @@ const state: TranscriptionState = {
 };
 
 class EventSourceStub {
+  static latest: EventSourceStub | null = null;
   onmessage: ((event: MessageEvent) => void) | null = null;
+  onopen: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  constructor() {
+    EventSourceStub.latest = this;
+  }
   close() {}
+  /** What the agent would push: one frame carrying the whole state. */
+  push(next: TranscriptionState) {
+    this.onmessage?.({
+      data: JSON.stringify({ type: 'transcription:state', state: next })
+    } as MessageEvent);
+  }
 }
 
 beforeEach(() => {
+  // Documents are remembered across renders of the page; a test starts with none.
+  forgetTranscriptDocuments();
   localStorage.setItem('language', 'uk');
   vi.stubGlobal('EventSource', EventSourceStub);
   api.request.mockReset().mockResolvedValue(state);
@@ -190,7 +207,7 @@ describe('transcription page batch copy', () => {
   it('copies finished transcripts with their translations from the toolbar', async () => {
     render(<TranscriptionPage />);
 
-    const button = await screen.findByRole('button', { name: 'Копіювати всі завершені (2)' });
+    const button = await screen.findByRole('button', { name: 'Копіювати завершені (2)' });
     // The control belongs to the queue toolbar above the list, not below it.
     expect(button.closest('.batch-toolbar')).not.toBeNull();
     expect(document.querySelector('.transcription-list-actions')).toBeNull();
@@ -200,10 +217,10 @@ describe('transcription page batch copy', () => {
 
     await waitFor(() =>
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-        'Транскрибування 1: newer.mp4\n' +
+        'Транскрипція 1: newer.mp4\n' +
           'Транскрипція:\nНовіший текст.\n\n' +
           'Переклад (Англійська):\nNewer text.\n\n' +
-          'Транскрибування 2: older.mp4\n' +
+          'Транскрипція 2: older.mp4\n' +
           'Транскрипція:\nСтаріший текст.'
       )
     );
@@ -224,7 +241,7 @@ describe('transcription page batch copy', () => {
 
     await waitFor(() =>
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-        'Транскрибування 1: newer.mp4 · Переклад (Англійська)\nNewer text.'
+        'Транскрипція 1: newer.mp4 · Переклад (Англійська)\nNewer text.'
       )
     );
     expect(api.transcriptionDocument).toHaveBeenCalledTimes(1);
@@ -236,7 +253,7 @@ describe('transcription page batch copy', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Параметри копіювання' }));
     fireEvent.click(screen.getByRole('radio', { name: 'Лише переклад' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Копіювати всі завершені (1)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Копіювати завершені (1)' }));
 
     expect(await screen.findByText('З цими параметрами копіювати нічого')).toBeTruthy();
     expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
@@ -261,17 +278,23 @@ describe('transcription page batch copy', () => {
     render(<TranscriptionPage />);
 
     expect(await screen.findByText('Перекладаємо')).toBeTruthy();
-    const select = screen.getByRole('combobox', { name: 'Перекласти на' }) as HTMLSelectElement;
-    expect(select.value).toBe('uk');
+    const combobox = screen.getByRole('combobox', { name: 'Перекласти на' }) as HTMLInputElement;
+    // The row's picker shows the language by name; the code stays behind it.
+    expect(combobox.value).toBe('Українська');
     expect(
       screen
         .getByRole('progressbar', { name: 'Переклад файлу translated.mp4' })
         .getAttribute('aria-valuenow')
     ).toBe('25');
 
-    fireEvent.change(select, { target: { value: 'de' } });
+    fireEvent.focus(combobox);
+    fireEvent.change(combobox, { target: { value: 'нім' } });
+    // Scoped to the picker's own list: the spoken-language select lists the same names.
+    fireEvent.click(
+      await within(await screen.findByRole('listbox')).findByRole('option', { name: 'Німецька' })
+    );
 
-    expect(select.value).toBe('de');
+    expect(combobox.value).toBe('Німецька');
     await waitFor(() =>
       expect(api.transcriptionTranslate).toHaveBeenCalledWith('translated', 'de')
     );
@@ -294,9 +317,10 @@ describe('re-transcribing and stopping the queue', () => {
 
     const selected = await screen.findByRole('checkbox', { name: 'Вибрати newer.mp4' });
     fireEvent.click(selected);
-    expect(screen.getByText('Вибрано 1 файл')).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Транскрибувати вибрані' }));
+    // The primary action names the selection and how many of it can run; there is no
+    // separate "1 selected" line, the button is the count.
+    fireEvent.click(screen.getByRole('button', { name: 'Транскрибувати вибрані (1)' }));
 
     await waitFor(() => expect(api.transcriptionStart).toHaveBeenCalledWith(['newer']));
   });
@@ -317,5 +341,69 @@ describe('re-transcribing and stopping the queue', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Зупинити все' }));
     await waitFor(() => expect(api.transcriptionCancelAll).toHaveBeenCalled());
+  });
+});
+
+describe('live updates', () => {
+  it('applies newer frames, drops stale ones, and accepts a restarted agent', async () => {
+    api.request.mockResolvedValue({ ...state, revision: 10, instance: 'run-one' });
+    render(<TranscriptionPage />);
+    await screen.findByText('older.mp4');
+    const stream = EventSourceStub.latest!;
+
+    // A frame from the same run with a higher revision is shown.
+    await act(async () => {
+      stream.push({
+        ...state,
+        revision: 11,
+        instance: 'run-one',
+        jobs: [job('fresh', 9, 'ready')]
+      });
+    });
+    expect(await screen.findByText('fresh.mp4')).toBeTruthy();
+    expect(screen.queryByText('older.mp4')).toBeNull();
+
+    // An older frame from the same run — a request that raced the stream — is not.
+    await act(async () => {
+      stream.push({ ...state, revision: 5, instance: 'run-one', jobs: [job('stale', 1, 'ready')] });
+    });
+    expect(screen.queryByText('stale.mp4')).toBeNull();
+
+    // The agent restarted: its numbers start over, and the first frame of the new run wins
+    // whatever its number says. This used to freeze the page on the old run's last state.
+    await act(async () => {
+      stream.push({
+        ...state,
+        revision: 1,
+        instance: 'run-two',
+        jobs: [job('after-restart', 2, 'ready')]
+      });
+    });
+    expect(await screen.findByText('after-restart.mp4')).toBeTruthy();
+  });
+});
+
+describe('mounting before the agent answers', () => {
+  it('renders the checking state, then the page, without a hooks mismatch', async () => {
+    agent.connection = 'checking';
+    agent.connectedOnce = false;
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const view = render(<TranscriptionPage />);
+      expect(screen.queryByRole('checkbox', { name: 'Вибрати все' })).toBeNull();
+      agent.connection = 'connected';
+      agent.connectedOnce = true;
+      view.rerender(<TranscriptionPage />);
+      await screen.findByRole('checkbox', { name: 'Вибрати все' });
+      // "Rendered more hooks than during the previous render" arrives through console.error.
+      expect(errors.mock.calls.map(call => String(call[0]))).not.toContainEqual(
+        expect.stringContaining('hooks')
+      );
+      view.unmount();
+    } finally {
+      errors.mockRestore();
+      agent.connection = 'connected';
+      agent.connectedOnce = true;
+    }
   });
 });

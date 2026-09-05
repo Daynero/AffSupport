@@ -139,6 +139,30 @@ describe('buildTeamRoute', () => {
     );
   });
 
+  it('carries the account scope of the task list, agent over account (017)', () => {
+    expect(parseTeamRoute('/team/space-1/tasks?agent=agent-4')).toMatchObject({
+      query: { agentId: 'agent-4', accountId: null }
+    });
+    expect(parseTeamRoute('/team/space-1/tasks?account=acc-2')).toMatchObject({
+      query: { agentId: null, accountId: 'acc-2' }
+    });
+    expect(
+      buildTeamRoute({ spaceId: 'space-1', section: 'tasks', query: { accountId: 'acc-2' } })
+    ).toBe('/team/space-1/tasks?account=acc-2');
+    // An agent is narrower than its account, so only it is written.
+    expect(
+      buildTeamRoute({
+        spaceId: 'space-1',
+        section: 'tasks',
+        query: { agentId: 'agent-4', accountId: 'acc-2' }
+      })
+    ).toBe('/team/space-1/tasks?agent=agent-4');
+    // The explorer has no use for it.
+    expect(buildTeamRoute({ spaceId: 'space-1', query: { agentId: 'agent-4' } })).toBe(
+      '/team/space-1'
+    );
+  });
+
   it('drops query state the section cannot act on', () => {
     // One view, one address: a Tasks link carrying a catalog filter would make
     // Back walk through addresses that render identically.

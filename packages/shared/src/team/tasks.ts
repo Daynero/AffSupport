@@ -1,4 +1,5 @@
 import { isRecord, normalizeTeamFreeText } from './contract.js';
+import type { TeamTaskAgentTag } from './accounts.js';
 import { MATERIAL_CATEGORIES, type MaterialCategory } from './material-category.js';
 
 /** Lightweight team task, progress, date-filter and attachment contracts. */
@@ -19,6 +20,26 @@ function isUuid(value: unknown): value is string {
 function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
   const allowedSet = new Set(allowed);
   return Object.keys(value).every(key => allowedSet.has(key));
+}
+
+/**
+ * A task's description keeps its lines. `normalizeTeamFreeText` folds every
+ * run of whitespace into one space — right for a title, wrong for a note that
+ * someone laid out as a column of facts (offer, geo, budget, one per line).
+ * Here only the spaces *within* a line are folded; line breaks stay, runs of
+ * blank lines are capped at one blank line, and the ends are trimmed.
+ */
+export function normalizeTeamTaskNote(value: unknown, maxLength = 2_000): string | null {
+  if (typeof value !== 'string') return null;
+  const note = value
+    .normalize('NFC')
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map(line => line.replace(/[ \t\f\v\u00a0]+/g, ' ').trimEnd())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return note.length >= 1 && note.length <= maxLength ? note : null;
 }
 
 export interface TeamTaskPatch {
@@ -58,7 +79,7 @@ export function parseTeamTaskPatch(value: unknown): TeamTaskPatch | null {
     if (value.note === null || value.note === '') {
       output.note = null;
     } else {
-      const note = normalizeTeamFreeText(value.note, 2_000);
+      const note = normalizeTeamTaskNote(value.note, 2_000);
       if (!note) return null;
       output.note = note;
     }
@@ -220,6 +241,8 @@ export interface TeamTaskSummary extends TeamTaskProgressState {
   assigneeId: string | null;
   assigneeLabelSnapshot: string | null;
   attachmentCount: number;
+  /** The agents this task is tagged with (017): `[v31-434]`, with their live state. */
+  agents: TeamTaskAgentTag[];
   createdBy: string;
   createdAt: string;
   updatedAt: string;

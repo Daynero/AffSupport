@@ -70,6 +70,12 @@ export interface LandingViewerSource {
    */
   imageUrl(item: LandingPreviewItem, segment: number): string | Promise<string | null> | null;
 
+  /**
+   * The grid's small picture of a landing, present when the source can serve one. Only asked
+   * for items that say `thumbnailAvailable`; others fall back to the first full slice.
+   */
+  thumbnailUrl?(item: LandingPreviewItem): string | Promise<string | null> | null;
+
   /** Switch active catalogue — the one action every source supports. */
   activate(catalogId: string): Promise<LandingPreviewState>;
 

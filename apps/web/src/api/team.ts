@@ -27,6 +27,15 @@ import {
   parseTaskAttachmentMutation,
   parseTeamTaskAttachmentSummary,
   parseTeamTaskPatch,
+  parseTeamAccount,
+  parseTeamAccountAgent,
+  parseTeamTaskAgentTags,
+  type TeamTaskAgentTag,
+  normalizeTeamAccountName,
+  normalizeTeamAgentId,
+  normalizeTeamAgentNote,
+  type TeamAccountAgentSummary,
+  type TeamAccountSummary,
   parseUploadBatchRequest,
   isFolderPage,
   isStorageHealth,
@@ -772,6 +781,10 @@ function driveSelection(value: unknown): unknown {
 
 function throwRpc(error: { message: string; code?: string } | null): void {
   if (!error) return;
+  // A unique index that fired before the function's own check could — two
+  // people naming the same account in the same second — arrives as bare
+  // SQLSTATE 23505 with no uppercase token in it. It means the same thing.
+  if (error.code === '23505') throw new TeamApiError('NAME_CONFLICT', false);
   const candidates = [error.message, error.code ?? ''].flatMap(
     value => value.match(/[A-Z][A-Z0-9_]+/g) ?? []
   );
@@ -797,10 +810,10 @@ function workspaceFolderGuard(
   const row = asRecord(value);
   return Boolean(
     row &&
-      typeof row.folderId === 'string' &&
-      row.folderId.length > 0 &&
-      typeof row.created === 'boolean' &&
-      typeof row.name === 'string'
+    typeof row.folderId === 'string' &&
+    row.folderId.length > 0 &&
+    typeof row.created === 'boolean' &&
+    typeof row.name === 'string'
   );
 }
 
@@ -970,6 +983,10 @@ function mapTeamTask(value: unknown): TeamTaskSummary | null {
   }
   const attachmentCount = row.attachment_count ?? 0;
   if (typeof attachmentCount !== 'number' || !Number.isSafeInteger(attachmentCount)) return null;
+  // The list and detail reads carry the tags; a write RPC returns the bare row
+  // and the caller keeps the tags it already has (as it does attachmentCount).
+  const agents = parseTeamTaskAgentTags(row.agents);
+  if (agents === null) return null;
   return {
     id: row.id,
     teamId: row.team_id,
@@ -983,6 +1000,7 @@ function mapTeamTask(value: unknown): TeamTaskSummary | null {
     progressValue: row.progress_value,
     progressManuallySet: row.progress_manually_set,
     attachmentCount,
+    agents,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     completedAt: row.completed_at
@@ -1450,7 +1468,9 @@ export const teamApi = {
       p_companion: companionId
     });
     throwRpc(error);
-    return typeof data === 'object' && data !== null && (data as { linked?: unknown }).linked === true;
+    return (
+      typeof data === 'object' && data !== null && (data as { linked?: unknown }).linked === true
+    );
   },
 
   async getTranscriptCompanion(
@@ -2332,6 +2352,10 @@ export const teamApi = {
     createdFrom?: string | null;
     createdTo?: string | null;
     status?: TeamTaskStatus | null;
+    /** Only tasks tagged with this agent (017). */
+    agentRowId?: string | null;
+    /** Only tasks tagged with any agent of this account (017). */
+    accountId?: string | null;
     cursor?: string | null;
     pageSize?: number;
   }): Promise<TeamTaskSummary[]> {
@@ -2340,6 +2364,8 @@ export const teamApi = {
       p_created_from: input.createdFrom ?? undefined,
       p_created_to: input.createdTo ?? undefined,
       p_status: input.status ?? undefined,
+      p_agent: input.agentRowId ?? undefined,
+      p_account: input.accountId ?? undefined,
       p_cursor: input.cursor ?? undefined,
       p_page_size: input.pageSize ?? 50
     });
@@ -2687,6 +2713,210 @@ export const teamApi = {
     const { data, error } = await requireSupabaseClient().rpc('delete_team_task', {
       p_team: input.teamId,
       p_task: input.taskId
+    });
+    throwRpc(error);
+    if (data?.[0]?.ok !== true) throw new TeamApiError('INVALID_RESPONSE', false);
+    return true;
+  },
+
+  /** Tag a task with an agent (017). Returns the task's whole tag list. */
+  async attachTaskAgent(input: {
+    teamId: string;
+    taskId: string;
+    agentRowId: string;
+  }): Promise<TeamTaskAgentTag[]> {
+    const { data, error } = await requireSupabaseClient().rpc('attach_team_task_agent', {
+      p_team: input.teamId,
+      p_task: input.taskId,
+      p_agent: input.agentRowId
+    });
+    throwRpc(error);
+    const tags = parseTeamTaskAgentTags(data);
+    if (!tags) throw new TeamApiError('INVALID_RESPONSE', false);
+    return tags;
+  },
+
+  async detachTaskAgent(input: {
+    teamId: string;
+    taskId: string;
+    agentRowId: string;
+  }): Promise<TeamTaskAgentTag[]> {
+    const { data, error } = await requireSupabaseClient().rpc('detach_team_task_agent', {
+      p_team: input.teamId,
+      p_task: input.taskId,
+      p_agent: input.agentRowId
+    });
+    throwRpc(error);
+    const tags = parseTeamTaskAgentTags(data);
+    if (!tags) throw new TeamApiError('INVALID_RESPONSE', false);
+    return tags;
+  },
+
+  // ---------------------------------------------------------------------------
+  // Team accounts (017): the social accounts a space runs from, and their agents.
+  // ---------------------------------------------------------------------------
+
+  /** Every account of a space with its agents nested — one round trip, no paging. */
+  async listAccounts(teamId: string): Promise<TeamAccountSummary[]> {
+    const { data, error } = await requireSupabaseClient().rpc('list_team_accounts', {
+      p_team: teamId
+    });
+    throwRpc(error);
+    const accounts = (data ?? []).map(parseTeamAccount);
+    if (accounts.some(account => account === null)) {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return accounts.filter((account): account is TeamAccountSummary => account !== null);
+  },
+
+  async createAccount(input: { teamId: string; name: string }): Promise<TeamAccountSummary> {
+    const name = normalizeTeamAccountName(input.name);
+    if (!name) throw new TeamApiError('INVALID_INPUT', false);
+    const { data, error } = await requireSupabaseClient().rpc('create_team_account', {
+      p_team: input.teamId,
+      p_name: name
+    });
+    throwRpc(error);
+    const account = parseTeamAccount({ ...(data as object), agents: [] });
+    if (!account) throw new TeamApiError('INVALID_RESPONSE', false);
+    return account;
+  },
+
+  /** Returns the account without its agents; the caller keeps the ones it has. */
+  async renameAccount(input: {
+    teamId: string;
+    accountId: string;
+    name: string;
+  }): Promise<Omit<TeamAccountSummary, 'agents'>> {
+    const name = normalizeTeamAccountName(input.name);
+    if (!name) throw new TeamApiError('INVALID_INPUT', false);
+    const { data, error } = await requireSupabaseClient().rpc('rename_team_account', {
+      p_team: input.teamId,
+      p_account: input.accountId,
+      p_name: name
+    });
+    throwRpc(error);
+    const account = parseTeamAccount({ ...(data as object), agents: [] });
+    if (!account) throw new TeamApiError('INVALID_RESPONSE', false);
+    const { id, teamId, name: cleanName, createdAt, updatedAt } = account;
+    return { id, teamId, name: cleanName, createdAt, updatedAt };
+  },
+
+  /** Delete an account. Its agents go with it. */
+  async deleteAccount(input: { teamId: string; accountId: string }): Promise<true> {
+    const { data, error } = await requireSupabaseClient().rpc('delete_team_account', {
+      p_team: input.teamId,
+      p_account: input.accountId
+    });
+    throwRpc(error);
+    if (data?.[0]?.ok !== true) throw new TeamApiError('INVALID_RESPONSE', false);
+    return true;
+  },
+
+  async addAccountAgent(input: {
+    teamId: string;
+    accountId: string;
+    agentId: string;
+    note?: string | null;
+  }): Promise<TeamAccountAgentSummary> {
+    const agentId = normalizeTeamAgentId(input.agentId);
+    const note = normalizeTeamAgentNote(input.note);
+    if (!agentId || note === undefined) throw new TeamApiError('INVALID_INPUT', false);
+    const { data, error } = await requireSupabaseClient().rpc('add_team_account_agent', {
+      p_team: input.teamId,
+      p_account: input.accountId,
+      p_agent_id: agentId,
+      p_note: note ?? undefined
+    });
+    throwRpc(error);
+    const agent = parseTeamAccountAgent(data);
+    if (!agent) throw new TeamApiError('INVALID_RESPONSE', false);
+    return agent;
+  },
+
+  /** The id alone; runs have their own calls below. */
+  async updateAccountAgent(input: {
+    teamId: string;
+    agentRowId: string;
+    agentId: string;
+  }): Promise<TeamAccountAgentSummary> {
+    const agentId = normalizeTeamAgentId(input.agentId);
+    if (!agentId) throw new TeamApiError('INVALID_INPUT', false);
+    const { data, error } = await requireSupabaseClient().rpc('update_team_account_agent', {
+      p_team: input.teamId,
+      p_agent: input.agentRowId,
+      p_agent_id: agentId
+    });
+    throwRpc(error);
+    const agent = parseTeamAccountAgent(data);
+    if (!agent) throw new TeamApiError('INVALID_RESPONSE', false);
+    return agent;
+  },
+
+  /** A run on an agent (017, part 3). Every run call returns the whole agent. */
+  async addAgentRun(input: {
+    teamId: string;
+    agentRowId: string;
+    note: string;
+  }): Promise<TeamAccountAgentSummary> {
+    const note = normalizeTeamAgentNote(input.note);
+    if (!note) throw new TeamApiError('INVALID_INPUT', false);
+    const { data, error } = await requireSupabaseClient().rpc('add_team_agent_run', {
+      p_team: input.teamId,
+      p_agent: input.agentRowId,
+      p_note: note
+    });
+    throwRpc(error);
+    const agent = parseTeamAccountAgent(data);
+    if (!agent) throw new TeamApiError('INVALID_RESPONSE', false);
+    return agent;
+  },
+
+  async updateAgentRun(input: {
+    teamId: string;
+    runId: string;
+    note: string;
+  }): Promise<TeamAccountAgentSummary> {
+    const note = normalizeTeamAgentNote(input.note);
+    if (!note) throw new TeamApiError('INVALID_INPUT', false);
+    const { data, error } = await requireSupabaseClient().rpc('update_team_agent_run', {
+      p_team: input.teamId,
+      p_run: input.runId,
+      p_note: note
+    });
+    throwRpc(error);
+    const agent = parseTeamAccountAgent(data);
+    if (!agent) throw new TeamApiError('INVALID_RESPONSE', false);
+    return agent;
+  },
+
+  async deleteAgentRun(input: { teamId: string; runId: string }): Promise<TeamAccountAgentSummary> {
+    const { data, error } = await requireSupabaseClient().rpc('delete_team_agent_run', {
+      p_team: input.teamId,
+      p_run: input.runId
+    });
+    throwRpc(error);
+    const agent = parseTeamAccountAgent(data);
+    if (!agent) throw new TeamApiError('INVALID_RESPONSE', false);
+    return agent;
+  },
+
+  /** Frees the agent: every run goes. */
+  async clearAgentRuns(input: { teamId: string; agentRowId: string }): Promise<TeamAccountAgentSummary> {
+    const { data, error } = await requireSupabaseClient().rpc('clear_team_agent_runs', {
+      p_team: input.teamId,
+      p_agent: input.agentRowId
+    });
+    throwRpc(error);
+    const agent = parseTeamAccountAgent(data);
+    if (!agent) throw new TeamApiError('INVALID_RESPONSE', false);
+    return agent;
+  },
+
+  async deleteAccountAgent(input: { teamId: string; agentRowId: string }): Promise<true> {
+    const { data, error } = await requireSupabaseClient().rpc('delete_team_account_agent', {
+      p_team: input.teamId,
+      p_agent: input.agentRowId
     });
     throwRpc(error);
     if (data?.[0]?.ok !== true) throw new TeamApiError('INVALID_RESPONSE', false);

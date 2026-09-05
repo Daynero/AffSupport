@@ -344,7 +344,8 @@ function migrateImageEmbeddingSettings(value: unknown): ImageEmbeddingSettings {
       ? ((value as Record<string, unknown>).disabledImageIds as unknown[]).filter(
           (id): id is string => typeof id === 'string'
         )
-      : [],    finalDurationMode:
+      : [],
+    finalDurationMode:
       raw.finalDurationMode === 'random-30-40' ||
       raw.finalDurationMode === 'random-40-50' ||
       raw.finalDurationMode === 'random-50-60' ||

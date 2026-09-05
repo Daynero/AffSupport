@@ -1,10 +1,12 @@
+import { ChevronDown, Folder, FolderInput, Users } from 'lucide-react';
 import type { LandingPreviewCatalogSummary } from '@video-compressor/shared';
+import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { useI18n } from '../i18n';
+import { MenuItem, MenuSeparator, ViewerMenu } from './internal/ViewerMenu';
 
 /**
- * The folder identity that doubles as the folder switcher (feature 004 UX). Clicking the active
- * folder name opens a menu of recent folders plus an explicit "choose another folder" entry — the
- * direct fix for "it isn't obvious how to pick a new folder". Purely presentational.
+ * The open folder's name, which is also how another folder is chosen: the menu lists every
+ * folder opened before and ends with the picker.
  */
 export function LandingSourceSwitcher({
   catalogs,
@@ -26,52 +28,67 @@ export function LandingSourceSwitcher({
   onChooseFolder: () => void;
 }) {
   const { t } = useI18n();
+  const active = catalogs.find(catalog => catalog.id === activeCatalogId);
+  const ActiveIcon = active?.sourceKind === 'team' ? Users : Folder;
   return (
-    <details className="landing-gallery-source-switcher">
-      <summary
-        className="landing-gallery-delayed-tooltip"
-        data-tooltip={t('landingGallerySwitchSource')}
-        aria-label={t('landingGallerySwitchSource')}
-      >
-        <span className="landing-gallery-source-icon" aria-hidden="true">
-          🗀
-        </span>
-        <span className="landing-gallery-source-copy">
-          <strong>{activeCatalogName}</strong>
-          <small>{t('landingGalleryCount', { count: landingCount })}</small>
-        </span>
-        <span className="landing-gallery-source-caret" aria-hidden="true">
-          ⌄
-        </span>
-      </summary>
-      <div className="landing-gallery-source-menu">
-        {catalogs.map(catalog => (
-          <button
-            key={catalog.id}
-            type="button"
-            aria-current={catalog.id === activeCatalogId}
-            disabled={disabled}
-            onClick={() => onActivate(catalog.id)}
-          >
-            <strong>{catalog.name}</strong>
-            <small>
-              {catalog.sourceAvailable
-                ? t('landingGalleryCount', { count: catalog.landingCount })
-                : t('landingGalleryUnavailable')}
-            </small>
-          </button>
-        ))}
-        {canChooseFolder && (
-          <button
-            type="button"
-            className="landing-gallery-source-add"
-            disabled={disabled}
-            onClick={onChooseFolder}
-          >
-            ＋ {t('landingGalleryChooseAnother')}
-          </button>
-        )}
-      </div>
-    </details>
+    <ViewerMenu
+      label={t('landingGallerySwitchSource')}
+      align="start"
+      triggerClassName="lv-source"
+      trigger={
+        <>
+          <ActiveIcon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          <span className="lv-source-copy">
+            <strong>{activeCatalogName}</strong>
+            <small>{t('landingGalleryCount', { count: landingCount })}</small>
+          </span>
+          <ChevronDown size={16} strokeWidth={2} aria-hidden="true" />
+        </>
+      }
+    >
+      {close => (
+        <>
+          {catalogs.map(catalog => {
+            const Icon = catalog.sourceKind === 'team' ? Users : Folder;
+            return (
+              <MenuItem
+                key={catalog.id}
+                icon={<Icon size={ICON_SIZE - 2} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+                title={catalog.name}
+                detail={
+                  catalog.sourceAvailable
+                    ? t('landingGalleryCount', { count: catalog.landingCount })
+                    : t('landingGalleryUnavailable')
+                }
+                current={catalog.id === activeCatalogId}
+                disabled={disabled}
+                onClick={() => {
+                  close();
+                  if (catalog.id !== activeCatalogId) onActivate(catalog.id);
+                }}
+              />
+            );
+          })}
+          {canChooseFolder && (
+            <>
+              <MenuSeparator />
+              <MenuItem
+                className="is-add"
+                icon={
+                  <FolderInput size={ICON_SIZE - 2} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                }
+                disabled={disabled}
+                onClick={() => {
+                  close();
+                  onChooseFolder();
+                }}
+              >
+                {t('landingGalleryChooseAnother')}
+              </MenuItem>
+            </>
+          )}
+        </>
+      )}
+    </ViewerMenu>
   );
 }

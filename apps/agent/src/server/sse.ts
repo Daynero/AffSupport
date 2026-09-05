@@ -12,7 +12,9 @@ import { eventStreamHeaders } from '../http.js';
  * know that the stream exists.
  */
 export class EventChannel<TEvent> {
-  private readonly clients = new Set<NodeJS.WritableStream>();
+  private readonly clients = new Set<
+    NodeJS.WritableStream & { writableLength?: number; destroy?: () => void }
+  >();
   private hub: ChannelHub | null = null;
   private hubName = '';
 
@@ -35,7 +37,20 @@ export class EventChannel<TEvent> {
     return this;
   }
 
+  /** Whether anybody would receive a broadcast right now, on either transport. */
+  hasListeners(): boolean {
+    return this.clients.size > 0 || this.hub?.hasListeners(this.hubName) === true;
+  }
+
   broadcast(event: TEvent): void {
+    // A progress tick with nobody connected is a JSON.stringify of the whole state for
+    // nobody — several times a second, for the length of every run made with the window
+    // closed. Nothing is lost by skipping it: a client that connects later is handed the
+    // current snapshot.
+    if (this.clients.size === 0) {
+      if (this.hub?.hasListeners(this.hubName)) this.hub.publish(this.hubName, event);
+      return;
+    }
     const payload = `data: ${JSON.stringify(event)}\n\n`;
     for (const client of this.clients) {
       // A socket that died between the 'close' event and this write must not
@@ -45,6 +60,13 @@ export class EventChannel<TEvent> {
         client.write(payload);
       } catch {
         this.clients.delete(client);
+        continue;
+      }
+      // The same guard the hub has: a reader that stopped draining is dropped before
+      // its buffer becomes the run's memory leak. It reconnects on its own.
+      if ((client.writableLength ?? 0) > STALLED_BYTES) {
+        this.clients.delete(client);
+        client.destroy?.();
       }
     }
     this.hub?.publish(this.hubName, event);
@@ -141,11 +163,18 @@ export class ChannelHub {
     return this.sources.get(name)?.snapshot() ?? null;
   }
 
+  /** Whether any subscriber is attached to this channel. */
+  hasListeners(name: string): boolean {
+    return this.listenerCount(name) > 0;
+  }
+
   publish(name: string, event: unknown): void {
     if (!name) return;
-    const frame = `data: ${JSON.stringify({ channel: name, event } satisfies Frame)}\n\n`;
+    // Serialised once, and only when somebody is there to read it.
+    let frame: string | null = null;
     for (const subscriber of [...this.subscribers]) {
       if (!subscriber.channels.has(name)) continue;
+      frame ??= `data: ${JSON.stringify({ channel: name, event } satisfies Frame)}\n\n`;
       this.write(subscriber, frame);
     }
   }

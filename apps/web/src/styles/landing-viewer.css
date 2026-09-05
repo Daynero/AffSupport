@@ -1,0 +1,1364 @@
+/*
+ * Landing viewer.
+ *
+ * Loaded after the shared stylesheet. The welcome state is an ordinary tool page — the
+ * compressor's drop zone, then a list of recent folders — and the viewer itself is a
+ * full-window stage: a 62px toolbar the height of the app's own top bar, a folder tree on
+ * the left, the rendered page in the middle. Every colour comes from the theme tokens, so
+ * the stage follows light and dark like the rest of the app.
+ */
+
+/* ==========================================================================
+   Welcome — drop zone and recent folders
+   ========================================================================== */
+
+.lv-welcome {
+  gap: var(--space-4);
+}
+
+.lv-welcome-error {
+  padding: 11px 14px;
+  border: 1px solid color-mix(in srgb, var(--color-error) 30%, var(--color-border));
+  border-radius: var(--radius-md);
+  color: var(--color-error);
+  background: var(--color-error-soft);
+  text-align: center;
+}
+
+.lv-welcome-note {
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+  text-align: center;
+}
+
+.lv-team-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.lv-sources {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+  align-items: start;
+}
+
+.lv-source-card {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.lv-source-card > h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-2xl);
+}
+
+.lv-source-card > h2 > svg {
+  color: var(--color-accent);
+}
+
+.lv-source-card > p {
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+}
+
+.lv-recent-list {
+  display: grid;
+  gap: 6px;
+}
+
+.lv-recent-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
+}
+
+.lv-recent-row > button:first-child {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  background: var(--color-surface-subtle);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color var(--dur-micro) var(--ease-standard),
+    background var(--dur-micro) var(--ease-standard);
+}
+
+.lv-recent-row > button:first-child:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
+  background: var(--color-accent-soft);
+}
+
+.lv-recent-row > button:first-child:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.lv-recent-row > button:first-child > svg {
+  flex: 0 0 auto;
+  color: var(--color-accent);
+}
+
+.lv-recent-row-copy {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.lv-recent-row-copy > strong,
+.lv-recent-row-copy > small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lv-recent-row-copy > small {
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+}
+
+.lv-recent-row.is-unavailable > button:first-child {
+  opacity: 0.6;
+}
+
+.lv-recent-row.is-unavailable small {
+  color: var(--color-warning);
+}
+
+.lv-recent-row > .lv-btn {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-subtle);
+}
+
+/* ==========================================================================
+   Viewer — the full-window stage
+   ========================================================================== */
+
+.lv-viewer {
+  --lv-toolbar-h: var(--topbar-h, 62px);
+  --lv-sidebar-w: 280px;
+  --lv-control-h: 40px;
+  /* The stage behind the rendered page: a shade below the app background, so a white
+     landing sits on a floor rather than floating on the same colour as the chrome. */
+  --lv-stage: color-mix(in oklab, var(--color-bg) 92%, black);
+  --lv-stage-glow: color-mix(in oklab, var(--color-accent) 10%, transparent);
+  position: fixed;
+  z-index: var(--layer-modal);
+  inset: 0;
+  display: grid;
+  grid-template:
+    'toolbar toolbar' var(--lv-toolbar-h)
+    'sidebar canvas' minmax(0, 1fr)
+    'progress progress' auto / var(--lv-sidebar-w) minmax(0, 1fr);
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+:root:not([data-theme='dark']) .lv-viewer {
+  --lv-stage: color-mix(in oklab, var(--color-bg) 88%, var(--purple-700));
+}
+
+.lv-viewer.sidebar-collapsed {
+  grid-template-columns: 0 minmax(0, 1fr);
+}
+
+/* Toolbar ------------------------------------------------------------------ */
+
+.lv-toolbar {
+  z-index: var(--layer-header);
+  grid-area: toolbar;
+  display: grid;
+  min-width: 0;
+  align-items: center;
+  /* The actions and the page counter keep their natural width; the leading group takes
+     what is left and its file name ellipsizes. Two equal side tracks looked tidier and
+     let the wider side draw over the counter. */
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  column-gap: var(--space-3);
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  /* The same violet-tinted slab the compressor's settings panel sits on, so the chrome
+     reads as Soty's and not as a generic image viewer. */
+  background: color-mix(in oklab, var(--purple-900) 28%, var(--color-surface));
+}
+
+:root:not([data-theme='dark']) .lv-toolbar {
+  background: color-mix(in oklab, var(--purple-100) 55%, var(--color-surface));
+}
+
+.lv-group {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.lv-group.is-navigation {
+  justify-content: center;
+}
+
+.lv-group.is-actions {
+  justify-content: flex-end;
+}
+
+/* A group inside a group (the refresh split) and a menu's root keep their width: a
+   shrinking one let its buttons draw over its neighbour instead of shedding a stage. */
+.lv-group .lv-group,
+.lv-menu-root {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-width: max-content;
+}
+
+/* The one button. Every control in the toolbar is this or a row of these. */
+.lv-btn {
+  display: inline-flex;
+  height: var(--lv-control-h);
+  min-width: var(--lv-control-h);
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    color var(--dur-micro) var(--ease-standard),
+    border-color var(--dur-micro) var(--ease-standard),
+    background var(--dur-micro) var(--ease-standard),
+    transform var(--dur-micro) var(--ease-standard);
+}
+
+.lv-btn > svg {
+  flex: 0 0 auto;
+}
+
+.lv-btn:hover:not(:disabled),
+.lv-btn[aria-expanded='true'] {
+  color: var(--color-text);
+  background: var(--color-surface-muted);
+}
+
+.lv-btn[aria-pressed='true'],
+.lv-btn.is-active {
+  border-color: color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
+  color: var(--color-accent-hover);
+  background: var(--color-accent-soft);
+}
+
+.lv-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.lv-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+.lv-btn:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+.lv-btn.is-primary {
+  border-color: transparent;
+  color: var(--color-on-action);
+  background: var(--color-action);
+}
+
+.lv-btn.is-primary:hover:not(:disabled) {
+  color: var(--color-on-action);
+  background: var(--color-action-hover);
+}
+
+/* The one action with a word of its own: refreshing the folder is what people come back to
+   the toolbar for, so it is framed like the compressor's secondary buttons. */
+.lv-btn.is-secondary {
+  border-color: var(--color-border);
+  color: var(--color-text);
+  background: var(--color-surface-subtle);
+}
+
+.lv-btn.is-secondary:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
+  background: var(--color-accent-soft);
+}
+
+/* A row of buttons in one frame: the zoom stepper, the view-mode toggle. */
+.lv-cluster {
+  display: inline-flex;
+  height: var(--lv-control-h);
+  flex: 0 0 auto;
+  align-items: center;
+  padding: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+}
+
+.lv-cluster > .lv-btn {
+  height: calc(var(--lv-control-h) - 6px);
+  min-width: calc(var(--lv-control-h) - 6px);
+  border-radius: calc(var(--radius-md) - 3px);
+}
+
+.lv-cluster > .lv-btn[aria-pressed='true'],
+.lv-cluster > .lv-btn.is-active {
+  border-color: transparent;
+  background: var(--color-surface);
+  box-shadow: 0 1px 3px var(--tint-medium);
+}
+
+.lv-zoom-value {
+  min-width: 52px;
+  padding: 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A picto row like the compressor's mode switch: icons side by side, and the chosen one
+   says its name in small type underneath. The others stay icons. */
+.lv-cluster.is-captioned > .lv-btn {
+  display: grid;
+  min-width: 44px;
+  padding: 0 8px;
+  gap: 2px;
+  grid-auto-flow: row;
+  justify-items: center;
+  align-content: center;
+}
+
+.lv-cluster.is-captioned > .lv-btn > .action-label {
+  font-size: var(--text-xs);
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+
+/* The long words go first (the menu triggers keep their icons and caret), then the file
+   identity, then every remaining word together with the fit buttons and the stepper. The
+   chosen mode of a cluster is the only one that says its name, as in the compressor. */
+.lv-toolbar.is-compact .lv-preview-settings .action-label,
+.lv-toolbar.is-compact .lv-refresh .action-label,
+.lv-toolbar.is-compact-3 .action-label,
+.lv-cluster > .lv-btn:not([aria-pressed='true']) > .action-label {
+  display: none;
+}
+
+.lv-toolbar.is-compact .lv-btn.has-label {
+  padding: 0 8px;
+}
+
+.lv-toolbar.is-compact-2 .lv-identity,
+.lv-toolbar.is-compact-3 .lv-fit,
+.lv-toolbar.is-compact-3 .lv-zoom-step,
+.lv-toolbar.is-compact-4 .lv-source-copy,
+.lv-toolbar.is-compact-4 .lv-viewmode,
+.lv-toolbar.is-compact-4 .lv-fullscreen,
+.lv-toolbar.is-compact-4 .lv-zoom {
+  display: none;
+}
+
+.lv-toolbar.is-compact-4 .lv-source {
+  padding: 0 6px;
+}
+
+/* The grid has nothing to zoom or fit. */
+.lv-viewer.is-grid-mode .lv-zoom,
+.lv-viewer.is-grid-mode .lv-fit {
+  display: none;
+}
+
+/* The folder switcher: the active folder's name is the button. */
+.lv-source {
+  max-width: 260px;
+  justify-content: flex-start;
+  padding: 0 10px 0 8px;
+  border-color: var(--color-border);
+  color: var(--color-text);
+  background: var(--color-surface-subtle);
+}
+
+.lv-source > svg:first-child {
+  color: var(--color-accent);
+}
+
+.lv-source-copy {
+  display: grid;
+  min-width: 0;
+  text-align: left;
+}
+
+.lv-source-copy > strong,
+.lv-source-copy > small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.lv-source-copy > small {
+  color: var(--color-text-muted);
+  font-size: var(--text-base);
+  font-weight: 500;
+}
+
+.lv-identity {
+  display: grid;
+  min-width: 0;
+  margin-left: var(--space-2);
+  line-height: 1.25;
+}
+
+.lv-identity > strong,
+.lv-identity > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lv-identity > span {
+  color: var(--color-text-muted);
+  font-size: var(--text-base);
+}
+
+.lv-counter {
+  min-width: 68px;
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* Hint under an icon-only control: shows the moment the pointer arrives, never on a click. */
+.lv-tip {
+  position: relative;
+}
+
+.lv-tip::after {
+  position: absolute;
+  z-index: var(--layer-tooltip);
+  top: calc(100% + 6px);
+  left: 50%;
+  width: max-content;
+  max-width: min(240px, calc(100vw - 24px));
+  padding: 5px 8px;
+  border: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+  border-radius: var(--radius-sm);
+  color: var(--color-on-accent);
+  background: color-mix(in srgb, var(--purple-950) 92%, transparent);
+  box-shadow: var(--shadow-md);
+  content: attr(data-tooltip);
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1.25;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -3px);
+  visibility: hidden;
+  white-space: normal;
+  transition:
+    opacity var(--dur-micro) var(--ease-standard),
+    transform var(--dur-micro) var(--ease-standard),
+    visibility 0s linear var(--dur-micro);
+}
+
+.lv-tip:hover:not(:focus)::after,
+.lv-tip:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+.lv-group.is-leading .lv-tip::after {
+  left: 0;
+  transform: translate(0, -3px);
+}
+
+.lv-group.is-leading .lv-tip:hover:not(:focus)::after,
+.lv-group.is-leading .lv-tip:focus-visible::after {
+  transform: translate(0, 0);
+}
+
+.lv-group.is-actions .lv-tip::after {
+  right: 0;
+  left: auto;
+  transform: translate(0, -3px);
+}
+
+.lv-group.is-actions .lv-tip:hover:not(:focus)::after,
+.lv-group.is-actions .lv-tip:focus-visible::after {
+  transform: translate(0, 0);
+}
+
+.lv-tip:active::after,
+.lv-tip[aria-expanded='true']::after {
+  opacity: 0;
+  visibility: hidden;
+  transition-delay: 0s;
+}
+
+/* Menus -------------------------------------------------------------------- */
+
+.lv-menu {
+  /* Portalled to the body while the viewer is a fixed layer above the app: without its own
+     place in the order it opened underneath the very toolbar that summoned it. */
+  z-index: var(--layer-modal-nested);
+  display: grid;
+  width: max-content;
+  min-width: 220px;
+  max-width: min(360px, calc(100vw - 16px));
+  gap: 2px;
+  padding: 6px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-menu);
+}
+
+.lv-menu-heading {
+  padding: 8px 10px 4px;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.lv-menu-separator {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--color-border);
+}
+
+.lv-menu-item {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-lg);
+  text-align: left;
+}
+
+.lv-menu-item > svg:first-child {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+}
+
+.lv-menu-item-copy {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.lv-menu-item-copy > small {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--text-base);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lv-menu-item-copy > strong {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lv-menu-item-check {
+  flex: 0 0 auto;
+  color: var(--color-accent);
+}
+
+.lv-menu-item:hover:not(:disabled),
+.lv-menu-item:focus-visible {
+  outline: 0;
+  background: var(--color-surface-muted);
+}
+
+.lv-menu-item[aria-checked='true'],
+.lv-menu-item[aria-current='true'] {
+  background: var(--color-accent-soft);
+}
+
+.lv-menu-item[aria-checked='true'] > svg:first-child {
+  color: var(--color-accent-hover);
+}
+
+.lv-menu-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.lv-menu-item.is-danger {
+  color: var(--color-error);
+}
+
+.lv-menu-item.is-danger > svg:first-child {
+  color: inherit;
+}
+
+.lv-menu-item.is-danger:hover:not(:disabled) {
+  background: var(--color-error-soft);
+}
+
+.lv-menu-item.is-add {
+  border: 1px dashed var(--color-border);
+  color: var(--color-accent-hover);
+  font-weight: 600;
+}
+
+.lv-menu-item.is-add > svg:first-child {
+  color: inherit;
+}
+
+.lv-menu-note {
+  padding: 6px 10px 8px;
+  color: var(--color-text-muted);
+  font-size: var(--text-base);
+}
+
+/* Sidebar ------------------------------------------------------------------ */
+
+.lv-sidebar {
+  position: relative;
+  z-index: var(--layer-raised);
+  grid-area: sidebar;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-surface);
+  transition:
+    opacity var(--dur-control) var(--ease-standard),
+    transform var(--dur-control) var(--ease-standard);
+}
+
+.sidebar-collapsed .lv-sidebar {
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-16px);
+}
+
+.lv-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 10px 6px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  background: var(--color-surface-subtle);
+  transition: border-color var(--dur-micro) var(--ease-standard);
+}
+
+.lv-search:focus-within {
+  border-color: var(--color-focus);
+}
+
+.lv-search > svg {
+  flex: 0 0 auto;
+}
+
+.lv-search > input {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  border: 0;
+  outline: 0;
+  color: var(--color-text);
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-lg);
+}
+
+.lv-search > input::-webkit-search-cancel-button {
+  cursor: pointer;
+}
+
+.lv-tree-scroll {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 0 6px 12px;
+  scrollbar-width: thin;
+}
+
+.lv-tree,
+.lv-tree [role='group'] {
+  display: grid;
+  gap: 1px;
+}
+
+.lv-tree button {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.lv-tree button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.lv-tree-folder {
+  min-height: 30px;
+  padding: 3px 8px 3px 6px;
+  color: var(--color-text-muted);
+  font-size: var(--text-base);
+}
+
+.lv-tree-folder > svg:first-child {
+  flex: 0 0 auto;
+  transition: transform var(--dur-micro) var(--ease-standard);
+}
+
+.lv-tree-folder[aria-expanded='false'] > svg:first-child {
+  transform: rotate(-90deg);
+}
+
+.lv-tree-folder > strong {
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lv-tree-folder:hover {
+  background: var(--color-surface-muted);
+}
+
+.lv-tree-landing {
+  min-height: 38px;
+  padding: 4px 8px 4px 6px;
+}
+
+.lv-tree-landing:hover {
+  background: var(--color-surface-muted);
+}
+
+.lv-tree-landing[aria-selected='true'] {
+  color: var(--color-accent-hover);
+  background: var(--color-accent-soft);
+}
+
+.lv-tree-landing > svg:first-child {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+}
+
+.lv-tree-landing[aria-selected='true'] > svg:first-child {
+  color: inherit;
+}
+
+.lv-tree-landing.is-failed > svg:first-child {
+  color: var(--color-error);
+}
+
+.lv-tree-copy {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 auto;
+  line-height: 1.25;
+}
+
+.lv-tree-copy > strong,
+.lv-tree-copy > small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lv-tree-copy > strong {
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.lv-tree-copy > small {
+  color: var(--color-text-muted);
+  font-size: var(--text-base);
+}
+
+.lv-tree-landing.is-failed .lv-tree-copy > small {
+  color: var(--color-error);
+}
+
+.lv-tree-landing.is-stale .lv-tree-copy > small {
+  color: var(--color-warning);
+}
+
+/* What the row says at a glance: a green dot when the preview is ready, a spinner while it
+   renders, amber when the source moved on. */
+.lv-tree-state {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  place-items: center;
+}
+
+.lv-tree-state > i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-success);
+}
+
+.lv-tree-landing.is-stale .lv-tree-state > i {
+  background: var(--color-warning);
+}
+
+.lv-tree-state > .spinner {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+
+.lv-tree-empty {
+  padding: 20px 12px;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.lv-sidebar-foot {
+  display: grid;
+  gap: 6px;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--text-base);
+}
+
+.lv-sidebar-foot > span {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.lv-warnings > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+}
+
+.lv-warnings > summary > svg {
+  color: var(--color-warning);
+}
+
+.lv-warnings > summary::-webkit-details-marker {
+  display: none;
+}
+
+.lv-warnings > div {
+  display: grid;
+  max-height: 140px;
+  gap: 4px;
+  margin-top: 6px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+
+/* Canvas ------------------------------------------------------------------- */
+
+.lv-canvas {
+  position: relative;
+  grid-area: canvas;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 32px;
+  background:
+    radial-gradient(ellipse at 50% 0, var(--lv-stage-glow), transparent 40%), var(--lv-stage);
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.lv-canvas.is-grid {
+  padding: 20px;
+}
+
+.lv-canvas.is-panning {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.lv-stage {
+  position: relative;
+  margin: 0 auto;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 18px 60px rgb(0 0 0 / 36%);
+}
+
+.lv-stage-stack {
+  display: grid;
+  overflow: hidden;
+  border-radius: 4px;
+}
+
+.lv-stage-stack img {
+  display: block;
+  max-width: none;
+  height: auto;
+  user-select: none;
+}
+
+/* Notes about the preview sit in a row above the page, never over it: the top of the
+   landing is exactly what the tool exists to show. */
+.lv-notes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin: -12px auto 14px;
+}
+
+.lv-note {
+  display: inline-flex;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--color-warning) 40%, var(--color-border));
+  border-radius: 999px;
+  color: var(--color-warning);
+  background: color-mix(in srgb, var(--color-surface) 92%, var(--color-warning));
+  box-shadow: var(--shadow-md);
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.lv-note > svg {
+  flex: 0 0 auto;
+}
+
+.lv-note.is-info {
+  border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
+  color: var(--color-accent-hover);
+  background: color-mix(in srgb, var(--color-surface) 92%, var(--color-accent));
+}
+
+/* Where the page will be, while it renders: the stage at its future width, breathing. */
+.lv-stage.is-skeleton {
+  width: min(100%, 1100px);
+  min-height: 70vh;
+  background: color-mix(in oklab, var(--color-surface) 70%, var(--lv-stage));
+  animation: lv-breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes lv-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+
+  50% {
+    opacity: 0.9;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lv-stage.is-skeleton {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+
+.lv-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 30px;
+  color: var(--color-text);
+  text-align: center;
+}
+
+.lv-empty-icon {
+  display: grid;
+  width: 56px;
+  height: 56px;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  color: var(--color-accent);
+  background: var(--color-surface);
+}
+
+.lv-empty > strong {
+  font-size: var(--text-3xl);
+}
+
+.lv-empty > p {
+  max-width: 520px;
+  color: var(--color-text-muted);
+}
+
+.lv-edge-nav {
+  position: fixed;
+  z-index: var(--layer-content);
+  top: 50%;
+  display: grid;
+  width: 42px;
+  height: 58px;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-surface) 82%, transparent);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  opacity: 0.8;
+  transform: translateY(-50%);
+  transition:
+    opacity var(--dur-micro) var(--ease-standard),
+    background var(--dur-micro) var(--ease-standard);
+}
+
+.lv-edge-nav:hover {
+  opacity: 1;
+  background: var(--color-surface);
+}
+
+.lv-edge-nav.is-left {
+  left: calc(var(--lv-sidebar-w) + 14px);
+}
+
+.sidebar-collapsed .lv-edge-nav.is-left {
+  left: 14px;
+}
+
+.lv-edge-nav.is-right {
+  right: 14px;
+}
+
+/* Grid --------------------------------------------------------------------- */
+
+.lv-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  align-content: start;
+}
+
+.lv-tile {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  background: var(--color-surface);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition:
+    border-color var(--dur-micro) var(--ease-standard),
+    transform var(--dur-micro) var(--ease-standard),
+    box-shadow var(--dur-micro) var(--ease-standard);
+}
+
+.lv-tile:hover {
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.lv-tile:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.lv-tile.is-selected {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+.lv-tile-thumb {
+  position: relative;
+  display: grid;
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-subtle);
+}
+
+.lv-tile-thumb > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+}
+
+.lv-tile-thumb > .lv-tile-state {
+  display: grid;
+  gap: 6px;
+  color: var(--color-text-muted);
+  background: var(--color-surface-subtle);
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  font-size: var(--text-base);
+}
+
+.lv-tile-thumb > .lv-tile-state.is-failed {
+  color: var(--color-error);
+}
+
+.lv-tile-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: var(--color-warning);
+  background: color-mix(in srgb, var(--color-surface) 90%, var(--color-warning));
+  box-shadow: var(--shadow-sm);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.lv-tile-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.lv-tile-name > svg {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+}
+
+.lv-tile-name > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Progress footer ---------------------------------------------------------- */
+
+.lv-progress {
+  z-index: var(--layer-content);
+  grid-area: progress;
+  display: grid;
+  min-height: 48px;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 420px) auto;
+  gap: var(--space-4);
+  padding: 7px 14px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.lv-progress > div:first-child {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.lv-progress > div:first-child > svg {
+  flex: 0 0 auto;
+}
+
+.lv-progress strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lv-progress span {
+  color: var(--color-text-muted);
+  font-size: var(--text-base);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.lv-progress.is-error {
+  color: var(--color-error);
+  background: var(--color-error-soft);
+}
+
+.lv-progress.is-error span {
+  color: inherit;
+}
+
+/* Drop overlay while a folder is dragged over the open viewer. */
+.lv-drop-overlay {
+  position: fixed;
+  z-index: var(--layer-fullbleed);
+  inset: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  border: 2px dashed var(--honey-400);
+  border-radius: var(--radius-xl);
+  color: var(--honey-400);
+  background: color-mix(in oklab, var(--honey-800) 55%, var(--color-bg));
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+}
+
+.lv-drop-overlay > strong {
+  font-size: var(--text-8xl);
+}
+
+.lv-drop-overlay > span {
+  color: var(--color-text);
+  opacity: 0.8;
+}
+
+/* Loading ------------------------------------------------------------------ */
+
+.lv-loading {
+  display: grid;
+  min-height: calc(100vh - var(--topbar-h, 62px));
+  place-items: center;
+}
+
+/* Small screens ------------------------------------------------------------ */
+
+.lv-scrim {
+  display: none;
+}
+
+@media (max-width: 820px) {
+  .lv-viewer,
+  .lv-viewer.sidebar-collapsed {
+    grid-template:
+      'toolbar' var(--lv-toolbar-h)
+      'canvas' minmax(0, 1fr)
+      'progress' auto / minmax(0, 1fr);
+  }
+
+  .lv-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .lv-group.is-navigation {
+    display: none;
+  }
+
+  .lv-sidebar {
+    position: fixed;
+    z-index: var(--layer-header);
+    top: var(--lv-toolbar-h);
+    bottom: 0;
+    left: 0;
+    width: min(86vw, 320px);
+    box-shadow: var(--shadow-xl);
+  }
+
+  /* The tree is a sheet over the page here; the page behind it dims and a tap on it closes
+     the sheet, as a sheet should. */
+  .lv-viewer:not(.sidebar-collapsed) .lv-scrim {
+    position: fixed;
+    z-index: var(--layer-sticky);
+    inset: var(--lv-toolbar-h) 0 0;
+    display: block;
+    border: 0;
+    padding: 0;
+    background: color-mix(in srgb, var(--color-bg) 55%, transparent);
+    cursor: pointer;
+  }
+
+  .lv-edge-nav.is-left,
+  .sidebar-collapsed .lv-edge-nav.is-left {
+    left: 10px;
+  }
+
+  .lv-edge-nav.is-right {
+    right: 10px;
+  }
+
+  .lv-canvas {
+    padding: 20px;
+  }
+
+  .lv-progress {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .lv-progress > .progress-track {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .lv-canvas {
+    padding: 12px;
+  }
+
+  .lv-source {
+    max-width: 150px;
+  }
+}

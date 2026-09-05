@@ -1,4 +1,5 @@
 import {
+  forwardRef,
   useEffect,
   useId,
   useLayoutEffect,
@@ -15,16 +16,20 @@ import type { TranslationKey } from '../i18n';
 export type Translate = (key: TranslationKey, values?: Record<string, string | number>) => string;
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'success';
-export function Button({
-  variant = 'secondary',
-  loading = false,
-  className = '',
-  disabled,
-  children,
-  ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; loading?: boolean }) {
+/**
+ * Forwards its ref: a surface that opens an editor in place of the button
+ * needs the button back to return focus to when the editor closes.
+ */
+export const Button = forwardRef<
+  HTMLButtonElement,
+  ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; loading?: boolean }
+>(function Button(
+  { variant = 'secondary', loading = false, className = '', disabled, children, ...props },
+  ref
+) {
   return (
     <button
+      ref={ref}
       {...props}
       disabled={disabled || loading}
       className={`button button-${variant} ${loading ? 'is-loading' : ''} ${className}`.trim()}
@@ -37,7 +42,7 @@ export function Button({
       )}
     </button>
   );
-}
+});
 
 export function IconButton({
   label,
@@ -46,7 +51,11 @@ export function IconButton({
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; children: ReactNode }) {
   return (
+    // A bare `<button>` inside a form submits it. An icon button is never the
+    // form's submit — it is a remove, a copy, a toggle — so the default is the
+    // safe one; a caller that wants a submit says so.
     <button
+      type="button"
       {...props}
       className={`icon-button ${props.className ?? ''}`.trim()}
       aria-label={label}
@@ -332,6 +341,7 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
     pinned: false
   });
   const [position, setPosition] = useState({ left: 0, top: 0, arrowX: 0, side: 'bottom' });
+  const popover = useRef<HTMLSpanElement>(null);
   const open = interaction.hovered || interaction.focused || interaction.pinned;
   const interact = (value: TooltipInteraction) =>
     setInteraction(current => tooltipInteraction(current, value));
@@ -340,12 +350,15 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
     if (!open || !button.current) return;
     const update = () => {
       const rect = button.current!.getBoundingClientRect();
-      const width = Math.min(280, window.innerWidth - 24);
+      // Measured, not assumed: the bubble is as wide as its words up to the stylesheet's
+      // ceiling, and a guessed 280px put a long hint's right edge past the viewport.
+      const bubble = popover.current;
+      const width = Math.min(bubble?.offsetWidth || 280, window.innerWidth - 24);
       const left = Math.min(
         window.innerWidth - width - 12,
         Math.max(12, rect.left + rect.width / 2 - width / 2)
       );
-      const estimatedHeight = 88;
+      const estimatedHeight = bubble?.offsetHeight || 88;
       const side = rect.bottom + estimatedHeight + 8 > window.innerHeight ? 'top' : 'bottom';
       const top = side === 'top' ? Math.max(12, rect.top - estimatedHeight - 8) : rect.bottom + 8;
       const arrowX = Math.min(width - 14, Math.max(14, rect.left + rect.width / 2 - left));
@@ -398,6 +411,7 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
       {open &&
         createPortal(
           <span
+            ref={popover}
             id={id}
             role="tooltip"
             className="tooltip-popover"

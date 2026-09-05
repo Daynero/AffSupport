@@ -1,5 +1,6 @@
 import { accessSync, constants, existsSync } from 'node:fs';
-import { access, chmod, mkdir, open, rename, rm, writeFile } from 'node:fs/promises';
+import { access, chmod, mkdir, open, rm, writeFile } from 'node:fs/promises';
+import { REMOVE_WITH_RETRIES, replaceFile } from '../files/replace-file.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applicationSupportRoot } from '../files/support-dir.js';
@@ -317,8 +318,10 @@ export async function installTranslationRuntimeArchive(archivePath: string): Pro
     const executable = path.join(extracted, executableName(descriptor.executableName));
     await access(executable, constants.R_OK);
     await chmod(executable, 0o755);
-    await rm(downloadedRuntimeDir, { recursive: true, force: true });
-    await rename(extracted, downloadedRuntimeDir);
+    // The runtime directory may hold an executable Windows has only just unmapped — the
+    // queue stops the servers before this runs, and the retries cover the moment after.
+    await rm(downloadedRuntimeDir, REMOVE_WITH_RETRIES);
+    await replaceFile(extracted, downloadedRuntimeDir);
   } finally {
     await rm(staging, { recursive: true, force: true }).catch(() => {});
     await rm(archivePath, { force: true }).catch(() => {});

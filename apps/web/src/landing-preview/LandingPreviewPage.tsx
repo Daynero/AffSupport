@@ -24,7 +24,9 @@ export default function LandingPreviewPage() {
   const agent = useOptionalAgent();
   const multiplexed = Boolean(agent?.capabilities?.includes('event-stream'));
   const source = useMemo(() => agentLandingSource(multiplexed), [multiplexed]);
-  const viewer = useLandingViewer({ source });
+  // Without a provider (tests, fixtures) there is nothing to wait for.
+  const ready = !agent || agent.connection === 'connected';
+  const viewer = useLandingViewer({ source, enabled: ready });
   const { pushState, setMessage, loaded, selected, activeCatalog } = viewer;
 
   const [openingTeamId, setOpeningTeamId] = useState<string | null>(null);
@@ -106,18 +108,16 @@ export default function LandingPreviewPage() {
   const teams = team?.teams.filter(candidate => candidate.permissions.view) ?? [];
   const teamSources =
     teams.length > 0 ? (
-      <div className="landing-gallery-team-sources">
-        <span>{t('landingGalleryTeamSourceLabel')}</span>
+      <div className="lv-team-sources">
         {teams.map(candidate => (
           <Button
             key={candidate.id}
             variant="secondary"
             disabled={openingTeamId !== null}
+            loading={openingTeamId === candidate.id}
             onClick={() => void openTeamSpace(candidate.id)}
           >
-            {openingTeamId === candidate.id
-              ? t('landingGalleryTeamOpening')
-              : t('landingGalleryOpenTeamSpace', { name: candidate.name })}
+            {t('landingGalleryOpenTeamSpace', { name: candidate.name })}
           </Button>
         ))}
       </div>

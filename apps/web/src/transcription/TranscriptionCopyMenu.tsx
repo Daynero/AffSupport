@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { ChevronDown, ClipboardCopy } from 'lucide-react';
 import { Button, type Translate } from '../components/ui';
 import type { TranscriptionCopyContent, TranscriptionCopyScope } from './copy';
 
@@ -38,6 +39,9 @@ export function TranscriptionCopyMenu({
 
   useEffect(() => {
     if (!open) return;
+    // The dialog takes the keyboard, as the export menu does: the first choice is focused,
+    // and a screen reader hears that something opened.
+    root.current?.querySelector<HTMLInputElement>('input[type="radio"]:checked')?.focus();
     const closeOutside = (event: PointerEvent) => {
       if (!root.current?.contains(event.target as Node)) setOpen(false);
     };
@@ -63,19 +67,36 @@ export function TranscriptionCopyMenu({
     { value: 'transcript', label: t('transcriptionCopyContentTranscript') },
     { value: 'translation', label: t('transcriptionCopyContentTranslation') }
   ];
+  const label =
+    scope === 'selected'
+      ? t('transcriptionCopySelected', { count: selectedCount })
+      : t('transcriptionCopyFinished', { count: finishedCount });
 
   return (
-    <div className="transcription-copy-menu" ref={root}>
+    <div
+      className="transcription-copy-menu"
+      ref={root}
+      onBlur={event => {
+        // Tabbing out closes it: a dialog still open with nothing focused inside it was
+        // announced as expanded while the keyboard had moved on.
+        if (open && !event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setOpen(false);
+        }
+      }}
+    >
       <Button
         variant="secondary"
         className="transcription-copy-action"
         loading={busy}
         disabled={disabled}
+        title={label}
         onClick={onCopy}
       >
-        {scope === 'selected'
-          ? t('transcriptionCopySelected', { count: selectedCount })
-          : t('transcriptionCopyFinished', { count: finishedCount })}
+        <ClipboardCopy size={18} strokeWidth={1.75} aria-hidden="true" />
+        {/* Always in the DOM: the toolbar hides it with the same class that folds its
+            neighbours. Removing it here made the row measure narrower without it, unfold,
+            put it back, overflow, fold again — a flicker between two toolbars. */}
+        <span className="action-label">{label}</span>
       </Button>
       <button
         ref={trigger}
@@ -88,9 +109,10 @@ export function TranscriptionCopyMenu({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? popoverId : undefined}
+        disabled={disabled}
         onClick={() => setOpen(value => !value)}
       >
-        <span aria-hidden="true">⌄</span>
+        <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
       </button>
       {open && (
         <div

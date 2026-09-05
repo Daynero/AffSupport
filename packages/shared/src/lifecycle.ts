@@ -211,8 +211,11 @@ export const TRANSCRIPTION_LIFECYCLE: Lifecycle<TranscriptionJobStatus> = define
     analyzing: ['ready'],
     ready: ['queued'],
     // Not `ready` either. Stopping a queued transcription cancels it; nothing demotes it
-    // back into the list the way abandoning a compression batch does.
-    queued: ['processing', 'cancelled'],
+    // back into the list the way abandoning a compression batch does. `failed` is for a run
+    // that cannot start at all — its model deleted or its download cancelled after it was
+    // queued — because a job that can neither run nor fail sits in the queue for the life
+    // of the process and holds every translation behind it.
+    queued: ['processing', 'cancelled', 'failed'],
     processing: ['completed', 'failed', 'cancelled', 'interrupted'],
     completed: ['queued'],
     failed: ['queued'],
@@ -240,7 +243,10 @@ export const TRANSLATION_LIFECYCLE: Lifecycle<TranslationStatus> = defineLifecyc
   id: 'translation',
   initial: 'queued',
   transitions: {
-    queued: ['processing'],
+    // `failed` from `queued` is a cancel: the person stopped a translation that had not
+    // started. Without the edge the cancel was refused, the document stayed queued, and
+    // the next restart or model install quietly ran it after all.
+    queued: ['processing', 'failed'],
     processing: ['completed', 'failed', 'queued'],
     // A translation that finished is done: asking for the same language again returns the
     // one that exists rather than re-running it, so `completed` really has nowhere to go.

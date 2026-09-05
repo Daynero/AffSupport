@@ -59,7 +59,8 @@ import { CreativeLibraryProcessBridge } from './team-bridge/library.js';
 import { TeamTransferClient } from './team-bridge/transfer.js';
 import { createAligner } from './translation/aligner.js';
 import { createTranslator } from './translation/translator.js';
-import { whisperAvailable } from './whisper/tools.js';
+import { defaultQualityForInstalledModels, whisperAvailable } from './whisper/tools.js';
+import { sweepAbandonedTempDirectories } from './whisper/transcriber.js';
 import { pathGrants } from './files/path-grants.js';
 
 // Persisted across restarts on purpose: a per-boot token silently unpairs
@@ -152,21 +153,39 @@ const transcriptionEvents = new EventChannel<TranscriptionEvent>(allowedOrigins,
   type: 'transcription:state',
   state: transcriptionQueue.state()
 }));
-const restoredTranscription = await loadTranscriptionState();
+const restoredTranscription = await loadTranscriptionState(undefined, {
+  fallbackQuality: defaultQualityForInstalledModels()
+});
+// Scratch audio a killed process left behind; see the transcriber for why it matters.
+void sweepAbandonedTempDirectories().catch(() => {});
 const transcriptionQueue = new TranscriptionQueue(
   transcriptionTools,
   (type: TranscriptionEventType = 'transcription:state') => {
-    transcriptionEvents.broadcast({ type, state: transcriptionQueue.state() });
+    // The snapshot is built only when somebody will read it; a run made with every window
+    // closed used to serialise the whole state four times a second for nobody.
+    if (transcriptionEvents.hasListeners()) {
+      transcriptionEvents.broadcast({ type, state: transcriptionQueue.state() });
+    }
     // Progress ticks arrive many times a second and change nothing the
     // persisted list needs (job membership, statuses, settings) — skip them.
-    if (type !== 'transcription:progress') void persistTranscriptionState();
+    if (type !== 'transcription:progress') scheduleTranscriptionPersist();
   },
   restoredTranscription.jobs,
   restoredTranscription.settings
 );
 transcriptionEvents.publishOn(channelHub, 'transcription');
+transcriptionQueue.setInstanceId(instanceId);
 transcriptionQueue.setTranslator(createTranslator());
 transcriptionQueue.setAligner(createAligner());
+// Translation cache, preview proxies and upload copies: dropped when their model or their
+// job is gone.
+void transcriptionQueue.sweepCaches().catch(() => {});
+void transcriptionQueue
+  .sweepImports(
+    process.env.AGENT_TRANSCRIBE_IMPORT_PATH ??
+      path.join(applicationSupportRoot(), 'TranscribeImports')
+  )
+  .catch(() => {});
 
 const agentEvents = new EventChannel<AgentEvent>(allowedOrigins, () => ({
   type: 'state',
@@ -223,10 +242,28 @@ function persistQueueState() {
 // compressor save can never delay (or be delayed by) a transcription save.
 let transcriptionSaveChain = Promise.resolve();
 function persistTranscriptionState() {
+  if (transcriptionPersistTimer) {
+    clearTimeout(transcriptionPersistTimer);
+    transcriptionPersistTimer = null;
+  }
   transcriptionSaveChain = transcriptionSaveChain
     .then(() => saveTranscriptionState(transcriptionQueue.persisted()))
     .catch(error => logError(error, 'Could not save transcription state'));
   return transcriptionSaveChain;
+}
+/**
+ * Saves are coalesced: adding fifty files fires a hundred state changes in under a second,
+ * and each one used to rewrite the whole list to disk. The trailing write lands a quarter
+ * of a second after the last change; shutdown flushes whatever is still pending.
+ */
+const TRANSCRIPTION_PERSIST_DELAY_MS = 250;
+let transcriptionPersistTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleTranscriptionPersist() {
+  if (transcriptionPersistTimer) return;
+  transcriptionPersistTimer = setTimeout(() => {
+    transcriptionPersistTimer = null;
+    void persistTranscriptionState();
+  }, TRANSCRIPTION_PERSIST_DELAY_MS);
 }
 
 // The server logger only exists after buildServer(); anything logged before
@@ -531,6 +568,7 @@ async function shutdown(code = 0) {
   if (updateDrainTimer) clearInterval(updateDrainTimer);
   try {
     await saveChain;
+    if (transcriptionPersistTimer) await persistTranscriptionState();
     await transcriptionSaveChain;
     for (const module of modules) await module.shutdown();
     // Resume anything the duty cycler left stopped before the process exits: a
@@ -555,6 +593,13 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     void shutdown(0);
   });
 }
+// A rejection nobody caught used to end the process. The queues fire and forget a great
+// deal of work by design — a sidecar write during a translation, a preview transcode — and
+// a full disk in one of them is a reason to log, not to take the running transcription
+// and every open connection down with it.
+process.on('unhandledRejection', reason => {
+  logError(reason, 'Unhandled rejection');
+});
 if (process.env.PACKAGED_APP === '1') {
   const parentPid = process.ppid;
   const launcherPid = parseLauncherPid(process.env.AGENT_LAUNCHER_PID);

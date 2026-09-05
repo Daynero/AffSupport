@@ -7,7 +7,9 @@ import type { FastifyInstance } from 'fastify';
 import { MAX_MEDIA_UPLOAD_BYTES } from '../server/upload-limits.js';
 import {
   isTranscribableFileName,
+  isTranscriptionQualityMode,
   isValidTargetLanguage,
+  TRANSCRIPTION_LANGUAGE_CODES,
   type TranscriptionEvent,
   type TranscriptionSettings
 } from '@video-compressor/shared';
@@ -26,6 +28,8 @@ interface TranscriptionDeps {
   events: EventChannel<TranscriptionEvent>;
   acceptingNewTasks: () => boolean;
 }
+
+const LANGUAGE_TAG = /^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/iu;
 
 export function registerTranscriptionRoutes(app: FastifyInstance, deps: TranscriptionDeps) {
   const { queue, events, acceptingNewTasks } = deps;
@@ -52,6 +56,12 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
         !isValidTargetLanguage(body.translationLanguage)
       ) {
         return reply.code(400).send({ error: 'Invalid translation language.' });
+      }
+      if (body.quality !== undefined && !isTranscriptionQualityMode(body.quality)) {
+        return reply.code(400).send({ error: 'Invalid quality mode.' });
+      }
+      if (body.translationDeclined !== undefined && typeof body.translationDeclined !== 'boolean') {
+        return reply.code(400).send({ error: 'Invalid translation preference.' });
       }
       queue.updateSettings(body);
       return queue.state();
@@ -137,10 +147,22 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
     return { state: queue.state(), warnings };
   });
 
-  app.post('/api/transcription/model/download', async () => {
-    queue.startModelDownload();
-    return queue.state();
-  });
+  // Installs the speech model of the selected quality (or the one named in the body) and,
+  // unless the caller asked for the speech model alone, the translation bundle with it.
+  app.post<{ Body?: { quality?: unknown; speechOnly?: unknown } }>(
+    '/api/transcription/model/download',
+    async (request, reply) => {
+      const quality = request.body?.quality;
+      if (quality !== undefined && !isTranscriptionQualityMode(quality)) {
+        return reply.code(400).send({ error: 'Invalid quality mode.' });
+      }
+      queue.startModelDownload({
+        quality,
+        speechOnly: request.body?.speechOnly === true
+      });
+      return queue.state();
+    }
+  );
 
   app.post('/api/transcription/model/cancel', async () => {
     queue.cancelModelDownload();
@@ -158,22 +180,31 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
     return queue.state();
   });
 
-  app.post<{ Body?: { ids?: unknown } }>('/api/transcription/start', async (request, reply) => {
-    if (!acceptingNewTasks()) return reply.code(409).send({ error: 'UPDATE_PENDING' });
-    const state = queue.state();
-    if (!state.tools.ffmpeg || !state.tools.whisper) {
-      return reply.code(503).send({ error: 'The transcription engine is unavailable.' });
+  app.post<{ Body?: { ids?: unknown; quality?: unknown } }>(
+    '/api/transcription/start',
+    async (request, reply) => {
+      if (!acceptingNewTasks()) return reply.code(409).send({ error: 'UPDATE_PENDING' });
+      const state = queue.state();
+      if (!state.tools.ffmpeg || !state.tools.whisper) {
+        return reply.code(503).send({ error: 'The transcription engine is unavailable.' });
+      }
+      const quality = request.body?.quality;
+      if (quality !== undefined && !isTranscriptionQualityMode(quality)) {
+        return reply.code(400).send({ error: 'Invalid quality mode.' });
+      }
+      // The model these files will run on, not necessarily the selected one.
+      const model = quality ? (state.models?.[quality] ?? state.model) : state.model;
+      if (!model.present) {
+        return reply.code(409).send({ error: 'MODEL_REQUIRED' });
+      }
+      const rawIds = request.body?.ids;
+      if (!Array.isArray(rawIds) || rawIds.some(id => typeof id !== 'string')) {
+        return reply.code(400).send({ error: 'Choose one or more files to transcribe.' });
+      }
+      const started = await queue.start(rawIds as string[], quality);
+      return started ? queue.state() : reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' });
     }
-    if (!state.tools.model) {
-      return reply.code(409).send({ error: 'MODEL_REQUIRED' });
-    }
-    const rawIds = request.body?.ids;
-    if (!Array.isArray(rawIds) || rawIds.some(id => typeof id !== 'string')) {
-      return reply.code(400).send({ error: 'Choose one or more files to transcribe.' });
-    }
-    const started = await queue.start(rawIds as string[]);
-    return started ? queue.state() : reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' });
-  });
+  );
 
   app.post<{ Params: { id: string } }>(
     '/api/transcription/jobs/:id/cancel',
@@ -188,10 +219,50 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
     return queue.state();
   });
 
-  app.post<{ Params: { id: string } }>(
+  // Holds or releases the running transcription, in the compressor's idiom.
+  app.post<{ Params: { id: string }; Body?: { paused?: unknown } }>(
+    '/api/transcription/jobs/:id/pause',
+    async (request, reply) => {
+      const paused = request.body?.paused !== false;
+      const outcome = queue.setPaused(request.params.id, paused);
+      if (outcome === 'unsupported') {
+        return reply.code(501).send({ error: 'PAUSE_UNSUPPORTED' });
+      }
+      if (outcome === 'retry') {
+        return reply.code(409).send({ error: 'PAUSE_RETRY' });
+      }
+      if (outcome === 'not-found') {
+        return reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' });
+      }
+      return queue.state();
+    }
+  );
+
+  // A person's own answer to "what language is this?" — the one thing that can put an
+  // Uzbek file the detector called Pashto back on the right model.
+  app.post<{ Params: { id: string }; Body?: { language?: unknown } }>(
+    '/api/transcription/jobs/:id/language',
+    async (request, reply) => {
+      const language = request.body?.language;
+      if (
+        typeof language !== 'string' ||
+        !TRANSCRIPTION_LANGUAGE_CODES.includes(language as never)
+      ) {
+        return reply.code(400).send({ error: 'Invalid language.' });
+      }
+      const applied = queue.setJobLanguage(request.params.id, language);
+      return applied ? queue.state() : reply.code(404).send({ error: 'JOB_NOT_FOUND' });
+    }
+  );
+
+  app.post<{ Params: { id: string }; Body?: { quality?: unknown } }>(
     '/api/transcription/jobs/:id/retry',
     async (request, reply) => {
-      const retried = await queue.retry(request.params.id);
+      const quality = request.body?.quality;
+      if (quality !== undefined && !isTranscriptionQualityMode(quality)) {
+        return reply.code(400).send({ error: 'Invalid quality mode.' });
+      }
+      const retried = await queue.retry(request.params.id, quality);
       return retried ? queue.state() : reply.code(409).send({ error: 'TRANSITION_NOT_ALLOWED' });
     }
   );
@@ -305,6 +376,11 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
   app.get<{ Params: { id: string; language: string } }>(
     '/api/transcription/jobs/:id/translations/:language',
     async (request, reply) => {
+      // A language is a BCP 47 tag; anything else (`__proto__`, say) is a lookup that must
+      // answer 404 rather than reach an object by its key.
+      if (!LANGUAGE_TAG.test(request.params.language)) {
+        return reply.code(404).send({ error: 'No translation is available.' });
+      }
       const translation = await queue.translation(request.params.id, request.params.language);
       if (!translation) return reply.code(404).send({ error: 'No translation is available.' });
       return reply.header('Cache-Control', 'private, no-store').send(translation);

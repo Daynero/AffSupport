@@ -157,7 +157,10 @@ export function ActiveOperation({
     const operation = state.operation;
     if (!operation || !onProgress) return;
     const running = operation.state === 'pending' || operation.state === 'running';
-    const progress = Math.max(operation.progress, running ? (state.localProgress?.progress ?? 0) : 0);
+    const progress = Math.max(
+      operation.progress,
+      running ? (state.localProgress?.progress ?? 0) : 0
+    );
     onProgress({ progress, state: operation.state });
   }, [state.operation, state.localProgress, onProgress]);
   if (!state.operation) return <p aria-live="polite">{t('teamOperationLoading')}</p>;

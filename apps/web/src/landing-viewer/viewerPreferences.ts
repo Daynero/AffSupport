@@ -1,4 +1,5 @@
 import type { ZoomMode } from './types';
+import { MAX_SCALE, MIN_SCALE } from './useLandingViewport';
 
 const VIEWER_PREFERENCES_KEY = 'wishly:landing-preview:viewer-preferences';
 
@@ -31,7 +32,7 @@ export function readViewerPreferences(): ViewerPreferences {
         : 'fit-width',
       customScale:
         typeof stored.customScale === 'number' && Number.isFinite(stored.customScale)
-          ? clamp(stored.customScale, 0.25, 3)
+          ? clamp(stored.customScale, MIN_SCALE, MAX_SCALE)
           : 1
     };
   } catch {

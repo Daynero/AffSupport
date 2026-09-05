@@ -57,6 +57,7 @@ function task() {
     progressValue: 0,
     progressManuallySet: false,
     attachmentCount: 1,
+    agents: [],
     createdBy: '31000000-0000-4000-8000-000000000004',
     createdAt: '2026-08-14T10:00:00.000Z',
     updatedAt: '2026-08-14T10:00:00.000Z',
@@ -85,6 +86,13 @@ function client(): TaskSpaceClient {
       ]
     }),
     detachTaskMaterial: vi.fn().mockResolvedValue(true),
+    // 017 — accounts and tags; none in these fixtures.
+    listAccounts: vi.fn().mockResolvedValue([]),
+    attachTaskAgent: vi.fn().mockResolvedValue([]),
+    detachTaskAgent: vi.fn().mockResolvedValue([]),
+    addAgentRun: vi.fn(),
+    updateAgentRun: vi.fn(),
+    deleteAgentRun: vi.fn(),
     attachTaskMaterials: vi.fn().mockResolvedValue({
       attached: [],
       alreadyAttached: [],
@@ -273,12 +281,13 @@ describe('Creative Library task workflows', () => {
       </TeamProvider>
     );
 
-    await screen.findByText('1 attachments');
+    // The count sits behind a paperclip now; the words are its tooltip.
+    await screen.findByTitle('1 attachments');
     fireEvent.keyDown(screen.getByRole('slider', { name: 'Progress scale' }), {
       key: 'ArrowRight'
     });
     await waitFor(() => expect(api.updateTask).toHaveBeenCalledOnce());
-    expect(screen.getByText('1 attachments')).toBeTruthy();
+    expect(screen.getByTitle('1 attachments')).toBeTruthy();
   });
 
   it('stages attached media locally and drops it when the editor is closed without saving', async () => {

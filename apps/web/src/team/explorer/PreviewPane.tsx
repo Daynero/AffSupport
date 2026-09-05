@@ -167,7 +167,9 @@ export function PreviewPane({
             <button
               type="button"
               className="team-explorer-pane-icon"
-              aria-label={onDownloadRestitched ? t('teamRestitchDownloadOriginal') : t('teamFileDownload')}
+              aria-label={
+                onDownloadRestitched ? t('teamRestitchDownloadOriginal') : t('teamFileDownload')
+              }
               data-tip={
                 onDownloadRestitched ? t('teamRestitchDownloadOriginal') : t('teamFileDownload')
               }
@@ -194,9 +196,7 @@ export function PreviewPane({
               <Replace size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
             </button>
           )}
-          {onShare && (
-            <ShareButton teamId={teamId} row={row} className="team-explorer-pane-icon" />
-          )}
+          {onShare && <ShareButton teamId={teamId} row={row} className="team-explorer-pane-icon" />}
           {onDelete && (
             <button
               type="button"

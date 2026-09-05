@@ -8,6 +8,8 @@ import { type TeamMaterialSummary } from '../../api/team';
 import type { TeamCatalogClient } from '../catalog/TeamCatalog';
 import { MaterialPreview } from '../preview/MaterialPreview';
 import { TaskSpace } from '../tasks';
+import type { TaskAccountScope } from '../tasks/useTasks';
+import { AccountSpace } from '../accounts';
 import { StorageChip, type StorageChipClient } from '../storage/StorageChip';
 import { useStorageHealth, type StorageHealthClient } from '../storage/useStorageHealth';
 import type { SpaceSettingsClient } from './SpaceSettings';
@@ -45,6 +47,7 @@ export type WorkspaceShellClient = TeamCatalogClient &
 const CONTENT_TABS: { section: TeamSection; label: TranslationKey }[] = [
   { section: 'explorer', label: 'teamSectionExplorer' },
   { section: 'tasks', label: 'teamSectionTasks' },
+  { section: 'accounts', label: 'teamSectionAccounts' },
   { section: 'members', label: 'teamSectionMembers' }
 ];
 
@@ -236,6 +239,21 @@ export function WorkspaceShell({
     [updateQuery]
   );
 
+  // The account scope of the task list (017) lives in the address too.
+  const taskScope: TaskAccountScope = query?.agentId
+    ? { kind: 'agent', agentRowId: query.agentId }
+    : query?.accountId
+      ? { kind: 'account', accountId: query.accountId }
+      : { kind: 'all' };
+  const onTaskScopeChange = useCallback(
+    (scope: TaskAccountScope) =>
+      updateQuery('tasks', {
+        agentId: scope.kind === 'agent' ? scope.agentRowId : null,
+        accountId: scope.kind === 'account' ? scope.accountId : null
+      }),
+    [updateQuery]
+  );
+
   /**
    * Sending an asset to the task editor is a section change, so it goes through
    * the address like every other one. The shell stays mounted across it, which
@@ -358,8 +376,11 @@ export function WorkspaceShell({
                 onConsumedCreateFromAsset={() => setTaskAsset(null)}
                 openTaskId={query?.taskId ?? null}
                 onOpenTaskChange={onOpenTaskChange}
+                scope={taskScope}
+                onScopeChange={onTaskScopeChange}
               />
             )}
+            {section === 'accounts' && <AccountSpace key={`accounts:${teamId}`} teamId={teamId} />}
             {/* Nothing was ever indexed, so the connection is genuinely the
             reason there are no files (finding I4). */}
             {section === 'explorer' && !browsable && activeTeam && (

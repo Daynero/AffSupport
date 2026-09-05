@@ -30,6 +30,7 @@ const api = vi.hoisted(() => ({
 vi.mock('../apps/web/src/api/client.js', () => api);
 
 import { TranscriptTextModal } from '../apps/web/src/transcription/TranscriptTextModal.js';
+import { forgetTranscriptDocuments } from '../apps/web/src/transcription/document-cache.js';
 
 const job: TranscriptionJob = {
   id: 'modal-job',
@@ -147,6 +148,7 @@ const labels: Record<string, string> = {
   transcriptionTranslating: 'Translating into {language}…',
   transcriptionTranslationEmpty: 'Translation is empty',
   transcriptionPreview: 'Preview',
+  transcriptionPreviewSound: 'Play sound',
   transcriptionPreviewCollapse: 'Hide preview',
   transcriptionPreviewPreparing: 'Preparing preview…',
   transcriptionPreviewUnavailable: 'Preview unavailable',
@@ -195,6 +197,8 @@ describe('bilingual transcript modal integration', () => {
   beforeEach(() => {
     reduced = false;
     motionListeners.clear();
+    // The document cache is module-wide; one test's document must not be the next one's.
+    forgetTranscriptDocuments();
     api.transcriptionDocument.mockReset().mockResolvedValue(documentFixture);
     api.transcriptionTranslate.mockReset();
     api.transcriptionTranslation.mockReset();
@@ -244,6 +248,103 @@ describe('bilingual transcript modal integration', () => {
     });
   });
 
+  it('is read by keyboard before playback: one stop per column, arrows between segments, Enter opens the player there', async () => {
+    api.transcriptionTranslation.mockResolvedValue(translated('uk', 'Привіт, світе.', 6));
+    api.transcriptionTranslate.mockResolvedValue(translated('uk', 'Привіт, світе.', 6));
+    // Two segments, so there is somewhere for the arrows to go.
+    api.transcriptionDocument.mockResolvedValue({
+      ...documentFixture,
+      segments: [
+        ...documentFixture.segments,
+        {
+          id: 'segment-2',
+          startMs: 1_500,
+          endMs: 2_400,
+          sourceText: 'Again.',
+          words: [
+            {
+              id: 'word-3',
+              text: 'Again.',
+              startMs: 1_500,
+              endMs: 2_400,
+              confidence: 0.9,
+              sourceStart: 0,
+              sourceEnd: 6
+            }
+          ]
+        }
+      ]
+    });
+    const seeks: number[] = [];
+    const originalTime = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'currentTime');
+    const originalReady = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'readyState');
+    Object.defineProperty(HTMLMediaElement.prototype, 'currentTime', {
+      configurable: true,
+      get: () => 0,
+      set: (value: number) => {
+        seeks.push(value);
+      }
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, 'readyState', {
+      configurable: true,
+      get: () => 1
+    });
+    let view: ReturnType<typeof render> | null = null;
+    try {
+      view = render(
+        <TranscriptTextModal
+          job={job}
+          language="uk"
+          returnFocus={null}
+          translatorModel={installedModel}
+          onInstallTranslator={() => {}}
+          onCancelTranslator={() => {}}
+          onToast={() => {}}
+          onClose={() => {}}
+          t={t}
+        />
+      );
+      const dialog = await screen.findByRole('dialog');
+      const source = await waitFor(() => {
+        const column = dialog.querySelector<HTMLElement>(
+          '[data-side="source"] .transcript-column-scroll'
+        );
+        if (!column || column.querySelectorAll('[data-segment-id]').length < 2) {
+          throw new Error('no text');
+        }
+        return column;
+      });
+      const segments = Array.from(source.querySelectorAll<HTMLElement>('[data-segment-id]'));
+      // The column is one Tab stop; nothing is gated on the player being open.
+      expect(segments.map(segment => segment.tabIndex)).toEqual([
+        0,
+        ...segments.slice(1).map(() => -1)
+      ]);
+      segments[0].focus();
+      // Dispatched on the segment: the scroller's handler reads the target it bubbled from.
+      fireEvent.keyDown(segments[0], { key: 'ArrowDown' });
+      expect(document.activeElement).toBe(segments[1]);
+      fireEvent.keyDown(segments[1], { key: 'ArrowUp' });
+      expect(document.activeElement).toBe(segments[0]);
+
+      // Enter with no player open: the player opens and seeks to the segment's first word.
+      fireEvent.keyDown(segments[1], { key: 'Enter' });
+      await waitFor(() => expect(api.transcriptionMediaPrepare).toHaveBeenCalled());
+      await waitFor(() => expect(dialog.querySelector('video')).not.toBeNull());
+      const firstWord = segments[1].querySelector<HTMLElement>('[data-word-start-ms]');
+      await waitFor(() => expect(seeks).toContain(Number(firstWord?.dataset.wordStartMs) / 1000));
+    } finally {
+      // The next test renders its own dialog; this one must not be there to be found first.
+      view?.unmount();
+      if (originalTime)
+        Object.defineProperty(HTMLMediaElement.prototype, 'currentTime', originalTime);
+      else delete (HTMLMediaElement.prototype as { currentTime?: number }).currentTime;
+      if (originalReady)
+        Object.defineProperty(HTMLMediaElement.prototype, 'readyState', originalReady);
+      else delete (HTMLMediaElement.prototype as { readyState?: number }).readyState;
+    }
+  });
+
   it('revalidates cache, mirrors selection/copy, switches RTL race-safely, and preserves it through preview', async () => {
     const uk = translated('uk', 'Привіт, світе.', 6);
     let resolveArabic!: (value: TranslationDocument) => void;
@@ -280,8 +381,14 @@ describe('bilingual transcript modal integration', () => {
 
     const source = dialog.querySelector<HTMLElement>('[data-side="source"]')!;
     const target = dialog.querySelector<HTMLElement>('[data-side="target"]')!;
-    expect(source.dir).toBe('ltr');
-    expect(target.dir).toBe('ltr');
+    // The direction sits on the transcript text, not on the column whose loading and
+    // failure sentences are in the interface language.
+    const textDirection = (column: HTMLElement) =>
+      column.querySelector<HTMLElement>('.transcript-column-text, .transcript-translation-content')
+        ?.dir;
+    expect(source.dir).toBe('');
+    expect(textDirection(source)).toBe('ltr');
+    expect(textDirection(target)).toBe('ltr');
 
     fireEvent.click(within(source).getByRole('button', { name: 'Copy all' }));
     await waitFor(() =>
@@ -334,11 +441,12 @@ describe('bilingual transcript modal integration', () => {
       await arabicPromise;
     });
     await waitFor(() => expect(target.textContent).toContain('مرحبا بالعالم.'));
-    expect(target.dir).toBe('rtl');
+    expect(target.dir).toBe('');
+    expect(textDirection(target)).toBe('rtl');
     expect(source.querySelectorAll('.ts-selected').length).toBeGreaterThan(0);
     expect(target.querySelectorAll('.ts-selected').length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+    fireEvent.click(screen.getByRole('button', { name: /^(Preview|Play sound)$/u }));
     const media = await waitFor(() => {
       const element = dialog.querySelector('video');
       expect(element).not.toBeNull();

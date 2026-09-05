@@ -31,13 +31,7 @@ const BATCH = 5;
 const POLL_MS = 700;
 
 export type RestitchPreparationPhase =
-  | 'idle'
-  | 'folder'
-  | 'listing'
-  | 'running'
-  | 'finished'
-  | 'canceled'
-  | 'failed';
+  'idle' | 'folder' | 'listing' | 'running' | 'finished' | 'canceled' | 'failed';
 
 export interface RestitchPreparationState {
   phase: RestitchPreparationPhase;

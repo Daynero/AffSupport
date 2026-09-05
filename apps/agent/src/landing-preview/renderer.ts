@@ -27,6 +27,8 @@ const NAVIGATION_TIMEOUT_MS = 20_000;
 const RENDER_TIMEOUT_MS = 90_000;
 const MAX_SCREENSHOT_WIDTH = 4096;
 const MAX_SEGMENT_HEIGHT = 8000;
+/** The grid's thumbnail: this wide, and as tall as a 4:3 tile of it. */
+const THUMBNAIL_WIDTH = 480;
 const MAX_DOCUMENT_HEIGHT = 250_000;
 const MAX_TOTAL_SCREENSHOT_PIXELS = 120_000_000;
 const MIME_TYPES: Record<string, string> = {
@@ -63,13 +65,28 @@ export interface LandingRenderResult {
   width: number;
   height: number;
   segmentFiles: string[];
+  /** A small picture of the top of the page for the grid, or null when it could not be made. */
+  thumbnailFile: string | null;
   title: string | null;
   blockedExternalRequests: number;
   warning: string | null;
 }
 
+/**
+ * How long the browser outlives the last render.
+ *
+ * Long enough that the next landing in a folder, or a refresh a minute later, finds it
+ * warm; short enough that a Chromium is not left idling for the rest of the day on a
+ * machine that has other things to do with the memory.
+ */
+const BROWSER_IDLE_MS = 45_000;
+
 export class LandingPageRenderer {
   private browser: Browser | null = null;
+  /** The launch in flight, so four renders starting together share one Chromium. */
+  private launching: Promise<Browser> | null = null;
+  private active = 0;
+  private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private executable: string | null = null;
   private availabilityError: string | null = null;
 
@@ -104,11 +121,15 @@ export class LandingPageRenderer {
     const budget = AbortSignal.timeout(scaled(RENDER_TIMEOUT_MS));
     const signal = input.signal ? AbortSignal.any([input.signal, budget]) : budget;
     throwIfAborted(signal);
-    const browser = await this.getBrowser();
-    const local = await createLandingServer(input.root, input.entryFile);
-    const viewport = input.viewport ?? { ...VIEWPORT, mobile: false };
+    this.active += 1;
+    if (this.idleTimer) clearTimeout(this.idleTimer);
+    this.idleTimer = null;
+    let local: Awaited<ReturnType<typeof createLandingServer>> | null = null;
     let context: BrowserContext | null = null;
     try {
+      const browser = await this.getBrowser();
+      local = await createLandingServer(input.root, input.entryFile);
+      const viewport = input.viewport ?? { ...VIEWPORT, mobile: false };
       context = await browser.newContext({
         viewport: { width: viewport.width, height: viewport.height },
         deviceScaleFactor: 1,
@@ -172,6 +193,14 @@ export class LandingPageRenderer {
         segmentCssHeight,
         signal
       });
+      // Not part of the preview: a grid of forty landings used to fetch and decode forty
+      // full-width slices of eight thousand pixels each to show a tile the size of a stamp.
+      const thumbnailFile = await captureThumbnail({
+        page,
+        outputPath: input.outputPath,
+        width: dimensions.width,
+        height: Math.min(captureHeight, Math.round((dimensions.width * 3) / 4))
+      });
       const outputHeight = segmentFiles.reduce((total, segment) => total + segment.height, 0);
       const warnings: string[] = [];
       if (pageErrors.length) warnings.push('PAGE_SCRIPT_ERROR');
@@ -181,25 +210,51 @@ export class LandingPageRenderer {
         width: captureWidth,
         height: outputHeight,
         segmentFiles: segmentFiles.map(segment => segment.path),
+        thumbnailFile,
         title,
         blockedExternalRequests,
         warning: warnings.join(',') || null
       };
     } finally {
       await context?.close().catch(() => {});
-      await closeServer(local.server);
+      if (local) await closeServer(local.server);
+      this.active -= 1;
+      if (this.active === 0) this.scheduleIdleClose();
     }
   }
 
+  private scheduleIdleClose() {
+    if (this.idleTimer) clearTimeout(this.idleTimer);
+    this.idleTimer = setTimeout(() => {
+      this.idleTimer = null;
+      if (this.active === 0) void this.shutdown();
+    }, BROWSER_IDLE_MS);
+    // Never the reason the process stays up.
+    this.idleTimer.unref?.();
+  }
+
   async shutdown() {
-    const browser = this.browser;
+    if (this.idleTimer) clearTimeout(this.idleTimer);
+    this.idleTimer = null;
+    const browser = this.browser ?? (await this.launching?.catch(() => null)) ?? null;
     this.browser = null;
     if (browser) releaseBrowserProcess(browser);
     await browser?.close().catch(() => {});
   }
 
-  private async getBrowser() {
-    if (this.browser?.isConnected()) return this.browser;
+  private getBrowser(): Promise<Browser> {
+    if (this.browser?.isConnected()) return Promise.resolve(this.browser);
+    // Four workers asking at once used to launch four browsers and keep one: the other
+    // three lived on, unreferenced, until the process exited.
+    if (!this.launching) {
+      this.launching = this.launch().finally(() => {
+        this.launching = null;
+      });
+    }
+    return this.launching;
+  }
+
+  private async launch(): Promise<Browser> {
     try {
       this.browser = await chromium.launch({
         headless: true,
@@ -391,6 +446,52 @@ async function captureSegments(input: {
   } finally {
     await session.detach().catch(() => {});
   }
+}
+
+/**
+ * The top of the page, small. Its own capture rather than a resize of the first slice, so it
+ * needs no image library; a failure here costs the grid its picture, never the preview.
+ */
+async function captureThumbnail(input: {
+  page: Page;
+  outputPath: string;
+  width: number;
+  height: number;
+}): Promise<string | null> {
+  const target = thumbnailOutputPath(input.outputPath);
+  const session = await input.page.context().newCDPSession(input.page);
+  try {
+    const response = (await session.send('Page.captureScreenshot', {
+      format: 'webp',
+      quality: 80,
+      fromSurface: true,
+      captureBeyondViewport: true,
+      optimizeForSpeed: true,
+      clip: {
+        x: 0,
+        y: 0,
+        width: input.width,
+        height: Math.max(1, input.height),
+        scale: Math.min(1, THUMBNAIL_WIDTH / Math.max(1, input.width))
+      }
+    })) as { data?: string };
+    const bytes = Buffer.from(response.data ?? '', 'base64');
+    if (bytes.length < 32 || bytes.toString('ascii', 8, 12) !== 'WEBP') return null;
+    await writeFile(target, bytes);
+    return target;
+  } catch {
+    await rm(target, { force: true }).catch(() => {});
+    return null;
+  } finally {
+    await session.detach().catch(() => {});
+  }
+}
+
+export function thumbnailOutputPath(outputPath: string) {
+  const marker = '.segment-0';
+  const extension = path.extname(outputPath);
+  const stem = outputPath.slice(0, -extension.length);
+  return `${stem.endsWith(marker) ? stem.slice(0, -marker.length) : stem}.thumb${extension}`;
 }
 
 function segmentOutputPath(outputPath: string, index: number) {

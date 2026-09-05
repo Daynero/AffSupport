@@ -246,6 +246,23 @@ export function activeGovernorOrNull(): ManagedSpawnGovernor | null {
 }
 
 /** Thread budget for the process-wide governor; null when unrestricted or absent. */
+/**
+ * How many threads a local inference engine gets when the governor has no say.
+ *
+ * Two cores stay with the interface and the OS whatever the count: a floor of four on a
+ * four-core laptop was every core, on exactly the machines this matters for. Capped at
+ * eight because a hyper-threaded Windows box counts sixteen "CPUs" that share eight cores'
+ * caches. On Apple Silicon the GPU does the work and the count barely matters either way.
+ */
+export function defaultInferenceThreads(cpuCount = os.cpus().length): number {
+  return Math.max(2, Math.min(8, cpuCount - 2));
+}
+
+/** The governor's budget when it has one, the default otherwise. */
+export function inferenceThreads(): number {
+  return activeThreadBudget() ?? defaultInferenceThreads();
+}
+
 export function activeThreadBudget(): number | null {
   return activeGovernor?.budget().threadBudget ?? null;
 }
@@ -270,4 +287,16 @@ export function spawnTracked(
   options: ManagedSpawnOptions
 ): ChildProcess {
   return spawnManaged(activeGovernor, command, args, options);
+}
+
+/**
+ * A wall-clock budget stretched to match the resource limit in force.
+ *
+ * Every deadline over managed work goes through here: at a reduced limit a child is
+ * duty-cycled and takes proportionally longer, and a fixed budget would fail it for
+ * honouring the user's own setting. Written once; four copies of it had drifted into four
+ * files.
+ */
+export function scaled(milliseconds: number): number {
+  return activeGovernorOrNull()?.scaleTimeout(milliseconds) ?? milliseconds;
 }

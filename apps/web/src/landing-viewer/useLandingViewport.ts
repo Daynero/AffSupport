@@ -10,6 +10,10 @@ import {
 import { clamp } from './viewerPreferences';
 import type { ZoomMode } from './types';
 
+/** One floor for every way of zooming: a fit at 22% used to step to 32% on the first "+". */
+export const MIN_SCALE = 0.15;
+export const MAX_SCALE = 3;
+
 export interface UseLandingViewportInput {
   /** The scroll container: pan target, wheel target, and size source for fit calculations. */
   canvasRef: RefObject<HTMLDivElement | null>;
@@ -21,10 +25,14 @@ export interface UseLandingViewportInput {
   onStep?: (delta: -1 | 1) => void;
   /** Disable pointer-drag panning (e.g. while the grid overview is shown). */
   panningDisabled?: boolean;
+  /** Disable the zoom keys and wheel (the grid has nothing to zoom). */
+  zoomDisabled?: boolean;
   /** Seeds zoom mode + custom scale once, from persisted preferences. */
   initial: { zoomMode: ZoomMode; customScale: number };
   /** Re-attach the ResizeObserver / wheel listener when the canvas element (re)mounts. */
   remeasureKey?: unknown;
+  /** Whether the document-wide keyboard shortcuts are live; off while no viewer is shown. */
+  keyboardEnabled?: boolean;
 }
 
 export interface UseLandingViewport {
@@ -59,8 +67,10 @@ export function useLandingViewport({
   preview,
   onStep,
   panningDisabled = false,
+  zoomDisabled = false,
   initial,
-  remeasureKey
+  remeasureKey,
+  keyboardEnabled = true
 }: UseLandingViewportInput): UseLandingViewport {
   const [zoomMode, setZoomMode] = useState<ZoomMode>(initial.zoomMode);
   const [customScale, setCustomScale] = useState(initial.customScale);
@@ -71,18 +81,19 @@ export function useLandingViewport({
     if (!preview?.width || !preview.height) return customScale;
     const availableWidth = Math.max(160, canvasSize.width - 80);
     const availableHeight = Math.max(160, canvasSize.height - 80);
-    if (zoomMode === 'fit-width') return clamp(availableWidth / preview.width, 0.15, 3);
+    if (zoomMode === 'fit-width')
+      return clamp(availableWidth / preview.width, MIN_SCALE, MAX_SCALE);
     if (zoomMode === 'fit-page')
       return clamp(
         Math.min(availableWidth / preview.width, availableHeight / preview.height),
-        0.15,
-        3
+        MIN_SCALE,
+        MAX_SCALE
       );
     return customScale;
   }, [canvasSize, customScale, preview, zoomMode]);
 
   const setZoom = useCallback((next: number) => {
-    setCustomScale(clamp(next, 0.25, 3));
+    setCustomScale(clamp(next, MIN_SCALE, MAX_SCALE));
     setZoomMode('custom');
   }, []);
 
@@ -112,13 +123,13 @@ export function useLandingViewport({
     const element = canvasRef.current;
     if (!element) return;
     const onWheel = (event: WheelEvent) => {
-      if (!(event.ctrlKey || event.metaKey)) return;
+      if (zoomDisabled || !(event.ctrlKey || event.metaKey)) return;
       event.preventDefault();
       setZoom(scaleRef.current + (event.deltaY < 0 ? 0.1 : -0.1));
     };
     element.addEventListener('wheel', onWheel, { passive: false });
     return () => element.removeEventListener('wheel', onWheel);
-  }, [canvasRef, setZoom, remeasureKey]);
+  }, [canvasRef, setZoom, remeasureKey, zoomDisabled]);
 
   useEffect(() => {
     const changed = () => setFullscreen(document.fullscreenElement === viewerRef.current);
@@ -132,6 +143,7 @@ export function useLandingViewport({
   }, [viewerRef]);
 
   useEffect(() => {
+    if (!keyboardEnabled) return;
     const keyboard = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.matches('input, select, textarea, button, [contenteditable="true"]')) return;
@@ -141,6 +153,8 @@ export function useLandingViewport({
       } else if (event.key === 'ArrowRight') {
         event.preventDefault();
         onStep?.(1);
+      } else if (zoomDisabled) {
+        return;
       } else if (event.key === '+' || event.key === '=') {
         event.preventDefault();
         setZoom(scaleRef.current + 0.1);
@@ -154,7 +168,7 @@ export function useLandingViewport({
     };
     document.addEventListener('keydown', keyboard);
     return () => document.removeEventListener('keydown', keyboard);
-  }, [onStep, setZoom]);
+  }, [keyboardEnabled, onStep, setZoom, zoomDisabled]);
 
   const pan = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   const onPointerDown = (event: PointerEvent<HTMLElement>) => {
@@ -163,6 +177,8 @@ export function useLandingViewport({
       return;
     const element = canvasRef.current;
     if (!element) return;
+    // Releasing the button over the toolbar, or outside the window, must still end the pan.
+    event.currentTarget.setPointerCapture?.(event.pointerId);
     pan.current = {
       x: event.clientX,
       y: event.clientY,

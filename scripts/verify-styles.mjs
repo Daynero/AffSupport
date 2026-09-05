@@ -25,9 +25,17 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
  * which is not hypothetical: the first version of the test for this checker ran
  * in two vitest projects at once and truncated the stylesheet to two lines.
  */
-const STYLESHEET = process.argv[2]
-  ? path.resolve(process.argv[2])
-  : path.join(root, 'apps/web/src/styles.css');
+const STYLESHEETS = process.argv[2]
+  ? [path.resolve(process.argv[2])]
+  : [
+      path.join(root, 'apps/web/src/styles.css'),
+      // A tool's own sheet is loaded after the shared one and uses its tokens; checked as
+      // one text so a token it names is looked up where it is declared.
+      ...readdirSync(path.join(root, 'apps/web/src/styles'))
+        .filter(entry => entry.endsWith('.css'))
+        .sort()
+        .map(entry => path.join(root, 'apps/web/src/styles', entry))
+    ];
 const WEB_SRC = path.join(root, 'apps/web/src');
 
 function sourceFiles(directory) {
@@ -40,7 +48,7 @@ function sourceFiles(directory) {
   return found;
 }
 
-const css = readFileSync(STYLESHEET, 'utf8');
+const css = STYLESHEETS.map(file => readFileSync(file, 'utf8')).join('\n');
 
 /** Properties declared in the stylesheet. */
 const declared = new Set([...css.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gmu)].map(match => match[1]));

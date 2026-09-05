@@ -1,11 +1,12 @@
-import { Button } from '../components/ui';
+import { ChevronDown, RefreshCw, RotateCcw } from 'lucide-react';
+import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { useI18n } from '../i18n';
+import { GalleryIconButton } from './internal/GalleryIconButton';
+import { MenuItem, ViewerMenu } from './internal/ViewerMenu';
 
 /**
- * Refresh control (feature 004 UX). The visible action is now "refresh the folder" (pick up new /
- * changed landings) instead of the old, misleading "refresh current" — the fix for "you'd never
- * guess how to update all landings". A caret exposes the finer-grained options. Team catalogues
- * re-import as a whole, so they show a single button with no caret.
+ * "Refresh the folder" picks up new and changed landings; the caret beside it holds the
+ * rarer choices. A team space re-imports as a whole, so it gets the one button only.
  */
 export function LandingRefreshControl({
   running,
@@ -26,33 +27,51 @@ export function LandingRefreshControl({
 }) {
   const { t } = useI18n();
   return (
-    <div className="landing-gallery-refresh">
-      <Button
-        variant="ghost"
-        className="landing-gallery-refresh-primary"
+    <div className="lv-group lv-refresh">
+      <GalleryIconButton
+        label={t('landingGalleryRefreshFolder')}
+        className="has-label is-secondary"
         disabled={running || openingTeam}
         onClick={onRefreshFolder}
       >
-        <span aria-hidden="true">↻</span> {t('landingGalleryRefreshFolder')}
-      </Button>
+        <RefreshCw size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        <span className="action-label">{t('landingGalleryRefreshFolder')}</span>
+      </GalleryIconButton>
       {!isTeam && (
-        <details className="landing-gallery-refresh-more">
-          <summary
-            className="landing-gallery-delayed-tooltip"
-            data-tooltip={t('landingGalleryRefreshMore')}
-            aria-label={t('landingGalleryRefreshMore')}
-          >
-            ⌄
-          </summary>
-          <div>
-            <button type="button" disabled={running || !hasSelection} onClick={onRefreshCurrent}>
-              {t('landingGalleryRefreshCurrent')}
-            </button>
-            <button type="button" disabled={running} onClick={onRebuildAll}>
-              {t('landingGalleryRebuildAll')}
-            </button>
-          </div>
-        </details>
+        <ViewerMenu
+          label={t('landingGalleryRefreshMore')}
+          triggerClassName="lv-refresh-more"
+          trigger={<ChevronDown size={16} strokeWidth={2} aria-hidden="true" />}
+        >
+          {close => (
+            <>
+              <MenuItem
+                icon={
+                  <RefreshCw size={ICON_SIZE - 2} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                }
+                disabled={running || !hasSelection}
+                onClick={() => {
+                  close();
+                  onRefreshCurrent();
+                }}
+              >
+                {t('landingGalleryRefreshCurrent')}
+              </MenuItem>
+              <MenuItem
+                icon={
+                  <RotateCcw size={ICON_SIZE - 2} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                }
+                disabled={running}
+                onClick={() => {
+                  close();
+                  onRebuildAll();
+                }}
+              >
+                {t('landingGalleryRebuildAll')}
+              </MenuItem>
+            </>
+          )}
+        </ViewerMenu>
       )}
     </div>
   );

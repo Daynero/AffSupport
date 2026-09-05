@@ -184,7 +184,19 @@ export async function probeImage(
     : null;
 }
 
-export async function probeDuration(inputPath: string): Promise<number | null> {
+/**
+ * How long a duration probe may take before it is given up on.
+ *
+ * Reading a container header is milliseconds; a probe still running after half a minute is
+ * blocked on a volume that has gone away, and a job that waits on it never leaves
+ * `analyzing`. A probe that fails is not fatal — the progress bar just stays indeterminate.
+ */
+const PROBE_TIMEOUT_MS = 30_000;
+
+export async function probeDuration(
+  inputPath: string,
+  timeoutMs = PROBE_TIMEOUT_MS
+): Promise<number | null> {
   return new Promise(resolve => {
     const child = spawn(
       ffprobePath,
@@ -200,11 +212,20 @@ export async function probeDuration(inputPath: string): Promise<number | null> {
       { shell: false }
     );
     let output = '';
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      resolve(null);
+    }, timeoutMs);
+    timer.unref();
     child.stdout.on('data', data => {
       output += data;
     });
-    child.on('error', () => resolve(null));
+    child.on('error', () => {
+      clearTimeout(timer);
+      resolve(null);
+    });
     child.on('close', code => {
+      clearTimeout(timer);
       const value = Number.parseFloat(output.trim());
       resolve(code === 0 && Number.isFinite(value) && value > 0 ? value : null);
     });

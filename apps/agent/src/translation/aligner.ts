@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import type { ChildProcess } from 'node:child_process';
-import { activeGovernorOrNull, spawnTracked } from '../power/spawn.js';
+import { inferenceThreads, scaled, spawnTracked } from '../power/spawn.js';
 import type { AlignmentLink, TranscriptSegment, TranscriptWord } from '@video-compressor/shared';
 import {
   ALIGNMENT_MODEL_DESCRIPTOR,
@@ -38,6 +38,8 @@ interface EmbeddingResponse {
 }
 
 const ALIGNER_IDLE_MS = 60_000;
+/** How often a running alignment server is asked whether it still answers. */
+const ALIGNER_HEALTH_INTERVAL_MS = 10_000;
 
 /**
  * Local multilingual semantic aligner backed by Multilingual E5 Small. The
@@ -46,11 +48,6 @@ const ALIGNER_IDLE_MS = 60_000;
  * nearest-neighbour margin.
  */
 const ALIGNER_START_TIMEOUT_MS = 45_000;
-
-/** A wall-clock budget stretched to match the resource limit in force. */
-function scaled(milliseconds: number): number {
-  return activeGovernorOrNull()?.scaleTimeout(milliseconds) ?? milliseconds;
-}
 
 export class E5Aligner implements Aligner {
   private child: ChildProcess | null = null;
@@ -115,8 +112,28 @@ export class E5Aligner implements Aligner {
     }
   }
 
+  /** When the running server last answered a health probe. */
+  private lastHealthy = 0;
+
   private async ensureServer(signal: AbortSignal): Promise<void> {
-    if (this.child?.exitCode === null && this.port) return;
+    if (this.child?.exitCode === null && this.port) {
+      // A live process is not a working server. Probed at most once every ten seconds —
+      // a segment is aligned in well under one — so a server that has stopped answering
+      // is replaced instead of being handed every segment of every translation.
+      if (Date.now() - this.lastHealthy < ALIGNER_HEALTH_INTERVAL_MS) return;
+      const health = await localLlamaHttpRequest(
+        this.port,
+        this.apiKey,
+        'GET',
+        '/health',
+        undefined,
+        signal
+      ).catch(() => null);
+      if (health?.statusCode === 200) {
+        this.lastHealthy = Date.now();
+        return;
+      }
+    }
     if (!this.starting) {
       this.starting = this.startServer().finally(() => {
         this.starting = null;
@@ -153,8 +170,6 @@ export class E5Aligner implements Aligner {
         '127.0.0.1',
         '--port',
         String(port),
-        '--api-key',
-        apiKey,
         '--embedding',
         '--pooling',
         'mean',
@@ -164,6 +179,8 @@ export class E5Aligner implements Aligner {
         '512',
         '--parallel',
         '1',
+        '--threads',
+        String(inferenceThreads()),
         // Keep the small E5 model on CPU. Starting a second Metal-backed
         // llama.cpp process while TranslateGemma is warm can block for well
         // over a minute on Apple Silicon; CPU startup is sub-second and a
@@ -173,7 +190,12 @@ export class E5Aligner implements Aligner {
         '--no-webui',
         '--log-disable'
       ],
-      { toolId: 'translation-align', stdio: ['ignore', 'ignore', 'ignore'] }
+      {
+        toolId: 'translation-align',
+        // In the environment rather than argv, for the same reason as the translator.
+        env: { ...process.env, LLAMA_API_KEY: apiKey },
+        stdio: ['ignore', 'ignore', 'ignore']
+      }
     );
     this.child = child;
     this.port = port;
@@ -189,7 +211,10 @@ export class E5Aligner implements Aligner {
     while (Date.now() < deadline) {
       if (child.exitCode !== null) throw new Error('The local alignment engine could not start.');
       const health = await localLlamaHttpRequest(port, apiKey, 'GET', '/health').catch(() => null);
-      if (health?.statusCode === 200) return;
+      if (health?.statusCode === 200) {
+        this.lastHealthy = Date.now();
+        return;
+      }
       await delay(100);
     }
     await this.close();
@@ -355,15 +380,25 @@ export function alignEmbeddingUnits(
     anchors.push(edge);
   }
 
+  // The runner-up score per source token, read off the already-sorted edge list in one
+  // pass. Filtering and re-sorting the whole list once per anchor was quadratic in the
+  // segment's length, on the event loop, for every segment of every translation.
+  const bestByAnchor = new Map<number, number>();
+  const secondByAnchor = new Map<number, number>();
+  for (const edge of edges) {
+    const token = edge.source.unit.tokenStart;
+    if (!bestByAnchor.has(token)) bestByAnchor.set(token, edge.score);
+    else if (!secondByAnchor.has(token)) secondByAnchor.set(token, edge.score);
+  }
   for (const anchor of anchors) {
-    const alternatives = edges
-      .filter(
-        edge =>
-          edge.source.unit.tokenStart === anchor.source.unit.tokenStart &&
-          edge.target.unit.tokenStart !== anchor.target.unit.tokenStart
-      )
-      .map(edge => edge.score)
-      .sort((left, right) => right - left);
+    const token = anchor.source.unit.tokenStart;
+    // The anchor is the best edge for its token unless an earlier anchor took that target,
+    // in which case the best edge is the runner-up to this one.
+    const alternative =
+      bestByAnchor.get(token) === anchor.score
+        ? secondByAnchor.get(token)
+        : bestByAnchor.get(token);
+    const alternatives = alternative === undefined ? [] : [alternative];
     let sourceUnit = anchor.source.unit;
     let targetUnit = anchor.target.unit;
 

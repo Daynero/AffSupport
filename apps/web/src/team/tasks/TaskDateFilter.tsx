@@ -123,12 +123,15 @@ export function TaskDateFilterControl({
   value,
   onChange,
   status,
-  onStatusChange
+  onStatusChange,
+  children
 }: {
   value: TaskDateFilter;
   onChange: (value: TaskDateFilter) => void;
   status: TaskStatusFilter;
   onStatusChange: (value: TaskStatusFilter) => void;
+  /** A further filter that shares the row — the account scope (017). */
+  children?: React.ReactNode;
 }) {
   const { language, t } = useI18n();
   const root = useRef<HTMLDivElement | null>(null);
@@ -298,6 +301,7 @@ export function TaskDateFilterControl({
           </div>
         )}
       </div>
+      {children}
       <div className="task-status-filter" aria-label={t('teamTaskStatus')}>
         {statuses.map(option => {
           const label = option === 'all' ? t('teamTaskStatusAll') : taskStatusLabel(option, t);

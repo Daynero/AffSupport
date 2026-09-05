@@ -3,6 +3,10 @@ import ReactDOM from 'react-dom/client';
 import Root from './Root';
 import { consumePairingToken } from './api/pairing-token';
 import './styles.css';
+import './styles/team-accounts.css';
+import './styles/team-tasks.css';
+import './styles/transcription.css';
+import './styles/landing-viewer.css';
 
 document.documentElement.dataset.appBoot = '2026-08-09.1';
 

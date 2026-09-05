@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { replaceFile } from '../files/replace-file.js';
 import path from 'node:path';
 import type {
   TranscriptionDocument,
@@ -9,7 +10,7 @@ import type {
   TranslationDocument
 } from '@video-compressor/shared';
 import { applicationSupportRoot } from '../files/support-dir.js';
-import { splitTextForTranslation } from '../translation/segmentation.js';
+import { lexicalUnitSpans, splitTextForTranslation } from '../translation/segmentation.js';
 import { buildSegmentsFromWords, type WhisperWord } from '../whisper/words.js';
 
 /** Canonical sidecar directory, shared by the queue and the persisted-state loader. */
@@ -28,9 +29,6 @@ export function transcriptionDocumentFile(dir: string, jobId: string): string {
   return path.join(dir, `${safe}.json`);
 }
 
-const LEXICAL_UNIT = /[\p{L}\p{M}\p{N}]+/gu;
-const NO_SPACE_SCRIPT =
-  /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]/u;
 // Overlapping 20-second primary/recovery windows can put several alternative
 // decodings between two consecutive canonical words. Keep the search local so
 // a missing word cannot accidentally jump karaoke to a later repeated phrase.
@@ -50,41 +48,11 @@ interface TimedLexicalUnit {
 }
 
 function lexicalUnits(text: string): LexicalUnit[] {
-  const units: LexicalUnit[] = [];
-  for (const match of text.matchAll(LEXICAL_UNIT)) {
-    const value = match[0];
-    const start = match.index;
-    if (!NO_SPACE_SCRIPT.test(value)) {
-      units.push({
-        normalized: value.normalize('NFKC').toLocaleLowerCase(),
-        start,
-        end: start + value.length
-      });
-      continue;
-    }
-
-    // Scripts that normally omit spaces would otherwise turn an entire line
-    // into one lexical unit while whisper emits several timestamped tokens.
-    // Split those runs into visible code points and keep combining marks on the
-    // preceding base character.
-    let cursor = start;
-    for (const point of Array.from(value)) {
-      const end = cursor + point.length;
-      if (/^\p{M}$/u.test(point) && units.length && units.at(-1)?.end === cursor) {
-        const previous = units[units.length - 1];
-        previous.normalized += point.normalize('NFKC').toLocaleLowerCase();
-        previous.end = end;
-      } else {
-        units.push({
-          normalized: point.normalize('NFKC').toLocaleLowerCase(),
-          start: cursor,
-          end
-        });
-      }
-      cursor = end;
-    }
-  }
-  return units;
+  return lexicalUnitSpans(text).map(({ start, end }) => ({
+    normalized: text.slice(start, end).normalize('NFKC').toLocaleLowerCase(),
+    start,
+    end
+  }));
 }
 
 function trailingPunctuationEnd(text: string, end: number): number {
@@ -439,7 +407,7 @@ export class TranscriptionDocumentStore {
     // never collide on one `.part` file; the rename then atomically replaces.
     const partial = `${target}.${randomBytes(6).toString('hex')}.part`;
     await writeFile(partial, JSON.stringify(document), { encoding: 'utf8', mode: 0o600 });
-    await rename(partial, target).catch(async error => {
+    await replaceFile(partial, target).catch(async error => {
       await rm(partial, { force: true }).catch(() => {});
       throw error;
     });
@@ -448,7 +416,7 @@ export class TranscriptionDocumentStore {
   async load(jobId: string): Promise<TranscriptionDocument | null> {
     try {
       const raw = await readFile(this.file(jobId), 'utf8');
-      return JSON.parse(raw) as TranscriptionDocument;
+      return validDocument(JSON.parse(raw));
     } catch {
       return null;
     }
@@ -457,6 +425,34 @@ export class TranscriptionDocumentStore {
   async remove(jobId: string): Promise<void> {
     await rm(this.file(jobId), { force: true }).catch(() => {});
   }
+}
+
+/**
+ * The shape every reader relies on, checked once at the door.
+ *
+ * A sidecar is a file, and a file can be truncated by a crash mid-write of an older build,
+ * edited by hand, or written by a version with a different idea of the fields. Every
+ * consumer used to trust the cast and throw somewhere far from the cause; a document that
+ * does not hold up is treated as absent instead, which the callers already handle.
+ */
+export function validDocument(value: unknown): TranscriptionDocument | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Record<string, unknown>;
+  if (typeof raw.jobId !== 'string' || typeof raw.sourceLanguage !== 'string') return null;
+  if (!Array.isArray(raw.segments)) return null;
+  for (const segment of raw.segments as unknown[]) {
+    if (!segment || typeof segment !== 'object') return null;
+    const entry = segment as Record<string, unknown>;
+    if (typeof entry.id !== 'string' || typeof entry.sourceText !== 'string') return null;
+    if (!Array.isArray(entry.words)) return null;
+  }
+  const translations =
+    raw.translations && typeof raw.translations === 'object' ? raw.translations : {};
+  return {
+    ...(raw as unknown as TranscriptionDocument),
+    modelVersion: typeof raw.modelVersion === 'string' ? raw.modelVersion : '',
+    translations: translations as TranscriptionDocument['translations']
+  };
 }
 
 /**
@@ -488,9 +484,54 @@ export class TranslationCacheStore {
     const target = this.file(translation.cacheKey);
     const partial = `${target}.${randomBytes(6).toString('hex')}.part`;
     await writeFile(partial, JSON.stringify(translation), { encoding: 'utf8', mode: 0o600 });
-    await rename(partial, target).catch(async error => {
+    await replaceFile(partial, target).catch(async error => {
       await rm(partial, { force: true }).catch(() => {});
       throw error;
     });
+  }
+
+  /**
+   * Removes entries nothing will read again.
+   *
+   * The cache grew for as long as the application was installed: one file per transcript
+   * and language, and a translator update orphaned every one of them, since the model
+   * version is part of the key. An entry from another model version, or one untouched for
+   * the given age, goes; a torn `.part` from a crash goes with it.
+   */
+  async sweep(options: { currentModelVersion?: string; maxAgeMs: number }): Promise<number> {
+    let entries: string[];
+    try {
+      entries = await readdir(this.dir);
+    } catch {
+      return 0;
+    }
+    const cutoff = Date.now() - options.maxAgeMs;
+    let removed = 0;
+    for (const entry of entries) {
+      const file = path.join(this.dir, entry);
+      try {
+        if (entry.endsWith('.part')) {
+          await rm(file, { force: true });
+          removed += 1;
+          continue;
+        }
+        if (!entry.endsWith('.json')) continue;
+        const info = await stat(file);
+        let stale = info.mtimeMs < cutoff;
+        if (!stale && options.currentModelVersion) {
+          const value = JSON.parse(await readFile(file, 'utf8')) as Partial<TranslationDocument>;
+          stale = value.modelVersion !== options.currentModelVersion;
+        }
+        if (stale) {
+          await rm(file, { force: true });
+          removed += 1;
+        }
+      } catch {
+        // Unreadable is as good as stale: a cache entry that cannot be parsed is never served.
+        await rm(file, { force: true }).catch(() => {});
+        removed += 1;
+      }
+    }
+    return removed;
   }
 }

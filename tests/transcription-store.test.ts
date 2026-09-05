@@ -108,7 +108,12 @@ describe('persistent transcription state', () => {
     );
 
     const restored = await loadTranscriptionState(stateFile);
-    expect(restored.settings).toEqual({ language: 'uk', translationLanguage: 'en' });
+    // A file written before the quality setting existed gets the caller's fallback.
+    expect(restored.settings).toEqual({
+      language: 'uk',
+      translationLanguage: 'en',
+      quality: 'fast'
+    });
     expect(restored.jobs.map(job => job.status)).toEqual(['ready', 'completed']);
     const completed = restored.jobs[1];
     expect(completed.progress).toBe(100);
@@ -118,15 +123,74 @@ describe('persistent transcription state', () => {
     expect(completed.translation).toMatchObject({ targetLanguage: 'uk', status: 'completed' });
   });
 
+  it("keeps what was learned about a language, and a person's correction above all", async () => {
+    const source = path.join(directory, 'uz.mp4');
+    await writeFile(source, 'media');
+    await saveTranscriptionState(
+      {
+        settings: { language: 'auto', translationLanguage: 'uk' },
+        jobs: [
+          makeJob({
+            id: 'probed',
+            inputPath: source,
+            detectedLanguage: 'az',
+            languageSource: 'probe',
+            languageConfidence: 0.6,
+            languageCandidates: [
+              { language: 'az', share: 0.6 },
+              { language: 'fa', share: 0.4 }
+            ],
+            languageSamples: 4,
+            // Nothing is probing at boot; the flag must not come back saying otherwise.
+            languageProbing: true
+          }),
+          makeJob({
+            id: 'chosen',
+            inputPath: source,
+            detectedLanguage: 'uz',
+            languageSource: 'manual'
+          }),
+          // A record from before the probe existed: a label with nothing behind it.
+          makeJob({ id: 'legacy', inputPath: source, detectedLanguage: 'tr' })
+        ]
+      },
+      stateFile
+    );
+
+    const [probed, chosen, legacy] = (await loadTranscriptionState(stateFile)).jobs;
+    expect(probed).toMatchObject({
+      detectedLanguage: 'az',
+      languageSource: 'probe',
+      languageConfidence: 0.6,
+      languageSamples: 4
+    });
+    expect(probed.languageCandidates).toEqual([
+      { language: 'az', share: 0.6 },
+      { language: 'fa', share: 0.4 }
+    ]);
+    expect(probed.languageProbing).toBeUndefined();
+    expect(chosen).toMatchObject({ detectedLanguage: 'uz', languageSource: 'manual' });
+    expect(legacy.detectedLanguage).toBe('tr');
+    expect(legacy.languageSource).toBeUndefined();
+  });
+
   it('returns an empty state for a missing or corrupt file', async () => {
     const missing = await loadTranscriptionState(path.join(directory, 'nope.json'));
     expect(missing.jobs).toEqual([]);
-    expect(missing.settings).toEqual({ language: 'auto', translationLanguage: 'uk' });
+    expect(missing.settings).toEqual({
+      language: 'auto',
+      translationLanguage: 'uk',
+      quality: 'fast'
+    });
 
     await writeFile(stateFile, '{ this is not json');
-    const corrupt = await loadTranscriptionState(stateFile);
+    const corrupt = await loadTranscriptionState(stateFile, { fallbackQuality: 'accurate' });
     expect(corrupt.jobs).toEqual([]);
-    expect(corrupt.settings).toEqual({ language: 'auto', translationLanguage: 'uk' });
+    expect(corrupt.settings).toEqual({
+      language: 'auto',
+      translationLanguage: 'uk',
+      quality: 'accurate'
+    });
   });
 
   it('restores an interrupted transcription as interrupted, not failed', async () => {

@@ -260,3 +260,66 @@ drop table if exists private.two_factor_entries;
 Every stored 2FA seed is gone at that point, with no export and no recovery —
 each affected person has to re-enrol two-factor authentication with the service
 that issued it. Keep the `private` schema; other migrations use it.
+
+## 20260905100000_team_accounts.sql
+Feature 017. Dropping the tables loses every account and every agent's run note
+in every space; there is no export. For an isolated development database:
+
+```sql
+alter publication supabase_realtime drop table public.team_account_agents;
+alter publication supabase_realtime drop table public.team_accounts;
+
+drop function if exists public.delete_team_account_agent(uuid, uuid);
+drop function if exists public.update_team_account_agent(uuid, uuid, text, text);
+drop function if exists public.add_team_account_agent(uuid, uuid, text, text);
+drop function if exists public.delete_team_account(uuid, uuid);
+drop function if exists public.rename_team_account(uuid, uuid, text);
+drop function if exists public.create_team_account(uuid, text);
+drop function if exists public.list_team_accounts(uuid);
+drop function if exists private.team_agent_note(text);
+drop function if exists private.team_account_name(text);
+
+drop table if exists public.team_account_agents;
+drop table if exists public.team_accounts;
+```
+
+## 20260905120000_team_task_agents.sql
+Feature 017, part 2. Dropping the link table loses every tag on every task; the
+accounts and agents themselves stay. For an isolated development database:
+
+```sql
+alter publication supabase_realtime drop table public.team_task_agents;
+drop function if exists public.detach_team_task_agent(uuid, uuid, uuid);
+drop function if exists public.attach_team_task_agent(uuid, uuid, uuid);
+drop function if exists public.list_team_tasks(uuid, timestamptz, timestamptz, uuid, integer, text, uuid, uuid);
+-- Re-create list_team_tasks, get_team_task and list_team_accounts from
+-- 20260815115000, 20260814101000 and 20260905100000 respectively.
+drop function if exists private.team_task_agent_tags(uuid);
+drop table if exists public.team_task_agents;
+alter table public.team_account_agents drop constraint team_account_agents_id_team_unique;
+```
+
+## 20260905140000_team_agent_runs.sql
+Feature 017, part 3. Runs became rows; the old `note` column is gone. Reversing
+keeps at most one run per agent (the newest). For an isolated development database:
+
+```sql
+alter table public.team_account_agents add column note text;
+alter table public.team_account_agents add constraint team_account_agents_note_length
+  check (note is null or char_length(note) between 1 and 120);
+update public.team_account_agents as agent set note = (
+  select run.note from public.team_agent_runs as run
+  where run.agent_row_id = agent.id order by run.created_at desc limit 1);
+alter publication supabase_realtime drop table public.team_agent_runs;
+drop function if exists public.clear_team_agent_runs(uuid, uuid);
+drop function if exists public.delete_team_agent_run(uuid, uuid);
+drop function if exists public.update_team_agent_run(uuid, uuid, text);
+drop function if exists public.add_team_agent_run(uuid, uuid, text);
+drop function if exists public.update_team_account_agent(uuid, uuid, text);
+drop function if exists public.add_team_account_agent(uuid, uuid, text, text);
+drop function if exists private.team_agent_json(uuid);
+drop function if exists private.team_agent_runs_json(uuid);
+-- Re-create add/update_team_account_agent, list_team_accounts and
+-- private.team_task_agent_tags from 20260905100000 / 20260905120000.
+drop table if exists public.team_agent_runs;
+```

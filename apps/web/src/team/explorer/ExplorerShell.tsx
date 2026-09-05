@@ -302,9 +302,7 @@ function ExplorerBody({
     options?: Record<string, unknown>;
   };
   const [tQueue, setTQueue] = useState<QueueItem[]>([]);
-  const [tActive, setTActive] = useState<(QueueItem & { operationId: string | null }) | null>(
-    null
-  );
+  const [tActive, setTActive] = useState<(QueueItem & { operationId: string | null }) | null>(null);
   const [tDone, setTDone] = useState(0);
   const [tTotal, setTTotal] = useState(0);
   // The batch is held: nothing new starts, and the file already in flight is
@@ -890,9 +888,7 @@ function ExplorerBody({
         tool: 'compressor' as const,
         outputName,
         ...(overwrite ? { versionOf: item.id } : {}),
-        ...(plan.destination.kind === 'local'
-          ? { local: { embed: plan.embed, suffix } }
-          : {}),
+        ...(plan.destination.kind === 'local' ? { local: { embed: plan.embed, suffix } } : {}),
         options: plan.embed ? { imageEmbedding: { enabled: true } } : {}
       };
     });
@@ -914,7 +910,10 @@ function ExplorerBody({
     }
     if (plan.what !== 'videos' && plan.landings.length > 0) {
       const landings = plan.landings;
-      push({ tone: 'success', text: t('teamFolderProcessLandingsQueued', { count: landings.length }) });
+      push({
+        tone: 'success',
+        text: t('teamFolderProcessLandingsQueued', { count: landings.length })
+      });
       void (async () => {
         for (const landing of landings) {
           await teamApi.regenerateLandingPreview(teamId, landing.id).catch(() => undefined);
@@ -930,7 +929,8 @@ function ExplorerBody({
     if (clip.mode === 'copy' && !permissions?.upload) return;
     if (clip.mode === 'cut' && !permissions?.edit) return;
     // The Drive API cannot copy folders; a cut (move) handles them fine.
-    const items = clip.mode === 'copy' ? clip.items.filter(item => item.kind !== 'folder') : clip.items;
+    const items =
+      clip.mode === 'copy' ? clip.items.filter(item => item.kind !== 'folder') : clip.items;
     const skipped = clip.items.length - items.length;
     if (items.length === 0) {
       push({ tone: 'error', text: t('teamExplorerPasteFoldersOnly') });
@@ -1151,11 +1151,7 @@ function ExplorerBody({
                   event.target.value = '';
                 }}
               />
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => fileInput.current?.click()}
-              >
+              <Button type="button" variant="secondary" onClick={() => fileInput.current?.click()}>
                 {t('teamExplorerAddFiles')}
               </Button>
             </>
@@ -1368,11 +1364,7 @@ function ExplorerBody({
                 ])
             : undefined
         }
-        transcribing={
-          tActive
-            ? { videoId: tActive.id, progress: activeProgress }
-            : transcribing
-        }
+        transcribing={tActive ? { videoId: tActive.id, progress: activeProgress } : transcribing}
         onCreateTask={onCreateTask}
       />
       {compressing && (

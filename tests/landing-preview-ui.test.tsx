@@ -149,8 +149,10 @@ describe('landing preview viewer', () => {
 
     await userEvent.click(screen.getAllByRole('button', { name: 'Next landing' })[0]);
     expect(await screen.findByRole('img', { name: 'Summer offer' })).toBeTruthy();
-    expect(document.querySelectorAll('.landing-gallery-image-stack img')).toHaveLength(3);
-    const extracted = screen.getByRole('button', { name: 'Open extracted copy' });
+    expect(document.querySelectorAll('.lv-stage-stack img')).toHaveLength(3);
+    // The rarer file actions live in the "more" menu; for a ZIP the extracted copy is openable.
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    const extracted = screen.getByRole('menuitem', { name: 'Open extracted copy' });
     expect((extracted as HTMLButtonElement).disabled).toBe(false);
     await userEvent.click(extracted);
     expect(api.openExtracted).toHaveBeenCalledWith('landing-b');
@@ -181,7 +183,24 @@ describe('landing preview viewer', () => {
     );
   });
 
-  it('labels icon controls with delayed custom hints instead of native titles', async () => {
+  it('opens the preview settings menu and switches the render theme', async () => {
+    render(<LandingPreviewPage />);
+    expect(await screen.findByRole('img', { name: 'Acme' })).toBeTruthy();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Preview settings' }));
+    const menu = screen.getByRole('menu', { name: 'Preview settings' });
+    expect(menu).toBeTruthy();
+    const light = screen.getByRole('menuitemradio', { name: 'Light' });
+    expect(light.getAttribute('aria-checked')).toBe('true');
+    const dark = screen.getByRole('menuitemradio', { name: 'Dark' });
+    // The entry shows what it would switch to, not what is on.
+    expect(dark.querySelector('svg.lucide-moon')).toBeTruthy();
+    await userEvent.click(dark);
+    expect(api.settings).toHaveBeenCalledWith({ colorScheme: 'dark' });
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('labels icon controls with instant custom hints instead of native titles', async () => {
     render(<LandingPreviewPage />);
     expect(await screen.findByRole('img', { name: 'Acme' })).toBeTruthy();
 
@@ -192,11 +211,11 @@ describe('landing preview viewer', () => {
     const actualSize = screen.getByRole('button', { name: 'Actual size' });
     expect(actualSize.getAttribute('data-tooltip')).toBe('Actual size');
 
-    const css = readFileSync('apps/web/src/styles.css', 'utf8');
-    expect(css).toMatch(
-      /\.landing-gallery-delayed-tooltip::after\s*{[\s\S]*?transition:[\s\S]*?1s/
-    );
-    expect(css).toContain('.landing-gallery-delayed-tooltip:hover:not(:focus)::after');
-    expect(css).toContain('.landing-gallery-delayed-tooltip:active::after');
+    const css = readFileSync('apps/web/src/styles/landing-viewer.css', 'utf8');
+    // The hint carries no delay: it is there the moment the pointer arrives.
+    expect(css).toMatch(/\.lv-tip::after\s*{[\s\S]*?transition:[^;]*;/);
+    expect(css).not.toMatch(/\.lv-tip::after\s*{[\s\S]*?transition:[^;]*\b1s\b/);
+    expect(css).toContain('.lv-tip:hover:not(:focus)::after');
+    expect(css).toContain('.lv-tip:active::after');
   });
 });

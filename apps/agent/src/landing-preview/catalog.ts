@@ -100,6 +100,8 @@ interface StoredLanding extends LandingPreviewItem {
   entryFile: string;
   previewFile: string | null;
   previewFiles: string[];
+  /** The grid's small picture, kept beside the slices; older caches have none. */
+  thumbnailFile?: string | null;
 }
 
 interface StoredCatalog {
@@ -452,9 +454,13 @@ export class LandingPreviewCatalog {
       : extracted;
   }
 
-  async previewPath(landingId: string, segment = 0): Promise<string | null> {
+  async previewPath(landingId: string, segment: number | 'thumb' = 0): Promise<string | null> {
     const landing = this.activeCatalog()?.landings.find(item => item.id === landingId);
-    const previewFile = landing ? previewFilesOf(landing)[segment] : null;
+    const previewFile = !landing
+      ? null
+      : segment === 'thumb'
+        ? (landing.thumbnailFile ?? null)
+        : previewFilesOf(landing)[segment];
     if (!landing?.previewAvailable || !previewFile) return null;
     const candidate = safeCachePath(this.root, previewFile);
     if (!candidate) return null;
@@ -482,6 +488,7 @@ export class LandingPreviewCatalog {
       landing.previewAvailable = false;
       landing.previewFile = null;
       landing.previewFiles = [];
+      landing.thumbnailFile = null;
       landing.previewWidth = null;
       landing.previewHeight = null;
       landing.renderedAt = null;
@@ -678,8 +685,11 @@ export class LandingPreviewCatalog {
         viewport,
         colorScheme: this.settings.colorScheme
       });
-      generatedPreviewFiles = result.segmentFiles;
-      if (!generatedPreviewFiles.length) {
+      generatedPreviewFiles = [
+        ...result.segmentFiles,
+        ...(result.thumbnailFile ? [result.thumbnailFile] : [])
+      ];
+      if (!result.segmentFiles.length) {
         throw new Error('The renderer did not return a landing preview.');
       }
       const previewRoot = path.resolve(previewDirectory);
@@ -689,10 +699,22 @@ export class LandingPreviewCatalog {
           throw new Error('The renderer returned an invalid landing preview segment.');
         }
       }
-      const relativeFiles = generatedPreviewFiles.map(file => path.relative(this.root, file));
-      obsoletePreviewFiles = previewFilesOf(landing).filter(file => !relativeFiles.includes(file));
+      const relativeFiles = result.segmentFiles.map(file => path.relative(this.root, file));
+      const thumbnail =
+        result.thumbnailFile &&
+        path.resolve(result.thumbnailFile).startsWith(`${previewRoot}${path.sep}`) &&
+        (await isUsablePreview(result.thumbnailFile))
+          ? path.relative(this.root, result.thumbnailFile)
+          : null;
+      obsoletePreviewFiles = [
+        ...previewFilesOf(landing).filter(file => !relativeFiles.includes(file)),
+        ...(landing.thumbnailFile && landing.thumbnailFile !== thumbnail
+          ? [landing.thumbnailFile]
+          : [])
+      ];
       landing.previewFile = relativeFiles[0];
       landing.previewFiles = relativeFiles;
+      landing.thumbnailFile = thumbnail;
       landing.previewAvailable = true;
       landing.previewWidth = result.width;
       landing.previewHeight = result.height;
@@ -889,6 +911,7 @@ export class LandingPreviewCatalog {
         if (!(await previewFilesUsable(this.root, previews))) {
           landing.previewFile = null;
           landing.previewFiles = [];
+          landing.thumbnailFile = null;
           landing.previewAvailable = false;
           landing.previewWidth = null;
           landing.previewHeight = null;
@@ -965,6 +988,7 @@ function reconcileLanding(
     previewAvailable,
     previewFile: previewAvailable ? oldPreviewFiles[0] : null,
     previewFiles: previewAvailable ? oldPreviewFiles : [],
+    thumbnailFile: previewAvailable ? (old?.thumbnailFile ?? null) : null,
     previewWidth: previewAvailable ? (old?.previewWidth ?? null) : null,
     previewHeight: previewAvailable ? (old?.previewHeight ?? null) : null,
     renderedAt: previewAvailable ? (old?.renderedAt ?? null) : null,
@@ -1027,6 +1051,7 @@ function publicLanding(landing: StoredLanding): LandingPreviewItem {
     previewWidth: landing.previewWidth,
     previewHeight: landing.previewHeight,
     previewSegments: Math.max(1, previewFilesOf(landing).length),
+    thumbnailAvailable: landing.previewAvailable && Boolean(landing.thumbnailFile),
     renderedAt: landing.renderedAt,
     blockedExternalRequests: landing.blockedExternalRequests,
     warning: landing.warning,
@@ -1065,6 +1090,7 @@ function normalizeCatalog(value: StoredCatalog): StoredCatalog | null {
           : item.previewFile
             ? [item.previewFile]
             : [],
+        thumbnailFile: typeof item.thumbnailFile === 'string' ? item.thumbnailFile : null,
         extractedAvailable: item.extractedAvailable === true
       }))
   };

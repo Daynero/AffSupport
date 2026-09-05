@@ -1,0 +1,1191 @@
+/*
+ * Transcription tool.
+ *
+ * Loaded after the shared stylesheet, so a rule here wins over the compressor's card and
+ * toolbar rules of the same specificity. The shared file keeps the older viewer rules
+ * (`.transcript-modal`, `.ts-segment`, the split columns); everything built for the
+ * reworked queue, viewer layout and toolbar lives here.
+ */
+/* ==========================================================================
+   Transcription tool — settings, confirmation, toolbar, cards, export, viewer
+   ========================================================================== */
+
+/* Two fields side by side: the language and the speed/accuracy switch. The panel itself is
+   the compressor's grid, so the pair spans it. */
+.transcription-settings-grid {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: var(--space-4) var(--space-5);
+  align-items: start;
+}
+/* The choice, said under the marks that made it — the compressor's caption, one line. */
+.transcription-quality-note {
+  margin: 6px 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+/* A field label's hint is a footnote beside a word, not a control in its own right: the
+   app's touch-sized circle dwarfed the label it belonged to. */
+.transcription-settings-panel .field-label .tooltip-button {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  flex: 0 0 24px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+@media (max-width: 760px) {
+  .transcription-settings-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The "never uploaded" reassurance, under the list rather than inside the sticky intake:
+   the sticky zone's height is what the toolbar offset is computed from. */
+.transcription-processed-locally {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+/* The confirmation lists what it is about to fetch. */
+.transcription-confirm-parts {
+  display: grid;
+  gap: 4px;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.transcription-confirm-parts li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
+}
+.transcription-confirm-modal .inline-actions {
+  flex-wrap: wrap;
+}
+
+/* The batch bar under the toolbar row. */
+.transcription-batch-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 4px 2px;
+}
+.transcription-batch-progress .progress-track {
+  flex: 1;
+}
+.transcription-batch-progress > span {
+  min-width: 40px;
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* The card: what the file is on the left, what can be done with it on the right. The
+   compressor's grid is written for the compressor's children; this card names its own. */
+.job-row.transcription-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3) var(--space-4);
+  cursor: pointer;
+}
+/* Placed by hand: the actions come first in the source for the keyboard, and sit on the
+   right for the eye. */
+.job-row.transcription-row > .transcription-row-main {
+  grid-column: 1;
+  grid-row: 1;
+}
+.job-row.transcription-row > .transcription-row-actions {
+  grid-column: 2;
+  grid-row: 1;
+}
+.transcription-row-main {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.transcription-row .job-row-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  flex-wrap: nowrap;
+}
+.transcription-row-title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.transcription-row .job-row-name {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.transcription-row .transcription-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--space-2);
+  margin: 3px 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+.transcription-row .transcription-row-meta > span {
+  white-space: nowrap;
+}
+
+/* The spoken language: what was heard, and the control that corrects it, in one chip.
+   Automatic detection genuinely cannot separate some language families, so the answer is
+   never presented as final — it is a thing you can change without leaving the row. */
+.transcription-row-language {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  min-width: 0;
+  color: var(--color-text-muted);
+}
+.transcription-row-language > svg {
+  flex: none;
+}
+.transcription-row-language .transcript-language-combobox.is-compact {
+  /* Sized to the name it shows rather than to a control's default twenty characters,
+     which left a hand's width of empty field before the rest of the line. */
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+}
+.transcription-row-language .transcript-language-combobox.is-compact input {
+  width: auto;
+  max-width: 190px;
+  padding: 3px 20px 3px 9px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+/* The field is sized from its text in the font it is drawn in, so the shared compact rule's
+   lighter hover weight made it visibly shrink under the pointer. One weight in every state:
+   the hover says its piece with the outline and the colour. */
+.transcription-row-language .transcript-language-combobox.is-compact input,
+.transcription-row-language .transcript-language-combobox.is-compact input:hover:not(:disabled),
+.transcription-row-language .transcript-language-combobox.is-compact input:focus {
+  font-weight: 650;
+}
+/* How sure the detector was, next to the name it was unsure of — and the second way into
+   the panel behind it, because the figure is what draws the eye, not the question mark. */
+.transcription-row-language-share {
+  flex: none;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-warning);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background var(--dur-control) var(--ease-standard);
+}
+.transcription-row-language-share:hover,
+.transcription-row-language-share[aria-expanded='true'] {
+  background: color-mix(in srgb, var(--color-warning) 20%, transparent);
+}
+.transcription-row-language-share:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.transcription-row-language.is-probing {
+  gap: 6px;
+}
+.transcription-row-language.is-probing .spinner {
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+}
+/* An answer the detector is not sure of: the globe becomes a question mark and the name
+   takes the warning colour. The shape is what carries it — colour alone would not survive
+   a monochrome reading. */
+.transcription-row-language.is-uncertain {
+  color: var(--color-warning);
+}
+.transcription-row-language.is-uncertain .transcript-language-combobox.is-compact input {
+  color: var(--color-warning);
+}
+
+/* The doubt marker: a target, not decoration — it opens what the detector heard. */
+.transcription-language-doubt-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 20px;
+  /* The app gives every button a touch-sized minimum; this one lives inside a line of
+     small print, where a 44-pixel target would be a stripe rather than a mark. */
+  height: 20px;
+  min-height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition:
+    background var(--dur-control) var(--ease-standard),
+    color var(--dur-control) var(--ease-standard);
+}
+.transcription-language-doubt-toggle:hover,
+.transcription-language-doubt-toggle[aria-expanded='true'] {
+  background: color-mix(in srgb, var(--color-warning) 20%, transparent);
+}
+.transcription-language-doubt-toggle:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* The panel: every reading the probe took, and every line a way to settle it. */
+.transcription-language-doubt {
+  display: grid;
+  gap: var(--space-2);
+  /* Sized to its content rather than to the window: the anchored layer is told the same
+     figure, so the panel is placed against its real width. */
+  width: min(320px, calc(100vw - 16px));
+  padding: var(--space-3);
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+  color: var(--color-text);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+.transcription-language-doubt-title {
+  margin: 0;
+  color: var(--color-warning);
+  font-weight: 650;
+}
+.transcription-language-doubt-scale,
+.transcription-language-doubt-note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.76rem;
+}
+.transcription-language-doubt-note {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+.transcription-language-doubt-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.transcription-language-doubt-list button {
+  display: grid;
+  /* The app's touch-sized floor turned a table of readings into a ladder of tall rows —
+     and only the pressable ones, so the list lost its rhythm. One height for every row. */
+  min-height: 32px;
+  /* Name, bar, figure — the bars share one column so the lengths can be compared by eye. */
+  grid-template-columns: minmax(0, 1fr) 78px 40px;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 5px 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.transcription-language-doubt-list button:hover:not(:disabled),
+.transcription-language-doubt-list button:focus-visible {
+  background: var(--color-accent-softer);
+  outline: none;
+}
+.transcription-language-doubt-list button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.transcription-language-doubt-list button[aria-current] .transcription-language-doubt-name {
+  font-weight: 650;
+}
+.transcription-language-doubt-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The confidence the model kept for languages it never named — a reading, not a choice, so
+   it carries no button and no hover. */
+.transcription-language-doubt-rest {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 78px 40px;
+  align-items: center;
+  min-height: 32px;
+  gap: var(--space-2);
+  padding: 5px 6px;
+  color: var(--color-text-muted);
+}
+.transcription-language-doubt-rest .transcription-language-doubt-bar > span {
+  background: color-mix(in srgb, var(--color-text-muted) 55%, transparent);
+}
+.transcription-language-doubt-bar {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-border) 70%, transparent);
+  overflow: hidden;
+}
+.transcription-language-doubt-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-accent);
+}
+.transcription-language-doubt-percent {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  /* "100%" wrapped onto a second line in a column sized for two digits. */
+  white-space: nowrap;
+}
+/* This language's family — not a reading, so not a row of the table above: no bar, no
+   figure, nothing to mistake for a measurement of zero. Uzbek lives here, which is the
+   whole reason the panel has a second section at all. */
+.transcription-language-doubt-also {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.76rem;
+}
+.transcription-language-doubt-neighbours {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.transcription-language-doubt-neighbours button {
+  min-height: 0;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface-subtle);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.transcription-language-doubt-neighbours button:hover:not(:disabled),
+.transcription-language-doubt-neighbours button:focus-visible {
+  border-color: var(--color-accent);
+  background: var(--color-accent-softer);
+  outline: none;
+}
+.transcription-language-doubt-neighbours button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* The likely alternatives sit at the top of the picker, with a line under them so the
+   alphabet below reads as a separate list rather than a continuation. */
+.transcript-language-listbox li.is-pinned + li:not(.is-pinned),
+.transcript-language-combobox ul li.is-pinned + li:not(.is-pinned) {
+  margin-top: 5px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 9px;
+}
+.transcription-row .status-badge {
+  flex: none;
+  margin-top: 2px;
+}
+/* The opening of the transcript, readable in place and a way into the viewer. */
+.transcription-row-snippet {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  text-align: start;
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-control) var(--ease-standard),
+    background var(--dur-control) var(--ease-standard);
+}
+/* The clamp lives on an inner span: applied to the padded button itself, a third line
+   showed through the padding. */
+.transcription-row-snippet > span {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.transcription-row-snippet:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-muted);
+}
+.transcription-row-snippet:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.transcription-row-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.transcription-row-progress .progress-track {
+  flex: 1;
+  height: 8px;
+}
+.transcription-row-progress-value {
+  min-width: 64px;
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+.transcription-row .transcription-row-translation {
+  width: min(520px, 100%);
+  /* A grid item's minimum is its content unless told otherwise; without this the line kept
+     its full width past the card's edge, and the install button read "Вста". */
+  min-width: 0;
+  margin: 0;
+  font-size: 0.8rem;
+}
+.transcription-row-translation-line {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+.transcription-row-translation-label {
+  white-space: nowrap;
+}
+.transcription-row-translation-line .button {
+  padding: 2px 8px;
+  font-size: 0.78rem;
+}
+/* The inline language picker: a quiet control sized to its word. */
+.transcript-language-combobox.is-compact {
+  width: auto;
+  min-width: 120px;
+  max-width: 200px;
+}
+.transcript-language-combobox.is-compact input {
+  padding: 2px 8px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-accent);
+  font-weight: 650;
+}
+.transcript-language-combobox.is-compact input:hover:not(:disabled),
+.transcript-language-combobox.is-compact input:focus {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-weight: 500;
+}
+.transcript-language-combobox input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+/* Actions: two deliberate rows rather than one that happened to wrap.
+   What is done with the transcript sits on top and keeps the compressor's button scale;
+   what is done with the file sits under it, named and quieter. Both are flush right, so
+   the block has one edge instead of a ragged one. */
+.transcription-row-actions {
+  display: grid;
+  justify-items: end;
+  gap: var(--space-2);
+  max-width: 460px;
+}
+.transcription-row-actions-main,
+.transcription-row-quiet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-2);
+}
+.transcription-row-actions .button {
+  gap: 6px;
+  min-height: 40px;
+  padding: 6px 14px;
+  font-size: 0.86rem;
+  white-space: nowrap;
+}
+/* The file's own actions are the second voice on the card: same targets, less weight. */
+.transcription-row-quiet-actions .button {
+  min-height: 34px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+.transcription-row-quiet-actions .button:hover:not(:disabled) {
+  color: var(--color-text);
+  border-color: var(--color-border-strong);
+  background: color-mix(in srgb, var(--color-border) 30%, transparent);
+}
+.transcription-row-quiet-actions .button.is-destructive {
+  color: color-mix(in srgb, var(--color-error) 80%, var(--color-text-muted));
+}
+.transcription-row-quiet-actions .button.is-destructive:hover:not(:disabled) {
+  color: var(--color-error);
+  border-color: color-mix(in srgb, var(--color-error) 45%, transparent);
+  background: color-mix(in srgb, var(--color-error) 10%, transparent);
+}
+/* A card too narrow for three named actions keeps the icons and drops the words — in CSS,
+   so the measurement that decides it cannot oscillate. */
+@media (max-width: 1180px) {
+  .transcription-row-quiet-actions .action-label {
+    display: none;
+  }
+  .transcription-row-quiet-actions .button {
+    width: 34px;
+    min-width: 34px;
+    padding: 0;
+    justify-content: center;
+  }
+}
+@media (max-width: 900px) {
+  .job-row.transcription-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .job-row.transcription-row > .transcription-row-actions {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .transcription-row-actions {
+    justify-items: start;
+    max-width: none;
+  }
+  .transcription-row-actions-main,
+  .transcription-row-quiet-actions {
+    justify-content: flex-start;
+  }
+  /* Room again once the column is the whole card's width. */
+  .transcription-row-quiet-actions .action-label {
+    display: inline;
+  }
+  .transcription-row-quiet-actions .button {
+    width: auto;
+    min-width: 0;
+    padding: 4px 10px;
+  }
+}
+
+/* Download: a split control in the copy menu's idiom. */
+.transcription-export-menu {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+.transcription-export-menu .transcription-export-action {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.transcription-export-toggle,
+.transcription-copy-toggle {
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  border: 1px solid var(--color-border);
+  border-left: 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  color: var(--color-text);
+  background: var(--color-surface-muted);
+  line-height: 1;
+  cursor: pointer;
+}
+.transcription-export-toggle:hover:not(:disabled),
+.transcription-export-toggle[aria-expanded='true'],
+.transcription-copy-toggle:hover:not(:disabled),
+.transcription-copy-toggle[aria-expanded='true'] {
+  background: var(--color-surface);
+}
+.transcription-export-toggle:disabled,
+.transcription-copy-toggle:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.transcription-export-toggle:focus-visible,
+.transcription-copy-toggle:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.transcription-export-popover {
+  position: absolute;
+  z-index: var(--layer-popover);
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  gap: var(--space-3);
+  width: 280px;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-menu);
+  animation: pop-in var(--dur-pop) var(--ease-enter);
+  transform-origin: top right;
+  text-align: left;
+}
+.transcription-export-group {
+  display: grid;
+  gap: 6px;
+}
+.transcription-export-group-title {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.transcription-export-formats {
+  display: flex;
+  gap: 6px;
+}
+.transcription-export-formats button {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-subtle);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.transcription-export-formats button:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  background: var(--color-accent-softer);
+}
+.transcription-export-formats button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.transcription-export-formats button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+/* In the toolbar the copy button folds to its icon like its neighbours; in the modal footer
+   the download control keeps its words. */
+.batch-toolbar-row.is-compact .primary-actions .transcription-copy-menu .transcription-copy-action {
+  width: 44px;
+  min-width: 44px;
+  padding: 0;
+  justify-content: center;
+}
+
+/* Viewer header: the file name gets one line and an ellipsis; the match meter keeps its
+   width beside it instead of being pushed to a third row. */
+.transcript-modal-heading {
+  min-width: 0;
+  flex: 1 1 220px;
+}
+.transcript-modal-header h2 {
+  overflow: hidden;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.transcript-modal-header p span:not(:last-child)::after {
+  content: '·';
+  margin-left: var(--space-2);
+  opacity: 0.6;
+}
+.transcript-modal-header p {
+  flex-wrap: wrap;
+  gap: 4px var(--space-2);
+}
+.transcript-match .tooltip-trigger,
+.transcript-match .tooltip {
+  font-size: 0.8rem;
+}
+.transcript-player-volume svg {
+  color: var(--color-text-muted);
+}
+/* The volume control is not dropped on a narrow player; it just shrinks. */
+@media (max-width: 900px) {
+  .transcript-player-volume {
+    display: flex;
+  }
+  .transcript-player-volume input {
+    width: 44px;
+  }
+  .transcript-player-controls {
+    grid-template-columns: auto auto minmax(60px, 1fr) auto auto auto;
+  }
+}
+
+/* A held run says so where the status is read, not only beside the bar. */
+.transcription-row .status-badge.is-paused {
+  gap: 5px;
+  color: var(--color-text-muted);
+}
+
+/* In the viewer's footer the menu opens upward, over the footer's own space rather than
+   the text: the dialog clips anything past its edge. */
+.transcript-modal-footer .transcription-export-popover {
+  top: auto;
+  right: auto;
+  bottom: calc(100% + 8px);
+  left: 0;
+  transform-origin: bottom left;
+}
+
+/* The "this looks short" note under a fast run, with the full model one click away. */
+.transcription-row-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 40%, transparent);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-soft);
+  color: var(--color-text);
+  font-size: 0.82rem;
+}
+.transcription-row-hint .button {
+  padding: 3px 10px;
+  font-size: 0.8rem;
+}
+
+/* The reasons under a greyed-out choice, said once. */
+.transcription-export-note {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+/* Where the actions sit at the left edge, the menu opens to the right instead of off-screen. */
+@media (max-width: 900px) {
+  .transcription-row-actions .transcription-export-popover {
+    right: auto;
+    left: 0;
+    transform-origin: top left;
+  }
+}
+/* A segment that can be seeked to is a keyboard stop; the ring says so without moving text. */
+.ts-segment[tabindex]:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+/* The translator notice in the viewer: a compact card, consent beside the button rather
+   than a column of prose above it. */
+/* The install card: one column, one rhythm. Every child sits on the same left edge and the
+   spacing between them comes from the grid, not from each element's own margins — which is
+   what had the consent line, the button and its hint each at a different indent. */
+.transcript-translation-notice {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+  margin: 0 0 var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.transcript-translation-notice > * {
+  margin: 0;
+  max-width: 62ch;
+}
+.transcript-translation-notice.is-downloading {
+  justify-items: stretch;
+}
+.transcript-translation-notice-lead {
+  color: var(--color-text);
+}
+.transcript-translation-notice .transcription-gemma-consent {
+  margin-top: 0;
+}
+/* The picker is the column's title; the copy control keeps its baseline beside it however
+   tall the field grows. */
+.transcript-column[data-side='target'] .transcript-column-actions {
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+}
+.transcript-column[data-side='target'] .transcript-language-combobox {
+  width: min(260px, 100%);
+}
+/* What the local translator is for, said once, directly under the picker that produced it
+   and above the text it applies to. */
+.transcript-translation-caveat {
+  flex: none;
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-surface) 60%, transparent);
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+/* Row translation line: the install link sits with the language, not on its own line. */
+.transcription-row-translation-line .button svg {
+  flex: none;
+}
+
+/* The spoken-language picker is a field, not an inline control: as wide as the column. */
+.transcription-language-field .transcript-language-combobox {
+  width: 100%;
+  max-width: 420px;
+}
+/* The same height as the picto group beside it — 4px of padding, a 38px mark and the
+   group's own border — so the two controls sit on one line rather than nearly one. */
+.transcription-language-field .transcript-language-combobox input {
+  height: 48px;
+  padding: 10px 32px 10px 14px;
+  border-radius: var(--radius-md);
+}
+.transcription-language-field .transcript-language-combobox::after {
+  right: 14px;
+}
+
+/* ==========================================================================
+   Transcription tool — viewer layout floors, toolbar scale, pickers, banner
+   ========================================================================== */
+
+/* The viewer: the transcript keeps a floor and the player is the part that gives.
+   With the player open on a laptop the two columns used to collapse to a border each —
+   the flex body had no minimum and the player kept its full frame — and the karaoke the
+   player exists for had nothing left to highlight. */
+.transcript-modal.transcript-split .transcript-preview.open {
+  max-height: min(40vh, 420px);
+}
+.transcript-preview.open .transcript-preview-panel {
+  max-height: min(40vh, 420px);
+  overflow: hidden;
+}
+.transcript-player {
+  display: flex;
+  flex-direction: column;
+  max-height: min(40vh, 420px);
+}
+.transcript-preview-media {
+  flex: 1 1 auto;
+  min-height: 0;
+  aspect-ratio: auto;
+  max-height: calc(min(40vh, 420px) - 64px);
+}
+.transcript-player.audio-only .transcript-preview-media {
+  height: 120px;
+}
+.transcript-player.audio-only .transcript-audio-poster {
+  inset: 8px 8px auto;
+  height: 120px;
+  aspect-ratio: auto;
+}
+@media (max-height: 820px) {
+  /* Not enough rows for a picture and the words: the words win, the picture folds into a
+     control bar. The audio still plays and the karaoke still follows. */
+  .transcript-player .transcript-preview-media,
+  .transcript-player .transcript-audio-poster {
+    display: none;
+  }
+  .transcript-modal.transcript-split .transcript-preview.open,
+  .transcript-preview.open .transcript-preview-panel,
+  .transcript-player {
+    max-height: 104px;
+  }
+  .transcript-preview-panel {
+    padding: var(--space-2) var(--space-3);
+  }
+  .transcript-player {
+    width: min(100%, 720px);
+  }
+}
+
+/* The counters read as words for everyone: a visually hidden word beside each number. */
+.transcription-workspace .batch-chip .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* The picker looks like one: a chevron, and a mark on the current choice. */
+.transcript-language-combobox::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-70%) rotate(45deg);
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+.transcript-language-combobox input {
+  padding-right: 26px;
+}
+.transcript-language-combobox.is-compact::after {
+  right: 6px;
+  width: 5px;
+  height: 5px;
+}
+.transcript-language-combobox.is-compact input {
+  padding-right: 20px;
+}
+.transcript-language-combobox li[aria-selected='true'] {
+  font-weight: 600;
+}
+.transcript-language-combobox li[aria-selected='true']::after {
+  content: '✓';
+  margin-left: var(--space-2);
+  color: var(--color-accent);
+}
+
+/* One notice about the missing translator, above the list, instead of one per row. */
+.transcription-translator-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+}
+.transcription-translator-banner .button {
+  margin-left: auto;
+}
+
+/* ==========================================================================
+   Transcription tool — viewer rows, narrow toolbar, row actions, consent hints
+   ========================================================================== */
+
+/* The viewer's rows: header, player and footer keep their size; only the columns give.
+   At a 1366×768 window with the player open the footer used to be pushed out of the
+   dialog's overflow — Export and Close simply gone. */
+.transcript-modal.transcript-split {
+  height: min(90vh, 100%);
+}
+.transcript-modal.transcript-split > .transcript-modal-header,
+.transcript-modal.transcript-split > .transcript-modal-footer {
+  flex: 0 0 auto;
+}
+.transcript-modal.transcript-split .transcript-split-body {
+  flex: 1 1 0;
+  min-height: clamp(120px, 30vh, 380px);
+}
+@media (max-height: 640px) {
+  .transcript-modal.transcript-split .transcript-modal-header {
+    padding-top: var(--space-2);
+    padding-bottom: var(--space-2);
+  }
+  .transcript-modal.transcript-split .transcript-modal-footer {
+    padding-top: var(--space-2);
+    padding-bottom: var(--space-2);
+  }
+}
+
+/* The column title is the loudest thing in a column head; the copy control is quieter. */
+.transcript-column-title {
+  font-size: 1rem;
+  font-weight: 650;
+  color: var(--color-text);
+}
+.transcript-column-head .button-ghost {
+  padding: 4px 10px;
+  font-size: 0.86rem;
+  font-weight: 500;
+}
+
+/* Why the install button is greyed out, said under it. */
+.transcription-consent-hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+/* Short viewports: the header keeps to one row so the columns keep their lines. The meter
+   drops its caption; the bar and the reading stay. */
+
+/* ==========================================================================
+   Transcription tool — pinned bars, folding settings, chips, meter, popover
+   ========================================================================== */
+
+/* No slit between the two pinned bars: the toolbar starts exactly where the intake ends,
+   and the gap lives inside the intake's own measured height, on its own background. */
+.transcription-workspace .batch-toolbar {
+  top: calc(var(--topbar-h, 62px) + var(--intake-h, 108px));
+}
+.transcription-workspace .add-files-section {
+  padding-bottom: 12px;
+  background: var(--color-bg);
+}
+
+/* Chips: the word folds, an icon stays, so two counters are never two bare digits. */
+.transcription-workspace .batch-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.transcription-workspace .batch-chip .chip-icon {
+  display: none;
+  line-height: 0;
+}
+.transcription-workspace .batch-toolbar-row.is-compact-chips .batch-chip .chip-icon {
+  display: inline-flex;
+}
+
+/* Row meta: a gap between items, no glyph to dangle at a wrap. */
+.transcription-row .transcription-row-meta {
+  gap: 2px var(--space-3);
+}
+/* Direct children only: the language chip is a span with spans of its own, and a dot
+   between them would read as another metadata field. */
+.transcription-row .transcription-row-meta > span + span {
+  position: relative;
+}
+.transcription-row .transcription-row-meta > span + span::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--space-3) / -2);
+  top: 50%;
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.45;
+  transform: translate(-50%, -50%);
+}
+
+/* The match meter's resting state is visible: a dashed track, and a caption that shrinks
+   rather than vanishing on a short viewport. A selection with nothing to compare against
+   is tinted neutrally, not as a poor match. */
+.transcript-match.is-empty .transcript-match-bar {
+  background: repeating-linear-gradient(90deg, var(--color-border) 0 6px, transparent 6px 10px);
+}
+@media (max-height: 640px) {
+  .transcript-modal.transcript-split .transcript-match-label {
+    display: inline;
+    font-size: 0.72rem;
+  }
+}
+
+/* The consent checkbox is the app's own mark, sized as a target. */
+.transcription-gemma-consent.checkbox {
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+.transcription-gemma-consent.checkbox .checkbox-mark {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  border-color: color-mix(in oklab, var(--color-accent) 70%, transparent);
+}
+.transcription-gemma-consent.checkbox a {
+  color: var(--color-accent);
+}
+
+/* ==========================================================================
+   Layers rendered on the body: a list card clips what spills past its edge
+   ========================================================================== */
+.transcription-export-popover.is-portal {
+  position: fixed;
+  inset: auto;
+  overflow-y: auto;
+}
+.transcript-language-listbox {
+  position: fixed;
+  z-index: var(--layer-popover);
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+}
+.transcript-language-listbox li {
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  cursor: pointer;
+}
+.transcript-language-listbox li.is-active,
+.transcript-language-listbox li:hover {
+  background: var(--color-accent-softer);
+}
+.transcript-language-listbox li.is-empty {
+  color: var(--color-text-muted);
+  cursor: default;
+}
+/* Inside the viewer the list stays in place, above the dialog's chrome. */
+.transcript-language-combobox ul {
+  z-index: var(--layer-popover);
+}
+
+/* The consent's button is pinned to the bottom of the column: the notice can be taller
+   than the column on a laptop, and a button cut in half by the fold read as a bug. */
+.transcript-translation-notice .transcription-consent-actions {
+  position: sticky;
+  bottom: 0;
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  width: 100%;
+  /* Bleeds to the card's edges so the sticky band covers what scrolls under it, and pads
+     itself back to the card's own inset so the button keeps the column's left edge. */
+  margin: 0 calc(-1 * var(--space-4)) calc(-1 * var(--space-4));
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  background: var(--color-surface);
+}
+
+/* A short window: the viewer keeps its text and gives up its slack. */
+@media (max-height: 700px) {
+  .transcript-modal.transcript-split .transcript-modal-heading p {
+    display: none;
+  }
+  .transcript-modal.transcript-split .transcript-column-head {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+  .transcript-modal.transcript-split .transcript-match {
+    padding-top: 2px;
+    padding-bottom: 2px;
+  }
+}
+
+/* A failed load says so, and offers the one thing that helps. */
+.transcript-modal-empty {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+}

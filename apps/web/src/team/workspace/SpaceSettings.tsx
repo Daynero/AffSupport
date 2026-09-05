@@ -11,10 +11,7 @@ import { MemberList, type MemberManagementClient } from '../members/MemberList';
 import { InvitationPanel, type InvitationPanelClient } from '../members/InvitationPanel';
 import { TeamAuditPanel, type TeamAuditClient } from '../members/TeamAuditPanel';
 import { DriveConnectionPanel, type DrivePanelClient } from '../drive/DriveConnectionPanel';
-import {
-  RestitchDefaultsSection,
-  type RestitchDefaultsClient
-} from './RestitchDefaultsSection';
+import { RestitchDefaultsSection, type RestitchDefaultsClient } from './RestitchDefaultsSection';
 
 export interface SharePreferenceSettingsClient {
   resetLibrarySharePreference: (teamId: string) => Promise<boolean>;

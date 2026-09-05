@@ -1,0 +1,1392 @@
+/* ============================================================
+   Team accounts (017) — the accounts list inside a space.
+
+   Loaded after styles.css and built from its tokens. The section is a
+   team-panel like Tasks; the list inside it borrows the 2FA wallet's table
+   grammar — quiet row actions, an inline editor that keeps the row's height,
+   a copy-on-press value — because that is the one list in the product that
+   already does what this one does.
+   ============================================================ */
+
+.team-account-space {
+  display: grid;
+  gap: var(--space-4);
+  --team-agent-rail: 3px;
+  --team-agent-row-height: 52px;
+  --team-agent-id-width: 172px;
+  --team-agent-tasks-width: 104px;
+  --team-agent-actions-width: 132px;
+}
+
+/* One face for every agent label and tag, wherever it renders — the Accounts
+   tab, task cards, the editor, and dialogs portalled to the body. */
+:root {
+  --team-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.team-account-space-heading {
+  align-items: flex-end;
+}
+
+/* --- Toolbar: search left, occupancy right ---------------------------------- */
+
+.team-accounts-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+
+.team-accounts-search {
+  display: flex;
+  flex: 1 1 260px;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 440px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+}
+
+.team-accounts-search:focus-within {
+  border-color: var(--color-focus);
+}
+
+.team-accounts-search input {
+  width: 100%;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  font-size: var(--text-md);
+}
+
+.team-accounts-search input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+/* The native cancel mark is replaced by the same clear mark the edit fields
+   carry, so clearing looks the same everywhere on the page. */
+.team-accounts-search input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.team-accounts-search .icon-button {
+  display: inline-flex;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-muted);
+}
+
+/* The task filter's pills (`.task-status-filter-option`, styles.css) with a
+   count on each: the count is the summary, shown where the question it
+   answers is asked. Only what the task pills do not have is declared here. */
+.team-accounts-occupancy {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.team-accounts-occupancy-option {
+  gap: 7px;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.team-accounts-occupancy-option b {
+  flex: 0 0 auto;
+  min-width: 1.4em;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.team-accounts-occupancy-option.is-active b {
+  background: var(--color-surface);
+}
+
+.team-accounts-occupancy-dot {
+  /* Never squeezed away when the pill is made to share a phone-width row. */
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-text-muted);
+}
+
+.team-accounts-occupancy-option.is-free .team-accounts-occupancy-dot {
+  background: var(--color-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 18%, transparent);
+}
+
+.team-accounts-occupancy-option.is-busy .team-accounts-occupancy-dot {
+  background: var(--color-warning);
+}
+
+/* --- The list --------------------------------------------------------------- */
+
+/* One card per social account. The card is the boundary: what is inside it
+   belongs to that account, and nothing else does. */
+.team-accounts-list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+/* The compressor's settings panel is the reference: a violet-tinted slab
+   behind a violet outline for the account's own head, and the agent rows on
+   a lighter surface than the panel around them, so the levels read apart
+   instead of merging into one dark block. */
+.team-account {
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--color-accent) 40%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in oklab, var(--color-surface-muted) 55%, var(--color-surface));
+}
+
+/* The card's head is the social account: an icon, a caption that says so, the
+   name — and the account's own actions on the right. */
+.team-account-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 56px;
+  /* The same right inset as the agent rows, so the head's trash sits on the
+     rows' trash column. */
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-2);
+  background: color-mix(in oklab, var(--purple-900) 55%, var(--color-surface));
+}
+
+:root[data-theme='light'] .team-account-head,
+:root:not([data-theme='dark']) .team-account-head {
+  background: color-mix(in oklab, var(--color-accent) 8%, #fff);
+}
+
+:root[data-theme='light'] .team-account,
+:root:not([data-theme='dark']) .team-account {
+  border-color: color-mix(in oklab, var(--color-accent) 30%, transparent);
+  background: var(--color-surface);
+}
+
+.team-account-mark {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 45%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  color: var(--color-accent);
+}
+
+/* The column captions over the agent rows, on the same grid as the rows. */
+.team-account-columns {
+  display: grid;
+  grid-template-columns:
+    var(--team-agent-rail) var(--team-agent-id-width) minmax(0, 1fr) var(--team-agent-tasks-width)
+    var(--team-agent-actions-width);
+  gap: 0 var(--space-3);
+  padding: 6px var(--space-2) 4px 0;
+  border-top: 1px solid color-mix(in oklab, var(--color-accent) 30%, var(--color-border));
+  color: var(--color-accent);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.team-account-columns > span:nth-child(3) {
+  padding-left: var(--space-2);
+}
+
+.team-account-title {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+.team-account-toggle {
+  display: inline-flex;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    transform var(--dur-control) var(--ease-standard),
+    background-color var(--dur-control) var(--ease-standard);
+}
+
+.team-account-toggle:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+.team-account.is-collapsed .team-account-toggle {
+  transform: rotate(-90deg);
+}
+
+/* The name never gives way to its own meta — it is the one thing the owner
+   asked to be obvious; the meta wraps under it when the row is short. */
+.team-account-name {
+  flex: 0 0 auto;
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
+  font-size: 1.1rem;
+  font-weight: 750;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team-account-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-2);
+  margin-left: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.team-account-meta > span:not(:first-child)::before {
+  content: '·';
+  margin-right: var(--space-2);
+  color: var(--color-border-strong);
+}
+
+.team-account-meta-free {
+  color: var(--color-success);
+  font-weight: 650;
+}
+
+.team-account-actions,
+.team-agent-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+.team-agent-actions {
+  min-width: 0;
+}
+
+/* "+ Agent": a labelled button rather than a bare plus, because it is the
+   action this list exists for. The word goes when the row gets narrow. */
+.team-account-add-agent {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 6px;
+  margin-right: var(--space-1);
+  padding: 0 var(--space-3) 0 var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  color: var(--color-accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 650;
+  white-space: nowrap;
+  transition:
+    background-color var(--dur-control) var(--ease-standard),
+    border-color var(--dur-control) var(--ease-standard);
+}
+
+.team-account-add-agent:hover {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+}
+
+/* --- Agent rows ------------------------------------------------------------- */
+
+.team-account-agents {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.team-agent-row {
+  position: relative;
+  display: grid;
+  grid-template-columns:
+    var(--team-agent-rail) var(--team-agent-id-width) minmax(0, 1fr) var(--team-agent-tasks-width)
+    var(--team-agent-actions-width);
+  align-items: center;
+  min-height: var(--team-agent-row-height);
+  gap: 0 var(--space-3);
+  padding-right: var(--space-2);
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
+  transition: background-color var(--dur-control) var(--ease-standard);
+}
+
+.team-agent-row:hover {
+  background: color-mix(in oklab, var(--color-accent) 7%, transparent);
+}
+
+/* The free wash: a green rail and a faint tint across the row. Faint on
+   purpose — the row must still read as a row, not as a banner — and the rail
+   is what stays visible when the tint is lost to a busy screen. */
+.team-agent-rail {
+  align-self: stretch;
+  background: transparent;
+}
+
+.team-agent-row.is-free {
+  background: color-mix(in srgb, var(--color-success) 10%, transparent);
+}
+
+.team-agent-row.is-free:hover {
+  background: color-mix(in srgb, var(--color-success) 15%, transparent);
+}
+
+.team-agent-row.is-free .team-agent-rail {
+  background: var(--color-success);
+}
+
+/* The agent as its tag — the chip a task shows, so the two surfaces agree on
+   what an ad account looks like. The mark at the end says a press copies the
+   full id; the dot says whether the agent is free. */
+.team-agent-id {
+  min-width: 0;
+}
+
+.team-agent-tag {
+  display: inline-flex;
+  max-width: 100%;
+  min-height: 28px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  font-family: var(--team-font-mono);
+  font-size: 0.8rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    border-color var(--dur-control) var(--ease-standard),
+    background-color var(--dur-control) var(--ease-standard),
+    color var(--dur-control) var(--ease-standard);
+}
+
+.team-agent-tag.is-free {
+  border-color: color-mix(in srgb, var(--color-success) 40%, var(--color-border));
+  background: color-mix(in srgb, var(--color-success) 10%, var(--color-surface-muted));
+}
+
+.team-agent-tag.is-free .team-task-agent-chip-dot {
+  background: var(--color-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 20%, transparent);
+}
+
+.team-agent-tag:not(.is-static):hover,
+.team-agent-tag:not(.is-static):focus-visible {
+  border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface-muted));
+}
+
+.team-agent-tag.is-copied {
+  border-color: color-mix(in srgb, var(--color-success) 55%, var(--color-border));
+  color: var(--color-success);
+}
+
+.team-agent-tag.is-static {
+  cursor: default;
+}
+
+.team-agent-tag-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Revealed after a refused copy: the whole id, and the row grows to hold it. */
+.team-agent-tag.is-revealed .team-agent-tag-text {
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.team-agent-id-mark {
+  display: inline-flex;
+  color: var(--color-text-muted);
+  opacity: 0.6;
+  transition: opacity var(--dur-control) var(--ease-standard);
+}
+
+.team-agent-tag:hover .team-agent-id-mark,
+.team-agent-tag.is-copied .team-agent-id-mark {
+  color: inherit;
+  opacity: 1;
+}
+
+/* The tasks column: a link into the narrowed task list, or a dash. */
+.team-agent-tasks {
+  display: flex;
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.team-agent-tasks-none {
+  color: color-mix(in oklab, var(--color-text-muted) 60%, transparent);
+  font-size: var(--text-sm);
+}
+
+/* The runs: one line each, a pencil and a bin on the line's hover, and a
+   plus under the last one. */
+.team-agent-runs {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 6px 0;
+}
+
+.team-agent-run {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 28px;
+  padding-left: var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.team-agent-run:hover {
+  background: color-mix(in oklab, var(--color-text) 6%, transparent);
+}
+
+.team-agent-run-text {
+  min-width: 0;
+  color: var(--color-text);
+  font-size: var(--text-md);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.team-agent-run-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity var(--dur-control) var(--ease-standard);
+}
+
+.team-agent-run:hover .team-agent-run-actions,
+.team-agent-run:focus-within .team-agent-run-actions,
+.team-agent-run-actions.is-editing {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .team-agent-run-actions {
+    opacity: 1;
+  }
+}
+
+.team-agent-action.is-small.icon-button {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+}
+
+.team-agent-runs-empty {
+  color: var(--color-success);
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 28px;
+}
+
+/* The plus is always there — quieter than the pencil and bin, which come
+   up on hover — because writing a run is what the row is for. */
+.team-agent-action.is-small.team-agent-run-add.icon-button {
+  flex: 0 0 auto;
+  margin-left: 2px;
+  border: 1px dashed color-mix(in srgb, var(--color-accent) 50%, var(--color-border));
+  border-radius: 999px;
+  color: var(--color-accent);
+}
+
+.team-agent-action.is-small.team-agent-run-add.icon-button:hover:not(:disabled) {
+  border-style: solid;
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  color: var(--color-accent);
+}
+
+.team-agent-run.is-empty .team-agent-run-add {
+  margin-left: var(--space-1);
+}
+
+.team-agent-run.is-editing {
+  flex-wrap: wrap;
+  padding-left: 0;
+}
+
+.team-agent-run.is-editing:hover {
+  background: none;
+}
+
+.team-agent-run-field {
+  flex: 1 1 220px;
+}
+
+.team-agent-run-field input {
+  height: 32px;
+}
+
+/* Row actions: borderless and muted at rest, full contrast on the row's
+   hover, as the 2FA wallet does — always in place, never behind a "…". */
+.team-agent-action.icon-button {
+  display: inline-flex;
+  width: 36px;
+  min-width: 36px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  /* Muted, never faded: an opacity on an already-muted colour fell below AA on
+     the light surface. The pointer on the row brings them to full text. */
+  color: var(--color-text-muted);
+  transition:
+    background-color var(--dur-control) var(--ease-standard),
+    color var(--dur-control) var(--ease-standard);
+}
+
+.team-agent-row:hover .team-agent-action.icon-button,
+.team-agent-row:focus-within .team-agent-action.icon-button,
+.team-account-head:hover .team-agent-action.icon-button,
+.team-account-head:focus-within .team-agent-action.icon-button,
+.team-agent-action.icon-button:hover {
+  color: var(--color-text);
+}
+
+.team-agent-action.icon-button:hover {
+  background: var(--color-surface-muted);
+}
+
+.team-agent-action.is-danger:hover {
+  background: color-mix(in srgb, var(--color-error) 14%, transparent);
+  color: var(--color-error);
+}
+
+.team-agent-action.is-release:hover {
+  background: color-mix(in srgb, var(--color-success) 16%, transparent);
+  color: var(--color-success);
+}
+
+.team-agent-action.is-confirm.icon-button {
+  border: 1px solid color-mix(in srgb, var(--color-success) 55%, var(--color-border));
+  background: color-mix(in srgb, var(--color-success) 18%, transparent);
+  color: var(--color-success);
+}
+
+.team-agent-action.is-reject.icon-button {
+  border: 1px solid color-mix(in srgb, var(--color-error) 55%, var(--color-border));
+  color: var(--color-error);
+}
+
+.team-account-agents-empty {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+/* --- Editing ---------------------------------------------------------------- */
+
+.team-agent-row.is-editing,
+.team-account-head.is-editing {
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  box-shadow:
+    inset 0 1px 0 var(--color-accent),
+    inset 0 -1px 0 var(--color-accent);
+}
+
+.team-agent-row.is-editing {
+  grid-template-columns: var(--team-agent-rail) minmax(0, 1fr) var(--team-agent-actions-width);
+}
+
+.team-agent-row.is-editing .team-agent-rail {
+  background: var(--color-accent);
+}
+
+.team-agent-edit-fields,
+.team-account-edit-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+  padding: var(--space-1) 0;
+}
+
+.team-account-edit-fields {
+  flex: 1 1 auto;
+  padding-left: var(--space-2);
+}
+
+.team-agent-edit-id {
+  flex: 1 1 220px;
+}
+
+.team-agent-edit-note {
+  flex: 2 1 260px;
+}
+
+.team-account-edit-name {
+  flex: 1 1 240px;
+  max-width: 420px;
+}
+
+.team-accounts-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: 0 var(--space-1) 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.team-accounts-field:focus-within {
+  border-color: var(--color-accent);
+}
+
+.team-accounts-field input {
+  width: 100%;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  font-size: var(--text-md);
+}
+
+.team-accounts-field input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.team-accounts-field .icon-button {
+  display: inline-flex;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-muted);
+}
+
+.team-accounts-edit-error,
+.team-accounts-edit-hint {
+  flex: 1 0 100%;
+  font-size: var(--text-sm);
+}
+
+.team-accounts-edit-error {
+  color: var(--color-error);
+}
+
+.team-accounts-edit-hint {
+  color: var(--color-text-muted);
+}
+
+/* --- Notices ---------------------------------------------------------------- */
+
+.team-accounts-notice {
+  margin: 0;
+  padding: var(--space-4);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.team-accounts-empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  text-align: center;
+}
+
+.team-accounts-empty p {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.team-accounts-empty .button {
+  margin-top: var(--space-2);
+}
+
+/* --- Narrow widths ---------------------------------------------------------- */
+
+@media (max-width: 720px) {
+  .team-account-space {
+    /* Wide enough for `Main BM-117`; a longer label widens the column rather
+       than being cut, the run column giving way. */
+    --team-agent-id-width: minmax(132px, max-content);
+    --team-agent-tasks-width: 72px;
+    --team-agent-actions-width: 118px;
+  }
+
+  /* The words go, the icons stay: the same rule as the compressor's toolbar. */
+  .team-account-add-agent-label {
+    display: none;
+  }
+
+  .team-account-add-agent {
+    padding: 0 var(--space-2);
+  }
+
+  /* The plain total goes; "shown 2 of 3" stays — on a phone it is the only
+     sign that a filter is hiding rows here. */
+  .team-account-meta > span:not(.team-account-meta-free, .team-account-meta-shown) {
+    display: none;
+  }
+
+  /* The task pills stretch to fill their row at this width (styles.css);
+     three of them with two-digit counts wrapped 2 + 1. Claim the whole row and
+     split it evenly, so they stay on one line. */
+  .team-accounts-occupancy {
+    flex: 1 1 100%;
+  }
+
+  .team-accounts-occupancy-option {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 8px;
+  }
+
+  .team-account-meta > span:not(:first-child)::before {
+    content: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .team-account-columns {
+    display: none;
+  }
+
+  .team-agent-row {
+    grid-template-columns: var(--team-agent-rail) minmax(0, 1fr) auto;
+    grid-template-areas:
+      'rail id actions'
+      'rail note actions'
+      'rail tasks actions';
+    padding: var(--space-1) var(--space-2) var(--space-1) 0;
+  }
+
+  .team-agent-row .team-agent-tasks {
+    grid-area: tasks;
+    padding-left: var(--space-2);
+  }
+
+  .team-agent-row .team-agent-tasks-none {
+    display: none;
+  }
+
+  .team-agent-row.is-editing {
+    grid-template-areas: 'rail fields actions';
+  }
+
+  .team-agent-row.is-editing {
+    grid-template-columns: var(--team-agent-rail) minmax(0, 1fr) auto;
+  }
+
+  .team-agent-row .team-agent-id {
+    padding-left: var(--space-2);
+  }
+
+  .team-agent-row .team-agent-rail {
+    grid-area: rail;
+  }
+
+  .team-agent-row .team-agent-id {
+    grid-area: id;
+  }
+
+  .team-agent-row .team-agent-runs {
+    grid-area: note;
+  }
+
+  .team-agent-row .team-agent-actions {
+    grid-area: actions;
+  }
+
+  .team-agent-row.is-editing .team-agent-edit-fields {
+    grid-area: fields;
+  }
+}
+
+/* ============================================================
+   Accounts inside tasks (017, part 2): tags on cards and in the editor,
+   the account picker, the account filter, and the links back from the
+   Accounts tab. Same tokens, same chip grammar as the list above.
+   ============================================================ */
+
+/* --- Tag chips -------------------------------------------------------------- */
+
+.team-task-agent-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.team-task-agent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  max-width: 100%;
+  padding: 0 9px 0 7px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--team-font-mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+button.team-task-agent-chip {
+  cursor: pointer;
+  font: inherit;
+  font-family: var(--team-font-mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  transition:
+    border-color var(--dur-control) var(--ease-standard),
+    background-color var(--dur-control) var(--ease-standard);
+}
+
+button.team-task-agent-chip:hover,
+button.team-task-agent-chip.is-selected {
+  border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface-muted));
+}
+
+/* The dot is the agent's state: green when free, amber when a run is on it —
+   the same two colours the Free / Running filter pills carry. */
+.team-task-agent-chip-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--color-warning);
+}
+
+/* On the light surface the warning amber reads olive beside the green; the
+   honey scale is the same hue at a saturation that stays amber. */
+:root[data-theme='light'] .team-task-agent-chip-dot,
+:root:not([data-theme='dark']) .team-task-agent-chip-dot {
+  background: var(--honey-500);
+}
+
+.team-task-agent-chip.is-free .team-task-agent-chip-dot,
+.team-task-agent-chip-dot.is-free {
+  background: var(--color-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 20%, transparent);
+}
+
+.team-task-agent-chip.is-free {
+  border-color: color-mix(in srgb, var(--color-success) 40%, var(--color-border));
+  background: color-mix(in srgb, var(--color-success) 9%, var(--color-surface-muted));
+}
+
+/* --- The editor's row ------------------------------------------------------- */
+
+.team-task-accounts {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.team-task-accounts-label {
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+.team-task-accounts-empty {
+  color: color-mix(in oklab, var(--color-text-muted) 72%, transparent);
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+/* "+ Account": the same pill as "+ Agent" in the Accounts tab. */
+.team-task-account-add {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px 0 7px;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  color: var(--color-accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.team-task-account-add:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+}
+
+.team-task-account-add:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* The open chip's panel: a named head with the × that untags, the runs one
+   line each with a pencil and a bin, and a plus to write another. */
+.team-task-agent-panel {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in oklab, var(--color-accent) 35%, var(--color-border));
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, var(--color-accent) 6%, var(--color-surface));
+}
+
+.team-task-agent-panel-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.team-task-agent-panel-head .team-task-agent-remove {
+  margin-left: auto;
+}
+
+.team-task-agent-panel-state {
+  color: var(--color-text-muted);
+  font-size: 0.88rem;
+}
+
+/* The tag in the tag's face, like every other tag on screen. */
+.team-task-agent-panel-tag {
+  font-family: var(--team-font-mono);
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+}
+
+.team-task-agent-runs {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.team-task-agent-run {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 30px;
+  padding: 0 var(--space-1) 0 var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.team-task-agent-run:hover {
+  background: color-mix(in oklab, var(--color-text) 6%, transparent);
+}
+
+.team-task-agent-run-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.team-task-agent-run-action.icon-button {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  border: 0;
+  background: none;
+  color: var(--color-text-muted);
+}
+
+.team-task-agent-run-action.icon-button:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+.team-task-agent-run-action.is-danger:hover {
+  background: color-mix(in srgb, var(--color-error) 14%, transparent);
+  color: var(--color-error);
+}
+
+.team-task-agent-run.is-editing {
+  padding: 0;
+}
+
+.team-task-agent-run.is-editing:hover {
+  background: none;
+}
+
+.team-task-agent-run-add {
+  display: inline-flex;
+  width: max-content;
+  min-height: 28px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px 0 7px;
+  border: 1px dashed color-mix(in srgb, var(--color-accent) 45%, var(--color-border));
+  border-radius: 999px;
+  background: none;
+  color: var(--color-accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.team-task-agent-run-add:hover:not(:disabled) {
+  border-style: solid;
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
+.team-task-agent-run-editor {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.team-task-agent-run-editor .button {
+  min-height: 32px;
+  padding-inline: var(--space-3);
+  font-size: 0.85rem;
+}
+
+.team-task-editor .team-task-agent-run-editor input {
+  flex: 1 1 200px;
+  min-height: 32px;
+  padding: 0 var(--space-3);
+}
+
+.team-task-agent-remove.icon-button {
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  border: 0;
+  background: none;
+  color: var(--color-text-muted);
+}
+
+.team-task-agent-remove.icon-button:hover {
+  background: color-mix(in srgb, var(--color-error) 14%, transparent);
+  color: var(--color-error);
+}
+
+/* --- The picker ------------------------------------------------------------- */
+
+.team-task-account-picker-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  /* Room for the dialog's close mark. */
+  padding-right: 44px;
+}
+
+.team-task-account-picker-heading h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+/* Inside an account: a thin line saying where you are and the way back. */
+.team-task-account-picker-crumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: 0.88rem;
+}
+
+.team-task-account-picker-crumb strong {
+  color: var(--color-text);
+}
+
+.team-task-account-picker-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+  padding: 0 var(--space-2) 0 var(--space-1);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.88rem;
+}
+
+.team-task-account-picker-back svg {
+  width: 16px;
+  height: 16px;
+}
+
+.team-task-account-picker-back:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+.team-task-account-picker-occupancy {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+/* Smaller than the list-level pills: this one sits in the picker's path row. */
+.team-task-account-picker-occupancy .task-status-filter-option {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 0.78rem;
+}
+
+/* A floor of three rows, so the dialog does not re-centre and jump between
+   the account list, an agent list and an empty "free" answer. */
+.team-task-account-picker .team-task-picker-results,
+.team-task-account-picker .team-task-picker-empty {
+  min-height: 168px;
+}
+
+.team-task-agent-tail {
+  font-family: var(--team-font-mono);
+  font-size: 0.8rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+.team-task-picker-results button.is-free .team-task-agent-tail {
+  color: var(--color-success);
+}
+
+.team-task-account-free {
+  color: var(--color-success);
+  font-weight: 650;
+}
+
+.team-task-account-chosen {
+  color: var(--color-accent);
+  font-weight: 650;
+}
+
+/* --- The filter pill -------------------------------------------------------- */
+
+.task-account-filter {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.task-account-filter-trigger {
+  gap: 6px;
+  max-width: 220px;
+  min-height: 36px;
+}
+
+/* The clear mark sits beside the pill, not over it: the date filter's clear
+   overlaps its calendar icon by design (`margin-left: -31px` in styles.css),
+   which here put the × on top of the chevron. */
+.task-account-filter .task-date-filter-clear {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 0;
+  margin-left: 0;
+}
+
+.task-account-filter-tag {
+  font-family: var(--team-font-mono);
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+}
+
+.task-account-filter-trigger > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-account-filter-popover {
+  right: auto;
+  left: 0;
+  width: min(320px, calc(100vw - 32px));
+  max-height: min(420px, 60vh);
+  overflow-y: auto;
+  padding: var(--space-2);
+}
+
+.task-account-filter-group + .task-account-filter-group {
+  margin-top: var(--space-1);
+  padding-top: var(--space-1);
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
+}
+
+.task-account-filter-option {
+  display: flex;
+  width: 100%;
+  min-height: 34px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+}
+
+.task-account-filter-option:hover {
+  background: var(--color-surface-muted);
+}
+
+.task-account-filter-option.is-selected {
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-accent-active);
+}
+
+.task-account-filter-option.is-account {
+  font-weight: 700;
+}
+
+.task-account-filter-option.is-all {
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.task-account-filter-option.is-agent {
+  padding-left: var(--space-5);
+}
+
+.task-account-filter-option.is-agent.is-free .team-task-agent-chip-dot {
+  background: var(--color-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 20%, transparent);
+}
+
+.task-account-filter-tail {
+  flex: 0 0 auto;
+  font-family: var(--team-font-mono);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+.task-account-filter-note {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-account-filter-empty {
+  margin: 0;
+  padding: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+/* --- Links back from the Accounts tab --------------------------------------- */
+
+.team-agent-tasks-link,
+.team-account-tasks-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  color: var(--color-accent);
+  font-size: 0.76rem;
+  font-weight: 650;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.team-agent-tasks-link:hover,
+.team-account-tasks-link:hover {
+  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+  text-decoration: underline;
+}
+
+@media (max-width: 720px) {
+  .team-account-meta > .team-account-tasks-link {
+    display: inline-flex;
+  }
+}
+
+/* --- Hints written as lines ------------------------------------------------- */
+
+/* An agent's hint is three short lines — account, id, runs — and reads as a
+   column, not a sentence: the lines are kept, set flush left, the labels muted
+   by their own weight. */
+.instant-tip.is-multiline {
+  white-space: pre-line;
+  text-align: left;
+  font-size: var(--text-lg);
+  line-height: 1.5;
+}

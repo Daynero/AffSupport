@@ -294,6 +294,131 @@ export type Database = {
         };
         Relationships: [];
       };
+      team_account_agents: {
+        Row: {
+          account_id: string;
+          agent_id: string;
+          created_at: string;
+          created_by: string;
+          id: string;
+          team_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          account_id: string;
+          agent_id: string;
+          created_at?: string;
+          created_by: string;
+          id?: string;
+          team_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          account_id?: string;
+          agent_id?: string;
+          created_at?: string;
+          created_by?: string;
+          id?: string;
+          team_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_account_agents_account_id_team_id_fkey';
+            columns: ['account_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_accounts';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_account_agents_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_accounts: {
+        Row: {
+          created_at: string;
+          created_by: string;
+          id: string;
+          name: string;
+          team_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by: string;
+          id?: string;
+          name: string;
+          team_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string;
+          id?: string;
+          name?: string;
+          team_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_accounts_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_agent_runs: {
+        Row: {
+          agent_row_id: string;
+          created_at: string;
+          created_by: string;
+          id: string;
+          note: string;
+          team_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          agent_row_id: string;
+          created_at?: string;
+          created_by: string;
+          id?: string;
+          note: string;
+          team_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          agent_row_id?: string;
+          created_at?: string;
+          created_by?: string;
+          id?: string;
+          note?: string;
+          team_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_agent_runs_agent_row_id_team_id_fkey';
+            columns: ['agent_row_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_account_agents';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_agent_runs_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
       team_audit_events: {
         Row: {
           action: string;
@@ -1269,6 +1394,55 @@ export type Database = {
           }
         ];
       };
+      team_task_agents: {
+        Row: {
+          agent_row_id: string;
+          attached_at: string;
+          attached_by: string;
+          id: string;
+          task_id: string;
+          team_id: string;
+        };
+        Insert: {
+          agent_row_id: string;
+          attached_at?: string;
+          attached_by: string;
+          id?: string;
+          task_id: string;
+          team_id: string;
+        };
+        Update: {
+          agent_row_id?: string;
+          attached_at?: string;
+          attached_by?: string;
+          id?: string;
+          task_id?: string;
+          team_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_task_agents_task_id_team_id_fkey';
+            columns: ['task_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_tasks';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_task_agents_agent_row_id_team_id_fkey';
+            columns: ['agent_row_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_account_agents';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_task_agents_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
       team_task_attachments: {
         Row: {
           attached_at: string;
@@ -1905,6 +2079,83 @@ export type Database = {
         Args: { payload: Json };
         Returns: boolean;
       };
+      add_team_account_agent: {
+        Args: { p_account: string; p_agent_id: string; p_note?: string; p_team: string };
+        Returns: Json;
+      };
+      add_team_agent_run: {
+        Args: { p_agent: string; p_note: string; p_team: string };
+        Returns: Json;
+      };
+      clear_team_agent_runs: {
+        Args: { p_agent: string; p_team: string };
+        Returns: Json;
+      };
+      delete_team_agent_run: {
+        Args: { p_run: string; p_team: string };
+        Returns: Json;
+      };
+      update_team_agent_run: {
+        Args: { p_note: string; p_run: string; p_team: string };
+        Returns: Json;
+      };
+      create_team_account: {
+        Args: { p_name: string; p_team: string };
+        Returns: {
+          created_at: string;
+          created_by: string;
+          id: string;
+          name: string;
+          team_id: string;
+          updated_at: string;
+        };
+      };
+      delete_team_account: {
+        Args: { p_account: string; p_team: string };
+        Returns: {
+          ok: boolean;
+        }[];
+      };
+      delete_team_account_agent: {
+        Args: { p_agent: string; p_team: string };
+        Returns: {
+          ok: boolean;
+        }[];
+      };
+      list_team_accounts: {
+        Args: { p_team: string };
+        Returns: {
+          agents: Json;
+          created_at: string;
+          id: string;
+          name: string;
+          team_id: string;
+          updated_at: string;
+        }[];
+      };
+      rename_team_account: {
+        Args: { p_account: string; p_name: string; p_team: string };
+        Returns: {
+          created_at: string;
+          created_by: string;
+          id: string;
+          name: string;
+          team_id: string;
+          updated_at: string;
+        };
+      };
+      update_team_account_agent: {
+        Args: { p_agent: string; p_agent_id: string; p_team: string };
+        Returns: Json;
+      };
+      attach_team_task_agent: {
+        Args: { p_agent: string; p_task: string; p_team: string };
+        Returns: Json;
+      };
+      detach_team_task_agent: {
+        Args: { p_agent: string; p_task: string; p_team: string };
+        Returns: Json;
+      };
       attach_team_task_materials: {
         Args: { p_materials: string[]; p_task: string; p_team: string };
         Returns: Json;
@@ -2402,6 +2653,8 @@ export type Database = {
       };
       list_team_tasks: {
         Args: {
+          p_account?: string;
+          p_agent?: string;
           p_created_from?: string;
           p_created_to?: string;
           p_cursor?: string;
@@ -2410,6 +2663,7 @@ export type Database = {
           p_team: string;
         };
         Returns: {
+          agents: Json;
           assignee_id: string;
           assignee_label_snapshot: string;
           attachment_count: number;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { TeamTaskSummary } from '@video-compressor/shared';
+import type { TeamAccountSummary, TeamTaskSummary } from '@video-compressor/shared';
 import { teamApi, type TeamMemberSummary } from '../../api/team';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
@@ -8,7 +8,8 @@ import { attachTaskMaterialsInChunks } from './TaskAttachmentPicker';
 import { TaskCard } from './TaskCard';
 import { TaskDateFilterControl } from './TaskDateFilter';
 import { TaskEditor, type TaskEditorClient } from './TaskEditor';
-import { useTasks, type TasksClient } from './useTasks';
+import { useTasks, type TaskAccountScope, type TasksClient } from './useTasks';
+import { TaskAccountFilter } from './TaskAccountFilter';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessageFor } from '../errors';
 
@@ -16,6 +17,7 @@ export type TaskSpaceClient = TasksClient &
   TaskEditorClient & {
     listMembers(teamId: string): Promise<TeamMemberSummary[]>;
     deleteTask(input: { teamId: string; taskId: string }): Promise<true>;
+    listAccounts(teamId: string): Promise<TeamAccountSummary[]>;
   };
 
 export interface TaskSourceAsset {
@@ -40,7 +42,9 @@ export function TaskSpace({
   createFromAsset = null,
   onConsumedCreateFromAsset,
   openTaskId = null,
-  onOpenTaskChange
+  onOpenTaskChange,
+  scope: scopeProp,
+  onScopeChange
 }: {
   teamId: string;
   client?: TaskSpaceClient;
@@ -50,12 +54,24 @@ export function TaskSpace({
   openTaskId?: string | null;
   /** Reports which task is open so the address can follow it. */
   onOpenTaskChange?: (taskId: string | null) => void;
+  /** Which account's or agent's tasks the address asks for (017). */
+  scope?: TaskAccountScope;
+  onScopeChange?: (scope: TaskAccountScope) => void;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
   const { can, revision } = useTeam();
-  const tasks = useTasks({ teamId, revision, client });
+  /**
+   * The account scope is the address's when the shell supplies it, so a link
+   * from the Accounts tab lands narrowed and Back widens it again; mounted on
+   * its own it is local state, like the open task.
+   */
+  const [localScope, setLocalScope] = useState<TaskAccountScope>({ kind: 'all' });
+  const scope = onScopeChange ? (scopeProp ?? { kind: 'all' }) : localScope;
+  const setScope = onScopeChange ?? setLocalScope;
+  const tasks = useTasks({ teamId, revision, scope, client });
   const [members, setMembers] = useState<TeamMemberSummary[]>([]);
+  const [accounts, setAccounts] = useState<TeamAccountSummary[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const [creatingAssetId, setCreatingAssetId] = useState<string | null>(null);
@@ -106,8 +122,28 @@ export function TaskSpace({
     };
   }, [client, revision, teamId]);
 
+  // The accounts feed the filter pill. Re-read when the space changes and when
+  // this editor wrote a tag or a run — not on every task refetch, which would
+  // be a second round trip per realtime tick for a list that rarely moves.
+  const [accountsVersion, setAccountsVersion] = useState(0);
+  useEffect(() => {
+    let active = true;
+    void client
+      .listAccounts(teamId)
+      .then(value => {
+        if (active) setAccounts(value);
+      })
+      .catch(() => {
+        if (active) setAccounts([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [accountsVersion, client, revision, teamId]);
+
   /** True when a filter is what is hiding the tasks, rather than there being none. */
-  const filtered = tasks.statusFilter !== 'all' || tasks.filter.kind !== 'all';
+  const filtered =
+    tasks.statusFilter !== 'all' || tasks.filter.kind !== 'all' || scope.kind !== 'all';
 
   /**
    * Makes the task and opens it. The intermediate "name it first" dialog asked
@@ -208,7 +244,11 @@ export function TaskSpace({
         onChange={tasks.setFilter}
         status={tasks.statusFilter}
         onStatusChange={tasks.setStatusFilter}
-      />
+      >
+        {(accounts.length > 0 || scope.kind !== 'all') && (
+          <TaskAccountFilter accounts={accounts} scope={scope} onChange={setScope} />
+        )}
+      </TaskDateFilterControl>
       {error && <p className="team-inline-error">{t('teamTaskCreateFailed')}</p>}
       {tasks.loading && tasks.tasks.length === 0 && (
         <p aria-live="polite">{t('teamTasksLoadingList')}</p>
@@ -270,6 +310,11 @@ export function TaskSpace({
           onChanged={() => {
             if (draft.current) draft.current = { ...draft.current, touched: true };
             void tasks.refetch();
+          }}
+          onTagsChange={agents => {
+            if (draft.current) draft.current = { ...draft.current, touched: true };
+            tasks.setTaskAgents(openTask.id, agents);
+            setAccountsVersion(version => version + 1);
           }}
           onDelete={
             can('edit')
