@@ -279,9 +279,8 @@ export function TaskAgentTagsEditor({
             onSelect={canEdit ? () => select(tag) : undefined}
           />
         ))}
-        {tags.length === 0 && (
-          <span className="team-task-accounts-empty">{t('teamTaskAccountsEmpty')}</span>
-        )}
+        {/* Nothing is said when nothing is chosen: "+ Account" beside an
+            empty row already says both that it is empty and what to do. */}
         {canEdit && (
           <button
             ref={addButton}

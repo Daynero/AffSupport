@@ -4,15 +4,23 @@ import { useI18n } from '../../i18n';
 import { TaskStatusIcon, taskStatusLabel } from './TaskStatusControl';
 import { localDateValue, type TaskDateFilter, type TaskStatusFilter } from './useTasks';
 
-function dateFromValue(value: string): Date {
+/**
+ * The day-grid helpers, shared with the task editor's own date field: one
+ * calendar in the product, not two that drift apart.
+ *
+ * Noon rather than midnight: `new Date('2026-09-05')` is UTC midnight, which
+ * is the day before in every timezone west of Greenwich.
+ */
+export function dateFromValue(value: string): Date {
   return new Date(`${value}T12:00:00`);
 }
 
-function monthStart(date: Date): Date {
+export function monthStart(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), 1, 12);
 }
 
-function monthDays(month: Date): Date[] {
+/** Six weeks from the Monday on or before the 1st: a stable grid. */
+export function monthDays(month: Date): Date[] {
   const first = monthStart(month);
   const offset = (first.getDay() + 6) % 7;
   const start = new Date(first);
@@ -81,6 +89,13 @@ function Chevron({ direction }: { direction: 'left' | 'right' }) {
   );
 }
 
+/** Monday-first initials, as the calendar's header row. */
+export function calendarWeekdays(language: 'en' | 'uk'): string[] {
+  return language === 'uk'
+    ? ['П', 'В', 'С', 'Ч', 'П', 'С', 'Н']
+    : ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+}
+
 const statuses: readonly TaskStatusFilter[] = ['todo', 'in_progress', 'done', 'all'];
 
 /**
@@ -101,10 +116,13 @@ function quickRangeValue(range: Exclude<QuickRange, 'all'>, now: Date): TaskDate
     );
     return { kind: 'range', from: yesterday, to: yesterday };
   }
+  // The whole month, first to last: a task can be dated ahead of today (017),
+  // and "This month" that stopped at today would hide the half of the month a
+  // person plans in.
   return {
     kind: 'range',
     from: localDateValue(new Date(now.getFullYear(), now.getMonth(), 1, 12)),
-    to: localDateValue(now)
+    to: localDateValue(new Date(now.getFullYear(), now.getMonth() + 1, 0, 12))
   };
 }
 
@@ -140,8 +158,7 @@ export function TaskDateFilterControl({
   const [month, setMonth] = useState(() => monthStart(new Date()));
   const selectedLabel = useMemo(() => formatSelectedDate(language, value), [language, value]);
   const days = useMemo(() => monthDays(month), [month]);
-  const calendarWeekdays =
-    language === 'uk' ? ['П', 'В', 'С', 'Ч', 'П', 'С', 'Н'] : ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  const weekdays = calendarWeekdays(language);
   const today = localDateValue(new Date());
 
   useEffect(() => {
@@ -268,7 +285,7 @@ export function TaskDateFilterControl({
               </button>
             </div>
             <div className="task-calendar-weekdays" aria-hidden="true">
-              {calendarWeekdays.map((day, index) => (
+              {weekdays.map((day, index) => (
                 <span key={`${day}-${index}`}>{day}</span>
               ))}
             </div>

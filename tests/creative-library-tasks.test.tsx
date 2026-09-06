@@ -18,18 +18,40 @@ import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '../apps/web/src/components/toast';
 
 /**
- * Task surfaces report their outcomes through the shared toast channel, so the
- * provider is part of what they need rather than per-test scaffolding.
+ * Task surfaces report their outcomes through the shared toast channel, and the
+ * editor now reads the space it is in — a re-stitched download of an attached
+ * video is offered to whoever may change the space's settings, and refused
+ * politely to whoever may not. Both providers are part of what these surfaces
+ * need rather than per-test scaffolding.
  *
  * `rerender` re-wraps too: handing it a bare element would change the tree's
- * shape, unmounting the provider and remounting everything under it — which
+ * shape, unmounting the providers and remounting everything under them — which
  * looks exactly like a component re-fetching when it should not have.
  */
+const wrap = (ui: React.ReactElement) => (
+  <ToastProvider>
+    <TeamProvider
+      initialTeams={[
+        {
+          id: TEAM_ID,
+          name: 'Media buyers',
+          role: 'editor',
+          permissions: DEFAULT_ROLE_PERMISSIONS.editor,
+          connectionState: 'connected' as const
+        }
+      ]}
+      realtime={false}
+    >
+      {ui}
+    </TeamProvider>
+  </ToastProvider>
+);
+
 const render = (ui: React.ReactElement) => {
-  const result = renderRaw(<ToastProvider>{ui}</ToastProvider>);
+  const result = renderRaw(wrap(ui));
   return {
     ...result,
-    rerender: (next: React.ReactElement) => result.rerender(<ToastProvider>{next}</ToastProvider>)
+    rerender: (next: React.ReactElement) => result.rerender(wrap(next))
   };
 };
 
@@ -57,7 +79,9 @@ function task() {
     progressValue: 0,
     progressManuallySet: false,
     attachmentCount: 1,
+    dateOn: null,
     agents: [],
+    labels: [],
     createdBy: '31000000-0000-4000-8000-000000000004',
     createdAt: '2026-08-14T10:00:00.000Z',
     updatedAt: '2026-08-14T10:00:00.000Z',
@@ -81,7 +105,8 @@ function client(): TaskSpaceClient {
           category: 'video',
           availability: 'ready',
           previewState: 'ready',
-          position: 0
+          position: 0,
+          driveVersion: null
         }
       ]
     }),
@@ -93,6 +118,13 @@ function client(): TaskSpaceClient {
     addAgentRun: vi.fn(),
     updateAgentRun: vi.fn(),
     deleteAgentRun: vi.fn(),
+    // 018 — the space's own tags; this space has none.
+    listTaskLabels: vi.fn().mockResolvedValue([]),
+    createTaskLabel: vi.fn(),
+    updateTaskLabel: vi.fn(),
+    deleteTaskLabel: vi.fn().mockResolvedValue(true),
+    attachTaskLabel: vi.fn().mockResolvedValue([]),
+    detachTaskLabel: vi.fn().mockResolvedValue([]),
     attachTaskMaterials: vi.fn().mockResolvedValue({
       attached: [],
       alreadyAttached: [],
@@ -154,7 +186,8 @@ describe('Creative Library task workflows', () => {
       category: 'video',
       availability: 'ready',
       previewState: 'ready',
-      position: 0
+      position: 0,
+      driveVersion: null
     };
     render(<TaskAttachmentTile teamId={TEAM_ID} attachment={attachment} client={client()} />);
     // The caption says the kind in the reader's language, not the classifier key.
@@ -173,6 +206,59 @@ describe('Creative Library task workflows', () => {
     expect(taskVideoPreviewTimeSeconds(0.6)).toBe(0.6);
   });
 
+  it('offers a re-stitched download of a saved video, and of nothing else', async () => {
+    const video: TeamTaskAttachmentSummary = {
+      id: '31000000-0000-4000-8000-000000000015',
+      taskId: TASK_ID,
+      materialId: ASSET_ID,
+      name: 'launch.mp4',
+      category: 'video',
+      availability: 'ready',
+      previewState: 'ready',
+      position: 0,
+      driveVersion: '17'
+    };
+    const onDownloadRestitched = vi.fn();
+    const { rerender } = render(
+      <TaskAttachmentTile
+        teamId={TEAM_ID}
+        attachment={video}
+        client={client()}
+        onDownloadRestitched={onDownloadRestitched}
+      />
+    );
+    const button = screen.getByRole('button', { name: 'Download re-stitched' });
+    // Beside the plain download, not in place of it: one gives the file as it
+    // is, the other the file re-cut.
+    expect(screen.getByRole('button', { name: 'Download' })).toBeTruthy();
+    fireEvent.click(button);
+    expect(onDownloadRestitched).toHaveBeenCalledTimes(1);
+
+    // An image has nothing to re-stitch.
+    rerender(
+      <TaskAttachmentTile
+        teamId={TEAM_ID}
+        attachment={{ ...video, category: 'image', name: 'shot.png' }}
+        client={client()}
+        onDownloadRestitched={onDownloadRestitched}
+      />
+    );
+    expect(screen.queryByRole('button', { name: 'Download re-stitched' })).toBeNull();
+
+    // Nor has a video the task has not saved yet: the agent is handed a
+    // material by id, and a draft has not got one on the server.
+    rerender(
+      <TaskAttachmentTile
+        teamId={TEAM_ID}
+        attachment={video}
+        client={client()}
+        isDraft
+        onDownloadRestitched={onDownloadRestitched}
+      />
+    );
+    expect(screen.queryByRole('button', { name: 'Download re-stitched' })).toBeNull();
+  });
+
   it('does not leave a broken attachment preview in a loading state', async () => {
     const attachment: TeamTaskAttachmentSummary = {
       id: '31000000-0000-4000-8000-000000000005',
@@ -182,7 +268,8 @@ describe('Creative Library task workflows', () => {
       category: 'video',
       availability: 'ready',
       previewState: 'ready',
-      position: 0
+      position: 0,
+      driveVersion: null
     };
     render(<TaskAttachmentTile teamId={TEAM_ID} attachment={attachment} client={client()} />);
     const element = (await screen.findByLabelText(
@@ -203,7 +290,8 @@ describe('Creative Library task workflows', () => {
       category: 'video',
       availability: 'ready',
       previewState: 'ready',
-      position: 0
+      position: 0,
+      driveVersion: null
     };
     const api = client();
     const { rerender } = render(
@@ -223,7 +311,8 @@ describe('Creative Library task workflows', () => {
       category: 'video',
       availability: 'ready',
       previewState: 'ready',
-      position: 0
+      position: 0,
+      driveVersion: null
     };
     const api = client();
     const writeText = vi.fn().mockResolvedValue(undefined);
@@ -318,7 +407,7 @@ describe('Creative Library task workflows', () => {
     );
 
     await screen.findByText('launch.mp4');
-    fireEvent.click(screen.getByRole('button', { name: /Attach files/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Choose from the connected space/ }));
     fireEvent.click(await screen.findByRole('button', { name: /new-image\.png/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Add to task (1)' }));
 
@@ -362,7 +451,7 @@ describe('Creative Library task workflows', () => {
     );
 
     await screen.findByText('launch.mp4');
-    fireEvent.click(screen.getByRole('button', { name: /Attach files/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Choose from the connected space/ }));
     fireEvent.click(await screen.findByRole('button', { name: /new-image\.png/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Add to task (1)' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save task' }));
@@ -447,7 +536,7 @@ describe('Creative Library task workflows', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Attach files/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Choose from the connected space/ }));
     fireEvent.click(await screen.findByRole('button', { name: /Campaigns/ }));
     await waitFor(() =>
       expect(api.listMaterials).toHaveBeenCalledWith(TEAM_ID, 'drive-folder-campaigns')
@@ -478,7 +567,7 @@ describe('Creative Library task workflows', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Attach files/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Choose from the connected space/ }));
     const roots = await screen.findAllByRole('button', { name: 'Root' });
     expect(roots).toHaveLength(1);
     expect((roots[0] as HTMLButtonElement).disabled).toBe(false);

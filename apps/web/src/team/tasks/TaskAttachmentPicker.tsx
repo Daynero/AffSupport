@@ -216,10 +216,7 @@ export function TaskAttachmentPicker({
         >
           <div className="team-task-picker-dialog">
             <div className="team-task-picker-dialog-heading">
-              <div>
-                <p className="team-workspace-eyebrow">{t('teamTaskAttachments')}</p>
-                <h2 id={pickerTitleId}>{t('teamTaskAttachmentPickerTitle')}</h2>
-              </div>
+              <h2 id={pickerTitleId}>{t('teamTaskAttachmentPickerTitle')}</h2>
               <small>{t('teamTaskAttachmentAddDraftHint')}</small>
             </div>
             <div className="team-task-picker-path" aria-label={t('teamTaskAttachmentPickerTitle')}>

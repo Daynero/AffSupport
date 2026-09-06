@@ -15,6 +15,7 @@ import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
 import { thumbnailRelayUrl } from '../library/thumbnailRelay';
 import { cachedPreview } from '../preview-url-cache';
+import { MaterialPreview } from '../preview/MaterialPreview';
 
 export function taskVideoPreviewTimeSeconds(durationSeconds: number): number {
   if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) return 0;
@@ -43,7 +44,7 @@ export interface TaskAttachmentPreviewClient {
 
 const defaultClient: TaskAttachmentPreviewClient = teamApi;
 
-type AttachmentAction = 'view' | 'download' | 'copy-link' | 'detach';
+type AttachmentAction = 'view' | 'download' | 'download-restitched' | 'copy-link' | 'detach';
 
 function AttachmentActionIcon({ action }: { action: AttachmentAction }) {
   if (action === 'view') {
@@ -58,6 +59,17 @@ function AttachmentActionIcon({ action }: { action: AttachmentAction }) {
     return (
       <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
         <path d="M10 2.8v9.2m0 0 3.2-3.2M10 12 6.8 8.8M3.4 14.7v1.15c0 .75.6 1.35 1.35 1.35h10.5c.75 0 1.35-.6 1.35-1.35V14.7" />
+      </svg>
+    );
+  }
+  if (action === 'download-restitched') {
+    /* The download arrow again, over the film strip it re-cuts: the same
+       action as the plain download, done to a different file. */
+    return (
+      <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+        <path d="M10 1.9v7.4m0 0 2.7-2.7M10 9.3 7.3 6.6" />
+        <rect x="2.6" y="11.6" width="14.8" height="6.1" rx="1.3" />
+        <path d="M6.3 11.6v6.1m3.7-6.1v6.1m3.7-6.1v6.1" />
       </svg>
     );
   }
@@ -80,12 +92,22 @@ export function TaskAttachmentTile({
   attachment,
   client = defaultClient,
   onDetach,
+  onDownloadRestitched,
+  restitching = false,
   isDraft = false
 }: {
   teamId: string;
   attachment: TeamTaskAttachmentSummary;
   client?: TaskAttachmentPreviewClient;
   onDetach?: () => void;
+  /**
+   * Download the video re-stitched, when this member may. Offered by the
+   * editor, which owns the one delivery this page can run at a time; the tile
+   * only asks for it.
+   */
+  onDownloadRestitched?: () => void;
+  /** That delivery is this attachment's, and still running. */
+  restitching?: boolean;
   /** New attachments remain local until the task itself is saved. */
   isDraft?: boolean;
 }) {
@@ -96,6 +118,17 @@ export function TaskAttachmentTile({
   const [videoReady, setVideoReady] = useState(false);
   const [unavailable, setUnavailable] = useState(attachment.availability !== 'ready');
   const [previewOpen, setPreviewOpen] = useState(false);
+  /**
+   * Opened in the shared viewer rather than as a picture in this dialog: a
+   * landing and an archive go through the paired app, a transcript is read
+   * from the catalogue. None of the three has a range URL of its own, which is
+   * what the view control used to require — so the eye was dead on every kind
+   * that is not an image or a video.
+   */
+  const opensInViewer =
+    attachment.category === 'landing' ||
+    attachment.category === 'archive' ||
+    attachment.category === 'transcript';
   const [action, setAction] = useState<'download' | 'copy-link' | null>(null);
   const [copied, setCopied] = useState(false);
   const [actionFailed, setActionFailed] = useState(false);
@@ -283,7 +316,11 @@ export function TaskAttachmentTile({
         <div className="team-task-attachment-caption-heading">
           <div>
             <strong title={attachment.name}>{attachment.name}</strong>
-            <small>{t(CATEGORY_LABEL[attachment.category ?? 'other'])}</small>
+            <small>
+              {attachment.kind === 'folder'
+                ? t('teamTaskAttachmentFolder')
+                : t(CATEGORY_LABEL[attachment.category ?? 'other'])}
+            </small>
             {isDraft && (
               <small className="team-task-attachment-draft">{t('teamTaskAttachmentDraft')}</small>
             )}
@@ -299,7 +336,9 @@ export function TaskAttachmentTile({
             type="button"
             variant="ghost"
             className="team-task-attachment-action is-view"
-            disabled={!rangeUrl || unavailable}
+            disabled={
+              opensInViewer ? attachment.availability !== 'ready' : !rangeUrl || unavailable
+            }
             title={t('teamTaskAttachmentView')}
             aria-label={t('teamTaskAttachmentView')}
             onClick={() => setPreviewOpen(true)}
@@ -317,6 +356,21 @@ export function TaskAttachmentTile({
           >
             <AttachmentActionIcon action="download" />
           </Button>
+          {/* Only a video has anything to re-stitch, and only a saved one can
+              be handed to the agent by id. */}
+          {onDownloadRestitched && attachment.category === 'video' && !isDraft && (
+            <Button
+              type="button"
+              variant="ghost"
+              className="team-task-attachment-action is-download-restitched"
+              loading={restitching}
+              title={t('teamTaskAttachmentDownloadRestitched')}
+              aria-label={t('teamTaskAttachmentDownloadRestitched')}
+              onClick={onDownloadRestitched}
+            >
+              <AttachmentActionIcon action="download-restitched" />
+            </Button>
+          )}
           <Button
             type="button"
             variant="ghost"
@@ -352,7 +406,21 @@ export function TaskAttachmentTile({
           </small>
         )}
       </div>
-      {previewOpen && rangeUrl && (
+      {previewOpen && opensInViewer && (
+        <MaterialPreview
+          teamId={teamId}
+          material={{
+            id: attachment.materialId,
+            name: attachment.name,
+            category: attachment.category,
+            fileExtension: attachment.name.includes('.')
+              ? (attachment.name.split('.').pop() ?? null)
+              : null
+          }}
+          onClose={() => setPreviewOpen(false)}
+        />
+      )}
+      {previewOpen && !opensInViewer && rangeUrl && (
         <Modal
           nested
           labelledBy={viewerTitleId}

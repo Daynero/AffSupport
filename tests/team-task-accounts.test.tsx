@@ -6,6 +6,7 @@ import {
   DEFAULT_ROLE_PERMISSIONS,
   type TeamAccountSummary,
   type TeamTaskAgentTag,
+  type TeamTaskAttachmentSummary,
   type TeamTaskSummary
 } from '@video-compressor/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -42,7 +43,10 @@ function agent(id: string, accountId: string, agentId: string, note: string | nu
     accountId,
     teamId: TEAM_ID,
     agentId,
-    runs: note === null ? [] : [{ id: `${id}-run1`, note, createdAt: STAMP }],
+    runs: note === null ? [] : [{ id: `${id}-run1`, note, marker: null, createdAt: STAMP }],
+    labels: [],
+    balance: null,
+    topup: null,
     taskCount: 0,
     createdAt: STAMP,
     updatedAt: STAMP
@@ -103,7 +107,9 @@ function task(agents: TeamTaskAgentTag[] = []): TeamTaskSummary {
     progressValue: 0,
     progressManuallySet: false,
     attachmentCount: 0,
+    dateOn: null,
     agents,
+    labels: [],
     createdBy: '17000000-0000-4000-8000-000000000099',
     createdAt: STAMP,
     updatedAt: STAMP,
@@ -144,7 +150,7 @@ function client(
       const tag = tags.find(item => item.agentRowId === agentRowId)!;
       const runs = [
         ...tag.runs,
-        { id: `${agentRowId}-run${tag.runs.length + 1}`, note, createdAt: STAMP }
+        { id: `${agentRowId}-run${tag.runs.length + 1}`, note, marker: null, createdAt: STAMP }
       ];
       tags = tags.map(item => (item.agentRowId === agentRowId ? { ...item, runs } : item));
       return { ...agent(agentRowId, tag.accountId, tag.agentId, null), runs };
@@ -268,7 +274,9 @@ describe('the editor', () => {
     const api = client();
     const user = userEvent.setup();
     const onTagsChange = openEditor(api);
-    expect(screen.getByText('No account yet')).toBeTruthy();
+    // Nothing is written when nothing is chosen: the button beside the empty
+    // row says both that it is empty and what to do about it.
+    expect(screen.queryByText('No account yet')).toBeNull();
 
     await user.click(screen.getByRole('button', { name: 'Account' }));
     const dialog = await screen.findByRole('dialog', { name: 'Account' });
@@ -408,11 +416,12 @@ describe('the editor', () => {
 
   it('does not let a slow first read wipe what was typed meanwhile', async () => {
     const api = client();
+    type TaskRead = { task: TeamTaskSummary; attachments: TeamTaskAttachmentSummary[] };
     let release: (() => void) | null = null;
     // The read resolves only when the test says so — the slow backend.
     api.getTask = vi.fn(
       () =>
-        new Promise(resolve => {
+        new Promise<TaskRead>(resolve => {
           release = () => resolve({ task: task(), attachments: [] });
         })
     );
@@ -491,6 +500,152 @@ describe('the list', () => {
     expect(within(list).getByRole('option', { name: 'v31' })).toBeTruthy();
     await user.click(within(list).getByRole('option', { name: /v31-434/ }));
     expect(onScopeChange).toHaveBeenCalledWith({ kind: 'agent', agentRowId: A434 });
+  });
+
+  it('shows the task date and lets the editor move it to another day', async () => {
+    const api = client();
+    const user = userEvent.setup();
+    // Created on the 5th; the card shows that day until someone says otherwise.
+    wrap(
+      <TaskEditor
+        teamId={TEAM_ID}
+        task={task()}
+        members={[]}
+        canEdit
+        client={api}
+        onClose={() => {}}
+        onChanged={() => {}}
+      />
+    );
+    const trigger = await screen.findByRole('button', { name: /^Date: / });
+    expect(trigger.textContent).toBe('Sep 5');
+    expect(trigger.classList.contains('is-custom')).toBe(false);
+
+    await user.click(trigger);
+    await user.click(screen.getByRole('button', { name: '2026-09-18' }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /^Date: / }).textContent).toBe('Sep 18')
+    );
+    // A date of its own, and it saves with the form rather than on the press.
+    expect(screen.getByRole('button', { name: /^Date: / }).classList.contains('is-custom')).toBe(
+      true
+    );
+    expect(api.updateTask).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Save task' }));
+    await waitFor(() =>
+      expect(api.updateTask).toHaveBeenCalledWith(
+        TEAM_ID,
+        TASK_ID,
+        expect.objectContaining({ dateOn: '2026-09-18' })
+      )
+    );
+  });
+
+  it('puts the date back to the day the task was created', async () => {
+    const api = client();
+    const dated = { ...task(), dateOn: '2026-09-18' };
+    // The read has to agree with what was opened, or the refresh legitimately
+    // puts the server's own (unset) date back.
+    api.getTask = vi.fn(async () => ({ task: dated, attachments: [] }));
+    const user = userEvent.setup();
+    wrap(
+      <TaskEditor
+        teamId={TEAM_ID}
+        task={dated}
+        members={[]}
+        canEdit
+        client={api}
+        onClose={() => {}}
+        onChanged={() => {}}
+      />
+    );
+    await user.click(await screen.findByRole('button', { name: /^Date: / }));
+    await user.click(screen.getByRole('button', { name: /^Day it was created/ }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /^Date: / }).textContent).toBe('Sep 5')
+    );
+    await user.click(screen.getByRole('button', { name: 'Save task' }));
+    await waitFor(() =>
+      expect(api.updateTask).toHaveBeenCalledWith(
+        TEAM_ID,
+        TASK_ID,
+        expect.objectContaining({ dateOn: null })
+      )
+    );
+  });
+
+  it('unfolds every brief on the board at once, and folds them back', async () => {
+    const api = client([tagFor(A434)]);
+    const user = userEvent.setup();
+    wrap(
+      <TaskSpace teamId={TEAM_ID} client={api} scope={{ kind: 'all' }} onScopeChange={vi.fn()} />
+    );
+    await screen.findByText('v31-434');
+
+    await user.click(screen.getByRole('button', { name: 'Unfold all' }));
+    const cards = screen.getAllByRole('article');
+    expect(cards.every(card => card.classList.contains('is-expanded'))).toBe(true);
+
+    // The one control says which way the next press goes.
+    await user.click(screen.getByRole('button', { name: 'Fold all' }));
+    expect(
+      screen.getAllByRole('article').some(card => card.classList.contains('is-expanded'))
+    ).toBe(false);
+  });
+
+  it('re-reads the board when a date moves a task out of the range on screen', async () => {
+    const api = client([tagFor(A434)]);
+    const user = userEvent.setup();
+    wrap(
+      <TaskSpace teamId={TEAM_ID} client={api} scope={{ kind: 'all' }} onScopeChange={vi.fn()} />
+    );
+    await screen.findByText('v31-434');
+    await user.click(screen.getByRole('button', { name: 'Today' }));
+    await waitFor(() => expect(screen.getAllByRole('article').length).toBeGreaterThan(0));
+
+    // The server answers the new range: dated the 18th, it is not today's.
+    const moved = { ...task(), dateOn: '2026-09-18' };
+    api.updateTask = vi.fn().mockResolvedValue(moved);
+    api.getTask = vi.fn(async () => ({ task: moved, attachments: [] }));
+    api.listTasks = vi.fn().mockResolvedValue([]);
+
+    await user.click(screen.getAllByRole('article')[0]!);
+    await user.click(await screen.findByRole('button', { name: /^Date: / }));
+    await user.click(screen.getByRole('button', { name: '2026-09-18' }));
+    await user.click(screen.getByRole('button', { name: 'Save task' }));
+
+    await waitFor(() => expect(api.listTasks).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryAllByRole('article').length).toBe(0));
+  });
+
+  it('asks for a day range by the date a task is for, not the day it was made', async () => {
+    const api = client([tagFor(A434)]);
+    const user = userEvent.setup();
+    wrap(
+      <TaskSpace teamId={TEAM_ID} client={api} scope={{ kind: 'all' }} onScopeChange={vi.fn()} />
+    );
+    await screen.findByText('v31-434');
+
+    await user.click(screen.getByRole('button', { name: 'Today' }));
+    const now = new Date();
+    const today = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0')
+    ].join('-');
+    // The instants stay (they are what a task with no date of its own is
+    // judged by); the plain days ride along for the tasks that have one.
+    await waitFor(() =>
+      expect(api.listTasks).toHaveBeenCalledWith(
+        expect.objectContaining({
+          dayFrom: today,
+          dayTo: today,
+          createdFrom: expect.any(String),
+          createdTo: expect.any(String)
+        })
+      )
+    );
   });
 
   it('asks the server for the scoped page and names the scope on the pill', async () => {

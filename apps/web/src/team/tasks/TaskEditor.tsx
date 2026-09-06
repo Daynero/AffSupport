@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { teamTaskDate } from '@video-compressor/shared';
 import type {
   TeamTaskAgentTag,
   TeamTaskAttachmentSummary,
+  TeamTaskLabel,
+  TeamTaskLabelRef,
   TeamTaskPatch,
   TeamTaskSummary
 } from '@video-compressor/shared';
@@ -16,13 +19,27 @@ import {
   type TaskAttachmentPickerClient
 } from './TaskAttachmentPicker';
 import { TaskAttachmentTile, type TaskAttachmentPreviewClient } from './TaskAttachmentTile';
+import { useTeam } from '../TeamContext';
+import { buildTeamRoute } from '../routes';
+import { navigateTo } from '../../lib/navigation';
+import { useRestitchDelivery } from '../restitch/useRestitchDelivery';
+import { RestitchDeliveryNotices } from '../restitch/RestitchDeliveryNotices';
 import { TaskProgressScale } from './TaskProgressScale';
 import { TaskStatusControl } from './TaskStatusControl';
 import { TaskAgentTagsEditor, type TaskAgentTagsClient } from './TaskAgentTags';
+import { TaskLabelsEditor, type TaskLabelsEditorClient } from './TaskLabelsEditor';
+import { TaskDateField } from './TaskDateField';
 import { useToasts } from '../../components/toast';
+import { uploadTeamFile } from '../catalog/material-actions-client';
+import { classifyMaterial } from '@video-compressor/shared';
+import { teamErrorMessageFor } from '../errors';
 
 export interface TaskEditorClient
-  extends TaskAttachmentPickerClient, TaskAttachmentPreviewClient, TaskAgentTagsClient {
+  extends
+    TaskAttachmentPickerClient,
+    TaskAttachmentPreviewClient,
+    TaskAgentTagsClient,
+    TaskLabelsEditorClient {
   getTask(input: {
     teamId: string;
     taskId: string;
@@ -31,9 +48,22 @@ export interface TaskEditorClient
   }): Promise<{ task: TeamTaskSummary; attachments: TeamTaskAttachmentSummary[] }>;
   updateTask(teamId: string, taskId: string, patch: TeamTaskPatch): Promise<TeamTaskSummary>;
   detachTaskMaterial(teamId: string, taskId: string, materialId: string): Promise<boolean>;
+  /** The space's one folder for dropped files; made on first use (011). */
+  ensureTaskDropFolder?: (
+    teamId: string
+  ) => Promise<{ folderId: string; materialId: string; name: string; created: boolean }>;
+  uploadFile?: (input: {
+    teamId: string;
+    destinationFolderId: string | null;
+    file: File;
+    conflictMode: 'cancel' | 'keep_both';
+    replaceMaterialId: string | null;
+    versionOfMaterialId: string | null;
+    onProgress?: (sentBytes: number, totalBytes: number) => void;
+  }) => Promise<{ materialId: string | null }>;
 }
 
-const defaultClient: TaskEditorClient = teamApi;
+const defaultClient: TaskEditorClient = { ...teamApi, uploadFile: uploadTeamFile };
 const TASK_PROGRESS_MAX = 10_000;
 
 function uniqueAttachments(
@@ -43,6 +73,60 @@ function uniqueAttachments(
   const byId = new Map(current.map(item => [item.id, item]));
   for (const item of incoming) byId.set(item.id, item);
   return [...byId.values()].sort((left, right) => left.position - right.position);
+}
+
+/**
+ * What a drop actually holds: loose files, and folders to walk into.
+ *
+ * `webkitGetAsEntry()` is only valid while the drop event is being handled,
+ * which is why this is read synchronously and the walking happens after.
+ * Without it a folder is indistinguishable from a zero-byte file.
+ */
+function droppedEntries(data: DataTransfer): {
+  files: File[];
+  folders: FileSystemDirectoryEntry[];
+} {
+  const files: File[] = [];
+  const folders: FileSystemDirectoryEntry[] = [];
+  const items = Array.from(data.items ?? []);
+  for (const item of items) {
+    const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+    if (entry?.isDirectory) {
+      folders.push(entry as FileSystemDirectoryEntry);
+      continue;
+    }
+    const file = item.getAsFile?.() ?? null;
+    if (file) files.push(file);
+  }
+  // A browser that hands over no items at all still hands over files.
+  if (items.length === 0) files.push(...Array.from(data.files));
+  return { files, folders };
+}
+
+/** One directory's children, read to the end — the API pages them. */
+function readEntries(reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> {
+  return new Promise((resolve, reject) => {
+    const all: FileSystemEntry[] = [];
+    const step = () =>
+      reader.readEntries(batch => {
+        if (batch.length === 0) {
+          resolve(all);
+          return;
+        }
+        all.push(...batch);
+        step();
+      }, reject);
+    step();
+  });
+}
+
+function entryFile(entry: FileSystemFileEntry): Promise<File | null> {
+  return new Promise(resolve => entry.file(resolve, () => resolve(null)));
+}
+
+/** A drop of files, rather than a row being dragged from the explorer. */
+function canDrop(event: { dataTransfer: DataTransfer | null }): boolean {
+  return Boolean(event.dataTransfer && Array.from(event.dataTransfer.types).includes('Files'));
 }
 
 function draftAttachment(
@@ -63,7 +147,11 @@ function draftAttachment(
         : material.previewState === 'pending'
           ? 'pending'
           : 'ready',
-    position
+    position,
+    // A draft has no Drive revision to hand: the material came from the picker,
+    // which lists summaries. It is the key to the re-stitch cache, so a
+    // download from a draft attachment inspects the file itself, once.
+    driveVersion: null
   };
 }
 
@@ -73,9 +161,11 @@ export function TaskEditor({
   members,
   canEdit,
   client = defaultClient,
+  labels = [],
   onClose,
   onChanged,
   onTagsChange,
+  onLabelsChange,
   onDelete
 }: {
   teamId: string;
@@ -83,20 +173,60 @@ export function TaskEditor({
   members: TeamMemberSummary[];
   canEdit: boolean;
   client?: TaskEditorClient;
+  /** The space's tag dictionary (018), for the picker. */
+  labels?: readonly TeamTaskLabel[];
   onClose: () => void;
   onChanged: (task: TeamTaskSummary) => void;
   /** The tags changed (017) — written at once, unlike the staged form. */
   onTagsChange?: (tags: TeamTaskAgentTag[]) => void;
+  /** The team's own tags changed (018), also written at once. */
+  onLabelsChange?: (labels: TeamTaskLabelRef[]) => void;
   /** Deletes the task; absent when the viewer may not. */
   onDelete?: (task: TeamTaskSummary) => Promise<void>;
 }) {
   const { t } = useI18n();
-  const { push } = useToasts();
+  const { push, update } = useToasts();
+  const { can } = useTeam();
+  /**
+   * A re-stitched download of an attached video, from this editor. The same
+   * delivery the explorer runs — one at a time, the folder remembered per
+   * space, the preparation record shared — so a video reached through a task
+   * costs no more than the same video reached through the file list.
+   */
+  const restitch = useRestitchDelivery(teamId);
+  /*
+   * A space with no re-stitch defaults is not a failure: the notice offers the
+   * way in, and the settings live over the file list. Leaving the editor for
+   * them loses nothing — the delivery remembers what was asked for and the
+   * shell resumes it once the settings close.
+   */
+  const openRestitchSettings = () => {
+    const href = buildTeamRoute({
+      spaceId: teamId,
+      section: 'explorer',
+      query: { settings: true }
+    });
+    onClose();
+    navigateTo(href);
+  };
+  const deliverRestitched = (attachment: TeamTaskAttachmentSummary) => {
+    void restitch
+      .deliver({
+        materialId: attachment.materialId,
+        fileName: attachment.name,
+        driveVersion: attachment.driveVersion
+      })
+      .catch(() => {
+        // The delivery reports its own outcome through the notices below.
+      });
+  };
   const [task, setTask] = useState(initialTask);
   const [title, setTitle] = useState(initialTask.title);
   const [note, setNote] = useState(initialTask.note ?? '');
   const [status, setStatus] = useState(initialTask.status);
   const [assigneeId, setAssigneeId] = useState(initialTask.assigneeId ?? '');
+  /** The day the task is for; null is "the day it was created". */
+  const [dateOn, setDateOn] = useState<string | null>(initialTask.dateOn);
   const [progressMax, setProgressMax] = useState(initialTask.progressMax);
   const [progressMaxInput, setProgressMaxInput] = useState(String(initialTask.progressMax));
   const [progressValue, setProgressValue] = useState(initialTask.progressValue);
@@ -107,7 +237,15 @@ export function TaskEditor({
   const [saving, setSaving] = useState(false);
   const [savingStatus, setSavingStatus] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState(false);
+  /**
+   * What went wrong last, if anything: reading the task, or writing it.
+   *
+   * One boolean said "could not save your last changes" for both, so a failed
+   * *read* — a re-read while a big upload was using the connection, say —
+   * accused the person of losing edits they had not made. The upload itself
+   * reports through its own tile and toast.
+   */
+  const [error, setError] = useState<'read' | 'write' | null>(null);
   const [showUnsavedPrompt, setShowUnsavedPrompt] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -146,6 +284,7 @@ export function TaskEditor({
     setAssigneeId(current =>
       current === (initialTask.assigneeId ?? '') ? (next.assigneeId ?? '') : current
     );
+    setDateOn(current => (current === initialTask.dateOn ? next.dateOn : current));
     setProgressMax(current => (current === initialTask.progressMax ? next.progressMax : current));
     setProgressMaxInput(current =>
       current === String(initialTask.progressMax) ? String(next.progressMax) : current
@@ -158,9 +297,14 @@ export function TaskEditor({
   const load = useCallback(
     async ({
       hydrate = false,
-      resetAttachmentDraft = false
-    }: { hydrate?: boolean; resetAttachmentDraft?: boolean } = {}) => {
-      setLoading(true);
+      resetAttachmentDraft = false,
+      quiet = false
+    }: { hydrate?: boolean; resetAttachmentDraft?: boolean; quiet?: boolean } = {}) => {
+      // A quiet read is a re-read behind an unchanged screen: the settle loop
+      // below runs several of them, and each one flashing "Loading…" over a
+      // dialog somebody is typing in would be worse than the stale word it is
+      // replacing.
+      if (!quiet) setLoading(true);
       try {
         const value = await client.getTask({ teamId, taskId: task.id, attachmentPageSize: 50 });
         if (hydrate) hydrateTask(value.task);
@@ -172,11 +316,11 @@ export function TaskEditor({
         } else {
           setPersistedAttachments(current => uniqueAttachments(current, value.attachments));
         }
-        setError(false);
+        setError(null);
       } catch {
-        setError(true);
+        setError('read');
       } finally {
-        setLoading(false);
+        if (!quiet) setLoading(false);
       }
     },
     [client, task.id, teamId]
@@ -197,6 +341,35 @@ export function TaskEditor({
     () => new Set(visibleAttachments.map(attachment => attachment.materialId)),
     [visibleAttachments]
   );
+  /**
+   * The server keeps working after an upload lands.
+   *
+   * A .zip is stored as an archive and only *becomes* a landing once the
+   * inspection has looked inside it; a picture gets its thumbnail a moment
+   * later. The tile that appeared at upload time knows none of that, so it sat
+   * there saying "Archive · preview unavailable" for a landing the space had
+   * already recognised — and only a reopened dialog ever showed otherwise.
+   * This re-reads, quietly and a few times, while anything is still unsettled.
+   */
+  const unsettled = visibleAttachments.some(
+    attachment =>
+      !attachment.id.startsWith('draft:') &&
+      (attachment.previewState === 'pending' || attachment.category === 'archive')
+  );
+  const settleAttempts = useRef(0);
+  useEffect(() => {
+    if (!unsettled) {
+      settleAttempts.current = 0;
+      return;
+    }
+    if (settleAttempts.current >= 6) return;
+    const timer = window.setTimeout(() => {
+      settleAttempts.current += 1;
+      void load({ quiet: true });
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [load, unsettled, persistedAttachments]);
+
   const attachmentCount = Math.max(
     0,
     task.attachmentCount - detachedMaterialIds.size + draftAttachments.length
@@ -205,6 +378,7 @@ export function TaskEditor({
     title !== task.title ||
     note !== (task.note ?? '') ||
     assigneeId !== (task.assigneeId ?? '') ||
+    dateOn !== task.dateOn ||
     progressMax !== task.progressMax ||
     progressValue !== task.progressValue;
   const attachmentDirty = draftAttachments.length > 0 || detachedMaterialIds.size > 0;
@@ -223,9 +397,9 @@ export function TaskEditor({
         attachmentPageSize: 50
       });
       setPersistedAttachments(current => uniqueAttachments(current, value.attachments));
-      setError(false);
+      setError(null);
     } catch {
-      setError(true);
+      setError('read');
     } finally {
       setLoadingMore(false);
     }
@@ -259,6 +433,228 @@ export function TaskEditor({
         )
       ];
     });
+  };
+
+  /**
+   * Files dropped on the attachment area.
+   *
+   * They go to one folder in the space's root — the same one for every task,
+   * made on first use — because "which folder does this screenshot belong in?"
+   * is a question with no useful answer, and the task's own list is what gives
+   * the file its meaning. Each upload is attached the moment it lands, so a
+   * long drop fills the grid as it goes rather than at the end.
+   */
+  const [dropping, setDropping] = useState(false);
+  /**
+   * What is in flight, in order, with how far each has got.
+   *
+   * A tile per file, not a number in a corner: a video takes half a minute
+   * through the relay, and for that half minute the only honest answer to
+   * "is this working?" is the file's own name with a bar under it. The count
+   * alone left a person watching a dialog that looked idle.
+   */
+  const [uploads, setUploads] = useState<
+    { id: string; name: string; sent: number; total: number }[]
+  >([]);
+  const dropDepth = useRef(0);
+
+  /** How many files one drop may carry: a mis-drop of a home folder is not a task. */
+  const MAX_DROPPED_FILES = 200;
+
+  const uploadDropped = async (
+    files: File[],
+    folders: FileSystemDirectoryEntry[] = []
+  ): Promise<void> => {
+    if ((files.length === 0 && folders.length === 0) || !canEdit || !can('upload')) return;
+    /*
+     * The seam is for tests; the real screens hand this editor the shared
+     * `teamApi`, which is a different object from `defaultClient` — so a drop
+     * did nothing at all on every screen that passes its own client. The
+     * fallback is the production path, not a nicety.
+     */
+    const ensureFolder = client.ensureTaskDropFolder ?? teamApi.ensureTaskDropFolder;
+    const sendFile = client.uploadFile ?? uploadTeamFile;
+
+    let root: { materialId: string };
+    try {
+      root = await ensureFolder(teamId);
+    } catch (cause) {
+      push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+      return;
+    }
+
+    /** Sends one file into a folder and returns the material it became. */
+    const sendOne = async (file: File, destinationMaterialId: string): Promise<string | null> => {
+      const tracking = {
+        id: `${Date.now()}:${file.name}:${Math.random().toString(36).slice(2, 8)}`,
+        name: file.name,
+        sent: 0,
+        total: file.size
+      };
+      setUploads(current => [...current, tracking]);
+      const notice = push({
+        tone: 'info',
+        sticky: true,
+        text: t('teamTaskAttachmentUploading', { name: file.name })
+      });
+      try {
+        const uploaded = await sendFile({
+          teamId,
+          destinationFolderId: destinationMaterialId,
+          file,
+          conflictMode: 'keep_both',
+          replaceMaterialId: null,
+          versionOfMaterialId: null,
+          onProgress: (sent, total) =>
+            setUploads(current =>
+              current.map(item => (item.id === tracking.id ? { ...item, sent, total } : item))
+            )
+        });
+        if (!uploaded.materialId) throw new Error('INVALID_RESPONSE');
+        update(notice, {
+          tone: 'success',
+          sticky: false,
+          text: t('teamTaskAttachmentUploaded', { name: file.name })
+        });
+        return uploaded.materialId;
+      } catch (cause) {
+        update(notice, {
+          tone: 'error',
+          sticky: false,
+          text: t('teamTaskAttachmentUploadFailed', {
+            name: file.name,
+            reason: teamErrorMessageFor(cause, t)
+          })
+        });
+        return null;
+      } finally {
+        setUploads(current => current.filter(item => item.id !== tracking.id));
+      }
+    };
+
+    /** Writes the link and puts the tile on screen, as a real attachment. */
+    const attachOne = async (input: {
+      materialId: string;
+      name: string;
+      category: TeamTaskAttachmentSummary['category'];
+      kind?: TeamTaskAttachmentSummary['kind'];
+    }) => {
+      const attached = await attachTaskMaterialsInChunks({
+        client,
+        teamId,
+        taskId: task.id,
+        materialIds: [input.materialId]
+      });
+      if (attached.rejected.length > 0) {
+        push({
+          tone: 'error',
+          text: t('teamTaskAttachmentUploadFailed', {
+            name: input.name,
+            reason: attached.rejected[0]?.code ?? 'REJECTED'
+          })
+        });
+        return;
+      }
+      setPersistedAttachments(current =>
+        uniqueAttachments(current, [
+          {
+            id: `${task.id}:${input.materialId}`,
+            taskId: task.id,
+            materialId: input.materialId,
+            name: input.name,
+            category: input.category,
+            kind: input.kind ?? 'file',
+            availability: 'ready',
+            previewState: 'pending',
+            position: current.length,
+            driveVersion: null
+          }
+        ])
+      );
+      setTask(current => ({ ...current, attachmentCount: current.attachmentCount + 1 }));
+      // A drop that worked clears whatever the last failure was saying: an
+      // error line left over from a re-read that timed out during the upload
+      // is exactly the thing that made a working upload look broken.
+      setError(null);
+    };
+
+    const fileCategory = (file: File) =>
+      classifyMaterial({
+        kind: 'file',
+        mimeType: file.type || null,
+        fileExtension: file.name.includes('.') ? (file.name.split('.').pop() ?? null) : null
+      }).category ?? null;
+
+    /*
+     * A dropped folder stays a folder.
+     *
+     * A landing is a tree of files that only works whole, so flattening it into
+     * the drawer would deliver something that no longer opens. The tree is
+     * rebuilt under the drop folder — one Drive folder per directory — and the
+     * *folder* is what the task gets attached, as one tile rather than fifty.
+     */
+    const copyFolder = async (
+      directory: FileSystemDirectoryEntry,
+      parentMaterialId: string,
+      budget: { left: number }
+    ): Promise<void> => {
+      const made = await ensureFolder(teamId, { name: directory.name, parentMaterialId });
+      const children = await readEntries(directory.createReader());
+      for (const child of children) {
+        if (budget.left <= 0) return;
+        if (child.isDirectory) {
+          await copyFolder(child as FileSystemDirectoryEntry, made.materialId, budget);
+          continue;
+        }
+        const file = await entryFile(child as FileSystemFileEntry);
+        if (!file) continue;
+        budget.left -= 1;
+        await sendOne(file, made.materialId);
+      }
+      if (parentMaterialId === root.materialId) {
+        await attachOne({
+          materialId: made.materialId,
+          name: made.name,
+          category: null,
+          kind: 'folder'
+        });
+      }
+    };
+
+    const budget = { left: MAX_DROPPED_FILES };
+    for (const folder of folders) {
+      try {
+        await copyFolder(folder, root.materialId, budget);
+      } catch (cause) {
+        push({
+          tone: 'error',
+          text: t('teamTaskAttachmentUploadFailed', {
+            name: folder.name,
+            reason: teamErrorMessageFor(cause, t)
+          })
+        });
+      }
+    }
+    for (const file of files) {
+      if (budget.left <= 0) {
+        push({
+          tone: 'error',
+          text: t('teamTaskAttachmentDropTooMany', { count: MAX_DROPPED_FILES })
+        });
+        break;
+      }
+      budget.left -= 1;
+      const materialId = await sendOne(file, root.materialId);
+      if (materialId) {
+        await attachOne({ materialId, name: file.name, category: fileCategory(file) });
+      }
+    }
+    if (budget.left <= 0 && folders.length > 0) {
+      push({
+        tone: 'error',
+        text: t('teamTaskAttachmentDropTooMany', { count: MAX_DROPPED_FILES })
+      });
+    }
   };
 
   /**
@@ -307,15 +703,25 @@ export function TaskEditor({
     setProgressMaxInput(raw);
     if (!/^\d+$/u.test(raw)) return;
     const normalized = Math.min(TASK_PROGRESS_MAX, Math.max(1, Number(raw)));
+    /*
+     * The value moves with the scale rather than being cut down to fit it: 90
+     * of 100 becomes 9 of 10, which is the same progress said in a different
+     * unit. Clamping instead reported the task as finished — 10 of 10 — for
+     * the sake of a change that was about the unit, not the work.
+     */
+    setProgressValue(current => {
+      const previous = Math.max(1, progressMax);
+      const scaled = Math.round((current / previous) * normalized);
+      return Math.min(normalized, Math.max(0, scaled));
+    });
     setProgressMax(normalized);
-    setProgressValue(current => Math.min(current, normalized));
     if (String(normalized) !== raw) setProgressMaxInput(String(normalized));
   };
 
   const save = async () => {
     if (!canEdit || saving || savingStatus) return;
     setSaving(true);
-    setError(false);
+    setError(null);
     try {
       let updated = task;
       if (formDirty) {
@@ -323,6 +729,7 @@ export function TaskEditor({
           title,
           note: note || null,
           assigneeId: assigneeId || null,
+          dateOn,
           progressMax,
           progressValue,
           expectedUpdatedAt: task.updatedAt
@@ -347,7 +754,7 @@ export function TaskEditor({
       onChanged({ ...updated, attachmentCount });
       onClose();
     } catch {
-      setError(true);
+      setError('write');
     } finally {
       setSaving(false);
     }
@@ -364,7 +771,7 @@ export function TaskEditor({
     const previousStatus = status;
     setStatus(next);
     setSavingStatus(true);
-    setError(false);
+    setError(null);
     try {
       const response = await client.updateTask(teamId, task.id, {
         status: next,
@@ -386,7 +793,7 @@ export function TaskEditor({
       onChanged({ ...updated, attachmentCount: task.attachmentCount });
     } catch {
       setStatus(previousStatus);
-      setError(true);
+      setError('write');
     } finally {
       setSavingStatus(false);
     }
@@ -411,16 +818,22 @@ export function TaskEditor({
       >
         <div className="team-task-editor">
           <form className="team-dialog-form" onSubmit={saveFromSubmit}>
-            <div>
-              <p className="team-workspace-eyebrow">{t('teamTasksEyebrow')}</p>
-              <h2 id="team-task-editor-title">{t('teamTaskEditTitle')}</h2>
-            </div>
+            <h2 id="team-task-editor-title">{t('teamTaskEditTitle')}</h2>
             <section className="team-task-editor-status" aria-labelledby="team-task-status-title">
               <span id="team-task-status-title">{t('teamTaskStatus')}</span>
               <TaskStatusControl
                 value={status}
                 disabled={!canEdit || saving || savingStatus}
                 onChange={next => void saveStatus(next)}
+              />
+              {/* The date the task is for, where the card shows it: at the end
+                  of the status line. It saves with the form, like the title. */}
+              <TaskDateField
+                value={teamTaskDate({ dateOn, createdAt: task.createdAt })}
+                isCustom={dateOn !== null}
+                createdOn={teamTaskDate({ dateOn: null, createdAt: task.createdAt })}
+                disabled={!canEdit}
+                onChange={setDateOn}
               />
             </section>
             {/* The accounts this task is about (017). Written at once, like
@@ -435,6 +848,19 @@ export function TaskEditor({
               onTagsChange={agents => {
                 setTask(current => ({ ...current, agents }));
                 onTagsChange?.(agents);
+              }}
+            />
+            {/* The team's own tags (018), from the dictionary in settings. */}
+            <TaskLabelsEditor
+              teamId={teamId}
+              taskId={task.id}
+              labels={task.labels}
+              available={labels}
+              canEdit={canEdit}
+              client={client}
+              onLabelsChange={next => {
+                setTask(current => ({ ...current, labels: next }));
+                onLabelsChange?.(next);
               }}
             />
             <label>
@@ -545,7 +971,11 @@ export function TaskEditor({
                 onChange={event => setNote(event.target.value)}
               />
             </label>
-            {error && <p className="team-inline-error">{t('teamTaskSaveFailed')}</p>}
+            {error && (
+              <p className="team-inline-error">
+                {t(error === 'read' ? 'teamTaskReadFailed' : 'teamTaskSaveFailed')}
+              </p>
+            )}
             {canEdit && (
               <div className="team-dialog-actions">
                 <Button type="submit" variant="primary" loading={saving} disabled={savingStatus}>
@@ -563,14 +993,65 @@ export function TaskEditor({
             )}
           </form>
 
-          <section className="team-task-attachments" aria-labelledby="team-task-attachments-title">
+          <RestitchDeliveryNotices
+            states={restitch.states}
+            onConfigure={can('manage_metadata') ? openRestitchSettings : null}
+          />
+          {/* The whole section takes a drop, not a small strip inside it: a
+              person aims at "the attachments", and a target the size of the
+              thing it is named after cannot be missed. */}
+          <section
+            className={`team-task-attachments${dropping ? ' is-dropping' : ''}`}
+            aria-labelledby="team-task-attachments-title"
+            onDragEnter={event => {
+              if (!canDrop(event)) return;
+              event.preventDefault();
+              dropDepth.current += 1;
+              setDropping(true);
+            }}
+            onDragOver={event => {
+              if (!canDrop(event)) return;
+              // Without this the browser opens the file instead, which loses
+              // the task and everything typed into it.
+              event.preventDefault();
+              event.dataTransfer.dropEffect = 'copy';
+            }}
+            onDragLeave={() => {
+              // Counted, not toggled: dragging over a tile inside the section
+              // fires `leave` for the section itself.
+              dropDepth.current = Math.max(0, dropDepth.current - 1);
+              if (dropDepth.current === 0) setDropping(false);
+            }}
+            onDrop={event => {
+              if (!canDrop(event)) return;
+              event.preventDefault();
+              dropDepth.current = 0;
+              setDropping(false);
+              // Read synchronously: `webkitGetAsEntry` is only valid for the
+              // duration of the event, and it is the only way to tell a folder
+              // from a file before trying to send it.
+              /*
+               * Entries, not `files`: a folder is in `files` too, as a
+               * zero-byte record that would upload as an empty file of that
+               * name. The entries are the only way to walk into it, and they
+               * are only valid for the length of this event.
+               */
+              const dropped = droppedEntries(event.dataTransfer);
+              void uploadDropped(dropped.files, dropped.folders);
+            }}
+          >
             <div className="team-task-attachments-heading">
               <div>
                 <h3 id="team-task-attachments-title">{t('teamTaskAttachments')}</h3>
-                <p>{t('teamTaskAttachmentsHint')}</p>
+                <p>
+                  {canEdit && can('upload')
+                    ? t('teamTaskAttachmentsDropHint')
+                    : t('teamTaskAttachmentsHint')}
+                </p>
               </div>
               <span>{t('teamTaskAttachmentsCount', { count: attachmentCount })}</span>
             </div>
+
             {loading && <p aria-live="polite">{t('teamTaskLoadingAttachments')}</p>}
             <div className="team-task-attachment-grid">
               {visibleAttachments.map(attachment => (
@@ -581,7 +1062,46 @@ export function TaskEditor({
                   client={client}
                   isDraft={attachment.id.startsWith('draft:')}
                   onDetach={canEdit ? () => stageDetach(attachment) : undefined}
+                  onDownloadRestitched={
+                    can('download') ? () => deliverRestitched(attachment) : undefined
+                  }
+                  restitching={restitch.states[attachment.materialId]?.kind === 'running'}
                 />
+              ))}
+              {uploads.map(item => (
+                <div key={item.id} className="team-task-attachment is-uploading">
+                  <div className="team-task-attachment-preview">
+                    <span className="team-task-attachment-fallback">
+                      {t('teamTaskAttachmentUploadingShare', {
+                        percent: item.total > 0 ? Math.round((item.sent / item.total) * 100) : 0
+                      })}
+                    </span>
+                  </div>
+                  <div className="team-task-attachment-caption">
+                    <div className="team-task-attachment-caption-heading">
+                      <div>
+                        <strong title={item.name}>{item.name}</strong>
+                        <small>{t('teamTaskAttachmentUploadingLabel')}</small>
+                      </div>
+                    </div>
+                    <span
+                      className="team-task-attachment-progress"
+                      role="progressbar"
+                      aria-label={t('teamTaskAttachmentUploading', { name: item.name })}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={
+                        item.total > 0 ? Math.round((item.sent / item.total) * 100) : 0
+                      }
+                    >
+                      <span
+                        style={{
+                          width: `${item.total > 0 ? Math.round((item.sent / item.total) * 100) : 0}%`
+                        }}
+                      />
+                    </span>
+                  </div>
+                </div>
               ))}
               {canEdit && (
                 <TaskAttachmentPicker

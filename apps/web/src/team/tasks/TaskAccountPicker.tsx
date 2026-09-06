@@ -26,7 +26,7 @@ import { Modal } from '../../components/Modal';
 import { Button } from '../../components/ui';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
-import { agentCountKey } from '../accounts/AccountGroup';
+import { agentCountKey, freeCountKey } from '../accounts/plural';
 
 export interface TaskAccountPickerClient {
   listAccounts(teamId: string): Promise<TeamAccountSummary[]>;
@@ -224,7 +224,7 @@ export function TaskAccountPicker({
                         {counts.free > 0 && (
                           <span className="team-task-account-free">
                             {' · '}
-                            {t('teamAccountFreeCount', { count: counts.free })}
+                            {t(freeCountKey(language, counts.free), { count: counts.free })}
                           </span>
                         )}
                         {chosenHere > 0 && (

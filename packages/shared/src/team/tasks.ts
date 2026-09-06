@@ -1,5 +1,6 @@
 import { isRecord, normalizeTeamFreeText } from './contract.js';
 import type { TeamTaskAgentTag } from './accounts.js';
+import { teamTaskLabelKey, type TeamTaskLabelRef, type TeamTaskSort } from './task-labels.js';
 import { MATERIAL_CATEGORIES, type MaterialCategory } from './material-category.js';
 
 /** Lightweight team task, progress, date-filter and attachment contracts. */
@@ -42,6 +43,71 @@ export function normalizeTeamTaskNote(value: unknown, maxLength = 2_000): string
   return note.length >= 1 && note.length <= maxLength ? note : null;
 }
 
+/** A calendar day as the wire carries it: `YYYY-MM-DD`, and a real date. */
+export function isTeamTaskDate(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/u.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number) as [number, number, number];
+  if (year < 2000 || year > 2100 || month < 1 || month > 12) return false;
+  // Rejects the 31st of a 30-day month and a 29 February outside a leap year.
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+/**
+ * The day a task is *for*: its own date when someone set one, the day it was
+ * created otherwise. One helper, so the card, the editor and any later
+ * grouping cannot disagree about which date a task shows.
+ */
+export function teamTaskDate(task: Pick<TeamTaskSummary, 'dateOn' | 'createdAt'>): string {
+  if (task.dateOn) return task.dateOn;
+  const created = new Date(task.createdAt);
+  const year = created.getFullYear();
+  const month = String(created.getMonth() + 1).padStart(2, '0');
+  const day = String(created.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Newest first by the date a task is *for*, the same order the list RPC
+ * returns. Two tasks on one day fall back to when they were made, so a page
+ * merged on the client cannot reshuffle itself against the server's page.
+ */
+export function compareTeamTasksByDate(
+  left: Pick<TeamTaskSummary, 'dateOn' | 'createdAt' | 'id'>,
+  right: Pick<TeamTaskSummary, 'dateOn' | 'createdAt' | 'id'>
+): number {
+  const leftDay = teamTaskDate(left);
+  const rightDay = teamTaskDate(right);
+  if (leftDay !== rightDay) return leftDay < rightDay ? 1 : -1;
+  const byCreated = Date.parse(right.createdAt) - Date.parse(left.createdAt);
+  if (byCreated !== 0) return byCreated;
+  return left.id < right.id ? 1 : left.id > right.id ? -1 : 0;
+}
+
+/**
+ * By tag, then by date. A task's tag is its first one in natural order; the
+ * ones carrying none fall to the end rather than to the front, because a board
+ * ordered by tag is opened to read the tagged work.
+ */
+export function compareTeamTasksByLabel(
+  left: Pick<TeamTaskSummary, 'dateOn' | 'createdAt' | 'id' | 'labels'>,
+  right: Pick<TeamTaskSummary, 'dateOn' | 'createdAt' | 'id' | 'labels'>
+): number {
+  const leftKey = teamTaskLabelKey(left);
+  const rightKey = teamTaskLabelKey(right);
+  if (leftKey === null || rightKey === null) {
+    if (leftKey !== rightKey) return leftKey === null ? 1 : -1;
+  } else if (leftKey !== rightKey) {
+    return leftKey.localeCompare(rightKey, undefined, { numeric: true, sensitivity: 'base' });
+  }
+  return compareTeamTasksByDate(left, right);
+}
+
+/** The comparator the board is currently ordered by. */
+export function teamTaskComparator(sort: TeamTaskSort) {
+  return sort === 'label' ? compareTeamTasksByLabel : compareTeamTasksByDate;
+}
+
 export interface TeamTaskPatch {
   title?: string;
   note?: string | null;
@@ -49,6 +115,8 @@ export interface TeamTaskPatch {
   status?: TeamTaskStatus;
   progressMax?: number;
   progressValue?: number;
+  /** The day the task is for; null puts it back to the day it was created. */
+  dateOn?: string | null;
   expectedUpdatedAt?: string;
 }
 
@@ -59,6 +127,7 @@ export function parseTeamTaskPatch(value: unknown): TeamTaskPatch | null {
     !hasOnlyKeys(value, [
       'title',
       'note',
+      'dateOn',
       'assigneeId',
       'status',
       'progressMax',
@@ -83,6 +152,11 @@ export function parseTeamTaskPatch(value: unknown): TeamTaskPatch | null {
       if (!note) return null;
       output.note = note;
     }
+  }
+  if ('dateOn' in value) {
+    if (value.dateOn === null) output.dateOn = null;
+    else if (isTeamTaskDate(value.dateOn)) output.dateOn = value.dateOn;
+    else return null;
   }
   if ('assigneeId' in value) {
     if (value.assigneeId !== null && !isUuid(value.assigneeId)) return null;
@@ -243,6 +317,10 @@ export interface TeamTaskSummary extends TeamTaskProgressState {
   attachmentCount: number;
   /** The agents this task is tagged with (017): `[v31-434]`, with their live state. */
   agents: TeamTaskAgentTag[];
+  /** The tags the team hung on it (018), in natural order by name. */
+  labels: TeamTaskLabelRef[];
+  /** The day the task is for; null means the day it was created. */
+  dateOn: string | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -257,9 +335,23 @@ export interface TeamTaskAttachmentSummary {
   materialId: string;
   name: string;
   category: MaterialCategory | null;
+  /**
+   * Whether the attachment is a folder. A dropped folder is attached as
+   * itself — one tile for a landing rather than fifty for its files — and
+   * every folder's category is null, so without this the tile said "File".
+   */
+  kind?: 'file' | 'folder' | 'shortcut';
   availability: TeamTaskAttachmentAvailability;
   previewState: 'ready' | 'pending' | 'unavailable';
   position: number;
+  /**
+   * The Drive revision of the file behind the attachment, when the server knew
+   * one. It is the invalidation key of the re-stitch preparation cache, so a
+   * download started from a task can reuse what a download started from the
+   * explorer already worked out. A draft attachment — one the task has not
+   * saved yet — has none, and simply pays the inspection once.
+   */
+  driveVersion: string | null;
 }
 
 export function parseTeamTaskAttachmentSummary(value: unknown): TeamTaskAttachmentSummary | null {
@@ -271,9 +363,11 @@ export function parseTeamTaskAttachmentSummary(value: unknown): TeamTaskAttachme
       'materialId',
       'name',
       'category',
+      'kind',
       'availability',
       'previewState',
-      'position'
+      'position',
+      'driveVersion'
     ]) ||
     !isUuid(value.id) ||
     !isUuid(value.taskId) ||
@@ -288,7 +382,10 @@ export function parseTeamTaskAttachmentSummary(value: unknown): TeamTaskAttachme
     !['ready', 'pending', 'unavailable'].includes(value.previewState as string) ||
     typeof value.position !== 'number' ||
     !Number.isSafeInteger(value.position) ||
-    value.position < 0
+    value.position < 0 ||
+    (value.driveVersion !== null &&
+      value.driveVersion !== undefined &&
+      typeof value.driveVersion !== 'string')
   ) {
     return null;
   }
@@ -298,8 +395,16 @@ export function parseTeamTaskAttachmentSummary(value: unknown): TeamTaskAttachme
     materialId: value.materialId,
     name: value.name,
     category: value.category as MaterialCategory | null,
+    // Absent from an older server: everything then reads as a file, which is
+    // what it was before folders could be attached at all.
+    kind:
+      value.kind === 'folder' || value.kind === 'shortcut' || value.kind === 'file'
+        ? value.kind
+        : undefined,
     availability: value.availability as TeamTaskAttachmentAvailability,
     previewState: value.previewState as TeamTaskAttachmentSummary['previewState'],
-    position: value.position
+    position: value.position,
+    // Absent from an older server; the download simply does its own inspecting.
+    driveVersion: typeof value.driveVersion === 'string' ? value.driveVersion : null
   };
 }

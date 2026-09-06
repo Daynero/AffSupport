@@ -50,6 +50,7 @@ import {
   type OperationAuthority
 } from '../_shared/operations.ts';
 import { applyLibraryGroupMutation, parseLibraryGroupIntent } from '../_shared/library.ts';
+import { resolveTaskDropFolder } from './task-drop-folder.ts';
 import { resolveWorkspaceFolder } from './workspace-folder.ts';
 import {
   isRecord,
@@ -2173,6 +2174,99 @@ async function handleRelay(
  * so it can be proved against a stubbed drive. What is here is what surrounds it: who may ask,
  * which connection answers, and recording the result.
  */
+/**
+ * Resolves the space's task-drop folder and makes sure the catalogue knows it.
+ *
+ * Both halves matter: Drive is where the bytes go, and the catalogue row is
+ * what makes it a destination an upload may name — a folder created a second
+ * ago has not been indexed yet, and every upload into it would be refused as
+ * NOT_FOUND until the next index pass caught up.
+ */
+async function handleEnsureTaskDropFolder(
+  request: Request,
+  body: Record<string, unknown>,
+  service: RpcClient,
+  actorId: string
+) {
+  const teamId = requireUuid(body.teamId);
+  /*
+   * Two shapes, one route. Without a name this resolves the space's own drop
+   * folder, made once and found by its mark. With a name it makes a folder
+   * *inside* the drops — which is how a dropped folder keeps being a folder:
+   * a landing is a tree of files that only works whole, so flattening it into
+   * the drawer would deliver something that no longer opens.
+   */
+  const childName = body.name === undefined ? null : requireFolderName(body.name);
+  const parentMaterialId =
+    body.parentMaterialId === undefined ? null : requireUuid(body.parentMaterialId);
+  const root = await rootDestination({ service, teamId, actorId, permission: 'upload' });
+  const client = await driveClient(service, root.credentialId, request);
+
+  if (childName) {
+    const parent = parentMaterialId
+      ? await loadDestination({
+          service,
+          teamId,
+          actorId,
+          permission: 'upload',
+          destination: parentMaterialId
+        })
+      : null;
+    const parentDriveId = parent
+      ? parent.driveFolderId
+      : (await resolveTaskDropFolder({ teamId, rootFolderId: root.rootFolderId, drive: client }))
+          .folder.id;
+    const created = await client.createFolder({ name: childName, parentId: parentDriveId });
+    const committedChild = firstRecord(
+      await rpcValue(service, 'service_commit_task_drop_folder', {
+        p_team: teamId,
+        p_connection: root.connectionId,
+        p_parent_folder_id: parentDriveId,
+        p_drive_folder_id: created.id,
+        p_resource_key: created.resourceKey,
+        p_name: created.name
+      })
+    );
+    const childMaterialId = committedChild ? stringValue(committedChild, 'material_id') : null;
+    if (!childMaterialId) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+    return { folderId: created.id, materialId: childMaterialId, name: created.name, created: true };
+  }
+
+  const resolved = await resolveTaskDropFolder({
+    teamId,
+    rootFolderId: root.rootFolderId,
+    drive: client
+  });
+  const committed = firstRecord(
+    await rpcValue(service, 'service_commit_task_drop_folder', {
+      p_team: teamId,
+      p_connection: root.connectionId,
+      p_parent_folder_id: root.rootFolderId,
+      p_drive_folder_id: resolved.folder.id,
+      p_resource_key: resolved.folder.resourceKey,
+      p_name: resolved.folder.name
+    })
+  );
+  const materialId = committed ? stringValue(committed, 'material_id') : null;
+  if (!materialId) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+  return {
+    folderId: resolved.folder.id,
+    materialId,
+    name: resolved.folder.name,
+    created: resolved.created
+  };
+}
+
+/** A folder name as Drive will take it: one line, and not a path. */
+function requireFolderName(value: unknown): string {
+  if (typeof value !== 'string') throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+  const name = value.normalize('NFC').trim();
+  if (name.length < 1 || name.length > 200 || /[\u0000-\u001f/\\]/u.test(name)) {
+    throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+  }
+  return name;
+}
+
 async function handleEnsureWorkspaceFolder(
   request: Request,
   body: Record<string, unknown>,
@@ -2272,6 +2366,8 @@ Deno.serve(async request => {
       value = await handleTextEdit(request, body, configured.service, userId);
     } else if (path === '/ensure-workspace-folder') {
       value = await handleEnsureWorkspaceFolder(request, body, configured.service, userId);
+    } else if (path === '/ensure-task-drop-folder') {
+      value = await handleEnsureTaskDropFolder(request, body, configured.service, userId);
     } else if (path === '/process/start') {
       value = await handleProcessStart(request, body, configured.service, userId);
       status = 202;
