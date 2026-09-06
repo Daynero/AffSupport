@@ -36,7 +36,12 @@ export function SortMenu({
   }, [open]);
 
   const setKey = (key: SortKey) => onChange({ ...sort, key });
-  const keyLabel = sort.key === 'name' ? t('teamExplorerSortName') : t('teamExplorerSortModified');
+  const keyLabel =
+    sort.key === 'name'
+      ? t('teamExplorerSortName')
+      : sort.key === 'modified'
+        ? t('teamExplorerSortModified')
+        : t('teamExplorerSortTag');
 
   return (
     <div className="team-explorer-sort" ref={ref}>
@@ -55,7 +60,7 @@ export function SortMenu({
       {open && (
         <div className="team-explorer-menu team-explorer-menu-sort" role="menu">
           <p className="team-explorer-menu-heading">{t('teamExplorerSortBy')}</p>
-          {(['name', 'modified'] as SortKey[]).map(key => (
+          {(['name', 'modified', 'tag'] as SortKey[]).map(key => (
             <button
               key={key}
               type="button"
@@ -67,7 +72,11 @@ export function SortMenu({
               <span className="team-explorer-menu-check" aria-hidden="true">
                 {sort.key === key ? '✓' : ''}
               </span>
-              {key === 'name' ? t('teamExplorerSortName') : t('teamExplorerSortModified')}
+              {key === 'name'
+                ? t('teamExplorerSortName')
+                : key === 'modified'
+                  ? t('teamExplorerSortModified')
+                  : t('teamExplorerSortTag')}
             </button>
           ))}
           <p className="team-explorer-menu-heading">{t('teamExplorerSortOrder')}</p>

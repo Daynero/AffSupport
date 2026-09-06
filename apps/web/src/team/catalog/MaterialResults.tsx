@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import type {
   CatalogMaterialItem,
   CatalogSearchResponse,
   TeamAnalyticsStorage,
+  TeamMaterialTagColor,
   TeamPermissions
 } from '@video-compressor/shared';
 import { Button } from '../../components/ui';
@@ -9,6 +11,7 @@ import { useI18n, type TranslationKey } from '../../i18n';
 import { MaterialRowMenu } from './MaterialRowMenu';
 import type { FolderPickerClient } from './FolderPicker';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
+import { TagDot } from '../explorer/TagDot';
 
 /** Matches the page size `useCatalogSearch` requests. */
 const PAGE_SIZE = 50;
@@ -40,7 +43,8 @@ export function MaterialResults({
   destinationFolderId = null,
   page,
   onPageChange,
-  pathFor
+  pathFor,
+  tagging
 }: {
   result: CatalogSearchResponse | null;
   loading: boolean;
@@ -64,8 +68,20 @@ export function MaterialResults({
   onPageChange: (page: number) => void;
   /** 011: the folder path of a result, when the caller can name it. */
   pathFor?: (material: CatalogMaterialItem) => string | null;
+  /** Present only for the space's owner: a tag is theirs alone to set (011). */
+  tagging?: {
+    canTag: true;
+    onSetTag: (material: CatalogMaterialItem, color: TeamMaterialTagColor | null) => void;
+  };
 }) {
   const { t } = useI18n();
+  /*
+   * A search result is not a row this component owns — the page it belongs to
+   * is held by the search — so a tag it just set is remembered here until the
+   * next search answers with it. Without this the dot snapped back to its old
+   * colour the moment React re-rendered the list.
+   */
+  const [justTagged, setJustTagged] = useState<Record<string, TeamMaterialTagColor | null>>({});
   if (error) return <p className="team-inline-error">{t('teamCatalogLoadFailed')}</p>;
   if (loading && !result) return <LabeledSkeleton label="teamCatalogLoadingResults" />;
   if (!result || result.items.length === 0) return <p>{t('teamCatalogEmpty')}</p>;
@@ -113,6 +129,21 @@ export function MaterialResults({
                         ? ` · ${material.fileExtension.toUpperCase()}`
                         : ''}
                       {material.sizeBytes !== null ? ` · ${formatBytes(material.sizeBytes)}` : ''}
+                      {/* The same dot the explorer shows, in the same place:
+                          beside the size, where the eye already stops. */}
+                      <TagDot
+                        color={
+                          material.id in justTagged
+                            ? justTagged[material.id]!
+                            : (material.tagColor ?? null)
+                        }
+                        name={material.name}
+                        canTag={Boolean(tagging)}
+                        onChange={color => {
+                          setJustTagged(current => ({ ...current, [material.id]: color }));
+                          tagging?.onSetTag(material, color);
+                        }}
+                      />
                     </span>
                   </div>
                 </div>
@@ -182,9 +213,10 @@ export function MaterialResults({
                     {t('creativeLibraryCreateTask')}
                   </Button>
                 )}
-              </div>
-              {hasSecondaryActions && (
-                <div className="team-catalog-secondary-actions">
+                {/* The "…" belongs beside the actions it extends, not on a row
+                    of its own — where it rendered as the bare word "Дії" under
+                    every result, a label with nothing after it. */}
+                {hasSecondaryActions && (
                   <MaterialRowMenu
                     teamId={material.teamId}
                     material={material}
@@ -198,8 +230,8 @@ export function MaterialResults({
                     replaceMaterialId={material.id}
                     folderUploadLabel={t('teamCatalogAddFileToFolder')}
                   />
-                </div>
-              )}
+                )}
+              </div>
             </li>
           );
         })}

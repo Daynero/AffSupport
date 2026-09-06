@@ -3,7 +3,6 @@ import type {
   LandingRenderPointer,
   RenderArtifactRef,
   TeamMaterialRow,
-  TeamMaterialRowKind,
   ThumbnailSession
 } from '@video-compressor/shared';
 import type { TeamMaterialSummary } from '../../api/team';
@@ -17,7 +16,9 @@ import { RowActions, type RowActionsProps } from './RowActions';
 import { ShareButton } from './ShareButton';
 import { useExplorer } from './ExplorerProvider';
 import { sortRows, DEFAULT_SORT, type ExplorerSort } from './sort';
-import { useFolderPage, type FolderPageClient } from './useFolderPage';
+import { TagDot } from './TagDot';
+import type { TaggingProps } from './ContentList';
+import type { FolderPageClient, FolderPageState } from './useFolderPage';
 import { useThumbnailSession, type ThumbnailSessionClient } from './useThumbnailSession';
 
 /**
@@ -46,23 +47,31 @@ const RENDER_LABEL: Record<NonNullable<TeamMaterialRow['landingRender']>['state'
 
 export function ContentGrid({
   client,
-  revision = 0,
-  kinds,
+  page,
   onPreview,
   actions,
-  sort
+  sort,
+  tagging
 }: {
   client: ContentGridClient;
-  revision?: number;
-  kinds?: TeamMaterialRowKind[];
+  /** The folder's rows, held by the shell so one listing serves everything. */
+  page: FolderPageState;
   onPreview?: (material: TeamMaterialSummary) => void;
   actions?: RowActionsProps;
   sort?: ExplorerSort;
+  /** Present only for the space's owner (011). */
+  tagging?: TaggingProps;
 }) {
   const { t } = useI18n();
-  const { teamId, currentFolderId, openFolder, selectedId, select, selectedIds, toggleSelected } =
-    useExplorer();
-  const page = useFolderPage({ teamId, client, parentFolderId: currentFolderId, kinds, revision });
+  const { teamId, openFolder, selectedId, select, selectedIds, toggleSelected } = useExplorer();
+  /*
+   * The page comes from the shell, which is the only place that can hold it:
+   * this component used to run its own `useFolderPage` with the same arguments,
+   * so every folder was listed twice and only this copy ever paged. Everything
+   * the shell decides — the preview pane, the arrow keys, Delete, the upload's
+   * name-clash check — read the shell's copy, which stopped at the first
+   * hundred rows and never grew.
+   */
   const rows = sortRows(page.rows, sort ?? DEFAULT_SORT);
   const session = useThumbnailSession({ teamId, client });
   const landingIds = useMemo(
@@ -106,7 +115,7 @@ export function ContentGrid({
         <h2 id="team-explorer-grid-title" className="visually-hidden">
           {t('teamMaterials')}
         </h2>
-        {page.total !== null && (
+        {page.total !== null && page.total > 0 && (
           <p className="team-explorer-total" aria-live="polite">
             {t('teamExplorerTotal', { count: page.total })}
           </p>
@@ -116,8 +125,11 @@ export function ContentGrid({
         <LabeledSkeleton label="teamMaterialsLoading" rows={4} />
       )}
       {page.error && <p className="team-inline-error">{t('teamExplorerLoadFailed')}</p>}
+      {/* One sentence, centred in a content area that keeps its shape. It was
+          "Елементів: 0" and "Ця папка порожня." stacked flush left, saying the
+          same thing twice above a card that had collapsed to a strip. */}
       {!page.loading && !page.error && page.rows.length === 0 && (
-        <p className="team-explorer-muted">{t('teamExplorerEmpty')}</p>
+        <p className="team-explorer-empty">{t('teamExplorerEmpty')}</p>
       )}
       <ul className="team-explorer-grid" role="list">
         {rows.map(row => (
@@ -134,6 +146,7 @@ export function ContentGrid({
             onToggle={toggleSelected}
             onPreview={onPreview}
             actions={actions}
+            tagging={tagging}
           />
         ))}
       </ul>
@@ -162,7 +175,8 @@ function Tile({
   onSelect,
   onToggle,
   onPreview,
-  actions
+  actions,
+  tagging
 }: {
   row: TeamMaterialRow;
   session: ThumbnailSession | null;
@@ -175,6 +189,7 @@ function Tile({
   onToggle: (row: TeamMaterialRow) => void;
   onPreview?: (material: TeamMaterialSummary) => void;
   actions?: RowActionsProps;
+  tagging?: TaggingProps;
 }) {
   const { t, language } = useI18n();
   const [broken, setBroken] = useState(false);
@@ -219,10 +234,19 @@ function Tile({
         type="button"
         className="team-explorer-tile-visual"
         aria-label={t('teamExplorerOpenNamed', { name: row.name })}
+        /*
+         * One press chooses a file, two open it — as a folder of files behaves
+         * everywhere else. Opening on the first press meant the panel beside
+         * the grid never had anything to show: it said "choose a file" while
+         * the player was already covering the screen, and three hundred and
+         * forty pixels of the layout did nothing in this view. A folder still
+         * opens on the first press: there is no preview of a folder to wait
+         * for.
+         */
         onClick={event => {
           event.stopPropagation();
           onSelect(row.id);
-          open();
+          if (row.kind === 'folder') open();
         }}
         onDoubleClick={open}
       >
@@ -268,6 +292,12 @@ function Tile({
           {row.name}
         </span>
         <span className="team-explorer-tile-meta">
+          <TagDot
+            color={row.tagColor ?? null}
+            name={row.name}
+            canTag={Boolean(tagging)}
+            onChange={color => tagging?.onSetTag(row, color)}
+          />
           {t(KIND_LABEL[row.kind])}
           {row.sizeBytes !== null && row.kind !== 'folder' ? ` · ${formatSize(row.sizeBytes)}` : ''}
         </span>

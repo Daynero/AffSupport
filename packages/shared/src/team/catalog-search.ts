@@ -15,6 +15,7 @@ import {
   type MaterialClassificationSource,
   type MaterialKind
 } from './material-category.js';
+import { isTeamMaterialTagColor, type TeamMaterialTagColor } from './transport.js';
 
 export const CATALOG_FILTER_KEYS = [
   'geo',
@@ -85,6 +86,8 @@ export interface CatalogMaterialItem {
   transcriptIngestState: TranscriptIngestState;
   transcriptTruncated: boolean;
   previewState: string;
+  /** The file's tag (011), set by the space's owner; null when it carries none. */
+  tagColor?: TeamMaterialTagColor | null;
   lineage: CatalogLineageSummary;
 }
 
@@ -330,6 +333,14 @@ export function decodeCatalogMaterial(
     !(TRANSCRIPT_INGEST_STATES as readonly unknown[]).includes(value.transcriptIngestState) ||
     typeof value.transcriptTruncated !== 'boolean' ||
     typeof value.previewState !== 'string' ||
+    // The same seven the folder listing accepts, and for the same reason: the
+    // column is constrained to them, so anything else is a payload this build
+    // does not understand.
+    !(
+      value.tagColor === undefined ||
+      value.tagColor === null ||
+      isTeamMaterialTagColor(value.tagColor)
+    ) ||
     !lineage ||
     typeof lineage.hasSource !== 'boolean' ||
     typeof lineage.hasDerivatives !== 'boolean' ||

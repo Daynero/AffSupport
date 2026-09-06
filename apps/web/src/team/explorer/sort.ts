@@ -1,6 +1,6 @@
-import type { TeamMaterialRow } from '@video-compressor/shared';
+import { teamMaterialTagRank, type TeamMaterialRow } from '@video-compressor/shared';
 
-export type SortKey = 'name' | 'modified';
+export type SortKey = 'name' | 'modified' | 'tag';
 export type SortDirection = 'asc' | 'desc';
 
 export interface ExplorerSort {
@@ -36,6 +36,19 @@ export function sortRows(rows: readonly TeamMaterialRow[], sort: ExplorerSort): 
       const bt = b.modifiedAt ? Date.parse(b.modifiedAt) : 0;
       if (at !== bt) return (at - bt) * factor;
     }
+    /* By tag, the untagged rows go last whichever way the direction points:
+       "no tag" is the absence of a value, not the far end of the scale, and a
+       descending sort that opened with fifty blank files answered nothing. */
+    if (sort.key === 'tag') {
+      const at = teamMaterialTagRank(a.tagColor);
+      const bt = teamMaterialTagRank(b.tagColor);
+      const untagged = teamMaterialTagRank(null);
+      if (at !== bt) {
+        if (at === untagged) return 1;
+        if (bt === untagged) return -1;
+        return (at - bt) * factor;
+      }
+    }
     return collator.compare(a.name, b.name) * factor;
   };
   return [...rows].sort(compare);
@@ -47,7 +60,7 @@ export function readRememberedSort(): ExplorerSort {
     if (!raw) return DEFAULT_SORT;
     const parsed = JSON.parse(raw) as Partial<ExplorerSort>;
     return {
-      key: parsed.key === 'modified' ? 'modified' : 'name',
+      key: parsed.key === 'modified' || parsed.key === 'tag' ? parsed.key : 'name',
       direction: parsed.direction === 'desc' ? 'desc' : 'asc',
       foldersSeparate: parsed.foldersSeparate !== false
     };

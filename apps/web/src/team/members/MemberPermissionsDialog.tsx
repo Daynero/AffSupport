@@ -120,6 +120,15 @@ export function MemberPermissionsDialog({
               <span>{t(PERMISSION_COPY[flag])}</span>
             </label>
           ))}
+          {/* Not a flag, and shown here because this is where the question is
+              asked: a file's tag is a shared judgement about it, so it is the
+              space owner's alone to set and cannot be handed to anyone. It is
+              listed rather than left silent — an ability nobody can grant still
+              has to be findable where abilities are read. */}
+          <label className="is-fixed" title={t('teamTagOwnerOnlyHint')}>
+            <input type="checkbox" checked={false} disabled readOnly />
+            <span>{t('teamTagOwnerOnly')}</span>
+          </label>
         </fieldset>
         <p className="team-drive-warning">{t('teamDriveIndependentAcl')}</p>
         {error && <p className="team-inline-error">{error}</p>}

@@ -105,6 +105,28 @@ describe('closed search response decoding', () => {
     );
   });
 
+  it('carries a file tag, and refuses a colour that is not one of the seven', () => {
+    const tagged = decodeCatalogSearchResponse(
+      { ...response, items: [{ ...response.items[0], tagColor: 'purple' }] },
+      teamId
+    );
+    expect(tagged?.items[0]?.tagColor).toBe('purple');
+    // Absent and null both mean "no tag"; anything else is a payload this build
+    // does not understand, and the whole page fails closed as it does elsewhere.
+    expect(
+      decodeCatalogSearchResponse(
+        { ...response, items: [{ ...response.items[0], tagColor: null }] },
+        teamId
+      )?.items[0]?.tagColor
+    ).toBeNull();
+    expect(
+      decodeCatalogSearchResponse(
+        { ...response, items: [{ ...response.items[0], tagColor: 'chartreuse' }] },
+        teamId
+      )
+    ).toBeNull();
+  });
+
   it('fails closed if a hidden-team row appears in an otherwise valid payload', () => {
     expect(
       decodeCatalogSearchResponse(

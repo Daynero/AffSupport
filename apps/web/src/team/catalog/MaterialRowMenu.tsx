@@ -1,7 +1,9 @@
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
+  type RefObject,
   type ChangeEvent,
   type KeyboardEvent as ReactKeyboardEvent
 } from 'react';
@@ -61,7 +63,16 @@ export interface MaterialRowMenuProps {
 export function MaterialRowMenu(props: MaterialRowMenuProps) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
+  /*
+   * Which way the panel opens. It always dropped downward, so on the last rows
+   * of a long list it ran past the bottom of the window — measured at 171px
+   * off-screen on a 1000px viewport, with "Перемістити в кошик" among the items
+   * nobody could reach. Bounding its height did not help: the panel was still
+   * *placed* below the fold.
+   */
+  const [above, setAbove] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -88,6 +99,33 @@ export function MaterialRowMenu(props: MaterialRowMenuProps) {
     };
   }, [open]);
 
+  /*
+   * Measured after the panel is in the document, before the browser paints it:
+   * if what it needs does not fit under the trigger but does fit over it, it
+   * opens upward. Re-measured on scroll and resize, because a row that had room
+   * a moment ago may not now.
+   */
+  useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const trigger = containerRef.current;
+      const panel = panelRef.current;
+      if (!trigger || !panel) return;
+      const box = trigger.getBoundingClientRect();
+      const needed = panel.scrollHeight + 8;
+      const below = window.innerHeight - box.bottom;
+      setAbove(needed > below && box.top > below);
+    };
+    place();
+    const onChange = () => place();
+    window.addEventListener('scroll', onChange, true);
+    window.addEventListener('resize', onChange);
+    return () => {
+      window.removeEventListener('scroll', onChange, true);
+      window.removeEventListener('resize', onChange);
+    };
+  }, [open]);
+
   return (
     <div className="team-row-menu" ref={containerRef}>
       <Button
@@ -99,7 +137,14 @@ export function MaterialRowMenu(props: MaterialRowMenuProps) {
       >
         {t('teamRowMenuLabel')}
       </Button>
-      {open && <MaterialRowMenuContent {...props} onDone={() => setOpen(false)} />}
+      {open && (
+        <MaterialRowMenuContent
+          {...props}
+          panelRef={panelRef}
+          above={above}
+          onDone={() => setOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -125,8 +170,15 @@ function MaterialRowMenuContent({
   folderUploadLabel,
   onDownloadRestitched,
   restitchPrepared = false,
+  panelRef,
+  above,
   onDone
-}: MaterialRowMenuProps & { onDone: () => void }) {
+}: MaterialRowMenuProps & {
+  panelRef: RefObject<HTMLDivElement | null>;
+  /** Opens over the trigger rather than under it; see the measurement above. */
+  above: boolean;
+  onDone: () => void;
+}) {
   const { t } = useI18n();
   const actions = useMaterialActions({
     teamId,
@@ -163,6 +215,9 @@ function MaterialRowMenuContent({
   };
 
   const isFolder = material.kind === 'folder';
+  /* Only what a tool can take. "Обробити" sat on transcripts and images alike
+     and opened a dialog with nothing in it. */
+  const processable = material.category === 'video' || material.category === 'landing';
   const transcriptReady = material.transcriptIngestState === 'full';
   const isTextFile = material.kind === 'file' && material.fileExtension?.toLowerCase() === 'txt';
 
@@ -173,7 +228,12 @@ function MaterialRowMenuContent({
   };
 
   return (
-    <div className="team-row-menu-panel" role="group" onKeyDown={onPanelKeyDown}>
+    <div
+      className={`team-row-menu-panel${above ? ' is-above' : ''}`}
+      role="group"
+      ref={panelRef}
+      onKeyDown={onPanelKeyDown}
+    >
       {prompt === null && (
         <div className="team-material-action-buttons">
           {isFolder && permissions.upload && (
@@ -250,7 +310,7 @@ function MaterialRowMenuContent({
               {t('teamFileEditText')}
             </Button>
           )}
-          {!isFolder && permissions.process && onProcess && (
+          {!isFolder && processable && permissions.process && onProcess && (
             <Button type="button" variant="ghost" onClick={onProcess}>
               {t('teamFileProcess')}
             </Button>

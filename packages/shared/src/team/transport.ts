@@ -66,7 +66,13 @@ export const TEAM_ERROR_CODES = [
   // 015 — the space's re-stitching defaults and the material preparation behind them.
   'RESTITCH_FORBIDDEN',
   'RESTITCH_NO_SCREENS',
-  'RESTITCH_INVALID'
+  'RESTITCH_INVALID',
+  // The storage refused to open a resumable upload for a file the browser was
+  // about to send. Raised in the browser, not by the boundary, which is why it
+  // must be a code and not a bare `Error`: thrown as one it reached the reader
+  // as "something went wrong, try again in a moment", which named neither the
+  // file nor anything they could do.
+  'UPLOAD_SESSION_UNAVAILABLE'
 ] as const;
 export type TeamErrorCode = (typeof TEAM_ERROR_CODES)[number];
 
@@ -704,8 +710,42 @@ export const TEAM_LANDING_TILE_RENDER_STATES = [
 ] as const;
 export type TeamLandingTileRenderState = (typeof TEAM_LANDING_TILE_RENDER_STATES)[number];
 
+/**
+ * A file's tag, in Finder's vocabulary: seven colours and none. The product
+ * never says what any of them means — a team's own reading of red is the only
+ * one that would be right — so they are named by what they look like.
+ */
+export const TEAM_MATERIAL_TAG_COLORS = [
+  'red',
+  'orange',
+  'yellow',
+  'green',
+  'blue',
+  'purple',
+  'grey'
+] as const;
+export type TeamMaterialTagColor = (typeof TEAM_MATERIAL_TAG_COLORS)[number];
+
+export function isTeamMaterialTagColor(value: unknown): value is TeamMaterialTagColor {
+  return (
+    typeof value === 'string' && (TEAM_MATERIAL_TAG_COLORS as readonly string[]).includes(value)
+  );
+}
+
+/**
+ * Where a colour sorts. The order is the one the swatches are drawn in — the
+ * spectrum, then grey — so a sorted list and the picker agree; untagged rows
+ * take the end, where a row with nothing to say belongs.
+ */
+export function teamMaterialTagRank(color: TeamMaterialTagColor | null | undefined): number {
+  if (!color) return TEAM_MATERIAL_TAG_COLORS.length;
+  return TEAM_MATERIAL_TAG_COLORS.indexOf(color);
+}
+
 export interface TeamMaterialRow extends TeamMaterialSummary {
   kind: TeamMaterialRowKind;
+  /** The file's tag, or null when it carries none. */
+  tagColor?: TeamMaterialTagColor | null;
   /** The provider id; folders are opened by it. */
   driveFileId: string;
   parentFolderId: string | null;
@@ -802,6 +842,16 @@ export function isTeamMaterialRow(value: unknown): value is TeamMaterialRow {
     return false;
   }
   if (value.previewReason !== undefined && typeof value.previewReason !== 'string') return false;
+  // The column is constrained to these seven in the database, so a value that
+  // is not one of them means the payload is not what this build understands —
+  // the same standing this guard gives every other field.
+  if (
+    value.tagColor !== undefined &&
+    value.tagColor !== null &&
+    !isTeamMaterialTagColor(value.tagColor)
+  ) {
+    return false;
+  }
   if (value.landingRender !== undefined) {
     if (!isRecord(value.landingRender)) return false;
     if (

@@ -6,6 +6,8 @@ import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { useToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
+import { formatDate } from '../../format';
+import { KindIcon } from '../explorer/KindIcon';
 
 export interface TrashViewClient {
   listTrashedMaterials: (input: {
@@ -38,7 +40,7 @@ export function TrashView({
   teamId: string;
   client?: TrashViewClient;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const { push } = useToasts();
   const [items, setItems] = useState<TeamTrashedMaterial[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -86,7 +88,7 @@ export function TrashView({
   };
 
   return (
-    <section className="team-panel team-trash-view" aria-labelledby="team-trash-title">
+    <section className="team-trash-view" aria-labelledby="team-trash-title">
       <div className="team-panel-heading">
         <h2 id="team-trash-title">{t('teamTrashTitle')}</h2>
       </div>
@@ -102,21 +104,34 @@ export function TrashView({
       )}
       {items !== null && items.length === 0 && <p>{t('teamTrashEmpty')}</p>}
 
-      <ul className="team-trash-list">
+      {/* The same row the folder list and the search results use: a kind icon,
+          the name, where it came from, when it was thrown away. It was a stack
+          of full-width cards with a name and a button — a third way of drawing
+          a file, in the one place a person arrives at frightened. */}
+      <ul className="team-explorer-rows team-trash-list">
         {(items ?? []).map(item => (
-          <li key={item.id}>
-            <div className="team-trash-identity">
-              <strong>{item.name}</strong>
-              {item.parentPathHint && <span>{item.parentPathHint}</span>}
-            </div>
-            <Button
-              type="button"
-              variant="secondary"
-              loading={restoringId === item.id}
-              onClick={() => void restore(item)}
-            >
-              {t('teamFileRestore')}
-            </Button>
+          <li key={item.id} className={`team-explorer-row is-${item.kind}`}>
+            <span className="team-trash-row-glyph" aria-hidden="true">
+              {/* The trash knows only file, folder or shortcut — the catalogue's
+                  finer kinds are not carried across a deletion. */}
+              <KindIcon kind={item.kind === 'file' ? 'other' : item.kind} />
+            </span>
+            <span className="team-explorer-row-name" title={item.name}>
+              {item.name}
+            </span>
+            <span className="team-explorer-row-date" title={item.parentPathHint ?? ''}>
+              {item.parentPathHint ?? formatDate(item.trashedAt, language)}
+            </span>
+            <span className="team-explorer-row-actions">
+              <Button
+                type="button"
+                variant="secondary"
+                loading={restoringId === item.id}
+                onClick={() => void restore(item)}
+              >
+                {t('teamFileRestore')}
+              </Button>
+            </span>
           </li>
         ))}
       </ul>

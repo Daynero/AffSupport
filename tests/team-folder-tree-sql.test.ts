@@ -184,6 +184,94 @@ describe('list_team_folder_page', () => {
   });
 });
 
+describe('set_team_material_tag', () => {
+  async function tagOf(name: string): Promise<string | null> {
+    const rows = await harness.root<{ tag_color: string | null }>(
+      `select tag_color from public.team_materials where team_id = $1 and name = $2`,
+      [teamId, name]
+    );
+    return rows[0]?.tag_color ?? null;
+  }
+
+  async function idOf(name: string): Promise<string> {
+    const rows = await harness.root<{ id: string }>(
+      `select id from public.team_materials where team_id = $1 and name = $2`,
+      [teamId, name]
+    );
+    return rows[0]!.id;
+  }
+
+  it("is the owner's alone, and the listing carries what they set", async () => {
+    const material = await idOf('clip.mp4');
+    const set = await harness.asUser<{ result: { tagColor: string | null } }>(
+      OWNER,
+      'select public.set_team_material_tag($1, $2, $3) as result',
+      [teamId, material, 'blue']
+    );
+    expect(set[0]?.result.tagColor).toBe('blue');
+    expect(await tagOf('clip.mp4')).toBe('blue');
+
+    const listed = await harness.asUser<{ page: { rows: Array<Record<string, unknown>> } }>(
+      OWNER,
+      'select public.list_team_folder_page($1) as page',
+      [teamId]
+    );
+    const row = listed[0]!.page.rows.find(item => item.name === 'clip.mp4');
+    expect(row?.tagColor).toBe('blue');
+
+    // Null takes it off, and a colour the check does not know is refused.
+    await harness.asUser(OWNER, 'select public.set_team_material_tag($1, $2, $3)', [
+      teamId,
+      material,
+      null
+    ]);
+    expect(await tagOf('clip.mp4')).toBeNull();
+    await expect(
+      harness.asUser(OWNER, 'select public.set_team_material_tag($1, $2, $3)', [
+        teamId,
+        material,
+        'chartreuse'
+      ])
+    ).rejects.toThrow(/INVALID_INPUT/);
+  });
+
+  it('refuses a member who is not the owner, whatever their permissions', async () => {
+    const material = await idOf('clip.mp4');
+    // An admin: every permission flag there is, and still not the owner.
+    await harness.root(
+      `insert into public.team_members (team_id, user_id, base_role) values ($1, $2, 'admin')`,
+      [teamId, STRANGER]
+    );
+    await expect(
+      harness.asUser(STRANGER, 'select public.set_team_material_tag($1, $2, $3)', [
+        teamId,
+        material,
+        'red'
+      ])
+    ).rejects.toThrow(/PERMISSION_DENIED/);
+    expect(await tagOf('clip.mp4')).toBeNull();
+    await harness.root(`delete from public.team_members where team_id = $1 and user_id = $2`, [
+      teamId,
+      STRANGER
+    ]);
+  });
+
+  it('refuses a file that belongs to another space', async () => {
+    const other = await harness.asUser<{ id: string }>(
+      OWNER,
+      'select id from public.create_team($1)',
+      ['Other']
+    );
+    await expect(
+      harness.asUser(OWNER, 'select public.set_team_material_tag($1, $2, $3)', [
+        other[0]!.id,
+        await idOf('clip.mp4'),
+        'red'
+      ])
+    ).rejects.toThrow(/NOT_FOUND/);
+  });
+});
+
 describe('team_material_kind', () => {
   it('agrees with the shared materialKindOf on every combination', async () => {
     const storedKinds = ['file', 'folder', 'shortcut'];

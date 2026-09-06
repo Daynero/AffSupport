@@ -100,15 +100,36 @@ describe('FolderTree', () => {
     const current = await screen.findByRole('treeitem', { name: /Leaf 1\.2\.3/ });
     expect(current?.getAttribute('aria-current')).toBe('location');
     const crumbs = screen.getByRole('navigation', { name: 'Location' });
+    // The trail, as the wide strip shows it. The compact rendering beside it is
+    // the same path in one menu, for a strip too narrow to hold any of it; CSS
+    // picks between them, so both are always in the document.
     expect(
       within(crumbs)
         .getAllByRole('listitem')
+        .filter(item => !item.className.includes('compact'))
         .map(item => item.textContent)
     ).toEqual(['All files', '/Top 1', '/Mid 1.2', '/Leaf 1.2.3']);
+
+    // Every visible segment is still a step of its own.
     await user.click(within(crumbs).getByRole('button', { name: 'Mid 1.2' }));
     expect(onFolderChange).toHaveBeenCalledWith('a1b2');
     await user.click(within(crumbs).getByRole('button', { name: 'All files' }));
     expect(onFolderChange).toHaveBeenCalledWith(null);
+  });
+
+  it('keeps every ancestor reachable on a strip too narrow to name them', async () => {
+    const user = userEvent.setup();
+    const { onFolderChange } = renderTree(bigTree(), 'a1b2c3');
+    const crumbs = await screen.findByRole('navigation', { name: 'Location' });
+    // Below about 360px the trail cannot show a single name, so the whole of it
+    // — the root included — is one menu beside the open folder. Both renderings
+    // are always in the document; CSS chooses. The path used to scroll instead,
+    // and was cut mid-word at the wrong end.
+    await user.click(within(crumbs).getByRole('button', { name: '3 folders in between' }));
+    const folded = await within(crumbs).findAllByRole('menuitem');
+    expect(folded.map(item => item.textContent)).toEqual(['All files', 'Top 1', 'Mid 1.2']);
+    await user.click(folded[1]!);
+    expect(onFolderChange).toHaveBeenCalledWith('a1');
   });
 
   it('moves, expands, collapses and opens from the keyboard', async () => {
