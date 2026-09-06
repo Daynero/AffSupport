@@ -171,8 +171,11 @@ export async function runGate(gate) {
  * recorded reason (A17): the suite rebuilds the shared package's committed
  * output and rewrites a tracked migration, which other phases would be reading.
  */
-export async function runPhase(gates, { exclusive = false } = {}) {
-  if (!exclusive) return Promise.all(gates.map(gate => runGate(gate)));
+export async function runPhase(
+  gates,
+  { exclusive = false, serial = process.env.SOTY_VERIFY_SERIAL === '1' } = {}
+) {
+  if (!exclusive && !serial) return Promise.all(gates.map(gate => runGate(gate)));
   const results = [];
   for (const gate of gates) results.push(await runGate(gate));
   return results;

@@ -30,7 +30,7 @@ async function sourcesUnder(directory: string): Promise<{ relative: string; sour
       if (entry.isDirectory()) await walk(absolute);
       else if (entry.name.endsWith('.ts'))
         files.push({
-          relative: path.relative(AGENT_SRC, absolute),
+          relative: path.relative(AGENT_SRC, absolute).split(path.sep).join('/'),
           source: await readFile(absolute, 'utf8')
         });
     }

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthContextOverride } from '../apps/web/src/auth/AuthContext';
@@ -20,6 +20,8 @@ const STORAGE_KEY = 'wishly.active-team.v1';
 const SECOND_ID = '20000000-0000-4000-8000-0000000000aa';
 
 afterEach(() => {
+  // Effects must be unmounted before their async client mocks are restored.
+  cleanup();
   localStorage.clear();
   vi.restoreAllMocks();
 });
@@ -128,6 +130,9 @@ describe('entering a space', () => {
     });
     renderSpace(client);
 
+    // The lobby heading can precede the invitation fetch. Wait for the actual
+    // invitation before asserting that the resolver has kept us in the lobby.
+    expect(await screen.findByRole('button', { name: 'Accept' })).toBeTruthy();
     expect(await screen.findByRole('heading', { name: 'Choose a space' })).toBeTruthy();
   });
 

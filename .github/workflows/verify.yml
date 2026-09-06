@@ -101,7 +101,8 @@ jobs:
     # the default branch and on pull requests that ask for it by label, rather
     # than on every push.
     if: github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'e2e')
-    runs-on: macos-latest
+    # GitHub's Linux runners provide Docker for the local Supabase database.
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -110,4 +111,11 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - name: Start local database
+        run: npx supabase start
+      - name: Install browser test dependencies
+        run: npx playwright-core install --with-deps chromium
       - run: node scripts/verify-all.mjs --form=release --gates=e2e
+      - name: Stop local database
+        if: always()
+        run: npx supabase stop
