@@ -55,9 +55,11 @@ function video(index: number): TeamMaterialRow {
 function makeClient(rows: TeamMaterialRow[]): ExplorerShellClient {
   return {
     listFolderTree: vi.fn().mockResolvedValue([]),
-    listFolderPage: vi.fn(
-      async (): Promise<FolderPage> => ({ rows, total: rows.length, next: null })
-    ),
+    listFolderPage: vi.fn(async (): Promise<FolderPage> => ({
+      rows,
+      total: rows.length,
+      next: null
+    })),
     mintThumbnailSession: vi.fn().mockRejectedValue(new Error('no session in this test')),
     thumbnailUrl: () => '',
     listMaterials: vi.fn().mockResolvedValue([]),
@@ -120,7 +122,7 @@ describe('the selection bar', () => {
     fireEvent.click(rows[0] as HTMLElement);
     fireEvent.click(rows[1] as HTMLElement);
 
-    const bar = await screen.findByRole('region', { name: 'Selected: 2' });
+    const bar = await screen.findByRole('region', { name: 'What to do with the selection' });
     const named = (name: string) =>
       Array.from(bar.querySelectorAll<HTMLElement>('button')).some(
         button => button.getAttribute('aria-label') === name
@@ -128,7 +130,14 @@ describe('the selection bar', () => {
     expect(named('Download re-stitched')).toBe(true);
     expect(named('Move to trash')).toBe(true);
     expect(named('Clear selection')).toBe(true);
-    // One line of icons, not five buttons of prose: the bar carries no action text of its own.
-    expect(bar.textContent).toBe('Selected: 2');
+    /*
+     * Each action says what it is. The bar used to be five bare icons — one of
+     * them a bin — with four hundred pixels of itself unused, and the owner
+     * read it as a row of guesses. The words are in the markup and only CSS
+     * takes them away, and only where the bar genuinely runs out of room.
+     */
+    expect(bar.textContent).toContain('Selected: 2');
+    expect(bar.textContent).toContain('Download re-stitched');
+    expect(bar.textContent).toContain('Move to trash');
   });
 });

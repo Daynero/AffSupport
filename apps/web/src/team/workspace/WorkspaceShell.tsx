@@ -19,7 +19,7 @@ import { SpaceSwitcher } from './SpaceSwitcher';
 import { RealtimeChip } from './RealtimeChip';
 import { BackgroundWorkChip } from './BackgroundWorkChip';
 import { LibraryProcessingProvider } from '../library/LibraryProcessingProvider';
-import { ProcessLibraryDialog } from '../library/ProcessLibraryDialog';
+import { ProcessLibraryDialog, type LibraryBatchScope } from '../library/ProcessLibraryDialog';
 import { SpaceStatePanel } from './SpaceStatePanel';
 import { ExplorerShell, type ExplorerShellClient } from '../explorer/ExplorerShell';
 import { BackgroundRenderProvider } from '../explorer/BackgroundRenderProvider';
@@ -136,6 +136,12 @@ export function WorkspaceShell({
     return () => window.clearInterval(timer);
   }, [health?.kind, refreshHealth]);
   const [batchDialogOpen, setBatchDialogOpen] = useState(false);
+  /** Which materials the batch is about; empty is the whole space. */
+  const [batchSources, setBatchSources] = useState<string[]>([]);
+  /* The same set said in words, for the window's title. The explorer knows
+     whether a set came from a folder or from picking files; the shell only
+     passes that description along. */
+  const [batchScope, setBatchScope] = useState<LibraryBatchScope>({ kind: 'space' });
   const [taskAsset, setTaskAsset] = useState<{ ids: string[]; name: string } | null>(null);
   const [previewing, setPreviewing] = useState<TeamMaterialSummary | null>(null);
   const sessionTeam = useRef<string | null>(null);
@@ -273,6 +279,8 @@ export function WorkspaceShell({
        releases the lease (finding B1). */
     <LibraryProcessingProvider
       teamId={teamId}
+      sourceMaterialIds={batchSources}
+      scope={batchScope}
       agentCompatible={agent?.teamWorkspaceAvailable === true}
       toolContracts={agent?.toolContracts ?? {}}
       onChanged={() => setBrowserRevision(value => value + 1)}
@@ -314,7 +322,13 @@ export function WorkspaceShell({
                 />
               )}
               <RealtimeChip />
-              <BackgroundWorkChip onOpen={() => setBatchDialogOpen(true)} />
+              <BackgroundWorkChip
+                /* The chip only appears while a batch is running, so opening it
+                   must show *that* batch. Resetting the scope here retitled a
+                   folder run "the whole space" and widened what a second press
+                   of Start would touch. */
+                onOpen={() => setBatchDialogOpen(true)}
+              />
               {/* Trash and settings are views of the explorer now (011): real
               links with their own addresses, so Back closes them and a pasted
               link opens them. */}
@@ -410,7 +424,18 @@ export function WorkspaceShell({
                     name: t('creativeLibrarySelectionSummary', { count: assets.length })
                   });
                 }}
-                onProcessSelection={() => setBatchDialogOpen(true)}
+                /* The file in hand, not the whole space: the dialog opens on
+                   the material that was chosen. */
+                onProcessSelection={(materialIds, scope) => {
+                  setBatchSources(materialIds);
+                  setBatchScope(scope ?? { kind: 'selection', count: materialIds.length });
+                  setBatchDialogOpen(true);
+                }}
+                onProcessLibrary={() => {
+                  setBatchSources([]);
+                  setBatchScope({ kind: 'space' });
+                  setBatchDialogOpen(true);
+                }}
                 onChanged={() => setBrowserRevision(value => value + 1)}
                 readOnly={storageAttention}
               />
@@ -429,6 +454,7 @@ export function WorkspaceShell({
           {batchDialogOpen && (
             <ProcessLibraryDialog
               agentCompatible={agent?.teamWorkspaceAvailable === true}
+              scope={batchScope}
               onClose={() => setBatchDialogOpen(false)}
             />
           )}

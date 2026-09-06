@@ -93,8 +93,16 @@ export interface LibraryJobClaimRequest {
   agentInstanceId: string;
   supportedKinds: LibraryJobKind[];
   interfaceLanguage: string;
-  sourceMaterialId?: string;
+  /**
+   * What the batch is about: left out for everything in the space, one id for
+   * a single file, several for a folder or a chosen set. The server hands out
+   * one job at a time from whatever this names.
+   */
+  sourceMaterialIds?: string[];
 }
+
+/** A selection is a person's choice, not a query; this bounds a runaway list. */
+const CLAIM_SOURCE_LIMIT = 500;
 
 export function parseLibraryJobClaim(value: unknown): LibraryJobClaimRequest | null {
   if (
@@ -104,7 +112,7 @@ export function parseLibraryJobClaim(value: unknown): LibraryJobClaimRequest | n
       'agentInstanceId',
       'supportedKinds',
       'interfaceLanguage',
-      'sourceMaterialId'
+      'sourceMaterialIds'
     ]) ||
     !isUuid(value.teamId) ||
     !isUuid(value.agentInstanceId) ||
@@ -113,7 +121,10 @@ export function parseLibraryJobClaim(value: unknown): LibraryJobClaimRequest | n
     value.supportedKinds.length > LIBRARY_JOB_KINDS.length ||
     typeof value.interfaceLanguage !== 'string' ||
     !LANGUAGE_SET.has(value.interfaceLanguage) ||
-    (value.sourceMaterialId !== undefined && !isUuid(value.sourceMaterialId))
+    (value.sourceMaterialIds !== undefined &&
+      (!Array.isArray(value.sourceMaterialIds) ||
+        value.sourceMaterialIds.length > CLAIM_SOURCE_LIMIT ||
+        !value.sourceMaterialIds.every(isUuid)))
   ) {
     return null;
   }
@@ -129,8 +140,8 @@ export function parseLibraryJobClaim(value: unknown): LibraryJobClaimRequest | n
     agentInstanceId: value.agentInstanceId,
     supportedKinds,
     interfaceLanguage: value.interfaceLanguage,
-    ...(typeof value.sourceMaterialId === 'string'
-      ? { sourceMaterialId: value.sourceMaterialId }
+    ...(Array.isArray(value.sourceMaterialIds) && value.sourceMaterialIds.length > 0
+      ? { sourceMaterialIds: [...new Set(value.sourceMaterialIds as string[])] }
       : {})
   };
 }

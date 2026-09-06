@@ -107,7 +107,7 @@ function Harness({
     <ToastProvider>
       <LibraryProcessingProvider
         teamId={TEAM_ID}
-        sourceMaterialId={SOURCE_ID}
+        sourceMaterialIds={[SOURCE_ID]}
         agentCompatible
         toolContracts={{ teamWorkspace: 1, transcription: 5 }}
         client={client}
@@ -117,7 +117,11 @@ function Harness({
         <BackgroundWorkChip onOpen={vi.fn()} />
         <Starter />
         {showDialog && (
-          <ProcessLibraryDialog sourceMaterialId={SOURCE_ID} agentCompatible onClose={vi.fn()} />
+          <ProcessLibraryDialog
+            scope={{ kind: 'selection', count: 1 }}
+            agentCompatible
+            onClose={vi.fn()}
+          />
         )}
       </LibraryProcessingProvider>
     </ToastProvider>

@@ -68,7 +68,13 @@ export function TeamCompressorDialog({
   };
 
   return (
-    <Modal labelledBy={titleId} size="md" className="team-compress-dialog" onClose={onClose}>
+    <Modal
+      labelledBy={titleId}
+      size="md"
+      className="team-compress-dialog"
+      onClose={onClose}
+      closeLabel={t('teamClose')}
+    >
       <h3 id={titleId}>{t('teamCompressTitle', { count: items.length })}</h3>
       <p className="team-explorer-muted">{t('teamCompressQualityNote')}</p>
 

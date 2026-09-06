@@ -107,7 +107,7 @@ describe('Process Library confirmation UI', () => {
       <ToastProvider>
         <LibraryProcessingProvider
           teamId={TEAM_ID}
-          sourceMaterialId={SOURCE_ID}
+          sourceMaterialIds={[SOURCE_ID]}
           agentCompatible
           toolContracts={{ teamWorkspace: 1, transcription: 5 }}
           client={client}
@@ -115,7 +115,11 @@ describe('Process Library confirmation UI', () => {
           agentInstanceId={AGENT_ID}
           onChanged={changed}
         >
-          <ProcessLibraryDialog sourceMaterialId={SOURCE_ID} agentCompatible onClose={vi.fn()} />
+          <ProcessLibraryDialog
+            scope={{ kind: 'selection', count: 1 }}
+            agentCompatible
+            onClose={vi.fn()}
+          />
         </LibraryProcessingProvider>
       </ToastProvider>
     );
@@ -123,7 +127,7 @@ describe('Process Library confirmation UI', () => {
     expect(
       await screen.findByText('1 jobs are ready. Processing starts only after confirmation.')
     ).toBeTruthy();
-    expect(client.scanLibraryRequirements).toHaveBeenCalledWith(TEAM_ID, 'en', SOURCE_ID);
+    expect(client.scanLibraryRequirements).toHaveBeenCalledWith(TEAM_ID, 'en', [SOURCE_ID], false);
     expect(client.startProcess).not.toHaveBeenCalled();
     expect(agent.process).not.toHaveBeenCalled();
 
@@ -138,7 +142,7 @@ describe('Process Library confirmation UI', () => {
     );
     expect(claimLibraryJob).toHaveBeenNthCalledWith(
       1,
-      expect.objectContaining({ sourceMaterialId: SOURCE_ID })
+      expect.objectContaining({ sourceMaterialIds: [SOURCE_ID] })
     );
   });
 });

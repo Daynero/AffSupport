@@ -43,6 +43,9 @@ const ACTION_LABEL: Readonly<Record<string, TranslationKey>> = {
   'membership.left': 'teamAuditMemberLeft',
   'membership.removed': 'teamAuditMemberRemoved',
   'membership.updated': 'teamAuditMemberUpdated',
+  /* The one action the server writes that had no name here, so the history read
+     `operation.canceled` in the middle of a Ukrainian list. */
+  'operation.canceled': 'teamAuditOperationCanceled',
   'task.deleted': 'teamAuditTaskDeleted',
   'team.created': 'teamAuditTeamCreated',
   'team.draft_deleted': 'teamAuditTeamDraftDeleted'
@@ -54,6 +57,8 @@ const DETAIL_LABEL: Readonly<Record<string, TranslationKey>> = {
   replaying: 'teamSyncProgressReplayingShort',
   connected: 'teamDriveConnected',
   ready: 'teamAuditDetailReady',
+  /* Relations the history reports, which were printing as their column names. */
+
   failed: 'teamAuditDetailFailed',
   owner: 'teamRoleOwner',
   admin: 'teamRoleAdmin',
@@ -114,17 +119,32 @@ export function TeamAuditPanel({
       {!loading && !error && events.length === 0 && <p>{t('teamAuditEmpty')}</p>}
       <ol className="team-audit-list">
         {events.map(event => {
-          const safeDetail =
+          /*
+           * The one extra fact an entry carries, if it says anything the row
+           * does not already. `state` is dropped when it merely repeats the
+           * result chip beside it — the history read "Скасовано / canceled",
+           * the second half in English and telling nobody anything. The
+           * relation is gone too: with the file named in the line above it,
+           * "processed_from" was a column name pretending to be a sentence.
+           */
+          const detail =
             event.target.role ??
-            event.target.state ??
-            event.target.relation ??
+            (event.target.state === event.result ? undefined : event.target.state) ??
             event.target.warning_code;
+          const safeDetail = typeof detail === 'string' ? detail : undefined;
           return (
             <li key={event.id}>
               <div>
                 <strong>
                   {ACTION_LABEL[event.action] ? t(ACTION_LABEL[event.action]!) : event.action}
                 </strong>
+                {/* What it happened to, then who did it. Three cancelled jobs
+                    were three identical lines without this. */}
+                {event.subjectLabel && (
+                  <span className="team-audit-subject" title={event.subjectLabel}>
+                    {event.subjectLabel}
+                  </span>
+                )}
                 <span>{event.actorLabel ?? t('teamFormerMember')}</span>
               </div>
               <span className={`team-audit-result is-${event.result}`}>

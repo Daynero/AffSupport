@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FolderPage, TeamMaterialRow, ThumbnailSession } from '@video-compressor/shared';
 import { ExplorerProvider } from '../apps/web/src/team/explorer/ExplorerProvider';
 import { ContentGrid, type ContentGridClient } from '../apps/web/src/team/explorer/ContentGrid';
+import { useFolderPage } from '../apps/web/src/team/explorer/useFolderPage';
+import { useExplorer } from '../apps/web/src/team/explorer/ExplorerProvider';
 import { clearThumbnailSessions } from '../apps/web/src/team/explorer/useThumbnailSession';
 
 /**
@@ -66,10 +68,20 @@ function makeClient(
   };
 }
 
+/**
+ * The shell holds the folder's page and hands it to whichever view is showing;
+ * these components no longer fetch their own. This stands in for the shell.
+ */
+function Grid({ client }: { client: ContentGridClient }) {
+  const { currentFolderId } = useExplorer();
+  const page = useFolderPage({ teamId: TEAM, client, parentFolderId: currentFolderId });
+  return <ContentGrid client={client} page={page} />;
+}
+
 function renderGrid(client: ContentGridClient) {
   return render(
     <ExplorerProvider teamId={TEAM} client={{ listFolderTree: vi.fn().mockResolvedValue([]) }}>
-      <ContentGrid client={client} />
+      <Grid client={client} />
     </ExplorerProvider>
   );
 }

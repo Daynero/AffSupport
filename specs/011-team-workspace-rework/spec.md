@@ -103,7 +103,7 @@ reopen them; any one can be overturned by the owner in review.
   submit the restricted-scope review in the background; after approval the full tree is
   reached without re-selection. The review never blocks the release.
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Connect storage once and see the whole tree (Priority: P1)
 
@@ -156,7 +156,7 @@ two seconds. Previews are prepared in the background after indexing and never re
 member to have the local app running.
 
 **Why this priority**: The owner reported "previews are not prepared and not shown" as the
-second failure. For a media-buying team the thumbnail *is* the file; without it the catalog
+second failure. For a media-buying team the thumbnail _is_ the file; without it the catalog
 is a directory listing.
 
 **Independent Test**: Connect a root with at least 100 images, 50 videos and 10 landing
@@ -224,8 +224,7 @@ done from the explorer without leaving it.
    items and folders that contain them, counts update, and the filter stays applied as they
    navigate until they clear it.
 5. **Given** a member drags a file from one folder to another in the tree, **Then** the move
-   happens with a visible result and an undo, following the reversibility rules from feature
-   010.
+   happens with a visible result and an undo, following the reversibility rules from feature 010.
 6. **Given** the interface is narrower than a laptop screen, **Then** the tree collapses to
    a drawer and the preview pane to a sheet, and every action remains reachable.
 7. **Given** every existing capability of the former Landings and Library areas (gallery
@@ -327,7 +326,7 @@ the record is complete.
   browser, and nothing restarts from zero.
 - Two members trigger preparation of the same folder: it is prepared once; both see progress.
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
@@ -458,7 +457,84 @@ the record is complete.
   completion, preview-preparation completion and connection-attention events, so the
   criteria below can be read from the existing analytics tooling without new manual counting.
 
-### Key Entities *(include if feature involves data)*
+#### File tags (Finder's colours)
+
+- **FR-036**: Every file and folder in the explorer MAY carry one tag: red, orange, yellow,
+  green, blue, purple or grey — Finder's palette, because that is where everyone already
+  reads a coloured dot. The product MUST NOT say what a colour means; the reading is the
+  team's own.
+- **FR-037**: The tag MUST be shown beside the size, in the list and in the grid, as a dot.
+  It is read from the corner of the eye, so it costs the scan nothing and needs no column.
+- **FR-038**: Setting a tag MUST be the space **owner's** alone — not a permission flag that
+  can be granted, because a tag is a shared judgement about a file and a space where everyone
+  re-colours everyone else's files is worse than one with no tags. The database refuses
+  anyone else, whatever their permissions.
+- **FR-039**: For everyone else the tag MUST NOT be a control: not a disabled button, which
+  still says "you could press this", but plain colour. An untagged file shows them nothing.
+- **FR-040**: The sort menu MUST offer "Tag". Colours order as the swatches do — the
+  spectrum, then grey — and untagged rows come last whichever way the direction points,
+  because "no tag" is the absence of a value rather than the far end of the scale.
+- **FR-041**: The permissions dialog MUST list tagging as owner-only and fixed, so an
+  ability nobody can grant is still findable where abilities are read.
+
+#### Files dropped on a task
+
+- **FR-045**: The attachment area of a task MUST accept dropped files, whatever their kind.
+  Until now a task could only hold files already in the space, so a screenshot on somebody's
+  desktop meant uploading it somewhere first and finding it again — two screens and a
+  decision ("which folder does this belong in?") for a file that belongs to one task.
+- **FR-046**: Every drop, from every task, MUST land in one folder in the space's root —
+  a drawer, not a filing system. It is created on first use, named "Task attachments", and
+  found by a mark in its Drive `appProperties`, so renaming or moving it loses nothing.
+  Its catalogue row is written at the same time, because an upload's destination must be a
+  folder the catalogue knows.
+- **FR-047**: Each dropped file MUST be attached as soon as it lands, with its own notice —
+  a long drop fills the grid as it goes, and a file that fails says which one and why while
+  the rest carry on.
+- **FR-051**: A dropped **folder** MUST be taken as a folder. Its tree is rebuilt under the
+  drop folder — one Drive folder per directory — and the _folder_ is what the task gets, as
+  one tile rather than one per file inside it: a landing only works whole, so flattening it
+  would deliver something that no longer opens. A drop carries at most 200 files; the rest
+  are skipped with a line saying so. (A folder arrives in `dataTransfer.files` as a zero-byte
+  entry with no type, which is why sending it used to come back as "Google Drive is not
+  responding" — the provider blamed for a mistake that never left the computer.)
+- **FR-053**: A tile MUST catch up with what the server made of the file. A .zip is stored as
+  an archive and only becomes a landing once the inspection has looked inside it, and a
+  picture gets its thumbnail a moment later — so the tile that appeared at upload time sat
+  saying "Archive · preview unavailable" for a landing the space had already recognised. The
+  editor re-reads quietly, a few times, while anything is still unsettled.
+- **FR-054**: A landing, an archive and a transcript MUST open from an attachment the way
+  they open in the explorer — the first two through the paired app, the third read from the
+  catalogue. None of them has a range URL of its own, which is what the view control used to
+  require, so the eye was dead on every kind that is not an image or a video.
+- **FR-052**: An attachment MUST say whether it is a folder. Every folder's category is null,
+  so the tile called a dropped landing "File" until the material's kind travelled with the
+  attachment row.
+- **FR-049**: A file on its way up MUST have a tile of its own, with its name and the share
+  of it that has been sent. A thirty-second upload with nothing on screen but a count in the
+  corner is indistinguishable from an upload that never started.
+- **FR-050**: The editor MUST say which thing failed. One line said "could not save the
+  latest task changes" for a failed _read_ as well, so a re-read that timed out while a big
+  upload held the connection accused the person of losing edits they had not made. A drop
+  that lands clears a stale failure line.
+- **FR-048**: A member without `upload` MUST see the section refuse the drop silently: the
+  hint does not offer what they cannot do.
+- **FR-044**: Opening a landing MUST reuse the copy already unpacked on this computer.
+  The agent keeps the unpacked page and its fallback stills under the user's own Soty
+  directory, keyed by the source version and checksum the relay reports, and a `bytes=0-0`
+  probe decides before anything is downloaded. Opening the same landing twice used to cost
+  the same both times — the whole package downloaded again, unpacked again, and driven
+  through Chromium again — which is why looking at three landings felt like rendering three.
+  A changed checksum is a different key, so a landing that moved is read from the source.
+- **FR-043**: In the list, one press MUST select a row and two MUST open it. The name is a
+  label, not a control: as a button it was a highlighted strip across most of the row, so a
+  press meaning "select this" opened whatever it landed on. Enter opens the selected row from
+  the keyboard.
+- **FR-042**: Search results MUST carry the tag as well, and the owner MUST be able to set
+  one from them: a tag is meant to be read wherever the file is, and a colour that vanished
+  the moment the same file was searched for read as a tag that had been lost.
+
+### Key Entities _(include if feature involves data)_
 
 - **Storage connection**: a space's one link to its provider account; has a state (connected,
   needs attention, disconnected), a last-reconciliation time, and the identity of the member
@@ -468,7 +544,7 @@ the record is complete.
 - **Folder node**: an indexed folder under the root; knows its parent, its direct child
   counts by kind, and whether its children have been fully indexed.
 - **Material**: an indexed file under the root; has a kind, provider identity, current
-  version marker, parent folder, and preview state.
+  version marker, parent folder, preview state, and an optional owner-set tag colour.
 - **Preview**: a prepared thumbnail/poster/screenshot for one material version; shared by the
   space; has a state (pending, preparing, ready, unavailable with reason) and is tied to the
   version it was prepared from.
@@ -479,7 +555,7 @@ the record is complete.
   from the provider's own thumbnails; landing renders are prepared by the local app of a
   member who has it running, recorded with that member, and honour that member's power limit.
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 
@@ -495,8 +571,7 @@ the record is complete.
   1,000 children, measured with the provider deliberately unreachable.
 - **SC-004**: After preparation reports complete for a root with at least 100 images, 50
   videos and 10 landing archives, 100% of them show a thumbnail in the grid, and in 60 cold
-  openings (20 of each kind) a useful first frame is visible within two seconds in at least
-  57.
+  openings (20 of each kind) a useful first frame is visible within two seconds in at least 57.
 - **SC-005**: A member who has never installed the local app sees every thumbnail and opens
   every prepared image and video that the owner can.
 - **SC-006**: Three people who have never seen Soty, given a real space and no hints, each

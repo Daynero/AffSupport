@@ -12,11 +12,12 @@ import type {
   CatalogMaterialItem,
   TeamAnalyticsStorage,
   TeamMaterialRow,
+  TeamMaterialTagColor,
   TeamPermissions
 } from '@video-compressor/shared';
 import { teamApi, type TeamMaterialSummary } from '../../api/team';
 import { downloadTeamFileWithAgent } from '../../api/client';
-import { ListPlus, Play, Replace, Shrink, Trash2, X } from 'lucide-react';
+import { Download, ListPlus, Play, Shrink, Trash2, X } from 'lucide-react';
 import { Button } from '../../components/ui';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
@@ -55,7 +56,14 @@ import {
   pauseTeamAgentProcess,
   startTeamAgentProcess
 } from '../../api/client';
-import { FolderProcessDialog, type FolderBatchPlan } from './FolderProcessDialog';
+import type { LibraryBatchScope } from '../library/ProcessLibraryDialog';
+import {
+  BATCH_SCOPE_LIMIT,
+  FolderScopeDialog,
+  scopeIdsOf,
+  type FolderSubtreeClient,
+  type ProcessableFolder
+} from './FolderScopeDialog';
 import {
   TeamCompressorDialog,
   type CompressPlan,
@@ -64,6 +72,11 @@ import {
 import type { RowActionsProps } from './RowActions';
 import { useRestitchDelivery } from '../restitch/useRestitchDelivery';
 import { RestitchDeliveryNotices } from '../restitch/RestitchDeliveryNotices';
+import {
+  UploadConflictDialog,
+  type UploadConflictChoice,
+  type UploadConflictRequest
+} from './UploadConflictDialog';
 import { ProcessPanel } from './ProcessPanel';
 import { navigateTo } from '../../lib/navigation';
 import { buildTeamRoute } from '../routes';
@@ -73,8 +86,15 @@ import { usePosterFrames } from './usePosterFrames';
 export type ExplorerShellClient = ExplorerClient &
   ContentGridClient &
   TeamCatalogClient &
-  FolderPickerClient & {
+  FolderPickerClient &
+  FolderSubtreeClient & {
     getConnectionStatus?: (teamId: string) => Promise<{ driveKind?: TeamAnalyticsStorage | null }>;
+    /** Only the space's owner may call this; the database is what enforces it. */
+    setMaterialTag?: (input: {
+      teamId: string;
+      materialId: string;
+      color: TeamMaterialTagColor | null;
+    }) => Promise<TeamMaterialTagColor | null>;
   };
 
 export type { ExplorerView };
@@ -113,13 +133,28 @@ const RESTITCH_PHASE_KEYS = {
   saving: 'teamRestitchPhaseSaving'
 } as const;
 
-const RESTITCH_PHASE_PROGRESS = {
-  choosing: 5,
-  transferring: 15,
-  inspecting: 40,
-  stitching: 70,
-  saving: 95
+/*
+ * Where a step starts and how much of the bar it owns.
+ *
+ * The agent reports each step's own percentage now — bytes while the video arrives, the join
+ * while it is stitched — so the bar is that percentage placed inside the step's own share of
+ * the whole. Fetching and stitching are the two real waits and take the bar between them;
+ * the rest are moments.
+ */
+const RESTITCH_PHASE_SPAN = {
+  choosing: { from: 0, to: 5 },
+  transferring: { from: 5, to: 45 },
+  inspecting: { from: 45, to: 50 },
+  stitching: { from: 50, to: 95 },
+  saving: { from: 95, to: 100 }
 } as const;
+
+function restitchProgress(phase: keyof typeof RESTITCH_PHASE_SPAN, within?: number): number {
+  const span = RESTITCH_PHASE_SPAN[phase];
+  if (within === undefined) return span.from;
+  const fraction = Math.max(0, Math.min(100, within)) / 100;
+  return Math.round(span.from + (span.to - span.from) * fraction);
+}
 
 export function ExplorerShell({
   teamId,
@@ -133,6 +168,7 @@ export function ExplorerShell({
   onCreateTask,
   onCreateTaskFromSelection,
   onProcessSelection,
+  onProcessLibrary,
   onChanged,
   onReset,
   actionsClient = defaultMaterialActionsClient,
@@ -148,7 +184,8 @@ export function ExplorerShell({
   onPreview?: (material: TeamMaterialSummary) => void;
   onCreateTask?: (asset: { id: string; name: string }) => void;
   onCreateTaskFromSelection?: (assets: Array<{ id: string; name: string }>) => void;
-  onProcessSelection?: () => void;
+  onProcessSelection?: (materialIds: string[], scope?: LibraryBatchScope) => void;
+  onProcessLibrary?: () => void;
   onChanged?: () => void;
   onReset?: () => void;
   actionsClient?: MaterialActionsClient;
@@ -174,6 +211,7 @@ export function ExplorerShell({
         onCreateTask={onCreateTask}
         onCreateTaskFromSelection={onCreateTaskFromSelection}
         onProcessSelection={onProcessSelection}
+        onProcessLibrary={onProcessLibrary}
         onChanged={onChanged}
         onReset={onReset}
         actionsClient={actionsClient}
@@ -194,6 +232,7 @@ function ExplorerBody({
   onCreateTask,
   onCreateTaskFromSelection,
   onProcessSelection,
+  onProcessLibrary,
   onChanged,
   onReset,
   actionsClient,
@@ -208,7 +247,8 @@ function ExplorerBody({
   onPreview?: (material: TeamMaterialSummary) => void;
   onCreateTask?: (asset: { id: string; name: string }) => void;
   onCreateTaskFromSelection?: (assets: Array<{ id: string; name: string }>) => void;
-  onProcessSelection?: () => void;
+  onProcessSelection?: (materialIds: string[], scope?: LibraryBatchScope) => void;
+  onProcessLibrary?: () => void;
   onChanged?: () => void;
   onReset?: () => void;
   actionsClient: MaterialActionsClient;
@@ -260,7 +300,7 @@ function ExplorerBody({
     if (settingsWasOpen.current && !settingsOpen && restitch.pending) void restitch.resume();
     settingsWasOpen.current = settingsOpen;
   }, [settingsOpen, restitch]);
-  const { permissions: loadedPermissions } = useTeam();
+  const { permissions: loadedPermissions, activeTeam } = useTeam();
   // Every write goes dark while storage needs a person (FR-033); nothing is lost.
   const permissions = readOnly ? null : loadedPermissions;
   const explorer = useExplorer();
@@ -274,16 +314,13 @@ function ExplorerBody({
     nodeOf
   } = explorer;
   const [treeOpen, setTreeOpen] = useState(false);
-  const [processing, setProcessing] = useState<{
-    row: TeamMaterialRow;
-    tool?: 'transcription';
-  } | null>(null);
-  // Live progress of a running transcription, so the selected video's card can
-  // show it in place of the Transcribe button (no re-clicking, and it is clear
-  // which video is being transcribed).
-  const [transcribing, setTranscribing] = useState<{ videoId: string; progress: number } | null>(
-    null
-  );
+  const [processing, setProcessing] = useState<{ row: TeamMaterialRow } | null>(null);
+  /*
+   * The card's live transcription progress used to have a second source: a
+   * `tool` on this state that nothing ever set, so the branch that read it, the
+   * state it wrote and its setter were all unreachable. The queue below is the
+   * one source now — it is what actually runs a transcription here.
+   */
   // One transcription queue for the whole explorer (owner, 2026-08-30): the
   // card's Transcribe enqueues, the folder batch enqueues, and everything runs
   // in the background one after another — a corner panel shows the progress,
@@ -320,9 +357,27 @@ function ExplorerBody({
     /** Category as well as kind: what travels with a file depends on it. */
     items: { id: string; name: string; kind: string; category: string | null }[];
   } | null>(null);
-  const [folderProcessing, setFolderProcessing] = useState<TeamMaterialRow | null>(null);
+  /* A row from the list or the folder that is open — the batch needs a name
+     and a drive id, and both kinds of thing carry those. */
+  /* Reading a folder's subtree, and what the answer is for. All three of the
+     folder-wide commands need the same walk, so they share one window. */
+  const [folderScope, setFolderScope] = useState<{
+    folder: ProcessableFolder;
+    intent: 'process' | 'compress' | 'previews';
+  } | null>(null);
   const [compressing, setCompressing] = useState<CompressPlanItem_[] | null>(null);
   const [dropping, setDropping] = useState(false);
+  /** How many files are still going up; the zone stays lit while any is. */
+  const [uploading, setUploading] = useState(0);
+  /**
+   * The name collision the drop is waiting on, and the promise the upload loop
+   * is parked on until it is answered. One at a time: a drop of ten files with
+   * ten collisions asks once and offers to apply that answer to the rest.
+   */
+  const [conflict, setConflict] = useState<{
+    request: UploadConflictRequest;
+    settle: (choice: UploadConflictChoice, forRest: boolean) => void;
+  } | null>(null);
   const [storageKind, setStorageKind] = useState<TeamAnalyticsStorage | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const view: ExplorerView = query.view ?? readRememberedView();
@@ -331,6 +386,12 @@ function ExplorerBody({
     rememberSort(next);
     setSortState(next);
   };
+  /*
+   * A tag is a shared judgement about a file, so it is the space owner's to
+   * make and everyone else's to read (011). The database refuses anyone else
+   * outright; this is what keeps the dot from looking pressable to them.
+   */
+  const canTag = !readOnly && activeTeam?.role === 'owner' && Boolean(client.setMaterialTag);
   const searching = query.q.length > 0 || query.scope === 'space';
   const page = useFolderPage({
     teamId,
@@ -490,7 +551,6 @@ function ExplorerBody({
       });
     },
     [
-      actionsClient,
       changed,
       clearSelection,
       currentFolderId,
@@ -498,6 +558,7 @@ function ExplorerBody({
       permissions?.edit,
       push,
       t,
+      tailClient,
       teamId
     ]
   );
@@ -512,8 +573,56 @@ function ExplorerBody({
       // upload into an empty space — with a message about Drive being
       // unavailable, which it was not.
       const destination = currentFolderId;
-      let done = 0;
-      for (const file of list) {
+      /*
+       * Each file says it is being sent from the moment it is dropped.
+       *
+       * A drop used to do nothing visible: the highlight left with the pointer
+       * and the next thing on screen was a message, seconds later, that said
+       * only "try again in a moment". A person could not tell whether the drop
+       * had even been taken. One notice per file now carries its whole life —
+       * sent, landed, or refused with the reason and the file's own name — and
+       * the zone stays lit while any of them is in flight.
+       */
+      /*
+       * What the folder already holds, by name. The rows are already on screen,
+       * so the question can be asked before a byte moves — and the material id
+       * is right there, which is what makes "replace" a new version of that
+       * file rather than a second one beside it.
+       */
+      const byName = new Map(page.rows.map(row => [row.name.toLocaleLowerCase(), row]));
+      let forAll: UploadConflictChoice | null = null;
+      setUploading(count => count + list.length);
+      for (const [index, file] of list.entries()) {
+        const clash = byName.get(file.name.toLocaleLowerCase());
+        let choice: UploadConflictChoice = 'keep_both';
+        if (clash) {
+          choice =
+            forAll ??
+            (await new Promise<UploadConflictChoice>(resolve => {
+              setConflict({
+                request: {
+                  fileName: file.name,
+                  existingMaterialId: clash.id,
+                  remaining: list.length - index - 1
+                },
+                settle: (answer, forRest) => {
+                  if (forRest) forAll = answer;
+                  setConflict(null);
+                  resolve(answer);
+                }
+              });
+            }));
+        }
+        if (choice === 'skip') {
+          setUploading(count => Math.max(0, count - 1));
+          push({ tone: 'info', text: t('teamExplorerUploadSkipped', { name: file.name }) });
+          continue;
+        }
+        const notice = push({
+          tone: 'info',
+          sticky: true,
+          text: t('teamExplorerUploading', { name: file.name })
+        });
         try {
           await uploadTeamFile({
             teamId,
@@ -521,17 +630,34 @@ function ExplorerBody({
             file,
             conflictMode: 'keep_both',
             replaceMaterialId: null,
-            versionOfMaterialId: null
+            // Replacing is a new version of the file already there: it keeps
+            // its place, its tags and what came before it.
+            versionOfMaterialId: choice === 'replace' && clash ? clash.id : null
           });
-          done += 1;
+          update(notice, {
+            tone: 'success',
+            sticky: false,
+            text: t('teamExplorerUploadedOne', { name: file.name })
+          });
         } catch (cause) {
-          push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+          update(notice, {
+            tone: 'error',
+            sticky: false,
+            text: t('teamExplorerUploadFailedFor', {
+              name: file.name,
+              reason: teamErrorMessageFor(cause, t)
+            })
+          });
+        } finally {
+          setUploading(count => Math.max(0, count - 1));
+          // Each file lands on its own: what has arrived is on screen before
+          // the next one starts, rather than the whole drop appearing at the
+          // end of the last transfer.
+          changed();
         }
       }
-      if (done > 0) push({ tone: 'success', text: t('teamExplorerUploadDone', { count: done }) });
-      changed();
     },
-    [changed, currentFolderId, explorer, permissions?.upload, push, t, teamId]
+    [changed, currentFolderId, page.rows, permissions?.upload, push, t, teamId, update]
   );
 
   const actions: RowActionsProps | undefined = permissions
@@ -551,7 +677,8 @@ function ExplorerBody({
         ...(permissions.process
           ? {
               onProcess: (row: TeamMaterialRow) => setProcessing({ row }),
-              onProcessFolder: (row: TeamMaterialRow) => setFolderProcessing(row)
+              onProcessFolder: (row: TeamMaterialRow) =>
+                setFolderScope({ folder: row, intent: 'process' })
             }
           : {})
       }
@@ -564,6 +691,29 @@ function ExplorerBody({
      and one of them decides whether it is offered at all. */
   const selectedVideos = useMemo(
     () => selectedRows.filter(row => row.category === 'video'),
+    [selectedRows]
+  );
+  /*
+   * What the batch can actually take. A folder, a transcript or an image can be
+   * checked like anything else, and passing those on gave a window titled
+   * "Обробка: обрано 1" that scanned nothing and then said "everything is
+   * already current" — which reads as done, not as "not a thing I process".
+   */
+  /*
+   * How many of the selection are not on screen — measured against the rows
+   * shown, not against the folder id.
+   *
+   * At the root `currentFolderId` is null while every row carries the drive's
+   * real root id, so comparing ids called three tiles in plain view "3 з інших
+   * папок". This is also the truer sentence: a selected row hidden by a kind
+   * filter, or waiting behind "Показати ще", is out of sight wherever it lives.
+   */
+  const elsewhere = useMemo(
+    () => selectedRows.filter(row => !page.rows.some(shown => shown.id === row.id)).length,
+    [page.rows, selectedRows]
+  );
+  const processableRows = useMemo(
+    () => selectedRows.filter(row => row.category === 'video' || row.category === 'landing'),
     [selectedRows]
   );
   const focused = page.rows.find(row => row.id === selectedId) ?? null;
@@ -605,6 +755,14 @@ function ExplorerBody({
     async (rows: TeamMaterialRow[]) => {
       if (!permissions?.delete) return;
       const trashed: string[] = [];
+      /* Folders do not go to the trash — Drive has no such move for them here.
+         Silently dropping them meant the bin did nothing at all over a
+         selection of folders: no toast, no error, the selection still there. */
+      const folders = rows.filter(row => row.kind === 'folder').length;
+      if (folders === rows.length) {
+        push({ tone: 'info', text: t('teamExplorerTrashFoldersOnly') });
+        return;
+      }
       for (const row of rows) {
         if (row.kind === 'folder') continue;
         try {
@@ -621,6 +779,8 @@ function ExplorerBody({
         }
       }
       if (trashed.length === 0) return;
+      if (folders > 0)
+        push({ tone: 'info', text: t('teamExplorerTrashSkippedFolders', { count: folders }) });
       select(null);
       clearSelection();
       changed();
@@ -862,6 +1022,27 @@ function ExplorerBody({
     await cancelTeamAgentProcess(operationId).catch(() => false);
   }, [pauseQueue, tActive?.operationId, tPaused]);
 
+  /**
+   * Painted first, written after: a dot that waits for a round trip before it
+   * changes reads as a press that did not land, and this is the cheapest write
+   * on the screen. A refusal puts the old colour back and says so.
+   */
+  const setTag = useCallback(
+    async (row: TeamMaterialRow, color: TeamMaterialTagColor | null) => {
+      if (!client.setMaterialTag) return;
+      const previous = row.tagColor ?? null;
+      page.patchRow(row.id, { tagColor: color });
+      try {
+        await client.setMaterialTag({ teamId, materialId: row.id, color });
+      } catch (cause) {
+        page.patchRow(row.id, { tagColor: previous });
+        push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+      }
+    },
+    [client, page, push, t, teamId]
+  );
+  const tagging = canTag ? { canTag: true as const, onSetTag: setTag } : undefined;
+
   const activeOperation = useTeamOperation({
     teamId,
     operationId: tActive?.operationId ?? null
@@ -895,32 +1076,48 @@ function ExplorerBody({
     enqueueJobs(jobs);
   };
 
-  const runFolderBatch = (plan: FolderBatchPlan) => {
-    if (plan.what !== 'landings' && plan.videos.length > 0) {
-      enqueueTranscriptions(
-        plan.videos.map(video => ({
-          id: video.id,
-          name: video.name,
-          // Beside the video itself, not in the folder the batch started from:
-          // the batch reaches into subfolders, and a hundred transcripts piled
-          // at the top would be worse than no transcripts at all.
-          folderId: video.parentFolderId ?? plan.folder.driveFileId
-        }))
-      );
-    }
-    if (plan.what !== 'videos' && plan.landings.length > 0) {
-      const landings = plan.landings;
-      push({
-        tone: 'success',
-        text: t('teamFolderProcessLandingsQueued', { count: landings.length })
-      });
-      void (async () => {
-        for (const landing of landings) {
-          await teamApi.regenerateLandingPreview(teamId, landing.id).catch(() => undefined);
+  /**
+   * Landing previews, folder-wide: the same per-row command, said once.
+   *
+   * It used to announce success before doing anything and swallow every
+   * failure — six previews that all failed on an expired connection read as
+   * "оновлюємо: 6" and nothing else, ever. The line counts as it goes and ends
+   * on what actually happened.
+   */
+  const refreshLandingPreviews = (landingIds: string[]) => {
+    if (landingIds.length === 0) return;
+    const line = push({
+      tone: 'info',
+      sticky: true,
+      progress: 0,
+      text: t('teamExplorerPreviewsRunning', { done: 0, total: landingIds.length })
+    });
+    void (async () => {
+      let done = 0;
+      let failed = 0;
+      for (const id of landingIds) {
+        try {
+          await teamApi.regenerateLandingPreview(teamId, id);
+          done += 1;
+        } catch {
+          failed += 1;
         }
-        changed();
-      })();
-    }
+        update(line, {
+          progress: ((done + failed) / landingIds.length) * 100,
+          text: t('teamExplorerPreviewsRunning', { done: done + failed, total: landingIds.length })
+        });
+      }
+      update(line, {
+        tone: failed > 0 ? 'error' : 'success',
+        sticky: false,
+        progress: undefined,
+        text:
+          failed > 0
+            ? t('teamExplorerPreviewsPartial', { done, failed })
+            : t('teamExplorerPreviewsDone', { count: done })
+      });
+      if (done > 0) changed();
+    })();
   };
 
   const pasteClipboard = async () => {
@@ -1102,11 +1299,35 @@ function ExplorerBody({
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  });
+    /* The handler reads the current selection and the open folder, and this
+       component re-renders on every toast and every page. With no dependency
+       list at all a document-level listener was torn down and rebuilt on each
+       of those. */
+  }, [focused, pasteClipboard, push, readOnly, searching, selectedRows, t, trash]);
 
   return (
-    <div className={`team-explorer has-pane${treeOpen ? ' is-tree-open' : ''}`}>
-      <FolderTree onDropMaterials={(folder, ids) => void moveTo(folder, ids)} onReset={onReset} />
+    /* `team-panel`, like Accounts and Tasks: this was the one tab in the space
+       with no card under it, so the marketing honeycomb showed through every
+       gutter — and then a card appeared out of nowhere the moment somebody
+       pressed Search, because that view brought its own. One card now, and the
+       views inside it no longer carry their own. */
+    <div
+      /*
+       * The selected-file pane belongs to a folder listing. In a search or the
+       * trash nothing feeds it, so it stood there saying "Оберіть файл, щоб
+       * побачити його тут." and took three hundred and forty pixels of the one
+       * column that needed them — the search results were folding their actions
+       * under every hit for want of that width.
+       */
+      className={`team-panel team-explorer${trash || searching ? '' : ' has-pane'}${
+        treeOpen ? ' is-tree-open' : ''
+      }`}
+    >
+      <FolderTree
+        elsewhere={trash || searching}
+        onDropMaterials={(folder, ids) => void moveTo(folder, ids)}
+        onReset={onReset}
+      />
       <div className="team-explorer-toolbar">
         <Button
           type="button"
@@ -1156,6 +1377,26 @@ function ExplorerBody({
               </Button>
             </>
           )}
+          {/*
+           * Processing a whole folder or a whole space was reachable only
+           * through an unlabelled ▶ that appeared after something was selected
+           * — and that button then ignored the selection anyway. It is a door
+           * in the toolbar now, open before anything is chosen, and it names
+           * the two scopes that actually exist.
+           */}
+          {permissions?.process && !trash && !searching && (
+            <ProcessMenu
+              folder={currentFolderId ? explorer.nodeOf(currentFolderId) : null}
+              onFolder={folder => setFolderScope({ folder, intent: 'process' })}
+              onCompressFolder={
+                permissions?.upload
+                  ? folder => setFolderScope({ folder, intent: 'compress' })
+                  : undefined
+              }
+              onRefreshFolderPreviews={folder => setFolderScope({ folder, intent: 'previews' })}
+              onSpace={onProcessLibrary}
+            />
+          )}
           {!trash && (
             <div
               className="team-explorer-view-toggle"
@@ -1185,7 +1426,10 @@ function ExplorerBody({
         </div>
       </div>
       <div
-        className={`team-explorer-main team-explorer-dropzone${dropping ? ' is-over' : ''}`}
+        className={`team-explorer-main team-explorer-dropzone${dropping ? ' is-over' : ''}${
+          uploading > 0 ? ' is-uploading' : ''
+        }`}
+        aria-busy={uploading > 0 || undefined}
         onDragOver={event => {
           if (!permissions?.upload || !event.dataTransfer.types.includes('Files')) return;
           event.preventDefault();
@@ -1223,10 +1467,20 @@ function ExplorerBody({
           <div
             className="team-explorer-selection-bar"
             role="region"
-            aria-label={t('teamExplorerSelectedCount', { count: selectedRows.length })}
+            /* A static name: it used to be the same string as the count beside
+               it, so a screen reader said "Обрано: 3" twice on entry. */
+            aria-label={t('teamExplorerSelectionRegion')}
           >
             <span className="team-explorer-selection-count">
               {t('teamExplorerSelectedCount', { count: selectedRows.length })}
+              {/* The selection survives walking into another folder, which is
+                  what makes it useful and what makes the bin a surprise: three
+                  of the five being acted on can be two folders back. */}
+              {elsewhere > 0 && (
+                <span className="team-explorer-selection-elsewhere">
+                  {t('teamExplorerSelectedElsewhere', { count: elsewhere })}
+                </span>
+              )}
             </span>
             <div className="team-explorer-selection-actions">
               {onCreateTaskFromSelection && (
@@ -1241,10 +1495,49 @@ function ExplorerBody({
                   <ListPlus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
                 </SelectionAction>
               )}
-              {onProcessSelection && permissions?.process && (
+              {/*
+               * The selection, whatever its size. This used to say "Process…"
+               * over four files and quietly start work on the entire space —
+               * the selection was never passed anywhere — so it was cut back
+               * to one file. Now the ids travel with the press, and the count
+               * in the label is the count of files the batch can take.
+               */}
+              {onProcessSelection && permissions?.process && processableRows.length > 0 && (
                 <SelectionAction
-                  label={t('teamExplorerProcessSelection')}
-                  onClick={onProcessSelection}
+                  primary
+                  label={
+                    processableRows.length === 1
+                      ? t('teamExplorerProcessSelection')
+                      : t('teamExplorerProcessSelectionMany', { count: processableRows.length })
+                  }
+                  onClick={() => {
+                    /* The same bound the folder path already respects: the
+                       scan and the claim refuse a scope over five hundred, and
+                       the selection survives folder changes, so it can get
+                       there. Refused here, it is a sentence; refused by the
+                       RPC, it is "Частина даних некоректна" in a window with
+                       no fields. */
+                    if (processableRows.length > BATCH_SCOPE_LIMIT) {
+                      push({
+                        tone: 'error',
+                        text: t('teamBatchFolderTooMany', {
+                          count: processableRows.length,
+                          limit: BATCH_SCOPE_LIMIT
+                        })
+                      });
+                      return;
+                    }
+                    onProcessSelection(
+                      processableRows.map(row => row.id),
+                      {
+                        kind: 'selection',
+                        count: processableRows.length,
+                        ...(processableRows.length < selectedRows.length
+                          ? { picked: selectedRows.length }
+                          : {})
+                      }
+                    );
+                  }}
                 >
                   <Play size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
                 </SelectionAction>
@@ -1270,7 +1563,7 @@ function ExplorerBody({
                   label={t('teamRestitchDownloadRestitched')}
                   onClick={() => void deliverRestitched(selectedVideos)}
                 >
-                  <Replace size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  <Download size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
                 </SelectionAction>
               )}
               {permissions?.delete && (
@@ -1305,6 +1598,25 @@ function ExplorerBody({
             onScopeChange={scope => onQueryChange({ scope })}
             kinds={query.kinds}
             pathFor={pathFor}
+            tagging={
+              canTag && client.setMaterialTag
+                ? {
+                    canTag: true,
+                    onSetTag: (material, color) => {
+                      page.patchRow(material.id, { tagColor: color });
+                      void client
+                        .setMaterialTag?.({
+                          teamId,
+                          materialId: material.id,
+                          color
+                        })
+                        .catch(cause =>
+                          push({ tone: 'error', text: teamErrorMessageFor(cause, t) })
+                        );
+                    }
+                  }
+                : undefined
+            }
           />
         ) : (
           <div
@@ -1318,55 +1630,56 @@ function ExplorerBody({
             {view === 'grid' ? (
               <ContentGrid
                 client={client}
-                revision={revision}
-                kinds={query.kinds}
+                page={page}
                 onPreview={onPreview}
                 actions={actions}
                 sort={sort}
+                tagging={tagging}
               />
             ) : (
               <ContentList
-                client={client}
-                revision={revision}
-                kinds={query.kinds}
+                page={page}
                 onPreview={onPreview}
                 actions={actions}
                 sort={sort}
+                tagging={tagging}
               />
             )}
           </div>
         )}
         {dropping && <p className="team-explorer-muted">{t('teamExplorerDropHint')}</p>}
       </div>
-      <PreviewPane
-        row={trash || searching ? null : focused}
-        client={client}
-        onOpen={onPreview}
-        onDownload={permissions?.download ? row => void downloadOriginal(row) : undefined}
-        onDownloadRestitched={
-          permissions?.download && focused?.kind === 'video'
-            ? row => void deliverRestitched([row])
-            : undefined
-        }
-        restitchPrepared={focused ? preparedIds.has(focused.id) : false}
-        // Shared the way the tile shares: a member who can see a file can hand out a link.
-        onShare={Boolean(permissions)}
-        onDelete={permissions?.delete ? row => void trashRows([row]) : undefined}
-        onTranscribe={
-          permissions?.process
-            ? row =>
-                enqueueTranscriptions([
-                  {
-                    id: row.id,
-                    name: row.name,
-                    folderId: row.parentFolderId ?? currentFolderId ?? null
-                  }
-                ])
-            : undefined
-        }
-        transcribing={tActive ? { videoId: tActive.id, progress: activeProgress } : transcribing}
-        onCreateTask={onCreateTask}
-      />
+      {!trash && !searching && (
+        <PreviewPane
+          row={focused}
+          client={client}
+          onOpen={onPreview}
+          onDownload={permissions?.download ? row => void downloadOriginal(row) : undefined}
+          onDownloadRestitched={
+            permissions?.download && focused?.kind === 'video'
+              ? row => void deliverRestitched([row])
+              : undefined
+          }
+          restitchPrepared={focused ? preparedIds.has(focused.id) : false}
+          // Shared the way the tile shares: a member who can see a file can hand out a link.
+          onShare={Boolean(permissions)}
+          onDelete={permissions?.delete ? row => void trashRows([row]) : undefined}
+          onTranscribe={
+            permissions?.process
+              ? row =>
+                  enqueueTranscriptions([
+                    {
+                      id: row.id,
+                      name: row.name,
+                      folderId: row.parentFolderId ?? currentFolderId ?? null
+                    }
+                  ])
+              : undefined
+          }
+          transcribing={tActive ? { videoId: tActive.id, progress: activeProgress } : null}
+          onCreateTask={onCreateTask}
+        />
+      )}
       {compressing && (
         <TeamCompressorDialog
           teamId={teamId}
@@ -1376,96 +1689,135 @@ function ExplorerBody({
           onClose={() => setCompressing(null)}
         />
       )}
-      {folderProcessing && (
-        <FolderProcessDialog
+      {folderScope && (
+        <FolderScopeDialog
           teamId={teamId}
-          folder={folderProcessing}
+          folder={folderScope.folder}
+          intent={folderScope.intent}
           client={client}
-          onRun={runFolderBatch}
-          onCompressAll={videos => {
-            const folderId = folderProcessing.driveFileId;
-            setFolderProcessing(null);
-            setCompressing(videos.map(video => ({ id: video.id, name: video.name, folderId })));
-          }}
-          onClose={() => setFolderProcessing(null)}
-        />
-      )}
-      {(tActive || tQueue.length > 0) && (
-        <ProcessPanel
-          title={t(
-            tActive?.tool === 'compressor' ? 'teamCompressQueueTitle' : 'teamTranscribeQueueTitle'
-          )}
-          detail={
-            tActive
-              ? t('teamTranscribeQueueProgress', {
-                  done: tDone + 1,
-                  total: tTotal,
-                  name: tActive.name
-                })
-              : null
-          }
-          phase={
-            tPaused
-              ? t(
-                  tActive
-                    ? tHeld
-                      ? 'teamQueuePausedHeld'
-                      : 'teamQueuePausedRunning'
-                    : 'teamQueuePausedIdle',
-                  { count: tQueue.length }
-                )
-              : null
-          }
-          progress={activeProgress}
-          active={!tPaused}
-          actions={[
-            {
-              label: t(tPaused ? 'teamQueueResume' : 'teamQueuePause'),
-              run: () => pauseQueue(!tPaused)
-            },
-            ...(tQueue.length > (tActive ? 0 : 1)
-              ? [
-                  {
-                    label: t('teamTranscribeQueueStop'),
-                    run: () => {
-                      setTQueue(tActive ? [] : current => current.slice(0, 1));
-                      setTTotal(tDone + 1);
-                      // "After the current one" has to have a current one that is still
-                      // moving; stopping while paused would leave a suspended file as the
-                      // last thing this panel ever did.
-                      if (tPaused) pauseQueue(false);
-                    }
-                  }
-                ]
-              : []),
-            ...(tActive
-              ? [{ label: t('teamQueueStopNow'), run: () => void stopNow(), destructive: true }]
-              : [])
-          ]}
-        />
-      )}
-
-      {/* 015 — a re-stitched download reports itself the same way every other long job does:
-          one panel, a named step, and a way out. It used to say only "downloading…" in a
-          toast, which on a thirty-second wait reads as a hang. */}
-      {deliveringMaterial && (
-        <ProcessPanel
-          title={t('teamRestitchDownloadTitle')}
-          detail={deliveringMaterial.state.fileName}
-          phase={t(RESTITCH_PHASE_KEYS[deliveringMaterial.state.phase])}
-          progress={RESTITCH_PHASE_PROGRESS[deliveringMaterial.state.phase]}
-          active
-          actions={[
-            {
-              label: t('teamQueueStopNow'),
-              run: () => restitch.cancel(deliveringMaterial.materialId),
-              destructive: true
+          onResolved={result => {
+            const { folder, intent } = folderScope;
+            setFolderScope(null);
+            if (intent === 'compress') {
+              if (result.videos.length === 0) return;
+              setCompressing(
+                result.videos.map(video => ({
+                  id: video.id,
+                  name: video.name,
+                  folderId: video.parentFolderId ?? folder.driveFileId
+                }))
+              );
+              return;
             }
-          ]}
+            if (intent === 'previews') {
+              refreshLandingPreviews(result.landings.map(landing => landing.id));
+              return;
+            }
+            const ids = scopeIdsOf(result);
+            /* An empty scope is not a small batch: with no ids the server reads
+               the request as the whole space, so a folder that yielded nothing
+               would quietly start everything. */
+            if (ids.length === 0) return;
+            onProcessSelection?.(ids, {
+              kind: 'folder',
+              name: folder.name,
+              // The walk counts the folder it started from; a folder with five
+              // subfolders was reporting six.
+              folders: Math.max(0, result.foldersVisited - 1),
+              files: ids.length,
+              // Separately, because the window's "already done" line is about
+              // videos with a transcript, and one video is exactly one
+              // transcription job.
+              videos: result.videos.length
+            });
+          }}
+          onClose={() => setFolderScope(null)}
         />
       )}
+      {/* One corner, one stack: both panels are reachable from the same
+          selection, and pinned to the same pixel the second hid the first. */}
+      <div className="team-process-stack">
+        {(tActive || tQueue.length > 0) && (
+          <ProcessPanel
+            title={t(
+              tActive?.tool === 'compressor' ? 'teamCompressQueueTitle' : 'teamTranscribeQueueTitle'
+            )}
+            detail={
+              tActive
+                ? t('teamTranscribeQueueProgress', {
+                    done: tDone + 1,
+                    total: tTotal,
+                    name: tActive.name
+                  })
+                : null
+            }
+            phase={
+              tPaused
+                ? t(
+                    tActive
+                      ? tHeld
+                        ? 'teamQueuePausedHeld'
+                        : 'teamQueuePausedRunning'
+                      : 'teamQueuePausedIdle',
+                    { count: tQueue.length }
+                  )
+                : null
+            }
+            progress={activeProgress}
+            active={!tPaused}
+            actions={[
+              {
+                label: t(tPaused ? 'teamQueueResume' : 'teamQueuePause'),
+                run: () => pauseQueue(!tPaused)
+              },
+              ...(tQueue.length > (tActive ? 0 : 1)
+                ? [
+                    {
+                      label: t('teamTranscribeQueueStop'),
+                      run: () => {
+                        setTQueue(tActive ? [] : current => current.slice(0, 1));
+                        setTTotal(tDone + 1);
+                        // "After the current one" has to have a current one that is still
+                        // moving; stopping while paused would leave a suspended file as the
+                        // last thing this panel ever did.
+                        if (tPaused) pauseQueue(false);
+                      }
+                    }
+                  ]
+                : []),
+              ...(tActive
+                ? [{ label: t('teamQueueStopNow'), run: () => void stopNow(), destructive: true }]
+                : [])
+            ]}
+          />
+        )}
+
+        {/* 015 — a re-stitched download reports itself the same way every other long job does:
+            one panel, a named step, and a way out. It used to say only "downloading…" in a
+            toast, which on a thirty-second wait reads as a hang. */}
+        {deliveringMaterial && (
+          <ProcessPanel
+            title={t('teamRestitchDownloadTitle')}
+            detail={deliveringMaterial.state.fileName}
+            phase={t(RESTITCH_PHASE_KEYS[deliveringMaterial.state.phase])}
+            progress={restitchProgress(
+              deliveringMaterial.state.phase,
+              deliveringMaterial.state.progress
+            )}
+            active
+            actions={[
+              {
+                label: t('teamQueueStopNow'),
+                run: () => restitch.cancel(deliveringMaterial.materialId),
+                destructive: true
+              }
+            ]}
+          />
+        )}
+      </div>
 
       {/* 015 — the running deliveries speak for themselves; nothing is rendered inline. */}
+      {conflict && <UploadConflictDialog request={conflict.request} onChoose={conflict.settle} />}
       <RestitchDeliveryNotices
         states={restitch.states}
         onConfigure={() =>
@@ -1486,22 +1838,10 @@ function ExplorerBody({
             name: processing.row.name,
             category: processing.row.category
           }}
-          initialTool={processing.tool}
           destinationFolderId={processing.row.parentFolderId ?? currentFolderId ?? null}
           browseClient={client}
-          onProgress={
-            processing.tool === 'transcription'
-              ? ({ progress, state }) =>
-                  setTranscribing(
-                    state === 'pending' || state === 'running'
-                      ? { videoId: processing.row.id, progress }
-                      : null
-                  )
-              : undefined
-          }
           onClose={() => {
             setProcessing(null);
-            setTranscribing(null);
             changed();
           }}
         />
@@ -1599,27 +1939,211 @@ export type ExplorerPermissions = TeamPermissions;
  * five of them wrapped onto three lines above the files. The names have not gone anywhere —
  * they are the tooltip and the accessible label, exactly as on a file's own card.
  */
+/**
+ * Where a batch is started from, and over what.
+ *
+ * Two scopes, because two exist: the folder that is open, walked with its
+ * subfolders, and everything the space holds. Both already worked; neither had
+ * a way in that a person could find without first selecting a file.
+ */
+function ProcessMenu({
+  folder,
+  onFolder,
+  onCompressFolder,
+  onRefreshFolderPreviews,
+  onSpace
+}: {
+  folder: ProcessableFolder | null;
+  onFolder: (folder: ProcessableFolder) => void;
+  onCompressFolder?: (folder: ProcessableFolder) => void;
+  onRefreshFolderPreviews?: (folder: ProcessableFolder) => void;
+  onSpace?: () => void;
+}) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement | null>(null);
+  const button = useRef<HTMLButtonElement | null>(null);
+  const list = useRef<HTMLDivElement | null>(null);
+
+  /*
+   * Choosing an item unmounts it, and the window that opens next restores focus
+   * to whatever was focused when it appeared — a detached button, which puts
+   * focus on the body and loses a keyboard user's place entirely. So the
+   * trigger takes focus back first, and the dialog restores to that.
+   */
+  const choose = (run: () => void) => {
+    setOpen(false);
+    button.current?.focus();
+    run();
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && box.current?.contains(event.target)) return;
+      setOpen(false);
+    };
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+        button.current?.focus();
+      }
+    };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  // A menu that says `role="menu"` promises arrow keys; Tab alone was all it
+  // had, and the first item never took focus when the menu opened.
+  useEffect(() => {
+    if (!open) return;
+    const frame = requestAnimationFrame(() => {
+      list.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
+
+  const onListKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    /* Tab leaves a menu rather than walking it — the arrows are the walk. The
+       trigger takes focus first: closing on a keydown unmounts the focused item
+       before the browser applies the move, and Tab from a detached element
+       starts again at the top of the document. */
+    if (event.key === 'Tab') {
+      button.current?.focus();
+      setOpen(false);
+      return;
+    }
+    const items = Array.from(
+      list.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []
+    );
+    if (items.length === 0) return;
+    const at = items.indexOf(document.activeElement as HTMLButtonElement);
+    const go = (index: number) => {
+      event.preventDefault();
+      items[(index + items.length) % items.length]?.focus();
+    };
+    if (event.key === 'ArrowDown') go(at + 1);
+    else if (event.key === 'ArrowUp') go(at - 1);
+    else if (event.key === 'Home') go(0);
+    else if (event.key === 'End') go(items.length - 1);
+  };
+
+  if (!onSpace && !folder) return null;
+
+  /*
+   * At the root there is no folder, so the menu held exactly one item: a press
+   * to open a list of one, then a second press to choose the only thing there.
+   * With one scope the button is the scope.
+   */
+  if (!folder && onSpace) {
+    return (
+      <Button type="button" variant="secondary" onClick={onSpace}>
+        {t('teamExplorerProcessEverything')}
+      </Button>
+    );
+  }
+
+  return (
+    <div className="team-explorer-process-menu" ref={box}>
+      <Button
+        type="button"
+        ref={button}
+        variant="secondary"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen(value => !value)}
+      >
+        {t('teamExplorerProcess')}
+      </Button>
+      {open && (
+        <div
+          className="team-explorer-menu"
+          role="menu"
+          aria-label={t('teamExplorerProcessScope')}
+          ref={list}
+          onKeyDown={onListKeyDown}
+        >
+          {folder && (
+            <button
+              type="button"
+              role="menuitem"
+              className="team-explorer-menu-item"
+              onClick={() => choose(() => onFolder(folder))}
+            >
+              {t('teamExplorerProcessFolder')}
+            </button>
+          )}
+          {folder && onCompressFolder && (
+            <button
+              type="button"
+              role="menuitem"
+              className="team-explorer-menu-item"
+              onClick={() => choose(() => onCompressFolder(folder))}
+            >
+              {t('teamExplorerCompressFolder')}
+            </button>
+          )}
+          {folder && onRefreshFolderPreviews && (
+            <button
+              type="button"
+              role="menuitem"
+              className="team-explorer-menu-item"
+              onClick={() => choose(() => onRefreshFolderPreviews(folder))}
+            >
+              {t('teamFolderProcessLandings')}
+            </button>
+          )}
+          {folder && onSpace && <hr className="team-explorer-menu-rule" aria-hidden="true" />}
+          {onSpace && (
+            <button
+              type="button"
+              role="menuitem"
+              className="team-explorer-menu-item"
+              onClick={() => choose(onSpace)}
+            >
+              {t('teamExplorerProcessSpace')}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SelectionAction({
   label,
   onClick,
   destructive,
+  primary,
   children
 }: {
   label: string;
   onClick: () => void;
   /** The one that throws things away; coloured apart from the rest. */
   destructive?: boolean;
+  /** The action this screen exists for; it keeps its word at any width. */
+  primary?: boolean;
   children: ReactNode;
 }) {
   return (
     <button
       type="button"
-      className={`team-explorer-selection-action ${destructive ? 'is-destructive' : ''}`.trim()}
+      className={`team-explorer-selection-action ${destructive ? 'is-destructive' : ''} ${
+        primary ? 'is-primary' : ''
+      }`.trim()}
       aria-label={label}
       data-tip={label}
       onClick={onClick}
     >
       {children}
+      {/* The word is in the markup and only CSS takes it away, and only where
+          the bar runs out of room. Five unlabelled icons — one of them a bin —
+          asked people to guess, with four hundred pixels of the bar unused. */}
+      <span className="team-explorer-selection-action-label">{label}</span>
     </button>
   );
 }

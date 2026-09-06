@@ -26,7 +26,8 @@ export interface ProcessLibraryClient {
   scanLibraryRequirements(
     teamId: string,
     interfaceLanguage: string,
-    sourceMaterialId?: string
+    sourceMaterialIds?: readonly string[],
+    commit?: boolean
   ): Promise<LibraryRequirementScanResult>;
   claimLibraryJob(input: LibraryJobClaimRequest): Promise<LibraryJobClaimEnvelope>;
   getLibraryProcessingContext(
@@ -48,7 +49,7 @@ export interface ProcessLibraryClient {
     leaseToken: string;
     errorCode: string;
   }): Promise<boolean>;
-  retryFailedLibraryJobs(teamId: string, sourceMaterialId?: string): Promise<number>;
+  retryFailedLibraryJobs(teamId: string, sourceMaterialIds?: readonly string[]): Promise<number>;
   finalizeLibraryJob(input: LibraryJobFinalizeRequest): Promise<LibraryJobFinalizeResult>;
   cancelOperation(teamId: string, operationId: string): Promise<unknown>;
 }
@@ -74,3 +75,17 @@ export function stableLibraryAgentInstanceId(
   storage.setItem(AGENT_INSTANCE_KEY, created);
   return created;
 }
+
+/**
+ * What the batch is about, in the words the window will use.
+ *
+ * The explorer had two processing windows that named the same work differently
+ * — one spoke of a folder, the other of a "Creative Library" that appears
+ * nowhere in the product. There is one window now, and this is the only thing
+ * that changes between its three cases.
+ */
+export type LibraryBatchScope =
+  | { kind: 'space' }
+  | { kind: 'folder'; name: string; folders?: number; files?: number; videos?: number }
+  /** `picked` is the whole selection when some of it cannot be processed. */
+  | { kind: 'selection'; count: number; picked?: number };

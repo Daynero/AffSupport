@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { isHousekeepingFile } from '../catalog/housekeeping';
 import type {
   FolderPage,
   FolderPageCursor,
@@ -34,6 +35,12 @@ export interface FolderPageState {
   hasMore: boolean;
   loadMore: () => Promise<void>;
   reload: () => Promise<void>;
+  /**
+   * Replaces one row in place — for a change the caller already knows the
+   * result of, like a tag. Re-reading the whole folder to repaint one dot
+   * would lose the scroll of a folder somebody is halfway down.
+   */
+  patchRow: (id: string, patch: Partial<TeamMaterialRow>) => void;
 }
 
 export function useFolderPage(input: {
@@ -52,6 +59,9 @@ export function useFolderPage(input: {
   const generation = useRef(0);
   const kindsKey = (kinds ?? []).join(',');
 
+  /** How many rows the filter has taken out of the count so far. */
+  const hiddenSoFar = useRef(0);
+
   const fetchPage = useCallback(
     async (after: FolderPageCursor | null, replace: boolean) => {
       const token = ++generation.current;
@@ -64,8 +74,19 @@ export function useFolderPage(input: {
           limit: PAGE_SIZE
         });
         if (token !== generation.current) return;
-        setRows(current => (replace ? page.rows : [...current, ...page.rows]));
-        setTotal(page.total);
+        const kept = page.rows.filter(row => !isHousekeepingFile(row.name));
+        /*
+         * Housekeeping files are hidden from the list, so they must come off the
+         * count too — and they come off cumulatively. Subtracting only this
+         * page's hidden rows from the whole-folder total meant the number moved
+         * as a person scrolled, and settled on whatever the last page happened
+         * to hide.
+         */
+        hiddenSoFar.current = replace
+          ? page.rows.length - kept.length
+          : hiddenSoFar.current + (page.rows.length - kept.length);
+        setRows(current => (replace ? kept : [...current, ...kept]));
+        setTotal(Math.max(0, page.total - hiddenSoFar.current));
         setNext(page.next);
         setError(false);
       } catch {
@@ -90,6 +111,10 @@ export function useFolderPage(input: {
     void fetchPage(null, true);
   }, [fetchPage, revision]);
 
+  const patchRow = useCallback((id: string, patch: Partial<TeamMaterialRow>) => {
+    setRows(current => current.map(row => (row.id === id ? { ...row, ...patch } : row)));
+  }, []);
+
   return {
     rows,
     total,
@@ -97,6 +122,7 @@ export function useFolderPage(input: {
     error,
     hasMore: next !== null,
     loadMore: () => (next ? fetchPage(next, false) : Promise.resolve()),
-    reload: () => fetchPage(null, true)
+    reload: () => fetchPage(null, true),
+    patchRow
   };
 }

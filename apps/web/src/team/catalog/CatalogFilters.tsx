@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import {
   MATERIAL_CATEGORIES,
   type CatalogSearchFilters,
@@ -45,6 +46,17 @@ export function CatalogFilters({
     vocabulary.geo.length > 0 || vocabulary.languages.length > 0 || vocabulary.offers.length > 0;
   // No junk filters for an empty space: show nothing to filter unless there is
   // content or the user already has an active selection to clear.
+  /* Open when something is narrowing the search, and then whatever the person
+     last chose. */
+  const [open, setOpen] = useState(selections.length > 0);
+  const known = useRef(selections.length > 0);
+  useEffect(() => {
+    const active = selections.length > 0;
+    if (known.current === active) return;
+    known.current = active;
+    if (active) setOpen(true);
+  }, [selections.length]);
+
   if (!hasContent && !hasFacets && selections.length === 0) return null;
   const select = (key: keyof CatalogSearchFilters, options: readonly string[], label: string) => (
     <label>
@@ -63,8 +75,29 @@ export function CatalogFilters({
     </label>
   );
 
+  /*
+   * Seven selects, all reading "Будь-яке", stood between the search box and the
+   * first result — the whole panel was filters before anything was found. They
+   * fold away, and open with the count of what is narrowing the search on the
+   * button, so nothing is hidden that is doing something. Any active filter
+   * keeps the section open, because a filter you cannot see is worse than a
+   * filter you have to open.
+   */
   return (
-    <div className="team-catalog-filter-region">
+    /* `defaultOpen` has no equivalent on `details`, and a bare `open` prop React
+       only re-asserts when it changes — so closing the panel by hand while a
+       filter was on kept it closed, and clearing the last filter snapped a
+       hand-opened panel shut. The state is this component's. */
+    <details
+      className="team-catalog-filter-region"
+      open={open}
+      onToggle={event => setOpen((event.currentTarget as HTMLDetailsElement).open)}
+    >
+      <summary className="team-catalog-filter-summary">
+        {selections.length > 0
+          ? t('teamCatalogFiltersActive', { count: selections.length })
+          : t('teamCatalogFiltersIdle')}
+      </summary>
       <div className="team-catalog-filters">
         {visible.has('geo') && select('geo', vocabulary.geo, 'GEO')}
         {visible.has('language') &&
@@ -96,6 +129,6 @@ export function CatalogFilters({
           </Button>
         </div>
       )}
-    </div>
+    </details>
   );
 }

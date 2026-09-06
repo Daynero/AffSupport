@@ -8,6 +8,7 @@ import {
   type TeamMaterialRowKind
 } from '@video-compressor/shared';
 import { useTeam } from '../TeamContext';
+import { isHousekeepingFile } from './housekeeping';
 import {
   completeTeamFindFlow,
   startTeamFindFlow,
@@ -145,7 +146,12 @@ export function useCatalogSearch(input: {
       // second UI boundary so injected test clients cannot render foreign rows.
       if (next.items.some(material => material.teamId !== teamId))
         throw new Error('INVALID_RESPONSE');
-      setResult(next);
+      /* The listing hides an operating system's leftovers; search must hide
+         the same ones, or `.DS_Store` comes back the moment somebody types. */
+      setResult({
+        ...next,
+        items: next.items.filter(material => !isHousekeepingFile(material.name))
+      });
       setError(false);
       if (findFlow.current) {
         completeTeamFindFlow(findFlow.current, {

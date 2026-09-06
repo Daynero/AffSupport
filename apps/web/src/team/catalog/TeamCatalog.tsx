@@ -9,6 +9,7 @@ import type {
   TeamAnalyticsStorage,
   TeamMaterialProvenanceEntry,
   TeamMaterialRowKind,
+  TeamMaterialTagColor,
   TeamProcessStartResult
 } from '@video-compressor/shared';
 import { useOptionalAgent } from '../../AgentContext';
@@ -64,7 +65,8 @@ export function TeamCatalog({
   scope = 'folder',
   onScopeChange,
   kinds,
-  pathFor
+  pathFor,
+  tagging
 }: {
   teamId: string;
   client: TeamCatalogClient;
@@ -85,6 +87,11 @@ export function TeamCatalog({
   onScopeChange?: (scope: 'folder' | 'space') => void;
   kinds?: TeamMaterialRowKind[];
   pathFor?: (material: CatalogMaterialItem) => string | null;
+  /** Present only for the space's owner: the tag on a result (011). */
+  tagging?: {
+    canTag: true;
+    onSetTag: (material: CatalogMaterialItem, color: TeamMaterialTagColor | null) => void;
+  };
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
@@ -190,9 +197,14 @@ export function TeamCatalog({
   };
 
   return (
-    <section className="team-panel team-catalog" aria-labelledby="team-catalog-title">
+    <section className="team-catalog" aria-labelledby="team-catalog-title">
+      {/* The explorer is the page; this is its search, not a second product
+          called "Каталог" opening inside it. The name stays for a screen
+          reader, which needs the region to have one. */}
       <div className="team-panel-heading">
-        <h2 id="team-catalog-title">{t('teamCatalogTitle')}</h2>
+        <h2 id="team-catalog-title" className="sr-only">
+          {t('teamCatalogTitle')}
+        </h2>
         {catalog.loading && <small aria-live="polite">{t('teamCatalogRefreshing')}</small>}
       </div>
       <CatalogSearchBar
@@ -227,6 +239,7 @@ export function TeamCatalog({
         onClear={catalog.clearFilters}
       />
       <MaterialResults
+        tagging={tagging}
         result={catalog.result}
         loading={catalog.loading}
         error={catalog.error}

@@ -40,6 +40,12 @@ export function makeClient(overrides: Partial<TeamSpaceClient> = {}): TeamSpaceC
     setRestitchDefaults: vi.fn(),
     getMaterialRestitchPrep: vi.fn().mockResolvedValue(new Map()),
     setMaterialRestitchPrep: vi.fn(),
+    // The two team-mode preferences the space settings now hold; both answer
+    // with the value the server would apply by default.
+    getTranscriptDeletePref: vi.fn().mockResolvedValue('ask'),
+    setTranscriptDeletePref: vi.fn().mockResolvedValue(undefined),
+    getTaskProgressMaxDefault: vi.fn().mockResolvedValue(100),
+    setTaskProgressMaxDefault: vi.fn().mockResolvedValue(undefined),
     listMembers: vi.fn().mockResolvedValue([]),
     updateMembership: vi.fn(),
     removeMember: vi.fn(),

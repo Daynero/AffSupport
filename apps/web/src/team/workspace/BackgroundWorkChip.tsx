@@ -22,11 +22,11 @@ export function BackgroundWorkChip({ onOpen }: { onOpen: () => void }) {
     <button
       type="button"
       className="ui-chip ui-chip-busy team-background-chip"
-      aria-label={t('creativeLibraryProcessChipOpen', { done: batch.done, total })}
+      aria-label={t('teamBatchChipOpen', { done: batch.done, total })}
       onClick={onOpen}
     >
       <span className="ui-chip-spinner" aria-hidden="true" />
-      {t('creativeLibraryProcessChip', { done: batch.done, total })}
+      {t('teamBatchChip', { done: batch.done, total })}
     </button>
   );
 }

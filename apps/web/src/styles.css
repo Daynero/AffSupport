@@ -35,6 +35,11 @@
   /* Neutral — purple-tinted canvas, surfaces, text, borders */
   --color-bg: #f7f4fa;
   --color-surface: #ffffff;
+  /* What floats above a panel: a menu, a popover, a control laid over a
+     thumbnail. On the light theme the panel is already white, so this is the
+     same white and the border and shadow do the lifting. On dark they cannot —
+     a shadow is black on black — so the surface itself steps up. */
+  --color-surface-raised: #ffffff;
   --color-surface-subtle: #fbf9fd;
   --color-surface-muted: #eeeaf1;
   /* Tinted surface steps below subtle: gradient stops and washed panels */
@@ -65,6 +70,19 @@
   /* Gradients stay within one family (no purple-to-orange) */
   --gradient-brand: linear-gradient(90deg, #6842d9 0%, #7c59e0 55%, #9b7aee 100%);
   --gradient-progress: linear-gradient(90deg, #f5a318 0%, #ffb51b 100%);
+
+  /* Task-tag palette (018). Nine hues a team can tell apart at chip size, each
+     as a fill for the dot and a wash for the pill; they are labels, not
+     states, so they stay clear of the semantic roles above. */
+  --task-tag-purple: #7c59e0;
+  --task-tag-blue: #2f6fd0;
+  --task-tag-teal: #0f8b8d;
+  --task-tag-green: #2c8a52;
+  --task-tag-honey: #c98a06;
+  --task-tag-orange: #d1600f;
+  --task-tag-red: #c23b30;
+  --task-tag-pink: #c2418b;
+  --task-tag-slate: #5f6b7a;
 
   /* Semantic colors stay non-purple */
   --color-success: #18794e;
@@ -394,6 +412,62 @@ a {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+}
+
+/*
+ * The bar gives way in a fixed order as the window narrows, instead of
+ * overflowing off its own right edge.
+ *
+ * Between about 900 and 1000 the actions ran past the window with nothing to
+ * scroll them back: the user menu — the way out of the app — simply could not
+ * be reached, and the environment badge sat on top of the support pill. The
+ * badge moves out of the bar's way first, then the support pill's words, then
+ * the pill itself; the connection chip, the language switch and the account
+ * menu are what remain, because those are what a person needs.
+ */
+@media (max-width: 1100px) {
+  .support-trigger .support-trigger-label {
+    display: none;
+  }
+}
+
+@media (max-width: 960px) {
+  .support-trigger {
+    display: none;
+  }
+}
+
+/* Whatever remains may shrink rather than push its neighbours off the edge. */
+.topbar-actions > * {
+  min-width: 0;
+}
+
+/* The account keeps its face and its menu; the name is what a narrow bar can
+   do without, and it was the last thing pushing the menu off the screen. */
+@media (max-width: 1000px) {
+  .user-menu-trigger-name {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .topbar {
+    /* The wordmark is what does not fit on a phone: the controls together need
+       about 245px, and the lockup at its full height needs more than the rest
+       of the bar has. It shrinks; nothing is taken away. */
+    --app-header-logo-height: 28px;
+
+    padding-inline: var(--space-3);
+  }
+
+  .topbar-lead {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .topbar-actions {
+    gap: var(--space-2);
+  }
 }
 
 /* Soty wordmark lockup — the full honey wordmark image, fitted to its container */
@@ -1011,7 +1085,10 @@ a {
 .button-secondary:hover:not(:disabled),
 .button-ghost:hover:not(:disabled) {
   border-color: var(--color-border-strong);
-  background: var(--color-surface-muted);
+  /* `background-color`, not the shorthand: the row menu's "…" draws its dots
+     with `background-image`, and hovering the one control the whole per-row
+     menu hangs off erased them and left an empty box. */
+  background-color: var(--color-surface-muted);
 }
 
 .button-ghost {
@@ -1300,6 +1377,13 @@ a {
 
 .collapse-body {
   display: grid;
+  /* Its own minimum, so a segmented group inside it cannot make it wider than
+     the column it sits in: on a phone the "Заповнення кадру" row was three to
+     twelve pixels past its container and the last option's edge was shaved. */
+  min-width: 0;
+}
+.collapse-body > * {
+  min-width: 0;
 }
 
 .mode-detail .collapse.is-open > .collapse-body {
@@ -1378,6 +1462,7 @@ a {
 .image-embedding-panel {
   display: grid;
   gap: var(--space-3);
+  min-width: 0;
   padding: var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -1395,6 +1480,14 @@ a {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
+  min-width: 0;
+}
+/* Two galleries of thumbnails do not fit across a phone: below this they take
+   the width one at a time rather than each overflowing its half. */
+@media (max-width: 480px) {
+  .image-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .image-column {
@@ -1408,8 +1501,10 @@ a {
 
 .image-column-heading {
   display: flex;
+  flex-wrap: wrap;
   grid-column: 1 / -1;
   align-items: center;
+  min-width: 0;
   gap: 6px;
 }
 
@@ -7501,6 +7596,9 @@ body:has(.public-home) {
   --color-surface-muted: #241d2f;
   --color-surface-2: #1c1725;
   --color-surface-3: #171220;
+  /* Two steps above the panel it opens over, which is the only thing that
+     separates them when the shadow has nothing to fall on. */
+  --color-surface-raised: #2b2338;
   --color-text: #f6f2f8;
   --color-text-muted: #b8adbe;
   --color-border: #382f43;
@@ -7527,6 +7625,17 @@ body:has(.public-home) {
 
   --gradient-brand: linear-gradient(90deg, #6842d9 0%, #8a67e8 55%, #9b7aee 100%);
   --gradient-progress: linear-gradient(90deg, #ffb51b 0%, #f5a318 100%);
+
+  /* Task tags: the same nine hues, lifted so a chip reads on the dark canvas */
+  --task-tag-purple: #a98bf2;
+  --task-tag-blue: #6ba5ee;
+  --task-tag-teal: #3cc3c0;
+  --task-tag-green: #61cc8c;
+  --task-tag-honey: #f2c14e;
+  --task-tag-orange: #f0925a;
+  --task-tag-red: #f4776a;
+  --task-tag-pink: #ec84bd;
+  --task-tag-slate: #9aa6b5;
 
   --color-success: #56d597;
   --color-success-soft: color-mix(in srgb, #56d597 15%, transparent);
@@ -8531,14 +8640,19 @@ body:has(.public-home) {
   font-weight: 700;
   white-space: nowrap;
 }
+/* An invitation that did not arrive is a failure, not a caution: in the honey
+   family it sat in the same colour as the primary action two rows above it. */
+.team-delivery-state.is-failed {
+  background: var(--color-error-soft);
+  color: var(--color-error);
+}
 .team-connection-badge.is-connected,
 .team-delivery-state.is-sent {
   background: var(--color-success-soft);
   color: var(--color-success);
 }
 .team-connection-badge.is-needs_reauth,
-.team-connection-badge.is-unavailable,
-.team-delivery-state.is-failed {
+.team-connection-badge.is-unavailable {
   background: var(--color-warning-soft);
   color: var(--color-warning);
 }
@@ -8576,10 +8690,38 @@ body:has(.public-home) {
   margin-top: var(--space-4);
   container-type: inline-size;
 }
-@container (min-width: 30rem) {
+/*
+ * The send button is the widest thing here and it was an `auto` track, so it
+ * took its max-content width first and left the address whatever remained —
+ * which at the settings dialog's column width was about fifty pixels: the
+ * label "Запросити за email" broke one letter per line, the field became a
+ * pill, and the button itself overflowed the card it sits in.
+ *
+ * The address now has a floor it cannot go under, and the button drops to a
+ * row of its own until there is genuinely room for three across.
+ */
+@container (min-width: 26rem) {
   .team-invite-form {
-    grid-template-columns: minmax(0, 1fr) minmax(120px, 0.35fr) auto;
+    grid-template-columns: minmax(12rem, 1fr) minmax(9rem, 0.5fr);
   }
+  .team-invite-form > .button {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
+@container (min-width: 46rem) {
+  .team-invite-form {
+    grid-template-columns: minmax(14rem, 1fr) minmax(9rem, 0.4fr) auto;
+  }
+  .team-invite-form > .button {
+    grid-column: auto;
+    justify-self: stretch;
+  }
+}
+/* A label never breaks inside a word, whatever the column does. */
+.team-invite-form label > span {
+  overflow-wrap: normal;
+  word-break: keep-all;
 }
 .team-test-mode-note {
   margin: var(--space-3) 0 0;
@@ -8755,12 +8897,32 @@ body:has(.public-home) {
   color: var(--color-error);
   padding: var(--space-3);
 }
+/* The same shape as the inline error, in the colour of something that is not
+   wrong — a request waiting its turn rather than a failure. */
+.team-inline-notice {
+  margin: var(--space-3) 0 0;
+  border-radius: var(--radius-md);
+  background: var(--color-accent-softer);
+  color: var(--color-text);
+  padding: var(--space-3);
+}
 .team-inline-actions {
   justify-content: flex-start;
   flex-wrap: wrap;
 }
 
 /* Preparing a space's material: a sentence, a button, and a way to stop it. */
+/* A phone column is narrower than "Підготувати відео простору"; the button
+   wraps its label rather than pushing the panel wider than the card. */
+.team-restitch-prepare,
+.team-restitch-prepare-actions {
+  min-width: 0;
+}
+.team-restitch-prepare-actions > .button {
+  min-width: 0;
+  white-space: normal;
+  text-align: center;
+}
 .team-restitch-prepare {
   display: flex;
   flex-direction: column;
@@ -9148,6 +9310,12 @@ body:has(.public-home) {
     opacity: 0.5;
   }
 }
+/* Wider than every other dialog, because it holds the re-stitch editor — a
+   workbench of toggles, ranges and image wells that was being asked to fit in
+   half of a 1240px box. */
+.team-settings-dialog {
+  --modal-width: clamp(920px, 82vw, 1560px);
+}
 .team-space-settings {
   display: grid;
   gap: var(--space-4);
@@ -9174,11 +9342,57 @@ body:has(.public-home) {
 .team-space-settings-grid > * {
   min-width: 0;
 }
+/* Two columns only where two panels genuinely balance — the member list beside
+   the invitation form. Everything else takes the width it needs and no more. */
 @container (min-width: 56rem) {
-  .team-space-settings-grid {
+  .team-space-settings-grid:not(.is-single) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: start;
   }
+}
+/* A single column that does not stretch a short card across a 1500px dialog. */
+.team-space-settings-grid.is-single {
+  max-width: 62rem;
+}
+/* The workspace's own tab strip, which the space tabs are anchors in: these are
+   buttons, so they arrive with the global control chrome — a border, a fill and
+   a 44px floor — and read as four boxed toggles instead of a strip. */
+.team-settings-tabs {
+  margin-bottom: calc(var(--space-2) * -1);
+  /* The strip scrolls rather than letting its last two tabs overlap and run off
+     the dialog's edge, where neither could be read or pressed. */
+  gap: var(--space-2);
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scroll-snap-type: x proximity;
+}
+.team-settings-tabs .team-space-tab {
+  flex: none;
+  scroll-snap-align: start;
+}
+.team-settings-tabs .team-space-tab {
+  min-height: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.team-settings-tabs .team-space-tab:hover {
+  background: transparent;
+  color: var(--color-text);
+}
+.team-settings-tabs .team-space-tab.is-active {
+  border-bottom-color: var(--color-accent);
+}
+.team-settings-tabs .team-space-tab:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: -3px;
+}
+/* The fold's contents sit under its control, not beside it. */
+.team-restitch-fold {
+  display: grid;
+  gap: var(--space-3);
 }
 
 /* Keep every interactive control on the same large scale established by the
@@ -9222,6 +9436,16 @@ button,
   padding: 0;
 }
 .team-member-list,
+/* The subject reads as the object of the sentence: after the action, before
+   the person, and allowed to take the room a file name needs. */
+.team-audit-subject {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text);
+  font-weight: 500;
+}
 .team-audit-list {
   display: grid;
   gap: var(--space-3);
@@ -9247,6 +9471,40 @@ button,
 .team-audit-list li > div:first-child > strong {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+/* An entry's header line is the action, the thing it happened to and who did
+   it. On a narrow column those three ellipsize against each other — a file cut
+   to "9.transcript.9…" and an actor to "Beta Tes…", which carries nothing — so
+   they wrap instead. The line has always been able to; nothing let it. */
+.team-audit-list li > div:first-child {
+  flex-wrap: wrap;
+}
+/* Three facts about a person — name, address, role — do not fit on one line of
+   a phone, and squeezed onto one they collide. They stack, and the row's own
+   controls go under them. The audit row's header line has the same shape and
+   the same width to work in, so it takes the same breakpoint. */
+@media (max-width: 560px) {
+  .team-member-list li,
+  .team-audit-list li,
+  .team-invitation-list li {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .team-member-list li > div:first-child,
+  .team-audit-list li > div:first-child {
+    flex-wrap: wrap;
+    align-items: baseline;
+  }
+  /* A file name is the point of the line, and on a phone it is wider than the
+     column whatever else moves. Broken across two lines it is still readable;
+     cut to "probe-17886423338…" it is not.
+     Written at the weight of the `li > div:first-child > span` rule below,
+     which sets `nowrap` and wins at `.team-audit-subject` alone. */
+  .team-audit-list li > div:first-child > .team-audit-subject {
+    overflow: visible;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
 }
 .team-member-list li > div:first-child > small,
 .team-audit-list li > div:first-child > span {
@@ -9276,16 +9534,44 @@ button,
   background: var(--color-error-soft);
   color: var(--color-error);
 }
+/* One shape for a disclosure across the product. This was a full-width filled
+   bar with a ▸ while the catalog's filters were a bordered pill with a ▾ — the
+   same gesture drawn two ways, two panels apart. */
 .team-role-guide {
-  border-radius: var(--radius-md);
-  background: var(--color-surface-muted);
-  padding: var(--space-3);
+  padding: 0;
 }
-.team-role-guide summary {
-  color: var(--color-text-muted);
-  font-size: 0.82rem;
-  font-weight: 700;
+.team-role-guide > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: fit-content;
+  min-height: 34px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-weight: 600;
   cursor: pointer;
+  list-style: none;
+}
+.team-role-guide > summary::-webkit-details-marker {
+  display: none;
+}
+.team-role-guide > summary::after {
+  content: '▾';
+  color: var(--color-text-muted);
+}
+.team-role-guide[open] > summary::after {
+  content: '▴';
+}
+.team-role-guide > summary:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-muted);
+}
+.team-role-guide > summary:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
 }
 /* One even table: every role name shares a column sized to the longest of
    them, every description shares the next, and a rule separates the rows. The
@@ -9373,12 +9659,48 @@ button,
   gap: var(--space-4);
   min-width: 0;
 }
+/* The label sits above its field, not beside it: at the width the explorer
+   gives this column "Пошук файлів" broke across two lines next to the box. */
 .team-catalog-search,
 .team-catalog-filters label {
   display: grid;
   gap: var(--space-1);
   color: var(--color-text-muted);
   font-size: 0.8rem;
+}
+/* The fold itself: a control, at the weight of the toolbar's own buttons. */
+.team-catalog-filter-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: fit-content;
+  min-height: 34px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+.team-catalog-filter-summary::-webkit-details-marker {
+  display: none;
+}
+.team-catalog-filter-summary::after {
+  content: '▾';
+  color: var(--color-text-muted);
+}
+.team-catalog-filter-region[open] .team-catalog-filter-summary::after {
+  content: '▴';
+}
+.team-catalog-filter-summary:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-muted);
+}
+.team-catalog-filter-summary:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
 }
 .team-catalog-search input,
 .team-catalog-filters select {
@@ -9443,12 +9765,24 @@ button,
 .team-catalog-results > li > .team-catalog-material-actions {
   justify-content: flex-start;
 }
-@container (min-width: 34rem) {
+/* The actions are three full-word buttons, and an `auto` track takes their
+   max-content width — at 34rem that left the name a hundred pixels and then
+   ten, wrapping one character per line. Raising the threshold to 46rem put it
+   past the width this column ever has (546px with the tree and pane out), so
+   the two-column row simply never appeared. The track shrinks instead, and the
+   actions wrap inside it. */
+@container (min-width: 40rem) {
   .team-catalog-results > li {
-    grid-template-columns: minmax(0, 1fr) auto;
+    /* The actions are capped rather than given their max-content width: four
+       buttons in a row took five hundred pixels and left the name — the thing
+       being searched for — with fewer. They wrap inside the cap instead. */
+    grid-template-columns: minmax(0, 1fr) minmax(0, 22rem);
   }
   .team-catalog-results > li > .team-catalog-material-actions {
-    justify-content: flex-end;
+    /* Left, under the name, not ragged against the right edge: capped at 22rem
+       these wrap to two lines, and right-aligned that made a 2×2 block whose
+       rows started in different places. */
+    justify-content: flex-start;
   }
 }
 .team-catalog-material-heading {
@@ -9510,27 +9844,14 @@ button,
   justify-content: flex-start;
 }
 /* Search results carry the row actions inline at caption weight rather than
-   as four full-height buttons stacked under every hit. */
-.team-catalog-material-actions > .button,
-.team-catalog-secondary-actions .team-row-menu > .button {
+   as four full-height buttons stacked under every hit. The "…" that extends
+   them sits in the same row, at the same weight. */
+.team-catalog-material-actions > .button {
   min-height: 32px;
   padding-block: 0;
   font-size: 0.9rem;
 }
-.team-catalog-secondary-actions {
-  grid-column: 1 / -1;
-  border-top: 1px solid var(--color-border);
-}
-.team-catalog-secondary-actions summary {
-  width: fit-content;
-  padding: var(--space-2) 0;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  font-size: 0.82rem;
-}
-.team-catalog-secondary-actions[open] summary {
-  color: var(--color-text);
-}
+
 .team-catalog-results li > * {
   min-width: 0;
 }
@@ -9783,10 +10104,21 @@ button,
   .team-space-shell-utilities,
   .team-create-actions,
   .team-dialog-actions,
-  .team-catalog-material-actions,
   .team-material-action-buttons {
     align-items: stretch;
     flex-direction: column;
+  }
+  /* A search hit's actions stay a wrapping row here. Stacked, three full-width
+     buttons under every result made the list unreadable, and the "…" beside
+     them stretched to the full width with its 40px button left-aligned inside
+     an otherwise empty bar. */
+  .team-catalog-material-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .team-catalog-material-actions .button {
+    width: auto;
   }
   .team-preview-backdrop {
     align-items: end;
@@ -10223,6 +10555,40 @@ body {
   gap: var(--space-4);
   min-width: 0;
 }
+/* A file on its way up: the tile stands in for what will be there, with its
+   own name and how far it has got. A number in the corner of the dialog was
+   the only sign a thirty-second upload was happening at all. */
+.team-task-attachment.is-uploading {
+  border-style: dashed;
+}
+
+.team-task-attachment-progress {
+  display: block;
+  overflow: hidden;
+  height: 4px;
+  margin-top: 6px;
+  border-radius: 2px;
+  background: var(--color-surface-muted);
+}
+
+.team-task-attachment-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--color-accent);
+  transition: width var(--dur-control) var(--ease-standard);
+}
+
+/* Dropping files on a task (011): the section itself is the target, so the
+   whole thing lights up rather than a strip inside it. Outlined, not filled —
+   the tiles under it stay readable while the pointer is over them. */
+.team-task-attachments.is-dropping {
+  outline: 2px dashed var(--color-accent);
+  outline-offset: 6px;
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, var(--color-accent) 7%, transparent);
+}
+
 .team-task-space-heading,
 .team-task-card-heading,
 .team-task-card-footer,
@@ -10762,6 +11128,31 @@ body {
   min-height: 280px;
   resize: vertical;
 }
+/*
+ * The grip a textarea is dragged by, about three times the browser's own.
+ *
+ * Chrome paints a resizer roughly sixteen pixels across with two faint strokes
+ * in it, and on this dark panel that is a mark you look for rather than see.
+ * The native glyph is cleared and a bigger one drawn into the corner of the
+ * field itself — three strokes over twenty-eight pixels — with the padding to
+ * keep the last line of text out from under it.
+ */
+.team-task-editor .team-task-description-input,
+.team-text-editor textarea,
+.support-field textarea {
+  padding-bottom: 22px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'><g stroke='%23c7becf' stroke-width='2' stroke-linecap='round'><path d='M26 10 10 26'/><path d='M26 17 17 26'/><path d='M26 24 24 26'/></g></svg>");
+  background-repeat: no-repeat;
+  background-position: right 3px bottom 3px;
+  background-size: 28px 28px;
+}
+.team-task-editor .team-task-description-input::-webkit-resizer,
+.team-text-editor textarea::-webkit-resizer,
+.support-field textarea::-webkit-resizer {
+  background-color: transparent;
+  background-image: none;
+}
+
 .team-task-attachments-heading {
   align-items: flex-start;
 }
@@ -10863,15 +11254,19 @@ body {
 }
 .team-task-attachment-actions {
   display: flex;
-  gap: 4px;
+  /* Five actions now — view, download, download re-stitched, copy link,
+     detach — and five 32px squares with 4px between them are wider than the
+     158px tile, so the last one wrapped onto a line of its own. */
+  gap: 3px;
 }
 .team-task-attachment-action.button {
   /* Fixed squares, not flex-stretched: a card with three actions was giving
      wider (rectangular) buttons than one with four. min-height:0 clears the
-     44px tap target that stretched them taller than they are wide. */
+     44px tap target that stretched them taller than they are wide. 28px is
+     what lets five of them stand on one line in the tile's width. */
   flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   min-width: 0;
   min-height: 0;
   justify-content: center;
@@ -11561,21 +11956,47 @@ body {
   line-height: 1.55;
   white-space: pre-wrap;
 }
-.creative-library-process {
+.team-batch {
   display: grid;
   gap: var(--space-4);
   min-width: min(680px, 78vw);
 }
-.creative-library-process h2,
-.creative-library-process p {
+.team-batch h2,
+.team-batch p {
   margin: 0;
 }
-.creative-library-process-counts {
+/*
+ * The heading is where focus lands when the window opens, so a screen reader
+ * reads the batch's name first. It is not a control, and the product's 3px
+ * focus ring around a title made it look like a text field somebody had
+ * clicked into. The ring goes; the announcement stays.
+ */
+.team-batch h2[tabindex='-1']:focus,
+.team-batch h2[tabindex='-1']:focus-visible {
+  outline: none;
+}
+/* The scope, under the title: quieter than the heading, louder than a caption
+   — it is the sentence a person checks before pressing Start. */
+.team-batch-scope {
+  margin: calc(var(--space-3) * -1) 0 0;
+  color: var(--color-text-muted);
+}
+/* The window that reads a folder before the batch opens: the same head, at the
+   size a single sentence needs. */
+.team-batch-scan {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.team-batch-scan h2,
+.team-batch-scan p {
+  margin: 0;
+}
+.team-batch-counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: var(--space-2);
 }
-.creative-library-process-counts > div {
+.team-batch-counts > div {
   display: grid;
   gap: 4px;
   border: 1px solid var(--color-border);
@@ -11583,18 +12004,18 @@ body {
   background: var(--color-surface-muted);
   padding: var(--space-3);
 }
-.creative-library-process-counts strong {
+.team-batch-counts strong {
   font-size: 1.5rem;
 }
-.creative-library-process-counts span,
-.creative-library-process-progress small {
+.team-batch-counts span,
+.team-batch-progress small {
   color: var(--color-text-muted);
 }
-.creative-library-process-progress {
+.team-batch-progress {
   display: grid;
   gap: var(--space-2);
 }
-.creative-library-process-progress progress {
+.team-batch-progress progress {
   width: 100%;
 }
 
@@ -11832,11 +12253,11 @@ body {
   .creative-library-heading-actions .button {
     width: 100%;
   }
-  .creative-library-process,
+  .team-batch,
   .creative-library-text-viewer {
     min-width: 0;
   }
-  .creative-library-process-counts {
+  .team-batch-counts {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -12064,6 +12485,20 @@ button.team-landing-tile:hover {
   font-weight: 700;
   letter-spacing: 0.14em;
   pointer-events: none;
+}
+
+/*
+ * Out of the bar's way on anything narrower than a desktop: the badge is
+ * centred at the top, which is exactly where the support pill and the space
+ * title are. It must come after the rule above — placed before it, only
+ * `bottom` survived, `top` stayed, and a fixed box with both became a column
+ * down the middle of the screen covering the toolbar and a tile.
+ */
+@media (max-width: 1200px) {
+  .environment-badge {
+    inset: auto auto 0.5rem 0.5rem;
+    transform: none;
+  }
 }
 
 /* ── Local Agent power throttle ─────────────────────────────────────────── */
@@ -12711,6 +13146,13 @@ button.team-landing-tile:hover {
   z-index: var(--layer-popover);
   top: calc(100% + var(--space-1));
   right: 0;
+}
+/* Opened over the trigger, for a row near the bottom of the window. */
+.team-row-menu-panel.is-above {
+  top: auto;
+  bottom: calc(100% + var(--space-1));
+}
+.team-row-menu-panel {
   /* The panel takes the width its longest item needs, between a floor that
      keeps a short menu from looking like a tooltip and a ceiling that keeps it
      on screen. A fixed 240px let the widest label ("Перемістити в кошик")
@@ -12718,9 +13160,20 @@ button.team-landing-tile:hover {
   width: max-content;
   min-width: max(240px, 100%);
   max-width: min(320px, 80vw);
+  /* A menu opened on the last row of a long list ran off the bottom of the
+     window: its final items — one of them the bin — could not be reached and
+     nothing scrolled. It is bounded by the viewport now and scrolls inside
+     itself. */
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: var(--space-2);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  /* The raised surface and the stronger border, like every other popover: on
+     the dark theme this took the panel's own colour and its shadow was black
+     falling on near-black, so the most-used menu in the product had no edge at
+     all — it dissolved into the list behind it. */
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-menu);
 }
@@ -12753,6 +13206,15 @@ button.team-landing-tile:hover {
   line-height: 1.3;
   text-align: left;
   white-space: normal;
+}
+
+/* The one item that throws something away is set apart from the ones that do
+   not, so a press aimed at "Rename" cannot land on it by a row's height. */
+.team-row-menu-panel .team-material-action-buttons > .button-danger {
+  margin-top: var(--space-1);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-2);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
 }
 
 .team-folder-picker-trail {
@@ -12877,34 +13339,43 @@ button.team-landing-tile:hover {
   color: var(--color-text-muted);
 }
 
+/* The trash borrows the explorer's row wholesale; all it adds is the icon cell
+   the list gets from its name button, and a restore control sized like the
+   row's own actions. */
 .team-trash-list {
-  display: grid;
-  gap: var(--space-2);
-  padding: 0;
   margin: 0 0 var(--space-4);
-  list-style: none;
 }
-
-.team-trash-list li {
-  display: flex;
-  gap: var(--space-3);
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-}
-
-.team-trash-identity {
+.team-trash-row-glyph {
   display: grid;
-  gap: 2px;
-  min-width: 0;
+  place-items: center;
+  width: 40px;
+  color: var(--color-text-muted);
 }
-
-.team-trash-identity strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* Its own columns: the explorer's row is built for a checkbox, a kind, a size
+   and a menu, and the trash has none of those. Borrowing the chrome without
+   the template pushed the restore button past the row's own right edge. */
+.team-trash-list .team-explorer-row {
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 12rem) auto;
+}
+@container (max-width: 620px) {
+  .team-trash-list .team-explorer-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .team-trash-list .team-explorer-row-date {
+    display: none;
+  }
+}
+/* A name nobody can click should not be painted as a link. */
+.team-trash-list .team-explorer-row-name {
+  padding-inline: var(--space-1);
+  color: var(--color-text);
+  font-weight: 500;
+}
+/* The explorer's rows are 40px controls; the trash borrows their chrome, so its
+   restore reads as the same rhythm rather than a shorter row. */
+.team-trash-list .team-explorer-row-actions .button {
+  min-height: 40px;
+  padding-block: 0;
 }
 
 .team-trash-identity span {
@@ -12945,7 +13416,7 @@ button.team-landing-tile:hover {
 }
 /* Beside the "Усі файли" label, sized to its cap height; a coiled arrow, not a
    plain ring; a quarter turn on press. */
-.team-explorer-tree-refresh {
+.team-explorer-tree-collapse {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -12966,11 +13437,11 @@ button.team-landing-tile:hover {
     border-color var(--dur-micro) var(--ease-standard),
     transform var(--dur-control) var(--ease-standard);
 }
-.team-explorer-tree-refresh:hover {
+.team-explorer-tree-collapse:hover {
   color: var(--color-accent);
   border-color: var(--color-accent);
 }
-.team-explorer-tree-refresh:active {
+.team-explorer-tree-collapse:active {
   transform: rotate(-180deg);
 }
 .team-explorer-tree {
@@ -12991,8 +13462,10 @@ button.team-landing-tile:hover {
 .team-explorer-tree ul ul {
   padding-inline-start: var(--space-4);
 }
+/* One focus ring across this tab, and it is the product's own: there were four
+   shapes in two colours here, none of them `--color-focus`. */
 .team-explorer-tree [role='treeitem']:focus-visible > .team-explorer-tree-row {
-  outline: 2px solid var(--color-accent);
+  outline: 3px solid var(--color-focus);
   outline-offset: 1px;
   border-radius: var(--radius-sm);
 }
@@ -13055,16 +13528,53 @@ button.team-landing-tile:hover {
 }
 .team-explorer-breadcrumb {
   min-width: 0;
-  flex: 1 1 12rem;
+  /* A basis wide enough that the toolbar's buttons wrap to their own line
+     before the path is starved. At `12rem` the strip went 372px at 1280 and
+     200px at 1100 and back to 685px at 1024 — narrowing the window made the
+     path shorter, then longer again, which is not a thing a layout should do. */
+  flex: 1 1 20rem;
+  /* The path ran right up against Search. */
+  padding-right: var(--space-2);
+  /* Measured on the strip the path actually gets, not on the window: with the
+     tree open and the preview pane out, a 1440px screen leaves it 190. */
+  container-type: inline-size;
+}
+/* Wide enough for the trail: the compact menu stands down. Written at the same
+   weight as the `li` rule above, which otherwise wins and leaves both showing. */
+.team-explorer-breadcrumb li.team-explorer-breadcrumb-compact {
+  display: none;
+}
+@container (max-width: 360px) {
+  /* One name fits, and it has to be the folder you are standing in. Everything
+     above it — the root included — is in the menu beside it. */
+  .team-explorer-breadcrumb li.team-explorer-breadcrumb-compact {
+    display: flex;
+  }
+  .team-explorer-breadcrumb li.team-explorer-breadcrumb-step,
+  .team-explorer-breadcrumb .team-explorer-breadcrumb-separator.team-explorer-breadcrumb-step {
+    display: none;
+  }
+  /* Except the last one, which is the folder you are standing in — and at the
+     space root it is the only item there is. Hiding it left the strip blank:
+     no location, nothing to tab to, on the screen every session starts on. */
+  .team-explorer-breadcrumb li.team-explorer-breadcrumb-step:last-child {
+    display: flex;
+  }
 }
 /* One line, always. Wrapping made the toolbar taller for a deep folder than a
    shallow one, so the whole grid of files jumped up or down on every step into
-   or out of a folder. A long path scrolls sideways instead. */
+   or out of a folder.
+
+   It used to scroll sideways instead, which is how "Усі файли / OneMediaCreo /
+   EG - Єгипет" became "…айли / OneMedi" hard against the Search button: the
+   path was cut mid-word, at the wrong end, with no way to read it or to step
+   back to anywhere but the root. The middle of a deep path folds behind a "…"
+   menu now, and what is left shrinks with an ellipsis at the end of each name,
+   where a person can still tell what it was. */
 .team-explorer-breadcrumb ol {
   display: flex;
   flex-wrap: nowrap;
-  overflow-x: auto;
-  scrollbar-width: none;
+  overflow: hidden;
   align-items: center;
   min-height: 32px;
   gap: var(--space-1);
@@ -13073,9 +13583,65 @@ button.team-landing-tile:hover {
   padding: 0;
 }
 .team-explorer-breadcrumb li {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  min-width: 0;
   gap: var(--space-1);
+}
+/* The open folder is the one being read, so it is the last to give way. */
+.team-explorer-breadcrumb li:last-child {
+  flex: 1 1 auto;
+}
+/* Ancestors give way first, and the open folder keeps the most room: it is the
+   one a person is reading. */
+.team-explorer-breadcrumb button,
+.team-explorer-breadcrumb [aria-current='location'] {
+  /* `min-width: 0` on both the item and the thing inside it, or the flex row
+     hands each name its full intrinsic width and the ellipsis never fires —
+     the row just overflows, which is where the mid-word cut came from. */
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-explorer-breadcrumb li:not(:last-child) button {
+  max-width: 10rem;
+}
+.team-explorer-breadcrumb [aria-current='location'] {
+  min-width: 3rem;
+}
+.team-explorer-breadcrumb-separator {
+  flex: none;
+  color: var(--color-text-muted);
+}
+/* The folded middle: a target of its own, not a decoration. */
+.team-explorer-breadcrumb-folded {
+  position: relative;
+  display: inline-flex;
+}
+.team-explorer-breadcrumb-more {
+  min-width: 28px;
+  padding: 0 var(--space-1);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+.team-explorer-breadcrumb-more:hover,
+.team-explorer-breadcrumb-more[aria-expanded='true'] {
+  border-color: var(--color-border);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+.team-explorer-breadcrumb-folded .team-explorer-menu {
+  left: 0;
+  right: auto;
+  min-width: max-content;
+  max-width: min(320px, calc(100vw - 2 * var(--space-4)));
 }
 /* A path segment is a link, not one of the page's large controls: at the
    global 44px the row was taller whenever an ancestor was clickable, so
@@ -13096,6 +13662,18 @@ button.team-landing-tile:hover {
 .team-explorer-breadcrumb-separator {
   color: var(--color-text-muted);
 }
+/* An empty folder is an answer, given once and in the middle of the space it is
+   about — not a muted line hugging the top-left corner of a card that shrank to
+   fit it. */
+.team-explorer-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 14rem;
+  margin: 0;
+  color: var(--color-text-muted);
+  text-align: center;
+}
 .team-explorer-content-heading {
   display: flex;
   justify-content: space-between;
@@ -13115,6 +13693,8 @@ button.team-landing-tile:hover {
   gap: var(--space-1);
 }
 .team-explorer-row {
+  /* One press selects, two open — so the whole row is the target and says so. */
+  cursor: pointer;
   display: grid;
   /* One column per child — checkbox, name, kind, size, actions — because the
      row auto-placed into a second line otherwise, which read as a broken
@@ -13125,7 +13705,18 @@ button.team-landing-tile:hover {
      the fixed columns push the actions past the row's own border on a mid-width
      pane. It ellipsizes instead, and the container queries drop columns before
      it gets too tight. */
-  grid-template-columns: auto minmax(0, 1fr) 6em 6.5em 5.5em auto;
+  /* `minmax(0, …)` on the fixed columns, not a bare `6em`: a grid item's
+     automatic minimum is its content, so "Транскрипт" and "17.2 MB" grew their
+     tracks past the size asked for and took the room out of the name — which
+     then ellipsized to "5.transc…" with two hundred pixels of table beside it.
+     They ellipsize instead; the name is the column a person reads.
+
+     And sized `auto`, not in any absolute unit: the row's type is on a fluid
+     scale, so `6em` measured 125px and took a quarter of the row, while `5rem`
+     measured against a fixed 16px root and cut "17.2 MB" to "17.2 …" at the
+     desktop width. `auto` is what each column needs and no more, and it still
+     gives way under pressure — the name takes everything left. */
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto auto;
   gap: 0;
   align-items: center;
   min-height: 44px;
@@ -13134,35 +13725,31 @@ button.team-landing-tile:hover {
   border-radius: var(--radius-sm);
   background: var(--color-surface);
 }
+/* The name is a label now, not a target. It was a button — a violet,
+   underlined strip that lit up across most of the row — so the row itself
+   could barely be pressed: a press that meant "select this" opened whatever it
+   landed on. Selecting is the row's own press, opening is the second one, and
+   the name simply says which file this is. */
 .team-explorer-row-name {
+  display: inline-flex;
   min-width: 0;
+  align-items: center;
+  gap: 6px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: left;
-  border: 0;
-  background: transparent;
-  /* The name is the one part of a row that opens the file; it wears the
-     colour of an action, and the rest of the row only selects. */
-  color: var(--color-success);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
   margin-left: var(--space-2);
   padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
-}
-.team-explorer-row-name:hover:not(:disabled) {
-  background: var(--color-success-soft);
-  text-decoration: underline;
-}
-.team-explorer-row-name:focus-visible {
-  outline: 2px solid var(--color-success);
-  outline-offset: -2px;
+  color: var(--color-text);
+  font-weight: 600;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .team-explorer-row-kind,
 .team-explorer-row-date,
 .team-explorer-row-meta {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   padding: 0 var(--space-2);
   border-left: 1px solid var(--color-border);
   line-height: 28px;
@@ -13173,6 +13760,9 @@ button.team-landing-tile:hover {
   white-space: nowrap;
 }
 .team-explorer-row-meta {
+  /* Not clipped: the tag's menu opens out of this cell, and what it holds
+     besides the dot is a file size — short, and already `nowrap`. */
+  overflow: visible;
   text-align: right;
 }
 .team-explorer-row-actions {
@@ -13188,10 +13778,167 @@ button.team-landing-tile:hover {
 }
 .team-explorer-row-kind,
 .team-explorer-row-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
   color: var(--color-text-muted);
   font-size: 0.9em;
   white-space: nowrap;
 }
+
+/* --- File tags (011) --------------------------------------------------------
+ *
+ * Finder's dot, in Finder's colours, next to the size. The palette is fixed
+ * rather than themed: these seven are read as "the tag colours" by anyone who
+ * has used a Mac, and a tag that changed hue with the theme would stop being a
+ * shared reference between two people looking at the same folder.
+ */
+.team-tag {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+.team-tag-dot {
+  display: inline-block;
+  /* Was eleven pixels, which beside a file size was a speck — the thing it is
+     for is being seen without being looked for. Twice that read as a button,
+     so it sits a notch under: still found at a glance, still a mark rather
+     than a control. */
+  width: 19px;
+  height: 19px;
+  min-width: 19px;
+  min-height: 19px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--team-tag-color, transparent);
+}
+.team-tag-dot.is-red,
+.team-tag-swatch.is-red {
+  --team-tag-color: #ff5f56;
+}
+.team-tag-dot.is-orange,
+.team-tag-swatch.is-orange {
+  --team-tag-color: #ffa023;
+}
+.team-tag-dot.is-yellow,
+.team-tag-swatch.is-yellow {
+  --team-tag-color: #ffe14d;
+}
+.team-tag-dot.is-green,
+.team-tag-swatch.is-green {
+  --team-tag-color: #4cd964;
+}
+.team-tag-dot.is-blue,
+.team-tag-swatch.is-blue {
+  --team-tag-color: #2f9bff;
+}
+.team-tag-dot.is-purple,
+.team-tag-swatch.is-purple {
+  --team-tag-color: #cc6bff;
+}
+.team-tag-dot.is-grey,
+.team-tag-swatch.is-grey {
+  --team-tag-color: #b6b6bd;
+}
+.team-tag-dot.is-button {
+  cursor: pointer;
+}
+/* Untagged, for the one person who can tag: a ring, so there is something to
+   aim at. It stays invisible until the row is hovered or focused — a column of
+   empty rings down an untagged folder is louder than anything in it. */
+.team-tag-dot.is-button.is-none {
+  border: 1.5px solid var(--color-border-strong);
+  background: none;
+  opacity: 0;
+  transition: opacity var(--dur-control) var(--ease-standard);
+}
+.team-explorer-row:hover .team-tag-dot.is-none,
+.team-explorer-tile:hover .team-tag-dot.is-none,
+.team-tag-dot.is-none:focus-visible,
+.team-tag-dot.is-none[aria-expanded='true'] {
+  opacity: 1;
+}
+/* The row a menu is open in comes forward. Without it the menu is painted
+   under the rows after it — same stacking level, later in the DOM — and a
+   press meant for a colour landed on the file below. */
+.team-explorer-row:has(.team-tag-menu),
+.team-explorer-tile:has(.team-tag-menu) {
+  position: relative;
+  z-index: 3;
+}
+
+.team-tag-menu {
+  position: absolute;
+  z-index: var(--layer-popover);
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-md);
+}
+.team-tag-swatches {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.team-tag-swatch {
+  width: 20px;
+  height: 20px;
+  /* A 44px minimum from the app's own button floor was making every swatch a
+     tall pill whose lower half hung over the file list behind the menu, so a
+     press landed on a folder instead of on a colour. */
+  min-width: 20px;
+  min-height: 20px;
+  /* A circle, not a column: inside a grid-shaped menu the button stretched to
+     the row's height and its lower half hung over the file list behind it,
+     where a press landed on a folder instead of on a colour. */
+  flex: 0 0 auto;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  background: var(--team-tag-color, transparent);
+  background-clip: padding-box;
+  cursor: pointer;
+}
+.team-tag-swatch.is-active {
+  border-color: var(--color-text);
+}
+.team-tag-clear {
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  white-space: nowrap;
+}
+.team-tag-clear:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--color-accent) 12%, transparent);
+  color: var(--color-text);
+}
+.team-tag-clear:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* A permission nobody can grant, in the list where permissions are read: shown
+   the way it behaves — fixed, not merely off. */
+.team-permission-grid label.is-fixed {
+  color: var(--color-text-muted);
+  cursor: default;
+}
+
 /* A narrow list keeps the name and drops the columns a person can read from
    the icon and the pane: the kind first, then the size. */
 .team-explorer-rows {
@@ -13199,15 +13946,20 @@ button.team-landing-tile:hover {
 }
 @container (max-width: 680px) {
   .team-explorer-row {
-    grid-template-columns: auto minmax(0, 1fr) 6em 5.5em auto;
+    grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   }
   .team-explorer-row-date {
     display: none;
   }
 }
-@container (max-width: 520px) {
+/* Kind goes before the size does, and earlier than it used to: at 546px — the
+   width the content column actually gets with the tree and the pane out — the
+   name had its room back but "Транскрипт" and "17.2 MB" were both cut to
+   "Транс…" and "17.2 …". The icon already says what kind a row is; a size cut
+   in half says nothing. */
+@container (max-width: 620px) {
   .team-explorer-row {
-    grid-template-columns: auto minmax(0, 1fr) 5.5em auto;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
   }
   .team-explorer-row-kind {
     display: none;
@@ -13270,9 +14022,47 @@ button.team-landing-tile:hover {
   /* The row's own height, independent of how deep the open folder is. */
   min-height: 40px;
 }
-.team-explorer-breadcrumb ol::-webkit-scrollbar {
-  display: none;
+/*
+ * On a phone the toolbar was five ragged lines: the folders toggle reading as a
+ * heading, the path against it, three natural-width buttons stacked left, and
+ * the view toggle alone on a right-aligned line. The path takes its own line,
+ * the actions share the next as equal thirds, and the view toggle sits with
+ * them instead of below.
+ */
+@media (max-width: 560px) {
+  /* Where you are, on one line: the folders toggle opens the tree and the path
+     says what it would show, so they belong together rather than each taking a
+     line of a five-line toolbar. */
+  .team-explorer-folders-toggle {
+    order: -2;
+    flex: none;
+  }
+  .team-explorer-breadcrumb {
+    flex: 1 1 8rem;
+    order: -1;
+    padding-right: 0;
+  }
+  .team-explorer-toolbar-actions {
+    flex: 1 1 100%;
+    margin-left: 0;
+  }
+  /* Natural widths that wrap, not equal thirds: three Ukrainian labels do not
+     fit across 320px, and forcing them to share it made the buttons overlap
+     each other's text. */
+  .team-explorer-toolbar-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+  .team-explorer-toolbar-actions > .button,
+  .team-explorer-toolbar-actions > .team-explorer-process-menu {
+    flex: 0 1 auto;
+  }
+  .team-explorer-view-toggle {
+    flex: none;
+    margin-left: auto;
+  }
 }
+
 .team-explorer-breadcrumb li {
   flex: 0 0 auto;
 }
@@ -13281,8 +14071,13 @@ button.team-landing-tile:hover {
 .team-explorer-toolbar-actions {
   display: flex;
   /* Packed into the top-right corner (owner, 2026-08-30): search, add-files
-     and the view toggle sit together, clear of a long breadcrumb. */
-  flex: 0 0 auto;
+     and the view toggle sit together, clear of a long breadcrumb.
+     `0 1 auto`, not `0 0 auto`: refusing to shrink meant the group kept its
+     full width on a phone and pushed the whole document out to 551px, so every
+     page scrolled sideways. It may now give way, and its own wrap does the
+     rest. */
+  flex: 0 1 auto;
+  min-width: 0;
   margin-left: auto;
   flex-wrap: wrap;
   align-items: center;
@@ -13375,7 +14170,12 @@ button.team-landing-tile:hover {
   aspect-ratio: 4 / 3;
   width: 100%;
   border: 0;
-  border-radius: calc(var(--radius-md) - 1px) calc(var(--radius-md) - 1px) 0 0;
+  /* The inner curve of the card's own corner: the tile is `--radius-lg` with a
+     1px border, so its inside is 13px. At `--radius-md - 1` this was 9px, and
+     the four pixels of difference showed as a step where the picture's corner
+     cut inside the border's — visible on any tile whose image or fill reaches
+     the edge. */
+  border-radius: calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0 0;
   padding: 0;
   overflow: hidden;
   background: var(--color-surface-muted);
@@ -13433,21 +14233,26 @@ button.team-landing-tile:hover {
   z-index: 1;
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  /* 28px was under every guideline there is, on the two controls a tile has. */
+  width: 40px;
+  height: 40px;
   opacity: 0;
   transition: opacity var(--dur-control) var(--ease-standard);
 }
 .team-explorer-tile-check {
   left: 8px;
 }
-/* The same 28px box in a list row, in the flow rather than on a picture. */
-.team-explorer-check {
+/* The same box in a list row, in the flow rather than on a picture — and only
+   there: written flat, this also caught the tile's checkbox, which carries both
+   classes, and put it back in the flow. Every tile then held a forty-pixel band
+   of nothing between its picture and its caption, with the box landing on the
+   file name when it appeared. */
+.team-explorer-row-check.team-explorer-check {
   position: relative;
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 40px;
+  height: 40px;
   cursor: pointer;
 }
 .team-explorer-tile-actions {
@@ -13458,9 +14263,21 @@ button.team-landing-tile:hover {
 }
 .team-explorer-tile-actions .team-row-menu {
   display: block;
-  width: 28px;
-  height: 28px;
+  width: 40px;
+  height: 40px;
   line-height: 0;
+}
+
+/*
+ * Without a pointer there is no hover to reveal them with, so a tile's share
+ * and "…" were unreachable on every touch screen — the two things a tile can
+ * do, gone. They are simply always there.
+ */
+@media (hover: none) {
+  .team-explorer-tile-check,
+  .team-explorer-tile-actions {
+    opacity: 1;
+  }
 }
 .team-explorer-tile:hover .team-explorer-tile-check,
 .team-explorer-tile:hover .team-explorer-tile-actions,
@@ -13479,11 +14296,12 @@ button.team-landing-tile:hover {
   opacity: 0;
   cursor: pointer;
 }
+/* The box itself is the target, and it is what a finger aims at. */
 .team-explorer-check > span {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   /* A 1px border in --color-border all but vanished on the dark theme; a
      stronger border and a lifted fill make the empty box legible over both the
      dark surface and a video thumbnail. */
@@ -13509,7 +14327,7 @@ button.team-landing-tile:hover {
   opacity: 1;
 }
 .team-explorer-check input:focus-visible + span {
-  outline: 2px solid var(--color-accent);
+  outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
 /* The menu trigger is an icon button on the picture, not a word in the caption
@@ -13518,10 +14336,12 @@ button.team-landing-tile:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  /* Without this the 44px min-height tap target stretches it tall, so it no
-     longer matched the ⋯ button beside it. */
+  /* 40, not 28: this and the "…" beside it are the only two things a tile can
+     be asked to do, and on a touch screen they were a third under any
+     guideline there is. `min-height: 0` stays so the app's 44px control floor
+     does not stretch it taller than it is wide. */
+  width: 40px;
+  height: 40px;
   min-height: 0;
   padding: 0;
   border: 1px solid var(--color-border);
@@ -13545,12 +14365,13 @@ button.team-landing-tile:hover {
   gap: var(--space-2);
 }
 .team-explorer-tile-actions .team-row-menu > button,
-.team-explorer-row-actions .team-row-menu > button {
+.team-explorer-row-actions .team-row-menu > button,
+.team-catalog-material-actions .team-row-menu > button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 40px;
+  height: 40px;
   min-height: 0;
   margin: 0;
   padding: 0;
@@ -13565,7 +14386,8 @@ button.team-landing-tile:hover {
    from the box's own centre — so nothing about the hidden label, the flex
    gap or the line box can push them off-centre. */
 .team-explorer-tile-actions .team-row-menu > button,
-.team-explorer-row-actions .team-row-menu > button {
+.team-explorer-row-actions .team-row-menu > button,
+.team-catalog-material-actions .team-row-menu > button {
   background-image:
     radial-gradient(circle, var(--color-text) 1.6px, transparent 2.2px),
     radial-gradient(circle, var(--color-text) 1.6px, transparent 2.2px),
@@ -13577,6 +14399,40 @@ button.team-landing-tile:hover {
     50% 50%,
     calc(50% + 6px) 50%;
   color: transparent;
+}
+/* In a row of 32px borderless text buttons a 40px bordered box reads as a
+   step. Written after the shared rule, which sets both. */
+.team-catalog-material-actions .team-row-menu > button {
+  width: 34px;
+  height: 32px;
+  min-height: 32px;
+  border-color: transparent;
+  background-color: transparent;
+}
+.team-catalog-material-actions .team-row-menu > button:hover {
+  border-color: var(--color-border);
+  background-color: var(--color-surface-muted);
+}
+/*
+ * Written after every rule that sets `background` or `border` on these same
+ * selectors — the first attempt at this sat above them, lost the shorthand
+ * fight at equal specificity, and shipped unchanged.
+ *
+ * The two controls a tile carries sit on top of its thumbnail, which is any
+ * colour at all. On the dark theme they took the panel's own surface and the
+ * plain border, so over a photo they read as two black holes punched in the
+ * picture, with a corner that argued with the card's. They are lifted glass
+ * now: the raised surface at most of its opacity, the stronger border, and a
+ * shadow — legible over a bright image and over a dark one, and rounded enough
+ * not to fight the 14px card.
+ */
+.team-explorer-tile-actions .team-explorer-share,
+.team-explorer-tile-actions .team-row-menu > button {
+  border-color: var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: color-mix(in srgb, var(--color-surface-raised) 86%, transparent);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(8px);
 }
 .team-explorer-tile-date {
   color: var(--color-text-muted);
@@ -13604,6 +14460,12 @@ button.team-landing-tile:hover {
 .team-explorer-tile-render {
   color: var(--color-text-muted);
   font-size: 0.85em;
+}
+/* The tile's meta line carries the tag the way the row's does. */
+.team-explorer-tile-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .team-explorer-tile-render.is-failed {
   color: var(--color-error);
@@ -13713,6 +14575,28 @@ button.team-landing-tile:hover {
   align-items: center;
   gap: 2px;
 }
+/* The toolbar's "Process": the same anchoring as the sort menu, so the two
+   popovers in this toolbar behave identically. */
+.team-explorer-process-menu {
+  position: relative;
+  display: inline-flex;
+}
+.team-explorer-process-menu .team-explorer-menu {
+  /* Opens under its button, and wide enough to say what it says: at the shared
+     220px every one of these four scopes wrapped onto two lines, which read as
+     eight items rather than four.
+
+     Anchored to the button's right edge, because that is where the button is —
+     the toolbar's actions are pushed right, so a left-anchored 360px popover
+     ran off the screen on anything narrower than a laptop. */
+  right: 0;
+  left: auto;
+  min-width: max-content;
+  max-width: min(360px, calc(100vw - 2 * var(--space-4)));
+}
+.team-explorer-process-menu .team-explorer-menu-item {
+  white-space: nowrap;
+}
 .team-explorer-filter-button {
   display: inline-flex;
   align-items: center;
@@ -13763,9 +14647,12 @@ button.team-landing-tile:hover {
   z-index: var(--layer-popover);
   min-width: 220px;
   padding: var(--space-1);
-  border: 1px solid var(--color-border);
+  /* The stronger border, not the plain one: on dark the menu and the panel it
+     opens over were the same colour, and the shadow under it fell on a surface
+     too dark to show it — four items floating with no edge. */
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
-  background: var(--color-surface);
+  background: var(--color-surface-raised);
   box-shadow: var(--shadow-lg);
 }
 .team-explorer-menu-heading {
@@ -13792,8 +14679,25 @@ button.team-landing-tile:hover {
   text-align: left;
   cursor: pointer;
 }
+/* A tint of the text colour, not a fixed surface: `--color-surface-muted` is
+   darker than the raised menu on the dark theme, so hovering an item made it
+   recede instead of lifting. */
 .team-explorer-menu-item:hover {
-  background: var(--color-surface-muted);
+  background: color-mix(in srgb, var(--color-text) 9%, transparent);
+}
+/* The focused item is the item, not a ring floating over the one below it. */
+/* Focus is the ring; hover is the tint. Resolving both to the same fill lit two
+   rows at once when the pointer rested away from the arrow keys. */
+.team-explorer-menu-item:focus-visible {
+  background: color-mix(in srgb, var(--color-text) 14%, transparent);
+  outline-offset: -3px;
+}
+/* Two scopes in one menu: what is inside this folder, and what is in the whole
+   space. The rule is the seam between them. */
+.team-explorer-menu-rule {
+  margin: var(--space-1) var(--space-2);
+  border: 0;
+  border-top: 1px solid var(--color-border-strong);
 }
 .team-explorer-menu-item.is-checked {
   color: var(--color-accent);
@@ -13830,40 +14734,91 @@ button.team-landing-tile:hover {
    width and pushed the files down the page — a bar meant to help, being the widest thing on
    the screen. One line now, and it holds one whether the selection has one file or fifty. */
 .team-explorer-selection-bar {
+  /* One line, at every width. The bar itself used to wrap, so the scrolling row
+     of actions took the full width and pushed the dismissal onto a second line
+     — a hundred and thirty-six pixels of chrome above the files. */
+  flex-wrap: nowrap;
+  /* Sticky, because the thing it acts on is the thing being scrolled. Check a
+     file at the bottom of a two-hundred-item folder and the bar was left at the
+     top of the page: the multi-select the batch depends on was hidden again,
+     one level down from where it started. */
+  position: sticky;
+  /* Below the fixed top bar, not under it: at `top: 0` the bar stuck exactly
+     where the header already sits and disappeared behind it. */
+  top: calc(var(--topbar-h, 62px) + var(--space-1));
+  z-index: calc(var(--layer-header) + 1);
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
   padding: var(--space-1) var(--space-2);
   border: 1px solid var(--color-accent);
   border-radius: var(--radius-sm);
-  background: var(--color-accent-softer);
+  /* Opaque, and raised: over scrolling tiles a translucent fill smears whatever
+     passes under it, and on the dark theme the plain surface is the same colour
+     as the panel it floats over. The accent tint is mixed into the raised one. */
+  background: color-mix(in srgb, var(--color-accent) 14%, var(--color-surface-raised));
+  box-shadow: var(--shadow-sm);
+  container-type: inline-size;
 }
 .team-explorer-selection-count {
+  flex: none;
   white-space: nowrap;
   font-weight: 600;
 }
+.team-explorer-selection-bar > .team-explorer-selection-action:last-child {
+  flex: none;
+}
+/* Quieter than the count it follows: the number is the subject, where those
+   files are is the caveat. */
+.team-explorer-selection-elsewhere {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
 /* The group takes the slack, so the dismissal lands at the right edge rather than beside the
    last action, where it reads as one more thing to do. */
+/* One row, and it scrolls if it must.
+ *
+ * Dropping the words gave five unlabelled icons and a bin; keeping them gave a
+ * hundred and eighty pixels of wrapped buttons pushing the files down the page.
+ * Neither is the trade — the bar stays one line tall at every width, and a
+ * sixth action is a scroll rather than a second row. */
 .team-explorer-selection-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--space-1);
+  min-width: 0;
   margin-right: auto;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scroll-snap-type: x proximity;
 }
+.team-explorer-selection-actions > * {
+  flex: none;
+  scroll-snap-align: start;
+}
+/* Named, and big enough to hit: the bar had five 32px icons and no words,
+   including the one that throws things away. */
 .team-explorer-selection-action {
   display: inline-flex;
+  min-height: 40px;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  gap: 6px;
+  padding: 0 12px 0 10px;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-text-muted);
   cursor: pointer;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 650;
+  white-space: nowrap;
+}
+.team-explorer-selection-action.is-destructive {
+  color: var(--color-error);
 }
 .team-explorer-selection-action:hover {
   color: var(--color-text);
@@ -13871,9 +14826,17 @@ button.team-landing-tile:hover {
   background: color-mix(in srgb, var(--color-accent) 18%, transparent);
 }
 .team-explorer-selection-action:focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
+
+/* No label ever drops.
+ *
+ * The words went at one width and the row scrolled at another — two mechanisms
+ * for the same problem, and between them four of six actions rendered as bare
+ * icons on a 1100px desktop, which is exactly what restoring the words was for.
+ * The scroller handles every width on its own. */
+
 .team-explorer-selection-action.is-destructive:hover {
   color: var(--color-error);
   border-color: color-mix(in srgb, var(--color-error) 45%, transparent);
@@ -13882,6 +14845,12 @@ button.team-landing-tile:hover {
 .team-explorer-dropzone.is-over {
   outline: 2px dashed var(--color-accent);
   outline-offset: 4px;
+}
+
+/* Still going up: the same border the drop showed, held while the transfer
+   runs, so the zone does not go dark the instant the pointer leaves. */
+.team-explorer-dropzone.is-uploading {
+  border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
 }
 .team-explorer-tree [role='treeitem'].is-drop-target > .team-explorer-tree-row {
   outline: 2px dashed var(--color-accent);
@@ -13951,8 +14920,11 @@ button.team-landing-tile:hover {
 .team-storage-chip.ui-chip-busy {
   background-image: linear-gradient(var(--color-accent-softer), var(--color-accent-softer));
 }
+/* The state is a line of the report, not its heading: at 600 beside an h3 it
+   was the boldest thing in the panel and the title read as a caption. */
 .team-storage-detail-state {
-  font-weight: 600;
+  color: var(--color-text-muted);
+  font-weight: 500;
 }
 .team-explorer-readonly {
   margin: 0;
@@ -14022,34 +14994,6 @@ button.team-landing-tile:hover {
 }
 
 /* Folder batch processing (015): one action per row, its scope beside it. */
-.team-folder-process-actions {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: var(--space-3);
-}
-.team-folder-process-actions li {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-/* The button is as wide as its own words; the count beside it takes what is
-   left and wraps. Without this the longest label (transcription) was squeezed
-   narrower than its text and spilled out of its own border. */
-.team-folder-process-actions li > .button {
-  flex: 0 0 auto;
-}
-.team-folder-process-actions li > span {
-  min-width: 0;
-}
-.team-folder-process-scope {
-  margin: 0 0 var(--space-3);
-}
-.team-folder-process-progress {
-  display: grid;
-  gap: var(--space-2);
-}
 
 /* The background transcription queue: always visible, never blocking. */
 /* File-card actions as icons, in the compressor's idiom: a quiet square that colours on
@@ -14083,12 +15027,22 @@ button.team-landing-tile:hover {
 
 /* One panel for every long local job: transcription, compression, a re-stitched download.
    Fixed to the corner, and collapsible to a strip — on a small screen the expanded panel sits
-   exactly where the file details are, and watching progress meant losing the file. */
-.team-process-panel {
+   exactly where the file details are, and watching progress meant losing the file.
+
+   The corner is a stack, not a pixel: a compression queue and a re-stitched
+   download are both reachable from the same selection, and pinned to the same
+   spot the second one covered the first — its progress, its pause and its stop
+   all gone until the download finished. */
+.team-process-stack {
   position: fixed;
   right: var(--space-4);
   bottom: var(--space-4);
-  z-index: 40;
+  z-index: var(--layer-overlay);
+  display: grid;
+  gap: var(--space-2);
+  justify-items: end;
+}
+.team-process-panel {
   display: grid;
   gap: var(--space-2);
   width: min(340px, calc(100vw - 2 * var(--space-4)));
@@ -14096,7 +15050,10 @@ button.team-landing-tile:hover {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
-  box-shadow: 0 12px 32px color-mix(in oklab, #000 35%, transparent);
+  /* The product's own shadow, not a hand-rolled black one: written out, it
+     stayed black in the light theme where every other raised surface casts a
+     violet-tinted shadow. */
+  box-shadow: var(--shadow-lg);
 }
 .team-process-panel.is-collapsed {
   /* Just the name and the bar. Narrower, so it stops covering anything that matters. */
@@ -14174,7 +15131,7 @@ button.team-landing-tile:hover {
   position: fixed;
   right: var(--space-4);
   bottom: var(--space-4);
-  z-index: 40;
+  z-index: var(--layer-overlay);
   display: grid;
   gap: var(--space-2);
   width: min(340px, calc(100vw - 2 * var(--space-4)));
@@ -14438,10 +15395,30 @@ button.team-landing-tile:hover {
 /* The three embedding controls share one row above the two image columns. */
 .embedding-settings-row {
   display: grid;
+  min-width: 0;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: start;
   gap: var(--space-4) var(--space-6);
   margin-bottom: var(--space-3);
+}
+/* Three fixed-width controls do not divide a 154px column; on a phone they take
+   the width in turn, and their labels wrap rather than push the panel wider. */
+@media (max-width: 400px) {
+  .embedding-settings-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .embedding-settings-row .field-label {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+  /* The three hold ranges are a row of pills; at 320 they are two pixels wider
+     than the column, which shaves the last one's edge. They wrap. */
+  .fit-mode-pictos {
+    flex-wrap: wrap;
+  }
+  .fit-mode-pictos button.is-labeled {
+    padding: 0 8px;
+  }
 }
 .embedding-settings-row .field-group {
   margin: 0;
@@ -16171,17 +17148,28 @@ input[type='number'] {
 /* --- One countdown for all of them ----------------------------------------- */
 
 .tfa-countdown {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: var(--space-2);
   justify-content: flex-end;
-  width: 100%;
+  /* The bar runs to the right edge of the table rather than stopping where the
+     digits do: the header cell beside this one holds nothing but a
+     screen-reader label, so the indicator borrows its width. No `width: 100%`
+     with it — a stated width turns the negative margin into a shift instead of
+     the extra room it is here for. */
+  margin-right: calc(-1 * var(--tfa-actions-width));
   padding-right: var(--tfa-code-inset);
 }
 
 .tfa-countdown-track {
   display: block;
-  width: 84px;
+  /* It takes the width it is given rather than a width of its own: a bar the
+     length of the table reads as a duration, where 84 pixels of it read as a
+     decoration beside the number. */
+  flex: 1 1 auto;
+  /* A floor, not a length: on a phone the column it lives in is narrow and the
+     bar gives way before the number does. */
+  min-width: 84px;
   height: 4px;
   border-radius: 2px;
   background: var(--color-surface-muted);
@@ -16212,6 +17200,20 @@ input[type='number'] {
   .tfa-countdown-fill {
     animation-duration: 30s;
     animation-timing-function: steps(30, end);
+  }
+}
+
+/* On a phone the header row has no width to lend. The number stays — it is the
+   part that says something exactly — and the bar goes, rather than pushing the
+   number left across the "Account" caption beside it. */
+@media (max-width: 700px) {
+  .tfa-countdown {
+    width: 100%;
+    margin-right: 0;
+  }
+
+  .tfa-countdown-track {
+    display: none;
   }
 }
 

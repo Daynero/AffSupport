@@ -20,12 +20,12 @@ Dropping `profiles` permanently removes user preferences and consent history. Dr
    auto-fill branch (`elsif next_status = 'done' and not next_manual then next_value := next_max`).
    Pure function redefinition; no data changes.
 
-0. `20260830160000_task_progress_max_default.sql`: restore `create_team_task` to its prior body
+1. `20260830160000_task_progress_max_default.sql`: restore `create_team_task` to its prior body
    (no `progress_max` from the profile), drop `public.get_task_progress_max_default()` and
    `public.set_task_progress_max_default(integer)`, then drop the `task_progress_max_default`
    column and its check from `public.profiles`. No task data is lost.
 
-0. `20260830150000_video_text_variants_companion.sql`: `list_video_text_variants` gained a
+2. `20260830150000_video_text_variants_companion.sql`: `list_video_text_variants` gained a
    companion-transcript fallback. To revert, re-create the function from
    `20260830100000`-era definition (library-results only). No data is touched — it is a pure
    function redefinition.
@@ -37,81 +37,81 @@ feature group in this exact order:
 0. `20260830140000_transcript_delete_pref.sql`: drop
    `public.get_transcript_delete_pref()`, `public.set_transcript_delete_pref(text)`, and the
    column `transcript_delete_pref` from `public.profiles`.
-0. `20260830130000_landing_render_refresh.sql`: drop
+1. `20260830130000_landing_render_refresh.sql`: drop
    `public.request_landing_render_refresh(uuid, uuid)`.
-0. `20260830120000_transcript_companion_link.sql`: drop
+2. `20260830120000_transcript_companion_link.sql`: drop
    `public.service_link_transcript_companion(uuid, uuid, uuid, text, text)` and
    `public.service_find_transcript_by_fingerprint(uuid, text)`.
-0. `20260830110000_landing_render_lifecycle.sql`: restore the previous body of
+3. `20260830110000_landing_render_lifecycle.sql`: restore the previous body of
    `public.list_landing_renders(uuid, uuid[], text)` from `20260815113000` (without the
    `material.lifecycle = 'active'` join condition).
-0. `20260830100000_media_companions.sql`: drop
+4. `20260830100000_media_companions.sql`: drop
    `public.get_material_transcript_companion(uuid, uuid)`, the three companion indexes, and the
    columns `companion_of`, `companion_kind`, `audio_fingerprint` from `public.team_materials`.
-0. `20260829170000_team_archive_inspection.sql`: drop
+5. `20260829170000_team_archive_inspection.sql`: drop
    `public.service_commit_archive_inspection(uuid, text, text, text)`,
    `public.service_claim_archive_inspections(integer)` and the column
    `public.team_materials.landing_inspection_claimed_at`. Archives it promoted keep their
    category; they are landings.
-1. `20260829160000_team_rescan_after_reconsent.sql`: drop
+6. `20260829160000_team_rescan_after_reconsent.sql`: drop
    `public.service_request_catalog_rescan(uuid, uuid)`. Scans it queued finish on their own.
-2. `20260829150000_team_sync_claim_live_connections.sql`: restore the previous body of
+7. `20260829150000_team_sync_claim_live_connections.sql`: restore the previous body of
    `private.claim_catalog_sync_jobs(text, integer, integer)` from `20260801094000`. The
    jobs it closed as `failed` / `CONNECTION_DETACHED` belonged to detached connections and
    need no reopening.
-3. `20260829140000_team_intent_audit.sql`: restore the previous body of
+8. `20260829140000_team_intent_audit.sql`: restore the previous body of
    `public.service_complete_material_group_intent(uuid)` from `20260814101000`. Audit rows
    already written stay; they are history.
-4. `20260829130000_team_root_finalize.sql`: restore the previous body of
+9. `20260829130000_team_root_finalize.sql`: restore the previous body of
    `public.service_finalize_uploaded_material`, which read the destination folder as a
    material row.
-5. `20260829120000_team_root_reservation.sql`: restore the previous body of
-   `public.service_start_team_operation` (the reservation check that required a destination
-   material) and recreate `team_operations_name_reservation_idx` on the plain column.
-6. `20260829110000_team_root_destination.sql`: drop
-   `public.service_get_root_operation_context` and
-   `public.service_find_team_name_conflicts_in_folder`. Both are read-only; dropping them
-   restores the earlier behaviour, in which the space root could not be a destination.
-7. `20260829100000_team_storage_health_stall.sql`: re-apply the previous body of
-   `public.get_team_storage_health` from `20260827109000`. Read-only.
-8. `20260827109000_team_storage_health.sql`: drop `public.get_team_storage_health`. Read-only;
-   nothing depends on it but the storage chip.
-9. `20260827108000_team_search_scope.sql`: drop
-   `public.search_materials(uuid, text, jsonb, integer, integer, text, text[])` and restore the
-   five-argument definition from `20260815118000` (with its grants and comment).
-10. `20260827107000_preview_warm_schedule.sql`: `select cron.unschedule(jobid) from cron.job
+10. `20260829120000_team_root_reservation.sql`: restore the previous body of
+    `public.service_start_team_operation` (the reservation check that required a destination
+    material) and recreate `team_operations_name_reservation_idx` on the plain column.
+11. `20260829110000_team_root_destination.sql`: drop
+    `public.service_get_root_operation_context` and
+    `public.service_find_team_name_conflicts_in_folder`. Both are read-only; dropping them
+    restores the earlier behaviour, in which the space root could not be a destination.
+12. `20260829100000_team_storage_health_stall.sql`: re-apply the previous body of
+    `public.get_team_storage_health` from `20260827109000`. Read-only.
+13. `20260827109000_team_storage_health.sql`: drop `public.get_team_storage_health`. Read-only;
+    nothing depends on it but the storage chip.
+14. `20260827108000_team_search_scope.sql`: drop
+    `public.search_materials(uuid, text, jsonb, integer, integer, text, text[])` and restore the
+    five-argument definition from `20260815118000` (with its grants and comment).
+15. `20260827107000_preview_warm_schedule.sql`: `select cron.unschedule(jobid) from cron.job
 where jobname = 'wishly-preview-warm'`; drop `private.invoke_preview_warm_worker`; delete
     the `wishly_preview_warm_url` / `wishly_preview_warm_secret` Vault secrets.
-11. `20260827106000_team_thumbnail_session.sql`: drop `public.assert_team_member`; delete
+16. `20260827106000_team_thumbnail_session.sql`: drop `public.assert_team_member`; delete
     grants with purpose `thumbnail_session`; restore `private.issue_team_transfer_grant`,
     `private.consume_team_transfer_grant` and the purpose check from `20260801093000`
     (without `thumbnail_session`).
-12. `20260827105000_team_catalog_page_markers.sql`: drop
+17. `20260827105000_team_catalog_page_markers.sql`: drop
     `public.service_commit_thumbnail`, `public.service_claim_preview_warm`,
     `public.service_mark_folder_indexed`; restore `public.service_enqueue_catalog_reconciliation`
     from `20260801101000` (root-only queue). Prepared thumbnails in the bucket become
     unreachable but are harmless; delete the `team-thumbnail-cache` objects if desired.
-13. `20260827104000_team_folder_tree_and_paging.sql`: drop `public.list_team_folder_page`,
+18. `20260827104000_team_folder_tree_and_paging.sql`: drop `public.list_team_folder_page`,
     `public.list_team_folder_tree`, `public.team_material_kind`. Nothing else depends on them.
-14. `20260827103000_team_material_index_columns.sql`: drop `public.remove_team_drive_selection`;
+19. `20260827103000_team_material_index_columns.sql`: drop `public.remove_team_drive_selection`;
     drop triggers `team_materials_assign_selection` and `team_materials_provider_thumbnail_state` and
     their `private.` functions; drop the three indexes; drop columns `selection_id`,
     `folder_indexed_at`, `provider_thumbnail_state`, `provider_thumbnail_reason`, `provider_thumbnail_version`,
     `provider_thumbnail_claimed_at` from `public.team_materials`.
-15. `20260827102000_team_connection_state_011.sql`: drop `public.service_record_access_expiry`,
+20. `20260827102000_team_connection_state_011.sql`: drop `public.service_record_access_expiry`,
     `public.service_touch_catalog_reconciled`, `public.service_mark_root_state`; set any
     `root_missing` connection to `needs_reauth`; restore the state and event-kind checks
     without the 011 values (delete 011 event rows first); drop columns `scope_set`,
     `access_expires_at`, `last_reconciled_at` from `public.team_drive_connections`.
-16. `20260827101000_team_drive_selections.sql`: drop `public.service_list_connection_selections`,
+21. `20260827101000_team_drive_selections.sql`: drop `public.service_list_connection_selections`,
     `public.add_team_drive_selection`, `public.list_team_drive_selections`; drop trigger
     `team_drive_connections_sync_root_selection` and `private.team_sync_root_selection`; drop
     `public.team_drive_selections`. Do this after `20260827103000` so the FK is gone.
-17. `20260827100000_team_error_codes_011.sql`: delete the six 011 rows from
+22. `20260827100000_team_error_codes_011.sql`: delete the six 011 rows from
     `public.team_error_codes` (`SELECTION_UNREACHABLE`, `ROOT_SELECTION_REQUIRED`,
     `ROOT_MISSING`, `TREE_TOO_LARGE`, `THUMBNAIL_SESSION_EXPIRED`,
     `RESTRICTED_SCOPE_NOT_APPROVED`). Nothing references them by foreign key.
-18. `20260823120000_team_ux_lifecycle.sql`: revoke and drop
+23. `20260823120000_team_ux_lifecycle.sql`: revoke and drop
     `public.list_team_trashed_materials(uuid, int, timestamptz)`,
     `public.delete_team_task(uuid, uuid)`, `public.delete_draft_team(uuid)`, and
     `public.leave_team(uuid)`. Then restore `private.record_team_audit`'s target key
@@ -123,20 +123,20 @@ where jobname = 'wishly-preview-warm'`; drop `private.invoke_preview_warm_worker
     this rollback. Memberships already ended through `leave_team` stay ended, and
     draft teams already deleted are not recoverable — restore them from a backup
     if that matters.
-19. `20260815117000_request_catalog_resync.sql`: revoke and drop
+24. `20260815117000_request_catalog_resync.sql`: revoke and drop
     `public.request_team_catalog_resync(uuid)`. Do not delete or cancel the
     resulting catalog jobs or Drive files during production recovery; allow an
     already queued scan to finish, or forward-fix its state explicitly.
-20. `20260814102000_creative_library_security.sql`: first remove only
+25. `20260814102000_creative_library_security.sql`: first remove only
     `team_upload_batches`, `team_upload_batch_items`, `team_library_requirements`, `team_tasks`,
     and `team_task_attachments` from `supabase_realtime`; then revoke all feature RPC grants
     and drop the feature RLS policies. Do not remove any Drive file or sidecar.
-21. `20260814101000_creative_library_actions.sql`: stop local Library workers and let their
+26. `20260814101000_creative_library_actions.sql`: stop local Library workers and let their
     leases expire; then drop caller/service RPCs, the membership cleanup/task normalization
     triggers, feature `updated_at` triggers, and their private trigger/helper functions. Resolve
     every `reconciling` group intent before continuing, because catalog rollback cannot repair a
     provider-side partial move.
-22. `20260814100000_creative_library_foundation.sql`: export task, contribution, processing
+27. `20260814100000_creative_library_foundation.sql`: export task, contribution, processing
     result and provenance history if it must be retained. Drop in dependency order:
     `team_library_results`, the requirement current-result FK, private attempts, requirements,
     task attachments, tasks, upload items/batches, share preferences, contribution records,
@@ -144,12 +144,12 @@ where jobname = 'wishly-preview-warm'`; drop `private.invoke_preview_warm_worker
     constraints and columns from `team_materials`. These steps remove only Postgres authority;
     transcript/translation files in Drive remain intact and must be reconciled explicitly.
 
-23. `20260810113000_team_landing_render_delivery.sql` (feature 004 delivery helpers): revoke and
+28. `20260810113000_team_landing_render_delivery.sql` (feature 004 delivery helpers): revoke and
     drop `public.service_invalidate_landing_renders(uuid,text[])`,
     `public.service_get_landing_render_upload(uuid,uuid,uuid)`, and
     `public.service_get_landing_render_artifact(uuid,uuid,text)` plus
     `public.service_get_landing_render_artifact_by_id(uuid,uuid,uuid)` before rolling back the table.
-24. `20260810090000_team_landing_renders.sql` (feature 004 — reverse after delivery helpers): revoke and
+29. `20260810090000_team_landing_renders.sql` (feature 004 — reverse after delivery helpers): revoke and
     drop `public.list_landing_renders(uuid, uuid[], text)`,
     `public.service_start_landing_render(uuid, uuid, uuid, text, text, text)`,
     `public.service_commit_landing_render(uuid, text, integer, text)`,
@@ -159,37 +159,37 @@ where jobname = 'wishly-preview-warm'`; drop `private.invoke_preview_warm_worker
     publication change is needed. If a test connection produced render artifacts, delete the
     hidden `.soty/landing-previews/` subtree through the service path first; this rollback never
     deletes source landing files.
-25. `20260802100000_team_direct_member_testing.sql`: revoke and drop
+30. `20260802100000_team_direct_member_testing.sql`: revoke and drop
     `public.service_direct_add_registered_member(uuid,uuid,text,text)`. Disable
     `TEAM_DIRECT_ADD_MODE` in Edge and web before rollback. Existing memberships are normal
     team memberships and must not be deleted; matching invitations intentionally remain in
     their recorded terminal state.
-26. `20260801103000_team_analytics.sql`: revoke/drop
+31. `20260801103000_team_analytics.sql`: revoke/drop
     `public.analytics_team_workspace`, then drop `private.team_pilot_enrollments`. Restore the
     prior `public.analytics_properties_are_safe_v2(jsonb)` body from
     `20260720130000_analytics_v2.sql`; do not drop it because analytics ingestion depends on
     that function. Export pilot interval evidence first if it must be retained.
-27. `20260801102000_team_transfer_operations.sql`: revoke/drop `get_operation`,
+32. `20260801102000_team_transfer_operations.sql`: revoke/drop `get_operation`,
     `get_material_provenance`, `cancel_team_operation`, and every `service_*` operation,
     source-binding, folder-resolution, transition/finalize/edit/mutation function introduced
     there. Then drop `private.team_operation_intents`. Reconcile any Drive-succeeded operation
     before removal; this rollback never deletes or rewrites its provider file.
-28. `20260801101500_team_preview.sql`: revoke/drop `get_material_preview`,
+33. `20260801101500_team_preview.sql`: revoke/drop `get_material_preview`,
     `service_get_material_transfer_context`, and
     `service_commit_landing_preview_validation`. Revoke outstanding preview grants through the
     existing service path first; cached agent preview directories are cleaned by agent shutdown,
     not by database rollback.
-29. `20260801101000_team_catalog_search.sql`: unschedule only the named
+34. `20260801101000_team_catalog_search.sql`: unschedule only the named
     `wishly-team-catalog-sync` Cron job, revoke/drop all search/vocabulary/metadata and catalog
     worker `service_*` functions plus `private.invoke_catalog_sync_worker`; drop
     `team_materials_refresh_search`, its trigger, the search/facet/missing-value indexes, and
     the three landing/transcript identity constraints. Preserve or export transcript/catalog
     rows before removing search support.
-30. `20260801100000_team_membership_actions.sql`: revoke/drop `list_team_members`,
+35. `20260801100000_team_membership_actions.sql`: revoke/drop `list_team_members`,
     `update_membership`, `remove_member`, `transfer_ownership`, `list_team_audit_events`,
     `owned_team_count`, and `service_revoke_user_team_grants`. Transfer ownership or archive
     affected test teams first so account recovery never creates an ownerless team.
-31. `20260801095000_team_invitation_drive_actions.sql`: drop the caller RPCs
+36. `20260801095000_team_invitation_drive_actions.sql`: drop the caller RPCs
     `create_team`, `list_my_teams`, `lookup_invitable_account`, every invitation action,
     `get_drive_connection_status`, and `list_team_materials`; then drop all public
     `service_*` Drive/OAuth functions and the private helpers
@@ -197,24 +197,24 @@ where jobname = 'wishly-preview-warm'`; drop `private.invoke_preview_warm_worker
     `team_invitation_identity_matches`, and `upsert_google_drive_credential`. Revoke
     service/client grants before dropping. Detach/revoke any test credential through the
     service path first; this rollback never deletes Google Drive files.
-32. `20260801094000_team_security_foundation.sql`: remove `team_operations` and
+37. `20260801094000_team_security_foundation.sql`: remove `team_operations` and
     `team_catalog_events` from `supabase_realtime`; drop the team RLS policies and triggers;
     revoke/drop every function in `private` created by the migration. Do this before dropping
     their backing tables so no definer or policy is left with a broken dependency.
-33. `20260801093000_team_operations_audit.sql`: drop `public.team_catalog_events`,
+38. `20260801093000_team_operations_audit.sql`: drop `public.team_catalog_events`,
     `public.team_audit_events`, `private.catalog_sync_jobs`,
     `private.team_transfer_grants`, then `public.team_operations`. This permanently removes
     operation recovery, leases, grants, and audit history.
-34. `20260801092000_drive_vault_catalog.sql`: detach test connections first; delete their
+39. `20260801092000_drive_vault_catalog.sql`: detach test connections first; delete their
     Vault secrets through the service accessor; then drop `public.team_material_links`,
     `public.team_materials`, `public.team_drive_connections`,
     `private.drive_oauth_transactions`, and `private.google_drive_credentials`. Drop the
     `private` schema only if no other migration uses it. No Google Drive file is deleted by
     these database steps.
-35. `20260801091000_teams_members_invitations.sql`: drop
+40. `20260801091000_teams_members_invitations.sql`: drop
     `public.team_invitations`, `public.team_members`, and `public.teams`. Keep the `citext`
     extension if another feature uses it.
-36. `20260801090000_team_contract_seed.sql`: drop `public.language_options`,
+41. `20260801090000_team_contract_seed.sql`: drop `public.language_options`,
     `public.geo_options`, `public.team_error_codes`, `public.role_permissions`,
     `public.team_permissions`, `public.team_roles`, and finally
     `public.team_contract_settings`.
@@ -223,17 +223,20 @@ Never automate this recovery sequence against production. Export audit/provenanc
 records and confirm Vault/Google credential revocation before any destructive rollback.
 
 ## 20260830180000_finalize_overwrite_support.sql
+
 Re-apply the previous `service_finalize_uploaded_material` definition (from
 20260830150000 or the latest prior migration touching it): the three added
 `version_of_material_id` conditions are the only changes — removing them
 restores the old behavior (overwrite finalize rejected with SOURCE_CHANGED).
 
 ## 20260830190000_group_intent_release_reservation.sql
+
 Re-apply the prior `service_complete_material_group_intent` definition (drop
 the added `reservation_released_at` line in the succeeded update). Stale
 held reservations released manually during this fix stay released.
 
 ## 20260903100000_two_factor_notebook.sql
+
 Destructive and irreversible for stored data: the seeds live in Vault, and
 dropping the table alone would leave every secret behind as an orphan nobody can
 reach or account for. Delete the secrets **first**, through the pointer, and only
@@ -262,6 +265,7 @@ each affected person has to re-enrol two-factor authentication with the service
 that issued it. Keep the `private` schema; other migrations use it.
 
 ## 20260905100000_team_accounts.sql
+
 Feature 017. Dropping the tables loses every account and every agent's run note
 in every space; there is no export. For an isolated development database:
 
@@ -284,6 +288,7 @@ drop table if exists public.team_accounts;
 ```
 
 ## 20260905120000_team_task_agents.sql
+
 Feature 017, part 2. Dropping the link table loses every tag on every task; the
 accounts and agents themselves stay. For an isolated development database:
 
@@ -300,6 +305,7 @@ alter table public.team_account_agents drop constraint team_account_agents_id_te
 ```
 
 ## 20260905140000_team_agent_runs.sql
+
 Feature 017, part 3. Runs became rows; the old `note` column is gone. Reversing
 keeps at most one run per agent (the newest). For an isolated development database:
 
@@ -322,4 +328,370 @@ drop function if exists private.team_agent_runs_json(uuid);
 -- Re-create add/update_team_account_agent, list_team_accounts and
 -- private.team_task_agent_tags from 20260905100000 / 20260905120000.
 drop table if exists public.team_agent_runs;
+```
+
+## 20260905160000_team_task_date.sql
+
+Feature 017, part 4. Dropping the column loses every date a person moved off
+the creation day; nothing else depends on it. For an isolated development
+database:
+
+```sql
+alter publication supabase_realtime drop table public.team_tasks;
+alter publication supabase_realtime add table public.team_tasks (
+  id, team_id, title, assignee_id, status, progress_max, progress_value,
+  progress_manually_set, created_at, updated_at, completed_at
+);
+-- Re-create update_team_task from 20260830170000 and list_team_tasks from
+-- 20260905120000 (both without task_date), then:
+alter table public.team_tasks drop column task_date;
+```
+
+## 20260905180000_team_task_date_filter.sql
+
+Feature 017, part 4b. Read-path only: no data is written or dropped. Reverting
+puts the board back to filtering and ordering by `created_at`, so a task whose
+date was moved answers for the day its row was made again.
+
+```sql
+drop function if exists public.list_team_tasks(
+  uuid, timestamptz, timestamptz, uuid, integer, text, uuid, uuid, date, date
+);
+-- Re-create list_team_tasks from 20260905160000 (created_at range and order),
+-- then:
+drop function if exists private.team_task_sort_at(date, timestamptz);
+```
+
+## 20260906010000_library_processing_reaches_catalog.sql
+
+Read-path only: two functions are redefined and no data is written or dropped.
+`scan_library_requirements` and `claim_library_job` demanded
+`library_stage = 'library'`, a column only the separate placement flow ever
+writes — so in a space that simply connected a drive and started working, the
+batch scanned an empty set and reported that everything was already up to date
+beside fifty-five untranscribed videos. Both now read a null stage as library
+work; `finds` stays excluded. Reverting restores the old reading, and the batch
+goes back to seeing nothing until placement has run.
+
+```sql
+-- Re-create scan_library_requirements and claim_library_job from
+-- 20260814101000_creative_library_actions.sql (the `= 'library'` form).
+```
+
+## 20260905200000_team_task_attachment_drive_version.sql
+
+Read-path only: `get_team_task` gains `driveVersion` on each attachment, which
+the card's "download re-stitched" needs to ask for the right revision. Nothing
+is written or dropped; reverting only removes the field from the payload.
+
+```sql
+-- Re-create get_team_task from 20260830170000 (without driveVersion).
+```
+
+## 20260906020000_library_scan_counts_remaining_work.sql
+
+`scan_library_requirements` counted every video every time: it offered to
+transcribe six files that already carried a transcript and to translate
+fifty-five that had nothing to translate yet — a hundred and sixteen "jobs"
+where there were forty-nine. Transcription now skips a video whose active
+`transcript` companion holds text, translation requires one, and requirements
+that are no longer warranted are retired to `stale` instead of being counted
+forever. The retirement is a write: reverting does not bring those rows back to
+`pending`, though the next scan re-creates any that are genuinely still needed.
+
+```sql
+-- Re-create scan_library_requirements from 20260906010000.
+```
+
+## 20260906030000_library_scope_is_a_set.sql
+
+Both batch RPCs took `p_source uuid`: the whole space, or exactly one file. So
+a selection of four videos could not be processed at all, and a folder could
+only be walked by asking the same question once per file. `p_sources uuid[]`
+says the same thing for any number, bounded at 500. The old signatures are
+dropped rather than kept alongside, so a named-argument call cannot land on two
+candidates at once — which is also why reverting has to drop the new ones
+first.
+
+```sql
+drop function if exists public.scan_library_requirements(uuid, text, uuid[]);
+drop function if exists public.claim_library_job(uuid, uuid, text[], text, uuid[]);
+-- Re-create both from 20260906020000 / 20260906010000 (the `p_source uuid`
+-- form), then re-grant execute to authenticated.
+```
+
+## 20260906040000_processing_context_reaches_catalog.sql
+
+The last place the batch still demanded `library_stage = 'library'`. The loop
+claimed a job and then could not say what it was about: every claim came back
+as NOT_FOUND, and a batch over two chosen videos reported "failed: 2" a second
+after it started. The migration also returns the rows that failed for this
+reason to `pending`, which is a write — reverting leaves them pending rather
+than failed, and the next scan decides whether they are still work.
+
+```sql
+-- Re-create get_library_processing_context from
+-- 20260814101000_creative_library_actions.sql (the `= 'library'` form).
+```
+
+## 20260906050000_retry_speaks_of_a_set.sql
+
+`retry_failed_library_jobs` was the last function in this family still taking
+one material, so "retry the failed ones" over a chosen set of four hundred fired
+four hundred round trips from one press. It now takes the same `uuid[]` scope as
+the scan and the claim, bounded at 500. Read-path shape only — the same rows are
+returned to `pending` either way. The old signature is dropped rather than kept
+alongside, so reverting has to drop the new one first.
+
+```sql
+drop function if exists public.retry_failed_library_jobs(uuid, uuid[]);
+-- Re-create retry_failed_library_jobs(uuid, uuid) from
+-- 20260814101000_creative_library_actions.sql, then re-grant execute to
+-- authenticated.
+```
+
+## 20260906060000_scan_stays_inside_its_scope.sql
+
+Three things were still team-wide inside a scoped scan: the two housekeeping
+sweeps rewrote requirement rows across the whole space on every dialog open, so
+reading the counts for three chosen files wrote to every other member's queue;
+`landing_optimization` was keyed by the reader's interface language, so opening
+the same space in EN and then UA created two requirements per landing and
+doubled the count; and nothing indexed `source_material_id`, so every scoped
+count and claim scanned the team's whole pending queue. The migration also
+restores the repo's `revoke ... from public, anon` convention, which was lost
+when three functions were dropped and recreated in 20260906030000/050000.
+
+The rows already written under a language variant are carried over by
+20260906070000, which renames them in place; this migration no longer touches
+them.
+
+```sql
+drop index if exists public.team_library_requirements_source_idx;
+-- Re-create scan_library_requirements from 20260906030000 (team-wide sweeps,
+-- p_interface_language as the landing variant).
+```
+
+## 20260906070000_landing_variant_keeps_its_history.sql
+
+The variant rename in 20260906060000 retired only the `pending` and `failed`
+language-keyed landing rows. A finished optimisation is `ready` and kept its
+`variant = 'uk'`, which does not collide with the new `'default'` on the unique
+key — so the first scan after that migration would have offered a fresh job for
+every landing that had already been optimised, in every space. This renames in
+place instead: the most advanced row per source version becomes `'default'`, and
+the rest are retired to `stale` under a variant of their own so they stop sitting
+on the key the survivor needs.
+
+Reverting is not useful on its own — the language variant a row had before is not
+recoverable from the row. Revert 20260906060000's function first (which puts the
+reader's language back in the variant), and let the next scan re-create what it
+wants; the `'default'` rows stay as history.
+
+```sql
+-- No inverse. See above.
+```
+
+## 20260906080000_one_rule_for_housekeeping.sql
+
+`.DS_Store` and its kind were hidden from the file list by a name rule in the
+browser and by nothing anywhere else, so the folder tree's badge counted them
+and the list's total did not — the same folder showed two numbers two hundred
+pixels apart. `private.is_housekeeping_name` is the one rule now, read by
+`list_team_folder_tree` and by both halves of `list_team_folder_page`. Read-path
+only; nothing is written. Reverting brings the disagreement back and makes those
+rows visible in the list again.
+
+```sql
+-- Re-create list_team_folder_tree and list_team_folder_page from
+-- 20260827104000_team_folder_tree_and_paging.sql, then:
+drop function if exists private.is_housekeeping_name(text);
+```
+
+## 20260906090000_folder_subtree_in_one_read.sql
+
+"Process this folder and everything in it" read the drive one folder at a time
+from the browser — up to five hundred sequential round trips, and a ceiling that
+had to be explained when it was reached. `list_team_folder_subtree` answers the
+same three things (the videos and landings, the folders passed through, whether
+the read was cut short) in one query, bounded at depth 64 and at `p_max_folders`.
+Read-path only. Reverting means restoring the client-side walk in
+`apps/web/src/team/explorer/folderScan.ts`, deleted in the same change.
+
+```sql
+drop function if exists public.list_team_folder_subtree(uuid, text, integer);
+```
+
+## 20260906100000_counting_is_not_queueing.sql
+
+Opening the batch window scanned, and the scan wrote a requirement row for every
+candidate in scope — while the window said processing starts only after
+confirmation. True of the processing; but those rows are what other members'
+devices claim from, so reading the numbers enqueued the work for the space, and
+closing the window left it enqueued. `p_commit` splits the two: the window opens
+with `false` and counts candidates, Start runs the committing scan. The old
+four-argument signature is dropped, so reverting has to drop the new one first.
+
+```sql
+drop function if exists public.scan_library_requirements(uuid, text, uuid[], boolean);
+-- Re-create scan_library_requirements from 20260906060000 (no p_commit), then
+-- re-grant execute to authenticated.
+```
+
+## 20260906110000_stale_work_can_come_back.sql
+
+A requirement retired to `stale` keeps its row, and the row keeps the unique key
+— so when the same job became warranted again (a video that had no transcript
+gets one, and its translation becomes real work) the insert hit `on conflict do
+nothing` and dropped it for good. The window counted the candidate and offered
+it; the claim loop found no pending row and called the batch complete a second
+after Start. A stale row is now revived; pending, leased, running and ready rows
+are left exactly as they are. Reverting restores the silent drop.
+
+```sql
+-- Re-create scan_library_requirements from 20260906100000 (`do nothing`), then
+-- re-grant execute to authenticated.
+```
+
+## 20260906120000_offered_work_can_be_claimed.sql
+
+Two states let the window offer work the claim loop could not take. A `failed`
+row was counted in the numbers over Start, revived by nothing, and skipped by
+the claim, which takes `pending` only — a scope holding three failures from an
+earlier session offered three jobs and finished with none. And a `ready` row
+whose result was trashed left the video counted as needing work that could never
+be claimed, because the video's own version had not changed and no sweep touched
+the row. Start now revives `failed` alongside `stale`, a `ready` requirement
+whose result is gone is retired before the inserts, and the retirement sweep
+covers `failed` so a revived row is not offered when the work is no longer
+warranted. Reverting brings both dead ends back.
+
+```sql
+-- Re-create scan_library_requirements from 20260906110000 (revival on 'stale'
+-- only, no ready-result sweep, retirement over 'pending' only), then re-grant
+-- execute to authenticated.
+```
+
+## 20260906130000_a_deep_read_says_it_was_cut.sql
+
+`list_team_folder_subtree` stops at sixty-four levels, but reported `truncated`
+from the folder ceiling alone — so a tree deeper than that dropped everything
+below it and called the read complete, and the window above handed the scope
+over as if it were the whole folder. It now ors in `max(depth) >= 64`, erring the
+honest way: a tree exactly sixty-four deep with nothing under it is called cut,
+which costs a person one extra sentence and never a missing file. Read-path only.
+
+```sql
+-- Re-create list_team_folder_subtree from 20260906090000 (breadth-only
+-- truncation), then re-grant execute to authenticated.
+```
+
+## 20260906140000_history_says_what_it_happened_to.sql
+
+Every history line read as the action, the person, the outcome and the time, and
+never the thing it happened to — so three stopped jobs were three identical rows
+and the page was unreadable. `list_team_audit_events` now also returns
+`subject_label`: the file's name, an invitation's address, or the file behind a
+stopped job's operation, resolved at read time so a renamed file reads under the
+name it has. Read-path only; nothing is written. The drop-and-create also
+restores the `p_limit`/`p_before` defaults, whose loss made the panel's first
+read match no signature at all.
+
+```sql
+drop function if exists public.list_team_audit_events(uuid, integer, timestamptz);
+-- Re-create list_team_audit_events from 20260828120000 (without subject_label),
+-- keeping `p_limit integer default 50, p_before timestamptz default null`, then
+-- re-grant execute to authenticated.
+```
+
+## 20260906200000_tasks_carry_tags.sql
+
+Tags on tasks (018): two new tables (`team_task_labels`, `team_task_label_links`),
+their read/write functions, and a `list_team_tasks` that gained `p_labels` (keep
+the tasks carrying any of the given tags), `p_sort` (`date` or `label`) and a
+`labels` column; `get_team_task` gained `labels` too. Nothing existing changed
+shape: a caller that sends neither new argument gets exactly the page part 4b
+returned. Reverting drops the dictionary and every tag hung on a task; no task
+is touched.
+
+```sql
+drop function if exists public.list_team_tasks(
+  uuid, timestamptz, timestamptz, uuid, integer, text, uuid, uuid, date, date, uuid[], text
+);
+-- Re-create list_team_tasks and get_team_task from 20260905180000 /
+-- 20260905200000 (no labels, no p_sort), then re-grant execute to authenticated.
+drop function if exists public.attach_team_task_label(uuid, uuid, uuid);
+drop function if exists public.detach_team_task_label(uuid, uuid, uuid);
+drop function if exists public.list_team_task_labels(uuid);
+drop function if exists public.create_team_task_label(uuid, text, text);
+drop function if exists public.update_team_task_label(uuid, uuid, text, text);
+drop function if exists public.delete_team_task_label(uuid, uuid);
+drop function if exists private.team_task_labels(uuid);
+drop function if exists private.team_task_label_key(uuid);
+drop function if exists private.team_task_label_name(text);
+alter publication supabase_realtime drop table public.team_task_label_links;
+alter publication supabase_realtime drop table public.team_task_labels;
+drop table if exists public.team_task_label_links;
+drop table if exists public.team_task_labels;
+```
+
+## 20260906210000_the_board_narrows_to_one_person.sql
+
+`list_team_tasks` gained `p_assignee` (one person's tasks) and `p_unassigned`
+(the ones nobody is on); asking for both is `INVALID_INPUT`. Adds
+`team_tasks_assignee_idx`. Read-path only — nothing is written, and a caller
+that sends neither argument gets exactly the page 018 part 1 returned.
+
+```sql
+drop function if exists public.list_team_tasks(
+  uuid, timestamptz, timestamptz, uuid, integer, text, uuid, uuid, date, date, uuid[], text,
+  uuid, boolean
+);
+-- Re-create list_team_tasks from 20260906200000 (no p_assignee/p_unassigned),
+-- then re-grant execute to authenticated.
+drop index if exists public.team_tasks_assignee_idx;
+```
+
+## 20260906220000_agents_carry_money_and_tags.sql
+
+Feature 019. Renames `team_task_labels` to `team_labels` and gives it a `scope`
+(`task` / `agent`); adds `team_agent_labels`, the two money columns on
+`team_account_agents`, and the generic label RPCs in place of the task-only
+ones. Reverting drops the agent tags, both money columns and every figure in
+them; the task tags survive under the old table name.
+
+```sql
+drop function if exists public.attach_team_agent_label(uuid, uuid, uuid);
+drop function if exists public.detach_team_agent_label(uuid, uuid, uuid);
+drop function if exists public.set_team_agent_money(uuid, uuid, integer, integer);
+drop function if exists public.clear_team_agent_topups(uuid);
+drop function if exists public.list_team_labels(uuid, text);
+drop function if exists public.create_team_label(uuid, text, text, text);
+drop function if exists public.update_team_label(uuid, uuid, text, text);
+drop function if exists public.delete_team_label(uuid, uuid);
+drop function if exists private.team_agent_labels(uuid);
+drop function if exists private.team_label_scope(uuid, text);
+alter publication supabase_realtime drop table public.team_agent_labels;
+drop table if exists public.team_agent_labels;
+alter publication supabase_realtime drop table public.team_account_agents;
+alter table public.team_account_agents drop column topup, drop column balance;
+alter publication supabase_realtime add table public.team_account_agents (
+  id, team_id, account_id, agent_id, created_at, updated_at
+);
+alter table public.team_labels drop column scope;
+alter table public.team_labels rename to team_task_labels;
+-- Re-create private.team_agent_json, private.team_task_labels,
+-- private.team_task_label_key and the four *_team_task_label functions from
+-- 20260906200000, then re-grant execute to authenticated.
+```
+
+## 20260906230000_the_balances_can_be_cleared_too.sql
+
+Feature 019, part 2: `clear_team_agent_balances`, the mirror of
+`clear_team_agent_topups` for what an agent has left. Adds one function and
+nothing else; reverting takes the button's server side away and leaves every
+figure where it is.
+
+```sql
+drop function if exists public.clear_team_agent_balances(uuid);
 ```

@@ -27,6 +27,7 @@ import { useI18n } from '../../i18n';
 import { teamErrorMessage } from '../errors';
 import {
   stableLibraryAgentInstanceId,
+  type LibraryBatchScope,
   type ProcessLibraryAgent,
   type ProcessLibraryClient
 } from './process-library-contract';
@@ -43,8 +44,31 @@ const HEARTBEAT_MS = 25_000;
 export type LibraryProcessingPhase =
   'idle' | 'scanning' | 'ready' | 'running' | 'complete' | 'failed' | 'canceled';
 
+/**
+ * How the last run ended, kept after the counts move on.
+ *
+ * The window rescans as soon as a run settles, so the numbers over Start
+ * describe what is left rather than what was just offered. That would have
+ * wiped the run's own result off the screen in the same frame; this holds it
+ * until a new run starts or the scope changes.
+ */
+export interface LibraryBatchOutcome {
+  kind: 'complete' | 'canceled' | 'failed';
+  done: number;
+  skipped: number;
+  failed: number;
+  failedNames: string[];
+}
+
 export interface LibraryProcessingValue {
   phase: LibraryProcessingPhase;
+  outcome: LibraryBatchOutcome | null;
+  /**
+   * The scope these numbers are about. Not always the one last asked for: a
+   * scope change during a run is held until the run ends, and a window that
+   * showed the requested one would put a new title over the old run's progress.
+   */
+  scope: LibraryBatchScope;
   scan: LibraryRequirementScanResult | null;
   /** Job kinds this device can actually run, given the agent's tool contracts. */
   supportedKinds: LibraryJobKind[];
@@ -68,6 +92,16 @@ const defaultAgent: ProcessLibraryAgent = {
   process: startTeamLibraryAgentProcess,
   cancel: cancelTeamLibraryAgentProcess
 };
+
+/** The run's tally, as the shape the outcome keeps. */
+function snapshot(counts: { done: number; skipped: number; failed: number; names: string[] }) {
+  return {
+    done: counts.done,
+    skipped: counts.skipped,
+    failed: counts.failed,
+    failedNames: [...counts.names]
+  };
+}
 
 function safeErrorCode(error: unknown): string {
   const raw =
@@ -109,7 +143,8 @@ function optionsForJob(job: LibraryJobClaimEnvelope): Record<string, unknown> {
  */
 export function LibraryProcessingProvider({
   teamId,
-  sourceMaterialId,
+  sourceMaterialIds,
+  scope = { kind: 'space' },
   agentCompatible,
   toolContracts,
   client = teamApi,
@@ -119,7 +154,16 @@ export function LibraryProcessingProvider({
   children
 }: {
   teamId: string;
-  sourceMaterialId?: string;
+  /**
+   * What this batch is about: left out (or empty) for the whole space, one id
+   * for a single file, several for a folder or a hand-picked set. Choosing five
+   * videos and processing exactly those five is the ordinary request; it used
+   * to be impossible — the button either started work on everything or, once
+   * that lie was removed, disappeared.
+   */
+  sourceMaterialIds?: readonly string[];
+  /** The same scope in words, for whoever is showing the batch. */
+  scope?: LibraryBatchScope;
   agentCompatible: boolean;
   toolContracts: ToolContracts;
   client?: ProcessLibraryClient;
@@ -143,33 +187,99 @@ export function LibraryProcessingProvider({
   const [failed, setFailed] = useState(0);
   const [failedNames, setFailedNames] = useState<string[]>([]);
   const [errorCode, setErrorCode] = useState<string | null>(null);
+  const [outcome, setOutcome] = useState<LibraryBatchOutcome | null>(null);
   const control = useRef({
     stopped: false,
     attempt: null as LibraryJobClaimEnvelope | null,
     operationId: null as string | null
   });
 
+  /**
+   * The scope, as one list, so the scan and the claim loop share a single
+   * notion of what the batch is about. Empty means the whole space.
+   */
+  /* Derived from the key rather than from the prop: a caller that rebuilds the
+     array on every render would otherwise hand this a new identity each time,
+     and every callback below — the scan among them — would be rebuilt with it. */
+  const sourcesKey = (sourceMaterialIds ?? []).join(',');
+  const sources = useMemo(() => (sourcesKey === '' ? [] : sourcesKey.split(',')), [sourcesKey]);
+
+  /*
+   * A different scope is a different batch. The window only rescans while the
+   * batch is idle, so without this a run that finished over four chosen files
+   * left its counts and its tally standing — and opening the window on the
+   * whole space next showed that finished run's numbers under the new title.
+   * A run in flight is left alone: it is working through the set it started
+   * with, and its progress is the true thing on screen.
+   */
+  const [appliedScope, setAppliedScope] = useState<LibraryBatchScope>(scope);
+  /* The words for the scope, kept beside the key rather than in the effect's
+     dependencies: the two change together, and the key is what decides whether
+     anything changed at all. */
+  const requestedScope = useRef(scope);
+  requestedScope.current = scope;
+  /*
+   * The scope's identity is its ids *and* its name. Keying on the ids alone
+   * left the window titled "Папка «A»" after hand-picking exactly the files
+   * that folder held — the same work under the wrong name.
+   */
+  const scopeKey = `${sourcesKey}|${scope.kind}|${'name' in scope ? scope.name : ''}`;
+  const lastScope = useRef(scopeKey);
+  useEffect(() => {
+    if (lastScope.current === scopeKey) return;
+    // Marked as handled only once it has been: claiming it while a run is in
+    // flight meant the scope change was swallowed and never applied at all.
+    if (phase === 'running' || phase === 'scanning') return;
+    lastScope.current = scopeKey;
+    setAppliedScope(requestedScope.current);
+    setPhase('idle');
+    setScan(null);
+    setActiveKind(null);
+    setDone(0);
+    setSkipped(0);
+    setFailed(0);
+    setFailedNames([]);
+    setErrorCode(null);
+    setOutcome(null);
+  }, [phase, scopeKey]);
+
   const supportedKinds = useMemo<LibraryJobKind[]>(() => {
     if (!agentCompatible || (toolContracts.teamWorkspace ?? 0) < 1) return [];
     const kinds: LibraryJobKind[] = [];
     if ((toolContracts.transcription ?? 0) >= 5) kinds.push('transcription', 'translation');
-    if (!sourceMaterialId && (toolContracts.landingOptimizer ?? 0) >= 2) {
-      kinds.push('landing_optimization');
-    }
+    /*
+     * Landings too, whatever the scope. This used to be space-only, on the
+     * reasoning that one chosen video does not ask for landing work — true, and
+     * harmless, because the scan of one video finds no landings anyway. What it
+     * cost was a folder batch that counted six landing jobs in its own window
+     * and could not claim a single one: eighteen of twenty-four, then "this
+     * computer has finished all the compatible work" beside a tile reading 6.
+     */
+    if ((toolContracts.landingOptimizer ?? 0) >= 2) kinds.push('landing_optimization');
     return kinds;
-  }, [agentCompatible, sourceMaterialId, toolContracts]);
+  }, [agentCompatible, toolContracts]);
 
   const rescan = useCallback(async () => {
     setPhase('scanning');
     setErrorCode(null);
+    /* A scan describes what is left, so the live tally stops being this
+       batch's progress. The finished run's result survives in `outcome`. */
+    setDone(0);
+    setSkipped(0);
+    setFailed(0);
+    setFailedNames([]);
+    setActiveKind(null);
     try {
-      setScan(await client.scanLibraryRequirements(teamId, language, sourceMaterialId));
+      /* Counting only. Opening this window used to enqueue every job it
+         counted, for everyone in the space, while saying nothing starts
+         without confirmation. Start is what enqueues now. */
+      setScan(await client.scanLibraryRequirements(teamId, language, sources, false));
       setPhase('ready');
     } catch (error) {
       setErrorCode(safeErrorCode(error));
       setPhase('failed');
     }
-  }, [client, language, sourceMaterialId, teamId]);
+  }, [client, language, sources, teamId]);
 
   /** Give the server back the lease this device is holding, if any. */
   const releaseActive = useCallback(async () => {
@@ -201,8 +311,16 @@ export function LibraryProcessingProvider({
     [releaseActive]
   );
 
+  /*
+   * What this device will actually claim, not what the space is missing. An
+   * agent without the landing tool still sees the landing count in the scan;
+   * adding it here promised jobs the loop would never ask for, and the batch
+   * then ended "complete" several short of its own number.
+   */
   const total = scan
-    ? scan.missing.transcription + scan.missing.translation + scan.missing.landingOptimization
+    ? (supportedKinds.includes('transcription') ? scan.missing.transcription : 0) +
+      (supportedKinds.includes('translation') ? scan.missing.translation : 0) +
+      (supportedKinds.includes('landing_optimization') ? scan.missing.landingOptimization : 0)
     : 0;
 
   /**
@@ -216,7 +334,7 @@ export function LibraryProcessingProvider({
       if (counts.failed > 0) {
         push({
           tone: 'error',
-          text: t('creativeLibraryProcessSummaryPartial', {
+          text: t('teamBatchSummaryPartial', {
             done: counts.done,
             failed: counts.failed,
             names: counts.names.slice(0, 3).join(', ')
@@ -225,12 +343,12 @@ export function LibraryProcessingProvider({
         return;
       }
       if (counts.done === 0 && counts.skipped === 0) {
-        push({ tone: 'info', text: t('creativeLibraryProcessSummaryNothing') });
+        push({ tone: 'info', text: t('teamBatchSummaryNothing') });
         return;
       }
       push({
         tone: 'success',
-        text: t('creativeLibraryProcessSummaryDone', { done: counts.done })
+        text: t('teamBatchSummaryDone', { done: counts.done })
       });
     },
     [push, t]
@@ -240,22 +358,45 @@ export function LibraryProcessingProvider({
     if (supportedKinds.length === 0) return;
     control.current.stopped = false;
     setPhase('running');
+    /* The queue is written here, at the press that agreed to it. Until now the
+       window had only counted. */
+    try {
+      await client.scanLibraryRequirements(teamId, language, sources, true);
+    } catch (error) {
+      setErrorCode(safeErrorCode(error));
+      setPhase('failed');
+      return;
+    }
     setErrorCode(null);
+    /* A run counts itself. Carrying the previous run's tally forward put the
+       progress bar near full before anything had happened, and the results line
+       claimed ten files done at the moment Start was pressed. */
+    setOutcome(null);
+    setDone(0);
+    setSkipped(0);
+    setFailed(0);
+    setFailedNames([]);
     const counts = { done: 0, skipped: 0, failed: 0, names: [] as string[] };
     for (;;) {
       if (control.current.stopped) return;
       let job: LibraryJobClaimEnvelope;
       try {
+        /* The scope travels with every claim: the server hands out one job at
+           a time from the whole set, so a folder of fifty finishes on the same
+           loop that finishes a single file. */
         job = await client.claimLibraryJob({
           teamId,
           agentInstanceId: instanceId,
           supportedKinds,
           interfaceLanguage: language,
-          ...(sourceMaterialId ? { sourceMaterialId } : {})
+          ...(sources.length > 0 ? { sourceMaterialIds: sources } : {})
         });
       } catch (error) {
         if (safeErrorCode(error) === 'NO_WORK') {
           setActiveKind(null);
+          // The result is kept before the rescan replaces the live tally: what
+          // this run did stays on screen while the numbers move to what is left.
+          setOutcome({ kind: 'complete', ...snapshot(counts) });
           await rescan();
           setPhase('complete');
           summarize(counts);
@@ -263,6 +404,7 @@ export function LibraryProcessingProvider({
           return;
         }
         setErrorCode(safeErrorCode(error));
+        setOutcome({ kind: 'failed', ...snapshot(counts) });
         setPhase('failed');
         summarize(counts);
         return;
@@ -377,7 +519,7 @@ export function LibraryProcessingProvider({
     language,
     onChanged,
     rescan,
-    sourceMaterialId,
+    sources,
     summarize,
     supportedKinds,
     teamId,
@@ -388,13 +530,20 @@ export function LibraryProcessingProvider({
   /** Stopping on purpose, which is a different outcome from the run failing. */
   const cancel = useCallback(async () => {
     await releaseActive();
+    setOutcome({
+      kind: 'canceled',
+      done,
+      skipped,
+      failed,
+      failedNames
+    });
     setPhase('canceled');
-    push({ tone: 'info', text: t('creativeLibraryProcessCanceled') });
-  }, [push, releaseActive, t]);
+    push({ tone: 'info', text: t('teamBatchCanceled') });
+  }, [done, failed, failedNames, push, releaseActive, skipped, t]);
 
   const retryFailed = useCallback(async () => {
     try {
-      await client.retryFailedLibraryJobs(teamId, sourceMaterialId);
+      await client.retryFailedLibraryJobs(teamId, sources);
       setFailed(0);
       setFailedNames([]);
       await start();
@@ -403,11 +552,13 @@ export function LibraryProcessingProvider({
       setErrorCode(code);
       push({ tone: 'error', text: teamErrorMessage(code, t) });
     }
-  }, [client, push, sourceMaterialId, start, t, teamId]);
+  }, [client, push, sources, start, t, teamId]);
 
   const value = useMemo<LibraryProcessingValue>(
     () => ({
       phase,
+      outcome,
+      scope: appliedScope,
       scan,
       supportedKinds,
       activeKind,
@@ -424,11 +575,13 @@ export function LibraryProcessingProvider({
     }),
     [
       activeKind,
+      appliedScope,
       cancel,
       done,
       errorCode,
       failed,
       failedNames,
+      outcome,
       phase,
       rescan,
       retryFailed,

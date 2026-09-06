@@ -1,19 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { ChevronsDownUp } from 'lucide-react';
 import type { TeamFolderNode } from '@video-compressor/shared';
 import { useI18n } from '../../i18n';
 import { KindIcon } from './KindIcon';
 import { useExplorer } from './ExplorerProvider';
 import { DRAG_TYPE } from './rowKinds';
-
-function RefreshIcon() {
-  // A coiled arrow, the way Google's refresh reads — a ring broken at the top
-  // with an arrowhead, not a plain circle.
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
-      <path fill="currentColor" d="M12 6V3L8 7l4 4V8a4 4 0 1 1-4 4H6a6 6 0 1 0 6-6z" />
-    </svg>
-  );
-}
 
 /**
  * The folder tree (011, FR-008/FR-027): every level, counts beside each
@@ -22,9 +13,12 @@ function RefreshIcon() {
  * the open folder's path, which keeps the DOM bounded at the published limit.
  */
 export function FolderTree({
+  elsewhere = false,
   onDropMaterials,
   onReset
 }: {
+  /** The screen is showing something other than a folder — the trash, a search. */
+  elsewhere?: boolean;
   /** Materials dragged from the content area onto a folder (011, FR-026). */
   onDropMaterials?: (folderDriveId: string, materialIds: string[]) => void;
   /** The round refresh by the root: back to a clean explorer. */
@@ -41,10 +35,7 @@ export function FolderTree({
     childrenOf,
     nodeOf,
     pathTo,
-    openFolder,
-    select,
-    clearSelection,
-    refresh
+    openFolder
   } = useExplorer();
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [focused, setFocused] = useState<string | null>(null);
@@ -225,26 +216,31 @@ export function FolderTree({
       <div className="team-explorer-tree-head">
         <button
           type="button"
-          className={`team-explorer-tree-root${currentFolderId === null ? ' is-current' : ''}`}
-          aria-current={currentFolderId === null ? 'location' : undefined}
+          /* Not "current" while the trash or a search is open: nothing in the
+             tree is where you are then, and the filled root read as a text
+             field somebody had clicked into. */
+          className={`team-explorer-tree-root${currentFolderId === null && !elsewhere ? ' is-current' : ''}`}
+          aria-current={currentFolderId === null && !elsewhere ? 'location' : undefined}
           onClick={() => openFolder(null)}
         >
           {t('teamExplorerRootLabel')}
         </button>
         <button
           type="button"
-          className="team-explorer-tree-refresh"
-          aria-label={t('teamExplorerReset')}
-          title={t('teamExplorerReset')}
+          className="team-explorer-tree-collapse"
+          /* This used to do what pressing "Усі файли" beside it already does —
+             go to the root — behind a refresh arrow that promised something
+             else. It folds the tree instead, which is the thing a person wants
+             after opening six branches and losing the shape of the space. */
+          aria-label={t('teamExplorerCollapseAll')}
+          title={t('teamExplorerCollapseAll')}
+          disabled={expanded.size === 0}
           onClick={() => {
-            select(null);
-            clearSelection();
-            openFolder(null);
-            void refresh();
+            setExpanded(new Set());
             onReset?.();
           }}
         >
-          <RefreshIcon />
+          <ChevronsDownUp size={16} strokeWidth={2} aria-hidden="true" />
         </button>
       </div>
       {loading && nodes === null && (
