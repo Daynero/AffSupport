@@ -103,10 +103,32 @@
   -webkit-line-clamp: 7;
 }
 
+/* Unfolded, the brief scrolls inside the card rather than growing it without
+   end: a card taller than the window pushes its own "Less" past the bottom
+   edge and stretches every card beside it into an empty column. The text is
+   all there, in one place, with the fold control always under it. */
 .team-task-card.is-expanded .team-task-card-description p {
   display: block;
-  overflow: visible;
+  max-height: min(52vh, 460px);
+  overflow-y: auto;
+  /* The board does not scroll away under a brief being read. */
+  overscroll-behavior: contain;
+  padding-right: var(--space-2);
   -webkit-line-clamp: unset;
+  scrollbar-width: thin;
+}
+
+/* One card unfolding must not stretch its row-mates to the same height: the
+   equal-height grid is what makes the board tidy while every card is clamped
+   to the same few lines, and exactly what makes three empty boxes as tall as
+   the one being read. `height: 100%` (styles.css) has to go with it, or the
+   cards fill the row whatever the alignment says. */
+.team-task-grid:has(.team-task-card.is-expanded) {
+  align-items: start;
+}
+
+.team-task-grid:has(.team-task-card.is-expanded) .team-task-card {
+  height: auto;
 }
 
 .team-task-card-description > span {
@@ -196,4 +218,678 @@
   .task-account-filter {
     align-self: flex-start;
   }
+}
+
+/* ============================================================
+   The filter row, and the board's fold control
+   ============================================================ */
+
+/* One face for every control in the row. They came from three families —
+   bordered date pills at 0.85rem, an icon button at 10px radius, and status
+   options that inherited the panel's 1.3rem body text — so the row read as
+   three unrelated toolbars. Same size, weight, height and radius; the only
+   thing that changes between them is what they say. */
+.task-date-filter .task-quick-range,
+.task-date-filter .task-status-filter-option,
+.task-date-filter .task-date-filter-trigger {
+  min-height: 34px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.task-date-filter .task-date-filter-trigger {
+  padding: 0 10px;
+}
+
+.task-date-filter .task-quick-range:hover,
+.task-date-filter .task-status-filter-option:hover,
+.task-date-filter .task-date-filter-trigger:hover {
+  border-color: var(--color-border);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+/* One selected look, and an unmistakable one: the accent both outlines and
+   fills the chosen pill. The neutral grey fill the statuses used could not be
+   told from hover, and the dark `--color-accent-active` the date pills used
+   for their text sat at 2.9:1 on this surface. */
+.task-date-filter .task-quick-range.is-active,
+.task-date-filter .task-status-filter-option.is-active,
+.task-date-filter .task-date-filter-trigger.is-active {
+  border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  color: var(--color-accent);
+}
+
+/* The status glyphs keep their own meaning-colours inside a selected pill. */
+.task-date-filter .task-status-filter-option svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* Unfold every brief on the board at once, and fold them back. Quiet, beside
+   the primary action, because it changes how the board reads rather than
+   what is on it. */
+.team-task-expand-all {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 0 var(--space-3) 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.team-task-expand-all:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+/* ============================================================
+   The date a task is for
+   ============================================================ */
+
+/* At the end of the status line, where the card shows it. A pill, so it
+   reads as the control it is; tinted once it is a date someone chose rather
+   than the day the task happened to be made. */
+.team-task-date-field {
+  position: relative;
+  margin-left: auto;
+}
+
+.team-task-date-trigger {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.team-task-date-trigger:hover:not(:disabled),
+.team-task-date-trigger[aria-expanded='true'] {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+.team-task-date-trigger.is-custom {
+  border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  color: var(--color-accent);
+}
+
+.team-task-date-trigger:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+/* The board's calendar, opened from the right edge so it stays inside the
+   dialog it is in. */
+.team-task-date-popover {
+  right: 0;
+  left: auto;
+  z-index: var(--layer-popover);
+}
+
+.team-task-date-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.team-task-date-actions button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.team-task-date-actions button:hover {
+  border-color: var(--color-border);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+/* ===========================================================================
+   Task tags (018)
+
+   A tag is a pill in its own colour: a filled dot, the name, and a wash of the
+   same hue behind them. One shape for every surface — the card, the editor,
+   the picker, the filter and the settings list — so a tag is never two things.
+   The colour comes from `data-color` alone, which is why there is one rule per
+   hue and none anywhere else.
+   =========================================================================== */
+
+.team-task-label-chip {
+  --task-tag-color: var(--task-tag-slate);
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 10px 0 8px;
+  border: 1px solid color-mix(in srgb, var(--task-tag-color) 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--task-tag-color) 14%, var(--color-surface));
+  color: var(--color-text);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.team-task-label-chip[data-color='purple'] {
+  --task-tag-color: var(--task-tag-purple);
+}
+.team-task-label-chip[data-color='blue'] {
+  --task-tag-color: var(--task-tag-blue);
+}
+.team-task-label-chip[data-color='teal'] {
+  --task-tag-color: var(--task-tag-teal);
+}
+.team-task-label-chip[data-color='green'] {
+  --task-tag-color: var(--task-tag-green);
+}
+.team-task-label-chip[data-color='honey'] {
+  --task-tag-color: var(--task-tag-honey);
+}
+.team-task-label-chip[data-color='orange'] {
+  --task-tag-color: var(--task-tag-orange);
+}
+.team-task-label-chip[data-color='red'] {
+  --task-tag-color: var(--task-tag-red);
+}
+.team-task-label-chip[data-color='pink'] {
+  --task-tag-color: var(--task-tag-pink);
+}
+.team-task-label-chip[data-color='slate'] {
+  --task-tag-color: var(--task-tag-slate);
+}
+
+.team-task-label-chip-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--task-tag-color);
+}
+
+.team-task-label-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+button.team-task-label-chip {
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  transition:
+    border-color var(--dur-control) var(--ease-standard),
+    background-color var(--dur-control) var(--ease-standard);
+}
+
+button.team-task-label-chip:hover:not(:disabled),
+.team-task-label-chip.is-selected {
+  border-color: var(--task-tag-color);
+  background: color-mix(in srgb, var(--task-tag-color) 22%, var(--color-surface));
+}
+
+/* The × that takes a tag off a task.
+
+   `min-height: 0` is the whole point of this rule: the global
+   `button { min-height: 44.2px }` touch target applies here too, and a 44px
+   control inside a 26px pill made the tag chip half again as tall as the
+   account chip beside it. */
+.team-task-label-chip-remove {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  flex: 0 0 16px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  margin-right: -4px;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.team-task-label-chip-remove:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--task-tag-color) 25%, transparent);
+  color: var(--color-text);
+}
+
+.team-task-label-chip.is-more {
+  --task-tag-color: var(--color-border-strong);
+  padding: 0 10px;
+  color: var(--color-text-muted);
+}
+
+.team-task-label-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* On a card the tags share the strip with the status and the agent tags, so
+   they wrap with them rather than as a block of their own. */
+.team-task-card-strip .team-task-label-chips {
+  display: contents;
+}
+
+/* On a card the tags take the strip's own height, the one the status control
+   and the account chips already use. */
+.team-task-card .team-task-label-chip {
+  min-height: 34px;
+  padding: 0 12px 0 10px;
+  font-size: 0.8rem;
+}
+
+/* --- The row in the editor ------------------------------------------------- */
+
+.team-task-labels-row-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.team-task-label-chips.is-editing {
+  position: relative;
+  gap: var(--space-2) 6px;
+}
+
+/* --- The popover: the space's dictionary ----------------------------------- */
+
+.team-task-label-menu {
+  position: absolute;
+  z-index: var(--layer-popover);
+  top: calc(100% + 8px);
+  left: 0;
+  display: flex;
+  width: min(280px, calc(100vw - 32px));
+  max-height: min(360px, 55vh);
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-lg);
+  overflow-y: auto;
+}
+
+.team-task-label-menu-search {
+  width: 100%;
+  min-height: 32px;
+  margin-bottom: var(--space-1);
+}
+
+.team-task-label-menu-empty {
+  margin: 0;
+  padding: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+.team-task-label-option {
+  display: flex;
+  width: 100%;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.team-task-label-option:hover,
+.team-task-label-option:focus-visible {
+  background: var(--color-surface-muted);
+}
+
+.team-task-label-option.is-selected {
+  background: var(--color-accent-softer);
+}
+
+/* --- The filter pill and the order control --------------------------------- */
+
+.task-label-filter .task-account-filter-trigger {
+  max-width: 200px;
+}
+
+.task-sort-control {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.task-sort-option {
+  gap: 6px;
+}
+
+/* --- The dictionary, in space settings ------------------------------------- */
+
+.team-task-labels-create {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.team-task-labels-name {
+  display: flex;
+  min-width: 200px;
+  flex: 1 1 200px;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.team-task-label-colors {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.team-task-label-swatch {
+  --task-tag-color: var(--task-tag-slate);
+  width: 22px;
+  height: 22px;
+  /* Same touch-target override as the chip's ×: a swatch is a colour, and at
+     44px tall it reads as a pill rather than a dot. */
+  min-height: 0;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--task-tag-color);
+  cursor: pointer;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-text) 12%, transparent);
+}
+
+.team-task-label-swatch[data-color='purple'] {
+  --task-tag-color: var(--task-tag-purple);
+}
+.team-task-label-swatch[data-color='blue'] {
+  --task-tag-color: var(--task-tag-blue);
+}
+.team-task-label-swatch[data-color='teal'] {
+  --task-tag-color: var(--task-tag-teal);
+}
+.team-task-label-swatch[data-color='green'] {
+  --task-tag-color: var(--task-tag-green);
+}
+.team-task-label-swatch[data-color='honey'] {
+  --task-tag-color: var(--task-tag-honey);
+}
+.team-task-label-swatch[data-color='orange'] {
+  --task-tag-color: var(--task-tag-orange);
+}
+.team-task-label-swatch[data-color='red'] {
+  --task-tag-color: var(--task-tag-red);
+}
+.team-task-label-swatch[data-color='pink'] {
+  --task-tag-color: var(--task-tag-pink);
+}
+.team-task-label-swatch[data-color='slate'] {
+  --task-tag-color: var(--task-tag-slate);
+}
+
+/* The chosen swatch carries a ring in the page's own colour rather than a
+   tick: a mark inside a 22px circle is a smudge at every size. */
+.team-task-label-swatch.is-selected {
+  border-color: var(--color-surface);
+  box-shadow: 0 0 0 2px var(--task-tag-color);
+}
+
+.team-task-label-swatch:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.team-task-labels-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.team-task-labels-row {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+}
+
+.team-task-labels-row:hover {
+  border-color: var(--color-border);
+  background: var(--color-surface-subtle);
+}
+
+.team-task-labels-row.is-editing {
+  flex-wrap: wrap;
+  padding: var(--space-2);
+  border-color: var(--color-border);
+  background: var(--color-surface-subtle);
+}
+
+.team-task-labels-row.is-editing input {
+  min-width: 160px;
+  flex: 1 1 160px;
+}
+
+/* The count is the row's quiet half: it says how much a delete would touch. */
+.team-task-labels-count {
+  margin-right: auto;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Row actions stay out of the way until the row is reached — the same manner
+   as the accounts table's pencil and bin. */
+.team-task-labels-action {
+  opacity: 0;
+}
+
+.team-task-labels-row:hover .team-task-labels-action,
+.team-task-labels-action:focus-visible {
+  opacity: 1;
+}
+
+.team-task-labels-action.is-danger:hover {
+  color: var(--color-error);
+}
+
+.team-task-labels-empty {
+  color: var(--color-text-muted);
+}
+
+@media (hover: none) {
+  /* Nothing to hover: the actions are simply there. */
+  .team-task-labels-action {
+    opacity: 1;
+  }
+}
+
+/* A list that is on screen but could not be refreshed: said once, quietly, in
+   the muted voice — the tags themselves are still usable. */
+.team-task-labels-stale {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+/* --- The filter row, now that it carries two more controls (018) ----------- */
+
+/* Before this the row was one non-wrapping line: adding the tag pill and the
+   order control squeezed the groups until "За весь час" fell off its own group
+   and "За тегом" broke mid-phrase. The row wraps as whole controls now, and no
+   control breaks inside itself. */
+.task-date-filter {
+  flex-wrap: wrap;
+  row-gap: var(--space-2);
+}
+
+.task-date-filter > *,
+.task-quick-ranges,
+.task-sort-control,
+.task-label-filter {
+  flex: 0 0 auto;
+}
+
+.task-quick-ranges {
+  flex-wrap: nowrap;
+}
+
+.task-quick-range,
+.task-status-filter-option,
+.task-sort-option {
+  white-space: nowrap;
+}
+
+/* The statuses keep the right edge while the row fits on one line, and simply
+   follow the rest once it does not. */
+.task-status-filter {
+  flex-wrap: nowrap;
+}
+
+/* One tag chosen: the pill borrows that tag's colour, so the row says which
+   tag is in force the same way the chips do. Several, and it stays neutral —
+   a pill cannot be two colours. */
+.task-label-filter .task-account-filter-trigger[data-color] {
+  border-color: color-mix(in srgb, var(--task-tag-color, var(--task-tag-slate)) 55%, transparent);
+  background: color-mix(in srgb, var(--task-tag-color, var(--task-tag-slate)) 14%, transparent);
+  color: var(--color-text);
+}
+
+.task-label-filter .task-account-filter-trigger[data-color='purple'] {
+  --task-tag-color: var(--task-tag-purple);
+}
+.task-label-filter .task-account-filter-trigger[data-color='blue'] {
+  --task-tag-color: var(--task-tag-blue);
+}
+.task-label-filter .task-account-filter-trigger[data-color='teal'] {
+  --task-tag-color: var(--task-tag-teal);
+}
+.task-label-filter .task-account-filter-trigger[data-color='green'] {
+  --task-tag-color: var(--task-tag-green);
+}
+.task-label-filter .task-account-filter-trigger[data-color='honey'] {
+  --task-tag-color: var(--task-tag-honey);
+}
+.task-label-filter .task-account-filter-trigger[data-color='orange'] {
+  --task-tag-color: var(--task-tag-orange);
+}
+.task-label-filter .task-account-filter-trigger[data-color='red'] {
+  --task-tag-color: var(--task-tag-red);
+}
+.task-label-filter .task-account-filter-trigger[data-color='pink'] {
+  --task-tag-color: var(--task-tag-pink);
+}
+.task-label-filter .task-account-filter-trigger[data-color='slate'] {
+  --task-tag-color: var(--task-tag-slate);
+}
+
+/* --- Whose tasks (018 part 2) --------------------------------------------- */
+
+.task-assignee-filter .task-account-filter-trigger {
+  max-width: 220px;
+}
+
+/* The name is what the row is scanned by; the address gives way first. */
+.task-assignee-filter-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The eye that puts the progress scales away. Quieter than the fold control
+   beside it — no border until it is reached, and no word at all: what it hides
+   is the thing a person is looking at. */
+.team-task-progress-toggle {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-control) var(--ease-standard),
+    background-color var(--dur-control) var(--ease-standard),
+    color var(--dur-control) var(--ease-standard);
+}
+
+.team-task-progress-toggle:hover,
+.team-task-progress-toggle:focus-visible {
+  border-color: var(--color-border);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+/* Off, it stays marked rather than merely un-pressed: a board with no scales
+   should say that this is a choice and not a missing feature. */
+.team-task-progress-toggle.is-off {
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+/* The fold control claimed the whole gap; with the eye beside it the pair
+   sits together at the right, before the primary action. */
+.team-task-space-heading .team-task-progress-toggle {
+  margin-left: 0;
 }

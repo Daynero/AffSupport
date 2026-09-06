@@ -2,7 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
   localTaskDayBounds,
+  teamTaskComparator,
+  type TeamTaskLabelRef,
   type TeamTaskPatch,
+  type TeamTaskSort,
   type TeamTaskStatus,
   type TeamTaskSummary
 } from '@video-compressor/shared';
@@ -18,14 +21,33 @@ export type TaskStatusFilter = 'all' | TeamTaskStatus;
 export type TaskAccountScope =
   { kind: 'all' } | { kind: 'account'; accountId: string } | { kind: 'agent'; agentRowId: string };
 
+/**
+ * Whose tasks the board shows (018): everyone's, one person's, or the ones
+ * nobody is on. "Nobody" is a state of its own rather than a missing id — it
+ * is the pile a stand-up is held over.
+ */
+export type TaskAssigneeFilter =
+  { kind: 'all' } | { kind: 'member'; userId: string } | { kind: 'unassigned' };
+
 export interface TasksClient {
   listTasks(input: {
     teamId: string;
     createdFrom?: string | null;
     createdTo?: string | null;
+    /** The same range in plain days, for tasks carrying a date of their own. */
+    dayFrom?: string | null;
+    dayTo?: string | null;
     status?: TeamTaskStatus | null;
     agentRowId?: string | null;
     accountId?: string | null;
+    /** Only tasks carrying any of these tags (018). */
+    labelIds?: readonly string[] | null;
+    /** How the server orders the page (018). */
+    sort?: TeamTaskSort | null;
+    /** Only one person's tasks (018 part 2). */
+    assigneeId?: string | null;
+    /** Only the tasks nobody is on. */
+    unassigned?: boolean;
     cursor?: string | null;
     pageSize?: number;
   }): Promise<TeamTaskSummary[]>;
@@ -57,22 +79,30 @@ export function localDateValue(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+/**
+ * The chosen range in both forms the list needs: instants, which are exact for
+ * a task that has only the moment it was created, and plain local days, which
+ * are exact for a task that carries a date of its own. Sending both is what
+ * keeps the board from having to guess a timezone in SQL.
+ */
 export function taskFilterBounds(filter: TaskDateFilter) {
   if (filter.kind === 'all') return null;
   const from = filter.from <= filter.to ? filter.from : filter.to;
   const to = filter.from <= filter.to ? filter.to : filter.from;
   return {
     from: localTaskDayBounds(from).from,
-    to: localTaskDayBounds(to).to
+    to: localTaskDayBounds(to).to,
+    dayFrom: from,
+    dayTo: to
   };
 }
 
-function mergeTasks(current: TeamTaskSummary[], incoming: TeamTaskSummary[]) {
+function mergeTasks(current: TeamTaskSummary[], incoming: TeamTaskSummary[], sort: TeamTaskSort) {
   const byId = new Map(current.map(task => [task.id, task]));
   for (const task of incoming) byId.set(task.id, task);
-  return [...byId.values()].sort(
-    (left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt)
-  );
+  // The same order the server pages in: by the date the task is for, or by
+  // tag when that is what the board is ordered by.
+  return [...byId.values()].sort(teamTaskComparator(sort));
 }
 
 export function useTasks({
@@ -88,17 +118,33 @@ export function useTasks({
 }) {
   const [filter, setFilter] = useState<TaskDateFilter>({ kind: 'all' });
   const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>('all');
+  /** Which tags the board is narrowed to, and what it is ordered by (018). */
+  const [labelIds, setLabelIds] = useState<string[]>([]);
+  const [sort, setSort] = useState<TeamTaskSort>('date');
+  /** Whose tasks the board shows (018 part 2). */
+  const [assignee, setAssignee] = useState<TaskAssigneeFilter>({ kind: 'all' });
   const bounds = useMemo(() => taskFilterBounds(filter), [filter]);
   const status = statusFilter === 'all' ? null : statusFilter;
   const agentRowId = scope.kind === 'agent' ? scope.agentRowId : null;
   const accountId = scope.kind === 'account' ? scope.accountId : null;
+  /* One string for the chosen set, sorted so the same two tags in either
+     order are the same view — it is the cache key, the request's argument and
+     the effect's dependency, so a re-press that changes nothing re-reads
+     nothing. */
+  const labelKey = [...labelIds].sort().join(',');
+  const labelFilter = useMemo(() => (labelKey === '' ? null : labelKey.split(',')), [labelKey]);
+  const assigneeId = assignee.kind === 'member' ? assignee.userId : null;
+  const unassigned = assignee.kind === 'unassigned';
   const cacheKey = [
     teamId,
     bounds?.from ?? '',
     bounds?.to ?? '',
     status ?? '',
     agentRowId ?? '',
-    accountId ?? ''
+    accountId ?? '',
+    labelKey,
+    sort,
+    assigneeId ?? (unassigned ? 'none' : '')
   ].join('|');
   const cached = client === defaultClient ? cache.get(cacheKey) : undefined;
   const [tasks, setTasks] = useState<TeamTaskSummary[]>(cached?.tasks ?? []);
@@ -118,9 +164,15 @@ export function useTasks({
         teamId,
         createdFrom: bounds?.from,
         createdTo: bounds?.to,
+        dayFrom: bounds?.dayFrom,
+        dayTo: bounds?.dayTo,
         status,
         agentRowId,
         accountId,
+        labelIds: labelFilter,
+        sort,
+        assigneeId,
+        unassigned,
         pageSize: PAGE_SIZE
       });
       if (requestGeneration !== generation.current) return;
@@ -134,7 +186,20 @@ export function useTasks({
     } finally {
       if (requestGeneration === generation.current) setLoading(false);
     }
-  }, [accountId, agentRowId, bounds?.from, bounds?.to, cacheKey, client, status, teamId]);
+  }, [
+    accountId,
+    agentRowId,
+    assigneeId,
+    bounds?.from,
+    bounds?.to,
+    cacheKey,
+    client,
+    labelFilter,
+    sort,
+    status,
+    teamId,
+    unassigned
+  ]);
 
   useEffect(() => {
     void refetch();
@@ -221,6 +286,23 @@ export function useTasks({
         },
         scheduleRefetch
       )
+      // The tags a card shows (018) and the dictionary they read their name
+      // and colour from: a rename by one person must reach everyone's board.
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'team_task_label_links',
+          filter: `team_id=eq.${teamId}`
+        },
+        scheduleRefetch
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'team_task_labels', filter: `team_id=eq.${teamId}` },
+        scheduleRefetch
+      )
       .subscribe();
 
     return () => {
@@ -239,13 +321,19 @@ export function useTasks({
         teamId,
         createdFrom: bounds?.from,
         createdTo: bounds?.to,
+        dayFrom: bounds?.dayFrom,
+        dayTo: bounds?.dayTo,
         status,
         agentRowId,
         accountId,
+        labelIds: labelFilter,
+        sort,
+        assigneeId,
+        unassigned,
         cursor,
         pageSize: PAGE_SIZE
       });
-      setTasks(current => mergeTasks(current, next));
+      setTasks(current => mergeTasks(current, next, sort));
       setHasMore(next.length === PAGE_SIZE);
       setError(null);
     } catch (cause) {
@@ -256,15 +344,19 @@ export function useTasks({
   }, [
     accountId,
     agentRowId,
+    assigneeId,
     bounds?.from,
     bounds?.to,
     client,
     hasMore,
+    labelFilter,
     loading,
     loadingMore,
+    sort,
     status,
     tasks,
-    teamId
+    teamId,
+    unassigned
   ]);
 
   const create = useCallback(
@@ -275,10 +367,10 @@ export function useTasks({
       initialMaterialId?: string | null;
     }) => {
       const created = await client.createTask({ teamId, ...input });
-      setTasks(current => mergeTasks(current, [created]));
+      setTasks(current => mergeTasks(current, [created], sort));
       return created;
     },
-    [client, teamId]
+    [client, sort, teamId]
   );
 
   const update = useCallback(
@@ -290,11 +382,34 @@ export function useTasks({
       // update_team_task returns a team_tasks row, which deliberately does not
       // include the derived attachment count. A quick status/progress edit must
       // not make an otherwise attached card briefly look empty.
-      const next = { ...updated, attachmentCount: task.attachmentCount, agents: task.agents };
-      setTasks(current => current.map(item => (item.id === next.id ? next : item)));
+      const next = {
+        ...updated,
+        attachmentCount: task.attachmentCount,
+        agents: task.agents,
+        labels: task.labels
+      };
+      // An edit can move a task's date, and the board is ordered by that date:
+      // re-place the card instead of leaving it where it used to belong.
+      setTasks(current =>
+        current.map(item => (item.id === next.id ? next : item)).sort(teamTaskComparator(sort))
+      );
       return next;
     },
-    [client, teamId]
+    [client, sort, teamId]
+  );
+
+  /** The editor hung or removed a tag (018); the card follows at once. */
+  const setTaskLabels = useCallback(
+    (taskId: string, labels: TeamTaskLabelRef[]) => {
+      setTasks(current =>
+        current
+          .map(item => (item.id === taskId ? { ...item, labels } : item))
+          // Under "by tag" a tag written now moves the card; leaving it where
+          // it was would put it under a tag it no longer carries.
+          .sort(teamTaskComparator(sort))
+      );
+    },
+    [sort]
   );
 
   /** The editor tagged or untagged a task; the card follows without a round trip. */
@@ -305,10 +420,17 @@ export function useTasks({
   return {
     tasks,
     setTaskAgents,
+    setTaskLabels,
     filter,
     setFilter,
     statusFilter,
     setStatusFilter,
+    labelIds,
+    setLabelIds,
+    sort,
+    setSort,
+    assignee,
+    setAssignee,
     loading,
     loadingMore,
     hasMore,

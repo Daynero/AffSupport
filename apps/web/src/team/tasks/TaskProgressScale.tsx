@@ -51,7 +51,15 @@ export function TaskProgressScale({
     onChange(normalized);
     onCommit?.(normalized);
   };
-  const percent = taskProgressPercent(value, max);
+  /*
+   * What is drawn is the value the scale can hold, never the one it was given.
+   * Lowering a task's maximum leaves the old number behind for as long as it
+   * takes the change to reach a card, and a knob pinned at the end of a
+   * ten-step scale reading "90" is worse than a stale number: it is a number
+   * that cannot be true.
+   */
+  const shown = clamp(value, 0, Math.max(max, 1));
+  const percent = taskProgressPercent(shown, max);
 
   return (
     <div className={`team-task-progress-scale ${disabled ? 'is-disabled' : ''}`.trim()}>
@@ -68,8 +76,8 @@ export function TaskProgressScale({
         aria-disabled={disabled}
         aria-valuemin={0}
         aria-valuemax={max}
-        aria-valuenow={value}
-        aria-valuetext={`${value} / ${max}`}
+        aria-valuenow={shown}
+        aria-valuetext={`${shown} / ${max}`}
         onKeyDown={updateFromKeyboard}
         onPointerDown={event => {
           if (disabled) return;
@@ -87,7 +95,7 @@ export function TaskProgressScale({
         onClick={event => event.stopPropagation()}
       >
         <span className="team-task-progress-knob" aria-hidden="true">
-          {value}
+          {shown}
         </span>
       </div>
     </div>

@@ -19,27 +19,15 @@ import {
   type MouseEvent
 } from 'react';
 import { ChevronDown, Paperclip, UserRound } from 'lucide-react';
+import { teamTaskDate } from '@video-compressor/shared';
 import type { TeamTaskPatch, TeamTaskStatus, TeamTaskSummary } from '@video-compressor/shared';
 import { ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { TaskProgressScale } from './TaskProgressScale';
 import { TaskStatusControl } from './TaskStatusControl';
 import { TaskAgentTagList } from './TaskAgentTags';
-
-/** "5 Sep" on the card; the full date and time in its tooltip. */
-function formatCreated(language: 'en' | 'uk', iso: string, full = false): string {
-  const locale = language === 'uk' ? 'uk-UA' : 'en-US';
-  const date = new Date(iso);
-  if (full) {
-    return new Intl.DateTimeFormat(locale, { dateStyle: 'long', timeStyle: 'short' }).format(date);
-  }
-  const sameYear = date.getFullYear() === new Date().getFullYear();
-  return new Intl.DateTimeFormat(locale, {
-    day: 'numeric',
-    month: 'short',
-    ...(sameYear ? {} : { year: 'numeric' })
-  }).format(date);
-}
+import { TaskLabelChips } from '../labels/TaskLabelChip';
+import { formatTaskDate } from './TaskDateField';
 
 function isInteractiveTarget(target: EventTarget | null): boolean {
   return target instanceof Element && Boolean(target.closest('button, a, [role="slider"]'));
@@ -48,11 +36,27 @@ function isInteractiveTarget(target: EventTarget | null): boolean {
 export function TaskCard({
   task,
   canEdit,
+  showProgress = true,
+  expanded: expandedProp,
+  onExpandedChange,
   onOpen,
   onUpdate
 }: {
   task: TeamTaskSummary;
   canEdit: boolean;
+  /**
+   * Whether the card draws its progress scale. The board's own choice — some
+   * teams run on the scale, some never touch it — kept out of the card so one
+   * press can put it away everywhere.
+   */
+  showProgress?: boolean;
+  /**
+   * Whether the brief is unfolded. Controlled by the board when it supplies
+   * `onExpandedChange` — that is what lets "Unfold all" reach every card —
+   * and local otherwise, so a card mounted on its own still folds.
+   */
+  expanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
   onOpen: () => void;
   onUpdate: (patch: TeamTaskPatch) => Promise<TeamTaskSummary>;
 }) {
@@ -66,7 +70,12 @@ export function TaskCard({
    * "more" unfolds it in place — reading the whole brief must not cost
    * opening the editor. Whether there *is* more is measured, not guessed.
    */
-  const [expanded, setExpanded] = useState(false);
+  const dateValue = teamTaskDate(task);
+  const createdOn = teamTaskDate({ dateOn: null, createdAt: task.createdAt });
+  const [localExpanded, setLocalExpanded] = useState(false);
+  const expanded = onExpandedChange ? (expandedProp ?? false) : localExpanded;
+  const setExpanded = (next: boolean) =>
+    onExpandedChange ? onExpandedChange(next) : setLocalExpanded(next);
   const [clamped, setClamped] = useState(false);
   const [titleClamped, setTitleClamped] = useState(false);
   const noteRef = useRef<HTMLParagraphElement>(null);
@@ -145,26 +154,37 @@ export function TaskCard({
           }}
         />
         <TaskAgentTagList tags={task.agents} limit={2} />
+        {/* The team's own tags (018), in the same strip and the same shape as
+            the agent tags — their colour is what tells the two apart. */}
+        <TaskLabelChips labels={task.labels} limit={3} />
+        {/* The day the task is for — its own date once someone sets one, the
+            day it was made until then. */}
         <time
           className="team-task-card-date"
-          dateTime={task.createdAt}
-          title={t('teamTaskCreatedAt', { date: formatCreated(language, task.createdAt, true) })}
+          dateTime={dateValue}
+          title={
+            task.dateOn
+              ? `${t('teamTaskDateOn', { date: formatTaskDate(language, dateValue, true) })}\n${t('teamTaskCreatedAt', { date: formatTaskDate(language, createdOn, true) })}`
+              : t('teamTaskCreatedAt', { date: formatTaskDate(language, createdOn, true) })
+          }
         >
-          {formatCreated(language, task.createdAt)}
+          {formatTaskDate(language, dateValue)}
         </time>
       </div>
 
-      <TaskProgressScale
-        value={progressValue}
-        max={task.progressMax}
-        label={t('teamTaskProgressScale')}
-        disabled={!canEdit || updating}
-        onChange={setProgressValue}
-        onCommit={next => {
-          const previous = task.progressValue;
-          void update({ progressValue: next }, () => setProgressValue(previous));
-        }}
-      />
+      {showProgress && (
+        <TaskProgressScale
+          value={progressValue}
+          max={task.progressMax}
+          label={t('teamTaskProgressScale')}
+          disabled={!canEdit || updating}
+          onChange={setProgressValue}
+          onCommit={next => {
+            const previous = task.progressValue;
+            void update({ progressValue: next }, () => setProgressValue(previous));
+          }}
+        />
+      )}
 
       {/* The task itself: the title, and the brief in full colour. The title's
           tooltip appears only when the title is cut — a hint that repeats
@@ -183,7 +203,7 @@ export function TaskCard({
             type="button"
             className="team-task-card-more"
             aria-expanded={expanded}
-            onClick={() => setExpanded(current => !current)}
+            onClick={() => setExpanded(!expanded)}
           >
             <ChevronDown size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
             {t(expanded ? 'teamTaskCardLess' : 'teamTaskCardMore')}
