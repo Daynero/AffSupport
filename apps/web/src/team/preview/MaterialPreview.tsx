@@ -259,6 +259,11 @@ export function MaterialPreview({
               <video
                 ref={element => element?.setAttribute('referrerpolicy', 'no-referrer')}
                 controls
+                /* The browser's own menu offered "Download" under a heading
+                   that says this is a safe view, and a cast button that would
+                   send a private cut to whatever is on the network. */
+                controlsList="nodownload noremoteplayback noplaybackrate"
+                disablePictureInPicture
                 preload="metadata"
                 src={state.rangeUrl}
                 onLoadedData={markMediaReady}

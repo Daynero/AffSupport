@@ -170,15 +170,16 @@ describe('team archive and landing preview isolation', () => {
     await bridge.shutdown();
   });
 
-  it('keeps a validated landing only for its session and removes it on close', async () => {
+  it('keeps the unpacked landing, and opens it a second time without fetching it again', async () => {
     const temporaryRoot = await temporaryDirectory('wishly-team-preview-landing-');
     const archive = storedZip([
       { name: 'campaign/index.html', contents: '<!doctype html><h1>Campaign</h1>' },
       { name: 'campaign/app.js', contents: 'document.body.dataset.ready = "yes"' }
     ]);
+    const ranges: string[] = [];
     const bridge = new TeamPreviewBridge({
       temporaryRoot,
-      fetchImpl: rangeFetch(archive, []),
+      fetchImpl: rangeFetch(archive, ranges),
       renderer: unavailableRenderer()
     });
     await bridge.init();
@@ -194,13 +195,58 @@ describe('team archive and landing preview isolation', () => {
     });
     if (result.kind !== 'landing') throw new Error('expected landing fixture');
     expect((await fetch(result.url)).status).toBe(200);
-    expect(
-      (await readdir(temporaryRoot)).some(name => name.startsWith('wishly-team-preview-'))
-    ).toBe(true);
-    expect(await bridge.close('landing-session')).toBe(true);
+    // The download's own workspace goes as soon as the page is in the cache;
+    // what is left is the unpacked copy, which is the point.
     expect(
       (await readdir(temporaryRoot)).filter(name => name.startsWith('wishly-team-preview-'))
     ).toEqual([]);
+    expect(await readdir(path.join(temporaryRoot, 'wishly-landing-preview-cache'))).toHaveLength(1);
+
+    expect(await bridge.close('landing-session')).toBe(true);
+    // Closing the viewer must not take the unpacked copy with it.
+    expect(await readdir(path.join(temporaryRoot, 'wishly-landing-preview-cache'))).toHaveLength(1);
+
+    // Second look: one probe for the source's identity, and nothing else. It
+    // used to be the whole package again, unpacked again, captured again.
+    const downloadRanges = ranges.length;
+    ranges.length = 0;
+    const again = await bridge.previewLanding(transferRequest('landing-session-2', 1024));
+    expect(again).toMatchObject({ kind: 'landing', validation: { landingRoot: 'campaign' } });
+    if (again.kind !== 'landing') throw new Error('expected landing fixture');
+    expect((await fetch(again.url)).status).toBe(200);
+    expect(downloadRanges).toBeGreaterThan(0);
+    expect(ranges).toEqual(['bytes=0-0']);
+
+    await bridge.close('landing-session-2');
+    await bridge.shutdown();
+  });
+
+  /* A landing that has changed is a different landing: same material, new
+     checksum, so the copy on disk answers for nothing and the source is read. */
+  it('re-reads the source when its checksum has moved', async () => {
+    const temporaryRoot = await temporaryDirectory('wishly-team-preview-changed-');
+    const first = storedZip([{ name: 'campaign/index.html', contents: '<h1>One</h1>' }]);
+    const second = storedZip([{ name: 'campaign/index.html', contents: '<h1>Two</h1>' }]);
+    let body = first;
+    let checksum = 'checksum-17';
+    const bridge = new TeamPreviewBridge({
+      temporaryRoot,
+      fetchImpl: (async (input: URL | RequestInfo, init?: RequestInit) => {
+        const inner = rangeFetch(body, [], checksum);
+        return inner(input, init);
+      }) as typeof fetch,
+      renderer: unavailableRenderer()
+    });
+    await bridge.init();
+    await bridge.previewLanding(transferRequest('changed-1', 1024));
+    await bridge.close('changed-1');
+    body = second;
+    checksum = 'checksum-18';
+    const result = await bridge.previewLanding(transferRequest('changed-2', 1024));
+    if (result.kind !== 'landing') throw new Error('expected landing fixture');
+    expect(await (await fetch(result.url)).text()).toContain('Two');
+    expect(await readdir(path.join(temporaryRoot, 'wishly-landing-preview-cache'))).toHaveLength(2);
+    await bridge.close('changed-2');
     await bridge.shutdown();
   });
 
@@ -258,7 +304,7 @@ function transferRequest(operationId: string, maxRangeBytes: number) {
   };
 }
 
-function rangeFetch(bytes: Buffer, seenRanges: string[]): typeof fetch {
+function rangeFetch(bytes: Buffer, seenRanges: string[], checksum = 'checksum-17'): typeof fetch {
   return (async (_input: string | URL | Request, init?: RequestInit) => {
     const range = new Headers(init?.headers).get('range') ?? '';
     seenRanges.push(range);
@@ -276,7 +322,7 @@ function rangeFetch(bytes: Buffer, seenRanges: string[]): typeof fetch {
         'content-range': `bytes ${start}-${end}/${bytes.length}`,
         'content-type': 'application/zip',
         'x-wishly-source-version': '17',
-        'x-wishly-source-checksum': 'checksum-17'
+        'x-wishly-source-checksum': checksum
       }
     });
   }) as typeof fetch;
