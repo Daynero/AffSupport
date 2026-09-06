@@ -219,7 +219,9 @@ function openPath(target: string): void {
  * (bsdtar, bundled since Windows 10 1803) on PATH elsewhere.
  */
 function tarExecutable(): string {
-  return process.platform === 'darwin' ? '/usr/bin/tar' : executableName('tar');
+  if (process.platform === 'darwin') return '/usr/bin/tar';
+  if (process.platform === 'linux') return 'bsdtar';
+  return executableName('tar');
 }
 
 /** Lists the entry names of a gzipped tarball (used for layout validation). */

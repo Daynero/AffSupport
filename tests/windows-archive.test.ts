@@ -19,7 +19,8 @@ import { removeTemporaryDirectory } from './support/temp-dir.js';
  * explicitly even on macOS, then assert the round trip a Windows agent needs.
  * bsdtar remains the shared system reader for listing ZIP and tar.gz entries.
  */
-const bsdtar = process.platform === 'darwin' ? '/usr/bin/tar' : 'tar';
+const bsdtar =
+  process.platform === 'darwin' ? '/usr/bin/tar' : process.platform === 'linux' ? 'bsdtar' : 'tar';
 const realPlatform = process.platform;
 
 const temporary: string[] = [];

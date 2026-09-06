@@ -69,6 +69,13 @@ describe('PE inspection', () => {
 
 describe('required stage layout', () => {
   const stagerSource = readFileSync('scripts/stage-windows-runtime.mjs', 'utf8');
+  const workflow = readFileSync('.github/workflows/release-windows.yml', 'utf8');
+
+  it('installs the media tools used by the Ubuntu validation suite', () => {
+    const validateJob = workflow.slice(workflow.indexOf('validate:'), workflow.indexOf('  build:'));
+    expect(validateJob).toContain('ffmpeg');
+    expect(validateJob).toContain('libarchive-tools');
+  });
 
   it('checks every binary the runtime stager copies into runtime/', () => {
     for (const entry of REQUIRED_STAGE_ENTRIES.filter((e: { path: string }) =>
@@ -119,12 +126,10 @@ describe('required stage layout', () => {
     expect(verifier).toContain('VITE_SUPABASE_URL');
     expect(verifier).toContain('VITE_SUPABASE_PUBLISHABLE_KEY');
     expect(verifier).toContain('REQUIRED_HOST_ENTRIES');
-    const workflow = readFileSync('.github/workflows/release-windows.yml', 'utf8');
     expect(workflow).toMatch(/verify-windows-package\.mjs[\s\S]{0,120}release\/windows\/host/u);
   });
 
   it('publishes a self-contained single-file host with no .NET prerequisite', () => {
-    const workflow = readFileSync('.github/workflows/release-windows.yml', 'utf8');
     const publishStep = workflow.slice(
       workflow.indexOf('- name: Publish the tray host'),
       workflow.indexOf('- name: Render the installer script')
