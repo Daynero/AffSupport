@@ -78,7 +78,12 @@ function nextOffsetFrom(
  * the resumable transfer and its finalize call, so a retry of an interrupted
  * upload resumes rather than duplicating the file.
  */
-export async function uploadTeamFile(input: TeamFileUploadInput) {
+export async function uploadTeamFile(
+  input: TeamFileUploadInput & {
+    /** Bytes the provider has accepted so far, for a visible progress. */
+    onProgress?: (sentBytes: number, totalBytes: number) => void;
+  }
+) {
   const idempotencyKey = crypto.randomUUID();
   const session = await teamApi.startUpload({
     teamId: input.teamId,
@@ -91,31 +96,62 @@ export async function uploadTeamFile(input: TeamFileUploadInput) {
     versionOfMaterialId: input.versionOfMaterialId,
     idempotencyKey
   });
-  if (!session.sessionUri || session.sessionUnavailable) throw new Error('WRONG_STATE');
+  if (!session.sessionUri || session.sessionUnavailable) {
+    /*
+     * A code, not a bare `Error`. The mapper reads `code`, so thrown as
+     * `new Error('WRONG_STATE')` this arrived as the generic "something went
+     * wrong, try again in a moment" — the one sentence that tells a person
+     * neither what failed nor what to do about it.
+     */
+    throw Object.assign(new Error('UPLOAD_SESSION_UNAVAILABLE'), {
+      code: 'UPLOAD_SESSION_UNAVAILABLE'
+    });
+  }
   const sessionUri = session.sessionUri;
   const relayUrl = teamApi.uploadRelayUrl(session.operationId);
-  return resumableUpload({
-    source: input.file,
-    sessionUri,
-    operationId: session.operationId,
-    idempotencyKey,
-    // The session is opened server-side and carries no browser origin, so the
-    // bytes go through the relay rather than straight at the provider.
-    sendChunk: async chunk => {
-      const outcome = await teamApi.relayUploadChunk({
-        relayUrl,
-        sessionUri,
-        contentRange: `bytes ${chunk.offset}-${chunk.endExclusive - 1}/${chunk.totalBytes}`,
-        chunk: chunk.chunk,
-        signal: chunk.signal
-      });
-      if (outcome.complete && outcome.driveFileId) {
-        return { complete: true, driveFileId: outcome.driveFileId };
-      }
-      return { complete: false, nextOffset: nextOffsetFrom(outcome.receivedRange, chunk) };
-    },
-    finalize: teamApi.finalizeUpload
-  });
+  /*
+   * A transfer that dies must let the name go.
+   *
+   * Starting an upload reserves its name for half an hour, and the catalogue
+   * row is only written when the transfer finishes. So an upload that gave up
+   * mid-way left the worst possible pair behind: a name nobody could use again
+   * and a file nobody could see — "it says it already exists and I cannot find
+   * it". Cancelling the operation releases the reservation at once. It is
+   * best-effort and never replaces the failure being reported: the reason the
+   * upload failed is what the person needs to read, and the reservation
+   * expires on its own in any case.
+   */
+  try {
+    return await resumableUpload({
+      source: input.file,
+      onProgress: input.onProgress,
+      sessionUri,
+      operationId: session.operationId,
+      idempotencyKey,
+      // The session is opened server-side and carries no browser origin, so the
+      // bytes go through the relay rather than straight at the provider.
+      sendChunk: async chunk => {
+        const outcome = await teamApi.relayUploadChunk({
+          relayUrl,
+          sessionUri,
+          contentRange: `bytes ${chunk.offset}-${chunk.endExclusive - 1}/${chunk.totalBytes}`,
+          chunk: chunk.chunk,
+          signal: chunk.signal
+        });
+        if (outcome.complete && outcome.driveFileId) {
+          return { complete: true, driveFileId: outcome.driveFileId };
+        }
+        return { complete: false, nextOffset: nextOffsetFrom(outcome.receivedRange, chunk) };
+      },
+      finalize: teamApi.finalizeUpload
+    });
+  } catch (failure) {
+    await teamApi.cancelOperation(input.teamId, session.operationId).catch(() => {
+      // The reservation times out by itself; nothing here is worth losing the
+      // real error over.
+    });
+    throw failure;
+  }
 }
 
 export const defaultMaterialActionsClient: MaterialActionsClient = {

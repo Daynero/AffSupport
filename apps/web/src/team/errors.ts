@@ -18,6 +18,7 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
   INVALID_INPUT: 'teamErrorInvalidInput',
   INVALID_RESPONSE: 'teamErrorInvalidResponse',
   WRONG_STATE: 'teamErrorWrongState',
+  UPLOAD_SESSION_UNAVAILABLE: 'teamErrorUploadSessionUnavailable',
   NAME_CONFLICT: 'teamErrorNameConflict',
   ALREADY_MEMBER: 'teamErrorAlreadyMember',
   ALREADY_INVITED: 'teamErrorAlreadyInvited',
@@ -78,11 +79,23 @@ export function teamErrorMessage(
   return t(COPY[code]);
 }
 
-/** Same mapping for a thrown value, so call sites do not each re-sniff shapes. */
+/**
+ * Same mapping for a thrown value, so call sites do not each re-sniff shapes.
+ *
+ * A code may arrive either way. The boundary attaches one as `code`; the
+ * resumable uploader raises `new Error('DRIVE_UNAVAILABLE')`, putting it in
+ * `message` — and reading only `code` meant every failed upload said "something
+ * went wrong, try again in a moment" while the reason was right there in the
+ * error. Only a registered code is read out of a message: anything else is
+ * still the generic sentence, so no raw text can reach the DOM (FR-014).
+ */
 export function teamErrorMessageFor(error: unknown, t: (key: TranslationKey) => string): string {
   if (error && typeof error === 'object' && 'code' in error) {
     const { code } = error as { code: unknown };
-    if (typeof code === 'string') return teamErrorMessage(code, t);
+    if (typeof code === 'string' && isTeamErrorCode(code)) return teamErrorMessage(code, t);
+  }
+  if (error instanceof Error && isTeamErrorCode(error.message)) {
+    return teamErrorMessage(error.message, t);
   }
   return t('teamErrorUnknown');
 }

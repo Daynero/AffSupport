@@ -156,7 +156,19 @@ export async function resumableUpload<TFinalize>(
 ): Promise<TFinalize> {
   validateSessionUri(input.sessionUri);
   if (!(input.source instanceof Blob) || input.source.size < 1) throw uploadError('INVALID_INPUT');
-  const chunkBytes = input.chunkBytes ?? 8 * 1024 * 1024;
+  /*
+   * Two megabytes, not eight.
+   *
+   * Every chunk is streamed to the provider through an Edge Function, and a
+   * function has a wall-clock limit: an eight-megabyte chunk on an ordinary
+   * uplink outran it, and the runtime killed the isolate *after* the bytes had
+   * already reached the provider. The file appeared on the drive, the response
+   * never came back, and the person was told the drive was not responding —
+   * the worst possible pair of outcomes. A shorter chunk finishes inside the
+   * limit; the cost is more round trips, which is the cheaper half of that
+   * trade by a wide margin.
+   */
+  const chunkBytes = input.chunkBytes ?? 2 * 1024 * 1024;
   if (
     !Number.isSafeInteger(chunkBytes) ||
     chunkBytes < UPLOAD_CHUNK_MULTIPLE_BYTES ||

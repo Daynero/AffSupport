@@ -7,7 +7,7 @@ import { TEAM_ERROR_CODES } from '@video-compressor/shared';
 import { ToastProvider } from '../apps/web/src/components/toast';
 import { ProvenancePanel } from '../apps/web/src/team/catalog/ProvenancePanel';
 import { MaterialRowMenu } from '../apps/web/src/team/catalog/MaterialRowMenu';
-import { teamErrorMessage } from '../apps/web/src/team/errors';
+import { teamErrorMessage, teamErrorMessageFor } from '../apps/web/src/team/errors';
 import { translationKeys, translate } from '../apps/web/src/i18n';
 import type { MaterialActionsClient } from '../apps/web/src/team/catalog/material-actions-client';
 import { RealtimeChip } from '../apps/web/src/team/workspace/RealtimeChip';
@@ -144,6 +144,24 @@ describe('the code→copy mapper', () => {
     const t = (key: (typeof translationKeys)[number]) => translate('en', key);
     expect(teamErrorMessage('NOT_A_REAL_CODE', t)).toBe(t('teamErrorUnknown'));
     expect(teamErrorMessage(null, t)).toBe(t('teamErrorUnknown'));
+  });
+
+  it('reads a code carried in a thrown error’s message as well as its property', () => {
+    const t = (key: (typeof translationKeys)[number]) => translate('en', key);
+    const generic = t('teamErrorUnknown');
+    // The resumable uploader raises `new Error('DRIVE_UNAVAILABLE')` — the code
+    // is the message. Read only from `code`, every failed upload said only
+    // "something went wrong, try again in a moment".
+    expect(teamErrorMessageFor(new Error('DRIVE_UNAVAILABLE'), t)).toBe(
+      teamErrorMessage('DRIVE_UNAVAILABLE', t)
+    );
+    expect(teamErrorMessageFor(Object.assign(new Error('x'), { code: 'TOO_LARGE' }), t)).toBe(
+      teamErrorMessage('TOO_LARGE', t)
+    );
+    // And a message that is not a registered code stays generic: no raw text
+    // from a thrown error ever reaches the page.
+    expect(teamErrorMessageFor(new Error('ECONNRESET at 0x1f'), t)).toBe(generic);
+    expect(teamErrorMessageFor(Object.assign(new Error('x'), { code: 'NOPE' }), t)).toBe(generic);
   });
 });
 

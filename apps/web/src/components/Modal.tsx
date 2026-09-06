@@ -39,6 +39,30 @@ export const FOCUSABLE_SELECTOR = [
  */
 const openModals: HTMLElement[] = [];
 
+/**
+ * The page's own scroll setting, held while any dialog is up.
+ *
+ * The lock belongs to the *stack*, not to each dialog: every dialog used to
+ * save the body's overflow on its own mount and put it back on its own
+ * unmount, so two overlapping dialogs closing out of order left `hidden`
+ * behind — the page could not be scrolled again until a reload, with no
+ * dialog on screen to explain it. Taken when the stack goes empty→one and
+ * given back when it goes one→empty, the order cannot matter.
+ */
+let lockedOverflow: string | null = null;
+
+function lockPageScroll(): void {
+  if (openModals.length !== 1) return;
+  lockedOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+}
+
+function unlockPageScroll(): void {
+  if (openModals.length > 0 || lockedOverflow === null) return;
+  document.body.style.overflow = lockedOverflow;
+  lockedOverflow = null;
+}
+
 function focusableIn(surface: HTMLElement): HTMLElement[] {
   const candidates = Array.from(surface.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
     element => !element.closest('[hidden], [aria-hidden="true"], [inert]')
@@ -150,8 +174,7 @@ export function Modal({
     openModals.push(surface);
     const previouslyFocused =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    lockPageScroll();
 
     const focusFrame = requestAnimationFrame(() => {
       const selector = current.current.initialFocus;
@@ -190,7 +213,7 @@ export function Modal({
       document.removeEventListener('keydown', onKeyDown);
       const index = openModals.indexOf(surface);
       if (index !== -1) openModals.splice(index, 1);
-      document.body.style.overflow = previousOverflow;
+      unlockPageScroll();
       (current.current.returnFocus ?? previouslyFocused)?.focus();
     };
   }, []);

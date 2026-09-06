@@ -49,7 +49,14 @@ const STATUS_BY_CODE: Readonly<Record<TeamErrorCode, number>> = {
   ROOT_MISSING: 409,
   TREE_TOO_LARGE: 413,
   THUMBNAIL_SESSION_EXPIRED: 401,
-  RESTRICTED_SCOPE_NOT_APPROVED: 503
+  RESTRICTED_SCOPE_NOT_APPROVED: 503,
+  /* Re-stitched delivery and resumable uploads. Without a status here the map
+     was not a total function over the codes, and any function raising one of
+     them had no answer to give. */
+  RESTITCH_FORBIDDEN: 403,
+  RESTITCH_NO_SCREENS: 409,
+  RESTITCH_INVALID: 422,
+  UPLOAD_SESSION_UNAVAILABLE: 503
 };
 
 const RETRYABLE_CODES = new Set<TeamErrorCode>([
@@ -181,5 +188,22 @@ export function mapUnknownError(error: unknown): TeamFunctionError {
   if (error instanceof Error && error.message === 'AbortError') {
     return new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
   }
+  /*
+   * Everything else becomes one retryable 503, which is the right answer to
+   * give a caller and the wrong thing to leave in a log. Unlogged, an upload
+   * that fails on every attempt is indistinguishable from Drive being busy —
+   * from outside, and from inside too. Redacted, so a token in a message or a
+   * URL never reaches the log line.
+   */
+  console.error(
+    'unmapped-error',
+    JSON.stringify(
+      redactForLog(
+        error instanceof Error
+          ? { name: error.name, message: error.message, cause: error.cause }
+          : { value: error }
+      )
+    )
+  );
   return new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
 }

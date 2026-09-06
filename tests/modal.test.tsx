@@ -168,4 +168,55 @@ describe('Modal primitive', () => {
     view.unmount();
     expect(document.body.style.overflow).toBe('');
   });
+
+  /**
+   * The lock belongs to the stack, not to each dialog. Every dialog used to
+   * save the body's overflow on its own mount and put it back on its own
+   * unmount, so a dialog that opened *after* another saved the already-locked
+   * value and restored `hidden` when the two went away together — leaving the
+   * page unscrollable with nothing on screen to explain it.
+   */
+  it('releases the body scroll lock when a stack unmounts at once', () => {
+    const view = render(
+      <>
+        <Modal labelledBy="parent-title">
+          <h2 id="parent-title">Parent</h2>
+        </Modal>
+        <Modal labelledBy="nested-title" nested>
+          <h2 id="nested-title">Nested</h2>
+        </Modal>
+      </>
+    );
+    expect(document.body.style.overflow).toBe('hidden');
+
+    view.unmount();
+    expect(document.body.style.overflow).toBe('');
+  });
+
+  it('holds the lock while the dialog under a nested one closes first', () => {
+    function Stack({ parentOpen }: { parentOpen: boolean }) {
+      return (
+        <>
+          {parentOpen && (
+            <Modal labelledBy="parent-title">
+              <h2 id="parent-title">Parent</h2>
+            </Modal>
+          )}
+          <Modal labelledBy="nested-title" nested>
+            <h2 id="nested-title">Nested</h2>
+          </Modal>
+        </>
+      );
+    }
+    const view = render(<Stack parentOpen />);
+    expect(document.body.style.overflow).toBe('hidden');
+
+    // The one underneath goes; the nested dialog is still up, so the page
+    // must stay locked behind it.
+    view.rerender(<Stack parentOpen={false} />);
+    expect(document.body.style.overflow).toBe('hidden');
+
+    view.unmount();
+    expect(document.body.style.overflow).toBe('');
+  });
 });

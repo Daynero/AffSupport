@@ -1,4 +1,4 @@
-import { TeamFunctionError } from './errors.ts';
+import { TeamFunctionError, redactForLog } from './errors.ts';
 import { requireDriveOAuthGate, type OAuthProductionSignals } from './auth.ts';
 import { isRecord } from './validation.ts';
 
@@ -96,7 +96,24 @@ export async function refreshGoogleAccessToken(input: {
       body,
       signal: AbortSignal.timeout(10_000)
     });
-  } catch {
+  } catch (failure) {
+    /*
+     * The token endpoint could not be reached at all — DNS, the network, or the
+     * ten-second timeout above. Unlogged, this reached the person as "Google
+     * Drive is not responding" and reached us as nothing whatsoever, which is
+     * the same sentence a real Drive outage produces. The reason is the whole
+     * difference between "wait" and "fix something".
+     */
+    console.error(
+      'token-refresh-unreachable',
+      JSON.stringify(
+        redactForLog(
+          failure instanceof Error
+            ? { name: failure.name, message: failure.message }
+            : { value: failure }
+        )
+      )
+    );
     throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
   }
   const payload: unknown = await response.json().catch(() => null);
@@ -104,6 +121,10 @@ export async function refreshGoogleAccessToken(input: {
     if (isRecord(payload) && payload.error === 'invalid_grant') {
       throw new TeamFunctionError('NEEDS_REAUTH', { retryable: false });
     }
+    console.error(
+      'token-refresh-refused',
+      JSON.stringify(redactForLog({ status: response.status, payload }))
+    );
     throw new TeamFunctionError(response.status === 429 ? 'RATE_LIMITED' : 'DRIVE_UNAVAILABLE', {
       retryable: response.status === 429 || response.status >= 500
     });

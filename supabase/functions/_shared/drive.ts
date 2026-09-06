@@ -1,4 +1,4 @@
-import { TeamFunctionError } from './errors.ts';
+import { TeamFunctionError, redactForLog } from './errors.ts';
 import { isRecord } from './validation.ts';
 
 export interface DriveCapabilities {
@@ -131,6 +131,32 @@ function parseMetadata(value: unknown): DriveFileMetadata | null {
     thumbnailLink: typeof value.thumbnailLink === 'string' ? value.thumbnailLink : null,
     appProperties: parseAppProperties(value.appProperties)
   };
+}
+
+/** The statuses Google routes a resumable PUT with. */
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+/**
+ * Where a redirect may send a chunk.
+ *
+ * Following a redirect is following an instruction from outside, so the target
+ * is checked the same way the session URI itself is: https, a Google host, no
+ * credentials in the URL. Google's upload routing lands on `*.googleapis.com`
+ * or `*.googleusercontent.com`; anything else is refused rather than followed.
+ */
+function redirectTarget(location: string, from: URL): URL | null {
+  let target: URL;
+  try {
+    target = new URL(location, from);
+  } catch {
+    return null;
+  }
+  const allowed =
+    target.hostname === 'googleapis.com' ||
+    target.hostname.endsWith('.googleapis.com') ||
+    target.hostname.endsWith('.googleusercontent.com');
+  if (target.protocol !== 'https:' || !allowed || target.username || target.password) return null;
+  return target;
 }
 
 export class GoogleDriveClient {
@@ -611,20 +637,73 @@ export class GoogleDriveClient {
     ) {
       throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
     }
-    let response: Response;
-    try {
-      response = await this.#fetch(url, {
+    /*
+     * The chunk is read into memory before it is sent.
+     *
+     * Google answers a resumable PUT with a redirect to the host that will
+     * actually take the bytes, and a redirect cannot be followed with a stream
+     * for a body — a stream is read once and there is nothing left to send the
+     * second time. Chunks are two megabytes (see `resumableUpload`), and the
+     * length is already bounded by the caller, so holding one is cheap.
+     */
+    const payload = input.body
+      ? new Uint8Array(await new Response(input.body).arrayBuffer())
+      : null;
+    if (!payload || payload.byteLength !== input.contentLength) {
+      throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+    }
+    const send = (target: URL) =>
+      this.#fetch(target, {
         method: 'PUT',
         headers: {
           authorization: `Bearer ${this.#accessToken}`,
           'content-length': String(input.contentLength),
           'content-range': input.contentRange
         },
-        body: input.body,
+        body: payload,
         signal: input.signal ?? AbortSignal.timeout(30_000),
-        redirect: 'error'
+        /*
+         * `manual`, not `error`. Every upload of more than one chunk died here:
+         * Google redirects the PUT to a regional upload host, and refusing the
+         * redirect turned Google's ordinary routing into "Drive is not
+         * responding" — after the person had already waited out the transfer.
+         * Not `follow` either: a redirect is followed once, by hand, and only
+         * to a host on the list below.
+         */
+        redirect: 'manual'
       });
-    } catch {
+    let response: Response;
+    try {
+      response = await send(url);
+      const location = response.headers.get('location');
+      if (REDIRECT_STATUSES.has(response.status) && location) {
+        const next = redirectTarget(location, url);
+        if (!next) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+        response = await send(next);
+        // One hop only: a second redirect is a loop, not a route.
+        if (REDIRECT_STATUSES.has(response.status) && response.headers.get('location')) {
+          throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+        }
+      }
+    } catch (failure) {
+      if (failure instanceof TeamFunctionError) throw failure;
+      /*
+       * The chunk never got an answer: the connection died, or the thirty
+       * second timeout above fired. Both reach the person as "Drive is not
+       * responding", and reached us as nothing at all — which is why an upload
+       * that failed every time looked exactly like Drive being busy.
+       */
+      console.error(
+        'relay-chunk-unreachable',
+        JSON.stringify(
+          redactForLog({
+            contentRange: input.contentRange,
+            contentLength: input.contentLength,
+            error:
+              failure instanceof Error ? { name: failure.name, message: failure.message } : failure
+          })
+        )
+      );
       throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
     }
     if ([200, 201, 308].includes(response.status)) return response;
@@ -635,6 +714,18 @@ export class GoogleDriveClient {
     if (response.status === 429) {
       throw new TeamFunctionError('RATE_LIMITED', { retryable: true });
     }
+    // Whatever Google said, said once in the log: the caller only ever learns
+    // "unavailable", and without this nobody can tell a quota from an outage.
+    console.error(
+      'relay-chunk-refused',
+      JSON.stringify(
+        redactForLog({
+          status: response.status,
+          contentRange: input.contentRange,
+          body: await response.text().catch(() => null)
+        })
+      )
+    );
     throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: response.status >= 500 });
   }
 
