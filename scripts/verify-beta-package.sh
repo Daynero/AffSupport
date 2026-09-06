@@ -52,6 +52,16 @@ grep -rq "$beta_supabase_url" "$app/Contents/Resources/web/dist"
 grep -q 'VITE_LOCAL_DEV_AUTH=false' "$PWD/scripts/package-beta-mac.sh"
 grep -q 'VITE_APP_ENVIRONMENT=beta' "$PWD/scripts/package-beta-mac.sh"
 
+# Production's local Vite profile must not supply the beta's Google project.
+beta_picker_key=$(sed -n 's/^VITE_GOOGLE_PICKER_API_KEY=//p' "$PWD/.env.beta" | head -1)
+beta_google_project=$(sed -n 's/^VITE_GOOGLE_PROJECT_NUMBER=//p' "$PWD/.env.beta" | head -1)
+if [[ -n "$beta_picker_key" ]]; then
+  grep -Frq -- "$beta_picker_key" "$app/Contents/Resources/web/dist"
+fi
+if [[ -n "$beta_google_project" ]]; then
+  grep -Frq -- "$beta_google_project" "$app/Contents/Resources/web/dist"
+fi
+
 # Beta must never be able to write or sign the production update manifest.
 ! grep -q 'sign-release-manifest' "$PWD/scripts/package-beta-mac.sh"
 

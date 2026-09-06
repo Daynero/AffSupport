@@ -73,6 +73,8 @@ production_key=$(grep -E '^AGENT_ENTITLEMENT_PUBLIC_KEY=' config/production.env 
 beta_supabase_url=$(grep -E '^VITE_SUPABASE_URL=' .env.beta | head -1 | cut -d= -f2-)
 beta_supabase_publishable_key=$(grep -E '^VITE_SUPABASE_PUBLISHABLE_KEY=' .env.beta | head -1 | cut -d= -f2-)
 beta_direct_add_mode=$(grep -E '^VITE_TEAM_DIRECT_ADD_MODE=' .env.beta | head -1 | cut -d= -f2-)
+beta_picker_key=$(sed -n 's/^VITE_GOOGLE_PICKER_API_KEY=//p' .env.beta | head -1)
+beta_google_project=$(sed -n 's/^VITE_GOOGLE_PROJECT_NUMBER=//p' .env.beta | head -1)
 [[ "$beta_supabase_url" == http://127.0.0.1:* ]] || {
   print -u2 "VITE_SUPABASE_URL in .env.beta must point to the local stack."
   exit 1
@@ -120,6 +122,8 @@ VITE_SITE_URL="http://127.0.0.1:$port" \
 VITE_ANALYTICS_ENABLED=false \
 VITE_LOCAL_DEV_AUTH=false \
 VITE_TEAM_DIRECT_ADD_MODE="$beta_direct_add_mode" \
+VITE_GOOGLE_PICKER_API_KEY="$beta_picker_key" \
+VITE_GOOGLE_PROJECT_NUMBER="$beta_google_project" \
 VITE_WEB_BUILD_ID="$build_id" \
   npm run build -w @video-compressor/web
 npm run build -w @video-compressor/agent

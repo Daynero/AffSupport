@@ -135,6 +135,7 @@ const PHASES = {
           '--minWorkers=1',
           '--no-file-parallelism',
           '--reporter=dot',
+          `--reporter=${path.join(root, 'scripts/lib/suite-progress-reporter.mjs')}`,
           '--reporter=json',
           `--outputFile.json=${SUITE_REPORT_FILE}`,
           '--silent=passed-only',

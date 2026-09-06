@@ -39,7 +39,10 @@ jobs:
   test-macos:
     name: test-macos
     runs-on: macos-latest
-    timeout-minutes: 30
+    # Leave time after the suite's own 30-minute deadline to upload diagnosis.
+    timeout-minutes: 40
+    env:
+      NODE_OPTIONS: --max-old-space-size=2048
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -57,7 +60,9 @@ jobs:
         if: always()
         with:
           name: verification-result-macos
-          path: verification-result.json
+          path: |
+            verification-result.json
+            verification-progress.log
           if-no-files-found: ignore
 
   test-windows:
@@ -104,6 +109,8 @@ jobs:
     # GitHub's Linux runners provide Docker for the local Supabase database.
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      SUPABASE_INTERNAL_IMAGE_REGISTRY: ghcr.io
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -112,7 +119,9 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Start local database
-        run: npx supabase start
+        run: |
+          npm run build -w @video-compressor/shared
+          npx supabase start
       - name: Install browser test dependencies
         run: npx playwright-core install --with-deps chromium
       - run: node scripts/verify-all.mjs --form=release --gates=e2e

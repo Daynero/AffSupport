@@ -55,7 +55,8 @@ owner-side checklist, recorded with a date when done:
 3. **Google Picker API** enabled on the same Cloud project.
 4. A browser API key restricted to `https://soty.pp.ua` referrers and the Picker API only.
 5. The Cloud project number recorded; both values set as `VITE_GOOGLE_PICKER_API_KEY` and
-   `VITE_GOOGLE_PROJECT_NUMBER` in `apps/web/.env.production` (public values only).
+   `VITE_GOOGLE_PROJECT_NUMBER` in the gitignored `apps/web/.env.production.local`
+   (public values only). Vite merges this local profile over the tracked production defaults.
 6. `DRIVE_RESTRICTED_SCOPE_APPROVED` left unset (or `false`) on the Supabase deployment.
 
 The restricted-scope packet below is prepared **in parallel and never blocks the release**
