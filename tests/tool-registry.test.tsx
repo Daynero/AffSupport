@@ -65,13 +65,16 @@ afterEach(() => {
 
 describe('web tool registry', () => {
   it('registers the expected tools with their routes', () => {
+    // Declaration order is the reading order on the home screen: the two video
+    // tools, then the text they make, then the landing pair with the browser
+    // tool between them.
     expect(webTools.map(tool => ({ id: tool.id, path: tool.path }))).toEqual([
       { id: 'compressor', path: '/compressor' },
-      { id: 'landingOptimizer', path: '/landing-optimizer' },
-      { id: 'landingPreview', path: '/landing-preview' },
       { id: 'stitcher', path: '/stitcher' },
+      { id: 'transcription', path: '/transcription' },
+      { id: 'landingOptimizer', path: '/landing-optimizer' },
       { id: 'twoFactor', path: '/2fa' },
-      { id: 'transcription', path: '/transcription' }
+      { id: 'landingPreview', path: '/landing-preview' }
     ]);
     // Every tool that needs the local app maps onto the shared agent contract.
     // A browser tool deliberately does not — see the last describe in this file.
@@ -112,12 +115,14 @@ describe('web tool registry', () => {
     expect(toolByPath('/unknown')).toBeUndefined();
   });
 
-  it('keeps beta availability independent from the development-warning flag', () => {
+  it('follows the development-warning flag, and nothing else', () => {
+    // Every tool in the catalogue is finished now — transcription carried a
+    // presentation-only "beta" label and the stitcher the acknowledgement gate,
+    // and both are released. What is left is one rule: a tool is ready unless
+    // its flag says it is still being built.
     for (const tool of webTools) {
       const protectedFlag = tool.featureFlag ? featureFlags[tool.featureFlag].protected : false;
-      const expectedStatus =
-        tool.id === 'transcription' ? 'beta' : protectedFlag ? 'in-development' : 'available';
-      expect(tool.status).toBe(expectedStatus);
+      expect(tool.status).toBe(protectedFlag ? 'in-development' : 'available');
     }
   });
 

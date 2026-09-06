@@ -31,9 +31,10 @@ export const featureFlags: Record<FeatureId, FeatureFlag> = {
   // Team workspace is controlled by membership authorization, not a
   // browser-local development acknowledgement.
   teamWorkspace: { protected: false },
-  // The stitcher stays behind the acknowledgement until it has shipped with an
-  // agent release carrying its contract (014, T060).
-  videoStitcher: { protected: true },
+  // Released: the agent contract `stitcher: 1` ships in the published manifest,
+  // so every build that can open the page can also run it. The acknowledgement
+  // was there for the window before that release, and that window is closed.
+  videoStitcher: { protected: false },
   // Released. It needs nothing from the local app and no agent contract, so
   // nothing gates it but this line — which means the migration that creates
   // `private.two_factor_entries` and its four functions MUST be in production

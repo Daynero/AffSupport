@@ -137,34 +137,6 @@ export const webTools: readonly WebTool[] = [
     page: CompressorPage
   },
   {
-    // The Landing Optimizer stays visible in the catalogue before the local
-    // app is installed. Agent capabilities only determine whether it opens.
-    id: 'landingOptimizer',
-    runtime: 'agent',
-    analyticsId: 'landing-optimizer',
-    path: '/landing-optimizer',
-    labelKey: 'landingOptimizer',
-    descriptionKey: 'landingOptimizerDescription',
-    icon: LandingIcon,
-    featureFlag: 'landingOptimizer',
-    status: statusFor('landingOptimizer'),
-    capability: 'landing',
-    page: LandingOptimizerPage
-  },
-  {
-    id: 'landingPreview',
-    runtime: 'agent',
-    analyticsId: 'landing-preview',
-    path: '/landing-preview',
-    labelKey: 'landingGallery',
-    descriptionKey: 'landingGalleryDescription',
-    icon: LandingPreviewIcon,
-    featureFlag: 'landingPreview',
-    status: statusFor('landingPreview'),
-    capability: 'landing-preview',
-    page: LandingPreviewPage
-  },
-  {
     // Placed next to the compressor: the two share a screen library and answer the same
     // question — "same video, new photo" goes here, "make it smaller" goes there.
     id: 'stitcher',
@@ -180,9 +152,39 @@ export const webTools: readonly WebTool[] = [
     page: StitcherPage
   },
   {
-    // The first tool in the catalogue that runs entirely in the browser. It sits
-    // after the stitcher because it answers a different question from the media
-    // tools above it, and because the tile order is the reading order.
+    id: 'transcription',
+    runtime: 'agent',
+    analyticsId: 'transcription',
+    path: '/transcription',
+    labelKey: 'transcription',
+    descriptionKey: 'transcriptionDescription',
+    icon: TranscriptionIcon,
+    featureFlag: 'transcription',
+    status: statusFor('transcription'),
+    capability: null,
+    page: TranscriptionPage
+  },
+  {
+    // The Landing Optimizer stays visible in the catalogue before the local
+    // app is installed. Agent capabilities only determine whether it opens.
+    // The two landing tools are deliberately apart: one changes a landing and
+    // one only looks at them, and the gallery is the rarer errand.
+    id: 'landingOptimizer',
+    runtime: 'agent',
+    analyticsId: 'landing-optimizer',
+    path: '/landing-optimizer',
+    labelKey: 'landingOptimizer',
+    descriptionKey: 'landingOptimizerDescription',
+    icon: LandingIcon,
+    featureFlag: 'landingOptimizer',
+    status: statusFor('landingOptimizer'),
+    capability: 'landing',
+    page: LandingOptimizerPage
+  },
+  {
+    // The only tool in the catalogue that runs entirely in the browser, and it
+    // sits after the media tools for that reason: the tile order is the reading
+    // order, and this one answers a different question from the four above it.
     id: 'twoFactor',
     runtime: 'browser',
     analyticsId: 'two-factor',
@@ -195,17 +197,17 @@ export const webTools: readonly WebTool[] = [
     page: TwoFactorPage
   },
   {
-    id: 'transcription',
+    id: 'landingPreview',
     runtime: 'agent',
-    analyticsId: 'transcription',
-    path: '/transcription',
-    labelKey: 'transcription',
-    descriptionKey: 'transcriptionDescription',
-    icon: TranscriptionIcon,
-    featureFlag: 'transcription',
-    status: 'beta',
-    capability: null,
-    page: TranscriptionPage
+    analyticsId: 'landing-preview',
+    path: '/landing-preview',
+    labelKey: 'landingGallery',
+    descriptionKey: 'landingGalleryDescription',
+    icon: LandingPreviewIcon,
+    featureFlag: 'landingPreview',
+    status: statusFor('landingPreview'),
+    capability: 'landing-preview',
+    page: LandingPreviewPage
   }
 ];
 

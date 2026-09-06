@@ -14,16 +14,17 @@ describe('Soty product launcher', () => {
   });
 
   it('defines tools through one extensible registry', () => {
+    // Declaration order is the reading order: the stitcher sits beside the
+    // compressor it shares a library with, transcription follows the media
+    // tools, the two landing tools are kept apart, and the one browser-only
+    // tool sits after everything that runs on the agent.
     expect(webTools.map(({ id, path, status }) => ({ id, path, status }))).toEqual([
       { id: 'compressor', path: '/compressor', status: 'available' },
+      { id: 'stitcher', path: '/stitcher', status: 'available' },
+      { id: 'transcription', path: '/transcription', status: 'available' },
       { id: 'landingOptimizer', path: '/landing-optimizer', status: 'available' },
-      { id: 'landingPreview', path: '/landing-preview', status: 'available' },
-      // In development until the release that ships its agent contract (014, T060).
-      { id: 'stitcher', path: '/stitcher', status: 'in-development' },
-      // Released (016). It waits on no agent release — it is the first tool that
-      // never calls one — so nothing gates it but its own flag.
       { id: 'twoFactor', path: '/2fa', status: 'available' },
-      { id: 'transcription', path: '/transcription', status: 'beta' }
+      { id: 'landingPreview', path: '/landing-preview', status: 'available' }
     ]);
   });
 
@@ -31,11 +32,11 @@ describe('Soty product launcher', () => {
     // The catalogue is static — agent capabilities only gate opening the tool.
     expect(webTools.map(tool => tool.analyticsId)).toEqual([
       'compressor',
-      'landing-optimizer',
-      'landing-preview',
       'stitcher',
+      'transcription',
+      'landing-optimizer',
       'two-factor',
-      'transcription'
+      'landing-preview'
     ]);
     expect(webTools.find(tool => tool.id === 'landingOptimizer')?.capability).toBe('landing');
     expect(webTools.find(tool => tool.id === 'landingPreview')?.capability).toBe('landing-preview');
