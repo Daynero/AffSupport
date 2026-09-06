@@ -161,7 +161,12 @@ export function StorageChip({
         {chipCopy(health, t)}
       </button>
       {open && (
-        <Modal labelledBy={titleId} size="sm" onClose={() => setOpen(false)}>
+        <Modal
+          labelledBy={titleId}
+          size="sm"
+          onClose={() => setOpen(false)}
+          closeLabel={t('teamClose')}
+        >
           <h3 id={titleId}>{t('teamStorageDetailTitle')}</h3>
           <p className="team-storage-detail-state">{chipCopy(health, t)}</p>
           {health.kind === 'attention' && <p>{t(ATTENTION_BODY[health.reason])}</p>}
@@ -220,10 +225,14 @@ export function StorageChip({
                   {t('teamStorageCheckNow')}
                 </Button>
               )}
+            {/* Quiet: this one changes how this computer behaves, and it was
+                the only bordered control in a panel that is otherwise a
+                report — the loudest thing on screen was the one thing nobody
+                opened the panel to do. */}
             {render?.available && (
               <Button
                 type="button"
-                variant="secondary"
+                variant="ghost"
                 onClick={() => render.setPaused(!render.paused)}
               >
                 {render.paused ? t('teamStorageResumeRender') : t('teamStoragePauseRender')}
@@ -241,8 +250,15 @@ export function StorageChip({
                 {t('teamStorageOpenSettings')}
               </a>
             )}
-            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
-              {t('cancel')}
+            {/*
+             * "Close", not "Cancel". Nothing here is a change waiting to be
+             * confirmed — the indexing runs on the server whatever this panel
+             * does — and "Cancel" beside a progress line reads as "stop the
+             * indexing", which is the one thing it must not be mistaken for.
+             * It is also the calm default, so it is the bordered one.
+             */}
+            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
+              {t('teamClose')}
             </Button>
           </div>
         </Modal>

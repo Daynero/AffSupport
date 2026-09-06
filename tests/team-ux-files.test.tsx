@@ -124,8 +124,9 @@ describe('file actions on the Files rows', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Actions for launch.mp4' }));
     // Owner permissions, so the whole set is offered.
-    for (const label of ['Download', 'Rename', 'Move', 'Move to trash', 'Process']) {
-      expect(screen.getByRole('button', { name: label })).toBeTruthy();
+    // The download is named "the original" now that a re-stitched copy can sit beside it.
+    for (const label of [/^Download/, 'Rename', 'Move', 'Move to trash', 'Process']) {
+      expect(screen.getAllByRole('button', { name: label }).length).toBeGreaterThan(0);
     }
   });
 
@@ -139,7 +140,7 @@ describe('file actions on the Files rows', () => {
     renderSpace(client);
 
     await user.click(await screen.findByRole('button', { name: 'Actions for launch.mp4' }));
-    expect(screen.getByRole('button', { name: 'Download' })).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: /^Download/ }).length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: 'Rename' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Move to trash' })).toBeNull();
   });

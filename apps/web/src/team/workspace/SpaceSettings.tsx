@@ -12,6 +12,8 @@ import { InvitationPanel, type InvitationPanelClient } from '../members/Invitati
 import { TeamAuditPanel, type TeamAuditClient } from '../members/TeamAuditPanel';
 import { DriveConnectionPanel, type DrivePanelClient } from '../drive/DriveConnectionPanel';
 import { RestitchDefaultsSection, type RestitchDefaultsClient } from './RestitchDefaultsSection';
+import { TaskLabelsSection, type TaskLabelsSectionClient } from '../labels/TaskLabelsSection';
+import { TeamPreferencesSection, type TeamPreferencesClient } from './TeamPreferencesSection';
 
 export interface SharePreferenceSettingsClient {
   resetLibrarySharePreference: (teamId: string) => Promise<boolean>;
@@ -23,7 +25,9 @@ export type SpaceSettingsClient = MemberManagementClient &
   DrivePanelClient & {
     resetLibrarySharePreference: SharePreferenceSettingsClient['resetLibrarySharePreference'];
     leaveTeam: (teamId: string) => Promise<{ ok: true; warningCode: string }>;
-  } & RestitchDefaultsClient;
+  } & RestitchDefaultsClient &
+  TaskLabelsSectionClient &
+  TeamPreferencesClient;
 
 export function SharePreferenceSettings({
   teamId,
@@ -91,6 +95,15 @@ export function SpaceSettings({
   const { t } = useI18n();
   const { activeTeam, can, notifyStateChanged, refreshTeams, replaceTeams, teams } = useTeam();
   const [revision, setRevision] = useState(0);
+  const canSeeHistory = activeTeam?.role === 'owner' || activeTeam?.role === 'admin';
+  const tabs = [
+    { id: 'general' as const, label: t('teamSettingsTabGeneral') },
+    { id: 'members' as const, label: t('teamSettingsTabMembers') },
+    { id: 'tags' as const, label: t('teamSettingsTabTags') },
+    { id: 'restitch' as const, label: t('teamSettingsTabRestitch') },
+    ...(canSeeHistory ? [{ id: 'history' as const, label: t('teamSettingsTabHistory') }] : [])
+  ];
+  const [tab, setTab] = useState<(typeof tabs)[number]['id']>('general');
   const changed = () => {
     setRevision(value => value + 1);
     notifyStateChanged();
@@ -105,48 +118,128 @@ export function SpaceSettings({
         </Button>
       </header>
 
-      <div className="team-space-settings-grid">
-        <SharePreferenceSettings teamId={teamId} client={client} />
-        <RestitchDefaultsSection teamId={teamId} client={client} />
-        <MemberList
-          teamId={teamId}
-          client={client}
-          revision={revision}
-          onChanged={() => {
-            changed();
-            void refreshTeams();
-          }}
-        />
-        <InvitationPanel
-          key={`invitations:${teamId}`}
-          teamId={teamId}
-          client={client}
-          canManage={can('manage_members')}
-          directAddMode={directAddMode}
-          revision={revision}
-          onChanged={changed}
-        />
-        {activeTeam?.role === 'owner' && (
-          <DriveConnectionPanel
-            key={`drive:${teamId}`}
-            teamId={teamId}
-            client={client}
-            revision={revision}
-            onConnected={() => {
-              changed();
-              replaceTeams(
-                teams.map(team =>
-                  team.id === teamId ? { ...team, connectionState: 'connected' as const } : team
-                )
-              );
-              void refreshTeams();
+      {/*
+       * Four rooms rather than one wall.
+       *
+       * Every panel used to sit in a single two-column grid: link sharing
+       * beside the whole re-stitch editor, members under it, the space's
+       * history at the bottom of a page nobody scrolled to. The dialog was
+       * taller than any screen and the re-stitch controls — the densest thing
+       * in the product — were squeezed into half its width, where their labels
+       * broke mid-word. Each subject gets the dialog's full width now.
+       */}
+      <div
+        className="team-space-tabs team-settings-tabs"
+        role="tablist"
+        aria-label={t('teamSettingsTabsLabel')}
+      >
+        {tabs.map(item => (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            id={`team-settings-tab-${item.id}`}
+            aria-selected={tab === item.id}
+            aria-controls={`team-settings-panel-${item.id}`}
+            tabIndex={tab === item.id ? 0 : -1}
+            className={`team-space-tab${tab === item.id ? ' is-active' : ''}`}
+            onKeyDown={event => {
+              const at = tabs.findIndex(other => other.id === tab);
+              const go = (index: number) => {
+                event.preventDefault();
+                const next = tabs[(index + tabs.length) % tabs.length]!;
+                setTab(next.id);
+                document.getElementById(`team-settings-tab-${next.id}`)?.focus();
+              };
+              if (event.key === 'ArrowRight') go(at + 1);
+              else if (event.key === 'ArrowLeft') go(at - 1);
+              else if (event.key === 'Home') go(0);
+              else if (event.key === 'End') go(tabs.length - 1);
             }}
-          />
+            onClick={() => setTab(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      <div
+        /* Two columns only where two panels genuinely balance. General is three
+           short cards and history and re-stitch are one panel each; side by side
+           they left half the dialog's width empty. */
+        className={`team-space-settings-grid${tab === 'members' ? '' : ' is-single'}`}
+        role="tabpanel"
+        id={`team-settings-panel-${tab}`}
+        aria-labelledby={`team-settings-tab-${tab}`}
+      >
+        {tab === 'general' && (
+          <>
+            {/* How team mode behaves, first: it is what a person opens these
+                settings to change. */}
+            <TeamPreferencesSection client={client} />
+            <SharePreferenceSettings teamId={teamId} client={client} />
+            {activeTeam?.role === 'owner' && (
+              <DriveConnectionPanel
+                key={`drive:${teamId}`}
+                teamId={teamId}
+                client={client}
+                revision={revision}
+                onConnected={() => {
+                  changed();
+                  replaceTeams(
+                    teams.map(team =>
+                      team.id === teamId ? { ...team, connectionState: 'connected' as const } : team
+                    )
+                  );
+                  void refreshTeams();
+                }}
+              />
+            )}
+            <LeaveSpacePanel
+              teamId={teamId}
+              client={client}
+              isOwner={activeTeam?.role === 'owner'}
+            />
+          </>
         )}
-        {(activeTeam?.role === 'owner' || activeTeam?.role === 'admin') && (
+
+        {tab === 'members' && (
+          <>
+            <MemberList
+              teamId={teamId}
+              client={client}
+              revision={revision}
+              onChanged={() => {
+                changed();
+                void refreshTeams();
+              }}
+            />
+            <InvitationPanel
+              key={`invitations:${teamId}`}
+              teamId={teamId}
+              client={client}
+              canManage={can('manage_members')}
+              directAddMode={directAddMode}
+              revision={revision}
+              onChanged={changed}
+            />
+          </>
+        )}
+
+        {/* Two sets, one room: the tags a task carries and the tags an agent
+            carries are made the same way and read in different places. */}
+        {tab === 'tags' && (
+          <>
+            <TaskLabelsSection teamId={teamId} client={client} revision={revision} />
+            <TaskLabelsSection teamId={teamId} client={client} revision={revision} scope="agent" />
+          </>
+        )}
+
+        {tab === 'restitch' && <RestitchDefaultsSection teamId={teamId} client={client} />}
+
+        {tab === 'history' && (
           <TeamAuditPanel teamId={teamId} client={client} revision={revision} />
         )}
-        <LeaveSpacePanel teamId={teamId} client={client} isOwner={activeTeam?.role === 'owner'} />
       </div>
     </section>
   );

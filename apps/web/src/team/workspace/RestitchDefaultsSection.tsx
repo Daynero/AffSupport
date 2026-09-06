@@ -57,14 +57,6 @@ export interface RestitchDefaultsClient {
   ) => Promise<TeamRestitchDefaults>;
 }
 
-/** The tool's own labels for the hold ranges, so the summary reads like the control does. */
-const HOLD_KEYS = {
-  'random-30-40': 'randomDuration30To40',
-  'random-40-50': 'randomDuration40To50',
-  'random-50-60': 'randomDuration50To60',
-  custom: 'stitcherEndDurationFixed'
-} as const;
-
 const OPERATION_KEYS = {
   restitch: 'stitcherOpRestitch',
   stitch: 'stitcherOpStitch',
@@ -84,6 +76,10 @@ export function RestitchDefaultsSection({
   client: RestitchDefaultsClient;
 }) {
   const { t } = useI18n();
+  /* Closed: the count on the control says what is inside, and open it put the
+     rest of the settings below a wall of thumbnails — the thing the fold was
+     added to stop. */
+  const [embeddingOpen, setEmbeddingOpen] = useState(false);
   const { push } = useToasts();
   const { activeTeam, can } = useTeam();
   const agent = useOptionalAgent();
@@ -176,18 +172,14 @@ export function RestitchDefaultsSection({
     }
   };
 
-  const summary = defaults
-    ? t('teamRestitchSummary', {
-        operation: t(OPERATION_KEYS[defaults.operation]),
-        photos: defaults.startImageIds.length + defaults.endImageIds.length,
-        hold: t(HOLD_KEYS[defaults.finalDurationMode])
-      })
-    : t('teamRestitchNotConfigured');
-
   return (
     <section className="team-panel" aria-labelledby="team-restitch-settings-title">
       <h2 id="team-restitch-settings-title">{t('teamRestitchSection')}</h2>
-      <p role="status">{loaded ? summary : ''}</p>
+      {/* The controls below say what the space does; a machine-assembled recap
+          above them ("Перезашити, фото: 21, Випадково: 30–40 хв") said it again
+          in a shape no one writes. What is left is the one thing the controls
+          cannot say: that nothing has been set yet. */}
+      <p role="status">{loaded && !defaults ? t('teamRestitchNotConfigured') : ''}</p>
 
       {/* Read rather than hidden: a member who cannot change this can still see what the
           space does, which is what they need in order to ask for it to change. */}
@@ -218,19 +210,39 @@ export function RestitchDefaultsSection({
             );
           })}
         </div>
+        {/* The chosen option, named — the group below this one does exactly
+            this, and without it these are three unlabelled pictograms. */}
+        <p className="field-hint">{t(OPERATION_KEYS[operation])}</p>
       </div>
 
       {compressor?.imageEmbedding && (
-        <ImageEmbeddingSection
-          settings={compressor.imageEmbedding}
-          disabled={!editable || !connected}
-          update={updateEmbedding}
-          uploadImages={uploadImages}
-          removeImage={removeImage}
-          onValidityChange={() => {}}
-          optional={false}
-          t={t}
-        />
+        /* The image wells are the tallest thing in this panel by a long way —
+           two galleries of thumbnails under a row of toggles. Folded, the rest
+           of the settings fit on one screen; the summary counts what is inside,
+           so nothing is hidden silently. */
+        <details
+          className="team-restitch-fold"
+          open={embeddingOpen}
+          onToggle={event => setEmbeddingOpen((event.currentTarget as HTMLDetailsElement).open)}
+        >
+          <summary className="team-catalog-filter-summary">
+            {t('teamRestitchImagesFold', {
+              count:
+                (compressor.imageEmbedding.startImages?.length ?? 0) +
+                (compressor.imageEmbedding.endImages?.length ?? 0)
+            })}
+          </summary>
+          <ImageEmbeddingSection
+            settings={compressor.imageEmbedding}
+            disabled={!editable || !connected}
+            update={updateEmbedding}
+            uploadImages={uploadImages}
+            removeImage={removeImage}
+            onValidityChange={() => {}}
+            optional={false}
+            t={t}
+          />
+        </details>
       )}
 
       {editable && (
@@ -299,15 +311,28 @@ function progressLine(state: RestitchPreparationState, t: ReturnType<typeof useI
   if (state.phase === 'running') {
     return t('teamRestitchPreparing', { done: state.done, total: state.total });
   }
-  // Finished or stopped: the tally is the same sentence either way, because a stopped run
-  // keeps everything it had already found.
-  const tally = t(
-    state.phase === 'canceled' ? 'teamRestitchPrepareStopped' : 'teamRestitchPrepared',
-    { ready: state.ready, failed: state.unsupported + state.failed }
-  );
-  // When nothing came through, the count alone leaves a member with nowhere to go; the reason
-  // the agent gave is the part they can act on.
-  return state.ready === 0 && state.failed > 0 && state.errorCode
-    ? `${tally} — ${teamErrorMessageFor(new Error(state.errorCode), t)}`
-    : tally;
+  /*
+   * Finished or stopped: the tally is the same sentence either way, because a
+   * stopped run keeps everything it had already found.
+   *
+   * "Could not" and "does not apply" are two different answers, and they were
+   * added together: a single video the tool cannot read reported "0 готово, 1
+   * не вдалося підготувати" — a failure with no reason, for something that was
+   * never going to work and needs nothing from the person. They are counted
+   * apart now, and a real failure always carries the reason the agent gave
+   * rather than only when nothing at all came through.
+   */
+  const parts = [
+    t(state.phase === 'canceled' ? 'teamRestitchPrepareStopped' : 'teamRestitchPrepared', {
+      ready: state.ready,
+      failed: state.failed
+    })
+  ];
+  if (state.failed > 0 && state.errorCode) {
+    parts.push(teamErrorMessageFor(new Error(state.errorCode), t));
+  }
+  if (state.unsupported > 0) {
+    parts.push(t('teamRestitchPrepareUnsupported', { count: state.unsupported }));
+  }
+  return parts.join(' — ');
 }

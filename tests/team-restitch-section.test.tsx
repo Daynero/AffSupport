@@ -29,9 +29,8 @@ vi.mock('../apps/web/src/api/useSubresourceUrl', () => ({ useSubresourceUrl: () 
 const { TeamProvider } = await import('../apps/web/src/team/TeamContext');
 const { ToastProvider } = await import('../apps/web/src/components/toast');
 const { AgentContextOverride } = await import('../apps/web/src/AgentContext');
-const { RestitchDefaultsSection } = await import(
-  '../apps/web/src/team/workspace/RestitchDefaultsSection'
-);
+const { RestitchDefaultsSection } =
+  await import('../apps/web/src/team/workspace/RestitchDefaultsSection');
 type RestitchDefaultsClient = Parameters<typeof RestitchDefaultsSection>[0]['client'];
 const { agentContextStub } = await import('./support/agent-stub.js');
 
@@ -123,17 +122,21 @@ describe('a space’s re-stitching settings', () => {
     expect(await screen.findByText('Not set up yet')).toBeTruthy();
   });
 
-  it('summarises what is set without opening anything', async () => {
+  it('names the chosen operation under its own control', async () => {
     renderSection({
       getRestitchDefaults: vi.fn().mockResolvedValue(stored),
       setRestitchDefaults: vi.fn()
     });
-    // Two photos, the chosen operation and the hold range, in one line. Read from the first
-    // status line specifically: the panel also explains what preparing does, and that
-    // sentence mentions re-stitching too.
-    const summary = (await screen.findAllByRole('status'))[0] as HTMLElement;
-    expect(summary.textContent).toContain('2');
-    expect(summary.textContent).toContain('30–40');
+    /*
+     * The panel used to open with a machine-assembled recap — "Re-stitch, 2
+     * photos, Random: 30–40 min" — above three unlabelled pictograms that said
+     * the same thing. The recap is gone; what a person needs is the name of the
+     * option the pictogram row has selected, which is what the group below it
+     * already did.
+     */
+    expect(await screen.findByText('Re-stitch')).toBeTruthy();
+    const status = (await screen.findAllByRole('status'))[0] as HTMLElement;
+    expect(status.textContent).toBe('');
   });
 
   it('records the photos the library currently has switched on', async () => {
@@ -191,9 +194,8 @@ describe('a space’s re-stitching settings', () => {
 
 describe('a member who meets a space nobody has set up', () => {
   it('is offered the way in, and is told who can when it is not them', async () => {
-    const { RestitchDeliveryNotices } = await import(
-      '../apps/web/src/team/restitch/RestitchDeliveryNotices'
-    );
+    const { RestitchDeliveryNotices } =
+      await import('../apps/web/src/team/restitch/RestitchDeliveryNotices');
     const onConfigure = vi.fn();
     const states = { 'material-1': { kind: 'unconfigured' as const } };
 
@@ -206,9 +208,7 @@ describe('a member who meets a space nobody has set up', () => {
     );
 
     const user = userEvent.setup();
-    expect(
-      await screen.findByText('Re-stitching is not set up for this space')
-    ).toBeTruthy();
+    expect(await screen.findByText('Re-stitching is not set up for this space')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Set it up now' }));
     // The action opens the settings; it does not navigate away and it does not run anything.
     expect(onConfigure).toHaveBeenCalledTimes(1);
@@ -230,9 +230,8 @@ describe('a member who meets a space nobody has set up', () => {
   });
 
   it('leaves a running delivery to the panel, and speaks only when it is done', async () => {
-    const { RestitchDeliveryNotices } = await import(
-      '../apps/web/src/team/restitch/RestitchDeliveryNotices'
-    );
+    const { RestitchDeliveryNotices } =
+      await import('../apps/web/src/team/restitch/RestitchDeliveryNotices');
     const view = render(
       <TeamProvider initialTeams={[owned]} realtime={false}>
         <ToastProvider>
