@@ -1,5 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Eraser, Settings as SettingsIcon, Files, Film, FolderOpen, Gauge, Gem, Monitor, Sparkles, SlidersHorizontal, Timer } from 'lucide-react';
+import {
+  ChevronDown,
+  Settings as SettingsIcon,
+  Files,
+  Film,
+  FolderOpen,
+  Gauge,
+  Gem,
+  Monitor,
+  Sparkles,
+  SlidersHorizontal,
+  Timer
+} from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from './icons';
 import {
   CRF_MAX,
@@ -13,17 +25,18 @@ import {
   VIDEO_BITRATE_MAX_KBPS,
   VIDEO_BITRATE_MIN_KBPS,
   type AgentSettings,
-  type AgentSettingsPatch,
-  type CompressionMode,
-  type RateControl
+  type AgentSettingsPatch
 } from '@video-compressor/shared';
 import { compactPath } from '../format';
 import { isValidIntegerInput } from '../queue-ui';
-import { Button, Checkbox, Collapse, SegmentedControl, Tooltip, type Translate } from './ui';
+import { Checkbox, Collapse, Tooltip, type Translate } from './ui';
 import { ImageEmbeddingSection } from './ImageEmbeddingSection';
 
-const FPS_OPTIONS = [24, 25, 30, 50, 60];
-const RESOLUTION_OPTIONS = [2160, 1440, 1080, 720, 550];
+// The presets are exactly the pictos on the row. A value outside them (25 fps,
+// 1440p) opens the custom field with that value in it; a preset list wider
+// than the row left such a value with no selected picto and no field at all.
+const FPS_OPTIONS = [24, 30, 60];
+const RESOLUTION_OPTIONS = [720, 1080];
 
 type UpdateSettings = (patch: AgentSettingsPatch, debounce?: boolean) => void;
 
@@ -90,7 +103,7 @@ export function SettingsPanel({
         {/* The summary stays put when the panel opens: it is the shortest read
             of what will actually run, and losing it mid-adjustment is exactly
             when it is most useful. */}
-        {(
+        {
           <span className="settings-summary">
             <span>
               <span className="settings-summary-key">{t('settingsSummaryResolution')}</span>
@@ -111,7 +124,7 @@ export function SettingsPanel({
             {/* Embedding is only worth a word when it is on. */}
             {settings.imageEmbedding.enabled && <span>{t('settingsSummaryEmbedding')}</span>}
           </span>
-        )}
+        }
         <ChevronDown
           size={ICON_SIZE}
           strokeWidth={ICON_STROKE}
@@ -120,83 +133,83 @@ export function SettingsPanel({
         />
       </button>
       <div id="settings-body" className="settings-body" hidden={!open}>
-      <div className="settings-primary-row">
-        <div className="field-group">
-          <FieldLabel label={t('compressionMode')} />
-          <div className="fit-mode-pictos" role="radiogroup" aria-label={t('compressionMode')}>
-            <button
-              type="button"
-              className={settings.mode === 'optimal' ? 'is-selected' : ''}
-              data-tip={t('optimal')}
-              aria-label={t('optimal')}
-              aria-checked={settings.mode === 'optimal'}
-              role="radio"
-              disabled={disabled}
-              onClick={() => updateSettings({ mode: 'optimal' })}
-            >
-              <Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              className={settings.mode === 'custom' ? 'is-selected' : ''}
-              data-tip={t('custom')}
-              aria-label={t('custom')}
-              aria-checked={settings.mode === 'custom'}
-              role="radio"
-              disabled={disabled}
-              onClick={() => updateSettings({ mode: 'custom' })}
-            >
-              <SlidersHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            </button>
-          </div>
-          {/* The picto pair says nothing on its own, so the chosen mode is
+        <div className="settings-primary-row">
+          <div className="field-group">
+            <FieldLabel label={t('compressionMode')} />
+            <div className="fit-mode-pictos" role="radiogroup" aria-label={t('compressionMode')}>
+              <button
+                type="button"
+                className={settings.mode === 'optimal' ? 'is-selected' : ''}
+                data-tip={t('optimal')}
+                aria-label={t('optimal')}
+                aria-checked={settings.mode === 'optimal'}
+                role="radio"
+                disabled={disabled}
+                onClick={() => updateSettings({ mode: 'optimal' })}
+              >
+                <Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className={settings.mode === 'custom' ? 'is-selected' : ''}
+                data-tip={t('custom')}
+                aria-label={t('custom')}
+                aria-checked={settings.mode === 'custom'}
+                role="radio"
+                disabled={disabled}
+                onClick={() => updateSettings({ mode: 'custom' })}
+              >
+                <SlidersHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              </button>
+            </div>
+            {/* The picto pair says nothing on its own, so the chosen mode is
               spelled out under it — the preset's numbers live in its tip. */}
-          <span
-            className="optimal-summary"
-            title={settings.mode === 'optimal' ? t('optimalSummary') : undefined}
-          >
-            {settings.mode === 'optimal'
-              ? `${t('optimal')} · ${t('optimalSummary')}`
-              : t('custom')}
-          </span>
-        </div>
-        <OutputSettings
-          settings={settings}
-          disabled={disabled}
-          updateSettings={updateSettings}
-          chooseOutputFolder={chooseOutputFolder}
-          t={t}
-        />
-        <div className="field-group metadata-settings">
-          <Checkbox
-            className="feature-switch"
-            checked={settings.stripMetadata}
-            disabled={disabled}
-            onChange={event => updateSettings({ stripMetadata: event.target.checked })}
-            label={<strong>{t('stripMetadata')}</strong>}
-          />
-          <Tooltip label={t('stripMetadataTooltip')}>{t('stripMetadataTooltip')}</Tooltip>
-        </div>
-      </div>
-      <div className="mode-detail">
-        <Collapse open={settings.mode === 'custom'}>
-          <CustomSettings
+            <span
+              className="optimal-summary"
+              title={settings.mode === 'optimal' ? t('optimalSummary') : undefined}
+            >
+              {settings.mode === 'optimal'
+                ? `${t('optimal')} · ${t('optimalSummary')}`
+                : t('custom')}
+            </span>
+          </div>
+          <OutputSettings
             settings={settings}
-            disabled={disabled || settings.mode !== 'custom'}
+            disabled={disabled}
             updateSettings={updateSettings}
+            chooseOutputFolder={chooseOutputFolder}
             t={t}
           />
-        </Collapse>
-      </div>
-      <ImageEmbeddingSection
-        settings={settings.imageEmbedding}
-        disabled={disabled}
-        update={(patch, debounce) => updateSettings({ imageEmbedding: patch }, debounce)}
-        uploadImages={uploadImages}
-        removeImage={removeImage}
-        onValidityChange={onEmbeddingValidityChange}
-        t={t}
-      />
+          <div className="field-group metadata-settings">
+            <Checkbox
+              className="feature-switch"
+              checked={settings.stripMetadata}
+              disabled={disabled}
+              onChange={event => updateSettings({ stripMetadata: event.target.checked })}
+              label={<strong>{t('stripMetadata')}</strong>}
+            />
+            <Tooltip label={t('stripMetadataTooltip')}>{t('stripMetadataTooltip')}</Tooltip>
+          </div>
+        </div>
+        <div className="mode-detail">
+          <Collapse open={settings.mode === 'custom'}>
+            <CustomSettings
+              settings={settings}
+              disabled={disabled || settings.mode !== 'custom'}
+              updateSettings={updateSettings}
+              t={t}
+            />
+          </Collapse>
+        </div>
+        <ImageEmbeddingSection
+          settings={settings.imageEmbedding}
+          disabled={disabled}
+          update={(patch, debounce) => updateSettings({ imageEmbedding: patch }, debounce)}
+          uploadImages={uploadImages}
+          removeImage={removeImage}
+          onValidityChange={onEmbeddingValidityChange}
+          t={t}
+        />
       </div>
     </section>
   );
@@ -252,64 +265,69 @@ function CustomSettings({
       <div className="field-group rate-control-field custom-column-primary">
         <FieldLabel label={t('rateControl')} />
         <div className="start-duration-row">
-        <div className="fit-mode-pictos" role="radiogroup" aria-label={t('rateControl')}>
-          <button
-            type="button"
-            role="radio"
-            className={rateMode === 'optimal' ? 'is-selected' : ''}
-            data-tip={t('optimal')}
-            aria-label={t('optimal')}
-            aria-checked={rateMode === 'optimal'}
-            disabled={disabled}
-            onClick={() => {
-              setRateMode('optimal');
-              updateSettings({ rateControl: 'crf', crf: DEFAULT_CRF });
-            }}
-          >
-            <Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            role="radio"
-            className={`${rateMode === 'crf' ? 'is-selected' : ''} ${crfDrag !== null ? 'is-zoomed' : ''}`.trim()}
-            data-tip={t('constantQuality')}
-            aria-label={t('constantQuality')}
-            aria-checked={rateMode === 'crf'}
-            disabled={disabled}
-            onClick={() => {
-              setRateMode('crf');
-              updateSettings({ rateControl: 'crf' });
-            }}
-          >
-            <PixelGem crf={crfDrag ?? settings.crf} selected={rateMode === 'crf'} />
-          </button>
-          <button
-            type="button"
-            role="radio"
-            className={rateMode === 'bitrate' ? 'is-selected' : ''}
-            data-tip={t('targetBitrate')}
-            aria-label={t('targetBitrate')}
-            aria-checked={rateMode === 'bitrate'}
-            disabled={disabled}
-            onClick={() => {
-              setRateMode('bitrate');
-              updateSettings({ rateControl: 'bitrate' });
-            }}
-          >
-            <Gauge size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          </button>
-        </div>
-        {rateMode === 'optimal' ? null : rateMode === 'crf' ? (
-          <RateValueCrf
-            settings={settings}
-            disabled={disabled}
-            updateSettings={updateSettings}
-            onDrag={setCrfDrag}
-            t={t}
-          />
-        ) : (
-          <RateValueBitrate settings={settings} disabled={disabled} updateSettings={updateSettings} t={t} />
-        )}
+          <div className="fit-mode-pictos" role="radiogroup" aria-label={t('rateControl')}>
+            <button
+              type="button"
+              role="radio"
+              className={rateMode === 'optimal' ? 'is-selected' : ''}
+              data-tip={t('optimal')}
+              aria-label={t('optimal')}
+              aria-checked={rateMode === 'optimal'}
+              disabled={disabled}
+              onClick={() => {
+                setRateMode('optimal');
+                updateSettings({ rateControl: 'crf', crf: DEFAULT_CRF });
+              }}
+            >
+              <Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              role="radio"
+              className={`${rateMode === 'crf' ? 'is-selected' : ''} ${crfDrag !== null ? 'is-zoomed' : ''}`.trim()}
+              data-tip={t('constantQuality')}
+              aria-label={t('constantQuality')}
+              aria-checked={rateMode === 'crf'}
+              disabled={disabled}
+              onClick={() => {
+                setRateMode('crf');
+                updateSettings({ rateControl: 'crf' });
+              }}
+            >
+              <PixelGem crf={crfDrag ?? settings.crf} selected={rateMode === 'crf'} />
+            </button>
+            <button
+              type="button"
+              role="radio"
+              className={rateMode === 'bitrate' ? 'is-selected' : ''}
+              data-tip={t('targetBitrate')}
+              aria-label={t('targetBitrate')}
+              aria-checked={rateMode === 'bitrate'}
+              disabled={disabled}
+              onClick={() => {
+                setRateMode('bitrate');
+                updateSettings({ rateControl: 'bitrate' });
+              }}
+            >
+              <Gauge size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            </button>
+          </div>
+          {rateMode === 'optimal' ? null : rateMode === 'crf' ? (
+            <RateValueCrf
+              settings={settings}
+              disabled={disabled}
+              updateSettings={updateSettings}
+              onDrag={setCrfDrag}
+              t={t}
+            />
+          ) : (
+            <RateValueBitrate
+              settings={settings}
+              disabled={disabled}
+              updateSettings={updateSettings}
+              t={t}
+            />
+          )}
         </div>
         <span className="optimal-summary">
           {rateMode === 'optimal'
@@ -366,7 +384,7 @@ function FpsControl({
           >
             <Film size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
           </button>
-          {[24, 30, 60].map(value => (
+          {FPS_OPTIONS.map(value => (
             <button
               key={value}
               type="button"
@@ -483,7 +501,7 @@ function ResolutionControl({
           >
             <Monitor size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
           </button>
-          {[720, 1080].map(value => (
+          {RESOLUTION_OPTIONS.map(value => (
             <button
               key={value}
               type="button"

@@ -50,6 +50,7 @@ function driveFolder(overrides: Record<string, unknown> = {}) {
     modifiedAt: '2026-08-01T12:00:00.000Z',
     version: '7',
     checksum: null,
+    appProperties: {},
     ...overrides
   };
 }

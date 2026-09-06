@@ -38,9 +38,9 @@ export function workspaceFolderMarker(teamId: string): string {
 function usable(live: DriveFileMetadata | null, marker: string): boolean {
   return Boolean(
     live &&
-      !live.trashed &&
-      live.mimeType === 'application/vnd.google-apps.folder' &&
-      live.appProperties[WORKSPACE_FOLDER_MARK] === marker
+    !live.trashed &&
+    live.mimeType === 'application/vnd.google-apps.folder' &&
+    live.appProperties[WORKSPACE_FOLDER_MARK] === marker
   );
 }
 

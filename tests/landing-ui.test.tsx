@@ -208,7 +208,17 @@ function makeJob(status: LandingJob['status'], assets: LandingAsset[]): LandingJ
     completedAssets: completed,
     totalAssets: assets.length,
     currentAssetId: assets.find(item => item.status === 'processing')?.id ?? null,
-    settings: { imageQuality: 'optimal', videoQuality: 'optimal', archive: true },
+    settings: {
+      imageQuality: 'optimal',
+      videoQuality: 'optimal',
+      archive: true,
+      optimizeImages: true,
+      optimizeVideos: true,
+      stripMetadata: false,
+      renameMedia: false,
+      outputMode: 'next-to-originals',
+      outputFolder: null
+    },
     assets,
     imagesOptimized: assets.filter(item => item.type === 'image' && item.status === 'optimized')
       .length,
@@ -225,6 +235,8 @@ function makeJob(status: LandingJob['status'], assets: LandingAsset[]): LandingJ
       : 0,
     outputPath: status === 'completed' ? '/tmp/promo-landing-optimized.zip' : null,
     outputIsArchive: true,
+    paused: false,
+    repeatable: false,
     error: null,
     warnings: [],
     createdAt: 1,

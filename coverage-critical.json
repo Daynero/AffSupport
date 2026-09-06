@@ -3,8 +3,10 @@
   "modules": {
     "apps/agent/src/ffmpeg/encoder.ts": 95,
     "apps/agent/src/ffmpeg/presets.ts": 99,
+    "apps/agent/src/ffmpeg/stitch-presets.ts": 50,
     "apps/agent/src/ffmpeg/tools.ts": 96,
     "apps/agent/src/files/paths.ts": 99,
+    "apps/agent/src/files/replace-file.ts": 50,
     "apps/agent/src/files/support-dir.ts": 99,
     "apps/agent/src/images/embedding.ts": 97,
     "apps/agent/src/images/static-edges.ts": 86,
@@ -35,7 +37,9 @@
     "apps/agent/src/translation/tools.ts": 66,
     "apps/agent/src/translation/translator.ts": 16,
     "apps/agent/src/whisper/downloader.ts": 80,
+    "apps/agent/src/whisper/language-probe.ts": 50,
     "apps/agent/src/whisper/progress-smoother.ts": 80,
+    "apps/agent/src/whisper/runtime.ts": 50,
     "apps/agent/src/whisper/silence-tail.ts": 80,
     "apps/agent/src/whisper/tools.ts": 68,
     "apps/agent/src/whisper/transcriber.ts": 84,
@@ -54,9 +58,12 @@
     "packages/shared/src/team/landing-gallery.ts": 92,
     "packages/shared/src/team/library-processing.ts": 44,
     "packages/shared/src/team/material-category.ts": 97,
+    "packages/shared/src/team/restitch.ts": 50,
     "packages/shared/src/team/tasks.ts": 59,
+    "packages/shared/src/team/task-labels.ts": 50,
     "packages/shared/src/team/transcript.ts": 89,
     "packages/shared/src/team/transport.ts": 85,
-    "packages/shared/src/types.ts": 63
+    "packages/shared/src/types.ts": 63,
+    "packages/shared/src/totp.ts": 50
   }
 }

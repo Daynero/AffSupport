@@ -66,6 +66,7 @@ class TestRenderer implements LandingRenderer {
         height: 1200,
         segmentFiles: [outputPath],
         title: null,
+        thumbnailFile: null,
         blockedExternalRequests: 0,
         warning: null
       };

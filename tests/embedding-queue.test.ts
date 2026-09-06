@@ -6,6 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   defaultImageEmbeddingSettings,
+  estimatedFinalImageDurationSeconds,
+  startImageDurationSeconds,
   type AgentSettings,
   type ImageAsset
 } from '../packages/shared/src/types.js';
@@ -85,7 +87,21 @@ describe('sequential queue with embedded images', () => {
       expect(media.hasAudio).toBe(true);
       expect(media.audioChannels).toBe(2);
       expect(media.frameRate).toBeCloseTo(30, 2);
-      expect(media.duration).toBeCloseTo((job.durationSeconds ?? 0) + 1 / 30 + 0.3, 1);
+      // Source minus the static edges it replaces, plus one frame of opening
+      // image at the output rate, plus the chosen final hold — the same rules
+      // the card's expected-duration figure is built from.
+      const embedding = job.imageEmbedding!;
+      expect(embedding.sourceTrimStartSeconds + embedding.sourceTrimEndSeconds).toBeLessThan(
+        job.durationSeconds ?? 0
+      );
+      const expectedDuration =
+        (job.durationSeconds ?? 0) -
+        embedding.sourceTrimStartSeconds -
+        embedding.sourceTrimEndSeconds +
+        startImageDurationSeconds(embedding, 30) +
+        estimatedFinalImageDurationSeconds(embedding);
+      expect(estimatedFinalImageDurationSeconds(embedding)).toBe(0.3);
+      expect(media.duration).toBeCloseTo(expectedDuration, 1);
       expect(await sha256(sources[index].file)).toBe(before[index]);
     }
     expect(completed[0]).toMatchObject({ finalWidth: 160, finalHeight: 90 });

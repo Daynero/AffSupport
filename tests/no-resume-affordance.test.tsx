@@ -87,8 +87,11 @@ describe('a stopped run is re-run, never resumed', () => {
     for (const status of stoppedStates) {
       agent.state = queueState([makeJob('stopped', status)]);
       const view = render(<CompressorPage />);
-      expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
-      expect(screen.queryByRole('button', { name: /resume|continue/i })).toBeNull();
+      // "Repeat", not "Try again": the label names a fresh run, and the same word
+      // is used for repeating a finished one, so a stopped file reads as "not
+      // done yet" rather than as something that went wrong.
+      expect(screen.getByRole('button', { name: 'Repeat' })).toBeTruthy();
+      expect(screen.queryByRole('button', { name: /resume|continue|try again/i })).toBeNull();
       view.unmount();
     }
   });
@@ -98,7 +101,7 @@ describe('a stopped run is re-run, never resumed', () => {
     api.request.mockResolvedValue(agent.state);
     render(<CompressorPage />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Repeat' }));
     // `retry`, not a resume endpoint — the agent has none, and this is what keeps the
     // interface from acquiring one by way of a button that needs it.
     await waitFor(() =>

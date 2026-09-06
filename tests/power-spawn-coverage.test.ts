@@ -34,7 +34,10 @@ const SPAWN_ALLOWLIST = [
   'ffmpeg/tools.ts',
   'whisper/tools.ts',
   'files/picker.ts',
-  'files/dropped-source.ts'
+  'files/dropped-source.ts',
+  // `ioreg`, once a second, under a two-second ceiling: it reads the GPU
+  // figure the governor reports, and managing the reading would skew it.
+  'power/graphics.ts'
 ];
 
 /** Only the governor may stop or resume a managed child. */

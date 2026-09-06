@@ -54,15 +54,15 @@ describe('while the local app is unreachable', () => {
   it('stops flowing the progress bar', () => {
     const { container } = renderRow(false);
     // The flowing state is a class on the bar, so its absence is observable
-    // without reaching into implementation detail about how it animates.
-    const active = container.querySelector('.progress-bar.is-active, [data-active="true"]');
-    expect(active).toBeNull();
+    // without reaching into implementation detail about how it animates. The
+    // bar itself is still there, holding its last value.
+    expect(container.querySelector('.progress-track')).toBeTruthy();
+    expect(container.querySelector('.progress-track.is-flowing')).toBeNull();
   });
 
   it('keeps flowing it while connected', () => {
     const { container } = renderRow(true);
-    const bar = container.querySelector('.job-progress');
-    expect(bar).toBeTruthy();
+    expect(container.querySelector('.progress-track.is-flowing')).toBeTruthy();
   });
 
   it('holds the last known percentage rather than resetting it', () => {

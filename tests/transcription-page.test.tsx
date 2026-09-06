@@ -144,7 +144,7 @@ const state: TranscriptionState = {
   translatorModel: installedModel,
   translatorRuntime: installedModel,
   alignmentModel: installedModel,
-  settings: { language: 'uk', translationLanguage: 'uk' }
+  settings: { language: 'uk', translationLanguage: 'uk', quality: 'fast' }
 };
 
 class EventSourceStub {

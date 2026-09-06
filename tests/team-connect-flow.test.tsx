@@ -204,24 +204,20 @@ describe('DriveConnectionPanel (settings)', () => {
 
   it('carries a reconnect on a connected space through to Google', async () => {
     const user = userEvent.setup();
-    const startDriveOAuth = vi
-      .fn()
-      .mockResolvedValue({
-        authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth?x=1',
-        expiresAt: 'later'
-      });
+    const startDriveOAuth = vi.fn().mockResolvedValue({
+      authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth?x=1',
+      expiresAt: 'later'
+    });
     render(
       <ToastProvider>
         <DriveConnectionPanel
           teamId={TEAM}
           client={{
-            getConnectionStatus: vi
-              .fn()
-              .mockResolvedValue({
-                state: 'connected',
-                rootFolderName: 'Root',
-                connectionId: 'c1'
-              }),
+            getConnectionStatus: vi.fn().mockResolvedValue({
+              state: 'connected',
+              rootFolderName: 'Root',
+              connectionId: 'c1'
+            }),
             startDriveOAuth,
             pickerToken: vi.fn(),
             chooseRoot: vi.fn(),

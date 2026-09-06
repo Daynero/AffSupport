@@ -46,7 +46,11 @@ const UNDRIVEN: Readonly<Record<string, readonly string[]>> = {
   compression: [],
   transcription: [],
   translation: [],
-  'landing-job': [],
+  // `ready → failed` is a refusal by the worker's own `start()`, which the optimizer only
+  // calls for a job it has already queued. The worker is not exported, so the edge cannot
+  // be reached from anything a test can hold — it stays declared because the table describes
+  // the worker, not the optimizer's use of it.
+  'landing-job': ['ready->failed'],
   'landing-asset': [],
   'landing-preview-item': [],
   'media-action': []

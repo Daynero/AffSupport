@@ -158,18 +158,29 @@ describe('estimate → result morph', () => {
     t: translator('en')
   };
 
-  it('renders both phases while a job completes, then settles on the result panel', async () => {
+  it('shows the progress panel while a job runs, then the result panel once it completes', () => {
+    // A running card replaces the outcome slot with a progress panel (title,
+    // bar, percentage, timer, cancel): the estimate has done its job by the
+    // time Compress is pressed, and the bar is what the person is waiting on.
     const processing = makeJob('morph-job', 'processing', {
       encoding: { ...customEncoding },
       estimateStatus: 'estimated',
       estimatedOutputBytes: 6000,
       estimatedSavingPercent: 40,
       estimateKey: jobConfigurationKey(customEncoding, null),
+      progress: 42,
       startedAt: 1000
     });
     const { container, rerender } = render(<JobRow job={processing} {...rowProps} />);
-    expect(screen.getByText('Expected result')).toBeTruthy();
+    expect(container.querySelector('.job-progress-panel')).toBeTruthy();
+    expect(screen.getByRole('progressbar')).toBeTruthy();
+    expect(screen.getByText('42%')).toBeTruthy();
+    // The estimate still informs the panel — as the "→ ~size" hint, not as a
+    // second panel competing with the bar.
+    expect(screen.getByText(/→ ~/)).toBeTruthy();
+    expect(screen.queryByText('Expected result')).toBeNull();
     expect(screen.queryByText('Ready file')).toBeNull();
+    expect(container.querySelector('.outcome-slot')).toBeNull();
 
     const completed = {
       ...processing,
@@ -186,8 +197,46 @@ describe('estimate → result morph', () => {
     };
     rerender(<JobRow job={completed} {...rowProps} />);
 
-    // During the morph both phases are mounted inside the shared slot; the
-    // outgoing estimate is hidden from assistive tech.
+    // The outcome slot mounts fresh on completion, so it goes straight to the
+    // result: no estimate phase lingers and nothing morphs.
+    expect(container.querySelector('.job-progress-panel')).toBeNull();
+    expect(screen.getByText('Ready file')).toBeTruthy();
+    expect(screen.queryByText('Expected result')).toBeNull();
+    expect(container.querySelector('.outcome-slot.is-morphing')).toBeNull();
+    expect(container.querySelector('.outcome-phase-estimate')).toBeNull();
+  });
+
+  it('morphs the estimate into the result when a mounted estimate completes', async () => {
+    // The slot's own contract: an estimate that is on screen when the job
+    // flips to completed crossfades into the result for one --dur-complete
+    // beat, the outgoing phase hidden from assistive tech, then unmounts.
+    const ready = makeJob('morph-job', 'ready', {
+      encoding: { ...customEncoding },
+      estimateStatus: 'estimated',
+      estimatedOutputBytes: 6000,
+      estimatedSavingPercent: 40,
+      estimateKey: jobConfigurationKey(customEncoding, null)
+    });
+    const { container, rerender } = render(<JobRow job={ready} {...rowProps} />);
+    expect(screen.getByText('Expected result')).toBeTruthy();
+    expect(screen.queryByText('Ready file')).toBeNull();
+
+    const completed = {
+      ...ready,
+      status: 'completed' as const,
+      progress: 100,
+      finalSize: 5000,
+      finalWidth: 1280,
+      finalHeight: 720,
+      finalFrameRate: 30,
+      finalBitrate: 2_000_000,
+      finalDurationSeconds: 10,
+      finalCodec: 'h264',
+      startedAt: 1000,
+      finishedAt: 6000
+    };
+    rerender(<JobRow job={completed} {...rowProps} />);
+
     expect(container.querySelector('.outcome-slot.is-morphing')).toBeTruthy();
     expect(screen.getByText('Expected result')).toBeTruthy();
     expect(screen.getByText('Ready file')).toBeTruthy();
@@ -195,7 +244,6 @@ describe('estimate → result morph', () => {
       'true'
     );
 
-    // After --dur-complete the estimate phase unmounts and only the result stays.
     await waitFor(() => expect(screen.queryByText('Expected result')).toBeNull(), {
       timeout: 2000
     });

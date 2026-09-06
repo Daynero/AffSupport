@@ -45,7 +45,13 @@ function growingClient() {
   };
 }
 
-function Listing({ client, revision }: { client: ReturnType<typeof growingClient>; revision: number }) {
+function Listing({
+  client,
+  revision
+}: {
+  client: ReturnType<typeof growingClient>;
+  revision: number;
+}) {
   const page = useFolderPage({
     teamId: 'team',
     client: client as never,

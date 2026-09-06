@@ -207,9 +207,7 @@ export class EstimationWorker {
       prioritized[0] ??
       (prioritizedOnly
         ? undefined
-        : waiting.find(
-            job => job.status !== 'queued' && job.estimatePriorityOrder === null
-          ))
+        : waiting.find(job => job.status !== 'queued' && job.estimatePriorityOrder === null))
     );
   }
 

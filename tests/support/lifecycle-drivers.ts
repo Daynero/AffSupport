@@ -624,7 +624,11 @@ const TRANSCRIPTION_DRIVERS: DriverMap = {
   },
 
   'queued->processing': async () => {
-    const { queue } = await seededTranscription([{ id: 'running', status: 'ready' }]);
+    // A known language: `start` otherwise waits on the language probe first, and under
+    // load that wait alone can outlast the edge's patience.
+    const { queue } = await seededTranscription([
+      { id: 'running', status: 'ready', detectedLanguage: 'en', languageSource: 'manual' }
+    ]);
     const result = await transcriptionEdge('processing', () => queue.start(['running']));
     await queue.cancelAll();
     await queue.shutdown();
@@ -654,7 +658,13 @@ const TRANSCRIPTION_DRIVERS: DriverMap = {
   },
 
   'processing->cancelled': async () => {
-    const { queue } = await seededTranscription([{ id: 'stopping', status: 'ready' }]);
+    // Named by hand, so no language probe is scheduled for the file. A restored job with no
+    // language gets one on construction, and `start` then waits for it before moving to
+    // `processing` — up to twenty seconds against the stub, which is not what this edge is
+    // about. The probe has its own drivers and its own tests.
+    const { queue } = await seededTranscription([
+      { id: 'stopping', status: 'ready', detectedLanguage: 'en', languageSource: 'manual' }
+    ]);
     const result = await transcriptionEdge('cancelled', async () => {
       await queue.start(['stopping']);
       await waitFor(() => queue.state().jobs[0]?.status === 'processing', {
@@ -853,6 +863,19 @@ const LANDING_JOB_DRIVERS: DriverMap = {
       await optimizer.cancel(second);
     });
     await optimizer.cancelAll();
+    await optimizer.shutdown();
+    return result;
+  },
+
+  'queued->failed': async () => {
+    // No media engine. The landing is queued like any other and the worker refuses it on the
+    // way in — with a reason, rather than leaving it `queued` for the life of the process.
+    // Preparation needs no tools, so the job is genuinely `ready` before the refusal.
+    const optimizer = new LandingOptimizer({ ffmpeg: false, ffprobe: false }, () => {});
+    optimizer.updateSettings({ archive: false });
+    await optimizer.prepareFromFolderPath(await landingFolder('engineless'));
+    const jobId = optimizer.state().jobs[0]?.id as string;
+    const result = await landingJobEdge('failed', () => optimizer.start([jobId]));
     await optimizer.shutdown();
     return result;
   },

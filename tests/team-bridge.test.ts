@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, realpath, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -66,7 +66,15 @@ describe('team cloud/local transfer bridge', () => {
         transferGrant: grant('download_range'),
         fileName: '../creative.mp4'
       })
-    ).resolves.toEqual({ saved: true, fileName: '..-creative (1).mp4', sizeBytes: 10 });
+    ).resolves.toEqual({
+      saved: true,
+      fileName: '..-creative (1).mp4',
+      sizeBytes: 10,
+      // Where it landed — resolved, since that is the path the file is under —
+      // so the caller can offer the same folder next time instead of opening
+      // the picker again.
+      destination: await realpath(destination)
+    });
     expect(await readFile(path.join(destination, '..-creative (1).mp4'), 'utf8')).toBe(
       'downloaded'
     );
@@ -503,7 +511,7 @@ describe('team processing orchestration and SSE state', () => {
     await expect(running).rejects.toThrow('PROCESS_CANCELED');
   });
 
-  it('does not spend the run\'s time budget while it is held', async () => {
+  it("does not spend the run's time budget while it is held", async () => {
     const { transfer, delegate } = heldRun();
     const bridge = new TeamProcessBridge({
       transfer,

@@ -1,7 +1,7 @@
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import {
   RESTITCH_DETECTOR_VERSION,
   usablePrep,
@@ -345,7 +345,11 @@ describe('the space folder', () => {
       findFolderByAppProperty: vi.fn(async () => null),
       createFolder: vi.fn(async () => folder({ id: 'folder-new' })),
       ...over
-    } as never;
+    } as unknown as Parameters<typeof resolveWorkspaceFolder>[0]['drive'] & {
+      getFile: Mock;
+      findFolderByAppProperty: Mock;
+      createFolder: Mock;
+    };
   }
 
   it('is created once, and never asked of a member', async () => {

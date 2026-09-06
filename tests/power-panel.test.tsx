@@ -41,6 +41,7 @@ function renderPanel(overrides: Partial<PowerContextValue> = {}) {
     state: stateWith({
       availability: 'ok',
       systemSharePercent: 38.4,
+      graphicsSharePercent: null,
       activity: 'active',
       cpuCount: 10,
       sampledAt: '2026-08-20T09:00:00.000Z'
@@ -237,6 +238,7 @@ describe('the readout', () => {
       state: stateWith({
         availability: 'ok',
         systemSharePercent: 0.2,
+        graphicsSharePercent: null,
         activity: 'idle',
         cpuCount: 10,
         sampledAt: '2026-08-20T09:00:00.000Z'
@@ -284,6 +286,7 @@ describe('the readout', () => {
         ...stateWith({
           availability: 'ok',
           systemSharePercent: 10,
+          graphicsSharePercent: null,
           activity: 'active',
           cpuCount: 10,
           sampledAt: '2026-08-20T09:00:00.000Z'

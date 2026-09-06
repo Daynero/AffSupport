@@ -158,7 +158,8 @@ insert into public.team_error_codes (code) values
   ('RESTRICTED_SCOPE_NOT_APPROVED'),
   ('RESTITCH_FORBIDDEN'),
   ('RESTITCH_NO_SCREENS'),
-  ('RESTITCH_INVALID');
+  ('RESTITCH_INVALID'),
+  ('UPLOAD_SESSION_UNAVAILABLE');
 
 insert into public.geo_options (code) values
   ('AD'),

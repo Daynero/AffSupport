@@ -40,7 +40,9 @@ describe('persistent agent state', () => {
       resolutionLimit: 720
     });
     expect(restored.jobs[0].status).toBe('interrupted');
-    expect(restored.jobs[0].error).toContain('interrupted');
+    // The status already says so; the loader no longer plants an English
+    // sentence in `error` for the card to show beside a translated pill.
+    expect(restored.jobs[0].error).toBeNull();
     // Was asserted as a number, which is what A8 turned out to be: the loader coerced a
     // persisted `null` into `Date.now()`, so an unfinished batch always came back finished
     // and the drain watchdog's guard could never be true. The batch here never finished.

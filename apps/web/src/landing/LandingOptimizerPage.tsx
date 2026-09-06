@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Ban,
   Broom,
@@ -49,14 +49,7 @@ import { Onboarding } from '../App';
 import { useAgent } from '../AgentContext';
 import { useAgentEventStream } from '../api/useAgentEventStream';
 import { DropZone } from '../components/DropZone';
-import {
-  Button,
-  Checkbox,
-  SegmentedControl,
-  Spinner,
-  Tooltip,
-  type Translate
-} from '../components/ui';
+import { Button, Checkbox, Spinner, Tooltip, type Translate } from '../components/ui';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { useCompactToolbar } from '../components/useCompactToolbar';
 import { compactPath } from '../format';
@@ -281,22 +274,6 @@ export default function LandingOptimizerPage() {
     }
   };
 
-  const startAll = async () => {
-    try {
-      applyState(
-        await requestBody<LandingState>('/api/landing/start', {
-          ids: readyJobs.map(job => job.id)
-        })
-      );
-      analytics.track('landing_optimization_started', {
-        tool_identifier: 'landing-optimizer',
-        file_count: readyJobs.length
-      });
-    } catch (error) {
-      handleError(error);
-    }
-  };
-
   /*
    * Stopping one landing, not removing it.
    *
@@ -308,10 +285,7 @@ export default function LandingOptimizerPage() {
   const stop = async (jobId: string) => {
     try {
       applyState(
-        await request<LandingState>(
-          `/api/landing/jobs/${encodeURIComponent(jobId)}/cancel`,
-          'POST'
-        )
+        await request<LandingState>(`/api/landing/jobs/${encodeURIComponent(jobId)}/cancel`, 'POST')
       );
     } catch (error) {
       handleError(error);
@@ -350,9 +324,7 @@ export default function LandingOptimizerPage() {
   const removeSelected = async () => {
     if (!selected.size) return;
     try {
-      applyState(
-        await requestBody<LandingState>('/api/landing/remove', { ids: [...selected] })
-      );
+      applyState(await requestBody<LandingState>('/api/landing/remove', { ids: [...selected] }));
       setSelected(new Set());
     } catch (error) {
       handleError(error);
@@ -362,10 +334,7 @@ export default function LandingOptimizerPage() {
   const repeat = async (jobId: string) => {
     try {
       applyState(
-        await request<LandingState>(
-          `/api/landing/jobs/${encodeURIComponent(jobId)}/repeat`,
-          'POST'
-        )
+        await request<LandingState>(`/api/landing/jobs/${encodeURIComponent(jobId)}/repeat`, 'POST')
       );
     } catch (error) {
       handleError(error);
@@ -697,7 +666,10 @@ export function LandingSettingsPanel({
   /* The number behind the word, as the compressor prints "Optimal · 30 FPS · CRF 26 · 720p".
      "Optimal" on its own says which of two buttons is pressed and nothing about what it does;
      the dial is the whole answer, and it is the first thing anyone asks. */
-  const imageDial = { optimal: `WebP ${IMAGE_QUALITY.optimal}`, high: `WebP ${IMAGE_QUALITY.high}` };
+  const imageDial = {
+    optimal: `WebP ${IMAGE_QUALITY.optimal}`,
+    high: `WebP ${IMAGE_QUALITY.high}`
+  };
   const videoDial = { optimal: `CRF ${DEFAULT_CRF}`, high: `CRF ${LANDING_HIGH_QUALITY_CRF}` };
 
   return (
@@ -727,9 +699,7 @@ export function LandingSettingsPanel({
             {mediaName(settings.optimizeVideos, settings.videoQuality)}
           </span>
           <span>
-            {settings.outputMode === 'next-to-originals'
-              ? t('nextToOriginals')
-              : t('chooseFolder')}
+            {settings.outputMode === 'next-to-originals' ? t('nextToOriginals') : t('chooseFolder')}
           </span>
           {/* Each of these is worth a word only when it is on. */}
           {settings.archive && <span>{t('landingArchive')}</span>}
@@ -831,9 +801,7 @@ export function LandingSettingsPanel({
                 className="selected-folder"
                 data-tip={settings.outputFolder ?? t('noFolderSelected')}
               >
-                {settings.outputFolder
-                  ? compactPath(settings.outputFolder)
-                  : t('noFolderSelected')}
+                {settings.outputFolder ? compactPath(settings.outputFolder) : t('noFolderSelected')}
               </span>
             )}
           </div>

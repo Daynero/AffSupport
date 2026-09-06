@@ -1,12 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode
-} from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   LANDING_MEDIA_PROGRESS_SHARE,
   type LandingAsset,
@@ -216,11 +208,7 @@ export function LandingJobCard({
           {/* Same button, same place, same words as a compression: a landing is the same kind
               of long local work, and a person who has learned to hold one has learned both. */}
           {running && onPause && (
-            <Button
-              variant="secondary"
-              disabled={!connected}
-              onClick={() => onPause(!job.paused)}
-            >
+            <Button variant="secondary" disabled={!connected} onClick={() => onPause(!job.paused)}>
               {job.paused ? (
                 <Play size={16} strokeWidth={1.75} aria-hidden="true" />
               ) : (
@@ -446,23 +434,23 @@ function LandingAssetControls({
       <div className="landing-asset-scope">
         {sharedFolder && <span className="landing-shared-folder">{sharedFolder}/</span>}
         <div className="landing-asset-filters" role="group">
-        <button
-          type="button"
-          className={filter === 'all' ? 'is-selected' : ''}
-          aria-pressed={filter === 'all'}
-          onClick={() => onFilter('all')}
-        >
-          {t('landingAssetFilterAll')} <b>{total}</b>
-        </button>
-        {skipped > 1 && (
           <button
             type="button"
-            className={filter === 'skipped' ? 'is-selected' : ''}
-            aria-pressed={filter === 'skipped'}
-            onClick={() => onFilter('skipped')}
+            className={filter === 'all' ? 'is-selected' : ''}
+            aria-pressed={filter === 'all'}
+            onClick={() => onFilter('all')}
           >
-            {t('landingAssetFilterSkipped')} <b>{skipped}</b>
+            {t('landingAssetFilterAll')} <b>{total}</b>
           </button>
+          {skipped > 1 && (
+            <button
+              type="button"
+              className={filter === 'skipped' ? 'is-selected' : ''}
+              aria-pressed={filter === 'skipped'}
+              onClick={() => onFilter('skipped')}
+            >
+              {t('landingAssetFilterSkipped')} <b>{skipped}</b>
+            </button>
           )}
         </div>
       </div>
@@ -813,9 +801,9 @@ function LandingBatchStatus({
             : job.status === 'failed'
               ? t('landingStatusFailed')
               : job.status === 'cancelled'
-                /* Its own word: the shared one reads "Not compressed", which is the
+                ? /* Its own word: the shared one reads "Not compressed", which is the
                    compressor talking about a video, not this tool about a landing. */
-                ? t('landingStatusCancelled')
+                  t('landingStatusCancelled')
                 : finalizing
                   ? t('landingStatusFinalizing')
                   : t('landingStatusProcessing');

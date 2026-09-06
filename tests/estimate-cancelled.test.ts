@@ -23,7 +23,7 @@ describe('estimate state after cancellation and retry', () => {
     });
   });
 
-  it('marks unfinished estimation as paused when compression is cancelled', async () => {
+  it('returns unfinished estimation to waiting when compression is cancelled', async () => {
     const job = makeJob('waiting-job', 'queued', {
       estimateStatus: 'waiting',
       estimatePriorityOrder: 1
@@ -42,9 +42,16 @@ describe('estimate state after cancellation and retry', () => {
 
     expect(await queue.cancel(job.id)).toBe(true);
     expect(cancelPrioritized).toHaveBeenCalledWith(job.id);
+    // The estimate belongs to the current settings, not to the attempt that was
+    // just stopped. Marking it 'cancelled' left the card animating "estimation
+    // paused" forever, because nothing ever moves a cancelled estimate back
+    // into the queue — so the row goes back to 'waiting' and the estimator
+    // picks it up again the way it would any other idle row.
     expect(queue.state().jobs[0]).toMatchObject({
       status: 'cancelled',
-      estimateStatus: 'cancelled',
+      estimateStatus: 'waiting',
+      estimateProgress: null,
+      estimateError: null,
       estimatePriorityOrder: null
     });
   });

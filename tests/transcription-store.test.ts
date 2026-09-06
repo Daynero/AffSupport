@@ -80,7 +80,7 @@ describe('persistent transcription state', () => {
     await writeDocument('done-1');
     await saveTranscriptionState(
       {
-        settings: { language: 'uk', translationLanguage: 'en' },
+        settings: { language: 'uk', translationLanguage: 'en', quality: 'fast' },
         jobs: [
           makeJob({ id: 'ready-1', inputPath: source }),
           makeJob({
@@ -128,7 +128,7 @@ describe('persistent transcription state', () => {
     await writeFile(source, 'media');
     await saveTranscriptionState(
       {
-        settings: { language: 'auto', translationLanguage: 'uk' },
+        settings: { language: 'auto', translationLanguage: 'uk', quality: 'fast' },
         jobs: [
           makeJob({
             id: 'probed',
@@ -198,7 +198,7 @@ describe('persistent transcription state', () => {
     await writeFile(source, 'media');
     await saveTranscriptionState(
       {
-        settings: { language: 'auto', translationLanguage: 'uk' },
+        settings: { language: 'auto', translationLanguage: 'uk', quality: 'fast' },
         jobs: [
           makeJob({
             id: 'mid-run',
@@ -234,7 +234,7 @@ describe('persistent transcription state', () => {
     await writeFile(source, 'media');
     await saveTranscriptionState(
       {
-        settings: { language: 'auto', translationLanguage: 'uk' },
+        settings: { language: 'auto', translationLanguage: 'uk', quality: 'fast' },
         jobs: [
           makeJob({
             id: 'really-failed',
@@ -260,7 +260,7 @@ describe('persistent transcription state', () => {
     await writeFile(source, 'media');
     await saveTranscriptionState(
       {
-        settings: { language: 'auto', translationLanguage: 'uk' },
+        settings: { language: 'auto', translationLanguage: 'uk', quality: 'fast' },
         jobs: [
           makeJob({ id: 'queued-1', inputPath: source, status: 'queued' }),
           makeJob({ id: 'analyzing-1', inputPath: source, status: 'analyzing' })
@@ -282,7 +282,7 @@ describe('persistent transcription state', () => {
     await writeDocument('kept-completed');
     await saveTranscriptionState(
       {
-        settings: { language: 'auto', translationLanguage: 'uk' },
+        settings: { language: 'auto', translationLanguage: 'uk', quality: 'fast' },
         jobs: [
           // Waiting job whose source vanished between restarts (e.g. tmp file).
           makeJob({ id: 'gone-ready', inputPath: path.join(directory, 'gone.mp3') }),
@@ -312,7 +312,7 @@ describe('persistent transcription state', () => {
     const document = await writeDocument('cached-1', 'Cached transcript line.');
     await saveTranscriptionState(
       {
-        settings: { language: 'auto', translationLanguage: 'uk' },
+        settings: { language: 'auto', translationLanguage: 'uk', quality: 'fast' },
         jobs: [
           makeJob({
             id: 'cached-1',
@@ -338,7 +338,7 @@ describe('persistent transcription state', () => {
     await writeFile(imported, 'media');
     await saveTranscriptionState(
       {
-        settings: { language: 'auto', translationLanguage: 'uk' },
+        settings: { language: 'auto', translationLanguage: 'uk', quality: 'fast' },
         jobs: [
           makeJob({ id: 'upload-1', inputPath: imported, sourceKind: 'uploaded', sourceKey: 'sig' })
         ]

@@ -45,16 +45,19 @@ describe('compression settings UI', () => {
       />
     );
     expect(markup).toContain('settings-primary-row');
-    expect(markup).toContain(
-      'aria-label="Uses 30 FPS, CRF 26, a 720p longest-side limit, and H.264 in an MP4 container.'
+    // The mode is a pair of pictos, so the chosen one is spelled out under
+    // them with the preset's numbers; the same numbers are the row's tip.
+    expect(markup).toMatch(
+      /<span class="optimal-summary" title="30 FPS · CRF 26 · 720p">Optimal · 30 FPS · CRF 26 · 720p<\/span>/
     );
-    expect(markup).toContain('<span class="optimal-summary">30 FPS · CRF 26 · 720p</span>');
+    expect(markup).toMatch(/aria-label="Optimal" aria-checked="true" role="radio"/);
     // Custom settings stay mounted for smooth expand/collapse, but they are
     // hidden from assistive tech and their controls are disabled.
     expect(markup).toMatch(
       /<div class="collapse" aria-hidden="true"><div class="collapse-body"><div class="custom-settings">/
     );
-    expect(markup).toMatch(/type="range"[^>]*disabled=""|disabled=""[^>]*type="range"/);
+    expect(markup).toMatch(/aria-label="30 FPS" aria-checked="false" disabled=""/);
+    expect(markup).toMatch(/aria-label="720p" aria-checked="false" disabled=""/);
   });
 
   it('shows consistent custom FPS, resolution and mutually exclusive rate controls', () => {
@@ -62,7 +65,10 @@ describe('compression settings UI', () => {
       ...optimalSettings,
       mode: 'custom' as const,
       frameRate: 25,
-      resolutionLimit: 720
+      resolutionLimit: 720,
+      // Off the preset, so the rate row opens on the CRF gem with its slider
+      // rather than on the Optimal picto.
+      crf: 23
     };
     const crfMarkup = renderToStaticMarkup(
       <SettingsPanel
@@ -73,12 +79,24 @@ describe('compression settings UI', () => {
         t={translator('en')}
       />
     );
-    expect(crfMarkup).toContain('25 FPS');
-    expect(crfMarkup).toContain('720p');
+    // 25 is not one of the row's pictos, so FPS opens on the custom field with
+    // the value in it; 720 is a picto, so resolution selects that one. (The
+    // preset list once said 25 was a picto while the row drew none for it, and
+    // a saved 25 fps showed nothing selected and no field to change it in.)
+    expect(crfMarkup).toMatch(
+      /aria-label="Custom FPS"[^>]*value="25"|value="25"[^>]*aria-label="Custom FPS"/
+    );
+    expect(crfMarkup).toMatch(/aria-label="Custom" aria-checked="true"/);
+    expect(crfMarkup).not.toMatch(/aria-label="30 FPS" aria-checked="true"/);
+    expect(crfMarkup).toContain('<span class="optimal-summary">25 FPS</span>');
+    expect(crfMarkup).toMatch(/aria-label="720p" aria-checked="true"/);
+    expect(crfMarkup).toContain('<span class="optimal-summary">720p</span>');
+    // CRF and bitrate are mutually exclusive: the slider is live and the
+    // bitrate field is not rendered at all.
     expect(crfMarkup).toContain('type="range"');
-    // The bitrate input exists for the sliding transition but is inert.
-    expect(crfMarkup).toContain('disabled="" aria-label="Video bitrate"');
-    expect(crfMarkup).not.toMatch(/type="range"[^/]*disabled/);
+    expect(crfMarkup).not.toMatch(/type="range"[^>]*disabled=""/);
+    expect(crfMarkup).toContain('<span class="optimal-summary">CRF 23</span>');
+    expect(crfMarkup).not.toContain('aria-label="Video bitrate"');
 
     const bitrateMarkup = renderToStaticMarkup(
       <SettingsPanel
@@ -91,7 +109,8 @@ describe('compression settings UI', () => {
     );
     expect(bitrateMarkup).toContain('aria-label="Video bitrate"');
     expect(bitrateMarkup).not.toContain('disabled="" aria-label="Video bitrate"');
-    expect(bitrateMarkup).toMatch(/type="range"[^>]*disabled=""|disabled=""[^>]*type="range"/);
+    expect(bitrateMarkup).toContain('<span class="optimal-summary">3200 kbps</span>');
+    expect(bitrateMarkup).not.toContain('type="range"');
   });
 
   it('renders both languages from the same settings object without changing values', () => {

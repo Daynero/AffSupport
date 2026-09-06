@@ -90,9 +90,9 @@ describe('team preview transfer contract', () => {
       }).toString()
     ).toBe('http://localhost:54321/functions/v1/drive-ops');
     // Nothing forwarded: the path is still repaired, the address is left alone.
-    expect(publicEndpointUrl(new URL('http://127.0.0.1:54321/drive-transfer/range')).toString()).toBe(
-      'http://127.0.0.1:54321/functions/v1/drive-transfer/range'
-    );
+    expect(
+      publicEndpointUrl(new URL('http://127.0.0.1:54321/drive-transfer/range')).toString()
+    ).toBe('http://127.0.0.1:54321/functions/v1/drive-transfer/range');
   });
 
   it('will not be told to hand its grant to somebody else', () => {

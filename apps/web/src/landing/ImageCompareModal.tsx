@@ -63,8 +63,7 @@ export function ImageCompareModal({
 
   const preview = asset.preview;
   const comparison = preview?.comparison === true;
-  const ratio =
-    preview && preview.width && preview.height ? preview.width / preview.height : null;
+  const ratio = preview && preview.width && preview.height ? preview.width / preview.height : null;
 
   /*
    * Ticketed, so the session token never lands in an `<img src>` — which is the one URL a
@@ -321,7 +320,11 @@ export function ImageCompareModal({
         )}
         {broken && (
           <div className="landing-preview-loading is-error" role="alert">
-            <span>{t(timedOut && !failed && !refused ? 'landingPreviewSlow' : 'landingPreviewUnavailable')}</span>
+            <span>
+              {t(
+                timedOut && !failed && !refused ? 'landingPreviewSlow' : 'landingPreviewUnavailable'
+              )}
+            </span>
             <Button variant="secondary" onClick={retry}>
               {t('landingPreviewRetry')}
             </Button>

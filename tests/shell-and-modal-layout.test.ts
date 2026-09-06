@@ -67,11 +67,12 @@ describe('page shell width', () => {
   });
 
   // Every full-page container reads one of the three shell tokens, so the shell
-  // measure can only ever be changed in one place.
+  // measure can only ever be changed in one place. The landing gallery's
+  // welcome no longer sizes itself: it renders as `.workspace lv-welcome` and
+  // takes the measure from the row above.
   it.each([
     ['.workspace', '--shell-width'],
     ['.launcher', '--shell-width'],
-    ['.landing-gallery-welcome', '--shell-width'],
     ['.public-home-content', '--shell-width'],
     ['.page-container', '--shell-width-narrow'],
     ['.public-footer', '--shell-width-narrow'],

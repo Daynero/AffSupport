@@ -52,8 +52,8 @@ const library = {
       width: 320,
       height: 320,
       size: 10,
-      mimeType: 'image/png',
-      extension: '.png'
+      mimeType: 'image/png' as const,
+      extension: '.png' as const
     }
   ],
   endImages: [
@@ -63,8 +63,8 @@ const library = {
       width: 320,
       height: 320,
       size: 10,
-      mimeType: 'image/png',
-      extension: '.png'
+      mimeType: 'image/png' as const,
+      extension: '.png' as const
     }
   ],
   disabledImageIds: [],

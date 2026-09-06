@@ -7,7 +7,6 @@ import {
   expectedDimensions,
   expectedFrameRate,
   jobConfigurationKey,
-  startImageDurationSeconds,
   type CompressionJob
 } from '@video-compressor/shared';
 import { estimatePriorityAction } from '../estimate-priority';
@@ -17,24 +16,13 @@ import {
   formatBitrate,
   formatCodec,
   formatDuration,
-  formatDurationWords,
   formatElapsed,
   formatFps,
   formatSize
 } from '../format';
 import type { Language } from '../i18n';
 import { elapsedMilliseconds, stoppable, timerState } from '../queue-ui';
-import {
-  Button,
-  Checkbox,
-  Collapse,
-  ProgressBar,
-  Spinner,
-  StatusBadge,
-  Tooltip,
-  SotyDots,
-  type Translate
-} from './ui';
+import { Button, Checkbox, ProgressBar, Spinner, StatusBadge, type Translate } from './ui';
 
 /** Keep in sync with --dur-complete in styles.css: the estimate → result
  * morph (row-track transition + size count-up) runs on this clock. */
@@ -88,13 +76,13 @@ export function JobRow({
       }}
     >
       <div className="job-main">
-      <div className="job-header">
-        <Checkbox
-          checked={selected}
-          disabled={job.status === 'analyzing'}
-          aria-label={t('fileSelection', { name: job.fileName })}
-          label={<span className="sr-only">{t('fileSelection', { name: job.fileName })}</span>}
-          /* Selection happens on change, not on click.
+        <div className="job-header">
+          <Checkbox
+            checked={selected}
+            disabled={job.status === 'analyzing'}
+            aria-label={t('fileSelection', { name: job.fileName })}
+            label={<span className="sr-only">{t('fileSelection', { name: job.fileName })}</span>}
+            /* Selection happens on change, not on click.
              
              A controlled checkbox with an empty `onChange` is React's warning
              case, and it was also the reason range selection was mouse-only:
@@ -102,23 +90,23 @@ export function JobRow({
              keyboard way to extend a selection — did nothing at all. `change`
              fires for both, and the native event carries the modifier whichever
              one caused it. */
-          onChange={event =>
-            onSelected(
-              event.target.checked,
-              (event.nativeEvent as MouseEvent | KeyboardEvent).shiftKey === true
-            )
-          }
-        />
-        <div className="job-title-block">
-          <div className="job-title-line">
-            <h3 data-tip={job.fileName}>{job.fileName}</h3>
-            <StatusBadge status={job.status} t={t} />
+            onChange={event =>
+              onSelected(
+                event.target.checked,
+                (event.nativeEvent as MouseEvent | KeyboardEvent).shiftKey === true
+              )
+            }
+          />
+          <div className="job-title-block">
+            <div className="job-title-line">
+              <h3 data-tip={job.fileName}>{job.fileName}</h3>
+              <StatusBadge status={job.status} t={t} />
+            </div>
+            <JobTimer job={job} t={t} showRunning={false} live={connected} />
           </div>
-          <JobTimer job={job} t={t} showRunning={false} live={connected} />
         </div>
-      </div>
 
-      <OriginalPanel job={job} language={language} t={t} />
+        <OriginalPanel job={job} language={language} t={t} />
       </div>
 
       <div className="job-side">
@@ -488,7 +476,11 @@ function ResultPanel({
   );
 }
 
-function MediaGrid({ items }: { items: (readonly [string, string] | readonly [string, string, string])[] }) {
+function MediaGrid({
+  items
+}: {
+  items: (readonly [string, string] | readonly [string, string, string])[];
+}) {
   return (
     <dl className="media-grid">
       {items.map(([label, value, hint]) => (
@@ -698,7 +690,6 @@ function dimensions(width: number | null | undefined, height: number | null | un
   return width && height ? `${width}×${height}` : '—';
 }
 
-
 /** Mirrors the agent's outputDurationSeconds calculation so the duration shown
  * while encoding is the duration that FFmpeg is actually asked to produce. */
 function expectedOutputDurationSeconds(job: CompressionJob): number | null {
@@ -715,10 +706,3 @@ function expectedOutputDurationSeconds(job: CompressionJob): number | null {
   const start = embedding.startImage ? 1 / fps : 0;
   return source + start + estimatedFinalImageDurationSeconds(embedding);
 }
-
-function processingStage(job: CompressionJob, t: Translate) {
-  if (job.processingStage === 'preparing-images') return t('stagePreparingImages');
-  if (job.processingStage === 'finalizing') return t('stageFinalizing');
-  return t('stageCompressing');
-}
-

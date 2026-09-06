@@ -35,6 +35,14 @@ const SLEEP_IS_THE_POINT: Record<string, string> = {
   'session-handoff-screens.test.tsx': 'a zero-delay yield before asserting no navigation happened',
   'transcription-translation.test.ts': 'a zero-delay yield named `tick`',
   'team-ux-feedback.test.tsx': 'a delay before asserting a toast did not re-fire',
+  'team-restitch-prepare.test.ts':
+    'a stub probe whose overlap, and its cut-off mid-way, are the assertions',
+  'team-bridge.test.ts': 'a wait past the watchdog budget while paused, to show the clock stopped',
+  'team-batch-queue.test.tsx': 'a delay before asserting a paused batch did not start its next run',
+  'team-task-drops.test.tsx': 'a delay before asserting a drop by a viewer uploaded nothing',
+  'team-task-accounts.test.tsx':
+    'a delay before asserting a late server copy did not overwrite typing',
+  'team-indexing-refresh.test.tsx': 'a delay before asserting a listing did not poll on its own',
   'transcription-media.manual.test.ts': 'a manual test that drives a real recording'
 };
 

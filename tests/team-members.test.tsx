@@ -149,7 +149,8 @@ describe('team membership management', () => {
         target: { role: 'editor' },
         result: 'succeeded',
         errorCode: null,
-        occurredAt: '2026-08-01T12:00:00.000Z'
+        occurredAt: '2026-08-01T12:00:00.000Z',
+        subjectLabel: null
       }
     ];
     const client = { listAuditEvents: vi.fn().mockResolvedValue(events) };

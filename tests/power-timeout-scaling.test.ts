@@ -78,8 +78,14 @@ describe('managed-work deadlines are wired to the budget', () => {
     { file: 'translation/aligner.ts', constants: ['ALIGNER_START_TIMEOUT_MS'] },
     // Whisper's inactivity watchdog measures the gap between progress lines,
     // and a throttled decoder legitimately produces them further apart. Left
-    // fixed, it ends a healthy transcription and reports a stalled engine.
-    { file: 'whisper/transcriber.ts', constants: ['WHISPER_INACTIVITY_TIMEOUT_MS'] },
+    // fixed, it ends a healthy transcription and reports a stalled engine. The
+    // watchdog lives in runtime.ts, shared with the language probe; the
+    // transcriber keeps only the extract's own window.
+    { file: 'whisper/runtime.ts', constants: ['WHISPER_INACTIVITY_TIMEOUT_MS'] },
+    { file: 'whisper/transcriber.ts', constants: ['EXTRACT_INACTIVITY_TIMEOUT_MS'] },
+    // The language probe runs whisper and ffmpeg through the same seam, so its
+    // silence ceiling stretches like the rest or a throttled probe is "stuck".
+    { file: 'whisper/language-probe.ts', constants: ['PROBE_TIMEOUT_MS'] },
     // The team bridge's own six-hour ceiling. Its sibling in landing-gallery.ts
     // was wired to the budget; this one, which covers compression and
     // transcription, was not.
@@ -95,6 +101,7 @@ describe('managed-work deadlines are wired to the budget', () => {
       'translation/aligner.ts',
       'landing-preview/renderer.ts',
       'whisper/transcriber.ts',
+      'whisper/language-probe.ts',
       'team-bridge/process.ts',
       'team-bridge/landing-gallery.ts'
     ];

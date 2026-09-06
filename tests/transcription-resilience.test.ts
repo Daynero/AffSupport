@@ -1,3 +1,4 @@
+import type { PathLike } from 'node:fs';
 import { access, mkdtemp, readdir, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -30,7 +31,7 @@ describe('replacing a file', () => {
       return Promise.resolve();
     };
     const rename = vi
-      .fn<(from: string, to: string) => Promise<void>>()
+      .fn<(from: PathLike, to: PathLike) => Promise<void>>()
       .mockRejectedValueOnce(errno('EPERM'))
       .mockRejectedValueOnce(errno('EBUSY'))
       .mockResolvedValue(undefined);
@@ -113,9 +114,9 @@ describe('a queued job whose model is gone', () => {
       await writeFile(media, Buffer.alloc(64));
       const events: string[] = [];
       // The engine is present; the model the run needs is not, and is not arriving.
-      const queue = new TranscriptionQueue({ ffmpeg: true, whisper: true }, event =>
-        events.push(event)
-      );
+      const queue = new TranscriptionQueue({ ffmpeg: true, whisper: true }, event => {
+        if (event) events.push(event);
+      });
       expect(await queue.add([media])).toEqual([]);
       const [job] = queue.state().jobs;
       expect(await queue.start([job.id], 'accurate')).toBe(true);

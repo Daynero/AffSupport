@@ -33,6 +33,7 @@ import { createToolModules } from '../apps/agent/src/server/tools.js';
 import { TeamPreviewBridge } from '../apps/agent/src/team-bridge/preview.js';
 import { TeamDownloadBridge } from '../apps/agent/src/team-bridge/download.js';
 import { TeamLandingRenderBridge } from '../apps/agent/src/team-bridge/landing-gallery.js';
+import { RestitchPrepareBridge } from '../apps/agent/src/team-bridge/restitch-prepare.js';
 import { CreativeLibraryProcessBridge } from '../apps/agent/src/team-bridge/library.js';
 import {
   TeamOperationEvents,
@@ -113,6 +114,7 @@ async function makeServer(options: { entitlementPublicKey?: string } = {}) {
         height: 900,
         segmentFiles: [outputPath],
         title: null,
+        thumbnailFile: null,
         blockedExternalRequests: 0,
         warning: null
       };
@@ -179,6 +181,10 @@ async function makeServer(options: { entitlementPublicKey?: string } = {}) {
     preview: teamPreviewBridge,
     events: teamOperationEvents
   });
+  const teamRestitchPrepareBridge = new RestitchPrepareBridge({
+    transfer: teamTransfer,
+    events: teamOperationEvents
+  });
   const entitlementGate = new EntitlementGate({
     publicKeyBase64: options.entitlementPublicKey ?? null,
     stateFile: path.join(dir, 'entitlement.json')
@@ -229,6 +235,7 @@ async function makeServer(options: { entitlementPublicKey?: string } = {}) {
         download: teamDownloadBridge,
         landings: teamLandingRenderBridge,
         library: creativeLibraryProcessBridge,
+        restitch: teamRestitchPrepareBridge,
         events: teamEvents
       }
     }),

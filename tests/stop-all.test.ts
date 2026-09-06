@@ -240,6 +240,7 @@ describe('transcribing a finished file again', () => {
         status: 'completed',
         progress: 100,
         detectedLanguage: 'uk',
+        languageSource: 'run',
         characters: 12,
         finishedAt: Date.now()
       })
@@ -249,11 +250,43 @@ describe('transcribing a finished file again', () => {
     const job = queue.state().jobs[0];
     expect(job.status).toBe('queued');
     expect(job.characters).toBeNull();
+    // The previous run's own guess goes with the run; the new one may reach a
+    // different answer.
     expect(job.detectedLanguage).toBeNull();
+    expect(job.languageSource).toBeUndefined();
     expect(job.translation).toBeNull();
     expect(job.finishedAt).toBeNull();
 
     await queue.shutdown();
+  });
+
+  it('keeps a language the person named, or the probe heard, across a re-run', async () => {
+    // A probe listened to this exact audio and a person's correction is the
+    // whole point of having one — neither belongs to the run being replaced.
+    for (const languageSource of ['manual', 'probe'] as const) {
+      const source = path.join(directory, `${languageSource}.mp3`);
+      await writeFile(source, 'media');
+      const queue = new TranscriptionQueue({ ffmpeg: false, whisper: false }, () => {}, [
+        transcriptionJob({
+          id: 'done',
+          inputPath: source,
+          status: 'completed',
+          progress: 100,
+          detectedLanguage: 'uz',
+          languageSource,
+          characters: 12,
+          finishedAt: Date.now()
+        })
+      ]);
+
+      expect(await queue.start(['done'])).toBe(true);
+      const job = queue.state().jobs[0];
+      expect(job.status).toBe('queued');
+      expect(job.detectedLanguage).toBe('uz');
+      expect(job.languageSource).toBe(languageSource);
+
+      await queue.shutdown();
+    }
   });
 });
 

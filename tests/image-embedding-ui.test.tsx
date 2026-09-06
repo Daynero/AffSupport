@@ -211,11 +211,7 @@ describe('image embedding settings UI', () => {
     const user = userEvent.setup();
     const validity = vi.fn();
     render(<SettingsHarness enabled endImage={asset('end.webp')} onValidity={validity} />);
-    for (const name of [
-      'Random: 30–40 min',
-      'Random: 40–50 min',
-      'Random: 50–60 min'
-    ]) {
+    for (const name of ['Random: 30–40 min', 'Random: 40–50 min', 'Random: 50–60 min']) {
       await user.click(screen.getByRole('button', { name }));
       expect(screen.getByRole('button', { name, pressed: true })).toBeTruthy();
     }
@@ -269,8 +265,8 @@ describe('image embedding settings UI', () => {
       imageEmbedding: makeEmbeddingSettings({
         ...defaultImageEmbeddingSettings(),
         enabled: true,
-    startEnabled: true,
-    endEnabled: true,
+        startEnabled: true,
+        endEnabled: true,
         startImages: [asset('opening.png')],
         fitMode: 'contain' as const
       })
@@ -451,7 +447,6 @@ function asset(fileName: string, id = 'asset-1'): ImageAsset {
   };
 }
 
-
 describe('embedding image activity toggle (013 A2)', () => {
   it('clicking a tile disables it and patches disabledImageIds', async () => {
     const update = vi.fn();
@@ -468,8 +463,8 @@ describe('embedding image activity toggle (013 A2)', () => {
       <ImageEmbeddingSection
         settings={{
           enabled: true,
-    startEnabled: true,
-    endEnabled: true,
+          startEnabled: true,
+          endEnabled: true,
           startImages: [asset],
           endImages: [],
           disabledImageIds: [],

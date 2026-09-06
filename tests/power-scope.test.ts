@@ -39,6 +39,19 @@ async function sourcesUnder(directory: string): Promise<{ relative: string; sour
   return files;
 }
 
+/**
+ * The bridge modules that do local work themselves, and why.
+ *
+ * Everything else in the folder hands its work to a tool that is already
+ * governed; these spawn a child of their own. The download in front of that
+ * child still goes through `transfer.ts`, so the budget touches the decode and
+ * nothing that crosses the network.
+ */
+const LOCAL_WORK_IN_THE_BRIDGE: Record<string, string> = {
+  'team-bridge/poster.ts':
+    'decodes one poster frame with ffmpeg — a 4K seek is the work the lever exists to cap'
+};
+
 describe('transfers stay outside the budget', () => {
   it('registers nothing from the team transfer path', async () => {
     const transfers = await sourcesUnder('team-bridge');
@@ -48,7 +61,19 @@ describe('transfers stay outside the budget', () => {
 
     // Uploads and downloads are network work, not CPU work: throttling them
     // would deliver a slowdown the user never asked for.
-    expect(registering).toEqual([]);
+    expect(registering.filter(relative => !(relative in LOCAL_WORK_IN_THE_BRIDGE))).toEqual([]);
+    // An entry that no longer spawns is a claim nobody checked.
+    expect(
+      Object.keys(LOCAL_WORK_IN_THE_BRIDGE).filter(name => !registering.includes(name))
+    ).toEqual([]);
+  });
+
+  it('keeps the poster download on the transfer client, not the budget', async () => {
+    const poster = await readFile(path.join(AGENT_SRC, 'team-bridge/poster.ts'), 'utf8');
+    // The child is the frame grab; the bytes arrive through the same unmanaged
+    // client every other bridge download uses.
+    expect(poster).toMatch(/downloadSource\(/);
+    expect(poster).not.toMatch(/PowerGovernor|governor\.register\(/);
   });
 
   it('leaves the transfer client free of any resource-budget coupling', async () => {

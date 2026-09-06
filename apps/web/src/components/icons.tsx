@@ -51,12 +51,48 @@ export function FitCoverIcon() {
   return (
     <Pictogram>
       {/* the cropped ears — a soft red wash outside the frame */}
-      <rect x="3.4" y="8.6" width="3.6" height="7.4" rx="1" fill={RED} fillOpacity="0.28" stroke="none" />
-      <rect x="17" y="8.6" width="3.6" height="7.4" rx="1" fill={RED} fillOpacity="0.28" stroke="none" />
+      <rect
+        x="3.4"
+        y="8.6"
+        width="3.6"
+        height="7.4"
+        rx="1"
+        fill={RED}
+        fillOpacity="0.28"
+        stroke="none"
+      />
+      <rect
+        x="17"
+        y="8.6"
+        width="3.6"
+        height="7.4"
+        rx="1"
+        fill={RED}
+        fillOpacity="0.28"
+        stroke="none"
+      />
       {/* the visible part — a soft green wash inside */}
-      <rect x="7.9" y="8.6" width="8.2" height="7.4" rx="1" fill={GREEN} fillOpacity="0.32" stroke="none" />
+      <rect
+        x="7.9"
+        y="8.6"
+        width="8.2"
+        height="7.4"
+        rx="1"
+        fill={GREEN}
+        fillOpacity="0.32"
+        stroke="none"
+      />
       {/* the picture's own outline, running past both edges */}
-      <rect x="3.4" y="8.6" width="17.2" height="7.4" rx="1.4" stroke={GREEN} strokeOpacity="0.8" strokeWidth="1.2" />
+      <rect
+        x="3.4"
+        y="8.6"
+        width="17.2"
+        height="7.4"
+        rx="1.4"
+        stroke={GREEN}
+        strokeOpacity="0.8"
+        strokeWidth="1.2"
+      />
       <PhoneFrame />
     </Pictogram>
   );
@@ -66,7 +102,18 @@ export function FitCoverIcon() {
 export function FitContainIcon() {
   return (
     <Pictogram>
-      <rect x="8.8" y="9.3" width="6.4" height="5.8" rx="1.2" fill={GREEN} fillOpacity="0.32" stroke={GREEN} strokeOpacity="0.8" strokeWidth="1.2" />
+      <rect
+        x="8.8"
+        y="9.3"
+        width="6.4"
+        height="5.8"
+        rx="1.2"
+        fill={GREEN}
+        fillOpacity="0.32"
+        stroke={GREEN}
+        strokeOpacity="0.8"
+        strokeWidth="1.2"
+      />
       <PhoneFrame />
     </Pictogram>
   );
@@ -76,7 +123,18 @@ export function FitContainIcon() {
 export function FitStretchIcon() {
   return (
     <Pictogram>
-      <rect x="8.5" y="6.7" width="7" height="12.6" rx="1.4" fill={GREEN} fillOpacity="0.32" stroke={GREEN} strokeOpacity="0.8" strokeWidth="1.2" />
+      <rect
+        x="8.5"
+        y="6.7"
+        width="7"
+        height="12.6"
+        rx="1.4"
+        fill={GREEN}
+        fillOpacity="0.32"
+        stroke={GREEN}
+        strokeOpacity="0.8"
+        strokeWidth="1.2"
+      />
       <PhoneFrame />
     </Pictogram>
   );

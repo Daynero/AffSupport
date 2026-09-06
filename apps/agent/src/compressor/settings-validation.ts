@@ -54,7 +54,10 @@ export function parseSettingsPatch(
       return { ok: false, error: 'Invalid output suffix.' };
     }
     const trimmed = body.outputSuffix === null ? null : body.outputSuffix.trim();
-    if (trimmed !== null && (trimmed.length > 60 || /[\/\\\u0000\r\n]/u.test(trimmed))) {
+    if (
+      trimmed !== null &&
+      (trimmed.length > 60 || ['/', '\\', '\0', '\r', '\n'].some(char => trimmed.includes(char)))
+    ) {
       return { ok: false, error: 'Invalid output suffix.' };
     }
     allowed.outputSuffix = trimmed === '' ? null : trimmed;

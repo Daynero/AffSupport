@@ -100,11 +100,16 @@ const defaults: TeamRestitchDefaults = {
 };
 
 /** A pipeline that writes a believable staged file without touching a media engine. */
-const staging = vi.fn(async (context: { workDir: string }) => {
-  const staged = path.join(context.workDir, 'result.mp4');
-  await writeFile(staged, 'stitched');
-  return { ok: true as const, stagedPath: staged, verification: null as never };
-});
+const staging = vi.fn(
+  async (context: {
+    workDir: string;
+    request: { screens: { startImageId: string | null; endImageId: string | null } };
+  }) => {
+    const staged = path.join(context.workDir, 'result.mp4');
+    await writeFile(staged, 'stitched');
+    return { ok: true as const, stagedPath: staged, verification: null as never };
+  }
+);
 
 async function source(name = 'creative.mp4'): Promise<string> {
   const file = path.join(workspace, name);

@@ -118,9 +118,12 @@ describe('karaoke follow', () => {
     vi.stubGlobal('cancelAnimationFrame', vi.fn());
     vi.stubGlobal('CSS', { escape: (value: string) => value });
     const media = fakeMedia();
-    let store: { get(): { wordId: string } | null } | null = null;
+    const stored: { current: { get(): { wordId: string } | null } | null } = { current: null };
     const view = render(
-      <Harness media={media.element} onStore={value => (store = value as typeof store)} />
+      <Harness
+        media={media.element}
+        onStore={value => (stored.current = value as typeof stored.current)}
+      />
     );
     const lit = () =>
       Array.from(view.container.querySelectorAll('.ts-active')).map(el =>
@@ -133,12 +136,12 @@ describe('karaoke follow', () => {
       frame?.(0);
     });
     expect(lit()).toEqual(['w1']);
-    expect(store?.get()?.wordId).toBe('w1');
+    expect(stored.current?.get()?.wordId).toBe('w1');
 
     // Pausing stops the clock and nothing else: the reader keeps their place.
     act(() => media.pause());
     expect(lit()).toEqual(['w1']);
-    expect(store?.get()?.wordId).toBe('w1');
+    expect(stored.current?.get()?.wordId).toBe('w1');
 
     // A seek while paused moves the mark.
     act(() => media.seek(1.5));
@@ -147,7 +150,7 @@ describe('karaoke follow', () => {
     // The end of the media clears it.
     act(() => media.end());
     expect(lit()).toEqual([]);
-    expect(store?.get()).toBeNull();
+    expect(stored.current?.get()).toBeNull();
     view.unmount();
   });
 });

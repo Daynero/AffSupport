@@ -8,7 +8,7 @@ import {
   type TranscriptionQualityMode
 } from '@video-compressor/shared';
 import { ffmpegPath } from '../ffmpeg/tools.js';
-import { activeThreadBudget, spawnTracked } from '../power/spawn.js';
+import { activeThreadBudget, scaled, spawnTracked } from '../power/spawn.js';
 import { currentModelPath, modelPresent, whisperPath } from './tools.js';
 import {
   attachInactivityWatchdog,
@@ -250,7 +250,7 @@ function runProbeExtract(
     const watchdog = attachInactivityWatchdog(
       child,
       () => false,
-      () => PROBE_TIMEOUT_MS
+      () => scaled(PROBE_TIMEOUT_MS)
     );
     child.stderr.on('data', () => watchdog.reset());
     child.stdout.on('data', () => watchdog.reset());
@@ -300,7 +300,7 @@ function runDetect(
     const watchdog = attachInactivityWatchdog(
       child,
       () => false,
-      () => PROBE_TIMEOUT_MS
+      () => scaled(PROBE_TIMEOUT_MS)
     );
     const readings: LanguageReading[] = [];
     let pending = '';

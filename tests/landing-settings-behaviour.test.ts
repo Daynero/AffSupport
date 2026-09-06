@@ -28,10 +28,7 @@ afterEach(async () => {
 async function landingFolder(parent: string, name: string): Promise<string> {
   const dir = path.join(parent, name);
   await mkdir(dir, { recursive: true });
-  await writeFile(
-    path.join(dir, 'index.html'),
-    '<html><body><img src="logo.svg"></body></html>'
-  );
+  await writeFile(path.join(dir, 'index.html'), '<html><body><img src="logo.svg"></body></html>');
   await writeFile(
     path.join(dir, 'logo.svg'),
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path d="M0 0h10v10H0z"/></svg>'
@@ -293,8 +290,15 @@ describe('a name that is already taken', () => {
     const { promisify } = await import('node:util');
     const run = promisify(execFile);
     await run('ffmpeg', [
-      '-hide_banner', '-nostdin', '-y', '-f', 'lavfi',
-      '-i', 'testsrc2=size=600x400:rate=1', '-frames:v', '1',
+      '-hide_banner',
+      '-nostdin',
+      '-y',
+      '-f',
+      'lavfi',
+      '-i',
+      'testsrc2=size=600x400:rate=1',
+      '-frames:v',
+      '1',
       path.join(source, 'doc.png')
     ]);
     // A real one-pixel WebP, written directly: this FFmpeg has no WebP encoder, and all this
@@ -303,10 +307,7 @@ describe('a name that is already taken', () => {
       path.join(source, 'doc.webp'),
       Buffer.from('UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==', 'base64')
     );
-    await writeFile(
-      path.join(source, 'index.html'),
-      '<img src="doc.png"><img src="doc.webp">'
-    );
+    await writeFile(path.join(source, 'index.html'), '<img src="doc.png"><img src="doc.webp">');
 
     const optimizer = new LandingOptimizer({ ffmpeg: true, ffprobe: true }, () => {});
     optimizer.updateSettings({ archive: false, renameMedia: false });

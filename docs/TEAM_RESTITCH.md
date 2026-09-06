@@ -5,7 +5,7 @@ space's screens on it. The promise is ten seconds. Everything below exists to ke
 
 The stitching itself is feature 014's and is documented in [VIDEO_STITCHER.md](VIDEO_STITCHER.md)
 — the body is copied, never re-encoded, and only the screens are made. What 015 adds is a
-space-wide answer to *which* screens, and a way to pay the expensive part once.
+space-wide answer to _which_ screens, and a way to pay the expensive part once.
 
 ---
 
@@ -13,15 +13,15 @@ space-wide answer to *which* screens, and a way to pay the expensive part once.
 
 Measured on the development machine, a two-minute 1080×1080 source:
 
-| Phase                                     | Prepared   | Not prepared |
-| ----------------------------------------- | ---------- | ------------ |
-| Transfer of the source (~25 MB)           | 2–5 s      | 2–5 s        |
-| Keyframe index + search for old screens   | **0 s**    | 6.7–13.9 s   |
-| Silence bank (first run on this machine)  | **0 s**    | 10.7–19 s    |
-| Body cut and copy                         | 1–2 s      | 1–2 s        |
-| Two screens, 300 pictures each            | ~1.4 s     | ~1.4 s       |
-| Join, verify, save                        | ~1.5 s     | ~1.5 s       |
-| **Total**                                 | **6–10 s** | 22–43 s      |
+| Phase                                    | Prepared   | Not prepared |
+| ---------------------------------------- | ---------- | ------------ |
+| Transfer of the source (~25 MB)          | 2–5 s      | 2–5 s        |
+| Keyframe index + search for old screens  | **0 s**    | 6.7–13.9 s   |
+| Silence bank (first run on this machine) | **0 s**    | 10.7–19 s    |
+| Body cut and copy                        | 1–2 s      | 1–2 s        |
+| Two screens, 300 pictures each           | ~1.4 s     | ~1.4 s       |
+| Join, verify, save                       | ~1.5 s     | ~1.5 s       |
+| **Total**                                | **6–10 s** | 22–43 s      |
 
 The transfer is the only line this feature does not control, which is why the claim is written
 as "does not grow with duration **beyond the transfer of its own bytes**". The local half —
@@ -48,7 +48,7 @@ already tracks. A mismatch reads as "nothing prepared" rather than as an error, 
 video simply costs its inspection again.
 
 **It is deliberately not keyed to anything a member changes daily** — not the photos, not the
-fit mode, not the hold length, not the operation. None of those changes what is *inside* the
+fit mode, not the hold length, not the operation. None of those changes what is _inside_ the
 file, which is precisely why changing the space's defaults keeps every preparation valid. If
 you ever find yourself adding a settings field to that key, the feature has stopped being worth
 its button.

@@ -168,7 +168,6 @@ describe('the folder chooser', () => {
     const [myDrive, sharedDrives] = fake.views;
     expect(myDrive?.enableDrives).toBe(false);
     expect(sharedDrives?.enableDrives).toBe(true);
-
   });
 
   it('asks for more than one folder only when the caller wants more than one', async () => {

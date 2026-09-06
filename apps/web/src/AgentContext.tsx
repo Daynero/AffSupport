@@ -56,7 +56,7 @@ const emptyState: QueueState = {
     mode: 'optimal',
     outputMode: 'next-to-originals',
     outputFolder: null,
-  outputSuffix: null,
+    outputSuffix: null,
     stripMetadata: true,
     frameRate: null,
     resolutionLimit: null,
@@ -197,7 +197,10 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         // not: keyed on identity — the build the agent reports — rather than on
         // the number, because treating a lower revision as stale here would
         // freeze the interface on the previous run's last state forever.
-        applyState(result.state, { freshConnect: true, instance: result.instanceId || result.buildId || null });
+        applyState(result.state, {
+          freshConnect: true,
+          instance: result.instanceId || result.buildId || null
+        });
         setConnectedOnce(true);
         connectedOnceRef.current = true;
         releaseAutomaticPairing();

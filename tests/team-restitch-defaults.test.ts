@@ -151,7 +151,7 @@ describe('what a run already knows about a material', () => {
   it('round-trips a record and its profile', () => {
     const parsed = parseMaterialRestitchPrep(wirePrep);
     expect(parsed.ok).toBe(true);
-    expect(parsed.ok && parsed.value.profile.keyframeTimes).toEqual([0, 8.3]);
+    expect(parsed.ok && parsed.value.profile?.keyframeTimes).toEqual([0, 8.3]);
   });
 
   it('is strict where the defaults are lenient', () => {

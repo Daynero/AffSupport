@@ -1,6 +1,10 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { defaultLandingSettings, landingSettingsFrom, type LandingSettings } from '@video-compressor/shared';
+import {
+  defaultLandingSettings,
+  landingSettingsFrom,
+  type LandingSettings
+} from '@video-compressor/shared';
 import { applicationSupportRoot } from '../files/support-dir.js';
 
 /**
@@ -23,9 +27,7 @@ export function landingSettingsPath(): string {
   );
 }
 
-export async function loadLandingSettings(
-  file = landingSettingsPath()
-): Promise<LandingSettings> {
+export async function loadLandingSettings(file = landingSettingsPath()): Promise<LandingSettings> {
   try {
     return landingSettingsFrom(JSON.parse(await readFile(file, 'utf8')));
   } catch {

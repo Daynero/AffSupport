@@ -22,7 +22,7 @@ import {
 } from './api/client';
 import { type ConnectionState } from './connection';
 import { formatSize } from './format';
-import { fileCountKey, selectedCountKey, type Language, type TranslationKey, useI18n } from './i18n';
+import { fileCountKey, type Language, type TranslationKey, useI18n } from './i18n';
 import { mergeSettingsPatches } from './settings-patch';
 import { preferredDownload } from './release-manifest';
 import {
@@ -33,8 +33,7 @@ import {
   selectableJobIds,
   startableSelectedIds,
   stoppable,
-  toggleSelection,
-  type CompressBlock
+  toggleSelection
 } from './queue-ui';
 import { DropZone } from './components/DropZone';
 import { JobRow } from './components/JobRow';
@@ -613,142 +612,147 @@ export default function CompressorPage() {
                 }`.trim()}
                 ref={toolbarRow}
               >
-              <div className="selection-actions">
-                <Checkbox
-                  className="select-all-box"
-                  checked={selectableIds.length > 0 && selected.size === selectableIds.length}
-                  disabled={!connected || selectableIds.length === 0}
-                  onChange={event =>
-                    setSelected(event.target.checked ? new Set(selectableIds) : new Set())
-                  }
-                  label={<strong>{t('selectAll')}</strong>}
-                />
-                <Button
-                  variant="ghost"
-                  disabled={!connected || selected.size === 0}
-                  onClick={() => {
-                    setSelected(new Set());
-                    setLastSelectedIndex(null);
-                  }}
-                >
-                  {t('clearSelection')}
-                </Button>
-              </div>
-              <div className="batch-chips" aria-hidden="true">
-                <span className="batch-chip" title={t('chipFilesMany', { count: state.jobs.length })}>
-                  <b>{state.jobs.length}</b>
-                  <span className="chip-word">
-                    {' '}
-                    {t(fileCountKey(language, state.jobs.length), { count: state.jobs.length })
-                      .replace(String(state.jobs.length), '')
-                      .trim()}
-                  </span>
-                </span>
-                {/* All four counters stay on screen — a zero is information too. */}
-                <span
-                  className="batch-chip is-processing"
-                  title={t('chipProcessing', { count: counts.processing })}
-                >
-                  <b>{counts.processing}</b>
-                  <span className="chip-word">
-                    {' '}
-                    {t('chipProcessing', { count: counts.processing })
-                      .replace(String(counts.processing), '')
-                      .trim()}
-                  </span>
-                </span>
-                <span
-                  className="batch-chip is-done"
-                  title={t('chipCompleted', { count: counts.completed })}
-                >
-                  <b>{counts.completed}</b>
-                  <span className="chip-word">
-                    {' '}
-                    {t('chipCompleted', { count: counts.completed })
-                      .replace(String(counts.completed), '')
-                      .trim()}
-                  </span>
-                </span>
-                <span
-                  className="batch-chip is-failed"
-                  title={t('chipFailed', { count: counts.failed })}
-                >
-                  <b>{counts.failed}</b>
-                  <span className="chip-word">
-                    {' '}
-                    {t('chipFailed', { count: counts.failed })
-                      .replace(String(counts.failed), '')
-                      .trim()}
-                  </span>
-                </span>
-              </div>
-              <div className="primary-actions">
-                {/* While something is encoding the primary button becomes
-                    pause/resume for the whole run — the reason text it used to
-                    sit beside said the same thing and did nothing. */}
-                {runningJob ? (
-                  <Button
-                    variant="primary"
-                    disabled={!connected}
-                    title={t(allPaused ? 'resumeAll' : 'pauseAll')}
-                    onClick={() =>
-                      void action(`/api/jobs/${runningJob.id}/pause`, 'POST', {
-                        paused: !allPaused
-                      })
+                <div className="selection-actions">
+                  <Checkbox
+                    className="select-all-box"
+                    checked={selectableIds.length > 0 && selected.size === selectableIds.length}
+                    disabled={!connected || selectableIds.length === 0}
+                    onChange={event =>
+                      setSelected(event.target.checked ? new Set(selectableIds) : new Set())
                     }
-                  >
-                    {allPaused ? (
-                      <Play size={18} strokeWidth={1.75} aria-hidden="true" />
-                    ) : (
-                      <Pause size={18} strokeWidth={1.75} aria-hidden="true" />
-                    )}
-                    <span className="action-label">{t(allPaused ? 'resumeAll' : 'pauseAll')}</span>
-                  </Button>
-                ) : (
-                  <Button
-                    variant="primary"
-                    disabled={!connected || blocked !== null}
-                    title={t('compressSelected')}
-                    onClick={() => void startSelected()}
-                  >
-                    <Play size={18} strokeWidth={1.75} aria-hidden="true" />
-                    <span className="action-label">
-                      {`${t('compressSelected')}${selected.size ? ` (${selected.size})` : ''}`}
-                    </span>
-                  </Button>
-                )}
-                {anythingStoppable && (
-                  <Button
-                    variant="danger"
-                    disabled={!connected || stopInFlight}
-                    title={t('stopAll')}
-                    onClick={() => void stopAll()}
-                  >
-                    <Ban size={18} strokeWidth={1.75} aria-hidden="true" />
-                    <span className="action-label">{t('stopAll')}</span>
-                  </Button>
-                )}
-                <Button
-                  variant="danger"
-                  disabled={!connected || selectedRemovable.length === 0}
-                  title={t('removeSelected')}
-                  onClick={() => void removeSelected()}
-                >
-                  <Trash2 size={18} strokeWidth={1.75} aria-hidden="true" />
-                  <span className="action-label">{t('removeSelected')}</span>
-                </Button>
-                {state.jobs.some(job => isSettled(COMPRESSION_LIFECYCLE, job.status)) && (
+                    label={<strong>{t('selectAll')}</strong>}
+                  />
                   <Button
                     variant="ghost"
-                    disabled={!connected}
-                    title={t('clearFinished')}
-                    onClick={() => void action('/api/jobs/completed', 'DELETE')}
+                    disabled={!connected || selected.size === 0}
+                    onClick={() => {
+                      setSelected(new Set());
+                      setLastSelectedIndex(null);
+                    }}
                   >
-                    <Broom size={18} strokeWidth={1.75} aria-hidden="true" />
-                    <span className="action-label">{t('clearFinished')}</span>
+                    {t('clearSelection')}
                   </Button>
-                )}
-              </div>
+                </div>
+                <div className="batch-chips" aria-hidden="true">
+                  <span
+                    className="batch-chip"
+                    title={t('chipFilesMany', { count: state.jobs.length })}
+                  >
+                    <b>{state.jobs.length}</b>
+                    <span className="chip-word">
+                      {' '}
+                      {t(fileCountKey(language, state.jobs.length), { count: state.jobs.length })
+                        .replace(String(state.jobs.length), '')
+                        .trim()}
+                    </span>
+                  </span>
+                  {/* All four counters stay on screen — a zero is information too. */}
+                  <span
+                    className="batch-chip is-processing"
+                    title={t('chipProcessing', { count: counts.processing })}
+                  >
+                    <b>{counts.processing}</b>
+                    <span className="chip-word">
+                      {' '}
+                      {t('chipProcessing', { count: counts.processing })
+                        .replace(String(counts.processing), '')
+                        .trim()}
+                    </span>
+                  </span>
+                  <span
+                    className="batch-chip is-done"
+                    title={t('chipCompleted', { count: counts.completed })}
+                  >
+                    <b>{counts.completed}</b>
+                    <span className="chip-word">
+                      {' '}
+                      {t('chipCompleted', { count: counts.completed })
+                        .replace(String(counts.completed), '')
+                        .trim()}
+                    </span>
+                  </span>
+                  <span
+                    className="batch-chip is-failed"
+                    title={t('chipFailed', { count: counts.failed })}
+                  >
+                    <b>{counts.failed}</b>
+                    <span className="chip-word">
+                      {' '}
+                      {t('chipFailed', { count: counts.failed })
+                        .replace(String(counts.failed), '')
+                        .trim()}
+                    </span>
+                  </span>
+                </div>
+                <div className="primary-actions">
+                  {/* While something is encoding the primary button becomes
+                    pause/resume for the whole run — the reason text it used to
+                    sit beside said the same thing and did nothing. */}
+                  {runningJob ? (
+                    <Button
+                      variant="primary"
+                      disabled={!connected}
+                      title={t(allPaused ? 'resumeAll' : 'pauseAll')}
+                      onClick={() =>
+                        void action(`/api/jobs/${runningJob.id}/pause`, 'POST', {
+                          paused: !allPaused
+                        })
+                      }
+                    >
+                      {allPaused ? (
+                        <Play size={18} strokeWidth={1.75} aria-hidden="true" />
+                      ) : (
+                        <Pause size={18} strokeWidth={1.75} aria-hidden="true" />
+                      )}
+                      <span className="action-label">
+                        {t(allPaused ? 'resumeAll' : 'pauseAll')}
+                      </span>
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="primary"
+                      disabled={!connected || blocked !== null}
+                      title={t('compressSelected')}
+                      onClick={() => void startSelected()}
+                    >
+                      <Play size={18} strokeWidth={1.75} aria-hidden="true" />
+                      <span className="action-label">
+                        {`${t('compressSelected')}${selected.size ? ` (${selected.size})` : ''}`}
+                      </span>
+                    </Button>
+                  )}
+                  {anythingStoppable && (
+                    <Button
+                      variant="danger"
+                      disabled={!connected || stopInFlight}
+                      title={t('stopAll')}
+                      onClick={() => void stopAll()}
+                    >
+                      <Ban size={18} strokeWidth={1.75} aria-hidden="true" />
+                      <span className="action-label">{t('stopAll')}</span>
+                    </Button>
+                  )}
+                  <Button
+                    variant="danger"
+                    disabled={!connected || selectedRemovable.length === 0}
+                    title={t('removeSelected')}
+                    onClick={() => void removeSelected()}
+                  >
+                    <Trash2 size={18} strokeWidth={1.75} aria-hidden="true" />
+                    <span className="action-label">{t('removeSelected')}</span>
+                  </Button>
+                  {state.jobs.some(job => isSettled(COMPRESSION_LIFECYCLE, job.status)) && (
+                    <Button
+                      variant="ghost"
+                      disabled={!connected}
+                      title={t('clearFinished')}
+                      onClick={() => void action('/api/jobs/completed', 'DELETE')}
+                    >
+                      <Broom size={18} strokeWidth={1.75} aria-hidden="true" />
+                      <span className="action-label">{t('clearFinished')}</span>
+                    </Button>
+                  )}
+                </div>
               </div>
               {state.batch && <BatchProgress metrics={metrics} t={t} />}
             </section>
@@ -1185,22 +1189,6 @@ function warningText(warning: SelectionWarning, t: Translate) {
     inaccessible: 'inaccessibleFile'
   };
   return t(keys[warning.reason]);
-}
-
-/**
- * Text for a disabled compress button. "Nothing selected" is left out: the
- * selection counter next to the button already says exactly that.
- */
-function blockedReasonKey(block: CompressBlock): TranslationKey | null {
-  const reasons: Record<NonNullable<CompressBlock>, TranslationKey | null> = {
-    running: 'compressBusy',
-    stuck: 'compressStuck',
-    'embedding-needs-image': 'embeddingNeedsImage',
-    'invalid-image-duration': 'compressFixImageDuration',
-    'nothing-startable': 'compressNothingReady',
-    'nothing-selected': null
-  };
-  return block ? reasons[block] : null;
 }
 
 function selectNewJobs(

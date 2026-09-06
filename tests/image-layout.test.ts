@@ -20,7 +20,13 @@ describe('responsive image embedding layout', () => {
     expect(scrollBlock).toMatch(
       /max-height:\s*calc\(\s*var\(--image-grid-row-height\) \+ var\(--image-grid-row-height\) \+ var\(--image-grid-gap\) \+ 4px\s*\)/
     );
-    expect(scrollBlock).toMatch(/overflow-y:\s*auto/);
-    expect(scrollBlock).not.toMatch(/scrollbar-gutter:\s*stable/);
+    // The wrapper itself does not scroll: an unscrollable box with overflow
+    // containment still eats wheel events. Scrolling is switched on by the
+    // modifier the grid sets once the tiles really exceed two rows.
+    expect(scrollBlock).toMatch(/overflow:\s*visible/);
+    expect(scrollBlock).not.toMatch(/overflow-y:\s*auto/);
+    const scrollable = css.match(/\.image-grid-scroll\.is-scrollable\s*\{([^}]*)\}/)?.[1] ?? '';
+    expect(scrollable).toMatch(/overflow-y:\s*auto/);
+    expect(scrollBlock + scrollable).not.toMatch(/scrollbar-gutter:\s*stable/);
   });
 });
