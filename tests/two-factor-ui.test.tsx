@@ -289,6 +289,48 @@ describe('the code of a stored account', () => {
     expect(screen.queryByText(`${first.slice(0, 3)} ${first.slice(3)}`)).toBeNull();
   });
 
+  it('drains the bar over the whole step, not half of it', async () => {
+    await openWallet([entry()]);
+    const fill = () => document.querySelector<HTMLElement>('.tfa-countdown-fill')!;
+    // The animation's own delay is what places the bar inside its thirty
+    // seconds. Read on every render it was applied a second time to an
+    // animation that had already advanced by the same amount, so the bar
+    // emptied in fifteen while the number beside it counted thirty.
+    const delay = fill().style.animationDelay;
+    // Five seconds into the step this page opened in.
+    expect(delay).toBe('-5000ms');
+    act(() => {
+      vi.advanceTimersByTime(6_000);
+    });
+    expect(fill().style.animationDelay).toBe(delay);
+    // A new step is a new bar, dropped in at its own beginning.
+    act(() => {
+      vi.advanceTimersByTime(19_500);
+    });
+    expect(Number.parseInt(fill().style.animationDelay, 10)).toBeGreaterThan(-1_000);
+  });
+
+  it('catches up on the way back to a tab whose timers were throttled', async () => {
+    await openWallet([entry()]);
+    const first = generateTotp(SEED, AT);
+    expect(screen.getByText(`${first.slice(0, 3)} ${first.slice(3)}`)).toBeTruthy();
+
+    // A hidden tab gets its timeouts throttled — sometimes none at all — so the
+    // clock moves and nothing fires. This is that: time passes, timers do not.
+    const later = AT + 95_000;
+    act(() => {
+      vi.setSystemTime(later);
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    const next = generateTotp(SEED, later);
+    expect(next).not.toBe(first);
+    expect(screen.getByText(`${next.slice(0, 3)} ${next.slice(3)}`)).toBeTruthy();
+    // And the countdown says what is left of the step the clock is in, not of
+    // the one the page was holding.
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('20');
+  });
+
   it('shares one countdown with every other code on the page', async () => {
     await openWallet([entry(), entry({ id: 'entry-2', name: 'Second', seed: OTHER_SEED })]);
     // Two accounts, two codes, one indicator — they all turn over together, so

@@ -241,6 +241,16 @@ entry and delete another, then reload to confirm both changes stuck.
 - **FR-032**: All codes on the page MUST turn over together under one shared
   countdown, placed so it plainly governs them. A countdown per row would be the
   same number repeated once per account.
+- **FR-032a**: The countdown MUST read the clock rather than the step the page
+  last noticed, and the page MUST re-sync its step whenever it becomes visible
+  or takes focus. A hidden tab has its timers throttled to about once a minute
+  and a frozen one gets none at all, so a wallet returned to showed a code from
+  a step that had already ended — the one thing a code must never be.
+- **FR-032b**: The bar MUST drain over exactly one step. Its negative animation
+  delay is the position the step _started_ from, computed once per step: read
+  again on every render it was applied to an animation that had already
+  advanced by the same amount, and the bar emptied in fifteen seconds while the
+  number beside it counted thirty.
 - **FR-033**: Pressing a code MUST copy it. It MUST NOT need a separate button:
   the digits are the target.
 - **FR-034**: After a period with no interaction the codes MUST become
