@@ -1,9 +1,20 @@
-# Unreleased
+# v1.1.0
 
-- Add the Video Stitcher: swap the photo screens at the start and end of a video in seconds without recompressing the video itself. Ships with the agent release that publishes its tool contract.
-- Process a whole folder in Team workspace, subfolders included: transcribe every video inside and refresh every landing preview, with each transcript saved beside its own video.
+- Rebuild Team workspace around Google Drive file access: a folder tree, list and grid views, previews of every kind of file, share-by-link, copy/cut/paste across folders, modified dates, a sort menu, and a space settings dialog split into General, People, Tags, Re-stitch and History tabs.
+- Add the Video Stitcher: swap the photo screens at the start and end of a video in seconds without recompressing the video itself, and keep the sound and the second stitch correct.
+- Process a whole folder in Team workspace, subfolders included, or only the files you picked: transcribe every video inside and refresh every landing preview, with each transcript saved beside its own video and one panel for every long job.
 - Pause a running batch in Team workspace. Nothing new starts, and the file already being processed is suspended too rather than left running.
-- Set one re-stitching answer for a whole Team workspace space, and download any video re-stitched with it. Preparing the space's material once makes those downloads take seconds instead of half a minute; the space's Soty folder is created for you and stays findable after you rename or move it.
+- Set one re-stitching answer for a whole Team workspace space, and download any video re-stitched with it from the explorer or from a task. Preparing the space's material once makes those downloads take seconds, each of the three waits reports its own progress, and a refusal names its reason.
+- Add the Accounts tab to Team workspace: social accounts with their agents, runs that can be marked green, amber or red, money left and top-ups per agent, agent tags, and one-press lists of the day's top-ups grouped by account or by tag.
+- Give team tasks their own date, tags from a per-space dictionary, an assignee filter, ordering by tag, per-account progress defaults, and attachments dropped straight onto the task, folders included.
+- Tag any file or folder in Team workspace with one of Finder's colours, hide housekeeping files everywhere by one rule, and ask what to do when an upload's name is already taken instead of guessing.
+- Link a transcript to its video so it follows renames and moves, asks before its video is deleted, and can be viewed or copied from the card; choose the spoken language on the row and pick a fast or accurate mode.
+- Send a Team workspace compression to a local folder or over the original file, and make poster frames for videos Google Drive never made a thumbnail for.
+- Redesign the compressor: the drop zone first, an icon-first settings panel with a live summary and a CRF slider that explains itself, file cards with the same four actions, a real pause, honest results and calmer failures.
+- Rework the landing optimizer to look and work like the compressor, with a queue, per-landing settings, a destination choice, a before/after comparison and a result list that answers what it was opened for.
+- Add the two-factor notebook: keep 2FA keys in a wallet, get a code one press away, and see the countdown stay right after the tab was hidden.
+- Keep an opened landing unpacked so the second look is instant, and stop the preview from offering the browser's own download and cast controls.
+- Order the tool catalogue by reading order and ship the stitcher without a development acknowledgement.
 
 # v1.0.4
 

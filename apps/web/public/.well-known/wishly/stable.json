@@ -1,24 +1,24 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "1.0.4",
-  "buildNumber": "62",
-  "buildId": "1.0.4+62",
+  "version": "1.1.0",
+  "buildNumber": "63",
+  "buildId": "1.1.0+63",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-08-26T21:34:41.000Z",
+  "publishedAt": "2026-09-06T17:39:24.000Z",
   "summary": {
-    "en": "Safer local task cancellation and recovery, protected file access, leaner startup, and a refreshed Team Workspace.",
-    "uk": "Безпечніше скасування й відновлення локальних завдань, захищений доступ до файлів, легший старт і оновлений Team Workspace."
+    "en": "The Video Stitcher, a rebuilt Team workspace with accounts, tags and task dates, the redesigned compressor and landing optimizer, and a two-factor notebook.",
+    "uk": "Video Stitcher, перебудований Team workspace з акаунтами, тегами й датами завдань, оновлені компресор і оптимізатор лендингів, а також нотатник двофакторних кодів."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.0.4/Soty-v1.0.4-macOS-arm64.dmg",
-      "sha256": "ccdc72c872a76754eeffe8d117f6354edda02b274542e086d5f16e7aad36971c"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.1.0/Soty-v1.1.0-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "windows-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.0.4/Soty-v1.0.4-Windows-x64.exe",
-      "sha256": "ef72093e218ad8bd75ff56c6d69c01c2ab4f165c02d5d16cbcc032dd46451550"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.1.0/Soty-v1.1.0-Windows-x64.exe",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -35,9 +35,13 @@
     "transcription": {
       "transcription": 5
     },
+    "stitcher": {
+      "stitcher": 1,
+      "imageEmbedding": 2
+    },
     "teamWorkspace": {
       "teamWorkspace": 1
     }
   },
-  "signature": "aw-c0PXd87YU4bh_fYYaUrGC7lmx1kG2wvjXtPK3enbxwqqwbeD6mTFj6krPCgIRtObqI4jCTmwnZAVvyO3EXA"
+  "signature": "0-3PdZO84HKUrYEdyn3-ACFHtQFDEL1xJaDBfUi2-3iYe156OVT3o4UAdnWPFbxw4fc4OtuDEkSPdQVDyqXFkQ"
 }
