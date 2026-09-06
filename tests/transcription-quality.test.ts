@@ -10,27 +10,23 @@ import { loadTranscriptionState } from '../apps/agent/src/queue/transcription-st
 
 describe('quality modes', () => {
   it('runs beam search on both models and loads a different file for each', () => {
-    const fast = buildWhisperArgs(
-      { wavPath: 'a.wav', outputBase: 'out', language: 'auto', quality: 'fast' },
-      { threads: 4, vadModelPath: null }
-    );
-    const accurate = buildWhisperArgs(
-      { wavPath: 'a.wav', outputBase: 'out', language: 'auto', quality: 'accurate' },
-      { threads: 4, vadModelPath: null }
-    );
-    expect(fast.slice(fast.indexOf('-bs'), fast.indexOf('-bs') + 4)).toEqual([
-      '-bs',
-      '5',
-      '-bo',
-      '5'
-    ]);
-    expect(accurate.slice(accurate.indexOf('-bs'), accurate.indexOf('-bs') + 4)).toEqual([
-      '-bs',
-      '5',
-      '-bo',
-      '5'
-    ]);
+    const build = (quality: 'fast' | 'accurate', platform: 'darwin' | 'win32' | 'linux') =>
+      buildWhisperArgs(
+        { wavPath: 'a.wav', outputBase: 'out', language: 'auto', quality },
+        { threads: 4, vadModelPath: null, platform }
+      );
+    const beams = (args: string[]) => args.slice(args.indexOf('-bs'), args.indexOf('-bs') + 4);
+    // On Apple Silicon the turbo decoder makes the search close to free, so both modes
+    // search. On a CPU-only machine five beams are five decoder passes, and the fast mode
+    // exists for exactly that machine: it decodes greedily and keeps the best-of fallback.
+    expect(beams(build('fast', 'darwin'))).toEqual(['-bs', '5', '-bo', '5']);
+    expect(beams(build('accurate', 'darwin'))).toEqual(['-bs', '5', '-bo', '5']);
+    expect(beams(build('fast', 'win32'))).toEqual(['-bs', '1', '-bo', '5']);
+    expect(beams(build('accurate', 'win32'))).toEqual(['-bs', '5', '-bo', '5']);
+    expect(beams(build('fast', 'linux'))).toEqual(['-bs', '1', '-bo', '5']);
     // Each mode loads its own model file.
+    const fast = build('fast', 'darwin');
+    const accurate = build('accurate', 'darwin');
     expect(fast[fast.indexOf('-m') + 1]).toContain(WHISPER_MODELS.fast.fileName);
     expect(accurate[accurate.indexOf('-m') + 1]).toContain(WHISPER_MODELS.accurate.fileName);
   });
