@@ -1,4 +1,5 @@
 import { isRecord } from './contract.js';
+import { parseTeamTaskLabelRefs, type TeamTaskLabelRef } from './task-labels.js';
 
 /**
  * Team accounts (017): the social accounts a space runs its campaigns from,
@@ -79,10 +80,59 @@ export function teamAccountTag(accountName: string, agentId: string): string {
   return `[${teamAgentLabel(accountName, agentId)}]`;
 }
 
+/**
+ * How a run is marked. Three colours and unmarked, and the product does not
+ * say what any of them means: the team's own reading of green is the only one
+ * that would ever be right.
+ */
+export type TeamAgentRunMarker = 'green' | 'amber' | 'red';
+
+export const TEAM_AGENT_RUN_MARKERS: readonly TeamAgentRunMarker[] = ['green', 'amber', 'red'];
+
+export function isTeamAgentRunMarker(value: unknown): value is TeamAgentRunMarker {
+  return value === 'green' || value === 'amber' || value === 'red';
+}
+
+/**
+ * The next marker a press lands on: unmarked → green → amber → red →
+ * unmarked. One gesture, no menu, and four presses always return the run to
+ * where it started — which is what makes marking safe to try.
+ */
+export function nextTeamAgentRunMarker(
+  current: TeamAgentRunMarker | null
+): TeamAgentRunMarker | null {
+  if (current === null) return 'green';
+  const index = TEAM_AGENT_RUN_MARKERS.indexOf(current);
+  return TEAM_AGENT_RUN_MARKERS[index + 1] ?? null;
+}
+
+/** What a run carried before its marker was cleared, so an undo can put it back. */
+export interface TeamAgentRunMarkerSnapshot {
+  runId: string;
+  marker: TeamAgentRunMarker;
+}
+
+export function parseTeamAgentRunMarkerSnapshots(
+  value: unknown
+): TeamAgentRunMarkerSnapshot[] | null {
+  if (value === null || value === undefined) return [];
+  if (!Array.isArray(value)) return null;
+  const snapshots: TeamAgentRunMarkerSnapshot[] = [];
+  for (const raw of value) {
+    if (!isRecord(raw)) return null;
+    const { run_id, marker } = raw;
+    if (typeof run_id !== 'string' || !isTeamAgentRunMarker(marker)) return null;
+    snapshots.push({ runId: run_id, marker });
+  }
+  return snapshots;
+}
+
 /** One launch on an agent. */
 export interface TeamAgentRun {
   id: string;
   note: string;
+  /** Green, amber, red — or null when the run carries no marker. */
+  marker: TeamAgentRunMarker | null;
   createdAt: string;
 }
 
@@ -92,15 +142,63 @@ export function parseTeamAgentRuns(value: unknown): TeamAgentRun[] | null {
   const runs: TeamAgentRun[] = [];
   for (const raw of value) {
     if (!isRecord(raw)) return null;
-    const { id, note, created_at } = raw;
+    const { id, note, marker, created_at } = raw;
     if (typeof id !== 'string' || typeof note !== 'string' || typeof created_at !== 'string') {
       return null;
     }
-    // A blank run that slipped past the server is no run.
+    // An unknown marker is read as none rather than refusing the whole list:
+    // a colour this build does not know is a run it can still show.
     if (note.trim() === '') continue;
-    runs.push({ id, note, createdAt: created_at });
+    runs.push({
+      id,
+      note,
+      marker: isTeamAgentRunMarker(marker) ? marker : null,
+      createdAt: created_at
+    });
   }
   return runs;
+}
+
+/** How much a top-up moves per press of + or − (019). */
+export const TEAM_AGENT_TOPUP_STEP = 50;
+/** The largest figure four characters can hold, which is the field's width. */
+export const TEAM_AGENT_AMOUNT_MAX = 9_999;
+
+/**
+ * A figure typed into one of the money fields, or null when the field is
+ * empty. Whole units only — these are read at a glance and never computed
+ * with — and `undefined` for a value that is not a figure at all, so a caller
+ * can tell "cleared" from "refused".
+ */
+export function normalizeTeamAgentAmount(value: unknown): number | null | undefined {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number') {
+    if (!Number.isInteger(value) || value < 0 || value > TEAM_AGENT_AMOUNT_MAX) return undefined;
+    return value;
+  }
+  if (typeof value !== 'string') return undefined;
+  const text = value.trim();
+  if (text === '') return null;
+  if (!/^\d{1,4}$/u.test(text)) return undefined;
+  const amount = Number(text);
+  return amount <= TEAM_AGENT_AMOUNT_MAX ? amount : undefined;
+}
+
+/**
+ * The figure a press of + or − lands on: a step up or down, kept inside the
+ * field's range, and snapped to the step so a typed 30 becomes 50 rather than
+ * 80. Empty steps up to 50 and down to nothing, which is how a top-up is both
+ * started and taken back.
+ */
+export function stepTeamAgentTopup(current: number | null, direction: 1 | -1): number | null {
+  const step = TEAM_AGENT_TOPUP_STEP;
+  if (current === null) return direction === 1 ? step : null;
+  const next =
+    direction === 1
+      ? Math.floor(current / step) * step + step
+      : Math.ceil(current / step) * step - step;
+  if (next <= 0) return null;
+  return Math.min(next, Math.floor(TEAM_AGENT_AMOUNT_MAX / step) * step);
 }
 
 export interface TeamAccountAgentSummary {
@@ -110,6 +208,12 @@ export interface TeamAccountAgentSummary {
   agentId: string;
   /** The runs on this agent, oldest first; none means free. */
   runs: TeamAgentRun[];
+  /** The agent tags hung on it (019), in natural order by name. */
+  labels: TeamTaskLabelRef[];
+  /** What the agent has left, in whole units; null when nobody has said. */
+  balance: number | null;
+  /** What to add to it; null is nothing to add. */
+  topup: number | null;
   /** How many tasks carry this agent's tag. */
   taskCount: number;
   createdAt: string;
@@ -206,12 +310,18 @@ export function parseTeamAccountAgent(value: unknown): TeamAccountAgentSummary |
   if (!isRecord(value)) return null;
   const { id, account_id, team_id, agent_id, runs, task_count, created_at, updated_at } = value;
   const parsedRuns = parseTeamAgentRuns(runs);
+  const labels = parseTeamTaskLabelRefs(value.labels);
+  const balance = normalizeTeamAgentAmount(value.balance);
+  const topup = normalizeTeamAgentAmount(value.topup);
   if (
     typeof id !== 'string' ||
     typeof account_id !== 'string' ||
     typeof team_id !== 'string' ||
     typeof agent_id !== 'string' ||
     parsedRuns === null ||
+    labels === null ||
+    balance === undefined ||
+    topup === undefined ||
     (task_count !== undefined && (typeof task_count !== 'number' || task_count < 0)) ||
     typeof created_at !== 'string' ||
     typeof updated_at !== 'string'
@@ -224,6 +334,9 @@ export function parseTeamAccountAgent(value: unknown): TeamAccountAgentSummary |
     teamId: team_id,
     agentId: agent_id,
     runs: parsedRuns,
+    labels,
+    balance,
+    topup,
     // A bare row (from a write RPC) carries no count; the list does.
     taskCount: typeof task_count === 'number' ? task_count : 0,
     createdAt: created_at,
@@ -275,7 +388,37 @@ export function sortTeamAccounts<T extends { name: string }>(accounts: readonly 
   );
 }
 
+/**
+ * The agents of an account in the order the list reads them: the free ones
+ * first, because "where can I start something" is the question the tab is
+ * opened with and a free agent found by eye is one filter press saved; then
+ * naturally by id, so two reads of the same account never disagree.
+ */
+export function sortTeamAgents<T extends { agentId: string; runs: readonly TeamAgentRun[] }>(
+  agents: readonly T[]
+): T[] {
+  return [...agents].sort((left, right) => {
+    const free = Number(right.runs.length === 0) - Number(left.runs.length === 0);
+    if (free !== 0) return free;
+    return left.agentId.localeCompare(right.agentId, undefined, {
+      numeric: true,
+      sensitivity: 'base'
+    });
+  });
+}
+
 export type TeamAccountOccupancyFilter = 'all' | 'free' | 'busy';
+
+/** The marker filter: every agent, or only those carrying a run of one colour. */
+export type TeamAccountMarkerFilter = 'all' | TeamAgentRunMarker;
+
+/** Whether any run on the agent carries this marker. */
+export function teamAgentHasMarker(
+  agent: { runs: readonly TeamAgentRun[] },
+  marker: TeamAgentRunMarker
+): boolean {
+  return agent.runs.some(run => run.marker === marker);
+}
 
 /**
  * The list a filter leaves on screen. `free` keeps only free agents — and
@@ -289,7 +432,12 @@ export type TeamAccountOccupancyFilter = 'all' | 'free' | 'busy';
  */
 export function filterTeamAccounts(
   accounts: readonly TeamAccountSummary[],
-  input: { occupancy: TeamAccountOccupancyFilter; search: string }
+  input: {
+    occupancy: TeamAccountOccupancyFilter;
+    search: string;
+    /** A colour keeps only the agents carrying a run marked with it. */
+    marker?: TeamAccountMarkerFilter;
+  }
 ): TeamAccountSummary[] {
   const term = input.search.normalize('NFC').trim().toLocaleLowerCase();
   const kept: TeamAccountSummary[] = [];
@@ -310,7 +458,15 @@ export function filterTeamAccounts(
       agents = agents.filter(agent => isTeamAgentFree(agent) === wantFree);
       if (agents.length === 0 && !(wantFree && emptyAccount)) continue;
     }
-    kept.push(agents === account.agents ? account : { ...account, agents });
+    /* A colour is asked of the runs themselves, so an account with none of
+       them leaves the screen entirely — a marker filter showing accounts that
+       cannot answer it is the noise the occupancy filter already refuses. */
+    if (input.marker !== undefined && input.marker !== 'all') {
+      const marker = input.marker;
+      agents = agents.filter(agent => teamAgentHasMarker(agent, marker));
+      if (agents.length === 0) continue;
+    }
+    kept.push({ ...account, agents: sortTeamAgents(agents) });
   }
   return kept;
 }
@@ -320,16 +476,167 @@ export interface TeamAccountCounts {
   agents: number;
   free: number;
   busy: number;
+  /**
+   * Agents, not runs: the number on a marker chip is how many rows pressing it
+   * leaves on screen, which is the only figure a filter chip can promise.
+   */
+  markers: Record<TeamAgentRunMarker, number>;
 }
 
 export function countTeamAccounts(accounts: readonly TeamAccountSummary[]): TeamAccountCounts {
   let agents = 0;
   let free = 0;
+  const markers: Record<TeamAgentRunMarker, number> = { green: 0, amber: 0, red: 0 };
   for (const account of accounts) {
     for (const agent of account.agents) {
       agents += 1;
       if (isTeamAgentFree(agent)) free += 1;
+      for (const marker of TEAM_AGENT_RUN_MARKERS) {
+        if (teamAgentHasMarker(agent, marker)) markers[marker] += 1;
+      }
     }
   }
-  return { accounts: accounts.length, agents, free, busy: agents - free };
+  return { accounts: accounts.length, agents, free, busy: agents - free, markers };
+}
+
+/**
+ * The two lists the accounts table copies out (019).
+ *
+ * Both answer the same question — "who gets topped up, and by how much" — for
+ * two different readers, so they are built here rather than in the component:
+ * a media buyer reads the first one and checks it against the board, and the
+ * second one goes to whoever actually moves the money, who knows the agents by
+ * id and sorts the work by the tag on them.
+ *
+ * An agent with no top-up is in neither list. That is the whole point of the
+ * button: the list is the day's work, not the space's inventory.
+ */
+
+/** `$50` — the one shape a figure takes in a copied list. */
+export function teamAgentAmountText(amount: number): string {
+  return `$${amount}`;
+}
+
+function copiedGroup(heading: string, lines: readonly string[]): string {
+  return [heading, ...lines].join('\n');
+}
+
+/**
+ * By social account: the account's name, then the full id of each of its
+ * agents and the figure.
+ *
+ * The ids, not the labels the list shows on screen. Both copies are pasted
+ * where the money is actually moved, and there an ad account is its id; what
+ * separates the two lists is how the work is grouped — under the account it
+ * belongs to, or under the tag it is paid in a batch with — and nothing else.
+ */
+export function buildTeamAgentTopupListByAccount(accounts: readonly TeamAccountSummary[]): string {
+  const groups: string[] = [];
+  for (const account of sortTeamAccounts(accounts)) {
+    const lines = account.agents
+      .filter(agent => agent.topup !== null)
+      .sort((left, right) =>
+        left.agentId.localeCompare(right.agentId, undefined, { numeric: true })
+      )
+      .map(agent => `${agent.agentId} - ${teamAgentAmountText(agent.topup!)}`);
+    if (lines.length > 0) groups.push(copiedGroup(account.name, lines));
+  }
+  return groups.join('\n\n');
+}
+
+/**
+ * By agent tag: the tag, then the agents' full ids under it. An agent carrying
+ * two tags is in both groups — it is one payment per tag's reader, and leaving
+ * it out of the second would be the quieter of the two mistakes only if
+ * anybody could tell it had happened.
+ *
+ * `untaggedHeading` names the group for agents that carry no tag at all. They
+ * are listed last rather than dropped: they have money waiting the same as the
+ * rest, and a list that silently loses them is worse than one with a plain
+ * heading in it.
+ */
+export function buildTeamAgentTopupListByLabel(
+  accounts: readonly TeamAccountSummary[],
+  untaggedHeading: string
+): string {
+  const byLabel = new Map<string, { name: string; lines: string[] }>();
+  const untagged: string[] = [];
+  const rows = accounts
+    .flatMap(account => account.agents)
+    .filter(agent => agent.topup !== null)
+    .sort((left, right) => left.agentId.localeCompare(right.agentId, undefined, { numeric: true }));
+
+  for (const agent of rows) {
+    const line = `${agent.agentId} - ${teamAgentAmountText(agent.topup!)}`;
+    if (agent.labels.length === 0) {
+      untagged.push(line);
+      continue;
+    }
+    for (const label of agent.labels) {
+      const group = byLabel.get(label.id) ?? { name: label.name, lines: [] };
+      group.lines.push(line);
+      byLabel.set(label.id, group);
+    }
+  }
+
+  const groups = [...byLabel.values()]
+    .sort((left, right) =>
+      left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: 'base' })
+    )
+    .map(group => copiedGroup(group.name, group.lines));
+  if (untagged.length > 0) groups.push(copiedGroup(untaggedHeading, untagged));
+  return groups.join('\n\n');
+}
+
+/** How many agents a copy would list, for the button's own count. */
+export function countTeamAgentTopups(accounts: readonly TeamAccountSummary[]): number {
+  return accounts.reduce(
+    (total, account) => total + account.agents.filter(agent => agent.topup !== null).length,
+    0
+  );
+}
+
+/** What a figure was before it was cleared, so an undo can put it back. */
+export interface TeamAgentTopupSnapshot {
+  agentRowId: string;
+  topup: number;
+}
+
+export interface TeamAgentBalanceSnapshot {
+  agentRowId: string;
+  balance: number;
+}
+
+export function parseTeamAgentBalanceSnapshots(value: unknown): TeamAgentBalanceSnapshot[] | null {
+  if (value === null || value === undefined) return [];
+  if (!Array.isArray(value)) return null;
+  const snapshots: TeamAgentBalanceSnapshot[] = [];
+  for (const raw of value) {
+    if (!isRecord(raw)) return null;
+    const { agent_row_id, balance } = raw;
+    if (typeof agent_row_id !== 'string' || typeof balance !== 'number') return null;
+    snapshots.push({ agentRowId: agent_row_id, balance });
+  }
+  return snapshots;
+}
+
+/** How many agents carry a balance, for the button that would clear them. */
+export function countTeamAgentBalances(accounts: readonly TeamAccountSummary[]): number {
+  return accounts.reduce(
+    (total, account) => total + account.agents.filter(agent => agent.balance !== null).length,
+    0
+  );
+}
+
+export function parseTeamAgentTopupSnapshots(value: unknown): TeamAgentTopupSnapshot[] | null {
+  if (value === null || value === undefined) return [];
+  if (!Array.isArray(value)) return null;
+  const snapshots: TeamAgentTopupSnapshot[] = [];
+  for (const raw of value) {
+    if (!isRecord(raw)) return null;
+    const { agent_row_id, topup } = raw;
+    if (typeof agent_row_id !== 'string' || typeof topup !== 'number') return null;
+    snapshots.push({ agentRowId: agent_row_id, topup });
+  }
+  return snapshots;
 }

@@ -29,19 +29,41 @@ import {
   parseTeamTaskPatch,
   parseTeamAccount,
   parseTeamAccountAgent,
+  parseTeamAgentRunMarkerSnapshots,
   parseTeamTaskAgentTags,
+  parseTeamTaskLabel,
+  parseTeamAgentTopupSnapshots,
+  parseTeamAgentBalanceSnapshots,
+  normalizeTeamAgentAmount,
+  TEAM_TASK_LABEL_FILTER_MAX,
+  type TeamAgentTopupSnapshot,
+  type TeamAgentBalanceSnapshot,
+  type TeamLabelScope,
+  parseTeamTaskLabelRefs,
+  normalizeTeamTaskLabelName,
+  isTeamTaskLabelColor,
+  isTeamTaskSort,
+  isTeamTaskDate,
   type TeamTaskAgentTag,
+  type TeamTaskLabel,
+  type TeamTaskLabelColor,
+  type TeamTaskLabelRef,
+  type TeamTaskSort,
   normalizeTeamAccountName,
   normalizeTeamAgentId,
   normalizeTeamAgentNote,
   type TeamAccountAgentSummary,
   type TeamAccountSummary,
+  type TeamAgentRunMarker,
+  type TeamAgentRunMarkerSnapshot,
   parseUploadBatchRequest,
   isFolderPage,
   isStorageHealth,
   isThumbnailSession,
   isTeamDriveSelection,
   isTeamFolderNode,
+  isTeamMaterialTagColor,
+  type TeamMaterialTagColor,
   type FolderPage,
   type FolderPageCursor,
   type StorageHealth,
@@ -282,6 +304,12 @@ export interface TeamAuditEventSummary {
   result: 'succeeded' | 'denied' | 'failed' | 'canceled';
   errorCode: TeamErrorCode | null;
   occurredAt: string;
+  /**
+   * The thing it happened to — a file's name, an invitation's address. Null for
+   * events about the space itself. Without it three cancelled jobs read as
+   * three identical lines, which is what made the history unreadable.
+   */
+  subjectLabel: string | null;
 }
 
 export interface DriveConnectionStatus {
@@ -400,6 +428,16 @@ export interface TeamTaskAttachmentMutationResult {
   attached: string[];
   alreadyAttached: string[];
   rejected: Array<{ materialId: string | null; code: 'NOT_FOUND' | 'PERMISSION_DENIED' }>;
+}
+
+/** What a folder holds for the batch, and how far the read got. */
+export interface FolderSubtree {
+  videos: TeamMaterialSummary[];
+  landings: TeamMaterialSummary[];
+  /** Folders passed through, the starting folder included. */
+  foldersVisited: number;
+  /** True when the ceiling stopped the read before the tree ran out. */
+  truncated: boolean;
 }
 
 export interface LibraryRequirementScanResult {
@@ -638,6 +676,7 @@ function mapAuditEvent(value: unknown): TeamAuditEventSummary | null {
   return {
     id: row.id,
     actorLabel: typeof row.actor_label === 'string' ? row.actor_label : null,
+    subjectLabel: typeof row.subject_label === 'string' ? row.subject_label : null,
     action: row.action,
     target: target as TeamAuditEventSummary['target'],
     result: result as TeamAuditEventSummary['result'],
@@ -987,6 +1026,10 @@ function mapTeamTask(value: unknown): TeamTaskSummary | null {
   // and the caller keeps the tags it already has (as it does attachmentCount).
   const agents = parseTeamTaskAgentTags(row.agents);
   if (agents === null) return null;
+  const labels = parseTeamTaskLabelRefs(row.labels);
+  if (labels === null) return null;
+  const dateOn = row.task_date ?? null;
+  if (dateOn !== null && !isTeamTaskDate(dateOn)) return null;
   return {
     id: row.id,
     teamId: row.team_id,
@@ -1001,6 +1044,8 @@ function mapTeamTask(value: unknown): TeamTaskSummary | null {
     progressManuallySet: row.progress_manually_set,
     attachmentCount,
     agents,
+    labels,
+    dateOn,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     completedAt: row.completed_at
@@ -1619,6 +1664,41 @@ export const teamApi = {
     return nodes;
   },
 
+  /**
+   * Everything a batch can take under a folder, in one read.
+   *
+   * The browser used to walk this a folder at a time — up to five hundred
+   * sequential round trips, and a ceiling it had to explain when it hit one.
+   * The catalogue already holds the tree; the recursion happens there.
+   */
+  async listFolderSubtree(
+    teamId: string,
+    rootFolderId: string,
+    maxFolders?: number
+  ): Promise<FolderSubtree> {
+    const { data, error } = await requireSupabaseClient().rpc('list_team_folder_subtree', {
+      p_team: teamId,
+      p_root: rootFolderId,
+      ...(maxFolders ? { p_max_folders: maxFolders } : {})
+    });
+    throwRpc(error);
+    const row = asRecord(data);
+    if (!row || typeof row.foldersVisited !== 'number' || typeof row.truncated !== 'boolean') {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    // Validated like every other list in this file rather than cast: a shape
+    // the server changed would otherwise reach the batch as a scope of ids.
+    const parsed = (Array.isArray(row.items) ? row.items : []).map(teamMaterial);
+    if (parsed.some(item => item === null)) throw new TeamApiError('INVALID_RESPONSE', false);
+    const items = parsed.filter((item): item is TeamMaterialSummary => item !== null);
+    return {
+      videos: items.filter(item => item.category === 'video'),
+      landings: items.filter(item => item.category === 'landing'),
+      foldersVisited: row.foldersVisited,
+      truncated: row.truncated
+    };
+  },
+
   async listFolderPage(
     teamId: string,
     input: {
@@ -1638,6 +1718,31 @@ export const teamApi = {
     throwRpc(error);
     if (!isFolderPage(data)) throw new TeamApiError('INVALID_RESPONSE', false);
     return data;
+  },
+
+  /**
+   * The file's tag — one of the seven colours, or null to take it off. Refused
+   * for anyone but the space's owner, in the database rather than here.
+   */
+  async setMaterialTag(input: {
+    teamId: string;
+    materialId: string;
+    color: TeamMaterialTagColor | null;
+  }): Promise<TeamMaterialTagColor | null> {
+    const { data, error } = await requireSupabaseClient().rpc('set_team_material_tag', {
+      p_team: input.teamId,
+      p_material: input.materialId,
+      p_color: input.color
+    });
+    throwRpc(error);
+    if (typeof data !== 'object' || data === null) {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    const { tagColor } = data as { tagColor?: unknown };
+    if (tagColor !== null && !isTeamMaterialTagColor(tagColor)) {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return tagColor;
   },
 
   async listDriveSelections(teamId: string): Promise<TeamDriveSelection[]> {
@@ -2159,6 +2264,44 @@ export const teamApi = {
    * application writes into it, so a member may rename or move it and it is still the same
    * folder — the name is never the identity (FR-016, FR-017).
    */
+  /**
+   * The space's one folder for files dropped on a task, made on first use.
+   * Returns the catalogue id too, which is what an upload names as its
+   * destination.
+   */
+  async ensureTaskDropFolder(
+    teamId: string,
+    /** A name makes a folder *inside* the drops — how a dropped folder stays one. */
+    input?: { name: string; parentMaterialId?: string | null }
+  ): Promise<{ folderId: string; materialId: string; name: string; created: boolean }> {
+    const value = await invokeTeamFunction(
+      'drive-ops/ensure-task-drop-folder',
+      {
+        teamId,
+        ...(input ? { name: input.name } : {}),
+        ...(input?.parentMaterialId ? { parentMaterialId: input.parentMaterialId } : {})
+      },
+      (
+        candidate
+      ): candidate is {
+        folderId: string;
+        materialId: string;
+        name: string;
+        created: boolean;
+      } => {
+        const row = asRecord(candidate);
+        return Boolean(
+          row &&
+          typeof row.folderId === 'string' &&
+          typeof row.materialId === 'string' &&
+          typeof row.name === 'string' &&
+          typeof row.created === 'boolean'
+        );
+      }
+    );
+    return value;
+  },
+
   async ensureWorkspaceFolder(
     teamId: string
   ): Promise<{ folderId: string; created: boolean; name: string }> {
@@ -2351,21 +2494,46 @@ export const teamApi = {
     teamId: string;
     createdFrom?: string | null;
     createdTo?: string | null;
+    /** The same range in plain `YYYY-MM-DD` days (017): a task that carries a
+     *  date of its own is filtered by that day, not by when its row was made. */
+    dayFrom?: string | null;
+    dayTo?: string | null;
     status?: TeamTaskStatus | null;
     /** Only tasks tagged with this agent (017). */
     agentRowId?: string | null;
     /** Only tasks tagged with any agent of this account (017). */
     accountId?: string | null;
+    /** Only tasks carrying any of these tags (018). */
+    labelIds?: readonly string[] | null;
+    /** How the board is ordered (018): by date, or by tag. */
+    sort?: TeamTaskSort | null;
+    /** Only one person's tasks (018 part 2). */
+    assigneeId?: string | null;
+    /** Only the tasks nobody is on; never together with `assigneeId`. */
+    unassigned?: boolean;
     cursor?: string | null;
     pageSize?: number;
   }): Promise<TeamTaskSummary[]> {
+    if (input.assigneeId && input.unassigned) throw new TeamApiError('INVALID_INPUT', false);
+    const labelIds = input.labelIds?.length ? [...input.labelIds] : undefined;
+    if (labelIds && labelIds.length > TEAM_TASK_LABEL_FILTER_MAX) {
+      throw new TeamApiError('INVALID_INPUT', false);
+    }
+    const sort = input.sort ?? 'date';
+    if (!isTeamTaskSort(sort)) throw new TeamApiError('INVALID_INPUT', false);
     const { data, error } = await requireSupabaseClient().rpc('list_team_tasks', {
       p_team: input.teamId,
       p_created_from: input.createdFrom ?? undefined,
       p_created_to: input.createdTo ?? undefined,
+      p_day_from: input.dayFrom ?? undefined,
+      p_day_to: input.dayTo ?? undefined,
       p_status: input.status ?? undefined,
       p_agent: input.agentRowId ?? undefined,
       p_account: input.accountId ?? undefined,
+      p_labels: labelIds,
+      p_sort: sort,
+      p_assignee: input.assigneeId ?? undefined,
+      p_unassigned: input.unassigned ? true : undefined,
       p_cursor: input.cursor ?? undefined,
       p_page_size: input.pageSize ?? 50
     });
@@ -2450,12 +2618,17 @@ export const teamApi = {
   async scanLibraryRequirements(
     teamId: string,
     interfaceLanguage: string,
-    sourceMaterialId?: string
+    sourceMaterialIds?: readonly string[],
+    /** False just counts; true also enqueues the work it counted. */
+    commit = true
   ): Promise<LibraryRequirementScanResult> {
     const { data, error } = await requireSupabaseClient().rpc('scan_library_requirements', {
       p_team: teamId,
       p_interface_language: interfaceLanguage,
-      p_source: sourceMaterialId
+      // An empty list is not a scope; it is the whole space, same as none.
+      p_sources:
+        sourceMaterialIds && sourceMaterialIds.length > 0 ? [...sourceMaterialIds] : undefined,
+      p_commit: commit
     });
     throwRpc(error);
     const result = libraryScanResult(data);
@@ -2493,7 +2666,7 @@ export const teamApi = {
       p_agent_instance: normalized.agentInstanceId,
       p_supported_kinds: normalized.supportedKinds,
       p_interface_language: normalized.interfaceLanguage,
-      p_source: normalized.sourceMaterialId
+      p_sources: normalized.sourceMaterialIds
     });
     throwRpc(error);
     const result = libraryJobClaimEnvelope(data);
@@ -2572,10 +2745,14 @@ export const teamApi = {
     return data;
   },
 
-  async retryFailedLibraryJobs(teamId: string, sourceMaterialId?: string): Promise<number> {
+  async retryFailedLibraryJobs(
+    teamId: string,
+    sourceMaterialIds?: readonly string[]
+  ): Promise<number> {
     const { data, error } = await requireSupabaseClient().rpc('retry_failed_library_jobs', {
       p_team: teamId,
-      p_source: sourceMaterialId
+      p_sources:
+        sourceMaterialIds && sourceMaterialIds.length > 0 ? [...sourceMaterialIds] : undefined
     });
     throwRpc(error);
     if (typeof data !== 'number' || !Number.isSafeInteger(data) || data < 0) {
@@ -2753,6 +2930,111 @@ export const teamApi = {
   },
 
   // ---------------------------------------------------------------------------
+  // Task tags (018): the space's own dictionary, and the tags a task carries.
+  // ---------------------------------------------------------------------------
+
+  /** Every tag of one set with how many things carry it — one round trip. */
+  async listTaskLabels(teamId: string, scope: TeamLabelScope = 'task'): Promise<TeamTaskLabel[]> {
+    const { data, error } = await requireSupabaseClient().rpc('list_team_labels', {
+      p_team: teamId,
+      p_scope: scope
+    });
+    throwRpc(error);
+    const labels = (data ?? []).map(parseTeamTaskLabel);
+    if (labels.some(label => label === null)) throw new TeamApiError('INVALID_RESPONSE', false);
+    return labels.filter((label): label is TeamTaskLabel => label !== null);
+  },
+
+  async createTaskLabel(input: {
+    teamId: string;
+    name: string;
+    color: TeamTaskLabelColor;
+    scope?: TeamLabelScope;
+  }): Promise<TeamTaskLabel> {
+    const name = normalizeTeamTaskLabelName(input.name);
+    if (!name || !isTeamTaskLabelColor(input.color)) {
+      throw new TeamApiError('INVALID_INPUT', false);
+    }
+    const { data, error } = await requireSupabaseClient().rpc('create_team_label', {
+      p_team: input.teamId,
+      p_name: name,
+      p_color: input.color,
+      p_scope: input.scope ?? 'task'
+    });
+    throwRpc(error);
+    const label = parseTeamTaskLabel(data);
+    if (!label) throw new TeamApiError('INVALID_RESPONSE', false);
+    return label;
+  },
+
+  /** Renames and recolours in one call: a tag is a name and a colour. */
+  async updateTaskLabel(input: {
+    teamId: string;
+    labelId: string;
+    name: string;
+    color: TeamTaskLabelColor;
+  }): Promise<TeamTaskLabel> {
+    const name = normalizeTeamTaskLabelName(input.name);
+    if (!name || !isTeamTaskLabelColor(input.color)) {
+      throw new TeamApiError('INVALID_INPUT', false);
+    }
+    const { data, error } = await requireSupabaseClient().rpc('update_team_label', {
+      p_team: input.teamId,
+      p_label: input.labelId,
+      p_name: name,
+      p_color: input.color
+    });
+    throwRpc(error);
+    const label = parseTeamTaskLabel(data);
+    if (!label) throw new TeamApiError('INVALID_RESPONSE', false);
+    return label;
+  },
+
+  /** Deletes a tag. It comes off every task it was on; no task is lost. */
+  async deleteTaskLabel(input: { teamId: string; labelId: string }): Promise<true> {
+    const { data, error } = await requireSupabaseClient().rpc('delete_team_label', {
+      p_team: input.teamId,
+      p_label: input.labelId
+    });
+    throwRpc(error);
+    if (data?.[0]?.ok !== true) throw new TeamApiError('INVALID_RESPONSE', false);
+    return true;
+  },
+
+  /** Hangs a tag on a task (018). Returns the task's whole tag list. */
+  async attachTaskLabel(input: {
+    teamId: string;
+    taskId: string;
+    labelId: string;
+  }): Promise<TeamTaskLabelRef[]> {
+    const { data, error } = await requireSupabaseClient().rpc('attach_team_task_label', {
+      p_team: input.teamId,
+      p_task: input.taskId,
+      p_label: input.labelId
+    });
+    throwRpc(error);
+    const labels = parseTeamTaskLabelRefs(data);
+    if (!labels) throw new TeamApiError('INVALID_RESPONSE', false);
+    return labels;
+  },
+
+  async detachTaskLabel(input: {
+    teamId: string;
+    taskId: string;
+    labelId: string;
+  }): Promise<TeamTaskLabelRef[]> {
+    const { data, error } = await requireSupabaseClient().rpc('detach_team_task_label', {
+      p_team: input.teamId,
+      p_task: input.taskId,
+      p_label: input.labelId
+    });
+    throwRpc(error);
+    const labels = parseTeamTaskLabelRefs(data);
+    if (!labels) throw new TeamApiError('INVALID_RESPONSE', false);
+    return labels;
+  },
+
+  // ---------------------------------------------------------------------------
   // Team accounts (017): the social accounts a space runs from, and their agents.
   // ---------------------------------------------------------------------------
 
@@ -2890,6 +3172,27 @@ export const teamApi = {
     return agent;
   },
 
+  /**
+   * The run's marker — green, amber, red, or null to clear it. A press on the
+   * run cycles through them, so this is called with whatever the cycle landed
+   * on rather than with a colour chosen from a menu.
+   */
+  async setAgentRunMarker(input: {
+    teamId: string;
+    runId: string;
+    marker: TeamAgentRunMarker | null;
+  }): Promise<TeamAccountAgentSummary> {
+    const { data, error } = await requireSupabaseClient().rpc('set_team_agent_run_marker', {
+      p_team: input.teamId,
+      p_run: input.runId,
+      p_marker: input.marker
+    });
+    throwRpc(error);
+    const agent = parseTeamAccountAgent(data);
+    if (!agent) throw new TeamApiError('INVALID_RESPONSE', false);
+    return agent;
+  },
+
   async deleteAgentRun(input: { teamId: string; runId: string }): Promise<TeamAccountAgentSummary> {
     const { data, error } = await requireSupabaseClient().rpc('delete_team_agent_run', {
       p_team: input.teamId,
@@ -2901,11 +3204,110 @@ export const teamApi = {
     return agent;
   },
 
+  /**
+   * Takes the marker off every marked run in the space, and returns what they
+   * were carrying so the toast can offer to put them back.
+   */
+  async clearAgentRunMarkers(input: { teamId: string }): Promise<TeamAgentRunMarkerSnapshot[]> {
+    const { data, error } = await requireSupabaseClient().rpc('clear_team_agent_run_markers', {
+      p_team: input.teamId
+    });
+    throwRpc(error);
+    const cleared = parseTeamAgentRunMarkerSnapshots(data);
+    if (!cleared) throw new TeamApiError('INVALID_RESPONSE', false);
+    return cleared;
+  },
+
   /** Frees the agent: every run goes. */
-  async clearAgentRuns(input: { teamId: string; agentRowId: string }): Promise<TeamAccountAgentSummary> {
+  async clearAgentRuns(input: {
+    teamId: string;
+    agentRowId: string;
+  }): Promise<TeamAccountAgentSummary> {
     const { data, error } = await requireSupabaseClient().rpc('clear_team_agent_runs', {
       p_team: input.teamId,
       p_agent: input.agentRowId
+    });
+    throwRpc(error);
+    const agent = parseTeamAccountAgent(data);
+    if (!agent) throw new TeamApiError('INVALID_RESPONSE', false);
+    return agent;
+  },
+
+  /**
+   * The two figures on an agent (019): what it has left and what to add. Both
+   * every time — null clears a field — and the whole agent comes back.
+   */
+  async setAgentMoney(input: {
+    teamId: string;
+    agentRowId: string;
+    balance: number | null;
+    topup: number | null;
+  }): Promise<TeamAccountAgentSummary> {
+    const balance = normalizeTeamAgentAmount(input.balance);
+    const topup = normalizeTeamAgentAmount(input.topup);
+    if (balance === undefined || topup === undefined) {
+      throw new TeamApiError('INVALID_INPUT', false);
+    }
+    const { data, error } = await requireSupabaseClient().rpc('set_team_agent_money', {
+      p_team: input.teamId,
+      p_agent: input.agentRowId,
+      p_balance: balance,
+      p_topup: topup
+    });
+    throwRpc(error);
+    const agent = parseTeamAccountAgent(data);
+    if (!agent) throw new TeamApiError('INVALID_RESPONSE', false);
+    return agent;
+  },
+
+  /** Clears every top-up in the space, and says what they were so an undo can. */
+  async clearAgentTopups(input: { teamId: string }): Promise<TeamAgentTopupSnapshot[]> {
+    const { data, error } = await requireSupabaseClient().rpc('clear_team_agent_topups', {
+      p_team: input.teamId
+    });
+    throwRpc(error);
+    const snapshots = parseTeamAgentTopupSnapshots(data);
+    if (!snapshots) throw new TeamApiError('INVALID_RESPONSE', false);
+    return snapshots;
+  },
+
+  /** Clears every balance in the space, and says what they were. */
+  async clearAgentBalances(input: { teamId: string }): Promise<TeamAgentBalanceSnapshot[]> {
+    const { data, error } = await requireSupabaseClient().rpc('clear_team_agent_balances', {
+      p_team: input.teamId
+    });
+    throwRpc(error);
+    const snapshots = parseTeamAgentBalanceSnapshots(data);
+    if (!snapshots) throw new TeamApiError('INVALID_RESPONSE', false);
+    return snapshots;
+  },
+
+  /** Hangs an agent tag on an agent (019); the whole agent comes back. */
+  async attachAgentLabel(input: {
+    teamId: string;
+    agentRowId: string;
+    labelId: string;
+  }): Promise<TeamAccountAgentSummary> {
+    const { data, error } = await requireSupabaseClient().rpc('attach_team_agent_label', {
+      p_team: input.teamId,
+      p_agent: input.agentRowId,
+      p_label: input.labelId
+    });
+    throwRpc(error);
+    const agent = parseTeamAccountAgent(data);
+    if (!agent) throw new TeamApiError('INVALID_RESPONSE', false);
+    return agent;
+  },
+
+  async detachAgentLabel(input: {
+    teamId: string;
+    agentRowId: string;
+    labelId: string;
+  }): Promise<TeamAccountAgentSummary> {
+    const { data, error } = await requireSupabaseClient().rpc('detach_team_agent_label', {
+      p_team: input.teamId,
+      p_agent: input.agentRowId,
+      p_label: input.labelId
     });
     throwRpc(error);
     const agent = parseTeamAccountAgent(data);

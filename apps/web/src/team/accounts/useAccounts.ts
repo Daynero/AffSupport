@@ -3,7 +3,11 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
   sortTeamAccounts,
   type TeamAccountAgentSummary,
-  type TeamAccountSummary
+  type TeamAccountSummary,
+  type TeamAgentRunMarker,
+  type TeamAgentRunMarkerSnapshot,
+  type TeamAgentBalanceSnapshot,
+  type TeamAgentTopupSnapshot
 } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
 import { getSupabaseClient } from '../../lib/supabase';
@@ -44,7 +48,31 @@ export interface AccountsClient {
     note: string;
   }): Promise<TeamAccountAgentSummary>;
   deleteAgentRun(input: { teamId: string; runId: string }): Promise<TeamAccountAgentSummary>;
+  setAgentRunMarker(input: {
+    teamId: string;
+    runId: string;
+    marker: TeamAgentRunMarker | null;
+  }): Promise<TeamAccountAgentSummary>;
+  clearAgentRunMarkers(input: { teamId: string }): Promise<TeamAgentRunMarkerSnapshot[]>;
   clearAgentRuns(input: { teamId: string; agentRowId: string }): Promise<TeamAccountAgentSummary>;
+  setAgentMoney(input: {
+    teamId: string;
+    agentRowId: string;
+    balance: number | null;
+    topup: number | null;
+  }): Promise<TeamAccountAgentSummary>;
+  clearAgentTopups(input: { teamId: string }): Promise<TeamAgentTopupSnapshot[]>;
+  clearAgentBalances(input: { teamId: string }): Promise<TeamAgentBalanceSnapshot[]>;
+  attachAgentLabel(input: {
+    teamId: string;
+    agentRowId: string;
+    labelId: string;
+  }): Promise<TeamAccountAgentSummary>;
+  detachAgentLabel(input: {
+    teamId: string;
+    agentRowId: string;
+    labelId: string;
+  }): Promise<TeamAccountAgentSummary>;
 }
 
 const defaultClient: AccountsClient = teamApi;
@@ -94,11 +122,29 @@ export function useAccounts({
   const [error, setError] = useState<string | null>(null);
   const generation = useRef(0);
 
+  /**
+   * How many writes this space has taken from here.
+   *
+   * Every write also fires a realtime event, which schedules a re-read — and a
+   * re-read that *started* before a later write answers with the row as it was
+   * before it. Applying that answer puts the old figure back on screen a second
+   * after someone typed the new one, and the only tell is that it eventually
+   * corrects itself. So a read that spans a write is dropped: the write already
+   * applied the row the server returned, and the next event brings a fresh
+   * read anyway.
+   *
+   * A counter rather than a clock: a write and a read can land in the same
+   * millisecond, and `Date.now()` cannot tell which came first.
+   */
+  const writes = useRef(0);
+
   const refetch = useCallback(async () => {
     const requestGeneration = ++generation.current;
+    const writesBefore = writes.current;
     try {
       const next = await client.listAccounts(teamId);
       if (requestGeneration !== generation.current) return;
+      if (writes.current !== writesBefore) return;
       setAccounts(sortTeamAccounts(next));
       setError(null);
     } catch (cause) {
@@ -172,6 +218,23 @@ export function useAccounts({
         { event: '*', schema: 'public', table: 'team_task_agents', filter: `team_id=eq.${teamId}` },
         scheduleRefetch
       )
+      // An agent tag (019) is a row of its own, and the dictionary behind it
+      // holds the name and colour every chip draws.
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'team_agent_labels',
+          filter: `team_id=eq.${teamId}`
+        },
+        scheduleRefetch
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'team_labels', filter: `team_id=eq.${teamId}` },
+        scheduleRefetch
+      )
       .subscribe();
 
     return () => {
@@ -184,6 +247,7 @@ export function useAccounts({
   const createAccount = useCallback(
     async (name: string) => {
       const created = await client.createAccount({ teamId, name });
+      writes.current += 1;
       setAccounts(current => sortTeamAccounts([...current, created]));
       return created;
     },
@@ -193,6 +257,7 @@ export function useAccounts({
   const renameAccount = useCallback(
     async (accountId: string, name: string) => {
       const renamed = await client.renameAccount({ teamId, accountId, name });
+      writes.current += 1;
       setAccounts(current =>
         replaceAccount(current, accountId, account => ({ ...account, ...renamed }))
       );
@@ -204,6 +269,7 @@ export function useAccounts({
   const deleteAccount = useCallback(
     async (accountId: string) => {
       await client.deleteAccount({ teamId, accountId });
+      writes.current += 1;
       setAccounts(current => current.filter(account => account.id !== accountId));
     },
     [client, teamId]
@@ -212,6 +278,7 @@ export function useAccounts({
   const addAgent = useCallback(
     async (accountId: string, agentId: string, note: string | null) => {
       const created = await client.addAccountAgent({ teamId, accountId, agentId, note });
+      writes.current += 1;
       setAccounts(current =>
         replaceAccount(current, accountId, account => ({
           ...account,
@@ -225,6 +292,7 @@ export function useAccounts({
 
   /** Replaces one agent in place with what a write returned. */
   const putAgent = useCallback((updated: TeamAccountAgentSummary) => {
+    writes.current += 1;
     setAccounts(current =>
       replaceAccount(current, updated.accountId, account => ({
         ...account,
@@ -257,6 +325,32 @@ export function useAccounts({
     [client, putAgent, teamId]
   );
 
+  /** The colour a press on the run landed on; null clears it. */
+  const setRunMarker = useCallback(
+    async (runId: string, marker: TeamAgentRunMarker | null) =>
+      putAgent(await client.setAgentRunMarker({ teamId, runId, marker })),
+    [client, putAgent, teamId]
+  );
+
+  /**
+   * Takes every marker off the space in one call, and hands back what they
+   * were so the toast can put them back one by one.
+   */
+  const clearMarkers = useCallback(async () => {
+    const cleared = await client.clearAgentRunMarkers({ teamId });
+    writes.current += 1;
+    setAccounts(current =>
+      current.map(account => ({
+        ...account,
+        agents: account.agents.map(agent => ({
+          ...agent,
+          runs: agent.runs.map(run => (run.marker === null ? run : { ...run, marker: null }))
+        }))
+      }))
+    );
+    return cleared;
+  }, [client, teamId]);
+
   /** Frees the agent: every run goes at once. */
   const clearRuns = useCallback(
     async (agent: TeamAccountAgentSummary) =>
@@ -264,9 +358,62 @@ export function useAccounts({
     [client, putAgent, teamId]
   );
 
+  /** The two figures on an agent (019); the row the write returns replaces it. */
+  const setMoney = useCallback(
+    async (agent: TeamAccountAgentSummary, balance: number | null, topup: number | null) =>
+      putAgent(await client.setAgentMoney({ teamId, agentRowId: agent.id, balance, topup })),
+    [client, putAgent, teamId]
+  );
+
+  /**
+   * Takes every top-up off the space in one call, and hands back what they
+   * were so the toast can put them back one by one.
+   */
+  const clearTopups = useCallback(async () => {
+    const cleared = await client.clearAgentTopups({ teamId });
+    writes.current += 1;
+    setAccounts(current =>
+      current.map(account => ({
+        ...account,
+        agents: account.agents.map(agent =>
+          agent.topup === null ? agent : { ...agent, topup: null }
+        )
+      }))
+    );
+    return cleared;
+  }, [client, teamId]);
+
+  /** The mirror of `clearTopups`, for what the agents have left. */
+  const clearBalances = useCallback(async () => {
+    const cleared = await client.clearAgentBalances({ teamId });
+    writes.current += 1;
+    setAccounts(current =>
+      current.map(account => ({
+        ...account,
+        agents: account.agents.map(agent =>
+          agent.balance === null ? agent : { ...agent, balance: null }
+        )
+      }))
+    );
+    return cleared;
+  }, [client, teamId]);
+
+  const attachLabel = useCallback(
+    async (agent: TeamAccountAgentSummary, labelId: string) =>
+      putAgent(await client.attachAgentLabel({ teamId, agentRowId: agent.id, labelId })),
+    [client, putAgent, teamId]
+  );
+
+  const detachLabel = useCallback(
+    async (agent: TeamAccountAgentSummary, labelId: string) =>
+      putAgent(await client.detachAgentLabel({ teamId, agentRowId: agent.id, labelId })),
+    [client, putAgent, teamId]
+  );
+
   const deleteAgent = useCallback(
     async (agent: TeamAccountAgentSummary) => {
       await client.deleteAccountAgent({ teamId, agentRowId: agent.id });
+      writes.current += 1;
       setAccounts(current =>
         replaceAccount(current, agent.accountId, account => ({
           ...account,
@@ -291,6 +438,13 @@ export function useAccounts({
     addRun,
     updateRun,
     deleteRun,
-    clearRuns
+    setRunMarker,
+    clearMarkers,
+    clearRuns,
+    setMoney,
+    clearTopups,
+    clearBalances,
+    attachLabel,
+    detachLabel
   };
 }

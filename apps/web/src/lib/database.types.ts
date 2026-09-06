@@ -297,6 +297,8 @@ export type Database = {
       team_account_agents: {
         Row: {
           account_id: string;
+          balance: number | null;
+          topup: number | null;
           agent_id: string;
           created_at: string;
           created_by: string;
@@ -336,6 +338,89 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: 'teams';
             referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_labels: {
+        Row: {
+          color: string;
+          scope: string;
+          created_at: string;
+          created_by: string;
+          id: string;
+          name: string;
+          team_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          color?: string;
+          created_at?: string;
+          created_by: string;
+          id?: string;
+          name: string;
+          scope?: string;
+          team_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          color?: string;
+          created_at?: string;
+          created_by?: string;
+          id?: string;
+          name?: string;
+          scope?: string;
+          team_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_labels_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_task_label_links: {
+        Row: {
+          attached_at: string;
+          attached_by: string;
+          id: string;
+          label_id: string;
+          task_id: string;
+          team_id: string;
+        };
+        Insert: {
+          attached_at?: string;
+          attached_by: string;
+          id?: string;
+          label_id: string;
+          task_id: string;
+          team_id: string;
+        };
+        Update: {
+          attached_at?: string;
+          attached_by?: string;
+          id?: string;
+          label_id?: string;
+          task_id?: string;
+          team_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_task_label_links_label_id_team_id_fkey';
+            columns: ['label_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_labels';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_task_label_links_task_id_team_id_fkey';
+            columns: ['task_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_tasks';
+            referencedColumns: ['id', 'team_id'];
           }
         ];
       };
@@ -380,6 +465,7 @@ export type Database = {
           created_at: string;
           created_by: string;
           id: string;
+          marker: string | null;
           note: string;
           team_id: string;
           updated_at: string;
@@ -389,6 +475,7 @@ export type Database = {
           created_at?: string;
           created_by: string;
           id?: string;
+          marker?: string | null;
           note: string;
           team_id: string;
           updated_at?: string;
@@ -398,6 +485,7 @@ export type Database = {
           created_at?: string;
           created_by?: string;
           id?: string;
+          marker?: string | null;
           note?: string;
           team_id?: string;
           updated_at?: string;
@@ -1025,6 +1113,7 @@ export type Database = {
           thumbnail_time_ms: number | null;
           transcript_error_code: string | null;
           transcript_indexed_bytes: number;
+          tag_color: string | null;
           transcript_ingest_state: string;
           transcript_ingested_at: string | null;
           transcript_source_checksum: string | null;
@@ -1081,6 +1170,7 @@ export type Database = {
           thumbnail_time_ms?: number | null;
           transcript_error_code?: string | null;
           transcript_indexed_bytes?: number;
+          tag_color?: string | null;
           transcript_ingest_state?: string;
           transcript_ingested_at?: string | null;
           transcript_source_checksum?: string | null;
@@ -1137,6 +1227,7 @@ export type Database = {
           thumbnail_time_ms?: number | null;
           transcript_error_code?: string | null;
           transcript_indexed_bytes?: number;
+          tag_color?: string | null;
           transcript_ingest_state?: string;
           transcript_ingested_at?: string | null;
           transcript_source_checksum?: string | null;
@@ -1497,6 +1588,7 @@ export type Database = {
       };
       team_tasks: {
         Row: {
+          task_date: string | null;
           assignee_id: string | null;
           assignee_label_snapshot: string | null;
           completed_at: string | null;
@@ -1513,6 +1605,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          task_date?: string | null;
           assignee_id?: string | null;
           assignee_label_snapshot?: string | null;
           completed_at?: string | null;
@@ -1529,6 +1622,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          task_date?: string | null;
           assignee_id?: string | null;
           assignee_label_snapshot?: string | null;
           completed_at?: string | null;
@@ -2087,12 +2181,24 @@ export type Database = {
         Args: { p_agent: string; p_note: string; p_team: string };
         Returns: Json;
       };
+      clear_team_agent_run_markers: {
+        Args: { p_team: string };
+        Returns: Json;
+      };
       clear_team_agent_runs: {
         Args: { p_agent: string; p_team: string };
         Returns: Json;
       };
       delete_team_agent_run: {
         Args: { p_run: string; p_team: string };
+        Returns: Json;
+      };
+      set_team_material_tag: {
+        Args: { p_color: string | null; p_material: string; p_team: string };
+        Returns: Json;
+      };
+      set_team_agent_run_marker: {
+        Args: { p_marker: string | null; p_run: string; p_team: string };
         Returns: Json;
       };
       update_team_agent_run: {
@@ -2148,6 +2254,75 @@ export type Database = {
         Args: { p_agent: string; p_agent_id: string; p_team: string };
         Returns: Json;
       };
+      list_team_labels: {
+        Args: { p_scope?: string; p_team: string };
+        Returns: {
+          color: string;
+          created_at: string;
+          id: string;
+          name: string;
+          scope: string;
+          team_id: string;
+          updated_at: string;
+          usage_count: number;
+        }[];
+      };
+      attach_team_agent_label: {
+        Args: { p_agent: string; p_label: string; p_team: string };
+        Returns: Json;
+      };
+      detach_team_agent_label: {
+        Args: { p_agent: string; p_label: string; p_team: string };
+        Returns: Json;
+      };
+      set_team_agent_money: {
+        Args: { p_agent: string; p_balance: number | null; p_team: string; p_topup: number | null };
+        Returns: Json;
+      };
+      clear_team_agent_topups: {
+        Args: { p_team: string };
+        Returns: { agent_row_id: string; topup: number }[];
+      };
+      clear_team_agent_balances: {
+        Args: { p_team: string };
+        Returns: { agent_row_id: string; balance: number }[];
+      };
+      create_team_label: {
+        Args: { p_color?: string; p_name: string; p_scope?: string; p_team: string };
+        Returns: {
+          color: string;
+          created_at: string;
+          created_by: string;
+          id: string;
+          name: string;
+          team_id: string;
+          updated_at: string;
+        };
+      };
+      update_team_label: {
+        Args: { p_color: string; p_label: string; p_name: string; p_team: string };
+        Returns: {
+          color: string;
+          created_at: string;
+          created_by: string;
+          id: string;
+          name: string;
+          team_id: string;
+          updated_at: string;
+        };
+      };
+      delete_team_label: {
+        Args: { p_label: string; p_team: string };
+        Returns: { ok: boolean }[];
+      };
+      attach_team_task_label: {
+        Args: { p_label: string; p_task: string; p_team: string };
+        Returns: Json;
+      };
+      detach_team_task_label: {
+        Args: { p_label: string; p_task: string; p_team: string };
+        Returns: Json;
+      };
       attach_team_task_agent: {
         Args: { p_agent: string; p_task: string; p_team: string };
         Returns: Json;
@@ -2191,7 +2366,7 @@ export type Database = {
         Args: {
           p_agent_instance: string;
           p_interface_language: string;
-          p_source?: string;
+          p_sources?: string[];
           p_supported_kinds: string[];
           p_team: string;
         };
@@ -2545,6 +2720,7 @@ export type Database = {
           occurred_at: string;
           result: string;
           target: Json;
+          subject_label: string;
         }[];
       };
       list_team_invitations: {
@@ -2600,6 +2776,10 @@ export type Database = {
           p_parent_folder_id?: string;
           p_team: string;
         };
+        Returns: Json;
+      };
+      list_team_folder_subtree: {
+        Args: { p_max_folders?: number; p_root: string; p_team: string };
         Returns: Json;
       };
       list_team_folder_tree: {
@@ -2658,12 +2838,20 @@ export type Database = {
           p_created_from?: string;
           p_created_to?: string;
           p_cursor?: string;
+          p_day_from?: string;
+          p_day_to?: string;
+          p_assignee?: string;
+          p_labels?: string[];
           p_page_size?: number;
+          p_sort?: string;
           p_status?: string;
           p_team: string;
+          p_unassigned?: boolean;
         };
         Returns: {
           agents: Json;
+          labels: Json;
+          task_date: string | null;
           assignee_id: string;
           assignee_label_snapshot: string;
           attachment_count: number;
@@ -2790,12 +2978,17 @@ export type Database = {
       };
       reset_share_preference: { Args: { p_team: string }; Returns: boolean };
       retry_failed_library_jobs: {
-        Args: { p_source?: string; p_team: string };
+        Args: { p_sources?: string[]; p_team: string };
         Returns: number;
       };
       revoke_invitation: { Args: { p_invitation: string }; Returns: boolean };
       scan_library_requirements: {
-        Args: { p_interface_language: string; p_source?: string; p_team: string };
+        Args: {
+          p_commit?: boolean;
+          p_interface_language: string;
+          p_sources?: string[];
+          p_team: string;
+        };
         Returns: Json;
       };
       search_materials: {

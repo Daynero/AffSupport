@@ -1,40 +1,96 @@
 /**
  * One account and the agents inside it.
  *
- * The head row is the account: its name, how many agents it holds and how many
- * of them are free, and the three things you do to an account — put an agent
- * in it, rename it, delete it. It also folds: an account that is fully busy is
- * not one you are working in today, and folding it keeps the list to the ones
- * you are.
+ * The head row is the account: its name, and the same summary every time —
+ * how many agents it holds, how many of those are free and how many are
+ * running — followed by the three things you do to an account: put an agent in
+ * it, rename it, delete it. The summary is the reason the head is worth its
+ * height: folded, it is the only thing left, and "2 agents" alone never said
+ * whether there was anywhere to start.
+ *
+ * The column captions are not here. They belong to the list, which prints them
+ * once above every account rather than four times down the page.
  */
 
-import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent
+} from 'react';
 import { Check, ChevronDown, Pencil, Plus, Trash2, UserRound, X } from 'lucide-react';
 import {
   countTeamAccounts,
   normalizeTeamAccountName,
   type TeamAccountAgentSummary,
   type TeamAccountSummary,
-  type TeamAgentRun
+  type TeamAgentRun,
+  type TeamAgentRunMarker,
+  type TeamTaskLabel,
+  type TeamTaskLabelRef
 } from '@video-compressor/shared';
 import { Modal } from '../../components/Modal';
 import { Button, IconButton } from '../../components/ui';
 import { ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
-import { useI18n, type Language, type TranslationKey } from '../../i18n';
+import { useI18n, type TranslationKey } from '../../i18n';
 import { internalLink } from '../../lib/navigation';
 import { teamErrorMessageFor } from '../errors';
 import { buildTeamRoute } from '../routes';
-import { AgentEditRow, AgentRow, EditField, taskCountKey } from './AgentRow';
+import { AgentEditRow, AgentRow, EditField } from './AgentRow';
+import { Marked } from './Marked';
+import { agentCountKey, busyCountKey, freeCountKey, taskCountKey } from './plural';
 
 const ICON = 18;
 
-/** Ukrainian counts three ways; English two. One place decides which. */
-export function agentCountKey(language: Language, count: number): TranslationKey {
-  const category = new Intl.PluralRules(language === 'uk' ? 'uk-UA' : 'en-US').select(count);
-  if (category === 'one') return 'teamAccountAgentsOne';
-  if (category === 'few') return 'teamAccountAgentsFew';
-  return 'teamAccountAgentsMany';
+/**
+ * The hues an account can be known by.
+ *
+ * Eight of them, far enough apart to tell two accounts apart at a glance, and
+ * all kept out of the three bands this screen already spends on meaning: green
+ * is a free agent, amber is a running one, red is a deletion. An account
+ * painted amber would have been saying "running" down its whole column.
+ */
+const ACCOUNT_HUES = [265, 300, 210, 330, 190, 245, 285, 225] as const;
+
+/**
+ * The colour an account is known by, down its own rows.
+ *
+ * Chosen by the account's id, so it is the same on every screen and every
+ * member's machine without a column to store it, and unchanged when the
+ * account is renamed. FNV-1a, so two ids that differ in one character do not
+ * land on the same hue; saturation and lightness are the theme's job.
+ */
+/** The agent tags on an account's agents, each with how many carry it. */
+function countAgentsByLabel(
+  agents: readonly TeamAccountAgentSummary[]
+): { label: TeamTaskLabelRef; count: number }[] {
+  const byId = new Map<string, { label: TeamTaskLabelRef; count: number }>();
+  for (const agent of agents) {
+    for (const label of agent.labels) {
+      const entry = byId.get(label.id) ?? { label, count: 0 };
+      entry.count += 1;
+      byId.set(label.id, entry);
+    }
+  }
+  return [...byId.values()].sort((left, right) =>
+    left.label.name.localeCompare(right.label.name, undefined, {
+      numeric: true,
+      sensitivity: 'base'
+    })
+  );
+}
+
+export function teamAccountHue(accountId: string): number {
+  let hash = 0x811c9dc5;
+  for (const character of accountId) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return ACCOUNT_HUES[hash % ACCOUNT_HUES.length];
 }
 
 function nameErrorKey(error: unknown): TranslationKey {
@@ -65,7 +121,7 @@ export function AccountGroup({
   editing,
   hold = false,
   pendingAgentIds,
-  showFreeCount = true,
+  search = '',
   onDirtyChange,
   onEditingChange,
   onRename,
@@ -76,6 +132,10 @@ export function AccountGroup({
   onAddRun,
   onUpdateRun,
   onDeleteRun,
+  onSetRunMarker,
+  onSetMoney,
+  onToggleLabel,
+  agentLabels = [],
   onRelease
 }: {
   teamId: string;
@@ -89,8 +149,8 @@ export function AccountGroup({
   hold?: boolean;
   /** Agents with a write in flight elsewhere (an undo); their rows wait. */
   pendingAgentIds?: ReadonlySet<string>;
-  /** Off while the list is already filtered to free agents, where it repeats the rows. */
-  showFreeCount?: boolean;
+  /** What is typed in the search, so the rows can mark what answered it. */
+  search?: string;
   onDirtyChange?: (dirty: boolean) => void;
   onEditingChange: (editing: AgentEditing) => void;
   onRename: (name: string) => Promise<void>;
@@ -101,6 +161,19 @@ export function AccountGroup({
   onAddRun: (agent: TeamAccountAgentSummary, note: string) => Promise<void>;
   onUpdateRun: (agent: TeamAccountAgentSummary, runId: string, note: string) => Promise<void>;
   onDeleteRun: (agent: TeamAccountAgentSummary, run: TeamAgentRun) => Promise<void>;
+  /** The agent half of the space's tag dictionary (019). */
+  agentLabels?: readonly TeamTaskLabel[];
+  onSetMoney: (
+    agent: TeamAccountAgentSummary,
+    balance: number | null,
+    topup: number | null
+  ) => Promise<void>;
+  onToggleLabel: (agent: TeamAccountAgentSummary, labelId: string, next: boolean) => Promise<void>;
+  onSetRunMarker: (
+    agent: TeamAccountAgentSummary,
+    run: TeamAgentRun,
+    marker: TeamAgentRunMarker | null
+  ) => Promise<void>;
   onRelease: (agent: TeamAccountAgentSummary) => Promise<void>;
 }) {
   const { t, language } = useI18n();
@@ -114,8 +187,20 @@ export function AccountGroup({
   const [deleting, setDeleting] = useState(false);
   const [addedCount, setAddedCount] = useState(0);
   const counts = countTeamAccounts([account]);
+  /**
+   * How many of the account's agents carry each agent tag (019), in the order
+   * the tags read. Counted over every agent of the account, like free and
+   * busy beside it — the head describes the account, not what a filter has
+   * left on screen.
+   */
+  const labelCounts = countAgentsByLabel(account.agents);
   const filteredOut = visibleAgents.length < counts.agents;
-  const taskCount = account.agents.reduce((total, agent) => total + agent.taskCount, 0);
+  /*
+   * Counted over what is on screen, not over what the account owns: under a
+   * search that left one agent of three, the head used to offer a link to
+   * three accounts' worth of tasks — tasks of agents the filter had removed.
+   */
+  const taskCount = visibleAgents.reduce((total, agent) => total + agent.taskCount, 0);
   const accountTasksHref = buildTeamRoute({
     spaceId: teamId,
     section: 'tasks',
@@ -139,6 +224,13 @@ export function AccountGroup({
   };
 
   const agentsLabel = (count: number) => t(agentCountKey(language, count), { count });
+  /*
+   * The head says how the account stands, folded or open: how many agents, how
+   * many free, how many running. A zero is left out rather than printed — "2
+   * agents · 2 running" already says none are free — but with any agent at all
+   * one of the two is always there, so a folded account never keeps its state
+   * to itself the way "2 agents" alone used to.
+   */
 
   /**
    * Closing an editor hands focus back to the thing that opened it — the run
@@ -153,6 +245,14 @@ export function AccountGroup({
       // list returns the first match in *document* order, and the id button
       // comes before the run cell in a row — so the fallback always won.
       window.requestAnimationFrame(() => {
+        /*
+         * Only if the focus was actually dropped. The frame this waits for is
+         * long enough to press something else in — a row's "…", say — and
+         * putting the focus "back" then took it off the menu that had just
+         * opened and closed it in the same breath.
+         */
+        const active = document.activeElement;
+        if (active && active !== document.body && active !== document.documentElement) return;
         for (const selector of focus) {
           const target = root.current?.querySelector<HTMLElement>(selector);
           if (target) {
@@ -166,10 +266,21 @@ export function AccountGroup({
   );
   const rowFocus = (agentRowId: string) => [
     `[data-agent-row-id="${agentRowId}"] .team-agent-run-add`,
-    `[data-agent-row-id="${agentRowId}"] .team-agent-tag`
+    // The tag is text now, so the copy beside it is the row's first focusable.
+    `[data-agent-row-id="${agentRowId}"] .team-agent-copy`
   ];
   /** Back to the pencil that opened the rename, or the fold toggle for a viewer. */
   const HEAD_FOCUS = ['.team-account-actions .team-agent-action', '.team-account-toggle'];
+
+  /**
+   * The whole strip folds the account — except when the press was the end of a
+   * drag over the name. Selecting "v31" to paste it somewhere is a thing
+   * people do to a heading, and it should not cost them the account's rows.
+   */
+  const foldFromHead = () => {
+    if (window.getSelection()?.isCollapsed === false) return;
+    onCollapsedChange(open);
+  };
 
   return (
     <section
@@ -177,6 +288,7 @@ export function AccountGroup({
       className={`team-account${open ? '' : ' is-collapsed'}`}
       aria-labelledby={nameId}
       data-account-id={account.id}
+      style={{ '--team-account-hue': teamAccountHue(account.id) } as CSSProperties}
     >
       {renaming ? (
         <AccountNameRow
@@ -190,7 +302,16 @@ export function AccountGroup({
           }}
         />
       ) : (
-        <div className="team-account-head">
+        /* The whole strip folds the account, not just the chevron: pressing
+           the name is what a hand does, and a 32px triangle was the only
+           thing that answered. The buttons on the right stop the press from
+           reaching it. */
+        /* No role and no key handler on purpose: the chevron beside it is a
+           real button carrying the same action and `aria-expanded`, so this
+           only widens the target for a pointer. `role="presentation"` was
+           worse than nothing here — it claims there is no semantics to
+           remove, which is neither true nor the point. */
+        <div className="team-account-head" onClick={foldFromHead}>
           <div className="team-account-title">
             <button
               type="button"
@@ -199,7 +320,10 @@ export function AccountGroup({
               aria-label={t(open ? 'teamAccountCollapse' : 'teamAccountExpand', {
                 name: account.name
               })}
-              onClick={() => onCollapsedChange(open)}
+              onClick={event => {
+                event.stopPropagation();
+                onCollapsedChange(open);
+              }}
             >
               <ChevronDown size={ICON} strokeWidth={ICON_STROKE} aria-hidden="true" />
             </button>
@@ -209,7 +333,7 @@ export function AccountGroup({
               <UserRound size={ICON} strokeWidth={ICON_STROKE} />
             </span>
             <h3 className="team-account-name" id={nameId} title={account.name}>
-              {account.name}
+              <Marked text={account.name} term={search} />
             </h3>
             <span className="team-account-meta">
               {counts.agents === 0 ? (
@@ -226,11 +350,32 @@ export function AccountGroup({
                         })
                       : agentsLabel(counts.agents)}
                   </span>
-                  {showFreeCount && counts.free > 0 && (
+                  {counts.free > 0 && (
                     <span className="team-account-meta-free">
-                      {t('teamAccountFreeCount', { count: counts.free })}
+                      {t(freeCountKey(language, counts.free), { count: counts.free })}
                     </span>
                   )}
+                  {counts.busy > 0 && (
+                    <span className="team-account-meta-busy">
+                      {t(busyCountKey(language, counts.busy), { count: counts.busy })}
+                    </span>
+                  )}
+                  {/* How the account's agents are split between the tags on
+                      them (019): the same chips the rows carry, each with the
+                      number of agents under it, so a batch can be counted
+                      without opening the account. */}
+                  {labelCounts.map(({ label, count }) => (
+                    <span
+                      key={label.id}
+                      className="team-task-label-chip is-count"
+                      data-color={label.color}
+                      title={t('teamAccountAgentsByTag', { tag: label.name, count })}
+                    >
+                      <span className="team-task-label-chip-dot" aria-hidden="true" />
+                      <span className="team-task-label-chip-name">{label.name}</span>
+                      <b>{count}</b>
+                    </span>
+                  ))}
                 </>
               )}
               {taskCount > 0 && (
@@ -238,14 +383,19 @@ export function AccountGroup({
                   className="team-account-tasks-link"
                   href={accountTasksHref}
                   title={t('teamAccountTasksLinkTitle')}
-                  onClick={event => internalLink(event, accountTasksHref)}
+                  onClick={event => {
+                    event.stopPropagation();
+                    internalLink(event, accountTasksHref);
+                  }}
                 >
                   {t(taskCountKey(language, taskCount), { count: taskCount })}
                 </a>
               )}
             </span>
           </div>
-          <div className="team-account-actions">
+          {/* Nothing here folds the account: each of these is its own action,
+              and the press stops before it reaches the strip. */}
+          <div className="team-account-actions" onClick={event => event.stopPropagation()}>
             {canEdit && (
               <>
                 <button
@@ -281,15 +431,6 @@ export function AccountGroup({
       {open && (
         <>
           {(visibleAgents.length > 0 || editing?.kind === 'add') && (
-            <div className="team-account-columns" aria-hidden="true">
-              <span />
-              <span>{t('teamAccountColumnAgent')}</span>
-              <span>{t('teamAccountColumnRun')}</span>
-              <span>{t('teamAccountColumnTasks')}</span>
-              <span />
-            </div>
-          )}
-          {(visibleAgents.length > 0 || editing?.kind === 'add') && (
             <ul className="team-account-agents">
               {visibleAgents.map(agent =>
                 editing?.kind === 'edit' && editing.agentRowId === agent.id ? (
@@ -311,6 +452,7 @@ export function AccountGroup({
                     accountName={account.name}
                     canEdit={canEdit}
                     pending={pendingAgentIds?.has(agent.id) ?? false}
+                    search={search}
                     tasksHref={buildTeamRoute({
                       spaceId: teamId,
                       section: 'tasks',
@@ -332,6 +474,10 @@ export function AccountGroup({
                     onAddRun={note => onAddRun(agent, note)}
                     onUpdateRun={(runId, note) => onUpdateRun(agent, runId, note)}
                     onDeleteRun={run => onDeleteRun(agent, run)}
+                    onSetRunMarker={(run, marker) => onSetRunMarker(agent, run, marker)}
+                    agentLabels={agentLabels}
+                    onSetMoney={(balance, topup) => onSetMoney(agent, balance, topup)}
+                    onToggleLabel={(labelId, next) => onToggleLabel(agent, labelId, next)}
                     onRelease={() => onRelease(agent)}
                     onDelete={() => onDeleteAgent(agent)}
                   />

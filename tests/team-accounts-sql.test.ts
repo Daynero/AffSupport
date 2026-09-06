@@ -270,6 +270,133 @@ describe('agents', () => {
     ).rejects.toThrow(/NOT_FOUND/);
   });
 
+  it('marks a run, clears the marker and refuses a colour it does not know', async () => {
+    type MarkedAgent = { id: string; runs: { id: string; note: string; marker: string | null }[] };
+    const teamId = await makeSpace('agents-run-markers');
+    const accountId = await makeAccount(teamId, 'v31');
+    const created = await harness.asUser<{ agent: MarkedAgent }>(
+      OWNER,
+      'select public.add_team_account_agent($1, $2, $3, $4) as agent',
+      [teamId, accountId, '1000098765434', 'Pro Caps | TR 02/09']
+    );
+    const runId = created[0]!.agent.runs[0]!.id;
+    expect(created[0]?.agent.runs[0]?.marker).toBeNull();
+
+    for (const marker of ['green', 'amber', 'red']) {
+      const marked = await harness.asUser<{ agent: MarkedAgent }>(
+        OWNER,
+        'select public.set_team_agent_run_marker($1, $2, $3) as agent',
+        [teamId, runId, marker]
+      );
+      expect(marked[0]?.agent.runs[0]?.marker).toBe(marker);
+    }
+    const cleared = await harness.asUser<{ agent: MarkedAgent }>(
+      OWNER,
+      'select public.set_team_agent_run_marker($1, $2, $3) as agent',
+      [teamId, runId, null]
+    );
+    expect(cleared[0]?.agent.runs[0]?.marker).toBeNull();
+
+    await expect(
+      harness.asUser(OWNER, 'select public.set_team_agent_run_marker($1, $2, $3)', [
+        teamId,
+        runId,
+        'chartreuse'
+      ])
+    ).rejects.toThrow(/INVALID_INPUT/);
+    // A viewer reads the colour but cannot set one, and a run of another space
+    // is not this space's to mark.
+    await expect(
+      harness.asUser(VIEWER, 'select public.set_team_agent_run_marker($1, $2, $3)', [
+        teamId,
+        runId,
+        'green'
+      ])
+    ).rejects.toThrow(/PERMISSION_DENIED/);
+    const other = await makeSpace('agents-run-markers-other');
+    await expect(
+      harness.asUser(OWNER, 'select public.set_team_agent_run_marker($1, $2, $3)', [
+        other,
+        runId,
+        'green'
+      ])
+    ).rejects.toThrow(/NOT_FOUND/);
+  });
+
+  it('clears every marker in the space at once and says what they were', async () => {
+    type MarkedAgent = { id: string; runs: { id: string; note: string; marker: string | null }[] };
+    const teamId = await makeSpace('agents-run-markers-clear');
+    const other = await makeSpace('agents-run-markers-clear-other');
+    const accountId = await makeAccount(teamId, 'v31');
+    const otherAccount = await makeAccount(other, 'v31');
+    const created = await harness.asUser<{ agent: MarkedAgent }>(
+      OWNER,
+      'select public.add_team_account_agent($1, $2, $3, $4) as agent',
+      [teamId, accountId, '1000098765434', 'Pro Caps | TR 02/09']
+    );
+    const agentRowId = created[0]!.agent.id;
+    const second = await harness.asUser<{ agent: MarkedAgent }>(
+      OWNER,
+      'select public.add_team_agent_run($1, $2, $3) as agent',
+      [teamId, agentRowId, 'Keto | PL 06/09']
+    );
+    const [first, next] = second[0]!.agent.runs;
+    await harness.asUser(OWNER, 'select public.set_team_agent_run_marker($1, $2, $3)', [
+      teamId,
+      first!.id,
+      'green'
+    ]);
+    await harness.asUser(OWNER, 'select public.set_team_agent_run_marker($1, $2, $3)', [
+      teamId,
+      next!.id,
+      'red'
+    ]);
+    // A marked run in another space is not touched by this one's clear.
+    const elsewhere = await harness.asUser<{ agent: MarkedAgent }>(
+      OWNER,
+      'select public.add_team_account_agent($1, $2, $3, $4) as agent',
+      [other, otherAccount, '2000098765434', 'Slim Fit | DE 01/09']
+    );
+    const foreignRun = elsewhere[0]!.agent.runs[0]!.id;
+    await harness.asUser(OWNER, 'select public.set_team_agent_run_marker($1, $2, $3)', [
+      other,
+      foreignRun,
+      'amber'
+    ]);
+
+    const cleared = await harness.asUser<{ cleared: { run_id: string; marker: string }[] }>(
+      OWNER,
+      'select public.clear_team_agent_run_markers($1) as cleared',
+      [teamId]
+    );
+    expect(
+      [...cleared[0]!.cleared].sort((left, right) => left.marker.localeCompare(right.marker))
+    ).toEqual([
+      { run_id: first!.id, marker: 'green' },
+      { run_id: next!.id, marker: 'red' }
+    ]);
+    const after = await harness.root<{ marker: string | null }>(
+      `select marker from public.team_agent_runs where team_id = $1`,
+      [teamId]
+    );
+    expect(after.every(row => row.marker === null)).toBe(true);
+    const untouched = await harness.root<{ marker: string | null }>(
+      `select marker from public.team_agent_runs where id = $1`,
+      [foreignRun]
+    );
+    expect(untouched[0]?.marker).toBe('amber');
+    // Nothing marked is not an error, and a viewer cannot clear.
+    const again = await harness.asUser<{ cleared: unknown[] }>(
+      OWNER,
+      'select public.clear_team_agent_run_markers($1) as cleared',
+      [teamId]
+    );
+    expect(again[0]?.cleared).toEqual([]);
+    await expect(
+      harness.asUser(VIEWER, 'select public.clear_team_agent_run_markers($1)', [teamId])
+    ).rejects.toThrow(/PERMISSION_DENIED/);
+  });
+
   it('refuses an id with whitespace and a duplicate within the account', async () => {
     const teamId = await makeSpace('agents-invalid');
     const accountId = await makeAccount(teamId, 'v31');
@@ -573,5 +700,158 @@ describe('tags on tasks (017, part 2)', () => {
       [teamId]
     );
     expect(listed).toHaveLength(1);
+  });
+});
+
+describe('the date a task is for (017, part 4)', () => {
+  async function makeTask(teamId: string, title: string): Promise<string> {
+    const rows = await harness.asUser<{ id: string }>(
+      OWNER,
+      'select id from public.create_team_task($1, $2)',
+      [teamId, title]
+    );
+    return rows[0]!.id;
+  }
+  type TaskRow = { id: string; task_date: string | Date | null; created_at: string };
+  /** PGlite hands a `date` back as a Date; PostgREST as `YYYY-MM-DD`. */
+  const dayOf = (value: string | Date | null) =>
+    value === null ? null : new Date(value).toISOString().slice(0, 10);
+
+  it('defaults to none (the created day), takes a date, and gives it back', async () => {
+    const teamId = await makeSpace('task-date');
+    const taskId = await makeTask(teamId, 'Launch');
+
+    let listed = await harness.asUser<TaskRow>(
+      OWNER,
+      'select id, task_date, created_at from public.list_team_tasks($1)',
+      [teamId]
+    );
+    expect(listed[0]?.task_date).toBeNull();
+
+    await harness.asUser(OWNER, 'select * from public.update_team_task($1, $2, $3)', [
+      teamId,
+      taskId,
+      JSON.stringify({ dateOn: '2026-09-18' })
+    ]);
+    listed = await harness.asUser<TaskRow>(
+      OWNER,
+      'select id, task_date, created_at from public.list_team_tasks($1)',
+      [teamId]
+    );
+    expect(dayOf(listed[0]?.task_date ?? null)).toBe('2026-09-18');
+
+    // The detail read carries it too, and null puts it back to the default.
+    const detail = await harness.asUser<{ get_team_task: { task: { task_date: string | null } } }>(
+      OWNER,
+      'select public.get_team_task($1, $2)',
+      [teamId, taskId]
+    );
+    expect(detail[0]?.get_team_task.task.task_date).toBe('2026-09-18');
+
+    await harness.asUser(OWNER, 'select * from public.update_team_task($1, $2, $3)', [
+      teamId,
+      taskId,
+      JSON.stringify({ dateOn: null })
+    ]);
+    listed = await harness.asUser<TaskRow>(
+      OWNER,
+      'select id, task_date, created_at from public.list_team_tasks($1)',
+      [teamId]
+    );
+    expect(listed[0]?.task_date).toBeNull();
+  });
+
+  it('filters and orders by the date a task is for, not the day it was made', async () => {
+    const teamId = await makeSpace('task-date-filter');
+    const plain = await makeTask(teamId, 'Made today');
+    const moved = await makeTask(teamId, 'Moved to the 18th');
+    await harness.asUser(OWNER, 'select * from public.update_team_task($1, $2, $3)', [
+      teamId,
+      moved,
+      JSON.stringify({ dateOn: '2026-09-18' })
+    ]);
+
+    // One day, in both forms the client sends it.
+    const oneDay = async (day: string) => {
+      const from = new Date(`${day}T00:00:00.000Z`);
+      const to = new Date(from);
+      to.setUTCDate(to.getUTCDate() + 1);
+      const rows = await harness.asUser<TaskRow>(
+        OWNER,
+        `select id, task_date, created_at from public.list_team_tasks($1,
+           p_created_from => $2, p_created_to => $3, p_day_from => $4, p_day_to => $5)`,
+        [teamId, from.toISOString(), to.toISOString(), day, day]
+      );
+      return rows.map(row => row.id);
+    };
+
+    // The moved task belongs to the 18th now, however today its row is.
+    expect(await oneDay(new Date().toISOString().slice(0, 10))).toEqual([plain]);
+    expect(await oneDay('2026-09-18')).toEqual([moved]);
+
+    // Unfiltered, the later date leads even though its row is the newer one.
+    const all = await harness.asUser<TaskRow>(
+      OWNER,
+      'select id, task_date, created_at from public.list_team_tasks($1)',
+      [teamId]
+    );
+    expect(all.map(row => row.id)).toEqual([moved, plain]);
+
+    // The cursor walks that same order.
+    const page = await harness.asUser<TaskRow>(
+      OWNER,
+      'select id, task_date, created_at from public.list_team_tasks($1, p_cursor => $2)',
+      [teamId, moved]
+    );
+    expect(page.map(row => row.id)).toEqual([plain]);
+  });
+
+  it('refuses half a range', async () => {
+    const teamId = await makeSpace('task-date-range-guards');
+    await makeTask(teamId, 'Launch');
+    await expect(
+      harness.asUser(
+        OWNER,
+        'select * from public.list_team_tasks($1, p_day_from => $2, p_day_to => $3)',
+        [teamId, '2026-09-01', '2026-09-30']
+      )
+    ).rejects.toThrow(/INVALID_INPUT/);
+    await expect(
+      harness.asUser(
+        OWNER,
+        `select * from public.list_team_tasks($1, p_created_from => $2, p_created_to => $3,
+           p_day_from => $4)`,
+        [teamId, '2026-09-01T00:00:00Z', '2026-09-30T00:00:00Z', '2026-09-01']
+      )
+    ).rejects.toThrow(/INVALID_INPUT/);
+    await expect(
+      harness.asUser(
+        OWNER,
+        `select * from public.list_team_tasks($1, p_created_from => $2, p_created_to => $3,
+           p_day_from => $4, p_day_to => $5)`,
+        [teamId, '2026-09-01T00:00:00Z', '2026-09-30T00:00:00Z', '2026-09-30', '2026-09-01']
+      )
+    ).rejects.toThrow(/INVALID_INPUT/);
+  });
+
+  it('refuses a date that is not one, and a viewer', async () => {
+    const teamId = await makeSpace('task-date-guards');
+    const taskId = await makeTask(teamId, 'Launch');
+    for (const bad of ['18/09/2026', '2026-13-01', '1999-01-01', '2101-01-01', '2026-02-30']) {
+      await expect(
+        harness.asUser(OWNER, 'select * from public.update_team_task($1, $2, $3)', [
+          teamId,
+          taskId,
+          JSON.stringify({ dateOn: bad })
+        ])
+      ).rejects.toThrow(/INVALID_INPUT/);
+    }
+    await expect(
+      harness.asUser(VIEWER, 'select * from public.update_team_task($1, $2, $3)', [
+        teamId,
+        taskId,
+        JSON.stringify({ dateOn: '2026-09-18' })
+      ])
+    ).rejects.toThrow(/PERMISSION_DENIED/);
   });
 });
