@@ -421,6 +421,8 @@ export function buildHeadReencodeArgs(options: HeadReencodeOptions): string[] {
 export interface ConcatOptions {
   listPath: string;
   output: string;
+  /** Ask FFmpeg for machine-readable progress on stdout while it joins. */
+  progress?: boolean;
 }
 
 /**
@@ -446,6 +448,10 @@ export function buildConcatArgs(options: ConcatOptions): string[] {
     ...MOVIE_TIMESCALE,
     '-movflags',
     '+faststart',
+    // Machine-readable progress on stdout, so the join — the longest part of a
+    // stitch by far — can be watched instead of guessed at. `-nostats` silences
+    // the human version of the same thing on stderr.
+    ...(options.progress ? ['-progress', 'pipe:1', '-nostats'] : []),
     options.output
   ];
 }

@@ -28,6 +28,7 @@ import {
   type MaterialRestitchPrep,
   type SourceProfile,
   type StitchScreens,
+  type StitchUnsupportedReason,
   type TeamRestitchDefaults,
   RESTITCH_DETECTOR_VERSION
 } from '@video-compressor/shared';
@@ -120,6 +121,30 @@ export function spaceScreens(
   );
 }
 
+/**
+ * The refusal, with its reason attached.
+ *
+ * `UNSUPPORTED_MEDIA` stays the code on the wire — it is what every caller already handles —
+ * and the reason rides beside it so the row can say the true sentence instead of the generic
+ * one. A refusal whose reason was lost (an old prepared record) simply carries none.
+ */
+/** A stored reason, narrowed to the five this product knows; anything else is dropped. */
+function refusalReason(value: string | null): StitchUnsupportedReason | null {
+  const known: readonly StitchUnsupportedReason[] = [
+    'video-codec',
+    'audio-codec',
+    'variable-frame-rate',
+    'container',
+    'unreadable'
+  ];
+  return known.find(reason => reason === value) ?? null;
+}
+
+function unsupported(reason: StitchUnsupportedReason | null): Error {
+  const error = new Error('UNSUPPORTED_MEDIA');
+  return reason ? Object.assign(error, { reason }) : error;
+}
+
 export function createRestitchDelegate(
   deps: RestitchDelegateDeps
 ): TeamProcessDelegate & { lastDiscovery: () => RestitchDelegateDiscovery | null } {
@@ -137,7 +162,7 @@ export function createRestitchDelegate(
     input.pausable(null);
 
     const looked = await inspect(input.sourceFile, options.prepared, input.signal);
-    if (!looked) throw new Error('UNSUPPORTED_MEDIA');
+    if (!looked) throw unsupported(refusalReason(options.prepared?.unsupportedReason ?? null));
     if (!options.prepared) {
       discovery = {
         detectorVersion: RESTITCH_DETECTOR_VERSION,
@@ -159,9 +184,18 @@ export function createRestitchDelegate(
       // Each refusal keeps its own name, so the row can say the true sentence rather than a
       // generic one: "no photo chosen" and "nothing to remove" are different problems with
       // different fixes, and neither is "this file is unsupported".
-      if (planned.error === 'no-screens') throw new Error('INVALID_INPUT');
-      if (planned.error === 'nothing-to-remove') throw new Error('WRONG_STATE');
-      throw new Error('UNSUPPORTED_MEDIA');
+      // Each refusal keeps its own code *and* its own reason: the code is what every caller
+      // already handles, and the reason is what lets the row say which fix is the fix.
+      if (planned.error === 'no-screens') {
+        throw Object.assign(new Error('INVALID_INPUT'), { reason: 'no-screens' });
+      }
+      if (planned.error === 'nothing-to-remove') {
+        throw Object.assign(new Error('WRONG_STATE'), { reason: 'nothing-to-remove' });
+      }
+      // Which of the five it is travels with the error: "this file type is not
+      // supported" is the wrong sentence for a variable frame rate, and the
+      // interface already has the right one for each.
+      throw unsupported(planned.error);
     }
 
     const produced = await pipeline({
@@ -176,12 +210,23 @@ export function createRestitchDelegate(
       threads: deps.threads?.() ?? null,
       signal: input.signal,
       onChild: () => {},
-      onStage: stage => input.onProgress(stage === 'verifying' ? 90 : 70),
+      /*
+       * The three stages are the anchors; the join reports between them.
+       *
+       * Screens are rendered first (a second or two), the join is nearly the whole wait, and
+       * verification closes it. Reporting only the anchors left the bar standing still at
+       * one number for minutes, which reads as a hang rather than as work.
+       */
+      onStage: stage =>
+        input.onProgress(stage === 'verifying' ? 92 : stage === 'joining' ? 45 : 42),
+      onJoinProgress: fraction => input.onProgress(45 + Math.round(fraction * 45)),
       imagePathFor: deps.imagePathFor,
       bodies
     });
     if (!produced.ok) {
-      throw new Error(produced.error === 'STITCH_CANCELLED' ? 'PROCESS_CANCELED' : 'PROCESS_FAILED');
+      throw new Error(
+        produced.error === 'STITCH_CANCELLED' ? 'PROCESS_CANCELED' : 'PROCESS_FAILED'
+      );
     }
     const output = await stat(produced.stagedPath);
     if (!output.isFile() || output.size < 1) throw new Error('INVALID_RESPONSE');
@@ -208,7 +253,10 @@ async function inspect(
   file: string,
   prepared: MaterialRestitchPrep | null,
   signal: AbortSignal
-): Promise<{ profile: SourceProfile; detected: { startSeconds: number; endSeconds: number; adjustedByUser: boolean } } | null> {
+): Promise<{
+  profile: SourceProfile;
+  detected: { startSeconds: number; endSeconds: number; adjustedByUser: boolean };
+} | null> {
   if (prepared) {
     // Either the record says the fast path cannot serve this file, or it carries no profile to
     // serve it with — both mean the same thing to a delivery.

@@ -527,6 +527,30 @@ function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/**
+ * A refusal can carry why, and the interface says the true sentence when it does.
+ *
+ * Only a fixed vocabulary travels — the five reasons a stitch can be refused for — so a
+ * message from anywhere else can never reach a page through this door.
+ */
+const REFUSAL_REASONS = new Set([
+  'video-codec',
+  'audio-codec',
+  'variable-frame-rate',
+  'container',
+  'unreadable',
+  // Not "unsupported" at all: the space has chosen no screen, or there is nothing on the
+  // video to take off. Both have a fix, and neither fix is "use another file".
+  'no-screens',
+  'nothing-to-remove'
+]);
+
+function refusalReason(error: unknown): string | null {
+  if (!error || typeof error !== 'object' || !('reason' in error)) return null;
+  const { reason } = error as { reason: unknown };
+  return typeof reason === 'string' && REFUSAL_REASONS.has(reason) ? reason : null;
+}
+
 function routeFailure(
   reply: FastifyReply,
   error: unknown,
@@ -559,7 +583,8 @@ function routeFailure(
               : code === 'DRIVE_UNAVAILABLE'
                 ? 503
                 : 400;
-  return reply.code(status).send({ error: code });
+  const reason = refusalReason(error);
+  return reply.code(status).send(reason ? { error: code, reason } : { error: code });
 }
 
 function safeErrorCode(

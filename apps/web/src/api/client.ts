@@ -633,17 +633,29 @@ export async function cancelTeamRestitchPreparation(operationId: string): Promis
  * here touches `WEB_TOOL_REQUIREMENTS`, which is compared byte-for-byte with the signed
  * manifest and therefore cannot gain an entry until the release that ships the agent.
  */
-export async function agentCanRestitch(): Promise<boolean> {
+/**
+ * Whether the local app can re-stitch — and, when it cannot, which of the two reasons it is.
+ *
+ * The two used to be one `false`, and the caller said the same sentence for both: "the Soty
+ * app on this computer is too old". That is a lie for the commonest case by far — an app
+ * that restarted and left this page holding a stale pairing token, which answers 401 and is
+ * not old at all. Being told to update an app that is already current is a dead end; being
+ * told the app needs to be running is a door.
+ */
+export type RestitchCapability = 'yes' | 'too-old' | 'unreachable';
+
+export async function agentCanRestitch(): Promise<RestitchCapability> {
   try {
     const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
     const contracts = health.toolContracts ?? {};
-    return (
-      toolContractCompatible('teamWorkspace', contracts) &&
+    return toolContractCompatible('teamWorkspace', contracts) &&
       toolContractCompatible('stitcher', contracts)
-    );
+      ? 'yes'
+      : 'too-old';
   } catch {
-    // No agent, or one that cannot answer: the caller offers the original instead.
-    return false;
+    // Not running, not reachable, or not paired with this page: whichever it is, the app
+    // never answered, so nothing is known about its age.
+    return 'unreachable';
   }
 }
 
@@ -1085,6 +1097,13 @@ async function assertOk(response: Response) {
   // generic failure and cost us that fact.
   if (response.status === 401) throw new PairingRequiredError(true);
   const body = await response.json();
-  if (!response.ok) throw new Error(body.error || 'AGENT_ERROR');
+  if (!response.ok) {
+    const error = new Error(body.error || 'AGENT_ERROR');
+    // A refusal can say which of its reasons it was — "this file has a variable
+    // frame rate" rather than "this file type is not supported". The reason
+    // travels beside the code so a caller can say the true sentence.
+    if (typeof body.reason === 'string') Object.assign(error, { reason: body.reason });
+    throw error;
+  }
   return body;
 }

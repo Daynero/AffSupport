@@ -28,6 +28,14 @@ export interface RunOptions {
   signal?: AbortSignal;
   /** Milliseconds before SIGKILL follows SIGTERM. */
   killAfterMs?: number;
+  /**
+   * Each complete line of stdout as it arrives.
+   *
+   * For `-progress pipe:1`, which reports a running job in `key=value` lines. The whole of
+   * stdout is still collected and returned, so a caller that parses the finished output is
+   * unaffected by anyone watching it live.
+   */
+  onLine?: (line: string) => void;
 }
 
 export function runTool(
@@ -70,8 +78,15 @@ export function runTool(
       else options.signal.addEventListener('abort', stop, { once: true });
     }
 
+    let pending = '';
     child.stdout?.on('data', chunk => {
       stdout += chunk;
+      if (!options.onLine) return;
+      pending += chunk;
+      const lines = pending.split('\n');
+      // The last piece may be half a line; it waits for the rest of it.
+      pending = lines.pop() ?? '';
+      for (const line of lines) options.onLine(line.trim());
     });
     child.stderr?.on('data', chunk => {
       stderr = (stderr + chunk).slice(-STDERR_TAIL_BYTES);

@@ -49,6 +49,14 @@ export interface PipelineContext {
   signal: AbortSignal;
   onChild: (child: ChildProcess) => void;
   onStage: (stage: StitchStage) => void;
+  /**
+   * How far through the join, as a fraction, while it runs.
+   *
+   * The join is nearly the whole wall clock of a stitch, and the three stages alone left a
+   * bar sitting at one number for a minute at a time. FFmpeg reports the output time it has
+   * written; against the duration the plan promised, that is a real percentage.
+   */
+  onJoinProgress?: (fraction: number) => void;
   imagePathFor: (id: string) => Promise<string | null>;
   bodies: PreparedBodyCache;
 }
@@ -152,6 +160,16 @@ export const runStitchPipeline: StitchPipeline = async context => {
 
   context.onStage('joining');
   const staged = path.join(workDir, 'result.mp4');
+  /** Turns FFmpeg's `out_time_us` into a fraction of what the plan promised. */
+  const joinProgress = (line: string) => {
+    const matched = /^out_time_us=(\d+)$/u.exec(line);
+    if (!matched || !context.onJoinProgress) return;
+    const seconds = Number(matched[1]) / 1_000_000;
+    const total = expected.promisedDurationSeconds;
+    if (!(total > 0) || !Number.isFinite(seconds)) return;
+    context.onJoinProgress(Math.max(0, Math.min(1, seconds / total)));
+  };
+  const joinRun = { ...run, onLine: joinProgress };
   if (segments.length === 1) {
     // Removing the stitching: the prepared body *is* the result. Copied out rather than
     // used in place, so the cached body is never the file that gets renamed away.
@@ -169,9 +187,12 @@ export const runStitchPipeline: StitchPipeline = async context => {
         'copy',
         '-movflags',
         '+faststart',
+        '-progress',
+        'pipe:1',
+        '-nostats',
         staged
       ],
-      run
+      joinRun
     );
     if (!toolSucceeded(copy)) return { ok: false, error: failureOf(copy, 'STITCH_JOIN') };
   } else {
@@ -193,7 +214,11 @@ export const runStitchPipeline: StitchPipeline = async context => {
 
     const listPath = path.join(workDir, 'segments.txt');
     await writeFile(listPath, concatListContents(segments), 'utf8');
-    const joined = await runTool(ffmpegPath, buildConcatArgs({ listPath, output: staged }), run);
+    const joined = await runTool(
+      ffmpegPath,
+      buildConcatArgs({ listPath, output: staged, progress: true }),
+      joinRun
+    );
     if (!toolSucceeded(joined)) return { ok: false, error: failureOf(joined, 'STITCH_JOIN') };
   }
 

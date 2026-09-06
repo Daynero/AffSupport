@@ -65,8 +65,12 @@ export interface TeamRestitchDefaults {
  *
  * 1: the tail walk measures a moving frame outside the held regions of the body, and is no
  *    longer capped at a tenth of the tail — a video stitched twice loses both screens.
+ * 2: a variable frame rate is decided from the body's own packet spacing rather than from
+ *    the file's average, which an end screen of up to forty-five minutes at one frame a
+ *    second dragged far below the nominal rate. Every video this product re-stitched was
+ *    refused on the next pass — and the refusal was cached, so it stayed refused.
  */
-export const RESTITCH_DETECTOR_VERSION = 1;
+export const RESTITCH_DETECTOR_VERSION = 2;
 
 export interface MaterialRestitchPrep {
   materialId: string;

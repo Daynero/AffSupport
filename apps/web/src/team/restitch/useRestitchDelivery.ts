@@ -15,7 +15,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MaterialRestitchPrep, TeamRestitchDefaults } from '@video-compressor/shared';
 import { usablePrep } from '@video-compressor/shared';
-import { agentCanRestitch, cancelTeamDownload, downloadTeamFileWithAgent } from '../../api/client';
+import {
+  agentCanRestitch,
+  cancelTeamDownload,
+  downloadTeamFileWithAgent,
+  toolEventUrl
+} from '../../api/client';
+import { useAgentEventStream } from '../../api/useAgentEventStream';
+import { useOptionalAgent } from '../../AgentContext';
 import { teamApi } from '../../api/team';
 import { completeTeamWorkflow, startTeamWorkflow } from '../../analytics/service';
 import { useI18n } from '../../i18n';
@@ -27,7 +34,13 @@ export type RestitchDeliveryPhase =
 
 export type RestitchDeliveryState =
   | { kind: 'idle' }
-  | { kind: 'running'; phase: RestitchDeliveryPhase; fileName: string }
+  | {
+      kind: 'running';
+      phase: RestitchDeliveryPhase;
+      fileName: string;
+      /** How far through the phase, 0–100, when the agent has said. */
+      progress?: number;
+    }
   | { kind: 'delivered'; fileName: string }
   | { kind: 'failed'; message: string }
   /** The space has no defaults yet; the caller raises the toast that offers to set them. */
@@ -78,6 +91,59 @@ function phaseFor(progress: number): RestitchDeliveryPhase {
   return 'saving';
 }
 
+/**
+ * The step behind each stage the agent reports.
+ *
+ * A delivery is three waits in a row — the video arrives, it is re-stitched, it is written
+ * where it was asked for — and each of them now reports its own percentage. Before this the
+ * row named a step once, at the start, and then stood still until the file appeared: a
+ * minute of "looking at the video" is indistinguishable from a hang.
+ */
+const PHASE_BY_STAGE: Record<string, RestitchDeliveryPhase> = {
+  downloading: 'transferring',
+  processing: 'stitching',
+  finalizing: 'saving',
+  uploading: 'saving'
+};
+
+/**
+ * The order the steps happen in, so a bar can only go forwards.
+ *
+ * The interface guesses a step before the run starts — it knows whether the space had this
+ * material prepared — and the agent's first message is about the step *before* that guess.
+ * Without this the bar jumped to the middle and then fell back to the start, which reads as
+ * the work being redone.
+ */
+const PHASE_ORDER: RestitchDeliveryPhase[] = [
+  'choosing',
+  'transferring',
+  'inspecting',
+  'stitching',
+  'saving'
+];
+
+/** What the interface says about a refusal, when the agent said which one it was. */
+const REFUSAL_COPY = {
+  'video-codec': 'stitcherUnsupportedVideoCodec',
+  'audio-codec': 'stitcherUnsupportedAudioCodec',
+  'variable-frame-rate': 'stitcherUnsupportedVariableFrameRate',
+  container: 'stitcherUnsupportedContainer',
+  unreadable: 'stitcherUnsupportedUnreadable',
+  // These two are not about the file: the space has chosen no screen, or the video carries
+  // nothing to take off. Saying "some of that is not valid" for either sent people looking
+  // for a bad field that does not exist.
+  'no-screens': 'teamRestitchNoScreens',
+  'nothing-to-remove': 'stitcherNothingToRemove'
+} as const;
+
+function refusalMessage(error: unknown): keyof typeof REFUSAL_COPY | null {
+  if (!error || typeof error !== 'object' || !('reason' in error)) return null;
+  const { reason } = error as { reason: unknown };
+  return typeof reason === 'string' && reason in REFUSAL_COPY
+    ? (reason as keyof typeof REFUSAL_COPY)
+    : null;
+}
+
 export function useRestitchDelivery(teamId: string) {
   const { t } = useI18n();
   const [states, setStates] = useState<Record<string, RestitchDeliveryState>>({});
@@ -86,6 +152,16 @@ export function useRestitchDelivery(teamId: string) {
   const running = useRef(new AbortController());
   /** The agent-side run behind each material, so it can be stopped by name. */
   const operations = useRef(new Map<string, string>());
+  /**
+   * Which material the agent's progress belongs to.
+   *
+   * Deliveries run one at a time (the shell queues a selection), so one pair is enough —
+   * and state rather than a ref, because the event subscription below has to start and stop
+   * with it.
+   */
+  const [watching, setWatching] = useState<{ materialId: string; operationId: string } | null>(
+    null
+  );
 
   // Leaving the folder or the page ends a delivery as cleanly as pressing cancel: the run is
   // abandoned rather than left writing into a view nobody is looking at (FR-013).
@@ -98,6 +174,45 @@ export function useRestitchDelivery(teamId: string) {
     setStates(current => ({ ...current, [materialId]: state }));
   }, []);
 
+  /*
+   * The agent's own progress, followed while a delivery runs.
+   *
+   * The same channel the process panel listens to: the download bridge publishes the bytes
+   * as the source arrives, the stitch as it is joined, and the copy into the chosen folder.
+   * Without this the row named its first step and then said nothing for minutes.
+   */
+  const agent = useOptionalAgent();
+  useAgentEventStream<{
+    type: 'team:operations';
+    operations: Array<{ operationId: string; state: string; stage: string; progress: number }>;
+  }>({
+    url: watching ? toolEventUrl('team') : null,
+    channel: 'team',
+    multiplexed: Boolean(agent?.capabilities?.includes('event-stream')),
+    enabled: Boolean(watching),
+    onMessage: event => {
+      if (event.type !== 'team:operations' || !watching) return;
+      const live = event.operations.find(item => item.operationId === watching.operationId);
+      if (!live || live.state !== 'running') return;
+      setStates(current => {
+        const state = current[watching.materialId];
+        // The folder question is a person deciding, not the machine working: a stage that
+        // arrives while the picker is open must not overwrite it.
+        if (!state || state.kind !== 'running' || state.phase === 'choosing') return current;
+        const reported = PHASE_BY_STAGE[live.stage] ?? state.phase;
+        // Never backwards: the guess made before the request is only a guess, but a step
+        // already reached has happened.
+        const phase =
+          PHASE_ORDER.indexOf(reported) >= PHASE_ORDER.indexOf(state.phase)
+            ? reported
+            : state.phase;
+        const progress = Math.max(0, Math.min(100, Math.round(live.progress)));
+        if (state.phase === phase && state.progress === progress) return current;
+        return { ...current, [watching.materialId]: { ...state, phase, progress } };
+      });
+    }
+  });
+
   const deliver = useCallback(
     async (target: RestitchDeliveryTarget): Promise<void> => {
       const known = defaults.current ?? (await teamApi.getRestitchDefaults(teamId));
@@ -109,13 +224,22 @@ export function useRestitchDelivery(teamId: string) {
         set(target.materialId, { kind: 'unconfigured' });
         return;
       }
-      if (!(await agentCanRestitch())) {
-        set(target.materialId, { kind: 'failed', message: t('teamRestitchAgentTooOld') });
+      const capability = await agentCanRestitch();
+      if (capability !== 'yes') {
+        // An app that never answered is not an old app: it is one that is not running, or
+        // one this page has lost its pairing with — and the sentence for that says so.
+        set(target.materialId, {
+          kind: 'failed',
+          message: t(
+            capability === 'too-old' ? 'teamRestitchAgentTooOld' : 'teamRestitchAgentMissing'
+          )
+        });
         return;
       }
 
       const operationId = crypto.randomUUID();
       operations.current.set(target.materialId, operationId);
+      setWatching({ materialId: target.materialId, operationId });
       const folder = rememberedFolder(teamId);
       // The first delivery in a space opens the app's own folder picker, and the wait for it
       // is a person deciding — not a machine working. Saying "transferring" through that is
@@ -136,9 +260,15 @@ export function useRestitchDelivery(teamId: string) {
           cacheState: prepared ? 'warm' : 'cold',
           stage: 'downloading'
         });
+        /*
+         * The video has to arrive before anything can be done to it, and the agent reports
+         * that arrival by the byte. Naming a later step here — which this did, because it
+         * knew whether the material had been prepared — put the bar in the middle before
+         * the first byte had been fetched.
+         */
         set(target.materialId, {
           kind: 'running',
-          phase: prepared ? 'stitching' : 'inspecting',
+          phase: 'transferring',
           fileName: target.fileName
         });
 
@@ -181,15 +311,26 @@ export function useRestitchDelivery(teamId: string) {
         }
         // Asked once, then never again for this space.
         if (saved.destination) rememberFolder(teamId, saved.destination);
+        setWatching(null);
         set(target.materialId, { kind: 'delivered', fileName: saved.fileName });
         if (flow) completeTeamWorkflow(flow, { outcome: 'success', retryable: false });
       } catch (error) {
         const canceled = error instanceof Error && error.message === 'DOWNLOAD_CANCELED';
+        setWatching(null);
+        // A refusal says which of its five reasons it was, when the agent named one: "this
+        // file type is not supported" is the wrong sentence for a video whose frame rate
+        // varies, and the interface already holds the right one for each.
+        const refusal = refusalMessage(error);
         // A download somebody stopped is not a failure, and a red message for a button they
         // pressed themselves reads as one.
         set(
           target.materialId,
-          canceled ? { kind: 'idle' } : { kind: 'failed', message: teamErrorMessageFor(error, t) }
+          canceled
+            ? { kind: 'idle' }
+            : {
+                kind: 'failed',
+                message: refusal ? t(REFUSAL_COPY[refusal]) : teamErrorMessageFor(error, t)
+              }
         );
         if (flow) {
           const canceled = error instanceof Error && error.message === 'PROCESS_CANCELED';

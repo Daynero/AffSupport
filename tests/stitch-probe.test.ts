@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { stitchUnsupportedReason } from '../packages/shared/src/stitcher.js';
 import {
   buildKeyframeProbeArgs,
+  buildPacketTimingProbeArgs,
   buildSourceProbeArgs,
+  packetTimingIsConstant,
   parseKeyframeTimes,
   parseRational,
   parseTimescale,
@@ -177,5 +179,63 @@ describe('narrowing a payload', () => {
       sourceProfileFromProbe(probePayload({ video: { time_base: '2/30' } }), FILE)
     );
     expect(result.videoTimescale).toBe(15360);
+  });
+});
+
+/**
+ * The second opinion, and the bug it exists for.
+ *
+ * A re-stitched file carries an end screen of up to forty-five minutes at a frame every
+ * several seconds. That drags the file's average frame rate far below its nominal one, and
+ * the cheap test — average against nominal — then calls the file variable-frame-rate and
+ * refuses it. Every video Soty stitched was un-stitchable afterwards, with a message that
+ * said its *type* was unsupported. The body's own packet spacing is what the copy actually
+ * depends on, so when a window of it can be read, it decides.
+ */
+describe('judging the body rather than the file', () => {
+  const evenly = (count: number, gap: number, start = 0) =>
+    Array.from({ length: count }, (_, index) => (start + index * gap).toFixed(4)).join('\n');
+
+  it('asks ffprobe for packets inside one window, without decoding', () => {
+    const args = buildPacketTimingProbeArgs('/tmp/in.mp4', 15, 4);
+    expect(args).toContain('-read_intervals');
+    expect(args[args.indexOf('-read_intervals') + 1]).toBe('15%+4');
+    expect(args.join(' ')).toContain('packet=pts_time');
+    // Packets, not frames: a decode of a fifty-minute file is not a probe.
+    expect(args.join(' ')).not.toContain('-skip_frame');
+  });
+
+  it('calls evenly spaced packets constant, and jittered ones variable', () => {
+    expect(packetTimingIsConstant(evenly(120, 0.0333))).toBe(true);
+    // Presentation stamps arrive in decode order; the parser sorts before it measures.
+    const shuffled = ['0.0666', '0.0000', '0.0333', '0.0999', '0.1332', '0.1665', '0.1998'];
+    expect(packetTimingIsConstant(shuffled.join('\n'))).toBe(true);
+    const jittered = ['0', '0.02', '0.09', '0.11', '0.2', '0.21', '0.33'];
+    expect(packetTimingIsConstant(jittered.join('\n'))).toBe(false);
+  });
+
+  it('says nothing about a window that holds almost no frames', () => {
+    // Four seconds of an end screen at a frame every nine seconds: the honest answer is
+    // "cannot tell", and the caller keeps the cheap verdict rather than inventing one.
+    expect(packetTimingIsConstant('0.0000\n9.0000')).toBeNull();
+    expect(packetTimingIsConstant('')).toBeNull();
+  });
+
+  it('lets a readable body overrule the average, and an unreadable one not', () => {
+    // The shape of this product's own output: nominal 120, average 2.16.
+    const stitched = probePayload({
+      video: { r_frame_rate: '120/1', avg_frame_rate: '27811840/12862033' }
+    });
+    const refused = unwrap(sourceProfileFromProbe(stitched, FILE));
+    expect(refused.variableFrameRate).toBe(true);
+    expect(stitchUnsupportedReason(refused)).toBe('variable-frame-rate');
+
+    const measured = unwrap(sourceProfileFromProbe(stitched, FILE, [], true));
+    expect(measured.variableFrameRate).toBe(false);
+    expect(stitchUnsupportedReason(measured)).toBeNull();
+
+    // And a body that really is uneven stays refused, whatever the average says.
+    const uneven = unwrap(sourceProfileFromProbe(probePayload(), FILE, [], false));
+    expect(uneven.variableFrameRate).toBe(true);
   });
 });

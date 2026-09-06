@@ -113,10 +113,7 @@ export function ProcessMaterialDialog({
       onClose={onClose}
     >
       <div className="team-panel-heading">
-        <div>
-          <p className="team-workspace-eyebrow">{t('teamProcessEyebrow')}</p>
-          <h3 id="team-process-title">{t('teamProcessTitle', { name: material.name })}</h3>
-        </div>
+        <h3 id="team-process-title">{t('teamProcessTitle', { name: material.name })}</h3>
         <Button type="button" variant="ghost" onClick={onClose}>
           {t('teamCancel')}
         </Button>

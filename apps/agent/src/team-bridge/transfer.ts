@@ -11,6 +11,14 @@ export interface TeamSourceDownloadRequest {
   operationId: string;
   transferUrl: string;
   grant: TeamTransferGrant;
+  /**
+   * How much of the source is here, as it arrives.
+   *
+   * The transfer is the first half of a delivery's wait and used to report nothing at all —
+   * one "0%" at the start, then silence until the processing began. Bytes are the only
+   * honest measure of it, and the range loop already counts them.
+   */
+  onProgress?: (bytesWritten: number, totalBytes: number | null) => void;
 }
 
 export interface DownloadedTeamSource {
@@ -137,6 +145,7 @@ export class TeamTransferClient {
         }
         if (responseBytes !== length) throw new Error('INVALID_RESPONSE');
         offset += responseBytes;
+        request.onProgress?.(offset, totalBytes);
       }
       if (totalBytes === null || totalBytes < 1 || offset !== totalBytes) {
         throw new Error('INVALID_RESPONSE');

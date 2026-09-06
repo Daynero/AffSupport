@@ -120,8 +120,15 @@ export function useRestitchPreparation(teamId: string) {
     const flow = startTeamWorkflow({ category: 'video', cacheState: 'cold', stage: 'processing' });
 
     try {
-      if (!(await agentCanRestitch())) {
-        setState({ ...IDLE, phase: 'failed', errorCode: 'AGENT_UPDATE_REQUIRED' });
+      const capability = await agentCanRestitch();
+      if (capability !== 'yes') {
+        // Same distinction the delivery makes: an app that could not be asked is reported as
+        // one that is not there, never as one that is out of date.
+        setState({
+          ...IDLE,
+          phase: 'failed',
+          errorCode: capability === 'too-old' ? 'AGENT_UPDATE_REQUIRED' : 'AGENT_REQUIRED'
+        });
         return;
       }
       // The folder is made by this button and by nothing else: no member is ever asked to

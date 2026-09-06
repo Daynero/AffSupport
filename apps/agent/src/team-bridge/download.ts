@@ -91,6 +91,25 @@ export class TeamDownloadBridge {
     };
   }
 
+  /**
+   * The transfer's own share of the wait, in bytes.
+   *
+   * A delivery is two waits — fetching the source and working on it — and only the second
+   * one ever reported anything. Sending the first as its own stage is what lets a row show a
+   * bar that moves from the moment the button is pressed.
+   */
+  #transferProgress(
+    operationId: string
+  ): (bytesWritten: number, totalBytes: number | null) => void {
+    const events = this.#events;
+    if (!events) return () => {};
+    return (bytesWritten, totalBytes) => {
+      if (!totalBytes || totalBytes < 1) return;
+      const progress = Math.max(0, Math.min(100, Math.round((bytesWritten / totalBytes) * 100)));
+      events.update(operationId, { state: 'running', stage: 'downloading', progress });
+    };
+  }
+
   async download(request: TeamAgentDownloadRequest) {
     const fileName = safeDownloadName(request.fileName);
     if (this.#active.has(request.operationId)) throw new Error('WRONG_STATE');
@@ -113,7 +132,8 @@ export class TeamDownloadBridge {
         {
           operationId: request.operationId,
           transferUrl: request.transferUrl,
-          grant: request.transferGrant
+          grant: request.transferGrant,
+          onProgress: this.#transferProgress(request.operationId)
         },
         controller.signal
       );
@@ -149,6 +169,14 @@ export class TeamDownloadBridge {
         finalName = safeDownloadName(`${stem}${suffix}.mp4`);
       }
       try {
+        // Copying a finished file into the chosen folder is the last wait, and on a large
+        // video it is not instant: it gets its own stage rather than looking like a hang at
+        // a hundred per cent.
+        this.#events?.update(request.operationId, {
+          state: 'running',
+          stage: 'finalizing',
+          progress: 100
+        });
         const target = await copyWithoutOverwrite(produced, destinationRoot, finalName);
         this.#reveal(target);
         const written = await lstat(target);
