@@ -83,6 +83,15 @@ describe('the content policy', () => {
     // An inline SVG in the stylesheet, and a generated download preview.
     expect(directive('img-src')).toContain('data:');
     expect(directive('img-src')).toContain('blob:');
+    // Every subresource the browser fetches for itself comes from the local app
+    // over loopback: an embedded image's thumbnail and a landing's before/after
+    // preview through `<img>`, the transcript's source through the player. This
+    // held for the player alone once, and the images were blank on the hosted
+    // origin while working in the app's own copy, which serves no policy.
+    for (const name of ['img-src', 'media-src']) {
+      expect(directive(name)).toMatch(/127\.0\.0\.1:\*/u);
+      expect(directive(name)).toMatch(/localhost:\*/u);
+    }
   });
 
   it('admits exactly the Google Picker origins and nothing wider', () => {
