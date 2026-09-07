@@ -77,6 +77,58 @@ describe('claim_catalog_sync_jobs', () => {
     );
     expect(dead[0]).toMatchObject({ state: 'pending', attempts: 0 });
   }, 60_000);
+
+  /**
+   * The same starvation one level down: a worker that dies inside its lease
+   * writes nothing back, so the job used to keep the `next_attempt_at` it came
+   * in with and win the single slot again the minute its lease expired. The
+   * lease now moves it to the back, which is the only thing that lets whoever
+   * was waiting have a turn.
+   */
+  it('sends a job whose worker never reported back to the back of the queue', async () => {
+    const connected = (
+      await harness.root<{ connection_id: string }>(
+        'select connection_id from private.catalog_sync_jobs where id = $1',
+        [liveJob]
+      )
+    )[0]!.connection_id;
+    const queued = async (state: string, minutesAgo: number, leaseMinutesAgo: number | null) =>
+      (
+        await harness.root<{ id: string }>(
+          `insert into private.catalog_sync_jobs
+             (connection_id, phase, cursor, folder_queue, state, next_attempt_at, created_at,
+              lease_owner, lease_expires_at, attempts)
+           values ($1, 'incremental', '{}'::jsonb, '[]'::jsonb, $2,
+                   now() - make_interval(mins => $3), now() - make_interval(mins => $3),
+                   case when $4::int is null then null else 'worker-gone' end,
+                   case when $4::int is null then null
+                        else now() - make_interval(mins => $4::int) end,
+                   0)
+           returning id`,
+          [connected, state, minutesAgo, leaseMinutesAgo]
+        )
+      )[0]!.id;
+    // Abandoned two hours ago; waiting since one hour ago.
+    const abandoned = await queued('leased', 120, 1);
+    const waiting = await queued('pending', 60, null);
+
+    // Its expired lease and older next_attempt_at put the abandoned job first.
+    const first = await harness.root<{ id: string }>(
+      `select id from private.claim_catalog_sync_jobs('worker-2', 1, 60)`
+    );
+    expect(first.map(row => row.id)).toEqual([abandoned]);
+
+    // Abandoned again — nothing reports back — so the next tick must not repeat it.
+    await harness.root(
+      `update private.catalog_sync_jobs set lease_expires_at = now() - interval '1 second'
+        where id = $1`,
+      [abandoned]
+    );
+    const second = await harness.root<{ id: string }>(
+      `select id from private.claim_catalog_sync_jobs('worker-3', 1, 60)`
+    );
+    expect(second.map(row => row.id)).toEqual([waiting]);
+  }, 60_000);
 });
 
 describe('service_request_catalog_rescan (011, findings I4)', () => {
