@@ -409,14 +409,15 @@ function relativeCoverageKey(key) {
  * measure coverage) is not silently treated as a fall to zero.
  *
  * @param {{
+ *   form?: 'fast' | 'release',
  *   summary: Record<string, { lines?: { pct?: number } }> | null,
  *   baseline: { total_lines?: number, files?: Record<string, number> } | null,
  *   critical: { modules?: Record<string, number> } | null
  * }} input
  * @returns {{ total: number, files: Record<string, number>, failures: string[] } | null}
  */
-export function judgeCoverage({ summary, baseline, critical }) {
-  if (!summary) return null;
+export function judgeCoverage({ summary, baseline, critical, form = 'release' }) {
+  if (form === 'fast' || !summary) return null;
   /** @type {Record<string, number>} */
   const files = {};
   for (const [key, entry] of Object.entries(summary)) {
@@ -537,6 +538,7 @@ async function main() {
         };
       }
       const coverage = judgeCoverage({
+        form: args.form,
         summary: readJson(COVERAGE_SUMMARY_FILE),
         baseline: readJson(COVERAGE_BASELINE_FILE),
         critical: readJson(COVERAGE_CRITICAL_FILE)

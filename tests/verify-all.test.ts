@@ -205,6 +205,15 @@ describe('skip accounting', () => {
 });
 
 describe('the coverage verdict', () => {
+  it('ignores an old coverage report in fast mode without weakening release floors', () => {
+    const input = {
+      summary: { total: { lines: { pct: 0 } }, 'critical.ts': { lines: { pct: 0 } } },
+      baseline: null,
+      critical: { modules: { 'critical.ts': 95 } }
+    };
+    expect(judgeCoverage({ ...input, form: 'fast' })).toBeNull();
+    expect(judgeCoverage({ ...input, form: 'release' })?.failures).toHaveLength(1);
+  });
   /** judgeCoverage returns null only with no summary; every case below passes one. */
   function expectVerdict(input: Parameters<typeof judgeCoverage>[0]) {
     const verdict = judgeCoverage(input);
