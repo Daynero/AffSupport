@@ -27,11 +27,16 @@ export default function LandingPreviewPage() {
   // Without a provider (tests, fixtures) there is nothing to wait for.
   const ready = !agent || agent.connection === 'connected';
   const viewer = useLandingViewer({ source, enabled: ready });
-  const { pushState, setMessage, loaded, selected, activeCatalog } = viewer;
+  const { pushState, setMessage, loaded, selected, activeCatalog, state } = viewer;
 
   const [openingTeamId, setOpeningTeamId] = useState<string | null>(null);
   const [renderingTeamMaterialId, setRenderingTeamMaterialId] = useState<string | null>(null);
   const autoOpenedTeam = useRef<string | null>(null);
+  const previousLocalState = useRef<{
+    catalogs: Set<string>;
+    running: boolean;
+    local: boolean;
+  } | null>(null);
 
   useEffect(() => {
     document.title = `${t('landingGallery')} — Soty`;
@@ -40,6 +45,57 @@ export default function LandingPreviewPage() {
   useEffect(() => {
     analytics.track('tool_opened', { tool_identifier: 'landing-preview' });
   }, []);
+
+  useEffect(() => {
+    const active = state.catalogs.find(catalog => catalog.id === state.activeCatalogId);
+    const local = active?.sourceKind !== 'team';
+    const previous = previousLocalState.current;
+    if (previous) {
+      const added = state.catalogs.filter(
+        catalog => catalog.sourceKind !== 'team' && !previous.catalogs.has(catalog.id)
+      ).length;
+      if (added) {
+        analytics.track('input_add_completed', {
+          tool_identifier: 'landing-preview',
+          file_count: added
+        });
+      }
+      if (local && state.running && !previous.running) {
+        analytics.track('operation_started', {
+          tool_identifier: 'landing-preview',
+          file_count: Math.max(1, state.progress.total)
+        });
+      } else if (previous.local && previous.running && !state.running) {
+        const file_count = Math.max(1, state.progress.total);
+        if (state.progress.phase === 'completed') {
+          analytics.track('operation_completed', {
+            tool_identifier: 'landing-preview',
+            file_count,
+            success: true,
+            outcome: 'success'
+          });
+        } else if (state.progress.phase === 'cancelled') {
+          analytics.track('operation_cancelled', {
+            tool_identifier: 'landing-preview',
+            file_count,
+            outcome: 'cancelled'
+          });
+        } else if (state.progress.phase === 'failed' || state.error) {
+          analytics.track('operation_failed', {
+            tool_identifier: 'landing-preview',
+            file_count,
+            success: false,
+            outcome: 'failure'
+          });
+        }
+      }
+    }
+    previousLocalState.current = {
+      catalogs: new Set(state.catalogs.map(catalog => catalog.id)),
+      running: state.running,
+      local
+    };
+  }, [state]);
 
   const openTeamSpace = useCallback(
     async (teamId: string) => {

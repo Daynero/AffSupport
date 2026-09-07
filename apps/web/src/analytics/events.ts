@@ -398,7 +398,14 @@ export function sanitizeAnalyticsProperties(
       output[key] = raw as Json;
     else if (
       typedKey === 'tool_identifier' &&
-      ['compressor', 'landing-optimizer', 'landing-preview', 'transcription'].includes(String(raw))
+      [
+        'compressor',
+        'landing-optimizer',
+        'landing-preview',
+        'transcription',
+        'stitcher',
+        'two-factor'
+      ].includes(String(raw))
     )
       output[key] = raw as Json;
     else if (typeof raw === 'string' && safeToken.test(raw)) output[key] = raw;

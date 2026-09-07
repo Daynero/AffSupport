@@ -221,8 +221,11 @@ export interface ToolRow {
   tool: string;
   opens: number;
   unique_users: number;
+  inputs: number;
   starts: number;
   completions: number;
+  failures: number;
+  cancellations: number;
 }
 
 export interface EventRow {

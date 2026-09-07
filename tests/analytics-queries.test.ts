@@ -95,6 +95,11 @@ beforeAll(async () => {
       ('${BOB}','tool_opened','22222222-2222-4222-8222-222222222222','compressor','{"tool_identifier":"compressor"}','en','windows','0.4.0','0.4.0'),
       ('${BOB}','compression_started','22222222-2222-4222-8222-222222222222','compressor','{}','en','windows','0.4.0','0.4.0'),
       ('${BOB}','compression_failed','22222222-2222-4222-8222-222222222222','compressor','{"error_category":"network"}','en','windows','0.4.0','0.4.0'),
+      ('${ALICE}','tool_opened','11111111-1111-4111-8111-111111111111','transcription','{"tool_identifier":"transcription"}','uk','macos','0.4.0','0.4.0'),
+      ('${ALICE}','input_add_completed','11111111-1111-4111-8111-111111111111','transcription','{"file_count":2}','uk','macos','0.4.0','0.4.0'),
+      ('${ALICE}','operation_started','11111111-1111-4111-8111-111111111111','transcription','{"file_count":2}','uk','macos','0.4.0','0.4.0'),
+      ('${ALICE}','operation_completed','11111111-1111-4111-8111-111111111111','transcription','{"file_count":1}','uk','macos','0.4.0','0.4.0'),
+      ('${ALICE}','operation_failed','11111111-1111-4111-8111-111111111111','transcription','{"file_count":1}','uk','macos','0.4.0','0.4.0'),
       ('${CAROL}','home_viewed','33333333-3333-4333-8333-333333333333',null,'{}','uk','macos','0.4.0',null);
 
     insert into public.analytics_team_workspace values
@@ -192,7 +197,7 @@ describe('getOverview', () => {
     const data = await getOverview(ALL);
     expect(data.total_users).toBe(3); // Dave is deleted
     expect(data.sessions).toBe(3);
-    expect(data.tool_opens).toBe(2);
+    expect(data.tool_opens).toBe(3);
     expect(data.compression_batches).toBe(1);
     expect(data.videos_added).toBe(3);
     expect(data.videos_compressed).toBe(2);
@@ -236,7 +241,7 @@ describe('getUsers / getTopUsers', () => {
 
     const byActivity = await getTopUsers(ALL, 'activity');
     expect(byActivity.users[0].email).toBe('alice@example.com');
-    expect(byActivity.users[0].event_count).toBe(7);
+    expect(byActivity.users[0].event_count).toBe(12);
   });
 });
 
@@ -261,8 +266,20 @@ describe('getTools / getEvents / getFunnel', () => {
     const tools = await getTools(ALL);
     const compressor = tools.find(t => t.tool === 'compressor');
     expect(compressor?.opens).toBe(2);
+    expect(compressor?.inputs).toBe(3);
     expect(compressor?.starts).toBe(3);
     expect(compressor?.completions).toBe(2);
+    expect(compressor?.failures).toBe(1);
+
+    const transcription = tools.find(t => t.tool === 'transcription');
+    expect(transcription).toMatchObject({
+      opens: 1,
+      inputs: 2,
+      starts: 2,
+      completions: 1,
+      failures: 1,
+      cancellations: 0
+    });
 
     const events = await getEvents(ALL);
     const completed = events.find(e => e.event_name === 'compression_completed');

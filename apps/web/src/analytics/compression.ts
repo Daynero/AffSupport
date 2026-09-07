@@ -5,7 +5,10 @@ export type JobTransitionEventName =
   | 'estimate_completed'
   | 'compression_started'
   | 'compression_completed'
-  | 'compression_failed';
+  | 'compression_failed'
+  // The compressor's fourth ending. It reuses the tool-neutral name the other
+  // tools emit, so one query counts cancellations the same way for every tool.
+  | 'operation_cancelled';
 
 export function jobTransitionEventNames(
   previous: CompressionJob | undefined,
@@ -23,6 +26,8 @@ export function jobTransitionEventNames(
     events.push('compression_completed');
   if (previous.status !== 'failed' && current.status === 'failed')
     events.push('compression_failed');
+  if (previous.status !== 'cancelled' && current.status === 'cancelled')
+    events.push('operation_cancelled');
   return events;
 }
 

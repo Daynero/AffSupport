@@ -185,12 +185,20 @@ export function formatTools(rows: ToolRow[], period: ResolvedPeriod): string {
     r.tool,
     num(r.opens),
     num(r.unique_users),
+    num(r.inputs),
     num(r.starts),
-    num(r.completions)
+    num(r.completions),
+    num(r.failures),
+    num(r.cancellations)
   ]);
   return [
     header('Tools', period),
-    body.length ? table(['Tool', 'Opens', 'Users', 'Starts', 'Completions'], body) : '  —'
+    body.length
+      ? table(
+          ['Tool', 'Opens', 'Users', 'Inputs', 'Starts', 'Completions', 'Failures', 'Cancelled'],
+          body
+        )
+      : '  —'
   ].join('\n');
 }
 

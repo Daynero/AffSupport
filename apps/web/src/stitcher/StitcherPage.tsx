@@ -11,7 +11,7 @@
  * which the compressor cannot) and the line that says what was found and what will come out.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Ban,
   ChevronDown,
@@ -39,6 +39,7 @@ import type {
 import { useAgent } from '../AgentContext';
 import { useI18n, type Language } from '../i18n';
 import { analytics } from '../analytics/service';
+import { toolJobActivityEvents } from '../analytics/tools';
 import { compactPath, formatCodec, formatDuration, formatFps, formatSize } from '../format';
 import { DropZone } from '../components/DropZone';
 import { ImageEmbeddingSection } from '../components/ImageEmbeddingSection';
@@ -100,6 +101,19 @@ export function Stitcher() {
 
   const settings: StitchSettings | null = state?.settings ?? null;
   const jobs = useMemo(() => state?.jobs ?? [], [state]);
+  const previousAnalyticsJobs = useRef<StitchJob[] | null>(null);
+
+  useEffect(() => {
+    for (const event of toolJobActivityEvents('stitcher', previousAnalyticsJobs.current, jobs, {
+      started: ['queued', 'running'],
+      completed: ['done'],
+      failed: ['failed'],
+      cancelled: ['cancelled']
+    })) {
+      analytics.track(event.name, event.properties);
+    }
+    previousAnalyticsJobs.current = jobs;
+  }, [jobs]);
 
   useEffect(() => {
     document.title = 'Soty — Video Stitcher';

@@ -60,6 +60,7 @@ import { useI18n } from '../i18n';
 import { describeError } from './errors';
 import { usePageEntrance } from '../lib/navigation';
 import { analytics } from '../analytics/service';
+import { toolJobActivityEvents } from '../analytics/tools';
 import { languageDisplayName } from './language';
 import { TranscriptTextModal } from './TranscriptTextModal';
 import {
@@ -218,6 +219,7 @@ export default function TranscriptionPage() {
   // What the user asked to transcribe before the model was present; started automatically
   // once the download completes, on the quality it was asked for.
   const pendingStart = useRef<{ ids: string[]; quality?: TranscriptionQualityMode } | null>(null);
+  const previousAnalyticsJobs = useRef<TranscriptionJob[] | null>(null);
   const connected = connection === 'connected';
   const stateReady = state !== null;
   const canUseLocalPaths = capabilities.includes('local-file-paths');
@@ -275,6 +277,22 @@ export default function TranscriptionPage() {
   };
 
   const jobs = state?.jobs ?? EMPTY_JOBS;
+  useEffect(() => {
+    for (const event of toolJobActivityEvents(
+      'transcription',
+      previousAnalyticsJobs.current,
+      jobs,
+      {
+        started: ['queued', 'processing'],
+        completed: ['completed'],
+        failed: ['failed', 'interrupted'],
+        cancelled: ['cancelled']
+      }
+    )) {
+      analytics.track(event.name, event.properties);
+    }
+    previousAnalyticsJobs.current = jobs;
+  }, [jobs]);
   const visibleJobs = useMemo(() => [...jobs].sort((a, b) => b.createdAt - a.createdAt), [jobs]);
   const settings = state?.settings ?? {
     ...defaultTranscriptionSettings(),

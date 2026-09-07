@@ -365,8 +365,36 @@ export async function getTools(period: ResolvedPeriod): Promise<ToolRow[]> {
        tool,
        count(*) filter (where event_name = 'tool_opened')::int as opens,
        count(distinct user_id)::int as unique_users,
-       count(*) filter (where event_name = 'compression_started')::int as starts,
-       count(*) filter (where event_name = 'compression_completed')::int as completions
+       coalesce(sum(case
+         when event_name = 'videos_added' then
+           case when jsonb_typeof(properties -> 'video_count') = 'number'
+             then (properties ->> 'video_count')::int else 1 end
+         when event_name = 'input_add_completed' then
+           case when jsonb_typeof(properties -> 'file_count') = 'number'
+             then (properties ->> 'file_count')::int else 1 end
+         else 0 end), 0)::int as inputs,
+       coalesce(sum(case
+         when event_name = 'compression_started' then 1
+         when event_name = 'operation_started' then
+           case when jsonb_typeof(properties -> 'file_count') = 'number'
+             then (properties ->> 'file_count')::int else 1 end
+         else 0 end), 0)::int as starts,
+       coalesce(sum(case
+         when event_name = 'compression_completed' then 1
+         when event_name = 'operation_completed' then
+           case when jsonb_typeof(properties -> 'file_count') = 'number'
+             then (properties ->> 'file_count')::int else 1 end
+         else 0 end), 0)::int as completions,
+       coalesce(sum(case
+         when event_name in ('compression_failed', 'operation_failed') then
+           case when jsonb_typeof(properties -> 'file_count') = 'number'
+             then (properties ->> 'file_count')::int else 1 end
+         else 0 end), 0)::int as failures,
+       coalesce(sum(case
+         when event_name = 'operation_cancelled' then
+           case when jsonb_typeof(properties -> 'file_count') = 'number'
+             then (properties ->> 'file_count')::int else 1 end
+         else 0 end), 0)::int as cancellations
      from public.analytics_events e
      where ${EVENTS_RANGE} and tool is not null
      group by tool

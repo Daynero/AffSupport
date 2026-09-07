@@ -171,6 +171,8 @@ export default function CompressorPage() {
           });
         } else if (event === 'compression_completed') {
           analytics.track(event, { ...properties, success: true });
+        } else if (event === 'operation_cancelled') {
+          analytics.track(event, { ...properties, outcome: 'cancelled' });
         } else {
           analytics.track(event, properties);
         }

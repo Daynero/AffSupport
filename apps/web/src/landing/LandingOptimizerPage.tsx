@@ -17,6 +17,7 @@ import {
   canTransition,
   isSettled,
   type LandingEvent,
+  type LandingJob,
   type LandingJobStatus,
   type LandingSettings,
   isNewerSnapshot,
@@ -56,6 +57,7 @@ import { compactPath } from '../format';
 import { landingCountKey, useI18n } from '../i18n';
 import { usePageEntrance } from '../lib/navigation';
 import { analytics } from '../analytics/service';
+import { toolJobActivityEvents } from '../analytics/tools';
 import { LandingJobCard } from './LandingJobCard';
 
 interface ToastMessage {
@@ -104,6 +106,7 @@ export default function LandingOptimizerPage() {
     };
   }, []);
   const connected = connection === 'connected';
+  const previousAnalyticsJobs = useRef<LandingJob[] | null>(null);
 
   useEffect(() => {
     document.title = t('pageTitleLanding');
@@ -158,6 +161,22 @@ export default function LandingOptimizerPage() {
      list of things you want to act on some of, not all of. */
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const jobs = state?.jobs ?? (state?.job ? [state.job] : []);
+  useEffect(() => {
+    for (const event of toolJobActivityEvents(
+      'landing-optimizer',
+      previousAnalyticsJobs.current,
+      jobs,
+      {
+        started: ['queued', 'processing'],
+        completed: ['completed'],
+        failed: ['failed'],
+        cancelled: ['cancelled']
+      }
+    )) {
+      analytics.track(event.name, event.properties);
+    }
+    previousAnalyticsJobs.current = jobs;
+  }, [jobs]);
   const visibleJobs = useMemo(() => [...jobs].sort((a, b) => b.createdAt - a.createdAt), [jobs]);
   /* Selecting is only meaningful for landings the buttons can actually act on, and a landing
      that is running is not one of them — it has its own pause and stop on its card. */

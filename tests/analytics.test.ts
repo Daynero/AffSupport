@@ -17,6 +17,7 @@ import {
   jobTransitionEventNames,
   safeCompressionProperties
 } from '../apps/web/src/analytics/compression';
+import { toolJobActivityEvents } from '../apps/web/src/analytics/tools';
 import { makeJob } from './helpers';
 
 class MemoryStorage implements Storage {
@@ -185,6 +186,16 @@ describe('privacy-minimized analytics', () => {
     ]);
   });
 
+  it('reports a cancelled compression under the tool-neutral name', () => {
+    const previous = makeJob('job', 'processing');
+    expect(jobTransitionEventNames(previous, { ...previous, status: 'cancelled' })).toEqual([
+      'operation_cancelled'
+    ]);
+    // Reported once, not on every later snapshot of an already cancelled job.
+    const cancelled = makeJob('job', 'cancelled');
+    expect(jobTransitionEventNames(cancelled, { ...cancelled, progress: 100 })).toEqual([]);
+  });
+
   it('builds aggregate compression properties without names or paths', () => {
     const properties = safeCompressionProperties(
       makeJob('secret-file', 'completed', {
@@ -204,6 +215,61 @@ describe('privacy-minimized analytics', () => {
       processing_duration_ms: 500
     });
     expect(JSON.stringify(properties)).not.toMatch(/customer|private\.mov|\/Users/);
+  });
+
+  it('builds one privacy-safe lifecycle for non-team tool queues', () => {
+    const events = toolJobActivityEvents(
+      'transcription',
+      [
+        { id: 'private-name.mov', status: 'ready' },
+        { id: '/Users/person/secret.wav', status: 'processing' }
+      ],
+      [
+        { id: 'private-name.mov', status: 'processing' },
+        { id: '/Users/person/secret.wav', status: 'completed' },
+        { id: 'new-private-file.mp3', status: 'ready' }
+      ],
+      {
+        started: ['queued', 'processing'],
+        completed: ['completed'],
+        failed: ['failed'],
+        cancelled: ['cancelled']
+      }
+    );
+
+    expect(events).toEqual([
+      {
+        name: 'input_add_completed',
+        properties: { tool_identifier: 'transcription', file_count: 1 }
+      },
+      {
+        name: 'operation_started',
+        properties: { tool_identifier: 'transcription', file_count: 1 }
+      },
+      {
+        name: 'operation_completed',
+        properties: {
+          tool_identifier: 'transcription',
+          file_count: 1,
+          success: true,
+          outcome: 'success'
+        }
+      }
+    ]);
+    expect(JSON.stringify(events)).not.toMatch(/private|secret|Users/);
+  });
+
+  it('keeps every declared standalone tool identifier', () => {
+    for (const tool_identifier of [
+      'compressor',
+      'landing-optimizer',
+      'landing-preview',
+      'transcription',
+      'stitcher',
+      'two-factor'
+    ]) {
+      expect(sanitizeAnalyticsProperties({ tool_identifier })).toEqual({ tool_identifier });
+    }
   });
 
   it('uses a random session UUID and renews it only after long inactivity', () => {
