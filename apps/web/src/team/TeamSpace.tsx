@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useOptionalAuth } from '../auth/AuthContext';
 import { Modal, ModalBackdrop } from '../components/Modal';
 import { SupportDialog } from '../components/SupportDialog';
@@ -12,6 +12,7 @@ import { navigateTo, useBrowserRoute, usePageEntrance } from '../lib/navigation'
 import { configuredTeamDirectAddMode } from '../lib/config';
 import { readRememberedSpaceId, useTeam } from './TeamContext';
 import { teamErrorMessageFor } from './errors';
+import { SpaceLobby } from './lobby/SpaceLobby';
 import {
   buildTeamRoute,
   parseTeamRoute,
@@ -20,10 +21,13 @@ import {
   type TeamRouteQuery,
   type TeamSection
 } from './routes';
-import { SpaceLobby } from './lobby/SpaceLobby';
 import { spaceReadiness } from './lobby/SpaceCard';
 import { CreateSpaceWizard, type CreateSpaceWizardClient } from './create/CreateSpaceWizard';
-import { WorkspaceShell, type WorkspaceShellClient } from './workspace/WorkspaceShell';
+import type { WorkspaceShellClient } from './workspace/WorkspaceShell';
+
+const WorkspaceShell = lazy(() =>
+  import('./workspace/WorkspaceShell').then(module => ({ default: module.WorkspaceShell }))
+);
 
 export type TeamSpaceClient = {
   listTeams: () => Promise<TeamContextSnapshot[]>;
@@ -303,7 +307,9 @@ export function TeamSpace({
     <main className={`page-container team-space-page ${entering ? 'page-enter' : ''}`.trim()}>
       <ToastProvider>
         <MembershipLostNotice />
-        {node}
+        <Suspense fallback={<section className="team-space-lobby" aria-busy="true" />}>
+          {node}
+        </Suspense>
       </ToastProvider>
     </main>
   );

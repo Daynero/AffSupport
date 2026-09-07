@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { internalLink, navigateTo } from '../../lib/navigation';
 import { trackTeamWorkspaceSession } from '../../analytics/service';
@@ -7,9 +7,7 @@ import { useOptionalAgent } from '../../AgentContext';
 import { type TeamMaterialSummary } from '../../api/team';
 import type { TeamCatalogClient } from '../catalog/TeamCatalog';
 import { MaterialPreview } from '../preview/MaterialPreview';
-import { TaskSpace } from '../tasks';
 import type { TaskAccountScope } from '../tasks/useTasks';
-import { AccountSpace } from '../accounts';
 import { StorageChip, type StorageChipClient } from '../storage/StorageChip';
 import { useStorageHealth, type StorageHealthClient } from '../storage/useStorageHealth';
 import type { SpaceSettingsClient } from './SpaceSettings';
@@ -21,7 +19,7 @@ import { BackgroundWorkChip } from './BackgroundWorkChip';
 import { LibraryProcessingProvider } from '../library/LibraryProcessingProvider';
 import { ProcessLibraryDialog, type LibraryBatchScope } from '../library/ProcessLibraryDialog';
 import { SpaceStatePanel } from './SpaceStatePanel';
-import { ExplorerShell, type ExplorerShellClient } from '../explorer/ExplorerShell';
+import type { ExplorerShellClient } from '../explorer/ExplorerShell';
 import { BackgroundRenderProvider } from '../explorer/BackgroundRenderProvider';
 import { renderTeamLanding } from '../../api/client';
 import {
@@ -31,6 +29,16 @@ import {
   type TeamSection
 } from '../routes';
 import type { CatalogSearchFilters } from '@video-compressor/shared';
+
+const TaskSpace = lazy(() =>
+  import('../tasks/TaskSpace').then(module => ({ default: module.TaskSpace }))
+);
+const AccountSpace = lazy(() =>
+  import('../accounts/AccountSpace').then(module => ({ default: module.AccountSpace }))
+);
+const ExplorerShell = lazy(() =>
+  import('../explorer/ExplorerShell').then(module => ({ default: module.ExplorerShell }))
+);
 
 export type WorkspaceShellClient = TeamCatalogClient &
   SpaceSettingsClient &
@@ -373,74 +381,78 @@ export function WorkspaceShell({
             })}
           </nav>
 
-          <div className="team-space-shell-body">
-            {section === 'members' && (
-              <MembersSection
-                key={`members:${teamId}`}
-                teamId={teamId}
-                client={client}
-                directAddMode={directAddMode}
-              />
-            )}
-            {section === 'tasks' && (
-              <TaskSpace
-                key={`tasks:${teamId}`}
-                teamId={teamId}
-                createFromAsset={taskAsset}
-                onConsumedCreateFromAsset={() => setTaskAsset(null)}
-                openTaskId={query?.taskId ?? null}
-                onOpenTaskChange={onOpenTaskChange}
-                scope={taskScope}
-                onScopeChange={onTaskScopeChange}
-              />
-            )}
-            {section === 'accounts' && <AccountSpace key={`accounts:${teamId}`} teamId={teamId} />}
-            {/* Nothing was ever indexed, so the connection is genuinely the
+          <Suspense fallback={<div className="team-space-shell-body" aria-busy="true" />}>
+            <div className="team-space-shell-body">
+              {section === 'members' && (
+                <MembersSection
+                  key={`members:${teamId}`}
+                  teamId={teamId}
+                  client={client}
+                  directAddMode={directAddMode}
+                />
+              )}
+              {section === 'tasks' && (
+                <TaskSpace
+                  key={`tasks:${teamId}`}
+                  teamId={teamId}
+                  createFromAsset={taskAsset}
+                  onConsumedCreateFromAsset={() => setTaskAsset(null)}
+                  openTaskId={query?.taskId ?? null}
+                  onOpenTaskChange={onOpenTaskChange}
+                  scope={taskScope}
+                  onScopeChange={onTaskScopeChange}
+                />
+              )}
+              {section === 'accounts' && (
+                <AccountSpace key={`accounts:${teamId}`} teamId={teamId} />
+              )}
+              {/* Nothing was ever indexed, so the connection is genuinely the
             reason there are no files (finding I4). */}
-            {section === 'explorer' && !browsable && activeTeam && (
-              <SpaceStatePanel space={activeTeam} canManageDrive={activeTeam.role === 'owner'} />
-            )}
-            {/* The explorer stays mounted across a trip to Tasks or Members —
+              {section === 'explorer' && !browsable && activeTeam && (
+                <SpaceStatePanel space={activeTeam} canManageDrive={activeTeam.role === 'owner'} />
+              )}
+              {/* The explorer stays mounted across a trip to Tasks or Members —
             hidden, not unmounted — so the open folder and the selection are
             still there on return (a section change used to reset both). It
             reads its own remembered query while another section is showing. */}
-            <div hidden={section !== 'explorer' || (!browsable && Boolean(activeTeam))}>
-              <ExplorerShell
-                key={`explorer:${teamId}`}
-                teamId={teamId}
-                client={client}
-                revision={revision + browserRevision}
-                query={section === 'explorer' && query ? query : explorerQuery}
-                onQueryChange={onExplorerQuery}
-                onFolderChange={onExplorerFolderChange}
-                onSearched={onSearched}
-                onReset={resetExplorer}
-                onPreview={setPreviewing}
-                onCreateTask={asset => createTaskFrom({ ids: [asset.id], name: asset.name })}
-                onCreateTaskFromSelection={assets => {
-                  if (assets.length === 0) return;
-                  createTaskFrom({
-                    ids: assets.map(asset => asset.id),
-                    name: t('creativeLibrarySelectionSummary', { count: assets.length })
-                  });
-                }}
-                /* The file in hand, not the whole space: the dialog opens on
+              <div hidden={section !== 'explorer' || (!browsable && Boolean(activeTeam))}>
+                <ExplorerShell
+                  key={`explorer:${teamId}`}
+                  teamId={teamId}
+                  client={client}
+                  revision={revision + browserRevision}
+                  query={section === 'explorer' && query ? query : explorerQuery}
+                  onQueryChange={onExplorerQuery}
+                  onFolderChange={onExplorerFolderChange}
+                  onSearched={onSearched}
+                  onReset={resetExplorer}
+                  onPreview={setPreviewing}
+                  onCreateTask={asset => createTaskFrom({ ids: [asset.id], name: asset.name })}
+                  onCreateTaskFromSelection={assets => {
+                    if (assets.length === 0) return;
+                    createTaskFrom({
+                      ids: assets.map(asset => asset.id),
+                      name: t('creativeLibrarySelectionSummary', { count: assets.length })
+                    });
+                  }}
+                  /* The file in hand, not the whole space: the dialog opens on
                    the material that was chosen. */
-                onProcessSelection={(materialIds, scope) => {
-                  setBatchSources(materialIds);
-                  setBatchScope(scope ?? { kind: 'selection', count: materialIds.length });
-                  setBatchDialogOpen(true);
-                }}
-                onProcessLibrary={() => {
-                  setBatchSources([]);
-                  setBatchScope({ kind: 'space' });
-                  setBatchDialogOpen(true);
-                }}
-                onChanged={() => setBrowserRevision(value => value + 1)}
-                readOnly={storageAttention}
-              />
+                  onProcessSelection={(materialIds, scope) => {
+                    setBatchSources(materialIds);
+                    setBatchScope(scope ?? { kind: 'selection', count: materialIds.length });
+                    setBatchDialogOpen(true);
+                  }}
+                  onProcessLibrary={() => {
+                    setBatchSources([]);
+                    setBatchScope({ kind: 'space' });
+                    setBatchDialogOpen(true);
+                  }}
+                  onChanged={() => setBrowserRevision(value => value + 1)}
+                  readOnly={storageAttention}
+                />
+              </div>
             </div>
-          </div>
+          </Suspense>
 
           {query?.settings && (
             <SettingsDialog

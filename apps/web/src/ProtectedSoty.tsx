@@ -1,4 +1,4 @@
-import { Suspense, type ComponentType, useEffect } from 'react';
+import { lazy, Suspense, type ComponentType, useEffect } from 'react';
 import { InstantTips } from './components/InstantTips';
 import { AgentProvider, useAgent, useAgentStatus } from './AgentContext';
 import { Header } from './App';
@@ -18,8 +18,9 @@ import { SupportGoalProvider } from './support/SupportGoalContext';
 import { teamApi } from './api/team';
 import { PowerProvider } from './lib/power';
 import { TeamProvider } from './team/TeamContext';
-import TeamSpace from './team/TeamSpace';
 import { parseTeamRoute } from './team/routes';
+
+const TeamSpace = lazy(() => import('./team/TeamSpace'));
 
 export default function ProtectedSoty({ path, route = path }: { path: string; route?: string }) {
   return (
@@ -70,7 +71,12 @@ function ProtectedApplication({ path, route }: { path: string; route: string }) 
   // The full route (not just the pathname) is parsed because the query half —
   // search, filters, open task, folder position — is part of the address.
   const teamRoute = parseTeamRoute(route);
-  if (teamRoute) return <TeamSpace route={teamRoute} />;
+  if (teamRoute)
+    return (
+      <Suspense fallback={<main className="page-container" />}>
+        <TeamSpace route={teamRoute} />
+      </Suspense>
+    );
   return <HomePage navigate={navigateTo} />;
 }
 
