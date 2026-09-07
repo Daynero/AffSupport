@@ -173,3 +173,57 @@ describe('service_request_catalog_rescan (011, findings I4)', () => {
     ).rejects.toThrow(/PERMISSION_DENIED/);
   }, 60_000);
 });
+
+describe('multi-page lease ownership', () => {
+  it('saves consecutive pages, excludes other workers, and resumes from the last saved page', async () => {
+    await harness.root(`update private.catalog_sync_jobs set state = 'pending',
+      lease_owner = null, lease_expires_at = null, next_attempt_at = now() + interval '1 hour'`);
+    await harness.root(
+      `update private.catalog_sync_jobs set next_attempt_at = now() where id = $1`,
+      [liveJob]
+    );
+    await harness.root(`select id from private.claim_catalog_sync_jobs('scan', 1, 60)`);
+    const save = (worker: string, page: string) =>
+      harness.root<{ saved: boolean }>(
+        `select public.service_save_catalog_sync_progress($1, $2, 'initial_scan', $3,
+        'change-0', '["child"]'::jsonb, '[]'::jsonb) as saved`,
+        [liveJob, worker, page]
+      );
+    expect((await save('scan', 'page-2'))[0]!.saved).toBe(true);
+    expect(
+      await harness.root(`select id from private.claim_catalog_sync_jobs('other', 1, 60)`)
+    ).toEqual([]);
+    expect((await save('other', 'wrong'))[0]!.saved).toBe(false);
+    expect((await save('scan', 'page-3'))[0]!.saved).toBe(true);
+    expect(
+      (
+        await harness.root<{ released: boolean }>(
+          `select public.service_release_catalog_sync_job($1, 'scan') as released`,
+          [liveJob]
+        )
+      )[0]!.released
+    ).toBe(true);
+    const resumed = await harness.root<{ cursor: { pageToken: string }; folder_queue: string[] }>(
+      `select cursor, folder_queue from private.claim_catalog_sync_jobs('resumed', 1, 60)`
+    );
+    expect(resumed[0]).toMatchObject({ cursor: { pageToken: 'page-3' }, folder_queue: ['child'] });
+    expect((await save('scan', 'stale'))[0]!.saved).toBe(false);
+    await harness.root(
+      `update private.catalog_sync_jobs set lease_expires_at = now() - interval '1 second' where id = $1`,
+      [liveJob]
+    );
+    expect((await save('resumed', 'expired'))[0]!.saved).toBe(false);
+  });
+
+  it('caps active leases globally even when a caller asks for a large batch', async () => {
+    await harness.root(`update private.catalog_sync_jobs set state = 'pending',
+      lease_owner = null, lease_expires_at = null, next_attempt_at = now()`);
+    const first = await harness.root(
+      `select id from private.claim_catalog_sync_jobs('batch', 20, 60)`
+    );
+    expect(first).toHaveLength(3);
+    expect(
+      await harness.root(`select id from private.claim_catalog_sync_jobs('overflow', 20, 60)`)
+    ).toEqual([]);
+  });
+});

@@ -695,3 +695,10 @@ figure where it is.
 ```sql
 drop function if exists public.clear_team_agent_balances(uuid);
 ```
+# Catalog progress lease and faster scheduling (20260907140000)
+
+Deploy the previous `catalog-sync` function first (it uses the unchanged legacy
+checkpoint). Restore `private.claim_catalog_sync_jobs` from `20260907100000` and
+`private.invoke_catalog_sync_worker` from `20260815102000`; reschedule
+`wishly-catalog-sync` to `* * * * *`. The new save/release RPCs can remain unused
+until all in-flight workers have finished. No catalog rows need to be deleted.

@@ -370,6 +370,20 @@ describe('011 — folder markers, root changes and reconciliation stamps', () =>
 });
 
 describe('one scheduler tick, many slices (011, findings I3)', () => {
+  it('stops immediately when the database refuses a checkpoint', async () => {
+    const deps = dependencies({
+      listChildren: vi.fn().mockResolvedValue({
+        files: [file({ id: 'child', mimeType: folderMime })],
+        nextPageToken: null
+      }),
+      checkpoint: vi.fn().mockResolvedValue(false)
+    });
+    await expect(runCatalogSyncJob(baseJob, deps, { budgetMs: 8_000 })).rejects.toThrow(
+      'CATALOG_LEASE_LOST'
+    );
+    expect(deps.listChildren).toHaveBeenCalledOnce();
+    expect(deps.complete).not.toHaveBeenCalled();
+  });
   it('keeps walking the same job until the budget runs out, then hands over at the checkpoint', async () => {
     const listChildren = vi
       .fn()

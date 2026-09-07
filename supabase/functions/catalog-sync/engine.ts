@@ -308,6 +308,12 @@ async function runChanges(
 
 type CheckpointInput = Parameters<CatalogSyncDependencies['checkpoint']>[0];
 
+export class CatalogLeaseLostError extends Error {
+  constructor() {
+    super('CATALOG_LEASE_LOST');
+  }
+}
+
 export interface CatalogSyncRunOptions {
   /** Wall-clock budget for one scheduler invocation, in milliseconds. */
   budgetMs: number;
@@ -325,7 +331,7 @@ export async function runCatalogSyncJob(
   job: CatalogSyncJob,
   dependencies: CatalogSyncDependencies,
   options: CatalogSyncRunOptions
-): Promise<{ phase: CatalogSyncPhase; processed: number; slices: number }> {
+): Promise<{ phase: CatalogSyncPhase; processed: number; slices: number; yielded: boolean }> {
   const now = options.now ?? Date.now;
   const started = now();
   let current = job;
@@ -340,8 +346,10 @@ export async function runCatalogSyncJob(
   const observed: CatalogSyncDependencies = {
     ...dependencies,
     checkpoint: async input => {
+      const saved = await dependencies.checkpoint(input);
+      if (saved === false) throw new CatalogLeaseLostError();
       seen.checkpoint = input;
-      return dependencies.checkpoint(input);
+      return saved;
     }
   };
   for (;;) {
@@ -362,7 +370,7 @@ export async function runCatalogSyncJob(
       discoveredFolderIds: checkpoint.discoveredFolderIds
     };
   }
-  return { phase, processed, slices };
+  return { phase, processed, slices, yielded: lastCheckpoint() !== null };
 }
 
 export async function runCatalogSyncSlice(

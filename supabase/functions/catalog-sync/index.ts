@@ -17,6 +17,7 @@ import {
 } from '../_shared/errors.ts';
 import { isRecord } from '../_shared/validation.ts';
 import {
+  CatalogLeaseLostError,
   catalogRetryDelayMs,
   runCatalogSyncJob,
   type CatalogSyncDependencies,
@@ -321,7 +322,7 @@ function dependencies(input: {
         files: request.files
       }),
     checkpoint: request =>
-      rpcValue(service, 'service_checkpoint_catalog_sync_job', {
+      rpcValue(service, 'service_save_catalog_sync_progress', {
         p_job: request.jobId,
         p_worker: worker,
         p_phase: request.phase,
@@ -330,13 +331,16 @@ function dependencies(input: {
         p_folder_queue: request.folderQueue,
         p_discovered_folders: request.discoveredFolderIds
       }),
-    complete: request =>
-      rpcValue(service, 'service_complete_catalog_sync_job', {
+    complete: async request => {
+      const saved = await rpcValue(service, 'service_complete_catalog_sync_job', {
         p_job: request.jobId,
         p_worker: worker,
         p_change_token: request.changeToken,
         p_next_phase: request.nextPhase
-      }),
+      });
+      if (saved !== true) throw new CatalogLeaseLostError();
+      return saved;
+    },
     reconcile: request =>
       rpcValue(service, 'service_enqueue_catalog_reconciliation', {
         p_connection: request.connectionId
@@ -422,11 +426,31 @@ Deno.serve(async request => {
         const result = await runCatalogSyncJob(job, dependencies({ service, drive, worker, job }), {
           budgetMs: catalogSyncBudgetMs()
         });
+        if (result.yielded) {
+          const released = await rpcValue(service, 'service_release_catalog_sync_job', {
+            p_job: job.jobId,
+            p_worker: worker
+          });
+          if (released !== true) throw new CatalogLeaseLostError();
+        }
         completed += 1;
         processed += result.processed;
+        console.info('catalog_sync_progress', {
+          jobId: job.jobId,
+          phase: result.phase,
+          processed: result.processed,
+          slices: result.slices,
+          yielded: result.yielded
+        });
       } catch (cause) {
         failed += 1;
+        // Another worker owns recovery now. Do not overwrite its retry/state.
+        if (cause instanceof CatalogLeaseLostError) {
+          console.warn('catalog_sync_lease_lost', { jobId: job.jobId });
+          continue;
+        }
         const error = mapUnknownError(cause);
+        console.warn('catalog_sync_retry', { jobId: job.jobId, code: error.code });
         if (error.code === 'NEEDS_REAUTH') {
           await rpcValue(service, 'service_mark_drive_needs_reauth', {
             p_credential: requiredString(row, 'credential_id')
