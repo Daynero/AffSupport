@@ -52,14 +52,36 @@ jobs:
       - run: npm ci
       - name: Install media test dependencies
         run: brew install ffmpeg
-      # Coverage is measured on one runner only: the figure is the same wherever
-      # it is taken, and taking it twice would double the slowest job for
-      # nothing.
-      - run: node scripts/verify-all.mjs --form=release --gates=suite
+      - run: node scripts/verify-all.mjs --form=fast --gates=suite
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: verification-result-macos
+          path: |
+            verification-result.json
+            verification-progress.log
+          if-no-files-found: ignore
+
+  coverage-macos:
+    name: coverage-macos
+    runs-on: macos-latest
+    timeout-minutes: 40
+    continue-on-error: true
+    env:
+      NODE_OPTIONS: --max-old-space-size=2048
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: brew install ffmpeg
+      - run: node scripts/verify-all.mjs --form=release --gates=suite
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verification-coverage-macos
           path: |
             verification-result.json
             verification-progress.log
