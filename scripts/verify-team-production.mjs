@@ -1,5 +1,4 @@
 import { execFileSync } from 'node:child_process';
-import path from 'node:path';
 import { loadEnv } from 'vite';
 import {
   missingTeamProductionSecrets,
@@ -33,7 +32,10 @@ function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-const environment = loadEnv('production', path.join(process.cwd(), 'apps/web'), '');
+// The build reads its env from the repository root (apps/web/vite.config.ts sets
+// envDir: '../..'), so the gate must read the same directory. Reading apps/web
+// let a value pass here that the bundle never received.
+const environment = loadEnv('production', process.cwd(), '');
 const memberPilot = process.argv.includes('--member-pilot');
 const supabaseUrl = environment.VITE_SUPABASE_URL?.trim();
 const publishableKey = environment.VITE_SUPABASE_PUBLISHABLE_KEY?.trim();

@@ -1,9 +1,11 @@
 import { readFile } from 'node:fs/promises';
-import path from 'node:path';
 import { loadEnv } from 'vite';
 import { PRODUCTION_SITE_ORIGIN } from '../packages/shared/dist/release.js';
 
-const environment = loadEnv('production', path.join(process.cwd(), 'apps/web'), '');
+// The build reads its env from the repository root (apps/web/vite.config.ts sets
+// envDir: '../..'), so the gate must read the same directory. Reading apps/web
+// let a value pass here that the bundle never received.
+const environment = loadEnv('production', process.cwd(), '');
 const memberPilot = process.argv.includes('--member-pilot');
 const identityOnly = process.argv.includes('--identity');
 const required = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_PUBLISHABLE_KEY', 'VITE_SITE_URL'];

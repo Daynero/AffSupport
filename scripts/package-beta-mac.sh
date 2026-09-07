@@ -67,8 +67,8 @@ production_key=$(grep -E '^AGENT_ENTITLEMENT_PUBLIC_KEY=' config/production.env 
   exit 1
 }
 
-# Vite loads apps/web/.env.production for a production build, not the
-# repository-root beta profile. Pass the beta's public local-stack values
+# Vite loads the repository-root .env.production for a production build (envDir
+# is '../..'), not the beta profile. Pass the beta's public local-stack values
 # explicitly or a packaged beta silently embeds production Supabase settings.
 beta_supabase_url=$(grep -E '^VITE_SUPABASE_URL=' .env.beta | head -1 | cut -d= -f2-)
 beta_supabase_publishable_key=$(grep -E '^VITE_SUPABASE_PUBLISHABLE_KEY=' .env.beta | head -1 | cut -d= -f2-)
