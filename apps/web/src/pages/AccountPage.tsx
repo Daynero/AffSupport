@@ -107,7 +107,7 @@ function AccountContent({
   appear: boolean;
 }) {
   const { updateProfile, signOut } = useAuth();
-  const { agentVersion, agentChannel, releaseManifest, toolAvailable } = useAgent();
+  const { agentVersion, agentChannel, capabilities, releaseManifest, toolAvailable } = useAgent();
   const { language: currentLanguage, setLanguage, t } = useI18n();
   const [displayName, setDisplayName] = useState(profile.display_name ?? '');
   const [language, setFormLanguage] = useState<Language>(profile.language ?? currentLanguage);
@@ -122,7 +122,7 @@ function AccountContent({
     installedChannel: agentChannel,
     compatible: toolAvailable?.('compressor') ?? true
   });
-  const downloadUrl = preferredDownload(releaseManifest?.manifest ?? null).url;
+  const downloadUrl = preferredDownload(releaseManifest?.manifest ?? null, capabilities).url;
   const releaseNote =
     releaseStatus === 'latest'
       ? t('latestVersion')

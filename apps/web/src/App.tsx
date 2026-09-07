@@ -940,8 +940,8 @@ export function Onboarding({
   connect: () => void;
   t: Translate;
 }) {
-  const { releaseManifest } = useAgent();
-  const downloadUrl = preferredDownload(releaseManifest.manifest).url;
+  const { capabilities, releaseManifest } = useAgent();
+  const downloadUrl = preferredDownload(releaseManifest.manifest, capabilities).url;
   // A manual connect flips the connection to "connecting" for a moment. Rather
   // than swapping the whole panel for a spinner (which read as a flicker), we
   // keep the panel mounted and let the button animate the search in place.

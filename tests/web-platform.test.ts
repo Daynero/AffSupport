@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { platformFromUserAgent, windowsX64Supported } from '../apps/web/src/lib/platform';
+import {
+  platformFromAgentCapabilities,
+  platformFromUserAgent,
+  windowsX64Supported
+} from '../apps/web/src/lib/platform';
 
 describe('browser platform detection', () => {
   it('classifies Windows user agents', () => {
@@ -54,5 +58,28 @@ describe('windows architecture support', () => {
       true
     );
     expect(windowsX64Supported('Linux x86_64 Mozilla/5.0 (X11; Linux x86_64)')).toBe(true);
+  });
+});
+
+/**
+ * A Mac user was handed the Windows installer three times in five minutes and
+ * stayed on the build he already had. His browser reported Windows — routine
+ * in a trade that lives in spoofed profiles — while his agent had been running
+ * on macOS since before a Windows build existed at all.
+ */
+describe('the host the local app reports', () => {
+  it('identifies macOS from a capability only macOS can advertise', () => {
+    expect(platformFromAgentCapabilities(['event-stream', 'finder-image-conversion'])).toBe(
+      'macos'
+    );
+  });
+
+  it('says nothing when the capabilities cannot settle it', () => {
+    // No capability is Windows-only, so a list without the macOS one is not
+    // evidence of Windows — it leaves the browser's answer standing.
+    expect(platformFromAgentCapabilities(['event-stream'])).toBeNull();
+    expect(platformFromAgentCapabilities([])).toBeNull();
+    expect(platformFromAgentCapabilities(null)).toBeNull();
+    expect(platformFromAgentCapabilities(undefined)).toBeNull();
   });
 });

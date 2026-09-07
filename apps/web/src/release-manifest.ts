@@ -9,7 +9,7 @@ import {
   type AppEnvironment,
   type StableReleaseManifest
 } from '@video-compressor/shared';
-import { currentBrowserPlatform } from './lib/platform';
+import { currentBrowserPlatform, platformFromAgentCapabilities } from './lib/platform';
 import { configuredEnvironment } from './lib/config';
 
 export type ReleaseManifestState =
@@ -128,14 +128,22 @@ export function downloadUrlForPlatform(
 
 /**
  * The installer a visitor should be offered by default: the Windows build when
- * the browser reports Windows and the manifest actually ships one, otherwise
- * the Mac (Apple Silicon) build exactly as before.
+ * the host reports Windows and the manifest actually ships one, otherwise the
+ * Mac (Apple Silicon) build exactly as before.
+ *
+ * A connected agent's capabilities are consulted before the browser, because
+ * they come from the machine that will run the installer rather than from a
+ * string the visitor's browser profile is free to invent.
  */
-export function preferredDownload(manifest: StableReleaseManifest | null): {
+export function preferredDownload(
+  manifest: StableReleaseManifest | null,
+  agentCapabilities?: readonly string[] | null
+): {
   url: string;
   platform: DownloadPlatform;
 } {
-  if (currentBrowserPlatform() === 'windows') {
+  const host = platformFromAgentCapabilities(agentCapabilities) ?? currentBrowserPlatform();
+  if (host === 'windows') {
     const windows = downloadUrlForPlatform(manifest, 'windows-x64');
     if (windows.available) return { url: windows.url, platform: 'windows-x64' };
   }

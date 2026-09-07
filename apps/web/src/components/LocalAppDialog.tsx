@@ -6,7 +6,11 @@ import type { ConnectionState } from '../connection';
 import { useI18n } from '../i18n';
 import { requireSupabaseClient } from '../lib/supabase';
 import { downloadUrlForPlatform, macAppleSiliconDownloadUrl } from '../release-manifest';
-import { currentBrowserPlatform, currentWindowsX64Supported } from '../lib/platform';
+import {
+  currentBrowserPlatform,
+  currentWindowsX64Supported,
+  platformFromAgentCapabilities
+} from '../lib/platform';
 import { analytics } from '../analytics/service';
 import { Modal } from './Modal';
 import { SotyMark } from './SotyLogo';
@@ -22,7 +26,7 @@ export default function LocalAppDialog({
   onClose?: () => void;
 }) {
   const { t } = useI18n();
-  const { reconnect, releaseManifest, state, toolAvailable } = useAgent();
+  const { capabilities, reconnect, releaseManifest, state, toolAvailable } = useAgent();
   const titleId = useId();
   const windowsButton = useRef<HTMLButtonElement>(null);
   const [windowsNoticeOpen, setWindowsNoticeOpen] = useState(false);
@@ -31,7 +35,8 @@ export default function LocalAppDialog({
   const needsUpdate = incompatible || connection === 'agent_update_required';
   const macDownloadUrl = macAppleSiliconDownloadUrl(releaseManifest.manifest);
   const windowsDownload = downloadUrlForPlatform(releaseManifest.manifest, 'windows-x64');
-  const browserPlatform = currentBrowserPlatform();
+  // An installed agent knows the host it runs on; the browser only claims one.
+  const browserPlatform = platformFromAgentCapabilities(capabilities) ?? currentBrowserPlatform();
   const windowsFirst = windowsDownload.available && browserPlatform === 'windows';
   // Both builds ship unsigned, so every first launch meets an OS warning. The
   // guidance has to be here, at the moment of download, rather than in a help

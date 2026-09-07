@@ -12,8 +12,15 @@ import {
 const DISMISSED_RELEASE_KEY = 'wishly.release-notice.dismissed.v1';
 
 export default function ReleaseUpdateNotice() {
-  const { agentVersion, agentChannel, connection, releaseManifest, state, toolAvailable } =
-    useAgent();
+  const {
+    agentVersion,
+    agentChannel,
+    capabilities,
+    connection,
+    releaseManifest,
+    state,
+    toolAvailable
+  } = useAgent();
   const { language, t } = useI18n();
   const titleId = useId();
   const promptedBuild = useRef<string | null>(null);
@@ -80,7 +87,7 @@ export default function ReleaseUpdateNotice() {
       <div className="release-update-actions">
         <a
           className="button button-primary"
-          href={preferredDownload(manifest).url}
+          href={preferredDownload(manifest, capabilities).url}
           onClick={() => {
             markAgentInstallStarted();
             analytics.track('update_started', {});

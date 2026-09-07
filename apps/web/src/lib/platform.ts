@@ -18,6 +18,29 @@ export function currentBrowserPlatform(): BrowserPlatform | null {
 }
 
 /**
+ * The host operating system as the connected local app reports it, which beats
+ * anything the browser says about itself.
+ *
+ * The agent runs on the same machine and derives its advertised capabilities
+ * from `process.platform`, so `finder-image-conversion` — gated on a shell
+ * integration only macOS has — is a fact about the host rather than a claim in
+ * a string. Media buyers routinely browse through profiles that report Windows
+ * from a Mac, and those visitors were handed the `.exe` for an installed macOS
+ * app that could never take it.
+ *
+ * Only macOS can be established this way: no advertised capability is
+ * Windows-only, so its absence means "not known" and leaves the browser's
+ * answer standing. Every agent since 0.5 advertises this list, so an
+ * already-installed old build is identified without updating anything.
+ */
+export function platformFromAgentCapabilities(
+  capabilities: readonly string[] | null | undefined
+): BrowserPlatform | null {
+  if (!capabilities?.length) return null;
+  return capabilities.includes('finder-image-conversion') ? 'macos' : null;
+}
+
+/**
  * Whether a Windows visitor can run the x64 installer, judged from browser
  * hints alone.
  *
