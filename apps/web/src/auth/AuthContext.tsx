@@ -128,15 +128,13 @@ function authErrorCode(error: unknown): AuthErrorCode {
 }
 
 /** Auth can still recognise an access token while PostgREST has rejected it
- * (for example just after a signing-key rotation). Refresh it once before we
- * show the profile-failure screen; never loop on a genuinely bad session. */
+ * (for example just after a signing-key rotation or a short clock skew).
+ * PostgREST's client error deliberately carries no HTTP status, so recognise
+ * its stable JWT rejection codes as well. Refresh once; never loop. */
 function isRejectedApiToken(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'status' in error &&
-    (error as { status?: unknown }).status === 401
-  );
+  if (typeof error !== 'object' || error === null) return false;
+  const { status, code } = error as { status?: unknown; code?: unknown };
+  return status === 401 || code === 'PGRST301' || code === 'PGRST303';
 }
 
 async function wait(milliseconds: number) {

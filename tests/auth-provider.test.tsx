@@ -13,7 +13,7 @@ const testState = vi.hoisted(() => ({
   onAuthStateChange: vi.fn(),
   signOut: vi.fn(),
   refreshSession: vi.fn(),
-  profileError: null as { code: string; status: number } | null,
+  profileError: null as { code: string; status?: number } | null,
   profile: null as Profile | null
 }));
 
@@ -183,7 +183,9 @@ describe('global Supabase auth provider', () => {
   it('refreshes a rejected API token once before declaring the profile unavailable', async () => {
     testState.session = session;
     testState.profile = profile;
-    testState.profileError = { code: 'PGRST301', status: 401 };
+    // PostgREST omits HTTP status from its client error. PGRST303 is the
+    // production response for an access token whose issued-at time is ahead.
+    testState.profileError = { code: 'PGRST303' };
     testState.refreshSession.mockImplementation(async () => {
       testState.profileError = null;
       return { data: { session }, error: null };
