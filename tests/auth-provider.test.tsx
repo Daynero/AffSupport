@@ -12,6 +12,8 @@ const testState = vi.hoisted(() => ({
   getSession: vi.fn(),
   onAuthStateChange: vi.fn(),
   signOut: vi.fn(),
+  refreshSession: vi.fn(),
+  profileError: null as { code: string; status: number } | null,
   profile: null as Profile | null
 }));
 
@@ -39,6 +41,7 @@ vi.mock('../apps/web/src/lib/supabase', () => ({
       getSession: testState.getSession,
       onAuthStateChange: testState.onAuthStateChange,
       signOut: testState.signOut,
+      refreshSession: testState.refreshSession,
       signInWithOAuth: vi.fn(),
       exchangeCodeForSession: vi.fn()
     },
@@ -48,7 +51,10 @@ vi.mock('../apps/web/src/lib/supabase', () => ({
         : {
             select: () => ({
               eq: () => ({
-                maybeSingle: async () => ({ data: testState.profile, error: null })
+                maybeSingle: async () => ({
+                  data: testState.profileError ? null : testState.profile,
+                  error: testState.profileError
+                })
               })
             })
           },
@@ -112,10 +118,12 @@ beforeEach(() => {
   sessionStorage.clear();
   testState.session = null;
   testState.profile = null;
+  testState.profileError = null;
   testState.unsubscribe.mockReset();
   testState.getSession.mockReset();
   testState.onAuthStateChange.mockReset();
   testState.signOut.mockReset();
+  testState.refreshSession.mockReset();
   testState.getSession.mockImplementation(async () => ({
     data: { session: testState.session },
     error: null
@@ -124,6 +132,7 @@ beforeEach(() => {
     data: { subscription: { unsubscribe: testState.unsubscribe } }
   });
   testState.signOut.mockResolvedValue({ error: null });
+  testState.refreshSession.mockResolvedValue({ data: { session }, error: null });
   resetInitialSessionForTests();
 });
 
@@ -169,5 +178,22 @@ describe('global Supabase auth provider', () => {
     await userEvent.click(screen.getByRole('button', { name: 'logout' }));
     await waitFor(() => expect(screen.getByTestId('status').textContent).toBe('unauthenticated'));
     expect(testState.signOut).toHaveBeenCalledOnce();
+  });
+
+  it('refreshes a rejected API token once before declaring the profile unavailable', async () => {
+    testState.session = session;
+    testState.profile = profile;
+    testState.profileError = { code: 'PGRST301', status: 401 };
+    testState.refreshSession.mockImplementation(async () => {
+      testState.profileError = null;
+      return { data: { session }, error: null };
+    });
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId('status').textContent).toBe('authenticated'));
+    expect(testState.refreshSession).toHaveBeenCalledOnce();
   });
 });

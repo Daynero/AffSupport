@@ -127,6 +127,18 @@ function authErrorCode(error: unknown): AuthErrorCode {
   return 'profile';
 }
 
+/** Auth can still recognise an access token while PostgREST has rejected it
+ * (for example just after a signing-key rotation). Refresh it once before we
+ * show the profile-failure screen; never loop on a genuinely bad session. */
+function isRejectedApiToken(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'status' in error &&
+    (error as { status?: unknown }).status === 401
+  );
+}
+
 async function wait(milliseconds: number) {
   await new Promise(resolve => setTimeout(resolve, milliseconds));
 }
@@ -168,7 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadSequence = useRef(0);
   snapshotRef.current = snapshot;
 
-  const establishIdentity = useCallback(async (session: Session) => {
+  const establishIdentity = useCallback(async (session: Session, canRefreshToken = true) => {
     const sequence = ++loadSequence.current;
     try {
       const [profile, isAdmin] = await Promise.all([
@@ -207,6 +219,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       if (sequence !== loadSequence.current) return;
+      if (canRefreshToken && isRejectedApiToken(error)) {
+        const supabase = getSupabaseClient();
+        const refreshed = supabase ? await supabase.auth.refreshSession() : null;
+        if (!refreshed?.error && refreshed?.data.session) {
+          await establishIdentity(refreshed.data.session, false);
+          return;
+        }
+      }
       setSnapshot({
         status: 'error',
         session,
