@@ -81,12 +81,11 @@ const policy = [
   "style-src 'self' 'unsafe-inline'",
   `connect-src 'self' ${SUPABASE_ORIGINS} ${LOCAL_APP} ${PICKER_SCRIPT}`,
   // `data:` for an inline SVG in the stylesheet, `blob:` for a generated
-  // download preview, and the avatar host for signed-in users. The local app
-  // belongs here for the same reason it belongs in `media-src`: the browser
-  // fetches a ticketed image straight from the agent, so an embedded image's
-  // thumbnail and a landing's before/after preview are loaded by `<img>` from
-  // loopback rather than through this origin.
-  `img-src 'self' data: blob: https://lh3.googleusercontent.com ${LOCAL_APP}`,
+  // download preview, and the avatar host for signed-in users. Ticketed
+  // Google Drive image previews are served by the Supabase transfer endpoint,
+  // while Agent previews come from loopback, so both origins are required for
+  // the browser's `<img>` fetch rather than only for fetch/XHR.
+  `img-src 'self' data: blob: https://lh3.googleusercontent.com https://*.supabase.co ${LOCAL_APP}`,
   `media-src 'self' blob: ${LOCAL_APP}`,
   `frame-src ${LOCAL_APP} ${PICKER_FRAME}`,
   "frame-ancestors 'none'",
