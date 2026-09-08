@@ -499,8 +499,8 @@ export function WorkspaceShell({
               onClose={() => setBatchDialogOpen(false)}
             />
           )}
-          {previewing && (
-            previewing.category === 'landing' && previewing.landingRender?.state === 'ready' ? (
+          {previewing &&
+            (previewing.category === 'landing' && previewing.landingRender?.state === 'ready' ? (
               <LandingFullView
                 teamId={teamId}
                 material={landingViewerMaterial(previewing)}
@@ -514,8 +514,7 @@ export function WorkspaceShell({
                 material={previewing}
                 onClose={() => setPreviewing(null)}
               />
-            )
-          )}
+            ))}
         </section>
       </BackgroundRenderProvider>
     </LibraryProcessingProvider>
