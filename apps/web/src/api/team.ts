@@ -374,6 +374,8 @@ export interface TeamMaterialSummary {
   sizeBytes?: number | null;
   modifiedAt?: string | null;
   previewState?: string;
+  /** Shared landing render state, retained when the Explorer opens a material. */
+  landingRender?: { state: 'ready' | 'rendering' | 'stale' | 'failed' | 'none' };
 }
 
 /** Content-free indication that older landing candidates belong to a detached root. */

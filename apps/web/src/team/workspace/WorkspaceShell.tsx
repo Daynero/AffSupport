@@ -4,9 +4,11 @@ import { internalLink, navigateTo } from '../../lib/navigation';
 import { trackTeamWorkspaceSession } from '../../analytics/service';
 import { useTeam } from '../TeamContext';
 import { useOptionalAgent } from '../../AgentContext';
-import { type TeamMaterialSummary } from '../../api/team';
+import { teamApi, type TeamMaterialSummary } from '../../api/team';
 import type { TeamCatalogClient } from '../catalog/TeamCatalog';
 import { MaterialPreview } from '../preview/MaterialPreview';
+import { LandingFullView } from '../landings/LandingFullView';
+import type { CatalogMaterialItem } from '@video-compressor/shared';
 import type { TaskAccountScope } from '../tasks/useTasks';
 import { StorageChip, type StorageChipClient } from '../storage/StorageChip';
 import { useStorageHealth, type StorageHealthClient } from '../storage/useStorageHealth';
@@ -61,6 +63,33 @@ const CONTENT_TABS: { section: TeamSection; label: TranslationKey }[] = [
 
 /** How often the listing re-reads itself while the catalogue is being written. */
 const INDEXING_REFRESH_MS = 5_000;
+
+/** The Explorer deliberately carries a small material shape; the cached landing
+ * viewer only needs the identity and display fields when it fetches its saved render. */
+function landingViewerMaterial(material: TeamMaterialSummary): CatalogMaterialItem {
+  return {
+    id: material.id,
+    teamId: material.teamId,
+    parentFolderId: material.parentFolderId ?? null,
+    name: material.name,
+    kind: 'file',
+    category: 'landing',
+    mimeType: material.mimeType ?? null,
+    fileExtension: material.fileExtension ?? null,
+    classificationVersion: 0,
+    classificationSource: 'inspected_landing',
+    sizeBytes: material.sizeBytes ?? null,
+    modifiedAt: material.modifiedAt ?? null,
+    geo: null,
+    language: null,
+    offer: null,
+    tags: [],
+    transcriptIngestState: 'not_applicable',
+    transcriptTruncated: false,
+    previewState: material.previewState ?? 'ready',
+    lineage: { hasSource: false, hasDerivatives: false, isVersion: false }
+  };
+}
 
 /**
  * Content-first workspace for a single entered space. The connected folder's
@@ -471,11 +500,21 @@ export function WorkspaceShell({
             />
           )}
           {previewing && (
-            <MaterialPreview
-              teamId={teamId}
-              material={previewing}
-              onClose={() => setPreviewing(null)}
-            />
+            previewing.category === 'landing' && previewing.landingRender?.state === 'ready' ? (
+              <LandingFullView
+                teamId={teamId}
+                material={landingViewerMaterial(previewing)}
+                artifact={{ preset: 'default' }}
+                artifactClient={teamApi}
+                onClose={() => setPreviewing(null)}
+              />
+            ) : (
+              <MaterialPreview
+                teamId={teamId}
+                material={previewing}
+                onClose={() => setPreviewing(null)}
+              />
+            )
           )}
         </section>
       </BackgroundRenderProvider>

@@ -1925,7 +1925,8 @@ function summaryOf(row: TeamMaterialRow): TeamMaterialSummary {
     fileExtension: row.fileExtension,
     sizeBytes: row.sizeBytes,
     modifiedAt: row.modifiedAt,
-    previewState: row.previewState
+    previewState: row.previewState,
+    landingRender: row.landingRender
   };
 }
 

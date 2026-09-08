@@ -35,7 +35,8 @@ export function LandingFullView({
   teamId: string;
   material: CatalogMaterialItem;
   client?: MaterialPreviewClient;
-  artifact?: RenderArtifactRef;
+  /** A ready pointer is enough: the viewer mints fresh read tokens itself. */
+  artifact?: Pick<RenderArtifactRef, 'preset'>;
   artifactClient?: {
     getLandingRenderArtifact: (
       teamId: string,
