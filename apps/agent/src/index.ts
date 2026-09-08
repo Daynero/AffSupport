@@ -377,6 +377,9 @@ const queue = new JobQueue(
   imageStore
 );
 queue.attachPowerGovernor(powerGovernor);
+// Files can be removed outside Soty while the app is closed. They are not an
+// error state to preserve: restore only cards whose sources still exist.
+await queue.removeMissingSources();
 // The governor is what notices the machine slept; the queue is what knows whether the
 // encode it had running is still there (FR-009a).
 // It broadcasts on its own when it finds something to interrupt.

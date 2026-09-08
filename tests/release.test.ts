@@ -218,6 +218,10 @@ describe('release identity', () => {
     for (const script of ['deploy:web', 'release:check', 'package:mac', 'package:dmg']) {
       expect(rootPackage.scripts[script]).toContain('verify:team-production');
     }
+    // beta packaging leaves its beta web bundle in dist. release:check must
+    // rebuild the production bundle before verify-release scans it.
+    expect(rootPackage.scripts['release:check']).toContain('npm run build');
+    expect(rootPackage.scripts['release:check']).toContain('verify-release.mjs');
     for (const script of ['deploy:web', 'deploy:web:identity', 'deploy:web:member-pilot']) {
       expect(rootPackage.scripts[script]).toContain('--project-name wishly-app');
     }

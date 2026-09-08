@@ -132,7 +132,8 @@ required check із неіснуючою назвою не блокує нічо
    nice -n 15 npm run release:check
    ```
 
-Якщо HEAD змінився після цього кроку, gate застарів: синхронізуйте `beta` і
+`release:check` навмисно відновлює production bundle після beta packaging, щоб
+release-gate перевірив саме production output, а не beta bundle. Якщо HEAD змінився після цього кроку, gate застарів: синхронізуйте `beta` і
 повторіть `beta:package` та `beta:verify`. Не копіюйте старий promotion record.
 
 #### Phase 2 — build immutable artifacts

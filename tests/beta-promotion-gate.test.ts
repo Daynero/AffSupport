@@ -107,6 +107,14 @@ describe('promotion gate', () => {
 });
 
 describe('packaged beta build', () => {
+  it('does not rebuild inputs that the package and smoke scripts already own', () => {
+    // package-beta-mac.sh builds shared, web, and agent in the beta environment;
+    // verify-beta-package.sh inspects that finished .app. Repeating a shared
+    // build here adds logs and elapsed time without testing different code.
+    expect(ROOT_PACKAGE.scripts['beta:package']).toBe('zsh scripts/package-beta-mac.sh');
+    expect(ROOT_PACKAGE.scripts['beta:verify']).toBe('zsh scripts/verify-beta-package.sh');
+  });
+
   it('authenticates for real, unlike the dev package', () => {
     // scripts/package-dev-mac.sh sets this to true; copying that line would
     // silently gut the feature by faking sign-in.

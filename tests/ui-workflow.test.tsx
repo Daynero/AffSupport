@@ -26,7 +26,7 @@ import {
   toggleSelection
 } from '../apps/web/src/queue-ui';
 import { translate, type Language } from '../apps/web/src/i18n';
-import { customEncoding, makeJob, optimalSettings } from './helpers.js';
+import { customEncoding, makeEmbedding, makeJob, optimalSettings } from './helpers.js';
 
 const translator =
   (language: Language): Translate =>
@@ -291,6 +291,46 @@ describe('estimates, results, timers and batch progress', () => {
     expect(resultMarkup).toContain('Repeat');
     expect(resultMarkup).toContain('Completed in 00:00:05');
     expect(resultMarkup).not.toContain('Expected result');
+  });
+
+  it('shows the body FPS rather than a sparse held end-card average', () => {
+    const completed = makeJob('held-screen', 'completed', {
+      encoding: { ...customEncoding, frameRate: 24 },
+      finalSize: 5000,
+      finalWidth: 1920,
+      finalHeight: 1080,
+      finalFrameRate: 1.5,
+      finalBitrate: 2_000_000,
+      finalDurationSeconds: 60,
+      finalCodec: 'h264',
+      imageEmbedding: makeEmbedding({
+        endImage: {
+          id: '11111111-1111-4111-8111-111111111111',
+          fileName: 'end.png',
+          width: 1920,
+          height: 1080,
+          size: 100,
+          mimeType: 'image/png',
+          extension: '.png'
+        },
+        finalDurationSeconds: 60
+      })
+    });
+    const markup = renderToStaticMarkup(
+      <JobRow
+        job={completed}
+        selected={false}
+        disabled={false}
+        compressionRunning={false}
+        language="en"
+        onSelected={() => {}}
+        action={() => {}}
+        t={translator('en')}
+      />
+    );
+
+    expect(markup).toContain('24 FPS');
+    expect(markup).not.toContain('1.5 FPS');
   });
 
   it('calculates timers from timestamps and freezes completed/error durations', () => {

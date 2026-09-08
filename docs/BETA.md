@@ -222,7 +222,7 @@ Then promote and release as usual:
 
 ```bash
 git checkout main && git merge beta
-npm run release:check
+npm run release:check      # rebuilds production output after the beta package
 npm run package:mac        # or npm run deploy:web
 ```
 

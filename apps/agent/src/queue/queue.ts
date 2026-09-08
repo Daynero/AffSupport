@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { access, mkdir, statfs, unlink } from 'node:fs/promises';
+import { access, mkdir, rm, statfs, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import {
@@ -652,6 +652,11 @@ export class JobQueue {
 
   async updateSettings(next: Partial<AgentSettings>) {
     const normalized: Partial<AgentSettings> = { ...next };
+    // A remembered picker location is not a destination while results are
+    // configured to sit beside their originals. Keeping it in state made an
+    // internal path look like a third output mode, and could revive a folder
+    // the person no longer chose after a restart.
+    if (next.outputMode === 'next-to-originals') normalized.outputFolder = null;
     if (next.frameRate !== undefined && next.frameRate !== null) {
       normalized.frameRate = clampFrameRate(next.frameRate);
     }
@@ -908,6 +913,11 @@ export class JobQueue {
   }
 
   private async startExclusively(ids: string[]) {
+    // A file can disappear after it was added (or while Soty was closed).
+    // There is nothing useful to ask here: quietly forget its card before any
+    // output folder or disk-space calculation sees a path that no longer
+    // exists.
+    await this.removeMissingSources();
     if (
       !this.tools.ffmpeg ||
       !this.tools.ffprobe ||
@@ -1098,7 +1108,11 @@ export class JobQueue {
     const previous = this.previousResults.get(job.id) ?? null;
     // The repeat wrote to its own path, so the finished file is intact unless
     // it was removed from disk behind our back.
-    const outputUntouched = previous !== null && (await fileSize(previous.outputPath)) !== null;
+    // The prior result may have been moved or deleted outside Soty while its
+    // repeat is running. That must mean "cannot restore it", not turn the
+    // cancellation endpoint itself into a 500.
+    const outputUntouched =
+      previous !== null && (await fileSize(previous.outputPath).catch(() => null)) !== null;
     if (job.estimatePriorityOrder !== null) this.estimateHooks?.cancelPrioritized?.(job.id);
     if (previous && outputUntouched) {
       // A queued repeat has not started, so the lifecycle has no direct road
@@ -1338,6 +1352,42 @@ export class JobQueue {
     for (const job of removed) void cleanupImportedSource(job);
     for (const image of images) void this.releaseImageIfUnused(image);
     this.notify();
+  }
+
+  /** Removes local cards whose source no longer exists, without surfacing an error. */
+  async removeMissingSources(): Promise<number> {
+    const missing: CompressionJob[] = [];
+    for (const job of this.jobs) {
+      // Team sources belong to their operation workspace and are cleaned up by
+      // its bridge. They never appear in this list and must not be removed by
+      // a local housekeeping pass.
+      if (this.teamJobSettings.has(job.id)) continue;
+      try {
+        await access(job.inputPath);
+      } catch {
+        missing.push(job);
+      }
+    }
+    if (!missing.length) return 0;
+
+    // Stop an encoder before dropping its card. A paused child would otherwise
+    // remain alive after its disappeared source was forgotten.
+    for (const job of missing) {
+      if (this.stoppable(job)) await this.cancelJob(job.id);
+    }
+    const removed = new Set(missing.map(job => job.id));
+    const images = missing.flatMap(jobImages);
+    this.jobs = this.jobs.filter(job => !removed.has(job.id));
+    for (const job of missing) {
+      this.teamJobSettings.delete(job.id);
+      this.previousResults.delete(job.id);
+      if (job.estimatePriorityOrder !== null) this.estimateHooks?.cancelPrioritized?.(job.id);
+      void cleanupImportedSource(job);
+    }
+    for (const image of images) void this.releaseImageIfUnused(image);
+    this.closeBatchIfDrained();
+    this.notify('estimate:queued');
+    return missing.length;
   }
 
   outputFolder(): string | null {
@@ -1966,7 +2016,14 @@ export class JobQueue {
     job.finalSize = producedSize;
     job.finalWidth = media.width;
     job.finalHeight = media.height;
-    job.finalFrameRate = media.frameRate;
+    // A long final image is deliberately encoded as a sparse held segment.
+    // FFprobe's average rate then describes that still frame distribution, not
+    // the encoded video rate people chose and see while the creative moves.
+    // Keep the result card consistent with validation and report the stream's
+    // nominal (body) rate in that case.
+    job.finalFrameRate = heldFinalImage(job)
+      ? (media.nominalFrameRate ?? media.frameRate)
+      : media.frameRate;
     job.finalBitrate = media.bitrate;
     job.finalDurationSeconds = media.duration;
     job.finalCodec = media.codec;
@@ -2415,6 +2472,13 @@ function finishTimestamp(job: CompressionJob) {
 async function cleanupImportedSource(job: CompressionJob) {
   if (job.sourceKind !== 'uploaded') return;
   await unlink(job.inputPath).catch(() => {});
+  // Browser uploads use one private `import-*` directory per file. Leave no
+  // empty internal folders behind when its card goes away, but never infer
+  // ownership of an arbitrary parent directory from `sourceKind` alone.
+  const directory = path.dirname(job.inputPath);
+  if (path.basename(directory).startsWith('import-')) {
+    await rm(directory, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 export function jobEstimateIsCurrent(job: CompressionJob) {

@@ -212,7 +212,9 @@ function migrateSettings(value: unknown): AgentSettings {
     mode,
     outputMode,
     outputFolder:
-      typeof raw.outputFolder === 'string' && raw.outputFolder ? raw.outputFolder : null,
+      outputMode === 'chosen-folder' && typeof raw.outputFolder === 'string' && raw.outputFolder
+        ? raw.outputFolder
+        : null,
     outputSuffix: typeof raw.outputSuffix === 'string' ? raw.outputSuffix : null,
     stripMetadata: raw.stripMetadata !== false,
     frameRate,

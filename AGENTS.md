@@ -150,42 +150,21 @@ the invitation link is surfaced in the UI instead. Full details in `docs/BETA.md
 
 ## Soty production releases
 
-Production releases are a fixed, two-platform procedure. Follow the **Canonical
-agent runbook** in `docs/PRODUCTION.md` in order; do not substitute commands,
-skip gates, or invent a parallel release flow. If a canonical command fails,
-fix the command or pipeline, repeat the affected gate, and record the fix. Do
-not bypass it with a manual artifact.
+For an actual production release, read and follow the canonical runbook in
+`docs/PRODUCTION.md`; do not substitute commands, skip gates, or use manual
+artifacts. On failure, fix and repeat the affected gate only.
 
-Non-negotiable rules:
-
-- The commit packaged for release must already be on both `main` and `beta`, and
-  `beta:package` plus `beta:verify` must have succeeded for that exact SHA.
-- Run heavy local build/package commands with `nice -n 15`, one at a time. The
-  machine may be thermally constrained; never launch macOS and Windows-local
-  build work concurrently.
-- Run Windows `publish=false` and wait for its full smoke test **before** making
-  the tag/release. Use `npm run release:watch -- <run-id>`; never use
-  `gh run watch` or rapid polling because repeated logs waste context and do not
-  make the workflow faster.
-- Windows `publish=true` is the only canonical way to attach the `.exe`. Never
-  upload a locally assembled or build-only Windows artifact.
-- The production entitlement private key must not enter CI and must never be
-  regenerated as a workaround. Windows smoke uses an ephemeral isolated key;
-  the workflow then rebuilds the published installer with the tracked
-  production public key.
-- Sign `stable.json` from the exact assets downloaded/published on GitHub. A
-  manifest-only commit does not justify rebuilding release binaries, but it
-  does require a new exact-SHA beta package/verify before web deployment.
-- Do not move the tag, replace published assets, change the version, or rerun a
-  heavy build merely to troubleshoot monitoring. Stop and inspect the failed
-  job or command first.
-- A **new tool** adds a key to `WEB_TOOL_REQUIREMENTS`, and
-  `scripts/verify-release.mjs` byte-compares that map against the signed
-  `stable.json`. So `deploy:web` fails until an agent release publishes a
-  manifest carrying the new map: a tool ships **with** an agent release, never
-  ahead of one. The Video Stitcher (`stitcher`, feature 014) is the worked
-  example: its web page stayed behind the `videoStitcher` acknowledgement flag
-  until the 1.1.0 agent release published the map carrying `stitcher: 1`.
+- The exact release SHA must be on `main` and `beta` and have a clean packaged
+  beta verification. Heavy local commands run one at a time via `nice -n 15`.
+- Run Windows `publish=false` plus `npm run release:watch -- <run-id>` before
+  tagging; only Windows `publish=true` may attach the `.exe`. Never use
+  `gh run watch` or rapid log polling.
+- Keep the production entitlement private key out of CI. Sign `stable.json`
+  from the exact published GitHub assets. A manifest-only commit needs fresh
+  exact-SHA beta verification, never rebuilt binaries.
+- Never move tags, replace assets, change a fixed release version, or rebuild
+  merely to diagnose monitoring. New tools ship with an agent release because
+  `WEB_TOOL_REQUIREMENTS` is byte-checked against the signed manifest.
 
 ## Cross-platform agent code
 

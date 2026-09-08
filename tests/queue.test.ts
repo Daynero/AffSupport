@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { spawn } from 'node:child_process';
-import { access, copyFile, mkdtemp, writeFile } from 'node:fs/promises';
+import { access, copyFile, mkdir, mkdtemp, unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { JobQueue } from '../apps/agent/src/queue/queue.js';
@@ -43,6 +43,24 @@ describe('queue file handling', () => {
     expect(queue.state().jobs[0].sourceFrameRate).toBeCloseTo(29.97, 2);
   });
 
+  it('quietly forgets a card whose source disappeared before the batch starts', async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), 'queue-missing-source-'));
+    const available = path.join(directory, 'available.mp4');
+    const missing = path.join(directory, 'missing.mp4');
+    expect(await makeVideo(available, 0.4, '160x90', 24)).toBe(0);
+    const availableJob = makeJob('available-source', 'ready', { inputPath: available });
+    const missingJob = makeJob('missing-source', 'ready', { inputPath: missing });
+    const queue = new JobQueue(
+      { ffmpeg: true, ffprobe: true },
+      () => {},
+      [availableJob, missingJob]
+    );
+
+    expect(await queue.removeMissingSources()).toBe(1);
+    expect(queue.state().jobs).toHaveLength(1);
+    expect(queue.state().jobs[0].id).toBe(availableJob.id);
+  });
+
   it('adds uploaded files and rejects the same browser-file signature as a duplicate', async () => {
     directory = await mkdtemp(path.join(os.tmpdir(), 'queue-uploaded-'));
     const first = path.join(directory, 'first.mp4');
@@ -58,6 +76,33 @@ describe('queue file handling', () => {
     const warnings = await queue.addUploaded(second, 'clip.mp4', 'clip.mp4:100:123');
     expect(warnings[0].reason).toBe('duplicate');
     expect(queue.state().jobs).toHaveLength(1);
+  });
+
+  it('removes an upload intake directory with its discarded card', async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), 'queue-upload-cleanup-'));
+    const intake = path.join(directory, 'import-ephemeral');
+    const input = path.join(intake, 'clip.mp4');
+    await mkdir(intake);
+    await writeFile(input, 'upload');
+    const job = makeJob('uploaded-source', 'ready', {
+      inputPath: input,
+      sourceKind: 'uploaded',
+      sourceKey: 'upload:clip'
+    });
+    const queue = new JobQueue({ ffmpeg: true, ffprobe: true }, () => {}, [job]);
+
+    expect(queue.remove(job.id)).toBe(true);
+    await waitFor(
+      async () => {
+        try {
+          await access(intake);
+          return false;
+        } catch {
+          return true;
+        }
+      },
+      { describe: 'the discarded upload intake directory to be removed' }
+    );
   });
 
   it('keeps dropped files next to their imported original when that output mode is selected', async () => {
@@ -177,6 +222,24 @@ describe('selected batch behavior', () => {
     expect(restored.outputPath).toBe(finished.outputPath);
     expect(restored.error).toBeNull();
     await access(restored.outputPath);
+  }, 20_000);
+
+  it('still cancels a repeat when its previous output was removed externally', async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), 'queue-repeat-missing-output-'));
+    const input = path.join(directory, 'source.mp4');
+    expect(await makeVideo(input, 0.4, '160x90', 24)).toBe(0);
+    const queue = new JobQueue({ ffmpeg: true, ffprobe: true }, () => {});
+    await queue.add([input]);
+    const id = queue.state().jobs[0].id;
+    await queue.start([id]);
+    await idle(queue);
+    const finished = queue.state().jobs[0];
+
+    await queue.repeat(id);
+    await unlink(finished.outputPath);
+
+    expect(await queue.cancel(id)).toBe(true);
+    expect(queue.state().jobs[0]).toMatchObject({ status: 'cancelled', error: null });
   }, 20_000);
 
   it('repeats completed jobs from the original with the currently selected settings', async () => {

@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { findDroppedFolder } from '../apps/agent/src/files/dropped-source.js';
+import { findDroppedFolder, findDroppedSource } from '../apps/agent/src/files/dropped-source.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 const roots: string[] = [];
@@ -26,6 +26,14 @@ async function seedDrop(folderName: string, relPath: string) {
 }
 
 describe('findDroppedFolder', () => {
+  it('recovers a video nested under Downloads before it falls back to an import copy', async () => {
+    const seed = await seedDrop('campaign', 'exports/video.mp4');
+    const file = path.join(seed.root, 'exports', 'video.mp4');
+    const resolved = await findDroppedSource('video.mp4', seed.size, seed.lastModified);
+
+    expect(resolved).toBe(file);
+  });
+
   it('recovers a folder dropped into a common location from a top-level sample file', async () => {
     const seed = await seedDrop('promo', 'index.html');
     const resolved = await findDroppedFolder({

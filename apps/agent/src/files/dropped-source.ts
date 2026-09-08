@@ -1,27 +1,81 @@
 import { spawn } from 'node:child_process';
-import { stat } from 'node:fs/promises';
+import type { Dirent } from 'node:fs';
+import { readdir, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { capabilities } from '../platform/platform.js';
 
 const COMMON_SOURCE_FOLDERS = ['Downloads', 'Desktop', 'Movies', 'Documents'];
+const MAX_COMMON_FOLDER_ENTRIES = 5_000;
+const MAX_COMMON_FOLDER_DEPTH = 4;
 
 export async function findDroppedSource(
   fileName: string,
   expectedSize: number,
   expectedModifiedAt: number
 ): Promise<string | null> {
-  if (!capabilities().spotlightSearch || !Number.isFinite(expectedSize)) return null;
+  if (!Number.isFinite(expectedSize)) return null;
 
   const home = os.homedir();
-  const common = COMMON_SOURCE_FOLDERS.map(folder => path.join(home, folder, fileName));
-  for (const candidate of common) {
-    if (await matchesFile(candidate, expectedSize, expectedModifiedAt)) return candidate;
-  }
+  const common = COMMON_SOURCE_FOLDERS.map(folder => path.join(home, folder));
+  const inCommonFolder = await findDroppedSourceInDirectories(
+    common,
+    fileName,
+    expectedSize,
+    expectedModifiedAt
+  );
+  if (inCommonFolder) return inCommonFolder;
 
+  if (!capabilities().spotlightSearch) return null;
   const candidates = await spotlight(home, fileName);
   for (const candidate of candidates) {
     if (await matchesFile(candidate, expectedSize, expectedModifiedAt)) return candidate;
+  }
+  return null;
+}
+
+/**
+ * Finds a browser-dropped original in the folders people normally drag from.
+ *
+ * Finder commonly supplies a file from one folder below Downloads (for example,
+ * `Downloads/campaign/video.mp4`). The browser hides its absolute path and
+ * Spotlight may not have indexed a recent download yet, so an exact top-level
+ * probe alone turns the agent's temporary import into the apparent original.
+ * This bounded walk covers that ordinary layout without scanning the home directory.
+ */
+async function findDroppedSourceInDirectories(
+  directories: string[],
+  fileName: string,
+  expectedSize: number,
+  expectedModifiedAt: number
+): Promise<string | null> {
+  for (const directory of directories) {
+    const direct = path.join(directory, fileName);
+    if (await matchesFile(direct, expectedSize, expectedModifiedAt)) return direct;
+
+    const pending: Array<{ directory: string; depth: number }> = [{ directory, depth: 0 }];
+    let visited = 0;
+    while (pending.length && visited < MAX_COMMON_FOLDER_ENTRIES) {
+      const current = pending.shift()!;
+      let entries: Dirent[];
+      try {
+        entries = await readdir(current.directory, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+      for (const entry of entries) {
+        if (++visited > MAX_COMMON_FOLDER_ENTRIES) break;
+        // Hidden trees such as .git and node_modules are neither ordinary drop
+        // locations nor a useful place to spend the bounded search budget.
+        if (entry.name.startsWith('.')) continue;
+        const candidate = path.join(current.directory, entry.name);
+        if (entry.isFile() && entry.name === fileName) {
+          if (await matchesFile(candidate, expectedSize, expectedModifiedAt)) return candidate;
+        } else if (entry.isDirectory() && current.depth < MAX_COMMON_FOLDER_DEPTH) {
+          pending.push({ directory: candidate, depth: current.depth + 1 });
+        }
+      }
+    }
   }
   return null;
 }

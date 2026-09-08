@@ -4,6 +4,7 @@ import {
   COMPRESSION_LIFECYCLE,
   isSettled,
   estimatedFinalImageDurationSeconds,
+  endScreenFrameRate,
   expectedDimensions,
   expectedFrameRate,
   jobConfigurationKey,
@@ -433,6 +434,7 @@ function ResultPanel({
   /** Estimate figure to count up from while the estimate → result morph runs. */
   morphFromBytes?: number | null;
 }) {
+  const finalFrameRate = displayedResultFrameRate(job);
   const displayedSize = useMorphedBytes(job.finalSize, morphFromBytes);
   const saving =
     job.finalSize === null || !job.originalSize
@@ -462,7 +464,7 @@ function ResultPanel({
           // Duration sits where the estimate keeps it, so the two panels line
           // up column for column.
           [t('videoResolution'), dimensions(job.finalWidth, job.finalHeight)],
-          [t('videoFps'), `${formatFps(job.finalFrameRate, language)} FPS`],
+          [t('videoFps'), `${formatFps(finalFrameRate, language)} FPS`],
           [t('duration'), formatDuration(job.finalDurationSeconds)],
           [t('videoBitrate'), formatBitrate(job.finalBitrate, language)],
           [t('codec'), formatCodec(job.finalCodec)]
@@ -474,6 +476,26 @@ function ResultPanel({
       </div>
     </section>
   );
+}
+
+/**
+ * A held final image is intentionally sparse (at most one stored picture per
+ * second), so its average FPS is not the rate of the moving video. This also
+ * corrects cards saved by older agents that persisted that misleading average.
+ */
+function displayedResultFrameRate(job: CompressionJob): number | null {
+  const embedding = job.imageEmbedding;
+  const bodyFrameRate = expectedFrameRate(job.sourceFrameRate, job.encoding.frameRate);
+  const finalSeconds = embedding?.finalDurationSeconds;
+  if (
+    embedding?.endImage &&
+    finalSeconds &&
+    bodyFrameRate &&
+    endScreenFrameRate(finalSeconds, bodyFrameRate) < bodyFrameRate
+  ) {
+    return bodyFrameRate;
+  }
+  return job.finalFrameRate;
 }
 
 function MediaGrid({
