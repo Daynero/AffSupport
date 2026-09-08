@@ -10,6 +10,7 @@ import {
   errorResponse,
   redactForLog
 } from '../supabase/functions/_shared/errors';
+import { corsHeadersForRequest } from '../supabase/functions/_shared/cors';
 import { executeDriveConnectCommand } from '../supabase/functions/drive-connect/handler';
 import {
   LANDING_IFRAME_SANDBOX,
@@ -24,6 +25,27 @@ const localSignals = {
 };
 
 describe('team security privacy boundaries', () => {
+  it.each(['http://127.0.0.1:43120', 'http://localhost:43120', 'http://127.0.0.1:43140'])(
+    'allows the installed Agent origin %s to call a team Edge Function',
+    origin => {
+      const headers = corsHeadersForRequest(
+        new Request('https://example.test/functions/v1/drive-connect', { headers: { origin } }),
+        productionOrigin
+      );
+      expect(headers?.['access-control-allow-origin']).toBe(origin);
+    }
+  );
+
+  it('does not grant arbitrary local ports Edge Function access', () => {
+    const headers = corsHeadersForRequest(
+      new Request('https://example.test/functions/v1/drive-connect', {
+        headers: { origin: 'http://127.0.0.1:43121' }
+      }),
+      productionOrigin
+    );
+    expect(headers).toBeNull();
+  });
+
   it.each([
     [undefined, localSignals],
     ['disabled', localSignals],

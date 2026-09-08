@@ -1,4 +1,16 @@
-const LOCAL_ORIGINS = new Set(['http://127.0.0.1:5173', 'http://localhost:5173']);
+/**
+ * The installed Agent serves the same authenticated web UI on 43120 (and the
+ * isolated beta Agent on 43140). Those origins call Edge Functions directly,
+ * so they need the same narrow local CORS allowance as Vite development.
+ */
+const LOCAL_ORIGINS = new Set([
+  'http://127.0.0.1:5173',
+  'http://localhost:5173',
+  'http://127.0.0.1:43120',
+  'http://localhost:43120',
+  'http://127.0.0.1:43140',
+  'http://localhost:43140'
+]);
 
 function normalizeOrigin(value: string | null | undefined): string | null {
   if (!value) return null;
