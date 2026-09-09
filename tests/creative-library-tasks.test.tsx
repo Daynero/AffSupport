@@ -63,6 +63,7 @@ const SECOND_ASSET_ID = '31000000-0000-4000-8000-000000000006';
 afterEach(() => {
   cleanup();
   localStorage.clear();
+  sessionStorage.clear();
   vi.restoreAllMocks();
 });
 
@@ -421,6 +422,49 @@ describe('Creative Library task workflows', () => {
     expect(onClose).toHaveBeenCalledOnce();
     expect(api.attachTaskMaterials).not.toHaveBeenCalled();
     expect(api.detachTaskMaterial).not.toHaveBeenCalled();
+  });
+
+  it('restores typed task fields after the browser recreates a background tab', async () => {
+    const api = client();
+    const first = render(
+      <TaskEditor
+        teamId={TEAM_ID}
+        task={task()}
+        members={[]}
+        canEdit
+        client={api}
+        onClose={vi.fn()}
+        onChanged={vi.fn()}
+      />
+    );
+
+    await screen.findByText('launch.mp4');
+    const title = document.querySelector('#team-task-title') as HTMLInputElement;
+    fireEvent.change(title, { target: { value: 'Keep this title' } });
+    fireEvent.change(document.querySelector('.team-task-description-input')!, {
+      target: { value: 'Keep this description too' }
+    });
+    first.unmount();
+
+    render(
+      <TaskEditor
+        teamId={TEAM_ID}
+        task={task()}
+        members={[]}
+        canEdit
+        client={api}
+        onClose={vi.fn()}
+        onChanged={vi.fn()}
+      />
+    );
+
+    await screen.findByText('launch.mp4');
+    expect((document.querySelector('#team-task-title') as HTMLInputElement).value).toBe(
+      'Keep this title'
+    );
+    expect(
+      (document.querySelector('.team-task-description-input') as HTMLTextAreaElement).value
+    ).toBe('Keep this description too');
   });
 
   it('sends staged media to the server only when saving the task', async () => {

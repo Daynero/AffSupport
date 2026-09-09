@@ -66,6 +66,69 @@ export interface TaskEditorClient
 const defaultClient: TaskEditorClient = { ...teamApi, uploadFile: uploadTeamFile };
 const TASK_PROGRESS_MAX = 10_000;
 
+/**
+ * A browser may discard a background tab and recreate the page when it is
+ * restored. Keeping an unsaved form only in React state made that lifecycle
+ * look like somebody had chosen to discard their work. This tab-local draft
+ * survives a discard/reload, without claiming it was saved to the team.
+ */
+const TASK_DRAFT_STORAGE_PREFIX = 'soty.team-task-draft.v1:';
+
+type TaskFormDraft = Pick<
+  TeamTaskSummary,
+  'title' | 'note' | 'assigneeId' | 'dateOn' | 'progressMax' | 'progressValue'
+>;
+
+function taskDraftKey(teamId: string, taskId: string): string {
+  return `${TASK_DRAFT_STORAGE_PREFIX}${teamId}:${taskId}`;
+}
+
+function readTaskFormDraft(teamId: string, task: TeamTaskSummary): TaskFormDraft | null {
+  try {
+    const value: unknown = JSON.parse(
+      window.sessionStorage.getItem(taskDraftKey(teamId, task.id)) ?? ''
+    );
+    if (!value || typeof value !== 'object') return null;
+    const draft = value as Partial<TaskFormDraft>;
+    if (
+      typeof draft.title !== 'string' ||
+      (draft.note !== null && typeof draft.note !== 'string') ||
+      (draft.assigneeId !== null && typeof draft.assigneeId !== 'string') ||
+      (draft.dateOn !== null && typeof draft.dateOn !== 'string') ||
+      !Number.isInteger(draft.progressMax) ||
+      !Number.isInteger(draft.progressValue)
+    ) {
+      return null;
+    }
+    return {
+      title: draft.title,
+      note: draft.note,
+      assigneeId: draft.assigneeId,
+      dateOn: draft.dateOn,
+      progressMax: draft.progressMax as number,
+      progressValue: draft.progressValue as number
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeTaskFormDraft(teamId: string, taskId: string, draft: TaskFormDraft): void {
+  try {
+    window.sessionStorage.setItem(taskDraftKey(teamId, taskId), JSON.stringify(draft));
+  } catch {
+    // Storage is a recovery aid; private-mode restrictions must not block editing.
+  }
+}
+
+function clearTaskFormDraft(teamId: string, taskId: string): void {
+  try {
+    window.sessionStorage.removeItem(taskDraftKey(teamId, taskId));
+  } catch {
+    // The editor remains fully usable when browser storage is unavailable.
+  }
+}
+
 function uniqueAttachments(
   current: TeamTaskAttachmentSummary[],
   incoming: TeamTaskAttachmentSummary[]
@@ -220,16 +283,25 @@ export function TaskEditor({
         // The delivery reports its own outcome through the notices below.
       });
   };
+  const [restoredDraft] = useState(() => readTaskFormDraft(teamId, initialTask));
   const [task, setTask] = useState(initialTask);
-  const [title, setTitle] = useState(initialTask.title);
-  const [note, setNote] = useState(initialTask.note ?? '');
+  const [title, setTitle] = useState(restoredDraft?.title ?? initialTask.title);
+  const [note, setNote] = useState(restoredDraft?.note ?? initialTask.note ?? '');
   const [status, setStatus] = useState(initialTask.status);
-  const [assigneeId, setAssigneeId] = useState(initialTask.assigneeId ?? '');
+  const [assigneeId, setAssigneeId] = useState(
+    restoredDraft?.assigneeId ?? initialTask.assigneeId ?? ''
+  );
   /** The day the task is for; null is "the day it was created". */
-  const [dateOn, setDateOn] = useState<string | null>(initialTask.dateOn);
-  const [progressMax, setProgressMax] = useState(initialTask.progressMax);
-  const [progressMaxInput, setProgressMaxInput] = useState(String(initialTask.progressMax));
-  const [progressValue, setProgressValue] = useState(initialTask.progressValue);
+  const [dateOn, setDateOn] = useState<string | null>(restoredDraft?.dateOn ?? initialTask.dateOn);
+  const [progressMax, setProgressMax] = useState(
+    restoredDraft?.progressMax ?? initialTask.progressMax
+  );
+  const [progressMaxInput, setProgressMaxInput] = useState(
+    String(restoredDraft?.progressMax ?? initialTask.progressMax)
+  );
+  const [progressValue, setProgressValue] = useState(
+    restoredDraft?.progressValue ?? initialTask.progressValue
+  );
   const [persistedAttachments, setPersistedAttachments] = useState<TeamTaskAttachmentSummary[]>([]);
   const [draftAttachments, setDraftAttachments] = useState<TeamTaskAttachmentSummary[]>([]);
   const [detachedMaterialIds, setDetachedMaterialIds] = useState<Set<string>>(new Set());
@@ -384,6 +456,29 @@ export function TaskEditor({
   const attachmentDirty = draftAttachments.length > 0 || detachedMaterialIds.size > 0;
   // Status has an immediate server write and therefore intentionally does not make this dirty.
   const hasUnsavedChanges = canEdit && (formDirty || attachmentDirty);
+
+  useEffect(() => {
+    if (!canEdit || !formDirty) return;
+    writeTaskFormDraft(teamId, task.id, {
+      title,
+      note: note || null,
+      assigneeId: assigneeId || null,
+      dateOn,
+      progressMax,
+      progressValue
+    });
+  }, [
+    assigneeId,
+    canEdit,
+    dateOn,
+    formDirty,
+    note,
+    progressMax,
+    progressValue,
+    task.id,
+    teamId,
+    title
+  ]);
 
   const loadMore = async () => {
     const cursor = persistedAttachments.at(-1)?.position;
@@ -752,6 +847,7 @@ export function TaskEditor({
         await client.detachTaskMaterial(teamId, task.id, materialId);
       }
       onChanged({ ...updated, attachmentCount });
+      clearTaskFormDraft(teamId, task.id);
       onClose();
     } catch {
       setError('write');
@@ -804,6 +900,11 @@ export function TaskEditor({
       setShowUnsavedPrompt(true);
       return;
     }
+    onClose();
+  };
+
+  const discardAndClose = () => {
+    clearTaskFormDraft(teamId, task.id);
     onClose();
   };
 
@@ -1137,7 +1238,7 @@ export function TaskEditor({
             <h2 id="team-task-unsaved-title">{t('teamTaskUnsavedTitle')}</h2>
             <p>{t('teamTaskUnsavedDescription')}</p>
             <div className="team-dialog-actions">
-              <Button type="button" variant="ghost" onClick={onClose}>
+              <Button type="button" variant="ghost" onClick={discardAndClose}>
                 {t('teamTaskCloseWithoutSaving')}
               </Button>
               <Button type="button" variant="primary" loading={saving} onClick={() => void save()}>
