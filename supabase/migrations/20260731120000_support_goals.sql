@@ -135,14 +135,22 @@ insert into public.support_goals (
   description_uk,
   status
 ) values (
-  'mac-updates-apple-developer',
+  'ai-subscription-faster-fixes',
   'USD',
-  9900,
+  10000,
   0,
-  'Get rid of reinstalls',
-  'Позбутися перевстановлень',
-  'Right now, every update means downloading the DMG again and going through the same manual ritual. The $99 goal covers the first year of the Apple Developer Program. That will let me sign and notarize Soty, then add safe updates directly inside the app — without repeated downloads, manual replacement, or Terminal commands.',
-  'Зараз кожне оновлення означає знову завантажити DMG, і інші танці з бубном. Щоб це прибрати, потрібні $99 на перший рік Apple Developer Program. Це дозволить підписувати й нотаризувати Soty, а далі — зробити безпечне оновлення прямо із застосунку: без повторних завантажень, ручної заміни та команд у Terminal.',
+  'Faster fixes',
+  'Швидші виправлення',
+  'I build Soty alone, in my own time. The slow part is not writing the fix — it is finding the cause: reproducing the bug, working through theories, making sure that mending one thing did not break another.
+
+An AI subscription cuts exactly that part out. Something that waits weeks today gets fixed in an evening, and what is left over goes into new tools instead of patching old ones.
+
+The goal is $100 — one month of it. Any amount moves it, however small, and at this size every single one genuinely counts. Please chip in if Soty is worth it to you.',
+  'Soty я роблю сам, у вільний час. Найдовше забирає не саме виправлення, а пошук причини: відтворити баг, перебрати гіпотези, переконатися, що, полагодивши одне, не зламав інше.
+
+Саме цей шматок і зрізає ШІ-підписка. Те, що зараз чекає тижнями, встигає полагодитися за вечір, а час, який лишається, іде на нові інструменти, а не на латання старих.
+
+Ціль — $100, це один місяць. Наближає будь-яка сума, навіть найменша: на таких обсягах кожна гривня справді має значення. Долучайтеся, будь ласка, якщо Soty того вартий.',
   'active'
 );
 

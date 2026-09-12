@@ -38,9 +38,9 @@ const en = {
   supportTitle: 'Support the project',
   supportIntro:
     'Soty is a free tool, built by a media buyer for media buyers. No subscriptions, no paywalls, no extra services. If Soty saves you time and you want to support new features, you can leave a donation. It is optional, but it really helps the project grow faster.',
-  supportGoalShort: 'No more reinstalls',
+  supportGoalShort: 'Faster fixes',
   supportGoalOpen: 'Support goal: {raised} of {target}',
-  supportGoalEyebrow: 'GOAL #1 · NO MORE REINSTALLS',
+  supportGoalEyebrow: 'GOAL #1 · FASTER FIXES',
   supportGoalTarget: 'Goal {amount}',
   supportGoalCollected: 'Raised',
   supportGoalRaisedOf: '{raised} of {target}',
@@ -2427,9 +2427,9 @@ const uk: Record<keyof typeof en, string> = {
   supportTitle: 'Підтримати проєкт',
   supportIntro:
     'Soty — безкоштовний інструмент, створений баєром для баєрів. Без підписок, платних стін і зайвих сервісів. Якщо Soty економить тобі час і ти хочеш підтримати розвиток нових фіч — можеш залишити донат. Це не обов’язково, але дуже допомагає розвивати проєкт швидше.',
-  supportGoalShort: 'Без перевстановлень',
+  supportGoalShort: 'Швидші виправлення',
   supportGoalOpen: 'Донатна ціль: зібрано {raised} із {target}',
-  supportGoalEyebrow: 'ЦІЛЬ №1 · БЕЗ ПЕРЕВСТАНОВЛЕНЬ',
+  supportGoalEyebrow: 'ЦІЛЬ №1 · ШВИДШІ ВИПРАВЛЕННЯ',
   supportGoalTarget: 'Ціль {amount}',
   supportGoalCollected: 'Зібрано',
   supportGoalRaisedOf: '{raised} із {target}',

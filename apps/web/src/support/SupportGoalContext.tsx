@@ -28,16 +28,16 @@ const LOCAL_DEV_AUTH = import.meta.env.VITE_LOCAL_DEV_AUTH === 'true';
 const SHOW_LOCAL_GOAL_PREVIEW = LOCAL_DEV_AUTH && import.meta.env.DEV;
 const localGoalPreview: SupportGoalRow = {
   id: '00000000-0000-4000-8000-000000000099',
-  slug: 'mac-updates-apple-developer',
+  slug: 'ai-subscription-faster-fixes',
   currency: 'USD',
-  target_cents: 9900,
+  target_cents: 10000,
   raised_cents: 3700,
-  title_en: 'Get rid of reinstalls',
-  title_uk: 'Позбутися перевстановлень',
+  title_en: 'Faster fixes',
+  title_uk: 'Швидші виправлення',
   description_en:
-    'Right now, every update means downloading the DMG again and going through the same manual ritual. The $99 goal covers the first year of the Apple Developer Program. That will let me sign and notarize Soty, then add safe updates directly inside the app — without repeated downloads, manual replacement, or Terminal commands.',
+    'I build Soty alone, in my own time. The slow part is not writing the fix — it is finding the cause. An AI subscription cuts exactly that part out.',
   description_uk:
-    'Зараз кожне оновлення означає знову завантажити DMG, і інші танці з бубном. Щоб це прибрати, потрібні $99 на перший рік Apple Developer Program. Це дозволить підписувати й нотаризувати Soty, а далі — зробити безпечне оновлення прямо із застосунку: без повторних завантажень, ручної заміни та команд у Terminal.',
+    'Soty я роблю сам, у вільний час. Найдовше забирає не саме виправлення, а пошук причини. Саме цей шматок і зрізає ШІ-підписка.',
   status: 'active',
   created_at: '2026-07-31T00:00:00.000Z',
   updated_at: '2026-07-31T00:00:00.000Z'
