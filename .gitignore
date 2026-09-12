@@ -8,7 +8,12 @@ Thumbs.db
 *.tmp
 *.swp
 .vscode/
-release/
+# Anchored deliberately. An unanchored `release/` matches a directory of that
+# name at ANY depth, which silently excluded scripts/lib/release/ (the entire
+# release runner) and packaging/release/ResourceProbe.swift from the repository
+# while their tests were committed — a suite that cannot run on a fresh clone,
+# and an implementation that existed on exactly one disk.
+/release/
 .env
 .env.*
 !.env.example
