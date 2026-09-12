@@ -2,24 +2,53 @@ import { useEffect, useRef, useState } from 'react';
 import {
   MATERIAL_CATEGORIES,
   type CatalogSearchFilters,
-  type CatalogVocabulary
+  type CatalogSearchResponse,
+  type CatalogVocabulary,
+  type MaterialCategory
 } from '@video-compressor/shared';
 import { Button } from '../../components/ui';
-import { useI18n } from '../../i18n';
+import { CATEGORY_LABEL } from '../explorer/rowKinds';
+import { useI18n, type TranslationKey } from '../../i18n';
 
-const LABELS: Record<keyof CatalogSearchFilters, string> = {
-  geo: 'GEO',
-  language: 'Language',
-  offer: 'Offer',
-  category: 'Category',
-  originalType: 'Original type',
-  kind: 'Kind',
-  unfilled: 'Missing metadata'
+/** The filters' own names, in the reader's language — they label the chips too. */
+const LABEL_KEYS: Record<Exclude<keyof CatalogSearchFilters, 'geo'>, TranslationKey> = {
+  language: 'teamCatalogLanguage',
+  offer: 'teamCatalogOffer',
+  category: 'teamCatalogCategory',
+  originalType: 'teamCatalogOriginalType',
+  kind: 'teamCatalogKind',
+  unfilled: 'teamCatalogMissingMetadata'
 };
+
+const KIND_KEYS: Record<string, TranslationKey> = {
+  file: 'teamCatalogFile',
+  folder: 'teamCatalogFolder',
+  shortcut: 'teamCatalogShortcut'
+};
+
+/** "Missing metadata" offers the three fields by their own names. */
+const UNFILLED_KEYS: Record<string, TranslationKey> = {
+  language: 'teamCatalogLanguage',
+  offer: 'teamCatalogOffer'
+};
+
+/**
+ * A MIME type read as a person would say it: `video/mp4` is "MP4", and
+ * `application/vnd.google-apps.folder` is "Folder". A bare extension keeps its
+ * own spelling. The raw value stays in the title, for when the short form is
+ * ambiguous.
+ */
+function originalTypeLabel(value: string): string {
+  const tail = value.split('/').pop() ?? value;
+  const word = tail.split('.').pop() ?? tail;
+  if (word.length === 0) return value;
+  return word.length <= 6 ? word.toUpperCase() : word[0]!.toUpperCase() + word.slice(1);
+}
 
 export function CatalogFilters({
   filters,
   vocabulary,
+  facets,
   hasContent = true,
   visibleKeys,
   onSet,
@@ -28,6 +57,13 @@ export function CatalogFilters({
 }: {
   filters: CatalogSearchFilters;
   vocabulary: CatalogVocabulary;
+  /**
+   * What the current result actually contains. "Original type" has no
+   * dictionary to read — a space's types are whatever its files are — so its
+   * options come from here, and the control was left with an empty list and
+   * nothing to choose until now.
+   */
+  facets?: CatalogSearchResponse['facets'];
   /** Whether the catalog currently has any material to filter. */
   hasContent?: boolean;
   visibleKeys?: readonly (keyof CatalogSearchFilters)[];
@@ -58,22 +94,48 @@ export function CatalogFilters({
   }, [selections.length]);
 
   if (!hasContent && !hasFacets && selections.length === 0) return null;
-  const select = (key: keyof CatalogSearchFilters, options: readonly string[], label: string) => (
+
+  /** The filter's own name, as the reader sees it in the panel and on its chip. */
+  const filterLabel = (key: keyof CatalogSearchFilters) =>
+    key === 'geo' ? 'GEO' : t(LABEL_KEYS[key]);
+
+  /**
+   * A value's name. Codes stay codes — GEO and language are read as `UA`, `EN`
+   * — and everything drawn from a fixed set is said in words: the panel used to
+   * offer `video`, `file` and `geo` to a reader who had asked for Ukrainian.
+   */
+  const valueLabel = (key: keyof CatalogSearchFilters, value: string) => {
+    if (key === 'category') return t(CATEGORY_LABEL[value as MaterialCategory] ?? 'teamCatalogAny');
+    if (key === 'kind') return KIND_KEYS[value] ? t(KIND_KEYS[value]!) : value;
+    if (key === 'unfilled')
+      return value === 'geo' ? 'GEO' : t(UNFILLED_KEYS[value] ?? 'teamCatalogAny');
+    if (key === 'originalType') return originalTypeLabel(value);
+    return value;
+  };
+
+  const select = (key: keyof CatalogSearchFilters, options: readonly string[]) => (
     <label>
-      <span>{label}</span>
+      <span>{filterLabel(key)}</span>
       <select
         value={filters[key][0] ?? ''}
         onChange={event => onSet(key, event.target.value || null)}
       >
         <option value="">{t('teamCatalogAny')}</option>
         {options.map(option => (
-          <option key={option} value={option}>
-            {option}
+          <option key={option} value={option} title={option}>
+            {valueLabel(key, option)}
           </option>
         ))}
       </select>
     </label>
   );
+
+  /* Facet values narrow with the search, so the chosen one is kept in the list:
+     without it, picking a type removed every other type and there was no way
+     back to a different one. */
+  const originalTypeOptions = [
+    ...new Set([...(facets?.originalType ?? []).map(facet => facet.value), ...filters.originalType])
+  ].sort((left, right) => originalTypeLabel(left).localeCompare(originalTypeLabel(right)));
 
   /*
    * Seven selects, all reading "Будь-яке", stood between the search box and the
@@ -99,17 +161,13 @@ export function CatalogFilters({
           : t('teamCatalogFiltersIdle')}
       </summary>
       <div className="team-catalog-filters">
-        {visible.has('geo') && select('geo', vocabulary.geo, 'GEO')}
-        {visible.has('language') &&
-          select('language', vocabulary.languages, t('teamCatalogLanguage'))}
-        {visible.has('offer') && select('offer', vocabulary.offers, t('teamCatalogOffer'))}
-        {visible.has('category') &&
-          select('category', MATERIAL_CATEGORIES, t('teamCatalogCategory'))}
-        {visible.has('originalType') && select('originalType', [], t('teamCatalogOriginalType'))}
-        {visible.has('kind') &&
-          select('kind', ['file', 'folder', 'shortcut'], t('teamCatalogKind'))}
-        {visible.has('unfilled') &&
-          select('unfilled', ['geo', 'offer', 'language'], t('teamCatalogMissingMetadata'))}
+        {visible.has('geo') && select('geo', vocabulary.geo)}
+        {visible.has('language') && select('language', vocabulary.languages)}
+        {visible.has('offer') && select('offer', vocabulary.offers)}
+        {visible.has('category') && select('category', MATERIAL_CATEGORIES)}
+        {visible.has('originalType') && select('originalType', originalTypeOptions)}
+        {visible.has('kind') && select('kind', ['file', 'folder', 'shortcut'])}
+        {visible.has('unfilled') && select('unfilled', ['geo', 'offer', 'language'])}
       </div>
       {selections.length > 0 && (
         <div className="team-catalog-chips" aria-label={t('teamCatalogActiveFilters')}>
@@ -118,10 +176,13 @@ export function CatalogFilters({
               type="button"
               variant="ghost"
               key={`${key}:${value}`}
-              aria-label={t('teamCatalogRemoveFilter', { label: LABELS[key], value })}
+              aria-label={t('teamCatalogRemoveFilter', {
+                label: filterLabel(key),
+                value: valueLabel(key, value)
+              })}
               onClick={() => onRemove(key, value)}
             >
-              {LABELS[key]}: {value} ×
+              {filterLabel(key)}: {valueLabel(key, value)} ×
             </Button>
           ))}
           <Button type="button" variant="ghost" onClick={onClear}>

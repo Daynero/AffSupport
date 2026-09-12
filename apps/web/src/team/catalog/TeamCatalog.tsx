@@ -233,6 +233,7 @@ export function TeamCatalog({
       <CatalogFilters
         filters={catalog.filters}
         vocabulary={catalog.vocabulary}
+        facets={catalog.result?.facets}
         hasContent={(catalog.result?.total ?? 0) > 0}
         onSet={catalog.setFacet}
         onRemove={catalog.removeFilter}
