@@ -280,7 +280,18 @@ export async function createStepAdapter({
 
     deploy: () => run('deploy', npm('deploy:web'), { cwd, env: childEnv, admission }),
 
-    live_verify: () => run('live_verify', [process.execPath, 'scripts/verify-published-release.mjs'], { cwd, env: childEnv, admission })
+    /**
+     * The release is not finished when the upload succeeds; it is finished when
+     * the deployed thing works. The first half proves the published artifacts
+     * are downloadable, the second asks the live site the questions a person
+     * used to ask by hand — and asks them every time, not when someone
+     * remembers to.
+     */
+    live_verify: async () => {
+      const published = await run('live_verify', [process.execPath, 'scripts/verify-published-release.mjs'], { cwd, env: childEnv, admission });
+      if (!published.ok) return published;
+      return run('live_verify', [process.execPath, 'scripts/verify-live-smoke.mjs'], { cwd, env: childEnv, admission });
+    }
   };
 
   return {

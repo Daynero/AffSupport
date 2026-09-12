@@ -1,9 +1,18 @@
 #!/usr/bin/env node
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync } from 'node:fs';
+import {
+  appendFileSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync
+} from 'node:fs';
 import path from 'node:path';
 import { activeBinding } from './lib/release/bindings.mjs';
 import { writeWebMarker } from './release-web-meta.mjs';
+import { bundlesToKeep, parseHistory } from './lib/web-rollback.mjs';
 
 /**
  * Deploys the built web bundle to the destination its binding names.
@@ -21,6 +30,10 @@ import { writeWebMarker } from './release-web-meta.mjs';
 
 const WRANGLER = 'wrangler@4.112.0';
 const BUNDLE = 'apps/web/dist';
+const HISTORY = 'release/automation/web-deployments.jsonl';
+const ARCHIVE = 'release/automation/bundles';
+/** Five is about a month of releases at the current pace, and fifteen megabytes. */
+const KEEP_BUNDLES = 5;
 const MANIFEST = 'apps/web/public/.well-known/wishly/stable.json';
 
 function gitSha(args) {
@@ -73,5 +86,27 @@ if (import.meta.url === new URL(`file://${process.argv[1]}`).href) {
     ],
     { shell: false, stdio: 'inherit' }
   );
+
+  // Archived only after the upload succeeded, and keyed by the digest of what
+  // was uploaded. Rolling back then means redeploying bytes this project has
+  // actually served, rather than rebuilding from source and shipping something
+  // nobody has ever run — which would be a second unverified deploy calling
+  // itself a rollback.
+  if (result.status === 0) {
+    const destination = path.join(ARCHIVE, marker.outputDigest);
+    mkdirSync(ARCHIVE, { recursive: true, mode: 0o700 });
+    if (!existsSync(destination)) cpSync(BUNDLE, destination, { recursive: true });
+    appendFileSync(
+      HISTORY,
+      `${JSON.stringify({ ...marker, deployedAt: new Date().toISOString() })}\n`,
+      {
+        mode: 0o600
+      }
+    );
+    const keep = new Set(bundlesToKeep(parseHistory(readFileSync(HISTORY, 'utf8')), KEEP_BUNDLES));
+    for (const entry of readdirSync(ARCHIVE))
+      if (!keep.has(entry)) rmSync(path.join(ARCHIVE, entry), { recursive: true, force: true });
+  }
+
   process.exit(result.status ?? 1);
 }

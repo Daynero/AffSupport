@@ -33,6 +33,7 @@ async function fakeProject() {
     'verify-production-config.mjs',
     'verify-beta-promotion.mjs',
     'verify-published-release.mjs',
+    'verify-live-smoke.mjs',
     'sign-release-manifest.mjs',
     'watch-github-run.mjs'
   ]) {
@@ -169,6 +170,29 @@ describe('the step adapter runs the runbook', () => {
       const calls = await readFile(log, 'utf8');
       expect(calls).toContain('node verify-web-env.mjs');
       expect(calls).not.toContain('verify-production-config.mjs');
+    } finally {
+      await removeTemporaryDirectory(root);
+    }
+  }, 60_000);
+
+  it('finishes only after asking the live site whether the deployment works', async () => {
+    // The release used to end at "the artifacts are downloadable", which is true
+    // of a release whose site serves the previous bundle to every user.
+    const { root, bin, log } = await fakeProject();
+    try {
+      const adapter = await createStepAdapter({
+        runId: 'run',
+        version: '9.9.9',
+        sourceSha,
+        cwd: root,
+        env: { PATH: `${bin}:${process.env.PATH}` },
+        binding,
+        allowRemote: true
+      });
+      expect(await adapter.execute('live_verify')).toMatchObject({ ok: true });
+      const calls = await readFile(log, 'utf8');
+      expect(calls).toContain('node verify-published-release.mjs');
+      expect(calls).toContain('node verify-live-smoke.mjs');
     } finally {
       await removeTemporaryDirectory(root);
     }

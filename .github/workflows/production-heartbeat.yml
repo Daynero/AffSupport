@@ -1,0 +1,104 @@
+# Does production still work? Asked every ten minutes, by something that is not
+# production.
+#
+# The ten-step smoke test in docs/PRODUCTION.md is performed by a person, so it
+# was performed when a person had the attention to perform it. Production once
+# stayed down for hours because nothing else was asking. This asks from outside:
+# a runner that shares no machine, no network and no database with the thing it
+# is checking, so an outage cannot also silence the check.
+#
+# It reports by opening one issue and reusing it, which is how the notification
+# reaches a phone without paying anyone for a pager. The issue closes itself when
+# the next run passes, so a green repository means a green production.
+name: production-heartbeat
+
+on:
+  schedule:
+    # Ten minutes is the compromise between noticing quickly and GitHub's own
+    # scheduling jitter, which routinely delays a cron by several minutes.
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: production-heartbeat
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  HEARTBEAT_ISSUE_TITLE: 'production-heartbeat: the live smoke test is failing'
+
+jobs:
+  smoke:
+    name: smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # The smoke test verifies the served manifest's signature with the tracked
+      # release key, which lives in the shared package's built output.
+      - run: npm run build -w @video-compressor/shared
+
+      # Told apart from an outage on purpose: an unset key is this workflow being
+      # unfinished, not production being down, and it must not open an incident
+      # every ten minutes to say so. The scheduled-run failure notification is
+      # enough to get it fixed once.
+      - name: Refuse to report on an unconfigured heartbeat
+        if: ${{ secrets.SOTY_SMOKE_SUPABASE_KEY == '' }}
+        run: |
+          echo "::error::SOTY_SMOKE_SUPABASE_KEY is not set, so the database and identity probes cannot run."
+          echo "Set it once with: gh secret set SOTY_SMOKE_SUPABASE_KEY --repo ${{ github.repository }}"
+          exit 1
+
+      - name: Probe the live deployment
+        id: smoke
+        # `--served-only` because the default branch may legitimately be one
+        # manifest commit ahead of what is deployed during a release; the strict
+        # comparison belongs to the release run, which knows what it just shipped.
+        run: |
+          set +e
+          node scripts/verify-live-smoke.mjs --served-only --json > smoke.json 2> smoke.err
+          echo "status=$?" >> "$GITHUB_OUTPUT"
+          cat smoke.json
+          cat smoke.err
+        env:
+          # A public value — the same key the deployed bundle ships — kept as a
+          # secret only so it is not restated in a tracked file.
+          SOTY_SMOKE_SUPABASE_KEY: ${{ secrets.SOTY_SMOKE_SUPABASE_KEY }}
+
+      - name: Report a failing production
+        if: steps.smoke.outputs.status != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          failures=$(node -e "try{const r=require('./smoke.json');console.log(r.failures.map(f=>'- '+f).join('\n'))}catch{console.log('- the smoke test could not produce a result')}")
+          body=$(printf '%s\n\n%s\n\n%s\n' \
+            "The live smoke test failed at $(date -u '+%Y-%m-%d %H:%M UTC')." \
+            "$failures" \
+            "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}")
+          existing=$(gh issue list --state open --search "$HEARTBEAT_ISSUE_TITLE in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$HEARTBEAT_ISSUE_TITLE" --body "$body"
+          fi
+          exit 1
+
+      - name: Close the report when production recovers
+        if: steps.smoke.outputs.status == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          existing=$(gh issue list --state open --search "$HEARTBEAT_ISSUE_TITLE in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue close "$existing" --comment "The live smoke test passed at $(date -u '+%Y-%m-%d %H:%M UTC'); production is answering again."
+          fi
