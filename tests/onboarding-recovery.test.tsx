@@ -98,4 +98,17 @@ describe('the panel shown when the page cannot reach the Agent', () => {
     expect(screen.getByText('Відкрийте Soty, щоб продовжити')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Спробувати знову' })).toBeTruthy();
   });
+
+  it('re-pairs through the local app when the account check is blocked', () => {
+    history.replaceState(null, '', '/tools/compressor');
+
+    renderOnboarding('entitlement_blocked');
+
+    const recover = screen.getByRole('link', { name: 'Перепідключити через Soty' });
+    expect(recover.className).toContain('button-primary');
+    expect(recover.getAttribute('href')).toBe(
+      'http://127.0.0.1:43120/local?to=%2Ftools%2Fcompressor'
+    );
+    expect(screen.getByRole('button', { name: 'Спробувати знову' })).toBeTruthy();
+  });
 });

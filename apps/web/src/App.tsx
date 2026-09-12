@@ -996,9 +996,19 @@ export function Onboarding({
         title={t('entitlementBlockedTitle')}
         body={t('entitlementBlockedBody')}
         action={
-          <Button variant="primary" onClick={connect}>
-            {t('tryAgain')}
-          </Button>
+          <div className="inline-actions">
+            {/**
+             * A fresh visit through the Agent is more than a second attempt at
+             * the same request: it replaces a stale browser/Agent pairing token
+             * and returns to this exact page, where the entitlement exchange
+             * starts again. This is the recovery path for a local check that
+             * failed after an Agent restart or an update.
+             */}
+            <a className="button button-primary" href={agentLocalUrl()}>
+              {t('reconnectThroughSoty')}
+            </a>
+            <Button onClick={connect}>{t('tryAgain')}</Button>
+          </div>
         }
       />
     );

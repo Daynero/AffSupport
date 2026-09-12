@@ -422,7 +422,8 @@ const en = {
   entitlementBlocked: 'Account check required',
   entitlementBlockedTitle: 'Soty could not confirm your account',
   entitlementBlockedBody:
-    'The local app needs an occasional online account check. Make sure you are signed in and online, then try again. If your account was blocked, contact support.',
+    'The local app needs an occasional online account check. Reconnect through Soty to refresh the local connection, then Soty will check your account again.',
+  reconnectThroughSoty: 'Reconnect through Soty',
   tryAgain: 'Try again',
   pairingTitle: 'Soty is ready',
   pairingBody: 'Connect this browser securely to continue.',
@@ -2806,7 +2807,8 @@ const uk: Record<keyof typeof en, string> = {
   entitlementBlocked: 'Потрібна перевірка акаунта',
   entitlementBlockedTitle: 'Soty не зміг підтвердити ваш акаунт',
   entitlementBlockedBody:
-    'Локальному додатку періодично потрібна онлайн-перевірка акаунта. Переконайтеся, що ви увійшли та маєте інтернет, і спробуйте ще раз. Якщо ваш акаунт заблоковано, зверніться в підтримку.',
+    'Локальному додатку періодично потрібна онлайн-перевірка акаунта. Перепідключіться через Soty — застосунок оновить локальне з’єднання та перевірить акаунт ще раз.',
+  reconnectThroughSoty: 'Перепідключити через Soty',
   tryAgain: 'Спробувати знову',
   pairingTitle: 'Soty готовий',
   pairingBody: 'Безпечно підключіть цей браузер, щоб продовжити.',
