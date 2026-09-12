@@ -16,6 +16,12 @@ import {
   parseReading
 } from '../scripts/lib/release/probes-macos.mjs';
 import profiles from '../config/release-resource-profiles.json';
+import { itRequiring, requirePlatform } from './support/requires.js';
+/**
+ * This case reads the installed arm64 probe. Absent, every derived signal is
+ * null and the assertions describe the platform rather than the admission rule.
+ */
+const posixReleaseHost = requirePlatform('darwin', 'linux');
 
 describe('resource admission', () => {
   it('contains every registered heavy class with a conservative bounded profile', () => {
@@ -129,35 +135,39 @@ describe('installed probe readings', () => {
     ...overrides
   });
 
-  it('cannot admit on a first reading and admits only once every mandatory signal is derived', async () => {
-    const { default: profile } = JSON.parse(
-      await readFile('config/release-resource-profiles.json', 'utf8')
-    );
-    const { root, executable } = await fakeProbe([reading(0), reading(1), reading(2)]);
-    try {
-      const sampler = createProbeSampler({ executable });
-      const first = await sampler.sample();
-      // Nothing to subtract from: a rate signal cannot exist yet.
-      expect(first).toMatchObject({ cpuPercent: null, swapGrowthBytes: null });
-      expect(admission(first, profile)).toMatchObject({ reason: 'RESOURCE_SIGNAL_UNKNOWN' });
+  itRequiring(
+    posixReleaseHost,
+    'cannot admit on a first reading and admits only once every mandatory signal is derived',
+    async () => {
+      const { default: profile } = JSON.parse(
+        await readFile('config/release-resource-profiles.json', 'utf8')
+      );
+      const { root, executable } = await fakeProbe([reading(0), reading(1), reading(2)]);
+      try {
+        const sampler = createProbeSampler({ executable });
+        const first = await sampler.sample();
+        // Nothing to subtract from: a rate signal cannot exist yet.
+        expect(first).toMatchObject({ cpuPercent: null, swapGrowthBytes: null });
+        expect(admission(first, profile)).toMatchObject({ reason: 'RESOURCE_SIGNAL_UNKNOWN' });
 
-      const second = await sampler.sample();
-      expect(second.cpuPercent).toBeCloseTo(10, 5);
-      for (const signal of [
-        'cpuPercent',
-        'availableBytes',
-        'pressure',
-        'swapGrowthBytes',
-        'diskFreeBytes',
-        'thermal'
-      ] as const) {
-        expect(second[signal]).not.toBeNull();
+        const second = await sampler.sample();
+        expect(second.cpuPercent).toBeCloseTo(10, 5);
+        for (const signal of [
+          'cpuPercent',
+          'availableBytes',
+          'pressure',
+          'swapGrowthBytes',
+          'diskFreeBytes',
+          'thermal'
+        ] as const) {
+          expect(second[signal]).not.toBeNull();
+        }
+        expect(admission(second, profile)).toMatchObject({ ok: true });
+      } finally {
+        await removeTemporaryDirectory(root);
       }
-      expect(admission(second, profile)).toMatchObject({ ok: true });
-    } finally {
-      await removeTemporaryDirectory(root);
     }
-  });
+  );
 
   it('treats an incomplete reading as unknown and notices a machine that slept', async () => {
     const { default: profile } = JSON.parse(
