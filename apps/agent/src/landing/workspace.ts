@@ -1,6 +1,9 @@
 import { spawnTracked } from '../power/spawn.js';
+import {
+  UPLOADED_LANDING_OUTPUT_FOLDER,
+  uploadedOutputDir as sharedUploadedOutputDir
+} from '../files/output-destination.js';
 import { access, cp, mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import { applicationSupportRoot } from '../files/support-dir.js';
 import { sanitizeFileName, unzipArchive, zipDirectory } from '../platform/platform.js';
@@ -101,7 +104,7 @@ async function exists(target: string): Promise<boolean> {
 
 /** Where results land when the source was uploaded (no original on disk). */
 export function uploadedOutputDir(): string {
-  return path.join(os.homedir(), 'Downloads', 'Soty Landings');
+  return sharedUploadedOutputDir(UPLOADED_LANDING_OUTPUT_FOLDER);
 }
 
 /**

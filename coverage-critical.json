@@ -6,6 +6,7 @@
     "apps/agent/src/ffmpeg/stitch-presets.ts": 50,
     "apps/agent/src/ffmpeg/tools.ts": 96,
     "apps/agent/src/files/paths.ts": 99,
+    "apps/agent/src/files/output-destination.ts": 100,
     "apps/agent/src/files/replace-file.ts": 50,
     "apps/agent/src/files/support-dir.ts": 99,
     "apps/agent/src/images/embedding.ts": 97,

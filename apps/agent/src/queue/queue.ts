@@ -37,6 +37,7 @@ import {
   type MediaToolName
 } from '../ffmpeg/tools.js';
 import { fileSize, nextOutputPath } from '../files/paths.js';
+import { UPLOADED_VIDEO_OUTPUT_FOLDER, uploadedOutputDir } from '../files/output-destination.js';
 import {
   freezeImageEmbedding,
   outputDimensions,
@@ -1715,6 +1716,13 @@ export class JobQueue {
     if (settings.outputMode === 'chosen-folder') {
       folder = settings.outputFolder ?? undefined;
       if (!folder) throw new Error('Choose an output folder first.');
+    }
+    // "Next to the original" needs an original on this machine. An upload whose
+    // real file could not be found has none: `inputPath` points at the agent's
+    // own private copy under Application Support, and writing beside it would
+    // bury the result in an internal folder that gets removed with the card.
+    if (!folder && current?.sourceKind === 'uploaded') {
+      folder = uploadedOutputDir(UPLOADED_VIDEO_OUTPUT_FOLDER);
     }
     if (folder) await mkdir(folder, { recursive: true });
     const reserved = this.jobs

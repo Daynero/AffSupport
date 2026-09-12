@@ -8,9 +8,14 @@ import { MediaToolUnavailableError, probeMedia } from '../apps/agent/src/ffmpeg/
 import { makeJob, optimalSettings } from './helpers.js';
 import { waitFor } from './support/wait.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
+import {
+  UPLOADED_VIDEO_OUTPUT_FOLDER,
+  uploadedOutputDir
+} from '../apps/agent/src/files/output-destination.js';
 
 let directory = '';
 afterEach(async () => {
+  vi.unstubAllEnvs();
   if (directory) await removeTemporaryDirectory(directory);
   directory = '';
 });
@@ -104,10 +109,18 @@ describe('queue file handling', () => {
     );
   });
 
-  it('keeps dropped files next to their imported original when that output mode is selected', async () => {
+  it('sends a dropped file whose original was never found to a folder people can open', async () => {
+    // This used to land beside the agent's own import copy, deep inside
+    // Application Support — together with that copy, which nobody asked for and
+    // which `cleanupImportedSource` later deleted along with the result. The
+    // setting says "next to the original"; an upload has no original here, so
+    // the honest answer is a visible folder rather than an internal one.
     directory = await mkdtemp(path.join(os.tmpdir(), 'queue-uploaded-output-'));
-    const video = path.join(directory, 'clip.mp4');
+    const importDir = path.join(directory, 'Imports', 'import-abc123');
+    await mkdir(importDir, { recursive: true });
+    const video = path.join(importDir, 'clip.mp4');
     await writeFile(video, 'not a real video');
+    vi.stubEnv('AGENT_UPLOADED_OUTPUT_PATH', path.join(directory, 'downloads'));
     const queue = new JobQueue({ ffmpeg: false, ffprobe: false }, () => {}, [], {
       ...optimalSettings,
       outputMode: 'next-to-originals',
@@ -115,7 +128,9 @@ describe('queue file handling', () => {
     });
 
     expect(await queue.addUploaded(video, 'clip.mp4', 'clip.mp4:100:123')).toEqual([]);
-    expect(path.dirname(queue.state().jobs[0].outputPath)).toBe(directory);
+    const output = queue.state().jobs[0].outputPath;
+    expect(path.dirname(output)).not.toBe(importDir);
+    expect(path.dirname(output)).toBe(uploadedOutputDir(UPLOADED_VIDEO_OUTPUT_FOLDER));
   });
 });
 
