@@ -1,12 +1,15 @@
 <!--
 Sync Impact Report
 ==================
-Version change: [TEMPLATE / unversioned] → 1.0.0
-Rationale: Initial ratification. The file was still the unfilled template; this is the
-first concrete constitution, derived from a full codebase analysis (agent, web, shared,
-scripts, supabase, tests). Treated as MAJOR/initial baseline 1.0.0.
+Version change: 1.0.0 → 2.0.0
+Rationale: Explicitly redefine release validation by phase and permit the canonical
+manifest-only descendant commit. MAJOR because this replaces prior unconditional
+manifest/version and tag/deploy-commit equality requirements.
+Requested by the maintainer on 2026-09-09 through delegated approval to resolve
+feature 020's analysis findings. This is a working-tree amendment; no PR merge or
+repository ratification is claimed by this edit.
 
-Principles defined:
+Principles retained (II amended):
   I.   Type-Safe Contracts, Validated at the Boundary
   II.  One Source of Truth for the Release & Protocol Contract
   III. Security and Least Privilege by Construction
@@ -14,16 +17,14 @@ Principles defined:
   V.   Consistent HTTP API & Error Conventions
   VI.  Frontend Composition & State Discipline
 
-Sections:
-  Added: "Additional Constraints: Stack, Tooling & Code Style"
-  Added: "Development Workflow & Quality Gates"
-  Added: "Governance"
+Sections modified: Principle II; Development Workflow release/deploy gating.
+Added/removed sections: none. Governance procedure unchanged.
 
-Templates / files requiring follow-up: none pending. Downstream Spec Kit templates read
-this file at runtime; no structural placeholders remain.
+Dependent feature 020 artifacts require synchronization with this amendment.
+Templates consume the constitution at runtime; no template edits required.
 
-Deferred TODOs: none. RATIFICATION_DATE set to first adoption (2026-08-01) since no earlier
-adoption date is recorded in git or docs.
+Deferred placeholders: none. Original adoption date retained. Ordinary amendment
+review/merge remains required before production use; no extra per-release approval added.
 -->
 
 # Soty (local-video-compressor) Constitution
@@ -72,9 +73,21 @@ identity and contract versions are intentionally decoupled and MUST stay so.
 
 - Version, artifact, and manifest facts MUST be read from `release.ts` (or the shared
   `dist`), never hard-coded in an app, script, or test.
-- Every workspace `package.json`, the `stable.json` manifest, and `config/production.env`
-  MUST agree with `release.ts`; `scripts/verify-release.mjs` is the gate that proves it and
-  MUST pass before any deploy or package.
+- Workspace release metadata MUST be generated from `release.ts`; workspace versions,
+  build identity and production configuration MUST match the candidate being packaged.
+  Protocol and tool-contract versions MUST NOT be changed merely to bump a release.
+- Before production packaging, candidate validation MUST verify candidate identity,
+  protocol/tool contracts, production configuration, clean source and exact-SHA
+  packaged-beta evidence. The previous stable manifest MUST be independently validated
+  as the trusted previous release, using its own identity and signing payload. It MUST
+  NOT be relabelled with the new version or supplied with invented future artifact hashes.
+  These checks belong to the canonical release gate; candidate mode is not a skip flag.
+- Before web deployment, final validation MUST require the new signed `stable.json` to
+  match `release.ts` and the exact published artifact bytes for both release platforms.
+  Signature verification, published digest checks and final contract-map equality MUST
+  pass. Candidate validation MUST NOT substitute for final deployment validation.
+  Versioned gate contexts MUST distinguish preparation from packaging: a preparation
+  check may precede beta, but production packaging MUST require the exact-SHA beta proof.
 - Because `packages/shared/dist` is committed, any script or command that consumes the
   contract MUST rebuild shared first (`npm run build -w @video-compressor/shared`) so it
   validates against current constants, not a stale `dist`.
@@ -225,8 +238,15 @@ hook; prop-drilling `t` through a component chain; stringly-typed error branches
 - **Release & deploy gating (Principle II) is mandatory:** `deploy:web` chains
   `verify-web-env` → `build:web` → `verify-release --deploy` → `verify-published-release` →
   `wrangler pages deploy`. A web-only deploy MUST NOT contain un-released agent/shared
-  changes; the release git tag MUST exist and match the deployed commit; a published tag is
-  never rebuilt.
+  changes. The release tag MUST exist and identify the immutable commit packaged for both
+  platforms. For the automated full-release flow, a later web commit MUST descend from
+  that release commit and differ only in the signed stable manifest for those exact
+  published artifacts. It MUST have its own clean exact-SHA packaged-beta verification;
+  remote `main` and `beta` MUST match the expected manifest commit at final acceptance.
+  Published binaries MUST NOT be rebuilt for a manifest-only commit, nor may a tag be
+  moved or an asset replaced. Separately scoped web-only releases remain subject to
+  their existing ancestry and unchanged Agent/shared-input checks; they are not the
+  full-release runner's manifest-only exception.
 - **Operational guardrails:** the analytics CLI MUST stay read-only (never make it write).
   Dev/test builds use `npm run package:dev:dmg` and MUST NOT touch production versions,
   the stable manifest, git tags/releases, Supabase migrations, or Cloudflare.
@@ -252,4 +272,4 @@ precedents to extend (each anti-pattern above marks one such debt).
   Spec Kit templates under `.specify/` provide operational detail and MUST stay consistent
   with these principles.
 
-**Version**: 1.0.0 | **Ratified**: 2026-08-01 | **Last Amended**: 2026-08-01
+**Version**: 2.0.0 | **Ratified**: 2026-08-01 | **Last Amended**: 2026-09-09
