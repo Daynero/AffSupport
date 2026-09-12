@@ -50,11 +50,10 @@ describe('queue file handling', () => {
     expect(await makeVideo(available, 0.4, '160x90', 24)).toBe(0);
     const availableJob = makeJob('available-source', 'ready', { inputPath: available });
     const missingJob = makeJob('missing-source', 'ready', { inputPath: missing });
-    const queue = new JobQueue(
-      { ffmpeg: true, ffprobe: true },
-      () => {},
-      [availableJob, missingJob]
-    );
+    const queue = new JobQueue({ ffmpeg: true, ffprobe: true }, () => {}, [
+      availableJob,
+      missingJob
+    ]);
 
     expect(await queue.removeMissingSources()).toBe(1);
     expect(queue.state().jobs).toHaveLength(1);

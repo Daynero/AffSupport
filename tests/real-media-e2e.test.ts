@@ -424,10 +424,14 @@ describeRequiring(
  * encode succeeded, so the queue reported success and wrote the result over the
  * saving the user came for.
  *
- * Both halves are checked against a real agent and a real HEVC file, because
- * both halves are about a decoder: the warning has to be there at the moment the
- * file is added, from the probe rather than from an estimate minutes later, and
- * the output has to be refused if it is bigger than what went in.
+ * The first answer was a never-larger ceiling that threw the result away and
+ * put the source back. That was removed on purpose in e32f988: silently
+ * restoring the original hid what had happened, and the choice belongs to the
+ * person. So the warning moved to the front — it has to be there at the moment
+ * the file is added, from the probe rather than from an estimate minutes later
+ * — and the encode's own result is what they get, with the source left exactly
+ * as it was. Both halves are checked against a real agent and a real HEVC file,
+ * because both are about what a decoder reports.
  */
 describeRequiring(
   allOf(ffmpegBinaries, requirePath('apps/agent/dist/index.js')),
@@ -440,7 +444,7 @@ describeRequiring(
       agent = null;
     });
 
-    it('warns when the file is added, and never writes a larger result', async () => {
+    it('warns when the file is added, and never touches the source', async () => {
       const directory = await mkdtemp(path.join(os.tmpdir(), 'hevc-growth-'));
       temporaryDirectories.push(directory);
       const source = path.join(directory, 'source.mp4');
@@ -505,16 +509,16 @@ describeRequiring(
       );
 
       expect(finished!.status).toBe('completed');
-      // The encode succeeded and produced something bigger, so the result was
-      // thrown away and the reason recorded. Asserted directly rather than
-      // guarded by an `if`: this is the case the complaint was about.
-      expect(finished!.keptOriginalReason).toBe('larger-than-source');
-      // What the user is left with is their own file, byte for byte, and the
-      // path the interface opens leads to it.
-      expect(finished!.outputPath).toBe(source);
+      // The never-larger ceiling was removed deliberately (e32f988): throwing a
+      // result away and putting the source back in its place hid what had
+      // actually happened. So the encode's own output is what the person gets,
+      // whatever its size, and the card reports the honest numbers.
+      expect(finished!.outputPath).not.toBe(source);
+      expect(Number(finished!.finalSize)).toBeGreaterThan(0);
+      // The one guarantee that did not change: the source is never touched.
+      // That is what makes a disappointing result recoverable.
       expect(await sha256(source)).toBe(before);
-      expect(Number(finished!.finalSize)).toBe(originalBytes);
-      expect(Number(finished!.finalSize)).toBeLessThanOrEqual(originalBytes);
+      expect((await readFile(source)).byteLength).toBe(originalBytes);
     }, 180_000);
   }
 );

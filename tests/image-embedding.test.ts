@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
@@ -32,6 +32,18 @@ import {
 } from './helpers.js';
 import { waitFor } from './support/wait.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
+
+/**
+ * Creates the source files a fixture's jobs point at.
+ *
+ * `JobQueue.start` removes any job whose input has disappeared before it looks
+ * at anything else, so a job whose source was never created never reaches the
+ * behaviour these tests are about — `start` simply answers `false`. The bytes
+ * are irrelevant; only that the path resolves.
+ */
+async function createSources(jobs: { inputPath: string }[]): Promise<void> {
+  for (const job of jobs) await writeFile(job.inputPath, '');
+}
 
 let directory = '';
 afterEach(async () => {
@@ -84,18 +96,20 @@ describe('final image duration configuration', () => {
       })
     };
     const values = [0.1, 0.9];
+    const sources = [
+      makeJob('first', 'ready', { inputPath: path.join(directory, 'source-first.mp4') }),
+      makeJob('second', 'ready', { inputPath: path.join(directory, 'source-second.mp4') })
+    ];
     const queue = new JobQueue(
       { ffmpeg: true, ffprobe: true },
       () => {},
-      [
-        makeJob('first', 'ready', { inputPath: path.join(directory, 'missing-first.mp4') }),
-        makeJob('second', 'ready', { inputPath: path.join(directory, 'missing-second.mp4') })
-      ],
+      sources,
       settings,
       null,
       imageStore,
       () => values.shift() ?? 0.5
     );
+    await createSources(sources);
     expect(await queue.start(['first', 'second'])).toBe(true);
     const [first, second] = queue.state().jobs;
     expect(first.imageEmbedding?.finalDurationSeconds).toBe(2460);
@@ -130,7 +144,7 @@ describe('final image duration configuration', () => {
       })
     };
     const job = makeJob('replacement-trims', 'ready', {
-      inputPath: path.join(directory, 'missing.mp4'),
+      inputPath: path.join(directory, 'source.mp4'),
       durationSeconds: 100,
       imageEmbedding: makeEmbedding({
         startImage: null,
@@ -152,6 +166,7 @@ describe('final image duration configuration', () => {
       new ImageAssetStore(path.join(directory, 'images'))
     );
 
+    await createSources([job]);
     expect(await queue.start([job.id])).toBe(true);
     const queued = queue.state().jobs[0];
     expect(queued.imageEmbedding).toMatchObject({
@@ -169,7 +184,7 @@ describe('final image duration configuration', () => {
     directory = await mkdtemp(path.join(os.tmpdir(), 'embedding-image-pool-'));
     const images = [poolAsset('3'), poolAsset('4'), poolAsset('5')];
     const jobs = ['one', 'two', 'three', 'four'].map(id =>
-      makeJob(id, 'ready', { inputPath: path.join(directory, `missing-${id}.mp4`) })
+      makeJob(id, 'ready', { inputPath: path.join(directory, `source-${id}.mp4`) })
     );
     const queue = new JobQueue(
       { ffmpeg: true, ffprobe: true },
@@ -190,6 +205,7 @@ describe('final image duration configuration', () => {
       () => 0.999999
     );
 
+    await createSources(jobs);
     expect(await queue.start(jobs.map(job => job.id))).toBe(true);
     const selected = queue.state().jobs.map(job => job.imageEmbedding?.startImage?.id);
     expect(new Set(selected.slice(0, 3))).toEqual(new Set(images.map(image => image.id)));
