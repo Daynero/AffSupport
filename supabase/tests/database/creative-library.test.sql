@@ -540,13 +540,19 @@ select is(
   1::bigint,
   'only one active lease row is created for the claimed requirement'
 );
+-- Scoped to the very material that is leased. The fixture has two sources, so an
+-- unscoped second claim legitimately takes the other one — which is what it had
+-- started doing, quietly turning this assertion from "a lease is exclusive" into
+-- "there is exactly one requirement", a thing it never meant to say.
 select throws_ok(
-  $$select public.claim_library_job(
+  format(
+    $$select public.claim_library_job(
+      %L::uuid, %L::uuid, array['transcription']::text[], 'uk', array[%L::uuid]
+    )$$,
     '20000000-0000-4000-8000-000000000001',
     '60000000-0000-4000-8000-000000000002',
-    array['transcription']::text[],
-    'uk'
-  )$$,
+    (select payload ->> 'sourceMaterialId' from creative_claim)
+  ),
   'P0002',
   'NO_WORK',
   'another agent cannot concurrently claim the leased operation'
@@ -586,7 +592,10 @@ select public.claim_library_job(
   '60000000-0000-4000-8000-000000000002',
   array['translation']::text[],
   'uk',
-  '50000000-0000-4000-8000-000000000001'
+  -- `p_sources` is uuid[]; a bare uuid here raised "malformed array literal",
+  -- which aborted the transaction and took the file's last twelve assertions
+  -- with it.
+  array['50000000-0000-4000-8000-000000000001']::uuid[]
 ) as payload;
 select is(
   (select payload ->> 'kind' from creative_translation_claim),
