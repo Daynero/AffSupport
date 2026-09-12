@@ -36,6 +36,7 @@ vi.mock('../apps/web/src/lib/config', () => ({
 }));
 
 vi.mock('../apps/web/src/lib/supabase', () => ({
+  withFreshSession: <T,>(run: () => PromiseLike<T>) => run(),
   getSupabaseClient: () => ({
     auth: {
       getSession: testState.getSession,

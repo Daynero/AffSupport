@@ -25,6 +25,7 @@ vi.mock('../apps/web/src/lib/config', () => ({
 }));
 
 vi.mock('../apps/web/src/lib/supabase', () => ({
+  withFreshSession: <T,>(run: () => PromiseLike<T>) => run(),
   requireSupabaseClient: () => {
     throw new Error('the wizard step must not reach the network in these tests');
   },

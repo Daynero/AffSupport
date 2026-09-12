@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const rpc = vi.fn();
 
 vi.mock('../apps/web/src/lib/supabase', () => ({
+  withFreshSession: <T>(run: () => PromiseLike<T>) => run(),
   requireSupabaseClient: () => ({ rpc }),
   getSupabaseClient: () => ({ rpc })
 }));

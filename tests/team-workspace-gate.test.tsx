@@ -7,6 +7,7 @@ import type { User } from '@supabase/supabase-js';
 const rpc = vi.hoisted(() => vi.fn());
 
 vi.mock('../apps/web/src/lib/supabase', () => ({
+  withFreshSession: <T,>(run: () => PromiseLike<T>) => run(),
   getSupabaseClient: () => null,
   requireSupabaseClient: () => ({ rpc })
 }));

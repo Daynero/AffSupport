@@ -9,6 +9,7 @@ import { jobConfigurationKey } from '../packages/shared/src/types.js';
 const rpc = vi.hoisted(() => vi.fn());
 
 vi.mock('../apps/web/src/lib/supabase', () => ({
+  withFreshSession: <T,>(run: () => PromiseLike<T>) => run(),
   requireSupabaseClient: () => ({ rpc })
 }));
 
