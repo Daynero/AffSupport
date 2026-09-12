@@ -1,11 +1,12 @@
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { promisify } from 'node:util';
 import path from 'node:path';
 import { execute } from './execute.mjs';
 import { stepDefinition } from './steps.mjs';
 import { applyBackendPlan } from './adapters/backend.mjs';
 import { rehearseBackendBeta } from './adapters/backend-beta.mjs';
+import { createSupabaseBackendAdapter } from './adapters/supabase-backend.mjs';
 
 const exec = promisify(execFile);
 
@@ -30,6 +31,31 @@ const exec = promisify(execFile);
 
 /** Commands that change the outside world and must not be re-run casually. */
 const REMOTE_STEPS = new Set(['publish', 'manifest', 'backend_apply', 'deploy']);
+
+/**
+ * Where a rehearsal is allowed to happen: the local beta stack, never a
+ * destination that serves anybody. Declared as a binding so the rehearsal is
+ * refused by the same check that refuses every other misdirected write.
+ */
+const BETA_REHEARSAL = Object.freeze({ kind: 'sandbox', bindingId: 'beta-local' });
+
+/**
+ * The release CLI token, from the environment or the untracked key file the
+ * rest of the release reads. Absent, the backend steps report a blocker rather
+ * than reaching for a project they cannot prove they may touch.
+ */
+function supabaseAccessToken(cwd) {
+  if (process.env.SUPABASE_ACCESS_TOKEN?.trim()) return process.env.SUPABASE_ACCESS_TOKEN.trim();
+  try {
+    return (
+      /^SUPABASE_ACCESS_TOKEN=(.+)$/mu.exec(
+        readFileSync(path.join(cwd, 'config/keys/supabase-release-cli.env'), 'utf8')
+      )?.[1]?.trim() ?? null
+    );
+  } catch {
+    return null;
+  }
+}
 
 function fail(code, subject) {
   return { ok: false, error: { code, subject } };
@@ -150,6 +176,35 @@ export async function createStepAdapter({
     throw new Error('STEP_ADAPTER_IDENTITY_INVALID');
   if (!binding?.bindingId) throw new Error('STEP_ADAPTER_BINDING_MISSING');
 
+  /**
+   * The real Supabase adapter, unless a caller supplied one.
+   *
+   * Before this, nothing anywhere constructed a backend adapter, so every
+   * release carrying a declared server change reached `backend_apply` and
+   * reported ACCESS_UNAVAILABLE — the whole server half of the runbook was
+   * wired up and inert, and the migrations went on being applied by hand.
+   *
+   * Construction does no I/O and reaches nothing remote; it only refuses an
+   * unusable configuration, which the step then reports as the blocker it is.
+   */
+  const resolvedBackendAdapter =
+    backendAdapter ??
+    (() => {
+      const projectRef = /** @type {{supabaseProject?: string}} */ (binding).supabaseProject;
+      const token = supabaseAccessToken(cwd);
+      if (!backendPlan?.changes?.length || !projectRef || !token) return null;
+      try {
+        return createSupabaseBackendAdapter({
+          projectRef,
+          targetId: binding.bindingId,
+          root: cwd,
+          accessToken: token
+        });
+      } catch {
+        return null;
+      }
+    })();
+
   const releaseId = `${runId}:${version}`;
   const dmg = path.join('release', `Soty-v${version}-macOS-arm64.dmg`);
   const exe = path.join('release', 'windows', `download-${version}`, `Soty-v${version}-Windows-x64.exe`);
@@ -202,13 +257,21 @@ export async function createStepAdapter({
 
     backend_beta: async () => {
       if (!backendPlan?.changes?.length) return { ok: true, skipped: true };
-      if (!backendAdapter) return fail('ACCESS_UNAVAILABLE', 'no backend adapter is configured');
+      if (!resolvedBackendAdapter)
+        return fail(
+          'ACCESS_UNAVAILABLE',
+          'no backend adapter: the release has server changes but no usable Supabase access'
+        );
       try {
         const result = await rehearseBackendBeta({
-          binding,
+          // Where the rehearsal happens is the beta stack; what the plan is for
+          // is the release destination. Naming both keeps the check that the
+          // changes are aimed where the release is aimed.
+          binding: BETA_REHEARSAL,
+          releaseTargetId: binding.bindingId,
           plan: backendPlan,
           lease: { leaseId: `${runId}:backend-beta` },
-          adapter: backendAdapter
+          adapter: resolvedBackendAdapter
         });
         return result.ok ? { ok: true } : fail('GATE_FAILED', `backend rehearsal failed: ${result.error}`);
       } catch (error) {
@@ -268,10 +331,10 @@ export async function createStepAdapter({
 
     backend_apply: async () => {
       if (!backendPlan?.changes?.length) return { ok: true, skipped: true };
-      if (!backendAdapter || !journal)
+      if (!resolvedBackendAdapter || !journal)
         return fail('ACCESS_UNAVAILABLE', 'no backend adapter or journal is configured');
       try {
-        const result = await applyBackendPlan({ binding, plan: backendPlan, sourceSha, adapter: backendAdapter, journal });
+        const result = await applyBackendPlan({ binding, plan: backendPlan, sourceSha, adapter: resolvedBackendAdapter, journal });
         return result.ok ? { ok: true } : fail('GATE_FAILED', 'backend apply did not complete');
       } catch (error) {
         return fail(codeOf(error) ?? 'GATE_FAILED', messageOf(error));
