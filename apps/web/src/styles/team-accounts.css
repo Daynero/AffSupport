@@ -83,6 +83,51 @@
   padding-left: var(--space-2);
 }
 
+/* The money caption is the control for its own column, so it is drawn as one:
+   the same outlined pill as "Collapse all", at the caption row's own type. A
+   bare word with an icon beside it read as a caption that had sprouted a
+   glyph, not as something to press. */
+.team-accounts-money-fold {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-control) var(--ease-standard),
+    border-color var(--dur-control) var(--ease-standard),
+    color var(--dur-control) var(--ease-standard);
+}
+.team-accounts-money-fold:hover {
+  border-color: var(--color-border-strong);
+  background: color-mix(in oklab, var(--color-accent) 10%, transparent);
+  color: var(--color-text);
+}
+.team-accounts-money-fold:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* Folded, the column narrows to the width of its own button — the word stays,
+   because the way back has to name what it brings back. */
+.team-accounts-table.is-money-folded {
+  --team-agent-money-width: 104px;
+}
+/* The cell stays and empties: `display: none` takes it out of the grid, and
+   every cell after it then slides one track left — the row's buttons landed in
+   the money track and printed over the runs beside them. */
+.team-accounts-table.is-money-folded .team-agent-money > * {
+  display: none;
+}
+
 .team-accounts-columns > span:last-child {
   text-align: right;
 }
@@ -844,6 +889,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-1);
+  min-width: 0;
   min-height: 38px;
   padding-left: var(--space-2);
   border-radius: var(--radius-sm);
@@ -1072,6 +1118,7 @@
 }
 
 .team-agent-run-text {
+  flex: 1 1 auto;
   min-width: 0;
   color: var(--color-text);
   font-size: var(--text-md);
@@ -2234,6 +2281,7 @@ button.team-task-agent-chip.is-selected {
  * where nothing stands beside it.
  */
 .team-agent-tasks-link {
+  flex: 0 0 auto;
   margin-left: var(--space-3);
   padding: 0;
   border-radius: 0;
@@ -2508,4 +2556,48 @@ button.team-task-agent-chip.is-selected {
   font-size: 0.7rem;
   font-variant-numeric: tabular-nums;
   text-align: center;
+}
+
+/*
+ * The door under an empty state (019/020). Every "there is nothing here yet"
+ * used to name the place that fills it and leave the reader to find it; this
+ * is that place, one press away, wherever the sentence appears.
+ */
+.team-empty-action {
+  display: inline-flex;
+  align-items: center;
+  align-self: start;
+  min-height: 30px;
+  margin-top: var(--space-2);
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
+  border-radius: 999px;
+  color: var(--color-accent);
+  font-size: var(--text-lg);
+  font-weight: 650;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background-color var(--dur-control) var(--ease-standard),
+    border-color var(--dur-control) var(--ease-standard);
+}
+.team-empty-action:hover {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
+
+/* The empty states that now carry one are a stack, not a paragraph. */
+.team-task-label-menu-empty,
+.team-task-picker-empty,
+.task-account-filter-empty {
+  display: grid;
+  justify-items: start;
+  gap: 0;
+}
+
+/* A popover sized for tag chips is narrower than the sentence explaining that
+   there are none — and than the door under it, which was cut in half by the
+   popover's edge. */
+.team-task-label-menu:has(.team-empty-action) {
+  min-width: 260px;
 }

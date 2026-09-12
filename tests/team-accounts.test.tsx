@@ -1061,6 +1061,62 @@ describe('the money on an agent', () => {
     );
   });
 
+  it('folds the money column away from its own caption, and remembers it', async () => {
+    const user = userEvent.setup();
+    const accounts = fixture();
+    accounts[0]!.agents[0]!.balance = 300;
+    const { unmount } = render(client(accounts));
+    await waitForGroups();
+
+    const table = () => document.querySelector('.team-accounts-table')!;
+    expect(table().className).not.toContain('is-money-folded');
+    await user.click(screen.getByRole('button', { name: 'Hide money and balances' }));
+    // The cells stay in the grid and empty through CSS — taking them out of the
+    // DOM would slide every later cell one track left — so the state is the
+    // table's class, and the caption now offers the way back.
+    expect(table().className).toContain('is-money-folded');
+    expect(screen.getByRole('button', { name: 'Show money and balances' })).toBeTruthy();
+
+    // Remembered per space, like the account fold beside it.
+    unmount();
+    render(client(fixture()));
+    await waitForGroups();
+    expect(screen.getByRole('button', { name: 'Show money and balances' })).toBeTruthy();
+    expect(document.querySelector('.team-accounts-table')!.className).toContain('is-money-folded');
+  });
+
+  it('closes the tag list on the choice itself', async () => {
+    const user = userEvent.setup();
+    const api = client();
+    // The agent half of the dictionary, so the popover has something to offer.
+    api.listTaskLabels = vi.fn(async (_teamId: string, scope?: 'task' | 'agent') =>
+      scope === 'agent'
+        ? [
+            {
+              id: 'l-2',
+              teamId: TEAM_ID,
+              name: '#2',
+              color: 'purple' as const,
+              scope: 'agent' as const,
+              taskCount: 0,
+              createdAt: STAMP,
+              updatedAt: STAMP
+            }
+          ]
+        : []
+    );
+    render(api);
+    await waitForGroups();
+
+    await user.click(screen.getByRole('button', { name: 'Tag the agent v31-434' }));
+    const menu = await screen.findByRole('listbox', { name: 'Agent tags' });
+    await user.click(within(menu).getByRole('option', { name: /#2/ }));
+
+    await waitFor(() => expect(api.attachAgentLabel).toHaveBeenCalled());
+    // No second press into empty space: choosing the tag put the list away.
+    await waitFor(() => expect(screen.queryByRole('listbox', { name: 'Agent tags' })).toBeNull());
+  });
+
   it('says how many of an account’s agents carry each tag', async () => {
     const accounts = fixture();
     accounts[0]!.agents[0]!.labels = [{ id: 'l-2', name: '#2', color: 'purple' }];

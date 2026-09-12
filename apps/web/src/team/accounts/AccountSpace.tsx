@@ -15,7 +15,17 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronsDownUp, ChevronsUpDown, Copy, Eraser, Plus, Search, X } from 'lucide-react';
+import {
+  ChevronsDownUp,
+  ChevronsLeftRight,
+  ChevronsRightLeft,
+  ChevronsUpDown,
+  Copy,
+  Eraser,
+  Plus,
+  Search,
+  X
+} from 'lucide-react';
 import {
   buildTeamAgentTopupListByAccount,
   buildTeamAgentTopupListByLabel,
@@ -74,6 +84,31 @@ function writeCollapsed(teamId: string, collapsed: Set<string>): void {
   }
 }
 
+/**
+ * Whether the money column is folded away, remembered the same way. A space
+ * that does not run paid traffic never fills those two fields, and they took a
+ * track out of the middle of every row to say nothing.
+ */
+function moneyKey(teamId: string): string {
+  return `soty.team-accounts.money-folded:${teamId}`;
+}
+
+function readMoneyFolded(teamId: string): boolean {
+  try {
+    return window.localStorage.getItem(moneyKey(teamId)) === 'folded';
+  } catch {
+    return false;
+  }
+}
+
+function writeMoneyFolded(teamId: string, folded: boolean): void {
+  try {
+    window.localStorage.setItem(moneyKey(teamId), folded ? 'folded' : 'open');
+  } catch {
+    // Same as the fold above: a convenience, and the page works without it.
+  }
+}
+
 /** Which editor is open: the new-account row, or one row inside one account. */
 type Editor = { kind: 'create' } | { kind: 'account'; accountId: string; state: AgentEditing };
 
@@ -103,9 +138,11 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
   /** Set when a switch was refused; the open editor shows why. */
   const [hold, setHold] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => readCollapsed(teamId));
+  const [moneyFolded, setMoneyFolded] = useState(() => readMoneyFolded(teamId));
 
   useEffect(() => {
     setCollapsed(readCollapsed(teamId));
+    setMoneyFolded(readMoneyFolded(teamId));
     setEditor(null);
     setHold(false);
   }, [teamId]);
@@ -572,7 +609,7 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
       {accounts.error && <p className="team-inline-error">{t('teamAccountsLoadFailed')}</p>}
 
       {(creating || accounts.accounts.length > 0) && (
-        <div className="team-accounts-table">
+        <div className={`team-accounts-table${moneyFolded ? ' is-money-folded' : ''}`}>
           {/* Printed once, above every account, and left where it is while the
               list scrolls under it. Not hidden from a screen reader either:
               read once at the top it is orientation, which is what it was
@@ -582,10 +619,33 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
             <span>{t('teamAccountColumnAgent')}</span>
             <span>{t('teamAccountColumnStatus')}</span>
             <span>{t('teamAccountColumnRun')}</span>
-            <span>{t('teamAccountColumnMoney')}</span>
+            {/* The money caption is the control for its own column: a space that
+                does not pay for traffic folds the two fields away and gets the
+                width back for the runs. Folded, the caption's word goes and its
+                icon stays — the way back has to sit where the column was. */}
+            <button
+              type="button"
+              className="team-accounts-money-fold"
+              aria-expanded={!moneyFolded}
+              aria-controls="team-accounts-list"
+              title={t(moneyFolded ? 'teamAccountMoneyShow' : 'teamAccountMoneyHide')}
+              aria-label={t(moneyFolded ? 'teamAccountMoneyShow' : 'teamAccountMoneyHide')}
+              onClick={() => {
+                const next = !moneyFolded;
+                setMoneyFolded(next);
+                writeMoneyFolded(teamId, next);
+              }}
+            >
+              {moneyFolded ? (
+                <ChevronsLeftRight size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              ) : (
+                <ChevronsRightLeft size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              )}
+              <span>{t('teamAccountColumnMoney')}</span>
+            </button>
             <span>{t('teamAccountColumnActions')}</span>
           </div>
-          <div className="team-accounts-list">
+          <div className="team-accounts-list" id="team-accounts-list">
             {creating && (
               <section className="team-account is-new" aria-label={t('teamAccountsCreate')}>
                 <AccountNameRow
