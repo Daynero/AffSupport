@@ -833,7 +833,9 @@ export default function TranscriptionPage() {
                     lastSelectedIndex.current = null;
                   }}
                 >
-                  {t('clearSelection')}
+                  {selected.size > 0
+                    ? t('clearSelectionCount', { count: selected.size })
+                    : t('clearSelection')}
                 </Button>
               </div>
               {/* Not a live region: a summary re-read on every job transition talked over

@@ -333,7 +333,9 @@ export function Stitcher() {
                 setLastSelectedIndex(null);
               }}
             >
-              {t('clearSelection')}
+              {selected.size > 0
+                ? t('clearSelectionCount', { count: selected.size })
+                : t('clearSelection')}
             </Button>
           </div>
           {/* All four counters stay on screen — a zero is information too. */}

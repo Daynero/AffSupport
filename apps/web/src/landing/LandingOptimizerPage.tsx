@@ -486,7 +486,9 @@ export default function LandingOptimizerPage() {
                   disabled={!connected || selected.size === 0}
                   onClick={() => setSelected(new Set())}
                 >
-                  {t('clearSelection')}
+                  {selected.size > 0
+                    ? t('clearSelectionCount', { count: selected.size })
+                    : t('clearSelection')}
                 </Button>
               </div>
               <div className="batch-chips" aria-hidden="true">

@@ -632,7 +632,9 @@ export default function CompressorPage() {
                       setLastSelectedIndex(null);
                     }}
                   >
-                    {t('clearSelection')}
+                    {selected.size > 0
+                      ? t('clearSelectionCount', { count: selected.size })
+                      : t('clearSelection')}
                   </Button>
                 </div>
                 <div className="batch-chips" aria-hidden="true">

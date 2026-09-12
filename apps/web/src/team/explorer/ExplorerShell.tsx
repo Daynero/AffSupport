@@ -1576,7 +1576,10 @@ function ExplorerBody({
                 </SelectionAction>
               )}
             </div>
-            <SelectionAction label={t('teamExplorerClearSelection')} onClick={clearSelection}>
+            <SelectionAction
+              label={t('teamExplorerClearSelectionCount', { count: selectedRows.length })}
+              onClick={clearSelection}
+            >
               <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
             </SelectionAction>
           </div>
