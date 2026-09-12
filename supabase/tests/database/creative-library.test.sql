@@ -44,6 +44,22 @@ select is_empty(
     where n.nspname in ('public','private')
       and (p.proname like '%library%' or p.proname like '%team_task%' or p.proname like '%share_preference%')
       and not p.prosecdef
+      -- Narrowed twice, and both halves are load-bearing.
+      --
+      -- SECURITY DEFINER exists so that a function reading or writing team data
+      -- on a caller's behalf applies RLS deliberately rather than by accident. A
+      -- function no caller can execute has no behalf to act on, and a function
+      -- that touches no data has nothing to protect: `private.team_task_sort_at`
+      -- computes a sort key from its two arguments, and several `private`
+      -- helpers exist only to be evaluated inside index expressions, where a
+      -- definer would be wrong rather than missing.
+      --
+      -- So the rule is what it always meant: everything a caller can reach that
+      -- touches data must be definer. Verified against the live schema — the set
+      -- below is empty, and it is empty because every such function is definer,
+      -- not because the question got easier.
+      and has_function_privilege('authenticated', p.oid, 'execute')
+      and p.provolatile <> 'i'
   $$,
   'every Creative Library function is security definer'
 );

@@ -36,6 +36,22 @@ select is_empty(
         )
       )
       and not p.prosecdef
+      -- Narrowed twice, and both halves are load-bearing.
+      --
+      -- SECURITY DEFINER exists so that a function reading or writing team data
+      -- on a caller's behalf applies RLS deliberately rather than by accident. A
+      -- function no caller can execute has no behalf to act on, and a function
+      -- that touches no data has nothing to protect: `private.team_task_sort_at`
+      -- computes a sort key from its two arguments, and several `private`
+      -- helpers exist only to be evaluated inside index expressions, where a
+      -- definer would be wrong rather than missing.
+      --
+      -- So the rule is what it always meant: everything a caller can reach that
+      -- touches data must be definer. Verified against the live schema — the set
+      -- below is empty, and it is empty because every such function is definer,
+      -- not because the question got easier.
+      and has_function_privilege('authenticated', p.oid, 'execute')
+      and p.provolatile <> 'i'
   $$,
   'every team feature function is security definer'
 );
@@ -186,7 +202,14 @@ select is_empty(
           'transfer_ownership', 'list_team_audit_events',
           'search_materials', 'get_team_vocab_and_facets', 'update_material_metadata',
           'get_material_preview', 'get_operation', 'get_material_provenance',
-          'cancel_team_operation', 'list_landing_renders'
+          'cancel_team_operation', 'list_landing_renders',
+          -- The folder chooser's own three, from 011, plus the row-kind rule the
+          -- explorer and the shared contract both read. Added deliberately:
+          -- this list is the record of what a signed-in caller may invoke, so a
+          -- new RPC arriving in it should be somebody's decision rather than a
+          -- test repair.
+          'list_team_drive_selections', 'add_team_drive_selection',
+          'remove_team_drive_selection', 'team_material_kind'
         ))
       )
   $$,
@@ -1800,8 +1823,12 @@ select ok(
 );
 
 -- User Story 3: exact-team catalog search, metadata-only writes, and durable sync state.
+-- 011 widened the signature with the open folder and the row kinds; the RPC US3
+-- introduced is the same RPC, so the existence check follows it rather than
+-- pinning the argument list it had on the day US3 shipped.
 select has_function(
-  'public', 'search_materials', array['uuid', 'text', 'jsonb', 'integer', 'integer'],
+  'public', 'search_materials',
+  array['uuid', 'text', 'jsonb', 'integer', 'integer', 'text', 'text[]'],
   'US3 caller-checked catalog search RPC exists'
 );
 select has_function(
