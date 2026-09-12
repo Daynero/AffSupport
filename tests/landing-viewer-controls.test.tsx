@@ -23,15 +23,19 @@ describe('landing viewer controls', () => {
     expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_LANDING_VIEWER_PRESET, zoom: 1.25 });
   });
 
-  it('switches device and colour scheme presets', () => {
+  it('switches device presets', () => {
     const onChange = vi.fn();
     render(<LandingViewerControls preset={DEFAULT_LANDING_VIEWER_PRESET} onChange={onChange} />);
     fireEvent.click(screen.getByRole('radio', { name: 'Mobile' }));
     expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_LANDING_VIEWER_PRESET, device: 'mobile' });
-    fireEvent.click(screen.getByRole('radio', { name: 'Dark' }));
-    expect(onChange).toHaveBeenCalledWith({
-      ...DEFAULT_LANDING_VIEWER_PRESET,
-      colorScheme: 'dark'
-    });
+  });
+
+  /* The light/dark pair was removed from the viewer: a landing carries its own scheme. */
+  it('offers no colour-scheme toggle', () => {
+    render(
+      <LandingViewerControls preset={DEFAULT_LANDING_VIEWER_PRESET} onChange={() => undefined} />
+    );
+    expect(screen.queryByRole('radio', { name: 'Dark' })).toBeNull();
+    expect(screen.queryByRole('radio', { name: 'Light' })).toBeNull();
   });
 });

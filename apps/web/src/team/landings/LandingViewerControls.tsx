@@ -3,7 +3,6 @@ import {
   LANDING_ZOOM_MAX,
   LANDING_ZOOM_MIN,
   clampZoom,
-  type LandingColorScheme,
   type LandingDevicePreset,
   type LandingViewerPreset
 } from '@video-compressor/shared';
@@ -16,16 +15,15 @@ const DEVICE_LABELS: Record<LandingDevicePreset, TranslationKey> = {
   mobile: 'teamLandingDeviceMobile'
 };
 
-const SCHEME_LABELS: Record<LandingColorScheme, TranslationKey> = {
-  light: 'teamLandingSchemeLight',
-  dark: 'teamLandingSchemeDark'
-};
-
 const ZOOM_STEP = 0.25;
 
 /**
- * Device / colour-scheme / zoom presets for the team landing viewer. Presentational: it owns no
- * persistence — the caller passes the current preset and persists the change (feature 004, US2).
+ * Device / zoom presets for the team landing viewer. Presentational: it owns no persistence —
+ * the caller passes the current preset and persists the change (feature 004, US2).
+ *
+ * The light/dark pair that used to sit between them is gone: a landing is rendered in the
+ * scheme its own markup asks for, and a toggle over someone else's page only ever showed the
+ * same page twice.
  */
 export function LandingViewerControls({
   preset = DEFAULT_LANDING_VIEWER_PRESET,
@@ -46,15 +44,6 @@ export function LandingViewerControls({
         options={(Object.keys(DEVICE_LABELS) as LandingDevicePreset[]).map(value => ({
           value,
           label: t(DEVICE_LABELS[value])
-        }))}
-      />
-      <SegmentedControl<LandingColorScheme>
-        label={t('teamLandingViewerScheme')}
-        value={preset.colorScheme}
-        onChange={colorScheme => onChange({ ...preset, colorScheme })}
-        options={(Object.keys(SCHEME_LABELS) as LandingColorScheme[]).map(value => ({
-          value,
-          label: t(SCHEME_LABELS[value])
         }))}
       />
       <div className="landing-viewer-zoom" role="group" aria-label={t('teamLandingViewerZoom')}>
