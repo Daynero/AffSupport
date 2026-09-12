@@ -8,7 +8,9 @@
  */
 
 import { useEffect, useId, useState } from 'react';
+import { ListChecks } from 'lucide-react';
 import { useI18n } from '../../i18n';
+import { SettingsSection } from './SettingsSection';
 
 export interface TeamPreferencesClient {
   getTranscriptDeletePref(): Promise<'ask' | 'delete' | 'keep'>;
@@ -52,55 +54,67 @@ export function TeamPreferencesSection({ client }: { client: TeamPreferencesClie
   }, [client]);
 
   return (
-    <section className="team-panel team-preferences" aria-labelledby={titleId}>
-      <h2 id={titleId}>{t('teamPreferencesTitle')}</h2>
-      <p>{t('teamPreferencesDescription')}</p>
+    <SettingsSection
+      icon={ListChecks}
+      titleId={titleId}
+      title={t('teamPreferencesTitle')}
+      description={t('teamPreferencesDescription')}
+      className="team-preferences"
+    >
+      {/* Two short choices side by side rather than two full-width fields stacked: neither
+          needs the dialog's whole width, and at full width the label above each one read as
+          a heading of its own. */}
+      <div className="settings-field-grid">
+        {transcript !== null && (
+          <div className="field-group">
+            <label className="field-label" htmlFor={transcriptId}>
+              <span>{t('accountTranscriptDeleteLabel')}</span>
+            </label>
+            <select
+              id={transcriptId}
+              value={transcript}
+              onChange={event => {
+                const next = event.target.value as 'ask' | 'delete' | 'keep';
+                setTranscript(next);
+                void client.setTranscriptDeletePref(next).catch(() => undefined);
+              }}
+            >
+              <option value="ask">{t('accountTranscriptDeleteAsk')}</option>
+              <option value="delete">{t('accountTranscriptDeleteAlways')}</option>
+              <option value="keep">{t('accountTranscriptDeleteNever')}</option>
+            </select>
+          </div>
+        )}
 
-      {transcript !== null && (
-        <label className="field" htmlFor={transcriptId}>
-          <span>{t('accountTranscriptDeleteLabel')}</span>
-          <select
-            id={transcriptId}
-            value={transcript}
-            onChange={event => {
-              const next = event.target.value as 'ask' | 'delete' | 'keep';
-              setTranscript(next);
-              void client.setTranscriptDeletePref(next).catch(() => undefined);
-            }}
-          >
-            <option value="ask">{t('accountTranscriptDeleteAsk')}</option>
-            <option value="delete">{t('accountTranscriptDeleteAlways')}</option>
-            <option value="keep">{t('accountTranscriptDeleteNever')}</option>
-          </select>
-        </label>
-      )}
-
-      {progressMax !== null && (
-        <label className="field" htmlFor={progressId}>
-          <span>{t('accountTaskMaxDefaultLabel')}</span>
-          <input
-            id={progressId}
-            type="number"
-            min={1}
-            max={PROGRESS_MAX}
-            value={progressMax}
-            onChange={event => setProgressMax(event.target.value)}
-            /* Saved when the field is left, and a figure the server would refuse is put
-               back to what it holds rather than left sitting there unsaved. */
-            onBlur={() => {
-              const parsed = Number(progressMax);
-              if (!Number.isInteger(parsed) || parsed < 1 || parsed > PROGRESS_MAX) {
-                void client
-                  .getTaskProgressMaxDefault()
-                  .then(value => setProgressMax(String(value)))
-                  .catch(() => undefined);
-                return;
-              }
-              void client.setTaskProgressMaxDefault(parsed).catch(() => undefined);
-            }}
-          />
-        </label>
-      )}
-    </section>
+        {progressMax !== null && (
+          <div className="field-group">
+            <label className="field-label" htmlFor={progressId}>
+              <span>{t('accountTaskMaxDefaultLabel')}</span>
+            </label>
+            <input
+              id={progressId}
+              type="number"
+              min={1}
+              max={PROGRESS_MAX}
+              value={progressMax}
+              onChange={event => setProgressMax(event.target.value)}
+              /* Saved when the field is left, and a figure the server would refuse is put
+                 back to what it holds rather than left sitting there unsaved. */
+              onBlur={() => {
+                const parsed = Number(progressMax);
+                if (!Number.isInteger(parsed) || parsed < 1 || parsed > PROGRESS_MAX) {
+                  void client
+                    .getTaskProgressMaxDefault()
+                    .then(value => setProgressMax(String(value)))
+                    .catch(() => undefined);
+                  return;
+                }
+                void client.setTaskProgressMaxDefault(parsed).catch(() => undefined);
+              }}
+            />
+          </div>
+        )}
+      </div>
+    </SettingsSection>
   );
 }

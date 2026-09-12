@@ -1,4 +1,5 @@
 import { useId, useState } from 'react';
+import { Link2, LogOut } from 'lucide-react';
 import { Button } from '../../components/ui';
 import { Modal } from '../../components/Modal';
 import { useToasts } from '../../components/toast';
@@ -14,6 +15,7 @@ import { DriveConnectionPanel, type DrivePanelClient } from '../drive/DriveConne
 import { RestitchDefaultsSection, type RestitchDefaultsClient } from './RestitchDefaultsSection';
 import { TaskLabelsSection, type TaskLabelsSectionClient } from '../labels/TaskLabelsSection';
 import { TeamPreferencesSection, type TeamPreferencesClient } from './TeamPreferencesSection';
+import { SettingsSection } from './SettingsSection';
 
 export interface SharePreferenceSettingsClient {
   resetLibrarySharePreference: (teamId: string) => Promise<boolean>;
@@ -53,14 +55,22 @@ export function SharePreferenceSettings({
   };
 
   return (
-    <section className="team-panel" aria-labelledby="creative-library-share-settings-title">
-      <h2 id="creative-library-share-settings-title">{t('creativeLibraryShareSettingsTitle')}</h2>
-      <p>{t('creativeLibraryShareSettingsDescription')}</p>
-      <Button type="button" variant="secondary" loading={resetting} onClick={() => void reset()}>
-        {t('creativeLibraryShareReset')}
-      </Button>
+    <SettingsSection
+      icon={Link2}
+      titleId="creative-library-share-settings-title"
+      title={t('creativeLibraryShareSettingsTitle')}
+      description={t('creativeLibraryShareSettingsDescription')}
+    >
+      <div className="settings-section-actions">
+        <Button type="button" variant="secondary" loading={resetting} onClick={() => void reset()}>
+          {t('creativeLibraryShareReset')}
+        </Button>
+      </div>
       {state && (
-        <p className={state === 'failed' ? 'team-inline-error' : undefined} role="status">
+        <p
+          className={state === 'failed' ? 'team-inline-error' : 'settings-section-note'}
+          role="status"
+        >
           {t(
             state === 'done'
               ? 'creativeLibraryShareResetDone'
@@ -70,7 +80,7 @@ export function SharePreferenceSettings({
           )}
         </p>
       )}
-    </section>
+    </SettingsSection>
   );
 }
 
@@ -111,56 +121,61 @@ export function SpaceSettings({
 
   return (
     <section className="team-space-settings" aria-labelledby="team-space-settings-title">
-      <header className="team-space-settings-header">
-        <h2 id="team-space-settings-title">{t('teamSpaceSettings')}</h2>
-        <Button type="button" variant="secondary" onClick={onBack}>
-          {t('teamSpaceSettingsBack')}
-        </Button>
-      </header>
+      {/* Title and tab strip travel together: the strip used to scroll away on
+          the first turn of the wheel, leaving a long panel with nothing saying
+          which of the five rooms it belonged to. */}
+      <div className="team-space-settings-bar">
+        <header className="team-space-settings-header">
+          <h2 id="team-space-settings-title">{t('teamSpaceSettings')}</h2>
+          <Button type="button" variant="secondary" onClick={onBack}>
+            {t('teamSpaceSettingsBack')}
+          </Button>
+        </header>
 
-      {/*
-       * Four rooms rather than one wall.
-       *
-       * Every panel used to sit in a single two-column grid: link sharing
-       * beside the whole re-stitch editor, members under it, the space's
-       * history at the bottom of a page nobody scrolled to. The dialog was
-       * taller than any screen and the re-stitch controls — the densest thing
-       * in the product — were squeezed into half its width, where their labels
-       * broke mid-word. Each subject gets the dialog's full width now.
-       */}
-      <div
-        className="team-space-tabs team-settings-tabs"
-        role="tablist"
-        aria-label={t('teamSettingsTabsLabel')}
-      >
-        {tabs.map(item => (
-          <button
-            key={item.id}
-            type="button"
-            role="tab"
-            id={`team-settings-tab-${item.id}`}
-            aria-selected={tab === item.id}
-            aria-controls={`team-settings-panel-${item.id}`}
-            tabIndex={tab === item.id ? 0 : -1}
-            className={`team-space-tab${tab === item.id ? ' is-active' : ''}`}
-            onKeyDown={event => {
-              const at = tabs.findIndex(other => other.id === tab);
-              const go = (index: number) => {
-                event.preventDefault();
-                const next = tabs[(index + tabs.length) % tabs.length]!;
-                setTab(next.id);
-                document.getElementById(`team-settings-tab-${next.id}`)?.focus();
-              };
-              if (event.key === 'ArrowRight') go(at + 1);
-              else if (event.key === 'ArrowLeft') go(at - 1);
-              else if (event.key === 'Home') go(0);
-              else if (event.key === 'End') go(tabs.length - 1);
-            }}
-            onClick={() => setTab(item.id)}
-          >
-            {item.label}
-          </button>
-        ))}
+        {/*
+         * Four rooms rather than one wall.
+         *
+         * Every panel used to sit in a single two-column grid: link sharing
+         * beside the whole re-stitch editor, members under it, the space's
+         * history at the bottom of a page nobody scrolled to. The dialog was
+         * taller than any screen and the re-stitch controls — the densest thing
+         * in the product — were squeezed into half its width, where their labels
+         * broke mid-word. Each subject gets the dialog's full width now.
+         */}
+        <div
+          className="team-space-tabs team-settings-tabs"
+          role="tablist"
+          aria-label={t('teamSettingsTabsLabel')}
+        >
+          {tabs.map(item => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              id={`team-settings-tab-${item.id}`}
+              aria-selected={tab === item.id}
+              aria-controls={`team-settings-panel-${item.id}`}
+              tabIndex={tab === item.id ? 0 : -1}
+              className={`team-space-tab${tab === item.id ? ' is-active' : ''}`}
+              onKeyDown={event => {
+                const at = tabs.findIndex(other => other.id === tab);
+                const go = (index: number) => {
+                  event.preventDefault();
+                  const next = tabs[(index + tabs.length) % tabs.length]!;
+                  setTab(next.id);
+                  document.getElementById(`team-settings-tab-${next.id}`)?.focus();
+                };
+                if (event.key === 'ArrowRight') go(at + 1);
+                else if (event.key === 'ArrowLeft') go(at - 1);
+                else if (event.key === 'Home') go(0);
+                else if (event.key === 'End') go(tabs.length - 1);
+              }}
+              onClick={() => setTab(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div
@@ -293,17 +308,19 @@ function LeaveSpacePanel({
   };
 
   return (
-    <section className="team-panel" aria-labelledby="team-leave-space-title">
-      <h2 id="team-leave-space-title">{t('teamLeaveTitle')}</h2>
-      {isOwner ? (
-        <p>{t('teamLeaveOwnerExplanation')}</p>
-      ) : (
-        <>
-          <p>{t('teamLeaveDescription')}</p>
+    <SettingsSection
+      icon={LogOut}
+      titleId="team-leave-space-title"
+      title={t('teamLeaveTitle')}
+      description={isOwner ? t('teamLeaveOwnerExplanation') : t('teamLeaveDescription')}
+      className="team-leave-panel"
+    >
+      {!isOwner && (
+        <div className="settings-section-actions">
           <Button type="button" variant="danger" onClick={() => setConfirming(true)}>
             {t('teamLeaveAction')}
           </Button>
-        </>
+        </div>
       )}
       {confirming && (
         <Modal labelledBy={titleId} size="sm" onClose={() => setConfirming(false)}>
@@ -320,6 +337,6 @@ function LeaveSpacePanel({
           </div>
         </Modal>
       )}
-    </section>
+    </SettingsSection>
   );
 }

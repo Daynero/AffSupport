@@ -8582,8 +8582,7 @@ body:has(.public-home) {
 .team-panel-heading,
 .team-workspace-header-actions,
 .team-switcher,
-.team-inline-actions,
-.team-member-limit {
+.team-inline-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -8667,7 +8666,6 @@ body:has(.public-home) {
   gap: var(--space-5);
 }
 .team-panel,
-.team-member-limit,
 .team-empty-state {
   min-width: 0;
   border: 1px solid var(--color-border);
@@ -8676,7 +8674,6 @@ body:has(.public-home) {
   box-shadow: var(--shadow-sm);
   padding: var(--space-5);
 }
-.team-member-limit span,
 .team-panel small {
   color: var(--color-text-muted);
 }
@@ -9389,6 +9386,141 @@ body:has(.public-home) {
   outline: 3px solid var(--color-focus);
   outline-offset: -3px;
 }
+
+/* ============================================================
+   Space settings — the compressor's settings panel, reused
+   ============================================================ */
+/*
+ * Every panel in here used to be the dialog's own surface colour inside a
+ * hairline border: eight cards of one tone stacked into a single wall, each
+ * headed by a title that read smaller than the 52px field under it. The
+ * compressor had already answered this — a violet-tinted slab under a violet
+ * outline, a gear, a title, and the current state at the end of that same line
+ * — so settings wears that shape rather than inventing a second one.
+ */
+.settings-section,
+.team-space-settings .team-panel {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in oklab, var(--color-accent) 45%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in oklab, var(--purple-900) 55%, var(--color-surface));
+  box-shadow: none;
+}
+
+.settings-section-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.settings-section-heading > svg {
+  flex: none;
+  color: var(--color-accent);
+}
+/* The largest thing in its panel, which is what a heading is for: the labels
+   below it are captions and read like captions. */
+.settings-section-heading h2 {
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-5xl);
+  font-weight: 700;
+}
+/* Where the compressor keeps its summary — the one line that says what this
+   panel is currently set to. */
+.settings-section-aside {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+  font-weight: 650;
+}
+.settings-section-note {
+  max-width: 74ch;
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+  line-height: 1.45;
+}
+
+/* Short answers side by side rather than one field per row: a three-value
+   select does not need 900px, and at that width its label read as a heading. */
+.settings-field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  align-items: start;
+  gap: var(--space-4) var(--space-5);
+}
+/* Labels of one and two lines put their controls at two different heights, and
+   two fields side by side then read as two unrelated things. The row's tracks
+   are shared instead, so every control in it starts on the same line. */
+@supports (grid-template-rows: subgrid) {
+  .settings-field-grid {
+    grid-auto-rows: auto;
+  }
+  .settings-field-grid > .field-group {
+    grid-row: span 2;
+    grid-template-rows: subgrid;
+    row-gap: 6px;
+  }
+}
+.team-space-settings .field-label,
+.team-space-settings .team-invite-form label > span,
+.team-space-settings .team-task-labels-name > span {
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+  font-weight: 650;
+}
+.team-space-settings .field-group select,
+.team-space-settings .field-group input,
+.team-space-settings .team-invite-form input,
+.team-space-settings .team-invite-form select,
+.team-space-settings .team-task-labels-create input {
+  height: 40px;
+  min-height: 40px;
+  border-radius: var(--radius-sm);
+}
+
+/* The invite form's container queries were resolving against the dialog, not
+   against the card they live in — the panel is half the dialog's width in the
+   members tab, so the three-across layout switched on in a card that could not
+   hold it and the send button hung over the card's edge. The card is the
+   container now. */
+.team-invitations {
+  container-type: inline-size;
+}
+
+/* Buttons are a row of their own, and the destructive one is not part of that
+   row: on the Drive panel "Від'єднати" sat fourth in a line of grey siblings. */
+.settings-section-actions,
+.team-space-settings .team-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+.team-space-settings .team-inline-actions > .button-danger {
+  margin-left: auto;
+}
+
+/* The tab strip was four grey words over a dialog of grey words. The active one
+   now sits in its own accent-tinted tab. */
+.team-settings-tabs .team-space-tab {
+  padding-inline: var(--space-3);
+  color: var(--color-text-muted);
+  font-weight: 650;
+}
+.team-settings-tabs .team-space-tab.is-active {
+  color: var(--color-text);
+  background: color-mix(in oklab, var(--color-accent) 16%, transparent);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
 /* The fold's contents sit under its control, not beside it. */
 .team-restitch-fold {
   display: grid;
@@ -9428,12 +9560,6 @@ button,
   box-shadow: var(--shadow-sm);
   padding: var(--space-5);
   min-width: 0;
-}
-.team-member-section .team-member-limit {
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  padding: 0;
 }
 .team-member-list,
 /* The subject reads as the object of the sentence: after the action, before
@@ -10066,7 +10192,6 @@ button,
 
 @media (max-width: 560px) {
   .team-panel,
-  .team-member-limit,
   .team-empty-state {
     padding: var(--space-4);
   }
@@ -14860,15 +14985,20 @@ button.team-landing-tile:hover {
   color: var(--color-text-muted);
   font-size: 0.85em;
 }
-.team-settings-dialog .team-space-settings-header {
-  /* Spans the dialog's own padding, or the rows scrolling past show through
-     the strip above the bar and the title sits on top of the history. */
+/* Title and tabs are one bar, and the bar is what sticks: spans the dialog's
+   own padding, or the rows scrolling past show through the strip above it and
+   the title sits on top of the history. */
+.team-settings-dialog .team-space-settings-bar {
   position: sticky;
   top: calc(-1 * var(--modal-padding, 36px));
   margin: calc(-1 * var(--modal-padding, 36px)) calc(-1 * var(--modal-padding, 36px)) 0;
-  padding: var(--modal-padding, 36px) var(--modal-padding, 36px) var(--space-3);
+  padding: var(--modal-padding, 36px) var(--modal-padding, 36px) 0;
   background: var(--color-surface);
   z-index: 2;
+}
+.team-space-settings-bar {
+  display: grid;
+  gap: var(--space-4);
 }
 .team-explorer-folders-toggle {
   display: none;
@@ -16547,6 +16677,15 @@ input[type='number'] {
 :root:not([data-theme='dark']) .settings-panel {
   /* The dark violet slab of the dark theme turns into a pale one here, so the
      heading and its summary stay readable. */
+  border-color: color-mix(in oklab, var(--color-accent) 30%, transparent);
+  background: color-mix(in oklab, var(--color-accent) 8%, #fff);
+}
+/* The same correction the compressor's own panel needs: the dark violet slab
+   becomes a pale one here, or the heading sits dark-on-dark. */
+:root[data-theme='light'] .settings-section,
+:root:not([data-theme='dark']) .settings-section,
+:root[data-theme='light'] .team-space-settings .team-panel,
+:root:not([data-theme='dark']) .team-space-settings .team-panel {
   border-color: color-mix(in oklab, var(--color-accent) 30%, transparent);
   background: color-mix(in oklab, var(--color-accent) 8%, #fff);
 }

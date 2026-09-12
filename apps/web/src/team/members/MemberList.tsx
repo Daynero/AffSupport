@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Users } from 'lucide-react';
 import type {
   TeamContextSnapshot,
   TeamMemberSummary,
@@ -13,6 +14,7 @@ import { teamErrorMessageFor } from '../errors';
 import { useTeam } from '../TeamContext';
 import { MemberPermissionsDialog } from './MemberPermissionsDialog';
 import { OwnershipTransferDialog } from './OwnershipTransferDialog';
+import { SettingsSection } from '../workspace/SettingsSection';
 
 export interface MemberManagementClient {
   listMembers: (teamId: string) => Promise<TeamMemberSummary[]>;
@@ -82,11 +84,13 @@ export function MemberList({
   const canManage = activeTeam?.permissions.manage_members === true;
   const isOwner = activeTeam?.role === 'owner';
   return (
-    <section className="team-member-section" aria-labelledby="team-members-list-title">
-      <div className="team-member-limit">
-        <strong id="team-members-list-title">{t('teamMembers')}</strong>
-        <span>{t('teamMembersLimit', { count })}</span>
-      </div>
+    <SettingsSection
+      icon={Users}
+      titleId="team-members-list-title"
+      title={t('teamMembers')}
+      aside={t('teamMembersLimit', { count })}
+      className="team-member-section"
+    >
       {client && teamId && (
         <details className="team-role-guide">
           <summary>{t('teamRolesGuide')}</summary>
@@ -245,6 +249,6 @@ export function MemberList({
           }}
         />
       )}
-    </section>
+    </SettingsSection>
   );
 }

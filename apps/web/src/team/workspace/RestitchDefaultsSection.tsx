@@ -40,6 +40,7 @@ import {
   useRestitchPreparation,
   type RestitchPreparationState
 } from '../restitch/useRestitchPreparation';
+import { SettingsSection } from './SettingsSection';
 
 export interface RestitchDefaultsClient {
   getRestitchDefaults: (teamId: string) => Promise<TeamRestitchDefaults | null>;
@@ -173,13 +174,19 @@ export function RestitchDefaultsSection({
   };
 
   return (
-    <section className="team-panel" aria-labelledby="team-restitch-settings-title">
-      <h2 id="team-restitch-settings-title">{t('teamRestitchSection')}</h2>
+    <SettingsSection
+      icon={Replace}
+      titleId="team-restitch-settings-title"
+      title={t('teamRestitchSection')}
+      className="team-restitch-defaults"
+    >
       {/* The controls below say what the space does; a machine-assembled recap
           above them ("Перезашити, фото: 21, Випадково: 30–40 хв") said it again
           in a shape no one writes. What is left is the one thing the controls
           cannot say: that nothing has been set yet. */}
-      <p role="status">{loaded && !defaults ? t('teamRestitchNotConfigured') : ''}</p>
+      <p className="settings-section-note" role="status">
+        {loaded && !defaults ? t('teamRestitchNotConfigured') : ''}
+      </p>
 
       {/* Read rather than hidden: a member who cannot change this can still see what the
           space does, which is what they need in order to ask for it to change. */}
@@ -246,15 +253,17 @@ export function RestitchDefaultsSection({
       )}
 
       {editable && (
-        <Button
-          type="button"
-          variant="primary"
-          loading={saving}
-          disabled={!connected || !compressor}
-          onClick={() => void save()}
-        >
-          {t('teamRestitchSave')}
-        </Button>
+        <div className="settings-section-actions">
+          <Button
+            type="button"
+            variant="primary"
+            loading={saving}
+            disabled={!connected || !compressor}
+            onClick={() => void save()}
+          >
+            {t('teamRestitchSave')}
+          </Button>
+        </div>
       )}
 
       {editable && (
@@ -292,7 +301,7 @@ export function RestitchDefaultsSection({
           )}
         </div>
       )}
-    </section>
+    </SettingsSection>
   );
 }
 

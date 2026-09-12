@@ -12,7 +12,7 @@
  */
 
 import { useEffect, useId, useState, type FormEvent } from 'react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Bot, Pencil, Plus, Tags, Trash2 } from 'lucide-react';
 import {
   TEAM_TASK_LABEL_MAX,
   TEAM_TASK_LABEL_NAME_MAX,
@@ -32,6 +32,7 @@ import { teamErrorMessageFor } from '../errors';
 import { agentCountKey, taskCountKey } from '../accounts/plural';
 import { TaskLabelChip, TaskLabelColorPicker } from './TaskLabelChip';
 import { useTaskLabels, type TaskLabelsClient } from './useTaskLabels';
+import { SettingsSection } from '../workspace/SettingsSection';
 
 export type TaskLabelsSectionClient = TaskLabelsClient;
 
@@ -143,10 +144,13 @@ export function TaskLabelsSection({
   };
 
   return (
-    <section className="team-panel team-task-labels" aria-labelledby={titleId}>
-      <h2 id={titleId}>{t(agents ? 'teamAgentTagsTitle' : 'teamTaskTagsTitle')}</h2>
-      <p>{t(agents ? 'teamAgentTagsDescription' : 'teamTaskTagsDescription')}</p>
-
+    <SettingsSection
+      icon={agents ? Bot : Tags}
+      titleId={titleId}
+      title={t(agents ? 'teamAgentTagsTitle' : 'teamTaskTagsTitle')}
+      description={t(agents ? 'teamAgentTagsDescription' : 'teamTaskTagsDescription')}
+      className="team-task-labels"
+    >
       {canEdit && (
         <form className="team-task-labels-create" onSubmit={event => void create(event)}>
           <label className="team-task-labels-name">
@@ -315,6 +319,6 @@ export function TaskLabelsSection({
           </div>
         </Modal>
       )}
-    </section>
+    </SettingsSection>
   );
 }

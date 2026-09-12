@@ -1,4 +1,5 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
+import { UserPlus } from 'lucide-react';
 import type { TeamBaseRole } from '@video-compressor/shared';
 import { TeamApiError, type TeamInvitationSummary, type TeamMemberSummary } from '../../api/team';
 import { useI18n } from '../../i18n';
@@ -6,6 +7,7 @@ import { useToasts } from '../../components/toast';
 import { teamErrorMessageFor } from '../errors';
 import { Button } from '../../components/ui';
 import { Modal } from '../../components/Modal';
+import { SettingsSection } from '../workspace/SettingsSection';
 
 export interface InvitationPanelClient {
   listInvitations: (teamId: string) => Promise<TeamInvitationSummary[]>;
@@ -164,10 +166,12 @@ export function InvitationPanel({
   };
 
   return (
-    <section className="team-panel team-invitations" aria-labelledby="team-invitations-title">
-      <h2 id="team-invitations-title">
-        {directAdd ? t('teamDirectAddTitle') : t('teamInviteTitle')}
-      </h2>
+    <SettingsSection
+      icon={UserPlus}
+      titleId="team-invitations-title"
+      title={directAdd ? t('teamDirectAddTitle') : t('teamInviteTitle')}
+      className="team-invitations"
+    >
       {directAdd && canManage && <p className="team-test-mode-note">{t('teamDirectAddNote')}</p>}
       {canManage && (
         <form className="team-invite-form" onSubmit={event => void submit(event)}>
@@ -269,6 +273,6 @@ export function InvitationPanel({
           </div>
         </Modal>
       )}
-    </section>
+    </SettingsSection>
   );
 }

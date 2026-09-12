@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import { FileClock } from 'lucide-react';
 import type { TeamAuditEventSummary } from '../../api/team';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
+import { SettingsSection } from '../workspace/SettingsSection';
 
 /**
  * The history is for people, so it says what happened rather than printing the
@@ -110,8 +112,12 @@ export function TeamAuditPanel({
   }, [client, revision, t, teamId]);
 
   return (
-    <section className="team-panel team-audit-panel" aria-labelledby="team-audit-title">
-      <h2 id="team-audit-title">{t('teamAuditTitle')}</h2>
+    <SettingsSection
+      icon={FileClock}
+      titleId="team-audit-title"
+      title={t('teamAuditTitle')}
+      className="team-audit-panel"
+    >
       {error && <p className="team-inline-error">{error}</p>}
       {/* Loading and empty are different answers: the panel used to give the
           second one while it was still waiting for the first (finding S9). */}
@@ -174,6 +180,6 @@ export function TeamAuditPanel({
           );
         })}
       </ol>
-    </section>
+    </SettingsSection>
   );
 }
