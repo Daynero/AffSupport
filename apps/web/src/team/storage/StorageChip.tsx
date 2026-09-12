@@ -8,6 +8,7 @@ import { internalLink } from '../../lib/navigation';
 import { teamErrorMessageFor } from '../errors';
 import { useOptionalBackgroundRender } from '../explorer/BackgroundRenderProvider';
 import type { DriveRootResult } from '../../api/team';
+import { rememberDriveAuthorization } from '../drive/authorizationReturn';
 
 /**
  * One chip, one state, on every team screen (011, FR-031). Click for the
@@ -128,8 +129,20 @@ export function StorageChip({
     if (!client.startDriveOAuth) return;
     setBusy(true);
     try {
+      // Google's redirect cannot say which space this was for, so the press
+      // says it: the return reads this instead of guessing (authorizationReturn).
+      rememberDriveAuthorization(teamId, 'space');
       const started = await client.startDriveOAuth(teamId);
       setAuthorizationUrl(started.authorizationUrl);
+      // Go where the press was aimed. Asking Google for the address used to
+      // leave the person looking at a second, differently-worded button they
+      // had to find and press before anything happened — a toll rather than a
+      // step. `location.assign` is not gated on user activation (unlike
+      // `window.open`, which is what popup blockers are for), so an address
+      // that arrives after an await is still free to navigate. The address
+      // stays in state as well: a browser that refuses to leave the page must
+      // leave a link behind rather than a dead end.
+      location.assign(started.authorizationUrl);
     } catch (cause) {
       push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
     } finally {

@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from 'react';
+import { HardDrive } from 'lucide-react';
 import type { TeamDriveSelection } from '@video-compressor/shared';
 import type {
   DriveCatalogResyncResult,
@@ -14,6 +15,8 @@ import { Button } from '../../components/ui';
 import { BetaStorageNotice, externalStorageUnavailableInBeta } from './BetaStorageNotice';
 import { openFolderPicker, pickerConfig, type PickFolders } from '../storage/loadPicker';
 import { SelectionList, selectionModeEnabled } from '../storage/SelectionList';
+import { rememberDriveAuthorization } from './authorizationReturn';
+import { SettingsSection } from '../workspace/SettingsSection';
 
 type SafeConnectionStatus = Partial<DriveConnectionStatus> & {
   state: DriveConnectionStatus['state'];
@@ -123,8 +126,20 @@ export function DriveConnectionPanel({
     setBusy(true);
     setError(null);
     try {
+      // Google's redirect cannot say which space this was for, so the press
+      // says it: the return reads this instead of guessing (authorizationReturn).
+      rememberDriveAuthorization(teamId, 'space');
       const started = await client.startDriveOAuth(teamId);
       setAuthorizationUrl(started.authorizationUrl);
+      // Go where the press was aimed. Asking Google for the address used to
+      // leave the person looking at a second, differently-worded button they
+      // had to find and press before anything happened — a toll rather than a
+      // step. `location.assign` is not gated on user activation (unlike
+      // `window.open`, which is what popup blockers are for), so an address
+      // that arrives after an await is still free to navigate. The address
+      // stays in state as well: a browser that refuses to leave the page must
+      // leave a link behind rather than a dead end.
+      location.assign(started.authorizationUrl);
     } catch (cause) {
       setError(explain(cause));
     } finally {
@@ -258,12 +273,16 @@ export function DriveConnectionPanel({
           : t('teamDriveNotConnected');
 
   return (
-    <section className="team-panel team-drive-panel" aria-labelledby="team-drive-title">
-      <div className="team-panel-heading">
-        <h2 id="team-drive-title">{t('teamDriveTitle')}</h2>
-        <span className={`team-connection-badge is-${status.state}`}>{badge}</span>
-      </div>
-      {status.rootFolderName && <p>{status.rootFolderName}</p>}
+    <SettingsSection
+      icon={HardDrive}
+      titleId="team-drive-title"
+      title={t('teamDriveTitle')}
+      /* The connection's state belongs on the title line, the way the compressor keeps its
+         summary there: it is the one thing a person opens this panel to read. */
+      aside={<span className={`team-connection-badge is-${status.state}`}>{badge}</span>}
+      description={status.rootFolderName}
+      className="team-drive-panel"
+    >
       <BetaStorageNotice state={status.state} />
 
       {!connected && !rootMissing && !unavailable && !authorized && !authorizationUrl && (
@@ -385,6 +404,6 @@ export function DriveConnectionPanel({
           </div>
         </Modal>
       )}
-    </section>
+    </SettingsSection>
   );
 }

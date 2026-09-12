@@ -5,6 +5,7 @@ import { useI18n } from '../../i18n';
 import { trackTeamStorageConnected } from '../../analytics/service';
 import { BetaStorageNotice, externalStorageUnavailableInBeta } from '../drive/BetaStorageNotice';
 import { openFolderPicker, pickerConfig, type PickFolders } from './loadPicker';
+import { rememberDriveAuthorization } from '../drive/authorizationReturn';
 
 /**
  * Connect a space's storage in two inputs (011, FR-001): authorize Google once,
@@ -79,8 +80,20 @@ export function ConnectStorageFlow({
     setBusy(true);
     setError(null);
     try {
+      // Google's redirect cannot say which space this was for, so the press
+      // says it: the return reads this instead of guessing (authorizationReturn).
+      rememberDriveAuthorization(teamId, 'wizard');
       const started = await client.startDriveOAuth(teamId);
       setAuthorizationUrl(started.authorizationUrl);
+      // Go where the press was aimed. Asking Google for the address used to
+      // leave the person looking at a second, differently-worded button they
+      // had to find and press before anything happened — a toll rather than a
+      // step. `location.assign` is not gated on user activation (unlike
+      // `window.open`, which is what popup blockers are for), so an address
+      // that arrives after an await is still free to navigate. The address
+      // stays in state as well: a browser that refuses to leave the page must
+      // leave a link behind rather than a dead end.
+      location.assign(started.authorizationUrl);
     } catch (cause) {
       setError(explain(cause));
     } finally {

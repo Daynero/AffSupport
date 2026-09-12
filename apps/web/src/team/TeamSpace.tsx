@@ -11,6 +11,7 @@ import { useI18n } from '../i18n';
 import { navigateTo, useBrowserRoute, usePageEntrance } from '../lib/navigation';
 import { configuredTeamDirectAddMode } from '../lib/config';
 import { readRememberedSpaceId, useTeam } from './TeamContext';
+import { readDriveAuthorization, type DriveAuthorizationTarget } from './drive/authorizationReturn';
 import { teamErrorMessageFor } from './errors';
 import { SpaceLobby } from './lobby/SpaceLobby';
 import {
@@ -70,8 +71,14 @@ export function resolveTeamEntry(input: {
   /** Null while the invitation probe is unresolved or failed. */
   pendingInvitations: number | null;
   rememberedTeamId: string | null;
+  /**
+   * The space a Drive authorization was started for, written down by the press
+   * that left for Google (see authorizationReturn). Null when there is no note
+   * to read, which is the only case left for the older guessing rules.
+   */
+  driveTarget: DriveAuthorizationTarget | null;
 }): TeamEntry {
-  const { route, teams, teamsLoaded, pendingInvitations, rememberedTeamId } = input;
+  const { route, teams, teamsLoaded, pendingInvitations, rememberedTeamId, driveTarget } = input;
 
   if (route.kind === 'space') {
     const known = teams.some(team => team.id === route.spaceId);
@@ -117,6 +124,22 @@ export function resolveTeamEntry(input: {
     const separator = base.includes('?') ? '&' : '?';
     return `${base}${separator}drive=${encodeURIComponent(route.driveReturn)}`;
   };
+
+  /*
+   * A return from Google goes back where it came from. The note the press left
+   * names the space, so there is nothing to infer: an existing space's own
+   * settings reopen at the Drive panel, and a space still being created is left
+   * to the wizard (which the resume effect puts back on screen) rather than
+   * redirected into a settings dialog it has no business in yet.
+   */
+  if (route.driveReturn && driveTarget) {
+    const target = teams.find(team => team.id === driveTarget.teamId);
+    if (target) {
+      return driveTarget.intent === 'wizard'
+        ? { kind: 'lobby' }
+        : { kind: 'redirect', to: spaceRoute(target.id) };
+    }
+  }
 
   const ready = teams.filter(team => spaceReadiness(team) === 'ready');
   if (ready.length === 1 && ready[0]) {
@@ -175,6 +198,9 @@ export function TeamSpace({
   // Captured once: the resolver needs the value from before this session began
   // writing to it (see readRememberedSpaceId).
   const [rememberedTeamId] = useState(readRememberedSpaceId);
+  // Also captured once, and for the same reason: the note a Drive press left
+  // behind describes the trip that is arriving now, not a later one.
+  const [driveTarget] = useState(readDriveAuthorization);
   const [waitlistState, setWaitlistState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [gateOpen, setGateOpen] = useState(true);
   const [supportOpen, setSupportOpen] = useState(false);
@@ -189,20 +215,31 @@ export function TeamSpace({
 
   const driveReturn = route.kind === 'resolver' ? route.driveReturn : null;
 
-  // A Drive OAuth redirect returns to `/team?drive=...` and resets local flow.
-  // Resume the mid-setup owned space back into the wizard's folder step so the
-  // user does not have to re-find it in the lobby. The parameter comes from the
-  // parsed route rather than a second read of `location.search`, so there is one
-  // answer to "what does this URL mean" (routes.ts) rather than two.
+  /*
+   * A Drive OAuth redirect returns to `/team?drive=...` and resets local flow.
+   * A space still being created is put back into the wizard's folder step, so
+   * the person who just authorized can pick the folder instead of hunting for
+   * their half-made space in the lobby. The parameter comes from the parsed
+   * route rather than a second read of `location.search`, so there is one
+   * answer to "what does this URL mean" (routes.ts) rather than two.
+   *
+   * Which space that is, is read and never guessed. This used to resume the
+   * first owned space that was not ready — so returning from an existing
+   * space's settings opened the create wizard, for some other space, and the
+   * wizard's own state then outlived the redirect that was meant to take the
+   * person back. Granting access in Google led straight back to "connect with
+   * Google", forever. With no note to read, nothing is resumed: the return
+   * enters a space instead, which is somewhere rather than a circle.
+   */
   useEffect(() => {
     if (resumedFromDrive.current) return;
-    if (!driveReturn) return;
-    const resumable = teams.find(team => team.role === 'owner' && spaceReadiness(team) !== 'ready');
+    if (!driveReturn || !driveTarget || driveTarget.intent !== 'wizard') return;
+    const resumable = teams.find(team => team.id === driveTarget.teamId && team.role === 'owner');
     if (resumable) {
       resumedFromDrive.current = true;
       setFlow({ mode: 'resume', teamId: resumable.id });
     }
-  }, [driveReturn, teams]);
+  }, [driveReturn, driveTarget, teams]);
 
   useEffect(() => {
     let active = true;
@@ -285,8 +322,16 @@ export function TeamSpace({
   // here — rather than per surface — is what lets an outcome outlive the thing
   // that started it: a dialog closes, a row unmounts, the toast stays readable.
   const entry = useMemo(
-    () => resolveTeamEntry({ route, teams, teamsLoaded, pendingInvitations, rememberedTeamId }),
-    [pendingInvitations, rememberedTeamId, route, teams, teamsLoaded]
+    () =>
+      resolveTeamEntry({
+        route,
+        teams,
+        teamsLoaded,
+        pendingInvitations,
+        rememberedTeamId,
+        driveTarget
+      }),
+    [driveTarget, pendingInvitations, rememberedTeamId, route, teams, teamsLoaded]
   );
 
   // A redirect is a correction to the address, not a step in the user's

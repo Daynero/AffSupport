@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import React from 'react';
+import { interceptCrossOriginNavigation } from './support/navigation';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../apps/web/src/components/toast';
 import { TeamApiError } from '../apps/web/src/api/team';
 import {
@@ -69,6 +70,55 @@ function renderFlow(
     )
   };
 }
+
+let navigation: ReturnType<typeof interceptCrossOriginNavigation>;
+
+beforeEach(() => {
+  navigation = interceptCrossOriginNavigation();
+});
+
+afterEach(() => {
+  navigation.restore();
+});
+
+/**
+ * Connecting Drive takes one press.
+ *
+ * It used to take two, and they were not the same button: the first fetched
+ * Google's address and re-rendered itself as "Continue with Google", which had
+ * to be found and pressed before anything happened. Nothing happened in
+ * between, so the first press was a toll rather than a step — and it had
+ * already cost a bug, where a re-consent fetched the address and displayed
+ * nothing at all.
+ */
+describe('one press reaches Google', () => {
+  it('leaves for the consent screen as soon as the address arrives', async () => {
+    const user = userEvent.setup();
+    const client = makeClient();
+
+    renderFlow(client, vi.fn());
+    await user.click(screen.getByRole('button', { name: 'Connect Google Drive' }));
+
+    await waitFor(() =>
+      expect(navigation.assign).toHaveBeenCalledWith('https://accounts.google.test/auth')
+    );
+    expect(client.startDriveOAuth).toHaveBeenCalledWith(TEAM);
+  });
+
+  it('still leaves a link behind for a browser that refused to go', async () => {
+    const user = userEvent.setup();
+    const client = makeClient();
+
+    renderFlow(client, vi.fn());
+    await user.click(screen.getByRole('button', { name: 'Connect Google Drive' }));
+
+    // The navigation is what normally happens; the link is the fallback, so a
+    // blocked jump is a visible next step rather than a dead end.
+    expect(
+      (await screen.findByRole('link', { name: 'Continue with Google' })).getAttribute('href')
+    ).toBe('https://accounts.google.test/auth');
+  });
+});
 
 describe('ConnectStorageFlow', () => {
   it('offers Google first, then the chooser after the callback, and opens the space on a pick', async () => {
