@@ -14,6 +14,7 @@ import { sortTeamTaskLabels, type TeamTaskLabelRef } from '@video-compressor/sha
 import { ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { TaskLabelChip } from './TaskLabelChip';
+import { SpaceSettingsLink, type SpaceSettingsTarget } from '../SpaceSettingsLink';
 
 /** Past this many tags, scanning is slower than typing three letters. */
 const SEARCH_FROM = 8;
@@ -24,6 +25,7 @@ export function TaskLabelMenu({
   onToggle,
   ariaLabel,
   emptyText,
+  emptyTarget,
   disabled = false,
   className = ''
 }: {
@@ -33,6 +35,8 @@ export function TaskLabelMenu({
   ariaLabel: string;
   /** What the popover says when the space has no tags at all. */
   emptyText: string;
+  /** Where those tags are made, so the empty state is a door and not a notice. */
+  emptyTarget?: SpaceSettingsTarget;
   disabled?: boolean;
   className?: string;
 }) {
@@ -89,9 +93,10 @@ export function TaskLabelMenu({
         />
       )}
       {sorted.length === 0 && (
-        <p className="team-task-label-menu-empty" role="presentation">
-          {emptyText}
-        </p>
+        <div className="team-task-label-menu-empty" role="presentation">
+          <p>{emptyText}</p>
+          {emptyTarget && <SpaceSettingsLink target={emptyTarget} />}
+        </div>
       )}
       {sorted.length > 0 && shown.length === 0 && (
         <p className="team-task-label-menu-empty" role="presentation">

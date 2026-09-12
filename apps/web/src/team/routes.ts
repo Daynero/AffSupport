@@ -15,6 +15,10 @@ import {
  * meant.
  */
 export const TEAM_SECTIONS = ['explorer', 'tasks', 'accounts', 'members'] as const;
+
+/** The settings dialog's tabs, named in the address as they are in the dialog. */
+export const TEAM_SETTINGS_TABS = ['general', 'members', 'tags', 'restitch', 'history'] as const;
+export type TeamSettingsTab = (typeof TEAM_SETTINGS_TABS)[number];
 export type TeamSection = (typeof TEAM_SECTIONS)[number];
 
 /** The explorer is canonical and carries no path suffix: `/team/<id>` *is* it. */
@@ -48,6 +52,12 @@ export interface TeamRouteQuery {
   trash: boolean;
   /** The space settings dialog is open over the explorer. */
   settings: boolean;
+  /**
+   * Which room of that dialog. Carried in the address so an empty state
+   * elsewhere ("this space has no tags yet") can hand someone straight to the
+   * panel that fixes it, rather than to the dialog's front page.
+   */
+  settingsTab: TeamSettingsTab | null;
   /** The selected material, so a shared link opens on it. */
   itemId: string | null;
 }
@@ -126,6 +136,7 @@ export function emptyTeamRouteQuery(): TeamRouteQuery {
     scope: 'folder',
     trash: false,
     settings: false,
+    settingsTab: null,
     itemId: null
   };
 }
@@ -234,10 +245,16 @@ export function parseTeamRoute(route: string): TeamRoute | null {
     scope: params.get('scope') === 'space' ? 'space' : 'folder',
     trash: params.get('trash') === '1',
     settings: params.get('settings') === '1',
+    settingsTab: readSettingsTab(params),
     itemId: trimmedParam(params, 'item')
   };
   const { section, query } = aliasSection(rawSection, base);
   return { kind: 'space', spaceId, section, query };
+}
+
+function readSettingsTab(params: URLSearchParams): TeamSettingsTab | null {
+  const raw = params.get('tab')?.trim();
+  return TEAM_SETTINGS_TABS.includes(raw as TeamSettingsTab) ? (raw as TeamSettingsTab) : null;
 }
 
 function splitOnce(value: string, separator: string): [string, string] {
@@ -282,6 +299,7 @@ export function buildTeamRoute(input: TeamRouteInput): string {
     if (query.scope === 'space') params.set('scope', 'space');
     if (query.trash) params.set('trash', '1');
     if (query.settings) params.set('settings', '1');
+    if (query.settings && query.settingsTab) params.set('tab', query.settingsTab);
     if (query.itemId) params.set('item', query.itemId);
   }
   if (section === 'tasks') {

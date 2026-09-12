@@ -539,7 +539,8 @@ export function WorkspaceShell({
               teamId={teamId}
               client={client}
               directAddMode={directAddMode}
-              onClose={() => navigateTo(explorerRoute({ settings: false }))}
+              initialTab={query.settingsTab}
+              onClose={() => navigateTo(explorerRoute({ settings: false, settingsTab: null }))}
             />
           )}
 

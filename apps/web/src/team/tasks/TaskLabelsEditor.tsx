@@ -165,6 +165,7 @@ export function TaskLabelsEditor({
             disabled={busy}
             ariaLabel={t('teamTaskTagsLabel')}
             emptyText={t('teamTaskTagsNoneYet')}
+            emptyTarget={{ kind: 'settings', tab: 'tags' }}
             onToggle={toggle}
           />
         )}

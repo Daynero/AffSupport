@@ -91,6 +91,7 @@ export function TaskLabelFilter({
           selectedIds={selected}
           ariaLabel={t('teamTaskTagFilterLabel')}
           emptyText={t('teamTaskTagsNoneYet')}
+          emptyTarget={{ kind: 'settings', tab: 'tags' }}
           onToggle={(label, next) =>
             onChange(next ? [...selectedIds, label.id] : selectedIds.filter(id => id !== label.id))
           }

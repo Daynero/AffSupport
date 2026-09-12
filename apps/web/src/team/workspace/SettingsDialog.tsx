@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import { Modal } from '../../components/Modal';
 import { SpaceSettings, type SpaceSettingsClient } from './SpaceSettings';
+import type { TeamSettingsTab } from '../routes';
 
 /**
  * Space settings as a dialog over the explorer (011, FR-029): the same panels
@@ -11,11 +12,13 @@ export function SettingsDialog({
   teamId,
   client,
   directAddMode = 'disabled',
+  initialTab,
   onClose
 }: {
   teamId: string;
   client: SpaceSettingsClient;
   directAddMode?: 'disabled' | 'testing';
+  initialTab?: TeamSettingsTab | null;
   onClose: () => void;
 }) {
   const titleId = useId();
@@ -28,6 +31,7 @@ export function SettingsDialog({
         teamId={teamId}
         client={client}
         directAddMode={directAddMode}
+        initialTab={initialTab}
         onBack={onClose}
       />
     </Modal>

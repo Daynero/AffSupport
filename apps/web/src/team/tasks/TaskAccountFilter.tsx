@@ -19,6 +19,7 @@ import {
 import { ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import type { TaskAccountScope } from './useTasks';
+import { SpaceSettingsLink } from '../SpaceSettingsLink';
 
 export function TaskAccountFilter({
   accounts,
@@ -150,9 +151,13 @@ export function TaskAccountFilter({
             {t('teamTaskAccountFilterAll')}
           </button>
           {sorted.length === 0 && (
-            <p className="task-account-filter-empty" role="presentation">
-              {t('teamTaskAccountPickerEmpty')}
-            </p>
+            <div className="task-account-filter-empty" role="presentation">
+              <p>{t('teamTaskAccountPickerEmpty')}</p>
+              <SpaceSettingsLink
+                target={{ kind: 'section', section: 'accounts' }}
+                label={t('teamSectionAccounts')}
+              />
+            </div>
           )}
           {sorted.map(account => (
             <div

@@ -98,7 +98,16 @@ export function AgentLabels({
           disabled={busy}
           ariaLabel={t('teamAgentLabelsLabel')}
           emptyText={t('teamAgentLabelsNoneYet')}
-          onToggle={onToggle}
+          emptyTarget={{ kind: 'settings', tab: 'tags' }}
+          /* One press, one answer. A task carries several tags at once and its
+             popover stays open for the next one; an agent is tagged with the
+             one batch it belongs to, so the list closed only when you clicked
+             off it — a second press into empty space after every choice. */
+          onToggle={(label, next) => {
+            onToggle(label, next);
+            setOpen(false);
+            trigger.current?.focus();
+          }}
         />
       )}
     </div>

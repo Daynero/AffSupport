@@ -16,6 +16,7 @@ import { RestitchDefaultsSection, type RestitchDefaultsClient } from './Restitch
 import { TaskLabelsSection, type TaskLabelsSectionClient } from '../labels/TaskLabelsSection';
 import { TeamPreferencesSection, type TeamPreferencesClient } from './TeamPreferencesSection';
 import { SettingsSection } from './SettingsSection';
+import type { TeamSettingsTab } from '../routes';
 
 export interface SharePreferenceSettingsClient {
   resetLibrarySharePreference: (teamId: string) => Promise<boolean>;
@@ -95,11 +96,14 @@ export function SpaceSettings({
   teamId,
   client,
   directAddMode = 'disabled',
+  initialTab,
   onBack
 }: {
   teamId: string;
   client: SpaceSettingsClient;
   directAddMode?: 'disabled' | 'testing';
+  /** Which room to open in, when something sent the reader to a particular one. */
+  initialTab?: TeamSettingsTab | null;
   onBack: () => void;
 }) {
   const { t } = useI18n();
@@ -113,7 +117,9 @@ export function SpaceSettings({
     { id: 'restitch' as const, label: t('teamSettingsTabRestitch') },
     ...(canSeeHistory ? [{ id: 'history' as const, label: t('teamSettingsTabHistory') }] : [])
   ];
-  const [tab, setTab] = useState<(typeof tabs)[number]['id']>('general');
+  const [tab, setTab] = useState<(typeof tabs)[number]['id']>(() =>
+    initialTab && tabs.some(item => item.id === initialTab) ? initialTab : 'general'
+  );
   const changed = () => {
     setRevision(value => value + 1);
     notifyStateChanged();
