@@ -445,18 +445,13 @@ function ResultPanel({
       <h4>{t('readyFile')}</h4>
       <div className="result-size">
         <strong>{formatSize(displayedSize, language)}</strong>
-        {/* The never-larger ceiling fired: the encode finished bigger than the
-            source, so the source is what the user still has. Saying "0% saved"
-            here would be true and useless. */}
-        {job.keptOriginalReason === 'larger-than-source' ? (
-          <span className="warning-text">{t('keptOriginalLarger')}</span>
-        ) : (
-          <>
-            {saving !== null && saving >= 0 && <span>{t('actualSaving', { value: saving })}</span>}
-            {saving !== null && saving < 0 && (
-              <span className="warning-text">{t('largerActual', { value: Math.abs(saving) })}</span>
-            )}
-          </>
+        {/* A result that came back bigger is reported as such rather than
+            replaced by the source: the never-larger ceiling was removed in
+            e32f988 because silently restoring the original hid what had
+            happened. `keptOriginalReason` has had no writer since. */}
+        {saving !== null && saving >= 0 && <span>{t('actualSaving', { value: saving })}</span>}
+        {saving !== null && saving < 0 && (
+          <span className="warning-text">{t('largerActual', { value: Math.abs(saving) })}</span>
         )}
       </div>
       <MediaGrid

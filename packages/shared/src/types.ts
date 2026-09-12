@@ -439,7 +439,6 @@ export interface CompressionJob {
    * Absent on every job that compressed normally, so an older client that does
    * not know the field simply sees a completed job — which it is.
    */
-  keptOriginalReason?: 'larger-than-source';
   /**
    * Set as soon as the source has been probed, long before any estimate.
    *

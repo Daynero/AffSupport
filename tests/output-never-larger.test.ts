@@ -179,8 +179,9 @@ describe('a result that came out bigger', () => {
     });
 
     // Appending forty minutes of still image makes the file bigger on purpose.
-    // Refusing that would be refusing the feature.
-    expect(job.keptOriginalReason).toBeUndefined();
+    // Refusing that would be refusing the feature: the result is kept and its
+    // real size reported.
+    expect(job.status).toBe('completed');
     expect(job.finalSize).toBe(12_000);
   });
 });

@@ -638,7 +638,6 @@ const en = {
     'This video already uses a more efficient format. Converting it may produce a larger file — the original will be kept if that happens.',
   growthRiskBitrate:
     'The chosen bitrate is at or above the source. Lower it, or the result may be larger than the original.',
-  keptOriginalLarger: 'Kept the original — compressing it would have made it larger.',
   compressBusy: 'Compression is already running.',
   compressFixImageDuration: 'Fix the image duration in the settings above.',
   compressNothingReady: 'The selected videos are not ready to start.',
@@ -3021,7 +3020,6 @@ const uk: Record<keyof typeof en, string> = {
     'Це відео вже у більш ефективному форматі. Після конвертації воно може стати більшим — тоді залишимо оригінал.',
   growthRiskBitrate:
     'Обраний бітрейт не менший за вихідний. Зменште його, інакше результат може бути більшим за оригінал.',
-  keptOriginalLarger: 'Залишили оригінал — стиснення зробило б файл більшим.',
   compressBusy: 'Стиснення вже виконується.',
   compressFixImageDuration: 'Виправте тривалість зображення в налаштуваннях вище.',
   compressNothingReady: 'Вибрані відео не готові до запуску.',
