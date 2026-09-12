@@ -118,6 +118,24 @@ async function addMaterial(
   }
 }
 
+async function addLandingRender(
+  teamId: string,
+  connectionId: string,
+  input: { materialId: string; state: 'rendering' | 'stale' | 'ready'; ageMinutes?: number }
+) {
+  await addMaterial(teamId, connectionId, { id: input.materialId, kind: 'image', thumb: 'ready' });
+  const updatedAt = new Date(Date.now() - (input.ageMinutes ?? 0) * 60_000).toISOString();
+  await harness.root(
+    `insert into public.team_landing_renders
+       (team_id, material_id, preset, source_version, source_checksum, fingerprint,
+        render_state, artifact_root, segment_count, updated_at)
+     select $1, material.id, 'default', '1', 'sum', repeat('a', 64), $3, null, 0, $4
+     from public.team_materials as material
+     where material.team_id = $1 and material.drive_file_id = $2`,
+    [teamId, input.materialId, input.state, updatedAt]
+  );
+}
+
 describe('get_team_storage_health', () => {
   it('is disconnected without a connection and refuses strangers', async () => {
     const { teamId } = await makeSpace('Health none', false);
@@ -216,6 +234,90 @@ describe('get_team_storage_health', () => {
       thumb: 'pending',
       ageHours: 1
     });
+    // The warm pass runs every five minutes and re-claims a queued row at least
+    // every ten, so a row genuinely in the queue carries a recent claim. An
+    // hour-old file without one is not being worked on, whatever its age says.
+    await harness.root(
+      `update public.team_materials set provider_thumbnail_claimed_at = now() - interval '3 minutes'
+       where team_id = $1 and drive_file_id = 'i2'`,
+      [teamId]
+    );
+
+    expect(await health(teamId)).toEqual({ kind: 'preparing', ready: 1, pending: 1 });
+  });
+
+  /*
+   * The owner's second report of the same chip: "Готуємо превʼю · 473 з 474",
+   * one short of done and never moving. The row behind it was a render left in
+   * `rendering` by a pass that had ended hours earlier — which the file's own
+   * tile already read as failed, four minutes being the agent's watchdog.
+   */
+  it('stops counting a render nothing is working on any more', async () => {
+    const { teamId, connectionId } = await makeSpace('Health render stalled');
+    await addMaterial(teamId, connectionId!, { id: 'f1', kind: 'folder', indexed: true });
+    await addLandingRender(teamId, connectionId!, {
+      materialId: 'l1',
+      state: 'rendering',
+      ageMinutes: 90
+    });
+
+    expect(await health(teamId)).toMatchObject({ kind: 'connected' });
+  });
+
+  it('counts a render while the pass is alive', async () => {
+    const { teamId, connectionId } = await makeSpace('Health render live');
+    await addMaterial(teamId, connectionId!, { id: 'f1', kind: 'folder', indexed: true });
+    await addLandingRender(teamId, connectionId!, { materialId: 'l1', state: 'rendering' });
+
+    // The rendered file's own thumbnail is ready, so it counts on both sides.
+    expect(await health(teamId)).toEqual({ kind: 'preparing', ready: 1, pending: 1 });
+  });
+
+  /* A queue with no worker is not progress: stale rows wait for a live pass. */
+  it('does not call a stale render "preparing" without a live pass', async () => {
+    const { teamId, connectionId } = await makeSpace('Health render queued');
+    await addMaterial(teamId, connectionId!, { id: 'f1', kind: 'folder', indexed: true });
+    await addLandingRender(teamId, connectionId!, {
+      materialId: 'l1',
+      state: 'stale',
+      ageMinutes: 30
+    });
+
+    expect(await health(teamId)).toMatchObject({ kind: 'connected' });
+  });
+
+  /* The warm pass claims rows ten minutes apart; without a claim, nothing is
+     warming and a pending row is a file Drive never made a thumbnail for. */
+  it('stops counting thumbnails once the warm pass has stopped claiming them', async () => {
+    const { teamId, connectionId } = await makeSpace('Health warm stopped');
+    await addMaterial(teamId, connectionId!, { id: 'f1', kind: 'folder', indexed: true });
+    await addMaterial(teamId, connectionId!, { id: 'i1', kind: 'image', thumb: 'ready' });
+    await addMaterial(teamId, connectionId!, { id: 'i2', kind: 'image', thumb: 'pending' });
+    await harness.root(
+      `update public.team_materials
+         set provider_thumbnail_claimed_at = now() - interval '40 minutes',
+             created_at = now() - interval '40 minutes',
+             modified_at = now() - interval '40 minutes'
+       where team_id = $1 and drive_file_id = 'i2'`,
+      [teamId]
+    );
+
+    expect(await health(teamId)).toMatchObject({ kind: 'connected' });
+  });
+
+  it('counts thumbnails while the warm pass is still claiming them', async () => {
+    const { teamId, connectionId } = await makeSpace('Health warm running');
+    await addMaterial(teamId, connectionId!, { id: 'f1', kind: 'folder', indexed: true });
+    await addMaterial(teamId, connectionId!, { id: 'i1', kind: 'image', thumb: 'ready' });
+    await addMaterial(teamId, connectionId!, { id: 'i2', kind: 'image', thumb: 'pending' });
+    await harness.root(
+      `update public.team_materials
+         set provider_thumbnail_claimed_at = now() - interval '2 minutes',
+             created_at = now() - interval '40 minutes',
+             modified_at = now() - interval '40 minutes'
+       where team_id = $1 and drive_file_id = 'i2'`,
+      [teamId]
+    );
 
     expect(await health(teamId)).toEqual({ kind: 'preparing', ready: 1, pending: 1 });
   });
