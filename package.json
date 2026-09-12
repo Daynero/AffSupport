@@ -18,6 +18,7 @@
     "deploy:web:member-pilot": "node scripts/verify-web-env.mjs --member-pilot && npm run verify:team-member-pilot && npm run build:web && node scripts/verify-release.mjs --mode=final && node scripts/verify-beta-promotion.mjs && node scripts/verify-published-release.mjs && node scripts/deploy-web.mjs",
     "rollback:web": "node scripts/rollback-web.mjs",
     "release:backend-plan": "node scripts/plan-backend-release.mjs",
+    "release:backend-apply": "node scripts/apply-backend-plan.mjs",
     "release:info": "npm run build -w @video-compressor/shared && node scripts/release-meta.mjs --json",
     "release": "node scripts/release-runner.mjs",
     "release:check": "npm run build && node scripts/verify-release.mjs --mode=contract && npm run verify:team-production",

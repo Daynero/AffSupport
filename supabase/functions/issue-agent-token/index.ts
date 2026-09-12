@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { allowedBrowserOrigins } from '../_shared/cors.ts';
 
 // Issues a short-lived, ECDSA P-256 signed entitlement token that the local
 // Soty verifies offline before performing tool operations. This is the
@@ -12,14 +13,33 @@ const TOKEN_TTL_SECONDS = 12 * 60 * 60;
 
 const jsonHeaders = { 'content-type': 'application/json; charset=utf-8' };
 
+/**
+ * The origin decision comes from the shared list; the headers stay this
+ * function's own.
+ *
+ * This file used to carry a private copy of the allow-list, and that copy is
+ * why pairing broke. When `_shared/cors.ts` learned about the installed Agent's
+ * own origin — it serves this same authenticated UI on 43120 and calls Edge
+ * Functions directly — every function that imports the shared module got the
+ * fix and this one did not, because nothing here imports anything. Redeploying
+ * it changed nothing, which is the signature of a duplicate rather than a stale
+ * deployment.
+ *
+ * The headers below are deliberately narrower than the shared ones: this
+ * endpoint accepts exactly one POST and needs none of the transfer headers the
+ * Drive functions do. Sharing the part that drifted and keeping the part that is
+ * genuinely specific is the whole distinction.
+ */
 function corsHeaders(origin: string | null) {
-  const configuredOrigin = Deno.env.get('WISHLY_SITE_URL')?.replace(/\/$/, '');
-  const allowed = new Set(
-    [configuredOrigin, 'http://127.0.0.1:5173', 'http://localhost:5173'].filter(Boolean)
-  );
-  if (!origin || !allowed.has(origin)) return null;
+  let normalized: string | null = null;
+  try {
+    normalized = origin ? new URL(origin).origin : null;
+  } catch {
+    normalized = null;
+  }
+  if (!normalized || !allowedBrowserOrigins().has(normalized)) return null;
   return {
-    'access-control-allow-origin': origin,
+    'access-control-allow-origin': normalized,
     'access-control-allow-headers': 'authorization, apikey, content-type, x-client-info',
     'access-control-allow-methods': 'POST, OPTIONS',
     vary: 'Origin'
