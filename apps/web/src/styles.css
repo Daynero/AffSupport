@@ -9008,6 +9008,42 @@ body:has(.public-home) {
   justify-items: center;
   max-width: 32rem;
 }
+/*
+ * "This space is unavailable" is a screen a stranger reaches from a shared
+ * link, so it is dressed like the rest of the product rather than left as a
+ * heading in the corner: the same violet-tinted panel the settings sections
+ * use, centred, with the lock that says what happened before the sentence does.
+ */
+.team-space-no-access-card {
+  gap: var(--space-3);
+  padding: var(--space-6);
+  border: 1px solid color-mix(in oklab, var(--color-accent) 45%, transparent);
+  border-radius: var(--radius-xl);
+  background: color-mix(in oklab, var(--purple-900) 55%, var(--color-surface));
+  text-align: center;
+}
+.team-space-no-access-icon {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--color-accent) 18%, transparent);
+  color: var(--color-accent);
+}
+.team-space-no-access-card h1 {
+  font-size: var(--text-8xl);
+}
+.team-space-no-access-card p {
+  color: var(--color-text-muted);
+  max-width: 40ch;
+}
+:root[data-theme='light'] .team-space-no-access-card,
+:root:not([data-theme='dark']) .team-space-no-access-card {
+  border-color: color-mix(in oklab, var(--color-accent) 30%, transparent);
+  background: color-mix(in oklab, var(--color-accent) 8%, #fff);
+}
+
 .team-space-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
@@ -11615,6 +11651,83 @@ body {
   color: var(--color-text-muted);
   font-style: normal;
 }
+/* The name field, above the trail: the one control that answers "where is that
+   file" without opening a folder. Shaped like the space's other search boxes. */
+.team-task-picker-search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+}
+.team-task-picker-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+}
+.team-task-picker-search input:focus {
+  outline: none;
+}
+/* One clear button, ours: WebKit draws its own inside a search field, and two
+   crosses side by side is a question about which one does what. */
+.team-task-picker-search input::-webkit-search-cancel-button {
+  display: none;
+}
+.team-task-picker-search:focus-within {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+.team-task-picker-search-clear {
+  display: grid;
+  min-height: 0;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.team-task-picker-search-clear:hover {
+  color: var(--color-text);
+}
+
+/* Rows at the scale the rest of the space uses: a 40px band, the name at the
+   body size and its kind as a caption under it. They were set in a heading's
+   type, which made four folders fill the dialog. */
+.team-task-picker-results button {
+  min-height: 44px;
+}
+.team-task-picker-results button strong {
+  font-size: var(--text-xl);
+  font-weight: 650;
+}
+.team-task-picker-results button small {
+  color: var(--color-text-muted);
+  font-size: var(--text-base);
+}
+.team-task-picker-item-copy {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.team-task-picker-item-copy strong,
+.team-task-picker-item-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .team-task-picker-empty {
   margin: 0;
   color: var(--color-text-muted);
@@ -15049,6 +15162,13 @@ button.team-landing-tile:hover {
 }
 .team-storage-chip.ui-chip-busy {
   background-image: linear-gradient(var(--color-accent-softer), var(--color-accent-softer));
+  /* Accent-on-accent: the busy chip's violet text sat on its own violet wash,
+     which is the one state this chip holds for minutes at a time. The text
+     takes the page's own colour and the spinner keeps the accent. */
+  color: var(--color-text);
+}
+.team-storage-chip.ui-chip-busy .ui-chip-spinner {
+  color: var(--color-accent-active);
 }
 /* The state is a line of the report, not its heading: at 600 beside an h3 it
    was the boldest thing in the panel and the title read as a caption. */

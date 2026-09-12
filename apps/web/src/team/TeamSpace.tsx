@@ -1,9 +1,11 @@
 import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { LockKeyhole } from 'lucide-react';
 import { useOptionalAuth } from '../auth/AuthContext';
 import { Modal, ModalBackdrop } from '../components/Modal';
 import { SupportDialog } from '../components/SupportDialog';
 import { ToastProvider, useToasts } from '../components/toast';
 import { Button } from '../components/ui';
+import { ICON_STROKE } from '../components/icons';
 import { requireSupabaseClient } from '../lib/supabase';
 import type { TeamContextSnapshot, TeamInvitationSummary } from '../api/team';
 import { teamApi } from '../api/team';
@@ -462,8 +464,17 @@ export function TeamSpace({
     // One screen for "does not exist" and "you are not a member". It names no
     // space and shows no counts, so the address cannot be used to probe.
     return wrap(
-      <section className="team-space-lobby team-space-no-access" aria-labelledby="team-no-access">
-        <div className="team-space-lobby-empty-copy">
+      <section
+        /* Centred and in a panel, like every other whole-screen state: this one
+           was a bare heading pinned to the top-left corner of the hexagons, and
+           it is a screen a stranger can reach from a shared link. */
+        className="team-space-lobby team-space-lobby-empty team-space-no-access"
+        aria-labelledby="team-no-access"
+      >
+        <div className="team-space-lobby-empty-copy team-space-no-access-card">
+          <span className="team-space-no-access-icon" aria-hidden="true">
+            <LockKeyhole size={26} strokeWidth={ICON_STROKE} />
+          </span>
           <h1 id="team-no-access">{t('teamSpaceNoAccessTitle')}</h1>
           <p>{t('teamSpaceNoAccessBody')}</p>
           <Button
