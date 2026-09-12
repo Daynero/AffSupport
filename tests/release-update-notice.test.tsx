@@ -51,6 +51,7 @@ function agentValue(manifest = releaseManifest()): AgentContextValue {
     state: emptyQueueState,
     setState: vi.fn(),
     connectedOnce: true,
+    releaseBlocked: false,
     agentVersion: '0.6.1',
     agentBuildId: '0.6.1+13',
     agentChannel: 'stable',

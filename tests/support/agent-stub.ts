@@ -19,6 +19,7 @@ export function agentContextStub(overrides: Partial<AgentContextValue> = {}): Ag
     state: emptyQueueState,
     setState: vi.fn(),
     connectedOnce: true,
+    releaseBlocked: false,
     agentVersion: '0.4.0',
     agentBuildId: null,
     agentChannel: 'stable',

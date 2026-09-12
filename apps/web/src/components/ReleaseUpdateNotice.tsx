@@ -41,7 +41,9 @@ export default function ReleaseUpdateNotice() {
     Boolean(agentVersion) &&
     connection !== 'checking' &&
     !updateAlreadyInstalled &&
-    (status === 'update_available' || status === 'update_required') &&
+    // `update_required` is no longer a dismissible banner: an unsupported
+    // build is stopped at the tool gate, which cannot be waved away.
+    status === 'update_available' &&
     dismissedBuild !== manifest?.buildId;
 
   useEffect(() => {

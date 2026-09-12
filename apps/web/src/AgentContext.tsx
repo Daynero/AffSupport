@@ -45,7 +45,11 @@ import { streamClient } from './api/stream-client';
 import { useAgentEventStream } from './api/useAgentEventStream';
 import { failureState, type ConnectionState, versionState } from './connection';
 import { analytics } from './analytics/service';
-import { loadStableReleaseManifest, type ReleaseManifestState } from './release-manifest';
+import {
+  installedReleaseStatus,
+  loadStableReleaseManifest,
+  type ReleaseManifestState
+} from './release-manifest';
 import { reconcileQueue } from './api/reconcile-queue';
 
 const emptyState: QueueState = {
@@ -81,6 +85,8 @@ export interface AgentContextValue {
   capabilities: string[];
   toolContracts: ToolContracts;
   releaseManifest: ReleaseManifestState;
+  /** True when the signed manifest says this installed version is unsupported. */
+  releaseBlocked: boolean;
   toolAvailable: (tool: SotyToolId) => boolean;
   teamWorkspaceAvailable?: boolean;
   reconnect: () => void;
@@ -424,6 +430,22 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       capabilities,
       toolContracts,
       releaseManifest,
+      /**
+       * A version the signed manifest says is no longer supported.
+       *
+       * Kept as a derived value rather than folded into `connection`: the
+       * manifest arrives on its own schedule, and a probe result must not be
+       * overwritten by a network read that had not finished yet. The tool gate
+       * re-reads this the moment the manifest lands.
+       */
+      releaseBlocked:
+        releaseManifest.status === 'ready' &&
+        installedReleaseStatus({
+          manifest: releaseManifest.manifest,
+          installedVersion: agentVersion,
+          installedChannel: agentChannel,
+          compatible: toolContractCompatible('compressor', toolContracts)
+        }) === 'update_required',
       toolAvailable: (tool: SotyToolId) => toolContractCompatible(tool, toolContracts),
       teamWorkspaceAvailable:
         connection === 'connected' && toolContractCompatible('teamWorkspace', toolContracts),

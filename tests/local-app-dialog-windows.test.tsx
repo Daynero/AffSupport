@@ -47,6 +47,7 @@ function agentValue(): AgentContextValue {
     state: emptyQueueState,
     setState: vi.fn(),
     connectedOnce: false,
+    releaseBlocked: false,
     agentVersion: null,
     agentBuildId: null,
     agentChannel: null,

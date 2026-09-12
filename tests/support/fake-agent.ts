@@ -47,6 +47,7 @@ export function fakeAgentValue(overrides: Partial<AgentContextValue> = {}): Agen
     state,
     setState: () => {},
     connectedOnce: true,
+    releaseBlocked: false,
     agentVersion: '1.0.3',
     agentBuildId: 'test-build',
     agentChannel: 'stable',
