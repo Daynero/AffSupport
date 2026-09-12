@@ -8,6 +8,16 @@ import { runWorker, workerReady } from '../scripts/release-worker.mjs';
 import { readJournal } from '../scripts/lib/release/journal.mjs';
 import { loadSnapshot, saveSnapshot } from '../scripts/lib/release/store.mjs';
 import { STEP_IDS } from '../scripts/lib/release/steps.mjs';
+import { itRequiring, requirePlatform } from './support/requires.js';
+
+/**
+ * These cases drive the release runner against a real filesystem: POSIX file
+ * modes, unix socket paths, `#!/bin/sh` stand-ins on PATH and the executable
+ * bit. On Windows they fail on the platform rather than on the behaviour — and
+ * they would never run there anyway, because a release is cut on the owner's
+ * Mac and Windows artifacts come back from CI.
+ */
+const posixReleaseHost = requirePlatform('darwin', 'linux');
 
 it('emits a durable-ready shaped acknowledgement without terminal state', () => {
   expect(workerReady('run')).toMatchObject({ runId: 'run', ready: true });
@@ -41,99 +51,114 @@ describe('the worker actually performs the release', () => {
     };
   }
 
-  it('runs every step, journals each one before its effect, and records completion', async () => {
-    const { root, runId, restore } = await seed();
-    const ran: string[] = [];
-    try {
-      const result = await runWorker({
-        runId,
-        backendPlan: { changes: [{ id: 'declared' }] },
-        adapter: {
-          execute: async (stepId: string) => {
-            ran.push(stepId);
-            return { ok: true };
+  itRequiring(
+    posixReleaseHost,
+    'runs every step, journals each one before its effect, and records completion',
+    async () => {
+      const { root, runId, restore } = await seed();
+      const ran: string[] = [];
+      try {
+        const result = await runWorker({
+          runId,
+          backendPlan: { changes: [{ id: 'declared' }] },
+          adapter: {
+            execute: async (stepId: string) => {
+              ran.push(stepId);
+              return { ok: true };
+            }
           }
-        }
-      });
-      expect(result).toMatchObject({ ok: true });
-      expect(ran).toEqual([...STEP_IDS]);
+        });
+        expect(result).toMatchObject({ ok: true });
+        expect(ran).toEqual([...STEP_IDS]);
 
-      const events = await readJournal(join(root, runId, 'journal.ndjson'), runId);
-      const types = events.map(event => event.type);
-      expect(types[0]).toBe('worker_started');
-      expect(types.at(-1)).toBe('run_completed');
-      // Started is written before the effect could have landed, completed after.
-      for (const stepId of STEP_IDS) {
-        const started = events.findIndex(
-          event => event.type === 'step_started' && event.payload.stepId === stepId
-        );
-        const completed = events.findIndex(
-          event => event.type === 'step_completed' && event.payload.stepId === stepId
-        );
-        expect(`${stepId}:${started < completed && started >= 0}`).toBe(`${stepId}:true`);
+        const events = await readJournal(join(root, runId, 'journal.ndjson'), runId);
+        const types = events.map(event => event.type);
+        expect(types[0]).toBe('worker_started');
+        expect(types.at(-1)).toBe('run_completed');
+        // Started is written before the effect could have landed, completed after.
+        for (const stepId of STEP_IDS) {
+          const started = events.findIndex(
+            event => event.type === 'step_started' && event.payload.stepId === stepId
+          );
+          const completed = events.findIndex(
+            event => event.type === 'step_completed' && event.payload.stepId === stepId
+          );
+          expect(`${stepId}:${started < completed && started >= 0}`).toBe(`${stepId}:true`);
+        }
+        expect((await loadSnapshot(runId)).completedSteps).toEqual([...STEP_IDS]);
+      } finally {
+        restore();
+        await removeTemporaryDirectory(root);
       }
-      expect((await loadSnapshot(runId)).completedSteps).toEqual([...STEP_IDS]);
-    } finally {
-      restore();
-      await removeTemporaryDirectory(root);
-    }
-  }, 30_000);
+    },
+    30_000
+  );
 
-  it('turns a failure into one bounded, redacted handoff and blocks the run', async () => {
-    const { root, runId, restore } = await seed();
-    try {
-      const result = await runWorker({
-        runId,
-        adapter: {
-          execute: async (stepId: string) =>
-            stepId === 'candidate_gate'
-              ? {
-                  ok: false,
-                  error: { code: 'GATE_FAILED', subject: `token ghp_${'a'.repeat(40)}` }
-                }
-              : { ok: true }
-        }
-      });
-      expect(result).toMatchObject({ ok: false, state: 'blocked', failedStep: 'candidate_gate' });
-
-      const jobs = await readdir(join(root, runId, 'handoff'));
-      expect(jobs).toHaveLength(1);
-      const job = JSON.parse(await readFile(join(root, runId, 'handoff', jobs[0]), 'utf8'));
-      expect(job).toMatchObject({ runId, state: 'delivery_pending', submitted: false });
-      // The thing that leaves the machine carries no secret.
-      expect(JSON.stringify(job)).not.toContain('ghp_');
-      expect((await loadSnapshot(runId)).state).toBe('blocked');
-    } finally {
-      restore();
-      await removeTemporaryDirectory(root);
-    }
-  }, 30_000);
-
-  it('resumes where the journal left off instead of repeating landed effects', async () => {
-    const { root, runId, restore } = await seed({
-      state: 'queued',
-      completedSteps: ['preflight', 'prepare', 'candidate_gate']
-    });
-    const ran: string[] = [];
-    try {
-      const result = await runWorker({
-        runId,
-        adapter: {
-          execute: async (stepId: string) => {
-            ran.push(stepId);
-            return { ok: true };
+  itRequiring(
+    posixReleaseHost,
+    'turns a failure into one bounded, redacted handoff and blocks the run',
+    async () => {
+      const { root, runId, restore } = await seed();
+      try {
+        const result = await runWorker({
+          runId,
+          adapter: {
+            execute: async (stepId: string) =>
+              stepId === 'candidate_gate'
+                ? {
+                    ok: false,
+                    error: { code: 'GATE_FAILED', subject: `token ghp_${'a'.repeat(40)}` }
+                  }
+                : { ok: true }
           }
-        }
-      });
-      expect(result.ok).toBe(true);
-      for (const stepId of ['preflight', 'prepare', 'candidate_gate']) {
-        expect(ran).not.toContain(stepId);
+        });
+        expect(result).toMatchObject({ ok: false, state: 'blocked', failedStep: 'candidate_gate' });
+
+        const jobs = await readdir(join(root, runId, 'handoff'));
+        expect(jobs).toHaveLength(1);
+        const job = JSON.parse(await readFile(join(root, runId, 'handoff', jobs[0]), 'utf8'));
+        expect(job).toMatchObject({ runId, state: 'delivery_pending', submitted: false });
+        // The thing that leaves the machine carries no secret.
+        expect(JSON.stringify(job)).not.toContain('ghp_');
+        expect((await loadSnapshot(runId)).state).toBe('blocked');
+      } finally {
+        restore();
+        await removeTemporaryDirectory(root);
       }
-    } finally {
-      restore();
-      await removeTemporaryDirectory(root);
-    }
-  }, 30_000);
+    },
+    30_000
+  );
+
+  itRequiring(
+    posixReleaseHost,
+    'resumes where the journal left off instead of repeating landed effects',
+    async () => {
+      const { root, runId, restore } = await seed({
+        state: 'queued',
+        completedSteps: ['preflight', 'prepare', 'candidate_gate']
+      });
+      const ran: string[] = [];
+      try {
+        const result = await runWorker({
+          runId,
+          adapter: {
+            execute: async (stepId: string) => {
+              ran.push(stepId);
+              return { ok: true };
+            }
+          }
+        });
+        expect(result.ok).toBe(true);
+        for (const stepId of ['preflight', 'prepare', 'candidate_gate']) {
+          expect(ran).not.toContain(stepId);
+        }
+      } finally {
+        restore();
+        await removeTemporaryDirectory(root);
+      }
+    },
+    30_000
+  );
 
   it('refuses to act on a run whose frozen identity it cannot resolve', async () => {
     // The snapshot carries no version, so there is no release this worker could

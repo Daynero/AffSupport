@@ -6,6 +6,16 @@ import { chmod, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
+import { itRequiring, requirePlatform } from './support/requires.js';
+
+/**
+ * These cases drive the release runner against a real filesystem: POSIX file
+ * modes, unix socket paths, `#!/bin/sh` stand-ins on PATH and the executable
+ * bit. On Windows they fail on the platform rather than on the behaviour — and
+ * they would never run there anyway, because a release is cut on the owner's
+ * Mac and Windows artifacts come back from CI.
+ */
+const posixReleaseHost = requirePlatform('darwin', 'linux');
 
 it('blocks a missing installed probe without building one', async () => {
   await expect(
@@ -30,20 +40,24 @@ it('provisions only a supplied prebuilt probe with source provenance', async () 
   }
 });
 
-it('rejects a digest-matched executable that does not implement the probe protocol', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'release-probe-invalid-'));
-  try {
-    const executable = join(root, 'probe');
-    await writeFile(executable, '#!/bin/sh\necho "{}"\n');
-    await chmod(executable, 0o755);
-    const digest = createHash('sha256')
-      .update(await readFile(executable))
-      .digest('hex');
-    await expect(inspectInstalledProbe({ executable, digest })).resolves.toMatchObject({
-      ok: false,
-      reason: 'typed_output_invalid'
-    });
-  } finally {
-    await removeTemporaryDirectory(root);
+itRequiring(
+  posixReleaseHost,
+  'rejects a digest-matched executable that does not implement the probe protocol',
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), 'release-probe-invalid-'));
+    try {
+      const executable = join(root, 'probe');
+      await writeFile(executable, '#!/bin/sh\necho "{}"\n');
+      await chmod(executable, 0o755);
+      const digest = createHash('sha256')
+        .update(await readFile(executable))
+        .digest('hex');
+      await expect(inspectInstalledProbe({ executable, digest })).resolves.toMatchObject({
+        ok: false,
+        reason: 'typed_output_invalid'
+      });
+    } finally {
+      await removeTemporaryDirectory(root);
+    }
   }
-});
+);

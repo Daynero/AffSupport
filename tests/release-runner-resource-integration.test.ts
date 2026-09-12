@@ -9,6 +9,16 @@ import { requestLease } from '../scripts/release-admit.mjs';
 import { execute } from '../scripts/lib/release/execute.mjs';
 import { closeSync, existsSync, openSync, writeFileSync } from 'node:fs';
 import { runGate } from '../scripts/lib/gate.mjs';
+import { itRequiring, requirePlatform } from './support/requires.js';
+
+/**
+ * These cases drive the release runner against a real filesystem: POSIX file
+ * modes, unix socket paths, `#!/bin/sh` stand-ins on PATH and the executable
+ * bit. On Windows they fail on the platform rather than on the behaviour — and
+ * they would never run there anyway, because a release is cut on the owner's
+ * Mac and Windows artifacts come back from CI.
+ */
+const posixReleaseHost = requirePlatform('darwin', 'linux');
 
 describe('nested resource lease', () => {
   it('serializes independent runs and lets one child inherit its parent lease', () => {
@@ -50,72 +60,76 @@ describe('nested resource lease', () => {
 });
 
 describe('lease IPC', () => {
-  it('rejects forged or stale requests, serializes siblings, and fails closed after worker death', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'soty-lease-'));
-    const child = { pid: 12, startedAt: 34 };
-    const server = await startLeaseServer({
-      socketPath: join(root, 'admit.sock'),
-      capability: 'cap',
-      generation: 4,
-      children: new Map([['worker', child]])
-    });
-    const base = {
-      version: 1,
-      runId: 'run',
-      generation: 4,
-      childIdentity: 'worker',
-      ...child,
-      stepId: 'build'
-    };
-    await expect(
-      requestLease(
+  itRequiring(
+    posixReleaseHost,
+    'rejects forged or stale requests, serializes siblings, and fails closed after worker death',
+    async () => {
+      const root = await mkdtemp(join(tmpdir(), 'soty-lease-'));
+      const child = { pid: 12, startedAt: 34 };
+      const server = await startLeaseServer({
+        socketPath: join(root, 'admit.sock'),
+        capability: 'cap',
+        generation: 4,
+        children: new Map([['worker', child]])
+      });
+      const base = {
+        version: 1,
+        runId: 'run',
+        generation: 4,
+        childIdentity: 'worker',
+        ...child,
+        stepId: 'build'
+      };
+      await expect(
+        requestLease(
+          server.socketPath,
+          { ...base, requestId: 'forged', operation: 'request' },
+          'wrong'
+        )
+      ).resolves.toMatchObject({ code: 'LEASE_CAPABILITY_INVALID' });
+      await expect(
+        requestLease(
+          server.socketPath,
+          { ...base, requestId: 'stale', generation: 3, operation: 'request' },
+          'cap'
+        )
+      ).resolves.toMatchObject({ code: 'LEASE_GENERATION_STALE' });
+      const outer = await requestLease(
         server.socketPath,
-        { ...base, requestId: 'forged', operation: 'request' },
-        'wrong'
-      )
-    ).resolves.toMatchObject({ code: 'LEASE_CAPABILITY_INVALID' });
-    await expect(
-      requestLease(
+        { ...base, requestId: 'outer', operation: 'request' },
+        'cap'
+      );
+      expect(outer).toMatchObject({ kind: 'granted', generation: 4 });
+      const nested = await requestLease(
         server.socketPath,
-        { ...base, requestId: 'stale', generation: 3, operation: 'request' },
+        { ...base, requestId: 'nested', parentLeaseId: outer.leaseId, operation: 'request' },
         'cap'
-      )
-    ).resolves.toMatchObject({ code: 'LEASE_GENERATION_STALE' });
-    const outer = await requestLease(
-      server.socketPath,
-      { ...base, requestId: 'outer', operation: 'request' },
-      'cap'
-    );
-    expect(outer).toMatchObject({ kind: 'granted', generation: 4 });
-    const nested = await requestLease(
-      server.socketPath,
-      { ...base, requestId: 'nested', parentLeaseId: outer.leaseId, operation: 'request' },
-      'cap'
-    );
-    expect(nested).toMatchObject({ kind: 'granted' });
-    await expect(
-      requestLease(
-        server.socketPath,
-        { ...base, requestId: 'sibling', parentLeaseId: outer.leaseId, operation: 'request' },
-        'cap'
-      )
-    ).resolves.toMatchObject({ kind: 'waiting' });
-    await expect(
-      requestLease(
-        server.socketPath,
-        { ...base, requestId: 'child-release', leaseId: outer.leaseId, operation: 'release' },
-        'cap'
-      )
-    ).resolves.toMatchObject({ kind: 'released' });
-    await server.close();
-    await expect(
-      requestLease(
-        join(root, 'admit.sock'),
-        { ...base, requestId: 'dead', operation: 'request' },
-        'cap'
-      )
-    ).rejects.toThrow('LEASE_SOCKET_UNAVAILABLE');
-  });
+      );
+      expect(nested).toMatchObject({ kind: 'granted' });
+      await expect(
+        requestLease(
+          server.socketPath,
+          { ...base, requestId: 'sibling', parentLeaseId: outer.leaseId, operation: 'request' },
+          'cap'
+        )
+      ).resolves.toMatchObject({ kind: 'waiting' });
+      await expect(
+        requestLease(
+          server.socketPath,
+          { ...base, requestId: 'child-release', leaseId: outer.leaseId, operation: 'release' },
+          'cap'
+        )
+      ).resolves.toMatchObject({ kind: 'released' });
+      await server.close();
+      await expect(
+        requestLease(
+          join(root, 'admit.sock'),
+          { ...base, requestId: 'dead', operation: 'request' },
+          'cap'
+        )
+      ).rejects.toThrow('LEASE_SOCKET_UNAVAILABLE');
+    }
+  );
 });
 
 it('does not spawn a managed child if admission has not granted a lease', async () => {
@@ -140,97 +154,102 @@ describe('verification gates under release admission', () => {
     return openSync(file, 'r');
   }
 
-  it('waits for the host-wide slot before running a gate and frees it afterwards', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'soty-gate-admit-'));
-    const child = { pid: process.pid, startedAt: 1 };
-    const server = await startLeaseServer({
-      socketPath: join(root, 'admit.sock'),
-      capability: 'cap',
-      generation: 1,
-      children: new Map([['verify', child]])
-    });
-    const fd = capabilityDescriptor(root, 'cap');
-    const marker = join(root, 'gate-ran');
-    const previous = { ...process.env };
-    Object.assign(process.env, {
-      SOTY_RELEASE_ADMIT_SOCKET: server.socketPath,
-      SOTY_RELEASE_CAPABILITY_FD: String(fd),
-      SOTY_RELEASE_RUN_ID: 'run',
-      SOTY_RELEASE_GENERATION: '1',
-      SOTY_RELEASE_CHILD_IDENTITY: 'verify',
-      SOTY_RELEASE_CHILD_STARTED_AT: '1'
-    });
-    try {
-      // Somebody else already holds the one heavy slot.
-      const holder = await requestLease(
-        server.socketPath,
-        {
-          version: 1,
-          requestId: 'holder',
-          operation: 'request',
-          runId: 'other',
-          generation: 1,
-          childIdentity: 'verify',
-          ...child,
-          stepId: 'other'
-        },
-        'cap'
-      );
-      expect(holder).toMatchObject({ kind: 'granted' });
-
-      const running = runGate({
-        id: 'typecheck',
-        command: process.execPath,
-        args: ['-e', `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran')`],
-        timeoutMs: 30_000
+  itRequiring(
+    posixReleaseHost,
+    'waits for the host-wide slot before running a gate and frees it afterwards',
+    async () => {
+      const root = await mkdtemp(join(tmpdir(), 'soty-gate-admit-'));
+      const child = { pid: process.pid, startedAt: 1 };
+      const server = await startLeaseServer({
+        socketPath: join(root, 'admit.sock'),
+        capability: 'cap',
+        generation: 1,
+        children: new Map([['verify', child]])
       });
-      await new Promise(resolve => setTimeout(resolve, 300));
-      expect(existsSync(marker)).toBe(false);
-
-      await requestLease(
-        server.socketPath,
-        {
-          version: 1,
-          requestId: 'holder-release',
-          operation: 'release',
-          leaseId: holder.leaseId,
-          runId: 'other',
-          generation: 1,
-          childIdentity: 'verify',
-          ...child,
-          stepId: 'other'
-        },
-        'cap'
-      );
-      expect(await running).toMatchObject({ id: 'typecheck', ok: true });
-      expect(existsSync(marker)).toBe(true);
-
-      // The gate released what it took: the next caller is admitted at once.
-      await expect(
-        requestLease(
+      const fd = capabilityDescriptor(root, 'cap');
+      const marker = join(root, 'gate-ran');
+      const previous = { ...process.env };
+      Object.assign(process.env, {
+        SOTY_RELEASE_ADMIT_SOCKET: server.socketPath,
+        SOTY_RELEASE_CAPABILITY_FD: String(fd),
+        SOTY_RELEASE_RUN_ID: 'run',
+        SOTY_RELEASE_GENERATION: '1',
+        SOTY_RELEASE_CHILD_IDENTITY: 'verify',
+        SOTY_RELEASE_CHILD_STARTED_AT: '1'
+      });
+      try {
+        // Somebody else already holds the one heavy slot.
+        const holder = await requestLease(
           server.socketPath,
           {
             version: 1,
-            requestId: 'after',
+            requestId: 'holder',
             operation: 'request',
-            runId: 'next',
+            runId: 'other',
             generation: 1,
             childIdentity: 'verify',
             ...child,
-            stepId: 'next'
+            stepId: 'other'
           },
           'cap'
-        )
-      ).resolves.toMatchObject({ kind: 'granted' });
-    } finally {
-      closeSync(fd);
-      for (const key of Object.keys(process.env))
-        if (key.startsWith('SOTY_RELEASE_')) delete process.env[key];
-      Object.assign(process.env, previous);
-      await server.close();
-    }
-    // The waiting gate polls on the server's own nextCheckAt cadence (5 s).
-  }, 20_000);
+        );
+        expect(holder).toMatchObject({ kind: 'granted' });
+
+        const running = runGate({
+          id: 'typecheck',
+          command: process.execPath,
+          args: ['-e', `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran')`],
+          timeoutMs: 30_000
+        });
+        await new Promise(resolve => setTimeout(resolve, 300));
+        expect(existsSync(marker)).toBe(false);
+
+        await requestLease(
+          server.socketPath,
+          {
+            version: 1,
+            requestId: 'holder-release',
+            operation: 'release',
+            leaseId: holder.leaseId,
+            runId: 'other',
+            generation: 1,
+            childIdentity: 'verify',
+            ...child,
+            stepId: 'other'
+          },
+          'cap'
+        );
+        expect(await running).toMatchObject({ id: 'typecheck', ok: true });
+        expect(existsSync(marker)).toBe(true);
+
+        // The gate released what it took: the next caller is admitted at once.
+        await expect(
+          requestLease(
+            server.socketPath,
+            {
+              version: 1,
+              requestId: 'after',
+              operation: 'request',
+              runId: 'next',
+              generation: 1,
+              childIdentity: 'verify',
+              ...child,
+              stepId: 'next'
+            },
+            'cap'
+          )
+        ).resolves.toMatchObject({ kind: 'granted' });
+      } finally {
+        closeSync(fd);
+        for (const key of Object.keys(process.env))
+          if (key.startsWith('SOTY_RELEASE_')) delete process.env[key];
+        Object.assign(process.env, previous);
+        await server.close();
+      }
+      // The waiting gate polls on the server's own nextCheckAt cadence (5 s).
+    },
+    20_000
+  );
 
   it('fails a gate closed when admission is configured but incomplete', async () => {
     const previous = process.env.SOTY_RELEASE_ADMIT_SOCKET;

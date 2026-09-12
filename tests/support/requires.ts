@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { promisify } from 'node:util';
-import { describe } from 'vitest';
+import { describe, it } from 'vitest';
 
 const run = promisify(execFile);
 
@@ -134,6 +134,31 @@ export function describeRequiring(requirement: Requirement, title: string, body:
     return;
   }
   describe(marked, body);
+}
+
+/**
+ * One test that skips when its requirement is absent, marked the same way.
+ *
+ * `describeRequiring` is the right tool when a whole suite needs something. It is
+ * the wrong one when a single case in an otherwise portable suite does — wrapping
+ * the suite would skip the seven cases that do run, and trading real coverage for
+ * a tidier diff is how a platform quietly stops being tested.
+ *
+ * The marker goes in the test's own title; the aggregator reads
+ * `ancestorTitles + title`, so it counts either way.
+ */
+export function itRequiring(
+  requirement: Requirement,
+  title: string,
+  body: () => void | Promise<void>,
+  timeout?: number
+): void {
+  const marked = `${title} [needs: ${requirement.names.join(',')}]`;
+  if (requirement.missing) {
+    it.skip(marked, body, timeout);
+    return;
+  }
+  it(marked, body, timeout);
 }
 
 /** A requirement-aware describe with Vitest's two-argument call shape. */

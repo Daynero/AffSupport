@@ -5,6 +5,16 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createStepAdapter } from '../scripts/lib/release/step-adapter.mjs';
 import { STEP_IDS } from '../scripts/lib/release/steps.mjs';
+import { itRequiring, requirePlatform } from './support/requires.js';
+
+/**
+ * These cases drive the release runner against a real filesystem: POSIX file
+ * modes, unix socket paths, `#!/bin/sh` stand-ins on PATH and the executable
+ * bit. On Windows they fail on the platform rather than on the behaviour — and
+ * they would never run there anyway, because a release is cut on the owner's
+ * Mac and Windows artifacts come back from CI.
+ */
+const posixReleaseHost = requirePlatform('darwin', 'linux');
 
 const binding = { bindingId: 'sandbox-local', kind: 'sandbox' };
 const sourceSha = 'a'.repeat(40);
@@ -97,31 +107,36 @@ describe('the step adapter runs the runbook', () => {
     }
   }, 30_000);
 
-  it('runs the commands the production runbook names, in its order', async () => {
-    const { root, bin, log } = await fakeProject();
-    try {
-      const adapter = await createStepAdapter({
-        runId: 'run',
-        version: '9.9.9',
-        sourceSha,
-        cwd: root,
-        env: { PATH: `${bin}:${process.env.PATH}` },
-        binding,
-        allowRemote: false
-      });
-      for (const stepId of ['candidate_gate', 'beta_package', 'beta_verify', 'macos_package']) {
-        expect(await adapter.execute(stepId)).toMatchObject({ ok: true });
+  itRequiring(
+    posixReleaseHost,
+    'runs the commands the production runbook names, in its order',
+    async () => {
+      const { root, bin, log } = await fakeProject();
+      try {
+        const adapter = await createStepAdapter({
+          runId: 'run',
+          version: '9.9.9',
+          sourceSha,
+          cwd: root,
+          env: { PATH: `${bin}:${process.env.PATH}` },
+          binding,
+          allowRemote: false
+        });
+        for (const stepId of ['candidate_gate', 'beta_package', 'beta_verify', 'macos_package']) {
+          expect(await adapter.execute(stepId)).toMatchObject({ ok: true });
+        }
+        const calls = await readFile(log, 'utf8');
+        expect(calls).toContain('npm run release:check');
+        expect(calls).toContain('npm run beta:package');
+        expect(calls).toContain('npm run beta:verify');
+        expect(calls).toContain('npm run package:mac');
+        expect(calls).toContain('npm run package:dmg');
+      } finally {
+        await removeTemporaryDirectory(root);
       }
-      const calls = await readFile(log, 'utf8');
-      expect(calls).toContain('npm run release:check');
-      expect(calls).toContain('npm run beta:package');
-      expect(calls).toContain('npm run beta:verify');
-      expect(calls).toContain('npm run package:mac');
-      expect(calls).toContain('npm run package:dmg');
-    } finally {
-      await removeTemporaryDirectory(root);
-    }
-  }, 60_000);
+    },
+    60_000
+  );
 
   it('asks the live project whether it can run this release, and says which migrations are planned', async () => {
     // The gap this closes: every earlier preflight check could pass on a
