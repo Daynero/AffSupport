@@ -493,6 +493,23 @@ select is(
   'reset removes the remembered sharing choice'
 );
 
+-- A transcript exists for video-a, because a translation is only queued once one
+-- does. Without it the scan produced no translation requirement at all, and the
+-- source-scoped translation claim further down found no work and aborted the
+-- file twelve assertions short of its plan.
+insert into public.team_materials (
+  id, team_id, connection_id, drive_file_id, parent_folder_id, name,
+  mime_type, file_extension, kind, category, drive_version, library_stage,
+  companion_of, companion_kind, transcript_text
+) values (
+  '50000000-0000-4000-8000-00000000000a',
+  '20000000-0000-4000-8000-000000000001',
+  '40000000-0000-4000-8000-000000000001',
+  'video-a-transcript', 'root-a', 'video-a.txt', 'text/plain', 'txt', 'file', 'transcript',
+  'version-a-transcript', 'library',
+  '50000000-0000-4000-8000-000000000001', 'transcript', 'a transcript of video a'
+);
+
 create temporary table creative_scan_result as
 select public.scan_library_requirements(
   '20000000-0000-4000-8000-000000000001', 'uk'
@@ -624,7 +641,8 @@ select is(
 select is(
   public.retry_failed_library_jobs(
     '20000000-0000-4000-8000-000000000001',
-    '50000000-0000-4000-8000-000000000001'
+    -- `p_sources` is uuid[] here too.
+    array['50000000-0000-4000-8000-000000000001']::uuid[]
   ),
   1,
   'retry returns a failed source-scoped job to the shared queue'
