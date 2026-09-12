@@ -2137,6 +2137,28 @@ export const teamApi = {
     return url.toString();
   },
 
+  /**
+   * Records the language a transcription heard, on a material that has none.
+   * Silent about a material that already has one: the server refuses to
+   * overwrite a language a person chose, and answers `false` rather than an
+   * error, because neither case is something the reader asked for.
+   */
+  async recordMaterialSourceLanguage(
+    teamId: string,
+    materialId: string,
+    language: string
+  ): Promise<boolean> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('record_material_source_language', {
+        p_team: teamId,
+        p_material: materialId,
+        p_language: language
+      })
+    );
+    throwRpc(error);
+    return data === true;
+  },
+
   async updateMaterialMetadata(
     teamId: string,
     materialId: string,

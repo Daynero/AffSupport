@@ -2903,6 +2903,10 @@ export type Database = {
           scope: string;
         }[];
       };
+      record_material_source_language: {
+        Args: { p_language: string; p_material: string; p_team: string };
+        Returns: boolean;
+      };
       record_team_audit: {
         Args: {
           p_action: string;

@@ -1,4 +1,5 @@
 import {
+  LANGUAGE_CODES,
   TEAM_OPERATION_KINDS,
   TEAM_OPERATION_STATES,
   TEAM_STORAGE_ATTENTION_REASONS,
@@ -230,6 +231,14 @@ export interface TeamFileOperationResult {
   state: TeamOperationState;
   materialId: string | null;
   reused: boolean;
+  /**
+   * The language the run actually worked in, when the run is one that knows —
+   * a transcription reads it from Whisper, or is told it outright. The space
+   * records it on the material, so "what language is this video in" stops being
+   * a question every member answers by watching it. Absent from every other
+   * tool, and from agents that predate this.
+   */
+  sourceLanguage?: string;
 }
 
 export type TeamDownloadGrantResult =
@@ -595,6 +604,18 @@ export function parseTeamUploadSession(value: unknown): TeamUploadSession | null
   };
 }
 
+/**
+ * A run's language, as the catalogue stores languages: a plain ISO 639-1 code.
+ * Whisper answers with those, but it also answers `auto` and the odd regional
+ * tag, and an agent is free to send anything — so a value the catalogue would
+ * refuse is dropped here rather than carried to a write that will fail.
+ */
+function normalizeSourceLanguage(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const code = value.trim().toLowerCase().split(/[-_]/)[0] ?? '';
+  return (LANGUAGE_CODES as readonly string[]).includes(code) ? code : null;
+}
+
 export function parseTeamFileOperationResult(value: unknown): TeamFileOperationResult | null {
   if (
     !isRecord(value) ||
@@ -606,11 +627,13 @@ export function parseTeamFileOperationResult(value: unknown): TeamFileOperationR
   ) {
     return null;
   }
+  const sourceLanguage = normalizeSourceLanguage(value.sourceLanguage);
   return {
     operationId: value.operationId,
     state: value.state as TeamOperationState,
     materialId: value.materialId,
-    reused: value.reused
+    reused: value.reused,
+    ...(sourceLanguage ? { sourceLanguage } : {})
   };
 }
 

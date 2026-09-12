@@ -78,6 +78,11 @@ export interface TeamProcessDelegateResult {
    * carries it — it does not look inside, and it does not write it anywhere.
    */
   discovered?: unknown;
+  /**
+   * The language the run worked in, when the run is one that knows. The bridge
+   * passes it to the caller with the result; it writes nothing itself.
+   */
+  sourceLanguage?: string;
 }
 
 export type TeamProcessDelegate = (
@@ -358,6 +363,7 @@ export class TeamProcessBridge {
         controller.signal
       );
       throwIfAborted(controller.signal);
+      const sourceLanguage = output.sourceLanguage;
 
       this.#events.update(request.operationId, {
         stage: 'finalizing',
@@ -377,7 +383,7 @@ export class TeamProcessBridge {
           errorCode: result.state === 'canceled' ? 'PROCESS_CANCELED' : 'PROCESS_FAILED'
         });
       }
-      return result;
+      return sourceLanguage ? { ...result, sourceLanguage } : result;
     } catch (error) {
       const canceled = controller.signal.aborted;
       // Debug (013): the generic PROCESS_FAILED hid every real upload error;
@@ -560,10 +566,19 @@ function transcriptionDelegate(queue: TranscriptionQueue, translate = false): Te
       await writeFile(outputPath, outputText || '\n', { encoding: 'utf8', mode: 0o600 });
       const output = await stat(outputPath);
       handoff = true;
+      /*
+       * What the run actually listened in. Whisper's own answer is preferred
+       * over the request: a run asked for `auto` has no language until it has
+       * finished, and a probe's correction beats what the settings happened to
+       * hold. A translation's output is in the target language, but the video
+       * is still in the source one — which is what the space records.
+       */
+      const heard = job.detectedLanguage ?? (language === 'auto' ? null : language);
       return {
         file: outputPath,
         mimeType: 'text/plain',
         sizeBytes: output.size,
+        ...(heard ? { sourceLanguage: heard } : {}),
         cleanup: async () => {
           await queue.remove(job!.id);
         }

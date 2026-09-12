@@ -335,6 +335,43 @@ describe('the result of a file operation', () => {
       })
     ).toBeNull();
   });
+
+  /*
+   * The language a transcription heard becomes a write to the catalogue, so it
+   * arrives in the catalogue's own spelling or not at all: Whisper answers with
+   * ISO 639-1 but also with `auto` and the odd regional tag, and an agent is
+   * free to send anything it likes.
+   */
+  it('carries the language a run heard, as a plain code', () => {
+    const base = { operationId: 'op-1', state: 'succeeded', materialId: 'mat-1', reused: false };
+    expect(parseTeamFileOperationResult({ ...base, sourceLanguage: 'uk' })).toMatchObject({
+      sourceLanguage: 'uk'
+    });
+    expect(parseTeamFileOperationResult({ ...base, sourceLanguage: 'EN-GB' })).toMatchObject({
+      sourceLanguage: 'en'
+    });
+  });
+
+  it('drops a language the catalogue has no code for, and keeps the result', () => {
+    const base = { operationId: 'op-1', state: 'succeeded', materialId: 'mat-1', reused: false };
+    for (const sourceLanguage of ['auto', 'klingon', '', 7]) {
+      const parsed = parseTeamFileOperationResult({ ...base, sourceLanguage });
+      expect(parsed).toMatchObject({ materialId: 'mat-1' });
+      expect(parsed?.sourceLanguage).toBeUndefined();
+    }
+  });
+
+  /* An agent that predates this sends no such field at all. */
+  it('accepts a result without one', () => {
+    expect(
+      parseTeamFileOperationResult({
+        operationId: 'op-1',
+        state: 'succeeded',
+        materialId: 'mat-1',
+        reused: false
+      })?.sourceLanguage
+    ).toBeUndefined();
+  });
 });
 
 describe('a download grant', () => {

@@ -69,19 +69,38 @@ export function MaterialProcessFlow({
       options: {},
       sourceGrant: result.sourceGrant,
       finalizeGrant: result.finalizeGrant
-    }).catch(async (cause: unknown) => {
-      // A rejection from an operation the person cancelled is not a failure.
-      if (canceledOps.current.has(result.operationId)) {
-        canceledOps.current.delete(result.operationId);
-        return;
-      }
-      const code = cause instanceof Error ? cause.message : 'PROCESS_FAILED';
-      setOperation(current =>
-        current && current.id === result.operationId ? { ...current, failureCode: code } : current
-      );
-      push({ tone: 'error', text: teamErrorMessage(code, t) });
-      await teamApi.cancelOperation(teamId, result.operationId).catch(() => undefined);
-    });
+    })
+      .then(async outcome => {
+        /*
+         * A transcription is the one run that learns what language the file is
+         * in, and language is a field nobody was ever going to fill five
+         * hundred times by hand. It goes on the video and on the transcript
+         * that came out of it; the server writes it only where there is none,
+         * so a member's own choice stands, and a member without
+         * `manage_metadata` simply does not record one.
+         */
+        if (outcome.state !== 'succeeded' || !outcome.sourceLanguage) return;
+        const language = outcome.sourceLanguage;
+        const targets = [material.id, outcome.materialId].filter(
+          (id): id is string => typeof id === 'string'
+        );
+        for (const id of targets) {
+          await teamApi.recordMaterialSourceLanguage(teamId, id, language).catch(() => undefined);
+        }
+      })
+      .catch(async (cause: unknown) => {
+        // A rejection from an operation the person cancelled is not a failure.
+        if (canceledOps.current.has(result.operationId)) {
+          canceledOps.current.delete(result.operationId);
+          return;
+        }
+        const code = cause instanceof Error ? cause.message : 'PROCESS_FAILED';
+        setOperation(current =>
+          current && current.id === result.operationId ? { ...current, failureCode: code } : current
+        );
+        push({ tone: 'error', text: teamErrorMessage(code, t) });
+        await teamApi.cancelOperation(teamId, result.operationId).catch(() => undefined);
+      });
   };
 
   if (operation) {
