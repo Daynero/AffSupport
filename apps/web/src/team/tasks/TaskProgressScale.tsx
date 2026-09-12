@@ -30,12 +30,36 @@ export function TaskProgressScale({
     const ratio = clamp((event.clientX - bounds.left) / bounds.width, 0, 1);
     return Math.round(ratio * Math.max(max, 1));
   };
-  const updateFromPointer = (event: PointerEvent<HTMLDivElement>, commit = false) => {
+  /** A drag is in progress, so its end has something to save. */
+  const dragging = useRef(false);
+  const updateFromPointer = (event: PointerEvent<HTMLDivElement>) => {
     if (disabled) return;
     event.stopPropagation();
-    const next = pointerValue(event);
+    onChange(pointerValue(event));
+  };
+  /**
+   * Ends a gesture by saving what the knob shows.
+   *
+   * Two things used to lose a value here. A cancelled pointer — a scroll taking
+   * over the gesture, a window losing focus, a touch the browser reclaims —
+   * fires `pointercancel` instead of `pointerup`, and with no handler the drag
+   * simply stopped: the knob stayed where it had been pulled and nothing was
+   * ever sent. And the commit itself was behind the `disabled` check, so a
+   * control that became busy mid-gesture swallowed the release too.
+   *
+   * A gesture that really happened is honoured either way. What it saves is the
+   * value on screen rather than the pointer's last position, because that is
+   * what the person saw themselves choose.
+   */
+  const endGesture = (event: PointerEvent<HTMLDivElement>, next: number) => {
+    if (!dragging.current) return;
+    dragging.current = false;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    event.stopPropagation();
     onChange(next);
-    if (commit) onCommit?.(next);
+    onCommit?.(next);
   };
   const updateFromKeyboard = (event: KeyboardEvent<HTMLDivElement>) => {
     if (disabled) return;
@@ -82,16 +106,14 @@ export function TaskProgressScale({
         onPointerDown={event => {
           if (disabled) return;
           event.currentTarget.setPointerCapture(event.pointerId);
+          dragging.current = true;
           updateFromPointer(event);
         }}
         onPointerMove={event => {
           if (event.currentTarget.hasPointerCapture(event.pointerId)) updateFromPointer(event);
         }}
-        onPointerUp={event => {
-          if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
-          event.currentTarget.releasePointerCapture(event.pointerId);
-          updateFromPointer(event, true);
-        }}
+        onPointerUp={event => endGesture(event, disabled ? shown : pointerValue(event))}
+        onPointerCancel={event => endGesture(event, shown)}
         onClick={event => event.stopPropagation()}
       >
         <span className="team-task-progress-knob" aria-hidden="true">
