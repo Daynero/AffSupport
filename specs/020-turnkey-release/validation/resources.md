@@ -6,13 +6,13 @@ Everything below is an observed run, not a restatement of the contract.
 
 ## Installed probe
 
-| Property          | Value                                                              |
-| ----------------- | ------------------------------------------------------------------ |
-| Executable        | `release/automation/probe/ResourceProbe`                           |
-| Build target      | `arm64-apple-macos13` (pinned; `swiftc -O`)                        |
-| Executable digest | `570e3e334fce40388e95d4907c8680649c3b99452469bed35bd040cc04f1cbce` |
-| Source digest     | `daac3048da694730a33932d5893b5eeef2044da1be99658a738086ef81c07215` |
-| Provisioned by    | `node scripts/package-release-runner.mjs --build <destination>`    |
+| Property          | Value                                                                     |
+| ----------------- | ------------------------------------------------------------------------- |
+| Executable        | `release/automation/probe/ResourceProbe`                                  |
+| Build target      | `arm64-apple-macos13` (pinned; `swiftc -O`)                               |
+| Executable digest | `47aa3daf85d97a9c…` (rebuilt after the available-memory correction below) |
+| Source digest     | `daac3048da694730a33932d5893b5eeef2044da1be99658a738086ef81c07215`        |
+| Provisioned by    | `node scripts/package-release-runner.mjs --build <destination>`           |
 
 The probe reports raw counters only — cumulative CPU ticks, `CLOCK_UPTIME_RAW`,
 `kern.memorystatus_vm_pressure_level`, reclaimable pages, `vm.swapusage`, volume
@@ -147,3 +147,31 @@ interrupted install dated 9 September, so `npm run build:web` — and therefore
 every release path through it — failed with `Cannot find module`. `npm install`
 repaired it without touching `package-lock.json`. Nothing in feature 020 caused
 this; it had been broken in the working tree for three days.
+
+## Correction — available memory was undercounted, 2026-09-12
+
+The owner questioned a reported 2.27 GiB free on a machine macOS itself called
+52 % free, and was right to. The probe computed
+`free - speculative + purgeable + external`, which is wrong twice:
+
+- `external_page_count` counts file-backed pages wherever they live, _including
+  the active ones a running program is using_, so memory in use was counted as
+  spare.
+- `inactive` was left out entirely — the largest reclaimable pool on macOS, 3.9
+  GiB at the time of the reading.
+
+The two errors partly cancelled, which is why the figure looked plausible while
+being both too low overall and composed of the wrong things. On the same machine
+seconds apart: old formula 2.27 GiB, corrected 4.14 GiB, `vm_stat` arithmetic
+`(free − speculative) + inactive + purgeable` = 4.14 GiB.
+
+The consequence was real rather than cosmetic: admission is gated on this
+number, so the runner waited for memory it already had. The measured class
+reservations in the table above are unaffected — those are peak process RSS,
+measured independently of this figure — but the earlier note that
+`candidate_gate` could not be admitted against "3.06 GB available" was based on
+the wrong denominator and should be read as a demonstration of the gate
+refusing, not as a measurement of the machine.
+
+The probe now also reports `inactiveBytes`, `wiredBytes` and `compressedBytes`
+so a wait can be explained from the record instead of guessed at.
