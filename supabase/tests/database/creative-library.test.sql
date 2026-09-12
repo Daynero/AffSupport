@@ -322,7 +322,11 @@ from public.create_team_task(
   'Launch creative',
   null,
   '10000000-0000-4000-8000-000000000003',
-  array['50000000-0000-4000-8000-000000000001']::uuid[]
+  -- One material, passed as one uuid. `create_team_task` has taken a single
+  -- `p_initial_material` since it was written; the array form this used to pass
+  -- matched no signature that ever existed, so the call failed before the
+  -- assertion below could say anything about attachments.
+  '50000000-0000-4000-8000-000000000001'::uuid
 ) as created;
 
 select is(

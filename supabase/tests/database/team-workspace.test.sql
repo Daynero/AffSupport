@@ -1833,7 +1833,9 @@ select is_empty(
   $$
     select expected.signature
     from (values
-      ('public.search_materials(uuid,text,jsonb,integer,integer)'),
+      -- 011 widened this to the open folder and the row kinds; the grant check
+      -- has to name the signature that exists, not the one it had in US3.
+      ('public.search_materials(uuid,text,jsonb,integer,integer,text,text[])'),
       ('public.get_team_vocab_and_facets(uuid)'),
       ('public.update_material_metadata(uuid,uuid,jsonb)')
     ) as expected(signature)
