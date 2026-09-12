@@ -28,16 +28,16 @@ const LOCAL_DEV_AUTH = import.meta.env.VITE_LOCAL_DEV_AUTH === 'true';
 const SHOW_LOCAL_GOAL_PREVIEW = LOCAL_DEV_AUTH && import.meta.env.DEV;
 const localGoalPreview: SupportGoalRow = {
   id: '00000000-0000-4000-8000-000000000099',
-  slug: 'ai-subscription-faster-fixes',
+  slug: 'ai-tools-bug-fixes',
   currency: 'USD',
-  target_cents: 10000,
-  raised_cents: 3700,
-  title_en: 'Faster fixes',
-  title_uk: 'Швидші виправлення',
+  target_cents: 2500,
+  raised_cents: 0,
+  title_en: 'For bug fixes',
+  title_uk: 'На баг фікс',
   description_en:
-    'I build Soty alone, in my own time. The slow part is not writing the fix — it is finding the cause. An AI subscription cuts exactly that part out.',
+    'I build Soty alone, in my own time.\n\nSo your support for AI tools really matters to me. Every contribution is a simple thank-you for the work. Thanks in advance to everyone who cares <3',
   description_uk:
-    'Soty я роблю сам, у вільний час. Найдовше забирає не саме виправлення, а пошук причини. Саме цей шматок і зрізає ШІ-підписка.',
+    'Soty я роблю сам, у вільний час.\n\nТому ваша підтримка на ШІ інструменти мені дуже потрібна. Кожна гривня це проста вдячність за мою роботу. Завчасно дякую всім не байдужим <3',
   status: 'active',
   created_at: '2026-07-31T00:00:00.000Z',
   updated_at: '2026-07-31T00:00:00.000Z'

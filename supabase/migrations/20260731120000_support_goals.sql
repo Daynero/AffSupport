@@ -135,22 +135,18 @@ insert into public.support_goals (
   description_uk,
   status
 ) values (
-  'ai-subscription-faster-fixes',
+  'ai-tools-bug-fixes',
   'USD',
-  10000,
+  2500,
   0,
-  'Faster fixes',
-  'Швидші виправлення',
-  'I build Soty alone, in my own time. The slow part is not writing the fix — it is finding the cause: reproducing the bug, working through theories, making sure that mending one thing did not break another.
+  'For bug fixes',
+  'На баг фікс',
+  'I build Soty alone, in my own time.
 
-An AI subscription cuts exactly that part out. Something that waits weeks today gets fixed in an evening, and what is left over goes into new tools instead of patching old ones.
+So your support for AI tools really matters to me. Every contribution is a simple thank-you for the work. Thanks in advance to everyone who cares <3',
+  'Soty я роблю сам, у вільний час.
 
-The goal is $100 — one month of it. Any amount moves it, however small, and at this size every single one genuinely counts. Please chip in if Soty is worth it to you.',
-  'Soty я роблю сам, у вільний час. Найдовше забирає не саме виправлення, а пошук причини: відтворити баг, перебрати гіпотези, переконатися, що, полагодивши одне, не зламав інше.
-
-Саме цей шматок і зрізає ШІ-підписка. Те, що зараз чекає тижнями, встигає полагодитися за вечір, а час, який лишається, іде на нові інструменти, а не на латання старих.
-
-Ціль — $100, це один місяць. Наближає будь-яка сума, навіть найменша: на таких обсягах кожна гривня справді має значення. Долучайтеся, будь ласка, якщо Soty того вартий.',
+Тому ваша підтримка на ШІ інструменти мені дуже потрібна. Кожна гривня це проста вдячність за мою роботу. Завчасно дякую всім не байдужим <3',
   'active'
 );
 
