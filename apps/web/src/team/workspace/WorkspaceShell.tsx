@@ -203,6 +203,32 @@ export function WorkspaceShell({
     if (section === 'explorer' && query) setExplorerQuery(query);
   }, [section, query]);
 
+  // The same memory for the task list: its account scope and open task live in
+  // the address, so leaving the section used to drop the filter somebody had
+  // just set. Remembered here, the tab link rebuilds it on the way back.
+  const [tasksQuery, setTasksQuery] = useState<TeamRouteQuery>(
+    () => query ?? emptyTeamRouteQuery()
+  );
+  useEffect(() => {
+    if (section === 'tasks' && query) setTasksQuery(query);
+  }, [section, query]);
+
+  /**
+   * Which sections have been opened at least once.
+   *
+   * A section stays mounted after its first visit — hidden, not unmounted — so
+   * a filter, a search, a scroll position and a half-finished edit are all
+   * still there when somebody comes back. Mounting only on first visit is the
+   * other half of that deal: a space that is opened and never leaves the
+   * explorer must not pay for loading three sections nobody asked for.
+   */
+  const [visited, setVisited] = useState<ReadonlySet<TeamSection>>(() => new Set([section]));
+  useEffect(() => {
+    setVisited(previous => (previous.has(section) ? previous : new Set(previous).add(section)));
+  }, [section]);
+  // Switching spaces needs no reset here: TeamSpace keys this shell on the
+  // team, so another space arrives as a new shell with an empty memory.
+
   const sectionRoute = useCallback(
     (target: TeamSection) =>
       buildTeamRoute({
@@ -215,9 +241,15 @@ export function WorkspaceShell({
                 kinds: explorerQuery.kinds ?? [],
                 view: explorerQuery.view ?? null
               }
-            : undefined
+            : target === 'tasks'
+              ? {
+                  taskId: tasksQuery.taskId ?? null,
+                  agentId: tasksQuery.agentId ?? null,
+                  accountId: tasksQuery.accountId ?? null
+                }
+              : undefined
       }),
-    [explorerQuery, teamId]
+    [explorerQuery, tasksQuery, teamId]
   );
 
   /** Back to a clean explorer: root, nothing selected, no search or filter. */
@@ -252,13 +284,18 @@ export function WorkspaceShell({
    */
   const updateQuery = useCallback(
     (target: TeamSection, patch: Partial<TeamRouteQuery>) => {
+      // Sections stay mounted while hidden, so a stray report from one of them
+      // must not move the address out from under the section being looked at.
+      // Every caller reports its own state, so "only the visible one writes"
+      // costs nothing and removes the whole class of surprise navigation.
+      if (target !== section) return;
       navigateTo(
         buildTeamRoute({ spaceId: teamId, section: target, query: { ...query, ...patch } }),
         true,
         false
       );
     },
-    [query, teamId]
+    [query, section, teamId]
   );
 
   const onExplorerFolderChange = useCallback(
@@ -283,10 +320,13 @@ export function WorkspaceShell({
   );
 
   // The account scope of the task list (017) lives in the address too.
-  const taskScope: TaskAccountScope = query?.agentId
-    ? { kind: 'agent', agentRowId: query.agentId }
-    : query?.accountId
-      ? { kind: 'account', accountId: query.accountId }
+  // While tasks is the visible section the address is the truth; while it is
+  // hidden the address describes somewhere else, so the remembered query is.
+  const taskQuery = section === 'tasks' ? query : tasksQuery;
+  const taskScope: TaskAccountScope = taskQuery?.agentId
+    ? { kind: 'agent', agentRowId: taskQuery.agentId }
+    : taskQuery?.accountId
+      ? { kind: 'account', accountId: taskQuery.accountId }
       : { kind: 'all' };
   const onTaskScopeChange = useCallback(
     (scope: TaskAccountScope) =>
@@ -412,28 +452,39 @@ export function WorkspaceShell({
 
           <Suspense fallback={<div className="team-space-shell-body" aria-busy="true" />}>
             <div className="team-space-shell-body">
-              {section === 'members' && (
-                <MembersSection
-                  key={`members:${teamId}`}
-                  teamId={teamId}
-                  client={client}
-                  directAddMode={directAddMode}
-                />
+              {/* Every section behaves the way the explorer already did: mounted
+            on its first visit and hidden afterwards, never unmounted. A filter
+            in Tasks, a scroll position in Accounts, a half-typed invitation in
+            Members — all of it is still there on the way back, because none of
+            it was thrown away. */}
+              {visited.has('members') && (
+                <div hidden={section !== 'members'}>
+                  <MembersSection
+                    key={`members:${teamId}`}
+                    teamId={teamId}
+                    client={client}
+                    directAddMode={directAddMode}
+                  />
+                </div>
               )}
-              {section === 'tasks' && (
-                <TaskSpace
-                  key={`tasks:${teamId}`}
-                  teamId={teamId}
-                  createFromAsset={taskAsset}
-                  onConsumedCreateFromAsset={() => setTaskAsset(null)}
-                  openTaskId={query?.taskId ?? null}
-                  onOpenTaskChange={onOpenTaskChange}
-                  scope={taskScope}
-                  onScopeChange={onTaskScopeChange}
-                />
+              {visited.has('tasks') && (
+                <div hidden={section !== 'tasks'}>
+                  <TaskSpace
+                    key={`tasks:${teamId}`}
+                    teamId={teamId}
+                    createFromAsset={taskAsset}
+                    onConsumedCreateFromAsset={() => setTaskAsset(null)}
+                    openTaskId={taskQuery?.taskId ?? null}
+                    onOpenTaskChange={onOpenTaskChange}
+                    scope={taskScope}
+                    onScopeChange={onTaskScopeChange}
+                  />
+                </div>
               )}
-              {section === 'accounts' && (
-                <AccountSpace key={`accounts:${teamId}`} teamId={teamId} />
+              {visited.has('accounts') && (
+                <div hidden={section !== 'accounts'}>
+                  <AccountSpace key={`accounts:${teamId}`} teamId={teamId} />
+                </div>
               )}
               {/* Nothing was ever indexed, so the connection is genuinely the
             reason there are no files (finding I4). */}
