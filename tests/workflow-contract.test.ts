@@ -2,6 +2,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { gateIdsFor, phasesFor } from '../scripts/verify-all.mjs';
 
 /**
  * B11. What CI runs has to stay the same thing a developer runs, and the two
@@ -88,6 +89,20 @@ describe('the verification workflow', () => {
     // which is both slower and unsafe on a thermally constrained release Mac.
     expect(aggregator).toContain("'--maxWorkers=1'");
     expect(aggregator).toContain("'--no-file-parallelism'");
+  });
+
+  it('never asks a CI runner about a deployment it does not have', () => {
+    // The build job failed on every run it ever had — eight for eight — because
+    // it ran `contract:web-env`, which reads the deployment's own `.env.production`.
+    // That file is untracked by design, so the answer on a runner was always
+    // "VITE_SUPABASE_URL is missing", and a required check that is always red is
+    // a light everyone learns to walk past.
+    for (const group of ['static', 'suite', 'build', 'e2e']) {
+      expect(phasesFor('release', group)).not.toContain('environment');
+    }
+    // Moved, not relaxed: the release form still runs it.
+    expect(gateIdsFor('release')).toContain('contract:web-env');
+    expect(phasesFor('release', 'environment')).toContain('environment');
   });
 
   it('cancels superseded runs', () => {

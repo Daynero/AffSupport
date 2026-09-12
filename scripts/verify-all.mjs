@@ -184,13 +184,36 @@ const PHASES = {
         ],
         timeoutMs: 300_000
       },
+      script('contract:team', 'generate:team-contract:check', 300_000)
+    ]
+  },
+  /**
+   * The gates that check a *deployment*, not the code.
+   *
+   * This asks whether the environment a bundle will be built with is a correct
+   * production environment. CI has no such environment — `.env.production` holds the
+   * deployment's values and is deliberately untracked — so running them there
+   * asked a question with no subject, and the build job answered it the only way
+   * it could: `VITE_SUPABASE_URL is missing`, on every run since the job
+   * existed. Eight for eight, which is how a required check becomes a red light
+   * everyone learns to walk past.
+   *
+   * It is not relaxed, only moved to where its subject exists. The release form
+   * runs every phase, so `npm run verify:release` on the release machine still
+   * enforces it, `deploy:web` runs it directly, and the release runner reaches
+   * it a third way through its own preflight.
+   */
+  environment: {
+    group: 'environment',
+    exclusive: false,
+    forms: ['release'],
+    gates: () => [
       {
         id: 'contract:web-env',
         command: 'node',
         args: [path.join(root, 'scripts/verify-web-env.mjs')],
         timeoutMs: 120_000
-      },
-      script('contract:team', 'generate:team-contract:check', 300_000)
+      }
     ]
   },
   e2e: {
@@ -222,12 +245,15 @@ const PHASES = {
   }
 };
 
-const PHASE_ORDER = ['seed', 'static', 'suite', 'build', 'e2e'];
+const PHASE_ORDER = ['seed', 'static', 'suite', 'build', 'environment', 'e2e'];
 /** @type {Record<string, string[]>} */
 const GROUP_PHASES = {
   static: ['seed', 'static'],
   suite: ['seed', 'suite'],
   build: ['seed', 'build'],
+  // Deliberately absent from every group a CI job passes: there is no
+  // deployment environment on a runner to check.
+  environment: ['seed', 'environment'],
   // The browser checks read the built site and real Agent binaries.
   e2e: ['seed', 'build', 'e2e']
 };
