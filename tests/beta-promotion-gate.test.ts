@@ -15,7 +15,12 @@ const ROOT_PACKAGE = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: Record<string, string>;
 };
 
-type Record_ = { sourceRevision?: unknown; dirty?: unknown; verifiedAt?: unknown } | null;
+type Record_ = {
+  sourceRevision?: unknown;
+  dirty?: unknown;
+  verifiedAt?: unknown;
+  packageDigest?: unknown;
+} | null;
 
 /** Mirrors the record rules in verify-beta-promotion.mjs. */
 function recordRejection(head: string, contained: boolean, record: Record_): string | null {
@@ -31,12 +36,19 @@ function recordRejection(head: string, contained: boolean, record: Record_): str
       : 'record does not state whether the worktree was clean';
   }
   if (typeof record.verifiedAt !== 'string' || !record.verifiedAt) return 'record has no timestamp';
+  if (typeof record.packageDigest !== 'string' || !/^[a-f0-9]{64}$/.test(record.packageDigest))
+    return 'record has no package digest';
   return null;
 }
 
 const HEAD = 'a'.repeat(40);
 const OTHER = 'b'.repeat(40);
-const GOOD = { sourceRevision: HEAD, dirty: false, verifiedAt: '2026-08-20T00:00:00Z' };
+const GOOD = {
+  sourceRevision: HEAD,
+  dirty: false,
+  verifiedAt: '2026-08-20T00:00:00Z',
+  packageDigest: 'c'.repeat(64)
+};
 
 describe('promotion gate', () => {
   it('accepts a commit contained in beta with a matching, clean record', () => {
@@ -176,7 +188,7 @@ describe('packaged beta build', () => {
   });
 
   it('writes the verification record only after every assertion passes', () => {
-    const recordIndex = SMOKE.indexOf('cat > "$record"');
+    const recordIndex = SMOKE.indexOf('cat > "$temporary_record"');
     const lastAssertion = SMOKE.lastIndexOf('[[ "$beta_key" != "$production_key" ]]');
     expect(recordIndex).toBeGreaterThan(lastAssertion);
   });

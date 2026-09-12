@@ -16,13 +16,21 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
-  realpathSync
+  realpathSync,
+  renameSync,
+  writeFileSync
 } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { BETA_LOCAL_STACK_PORTS, BETA_PROFILE } from '../packages/shared/dist/environment.js';
 import { parseEnvFile } from './verify-beta-env.mjs';
 import { workerSecretStatements } from './lib/beta-worker-secrets.mjs';
+import { admissionFromEnvironment } from './lib/release/admission-client.mjs';
+import { digestOf, residentBetaReservation } from './lib/release/adapters/beta.mjs';
+
+const resourceProfiles = JSON.parse(
+  readFileSync(new URL('../config/release-resource-profiles.json', import.meta.url), 'utf8')
+);
 
 const VAD_MODEL_FILE = 'ggml-silero-v5.1.2.bin';
 
@@ -80,6 +88,10 @@ const environment = {
 };
 
 const children = [];
+/** Files this invocation wrote, with the digest it wrote, for a safe restore. */
+const writtenEnvironment = [];
+const ownershipDirectory = 'release/automation';
+const ownershipPath = path.join(ownershipDirectory, 'beta-service.json');
 
 function start(label, command, args) {
   const child = spawn(command, args, { shell: false, stdio: 'inherit', env: environment });
@@ -311,20 +323,74 @@ if (existsSync(functionsLocalEnv)) {
   const alreadySameFile =
     existsSync(functionsRuntimeEnv) &&
     realpathSync(functionsRuntimeEnv) === realpathSync(functionsLocalEnv);
-  if (!alreadySameFile) copyFileSync(functionsLocalEnv, functionsRuntimeEnv);
+  if (!alreadySameFile) {
+    // Keep whatever was there before this beta overwrote it, so stopping can
+    // put the machine back rather than merely removing our copy.
+    let restoreFrom = null;
+    if (existsSync(functionsRuntimeEnv)) {
+      mkdirSync(ownershipDirectory, { recursive: true, mode: 0o700 });
+      restoreFrom = path.join(ownershipDirectory, 'functions-env.backup');
+      copyFileSync(functionsRuntimeEnv, restoreFrom);
+    }
+    copyFileSync(functionsLocalEnv, functionsRuntimeEnv);
+    // Remember exactly what we put there. Anything else found at this path
+    // later belongs to whoever edited it, and is not ours to roll back.
+    writtenEnvironment.push({
+      file: functionsRuntimeEnv,
+      digest: digestOf(readFileSync(functionsRuntimeEnv)),
+      restoreFrom
+    });
+  }
 }
 
-const stack = spawnSync('npx', ['supabase', 'start'], { shell: false, stdio: 'inherit' });
-if (stack.status !== 0) fail('the local Supabase stack did not start.');
-await requireEdgeFunctions();
-seedWorkerSecrets();
-seedVadModel();
+if (existsSync(ownershipPath)) {
+  fail(
+    'a beta ownership record already exists; do not take over a running or unreconciled beta environment.'
+  );
+}
+// Starting the stack is a heavy boundary. Under a release runner it waits for
+// the one host-wide slot; run by hand there is no admission socket and this is
+// exactly the command it always was.
+const admission = admissionFromEnvironment();
+const bringStackUp = async () => {
+  const stack = spawnSync('npx', ['supabase', 'start'], { shell: false, stdio: 'inherit' });
+  if (stack.status !== 0) fail('the local Supabase stack did not start.');
+  await requireEdgeFunctions();
+  seedWorkerSecrets();
+  seedVadModel();
 
-start('agent', process.execPath, ['apps/agent/dist/index.js']);
-// Run through the web workspace so npm resolves that workspace's pinned Vite
-// version. Invoking `npx vite` from the repository root can pick Vitest's
-// transitive Vite instead, which is incompatible with the web React plugin.
-start('web', 'npm', ['run', 'dev:beta', '--workspace', '@video-compressor/web']);
+  start('agent', process.execPath, ['apps/agent/dist/index.js']);
+  // Run through the web workspace so npm resolves that workspace's pinned Vite
+  // version. Invoking `npx vite` from the repository root can pick Vitest's
+  // transitive Vite instead, which is incompatible with the web React plugin.
+  start('web', 'npm', ['run', 'dev:beta', '--workspace', '@video-compressor/web']);
+};
+if (admission) await admission.withAdmission('readiness', bringStackUp);
+else await bringStackUp();
+
+// beta:down may act only on children and a stack this invocation created.
+// A port number is not ownership: another developer's beta is always borrowed.
+mkdirSync(ownershipDirectory, { recursive: true, mode: 0o700 });
+const ownershipTemporary = `${ownershipPath}.${process.pid}.tmp`;
+writeFileSync(
+  ownershipTemporary,
+  JSON.stringify({
+    schemaVersion: 1,
+    ownerPid: process.pid,
+    agentPid: children.find(entry => entry.label === 'agent')?.child.pid ?? null,
+    webPid: children.find(entry => entry.label === 'web')?.child.pid ?? null,
+    ports: [BETA_PROFILE.agentPort, BETA_PROFILE.webPort],
+    stackStarted: true,
+    // The exclusive slot is handed back once the stack is up; what remains is a
+    // standing claim the scheduler subtracts while beta keeps running.
+    reservation: residentBetaReservation(resourceProfiles.default),
+    writtenEnvironment,
+    runId: process.env.SOTY_RELEASE_RUN_ID ?? null,
+    writtenAt: new Date().toISOString()
+  }),
+  { mode: 0o600 }
+);
+renameSync(ownershipTemporary, ownershipPath);
 
 process.stdout.write(
   `\nBeta is up.\n` +

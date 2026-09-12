@@ -43,7 +43,9 @@ const SLEEP_IS_THE_POINT: Record<string, string> = {
   'team-task-accounts.test.tsx':
     'a delay before asserting a late server copy did not overwrite typing',
   'team-indexing-refresh.test.tsx': 'a delay before asserting a listing did not poll on its own',
-  'transcription-media.manual.test.ts': 'a manual test that drives a real recording'
+  'transcription-media.manual.test.ts': 'a manual test that drives a real recording',
+  'release-runner-resource-integration.test.ts':
+    'a delay before asserting an unadmitted gate has not run — absence cannot be polled for'
 };
 
 /**

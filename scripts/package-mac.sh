@@ -1,5 +1,7 @@
 #!/bin/zsh
 set -euo pipefail
+source "$PWD/scripts/release-admission.zsh"
+release_require_admission
 : "${PUBLIC_SITE_ORIGIN:?Set PUBLIC_SITE_ORIGIN to the final HTTPS Cloudflare Pages origin}"
 : "${FFMPEG_BINARY:?Set FFMPEG_BINARY to an approved standalone arm64 FFmpeg binary}"
 : "${FFPROBE_BINARY:?Set FFPROBE_BINARY to its matching FFprobe binary}"

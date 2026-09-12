@@ -12,6 +12,7 @@ app="$PWD/release/beta/Soty Beta.app"
 finder_extension="$app/Contents/PlugIns/SotyFinderExtension.appex"
 record_dir="$PWD/release/beta"
 record="$record_dir/verification.json"
+rm -f "$record"
 
 [[ -d "$app" ]] || { print -u2 "No packaged beta build at $app. Run: npm run beta:package"; exit 1; }
 
@@ -69,7 +70,13 @@ codesign --verify --deep --strict "$app"
 [[ -d "$finder_extension" ]] || true
 "$app/Contents/Resources/runtime/node" --version >/dev/null
 
+# Structure proven; now prove it runs. The record below is only written after a
+# real packaged login, a real entitlement and one completed operation, so a
+# build that cannot actually work cannot be promoted.
+node "$PWD/scripts/verify-beta-runtime.mjs"
+
 source_revision=$(git rev-parse HEAD)
+package_digest=$(shasum -a 256 "$app/Contents/Resources/release.json" | awk '{print $1}')
 build_id=$(/usr/bin/plutil -extract buildId raw "$app/Contents/Resources/release.json" 2>/dev/null \
   || grep -o '"buildId": *"[^"]*"' "$app/Contents/Resources/release.json" | head -1 | cut -d'"' -f4)
 # Untracked files count, exactly as they do in verify-release.mjs. A new source
@@ -81,14 +88,17 @@ if [[ -z "$(git status --porcelain)" ]]; then dirty=false; else dirty=true; fi
 verified_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 mkdir -p "$record_dir"
-cat > "$record" <<JSON
+temporary_record="$record.$$.tmp"
+cat > "$temporary_record" <<JSON
 {
   "sourceRevision": "$source_revision",
   "buildId": "$build_id",
+  "packageDigest": "$package_digest",
   "verifiedAt": "$verified_at",
   "dirty": $dirty
 }
 JSON
+mv "$temporary_record" "$record"
 
 print "Soty Beta identity, isolation, real authentication, and enforced entitlement verified."
 print "Recorded verification of $source_revision (dirty: $dirty) at $record."

@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { admissionFromEnvironment } from './release/admission-client.mjs';
 
 /**
  * Running one gate, bounding what it can cost, and keeping its own words.
@@ -101,6 +102,35 @@ export function subjectFor(id, lines) {
  * envelope at all.
  */
 export async function runGate(gate) {
+  let admission;
+  try {
+    admission = admissionFromEnvironment();
+  } catch (error) {
+    return admissionFailure(gate, error);
+  }
+  if (!admission) return runGateNow(gate);
+  try {
+    // Under a release runner the aggregator is a nested heavy boundary: it waits
+    // for the one host-wide slot rather than competing with the step that owns it.
+    return await admission.withAdmission(`gate:${gate.id}`, () => runGateNow(gate));
+  } catch (error) {
+    return admissionFailure(gate, error);
+  }
+}
+
+/**
+ * A gate that could not be admitted is a failed gate, never a skipped one.
+ *
+ * Reporting it this way keeps the aggregator's one invariant — `runGate` always
+ * produces a result — while still failing closed: an incompletely configured
+ * admission must not be readable as permission to run heavy work.
+ */
+function admissionFailure(gate, error) {
+  const line = `Gate '${gate.id}' was not admitted: ${messageOf(error)}`;
+  return { id: gate.id, ok: false, duration_ms: 0, timedOut: false, lines: [line], subject: line };
+}
+
+async function runGateNow(gate) {
   const startedAt = Date.now();
   const ring = new OutputRing();
 
@@ -173,7 +203,14 @@ export async function runGate(gate) {
  */
 export async function runPhase(
   gates,
-  { exclusive = false, serial = process.env.SOTY_VERIFY_SERIAL === '1' } = {}
+  {
+    exclusive = false,
+    // A runner-driven verification is serial by construction: the admission
+    // authority grants one heavy child at a time, so launching gates in
+    // parallel would only queue them against each other.
+    serial = process.env.SOTY_VERIFY_SERIAL === '1' ||
+      Boolean(process.env.SOTY_RELEASE_ADMIT_SOCKET)
+  } = {}
 ) {
   if (!exclusive && !serial) return Promise.all(gates.map(gate => runGate(gate)));
   const results = [];

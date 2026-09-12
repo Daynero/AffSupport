@@ -1,6 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { loadEnv } from 'vite';
-import { PRODUCTION_SITE_ORIGIN } from '../packages/shared/dist/release.js';
+import { activeBinding } from './lib/release/bindings.mjs';
+
+// The destination this verification is about. Production by default and pinned
+// there; a sandbox release supplies its own validated, disjoint binding.
+const binding = activeBinding();
 
 // The build reads its env from the repository root (apps/web/vite.config.ts sets
 // envDir: '../..'), so the gate must read the same directory. Reading apps/web
@@ -53,10 +57,10 @@ const releaseEnvironment = Object.fromEntries(
     })
 );
 
-if (releaseEnvironment.PUBLIC_SITE_ORIGIN !== PRODUCTION_SITE_ORIGIN)
-  failures.push('the release production origin does not match shared PRODUCTION_SITE_ORIGIN');
-if (siteOrigin && siteOrigin !== PRODUCTION_SITE_ORIGIN)
-  failures.push('VITE_SITE_URL does not match shared PRODUCTION_SITE_ORIGIN');
+if (releaseEnvironment.PUBLIC_SITE_ORIGIN !== binding.siteOrigin)
+  failures.push(`the release origin does not match the ${binding.bindingId} binding origin`);
+if (siteOrigin && siteOrigin !== binding.siteOrigin)
+  failures.push(`VITE_SITE_URL does not match the ${binding.bindingId} binding origin`);
 if (!memberPilot && !identityOnly && releaseEnvironment.DRIVE_OAUTH_MODE !== 'verified')
   failures.push('production team OAuth requires DRIVE_OAUTH_MODE=verified');
 if (identityOnly && releaseEnvironment.DRIVE_OAUTH_MODE !== 'disabled')

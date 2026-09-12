@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "default": {
+    "sampleIntervalMs": 5000,
+    "stableWindowMs": 30000,
+    "maxCpuPercent": 50,
+    "ramReserveBytes": 1073741824,
+    "diskReserveBytes": 5368709120,
+    "maxSwapGrowthBytes": 134217728,
+    "maxHeavy": 1,
+    "classes": {
+      "shared_compile": {
+        "ramBytes": 373662155,
+        "diskBytes": 1073741824,
+        "timeoutMs": 180000,
+        "measured": {
+          "peakRamGiB": 0.29,
+          "temporaryDiskGiB": 0.01,
+          "durationSeconds": 1.2,
+          "command": "npm run build -w @video-compressor/shared"
+        }
+      },
+      "dependency_install": {
+        "ramBytes": 2147483648,
+        "diskBytes": 6442450944,
+        "timeoutMs": 900000,
+        "measured": {
+          "peakRamGiB": 0.13,
+          "temporaryDiskGiB": 0.01,
+          "durationSeconds": 2.0,
+          "command": "npm install (incremental repair only; a cold install was not measured)",
+          "note": "RAM estimate left conservative: a cold install was never measured"
+        }
+      },
+      "serial_tests": {
+        "ramBytes": 2048699400,
+        "diskBytes": 2147483648,
+        "timeoutMs": 900000,
+        "measured": {
+          "peakRamGiB": 1.59,
+          "temporaryDiskGiB": 0.42,
+          "durationSeconds": 490.7,
+          "command": "npx vitest run --pool=forks --singleFork, full suite"
+        }
+      },
+      "web_agent_native_build": {
+        "ramBytes": 940597838,
+        "diskBytes": 4294967296,
+        "timeoutMs": 900000,
+        "measured": {
+          "peakRamGiB": 0.73,
+          "temporaryDiskGiB": 0.01,
+          "durationSeconds": 10.1,
+          "command": "npm run build"
+        }
+      },
+      "beta_stack": {
+        "ramBytes": 3221225472,
+        "diskBytes": 8589934592,
+        "timeoutMs": 900000
+      },
+      "package_archive": {
+        "ramBytes": 2147483648,
+        "diskBytes": 6442450944,
+        "timeoutMs": 2700000,
+        "measured": {
+          "peakRamGiB": 0.67,
+          "temporaryDiskGiB": 0.11,
+          "durationSeconds": 36.8,
+          "command": "npm run beta:package",
+          "note": "Proxy only: beta packaging. Production package:mac/package:dmg additionally signs and mounts a disk image, so the estimate stays conservative until that path is measured with real signing keys."
+        }
+      },
+      "hash_download": {
+        "ramBytes": 268435456,
+        "diskBytes": 10737418240,
+        "timeoutMs": 1800000
+      },
+      "unknown_registered_heavy": {
+        "ramBytes": 4294967296,
+        "diskBytes": 10737418240,
+        "timeoutMs": 900000
+      }
+    },
+    "calibration": {
+      "measuredOn": "2026-09-12",
+      "host": "MacBookAir10,1 (Apple M1), 16 GiB, macOS 26.6.2",
+      "method": "peak RSS of the command process group, sampled every 500 ms; estimate = peak + 20%",
+      "unmeasured": [
+        "beta_stack",
+        "hash_download",
+        "unknown_registered_heavy",
+        "package_archive (production path)"
+      ],
+      "note": "Classes listed in unmeasured keep their original conservative guesses."
+    }
+  }
+}

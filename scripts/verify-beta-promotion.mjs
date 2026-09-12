@@ -142,6 +142,9 @@ if (record.dirty !== false) {
 if (typeof record.verifiedAt !== 'string' || !record.verifiedAt) {
   fail('the beta verification record has no verification timestamp.');
 }
+if (typeof record.packageDigest !== 'string' || !/^[a-f0-9]{64}$/u.test(record.packageDigest)) {
+  fail('the beta verification record has no valid packaged release digest.');
+}
 
 process.stdout.write(
   `Beta verification confirmed: ${head.slice(0, 12)} was exercised on packaged build ` +

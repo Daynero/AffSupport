@@ -150,6 +150,11 @@ the invitation link is surfaced in the UI instead. Full details in `docs/BETA.md
 
 ## Soty production releases
 
+The deterministic runner is additive to this runbook, never a bypass. Use
+`npm run release -- preflight|start|status|resume|cancel|report` only with an
+explicit validated intent. Production requires G0 ratification and sandbox
+acceptance evidence.
+
 For an actual production release, read and follow the canonical runbook in
 `docs/PRODUCTION.md`; do not substitute commands, skip gates, or use manual
 artifacts. On failure, fix and repeat the affected gate only.

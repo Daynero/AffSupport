@@ -98,6 +98,61 @@ required check із неіснуючою назвою не блокує нічо
 
 ### Canonical agent runbook
 
+The deterministic runner is invoked as `npm run release -- <command>`. It
+persists accepted work and reports `queued`, `reconciling`, `blocked` or
+`completed`; accepted never means completed. Its read-only preflight rejects
+invalid bindings or unavailable probe/bridge dependencies before heavy work.
+It has no model dependency for normal flow. Do not use it for production until
+G0 ratification and real sandbox acceptance evidence exist; neither has a
+bypass flag.
+
+Установка раннера (один раз на машину, не під час релізу):
+
+```bash
+node scripts/package-release-runner.mjs --build "$PWD/release/automation/probe"
+```
+
+Це збирає закріплений `arm64-apple-macos13` зонд ресурсів і записує
+`ResourceProbe.provenance.json` з digest виконуваного файлу та джерела. Реліз
+ніколи не компілює зонд: відсутній або невідповідний зонд — це
+`PROBE_UNAVAILABLE`, і жоден важкий крок не стартує. Шлях і digest передаються
+раннеру через `SOTY_RELEASE_PROBE` та `SOTY_RELEASE_PROBE_DIGEST`.
+
+Під раннером важкі межі проходять допуск: гейти `verify-all`, пакування
+(`package-mac.sh`, `package-beta-mac.sh`, `package-dmg.sh`) і кроки реєстру
+чекають на єдиний слот через `scripts/release-admit.mjs`. Поза раннером
+(`SOTY_RELEASE_ADMIT_SOCKET` не задано) поведінка цих команд не змінюється.
+
+Один прохід виглядає так:
+
+```bash
+node scripts/release-runner.mjs preflight --intent <intent.json> --bindings <bindings.json>
+node scripts/release-runner.mjs start --intent <intent.json>
+node scripts/release-runner.mjs status <run-id>     # де воно зараз
+node scripts/release-runner.mjs resume <run-id>     # після перерви або поломки
+node scripts/release-runner.mjs report <run-id>     # що вийшло
+```
+
+`start` віддає роботу супервізованому воркеру й повертається; реліз переживає
+закритий термінал. Воркер проходить пʼятнадцять кроків реєстру, які виконують
+рівно ті команди, що наведені у фазах нижче, через
+`scripts/lib/release/step-adapter.mjs`. Кожен важкий крок спершу чекає на
+ресурсний допуск, кожен запис у журнал робиться ДО ефекту, тож перерване
+виконання продовжується з того місця, де спинилось, і жоден ефект не
+повторюється. `SOTY_RELEASE_DRY_RUN=1` проганяє послідовність, не торкаючись
+нічого поза цією машиною.
+
+Фази нижче лишаються канонічним описом того, ЩО відбувається, і ручним
+запасним варіантом. Не виконуйте їх паралельно з раннером.
+
+Валідація релізу розділена за фазами (конституція 2.0.0):
+`node scripts/verify-release.mjs --mode=contract|candidate|final`. `contract` —
+лише внутрішня узгодженість (це те, що виконує агрегатор на PR); `candidate` —
+чисте дерево і ще не існуючий тег; `final` — тег на origin вказує на релізний
+комміт, а пізніший web-комміт допускається лише як manifest-only нащадок.
+Типовий режим — `final`, невідомий режим падає до будь-якої роботи. Прапорці
+`--package`/`--deploy` лишаються синонімами candidate/final.
+
 Це єдина дозволена production-процедура. Один `<release-sha>` породжує обидва
 бінарні артефакти; пізніший `<manifest-sha>` лише підписує їх і деплоїть web.
 Не перебудовуйте артефакти після manifest-only commit.

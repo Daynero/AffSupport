@@ -161,7 +161,17 @@ const PHASES = {
       {
         id: 'contract:release',
         command: 'node',
-        args: [path.join(root, 'scripts/verify-release.mjs')],
+        // Phase-scoped since constitution 2.0.0. The aggregator asserts the
+        // contract phase by default — it runs on pull requests, where no tag
+        // exists yet and a final-phase claim would be a lie. A release runner
+        // carrying a candidate context sets SOTY_RELEASE_VERIFY_MODE, and the
+        // stricter phase then runs here too rather than only inside the
+        // packaging command, so the release path cannot be narrower than the
+        // gate that vouched for it.
+        args: [
+          path.join(root, 'scripts/verify-release.mjs'),
+          `--mode=${process.env.SOTY_RELEASE_VERIFY_MODE ?? 'contract'}`
+        ],
         timeoutMs: 300_000
       },
       {

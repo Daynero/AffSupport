@@ -1,0 +1,11 @@
+# Target binding contract
+
+A single validated TargetBinding is consumed by every adapter and gate, including verify-web-env, release verification, signing, Windows packaging, published download verification and web deployment. Fields: kind(production/sandbox), bindingId, repository identity, release repository, site origin, Cloudflare account/project/branch, Supabase project, public signing-key fingerprint, artifact URL base and fixture identity. Private credential references live outside this object.
+
+Production binding is pinned to tracked production identity derived from release.ts and existing public configuration. No intent-provided origin/project/key override is accepted in production. Sandbox bindings come from a separately configured explicit allowlist and must not intersect any production repository, account/project destination, backend project or origin. A separate sandbox cloud account is preferred; even when account is shared, exact destination project must be disjoint. Missing or inconsistent fields fail before writes.
+
+Refactor hardcoded deployment destinations and verifier assumptions into shared validated binding consumption. Keep ordinary deploy:web default pinned production; runner supplies a validated sandbox binding only in sandbox mode. Both modes execute the same substantive gates, signature checks, two-SHA rules and source checks. Sandbox never means skip verification. The resolved public configuration is embedded consistently in artifacts and verified again before upload/deploy; every effect receipt includes binding digest.
+
+Sandbox release fixtures are explicitly environment-scoped projections in an isolated source branch/checkout. Their changed public identity is committed before freeze and derives from that sandbox source's release identity, never runtime patching of frozen artifacts. The canonical production checkout and its constants remain unchanged. Fixture preparation verifies no privileged production credential is reachable by sandbox child environment.
+
+Tests must record actual command destinations for build, upload, backend and deploy; assert no production writes, swapped production/sandbox binding rejection, wrong-account rejection, artifact-origin/signing consistency and full sandbox success with all gates. Existence of fake adapters alone does not prove this contract.

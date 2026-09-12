@@ -1,5 +1,7 @@
 #!/bin/zsh
 set -euo pipefail
+source "$PWD/scripts/release-admission.zsh"
+release_require_admission
 
 # Packaged beta build.
 #

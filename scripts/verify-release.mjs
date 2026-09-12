@@ -11,7 +11,6 @@ import {
   MAX_SUPPORTED_AGENT_API_VERSION,
   MIN_SUPPORTED_AGENT_API_VERSION,
   PRODUCT_VERSION,
-  PRODUCTION_SITE_ORIGIN,
   RELEASE_ARTIFACT_NAME,
   RELEASE_DOWNLOAD_URL,
   RELEASE_DOWNLOAD_URLS,
@@ -23,6 +22,12 @@ import {
   toolContractCompatible
 } from '../packages/shared/dist/release.js';
 import { BETA_MARKERS, BETA_PROFILE } from '../packages/shared/dist/environment.js';
+import { activeBinding } from './lib/release/bindings.mjs';
+
+// Every destination assertion below reads this one validated binding rather
+// than a constant of its own, so a sandbox release verifies exactly the same
+// rules against a different, provably disjoint place.
+const releaseBinding = activeBinding();
 
 /**
  * Reports and exits.
@@ -38,6 +43,51 @@ function fail(message) {
   process.stderr.write(`Release check failed: ${message}\n`);
   process.exit(1);
 }
+
+/**
+ * Which release phase is being validated.
+ *
+ * Constitution 2.0.0 defines release validation per phase rather than as one
+ * unconditional rule, and this is where that lands. Each mode runs every
+ * contract that applies to it — the internal-consistency checks above run in
+ * all three — so a mode selects *which phase* is being proven, never how much
+ * of it to skip. There is deliberately no flag that turns a check off and no
+ * way to supply a digest the tool did not compute.
+ *
+ * - `contract`  internal consistency only; what the aggregator and a
+ *               work-in-progress version can honestly assert. Not a release
+ *               authorization: it proves nothing about tags or published bytes.
+ * - `candidate` the packaged candidate: clean committed worktree, and a release
+ *               tag that exists nowhere yet, locally or on origin.
+ * - `final`     the deploy: the tag exists, origin's tag identifies the local
+ *               release commit, and a later web commit is admissible only as
+ *               the manifest-only descendant the amendment allows.
+ *
+ * `final` is the default, because the dangerous mistake is deploying something
+ * validated as a candidate, not the reverse.
+ */
+const MODES = new Set(['contract', 'candidate', 'final']);
+const LEGACY_MODES = Object.freeze({ '--package': 'candidate', '--deploy': 'final' });
+
+function resolveMode(argv, env) {
+  const explicit = argv.find(value => value.startsWith('--mode='))?.slice('--mode='.length);
+  const legacy = Object.entries(LEGACY_MODES)
+    .filter(([flag]) => argv.includes(flag))
+    .map(([, mode]) => mode);
+  if (legacy.length > 1) fail('--package and --deploy name different phases; pass one --mode');
+  if (explicit && legacy.length && explicit !== legacy[0])
+    fail(
+      `--mode=${explicit} contradicts ${Object.keys(LEGACY_MODES).find(flag => argv.includes(flag))}`
+    );
+  const mode = explicit ?? legacy[0] ?? env.SOTY_RELEASE_VERIFY_MODE ?? 'final';
+  // An unrecognised mode is a failure, never a silent fallback to the laxest
+  // phase: a typo in a release command must stop the release.
+  if (!MODES.has(mode))
+    fail(`unknown release validation mode "${mode}" (expected ${[...MODES].join(', ')})`);
+  return mode;
+}
+
+const mode = resolveMode(process.argv.slice(2), process.env);
 
 if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(PRODUCT_VERSION)) {
   fail(`invalid product version ${PRODUCT_VERSION}`);
@@ -151,10 +201,10 @@ if (!manifestSignatureValid) {
 
 const productionEnv = readFileSync('config/production.env', 'utf8');
 const configuredOrigin = productionEnv.match(/^PUBLIC_SITE_ORIGIN=(.+)$/m)?.[1]?.trim();
-if (configuredOrigin !== PRODUCTION_SITE_ORIGIN) {
+if (configuredOrigin !== releaseBinding.siteOrigin) {
   fail(
     `config/production.env PUBLIC_SITE_ORIGIN (${configuredOrigin}) does not match ` +
-      `PRODUCTION_SITE_ORIGIN (${PRODUCTION_SITE_ORIGIN}) in packages/shared/src/release.ts`
+      `the ${releaseBinding.bindingId} target binding origin (${releaseBinding.siteOrigin})`
   );
 }
 const configuredDriveOAuthMode = productionEnv.match(/^DRIVE_OAUTH_MODE=(.+)$/m)?.[1]?.trim();
@@ -271,8 +321,8 @@ function scanForBetaMarkers(targets, label) {
 scanForBetaMarkers(PRODUCTION_FEEDING_PATHS, 'production-feeding');
 if (existsSync('apps/web/dist')) scanForBetaMarkers(['apps/web/dist'], 'built web bundle');
 
-const packageMode = process.argv.includes('--package');
-const deployMode = process.argv.includes('--deploy');
+const packageMode = mode === 'candidate';
+const deployMode = mode === 'final';
 if (packageMode || deployMode) {
   const status = execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], {
     encoding: 'utf8'
@@ -359,5 +409,5 @@ if (packageMode || deployMode) {
 }
 
 process.stdout.write(
-  `Release ${PRODUCT_VERSION} (build ${BUILD_NUMBER}, API ${AGENT_API_VERSION}) is internally consistent.\n`
+  `Release ${PRODUCT_VERSION} (build ${BUILD_NUMBER}, API ${AGENT_API_VERSION}) passed ${mode} validation.\n`
 );

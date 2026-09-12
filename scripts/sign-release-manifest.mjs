@@ -9,7 +9,7 @@
 // config/keys/release-manifest.private.pem (gitignored; generated once via
 // scripts/generate-signing-keys.mjs).
 import { createHash, createPrivateKey, createPublicKey, sign, verify } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { createReadStream, readFileSync, writeFileSync } from 'node:fs';
 import {
   RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64,
   releaseManifestSigningPayload
@@ -50,7 +50,7 @@ if (dmgPath) {
     process.stderr.write(`Manifest has no ${platform} artifact to attach the checksum to.\n`);
     process.exit(1);
   }
-  artifact.sha256 = createHash('sha256').update(readFileSync(dmgPath)).digest('hex');
+  artifact.sha256 = await hashFile(dmgPath);
   process.stdout.write(`${platform} sha256 = ${artifact.sha256}\n`);
 }
 
@@ -73,3 +73,13 @@ if (!check) {
 
 writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
 process.stdout.write(`Signed ${manifestPath}\n`);
+
+function hashFile(file) {
+  return new Promise((resolve, reject) => {
+    const hash = createHash('sha256');
+    const stream = createReadStream(file);
+    stream.on('data', chunk => hash.update(chunk));
+    stream.once('error', reject);
+    stream.once('end', () => resolve(hash.digest('hex')));
+  });
+}

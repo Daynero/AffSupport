@@ -19,6 +19,7 @@ import {
   toolContractCompatible
 } from '../packages/shared/src/release';
 import { DEV_PROFILE, PRODUCTION_PROFILE } from '../packages/shared/src/environment.js';
+import { productionBinding } from '../scripts/lib/release/bindings.mjs';
 import {
   downloadUrlForPlatform,
   installedReleaseStatus,
@@ -208,11 +209,19 @@ describe('release identity', () => {
       scripts: Record<string, string>;
     };
     const realAgentGate = readFileSync('scripts/real-agent-check.mjs', 'utf8');
+    // Feature 020: the production destination is no longer a constant repeated
+    // in each gate. Both read one validated binding, which is derived from
+    // PRODUCTION_SITE_ORIGIN and cannot be redirected by configuration.
     for (const gate of [webGate, releaseGate]) {
-      expect(gate).toContain('PRODUCTION_SITE_ORIGIN');
+      expect(gate).toContain('activeBinding');
       expect(gate).toContain('DRIVE_OAUTH_MODE');
       expect(gate).toContain('verified');
     }
+    expect(productionBinding()).toMatchObject({
+      kind: 'production',
+      siteOrigin: PRODUCTION_SITE_ORIGIN,
+      cloudflareProject: 'wishly-app'
+    });
     expect(providerGate).toContain('drive-connect/readiness');
     expect(providerGate).toContain('missingTeamProductionSecrets');
     for (const script of ['deploy:web', 'release:check', 'package:mac', 'package:dmg']) {
@@ -222,9 +231,15 @@ describe('release identity', () => {
     // rebuild the production bundle before verify-release scans it.
     expect(rootPackage.scripts['release:check']).toContain('npm run build');
     expect(rootPackage.scripts['release:check']).toContain('verify-release.mjs');
+    // The Cloudflare project moved out of the npm script and into the binding
+    // the deploy command validates, so the destination is checked rather than
+    // merely typed.
     for (const script of ['deploy:web', 'deploy:web:identity', 'deploy:web:member-pilot']) {
-      expect(rootPackage.scripts[script]).toContain('--project-name wishly-app');
+      expect(rootPackage.scripts[script]).toContain('node scripts/deploy-web.mjs');
     }
+    const deployCommand = readFileSync('scripts/deploy-web.mjs', 'utf8');
+    expect(deployCommand).toContain('binding.cloudflareProject');
+    expect(deployCommand).not.toContain('wishly-app');
     expect(rootPackage.scripts['deploy:web:member-pilot']).toContain('verify:team-member-pilot');
     expect(rootPackage.scripts['deploy:web:member-pilot']).toContain('--member-pilot');
     // These assertions moved into tests/real-media-e2e.test.ts when the shell

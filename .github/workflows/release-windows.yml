@@ -1,4 +1,5 @@
 name: Build Windows installer
+run-name: Windows ${{ inputs.release_id || github.sha }} ${{ inputs.publish && 'publish' || 'build-only' }}
 
 # Produces the Windows x64 installer entirely on a hosted runner, because the
 # maintainer owns no Windows machine. Every step is triggered from the
@@ -20,6 +21,14 @@ on:
       - windows-beta-build
   workflow_dispatch:
     inputs:
+      source_sha:
+        description: 'Exact immutable source commit SHA'
+        required: true
+        type: string
+      release_id:
+        description: 'Release correlation identifier'
+        required: true
+        type: string
       publish:
         description: 'Attach the installer to the release tag (leave off for a build-only run)'
         type: boolean
@@ -28,12 +37,26 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-windows-publish
+  cancel-in-progress: false
+
 jobs:
   validate:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+
+      - name: Assert the checked out immutable source
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ inputs.source_sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
 
       - uses: actions/setup-node@v4
         with:
@@ -66,6 +89,30 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+
+      - name: Assert source tag and refuse an existing publish asset
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ inputs.source_sha || github.sha }}
+          RELEASE_ID: ${{ inputs.release_id }}
+          PUBLISH: ${{ inputs.publish }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          if [ "$PUBLISH" = true ]; then
+            test -n "$RELEASE_ID"
+            test "$(git rev-list -n 1 "$RELEASE_ID")" = "$EXPECTED_SHA"
+            gh release view "$RELEASE_ID" --json assets > release-assets.json
+            node - <<'NODE'
+            const { assets } = require('./release-assets.json');
+            if (assets.some(asset => asset.name.endsWith('.exe'))) {
+              throw new Error('WINDOWS_ASSET_ALREADY_EXISTS: reconcile the exact published digest; do not rebuild or replace it.');
+            }
+            NODE
+          fi
 
       - uses: actions/setup-node@v4
         with:

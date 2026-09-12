@@ -7,6 +7,11 @@ Beta is a testing surface, not a second product. It is never distributed, never 
 channel, and never touches production data, production accounts, or production analytics. It is
 reachable only on this machine's loopback interface.
 
+The release runner may request beta packaging through a fixed adapter, but a
+proof is valid only after the packaged smoke writes an exact-SHA,
+clean-worktree, packaged-digest verification record. Status polling never
+invokes a model and cannot substitute that proof.
+
 |                     | Production   | Soty Dev                          | **Beta**                           |
 | ------------------- | ------------ | --------------------------------- | ---------------------------------- |
 | Agent port          | 43120        | 43130                             | **43140**                          |
@@ -214,9 +219,18 @@ whole class of bugs — bundled tool resolution, packaged-mode paths, entitlemen
 — that only appear once the app is packaged:
 
 ```bash
+npm run beta:down          # the runtime journey must own the app it tests
 npm run beta:package
 npm run beta:verify        # writes release/beta/verification.json on success only
 ```
+
+`beta:verify` ends with a bounded runtime journey
+(`scripts/verify-beta-runtime.mjs`): it starts the packaged app under a private
+`HOME`, pairs with it, presents a beta entitlement signed with the beta key, runs
+one short compression and reads the result back. Structure alone no longer earns
+a verification record. The journey refuses to run while another beta agent holds
+port 43140 — it must own the build it is testing, and it stops only what it
+started.
 
 Then promote and release as usual:
 
