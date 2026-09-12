@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useId, useMemo, useState } from 'react';
-import { Plus, UserRound } from 'lucide-react';
+import { Plus, Rocket, UserRound } from 'lucide-react';
 import {
   countTeamAccounts,
   filterTeamAccounts,
@@ -27,6 +27,7 @@ import { Button } from '../../components/ui';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { agentCountKey, freeCountKey } from '../accounts/plural';
+import { SpaceSettingsLink } from '../SpaceSettingsLink';
 
 export interface TaskAccountPickerClient {
   listAccounts(teamId: string): Promise<TeamAccountSummary[]>;
@@ -52,6 +53,7 @@ export function TaskAccountPicker({
   client,
   attachedAgentRowIds,
   onAdd,
+  onAddWithRun,
   onClose
 }: {
   teamId: string;
@@ -60,6 +62,14 @@ export function TaskAccountPicker({
   attachedAgentRowIds: ReadonlySet<string>;
   /** The chosen agents, with their accounts, in one press of the primary button. */
   onAdd: (agents: { agent: TeamAccountAgentSummary; account: TeamAccountSummary }[]) => void;
+  /**
+   * Tag the task *and* write the run onto each chosen agent, which is what
+   * picking an account for a task nearly always means. Absent when there is
+   * nothing to write into the run — then only the plain tagging is offered.
+   */
+  onAddWithRun?: (
+    agents: { agent: TeamAccountAgentSummary; account: TeamAccountSummary }[]
+  ) => void;
   onClose: () => void;
 }) {
   const { t, language } = useI18n();
@@ -123,12 +133,19 @@ export function TaskAccountPicker({
     });
   };
 
-  const add = () => {
-    const chosen = [...selected.values()].flatMap(agent => {
+  const chosenAgents = () =>
+    [...selected.values()].flatMap(agent => {
       const account = accounts.find(item => item.id === agent.accountId);
       return account ? [{ agent, account }] : [];
     });
-    onAdd(chosen);
+
+  const add = () => {
+    onAdd(chosenAgents());
+    onClose();
+  };
+
+  const addWithRun = () => {
+    onAddWithRun?.(chosenAgents());
     onClose();
   };
 
@@ -188,7 +205,15 @@ export function TaskAccountPicker({
         {loading && <p aria-live="polite">{t('teamAccountsLoading')}</p>}
         {error && <p className="team-inline-error">{t('teamAccountsLoadFailed')}</p>}
         {!loading && !error && accounts.length === 0 && (
-          <p className="team-task-picker-empty">{t('teamTaskAccountPickerEmpty')}</p>
+          <div className="team-task-picker-empty">
+            <p>{t('teamTaskAccountPickerEmpty')}</p>
+            {/* Named by where it goes: accounts are made on their own tab, not
+                in the settings dialog. */}
+            <SpaceSettingsLink
+              target={{ kind: 'section', section: 'accounts' }}
+              label={t('teamSectionAccounts')}
+            />
+          </div>
         )}
 
         {!loading &&
@@ -302,10 +327,31 @@ export function TaskAccountPicker({
           <Button type="button" variant="ghost" onClick={onClose}>
             {t('teamCancel')}
           </Button>
-          <Button type="button" variant="primary" disabled={selected.size === 0} onClick={add}>
+          {/* Tagging alone stays: a task is also an edit or a re-cut, and those
+              are picked here too — nothing was launched on the account. */}
+          <Button
+            type="button"
+            variant={onAddWithRun ? 'secondary' : 'primary'}
+            disabled={selected.size === 0}
+            onClick={add}
+          >
             <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
             {t('teamTaskAccountPickerAdd', { count: selected.size })}
           </Button>
+          {/* The usual answer, so it is the primary one: picking the account a
+              task launched on, and writing that launch onto the account, was
+              two dialogs and a second trip through the same list. */}
+          {onAddWithRun && (
+            <Button
+              type="button"
+              variant="primary"
+              disabled={selected.size === 0}
+              onClick={addWithRun}
+            >
+              <Rocket size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              {t('teamTaskAccountPickerAddWithRun', { count: selected.size })}
+            </Button>
+          )}
         </div>
       </div>
     </Modal>

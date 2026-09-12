@@ -17,6 +17,7 @@ import {
   isTeamAgentFree,
   normalizeTeamAgentNote,
   sortTeamTaskAgentTags,
+  teamAgentLabel,
   teamAgentRunsSummary,
   teamTaskAgentTagLabel,
   type TeamAccountAgentSummary,
@@ -27,6 +28,7 @@ import { Button, IconButton } from '../../components/ui';
 import { ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import { useI18n, type TranslationKey } from '../../i18n';
+import { agentCountKey } from '../accounts/plural';
 import { teamErrorMessageFor } from '../errors';
 import { TaskAccountPicker, type TaskAccountPickerClient } from './TaskAccountPicker';
 
@@ -159,7 +161,7 @@ export function TaskAgentTagsEditor({
   client: TaskAgentTagsClient;
   onTagsChange: (tags: TeamTaskAgentTag[]) => void;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const { push } = useToasts();
   const labelId = useId();
   const [picking, setPicking] = useState(false);
@@ -170,6 +172,12 @@ export function TaskAgentTagsEditor({
   const addButton = useRef<HTMLButtonElement>(null);
   const sorted = sortTeamTaskAgentTags(tags);
   const openTag = tags.find(tag => tag.id === openTagId) ?? null;
+  /**
+   * What "tag and log the run" would write. A title too long for a run is cut
+   * to fit rather than refused; an empty one leaves nothing to write, and the
+   * picker then offers plain tagging only.
+   */
+  const runNote = normalizeTeamAgentNote(taskTitle.slice(0, TEAM_AGENT_NOTE_MAX)) ?? null;
 
   const fail = (cause: unknown) => push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
 
@@ -191,6 +199,43 @@ export function TaskAgentTagsEditor({
       for (const { agent } of chosen) {
         onTagsChange(await client.attachTaskAgent({ teamId, taskId, agentRowId: agent.id }));
       }
+    });
+
+  /**
+   * The one flow this picker nearly always serves: the task launched on these
+   * agents, so tagging it and writing the launch onto each account is one
+   * press rather than two dialogs over the same list. The note is the task's
+   * own title — what the run field was prefilled with anyway.
+   */
+  const addAgentsWithRun = (
+    chosen: { agent: TeamAccountAgentSummary; account: TeamAccountSummary }[]
+  ) =>
+    run(async () => {
+      const note = runNote;
+      if (!note) return;
+      for (const { agent } of chosen) {
+        const tagged = await client.attachTaskAgent({ teamId, taskId, agentRowId: agent.id });
+        const updated = await client.addAgentRun({ teamId, agentRowId: agent.id, note });
+        // Attaching answers with the task's whole tag list; the run answers
+        // with the agent. Merged here, so one write does not undo the other.
+        onTagsChange(
+          tagged.map(item =>
+            item.agentRowId === updated.id ? { ...item, runs: updated.runs } : item
+          )
+        );
+      }
+      if (chosen.length === 0) return;
+      push({
+        tone: 'success',
+        text:
+          chosen.length === 1
+            ? t('teamTaskRunWritten', {
+                tag: teamAgentLabel(chosen[0]!.account.name, chosen[0]!.agent.agentId)
+              })
+            : t('teamTaskRunsWritten', {
+                agents: t(agentCountKey(language, chosen.length), { count: chosen.length })
+              })
+      });
     });
 
   const detach = (tag: TeamTaskAgentTag) =>
@@ -388,6 +433,7 @@ export function TaskAgentTagsEditor({
           client={client}
           attachedAgentRowIds={attachedIds}
           onAdd={chosen => void addAgents(chosen)}
+          onAddWithRun={runNote ? chosen => void addAgentsWithRun(chosen) : undefined}
           onClose={() => setPicking(false)}
         />
       )}

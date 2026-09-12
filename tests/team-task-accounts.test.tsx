@@ -306,6 +306,36 @@ describe('the editor', () => {
     expect(screen.getByRole('button', { name: /^v31-401/ })).toBeTruthy();
   });
 
+  it('tags and writes the run in one press, and leaves plain tagging alongside', async () => {
+    const api = client();
+    const user = userEvent.setup();
+    openEditor(api);
+
+    await user.click(screen.getByRole('button', { name: 'Account' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Account' });
+    await user.click(within(dialog).getByText('v31', { selector: 'strong' }).closest('button')!);
+    await user.click(within(dialog).getByRole('button', { name: /v31-401/ }));
+    // The old way out is still there for an edit or a re-cut, which launched nothing.
+    expect(within(dialog).getByRole('button', { name: 'Tag (1)' })).toBeTruthy();
+    await user.click(within(dialog).getByRole('button', { name: 'Tag and log the run (1)' }));
+
+    await waitFor(() =>
+      expect(api.attachTaskAgent).toHaveBeenCalledWith({
+        teamId: TEAM_ID,
+        taskId: TASK_ID,
+        agentRowId: A401
+      })
+    );
+    // The run carries the task's own title, the same note the field prefills with.
+    await waitFor(() =>
+      expect(api.addAgentRun).toHaveBeenCalledWith({
+        teamId: TEAM_ID,
+        agentRowId: A401,
+        note: 'Pro Caps | TR 05/09'
+      })
+    );
+  });
+
   it('adds a run prefilled with the task title, from the chip', async () => {
     const api = client([tagFor(A401)]);
     const user = userEvent.setup();
