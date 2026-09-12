@@ -74,13 +74,22 @@ async function health(teamId: string, as = VIEWER): Promise<Record<string, unkno
 async function addMaterial(
   teamId: string,
   connectionId: string,
-  input: { id: string; kind: 'folder' | 'image'; indexed?: boolean; thumb?: string }
+  input: {
+    id: string;
+    kind: 'folder' | 'image';
+    indexed?: boolean;
+    thumb?: string;
+    /** How long ago the file was last modified; the preview bound reads this. */
+    ageHours?: number;
+  }
 ) {
+  const modifiedAt = new Date(Date.now() - (input.ageHours ?? 0) * 3_600_000).toISOString();
   await harness.root(
     `insert into public.team_materials
        (team_id, connection_id, drive_file_id, parent_folder_id, name, kind, category,
-        mime_type, lifecycle, folder_indexed_at, provider_thumbnail_state)
-     values ($1, $2, $3, 'root-folder', $3, $4, $5, $6, 'active', $7, $8)`,
+        mime_type, lifecycle, folder_indexed_at, provider_thumbnail_state,
+        modified_at, created_at)
+     values ($1, $2, $3, 'root-folder', $3, $4, $5, $6, 'active', $7, $8, $9, $9)`,
     [
       teamId,
       connectionId,
@@ -89,7 +98,8 @@ async function addMaterial(
       input.kind === 'folder' ? null : 'image',
       input.kind === 'folder' ? 'application/vnd.google-apps.folder' : 'image/png',
       input.kind === 'folder' && input.indexed ? new Date().toISOString() : null,
-      input.thumb ?? 'none'
+      input.thumb ?? 'none',
+      modifiedAt
     ]
   );
   // The index trigger starts every eligible file at `pending`; a ready
@@ -174,6 +184,39 @@ describe('get_team_storage_health', () => {
     await addMaterial(teamId, connectionId!, { id: 'f1', kind: 'folder', indexed: true });
     await addMaterial(teamId, connectionId!, { id: 'i1', kind: 'image', thumb: 'ready' });
     await addMaterial(teamId, connectionId!, { id: 'i2', kind: 'image', thumb: 'pending' });
+    expect(await health(teamId)).toEqual({ kind: 'preparing', ready: 1, pending: 1 });
+  });
+
+  it('stops calling a preview "preparing" once it can no longer be coming', async () => {
+    // The owner's report: "Готуємо превʼю · 480 з 481", spinning indefinitely.
+    // One thumbnail that never resolves used to hold the whole space in a
+    // progress state, because nothing in that branch required movement.
+    const { teamId, connectionId } = await makeSpace('Health preview stalled');
+    await addMaterial(teamId, connectionId!, { id: 'f1', kind: 'folder', indexed: true });
+    await addMaterial(teamId, connectionId!, { id: 'i1', kind: 'image', thumb: 'ready' });
+    await addMaterial(teamId, connectionId!, {
+      id: 'i2',
+      kind: 'image',
+      thumb: 'pending',
+      ageHours: 48
+    });
+
+    // The space is usable and says so; the one file simply has no thumbnail,
+    // which its own tile already reports.
+    expect(await health(teamId)).toMatchObject({ kind: 'connected' });
+  });
+
+  it('still shows progress while a preview is genuinely recent', async () => {
+    const { teamId, connectionId } = await makeSpace('Health preview fresh');
+    await addMaterial(teamId, connectionId!, { id: 'f1', kind: 'folder', indexed: true });
+    await addMaterial(teamId, connectionId!, { id: 'i1', kind: 'image', thumb: 'ready' });
+    await addMaterial(teamId, connectionId!, {
+      id: 'i2',
+      kind: 'image',
+      thumb: 'pending',
+      ageHours: 1
+    });
+
     expect(await health(teamId)).toEqual({ kind: 'preparing', ready: 1, pending: 1 });
   });
 
