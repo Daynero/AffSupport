@@ -77,9 +77,61 @@ export function shellProblems(html) {
   return problems;
 }
 
-/** The first built asset the shell references, so the gate can prove it loads. */
-export function firstAssetPath(html) {
-  return /<script[^>]+src="(\/assets\/[^"]+)"/u.exec(html)?.[1] ?? null;
+/**
+ * Every built script the shell pulls in, entry first, then its preloaded chunks.
+ * The gate walks these to prove they load and to find the one carrying the
+ * deployed configuration.
+ */
+export function assetPaths(html) {
+  const entry = /<script[^>]+src="(\/assets\/[^"]+\.js)"/u.exec(html)?.[1] ?? null;
+  const all = [...html.matchAll(/["'](\/assets\/[^"']+\.js)["']/gu)].map(match => match[1]);
+  const unique = [...new Set(entry ? [entry, ...all] : all)];
+  return unique;
+}
+
+/**
+ * The Supabase configuration the browser is actually running with, read out of
+ * the bundle the browser is actually served.
+ *
+ * This started as a way to avoid asking a person to configure a monitoring
+ * secret, and turned out to be the better check: a key supplied out of band
+ * proves that *a* key works, while this proves that the key real users were
+ * handed works. A deploy that shipped a stale or rotated key is invisible to the
+ * first and caught by the second.
+ *
+ * @param {string} text one built chunk
+ */
+export function extractSupabaseConfig(text) {
+  return {
+    url: /https:\/\/[a-z0-9]{20}\.supabase\.co/u.exec(text)?.[0] ?? null,
+    // Both the current publishable format and the legacy anon JWT, because a
+    // project that has not migrated still ships the old shape.
+    publishableKey:
+      /sb_publishable_[A-Za-z0-9_-]{10,}/u.exec(text)?.[0] ??
+      /eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/u.exec(text)?.[0] ??
+      null
+  };
+}
+
+/**
+ * @param {{url: string|null, publishableKey: string|null}} config
+ * @param {{supabaseUrl: string}} expected
+ */
+export function deployedConfigProblems(config, expected) {
+  const problems = [];
+  if (!config.url) problems.push('the served bundle names no Supabase project');
+  else if (config.url !== expected.supabaseUrl)
+    // A bundle built for one project and deployed to another reads and writes
+    // the wrong database while looking entirely healthy.
+    problems.push(`the served bundle talks to ${config.url}, not ${expected.supabaseUrl}`);
+
+  if (!config.publishableKey) problems.push('the served bundle carries no Supabase key');
+  else if (/^sb_(?:secret|service_role)_/iu.test(config.publishableKey))
+    // Worth its own line: this would hand every visitor a key that ignores
+    // row-level security.
+    problems.push('the served bundle ships a privileged Supabase key');
+
+  return problems;
 }
 
 /**

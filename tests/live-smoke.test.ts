@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  firstAssetPath,
+  assetPaths,
+  deployedConfigProblems,
+  extractSupabaseConfig,
   manifestAgreement,
   oauthStartProblems,
   shellProblems,
@@ -76,7 +78,7 @@ describe('live deployment judgements', () => {
     const real =
       '<!doctype html><div id="root"></div><script type="module" src="/assets/index-abc.js"></script>';
     expect(shellProblems(real)).toEqual([]);
-    expect(firstAssetPath(real)).toBe('/assets/index-abc.js');
+    expect(assetPaths(real)).toEqual(['/assets/index-abc.js']);
 
     const edgeError = '<html><body>Cloudflare Error 1101</body></html>';
     expect(shellProblems(edgeError)).toEqual([
@@ -84,7 +86,7 @@ describe('live deployment judgements', () => {
       'the served page references no built asset bundle',
       'the origin served an edge error page rather than the application'
     ]);
-    expect(firstAssetPath(edgeError)).toBeNull();
+    expect(assetPaths(edgeError)).toEqual([]);
   });
 
   it('reads the first hop of sign-in, which is all that works without an account', () => {
@@ -105,6 +107,63 @@ describe('live deployment judgements', () => {
     ).toEqual([
       'the identity handshake redirected to soty.pp.ua, not Google',
       'the identity handshake carries no client id'
+    ]);
+  });
+
+  it('collects the entry chunk first and then the preloaded ones, without repeats', () => {
+    const html =
+      '<link rel="modulepreload" href="/assets/config-x.js">' +
+      '<script type="module" src="/assets/index-abc.js"></script>' +
+      '<link rel="modulepreload" href="/assets/config-x.js">';
+    expect(assetPaths(html)).toEqual(['/assets/index-abc.js', '/assets/config-x.js']);
+  });
+
+  it('reads the configuration the browser is actually running with', () => {
+    // Taken from the deployment rather than configured alongside it: a key
+    // supplied out of band proves that *a* key works, this proves the one real
+    // users were handed works.
+    const chunk =
+      'const u="https://yvvvignywfmbdgkcxtfk.supabase.co",k="sb_publishable_AbCdEf123456";';
+    expect(extractSupabaseConfig(chunk)).toEqual({
+      url: 'https://yvvvignywfmbdgkcxtfk.supabase.co',
+      publishableKey: 'sb_publishable_AbCdEf123456'
+    });
+    expect(extractSupabaseConfig('const nothing=1;')).toEqual({ url: null, publishableKey: null });
+  });
+
+  it('catches a bundle built for one project and deployed to another', () => {
+    // It reads and writes the wrong database while looking entirely healthy.
+    expect(
+      deployedConfigProblems(
+        {
+          url: 'https://otherprojectref0000.supabase.co',
+          publishableKey: 'sb_publishable_x1234567890'
+        },
+        { supabaseUrl: 'https://yvvvignywfmbdgkcxtfk.supabase.co' }
+      )
+    ).toEqual([
+      'the served bundle talks to https://otherprojectref0000.supabase.co, not https://yvvvignywfmbdgkcxtfk.supabase.co'
+    ]);
+  });
+
+  it('refuses a bundle that hands every visitor a privileged key', () => {
+    expect(
+      deployedConfigProblems(
+        {
+          url: 'https://yvvvignywfmbdgkcxtfk.supabase.co',
+          publishableKey: 'sb_secret_oh_no_1234567'
+        },
+        { supabaseUrl: 'https://yvvvignywfmbdgkcxtfk.supabase.co' }
+      )
+    ).toEqual(['the served bundle ships a privileged Supabase key']);
+    expect(
+      deployedConfigProblems(
+        { url: null, publishableKey: null },
+        { supabaseUrl: 'https://yvvvignywfmbdgkcxtfk.supabase.co' }
+      )
+    ).toEqual([
+      'the served bundle names no Supabase project',
+      'the served bundle carries no Supabase key'
     ]);
   });
 

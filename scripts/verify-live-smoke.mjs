@@ -3,14 +3,15 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { webcrypto } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { loadEnv } from 'vite';
 import {
   releaseManifestSigningPayload,
   RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64
 } from '../packages/shared/dist/release.js';
 import { activeBinding } from './lib/release/bindings.mjs';
 import {
-  firstAssetPath,
+  assetPaths,
+  deployedConfigProblems,
+  extractSupabaseConfig,
   manifestAgreement,
   oauthStartProblems,
   shellProblems,
@@ -56,10 +57,18 @@ const TIMEOUT_MS = 15_000;
 const binding = activeBinding();
 const origin = binding.siteOrigin;
 const supabaseUrl = `https://${binding.supabaseProject}.supabase.co`;
-const publishableKey =
-  process.env.SOTY_SMOKE_SUPABASE_KEY?.trim() ||
-  loadEnv('production', root, '').VITE_SUPABASE_PUBLISHABLE_KEY?.trim() ||
-  '';
+/** How many chunks to walk before giving up on finding the deployed config. */
+const CHUNK_LIMIT = 12;
+/**
+ * The key is read out of the served bundle, not configured here.
+ *
+ * It is public — every visitor is handed it — so there was never anything to
+ * protect, and taking it from the deployment means this test uses the key real
+ * users use. An override exists for a bundle this cannot be read from; the
+ * build environment is the last resort, for a local run against a site that is
+ * mid-deploy.
+ */
+let publishableKey = process.env.SOTY_SMOKE_SUPABASE_KEY?.trim() ?? '';
 
 /** @type {{name: string, problems: string[]}[]} */
 const checks = [];
@@ -104,10 +113,30 @@ await probe('shell', async () => {
 });
 
 await probe('bundle', async () => {
-  const asset = firstAssetPath(shellHtml);
-  if (!asset) return ['no built asset to load, because the shell referenced none'];
-  const response = await get(`${origin}${asset}`);
-  return response.status === 200 ? [] : [`${asset} answered HTTP ${response.status}`];
+  const assets = assetPaths(shellHtml);
+  if (!assets.length) return ['no built asset to load, because the shell referenced none'];
+
+  // The entry chunk must load; the rest are walked only until the one carrying
+  // the configuration turns up, which is usually the second or third.
+  const problems = [];
+  /** @type {{url: string|null, publishableKey: string|null}} */
+  let config = { url: null, publishableKey: null };
+  for (const asset of assets.slice(0, CHUNK_LIMIT)) {
+    const response = await get(`${origin}${asset}`);
+    if (response.status !== 200) {
+      problems.push(`${asset} answered HTTP ${response.status}`);
+      continue;
+    }
+    const found = extractSupabaseConfig(response.body);
+    config = {
+      url: config.url ?? found.url,
+      publishableKey: config.publishableKey ?? found.publishableKey
+    };
+    if (config.url && config.publishableKey) break;
+  }
+
+  if (!publishableKey && config.publishableKey) publishableKey = config.publishableKey;
+  return [...problems, ...deployedConfigProblems(config, { supabaseUrl })];
 });
 
 // --- the deep link that a missing SPA rule turns into a 404 ----------------
@@ -159,9 +188,10 @@ await probe('update-manifest', async () => {
 
 // --- the database and identity the browser talks to ------------------------
 if (!publishableKey) {
+  // Fail, never skip: an unverifiable deployment is not a verified one.
   add('supabase', [
-    'no publishable key available, so the database and identity probes could not run — ' +
-      'set SOTY_SMOKE_SUPABASE_KEY or provide a production build environment'
+    'no Supabase key could be read from the served bundle, so the database and ' +
+      'identity probes could not run — set SOTY_SMOKE_SUPABASE_KEY to override'
   ]);
 } else {
   const apikey = { apikey: publishableKey, Authorization: `Bearer ${publishableKey}` };

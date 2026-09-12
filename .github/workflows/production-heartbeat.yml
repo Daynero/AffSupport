@@ -46,17 +46,10 @@ jobs:
       # release key, which lives in the shared package's built output.
       - run: npm run build -w @video-compressor/shared
 
-      # Told apart from an outage on purpose: an unset key is this workflow being
-      # unfinished, not production being down, and it must not open an incident
-      # every ten minutes to say so. The scheduled-run failure notification is
-      # enough to get it fixed once.
-      - name: Refuse to report on an unconfigured heartbeat
-        if: ${{ secrets.SOTY_SMOKE_SUPABASE_KEY == '' }}
-        run: |
-          echo "::error::SOTY_SMOKE_SUPABASE_KEY is not set, so the database and identity probes cannot run."
-          echo "Set it once with: gh secret set SOTY_SMOKE_SUPABASE_KEY --repo ${{ github.repository }}"
-          exit 1
-
+      # No secret to configure: the smoke test reads the Supabase key out of the
+      # bundle the site serves, which is public to every visitor anyway and is
+      # the key real users are running with. A heartbeat that needs a person to
+      # arm it before it works is a heartbeat that eventually is not running.
       - name: Probe the live deployment
         id: smoke
         # `--served-only` because the default branch may legitimately be one
@@ -68,10 +61,6 @@ jobs:
           echo "status=$?" >> "$GITHUB_OUTPUT"
           cat smoke.json
           cat smoke.err
-        env:
-          # A public value — the same key the deployed bundle ships — kept as a
-          # secret only so it is not restated in a tracked file.
-          SOTY_SMOKE_SUPABASE_KEY: ${{ secrets.SOTY_SMOKE_SUPABASE_KEY }}
 
       - name: Report a failing production
         if: steps.smoke.outputs.status != '0'
