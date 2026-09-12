@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
+import { interceptCrossOriginNavigation } from './support/navigation';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, waitFor } from '@testing-library/react';
 import type { AuthContextValue as AuthValue } from '../apps/web/src/auth/AuthContext';
@@ -37,33 +38,6 @@ function authValue(patch: Partial<AuthValue> = {}): AuthValue {
     refreshProfile: vi.fn().mockResolvedValue(undefined),
     ...patch
   } as AuthValue;
-}
-
-/**
- * Keeps the live Location — `history.replaceState` still drives it — and only
- * intercepts the cross-origin jump, which jsdom cannot perform.
- */
-function interceptCrossOriginNavigation() {
-  const real = window.location;
-  const assign = vi.fn();
-  const view: Record<string, unknown> = { assign };
-  for (const key of [
-    'href',
-    'origin',
-    'protocol',
-    'host',
-    'hostname',
-    'port',
-    'pathname',
-    'search',
-    'hash'
-  ])
-    Object.defineProperty(view, key, { get: () => real[key as 'href'], enumerable: true });
-  Object.defineProperty(window, 'location', { configurable: true, value: view });
-  return {
-    assign,
-    restore: () => Object.defineProperty(window, 'location', { configurable: true, value: real })
-  };
 }
 
 let navigation: ReturnType<typeof interceptCrossOriginNavigation>;
