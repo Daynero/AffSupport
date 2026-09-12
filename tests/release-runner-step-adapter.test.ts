@@ -30,6 +30,7 @@ async function fakeProject() {
   // gates.
   for (const script of [
     'verify-web-env.mjs',
+    'verify-production-config.mjs',
     'verify-beta-promotion.mjs',
     'verify-published-release.mjs',
     'sign-release-manifest.mjs',
@@ -116,6 +117,58 @@ describe('the step adapter runs the runbook', () => {
       expect(calls).toContain('npm run beta:verify');
       expect(calls).toContain('npm run package:mac');
       expect(calls).toContain('npm run package:dmg');
+    } finally {
+      await removeTemporaryDirectory(root);
+    }
+  }, 60_000);
+
+  it('asks the live project whether it can run this release, and says which migrations are planned', async () => {
+    // The gap this closes: every earlier preflight check could pass on a
+    // machine whose code is perfect while the project was missing a secret,
+    // function or migration that code needs. A declared migration travels with
+    // the question so the plan working is never mistaken for drift.
+    const { root, bin, log } = await fakeProject();
+    try {
+      const adapter = await createStepAdapter({
+        runId: 'run',
+        version: '9.9.9',
+        sourceSha,
+        cwd: root,
+        env: { PATH: `${bin}:${process.env.PATH}` },
+        binding,
+        backendPlan: {
+          changes: [
+            { id: '20260912150000', kind: 'migration' },
+            { id: 'drive-connect', kind: 'function' }
+          ]
+        },
+        allowRemote: true
+      });
+      expect(await adapter.execute('preflight')).toMatchObject({ ok: true });
+      const calls = await readFile(log, 'utf8');
+      expect(calls).toContain('node verify-web-env.mjs');
+      expect(calls).toContain('node verify-production-config.mjs --expect-pending=20260912150000');
+    } finally {
+      await removeTemporaryDirectory(root);
+    }
+  }, 60_000);
+
+  it('leaves the live project alone when the run is not allowed remote access', async () => {
+    const { root, bin, log } = await fakeProject();
+    try {
+      const adapter = await createStepAdapter({
+        runId: 'run',
+        version: '9.9.9',
+        sourceSha,
+        cwd: root,
+        env: { PATH: `${bin}:${process.env.PATH}` },
+        binding,
+        allowRemote: false
+      });
+      expect(await adapter.execute('preflight')).toMatchObject({ ok: true });
+      const calls = await readFile(log, 'utf8');
+      expect(calls).toContain('node verify-web-env.mjs');
+      expect(calls).not.toContain('verify-production-config.mjs');
     } finally {
       await removeTemporaryDirectory(root);
     }

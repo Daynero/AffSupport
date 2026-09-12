@@ -14,7 +14,7 @@
 - [ ] Виконано checklist із `docs/GOOGLE_OAUTH_VERIFICATION.md`; Drive scopes не додані до identity-only production project.
 - [ ] `VITE_PRODUCT_OPERATOR` і `VITE_LEGAL_CONTACT_EMAIL` заповнені реальними значеннями.
 - [ ] Власник перевірив Privacy Policy і Terms of Use; це базові тексти, а не юридична консультація.
-- [ ] Edge Function `delete-account` розгорнута до ввімкнення `VITE_DELETE_ACCOUNT_ENABLED=true`.
+- [ ] Edge Function `delete-account` розгорнута; `npm run verify:production-config` підтверджує, що вона ACTIVE на production-проєкті.
 - [ ] Перший admin доданий UUID-командою з `SUPABASE_SETUP.md`.
 - [ ] Реальні credentials відсутні в Git.
 
@@ -29,22 +29,31 @@ line first. Full workflow in [BETA.md](./BETA.md).
 
 Project: `wishly-app`. Canonical production origin: `https://soty.pp.ua`.
 
-Додайте у production build environment:
+Повний перелік змінних усіх трьох поверхонь — браузерного bundle, Edge Functions
+і запакованого агента — живе в `config/environments.json`. Ця таблиця більше не
+дублюється в документах: копія прози застаріває мовчки, а реєстр перевіряється
+двома гейтами на кожному push. Таблиця вище була саме такою копією і містила
+`VITE_DELETE_ACCOUNT_ENABLED`, якої в коді немає вже давно.
 
-| Variable                        | Production value                               |
-| ------------------------------- | ---------------------------------------------- |
-| `VITE_SUPABASE_URL`             | Project URL із Supabase                        |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | `sb_publishable_...` із Supabase               |
-| `VITE_SITE_URL`                 | `https://soty.pp.ua`                           |
-| `VITE_ADMIN_EMAIL`              | необов’язкова development-підказка або порожнє |
-| `VITE_PRODUCT_OPERATOR`         | реальне ім’я/назва оператора                   |
-| `VITE_LEGAL_CONTACT_EMAIL`      | реальний contact email                         |
-| `VITE_DELETE_ACCOUNT_ENABLED`   | `true` тільки після deploy Edge Function       |
-| `VITE_AGENT_URL`                | `http://127.0.0.1:43120`                       |
+Реєстр каже для кожної змінної: на якій поверхні живе, у яких середовищах
+обов'язкова, чи секретна, якого формату і що ламається без неї. Значень він не
+містить — тільки імена й форму.
+
+```bash
+npm run verify:env-registry      # код і реєстр описують той самий набір (офлайн)
+npm run verify:production-config # живий проєкт має те, що реєстр вимагає (онлайн)
+```
+
+Перший гейт входить у `npm run verify` і в CI. Другий потребує доступу до
+production-проєкту, тому виконується у preflight релізного раннера — він читає
+Supabase secrets, список задеплоєних Edge Functions, застосовані міграції та
+auth-конфігурацію (Site URL, redirect allowlist, Google provider) і блокує реліз
+до будь-якої важкої роботи. Значень секретів він не читає: звіряються тільки
+імена.
 
 Не додавайте на frontend-хостинг Google Client Secret, Supabase secret/service role key або JWT. Не друкуйте значення environment variables у build logs.
 
-Cloudflare project використовує **Direct Upload**: Cloudflare отримує вже готову папку `dist`, тому Dashboard variables не можуть змінити Vite bundle після build. Для поточного workflow створіть у корені незакомічений `.env.production` з таблицею значень вище або передайте ці самі змінні в CI, де запускається build. `.env.production` уже ігнорується Git.
+Cloudflare project використовує **Direct Upload**: Cloudflare отримує вже готову папку `dist`, тому Dashboard variables не можуть змінити Vite bundle після build. Для поточного workflow створіть у корені незакомічений `.env.production` зі значеннями для змінних, які реєстр позначає обов'язковими для `production`, або передайте ці самі змінні в CI, де запускається build. `.env.production` уже ігнорується Git.
 
 `git push` сам по собі не оновлює сайт. Чинна release-процедура спочатку відхиляє відсутні variables, localhost origin і privileged Supabase key, а потім перевіряє незмінний Agent artifact:
 

@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { loadEnv } from 'vite';
 import { activeBinding } from './lib/release/bindings.mjs';
+import { loadRegistry, validateValues } from './lib/env-registry.mjs';
 
 // The destination this verification is about. Production by default and pinned
 // there; a sandbox release supplies its own validated, disjoint binding.
@@ -12,10 +13,20 @@ const binding = activeBinding();
 const environment = loadEnv('production', process.cwd(), '');
 const memberPilot = process.argv.includes('--member-pilot');
 const identityOnly = process.argv.includes('--identity');
-const required = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_PUBLISHABLE_KEY', 'VITE_SITE_URL'];
-const failures = required
-  .filter(name => !environment[name]?.trim())
-  .map(name => `${name} is missing`);
+/**
+ * What production must have comes from config/environments.json, not from a
+ * list retyped here. A list in this file is a list that stops growing the day
+ * somebody adds a variable and forgets this gate exists — which is precisely
+ * how a build passed while production was missing a value it needed.
+ *
+ * The chooser keys are the one conditional: an identity-only deployment does
+ * not open a Drive chooser, so their absence is correct there and only there.
+ */
+const DRIVE_DEPENDENT = ['VITE_GOOGLE_PICKER_API_KEY', 'VITE_GOOGLE_PROJECT_NUMBER'];
+const registry = loadRegistry(process.cwd());
+const failures = validateValues(registry, 'web', 'production', environment)
+  .filter(problem => !(identityOnly && DRIVE_DEPENDENT.includes(problem.name)))
+  .map(problem => `${problem.name} ${problem.problem}`);
 const publishableKey = environment.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() ?? '';
 
 function legacyRole(key) {
@@ -72,15 +83,6 @@ if (
   !['disabled', 'testing'].includes(environment.VITE_TEAM_DIRECT_ADD_MODE.trim())
 )
   failures.push('VITE_TEAM_DIRECT_ADD_MODE must be disabled or testing');
-// Feature 011: the Google Picker values are public, but a malformed one is a
-// chooser that never opens. Presence on the team production path is asserted by
-// verify-team-production.mjs; the shape is asserted whenever a value is set.
-const pickerKey = environment.VITE_GOOGLE_PICKER_API_KEY?.trim();
-if (pickerKey && !/^AIza[0-9A-Za-z_-]{20,}$/u.test(pickerKey))
-  failures.push('VITE_GOOGLE_PICKER_API_KEY does not look like a Google browser API key');
-const projectNumber = environment.VITE_GOOGLE_PROJECT_NUMBER?.trim();
-if (projectNumber && !/^\d{6,}$/u.test(projectNumber))
-  failures.push('VITE_GOOGLE_PROJECT_NUMBER must be the numeric Cloud project number');
 
 if (failures.length) {
   console.error(`Production web environment check failed: ${failures.join('; ')}.`);

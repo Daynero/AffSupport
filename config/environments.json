@@ -1,0 +1,360 @@
+{
+  "$comment": [
+    "Every environment variable this product's deployed surfaces read, stated once.",
+    "",
+    "Before this file the answer to 'what must production have set' lived in four",
+    "places that drifted apart: a prose table in docs/PRODUCTION.md, a hand-typed",
+    "list in scripts/verify-web-env.mjs, another in scripts/lib/team-production-readiness.mjs,",
+    "and the actual values in an untracked .env.production nobody could diff. A",
+    "variable added to the code entered none of them automatically, so the first",
+    "thing that noticed was production.",
+    "",
+    "Two gates read this file and nothing else:",
+    "  scripts/verify-env-registry.mjs     - the code and this registry agree (offline)",
+    "  scripts/verify-production-config.mjs - the live project has what this says (online)",
+    "",
+    "Values never live here. Only names, shapes and where a value is supposed to",
+    "come from. A secret's presence is checked; its content is never read."
+  ],
+  "surfaces": {
+    "web": {
+      "description": "Build-time values baked into the browser bundle by Vite.",
+      "scan": {
+        "roots": ["apps/web/src", "packages/shared/src", "apps/web/vite.config.ts"],
+        "exclude": ["apps/web/src/vite-env.d.ts"],
+        "pattern": "vite"
+      },
+      "productionSource": ".env.production (untracked, repository root)",
+      "note": "Cloudflare uses Direct Upload, so dashboard variables cannot change a bundle after it is built. Whatever is missing at build time is missing in production until the next build."
+    },
+    "functions": {
+      "description": "Supabase Edge Function secrets, read at request time.",
+      "scan": {
+        "roots": ["supabase/functions"],
+        "pattern": "deno"
+      },
+      "productionSource": "supabase secrets set --project-ref <production>",
+      "note": "A missing secret is not a build failure. The function boots and answers 503 to real users, which is why these are checked against the live project before a release rather than trusted."
+    },
+    "agent": {
+      "description": "Deployment configuration packaged into the desktop app.",
+      "scan": {
+        "roots": ["config/production.env"],
+        "pattern": "envfile"
+      },
+      "productionSource": "config/production.env (tracked)",
+      "note": "Tracked on purpose: none of these are secret, and packaging must not depend on a file only one machine has."
+    }
+  },
+  "variables": [
+    {
+      "name": "VITE_SUPABASE_URL",
+      "surface": "web",
+      "required": ["production", "beta"],
+      "secret": false,
+      "format": "url",
+      "note": "Absent means the app cannot reach its database at all: validatePublicConfig refuses to start."
+    },
+    {
+      "name": "VITE_SUPABASE_PUBLISHABLE_KEY",
+      "surface": "web",
+      "required": ["production", "beta"],
+      "secret": false,
+      "format": "non-empty",
+      "note": "Public by design, but must never be a secret or service_role key. Both this gate and the browser check that."
+    },
+    {
+      "name": "VITE_SITE_URL",
+      "surface": "web",
+      "required": ["production", "beta"],
+      "secret": false,
+      "format": "https-origin",
+      "note": "Must equal the binding origin. A mismatch breaks the OAuth return trip, which looks like 'login does nothing'."
+    },
+    {
+      "name": "VITE_AGENT_URL",
+      "surface": "web",
+      "required": [],
+      "secret": false,
+      "format": "url",
+      "note": "Optional: apps/web/src/lib/config.ts falls back to the loopback default. Set in production anyway so the value is explicit."
+    },
+    {
+      "name": "VITE_APP_ENVIRONMENT",
+      "surface": "web",
+      "required": ["beta"],
+      "secret": false,
+      "format": "enum:beta|production",
+      "note": "Absent means production, deliberately: a build that forgets it gets the stricter rules instead of behaving like beta."
+    },
+    {
+      "name": "VITE_GOOGLE_PICKER_API_KEY",
+      "surface": "web",
+      "required": ["production"],
+      "secret": false,
+      "format": "google-browser-key",
+      "note": "Without it the storage chooser never opens, and the failure is silent until an owner clicks Connect."
+    },
+    {
+      "name": "VITE_GOOGLE_PROJECT_NUMBER",
+      "surface": "web",
+      "required": ["production"],
+      "secret": false,
+      "format": "digits",
+      "note": "Same chooser; the Picker refuses to initialise without the project number."
+    },
+    {
+      "name": "VITE_TEAM_DIRECT_ADD_MODE",
+      "surface": "web",
+      "required": [],
+      "secret": false,
+      "format": "enum:disabled|testing",
+      "note": "Any other value is refused by both the browser and the build gate."
+    },
+    {
+      "name": "VITE_TEAM_SELECTION_MODE",
+      "surface": "web",
+      "required": [],
+      "secret": false,
+      "format": "any",
+      "note": "Multi-selection opt-in for the storage list."
+    },
+    {
+      "name": "VITE_ANALYTICS_ENABLED",
+      "surface": "web",
+      "required": [],
+      "secret": false,
+      "format": "boolean",
+      "note": "Beta additionally suppresses analytics in code, so this is a declaration of intent rather than the only barrier."
+    },
+    {
+      "name": "VITE_LOCAL_DEV_AUTH",
+      "surface": "web",
+      "required": [],
+      "secret": false,
+      "format": "boolean",
+      "note": "A true value substitutes a hardcoded user. Refused outright in beta; it must never be set in production."
+    },
+    {
+      "name": "VITE_ADMIN_EMAIL",
+      "surface": "web",
+      "required": [],
+      "secret": false,
+      "format": "any",
+      "note": "A development hint only. Admin rights come from the database, never from this value."
+    },
+    {
+      "name": "VITE_PRODUCT_OPERATOR",
+      "surface": "web",
+      "required": [],
+      "secret": false,
+      "format": "any",
+      "note": "Shown in the legal pages. Empty leaves the operator unnamed, which the published Privacy Policy assumes is filled in."
+    },
+    {
+      "name": "VITE_LEGAL_CONTACT_EMAIL",
+      "surface": "web",
+      "required": [],
+      "secret": false,
+      "format": "any",
+      "note": "Same pages, same caveat: the texts promise a contact address."
+    },
+    {
+      "name": "VITE_WEB_BUILD_ID",
+      "surface": "web",
+      "required": [],
+      "secret": false,
+      "format": "any",
+      "note": "Build metadata for analytics. Falls back to the product version."
+    },
+    {
+      "name": "VITE_WEB_REVISION",
+      "surface": "web",
+      "required": [],
+      "secret": false,
+      "format": "any",
+      "note": "Build metadata: which commit produced this bundle."
+    },
+
+    {
+      "name": "SUPABASE_URL",
+      "surface": "functions",
+      "required": [],
+      "secret": false,
+      "provided": "platform",
+      "format": "url",
+      "note": "Injected by Supabase into every function. Never set by hand; listing it as required would fail a correct project."
+    },
+    {
+      "name": "SUPABASE_ANON_KEY",
+      "surface": "functions",
+      "required": [],
+      "secret": true,
+      "provided": "platform",
+      "format": "non-empty",
+      "note": "Injected by Supabase."
+    },
+    {
+      "name": "SUPABASE_SERVICE_ROLE_KEY",
+      "surface": "functions",
+      "required": [],
+      "secret": true,
+      "provided": "platform",
+      "format": "non-empty",
+      "note": "Injected by Supabase."
+    },
+    {
+      "name": "AGENT_TOKEN_PRIVATE_KEY",
+      "surface": "functions",
+      "required": ["production"],
+      "secret": true,
+      "format": "base64",
+      "note": "Signs desktop entitlement tokens. Absent, issue-agent-token answers 503 and NOBODY can pair the desktop app — a total outage of the product's main flow that no build gate would have noticed."
+    },
+    {
+      "name": "WISHLY_SITE_URL",
+      "surface": "functions",
+      "required": ["production"],
+      "secret": false,
+      "format": "https-origin",
+      "note": "The origin functions accept requests from and build links against. Must match the web VITE_SITE_URL and the binding."
+    },
+    {
+      "name": "GOOGLE_CLIENT_ID",
+      "surface": "functions",
+      "required": ["production"],
+      "secret": false,
+      "format": "non-empty",
+      "note": "Drive OAuth. Absent, storage connection fails at the first redirect."
+    },
+    {
+      "name": "GOOGLE_CLIENT_SECRET",
+      "surface": "functions",
+      "required": ["production"],
+      "secret": true,
+      "format": "non-empty",
+      "note": "Drive OAuth token exchange."
+    },
+    {
+      "name": "GOOGLE_REDIRECT_URI",
+      "surface": "functions",
+      "required": ["production"],
+      "secret": false,
+      "format": "url",
+      "note": "Must match the Google console entry exactly, character for character, or the return trip fails after the user has already consented."
+    },
+    {
+      "name": "DRIVE_OAUTH_MODE",
+      "surface": "functions",
+      "required": ["production"],
+      "secret": false,
+      "format": "enum:disabled|testing|verified",
+      "note": "Production storage is legal only as 'verified'. 'testing' is refused on a production origin by the gate in _shared/auth.ts."
+    },
+    {
+      "name": "DRIVE_RESTRICTED_SCOPE_APPROVED",
+      "surface": "functions",
+      "required": [],
+      "secret": false,
+      "format": "boolean",
+      "note": "Only meaningful once a restricted scope is requested; unset means not approved."
+    },
+    {
+      "name": "RESEND_API_KEY",
+      "surface": "functions",
+      "required": ["production"],
+      "secret": true,
+      "format": "non-empty",
+      "note": "Invitation delivery. Absent, team-invitations returns the link instead of sending it — which is correct in beta and silently broken in production."
+    },
+    {
+      "name": "INVITE_EMAIL_FROM",
+      "surface": "functions",
+      "required": ["production"],
+      "secret": false,
+      "format": "non-empty",
+      "note": "The verified sender address invitations come from."
+    },
+    {
+      "name": "CATALOG_SYNC_SECRET",
+      "surface": "functions",
+      "required": ["production"],
+      "secret": true,
+      "format": "non-empty",
+      "note": "Shared secret the catalog worker authenticates with. Absent, Drive scanning never runs and libraries stay empty with no error shown."
+    },
+    {
+      "name": "CATALOG_SYNC_BUDGET_MS",
+      "surface": "functions",
+      "required": [],
+      "secret": false,
+      "format": "integer",
+      "note": "Per-invocation time budget; the code has a default."
+    },
+    {
+      "name": "PREVIEW_WARM_SECRET",
+      "surface": "functions",
+      "required": ["production"],
+      "secret": true,
+      "format": "non-empty",
+      "note": "Same shape as the catalog worker: absent, preview warming rejects every request and previews never appear."
+    },
+    {
+      "name": "TEAM_DIRECT_ADD_MODE",
+      "surface": "functions",
+      "required": [],
+      "secret": false,
+      "format": "enum:disabled|testing",
+      "note": "Server half of the member pilot switch; the browser half is VITE_TEAM_DIRECT_ADD_MODE."
+    },
+    {
+      "name": "SOTY_ENVIRONMENT",
+      "surface": "functions",
+      "required": [],
+      "secret": false,
+      "format": "enum:beta|production",
+      "note": "Absent means production, matching the web surface."
+    },
+
+    {
+      "name": "PUBLIC_SITE_ORIGIN",
+      "surface": "agent",
+      "required": ["production"],
+      "secret": false,
+      "format": "https-origin",
+      "note": "The origin the packaged agent accepts browser requests from. Checked against the release binding before a deploy."
+    },
+    {
+      "name": "DEV_SITE_ORIGIN",
+      "surface": "agent",
+      "required": [],
+      "secret": false,
+      "format": "url",
+      "note": "Loopback origin for local development builds."
+    },
+    {
+      "name": "AGENT_PORT",
+      "surface": "agent",
+      "required": ["production"],
+      "secret": false,
+      "format": "integer",
+      "note": "Must differ from the beta agent port, or a beta build and a production build fight over the same socket."
+    },
+    {
+      "name": "AGENT_ENTITLEMENT_PUBLIC_KEY",
+      "surface": "agent",
+      "required": ["production"],
+      "secret": false,
+      "format": "base64",
+      "note": "Public half of the pair whose private half is the AGENT_TOKEN_PRIVATE_KEY function secret. If these two stop being a pair, every entitlement token verifies as invalid and paired users are logged out."
+    },
+    {
+      "name": "DRIVE_OAUTH_MODE",
+      "surface": "agent",
+      "required": ["production"],
+      "secret": false,
+      "format": "enum:disabled|testing|verified",
+      "note": "Read by the web-env gate to decide which deploy command is legal. Must agree with the function secret of the same name."
+    }
+  ]
+}

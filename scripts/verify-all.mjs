@@ -100,6 +100,16 @@ const PHASES = {
         timeoutMs: 60_000
       },
       {
+        // Offline half of configuration parity: the code and
+        // config/environments.json describe the same variables. The online half
+        // (does the live project actually have them) needs credentials CI does
+        // not carry, so it runs in the release runner's preflight instead.
+        id: 'env-registry',
+        command: 'node',
+        args: [path.join(root, 'scripts/verify-env-registry.mjs')],
+        timeoutMs: 60_000
+      },
+      {
         id: 'csp',
         command: 'node',
         args: [path.join(root, 'scripts/generate-csp-headers.mjs'), '--check'],

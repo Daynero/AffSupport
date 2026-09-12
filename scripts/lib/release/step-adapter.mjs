@@ -158,12 +158,39 @@ export async function createStepAdapter({
   const childEnv = { ...env, SOTY_RELEASE_RUN_ID: runId };
 
   const steps = {
-    preflight: () =>
-      run('preflight', [process.execPath, 'scripts/verify-web-env.mjs'], {
+    /**
+     * Preflight reads: the local build environment, then the live project.
+     *
+     * The second half is the one that was missing. Everything before it can
+     * pass on a machine whose code is perfect and a project that is missing the
+     * secret, function or migration that code needs — and the first thing to
+     * notice would be a user meeting a 503. Declared migrations are named so a
+     * release that intends to apply them is not mistaken for drift.
+     */
+    preflight: async () => {
+      const webEnv = await run('preflight', [process.execPath, 'scripts/verify-web-env.mjs'], {
         cwd,
         env: childEnv,
         admission: null
-      }),
+      });
+      if (!webEnv.ok) return webEnv;
+      // The live half is a remote read. A dry configuration walks the whole
+      // sequence without touching anything outside this machine, so it stops
+      // here rather than reaching for a project it was told not to contact.
+      if (!allowRemote) return webEnv;
+      const pending = (backendPlan?.changes ?? [])
+        .filter(change => change.kind === 'migration')
+        .map(change => change.id);
+      return run(
+        'preflight',
+        [
+          process.execPath,
+          'scripts/verify-production-config.mjs',
+          ...(pending.length ? [`--expect-pending=${pending.join(',')}`] : [])
+        ],
+        { cwd, env: childEnv, admission: null }
+      );
+    },
 
     prepare: () => run('prepare', npm('build', '-w', '@video-compressor/shared'), { cwd, env: childEnv, admission }),
 
