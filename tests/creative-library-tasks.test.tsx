@@ -597,6 +597,51 @@ describe('Creative Library task workflows', () => {
     ]);
   });
 
+  it('finds media by name across the space instead of walking folders', async () => {
+    const api = client();
+    api.listMaterials = vi.fn().mockResolvedValue([]);
+    // The whole space, not the open folder: the file sits three levels down.
+    api.searchCatalog = vi.fn().mockResolvedValue({
+      items: [
+        {
+          id: SECOND_ASSET_ID,
+          teamId: TEAM_ID,
+          parentFolderId: 'drive-folder-campaigns',
+          name: 'new-image.png',
+          kind: 'file' as const,
+          category: 'image' as const,
+          previewState: 'ready'
+        }
+      ],
+      total: 1
+    });
+    const onAdd = vi.fn();
+    render(
+      <TaskAttachmentPicker
+        teamId={TEAM_ID}
+        client={api}
+        attachedMaterialIds={new Set()}
+        onAdd={onAdd}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Choose from the connected space/ }));
+    const field = await screen.findByRole('searchbox', { name: 'Search the space by name' });
+    fireEvent.change(field, { target: { value: 'new-image' } });
+
+    await waitFor(() =>
+      expect(api.searchCatalog).toHaveBeenCalledWith(
+        TEAM_ID,
+        expect.objectContaining({ query: 'new-image' })
+      )
+    );
+    fireEvent.click(await screen.findByRole('button', { name: /new-image\.png/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add to task (1)' }));
+    expect(onAdd).toHaveBeenCalledWith([
+      expect.objectContaining({ id: SECOND_ASSET_ID, name: 'new-image.png' })
+    ]);
+  });
+
   it('offers exactly one root control, and it is the one focus opens on', async () => {
     // The picker used to render "Root" twice -- a standalone action and the
     // first crumb -- and the dialog focused the standalone one, which is

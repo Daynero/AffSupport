@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import type { MaterialCategory } from '@video-compressor/shared';
+import { useEffect, useMemo, useState } from 'react';
+import { ChevronLeft, FileText, FileVideo, Folder, Image, Plus, Search, X } from 'lucide-react';
+import type { CatalogMaterialItem, MaterialCategory } from '@video-compressor/shared';
 import { CATEGORY_LABEL } from '../explorer/rowKinds';
 import {
   teamApi,
@@ -8,6 +9,7 @@ import {
 } from '../../api/team';
 import { Modal } from '../../components/Modal';
 import { Button } from '../../components/ui';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 
 export interface TaskAttachmentCandidate {
@@ -19,6 +21,14 @@ export interface TaskAttachmentCandidate {
 
 export interface TaskAttachmentPickerClient {
   listMaterials: (teamId: string, parentFolderId: string | null) => Promise<TeamMaterialSummary[]>;
+  /**
+   * Looks through the whole space rather than the open folder. Optional: a
+   * caller without it gets folder browsing alone, and the field is not shown.
+   */
+  searchCatalog?: (
+    teamId: string,
+    request: { query: string; page: number; pageSize: number }
+  ) => Promise<{ items: CatalogMaterialItem[]; total: number }>;
   attachTaskMaterials(input: {
     teamId: string;
     taskId: string;
@@ -55,56 +65,11 @@ export async function attachTaskMaterialsInChunks(input: {
   return result;
 }
 
-function FolderIcon() {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-      <path d="M2.8 5.5a1.7 1.7 0 0 1 1.7-1.7h3.15l1.55 1.7h6.3a1.7 1.7 0 0 1 1.7 1.7v7.3a1.7 1.7 0 0 1-1.7 1.7H4.5a1.7 1.7 0 0 1-1.7-1.7Z" />
-      <path d="M2.8 7.3h14.4" />
-    </svg>
-  );
-}
-
+/** The same icon set the rest of the space draws with, at the same weight. */
 function MediaIcon({ category }: { category: MaterialCategory | null }) {
-  if (category === 'video') {
-    return (
-      <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-        <rect x="2.5" y="4.3" width="11.1" height="11.4" rx="2" />
-        <path d="m9 8 3.1 2-3.1 2Z" fill="currentColor" stroke="none" />
-        <path d="m13.6 8.1 3.9-2v7.8l-3.9-2" />
-      </svg>
-    );
-  }
-  if (category === 'image') {
-    return (
-      <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-        <rect x="2.5" y="3.5" width="15" height="13" rx="2" />
-        <circle cx="7" cy="8" r="1.25" />
-        <path d="m4.5 14 3.8-3.7 2.5 2.35 2.1-1.85 2.6 3" />
-      </svg>
-    );
-  }
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-      <path d="M5.4 2.8h6.1l3 3v11.4H5.4a1.6 1.6 0 0 1-1.6-1.6V4.4a1.6 1.6 0 0 1 1.6-1.6Z" />
-      <path d="M11.5 2.8v3h3M6.8 10h6.4M6.8 13h4.5" />
-    </svg>
-  );
-}
-
-function PlusIcon() {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-      <path d="M10 3.2v13.6M3.2 10h13.6" />
-    </svg>
-  );
-}
-
-function ArrowLeftIcon() {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-      <path d="m11.8 4.4-5.6 5.6 5.6 5.6M6.6 10h8.2" />
-    </svg>
-  );
+  if (category === 'video') return <FileVideo size={18} strokeWidth={ICON_STROKE} />;
+  if (category === 'image') return <Image size={18} strokeWidth={ICON_STROKE} />;
+  return <FileText size={18} strokeWidth={ICON_STROKE} />;
 }
 
 function toCandidate(material: TeamMaterialSummary): TaskAttachmentCandidate {
@@ -134,8 +99,20 @@ export function TaskAttachmentPicker({
   const [selected, setSelected] = useState<Map<string, TaskAttachmentCandidate>>(new Map());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  /**
+   * Looking for one file by name, instead of opening folders until it turns up.
+   * A space's media sits several folders deep and the picker opened at the
+   * root, so attaching one known file was four presses of guesswork.
+   */
+  const [search, setSearch] = useState('');
+  const [found, setFound] = useState<TeamMaterialSummary[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const term = search.normalize('NFC').trim();
+  const searchable = typeof client.searchCatalog === 'function';
   const parentId = path.at(-1)?.id ?? null;
   const pickerTitleId = 'team-task-attachment-picker-title';
+  /** What the list shows: search answers while a term is typed, the folder otherwise. */
+  const shown = useMemo(() => (found ? found : materials), [found, materials]);
 
   useEffect(() => {
     setPath([]);
@@ -165,6 +142,43 @@ export function TaskAttachmentPicker({
     };
   }, [client, open, parentId, teamId]);
 
+  // Typing settles before the space is asked: one request per pause, not per
+  // keystroke. Under two characters there is nothing worth searching for.
+  useEffect(() => {
+    const searchCatalog = client.searchCatalog;
+    if (!open || !searchCatalog) return;
+    if (term.length < 2) {
+      setFound(null);
+      setSearching(false);
+      return;
+    }
+    let active = true;
+    setSearching(true);
+    const timer = window.setTimeout(() => {
+      void searchCatalog(teamId, { query: term, page: 1, pageSize: 50 })
+        .then(response => {
+          if (!active) return;
+          setFound(
+            response.items.map(item => ({
+              ...(item as unknown as TeamMaterialSummary),
+              teamId
+            }))
+          );
+          setError(false);
+        })
+        .catch(() => {
+          if (active) setError(true);
+        })
+        .finally(() => {
+          if (active) setSearching(false);
+        });
+    }, 250);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [client, open, teamId, term]);
+
   const stage = (candidates: readonly TaskAttachmentCandidate[]) => {
     const unique = new Map<string, TaskAttachmentCandidate>();
     for (const candidate of candidates) {
@@ -187,6 +201,8 @@ export function TaskAttachmentPicker({
   const close = () => {
     setOpen(false);
     setSelected(new Map());
+    setSearch('');
+    setFound(null);
   };
 
   return (
@@ -200,7 +216,7 @@ export function TaskAttachmentPicker({
         onClick={() => setOpen(true)}
       >
         <span className="team-task-attachment-add-icon">
-          <PlusIcon />
+          <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
         </span>
         <strong>{t('teamTaskAttachMedia')}</strong>
         <small>{t('teamTaskAttachmentAddHint')}</small>
@@ -219,48 +235,78 @@ export function TaskAttachmentPicker({
               <h2 id={pickerTitleId}>{t('teamTaskAttachmentPickerTitle')}</h2>
               <small>{t('teamTaskAttachmentAddDraftHint')}</small>
             </div>
-            <div className="team-task-picker-path" aria-label={t('teamTaskAttachmentPickerTitle')}>
-              {/* "Root" used to appear twice: once as a standalone action and
+            {searchable && (
+              <div className="team-task-picker-search">
+                <Search size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                <input
+                  type="search"
+                  value={search}
+                  aria-label={t('teamTaskAttachmentSearch')}
+                  placeholder={t('teamTaskAttachmentSearch')}
+                  onChange={event => setSearch(event.target.value)}
+                />
+                {term.length > 0 && (
+                  <button
+                    type="button"
+                    className="team-task-picker-search-clear"
+                    aria-label={t('teamCancel')}
+                    onClick={() => setSearch('')}
+                  >
+                    <X size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+            )}
+            {/* The trail is about the open folder, and a search is not in one. */}
+            {found === null && (
+              <div
+                className="team-task-picker-path"
+                aria-label={t('teamTaskAttachmentPickerTitle')}
+              >
+                {/* "Root" used to appear twice: once as a standalone action and
                   again as the first crumb. The standalone one was also the
                   dialog's initial-focus target while being disabled at the
                   root, so opening the picker focused nothing. One root, in the
                   trail, where a path reads. */}
-              {path.length > 0 && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="team-task-picker-path-action"
-                  onClick={() => setPath(current => current.slice(0, -1))}
-                >
-                  <ArrowLeftIcon />
-                  {t('teamTaskFolderBack')}
-                </Button>
-              )}
-              <nav aria-label={t('teamTaskAttachmentPickerTitle')}>
-                <button id="team-task-picker-root" type="button" onClick={() => setPath([])}>
-                  {t('teamTaskFolderRoot')}
-                </button>
-                {path.map((folder, index) => (
-                  <span key={folder.id}>
-                    <i aria-hidden="true">/</i>
-                    <button
-                      type="button"
-                      onClick={() => setPath(current => current.slice(0, index + 1))}
-                    >
-                      {folder.name}
-                    </button>
-                  </span>
-                ))}
-              </nav>
-            </div>
-            {loading && <p aria-live="polite">{t('teamTaskLoadingPickable')}</p>}
-            {error && <p className="team-inline-error">{t('teamTaskSearchFailed')}</p>}
-            {!loading && !error && materials.length === 0 && (
-              <p className="team-task-picker-empty">{t('teamTaskFolderEmpty')}</p>
+                {path.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="team-task-picker-path-action"
+                    onClick={() => setPath(current => current.slice(0, -1))}
+                  >
+                    <ChevronLeft size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                    {t('teamTaskFolderBack')}
+                  </Button>
+                )}
+                <nav aria-label={t('teamTaskAttachmentPickerTitle')}>
+                  <button id="team-task-picker-root" type="button" onClick={() => setPath([])}>
+                    {t('teamTaskFolderRoot')}
+                  </button>
+                  {path.map((folder, index) => (
+                    <span key={folder.id}>
+                      <i aria-hidden="true">/</i>
+                      <button
+                        type="button"
+                        onClick={() => setPath(current => current.slice(0, index + 1))}
+                      >
+                        {folder.name}
+                      </button>
+                    </span>
+                  ))}
+                </nav>
+              </div>
             )}
-            {!loading && !error && materials.length > 0 && (
+            {(loading || searching) && <p aria-live="polite">{t('teamTaskLoadingPickable')}</p>}
+            {error && <p className="team-inline-error">{t('teamTaskSearchFailed')}</p>}
+            {!loading && !searching && !error && shown.length === 0 && (
+              <p className="team-task-picker-empty">
+                {found === null ? t('teamTaskFolderEmpty') : t('teamTaskSearchEmpty')}
+              </p>
+            )}
+            {!loading && !searching && !error && shown.length > 0 && (
               <ul className="team-task-picker-results team-task-picker-folder-results">
-                {materials.map(material => {
+                {shown.map(material => {
                   const isFolder = material.kind === 'folder';
                   const isAttached = attachedMaterialIds.has(material.id);
                   const selectedMaterial = selected.has(material.id);
@@ -285,7 +331,11 @@ export function TaskAttachmentPicker({
                         }}
                       >
                         <span className="team-task-picker-item-type" aria-hidden="true">
-                          {isFolder ? <FolderIcon /> : <MediaIcon category={material.category} />}
+                          {isFolder ? (
+                            <Folder size={18} strokeWidth={ICON_STROKE} />
+                          ) : (
+                            <MediaIcon category={material.category} />
+                          )}
                         </span>
                         <span className="team-task-picker-item-copy">
                           <strong>{material.name}</strong>
@@ -319,7 +369,7 @@ export function TaskAttachmentPicker({
                   close();
                 }}
               >
-                <PlusIcon />
+                <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
                 {t('teamTaskAddSelected', { count: selected.size })}
               </Button>
             </div>
