@@ -269,6 +269,11 @@
   font-size: var(--text-caption);
   line-height: 1.45;
 }
+/* The panel's own element inside the shared popover surface; it takes no space
+   of its own. */
+.transcription-language-doubt-body {
+  display: contents;
+}
 .transcription-language-doubt-title {
   margin: 0;
   color: var(--color-warning);

@@ -6,6 +6,7 @@ import { Button, ProgressBar, type Translate } from '../components/ui';
 import { formatSize } from '../format';
 import type { Language } from '../i18n';
 import { GemmaConsent } from './GemmaConsent';
+import { Alert } from '../components/ui/index';
 
 export { combineModelInfo };
 
@@ -67,9 +68,17 @@ export function ModelGate({
             )}
           </>
         ) : model.error ? (
-          <span className="transcription-model-error">
+          /* Announced, and named as well as coloured: the word "failed" carries
+             the state for a reader who cannot see the red (FR-032). */
+          <Alert
+            className="transcription-model-error"
+            color="error"
+            variant="soft"
+            live="alert"
+            title={t('statusFailed')}
+          >
             {t('transcriptionModelError', { error: model.error })}
-          </span>
+          </Alert>
         ) : (
           <span>{t('transcriptionModelBody', { size })}</span>
         )}

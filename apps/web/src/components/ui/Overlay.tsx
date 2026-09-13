@@ -298,6 +298,12 @@ export interface PopoverProps {
   placement?: 'bottom-start' | 'bottom-end' | 'top-start' | 'top-end';
   /** True for something opened many times an hour: no animation at all. */
   frequent?: boolean;
+  /**
+   * Other elements that count as "inside". A surface can have a second trigger
+   * — the language panel opens from a `?` and from the percentage beside it —
+   * and a press on one of those is not a press outside.
+   */
+  within?: ReadonlyArray<RefObject<HTMLElement | null>>;
   /** The surface takes the anchor's width — a select, a combobox. */
   matchWidth?: boolean;
   /** Floor for that width, so a short chip does not open an unreadable list. */
@@ -314,6 +320,7 @@ export function Popover({
   anchor,
   placement = 'bottom-start',
   frequent = false,
+  within,
   matchWidth = false,
   minWidth,
   maxHeight,
@@ -337,6 +344,7 @@ export function Popover({
       const target = event.target as Node;
       if (surface.current?.contains(target)) return;
       if (anchor?.current?.contains(target)) return;
+      if (within?.some(element => element.current?.contains(target))) return;
       /*
        * A dialog this popover opened is portalled to the body, outside the
        * popover's own subtree — but a press inside it is not "outside the
@@ -354,7 +362,7 @@ export function Popover({
     };
     window.addEventListener('mousedown', onPointerDown);
     return () => window.removeEventListener('mousedown', onPointerDown);
-  }, [anchor, close, open]);
+  }, [anchor, close, open, within]);
 
   if (!open || typeof document === 'undefined') return null;
 
