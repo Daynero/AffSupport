@@ -35,9 +35,9 @@ Web app only: `apps/web/src/**`, `tests/**`, `scripts/**`, `docs/**`.
 
 **Purpose**: The places the system will live.
 
-- [ ] T001 Create `apps/web/src/styles/tokens.css`, `apps/web/src/styles/base.css` and `apps/web/src/styles/components.css` as empty modules imported from `apps/web/src/styles.css` (import order: tokens → base → components → existing modules → existing screen rules)
-- [ ] T002 [P] Create `apps/web/src/components/ui/index.ts` and make `apps/web/src/components/ui.tsx` re-export from it, so the ~60 existing `from '../components/ui'` imports keep working unchanged
-- [ ] T003 [P] Put both design documents on the contributor path: add a "Design system" section to `README.md` and `AGENTS.md` pointing at `docs/DESIGN.md` (product rules, first authority), `docs/DESIGN-PRINCIPLES.md` (craft reference) and `specs/021-design-system-redesign/contracts/`
+- [x] T001 Create `apps/web/src/styles/tokens.css`, `apps/web/src/styles/base.css` and `apps/web/src/styles/components.css` as empty modules imported from `apps/web/src/styles.css` (import order: tokens → base → components → existing modules → existing screen rules)
+- [x] T002 [P] Create `apps/web/src/components/ui/index.ts` and make `apps/web/src/components/ui.tsx` re-export from it, so the ~60 existing `from '../components/ui'` imports keep working unchanged
+- [x] T003 [P] Put both design documents on the contributor path: add a "Design system" section to `README.md` and `AGENTS.md` pointing at `docs/DESIGN.md` (product rules, first authority), `docs/DESIGN-PRINCIPLES.md` (craft reference) and `specs/021-design-system-redesign/contracts/`
 
 ---
 
@@ -50,15 +50,15 @@ layer, adopted by the existing stylesheet so unmigrated screens inherit it untou
 `npx vitest run tests/design-tokens.test.ts` both pass; the product looks unchanged except
 where a value was already out of contract.
 
-- [ ] T004 Write the seven colour roles (`primary`, `secondary`, `success`, `info`, `warning`, `error`, `neutral`) with their full shade sets for both themes into `apps/web/src/styles/tokens.css`, per `contracts/tokens.md`; keep `--purple-*` / `--honey-*` as the private palette the roles are built from
-- [ ] T005 Write the type ramp (`--text-display` … `--text-micro`) with weights and line heights into `apps/web/src/styles/tokens.css`, keeping the current step values so no screen resizes
-- [ ] T006 [P] Write the space, radius, shadow and layer sets into `apps/web/src/styles/tokens.css`, documenting the 2× radius-nesting rule from `docs/DESIGN-PRINCIPLES.md`
-- [ ] T007 [US3] Write the motion set into `apps/web/src/styles/tokens.css`: `--motion-fast: 150ms`, `--motion-base: 220ms`, `--motion-slow: 300ms`, `--ease-out: cubic-bezier(0.16, 1, 0.3, 1)`, `--ease-in-out: cubic-bezier(0.65, 0, 0.35, 1)`, plus the `prefers-reduced-motion` block that collapses all three durations to 1ms
-- [ ] T008 Redefine every legacy custom property in `apps/web/src/styles.css` as an alias of a token (`--color-accent*` → primary, `--color-action*` → secondary, `--color-surface*`/`--color-text*` → neutral, `--text-2xs…--text-17xl` → the nearest ramp step, `--dur-*` → motion with anything over 300ms snapping to `--motion-slow`, `--ease-*` → the two curves); delete the now-duplicate definitions
-- [ ] T009 Move the global reset, element defaults and the single focus-visible treatment out of `apps/web/src/styles.css` into `apps/web/src/styles/base.css`
-- [ ] T010 [P] Write `scripts/check-design-tokens.mjs`: fail on a hex/`rgb()`/`hsl()` literal, a `ms`/`s` duration, a `px` radius or a `rem` font-size outside `styles/tokens.css`, and on a `transition` naming a property other than `transform`, `opacity`, `filter`, `color`, `background-color`, `border-color`, `box-shadow`; report file, line and the token to use instead
-- [ ] T011 Wire `scripts/check-design-tokens.mjs` into `npm run verify` in `package.json`, with an allow-list file for the exemptions that exist at the moment it lands (the list must shrink to empty by T151)
-- [ ] T012 [P] [US4] Write `tests/design-tokens.test.ts`: every token has a value in both themes; every declared foreground/background pair in `contracts/tokens.md` meets WCAG AA (4.5:1 text, 3:1 large and non-text); no duration exceeds 300ms
+- [x] T004 Write the seven colour roles (`primary`, `secondary`, `success`, `info`, `warning`, `error`, `neutral`) with their full shade sets for both themes into `apps/web/src/styles/tokens.css`, per `contracts/tokens.md`; keep `--purple-*` / `--honey-*` as the private palette the roles are built from
+- [x] T005 Write the type ramp (`--text-display` … `--text-micro`) with weights and line heights into `apps/web/src/styles/tokens.css`, keeping the current step values so no screen resizes
+- [x] T006 [P] Write the space, radius, shadow and layer sets into `apps/web/src/styles/tokens.css`, documenting the 2× radius-nesting rule from `docs/DESIGN-PRINCIPLES.md`
+- [x] T007 [US3] Write the motion set into `apps/web/src/styles/tokens.css`: `--motion-fast: 150ms`, `--motion-base: 220ms`, `--motion-slow: 300ms`, `--ease-out: cubic-bezier(0.16, 1, 0.3, 1)`, `--ease-in-out: cubic-bezier(0.65, 0, 0.35, 1)`, plus the `prefers-reduced-motion` block that collapses all three durations to 1ms
+- [x] T008 Redefine every legacy custom property in `apps/web/src/styles.css` as an alias of a token (`--color-accent*` → primary, `--color-action*` → secondary, `--color-surface*`/`--color-text*` → neutral, `--text-2xs…--text-17xl` → the nearest ramp step, `--dur-*` → motion with anything over 300ms snapping to `--motion-slow`, `--ease-*` → the two curves); delete the now-duplicate definitions
+- [x] T009 Move the global reset, element defaults and the single focus-visible treatment out of `apps/web/src/styles.css` into `apps/web/src/styles/base.css`
+- [x] T010 [P] Write `scripts/check-design-tokens.mjs`: fail on a hex/`rgb()`/`hsl()` literal, a `ms`/`s` duration, a `px` radius or a `rem` font-size outside `styles/tokens.css`, and on a `transition` naming a property other than `transform`, `opacity`, `filter`, `color`, `background-color`, `border-color`, `box-shadow`; report file, line and the token to use instead
+- [x] T011 Wire `scripts/check-design-tokens.mjs` into `npm run verify` in `package.json`, with an allow-list file for the exemptions that exist at the moment it lands (the list must shrink to empty by T151)
+- [x] T012 [P] [US4] Write `tests/design-tokens.test.ts`: every token has a value in both themes; every declared foreground/background pair in `contracts/tokens.md` meets WCAG AA (4.5:1 text, 3:1 large and non-text); no duration exceeds 300ms
 - [ ] T013 Run the beta and walk five screens (compressor, transcription, explorer, tasks, settings) confirming the alias layer changed nothing except out-of-contract durations; record anything that moved in `specs/021-design-system-redesign/findings.md`
 
 **Checkpoint**: the system exists and the whole product is already reading from it.
@@ -72,27 +72,27 @@ where a value was already out of contract.
 **Independent test**: open `/design` — every component, variant, size and state is visible;
 building a new screen from them needs no new token.
 
-- [ ] T014 [US5] Implement Button and IconButton in `apps/web/src/components/ui/Button.tsx`: six variants × five sizes × seven colours, plus `loading`, `disabled`, `block`, `square`, leading/trailing icon, and the `:active` 0.97 scale (excluded under reduced motion)
-- [ ] T015 [P] [US5] Implement Badge and Chip in `apps/web/src/components/ui/Badge.tsx`, including the removable and selected chip states
-- [ ] T016 [P] [US5] Implement Card (surface/panel/section roles) and Separator in `apps/web/src/components/ui/Card.tsx`
-- [ ] T017 [P] [US5] Implement Alert in `apps/web/src/components/ui/Alert.tsx` with the five semantic colours and soft/subtle/outline variants
-- [ ] T018 [US5] Implement FormField, Input, InputNumber, Textarea and Select in `apps/web/src/components/ui/Field.tsx`, with label/help/error/required anatomy and the rest/focus/disabled/invalid states
-- [ ] T019 [US5] Implement Checkbox, RadioGroup (list/cards/pictos), Switch, Slider and SegmentedControl in `apps/web/src/components/ui/Choice.tsx`
-- [ ] T020 [P] [US5] Implement SelectMenu and InputTags in `apps/web/src/components/ui/Field.tsx` (search, multiple, empty state)
-- [ ] T021 [US2] [US5] Implement Empty, Skeleton and Progress in `apps/web/src/components/ui/Feedback.tsx` — Empty takes icon, title, one sentence and an optional action; Skeleton takes the shape of what is coming (text, block, row, tile)
-- [ ] T022 [US5] Implement Modal, Drawer, Popover, DropdownMenu and ContextMenu in `apps/web/src/components/ui/Overlay.tsx`, with focus trap, restore-on-close, and the 0.95→1 scale from the trigger's origin
+- [x] T014 [US5] Implement Button and IconButton in `apps/web/src/components/ui/Button.tsx`: six variants × five sizes × seven colours, plus `loading`, `disabled`, `block`, `square`, leading/trailing icon, and the `:active` 0.97 scale (excluded under reduced motion)
+- [x] T015 [P] [US5] Implement Badge and Chip in `apps/web/src/components/ui/Badge.tsx`, including the removable and selected chip states
+- [x] T016 [P] [US5] Implement Card (surface/panel/section roles) and Separator in `apps/web/src/components/ui/Card.tsx`
+- [x] T017 [P] [US5] Implement Alert in `apps/web/src/components/ui/Alert.tsx` with the five semantic colours and soft/subtle/outline variants
+- [x] T018 [US5] Implement FormField, Input, InputNumber, Textarea and Select in `apps/web/src/components/ui/Field.tsx`, with label/help/error/required anatomy and the rest/focus/disabled/invalid states
+- [x] T019 [US5] Implement Checkbox, RadioGroup (list/cards/pictos), Switch, Slider and SegmentedControl in `apps/web/src/components/ui/Choice.tsx`
+- [x] T020 [P] [US5] Implement SelectMenu and InputTags in `apps/web/src/components/ui/Field.tsx` (search, multiple, empty state)
+- [x] T021 [US2] [US5] Implement Empty, Skeleton and Progress in `apps/web/src/components/ui/Feedback.tsx` — Empty takes icon, title, one sentence and an optional action; Skeleton takes the shape of what is coming (text, block, row, tile)
+- [x] T022 [US5] Implement Modal, Drawer, Popover, DropdownMenu and ContextMenu in `apps/web/src/components/ui/Overlay.tsx`, with focus trap, restore-on-close, and the 0.95→1 scale from the trigger's origin
 - [ ] T023 [US5] Re-home `apps/web/src/components/Modal.tsx` and `apps/web/src/components/toast.tsx` onto Overlay and Feedback without changing their public API
-- [ ] T024 [P] [US5] Implement Tooltip with a delay group (delay on the first of a group, none on its neighbours) in `apps/web/src/components/ui/Feedback.tsx`
-- [ ] T025 [P] [US5] Implement Tabs, Breadcrumb, Link and Pagination in `apps/web/src/components/ui/Navigation.tsx`
-- [ ] T026 [US5] Implement Table (header, row, cell, `xs`/`sm` density, sticky header, selectable, row actions), Accordion, Tree, Timeline and User in `apps/web/src/components/ui/Table.tsx`
+- [x] T024 [P] [US5] Implement Tooltip with a delay group (delay on the first of a group, none on its neighbours) in `apps/web/src/components/ui/Feedback.tsx`
+- [x] T025 [P] [US5] Implement Tabs, Breadcrumb, Link and Pagination in `apps/web/src/components/ui/Navigation.tsx`
+- [x] T026 [US5] Implement Table (header, row, cell, `xs`/`sm` density, sticky header, selectable, row actions), Accordion, Tree, Timeline and User in `apps/web/src/components/ui/Table.tsx`
 - [ ] T027 [US5] Bring the twelve product-specific components onto tokens and the state rules without changing behaviour — DropZone, HoneycombField, PowerLever/PowerReadout/PowerThrottle, the CRF pixel gem, JobRow, TranscriptPlayer, TaskProgressScale, LandingGalleryGrid, StorageChip, Marked, CodeCell/Countdown, the SotyLoader family — and record each one's anatomy in `contracts/components.md`
-- [ ] T161 [US5] Encode the rules already in `docs/DESIGN.md` into the inventory so that using a component *is* following them (FR-040): lucide at `ICON_SIZE`/`ICON_STROKE` with "grow the plate, never shrink the icon"; the picto-group RadioGroup variant with `is-selected` (never `is-active`), 44×38 plates, `is-labeled` for short values, `is-single` for a lone toggle; inline fields with the unit outside the border at 72–150px; validation shown only after invalid input; 30×30 icon plates on tiles; red destructive / green positive. Record each mapping in `contracts/components.md`
-- [ ] T028 [US2] [US5] Implement the five shared patterns on top of the inventory in `apps/web/src/components/ui/patterns.tsx`: empty state, loading state, error state, permission-limited state, confirmation dialog (verb button, de-emphasised destructive action, undo where the action can be undone)
-- [ ] T029 [US5] Write the inventory's styles into `apps/web/src/styles/components.css`, one section per component family, reading only from tokens
-- [ ] T030 [US5] Build the demo surface at `apps/web/src/dev/DesignSystemPage.tsx` and route `/design` to it behind a development-only guard; show every component × variant × size × state, with theme and reduced-motion toggles
-- [ ] T031 [P] [US5] Write `tests/ui-components.test.tsx`: each component renders each variant and size; icon-only controls expose an accessible name; every state a component declares (rest, hover, active, focus-visible, disabled, loading, selected, invalid) is distinct from every other, asserted through the class or attribute that carries it; every interactive component is keyboard operable and shows focus (FR-010, FR-011, FR-012)
-- [ ] T032 [P] [US5] Add a build check to `tests/` (or `scripts/check-design-tokens.mjs`) asserting `DesignSystemPage` is absent from a production bundle
-- [ ] T156 [P] [US1] [US5] Write `tests/ui-consistency.test.tsx`: render the same role (primary button, secondary button, destructive button, chip, field, panel heading) as each screen group will use it and assert the computed height, radius, font-size and icon size match — the mechanical half of SC-003, which prose review cannot give
+- [x] T161 [US5] Encode the rules already in `docs/DESIGN.md` into the inventory so that using a component *is* following them (FR-040): lucide at `ICON_SIZE`/`ICON_STROKE` with "grow the plate, never shrink the icon"; the picto-group RadioGroup variant with `is-selected` (never `is-active`), 44×38 plates, `is-labeled` for short values, `is-single` for a lone toggle; inline fields with the unit outside the border at 72–150px; validation shown only after invalid input; 30×30 icon plates on tiles; red destructive / green positive. Record each mapping in `contracts/components.md`
+- [x] T028 [US2] [US5] Implement the five shared patterns on top of the inventory in `apps/web/src/components/ui/patterns.tsx`: empty state, loading state, error state, permission-limited state, confirmation dialog (verb button, de-emphasised destructive action, undo where the action can be undone)
+- [x] T029 [US5] Write the inventory's styles into `apps/web/src/styles/components.css`, one section per component family, reading only from tokens
+- [x] T030 [US5] Build the demo surface at `apps/web/src/dev/DesignSystemPage.tsx` and route `/design` to it behind a development-only guard; show every component × variant × size × state, with theme and reduced-motion toggles
+- [x] T031 [P] [US5] Write `tests/ui-components.test.tsx`: each component renders each variant and size; icon-only controls expose an accessible name; every state a component declares (rest, hover, active, focus-visible, disabled, loading, selected, invalid) is distinct from every other, asserted through the class or attribute that carries it; every interactive component is keyboard operable and shows focus (FR-010, FR-011, FR-012)
+- [x] T032 [P] [US5] Add a build check to `tests/` (or `scripts/check-design-tokens.mjs`) asserting `DesignSystemPage` is absent from a production bundle
+- [x] T156 [P] [US1] [US5] Write `tests/ui-consistency.test.tsx`: render the same role (primary button, secondary button, destructive button, chip, field, panel heading) as each screen group will use it and assert the computed height, radius, font-size and icon size match — the mechanical half of SC-003, which prose review cannot give
 
 **Checkpoint**: screens can now be migrated in any order.
 
@@ -105,11 +105,11 @@ building a new screen from them needs no new token.
 **Independent test**: sign out, sign in, break the config, block the account — each surface
 states what is true, what to do, and looks like the same product.
 
-- [ ] T033 [US1] Migrate `apps/web/src/auth/AuthScreens.tsx` — LoginPage (Google primary, beta account secondary; fix the four-line wrap on the beta button), AuthCallbackPage, AuthHandoffPage
-- [ ] T034 [US1] [US2] Migrate the system states in `apps/web/src/auth/AuthScreens.tsx` — AuthLoadingScreen, AuthRecoveryScreen, BlockedAccountScreen (blocked and deleted), ConfigErrorScreen — onto the Empty/Alert patterns with title, one sentence and the way out
+- [x] T033 [US1] Migrate `apps/web/src/auth/AuthScreens.tsx` — LoginPage (Google primary, beta account secondary; fix the four-line wrap on the beta button), AuthCallbackPage, AuthHandoffPage
+- [x] T034 [US1] [US2] Migrate the system states in `apps/web/src/auth/AuthScreens.tsx` — AuthLoadingScreen, AuthRecoveryScreen, BlockedAccountScreen (blocked and deleted), ConfigErrorScreen — onto the Empty/Alert patterns with title, one sentence and the way out
 - [ ] T035 [P] [US1] Migrate `apps/web/src/PublicHomePage.tsx` — CTA above the fold, consistent header buttons, 70ch measure
-- [ ] T036 [P] [US1] Migrate `apps/web/src/pages/LegalPages.tsx` — measure cap, heading ramp, link styling
-- [ ] T037 [US1] Migrate ProfileOnboarding in `apps/web/src/auth/AuthScreens.tsx` onto Modal + RadioGroup (cards) + Checkbox + Button
+- [x] T036 [P] [US1] Migrate `apps/web/src/pages/LegalPages.tsx` — measure cap, heading ramp, link styling
+- [x] T037 [US1] Migrate ProfileOnboarding in `apps/web/src/auth/AuthScreens.tsx` onto Modal + RadioGroup (cards) + Checkbox + Button
 - [ ] T038 [US1] Update the tests that assert on class names in `tests/auth-provider.test.tsx`, `tests/onboarding-recovery.test.tsx` and `tests/session-handoff-screens.test.tsx` to assert through roles and accessible names
 - [ ] T039 [US1] [US4] Verify C1 at 1920/1440/1024/768/390 × dark/light × reduced motion with Ukrainian strings; delete the CSS these screens no longer need from `apps/web/src/styles.css`
 
@@ -124,9 +124,9 @@ tooltip look and move the same wherever they are raised.
 
 - [ ] T040 [US1] Migrate the top bar in `apps/web/src/ProtectedSoty.tsx` and its controls — `SotyLogo`, `EnvironmentBadge`, `ThemeToggle`, `LanguageSwitch`, `UserAvatar`, `UserMenu` — onto Button/Badge/DropdownMenu
 - [ ] T041 [US1] Migrate `apps/web/src/components/SupportDialog.tsx` (trigger chip + dialog) onto Badge + Modal + Progress
-- [ ] T042 [P] [US1] Migrate `apps/web/src/components/ReleaseUpdateNotice.tsx` onto Alert + Button
-- [ ] T043 [P] [US1] [US2] Migrate `apps/web/src/components/LocalAppDialog.tsx` and `apps/web/src/components/FeatureLockDialog.tsx` — the single "needs the local app" state, one anatomy for all six tools
-- [ ] T044 [P] [US1] Migrate `apps/web/src/components/InstantTips.tsx` and `apps/web/src/components/LabeledSkeleton.tsx` onto Tooltip and Skeleton
+- [x] T042 [P] [US1] Migrate `apps/web/src/components/ReleaseUpdateNotice.tsx` onto Alert + Button
+- [x] T043 [P] [US1] [US2] Migrate `apps/web/src/components/LocalAppDialog.tsx` and `apps/web/src/components/FeatureLockDialog.tsx` — the single "needs the local app" state, one anatomy for all six tools
+- [x] T044 [P] [US1] Migrate `apps/web/src/components/InstantTips.tsx` and `apps/web/src/components/LabeledSkeleton.tsx` onto Tooltip and Skeleton
 - [ ] T045 [US1] Update `tests/local-app-dialog.test.tsx`, `tests/local-app-dialog-windows.test.tsx`, `tests/release-update-notice.test.tsx` and `tests/loading-skeletons.test.tsx` to assert through roles
 - [ ] T046 [US1] [US4] Verify C2 across three unrelated routes at five widths × two themes × reduced motion; delete the orphaned shell CSS
 
@@ -187,7 +187,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 
 ## Phase 10: [US1] C7 — Account and admin
 
-- [ ] T075 [US1] Migrate `apps/web/src/pages/AccountPage.tsx` — profile, language, marketing consent, danger zone (destructive action de-emphasised, confirmation names the consequence)
+- [x] T075 [US1] Migrate `apps/web/src/pages/AccountPage.tsx` — profile, language, marketing consent, danger zone (destructive action de-emphasised, confirmation names the consequence)
 - [ ] T076 [US1] Migrate `apps/web/src/pages/AdminPage.tsx` — metric tiles onto Card, the user table onto Table (`sm` density), filters onto Select/SegmentedControl, CSV export onto Button
 - [ ] T077 [P] [US1] [US2] Give AdminPage its states: loading skeleton, empty result, failed load, and the non-admin permission-limited state
 - [ ] T078 [US1] Update `tests/admin-ui.test.tsx` to assert through roles and accessible names
@@ -197,12 +197,12 @@ in inventory components, with the compressor looking exactly as good as it does 
 
 ## Phase 11: [US1] C8 — Team: entry and shell
 
-- [ ] T080 [US1] Migrate `apps/web/src/team/lobby/SpaceLobby.tsx`, `SpaceCard.tsx` and `InvitationList.tsx` onto Card + Empty + Badge + Button
+- [x] T080 [US1] Migrate `apps/web/src/team/lobby/SpaceLobby.tsx`, `SpaceCard.tsx` and `InvitationList.tsx` onto Card + Empty + Badge + Button
 - [ ] T081 [P] [US1] Migrate `apps/web/src/team/create/CreateSpaceWizard.tsx` and `SpaceNameStep.tsx` onto Modal + Stepper-style header + FormField
 - [ ] T082 [US1] Migrate `apps/web/src/team/workspace/WorkspaceShell.tsx` — header, section tabs, and the space header actions — onto Tabs + Button + Breadcrumb
 - [ ] T083 [P] [US1] Migrate `apps/web/src/team/workspace/SpaceSwitcher.tsx`, `SpaceStatePanel.tsx`, `RealtimeChip.tsx` and `BackgroundWorkChip.tsx` onto DropdownMenu + Alert + Badge
 - [ ] T084 [P] [US1] Migrate `apps/web/src/team/storage/StorageChip.tsx`, `ConnectStorageFlow.tsx` and `SelectionList.tsx` onto Badge + Popover + Modal + Tree
-- [ ] T085 [US1] [US2] Migrate the unavailable-space screen in `apps/web/src/team/TeamSpace.tsx` onto the Empty pattern (it was re-dressed in 020; make it the pattern rather than a bespoke card)
+- [x] T085 [US1] [US2] Migrate the unavailable-space screen in `apps/web/src/team/TeamSpace.tsx` onto the Empty pattern (it was re-dressed in 020; make it the pattern rather than a bespoke card)
 - [ ] T086 [US1] Update `tests/team-workspace-gate.test.tsx`, `tests/team-connect-flow.test.tsx` and `tests/workspace-section-state.test.tsx` to assert through roles
 - [ ] T087 [US1] [US4] Verify C8 at five widths × two themes × reduced motion
 
@@ -235,12 +235,12 @@ in inventory components, with the compressor looking exactly as good as it does 
 
 ## Phase 14: [US1] C11 — Team: tasks
 
-- [ ] T103 [US1] Migrate `apps/web/src/team/tasks/TaskSpace.tsx` — board columns, header, filters row
+- [x] T103 [US1] Migrate `apps/web/src/team/tasks/TaskSpace.tsx` — board columns, header, filters row
 - [ ] T104 [P] [US1] Migrate `apps/web/src/team/tasks/TaskCard.tsx` onto Card + Chip + Progress + Avatar
 - [ ] T105 [US1] Migrate `apps/web/src/team/tasks/TaskEditor.tsx` onto Modal + FormField + the shared patterns — the densest dialog in the product
 - [ ] T106 [P] [US1] Migrate `apps/web/src/team/tasks/TaskStatusControl.tsx`, `TaskSortControl.tsx`, `TaskDateField.tsx` and `TaskProgressScale.tsx`
-- [ ] T107 [P] [US1] [US2] Migrate the four filters — `TaskDateFilter.tsx`, `TaskAssigneeFilter.tsx`, `TaskAccountFilter.tsx`, `TaskLabelFilter.tsx` — onto SelectMenu + Popover with their empty states (which link to where the dictionary is filled, as 020 established)
-- [ ] T108 [P] [US1] Migrate `apps/web/src/team/tasks/TaskAgentTags.tsx`, `TaskAccountPicker.tsx`, `TaskAttachmentPicker.tsx` and `TaskAttachmentTile.tsx` onto the picker pattern (search, breadcrumb, list, footer actions)
+- [x] T107 [P] [US1] [US2] Migrate the four filters — `TaskDateFilter.tsx`, `TaskAssigneeFilter.tsx`, `TaskAccountFilter.tsx`, `TaskLabelFilter.tsx` — onto SelectMenu + Popover with their empty states (which link to where the dictionary is filled, as 020 established)
+- [x] T108 [P] [US1] Migrate `apps/web/src/team/tasks/TaskAgentTags.tsx`, `TaskAccountPicker.tsx`, `TaskAttachmentPicker.tsx` and `TaskAttachmentTile.tsx` onto the picker pattern (search, breadcrumb, list, footer actions)
 - [ ] T109 [US1] Migrate `apps/web/src/styles/team-tasks.css` onto tokens and delete what the inventory covers
 - [ ] T110 [US1] Update `tests/team-task-accounts.test.tsx`, `tests/team-task-tags.test.tsx` and `tests/task-progress-scale.test.tsx` to assert through roles
 - [ ] T111 [US1] [US4] Verify C11 at five widths × two themes × reduced motion
@@ -249,7 +249,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 
 ## Phase 15: [US1] C12 — Team: accounts
 
-- [ ] T112 [US1] Migrate `apps/web/src/team/accounts/AccountSpace.tsx` — header, summary, search, filter pills, the fold-all control and the money column's fold control
+- [x] T112 [US1] Migrate `apps/web/src/team/accounts/AccountSpace.tsx` — header, summary, search, filter pills, the fold-all control and the money column's fold control
 - [ ] T113 [US1] Migrate `apps/web/src/team/accounts/AccountGroup.tsx` and `AgentRow.tsx` onto Table (`xs` density — this is the product's density reference)
 - [ ] T114 [P] [US1] Migrate `apps/web/src/team/accounts/AgentMoney.tsx` onto InputNumber with steppers
 - [ ] T115 [P] [US1] Migrate `apps/web/src/team/accounts/AgentLabels.tsx`, `MarkerFilter.tsx` and `Marked.tsx` onto Chip + DropdownMenu + the highlight token
@@ -266,7 +266,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [ ] T121 [P] [US1] Migrate `apps/web/src/team/drive/DriveConnectionPanel.tsx` and `BetaStorageNotice.tsx` onto Card + Badge + Alert, covering connected / needs-reauth / root-missing / unavailable
 - [ ] T122 [P] [US1] Migrate `apps/web/src/team/members/MemberList.tsx`, `InvitationPanel.tsx`, `MemberPermissionsDialog.tsx` and `OwnershipTransferDialog.tsx` onto Table + Modal + Choice
 - [ ] T123 [P] [US1] Migrate `apps/web/src/team/members/TeamAuditPanel.tsx` onto Timeline
-- [ ] T124 [P] [US1] Migrate `apps/web/src/team/labels/TaskLabelsSection.tsx`, `TaskLabelChip.tsx` and `TaskLabelMenu.tsx` onto Chip + Popover + the empty-state pattern
+- [x] T124 [P] [US1] Migrate `apps/web/src/team/labels/TaskLabelsSection.tsx`, `TaskLabelChip.tsx` and `TaskLabelMenu.tsx` onto Chip + Popover + the empty-state pattern
 - [ ] T125 [US1] Migrate `apps/web/src/team/workspace/RestitchDefaultsSection.tsx` onto the shared settings panel and picto RadioGroup
 - [ ] T126 [US1] Migrate the leave-space panel and its confirmation onto the confirmation pattern
 - [ ] T127 [US1] Update `tests/team-members.test.tsx`, `tests/team-direct-member.test.tsx`, `tests/team-invitation-link.test.tsx` and `tests/team-restitch-section.test.tsx` to assert through roles
@@ -422,3 +422,43 @@ the feature serves principle VI directly and leaves I–V untouched.
 constitution's frontend seams. A strict reading of "no implementation details in a spec"
 would remove them; they stay because they are the constraints the whole design rests on, and
 hiding them would make the plan's central decision (reference, not dependency) unexplainable.
+
+---
+
+## Implementation log (2026-09-13, light mode)
+
+Written while a release held the machine, so nothing was typechecked, tested or
+opened in the beta — that is the first thing to do when the release lets go.
+
+**Done** (46 of 161): the whole foundation and inventory, plus the screen work
+that could be done without a browser to check it in.
+
+- **Phase 1–2, T001–T012** — `styles/tokens.css` (seven roles × two themes, the
+  type ramp, space/radius/shadow/motion/layer, control geometry),
+  `styles/base.css`, the legacy alias block, `scripts/check-design-tokens.mjs`
+  wired into `verify` with 25 exemptions, and `tests/design-tokens.test.ts`.
+- **Phase 3, T014–T032 + T156 + T161** — `components/ui/` with 45 components in
+  nine family files, the five state patterns, `styles/components.css`, the
+  `/design` demo behind `import.meta.env.DEV`, and two test files.
+- **Screens** — C1 in full (sign-in, the four whole-screen states, legal pages),
+  parts of C2, C7, C8, C11, C12: every `.inline-alert` call site in the product,
+  five empty states, three pickers' loading/empty/failed states.
+- **The class floor** — the pre-021 names re-expressed in tokens, loaded before
+  `styles.css`, so each group's migration becomes a deletion rather than a
+  rewrite.
+
+**One decision changed along the way.** The roles were first written with violet
+as `primary`; it is honey. `.button-primary` has been honey since the beginning
+and every call to action in the product is honey, while violet is identity,
+navigation, selection and focus. Swapped before anything depended on it, and the
+aliases were adjusted so no screen changed colour. Recorded in commit
+`72e6d52`.
+
+**First things to run when the machine is free** (in this order):
+
+1. `npm run typecheck` — the inventory is 3,000 lines of unchecked TypeScript.
+2. `npx vitest run tests/design-tokens.test.ts tests/ui-components.test.tsx tests/ui-consistency.test.tsx`
+3. `npx vitest run` — the existing suite, for what the shared `Button` and the
+   class floor moved.
+4. `node scripts/check-design-tokens.mjs`
+5. The beta at `/design`, then the five screens in T013.
