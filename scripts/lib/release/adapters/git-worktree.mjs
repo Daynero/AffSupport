@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdtemp, mkdir, readFile, rm, symlink } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 const exec = promisify(execFile);
@@ -117,13 +117,34 @@ export async function provisionWorktree({ cwd, directory }) {
     await exec('cp', ['-Rc', source, target]);
     provisioned.push(`${relative} (copied)`);
   }
+  /**
+   * A borrowed directory is copied; a borrowed file is linked.
+   *
+   * `.gitignore` names these paths with a trailing slash -- `config/keys/`,
+   * `supabase/.temp/` -- and a trailing slash matches a directory and nothing
+   * else. A symlink is not a directory, so git called both untracked, the
+   * packaged beta recorded `dirty: true`, and the promotion gate refused a build
+   * made from a commit the runner had checked out itself. The worktree has to be
+   * clean by git's reckoning, not by ours, because that is the reckoning every
+   * gate downstream consults.
+   *
+   * Directories are cloned for the reason the dependency closures are: on APFS
+   * the copy costs a directory entry. Files keep the link -- their patterns
+   * (`.env*`) never named a directory, so they match either shape, and a link is
+   * how one secret stays one file with one owner.
+   */
   for (const relative of PROVISIONED_PATHS) {
     const source = path.join(cwd, relative);
     const target = path.join(directory, relative);
     if (!existsSync(source) || existsSync(target)) continue;
     await mkdir(path.dirname(target), { recursive: true });
-    await symlink(source, target);
-    provisioned.push(relative);
+    if (statSync(source).isDirectory()) {
+      await exec('cp', ['-Rc', source, target]);
+      provisioned.push(`${relative} (copied)`);
+    } else {
+      await symlink(source, target);
+      provisioned.push(relative);
+    }
   }
   /**
    * The shared package's build output is the one thing the worktree must own
