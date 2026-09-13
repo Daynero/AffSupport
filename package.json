@@ -21,6 +21,8 @@
     "release:backend-apply": "node scripts/apply-backend-plan.mjs",
     "release:info": "npm run build -w @video-compressor/shared && node scripts/release-meta.mjs --json",
     "release": "node scripts/release-runner.mjs",
+    "release:install": "node scripts/install-release-runner.mjs",
+    "release:bridge": "node scripts/release-bridge.mjs",
     "release:check": "npm run build && node scripts/verify-release.mjs --mode=contract && npm run verify:team-production",
     "release:watch": "node scripts/watch-github-run.mjs",
     "package:mac": "npm run build && node scripts/verify-release.mjs --mode=candidate && npm run verify:team-production && node scripts/verify-beta-promotion.mjs && zsh scripts/package-mac.sh",

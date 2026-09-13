@@ -103,6 +103,38 @@ required check із неіснуючою назвою не блокує нічо
 використовуйте `npm run deploy:web:identity`. Вона не декларує готовність Drive; повний
 `npm run deploy:web` як і раніше вимагає verified Drive integration.
 
+## Встановлення релізного раннера
+
+Раннер залежить від двох речей, яких він не може зібрати сам, і доки їх немає,
+preflight відмовляє — правильно й назавжди:
+
+```bash
+npm run release:install
+```
+
+Це збирає **пробник ресурсів** із `packaging/release/ResourceProbe.swift` (його
+власний коментар завжди казав «built once by the runner installer» — інсталятора
+не було) і реєструє **міст ремонту**. Обидва лежать у `release/automation/`, яка
+ігнорується: пробник — нативний бінарник однієї архітектури, конфіг моста
+називає абсолютний шлях однієї машини. Перед релізом підхопіть змінні:
+
+```bash
+set -a; . release/automation/release-runner.env; set +a
+```
+
+Міст — це durable-інбокс: збій о третій ночі лягає одним JSON-записом, який
+чекає, дивиться на нього хтось чи ні, а відповідь людини повертається раннеру
+тим самим протоколом.
+
+```bash
+npm run release:bridge -- --list
+npm run release:bridge -- --show <jobId>
+npm run release:bridge -- --complete <jobId> --status repaired --notes "..."
+```
+
+`--status repaired` — твердження про вихідний код, не про гейти: раннер
+перезапускає власні перевірки незалежно від того, що там написано.
+
 ## Серверні зміни релізу
 
 Міграції й Edge Functions більше не переносяться руками з `SUPABASE_SETUP.md`.
