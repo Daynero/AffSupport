@@ -1,7 +1,14 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync
+} from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BRIDGE_PROTOCOL_VERSION } from './lib/release/bridge-inbox.mjs';
@@ -32,6 +39,15 @@ const bridgeExecutable = path.join(root, 'scripts/release-bridge.mjs');
 const bridgeConfigPath = path.join(automation, 'release-bridge.json');
 const envPath = path.join(automation, 'release-runner.env');
 
+/**
+ * Reports and exits.
+ *
+ * Annotated `never` so the checker knows control does not continue past a call:
+ * without it every value a `fail()` guards still reads as possibly undefined.
+ *
+ * @param {string} message
+ * @returns {never}
+ */
 function fail(message) {
   process.stderr.write(`Release runner install failed: ${message}\n`);
   process.exit(1);
@@ -135,12 +151,13 @@ function packagingInputsDirectory() {
         .filter(name => name.startsWith('inputs-'))
         .sort((a, b) => a.localeCompare(b, 'en', { numeric: true }))
     : [];
-  if (!candidates.length)
+  const newest = candidates.at(-1);
+  if (!newest)
     fail(
       'no approved packaging inputs: expected release/inputs-<version>/ with the ffmpeg, ' +
         'whisper and node binaries package:mac requires, or SOTY_RELEASE_INPUTS naming one'
     );
-  return path.join(root, 'release', candidates.at(-1));
+  return path.join(root, 'release', newest);
 }
 
 const inputsDirectory = packagingInputsDirectory();

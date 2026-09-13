@@ -14,7 +14,11 @@ import { enqueueHandoff } from './lib/release/handoff.mjs';
 import { loadSnapshot, runDirectory, saveSnapshot } from './lib/release/store.mjs';
 import { activeBinding } from './lib/release/bindings.mjs';
 import { createWorkerAdmission, installedProbeFrom } from './lib/release/worker-admission.mjs';
-import { adoptWorktree, createOwnedWorktree, provisionWorktree } from './lib/release/adapters/git-worktree.mjs';
+import {
+  adoptWorktree,
+  createOwnedWorktree,
+  provisionWorktree
+} from './lib/release/adapters/git-worktree.mjs';
 
 /**
  * The process that actually performs a release.
@@ -98,7 +102,8 @@ async function performStep({ stepId, run, journal, adapter, snapshot }) {
     const advanced = completeStep(startStep(snapshot.current, stepId), stepId);
     const stored = await persist(advanced);
     snapshot.current = stored.run;
-    if (stored.cancelled) return { ok: false, error: { code: 'RELEASE_CANCELLED', subject: 'the run was cancelled' } };
+    if (stored.cancelled)
+      return { ok: false, error: { code: 'RELEASE_CANCELLED', subject: 'the run was cancelled' } };
     await journal.snapshot(advanced);
   }
   return result;
@@ -313,7 +318,7 @@ if (invokedDirectly) {
         directory: worktree.directory
       });
       process.stdout.write(
-        `release-worker ${worktree.adopted ? 'resuming in' : 'building in'} ${worktree.directory} ` +
+        `release-worker ${'adopted' in worktree ? 'resuming in' : 'building in'} ${worktree.directory} ` +
           `at ${worktree.sourceSha.slice(0, 12)} ` +
           `(provisioned: ${provisioning.provisioned.join(', ') || 'nothing'})\n`
       );

@@ -441,21 +441,23 @@ export async function createStepAdapter({
         message: `release: record ${version} artifact digests`,
         env: childEnv
       });
-      if (!committed.committed) return { ok: true };
+      const manifestSha = 'sourceSha' in committed ? committed.sourceSha : null;
+      if (!committed.committed || !manifestSha) return { ok: true };
       const promoted = await promoteBeta({
         cwd,
-        sourceSha: committed.sourceSha,
+        sourceSha: manifestSha,
         expectedBetaSha,
         env: childEnv
       });
       if (!promoted.ok)
         return fail(
           promoted.code === 'REMOTE_NOT_FAST_FORWARD' ? 'TARGET_MISMATCH' : 'EFFECT_AMBIGUOUS',
-          `the manifest commit could not be promoted to beta: ${promoted.code}${promoted.subject ? ` — ${promoted.subject}` : ''}`
+          `the manifest commit could not be promoted to beta: ${promoted.code}` +
+            ('subject' in promoted && promoted.subject ? ` — ${promoted.subject}` : '')
         );
       // The promotion gate consults the local ref before the remote one, and
       // refs are shared with the checkout this worktree was cut from.
-      await exec('git', ['update-ref', 'refs/heads/beta', committed.sourceSha], { cwd, shell: false });
+      await exec('git', ['update-ref', 'refs/heads/beta', manifestSha], { cwd, shell: false });
       return { ok: true };
     },
 

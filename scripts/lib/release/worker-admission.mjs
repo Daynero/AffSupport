@@ -44,7 +44,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms).unref?.());
  *   profile: object,
  *   probe?: {executable: string, digest: string} | null,
  *   reservationsDirectory?: string,
- *   onWait?: (event: {stepId: string, reason: string, waitedMs: number, nextCheckAt: number}) => void | Promise<void>
+ *   onWait?: (event: {stepId: string, reason: string, code?: string | null, detail?: string | null, waitedMs: number, nextCheckAt: number}) => void | Promise<void>
  * }} options
  */
 export async function createWorkerAdmission({

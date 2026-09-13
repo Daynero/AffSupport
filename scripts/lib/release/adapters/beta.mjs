@@ -56,9 +56,10 @@ export function residentBetaReservation(profile, { residentBytes = 0 } = {}) {
  * @param {unknown} ownerPid
  */
 function ownerIsRunning(ownerPid) {
-  if (!Number.isInteger(ownerPid) || ownerPid <= 0) return true;
+  const pid = typeof ownerPid === 'number' && Number.isInteger(ownerPid) ? ownerPid : null;
+  if (pid === null || pid <= 0) return true;
   try {
-    process.kill(ownerPid, 0);
+    process.kill(pid, 0);
     return true;
   } catch (error) {
     return /** @type {NodeJS.ErrnoException} */ (error)?.code === 'EPERM';
