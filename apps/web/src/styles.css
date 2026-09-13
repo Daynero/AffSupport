@@ -7528,25 +7528,11 @@ body:has(.public-home) {
   color: var(--color-text-muted);
   font-size: var(--text-caption);
 }
+/* The shared icon button, on the viewer's own quiet plate. */
 .transcript-modal-close {
   flex: none;
-  width: 32px;
-  height: 32px;
-  border: none;
   border-radius: var(--radius-md);
   background: var(--color-surface-muted);
-  color: var(--color-text);
-  font-size: var(--text-section);
-  line-height: 1;
-  cursor: pointer;
-  transition: background var(--dur-control) var(--ease-standard);
-}
-.transcript-modal-close:hover {
-  background: var(--color-surface-subtle);
-}
-.transcript-modal-close:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
 }
 .transcript-modal-empty {
   margin: auto;
@@ -7698,7 +7684,7 @@ body:has(.public-home) {
   align-items: center;
   gap: var(--space-2);
 }
-.transcript-translation-progress-row .progress-track {
+.transcript-translation-progress-row .ui-progress {
   flex: 1;
   min-width: 0;
 }
@@ -7837,21 +7823,8 @@ body:has(.public-home) {
   padding: 7px 2px 0;
 }
 .transcript-player-icon {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border: 0;
   border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--color-text);
-  cursor: pointer;
 }
-.transcript-player-icon:hover {
-  background: var(--color-surface-muted);
-}
-.transcript-player-icon:focus-visible,
 .transcript-player-controls input:focus-visible,
 .transcript-player-controls select:focus-visible {
   outline: 2px solid var(--color-accent);
@@ -7862,10 +7835,6 @@ body:has(.public-home) {
   font-size: var(--text-micro);
   white-space: nowrap;
 }
-.transcript-player-seek,
-.transcript-player-volume input {
-  accent-color: var(--color-accent);
-}
 .transcript-player-seek {
   width: 100%;
 }
@@ -7874,15 +7843,8 @@ body:has(.public-home) {
   align-items: center;
   gap: 4px;
 }
-.transcript-player-volume input {
+.transcript-player-volume .ui-slider {
   width: 58px;
-}
-.transcript-player-rate select {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 4px;
-  background: var(--color-surface);
-  color: var(--color-text);
 }
 .transcript-preview-status {
   display: flex;
@@ -8811,7 +8773,6 @@ button,
 .theme-toggle,
 .icon-button,
 .modal-close,
-.transcript-modal-close,
 .transcript-match-help {
   width: 44.2px;
   height: 44.2px;
@@ -14730,7 +14691,8 @@ input[type='number'] {
   background: transparent;
   box-shadow: none;
 }
-.batch-toolbar .batch-progress .progress-track {
+.batch-toolbar .batch-progress .progress-track,
+.batch-toolbar .batch-progress .ui-progress {
   flex: 1;
 }
 .batch-toolbar .batch-progress-value {
@@ -14738,12 +14700,14 @@ input[type='number'] {
   font-size: var(--text-lg);
 }
 .batch-toolbar .batch-progress.progress-track,
-.batch-toolbar .progress-track {
+.batch-toolbar .progress-track,
+.batch-toolbar .ui-progress {
   height: 3px;
   min-height: 0;
   border-radius: var(--radius-full);
 }
-.batch-toolbar .progress-track > span {
+.batch-toolbar .progress-track > span,
+.batch-toolbar .ui-progress-fill {
   border-radius: var(--radius-full);
 }
 /* Chip line sits on the same baseline as the buttons. */
@@ -15395,6 +15359,14 @@ input[type='number'] {
 }
 .batch-toolbar-row.is-compact-chips {
   gap: var(--space-3);
+  /* Last resort, and only once every group has already shrunk: a bar with one
+     action more than the compressor's four (transcription adds Copy finished)
+     still does not fit a phone, and a wrapped line is better than a control
+     off the edge of the screen. */
+  flex-wrap: wrap;
+}
+.batch-toolbar-row.is-compact-chips .primary-actions {
+  margin-left: auto;
 }
 
 /* Third stage: the selection group keeps its checkbox and drops its words, so a

@@ -161,15 +161,15 @@ in inventory components, with the compressor looking exactly as good as it does 
 
 ## Phase 8: [US1] C5 — Transcription
 
-- [ ] T059 [US1] Migrate `apps/web/src/transcription/TranscriptionPage.tsx` — intake, toolbar, selection bar, results
+- [x] T059 [US1] Migrate `apps/web/src/transcription/TranscriptionPage.tsx` — intake, toolbar, selection bar, results
 - [x] T060 [US1] Migrate `apps/web/src/transcription/TranscriptionSettingsPanel.tsx` onto the shared settings panel (mode, language, turbo)
 - [x] T061 [P] [US1] Migrate `apps/web/src/transcription/TranscriptionRow.tsx` onto Table row + Progress + Badge, covering queued/running/paused/done/failed
 - [x] T062 [P] [US1] Migrate `apps/web/src/transcription/LanguageCombobox.tsx` and `LanguageDoubt.tsx` onto SelectMenu + Alert
 - [x] T063 [P] [US1] Migrate `apps/web/src/transcription/ModelGate.tsx`, `GemmaConsent.tsx`, `TranslatorNotice.tsx` and `TranslationElapsed.tsx` onto Alert + Progress + Button
 - [x] T064 [P] [US1] Migrate `apps/web/src/transcription/ExportMenu.tsx` and `TranscriptionCopyMenu.tsx` onto DropdownMenu
-- [ ] T065 [US1] Migrate `apps/web/src/transcription/TranscriptTextModal.tsx` and `TranscriptPlayer.tsx` onto Modal + the product-specific player, splitting the file only as far as the migration needs (it is a known debt, not this feature's target)
+- [x] T065 [US1] Migrate `apps/web/src/transcription/TranscriptTextModal.tsx` and `TranscriptPlayer.tsx` onto Modal + the product-specific player, splitting the file only as far as the migration needs (it is a known debt, not this feature's target)
 - [x] T066 [US1] Migrate `apps/web/src/styles/transcription.css` onto tokens and delete what the inventory now covers
-- [ ] T067 [US1] [US4] Verify C5 at five widths × two themes × reduced motion, including a long transcript and an RTL-ish long language name
+- [x] T067 [US1] [US4] Verify C5 at five widths × two themes × reduced motion, including a long transcript and an RTL-ish long language name
 
 ---
 

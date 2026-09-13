@@ -110,6 +110,11 @@
 }
 .transcription-row-main {
   display: grid;
+  /* Named, not implied: an auto column sizes to its widest child's max-content,
+     so one long file name (or one long snippet) made the card wider than the
+     screen and took the whole list with it. `min-width: 0` on the container
+     does not constrain the track — only the track can. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
   min-width: 0;
 }
@@ -168,7 +173,11 @@
 }
 .transcription-row-language .transcript-language-combobox.is-compact input {
   width: auto;
-  max-width: 190px;
+  /* …and never wider than the box it sits in. `width: auto` on an input is its
+     intrinsic size, which does not shrink with its flex parent: "Українська"
+     ran 30px past the field and put the chevron on its own last letter, and
+     "Центральнокурдська" ran 85px past it and under the confidence beside it. */
+  max-width: min(190px, 100%);
   padding: 3px 20px 3px 9px;
   border-radius: var(--radius-full);
   font-size: var(--text-caption);
@@ -572,6 +581,30 @@
 @media (max-width: 900px) {
   .job-row.transcription-row {
     grid-template-columns: minmax(0, 1fr);
+  }
+  /* The badge takes its width first and the rest of the header shares what is
+     left — on a phone that left the detected language a third of a word. It
+     drops to its own line instead, and the name and the language get the card. */
+  .transcription-row .job-row-header {
+    flex-wrap: wrap;
+  }
+  /* Basis zero, or the title asks for the width of its own file name and is
+     the thing that wraps — leaving a line holding nothing but a checkbox. */
+  .transcription-row .transcription-row-title {
+    flex: 1 1 0;
+  }
+  /* The badge takes the next line, so the name and the detected language have
+     the card's width rather than whatever a status word leaves them — a
+     zero-height full-basis break before it, so the pill keeps its own width
+     instead of stretching across the card. */
+  .transcription-row .job-row-header::after {
+    content: '';
+    flex-basis: 100%;
+    height: 0;
+  }
+  .transcription-row .job-row-header > .status-badge {
+    order: 1;
+    margin-top: 0;
   }
   .job-row.transcription-row > .transcription-row-actions {
     grid-column: 1;

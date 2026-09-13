@@ -53,7 +53,7 @@ import { Onboarding } from '../App';
 import { useAgent } from '../AgentContext';
 import { useAgentEventStream } from '../api/useAgentEventStream';
 import { DropZone } from '../components/DropZone';
-import { Button, Checkbox, ProgressBar, Spinner } from '../components/ui';
+
 import { useCompactToolbar } from '../components/useCompactToolbar';
 import { toggleSelection } from '../queue-ui';
 import { useI18n } from '../i18n';
@@ -86,7 +86,7 @@ import {
   type TranscriptExportContent,
   type TranscriptExportFormat
 } from './export';
-import { EmptyState } from '../components/ui/index';
+import { Button, Checkbox, EmptyState, Progress, Spinner } from '../components/ui/index';
 
 const EMPTY_MODEL: TranscriptionModelInfo = {
   present: false,
@@ -827,6 +827,7 @@ export default function TranscriptionPage() {
                   label={<strong>{t('selectAll')}</strong>}
                 />
                 <Button
+                  color="neutral"
                   variant="ghost"
                   disabled={!connected || selected.size === 0}
                   onClick={() => {
@@ -876,7 +877,8 @@ export default function TranscriptionPage() {
               <div className="primary-actions">
                 {runningJob ? (
                   <Button
-                    variant="primary"
+                    color="primary"
+                    variant="solid"
                     className="is-primary-action"
                     disabled={!connected}
                     title={t(runningJob.paused ? 'jobResume' : 'jobPause')}
@@ -898,7 +900,8 @@ export default function TranscriptionPage() {
                      finished file is re-run from its own row. */
                   <Button
                     className="is-primary-action"
-                    variant="primary"
+                    color="primary"
+                    variant="solid"
                     disabled={!connected || !binaryReady || model.downloading}
                     title={
                       selected.size ? t('transcriptionStartSelected') : t('transcriptionStartAll')
@@ -924,7 +927,8 @@ export default function TranscriptionPage() {
                 )}
                 {stoppable && (
                   <Button
-                    variant="danger"
+                    color="error"
+                    variant="soft"
                     disabled={!connected}
                     title={t('stopAllHint')}
                     aria-label={t('stopAll')}
@@ -948,7 +952,8 @@ export default function TranscriptionPage() {
                 />
                 {selected.size > 0 && (
                   <Button
-                    variant="danger"
+                    color="error"
+                    variant="soft"
                     disabled={!connected || removableSelected.length === 0}
                     title={t('removeSelected')}
                     aria-label={t('removeSelected')}
@@ -960,6 +965,7 @@ export default function TranscriptionPage() {
                 )}
                 {finishedJobs.length > 0 && (
                   <Button
+                    color="neutral"
                     variant="ghost"
                     disabled={!connected}
                     title={t('transcriptionClearFinished')}
@@ -974,9 +980,9 @@ export default function TranscriptionPage() {
             </div>
             {batchProgress !== null && (
               <div className="batch-progress-heading transcription-batch-progress">
-                <ProgressBar
+                <Progress
                   value={batchProgress}
-                  active={connected && !runningJob?.paused}
+                  color={connected && !runningJob?.paused ? 'primary' : 'neutral'}
                   label={t('transcriptionQueueTitle')}
                 />
                 <span>{batchProgress}%</span>
@@ -992,7 +998,12 @@ export default function TranscriptionPage() {
                 language: languageDisplayName(settings.translationLanguage, language)
               })}
             </span>
-            <Button variant="secondary" disabled={!connected} onClick={installTranslator}>
+            <Button
+              color="neutral"
+              variant="outline"
+              disabled={!connected}
+              onClick={installTranslator}
+            >
               <Download size={16} strokeWidth={1.75} aria-hidden="true" />
               {t('transcriptionInstallTranslator')}
             </Button>
@@ -1008,7 +1019,7 @@ export default function TranscriptionPage() {
               title={t('transcriptionEmpty')}
               description={t('transcriptionEmptyBody')}
               action={
-                <Button type="button" variant="secondary" onClick={() => void chooseFiles()}>
+                <Button color="neutral" variant="outline" onClick={() => void chooseFiles()}>
                   {t('chooseFiles')}
                 </Button>
               }
