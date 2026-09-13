@@ -40,7 +40,7 @@ export function RealtimeChip() {
 
   if (realtimeState === 'disabled') {
     return (
-      <span className="ui-chip ui-chip-warn" role="status">
+      <span className="ui-chip ui-chip-warn ui-color-warning" role="status">
         {t('teamRealtimeDisabled')}
       </span>
     );
@@ -53,7 +53,7 @@ export function RealtimeChip() {
   // (FR-018).
   if (graceElapsed && WAITING.has(realtimeState)) {
     return (
-      <span className="ui-chip ui-chip-warn" role="status">
+      <span className="ui-chip ui-chip-warn ui-color-warning" role="status">
         <span className="ui-chip-spinner" aria-hidden="true" />
         {t(realtimeState === 'connecting' ? 'teamRealtimeConnecting' : 'teamRealtimeReconnecting')}
       </span>

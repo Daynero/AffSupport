@@ -6,6 +6,7 @@ import { trackTeamStorageConnected } from '../../analytics/service';
 import { BetaStorageNotice, externalStorageUnavailableInBeta } from '../drive/BetaStorageNotice';
 import { openFolderPicker, pickerConfig, type PickFolders } from './loadPicker';
 import { rememberDriveAuthorization } from '../drive/authorizationReturn';
+import { ErrorState } from '../../components/ui/index';
 
 /**
  * Connect a space's storage in two inputs (011, FR-001): authorize Google once,
@@ -171,9 +172,7 @@ export function ConnectStorageFlow({
       )}
 
       {error && (
-        <p className="team-inline-error" role="alert">
-          {error}
-        </p>
+        <ErrorState className="team-inline-error" message={error} />
       )}
       <p className="team-create-hint">{t('teamCreateFinishHint')}</p>
       <div className="team-create-actions">

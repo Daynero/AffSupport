@@ -228,7 +228,11 @@ export function TaskCard({
             {task.assigneeLabelSnapshot}
           </span>
         )}
-        {failed && <span className="team-task-card-error">{t('teamTaskSaveFailed')}</span>}
+        {failed && (
+          <span className="team-task-card-error ui-color-error" role="alert">
+            {t('teamTaskSaveFailed')}
+          </span>
+        )}
       </div>
     </article>
   );
