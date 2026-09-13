@@ -97,14 +97,42 @@ const PROVISIONED_PATHS = Object.freeze([
  * refused outright — sharing a closure that does not match the source being
  * built is how a release ships against dependencies nobody reviewed.
  */
+/**
+ * The part of a lockfile that describes what is on the disk.
+ *
+ * Byte equality was the first rule here, and it refuses every real release: a
+ * release bumps the product version, the bump rewrites the workspace's own
+ * entries in the lockfile, and a borrowed `node_modules` is then declared
+ * unsafe because a version string somewhere says 1.1.1 instead of 1.1.0. The
+ * closure did not move. Nothing was downloaded, nothing was resolved
+ * differently, and the tree on disk is correct for both files.
+ *
+ * So the comparison is the closure itself -- the `node_modules/` entries, which
+ * are exactly the packages an install would place. A workspace that gained or
+ * changed a real dependency still changes those, so the guarantee the byte
+ * check was reaching for is kept: the borrowed tree matches the source being
+ * built, or the release refuses to borrow it.
+ */
+function dependencyClosure(text) {
+  const { packages = {} } = JSON.parse(text);
+  return JSON.stringify(
+    Object.fromEntries(
+      Object.entries(packages)
+        .filter(([name]) => name.startsWith('node_modules/'))
+        .sort(([a], [b]) => (a < b ? -1 : 1))
+    )
+  );
+}
+
 export async function provisionWorktree({ cwd, directory }) {
   const lockPath = 'package-lock.json';
   if (existsSync(path.join(cwd, lockPath)) && existsSync(path.join(directory, lockPath))) {
     const [here, there] = await Promise.all([
-      readFile(path.join(cwd, lockPath)),
-      readFile(path.join(directory, lockPath))
+      readFile(path.join(cwd, lockPath), 'utf8'),
+      readFile(path.join(directory, lockPath), 'utf8')
     ]);
-    if (!here.equals(there)) throw new Error('RELEASE_WORKTREE_DEPENDENCIES_DIFFER');
+    if (dependencyClosure(here) !== dependencyClosure(there))
+      throw new Error('RELEASE_WORKTREE_DEPENDENCIES_DIFFER');
   }
   const provisioned = [];
   for (const relative of CLONED_PATHS) {
