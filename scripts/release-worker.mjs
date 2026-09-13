@@ -272,6 +272,15 @@ if (invokedDirectly) {
     let worktree = null;
     try {
       const identity = {
+        // The adapter defaults to an empty environment, which is right for a
+        // test and wrong for a release: the direct git calls -- the manifest
+        // commit, the promotion -- take that environment verbatim rather than
+        // merging it over the process's, so they ran with no PATH at all. Git
+        // itself still resolved, because Node finds the binary by the parent's
+        // path, but the credential helper is a shell command and a shell with
+        // no PATH finds nothing: `gh: command not found`, after both installers
+        // were published.
+        env: process.env,
         runId,
         version: snapshot.version ?? process.env.SOTY_RELEASE_VERSION,
         sourceSha: snapshot.sourceSha,
