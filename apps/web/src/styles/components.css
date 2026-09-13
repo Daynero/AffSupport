@@ -1952,3 +1952,87 @@
   color: var(--ui-text);
   background: var(--ui-soft);
 }
+
+/* Dialog action rows (cleared by C1–C14). Every dialog in the product ends in
+   one of these; they disagreed on direction, gap and alignment. The safe action
+   sits at the end of the reading flow, where the eye lands last. */
+.team-dialog-actions,
+.settings-section-actions,
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Picker lists (cleared by C9–C11). Three pickers, one row. */
+.team-task-picker-results {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: auto;
+}
+.team-task-picker-results button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--control-height-lg);
+  padding: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-neutral-text);
+  text-align: left;
+  cursor: pointer;
+}
+.team-task-picker-results button:hover:not(:disabled) {
+  background: var(--color-neutral-surface-subtle);
+}
+.team-task-picker-results button.is-selected {
+  border-color: var(--color-secondary-solid);
+  background: var(--color-secondary-softer);
+}
+
+/* Tab strips (cleared by C8, C13). Four of them, one active treatment. */
+.team-space-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height-md);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+  color: var(--color-neutral-text-muted);
+  font-weight: var(--weight-emphasis);
+  cursor: pointer;
+}
+.team-space-tab.is-active {
+  border-bottom-color: var(--color-secondary-solid);
+  color: var(--color-neutral-text);
+}
+
+/* Icon plates (cleared by C9, C12). docs/DESIGN.md: 30×30 on tiles, 44×38 in
+   rows, and the plate grows before the icon shrinks. */
+.icon-button,
+.team-agent-action {
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-neutral-text-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--ease-out-curve),
+    color var(--motion-fast) var(--ease-out-curve);
+}
+.icon-button:hover:not(:disabled),
+.team-agent-action:hover:not(:disabled) {
+  background: var(--color-neutral-surface-muted);
+  color: var(--color-neutral-text);
+}
