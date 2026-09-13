@@ -83,12 +83,12 @@ export default function ReleaseUpdateNotice() {
       <div className="release-update-copy">
         <span className="release-update-eyebrow">{t('releaseNoticeEyebrow')}</span>
         <h2 id={titleId}>{t('releaseNoticeTitle', { version: manifest.version })}</h2>
-        <p>{summary}</p>
+        <p className="prose">{summary}</p>
         <small>{t('releaseNoticeInstruction')}</small>
       </div>
       <div className="release-update-actions">
         <a
-          className="button button-primary"
+          className="ui-button ui-button--solid ui-button--md ui-color-primary"
           href={preferredDownload(manifest, capabilities).url}
           onClick={() => {
             markAgentInstallStarted();
@@ -97,7 +97,11 @@ export default function ReleaseUpdateNotice() {
         >
           {t('releaseNoticeDownload')}
         </a>
-        <button className="text-button" type="button" onClick={dismiss}>
+        <button
+          className="ui-button ui-button--link ui-button--md ui-color-neutral"
+          type="button"
+          onClick={dismiss}
+        >
           {t('releaseNoticeLater')}
         </button>
       </div>

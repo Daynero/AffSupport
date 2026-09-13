@@ -378,7 +378,11 @@ export function ProfileOnboarding() {
         />
         <small>{t('marketingOptional')}</small>
       </div>
-      {failed && <div className="inline-alert inline-alert-error">{t('profileError')}</div>}
+      {failed && (
+        <Alert color="error" live="alert">
+          {t('profileError')}
+        </Alert>
+      )}
       <Button variant="primary" loading={saving} onClick={() => void save()}>
         {saving ? t('saving') : t('continueSoty')}
       </Button>
