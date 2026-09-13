@@ -144,7 +144,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [ ] T049 [US1] Migrate the compressor shell in `apps/web/src/App.tsx` — drop zone, batch toolbar, selection bar with its count, results summary
 - [ ] T050 [P] [US1] Migrate `apps/web/src/components/JobRow.tsx` and `apps/web/src/components/ImageEmbeddingSection.tsx` onto Table row + Progress + Badge + Alert
 - [ ] T051 [P] [US1] Migrate `apps/web/src/team/explorer/TeamCompressorDialog.tsx` onto Modal + the migrated settings panel
-- [ ] T052 [US1] [US2] Give the compressor its full state set: initial, empty queue, running, partially failed, failed, agent-missing — each on the shared patterns
+- [x] T052 [US1] [US2] Give the compressor its full state set: initial, empty queue, running, partially failed, failed, agent-missing — each on the shared patterns
 - [ ] T053 [US1] [US4] Verify C3 at five widths × two themes × reduced motion; delete the compressor's orphaned CSS
 
 ---
@@ -154,7 +154,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [ ] T054 [US1] Migrate `apps/web/src/stitcher/StitcherPage.tsx` onto the inventory, reusing the compressor's drop zone, settings panel and toolbar
 - [ ] T055 [US1] Migrate `apps/web/src/landing/LandingOptimizerPage.tsx` and `apps/web/src/landing/LandingJobCard.tsx`
 - [ ] T056 [P] [US1] Migrate `apps/web/src/landing/ImageCompareModal.tsx` onto Modal, keeping the before/after comparison
-- [ ] T057 [US1] [US2] Give both tools their full state set on the shared patterns, including the single agent-missing state
+- [x] T057 [US1] [US2] Give both tools their full state set on the shared patterns, including the single agent-missing state
 - [ ] T058 [US1] [US4] Verify C4 at five widths × two themes × reduced motion; delete orphaned CSS
 
 ---

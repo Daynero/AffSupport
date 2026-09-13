@@ -55,6 +55,7 @@ import {
   safeBatchProperties,
   safeCompressionProperties
 } from './analytics/compression';
+import { EmptyState } from './components/ui/index';
 
 const COMPRESSOR_SELECTION_KEY = 'wishly.compressor.selection.v1';
 
@@ -773,10 +774,18 @@ export default function CompressorPage() {
             rather than shouting it. */}
         <section className="video-list">
           {state.jobs.length === 0 ? (
-            <div className="empty-state">
-              <strong>{t('queueEmpty')}</strong>
-              <span>{t('queueEmptyBody')}</span>
-            </div>
+            /* An empty queue is filled by choosing files, so the state carries
+               the same control the intake above it does (FR-021). */
+            <EmptyState
+              className="empty-state"
+              title={t('queueEmpty')}
+              description={t('queueEmptyBody')}
+              action={
+                <Button type="button" variant="secondary" onClick={() => void selectNativeFiles()}>
+                  {t('chooseFiles')}
+                </Button>
+              }
+            />
           ) : (
             visibleJobs.map((job, index) => (
               <JobRow

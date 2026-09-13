@@ -66,6 +66,7 @@ import {
   uploadScreenImage
 } from './api';
 import { RadioGroup } from '../components/ui/index';
+import { EmptyState } from '../components/ui/index';
 
 const SETTINGS_OPEN_KEY = 'wishly.stitcher.settings-open.v1';
 
@@ -402,7 +403,15 @@ export function Stitcher() {
 
       <section className="video-list" aria-label={t('stitcherQueueTitle')}>
         {jobs.length === 0 ? (
-          <p className="stitch-note">{t('stitcherQueueEmpty')}</p>
+          <EmptyState
+            className="stitch-note"
+            title={t('stitcherQueueEmpty')}
+            action={
+              <Button type="button" variant="secondary" onClick={() => void choose()}>
+                {t('chooseFiles')}
+              </Button>
+            }
+          />
         ) : (
           [...jobs].reverse().map((job, index) => (
             <StitchRow

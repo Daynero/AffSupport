@@ -86,6 +86,7 @@ import {
   type TranscriptExportContent,
   type TranscriptExportFormat
 } from './export';
+import { EmptyState } from '../components/ui/index';
 
 const EMPTY_MODEL: TranscriptionModelInfo = {
   present: false,
@@ -1002,10 +1003,16 @@ export default function TranscriptionPage() {
             every progress tick is a screen reader that cannot be interrupted. */}
         <section className="video-list transcription-list">
           {jobs.length === 0 ? (
-            <div className="empty-state">
-              <strong>{t('transcriptionEmpty')}</strong>
-              <span>{t('transcriptionEmptyBody')}</span>
-            </div>
+            <EmptyState
+              className="empty-state"
+              title={t('transcriptionEmpty')}
+              description={t('transcriptionEmptyBody')}
+              action={
+                <Button type="button" variant="secondary" onClick={() => void chooseFiles()}>
+                  {t('chooseFiles')}
+                </Button>
+              }
+            />
           ) : (
             visibleJobs.map((job, index) => (
               <TranscriptionRow
