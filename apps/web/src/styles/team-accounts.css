@@ -1033,11 +1033,10 @@
   color: var(--color-text);
 }
 
+/* Placed by the component (021): portalled past the toolbar that would clip it
+   and flipped when the window is short. */
 .team-accounts-marker-menu {
-  position: absolute;
   z-index: var(--layer-popover);
-  top: calc(100% + 6px);
-  right: 0;
   display: grid;
   min-width: 210px;
   gap: 2px;

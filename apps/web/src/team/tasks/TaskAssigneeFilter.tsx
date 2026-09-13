@@ -14,6 +14,7 @@ import { useI18n } from '../../i18n';
 import type { TeamMemberSummary } from '../../api/team';
 import type { TaskAssigneeFilter as AssigneeFilter } from './useTasks';
 import { SpaceSettingsLink } from '../SpaceSettingsLink';
+import { Popover } from '../../components/ui/index';
 
 /** What a member is called on screen: their name, else their address, else nothing. */
 export function memberLabel(member: TeamMemberSummary): string {
@@ -41,24 +42,6 @@ export function TaskAssigneeFilter({
     if (!open) return;
     const selected = popover.current?.querySelector<HTMLElement>('[aria-selected="true"]');
     (selected ?? popover.current?.querySelector<HTMLElement>('[role="option"]'))?.focus();
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: MouseEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      setOpen(false);
-      trigger.current?.focus();
-    };
-    window.addEventListener('mousedown', close);
-    window.addEventListener('keydown', escape);
-    return () => {
-      window.removeEventListener('mousedown', close);
-      window.removeEventListener('keydown', escape);
-    };
   }, [open]);
 
   /** ↑/↓ walk the options, Home/End jump: the listbox pattern, not a tab stop each. */
@@ -120,10 +103,23 @@ export function TaskAssigneeFilter({
           <X size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
         </button>
       )}
-      {open && (
+      <Popover
+        open={open}
+        /* Escape and an outside press close onto the trigger, so a keyboard
+           is never left inside a menu that is no longer on screen. */
+        onClose={() => {
+          setOpen(false);
+          trigger.current?.focus();
+        }}
+        anchor={root}
+        placement="bottom-start"
+        frequent
+        label={t('teamTaskAssigneeFilterLabel')}
+        className="task-date-filter-popover task-account-filter-popover"
+      >
         <div
           ref={popover}
-          className="task-date-filter-popover task-account-filter-popover"
+          className="task-account-filter-listbox"
           role="listbox"
           aria-label={t('teamTaskAssigneeFilterLabel')}
           onKeyDown={onPopoverKeyDown}
@@ -180,7 +176,7 @@ export function TaskAssigneeFilter({
             </button>
           ))}
         </div>
-      )}
+      </Popover>
     </div>
   );
 }

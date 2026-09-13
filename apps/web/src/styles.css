@@ -10673,17 +10673,21 @@ body {
   background: var(--color-surface-muted);
   color: var(--color-text);
 }
+/* Placed by the component (021): portalled past the filter row and flipped
+   when the window is short. */
 .task-date-filter-popover {
-  position: absolute;
-  z-index: var(--layer-sticky);
-  top: calc(100% + 8px);
-  left: 0;
+  z-index: var(--layer-popover);
   width: min(304px, calc(100vw - 32px));
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
   box-shadow: var(--shadow-lg);
   padding: var(--space-3);
+}
+/* The listbox, between the popover surface and its options so the arrow-key
+   walk has something to own. */
+.task-account-filter-listbox {
+  display: contents;
 }
 .task-calendar-heading {
   display: flex;

@@ -6,12 +6,13 @@
  * opened to gather work — "everything hot or urgent" — not to intersect it.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { ChevronDown, X } from 'lucide-react';
 import { sortTeamTaskLabels, type TeamTaskLabel } from '@video-compressor/shared';
 import { ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { TaskLabelMenu } from '../labels/TaskLabelMenu';
+import { Popover } from '../../components/ui/index';
 
 export function TaskLabelFilter({
   labels,
@@ -28,24 +29,6 @@ export function TaskLabelFilter({
   const [open, setOpen] = useState(false);
   const selected = new Set(selectedIds);
   const active = selectedIds.length > 0;
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: MouseEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      setOpen(false);
-      trigger.current?.focus();
-    };
-    window.addEventListener('mousedown', close);
-    window.addEventListener('keydown', escape);
-    return () => {
-      window.removeEventListener('mousedown', close);
-      window.removeEventListener('keydown', escape);
-    };
-  }, [open]);
 
   /** What the pill says: the tag, the first one and how many more, or the word. */
   const chosen = sortTeamTaskLabels(labels.filter(label => selected.has(label.id)));
@@ -85,7 +68,20 @@ export function TaskLabelFilter({
           <X size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
         </button>
       )}
-      {open && (
+      <Popover
+        open={open}
+        /* Escape and an outside press close onto the trigger, so a keyboard
+           is never left inside a menu that is no longer on screen. */
+        onClose={() => {
+          setOpen(false);
+          trigger.current?.focus();
+        }}
+        anchor={root}
+        placement="bottom-start"
+        frequent
+        label={t('teamTaskTagFilterLabel')}
+        className="team-task-label-menu-popover"
+      >
         <TaskLabelMenu
           labels={labels}
           selectedIds={selected}
@@ -96,7 +92,7 @@ export function TaskLabelFilter({
             onChange(next ? [...selectedIds, label.id] : selectedIds.filter(id => id !== label.id))
           }
         />
-      )}
+      </Popover>
     </div>
   );
 }
