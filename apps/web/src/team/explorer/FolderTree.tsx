@@ -5,6 +5,8 @@ import { useI18n } from '../../i18n';
 import { KindIcon } from './KindIcon';
 import { useExplorer } from './ExplorerProvider';
 import { DRAG_TYPE } from './rowKinds';
+import { EmptyState, ErrorState } from '../../components/ui/index';
+import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 
 /**
  * The folder tree (011, FR-008/FR-027): every level, counts beside each
@@ -243,17 +245,9 @@ export function FolderTree({
           <ChevronsDownUp size={16} strokeWidth={2} aria-hidden="true" />
         </button>
       </div>
-      {loading && nodes === null && (
-        <p className="team-explorer-muted">{t('teamExplorerLoading')}</p>
-      )}
-      {error && (
-        <p className="team-inline-error" role="alert">
-          {t('teamExplorerLoadFailed')}
-        </p>
-      )}
-      {nodes && nodes.length === 0 && (
-        <p className="team-explorer-muted">{t('teamExplorerNoFolders')}</p>
-      )}
+      {loading && nodes === null && <LabeledSkeleton label="teamExplorerLoading" rows={4} />}
+      {error && <ErrorState className="team-inline-error" message={t('teamExplorerLoadFailed')} />}
+      {nodes && nodes.length === 0 && <EmptyState size="sm" title={t('teamExplorerNoFolders')} />}
       {nodes && nodes.length > 0 && renderLevel(topLevelIds, 0)}
     </aside>
   );

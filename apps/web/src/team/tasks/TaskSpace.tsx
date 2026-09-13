@@ -19,6 +19,8 @@ import { TaskSortControl } from './TaskSortControl';
 import { useTaskLabels, type TaskLabelsClient } from '../labels/useTaskLabels';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessageFor } from '../errors';
+import { ErrorState } from '../../components/ui/index';
+import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 
 export type TaskSpaceClient = TasksClient &
   TaskEditorClient &
@@ -364,13 +366,14 @@ export function TaskSpace({
           {t('teamTaskCreateFailed')}
         </p>
       )}
+      {/* The shape of the board that is coming, so the cards do not push the
+          filters when they land — with the sentence still there, because a
+          shimmer alone is indistinguishable from a stuck screen. */}
       {tasks.loading && tasks.tasks.length === 0 && (
-        <p aria-live="polite">{t('teamTasksLoadingList')}</p>
+        <LabeledSkeleton label="teamTasksLoadingList" rows={3} />
       )}
       {tasks.error && (
-        <p className="team-inline-error" role="alert">
-          {t('teamTasksLoadFailed')}
-        </p>
+        <ErrorState className="team-inline-error" message={t('teamTasksLoadFailed')} />
       )}
       {/* Three distinguishable answers, not one: still loading, nothing here
           at all, or nothing matching the filter in force (FR-020). */}
