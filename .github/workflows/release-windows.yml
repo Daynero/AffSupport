@@ -92,26 +92,34 @@ jobs:
         with:
           ref: ${{ inputs.source_sha || github.sha }}
 
-      - name: Assert source tag and refuse an existing publish asset
+      # Two refusals, both before two hours of compilation.
+      #
+      # This step never ran. The heredoc that carried its asset check was
+      # indented, and an indented terminator ends nothing, so bash refused the
+      # whole script at parse time -- "unexpected end of file" -- whatever
+      # `publish` was set to. And what it fed `gh release view` was
+      # `release_id`, the correlation identifier this workflow puts in its own
+      # run name, which is not a tag and was never going to resolve as one. The
+      # tag is derived here the way the upload step already derives it: from the
+      # source that was checked out.
+      - name: Assert the source and refuse an existing publish asset
         shell: bash
         env:
           EXPECTED_SHA: ${{ inputs.source_sha || github.sha }}
-          RELEASE_ID: ${{ inputs.release_id }}
           PUBLISH: ${{ inputs.publish }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
           if [ "$PUBLISH" = true ]; then
-            test -n "$RELEASE_ID"
-            test "$(git rev-list -n 1 "$RELEASE_ID")" = "$EXPECTED_SHA"
-            gh release view "$RELEASE_ID" --json assets > release-assets.json
-            node - <<'NODE'
-            const { assets } = require('./release-assets.json');
-            if (assets.some(asset => asset.name.endsWith('.exe'))) {
-              throw new Error('WINDOWS_ASSET_ALREADY_EXISTS: reconcile the exact published digest; do not rebuild or replace it.');
-            }
-            NODE
+            # Read rather than built: node and the dependencies arrive later, and
+            # a refusal is worth having before they do.
+            version="$(sed -n "s/^export const PRODUCT_VERSION = '\(.*\)';$/\1/p" packages/shared/src/release.ts)"
+            test -n "$version"
+            if gh release view "v$version" --json assets --jq '.assets[].name' | grep -q '\.exe$'; then
+              echo "::error::a Windows asset is already published on v$version. Reconcile the published digest; a release is never rebuilt."
+              exit 1
+            fi
           fi
 
       - uses: actions/setup-node@v4
