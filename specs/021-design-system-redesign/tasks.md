@@ -236,7 +236,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 ## Phase 14: [US1] C11 — Team: tasks
 
 - [x] T103 [US1] Migrate `apps/web/src/team/tasks/TaskSpace.tsx` — board columns, header, filters row
-- [ ] T104 [P] [US1] Migrate `apps/web/src/team/tasks/TaskCard.tsx` onto Card + Chip + Progress + Avatar
+- [x] T104 [P] [US1] Migrate `apps/web/src/team/tasks/TaskCard.tsx` onto Card + Chip + Progress + Avatar
 - [ ] T105 [US1] Migrate `apps/web/src/team/tasks/TaskEditor.tsx` onto Modal + FormField + the shared patterns — the densest dialog in the product
 - [x] T106 [P] [US1] Migrate `apps/web/src/team/tasks/TaskStatusControl.tsx`, `TaskSortControl.tsx`, `TaskDateField.tsx` and `TaskProgressScale.tsx`
 - [x] T107 [P] [US1] [US2] Migrate the four filters — `TaskDateFilter.tsx`, `TaskAssigneeFilter.tsx`, `TaskAccountFilter.tsx`, `TaskLabelFilter.tsx` — onto SelectMenu + Popover with their empty states (which link to where the dictionary is filled, as 020 established)
@@ -327,7 +327,7 @@ better.
 - [x] T152 [P] Add the token reference and the component inventory to `docs/DESIGN.md` (the product's rule book), leave `docs/DESIGN-PRINCIPLES.md` as the craft reference it is, and point `README.md` and `AGENTS.md` at both as the contributor path
 - [x] T153 [P] Record the behaviour findings gathered during the migration in `specs/021-design-system-redesign/findings.md` as candidates for a follow-up feature — none of them fixed inside this one (FR-037)
 - [x] T154 Run the full gate: `npm run typecheck`, `npx vitest run`, `npm run lint`, `node scripts/check-design-tokens.mjs`
-- [ ] T155 Verify the demo route is absent from a production build and the bundle has not grown
+- [x] T155 Verify the demo route is absent from a production build and the bundle has not grown
 - [x] T159 Add every string this feature introduced or rewrote (empty states, error copy, confirmation verbs, permission explanations) to both languages in `apps/web/src/i18n.ts`, and confirm `tests/i18n.test.ts` and `tests/team-i18n-glossary.test.ts` pass (FR-034)
 - [x] T160 Prove SC-009: build one throwaway screen from the inventory alone and confirm it needs no new token and no new component variant; record the result in `specs/021-design-system-redesign/findings.md` and delete the screen
 

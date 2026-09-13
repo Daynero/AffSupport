@@ -1,3 +1,17 @@
+/*
+ * A registered custom property, declared here because this is the only file
+ * allowed to write a literal — and `@property` requires one. `initial-value`
+ * must be computationally independent, so a `var()` there is invalid CSS: the
+ * browser drops the registration silently and the production minifier refuses
+ * the whole stylesheet. It is the power lever's colour, animated as a colour
+ * rather than swapped as a class, which is what registering it buys.
+ */
+@property --power-level-color {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #7c59e0;
+}
+
 /* ============================================================
    The token layer (021)
 

@@ -11836,12 +11836,6 @@ button.team-landing-tile:hover {
 
 /* ── Local Agent power throttle ─────────────────────────────────────────── */
 
-@property --power-level-color {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: var(--purple-500);
-}
-
 .power-throttle {
   position: relative;
   display: inline-flex;

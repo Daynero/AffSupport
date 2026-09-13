@@ -71,6 +71,20 @@ describe('the stylesheets', () => {
     expect([...missing]).toEqual([]);
   });
 
+  it('gives a registered property a value it can actually start from', () => {
+    /*
+     * `@property`'s `initial-value` has to be computationally independent, so a
+     * `var()` there is invalid CSS. The browser drops the registration in
+     * silence — and the production minifier refuses the whole stylesheet, which
+     * is how this was found: `npm run build` stopped working.
+     */
+    for (const block of withoutComments.matchAll(/@property[^{]*\{([^}]*)\}/g)) {
+      const initial = /initial-value:\s*([^;]+)/.exec(block[1]);
+      expect(initial, 'a registered property needs an initial-value').not.toBeNull();
+      expect(initial![1]).not.toContain('var(');
+    }
+  });
+
   it('opens an anchored surface from 0.95, not from nothing', () => {
     // docs/DESIGN-PRINCIPLES.md: animating from `scale(0)` looks like a glitch.
     for (const name of ['pop-in', 'ui-surface-in']) {
