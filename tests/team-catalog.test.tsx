@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { freshnessStub } from './support/catalog-stub.js';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
@@ -170,8 +170,14 @@ describe('team catalog search UI', () => {
       </TeamProvider>
     );
 
-    expect(await screen.findByText('Creative source')).toBeTruthy();
-    expect(screen.getByText('Folder')).toBeTruthy();
+    const name = await screen.findByText('Creative source');
+    // Scoped to the row. The type filters now say their values in words too, so
+    // "Folder" appears twice on the page and the bare query matched both — this
+    // assertion is about what the *row* shows instead of the raw MIME, not about
+    // how many places the word occurs.
+    const row = name.closest('li');
+    expect(row).toBeTruthy();
+    expect(within(row as HTMLElement).getByText('Folder')).toBeTruthy();
     expect(screen.getByText('Metadata needs attention')).toBeTruthy();
     expect(screen.queryByText('application/vnd.google-apps.folder')).toBeNull();
     // The disclosure is a real menu button now, and its contents mount only

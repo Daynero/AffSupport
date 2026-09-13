@@ -85,7 +85,7 @@ describe('team landing full view', () => {
     expect(screen.getByRole('dialog')).toBeTruthy();
   });
 
-  it('persists and applies device, colour-scheme, and zoom controls', async () => {
+  it('persists and applies the device and zoom controls', async () => {
     const previewClient = client({
       kind: 'media',
       rangeUrl: 'https://example.test/unused',
@@ -102,16 +102,19 @@ describe('team landing full view', () => {
     );
 
     fireEvent.click(screen.getByRole('radio', { name: 'Mobile' }));
-    fireEvent.click(screen.getByRole('radio', { name: 'Dark' }));
     fireEvent.click(screen.getByRole('button', { name: /Zoom \+/ }));
 
     const dialog = screen.getByRole('dialog');
     expect(dialog.getAttribute('data-landing-device')).toBe('mobile');
-    expect(dialog.getAttribute('data-landing-scheme')).toBe('dark');
+    // The light/dark pair is gone: a landing renders in the scheme its own markup
+    // asks for, so the toggle only ever showed the same page twice. The preset
+    // still carries a scheme because the renderer reads it — it is simply no
+    // longer a question put to the reader, so it stays at its default.
+    expect(dialog.getAttribute('data-landing-scheme')).toBe('light');
     expect(dialog.getAttribute('data-landing-zoom')).toBe('1.25');
     expect(JSON.parse(localStorage.getItem('soty.landing-viewer.v1') ?? '{}')).toEqual({
       device: 'mobile',
-      colorScheme: 'dark',
+      colorScheme: 'light',
       zoom: 1.25
     });
   });

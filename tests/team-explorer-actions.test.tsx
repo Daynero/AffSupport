@@ -129,7 +129,9 @@ describe('the selection bar', () => {
       );
     expect(named('Download re-stitched')).toBe(true);
     expect(named('Move to trash')).toBe(true);
-    expect(named('Clear selection')).toBe(true);
+    // The count is on the button now, so the label is not a fixed string: the
+    // press that clears a selection says how much it is about to clear.
+    expect(named('Clear selection (2)')).toBe(true);
     /*
      * Each action says what it is. The bar used to be five bare icons — one of
      * them a bin — with four hundred pixels of itself unused, and the owner

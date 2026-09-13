@@ -1,6 +1,7 @@
 # Правила дизайна
 
 Свод правил по UI, UX и анимациям. Источники:
+
 - [uidesign.tips](https://www.uidesign.tips/) (Jim Raptis) — база по UI/UX
 - [animations.dev](https://animations.dev/) и [emilkowal.ski](https://emilkowal.ski/) (Emil Kowalski) — правила анимаций
 

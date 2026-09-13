@@ -48,9 +48,11 @@ beforeAll(async () => {
   await createUser(harness, { id: OWNER, email: 'owner@lang.test', displayName: 'Owner' });
   await createUser(harness, { id: VIEWER, email: 'viewer@lang.test', displayName: 'Viewer' });
   await harness.root(`insert into public.admin_users (user_id) values ($1)`, [OWNER]);
-  const team = await harness.asUser<{ id: string }>(OWNER, 'select id from public.create_team($1)', [
-    'Languages'
-  ]);
+  const team = await harness.asUser<{ id: string }>(
+    OWNER,
+    'select id from public.create_team($1)',
+    ['Languages']
+  );
   teamId = team[0]!.id;
   await harness.root(
     `insert into public.team_members (team_id, user_id, base_role) values ($1, $2, 'viewer')`,
