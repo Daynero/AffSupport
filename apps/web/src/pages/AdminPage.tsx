@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { Card } from '../components/Card';
 import { Button, type Translate } from '../components/ui';
+import { Alert } from '../components/ui/index';
 import { formatSize } from '../format';
 import { useI18n, type TranslationKey } from '../i18n';
 import type { AdminUserRow, Json, MarketingExportRow, SupportGoalRow } from '../lib/database.types';
@@ -345,12 +346,17 @@ export default function AdminPage() {
       </header>
 
       {error && (
-        <div className="inline-alert inline-alert-error" role="alert">
+        <Alert
+          color="error"
+          live="alert"
+          action={
+            <Button size="sm" color="neutral" variant="outline" onClick={() => void load()}>
+              {t('retry')}
+            </Button>
+          }
+        >
           {t('adminError')}
-          <Button variant="ghost" onClick={() => void load()}>
-            {t('retry')}
-          </Button>
-        </div>
+        </Alert>
       )}
 
       {loading && !overview ? (

@@ -6,6 +6,7 @@ import { Card } from '../components/Card';
 import { ToastProvider } from '../components/toast';
 import { InvitationList } from '../team/lobby/InvitationList';
 import { Button, Checkbox, type Translate } from '../components/ui';
+import { Alert } from '../components/ui/index';
 import { UserAvatar } from '../components/UserAvatar';
 import { useI18n, type Language } from '../i18n';
 import { configuredEnvironment } from '../lib/config';
@@ -202,8 +203,16 @@ function AccountContent({
           />
           {/* How tasks and transcripts behave lives in the space's own settings
               now: this card is who you are, not how team mode works. */}
-          {formError && <div className="inline-alert inline-alert-error">{t('profileError')}</div>}
-          {saved && <div className="inline-alert inline-alert-success">{t('changesSaved')}</div>}
+          {formError && (
+            <Alert color="error" live="alert">
+              {t('profileError')}
+            </Alert>
+          )}
+          {saved && (
+            <Alert color="success" live="status">
+              {t('changesSaved')}
+            </Alert>
+          )}
           <Button variant="primary" loading={saving} onClick={() => void save()}>
             {t('saveChanges')}
           </Button>
