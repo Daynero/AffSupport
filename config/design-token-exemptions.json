@@ -1,0 +1,155 @@
+{
+  "$comment": "Design-token exemptions (021, T011). Every entry is a debt with a reason and an owning task; the list must be empty before T151 closes the feature. Nothing new may be added without a task that removes it.",
+  "exemptions": [
+    {
+      "file": "apps/web/src/styles.css",
+      "rule": "raw-colour",
+      "reason": "Pre-021 screen rules, migrated group by group (C1-C14).",
+      "clearedBy": "T150"
+    },
+    {
+      "file": "apps/web/src/styles.css",
+      "rule": "raw-duration",
+      "reason": "Pre-021 screen rules, migrated group by group (C1-C14).",
+      "clearedBy": "T150"
+    },
+    {
+      "file": "apps/web/src/styles.css",
+      "rule": "raw-radius",
+      "reason": "Pre-021 screen rules, migrated group by group (C1-C14).",
+      "clearedBy": "T150"
+    },
+    {
+      "file": "apps/web/src/styles.css",
+      "rule": "raw-font-size",
+      "reason": "Pre-021 screen rules, migrated group by group (C1-C14).",
+      "clearedBy": "T150"
+    },
+    {
+      "file": "apps/web/src/styles.css",
+      "rule": "layout-transition",
+      "reason": "Pre-021 screen rules, migrated group by group (C1-C14).",
+      "clearedBy": "T150"
+    },
+    {
+      "file": "apps/web/src/styles/team-accounts.css",
+      "rule": "raw-colour",
+      "reason": "Migrated with the accounts group.",
+      "clearedBy": "T116"
+    },
+    {
+      "file": "apps/web/src/styles/team-accounts.css",
+      "rule": "raw-duration",
+      "reason": "Migrated with the accounts group.",
+      "clearedBy": "T116"
+    },
+    {
+      "file": "apps/web/src/styles/team-accounts.css",
+      "rule": "raw-radius",
+      "reason": "Migrated with the accounts group.",
+      "clearedBy": "T116"
+    },
+    {
+      "file": "apps/web/src/styles/team-accounts.css",
+      "rule": "raw-font-size",
+      "reason": "Migrated with the accounts group.",
+      "clearedBy": "T116"
+    },
+    {
+      "file": "apps/web/src/styles/team-accounts.css",
+      "rule": "layout-transition",
+      "reason": "Migrated with the accounts group.",
+      "clearedBy": "T116"
+    },
+    {
+      "file": "apps/web/src/styles/team-tasks.css",
+      "rule": "raw-colour",
+      "reason": "Migrated with the tasks group.",
+      "clearedBy": "T109"
+    },
+    {
+      "file": "apps/web/src/styles/team-tasks.css",
+      "rule": "raw-duration",
+      "reason": "Migrated with the tasks group.",
+      "clearedBy": "T109"
+    },
+    {
+      "file": "apps/web/src/styles/team-tasks.css",
+      "rule": "raw-radius",
+      "reason": "Migrated with the tasks group.",
+      "clearedBy": "T109"
+    },
+    {
+      "file": "apps/web/src/styles/team-tasks.css",
+      "rule": "raw-font-size",
+      "reason": "Migrated with the tasks group.",
+      "clearedBy": "T109"
+    },
+    {
+      "file": "apps/web/src/styles/team-tasks.css",
+      "rule": "layout-transition",
+      "reason": "Migrated with the tasks group.",
+      "clearedBy": "T109"
+    },
+    {
+      "file": "apps/web/src/styles/transcription.css",
+      "rule": "raw-colour",
+      "reason": "Migrated with the transcription group.",
+      "clearedBy": "T066"
+    },
+    {
+      "file": "apps/web/src/styles/transcription.css",
+      "rule": "raw-duration",
+      "reason": "Migrated with the transcription group.",
+      "clearedBy": "T066"
+    },
+    {
+      "file": "apps/web/src/styles/transcription.css",
+      "rule": "raw-radius",
+      "reason": "Migrated with the transcription group.",
+      "clearedBy": "T066"
+    },
+    {
+      "file": "apps/web/src/styles/transcription.css",
+      "rule": "raw-font-size",
+      "reason": "Migrated with the transcription group.",
+      "clearedBy": "T066"
+    },
+    {
+      "file": "apps/web/src/styles/transcription.css",
+      "rule": "layout-transition",
+      "reason": "Migrated with the transcription group.",
+      "clearedBy": "T066"
+    },
+    {
+      "file": "apps/web/src/styles/landing-viewer.css",
+      "rule": "raw-colour",
+      "reason": "Migrated with the landing viewer group.",
+      "clearedBy": "T073"
+    },
+    {
+      "file": "apps/web/src/styles/landing-viewer.css",
+      "rule": "raw-duration",
+      "reason": "Migrated with the landing viewer group.",
+      "clearedBy": "T073"
+    },
+    {
+      "file": "apps/web/src/styles/landing-viewer.css",
+      "rule": "raw-radius",
+      "reason": "Migrated with the landing viewer group.",
+      "clearedBy": "T073"
+    },
+    {
+      "file": "apps/web/src/styles/landing-viewer.css",
+      "rule": "raw-font-size",
+      "reason": "Migrated with the landing viewer group.",
+      "clearedBy": "T073"
+    },
+    {
+      "file": "apps/web/src/styles/landing-viewer.css",
+      "rule": "layout-transition",
+      "reason": "Migrated with the landing viewer group.",
+      "clearedBy": "T073"
+    }
+  ]
+}
