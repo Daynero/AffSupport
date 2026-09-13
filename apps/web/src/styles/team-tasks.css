@@ -792,6 +792,21 @@ button.team-task-label-chip:hover:not(:disabled),
   flex-wrap: nowrap;
 }
 
+/*
+ * On a phone, with the longer translation, the group itself is wider than the
+ * window: "За весь час · За тиждень · За місяць" came to 372px inside a 390px
+ * screen and pushed the page 15px sideways. Below this width the group wraps
+ * its own buttons — each one still unbroken, because they are `nowrap` — which
+ * keeps the rule the row was built on ("no control breaks inside itself")
+ * without the page scrolling to reach one.
+ */
+@media (max-width: 520px) {
+  .task-quick-ranges,
+  .task-sort-control {
+    flex-wrap: wrap;
+  }
+}
+
 .task-quick-range,
 .task-status-filter-option,
 .task-sort-option {

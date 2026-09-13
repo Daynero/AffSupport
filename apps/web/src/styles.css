@@ -3135,10 +3135,13 @@ input.is-invalid {
   }
 }
 
+/* The one entrance an anchored surface gets: it grows from its trigger's
+   corner rather than from nothing (FR-026). 0.95 is the figure the inventory's
+   own `ui-surface-in` uses, and two numbers for one motion is one too many. */
 @keyframes pop-in {
   from {
     opacity: 0;
-    transform: scale(0.96) translateY(-4px);
+    transform: scale(0.95);
   }
 }
 
@@ -4258,7 +4261,10 @@ body:has(.public-home) {
   border-radius: var(--radius-lg);
   background: var(--color-surface);
   box-shadow: var(--shadow-menu);
-  animation: menu-pop var(--dur-pop) var(--ease-enter);
+  /* No entrance: this is opened many times an hour, and the rule about
+     frequency is in docs/DESIGN-PRINCIPLES.md. It used to name `menu-pop`,
+     which no `@keyframes` ever declared — so it already did not animate, it
+     just did not say so. */
   transform-origin: top right;
 }
 

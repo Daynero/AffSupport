@@ -722,7 +722,9 @@
    * two signals.
    */
   border-top: 1px solid var(--color-border);
-  transition: background-color var(--dur-control) var(--ease-standard);
+  /* No transition on the wash: a row is crossed dozens of times a minute in a
+     table this dense, and a fade behind a moving pointer reads as lag rather
+     than as polish (docs/DESIGN-PRINCIPLES.md — frequency, not taste). */
 }
 
 .team-agent-row:nth-child(even):not(.is-free) {

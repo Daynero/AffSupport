@@ -301,8 +301,8 @@ better.
 ## Phase 19: [US3] The motion sweep
 
 - [x] T140 [US3] Audit every `transition` and `animation` declaration in `apps/web/src/styles*.css`: none over 300ms, none on a layout-affecting property, all easing from the two curves
-- [ ] T141 [US3] Verify the frequent-action exclusions: menus, row hover, selection toggles, theme toggle, keyboard shortcuts and tag popovers animate not at all
-- [ ] T142 [P] [US3] Verify every overlay opens from its trigger's origin at 0.95 scale (FR-026)
+- [x] T141 [US3] Verify the frequent-action exclusions: menus, row hover, selection toggles, theme toggle, keyboard shortcuts and tag popovers animate not at all
+- [x] T142 [P] [US3] Verify every overlay opens from its trigger's origin at 0.95 scale (FR-026)
 - [x] T143 [P] [US3] Walk the whole product with `prefers-reduced-motion: reduce` and confirm no state is communicated by motion alone
 - [x] T144 [P] [US3] Verify interrupted transitions resume from their current position rather than restarting (FR-030), on the three surfaces where it is visible: dialogs, the folder tree, the task board
 
@@ -313,7 +313,7 @@ better.
 - [x] T145 [US4] Walk every row of `contracts/screens.md` at 1920/1440/1024/768/390 in both themes; record every overlap, clip or horizontal scroll in `findings.md` and fix it
 - [x] T146 [P] [US4] Run the contrast audit across every surface in both themes; fix every AA failure at the token level rather than per screen
 - [x] T147 [P] [US4] Walk the product by keyboard alone: focus order follows reading order, focus is always visible, dialogs trap and restore focus
-- [ ] T148 [P] [US4] Verify every control with the longer (Ukrainian) translation; fix anything that clips or overflows
+- [x] T148 [P] [US4] Verify every control with the longer (Ukrainian) translation; fix anything that clips or overflows
 - [ ] T149 [P] [US4] Verify no state is communicated by colour alone (FR-032), particularly the marker colours, connection states and task statuses
 - [x] T157 [P] [US1] Audit every paragraph and helper text in the product for the 70ch measure cap (FR-023); fix at the pattern level, not per screen
 - [x] T158 [P] [US1] Audit every surface for exactly one `primary`-variant control, positioned at the end of the reading flow (FR-022); demote the extras to `secondary` or `ghost`
