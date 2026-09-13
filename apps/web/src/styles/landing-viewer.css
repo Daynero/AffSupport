@@ -543,6 +543,12 @@
   box-shadow: var(--shadow-menu);
 }
 
+/* The menu's own element, between the popover surface and its entries so the
+   arrow-key walk has something to own; it takes no space of its own. */
+.lv-menu-items {
+  display: contents;
+}
+
 .lv-menu-heading {
   padding: 8px 10px 4px;
   color: var(--color-text-muted);

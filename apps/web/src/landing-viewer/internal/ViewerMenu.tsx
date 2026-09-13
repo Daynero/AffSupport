@@ -1,23 +1,15 @@
-import {
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type ButtonHTMLAttributes,
-  type ReactNode
-} from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { Check } from 'lucide-react';
-import { useAnchoredLayer } from '../../components/useAnchoredLayer';
+import { Popover } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 
 /**
  * A toolbar menu: a trigger button and a popover on the body, placed beside it.
  *
- * The same menu as the transcription tool's export menu — focus lands on the first choice,
- * arrows move, Escape and Tab return to the trigger, a click elsewhere closes it — so every
- * dropdown in the viewer behaves the same way and none of them stack: opening one closes
- * whichever was open, because each listens for the pointer that opened the other.
+ * The surface, its placement and its dismissal are the inventory's Popover
+ * (021, T072); what stays here is the trigger and the arrow-key walk, which
+ * every menu in the viewer shares — focus lands on the first choice, arrows
+ * move, Escape and Tab return to the trigger.
  */
 export function ViewerMenu({
   label,
@@ -44,7 +36,6 @@ export function ViewerMenu({
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
-  const style = useAnchoredLayer(root, menu, open, { align, gap: 6 });
 
   const close = (restoreFocus: boolean) => {
     setOpen(false);
@@ -60,15 +51,13 @@ export function ViewerMenu({
         ) ?? []
       );
     items()[0]?.focus();
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (!root.current?.contains(target) && !menu.current?.contains(target)) setOpen(false);
-    };
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as Node;
       const inside = root.current?.contains(target) || menu.current?.contains(target);
-      if (!inside && event.key !== 'Escape') return;
-      if (event.key === 'Escape' || event.key === 'Tab') {
+      if (!inside) return;
+      // Tab leaves the menu the way Escape does — the surface is on the body,
+      // so a natural Tab out of it lands on the first link of the page.
+      if (event.key === 'Tab') {
         event.preventDefault();
         event.stopPropagation();
         close(true);
@@ -90,12 +79,8 @@ export function ViewerMenu({
         list.at(-1)?.focus();
       }
     };
-    document.addEventListener('pointerdown', onPointerDown);
     document.addEventListener('keydown', onKeyDown, true);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown, true);
-    };
+    return () => document.removeEventListener('keydown', onKeyDown, true);
   }, [open]);
 
   return (
@@ -115,25 +100,19 @@ export function ViewerMenu({
       >
         {trigger}
       </button>
-      {open &&
-        createPortal(
-          <div
-            id={id}
-            ref={menu}
-            role="menu"
-            aria-label={label}
-            className="lv-menu"
-            // The placement hook stacks a layer at the popover level, which is below the viewer's
-            // own fixed layer; the menu must sit above the toolbar that opened it.
-            style={{
-              ...(style ?? { position: 'fixed', visibility: 'hidden' }),
-              zIndex: 'var(--layer-modal-nested)' as unknown as number
-            }}
-          >
-            {children(() => close(true))}
-          </div>,
-          document.body
-        )}
+      <Popover
+        open={open}
+        onClose={() => close(true)}
+        anchor={root}
+        placement={align === 'end' ? 'bottom-end' : 'bottom-start'}
+        frequent
+        label={label}
+        className="lv-menu"
+      >
+        <div id={id} ref={menu} role="menu" aria-label={label} className="lv-menu-items">
+          {children(() => close(true))}
+        </div>
+      </Popover>
     </div>
   );
 }
