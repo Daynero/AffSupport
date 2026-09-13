@@ -11,6 +11,7 @@ import {
 } from '../support/goals';
 import { Modal } from './Modal';
 import { Button } from './ui';
+import { fillRatio } from './ui/index';
 
 /** Header trigger that opens the "Support the project" dialog. */
 export function SupportButton() {
@@ -61,7 +62,7 @@ export function SupportButton() {
               {target}
             </strong>
             <span className="support-trigger-progress" aria-hidden="true">
-              <i style={{ width: `${progress.visualPercent}%` }} />
+              <i style={fillRatio(progress.visualPercent)} />
             </span>
           </>
         )}
@@ -243,7 +244,7 @@ function SupportGoalCard() {
         aria-valuenow={progress.displayPercent}
         aria-valuetext={progressText}
       >
-        <span style={{ width: `${progress.visualPercent}%` }}>
+        <span style={fillRatio(progress.visualPercent)}>
           <i />
         </span>
       </div>

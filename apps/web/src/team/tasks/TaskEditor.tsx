@@ -11,6 +11,7 @@ import type {
 import { teamApi, type TeamMemberSummary } from '../../api/team';
 import { Modal } from '../../components/Modal';
 import { Button } from '../../components/ui';
+import { fillRatio } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import {
   attachTaskMaterialsInChunks,
@@ -1196,9 +1197,7 @@ export function TaskEditor({
                       }
                     >
                       <span
-                        style={{
-                          width: `${item.total > 0 ? Math.round((item.sent / item.total) * 100) : 0}%`
-                        }}
+                        style={fillRatio(item.total > 0 ? (item.sent / item.total) * 100 : 0)}
                       />
                     </span>
                   </div>

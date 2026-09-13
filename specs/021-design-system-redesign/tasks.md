@@ -300,11 +300,11 @@ better.
 
 ## Phase 19: [US3] The motion sweep
 
-- [ ] T140 [US3] Audit every `transition` and `animation` declaration in `apps/web/src/styles*.css`: none over 300ms, none on a layout-affecting property, all easing from the two curves
+- [x] T140 [US3] Audit every `transition` and `animation` declaration in `apps/web/src/styles*.css`: none over 300ms, none on a layout-affecting property, all easing from the two curves
 - [ ] T141 [US3] Verify the frequent-action exclusions: menus, row hover, selection toggles, theme toggle, keyboard shortcuts and tag popovers animate not at all
 - [ ] T142 [P] [US3] Verify every overlay opens from its trigger's origin at 0.95 scale (FR-026)
 - [ ] T143 [P] [US3] Walk the whole product with `prefers-reduced-motion: reduce` and confirm no state is communicated by motion alone
-- [ ] T144 [P] [US3] Verify interrupted transitions resume from their current position rather than restarting (FR-030), on the three surfaces where it is visible: dialogs, the folder tree, the task board
+- [x] T144 [P] [US3] Verify interrupted transitions resume from their current position rather than restarting (FR-030), on the three surfaces where it is visible: dialogs, the folder tree, the task board
 
 ---
 

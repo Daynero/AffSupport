@@ -30,6 +30,7 @@ import {
 import { compactPath } from '../format';
 import { isValidIntegerInput } from '../queue-ui';
 import { Checkbox, Collapse, Tooltip, type Translate } from './ui';
+import { RadioGroup } from './ui/index';
 import { ImageEmbeddingSection } from './ImageEmbeddingSection';
 
 // The presets are exactly the pictos on the row. A value outside them (25 fps,
@@ -136,32 +137,32 @@ export function SettingsPanel({
         <div className="settings-primary-row">
           <div className="field-group">
             <FieldLabel label={t('compressionMode')} />
-            <div className="fit-mode-pictos" role="radiogroup" aria-label={t('compressionMode')}>
-              <button
-                type="button"
-                className={settings.mode === 'optimal' ? 'is-selected' : ''}
-                data-tip={t('optimal')}
-                aria-label={t('optimal')}
-                aria-checked={settings.mode === 'optimal'}
-                role="radio"
-                disabled={disabled}
-                onClick={() => updateSettings({ mode: 'optimal' })}
-              >
-                <Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                className={settings.mode === 'custom' ? 'is-selected' : ''}
-                data-tip={t('custom')}
-                aria-label={t('custom')}
-                aria-checked={settings.mode === 'custom'}
-                role="radio"
-                disabled={disabled}
-                onClick={() => updateSettings({ mode: 'custom' })}
-              >
-                <SlidersHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              </button>
-            </div>
+            <RadioGroup
+              className="fit-mode-pictos"
+              variant="pictos"
+              label={t('compressionMode')}
+              value={settings.mode}
+              disabled={disabled}
+              onChange={mode => updateSettings({ mode })}
+              options={[
+                {
+                  value: 'optimal',
+                  label: t('optimal'),
+                  icon: <Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                },
+                {
+                  value: 'custom',
+                  label: t('custom'),
+                  icon: (
+                    <SlidersHorizontal
+                      size={ICON_SIZE}
+                      strokeWidth={ICON_STROKE}
+                      aria-hidden="true"
+                    />
+                  )
+                }
+              ]}
+            />
             {/* The picto pair says nothing on its own, so the chosen mode is
               spelled out under it — the preset's numbers live in its tip. */}
             <span
@@ -265,53 +266,39 @@ function CustomSettings({
       <div className="field-group rate-control-field custom-column-primary">
         <FieldLabel label={t('rateControl')} />
         <div className="start-duration-row">
-          <div className="fit-mode-pictos" role="radiogroup" aria-label={t('rateControl')}>
-            <button
-              type="button"
-              role="radio"
-              className={rateMode === 'optimal' ? 'is-selected' : ''}
-              data-tip={t('optimal')}
-              aria-label={t('optimal')}
-              aria-checked={rateMode === 'optimal'}
-              disabled={disabled}
-              onClick={() => {
-                setRateMode('optimal');
-                updateSettings({ rateControl: 'crf', crf: DEFAULT_CRF });
-              }}
-            >
-              <Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              role="radio"
-              className={`${rateMode === 'crf' ? 'is-selected' : ''} ${crfDrag !== null ? 'is-zoomed' : ''}`.trim()}
-              data-tip={t('constantQuality')}
-              aria-label={t('constantQuality')}
-              aria-checked={rateMode === 'crf'}
-              disabled={disabled}
-              onClick={() => {
-                setRateMode('crf');
-                updateSettings({ rateControl: 'crf' });
-              }}
-            >
-              <PixelGem crf={crfDrag ?? settings.crf} selected={rateMode === 'crf'} />
-            </button>
-            <button
-              type="button"
-              role="radio"
-              className={rateMode === 'bitrate' ? 'is-selected' : ''}
-              data-tip={t('targetBitrate')}
-              aria-label={t('targetBitrate')}
-              aria-checked={rateMode === 'bitrate'}
-              disabled={disabled}
-              onClick={() => {
-                setRateMode('bitrate');
-                updateSettings({ rateControl: 'bitrate' });
-              }}
-            >
-              <Gauge size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            </button>
-          </div>
+          <RadioGroup
+            className="fit-mode-pictos"
+            variant="pictos"
+            label={t('rateControl')}
+            value={rateMode}
+            disabled={disabled}
+            onChange={next => {
+              setRateMode(next);
+              if (next === 'optimal') updateSettings({ rateControl: 'crf', crf: DEFAULT_CRF });
+              else if (next === 'crf') updateSettings({ rateControl: 'crf' });
+              else updateSettings({ rateControl: 'bitrate' });
+            }}
+            options={[
+              {
+                value: 'optimal',
+                label: t('optimal'),
+                icon: <Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              },
+              {
+                value: 'crf',
+                label: t('constantQuality'),
+                // The gem grows while the slider moves, so the crystal falling
+                // apart is visible on the button that owns it.
+                className: crfDrag !== null ? 'is-zoomed' : undefined,
+                icon: <PixelGem crf={crfDrag ?? settings.crf} selected={rateMode === 'crf'} />
+              },
+              {
+                value: 'bitrate',
+                label: t('targetBitrate'),
+                icon: <Gauge size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              }
+            ]}
+          />
           {rateMode === 'optimal' ? null : rateMode === 'crf' ? (
             <RateValueCrf
               settings={settings}
@@ -368,56 +355,36 @@ function FpsControl({
     <div className="field-group custom-column-primary">
       <FieldLabel label={t('frameRate')} tooltip={t('frameRateTooltip')} />
       <div className="start-duration-row">
-        <div className="fit-mode-pictos" role="radiogroup" aria-label={t('frameRate')}>
-          <button
-            type="button"
-            role="radio"
-            className={choice === 'original' ? 'is-selected' : ''}
-            data-tip={t('asOriginal')}
-            aria-label={t('asOriginal')}
-            aria-checked={choice === 'original'}
-            disabled={disabled}
-            onClick={() => {
-              setChoice('original');
-              updateSettings({ frameRate: null });
-            }}
-          >
-            <Film size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          </button>
-          {FPS_OPTIONS.map(value => (
-            <button
-              key={value}
-              type="button"
-              role="radio"
-              className={`is-labeled ${choice === String(value) ? 'is-selected' : ''}`}
-              data-tip={`${value} FPS`}
-              aria-label={`${value} FPS`}
-              aria-checked={choice === String(value)}
-              disabled={disabled}
-              onClick={() => {
-                setChoice(String(value));
-                updateSettings({ frameRate: value });
-              }}
-            >
-              {value}
-            </button>
-          ))}
-          <button
-            type="button"
-            role="radio"
-            className={choice === 'custom' ? 'is-selected' : ''}
-            data-tip={t('customValue')}
-            aria-label={t('customValue')}
-            aria-checked={choice === 'custom'}
-            disabled={disabled}
-            onClick={() => {
-              setChoice('custom');
-              setCustom('');
-            }}
-          >
-            <Timer size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          </button>
-        </div>
+        <RadioGroup
+          className="fit-mode-pictos"
+          variant="pictos"
+          label={t('frameRate')}
+          value={choice}
+          disabled={disabled}
+          onChange={next => {
+            setChoice(next);
+            if (next === 'original') updateSettings({ frameRate: null });
+            else if (next === 'custom') setCustom('');
+            else updateSettings({ frameRate: Number(next) });
+          }}
+          options={[
+            {
+              value: 'original',
+              label: t('asOriginal'),
+              icon: <Film size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            },
+            ...FPS_OPTIONS.map(value => ({
+              value: String(value),
+              label: `${value} FPS`,
+              short: value
+            })),
+            {
+              value: 'custom',
+              label: t('customValue'),
+              icon: <Timer size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            }
+          ]}
+        />
         {choice === 'custom' && (
           <div className="input-with-suffix">
             <input
@@ -485,56 +452,36 @@ function ResolutionControl({
     <div className="field-group custom-column-secondary">
       <FieldLabel label={t('resolution')} tooltip={t('resolutionTooltip')} />
       <div className="start-duration-row">
-        <div className="fit-mode-pictos" role="radiogroup" aria-label={t('resolution')}>
-          <button
-            type="button"
-            role="radio"
-            className={choice === 'original' ? 'is-selected' : ''}
-            data-tip={t('asOriginal')}
-            aria-label={t('asOriginal')}
-            aria-checked={choice === 'original'}
-            disabled={disabled}
-            onClick={() => {
-              setChoice('original');
-              updateSettings({ resolutionLimit: null });
-            }}
-          >
-            <Monitor size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          </button>
-          {RESOLUTION_OPTIONS.map(value => (
-            <button
-              key={value}
-              type="button"
-              role="radio"
-              className={`is-labeled ${choice === String(value) ? 'is-selected' : ''}`}
-              data-tip={`${value}p`}
-              aria-label={`${value}p`}
-              aria-checked={choice === String(value)}
-              disabled={disabled}
-              onClick={() => {
-                setChoice(String(value));
-                updateSettings({ resolutionLimit: value });
-              }}
-            >
-              {value}p
-            </button>
-          ))}
-          <button
-            type="button"
-            role="radio"
-            className={choice === 'custom' ? 'is-selected' : ''}
-            data-tip={t('customValue')}
-            aria-label={t('customValue')}
-            aria-checked={choice === 'custom'}
-            disabled={disabled}
-            onClick={() => {
-              setChoice('custom');
-              setCustom('');
-            }}
-          >
-            <Timer size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          </button>
-        </div>
+        <RadioGroup
+          className="fit-mode-pictos"
+          variant="pictos"
+          label={t('resolution')}
+          value={choice}
+          disabled={disabled}
+          onChange={next => {
+            setChoice(next);
+            if (next === 'original') updateSettings({ resolutionLimit: null });
+            else if (next === 'custom') setCustom('');
+            else updateSettings({ resolutionLimit: Number(next) });
+          }}
+          options={[
+            {
+              value: 'original',
+              label: t('asOriginal'),
+              icon: <Monitor size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            },
+            ...RESOLUTION_OPTIONS.map(value => ({
+              value: String(value),
+              label: `${value}p`,
+              short: `${value}p`
+            })),
+            {
+              value: 'custom',
+              label: t('customValue'),
+              icon: <Timer size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            }
+          ]}
+        />
         {choice === 'custom' && (
           <div className="input-with-suffix">
             <input
@@ -720,32 +667,32 @@ function OutputSettings({
       <div className="field-group">
         <FieldLabel label={t('saveResults')} tooltip={t('saveTooltip')} />
         <div className="output-control-row">
-          <div className="fit-mode-pictos" role="radiogroup" aria-label={t('saveResults')}>
-            <button
-              type="button"
-              role="radio"
-              className={settings.outputMode === 'next-to-originals' ? 'is-selected' : ''}
-              data-tip={t('nextToOriginals')}
-              aria-label={t('nextToOriginals')}
-              aria-checked={settings.outputMode === 'next-to-originals'}
-              disabled={disabled}
-              onClick={() => updateSettings({ outputMode: 'next-to-originals' })}
-            >
-              <Files size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              role="radio"
-              className={settings.outputMode === 'chosen-folder' ? 'is-selected' : ''}
-              data-tip={t('chooseFolder')}
-              aria-label={t('chooseFolder')}
-              aria-checked={settings.outputMode === 'chosen-folder'}
-              disabled={disabled}
-              onClick={chooseOutputFolder}
-            >
-              <FolderOpen size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            </button>
-          </div>
+          <RadioGroup
+            className="fit-mode-pictos"
+            variant="pictos"
+            label={t('saveResults')}
+            value={settings.outputMode}
+            disabled={disabled}
+            /* Choosing a folder opens the picker; the mode follows from what
+               comes back, so a cancelled picker does not change the setting. */
+            onChange={mode =>
+              mode === 'chosen-folder'
+                ? chooseOutputFolder()
+                : updateSettings({ outputMode: 'next-to-originals' })
+            }
+            options={[
+              {
+                value: 'next-to-originals',
+                label: t('nextToOriginals'),
+                icon: <Files size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              },
+              {
+                value: 'chosen-folder',
+                label: t('chooseFolder'),
+                icon: <FolderOpen size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              }
+            ]}
+          />
           <input
             className="time-input suffix-input"
             type="text"

@@ -60,6 +60,7 @@ export {
   UI_COLORS,
   UI_SIZES,
   UI_VARIANTS,
+  fillRatio,
   uiClasses
 } from './ui/index';
 export type {
@@ -92,6 +93,7 @@ import {
   useRef,
   useState,
   type ButtonHTMLAttributes,
+  type CSSProperties,
   type InputHTMLAttributes,
   type ReactNode
 } from 'react';
@@ -277,7 +279,13 @@ export function ProgressBar({
       aria-valuemax={100}
       aria-valuenow={normalized === null ? undefined : Math.round(normalized)}
     >
-      <span style={normalized === null ? undefined : { width: `${normalized}%` }} />
+      <span
+        style={
+          normalized === null
+            ? undefined
+            : ({ '--progress-ratio': normalized / 100 } as CSSProperties)
+        }
+      />
     </div>
   );
 }

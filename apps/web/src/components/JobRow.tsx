@@ -24,6 +24,7 @@ import {
 import type { Language } from '../i18n';
 import { elapsedMilliseconds, stoppable, timerState } from '../queue-ui';
 import { Button, Checkbox, ProgressBar, Spinner, StatusBadge, type Translate } from './ui';
+import { fillRatio } from './ui/index';
 
 /** Keep in sync with --dur-complete in styles.css: the estimate → result
  * morph (row-track transition + size count-up) runs on this clock. */
@@ -380,12 +381,9 @@ function EstimatePanel({
                   did. */}
               <span className="estimate-bar" aria-hidden="true">
                 <span
-                  style={{
-                    width: `${Math.round(
-                      (job.estimateProgress.completed / Math.max(1, job.estimateProgress.total)) *
-                        100
-                    )}%`
-                  }}
+                  style={fillRatio(
+                    (job.estimateProgress.completed / Math.max(1, job.estimateProgress.total)) * 100
+                  )}
                 />
               </span>
               <small>

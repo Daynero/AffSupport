@@ -114,6 +114,8 @@ export interface RadioOption<T extends string> {
   description?: ReactNode;
   title?: string;
   disabled?: boolean;
+  /** A state only this option has — the CRF gem grows while its slider moves. */
+  className?: string;
 }
 
 export interface RadioGroupProps<T extends string> {
@@ -162,11 +164,16 @@ export function RadioGroup<T extends string>({
               role="radio"
               aria-checked={option.value === value}
               aria-label={option.title ?? String(option.label)}
+              /* The product draws its own tip off `data-tip` rather than the
+                 native one, which appears a second late and cannot be styled;
+                 `title` stays for the browsers and tools that read it. */
+              data-tip={option.title ?? String(option.label)}
               title={option.title ?? String(option.label)}
               disabled={disabled || option.disabled}
               className={[
                 option.value === value ? 'is-selected' : '',
-                option.short !== undefined ? 'is-labeled' : ''
+                option.short !== undefined ? 'is-labeled' : '',
+                option.className ?? ''
               ]
                 .filter(Boolean)
                 .join(' ')}

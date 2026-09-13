@@ -376,7 +376,7 @@ a {
   height: 46px;
   width: auto;
   object-fit: contain;
-  transition: opacity var(--motion-slow) cubic-bezier(0.65, 0, 0.35, 1);
+  transition: opacity var(--motion-slow) var(--ease-in-out-curve);
 }
 .soty-wordmark-img-dark {
   opacity: 0;
@@ -497,14 +497,18 @@ a {
   background: color-mix(in srgb, var(--honey-800) 18%, transparent);
 }
 
+/* Every fill in this product scales off --fill-ratio rather than resizing:
+   animating `width` re-lays out the row that holds it on every frame. */
 .support-trigger-progress i {
   display: block;
-  width: 0;
+  width: 100%;
   height: 100%;
   border-radius: 0 var(--radius-full) var(--radius-full) 0;
   background: var(--honey-700);
   box-shadow: 0 0 4px color-mix(in srgb, var(--honey-700) 28%, transparent);
-  transition: width var(--dur-section) var(--ease-standard);
+  transform: scaleX(var(--fill-ratio, 0));
+  transform-origin: left center;
+  transition: transform var(--dur-section) var(--ease-standard);
 }
 
 .support-trigger.is-complete {
@@ -2229,7 +2233,16 @@ input.is-invalid {
   border-radius: inherit;
   background: var(--gradient-progress);
   background-size: 200% 100%;
-  transition: width var(--motion-base) var(--ease-standard);
+}
+
+/* Scaled, not resized: animating `width` re-lays out the row on every frame,
+   and a queue of forty rows makes that visible. The indeterminate bar keeps
+   its own transform, so it is left out of this. */
+.progress-track:not(.is-indeterminate) > span {
+  width: 100%;
+  transform: scaleX(var(--progress-ratio, 0));
+  transform-origin: left center;
+  transition: transform var(--motion-base) var(--ease-standard);
 }
 
 /* The gradient drifts only while work is really happening. */
@@ -4905,11 +4918,13 @@ body:has(.public-home) {
 .support-goal-progress > span {
   position: relative;
   display: block;
-  width: 0;
+  width: 100%;
   height: 100%;
   border-radius: inherit;
   background: var(--gradient-brand);
-  transition: width var(--dur-section) var(--ease-standard);
+  transform: scaleX(var(--fill-ratio, 0));
+  transform-origin: left center;
+  transition: transform var(--dur-section) var(--ease-standard);
 }
 
 /* Decorative shine/knob retired — the bar reads cleaner as a flat fill. */
@@ -5640,9 +5655,12 @@ body:has(.public-home) {
 
 .activity-bar {
   width: 42%;
+  height: 100%;
   min-height: 1px;
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-  transition: height var(--dur-layout) var(--ease-standard);
+  transform: scaleY(var(--fill-ratio, 0));
+  transform-origin: center bottom;
+  transition: transform var(--dur-layout) var(--ease-standard);
 }
 
 .events-bar {
@@ -7087,8 +7105,19 @@ body:has(.public-home) {
   transition: clip-path var(--motion-slow) var(--ease-standard);
 }
 
+/* `left` positions the divider; only the nudge moves it on its own, and it
+   does that with a transform so the stage is not re-laid out mid-hint. */
 .landing-compare-stage.is-nudging .landing-compare-divider {
-  transition: left var(--motion-slow) var(--ease-standard);
+  animation: compare-nudge var(--motion-slow) var(--ease-standard) both;
+}
+
+@keyframes compare-nudge {
+  from {
+    transform: translateX(-14px);
+  }
+  to {
+    transform: translateX(0);
+  }
 }
 
 .landing-compare-before-layer {
@@ -10319,7 +10348,6 @@ button,
   background: var(--color-text);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   transform: translate(-50%, -50%);
-  transition: left var(--dur-control) var(--ease-standard);
 }
 .transcript-match-value {
   white-space: nowrap;
@@ -10583,10 +10611,13 @@ body {
 
 .team-task-attachment-progress > span {
   display: block;
+  width: 100%;
   height: 100%;
   border-radius: var(--radius-sm);
   background: var(--color-accent);
-  transition: width var(--dur-control) var(--ease-standard);
+  transform: scaleX(var(--fill-ratio, 0));
+  transform-origin: left center;
+  transition: transform var(--dur-control) var(--ease-standard);
 }
 
 /* Dropping files on a task (011): the section itself is the target, so the
@@ -13064,10 +13095,13 @@ button.team-landing-tile:hover {
 }
 .ui-toast-progress span {
   display: block;
+  width: 100%;
   height: 100%;
   background: var(--color-accent);
   border-radius: inherit;
-  transition: width var(--dur-pop) var(--ease-enter);
+  transform: scaleX(var(--fill-ratio, 0));
+  transform-origin: left center;
+  transition: transform var(--dur-pop) var(--ease-enter);
 }
 
 .ui-toast-controls {
@@ -16397,10 +16431,13 @@ input[type='number'] {
 }
 .estimate-bar > span {
   display: block;
+  width: 100%;
   height: 100%;
   border-radius: var(--radius-full);
   background: var(--color-accent);
-  transition: width var(--dur-control) var(--ease-standard);
+  transform: scaleX(var(--fill-ratio, 0));
+  transform-origin: left center;
+  transition: transform var(--dur-control) var(--ease-standard);
 }
 
 /* Each card carries a faint wash of its rail colour. */

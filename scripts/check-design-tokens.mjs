@@ -26,6 +26,17 @@ const ALLOW_FILE = path.join(ROOT, 'config/design-token-exemptions.json');
 
 /** Properties a transition may name: none of them force layout. */
 const COMPOSITABLE = new Set([
+  // Paint, not layout: the browser re-rasterises the clipped layer, it does not
+  // re-measure the page. The before/after comparison lives on this.
+  'clip-path',
+  // Discrete — it flips, it never tweens — so it costs no frames. It appears
+  // only as `visibility 0s linear <delay>`, which is how a panel stays
+  // reachable until its own fade has finished.
+  'visibility',
+  // The one layout property with no compositable equivalent: `0fr`→`1fr` is the
+  // only way to open a panel to the height of its own content. Confined to
+  // disclosures, which is the opposite of a frequent action.
+  'grid-template-rows',
   'transform',
   'opacity',
   'filter',
@@ -124,12 +135,33 @@ function withoutComments(text) {
   return text.replace(/\/\*[\s\S]*?\*\//g, match => match.replace(/[^\n]/g, ' '));
 }
 
+/** Splits a shorthand on its top-level commas: `cubic-bezier(a, b, c, d)` is one value. */
+function topLevelParts(value) {
+  const parts = [];
+  let depth = 0;
+  let current = '';
+  for (const character of value) {
+    if (character === '(') depth += 1;
+    else if (character === ')') depth -= 1;
+    if (character === ',' && depth === 0) {
+      parts.push(current);
+      current = '';
+      continue;
+    }
+    current += character;
+  }
+  parts.push(current);
+  return parts;
+}
+
 function checkTransitions(line, relative, lineNumber, violations) {
   const match = /transition(?:-property)?:\s*([^;]+)/.exec(line);
   if (!match) return;
-  for (const part of match[1].split(',')) {
+  for (const part of topLevelParts(match[1])) {
     const property = part.trim().split(/\s+/)[0];
-    if (!property || property.startsWith('var(')) continue;
+    // A registered custom property interpolates a value, not a box: the power
+    // lever's colour is animated through one.
+    if (!property || property.startsWith('var(') || property.startsWith('--')) continue;
     if (!COMPOSITABLE.has(property)) {
       violations.push({
         file: relative,

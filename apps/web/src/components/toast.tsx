@@ -9,6 +9,7 @@ import {
   type ReactNode
 } from 'react';
 import { useI18n } from '../i18n';
+import { fillRatio } from './ui/index';
 
 /**
  * A toast says one of four things, and each one is a colour role (021, T024):
@@ -192,7 +193,7 @@ function ToastRegion({
                 aria-valuemax={100}
                 aria-valuenow={Math.round(toast.progress)}
               >
-                <span style={{ width: `${Math.max(0, Math.min(100, toast.progress))}%` }} />
+                <span style={fillRatio(toast.progress)} />
               </div>
             )}
           </div>

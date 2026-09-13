@@ -8,7 +8,7 @@ import { recoverState } from './lib/release/recovery.mjs';
 import { executeReleaseFlow } from './lib/release/flow.mjs';
 import { completeStep, startStep, transition } from './lib/release/state.mjs';
 import { stepDefinition } from './lib/release/steps.mjs';
-import { startLeaseServer } from './lib/release/lease-server.mjs';
+import { startLeaseServer, leaseSocketPath } from './lib/release/lease-server.mjs';
 import { boundedDiagnostic, diagnosticFingerprint } from './lib/release/diagnostics.mjs';
 import { enqueueHandoff } from './lib/release/handoff.mjs';
 import { loadSnapshot, runDirectory, saveSnapshot } from './lib/release/store.mjs';
@@ -139,7 +139,7 @@ export async function runWorker({
 
   const capability = randomBytes(CAPABILITY_BYTES).toString('hex');
   const lease = await startLeaseServer({
-    socketPath: path.join(directory, 'admit.sock'),
+    socketPath: leaseSocketPath(runId),
     capability,
     generation: recovered.generation ?? 1,
     children: new Map()

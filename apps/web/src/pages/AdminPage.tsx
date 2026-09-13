@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { Card } from '../components/Card';
 import { type Translate } from '../components/ui';
-import { Button } from '../components/ui/index';
+import { Button, fillRatio } from '../components/ui/index';
 import { Alert } from '../components/ui/index';
 import { formatSize } from '../format';
 import { useI18n, type TranslationKey } from '../i18n';
@@ -664,7 +664,7 @@ function SupportGoalAdminCard({
             aria-valuenow={progress.displayPercent}
             aria-valuetext={t('supportGoalRaisedOf', { raised, target })}
           >
-            <span style={{ width: `${progress.visualPercent}%` }} />
+            <span style={fillRatio(progress.visualPercent)} />
           </div>
           <form
             className="support-goal-admin-form"
@@ -815,11 +815,11 @@ function ActivityChart({ data }: { data: DailyActivity[] }) {
         >
           <span
             className="activity-bar events-bar"
-            style={{ height: `${(day.event_count / maximum) * 100}%` }}
+            style={fillRatio((day.event_count / maximum) * 100)}
           />
           <span
             className="activity-bar users-bar"
-            style={{ height: `${(day.active_users / maximum) * 100}%` }}
+            style={fillRatio((day.active_users / maximum) * 100)}
           />
           <time dateTime={day.activity_date}>
             {new Date(`${day.activity_date}T00:00:00Z`).getUTCDate()}

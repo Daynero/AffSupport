@@ -1,5 +1,7 @@
 import { createServer } from 'node:net';
 import { chmod, mkdir, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 
 const MAX_MESSAGE_BYTES = 8 * 1024;
 
@@ -10,6 +12,28 @@ const MAX_MESSAGE_BYTES = 8 * 1024;
  * here turns a deeply nested run directory into a sentence somebody can act on.
  */
 const MAX_SOCKET_PATH_BYTES = process.platform === 'linux' ? 108 : 104;
+
+/**
+ * Where a run's admission socket lives.
+ *
+ * Not beside the run, which is the obvious place and the wrong one. A unix
+ * socket path is bounded by `sun_path` — 104 bytes on macOS — and a run
+ * directory carries a repository path plus a UUID before the file name is even
+ * reached. The first real release attempted on this project produced 106 bytes
+ * and could not start at all; any checkout one directory deeper would have hit
+ * it too.
+ *
+ * The temporary directory is short, writable, and the same answer every time
+ * for a given run, so a resumed worker finds the socket its predecessor used.
+ * The run id is truncated only for length; twelve hex characters of a v4 UUID
+ * do not collide in a directory that holds one release at a time.
+ *
+ * @param {string} runId
+ */
+export function leaseSocketPath(runId) {
+  if (!runId) throw new Error('LEASE_SERVER_CONFIG_INVALID');
+  return path.join(os.tmpdir(), `soty-admit-${runId.replaceAll('-', '').slice(0, 12)}.sock`);
+}
 
 function deny(code) {
   return { kind: 'denied', code };

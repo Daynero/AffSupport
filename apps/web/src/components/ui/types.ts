@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react';
+
 /**
  * The vocabulary every component in the inventory speaks (021).
  *
@@ -53,4 +55,19 @@ export function uiClasses(
   }
   if (options.className) parts.push(options.className);
   return parts.join(' ');
+}
+
+/**
+ * A fill that is scaled rather than resized (021, T140).
+ *
+ * Every bar in this product used to grow by animating `width`, which re-lays
+ * out its row on every frame — invisible on one bar, plainly visible on a
+ * queue of forty. The element stays full width and carries `scaleX()` off this
+ * custom property instead, which the compositor can do on its own.
+ *
+ * Takes a percentage (0–100) because that is what every caller already has.
+ */
+export function fillRatio(percent: number): CSSProperties {
+  const clamped = Math.min(100, Math.max(0, Number.isFinite(percent) ? percent : 0));
+  return { '--fill-ratio': clamped / 100 } as CSSProperties;
 }

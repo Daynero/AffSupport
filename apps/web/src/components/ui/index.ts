@@ -10,7 +10,7 @@
  * `specs/021-design-system-redesign/contracts/components.md`.
  */
 
-export { UI_COLORS, UI_SIZES, UI_VARIANTS, uiClasses } from './types';
+export { UI_COLORS, UI_SIZES, UI_VARIANTS, fillRatio, uiClasses } from './types';
 export type { UiColor, UiSize, UiVariant } from './types';
 
 export { Button, IconButton } from './Button';
