@@ -614,7 +614,7 @@
 /* The part of a line that answered the search. */
 .team-accounts-mark {
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--color-action) 40%, transparent);
+  background: var(--color-highlight);
   color: inherit;
   padding-inline: 1px;
 }

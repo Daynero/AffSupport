@@ -123,6 +123,10 @@
   --action-copy: var(--violet-500);
   --action-copy-text: var(--violet-600);
 
+  /* The wash over the part of a line that answered a search. Honey at a share
+     that stays readable under the row's own text in both themes. */
+  --color-highlight: color-mix(in srgb, var(--color-primary-solid) 40%, transparent);
+
   /* ---- Team tag palette (012) ---------------------------------------------
      Seven hues a person picks by hand. Like the task tags, they are labels,
      not states. */

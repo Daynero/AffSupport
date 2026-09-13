@@ -26,6 +26,18 @@ learned about the design system itself.
 | S5 | `styles.css` held the tag palettes and the two gradients — data, sitting in a screen stylesheet because there was no token layer when they were written. | The token layer is the only file in the product that names a colour, and the exemption list is empty. |
 | S6 | A popover that opens a dialog must not close when the dialog is pressed. The row menu learned this the hard way (closing cancelled the move it had just been asked for) and had written the rule locally. | The rule is a property of `Popover` now, so no future menu has to rediscover it. |
 
+## Deliberate deviations from the task list
+
+Three tasks named an inventory component the product's own version is better
+at. Forcing the swap would have cost behaviour for the sake of a name, so it
+was not made; each is recorded here instead, which is what FR-037 asks.
+
+| Task | What it asked | What was done, and why |
+|---|---|---|
+| T114 | `AgentMoney` onto `InputNumber` with steppers | Left as it is. The accounts table is the product's density reference (`xs`), and this control is two four-character fields sharing one stepper column, with the caption over the field rather than over the field-and-its-presses — geometry the generic InputNumber does not have and should not grow. It reads tokens for every value it draws. |
+| T123 | The audit log onto `Timeline` | Partly. The empty state and the outcome's colour role are the shared ones; the row itself stayed, because an audit line carries six things (action, subject, actor, outcome, detail, code) against Timeline's three, and flattening them would lose the column alignment that makes the log scannable. |
+| T113 | `AccountGroup`/`AgentRow` onto `Table` (`xs`) | Left as it is. The accounts table is a CSS grid whose cells stay in the grid and empty when the money column folds — taking them out slides every later cell one track left, which is the bug the fold shipped with. The inventory's Table has no equivalent, and giving it one for a single screen would be the wrong direction. |
+
 ## Proving SC-009 (T160)
 
 SC-009 asks that a new screen can be built from the inventory alone. The closest

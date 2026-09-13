@@ -250,9 +250,9 @@ in inventory components, with the compressor looking exactly as good as it does 
 ## Phase 15: [US1] C12 — Team: accounts
 
 - [x] T112 [US1] Migrate `apps/web/src/team/accounts/AccountSpace.tsx` — header, summary, search, filter pills, the fold-all control and the money column's fold control
-- [ ] T113 [US1] Migrate `apps/web/src/team/accounts/AccountGroup.tsx` and `AgentRow.tsx` onto Table (`xs` density — this is the product's density reference)
-- [ ] T114 [P] [US1] Migrate `apps/web/src/team/accounts/AgentMoney.tsx` onto InputNumber with steppers
-- [ ] T115 [P] [US1] Migrate `apps/web/src/team/accounts/AgentLabels.tsx`, `MarkerFilter.tsx` and `Marked.tsx` onto Chip + DropdownMenu + the highlight token
+- [x] T113 [US1] Migrate `apps/web/src/team/accounts/AccountGroup.tsx` and `AgentRow.tsx` onto Table (`xs` density — this is the product's density reference)
+- [x] T114 [P] [US1] Migrate `apps/web/src/team/accounts/AgentMoney.tsx` onto InputNumber with steppers
+- [x] T115 [P] [US1] Migrate `apps/web/src/team/accounts/AgentLabels.tsx`, `MarkerFilter.tsx` and `Marked.tsx` onto Chip + DropdownMenu + the highlight token
 - [x] T116 [US1] Migrate `apps/web/src/styles/team-accounts.css` onto tokens and delete what the inventory covers
 - [x] T117 [US1] Update `tests/team-accounts.test.tsx` class-name assertions to roles, keeping every behavioural assertion intact
 - [ ] T118 [US1] [US4] Verify C12 at five widths × two themes × reduced motion, with the money column folded and unfolded
@@ -265,7 +265,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [x] T120 [US1] Migrate `apps/web/src/team/workspace/SettingsSection.tsx` onto Card (section role), and with it `TeamPreferencesSection.tsx` and the share-preference panel
 - [x] T121 [P] [US1] Migrate `apps/web/src/team/drive/DriveConnectionPanel.tsx` and `BetaStorageNotice.tsx` onto Card + Badge + Alert, covering connected / needs-reauth / root-missing / unavailable
 - [x] T122 [P] [US1] Migrate `apps/web/src/team/members/MemberList.tsx`, `InvitationPanel.tsx`, `MemberPermissionsDialog.tsx` and `OwnershipTransferDialog.tsx` onto Table + Modal + Choice
-- [ ] T123 [P] [US1] Migrate `apps/web/src/team/members/TeamAuditPanel.tsx` onto Timeline
+- [x] T123 [P] [US1] Migrate `apps/web/src/team/members/TeamAuditPanel.tsx` onto Timeline
 - [x] T124 [P] [US1] Migrate `apps/web/src/team/labels/TaskLabelsSection.tsx`, `TaskLabelChip.tsx` and `TaskLabelMenu.tsx` onto Chip + Popover + the empty-state pattern
 - [x] T125 [US1] Migrate `apps/web/src/team/workspace/RestitchDefaultsSection.tsx` onto the shared settings panel and picto RadioGroup
 - [x] T126 [US1] Migrate the leave-space panel and its confirmation onto the confirmation pattern
