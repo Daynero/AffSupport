@@ -1767,12 +1767,19 @@
    Layout for /design. It styles nothing the product uses — it only arranges
    the inventory so a regression is visible at a glance.
    ============================================================ */
+/* The brand's honeycomb field is behind every route, which is right for the
+   product and wrong here: a gallery of colour roles cannot be judged over an
+   orange field. The demo lays its own ground over it. */
 .ds-page {
+  position: relative;
+  z-index: var(--layer-raised);
   display: grid;
   gap: var(--space-6);
-  width: min(100% - var(--space-6) * 2, 1200px);
-  margin-inline: auto;
+  width: 100%;
+  min-height: 100dvh;
   padding-block: var(--space-6);
+  padding-inline: max(var(--space-6), calc((100% - 1200px) / 2));
+  background: var(--color-neutral-bg);
 }
 .ds-header {
   display: grid;
