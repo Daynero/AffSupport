@@ -9311,7 +9311,10 @@ button,
   outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
-.team-catalog-search input,
+/* The search is the inventory's field now (021), so the border and the ground
+   belong to its wrapper and the input inside it is bare. The filter selects
+   still draw their own. */
+.team-catalog-search .ui-input,
 .team-catalog-filters select {
   width: 100%;
   min-height: 42px;
@@ -9320,6 +9323,12 @@ button,
   background: var(--color-surface);
   color: var(--color-text);
   padding-inline: var(--space-3);
+}
+.team-catalog-search .ui-input input {
+  width: 100%;
+  border: 0;
+  background: none;
+  color: inherit;
 }
 .team-catalog-filters {
   display: grid;

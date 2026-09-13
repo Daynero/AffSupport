@@ -178,7 +178,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [x] T068 [US1] Migrate `apps/web/src/two-factor/TwoFactorPage.tsx` and `TwoFactorRow.tsx` onto Table + Card + Button
 - [ ] T069 [P] [US1] Migrate `apps/web/src/two-factor/CodeCell.tsx`, `Countdown.tsx` and `QuickCode.tsx` onto tokens, keeping the expiry ring and copy feedback (no animation on copy — frequent action)
 - [ ] T070 [US1] Migrate `apps/web/src/landing-viewer/LandingViewer.tsx`, `LandingViewerWelcome.tsx` and `LandingTree.tsx` onto the inventory (Tree, Empty, Card)
-- [ ] T071 [P] [US1] Migrate `apps/web/src/landing-viewer/LandingGalleryGrid.tsx`, `LandingSourceSwitcher.tsx` and `LandingRefreshControl.tsx`
+- [x] T071 [P] [US1] Migrate `apps/web/src/landing-viewer/LandingGalleryGrid.tsx`, `LandingSourceSwitcher.tsx` and `LandingRefreshControl.tsx`
 - [x] T072 [P] [US1] Migrate `apps/web/src/landing-viewer/GallerySettingsMenu.tsx` and `GalleryMoreMenu.tsx` onto DropdownMenu + Choice
 - [x] T073 [US1] Migrate `apps/web/src/styles/landing-viewer.css` onto tokens and delete what the inventory now covers
 - [ ] T074 [US1] [US4] Verify C6 at five widths × two themes × reduced motion
@@ -224,7 +224,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 
 ## Phase 13: [US1] C10 — Team: catalogue and search
 
-- [ ] T097 [US1] Migrate `apps/web/src/team/catalog/TeamCatalog.tsx` and `CatalogSearchBar.tsx` onto Input (with leading icon) + SegmentedControl for scope
+- [x] T097 [US1] Migrate `apps/web/src/team/catalog/TeamCatalog.tsx` and `CatalogSearchBar.tsx` onto Input (with leading icon) + SegmentedControl for scope
 - [ ] T098 [US1] Migrate `apps/web/src/team/catalog/CatalogFilters.tsx` onto Select/SelectMenu + Chip, keeping the facet-driven options and localised values added in 020
 - [x] T099 [P] [US1] [US2] Migrate `apps/web/src/team/catalog/MaterialResults.tsx` with loading skeleton, empty result and failed states
 - [x] T100 [P] [US1] Migrate `apps/web/src/team/catalog/MaterialMetadataEditor.tsx` and `MaterialRowMenu.tsx` onto Modal + FormField + DropdownMenu
