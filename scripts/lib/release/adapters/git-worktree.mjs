@@ -53,6 +53,12 @@ export async function createOwnedWorktree({ cwd, sourceSha, root = tmpdir(), env
  */
 const PROVISIONED_PATHS = Object.freeze([
   'node_modules',
+  // npm workspaces keep a few packages beside the workspace that needs them
+  // rather than at the root — `vite` and its React plugin live here — so the
+  // root closure alone is not the closure. The web build dies on `vite build`
+  // without them, and says only "command failed".
+  'apps/web/node_modules',
+  'apps/soty-review/node_modules',
   'config/keys',
   '.env.production',
   '.env.production.local',
