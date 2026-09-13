@@ -110,7 +110,7 @@ states what is true, what to do, and looks like the same product.
 - [ ] T035 [P] [US1] Migrate `apps/web/src/PublicHomePage.tsx` — CTA above the fold, consistent header buttons, 70ch measure
 - [x] T036 [P] [US1] Migrate `apps/web/src/pages/LegalPages.tsx` — measure cap, heading ramp, link styling
 - [x] T037 [US1] Migrate ProfileOnboarding in `apps/web/src/auth/AuthScreens.tsx` onto Modal + RadioGroup (cards) + Checkbox + Button
-- [ ] T038 [US1] Update the tests that assert on class names in `tests/auth-provider.test.tsx`, `tests/onboarding-recovery.test.tsx` and `tests/session-handoff-screens.test.tsx` to assert through roles and accessible names
+- [x] T038 [US1] Update the tests that assert on class names in `tests/auth-provider.test.tsx`, `tests/onboarding-recovery.test.tsx` and `tests/session-handoff-screens.test.tsx` to assert through roles and accessible names
 - [ ] T039 [US1] [US4] Verify C1 at 1920/1440/1024/768/390 × dark/light × reduced motion with Ukrainian strings; delete the CSS these screens no longer need from `apps/web/src/styles.css`
 
 ---
@@ -127,7 +127,7 @@ tooltip look and move the same wherever they are raised.
 - [x] T042 [P] [US1] Migrate `apps/web/src/components/ReleaseUpdateNotice.tsx` onto Alert + Button
 - [x] T043 [P] [US1] [US2] Migrate `apps/web/src/components/LocalAppDialog.tsx` and `apps/web/src/components/FeatureLockDialog.tsx` — the single "needs the local app" state, one anatomy for all six tools
 - [x] T044 [P] [US1] Migrate `apps/web/src/components/InstantTips.tsx` and `apps/web/src/components/LabeledSkeleton.tsx` onto Tooltip and Skeleton
-- [ ] T045 [US1] Update `tests/local-app-dialog.test.tsx`, `tests/local-app-dialog-windows.test.tsx`, `tests/release-update-notice.test.tsx` and `tests/loading-skeletons.test.tsx` to assert through roles
+- [x] T045 [US1] Update `tests/local-app-dialog.test.tsx`, `tests/local-app-dialog-windows.test.tsx`, `tests/release-update-notice.test.tsx` and `tests/loading-skeletons.test.tsx` to assert through roles
 - [ ] T046 [US1] [US4] Verify C2 across three unrelated routes at five widths × two themes × reduced motion; delete the orphaned shell CSS
 
 ---
@@ -190,7 +190,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [x] T075 [US1] Migrate `apps/web/src/pages/AccountPage.tsx` — profile, language, marketing consent, danger zone (destructive action de-emphasised, confirmation names the consequence)
 - [ ] T076 [US1] Migrate `apps/web/src/pages/AdminPage.tsx` — metric tiles onto Card, the user table onto Table (`sm` density), filters onto Select/SegmentedControl, CSV export onto Button
 - [x] T077 [P] [US1] [US2] Give AdminPage its states: loading skeleton, empty result, failed load, and the non-admin permission-limited state
-- [ ] T078 [US1] Update `tests/admin-ui.test.tsx` to assert through roles and accessible names
+- [x] T078 [US1] Update `tests/admin-ui.test.tsx` to assert through roles and accessible names
 - [ ] T079 [US1] [US4] Verify C7 at five widths × two themes × reduced motion
 
 ---
@@ -203,7 +203,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [x] T083 [P] [US1] Migrate `apps/web/src/team/workspace/SpaceSwitcher.tsx`, `SpaceStatePanel.tsx`, `RealtimeChip.tsx` and `BackgroundWorkChip.tsx` onto DropdownMenu + Alert + Badge
 - [ ] T084 [P] [US1] Migrate `apps/web/src/team/storage/StorageChip.tsx`, `ConnectStorageFlow.tsx` and `SelectionList.tsx` onto Badge + Popover + Modal + Tree
 - [x] T085 [US1] [US2] Migrate the unavailable-space screen in `apps/web/src/team/TeamSpace.tsx` onto the Empty pattern (it was re-dressed in 020; make it the pattern rather than a bespoke card)
-- [ ] T086 [US1] Update `tests/team-workspace-gate.test.tsx`, `tests/team-connect-flow.test.tsx` and `tests/workspace-section-state.test.tsx` to assert through roles
+- [x] T086 [US1] Update `tests/team-workspace-gate.test.tsx`, `tests/team-connect-flow.test.tsx` and `tests/workspace-section-state.test.tsx` to assert through roles
 - [ ] T087 [US1] [US4] Verify C8 at five widths × two themes × reduced motion
 
 ---
@@ -217,7 +217,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [x] T092 [P] [US1] [US2] Migrate `apps/web/src/team/explorer/PreviewPane.tsx` with its empty, loading, failed and unsupported states
 - [ ] T093 [P] [US1] Migrate `apps/web/src/team/explorer/UploadConflictDialog.tsx`, `FolderScopeDialog.tsx` and `ProcessPanel.tsx` onto Modal + the confirmation pattern
 - [x] T094 [P] [US1] Migrate `apps/web/src/team/catalog/TrashView.tsx` onto Table + Empty + the confirmation pattern (purge is destructive and de-emphasised)
-- [ ] T095 [US1] Update `tests/team-explorer-grid.test.tsx` and the explorer's other class-name assertions to roles
+- [x] T095 [US1] Update `tests/team-explorer-grid.test.tsx` and the explorer's other class-name assertions to roles
 - [ ] T096 [US1] [US4] Verify C9 at five widths × two themes × reduced motion, with a 500-row folder
 
 ---
@@ -242,7 +242,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [x] T107 [P] [US1] [US2] Migrate the four filters — `TaskDateFilter.tsx`, `TaskAssigneeFilter.tsx`, `TaskAccountFilter.tsx`, `TaskLabelFilter.tsx` — onto SelectMenu + Popover with their empty states (which link to where the dictionary is filled, as 020 established)
 - [x] T108 [P] [US1] Migrate `apps/web/src/team/tasks/TaskAgentTags.tsx`, `TaskAccountPicker.tsx`, `TaskAttachmentPicker.tsx` and `TaskAttachmentTile.tsx` onto the picker pattern (search, breadcrumb, list, footer actions)
 - [ ] T109 [US1] Migrate `apps/web/src/styles/team-tasks.css` onto tokens and delete what the inventory covers
-- [ ] T110 [US1] Update `tests/team-task-accounts.test.tsx`, `tests/team-task-tags.test.tsx` and `tests/task-progress-scale.test.tsx` to assert through roles
+- [x] T110 [US1] Update `tests/team-task-accounts.test.tsx`, `tests/team-task-tags.test.tsx` and `tests/task-progress-scale.test.tsx` to assert through roles
 - [ ] T111 [US1] [US4] Verify C11 at five widths × two themes × reduced motion
 
 ---
@@ -254,7 +254,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [ ] T114 [P] [US1] Migrate `apps/web/src/team/accounts/AgentMoney.tsx` onto InputNumber with steppers
 - [ ] T115 [P] [US1] Migrate `apps/web/src/team/accounts/AgentLabels.tsx`, `MarkerFilter.tsx` and `Marked.tsx` onto Chip + DropdownMenu + the highlight token
 - [ ] T116 [US1] Migrate `apps/web/src/styles/team-accounts.css` onto tokens and delete what the inventory covers
-- [ ] T117 [US1] Update `tests/team-accounts.test.tsx` class-name assertions to roles, keeping every behavioural assertion intact
+- [x] T117 [US1] Update `tests/team-accounts.test.tsx` class-name assertions to roles, keeping every behavioural assertion intact
 - [ ] T118 [US1] [US4] Verify C12 at five widths × two themes × reduced motion, with the money column folded and unfolded
 
 ---
@@ -269,7 +269,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [x] T124 [P] [US1] Migrate `apps/web/src/team/labels/TaskLabelsSection.tsx`, `TaskLabelChip.tsx` and `TaskLabelMenu.tsx` onto Chip + Popover + the empty-state pattern
 - [x] T125 [US1] Migrate `apps/web/src/team/workspace/RestitchDefaultsSection.tsx` onto the shared settings panel and picto RadioGroup
 - [x] T126 [US1] Migrate the leave-space panel and its confirmation onto the confirmation pattern
-- [ ] T127 [US1] Update `tests/team-members.test.tsx`, `tests/team-direct-member.test.tsx`, `tests/team-invitation-link.test.tsx` and `tests/team-restitch-section.test.tsx` to assert through roles
+- [x] T127 [US1] Update `tests/team-members.test.tsx`, `tests/team-direct-member.test.tsx`, `tests/team-invitation-link.test.tsx` and `tests/team-restitch-section.test.tsx` to assert through roles
 - [ ] T128 [US1] [US4] Verify C13 at five widths × two themes × reduced motion, on all five tabs
 
 ---

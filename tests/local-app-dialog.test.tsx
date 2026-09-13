@@ -8,6 +8,7 @@ import { AgentContextOverride, type AgentContextValue } from '../apps/web/src/Ag
 import LocalAppDialog from '../apps/web/src/components/LocalAppDialog';
 import { markAgentSeen } from '../apps/web/src/api/client';
 import { emptyQueueState } from './web-auth-helpers';
+import { expectPrimaryAction, expectSecondaryAction } from './support/design-system';
 
 const WINDOWS_ARTIFACT_URL = 'https://example.com/Soty-Agent-v0.9.0-Windows-x64.exe';
 const MAC_ARTIFACT_URL = 'https://example.com/Soty-Agent-v0.9.0-macOS-arm64.dmg';
@@ -111,10 +112,8 @@ describe('local app platform choices', () => {
 
     const windowsLink = screen.getByRole('link', { name: 'Windows' });
     expect(windowsLink.getAttribute('href')).toBe(WINDOWS_ARTIFACT_URL);
-    expect(windowsLink.className).toContain('platform-download-button');
     const macLink = screen.getByRole('link', { name: 'Mac (Apple Silicon)' });
     expect(macLink.getAttribute('href')).toBe(MAC_ARTIFACT_URL);
-    expect(macLink.className).toContain('platform-download-button');
     // The coming-soon trigger is gone once the artifact exists.
     expect(screen.queryByRole('button', { name: 'Windows' })).toBeNull();
   });
@@ -138,10 +137,8 @@ describe('local app platform choices', () => {
 
     const macLink = screen.getByRole('link', { name: 'Mac (Apple Silicon)' });
     expect(macLink.getAttribute('href')).toBe(MAC_ARTIFACT_URL);
-    expect(macLink.className).toContain('platform-download-button');
     const windowsLink = screen.getByRole('link', { name: 'Windows' });
     expect(windowsLink.getAttribute('href')).toBe(WINDOWS_ARTIFACT_URL);
-    expect(windowsLink.className).toContain('platform-download-button');
   });
 });
 
@@ -159,9 +156,7 @@ describe('a browser that cannot see an Agent it has met before', () => {
     );
 
     expect(screen.getByRole('heading', { name: 'Підготуємо Soty до роботи' })).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Відкрити Soty' }).className).toContain(
-      'button-secondary'
-    );
+    expectSecondaryAction(screen.getByRole('link', { name: 'Відкрити Soty' }));
   });
 
   it('leads with opening Soty, on the tool that was asked for, once it has answered once', () => {
@@ -177,7 +172,7 @@ describe('a browser that cannot see an Agent it has met before', () => {
 
     expect(screen.getByRole('heading', { name: 'Відкрийте Soty, щоб продовжити' })).toBeTruthy();
     const open = screen.getByRole('link', { name: 'Відкрити Soty' });
-    expect(open.className).toContain('button-primary');
+    expectPrimaryAction(open);
     expect(open.getAttribute('href')).toBe(
       'http://127.0.0.1:43120/local?to=%2Ftools%2Ftranscription'
     );
