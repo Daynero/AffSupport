@@ -116,6 +116,8 @@ export interface ConfirmDialogProps {
   /** Destructive is the default here; a benign confirmation says so. */
   tone?: 'destructive' | 'neutral';
   busy?: boolean;
+  /** Raised over a dialog that is already open — a delete inside an editor. */
+  nested?: boolean;
 }
 
 export function ConfirmDialog({
@@ -127,7 +129,8 @@ export function ConfirmDialog({
   confirmLabel,
   cancelLabel,
   tone = 'destructive',
-  busy = false
+  busy = false,
+  nested = false
 }: ConfirmDialogProps) {
   return (
     <Modal
@@ -136,6 +139,7 @@ export function ConfirmDialog({
       title={title}
       size="sm"
       busy={busy}
+      nested={nested}
       footer={
         <>
           {/* The safe action carries the emphasis and sits where the eye lands

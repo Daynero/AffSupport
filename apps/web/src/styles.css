@@ -8025,6 +8025,32 @@ body:has(.public-home) {
   color: var(--color-text);
   padding: 0 var(--space-3);
 }
+/*
+ * …except a control from the inventory, which dresses itself. The four rules
+ * above are for the raw `<label>`, `<input>` and `<select>` the dialogs that
+ * have not migrated yet still write — and this stylesheet loads after the
+ * inventory, so at equal specificity they would otherwise win: the field's
+ * required star dropped to a line of its own, and the chevron of a Select sat
+ * on top of the last letter of its own value.
+ */
+.team-dialog-form .ui-field-label,
+.team-invite-form .ui-field-label {
+  display: flex;
+}
+.team-dialog-form .ui-input input,
+.team-invite-form .ui-input input {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.team-dialog-form .ui-select select,
+.team-invite-form .ui-select select {
+  min-height: var(--control-height-md);
+  padding: 0 var(--space-6) 0 var(--space-3);
+  border-radius: var(--radius-sm);
+}
 .team-connection-badge,
 .team-delivery-state {
   display: inline-flex;
@@ -9952,24 +9978,10 @@ body {
   border-style: dashed;
 }
 
+/* The shared Progress, squared off to match the tile's own corners. */
 .team-task-attachment-progress {
-  display: block;
-  overflow: hidden;
-  height: 4px;
   margin-top: 6px;
   border-radius: var(--radius-sm);
-  background: var(--color-surface-muted);
-}
-
-.team-task-attachment-progress > span {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: var(--radius-sm);
-  background: var(--color-accent);
-  transform: scaleX(var(--fill-ratio, 0));
-  transform-origin: left center;
-  transition: transform var(--dur-control) var(--ease-standard);
 }
 
 /* Dropping files on a task (011): the section itself is the target, so the
@@ -10426,10 +10438,6 @@ body {
 .team-task-progress-scale.is-disabled .team-task-progress-track {
   cursor: default;
 }
-.team-task-editor label {
-  display: grid;
-  gap: var(--space-1);
-}
 .team-task-editor-status {
   display: flex;
   align-items: center;
@@ -10448,6 +10456,8 @@ body {
   flex-wrap: wrap;
   gap: var(--space-3);
 }
+/* Two fields on one line, each as wide as it needs: the label beside the
+   control rather than over it, because this row is read across. */
 .team-task-editor .team-task-assignee-field,
 .team-task-editor .team-task-progress-max-field {
   display: flex;
@@ -10456,28 +10466,16 @@ body {
   align-items: center;
   gap: var(--space-2);
 }
-.team-task-editor .team-task-assignee-field > span,
-.team-task-editor .team-task-progress-max-field > span {
+.team-task-editor .team-task-assignee-field > .ui-field-label,
+.team-task-editor .team-task-progress-max-field > .ui-field-label {
   flex: 0 0 auto;
-  color: var(--color-text-muted);
-  font-size: var(--text-caption);
-  font-weight: 650;
 }
-.team-task-editor .team-task-assignee-field select,
-.team-task-editor .team-task-progress-max-field input {
-  width: auto;
+.team-task-editor .team-task-assignee-field .ui-select,
+.team-task-editor .team-task-progress-max-field .ui-input {
   max-width: min(320px, 64vw);
-  min-height: 32px;
-  border-width: 0 0 1px;
-  border-radius: 0;
-  background: transparent;
-  padding: 0 26px 0 0;
-  color: var(--color-text);
 }
-.team-task-editor .team-task-progress-max-field input {
+.team-task-editor .team-task-progress-max-field .ui-input {
   width: 74px;
-  max-width: 74px;
-  padding: 0 2px;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
@@ -10487,34 +10485,9 @@ body {
   gap: var(--space-2);
 }
 .team-task-progress-max-save {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  min-height: 0;
-  padding: 0;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
+  border-color: var(--color-border);
   background: var(--color-surface-muted);
   color: var(--color-accent);
-  cursor: pointer;
-  transition:
-    color var(--dur-micro) var(--ease-standard),
-    border-color var(--dur-micro) var(--ease-standard);
-}
-.team-task-progress-max-save:hover:not(:disabled) {
-  border-color: var(--color-accent);
-  background: color-mix(in oklab, var(--color-accent) 15%, var(--color-surface));
-}
-.team-task-progress-max-save:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-.team-task-editor .team-task-assignee-field select:focus-visible,
-.team-task-editor .team-task-progress-max-field input:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 3px;
 }
 .team-task-editor .team-task-progress-scale {
   padding: 2px 17px;

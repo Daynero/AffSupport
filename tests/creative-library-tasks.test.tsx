@@ -691,7 +691,7 @@ describe('Creative Library task workflows', () => {
       )
     );
     expect(await screen.findByRole('heading', { name: 'Task details' })).toBeTruthy();
-    const title = await screen.findByLabelText('Title');
+    const title = await screen.findByLabelText(/Title/);
     expect((title as HTMLInputElement).value).toContain('launch.mp4');
   });
 
@@ -719,6 +719,6 @@ describe('Creative Library task workflows', () => {
     // editor still leaves nothing behind (FR-026).
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(api.deleteTask).toHaveBeenCalledOnce());
-    await waitFor(() => expect(screen.queryByLabelText('Title')).toBeNull());
+    await waitFor(() => expect(screen.queryByLabelText(/Title/)).toBeNull());
   });
 });

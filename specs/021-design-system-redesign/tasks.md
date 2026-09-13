@@ -237,7 +237,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 
 - [x] T103 [US1] Migrate `apps/web/src/team/tasks/TaskSpace.tsx` — board columns, header, filters row
 - [x] T104 [P] [US1] Migrate `apps/web/src/team/tasks/TaskCard.tsx` onto Card + Chip + Progress + Avatar
-- [ ] T105 [US1] Migrate `apps/web/src/team/tasks/TaskEditor.tsx` onto Modal + FormField + the shared patterns — the densest dialog in the product
+- [x] T105 [US1] Migrate `apps/web/src/team/tasks/TaskEditor.tsx` onto Modal + FormField + the shared patterns — the densest dialog in the product
 - [x] T106 [P] [US1] Migrate `apps/web/src/team/tasks/TaskStatusControl.tsx`, `TaskSortControl.tsx`, `TaskDateField.tsx` and `TaskProgressScale.tsx`
 - [x] T107 [P] [US1] [US2] Migrate the four filters — `TaskDateFilter.tsx`, `TaskAssigneeFilter.tsx`, `TaskAccountFilter.tsx`, `TaskLabelFilter.tsx` — onto SelectMenu + Popover with their empty states (which link to where the dictionary is filled, as 020 established)
 - [x] T108 [P] [US1] Migrate `apps/web/src/team/tasks/TaskAgentTags.tsx`, `TaskAccountPicker.tsx`, `TaskAttachmentPicker.tsx` and `TaskAttachmentTile.tsx` onto the picker pattern (search, breadcrumb, list, footer actions)
