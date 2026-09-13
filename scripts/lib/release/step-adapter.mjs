@@ -155,14 +155,43 @@ const npm = (...args) => ['npm', 'run', ...args];
  * head-sha match is kept as a fallback for runs started by a push, which carry
  * no release id.
  */
+/**
+ * Asking GitHub which runs exist, without that question being fatal.
+ *
+ * It is a read, so retrying it is free, and a release should not end because one
+ * TLS handshake timed out on the way to an API -- which is exactly how one
+ * attempt at this release ended. Only errors that read as transient are
+ * retried; "not a git repository" is an answer, not a hiccup, and waiting nine
+ * seconds to hear it again helps nobody.
+ *
+ * An exhausted lookup returns null rather than throwing. Before a dispatch that
+ * means "nothing to adopt, go ahead"; after one it means the effect is
+ * ambiguous, which is the truth and is what the step already says.
+ */
+const TRANSIENT = /timeout|timed out|TLS|handshake|ECONNRESET|ECONNREFUSED|EAI_AGAIN|ETIMEDOUT|502|503|rate limit/iu;
+
+async function listWorkflowRuns({ cwd, workflow }) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const { stdout } = await exec(
+        'gh',
+        ['run', 'list', '--workflow', workflow, '--limit', '10', '--json',
+         'databaseId,headSha,createdAt,status,conclusion,displayTitle'],
+        { cwd, shell: false }
+      );
+      return JSON.parse(stdout);
+    } catch (error) {
+      if (attempt === 2 || !TRANSIENT.test(messageOf(error))) return null;
+      await new Promise(resolve => setTimeout(resolve, 3000 * (attempt + 1)));
+    }
+  }
+  return null;
+}
+
 async function findWorkflowRun({ cwd, workflow, sourceSha, releaseId, publish, dispatchedAt }) {
-  const { stdout } = await exec(
-    'gh',
-    ['run', 'list', '--workflow', workflow, '--limit', '10', '--json',
-     'databaseId,headSha,createdAt,status,conclusion,displayTitle'],
-    { cwd, shell: false }
-  );
-  const runs = JSON.parse(stdout).filter(
+  const listed = await listWorkflowRuns({ cwd, workflow });
+  if (!listed) return null;
+  const runs = listed.filter(
     candidate => Date.parse(candidate.createdAt) >= dispatchedAt - 60_000
   );
   // The workflow names itself "Windows <release id> publish|build-only", so the
