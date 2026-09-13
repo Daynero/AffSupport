@@ -427,18 +427,10 @@ a {
 }
 
 .support-trigger-amount {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 3.45px;
-  padding: 2.3px 8px;
-  border: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
-  border-radius: var(--radius-full);
-  color: var(--color-text);
   background: var(--color-surface);
   font-size: var(--text-xl);
   font-weight: 750;
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 
 .support-trigger-amount span {
@@ -446,37 +438,19 @@ a {
   font-weight: 500;
 }
 
+/* The bar itself is the shared Progress; the trigger only says where it sits. */
 .support-trigger-progress {
   position: absolute;
   right: 0;
   bottom: 0;
   left: 0;
-  height: 3px;
-  background: color-mix(in srgb, var(--honey-800) 18%, transparent);
-}
-
-/* Every fill in this product scales off --fill-ratio rather than resizing:
-   animating `width` re-lays out the row that holds it on every frame. */
-.support-trigger-progress i {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: 0 var(--radius-full) var(--radius-full) 0;
-  background: var(--honey-700);
-  box-shadow: 0 0 4px color-mix(in srgb, var(--honey-700) 28%, transparent);
-  transform: scaleX(var(--fill-ratio, 0));
-  transform-origin: left center;
-  transition: transform var(--dur-section) var(--ease-standard);
+  border-radius: 0;
 }
 
 .support-trigger.is-complete {
   border-color: color-mix(in srgb, var(--color-success) 45%, var(--color-border));
   color: var(--color-success);
   background: var(--color-success-soft);
-}
-
-.support-trigger.is-complete .support-trigger-progress i {
-  background: var(--color-success);
 }
 
 /*
@@ -4533,13 +4507,8 @@ body:has(.public-home) {
 
 .support-goal-card {
   position: relative;
-  display: grid;
   overflow: hidden;
   gap: var(--space-4);
-  padding: var(--space-6);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
   box-shadow: var(--shadow-md);
 }
 
@@ -4657,32 +4626,6 @@ body:has(.public-home) {
   white-space: nowrap;
 }
 
-.support-goal-progress {
-  position: relative;
-  overflow: hidden;
-  height: 10px;
-  border-radius: var(--radius-full);
-  background: var(--color-surface-muted);
-}
-
-.support-goal-progress > span {
-  position: relative;
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--gradient-brand);
-  transform: scaleX(var(--fill-ratio, 0));
-  transform-origin: left center;
-  transition: transform var(--dur-section) var(--ease-standard);
-}
-
-/* Decorative shine/knob retired — the bar reads cleaner as a flat fill. */
-.support-goal-progress > span::before,
-.support-goal-progress > span i {
-  display: none;
-}
-
 .support-goal-note {
   color: var(--color-text-muted, var(--color-text-muted));
   font-size: var(--text-lg);
@@ -4693,14 +4636,8 @@ body:has(.public-home) {
   border-color: color-mix(in srgb, var(--color-success) 35%, var(--color-border));
 }
 
-.support-goal-card.is-complete .support-goal-heading > span,
 .support-goal-card.is-complete .support-goal-percent > strong {
   color: var(--color-success);
-}
-
-.support-goal-card.is-complete .support-goal-progress > span {
-  background: var(--color-success);
-  box-shadow: 0 0 16px color-mix(in srgb, var(--color-success) 40%, transparent);
 }
 
 .support-section {
@@ -4789,21 +4726,7 @@ body:has(.public-home) {
 }
 
 .support-copy {
-  flex-shrink: 0;
-  min-height: 30px;
-  padding: 0 12px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  color: var(--color-text);
-  font-size: var(--text-xl);
-  font-weight: 600;
-  background: var(--color-surface);
-  cursor: pointer;
-}
-
-.support-copy:hover {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
+  flex: none;
 }
 
 .support-form {
@@ -4811,40 +4734,7 @@ body:has(.public-home) {
   gap: var(--space-3);
 }
 
-.support-field {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.support-field > span {
-  color: var(--color-text-muted);
-  font-size: var(--text-xl);
-  font-weight: 650;
-}
-
-.support-field textarea,
-.support-field input {
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  color: var(--color-text);
-  font: inherit;
-  background: var(--color-surface);
-  resize: vertical;
-  transition:
-    border-color var(--dur-control) var(--ease-standard),
-    box-shadow var(--dur-control) var(--ease-standard);
-}
-
-.support-field textarea:focus,
-.support-field input:focus {
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent);
-  outline: 0;
-}
-
-.support-form .button-primary {
+.support-form .ui-button {
   justify-self: start;
 }
 
@@ -6654,23 +6544,10 @@ body:has(.public-home) {
   gap: var(--space-2);
 }
 
+/* The shared icon button, with the outline it carries over a photograph. */
 .landing-compare-zoom {
-  display: inline-flex;
-  width: 38px;
-  height: 38px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: transparent;
+  border-color: var(--color-border);
   color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-.landing-compare-zoom:hover,
-.landing-compare-zoom[aria-pressed='true'] {
-  border-color: var(--color-accent);
-  color: var(--color-text);
 }
 
 /* The hint line keeps its room whether or not it has words, so the picture below it does not
@@ -6691,29 +6568,11 @@ body:has(.public-home) {
 }
 
 .landing-compare-close {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  flex: 0 0 auto;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   color: var(--color-text-muted);
   background: var(--color-surface-muted);
   font-size: var(--text-11xl);
   line-height: 1;
-  cursor: pointer;
-  transition:
-    color var(--dur-control) var(--ease-standard),
-    background var(--dur-control) var(--ease-standard),
-    transform var(--dur-control) var(--ease-standard);
-}
-
-.landing-compare-close:hover {
-  color: var(--color-text);
-  background: var(--color-border);
-  transform: rotate(5deg) scale(1.04);
 }
 
 .landing-compare-viewport {
@@ -6872,18 +6731,13 @@ body:has(.public-home) {
   object-fit: fill;
 }
 
+/* A Badge, placed over the picture: the two solid colours read on any photo,
+   and the blur keeps the edge off whatever is behind it. */
 .landing-compare-label {
   position: absolute;
   z-index: var(--layer-raised);
   top: 12px;
-  padding: 5px 9px;
-  border: 1px solid color-mix(in srgb, var(--color-white) 22%, transparent);
-  border-radius: var(--radius-full);
-  color: var(--color-on-accent);
-  background: color-mix(in srgb, var(--purple-950) 62%, transparent);
   box-shadow: 0 2px 8px color-mix(in srgb, var(--color-black) 18%, transparent);
-  font-size: var(--text-lg);
-  font-weight: 750;
   pointer-events: none;
   backdrop-filter: blur(5px);
 }
@@ -6995,14 +6849,12 @@ body:has(.public-home) {
   backdrop-filter: blur(6px);
 }
 
-.landing-preview-loading.is-error {
+/* The failure is the shared error alert, centred over the viewport it replaces. */
+.landing-preview-error {
+  position: absolute;
   max-width: 360px;
-  color: var(--color-white);
-  text-align: center;
-}
-
-.landing-preview-loading.is-error .button {
-  justify-self: center;
+  place-self: center;
+  box-shadow: var(--shadow-lg);
 }
 
 .landing-compare-footer {
@@ -8392,6 +8244,12 @@ body:has(.public-home) {
   color: var(--color-error);
   padding: var(--space-3);
 }
+/* One line while a folder is being walked: the spinner beside the sentence. */
+.team-batch-scanning {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
 /* The same shape as the inline error, in the colour of something that is not
    wrong — a request waiting its turn rather than a failure. */
 .team-inline-notice {
@@ -8594,6 +8452,10 @@ body:has(.public-home) {
   gap: var(--space-5);
   min-width: 0;
 }
+.team-create-wizard-header {
+  display: grid;
+  gap: var(--space-2);
+}
 .team-create-wizard-header h1 {
   margin: 0;
 }
@@ -8604,43 +8466,15 @@ body:has(.public-home) {
   font-weight: 700;
   letter-spacing: 0.04em;
 }
-.team-create-step,
-.team-create-step-copy,
-.team-create-field {
-  display: grid;
-  gap: var(--space-2);
-}
+/* The step is a Card; only its gap and its shadow are the wizard's own. */
 .team-create-step {
   gap: var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-xl);
-  background: var(--color-surface);
   box-shadow: var(--shadow-sm);
-  padding: var(--space-5);
-  min-width: 0;
 }
-.team-create-step-copy h2 {
-  margin: 0;
-}
-.team-create-step-copy p,
 .team-create-hint,
 .team-create-resume-name {
   margin: 0;
   color: var(--color-text-muted);
-}
-.team-create-field span {
-  color: var(--color-text-muted);
-  font-size: var(--text-caption);
-}
-.team-create-field input {
-  width: 100%;
-  min-width: 0;
-  min-height: 42px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-text);
-  padding: 0 var(--space-3);
 }
 .team-create-actions {
   display: flex;
@@ -9686,6 +9520,7 @@ button,
   .team-space-shell-utilities .button,
   .team-space-settings-header .button,
   .team-create-actions .button,
+  .team-create-actions .ui-button,
   .team-dialog-actions .button,
   .team-catalog-material-actions .button,
   .team-material-action-buttons .button {
@@ -10718,8 +10553,7 @@ body {
  * keep the last line of text out from under it.
  */
 .team-task-editor .team-task-description-input,
-.team-text-editor textarea,
-.support-field textarea {
+.team-text-editor textarea {
   padding-bottom: 22px;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'><g stroke='%23c7becf' stroke-width='2' stroke-linecap='round'><path d='M26 10 10 26'/><path d='M26 17 17 26'/><path d='M26 24 24 26'/></g></svg>");
   background-repeat: no-repeat;
@@ -10727,8 +10561,7 @@ body {
   background-size: 28px 28px;
 }
 .team-task-editor .team-task-description-input::-webkit-resizer,
-.team-text-editor textarea::-webkit-resizer,
-.support-field textarea::-webkit-resizer {
+.team-text-editor textarea::-webkit-resizer {
   background-color: transparent;
   background-image: none;
 }
@@ -13311,19 +13144,13 @@ button.team-landing-tile:hover {
 .team-connect-acl-note {
   color: var(--color-text-muted);
 }
-.team-selection-list ul {
-  list-style: none;
-  margin: var(--space-2) 0;
+.team-selection-chips {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-.team-selection-list li {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   gap: var(--space-2);
+  list-style: none;
 }
 @media (max-width: 1023px) {
   .team-explorer {
@@ -14398,19 +14225,7 @@ button.team-landing-tile:hover {
   white-space: nowrap;
 }
 .team-process-panel-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
   color: var(--color-text-muted);
-  cursor: pointer;
-  padding: var(--space-1);
-}
-.team-process-panel-toggle:hover {
-  color: var(--color-text);
-  background: color-mix(in srgb, var(--color-border) 40%, transparent);
 }
 .team-process-panel-detail,
 .team-process-panel-phase {
@@ -14432,24 +14247,11 @@ button.team-landing-tile:hover {
   align-items: center;
   gap: var(--space-2);
 }
-.team-process-panel-actions > .button {
-  /* Every action carries the same chrome: a bare word beside a boxed one reads as a label,
-     not a button. */
-  border: 1px solid var(--color-border);
-  padding: var(--space-1) var(--space-3);
-  white-space: nowrap;
-}
-.team-process-panel-actions > .button:hover {
-  border-color: var(--color-border-strong);
-}
-/* The way out reads like one, without being torn out of the row. */
-.team-process-panel-stop {
-  color: var(--color-error);
-  border-color: color-mix(in srgb, var(--color-error) 40%, transparent) !important;
-}
-.team-process-panel-stop:hover {
-  background: color-mix(in srgb, var(--color-error) 12%, transparent);
-  border-color: color-mix(in srgb, var(--color-error) 60%, transparent) !important;
+/* Every action carries the same chrome: a bare word beside a boxed one reads as
+   a label, not a button. The colour is the button's own role — the way out is
+   the red one, and it stays inside the row rather than being torn out of it. */
+.team-process-panel-actions > .ui-button {
+  border-color: var(--ui-border);
 }
 
 /* Specific enough to beat the one-line clipping the panel's paragraphs share:
@@ -14630,12 +14432,7 @@ button.team-landing-tile:hover {
   display: grid;
   gap: var(--space-3);
 }
-.team-compress-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.team-compress-suffix input {
+.team-compress-suffix .ui-input {
   width: 160px;
 }
 .team-compress-destination {
@@ -14644,11 +14441,7 @@ button.team-landing-tile:hover {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   padding: var(--space-3);
-}
-.team-compress-destination label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
+  justify-items: start;
 }
 
 /* The name-ending sits on its own tidy row, flush with the control above. */

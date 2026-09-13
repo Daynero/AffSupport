@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import { Modal } from '../../components/Modal';
-import { Button } from '../../components/ui';
+import { Button, Checkbox, FormField, Input, RadioGroup } from '../../components/ui/index';
+import type { RadioOption } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { FolderPicker, type FolderPickerClient } from '../catalog/FolderPicker';
 
@@ -49,6 +50,23 @@ export function TeamCompressorDialog({
   const [mode, setMode] = useState<'beside' | 'folder' | 'local' | 'overwrite'>('beside');
   const [folder, setFolder] = useState<{ id: string | null; name: string } | null>(null);
   const [picking, setPicking] = useState(false);
+  const suffixId = useId();
+
+  type Destination = 'beside' | 'folder' | 'local' | 'overwrite';
+  const destinations: ReadonlyArray<RadioOption<Destination>> = [
+    { value: 'beside', label: t('teamCompressBeside') },
+    {
+      value: 'folder',
+      label: t('teamCompressToFolder'),
+      description: mode === 'folder' && folder ? folder.name : undefined
+    },
+    { value: 'local', label: t('teamCompressLocal') },
+    {
+      value: 'overwrite',
+      label: t('teamCompressOverwrite'),
+      description: mode === 'overwrite' ? t('teamCompressOverwriteHint') : undefined
+    }
+  ];
 
   const run = () => {
     onRun({
@@ -78,86 +96,54 @@ export function TeamCompressorDialog({
       <h3 id={titleId}>{t('teamCompressTitle', { count: items.length })}</h3>
       <p className="team-explorer-muted">{t('teamCompressQualityNote')}</p>
 
-      <label className="team-compress-row">
-        <input type="checkbox" checked={embed} onChange={event => setEmbed(event.target.checked)} />
-        <span>{t('teamCompressEmbed')}</span>
-      </label>
+      <Checkbox
+        label={t('teamCompressEmbed')}
+        checked={embed}
+        onChange={event => setEmbed(event.target.checked)}
+      />
 
-      <label className="team-compress-row team-compress-suffix">
-        <span>{t('outputSuffixLabel')}</span>
-        <input
-          type="text"
+      <FormField label={t('outputSuffixLabel')} htmlFor={suffixId} className="team-compress-suffix">
+        <Input
+          id={suffixId}
           maxLength={60}
           placeholder={t('teamCompressSuffixPlaceholder')}
           value={suffix}
           onChange={event => setSuffix(event.target.value)}
         />
-      </label>
+      </FormField>
 
-      <fieldset className="team-compress-destination">
-        <legend>{t('teamCompressWhere')}</legend>
-        <label>
-          <input
-            type="radio"
-            name="team-compress-destination"
-            checked={mode === 'beside'}
-            onChange={() => setMode('beside')}
-          />
-          <span>{t('teamCompressBeside')}</span>
-        </label>
-        <label>
-          <input
-            type="radio"
-            name="team-compress-destination"
-            checked={mode === 'folder'}
-            onChange={() => {
-              setMode('folder');
-              if (!folder) setPicking(true);
-            }}
-          />
-          <span>
-            {t('teamCompressToFolder')}
-            {mode === 'folder' && folder ? ` — ${folder.name}` : ''}
-          </span>
-          {mode === 'folder' && (
-            <Button type="button" variant="ghost" onClick={() => setPicking(true)}>
-              {t('teamFileMove')}…
-            </Button>
-          )}
-        </label>
-        <label>
-          <input
-            type="radio"
-            name="team-compress-destination"
-            checked={mode === 'local'}
-            onChange={() => setMode('local')}
-          />
-          <span>{t('teamCompressLocal')}</span>
-        </label>
-        <label>
-          <input
-            type="radio"
-            name="team-compress-destination"
-            checked={mode === 'overwrite'}
-            onChange={() => setMode('overwrite')}
-          />
-          <span>{t('teamCompressOverwrite')}</span>
-        </label>
-        {mode === 'overwrite' && (
-          <p className="team-explorer-muted">{t('teamCompressOverwriteHint')}</p>
+      <div className="team-compress-destination">
+        {/* The group names itself to assistive tech; this is the same name,
+            on screen, at the label step. */}
+        <span className="ui-field-label">{t('teamCompressWhere')}</span>
+        <RadioGroup
+          label={t('teamCompressWhere')}
+          value={mode}
+          options={destinations}
+          onChange={next => {
+            setMode(next);
+            if (next === 'folder' && !folder) setPicking(true);
+          }}
+        />
+        {/* Outside the group: a control inside a radio's own label would fire
+            the radio on its way to the button. */}
+        {mode === 'folder' && (
+          <Button color="neutral" variant="ghost" size="sm" onClick={() => setPicking(true)}>
+            {t('teamFileMove')}…
+          </Button>
         )}
-      </fieldset>
+      </div>
 
       <div className="team-dialog-actions">
         <Button
-          type="button"
-          variant="primary"
+          color="primary"
+          variant="solid"
           disabled={items.length === 0 || (mode === 'folder' && !folder)}
           onClick={run}
         >
           {t('teamCompressStart', { count: items.length })}
         </Button>
-        <Button type="button" variant="ghost" onClick={onClose}>
+        <Button color="neutral" variant="ghost" onClick={onClose}>
           {t('teamCancel')}
         </Button>
       </div>

@@ -2,14 +2,13 @@ import { useId, useState } from 'react';
 import type { StorageHealth, TeamStorageAttentionReason } from '@video-compressor/shared';
 import { Modal } from '../../components/Modal';
 import { useToasts } from '../../components/toast';
-import { Button } from '../../components/ui';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { internalLink } from '../../lib/navigation';
 import { teamErrorMessageFor } from '../errors';
 import { useOptionalBackgroundRender } from '../explorer/BackgroundRenderProvider';
 import type { DriveRootResult } from '../../api/team';
 import { rememberDriveAuthorization } from '../drive/authorizationReturn';
-import { PermissionState } from '../../components/ui/index';
+import { Button, PermissionState, uiClasses } from '../../components/ui/index';
 
 /**
  * One chip, one state, on every team screen (011, FR-031). Click for the
@@ -200,8 +199,8 @@ export function StorageChip({
               !authorizationUrl &&
               client.startDriveOAuth && (
                 <Button
-                  type="button"
-                  variant="primary"
+                  color="primary"
+                  variant="solid"
                   loading={busy}
                   onClick={() => void reconnect()}
                 >
@@ -209,7 +208,11 @@ export function StorageChip({
                 </Button>
               )}
             {authorizationUrl && (
-              <a className="button button-primary" href={authorizationUrl} rel="noreferrer">
+              <a
+                className={uiClasses('button', { color: 'primary', variant: 'solid', size: 'md' })}
+                href={authorizationUrl}
+                rel="noreferrer"
+              >
                 {t('teamDriveAuthorize')}
               </a>
             )}
@@ -218,8 +221,8 @@ export function StorageChip({
               isOwner &&
               client.restoreRoot && (
                 <Button
-                  type="button"
-                  variant="primary"
+                  color="primary"
+                  variant="solid"
                   loading={busy}
                   onClick={() =>
                     void run(() => client.restoreRoot!(teamId), 'teamDriveRootRestored')
@@ -234,8 +237,8 @@ export function StorageChip({
               canManage &&
               client.resyncDrive && (
                 <Button
-                  type="button"
-                  variant="secondary"
+                  color="neutral"
+                  variant="outline"
                   loading={busy}
                   onClick={() =>
                     void run(() => client.resyncDrive!(teamId), 'teamToastResyncQueued')
@@ -250,7 +253,7 @@ export function StorageChip({
                 opened the panel to do. */}
             {render?.available && (
               <Button
-                type="button"
+                color="neutral"
                 variant="ghost"
                 onClick={() => render.setPaused(!render.paused)}
               >
@@ -259,7 +262,7 @@ export function StorageChip({
             )}
             {isOwner && (
               <a
-                className="button button-ghost"
+                className={uiClasses('button', { color: 'neutral', variant: 'ghost', size: 'md' })}
                 href={settingsHref}
                 onClick={event => {
                   setOpen(false);
@@ -276,7 +279,7 @@ export function StorageChip({
              * indexing", which is the one thing it must not be mistaken for.
              * It is also the calm default, so it is the bordered one.
              */}
-            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
+            <Button color="neutral" variant="outline" onClick={() => setOpen(false)}>
               {t('teamClose')}
             </Button>
           </div>

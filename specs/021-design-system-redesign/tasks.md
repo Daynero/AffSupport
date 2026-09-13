@@ -123,7 +123,7 @@ states what is true, what to do, and looks like the same product.
 tooltip look and move the same wherever they are raised.
 
 - [x] T040 [US1] Migrate the top bar in `apps/web/src/ProtectedSoty.tsx` and its controls — `SotyLogo`, `EnvironmentBadge`, `ThemeToggle`, `LanguageSwitch`, `UserAvatar`, `UserMenu` — onto Button/Badge/DropdownMenu
-- [ ] T041 [US1] Migrate `apps/web/src/components/SupportDialog.tsx` (trigger chip + dialog) onto Badge + Modal + Progress
+- [x] T041 [US1] Migrate `apps/web/src/components/SupportDialog.tsx` (trigger chip + dialog) onto Badge + Modal + Progress
 - [x] T042 [P] [US1] Migrate `apps/web/src/components/ReleaseUpdateNotice.tsx` onto Alert + Button
 - [x] T043 [P] [US1] [US2] Migrate `apps/web/src/components/LocalAppDialog.tsx` and `apps/web/src/components/FeatureLockDialog.tsx` — the single "needs the local app" state, one anatomy for all six tools
 - [x] T044 [P] [US1] Migrate `apps/web/src/components/InstantTips.tsx` and `apps/web/src/components/LabeledSkeleton.tsx` onto Tooltip and Skeleton
@@ -143,7 +143,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [x] T048 [US1] Migrate `apps/web/src/components/SettingsPanel.tsx` onto Card + Collapsible + FormField + Choice, keeping the summary-in-the-heading behaviour
 - [ ] T049 [US1] Migrate the compressor shell in `apps/web/src/App.tsx` — drop zone, batch toolbar, selection bar with its count, results summary
 - [x] T050 [P] [US1] Migrate `apps/web/src/components/JobRow.tsx` and `apps/web/src/components/ImageEmbeddingSection.tsx` onto Table row + Progress + Badge + Alert
-- [ ] T051 [P] [US1] Migrate `apps/web/src/team/explorer/TeamCompressorDialog.tsx` onto Modal + the migrated settings panel
+- [x] T051 [P] [US1] Migrate `apps/web/src/team/explorer/TeamCompressorDialog.tsx` onto Modal + the migrated settings panel
 - [x] T052 [US1] [US2] Give the compressor its full state set: initial, empty queue, running, partially failed, failed, agent-missing — each on the shared patterns
 - [x] T053 [US1] [US4] Verify C3 at five widths × two themes × reduced motion; delete the compressor's orphaned CSS
 
@@ -153,7 +153,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 
 - [x] T054 [US1] Migrate `apps/web/src/stitcher/StitcherPage.tsx` onto the inventory, reusing the compressor's drop zone, settings panel and toolbar
 - [x] T055 [US1] Migrate `apps/web/src/landing/LandingOptimizerPage.tsx` and `apps/web/src/landing/LandingJobCard.tsx`
-- [ ] T056 [P] [US1] Migrate `apps/web/src/landing/ImageCompareModal.tsx` onto Modal, keeping the before/after comparison
+- [x] T056 [P] [US1] Migrate `apps/web/src/landing/ImageCompareModal.tsx` onto Modal, keeping the before/after comparison
 - [x] T057 [US1] [US2] Give both tools their full state set on the shared patterns, including the single agent-missing state
 - [x] T058 [US1] [US4] Verify C4 at five widths × two themes × reduced motion; delete orphaned CSS
 
@@ -198,10 +198,10 @@ in inventory components, with the compressor looking exactly as good as it does 
 ## Phase 11: [US1] C8 — Team: entry and shell
 
 - [x] T080 [US1] Migrate `apps/web/src/team/lobby/SpaceLobby.tsx`, `SpaceCard.tsx` and `InvitationList.tsx` onto Card + Empty + Badge + Button
-- [ ] T081 [P] [US1] Migrate `apps/web/src/team/create/CreateSpaceWizard.tsx` and `SpaceNameStep.tsx` onto Modal + Stepper-style header + FormField
+- [x] T081 [P] [US1] Migrate `apps/web/src/team/create/CreateSpaceWizard.tsx` and `SpaceNameStep.tsx` onto Modal + Stepper-style header + FormField
 - [x] T082 [US1] Migrate `apps/web/src/team/workspace/WorkspaceShell.tsx` — header, section tabs, and the space header actions — onto Tabs + Button + Breadcrumb
 - [x] T083 [P] [US1] Migrate `apps/web/src/team/workspace/SpaceSwitcher.tsx`, `SpaceStatePanel.tsx`, `RealtimeChip.tsx` and `BackgroundWorkChip.tsx` onto DropdownMenu + Alert + Badge
-- [ ] T084 [P] [US1] Migrate `apps/web/src/team/storage/StorageChip.tsx`, `ConnectStorageFlow.tsx` and `SelectionList.tsx` onto Badge + Popover + Modal + Tree
+- [x] T084 [P] [US1] Migrate `apps/web/src/team/storage/StorageChip.tsx`, `ConnectStorageFlow.tsx` and `SelectionList.tsx` onto Badge + Popover + Modal + Tree
 - [x] T085 [US1] [US2] Migrate the unavailable-space screen in `apps/web/src/team/TeamSpace.tsx` onto the Empty pattern (it was re-dressed in 020; make it the pattern rather than a bespoke card)
 - [x] T086 [US1] Update `tests/team-workspace-gate.test.tsx`, `tests/team-connect-flow.test.tsx` and `tests/workspace-section-state.test.tsx` to assert through roles
 - [x] T087 [US1] [US4] Verify C8 at five widths × two themes × reduced motion
@@ -215,7 +215,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [x] T090 [P] [US1] Migrate `apps/web/src/team/explorer/FolderTree.tsx` and `Breadcrumb.tsx` onto Tree and Breadcrumb, keeping drag-and-drop targets
 - [x] T091 [P] [US1] Migrate `apps/web/src/team/explorer/SortMenu.tsx`, `KindFilterMenu.tsx`, `RowActions.tsx` and `ShareButton.tsx` onto DropdownMenu + IconButton (no open/close animation — frequent actions)
 - [x] T092 [P] [US1] [US2] Migrate `apps/web/src/team/explorer/PreviewPane.tsx` with its empty, loading, failed and unsupported states
-- [ ] T093 [P] [US1] Migrate `apps/web/src/team/explorer/UploadConflictDialog.tsx`, `FolderScopeDialog.tsx` and `ProcessPanel.tsx` onto Modal + the confirmation pattern
+- [x] T093 [P] [US1] Migrate `apps/web/src/team/explorer/UploadConflictDialog.tsx`, `FolderScopeDialog.tsx` and `ProcessPanel.tsx` onto Modal + the confirmation pattern
 - [x] T094 [P] [US1] Migrate `apps/web/src/team/catalog/TrashView.tsx` onto Table + Empty + the confirmation pattern (purge is destructive and de-emphasised)
 - [x] T095 [US1] Update `tests/team-explorer-grid.test.tsx` and the explorer's other class-name assertions to roles
 - [x] T096 [US1] [US4] Verify C9 at five widths × two themes × reduced motion, with a 500-row folder

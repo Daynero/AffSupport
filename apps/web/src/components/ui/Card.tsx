@@ -23,7 +23,7 @@ export type CardRole = 'surface' | 'panel' | 'section';
 export interface CardProps extends Omit<HTMLAttributes<HTMLElement>, 'title'> {
   role?: CardRole;
   /** Renders as <section> with the heading wired to it. */
-  as?: 'div' | 'section' | 'article' | 'li';
+  as?: 'div' | 'section' | 'article' | 'li' | 'form';
   /** Draws the heading row: icon, title, and whatever the state summary is. */
   icon?: ReactNode;
   title?: ReactNode;

@@ -86,6 +86,18 @@ export interface ProgressProps {
   color?: UiColor;
   size?: Extract<UiSize, 'xs' | 'sm' | 'md'>;
   label?: string;
+  /**
+   * What the percentage *means*, said in words: "£120 raised of £400".
+   * A screen reader announces this instead of "37%", which is the difference
+   * between a number and an answer.
+   */
+  valueText?: string;
+  /**
+   * The bar is decoration and something else already says the number — a
+   * button whose own label reads "raised £120 of £400". A second progressbar
+   * inside that button would announce the same fact twice.
+   */
+  decorative?: boolean;
   /** A ring instead of a bar — the TOTP countdown, a small inline job. */
   circular?: boolean;
   className?: string;
@@ -96,6 +108,8 @@ export function Progress({
   color = 'primary',
   size = 'md',
   label,
+  valueText,
+  decorative = false,
   circular = false,
   className
 }: ProgressProps) {
@@ -109,11 +123,13 @@ export function Progress({
         states: { indeterminate },
         className
       })}
-      role="progressbar"
-      aria-label={label}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={indeterminate ? undefined : Math.round(clamped)}
+      role={decorative ? undefined : 'progressbar'}
+      aria-hidden={decorative || undefined}
+      aria-label={decorative ? undefined : label}
+      aria-valuemin={decorative ? undefined : 0}
+      aria-valuemax={decorative ? undefined : 100}
+      aria-valuenow={decorative || indeterminate ? undefined : Math.round(clamped)}
+      aria-valuetext={decorative ? undefined : valueText}
       style={indeterminate ? undefined : ({ '--ui-progress-ratio': clamped / 100 } as never)}
     >
       <span className="ui-progress-fill" aria-hidden="true" />
