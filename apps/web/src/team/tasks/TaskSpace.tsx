@@ -5,6 +5,7 @@ import { teamApi, type TeamMemberSummary } from '../../api/team';
 import { Button } from '../../components/ui';
 import { ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
+import { Empty } from '../../components/ui/index';
 import { useTeam } from '../TeamContext';
 import { attachTaskMaterialsInChunks } from './TaskAttachmentPicker';
 import { TaskCard } from './TaskCard';
@@ -366,25 +367,23 @@ export function TaskSpace({
       {/* Three distinguishable answers, not one: still loading, nothing here
           at all, or nothing matching the filter in force (FR-020). */}
       {!tasks.loading && !tasks.error && tasks.tasks.length === 0 && (
-        <div className="team-empty-state">
-          {filtered ? (
-            <p>{t('teamTasksEmptyFiltered')}</p>
-          ) : (
-            <>
-              <p>{t('teamTasksEmpty')}</p>
-              {can('edit') && (
-                <Button
-                  type="button"
-                  variant="primary"
-                  loading={busy}
-                  onClick={() => void startTask()}
-                >
-                  {t('teamTasksEmptyAction')}
-                </Button>
-              )}
-            </>
-          )}
-        </div>
+        <Empty
+          title={t(filtered ? 'teamTasksEmptyFiltered' : 'teamTasksEmpty')}
+          description={filtered ? undefined : t('teamTasksEmptyBody')}
+          action={
+            !filtered &&
+            can('edit') && (
+              <Button
+                type="button"
+                color="primary"
+                loading={busy}
+                onClick={() => void startTask()}
+              >
+                {t('teamTasksEmptyAction')}
+              </Button>
+            )
+          }
+        />
       )}
       <div className="team-task-grid">
         {tasks.tasks.map(task => (

@@ -24,6 +24,7 @@ import {
   Eraser,
   Plus,
   Search,
+  UserRound,
   X
 } from 'lucide-react';
 import {
@@ -43,6 +44,7 @@ import {
 } from '@video-compressor/shared';
 import { Button, IconButton } from '../../components/ui';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
+import { Empty } from '../../components/ui/index';
 import { useToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';
 import { useTeam } from '../TeamContext';
@@ -812,16 +814,24 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
       )}
 
       {listEmpty && !creating && (
-        <div className="team-empty-state team-accounts-empty">
-          <strong>{t('teamAccountsEmpty')}</strong>
-          <p>{t('teamAccountsEmptyBody')}</p>
-          {canEdit && (
-            <Button type="button" variant="primary" onClick={startCreate}>
-              <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              {t('teamAccountsCreate')}
-            </Button>
-          )}
-        </div>
+        <Empty
+          className="team-accounts-empty"
+          icon={<UserRound size={26} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+          title={t('teamAccountsEmpty')}
+          description={t('teamAccountsEmptyBody')}
+          action={
+            canEdit && (
+              <Button
+                type="button"
+                color="primary"
+                leading={<Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+                onClick={startCreate}
+              >
+                {t('teamAccountsCreate')}
+              </Button>
+            )
+          }
+        />
       )}
     </section>
   );
