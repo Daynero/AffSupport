@@ -1,3 +1,32 @@
+# v1.1.1
+
+**Team workspace**
+
+- Progress you drag is saved however you let go of it, and leaving a section and coming back no longer undoes what you did.
+- A Google Drive authorization returns to the space it started from instead of the workspace root.
+- The preview chip counts only work something is actually doing; a pass that stopped stops claiming progress.
+- Search filters offer file types and say their values in words; media can be found by name while you attach it to a task.
+- Tag a task and log the run in one press. The money column folds from its own caption. An empty state opens the panel that fills it.
+- Space settings has the shape the compressor already had.
+- A transcription records the language it heard.
+
+**Downloads and pairing**
+
+- The download page offers the installer your machine can actually run, rather than the one the browser claims.
+- An unsupported build is stopped at the gate instead of appearing and then failing behind a banner.
+- The desktop app pairs again; a rejected token gets one second chance instead of an error screen, and a blocked account check now offers a route back to pairing.
+- A compressed upload lands somewhere its owner can find it.
+- Shared-link screens are dressed like the rest of the product.
+
+**Speed**
+
+- The workspace loads when someone opens it, not before.
+- One abandoned sync job no longer starves every other space.
+
+**Under the hood**
+
+This release is the first cut by the release runner end to end: every environment variable production needs is now declared and checked against the live project before anything ships, the deployment is verified from outside after it lands, a heartbeat re-runs that check every ten minutes, and there is a way back to the previous bundle. Two database fixes close permissions that PostgreSQL had left open by default.
+
 # v1.1.0
 
 - Rebuild Team workspace around Google Drive file access: a folder tree, list and grid views, previews of every kind of file, share-by-link, copy/cut/paste across folders, modified dates, a sort menu, and a space settings dialog split into General, People, Tags, Re-stitch and History tabs.
