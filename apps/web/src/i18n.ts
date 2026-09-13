@@ -1761,6 +1761,7 @@ const en = {
   teamTrashLoading: 'Loading trashed files…',
   teamTrashLoadFailed: 'Could not load the trash. Try again.',
   teamTrashEmpty: 'Nothing has been moved to trash.',
+  teamTrashOrigin: 'Was in',
   teamTrashLoadMore: 'Show older',
   teamTrashRetentionNote:
     'These files are in the Google Drive trash. Drive decides how long they stay restorable — usually 30 days.',
@@ -4157,6 +4158,7 @@ const uk: Record<keyof typeof en, string> = {
   teamTrashLoading: 'Завантажуємо файли з кошика…',
   teamTrashLoadFailed: 'Не вдалося завантажити кошик. Спробуйте ще раз.',
   teamTrashEmpty: 'У кошику нічого немає.',
+  teamTrashOrigin: 'Звідки',
   teamTrashLoadMore: 'Показати давніші',
   teamTrashRetentionNote:
     'Ці файли — у кошику Google Drive. Скільки їх ще можна відновити, вирішує Drive: зазвичай 30 днів.',

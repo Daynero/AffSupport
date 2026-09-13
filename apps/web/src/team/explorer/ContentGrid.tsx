@@ -6,8 +6,7 @@ import type {
   ThumbnailSession
 } from '@video-compressor/shared';
 import type { TeamMaterialSummary } from '../../api/team';
-import { Button } from '../../components/ui';
-import { EmptyState } from '../../components/ui/index';
+import { Button, EmptyState, ErrorState } from '../../components/ui/index';
 import { ICON_STROKE } from '../../components/icons';
 import { FolderOpen } from 'lucide-react';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
@@ -134,11 +133,7 @@ export function ContentGrid({
       {page.loading && page.rows.length === 0 && (
         <LabeledSkeleton label="teamMaterialsLoading" rows={4} />
       )}
-      {page.error && (
-        <p className="team-inline-error" role="alert">
-          {t('teamExplorerLoadFailed')}
-        </p>
-      )}
+      {page.error && <ErrorState message={t('teamExplorerLoadFailed')} />}
       {/* One sentence, centred in a content area that keeps its shape. It was
           "Елементів: 0" and "Ця папка порожня." stacked flush left, saying the
           same thing twice above a card that had collapsed to a strip. */}
@@ -171,8 +166,8 @@ export function ContentGrid({
       </ul>
       {page.hasMore && (
         <Button
-          type="button"
-          variant="secondary"
+          color="neutral"
+          variant="outline"
           loading={page.loading}
           onClick={() => void page.loadMore()}
         >

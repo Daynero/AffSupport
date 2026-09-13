@@ -1,14 +1,22 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { TeamTrashedMaterial } from '../../api/team';
 import { teamApi } from '../../api/team';
-import { Button } from '../../components/ui';
+
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { useToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
 import { formatDate } from '../../format';
 import { KindIcon } from '../explorer/KindIcon';
-import { EmptyState } from '../../components/ui/index';
+import {
+  Button,
+  EmptyState,
+  Table,
+  TableCell,
+  TableHeader,
+  TableHeaderCell,
+  TableRow
+} from '../../components/ui/index';
 
 export interface TrashViewClient {
   listTrashedMaterials: (input: {
@@ -110,37 +118,51 @@ export function TrashView({
           the name, where it came from, when it was thrown away. It was a stack
           of full-width cards with a name and a button — a third way of drawing
           a file, in the one place a person arrives at frightened. */}
-      <ul className="team-explorer-rows team-trash-list">
-        {(items ?? []).map(item => (
-          <li key={item.id} className={`team-explorer-row is-${item.kind}`}>
-            <span className="team-trash-row-glyph" aria-hidden="true">
-              {/* The trash knows only file, folder or shortcut — the catalogue's
-                  finer kinds are not carried across a deletion. */}
-              <KindIcon kind={item.kind === 'file' ? 'other' : item.kind} />
-            </span>
-            <span className="team-explorer-row-name" title={item.name}>
-              {item.name}
-            </span>
-            <span className="team-explorer-row-date" title={item.parentPathHint ?? ''}>
-              {item.parentPathHint ?? formatDate(item.trashedAt, language)}
-            </span>
-            <span className="team-explorer-row-actions">
-              <Button
-                type="button"
-                variant="secondary"
-                loading={restoringId === item.id}
-                onClick={() => void restore(item)}
-              >
-                {t('teamFileRestore')}
-              </Button>
-            </span>
-          </li>
-        ))}
-      </ul>
+      {items !== null && items.length > 0 && (
+        <Table size="sm" className="team-explorer-rows team-trash-list" label={t('teamTrashTitle')}>
+          <TableHeader>
+            <TableHeaderCell className="team-trash-row-glyph" />
+            <TableHeaderCell className="team-explorer-row-name">
+              {t('teamExplorerSortName')}
+            </TableHeaderCell>
+            <TableHeaderCell className="team-explorer-row-date">
+              {t('teamTrashOrigin')}
+            </TableHeaderCell>
+            <TableHeaderCell className="team-explorer-row-actions">
+              {t('teamAccountColumnActions')}
+            </TableHeaderCell>
+          </TableHeader>
+          {items.map(item => (
+            <TableRow key={item.id} className={`team-explorer-row is-${item.kind}`}>
+              <TableCell className="team-trash-row-glyph" aria-hidden="true">
+                {/* The trash knows only file, folder or shortcut — the catalogue's
+                    finer kinds are not carried across a deletion. */}
+                <KindIcon kind={item.kind === 'file' ? 'other' : item.kind} />
+              </TableCell>
+              <TableCell className="team-explorer-row-name" title={item.name}>
+                {item.name}
+              </TableCell>
+              <TableCell className="team-explorer-row-date" title={item.parentPathHint ?? ''}>
+                {item.parentPathHint ?? formatDate(item.trashedAt, language)}
+              </TableCell>
+              <TableCell className="team-explorer-row-actions">
+                <Button
+                  color="neutral"
+                  variant="outline"
+                  loading={restoringId === item.id}
+                  onClick={() => void restore(item)}
+                >
+                  {t('teamFileRestore')}
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </Table>
+      )}
 
       {items !== null && items.length > 0 && !exhausted && (
         <Button
-          type="button"
+          color="neutral"
           variant="ghost"
           loading={loadingMore}
           onClick={() => {

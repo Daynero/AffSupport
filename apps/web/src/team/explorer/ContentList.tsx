@@ -1,8 +1,16 @@
 import type { ReactNode } from 'react';
 import type { TeamMaterialRow, TeamMaterialTagColor } from '@video-compressor/shared';
 import type { TeamMaterialSummary } from '../../api/team';
-import { Button } from '../../components/ui';
-import { EmptyState } from '../../components/ui/index';
+import {
+  Button,
+  EmptyState,
+  ErrorState,
+  Table,
+  TableCell,
+  TableHeader,
+  TableHeaderCell,
+  TableRow
+} from '../../components/ui/index';
 import { ICON_STROKE } from '../../components/icons';
 import { FolderOpen } from 'lucide-react';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
@@ -78,11 +86,7 @@ export function ContentList({
       {page.loading && page.rows.length === 0 && (
         <LabeledSkeleton label="teamMaterialsLoading" rows={4} />
       )}
-      {page.error && (
-        <p className="team-inline-error" role="alert">
-          {t('teamExplorerLoadFailed')}
-        </p>
-      )}
+      {page.error && <ErrorState message={t('teamExplorerLoadFailed')} />}
       {/* One sentence, centred in a content area that keeps its shape. It was
           "Елементів: 0" and "Ця папка порожня." stacked flush left, saying the
           same thing twice above a card that had collapsed to a strip. */}
@@ -94,26 +98,55 @@ export function ContentList({
           action={emptyAction}
         />
       )}
-      <ul className="team-explorer-rows">
-        {rows.map(row => (
-          <Row
-            key={row.id}
-            row={row}
-            selected={selectedId === row.id}
-            checked={selectedIds.has(row.id)}
-            onSelect={select}
-            onToggle={toggleSelected}
-            onOpenFolder={openFolder}
-            onPreview={onPreview}
-            actions={actions}
-            tagging={tagging}
-          />
-        ))}
-      </ul>
+      {rows.length > 0 && (
+        <Table
+          size="sm"
+          className="team-explorer-rows"
+          aria-labelledby="team-explorer-content-title"
+        >
+          {/* The columns were ruled to read as a table before they were one;
+              now they are named, so a reader arriving at "17.2 MB" is told
+              which column that is. */}
+          <TableHeader>
+            <TableHeaderCell className="team-explorer-row-check" />
+            <TableHeaderCell className="team-explorer-row-name">
+              {t('teamExplorerSortName')}
+            </TableHeaderCell>
+            <TableHeaderCell className="team-explorer-row-kind">
+              {t('teamExplorerPaneKind')}
+            </TableHeaderCell>
+            <TableHeaderCell className="team-explorer-row-date">
+              {t('teamExplorerSortModified')}
+            </TableHeaderCell>
+            <TableHeaderCell className="team-explorer-row-meta">
+              {t('teamExplorerPaneSize')}
+            </TableHeaderCell>
+            {actions && (
+              <TableHeaderCell className="team-explorer-row-actions">
+                {t('teamAccountColumnActions')}
+              </TableHeaderCell>
+            )}
+          </TableHeader>
+          {rows.map(row => (
+            <Row
+              key={row.id}
+              row={row}
+              selected={selectedId === row.id}
+              checked={selectedIds.has(row.id)}
+              onSelect={select}
+              onToggle={toggleSelected}
+              onOpenFolder={openFolder}
+              onPreview={onPreview}
+              actions={actions}
+              tagging={tagging}
+            />
+          ))}
+        </Table>
+      )}
       {page.hasMore && (
         <Button
-          type="button"
-          variant="secondary"
+          color="neutral"
+          variant="outline"
           loading={page.loading}
           onClick={() => void page.loadMore()}
         >
@@ -149,9 +182,10 @@ function Row({
   const reason = KIND_REASON[row.kind];
   const previewable = PREVIEWABLE_KINDS.has(row.kind);
   return (
-    <li
-      className={`team-explorer-row is-${row.kind}${selected ? ' is-selected' : ''}`}
-      aria-selected={selected}
+    <TableRow
+      className={`team-explorer-row is-${row.kind}`}
+      selected={selected}
+      interactive
       draggable={row.kind !== 'folder'}
       onDragStart={event => {
         event.dataTransfer.setData(DRAG_TYPE, row.id);
@@ -171,28 +205,32 @@ function Row({
         else if (previewable) onPreview?.(previewSummary(row));
       }}
     >
-      <label
-        className="team-explorer-check team-explorer-row-check"
-        onClick={event => event.stopPropagation()}
-        title={t('teamExplorerSelectNamed', { name: row.name })}
-      >
-        <input
-          type="checkbox"
-          aria-label={t('teamExplorerSelectNamed', { name: row.name })}
-          checked={checked}
-          onChange={() => onToggle(row)}
-        />
-        <span aria-hidden="true" />
-      </label>
-      <span className="team-explorer-row-name">
+      <TableCell className="team-explorer-row-check">
+        <label
+          className="team-explorer-check"
+          onClick={event => event.stopPropagation()}
+          title={t('teamExplorerSelectNamed', { name: row.name })}
+        >
+          <input
+            type="checkbox"
+            aria-label={t('teamExplorerSelectNamed', { name: row.name })}
+            checked={checked}
+            onChange={() => onToggle(row)}
+          />
+          <span aria-hidden="true" />
+        </label>
+      </TableCell>
+      <TableCell className="team-explorer-row-name">
         <KindIcon kind={row.kind} /> {row.name}
-      </span>
-      <span className="team-explorer-row-kind">{t(KIND_LABEL[row.kind])}</span>
-      <span className="team-explorer-row-date">{formatDate(row.modifiedAt, language)}</span>
+      </TableCell>
+      <TableCell className="team-explorer-row-kind">{t(KIND_LABEL[row.kind])}</TableCell>
+      <TableCell className="team-explorer-row-date">
+        {formatDate(row.modifiedAt, language)}
+      </TableCell>
       {/* The tag rides with the size, on the far side of it — the last thing
           before the row's own buttons, which is where the eye already ends its
           run across the row. */}
-      <span className="team-explorer-row-meta">
+      <TableCell className="team-explorer-row-meta">
         {row.sizeBytes !== null && row.kind !== 'folder' ? formatSize(row.sizeBytes) : ''}
         <TagDot
           color={row.tagColor ?? null}
@@ -200,14 +238,14 @@ function Row({
           canTag={Boolean(tagging)}
           onChange={color => tagging?.onSetTag(row, color)}
         />
-      </span>
+      </TableCell>
       {actions && (
-        <div className="team-explorer-row-actions" onClick={event => event.stopPropagation()}>
+        <TableCell className="team-explorer-row-actions" onClick={event => event.stopPropagation()}>
           <ShareButton teamId={actions.teamId} row={row} />
           <RowActions {...actions} row={row} />
-        </div>
+        </TableCell>
       )}
-      {reason && <span className="team-explorer-row-reason">{t(reason)}</span>}
-    </li>
+      {reason && <TableCell className="team-explorer-row-reason">{t(reason)}</TableCell>}
+    </TableRow>
   );
 }

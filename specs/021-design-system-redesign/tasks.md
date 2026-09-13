@@ -211,7 +211,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 ## Phase 12: [US1] C9 — Team: explorer
 
 - [x] T088 [US1] Migrate `apps/web/src/team/explorer/ExplorerShell.tsx` — toolbar, view switch, selection bar (with its `Clear selection (N)`), scope controls
-- [ ] T089 [P] [US1] Migrate `apps/web/src/team/explorer/ContentList.tsx` and `ContentGrid.tsx` onto Table (`sm`) and a tile grid, keeping today's density
+- [x] T089 [P] [US1] Migrate `apps/web/src/team/explorer/ContentList.tsx` and `ContentGrid.tsx` onto Table (`sm`) and a tile grid, keeping today's density
 - [x] T090 [P] [US1] Migrate `apps/web/src/team/explorer/FolderTree.tsx` and `Breadcrumb.tsx` onto Tree and Breadcrumb, keeping drag-and-drop targets
 - [x] T091 [P] [US1] Migrate `apps/web/src/team/explorer/SortMenu.tsx`, `KindFilterMenu.tsx`, `RowActions.tsx` and `ShareButton.tsx` onto DropdownMenu + IconButton (no open/close animation — frequent actions)
 - [x] T092 [P] [US1] [US2] Migrate `apps/web/src/team/explorer/PreviewPane.tsx` with its empty, loading, failed and unsupported states

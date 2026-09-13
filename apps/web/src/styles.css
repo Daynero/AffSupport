@@ -12509,11 +12509,13 @@ button.team-landing-tile:hover {
 /* Its own columns: the explorer's row is built for a checkbox, a kind, a size
    and a menu, and the trash has none of those. Borrowing the chrome without
    the template pushed the restore button past the row's own right edge. */
-.team-trash-list .team-explorer-row {
+.team-trash-list.team-explorer-rows .ui-table-header,
+.team-trash-list.team-explorer-rows .ui-table-row {
   grid-template-columns: auto minmax(0, 1fr) minmax(0, 12rem) auto;
 }
 @container (max-width: 620px) {
-  .team-trash-list .team-explorer-row {
+  .team-trash-list.team-explorer-rows .ui-table-header,
+  .team-trash-list.team-explorer-rows .ui-table-row {
     grid-template-columns: auto minmax(0, 1fr) auto;
   }
   .team-trash-list .team-explorer-row-date {
@@ -12528,7 +12530,7 @@ button.team-landing-tile:hover {
 }
 /* The explorer's rows are 40px controls; the trash borrows their chrome, so its
    restore reads as the same rhythm rather than a shorter row. */
-.team-trash-list .team-explorer-row-actions .button {
+.team-trash-list .team-explorer-row-actions .ui-button {
   min-height: 40px;
   padding-block: 0;
 }
@@ -12843,18 +12845,20 @@ button.team-landing-tile:hover {
   color: var(--color-text-muted);
   margin: 0;
 }
-.team-explorer-rows {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-.team-explorer-row {
+/*
+ * The folder's listing is the inventory's Table (T089). What is left here is
+ * what a folder's columns are — the card chrome each row used to carry is the
+ * table's own ruling now, which is also what made the list read as a table
+ * before it was one.
+ */
+.team-explorer-rows .ui-table-row {
   /* One press selects, two open — so the whole row is the target and says so. */
   cursor: pointer;
-  display: grid;
+  min-height: 44px;
+  padding: var(--space-1) var(--space-2);
+}
+.team-explorer-rows .ui-table-header,
+.team-explorer-rows .ui-table-row {
   /* One column per child — checkbox, name, kind, size, actions — because the
      row auto-placed into a second line otherwise, which read as a broken
      table: the name sat mid-row and the size wrapped under the checkbox. The
@@ -12877,12 +12881,9 @@ button.team-landing-tile:hover {
      gives way under pressure — the name takes everything left. */
   grid-template-columns: auto minmax(0, 1fr) auto auto auto auto;
   gap: 0;
-  align-items: center;
-  min-height: 44px;
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
+}
+.team-explorer-rows .ui-table-header {
+  padding-inline: var(--space-2);
 }
 /* The name is a label now, not a target. It was a button — a violet,
    underlined strip that lit up across most of the row — so the row itself
@@ -13107,7 +13108,8 @@ button.team-landing-tile:hover {
   container-type: inline-size;
 }
 @container (max-width: 680px) {
-  .team-explorer-row {
+  .team-explorer-rows .ui-table-header,
+  .team-explorer-rows .ui-table-row {
     grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   }
   .team-explorer-row-date {
@@ -13120,7 +13122,8 @@ button.team-landing-tile:hover {
    "Транс…" and "17.2 …". The icon already says what kind a row is; a size cut
    in half says nothing. */
 @container (max-width: 620px) {
-  .team-explorer-row {
+  .team-explorer-rows .ui-table-header,
+  .team-explorer-rows .ui-table-row {
     grid-template-columns: auto minmax(0, 1fr) auto auto;
   }
   .team-explorer-row-kind {
@@ -13128,7 +13131,8 @@ button.team-landing-tile:hover {
   }
 }
 @container (max-width: 400px) {
-  .team-explorer-row {
+  .team-explorer-rows .ui-table-header,
+  .team-explorer-rows .ui-table-row {
     grid-template-columns: auto minmax(0, 1fr) auto;
   }
   .team-explorer-row-meta {
@@ -13406,8 +13410,11 @@ button.team-landing-tile:hover {
    there: written flat, this also caught the tile's checkbox, which carries both
    classes, and put it back in the flow. Every tile then held a forty-pixel band
    of nothing between its picture and its caption, with the box landing on the
-   file name when it appeared. */
-.team-explorer-row-check.team-explorer-check {
+   file name when it appeared. The row's box is now a child of its own table
+   cell, so the two are told apart by where they sit rather than by a pair of
+   classes on one element — and this element is still the positioned ancestor
+   the hidden input measures itself against. */
+.team-explorer-row-check > .team-explorer-check {
   position: relative;
   display: grid;
   place-items: center;
@@ -13629,10 +13636,6 @@ button.team-landing-tile:hover {
 }
 .team-explorer-tile-render.is-failed {
   color: var(--color-error);
-}
-.team-explorer-row.is-selected {
-  border-color: var(--color-accent);
-  background: var(--color-accent-softer);
 }
 /* The file's own card, and read as one: the same corner, the same surface and a little more
    room to breathe than a tile, because this is the thing being looked at rather than one of

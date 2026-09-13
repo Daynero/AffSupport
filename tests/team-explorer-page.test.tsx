@@ -21,6 +21,12 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+/**
+ * The folder's rows. The listing is the inventory's Table (021, T089), so a row
+ * is a `row` — and the first one is the column header, which is not a file.
+ */
+const fileRows = () => screen.getAllByRole('row').slice(1);
+
 const TEAM = 'team-1';
 
 function row(index: number, overrides: Partial<TeamMaterialRow> = {}): TeamMaterialRow {
@@ -125,12 +131,12 @@ describe('selecting and opening a row', () => {
         <PreviewingList client={client} onPreview={onPreview} />
       </ExplorerProvider>
     );
-    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(2));
+    await waitFor(() => expect(fileRows()).toHaveLength(2));
 
     // The name is a label, not a target: nothing in the row opens on one press.
     await user.click(screen.getByText('clip.png'));
     expect(onPreview).not.toHaveBeenCalled();
-    expect(screen.getAllByRole('listitem')[1]!.getAttribute('aria-selected')).toBe('true');
+    expect(fileRows()[1]!.getAttribute('aria-selected')).toBe('true');
 
     await user.dblClick(screen.getByText('clip.png'));
     expect(onPreview).toHaveBeenCalledWith(expect.objectContaining({ name: 'clip.png' }));
@@ -155,16 +161,16 @@ describe('file tags', () => {
         <TaggableList client={client} onSetTag={onSetTag} />
       </ExplorerProvider>
     );
-    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(3));
+    await waitFor(() => expect(fileRows()).toHaveLength(3));
 
     // The untagged row: any colour is a colour to add.
-    const untagged = screen.getAllByRole('listitem')[1]!;
+    const untagged = fileRows()[1]!;
     await user.click(within(untagged).getByRole('button', { name: /^Tag of file-001/ }));
     await user.click(screen.getByRole('menuitemradio', { name: 'Green' }));
     expect(onSetTag).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'id-1' }), 'green');
 
     // The blue row, pressed on blue: Finder's own behaviour is to take it off.
-    const blue = screen.getAllByRole('listitem')[0]!;
+    const blue = fileRows()[0]!;
     await user.click(within(blue).getByRole('button', { name: /^Tag of file-000/ }));
     await user.click(screen.getByRole('menuitemradio', { name: 'Blue' }));
     expect(onSetTag).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'id-0' }), null);
@@ -178,7 +184,7 @@ describe('file tags', () => {
         <List client={client} revision={0} />
       </ExplorerProvider>
     );
-    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(3));
+    await waitFor(() => expect(fileRows()).toHaveLength(3));
     // The colours are still read — two of the three rows carry one — and there
     // is nothing to press: a disabled button would still say "you could".
     expect(screen.getAllByRole('img', { name: /^Tag of/ })).toHaveLength(2);
@@ -207,21 +213,21 @@ describe('ContentList', () => {
     const listFolderPage = pages(150, 100);
     renderList(listFolderPage);
     expect(await screen.findByText('Items: 150')).toBeTruthy();
-    expect(screen.getAllByRole('listitem')).toHaveLength(100);
+    expect(fileRows()).toHaveLength(100);
     expect(listFolderPage).toHaveBeenCalledWith(
       TEAM,
       expect.objectContaining({ parentFolderId: null, limit: 100 })
     );
 
     await user.click(screen.getByRole('button', { name: 'Show more' }));
-    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(150));
+    await waitFor(() => expect(fileRows()).toHaveLength(150));
     expect(listFolderPage).toHaveBeenLastCalledWith(
       TEAM,
       expect.objectContaining({ after: { sortKey: '1|file-099.png', id: 'id-99' } })
     );
     expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull();
     // Order is the server's order, untouched by the append.
-    const names = screen.getAllByRole('listitem').map(item => item.textContent);
+    const names = fileRows().map(item => item.textContent);
     expect(names[0]).toContain('file-000.png');
     expect(names[149]).toContain('file-149.png');
   });
