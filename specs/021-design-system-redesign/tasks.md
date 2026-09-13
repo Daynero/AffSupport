@@ -329,7 +329,7 @@ better.
 - [x] T154 Run the full gate: `npm run typecheck`, `npx vitest run`, `npm run lint`, `node scripts/check-design-tokens.mjs`
 - [ ] T155 Verify the demo route is absent from a production build and the bundle has not grown
 - [x] T159 Add every string this feature introduced or rewrote (empty states, error copy, confirmation verbs, permission explanations) to both languages in `apps/web/src/i18n.ts`, and confirm `tests/i18n.test.ts` and `tests/team-i18n-glossary.test.ts` pass (FR-034)
-- [ ] T160 Prove SC-009: build one throwaway screen from the inventory alone and confirm it needs no new token and no new component variant; record the result in `specs/021-design-system-redesign/findings.md` and delete the screen
+- [x] T160 Prove SC-009: build one throwaway screen from the inventory alone and confirm it needs no new token and no new component variant; record the result in `specs/021-design-system-redesign/findings.md` and delete the screen
 
 ---
 

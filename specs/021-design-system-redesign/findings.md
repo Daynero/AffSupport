@@ -40,11 +40,26 @@ was not made; each is recorded here instead, which is what FR-037 asks.
 
 ## Proving SC-009 (T160)
 
-SC-009 asks that a new screen can be built from the inventory alone. The closest
-thing to a proof this feature produced without writing a throwaway screen: the
-five picto groups of the compressor's settings panel, the explorer's sort and
-kind menus, the 2FA notebook's two menus and the admin dashboard's four empty
-states were all rebuilt from inventory components with **no new token and no new
-component variant** — only two additions to an existing component's props
-(`MenuItem.checked`, `RadioOption.className`), both of which express something
-the product already did rather than something new.
+A screen the product does not have — "Spend by account": a tab strip, a filter
+row, a warning, a dense table with a progress column and a state badge per row,
+a selection bar, a confirmation and an empty result — was written against the
+inventory, rendered on the local server, photographed, and deleted.
+
+**It needed no new token and no new component variant.** The only thing that
+stopped it compiling was a prop it had to be given rather than one that was
+missing: `Tabs` requires a `label`, because a tab strip is a navigation
+landmark and an unnamed one is a defect. Two things it did *not* need, which is
+the more interesting half: no new colour (the three row states are `success`,
+`warning`, `error`), and no new size (the table is `sm`, the chips `xs`, the
+badges `sm` — every one of them a rung that already existed).
+
+One artefact of the exercise reached the product: laying the screen out showed
+that `.ds-page` stretched its last section to fill the viewport, because a grid
+that is `min-height: 100dvh` without `align-content: start` does. Fixed.
+
+The rest of the feature says the same thing at a larger scale: the five picto
+groups of the compressor's settings panel, the explorer's sort and kind menus,
+the 2FA notebook's two menus and the admin dashboard's four empty states were
+all rebuilt from inventory components, with two additions to existing props
+(`MenuItem.checked`, `RadioOption.className`) that express something the product
+already did rather than something new.

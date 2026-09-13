@@ -1781,6 +1781,9 @@
   position: relative;
   z-index: var(--layer-raised);
   display: grid;
+  /* Rows size to their content: a grid that fills the viewport stretches its
+     last sections instead, which made every card look padded. */
+  align-content: start;
   gap: var(--space-6);
   width: 100%;
   min-height: 100dvh;
