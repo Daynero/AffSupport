@@ -90,6 +90,7 @@ export function TagDot({
         placement="bottom-start"
         frequent
         label={t('teamTagPick')}
+        surface="none"
         className="team-tag-menu"
       >
         <div className="team-tag-menu-items" role="menu" aria-label={t('teamTagPick')}>

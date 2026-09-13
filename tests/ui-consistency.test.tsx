@@ -78,7 +78,11 @@ describe('one role, one appearance', () => {
     const first = signature(screen.getByRole('button'));
     legacy.unmount();
 
-    render(<Button color="primary" variant="solid">Save</Button>);
+    render(
+      <Button color="primary" variant="solid">
+        Save
+      </Button>
+    );
     expect(signature(screen.getByRole('button'))).toBe(first);
   });
 

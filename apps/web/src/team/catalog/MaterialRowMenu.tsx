@@ -82,6 +82,7 @@ export function MaterialRowMenu(props: MaterialRowMenuProps) {
         placement="bottom-end"
         frequent
         label={t('teamRowMenuOpen', { name: props.material.name })}
+        surface="none"
         className="team-row-menu-popover"
       >
         <MaterialRowMenuContent {...props} onDone={() => setOpen(false)} />

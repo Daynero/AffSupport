@@ -209,6 +209,7 @@ export const LanguageCombobox = memo(function LanguageCombobox({
         minWidth={220}
         maxHeight={240}
         label={label}
+        surface="none"
         className="transcript-language-listbox"
       >
         <ul id={listId} ref={list} role="listbox">

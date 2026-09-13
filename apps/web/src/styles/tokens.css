@@ -332,7 +332,12 @@
   --motion-spin: 700ms;
   --motion-spin-reduced: 1200ms;
 
-  /* ---- Layers -------------------------------------------------------------- */
+  /* ---- Layers -------------------------------------------------------------
+     One ladder, in the order things actually sit. Two rules decide the top of
+     it: a full-bleed viewer opens over a dialog (a preview raised from one
+     used to render underneath it), and a toast stays reachable above whatever
+     raised it — including that viewer, which is where an Undo has to be
+     pressable from. */
   --layer-beneath: -1;
   --layer-base: 0;
   --layer-raised: 1;
@@ -345,9 +350,9 @@
   --layer-modal: 60;
   --layer-modal-nested: 70;
   --layer-preview: 80;
-  --layer-tooltip: 90;
-  --layer-toast: 100;
-  --layer-fullbleed: 110;
+  --layer-fullbleed: 90;
+  --layer-tooltip: 100;
+  --layer-toast: 110;
   --layer-top: 120;
 
   /* ---- Control geometry ---------------------------------------------------

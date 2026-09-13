@@ -19,6 +19,8 @@ import { uiClasses } from './types';
 export interface EmptyStateProps {
   icon?: ReactNode;
   title: ReactNode;
+  /** `h1`/`h2` when the state is the whole screen and needs to be findable. */
+  titleAs?: 'strong' | 'h1' | 'h2' | 'h3';
   description?: ReactNode;
   /**
    * The control that resolves the emptiness. A sentence naming where to go is

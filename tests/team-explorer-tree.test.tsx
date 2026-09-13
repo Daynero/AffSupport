@@ -126,7 +126,9 @@ describe('FolderTree', () => {
     // are always in the document; CSS chooses. The path used to scroll instead,
     // and was cut mid-word at the wrong end.
     await user.click(within(crumbs).getByRole('button', { name: '3 folders in between' }));
-    const folded = await within(crumbs).findAllByRole('menuitem');
+    // The menu opens on the body (021, T090): a trail on a narrow strip is
+    // inside something that clips it, so the surface leaves the strip.
+    const folded = await screen.findAllByRole('menuitem');
     expect(folded.map(item => item.textContent)).toEqual(['All files', 'Top 1', 'Mid 1.2']);
     await user.click(folded[1]!);
     expect(onFolderChange).toHaveBeenCalledWith('a1');

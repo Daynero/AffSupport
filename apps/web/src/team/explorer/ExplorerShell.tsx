@@ -2068,6 +2068,7 @@ function ProcessMenu({
         placement="bottom-start"
         frequent
         label={t('teamExplorerProcessScope')}
+        surface="none"
         className="team-explorer-menu"
       >
         <div

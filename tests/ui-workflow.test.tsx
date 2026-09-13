@@ -28,6 +28,25 @@ import {
 import { translate, type Language } from '../apps/web/src/i18n';
 import { customEncoding, makeEmbedding, makeJob, optimalSettings } from './helpers.js';
 
+/**
+ * One picto, as the browser sees it (021).
+ *
+ * These used to assert a literal run of attributes — `aria-label="…"
+ * aria-checked="true" role="radio"` — which reads the order React happened to
+ * print them in rather than what the control says. The picto group is a shared
+ * component now and prints them in its own order; the question the test is
+ * asking has not changed.
+ */
+function picto(markup: string, name: string, checked: boolean, disabled = false): boolean {
+  const tags = markup.match(/<button[^>]*>/g) ?? [];
+  return tags.some(
+    tag =>
+      tag.includes(`aria-label="${name}"`) &&
+      tag.includes(`aria-checked="${String(checked)}"`) &&
+      (!disabled || tag.includes('disabled=""'))
+  );
+}
+
 const translator =
   (language: Language): Translate =>
   (key, values) =>
@@ -50,14 +69,14 @@ describe('compression settings UI', () => {
     expect(markup).toMatch(
       /<span class="optimal-summary" title="30 FPS · CRF 26 · 720p">Optimal · 30 FPS · CRF 26 · 720p<\/span>/
     );
-    expect(markup).toMatch(/aria-label="Optimal" aria-checked="true" role="radio"/);
+    expect(picto(markup, 'Optimal', true)).toBe(true);
     // Custom settings stay mounted for smooth expand/collapse, but they are
     // hidden from assistive tech and their controls are disabled.
     expect(markup).toMatch(
       /<div class="collapse" aria-hidden="true"><div class="collapse-body"><div class="custom-settings">/
     );
-    expect(markup).toMatch(/aria-label="30 FPS" aria-checked="false" disabled=""/);
-    expect(markup).toMatch(/aria-label="720p" aria-checked="false" disabled=""/);
+    expect(picto(markup, '30 FPS', false, true)).toBe(true);
+    expect(picto(markup, '720p', false, true)).toBe(true);
   });
 
   it('shows consistent custom FPS, resolution and mutually exclusive rate controls', () => {
@@ -86,10 +105,10 @@ describe('compression settings UI', () => {
     expect(crfMarkup).toMatch(
       /aria-label="Custom FPS"[^>]*value="25"|value="25"[^>]*aria-label="Custom FPS"/
     );
-    expect(crfMarkup).toMatch(/aria-label="Custom" aria-checked="true"/);
-    expect(crfMarkup).not.toMatch(/aria-label="30 FPS" aria-checked="true"/);
+    expect(picto(crfMarkup, 'Custom', true)).toBe(true);
+    expect(picto(crfMarkup, '30 FPS', true)).toBe(false);
     expect(crfMarkup).toContain('<span class="optimal-summary">25 FPS</span>');
-    expect(crfMarkup).toMatch(/aria-label="720p" aria-checked="true"/);
+    expect(picto(crfMarkup, '720p', true)).toBe(true);
     expect(crfMarkup).toContain('<span class="optimal-summary">720p</span>');
     // CRF and bitrate are mutually exclusive: the slider is live and the
     // bitrate field is not rendered at all.
@@ -384,7 +403,10 @@ describe('tooltip accessibility and responsive layout', () => {
   it('contains narrow-screen stacking rules and avoids forced horizontal layout', async () => {
     const css = await readFile(new URL('../apps/web/src/styles.css', import.meta.url), 'utf8');
     expect(css).toContain('@media (max-width: 760px)');
-    expect(css).toContain('.job-comparison');
+    // `.media-grid` is what a job row actually renders; `.job-comparison` was
+    // the name of a layout that has not been on screen for some time, and the
+    // dead-rule pass (021, T150) took its CSS with it.
+    expect(css).toContain('.media-grid');
     expect(css).toContain('grid-template-columns: minmax(0, 1fr)');
     expect(css).not.toContain('overflow-x: scroll');
   });

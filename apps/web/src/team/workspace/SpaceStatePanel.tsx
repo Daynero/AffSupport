@@ -65,10 +65,7 @@ export function SpaceStatePanel({
           {t('teamSpaceStateOpenSettings')}
         </a>
       ) : (
-        <PermissionState
-          className="team-space-state-hint"
-          message={t('teamSpaceStateAskOwner')}
-        />
+        <PermissionState className="team-space-state-hint" message={t('teamSpaceStateAskOwner')} />
       )}
     </section>
   );

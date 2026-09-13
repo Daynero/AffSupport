@@ -165,6 +165,7 @@ function FoldedPath({
         placement="bottom-start"
         frequent
         label={label}
+        surface="none"
         className="team-explorer-menu"
       >
         <div

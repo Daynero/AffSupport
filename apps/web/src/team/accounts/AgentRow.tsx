@@ -269,6 +269,7 @@ function AgentMenu({
         placement="bottom-end"
         frequent
         label={label}
+        surface="none"
         className="team-agent-menu-list"
       >
         <div

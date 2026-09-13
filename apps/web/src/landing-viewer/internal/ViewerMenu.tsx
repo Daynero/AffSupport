@@ -114,6 +114,7 @@ export function ViewerMenu({
         placement={align === 'end' ? 'bottom-end' : 'bottom-start'}
         frequent
         label={label}
+        surface="none"
         className="lv-menu"
       >
         <div id={id} ref={menu} role="menu" aria-label={label} className="lv-menu-items">

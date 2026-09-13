@@ -12,6 +12,13 @@ import { uiClasses, type UiColor, type UiSize } from './types';
 export interface EmptyProps {
   icon?: ReactNode;
   title: ReactNode;
+  /**
+   * What the title is, in the document's outline. A state inside a panel is a
+   * strong line; a state that *is* the screen — an unavailable space reached
+   * from a shared link — is that screen's heading, and a reader navigating by
+   * headings needs to find it.
+   */
+  titleAs?: 'strong' | 'h1' | 'h2' | 'h3';
   /** One sentence. If it needs two, the first one is not doing its job. */
   description?: ReactNode;
   /** The control that fills the emptiness, where one exists (FR-021). */
@@ -20,7 +27,15 @@ export interface EmptyProps {
   className?: string;
 }
 
-export function Empty({ icon, title, description, action, size = 'md', className }: EmptyProps) {
+export function Empty({
+  icon,
+  title,
+  titleAs: Title = 'strong',
+  description,
+  action,
+  size = 'md',
+  className
+}: EmptyProps) {
   return (
     <div className={uiClasses('empty', { size, className })} role="status">
       {icon && (
@@ -28,7 +43,7 @@ export function Empty({ icon, title, description, action, size = 'md', className
           {icon}
         </span>
       )}
-      <strong className="ui-empty-title">{title}</strong>
+      <Title className="ui-empty-title">{title}</Title>
       {description && <p className="ui-empty-description prose">{description}</p>}
       {action && <div className="ui-empty-action">{action}</div>}
     </div>

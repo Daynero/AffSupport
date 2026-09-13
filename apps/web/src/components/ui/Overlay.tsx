@@ -317,6 +317,13 @@ export interface PopoverProps {
   minWidth?: number;
   maxHeight?: number;
   label?: string;
+  /**
+   * What the surface itself is. `dialog` for a panel of controls a person
+   * works in; `none` when the content inside already carries the semantics —
+   * a menu, a listbox, a group — because two nested roles make the outer one
+   * a second dialog nobody meant to open.
+   */
+  surface?: 'dialog' | 'none';
   className?: string;
   children: ReactNode;
 }
@@ -332,6 +339,7 @@ export function Popover({
   minWidth,
   maxHeight,
   label,
+  surface: surfaceRole = 'dialog',
   className,
   children
 }: PopoverProps) {
@@ -376,8 +384,8 @@ export function Popover({
   const surfaceElement = (
     <div
       ref={surface}
-      role="dialog"
-      aria-label={label}
+      role={surfaceRole === 'none' ? undefined : 'dialog'}
+      aria-label={surfaceRole === 'none' ? undefined : label}
       className={uiClasses('popover', {
         states: { frequent },
         className: [`ui-popover--${placement}`, className].filter(Boolean).join(' ')
@@ -489,6 +497,8 @@ export function DropdownMenu({
       maxHeight={maxHeight}
       frequent
       label={label}
+      /* The inner element is the menu; the surface around it is scaffolding. */
+      surface="none"
       className={['ui-menu', className].filter(Boolean).join(' ')}
     >
       <div
