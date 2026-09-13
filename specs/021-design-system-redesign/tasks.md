@@ -281,7 +281,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [x] T131 [US1] Migrate `apps/web/src/team/processing/MaterialProcessFlow.tsx`, `ProcessMaterialDialog.tsx` and `OperationStatus.tsx` onto Modal + Progress + Alert, keeping the stage copy
 - [x] T132 [P] [US1] Migrate `apps/web/src/team/library/BulkUploadDialog.tsx` and `ProcessLibraryDialog.tsx` onto Modal + FileUpload + Progress, including the per-file partial-failure state
 - [x] T133 [P] [US1] Migrate `apps/web/src/team/library/LibraryShareActions.tsx`, `VideoTextActions.tsx` and `CopyDriveLinkButton.tsx` onto Button + DropdownMenu (copy gives feedback without animation)
-- [ ] T134 [US1] [US4] Verify C14 at five widths × two themes × reduced motion
+- [x] T134 [US1] [US4] Verify C14 at five widths × two themes × reduced motion
 
 ---
 
