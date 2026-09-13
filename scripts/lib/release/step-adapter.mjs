@@ -248,9 +248,24 @@ async function dispatchAndWatch(stepId, { cwd, env, admission, sourceSha, releas
   } catch (error) {
     return fail('ACCESS_UNAVAILABLE', `gh workflow run failed: ${messageOf(error)}`);
   }
-  // The dispatch may have started a run even if finding it fails, so a lookup
-  // failure is ambiguous rather than a clean "nothing happened".
-  const found = await findWorkflowRun({ cwd, workflow, sourceSha, releaseId, publish, dispatchedAt });
+  /**
+   * The run exists a moment after the dispatch returns, not at it.
+   *
+   * `gh workflow run` reports that GitHub accepted the request; creating the run
+   * is asynchronous, and for the first few seconds `gh run list` does not show
+   * it. Looking once, immediately, is therefore a coin toss -- and it landed
+   * badly on a release whose Windows build was already compiling: the step
+   * declared the effect ambiguous while the effect was on screen.
+   *
+   * So the step waits for the run it just asked for, up to a minute. A dispatch
+   * that produced nothing at all still ends as ambiguous, which is the honest
+   * answer: the request was accepted and nothing can be found.
+   */
+  let found = null;
+  for (let attempt = 0; attempt < 10 && !found; attempt += 1) {
+    if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 6000));
+    found = await findWorkflowRun({ cwd, workflow, sourceSha, releaseId, publish, dispatchedAt });
+  }
   if (!found)
     return fail('EFFECT_AMBIGUOUS', `dispatched ${workflow} for ${sourceSha} but no run was found`);
   return run(stepId, [process.execPath, 'scripts/watch-github-run.mjs', String(found.databaseId)], {
