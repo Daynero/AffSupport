@@ -42,6 +42,53 @@ export async function createOwnedWorktree({ cwd, sourceSha, root = tmpdir(), env
 }
 
 /**
+ * Takes back the checkout a failed run left behind.
+ *
+ * The worker already keeps its worktree when a run does not finish, and says
+ * why: "a resumed release wants the same checkout, and a worktree is cheap next
+ * to a rebuild." Nothing read it back, so a resume built a second checkout and
+ * the first one's artifacts -- a signed application and a half-gigabyte disk
+ * image -- were simply abandoned, along with any remote work already dispatched
+ * for them. The steps would be skipped as complete and the files they produced
+ * would not be there.
+ *
+ * Adoption is refused unless the directory is still a registered worktree of
+ * this repository and still holds the release: `sourceSha` must be an ancestor
+ * of its HEAD, not merely equal to it, because a release commits its own signed
+ * manifest partway through and legitimately moves past the commit it started
+ * from. Anything else -- a removed directory, a stale record, somebody else's
+ * checkout -- means building fresh, which is the safe answer and the slow one.
+ */
+export async function adoptWorktree({ cwd, sourceSha, directory, env = process.env }) {
+  if (typeof directory !== 'string' || !directory || !existsSync(directory)) return null;
+  const worktreeEnv = Object.fromEntries(ALLOWED_ENV.flatMap(key => (env[key] ? [[key, env[key]]] : [])));
+  try {
+    const frozen = await freezeSource({ cwd, sourceSha });
+    const { stdout } = await exec('git', ['worktree', 'list', '--porcelain'], { cwd, env: worktreeEnv });
+    const registered = stdout
+      .split('\n')
+      .filter(line => line.startsWith('worktree '))
+      .map(line => line.slice('worktree '.length));
+    if (!registered.some(entry => path.resolve(entry) === path.resolve(directory))) return null;
+    await exec('git', ['merge-base', '--is-ancestor', frozen.sourceSha, 'HEAD'], {
+      cwd: directory,
+      env: worktreeEnv
+    });
+    return Object.freeze({
+      directory,
+      sourceSha: frozen.sourceSha,
+      adopted: true,
+      env: Object.freeze(worktreeEnv),
+      async remove() {
+        await exec('git', ['worktree', 'remove', '--force', directory], { cwd, env: worktreeEnv });
+      }
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
  * What a release needs that git will not put in a worktree.
  *
  * A detached checkout is the tracked source and nothing else, which is the

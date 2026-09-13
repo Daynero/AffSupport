@@ -14,7 +14,7 @@ import { enqueueHandoff } from './lib/release/handoff.mjs';
 import { loadSnapshot, runDirectory, saveSnapshot } from './lib/release/store.mjs';
 import { activeBinding } from './lib/release/bindings.mjs';
 import { createWorkerAdmission, installedProbeFrom } from './lib/release/worker-admission.mjs';
-import { createOwnedWorktree, provisionWorktree } from './lib/release/adapters/git-worktree.mjs';
+import { adoptWorktree, createOwnedWorktree, provisionWorktree } from './lib/release/adapters/git-worktree.mjs';
 
 /**
  * The process that actually performs a release.
@@ -265,13 +265,29 @@ if (invokedDirectly) {
        * The worker keeps its own directory: the journal, the snapshot and the
        * run state stay where `status` can find them. Only the steps move.
        */
-      worktree = await createOwnedWorktree({ cwd: process.cwd(), sourceSha: snapshot.sourceSha });
+      // A run that failed kept its checkout on purpose; a resume takes it back
+      // rather than rebuilding everything the first attempt already produced.
+      const record = path.join(runDirectory(runId), 'worktree.json');
+      worktree =
+        (await adoptWorktree({
+          cwd: process.cwd(),
+          sourceSha: snapshot.sourceSha,
+          directory: await readFile(record, 'utf8')
+            .then(text => JSON.parse(text).directory)
+            .catch(() => null)
+        })) ?? (await createOwnedWorktree({ cwd: process.cwd(), sourceSha: snapshot.sourceSha }));
+      await writeFile(
+        record,
+        `${JSON.stringify({ directory: worktree.directory, sourceSha: worktree.sourceSha }, null, 2)}\n`,
+        { mode: 0o600 }
+      );
       const provisioning = await provisionWorktree({
         cwd: process.cwd(),
         directory: worktree.directory
       });
       process.stdout.write(
-        `release-worker building in ${worktree.directory} at ${worktree.sourceSha.slice(0, 12)} ` +
+        `release-worker ${worktree.adopted ? 'resuming in' : 'building in'} ${worktree.directory} ` +
+          `at ${worktree.sourceSha.slice(0, 12)} ` +
           `(provisioned: ${provisioning.provisioned.join(', ') || 'nothing'})\n`
       );
       adapter = await createStepAdapter({ ...identity, cwd: worktree.directory });
