@@ -12,7 +12,7 @@
  * they come from.
  */
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
 import {
   sortTeamTaskLabels,
@@ -25,6 +25,7 @@ import { useI18n } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
 import { TaskLabelChip } from '../labels/TaskLabelChip';
 import { TaskLabelMenu } from '../labels/TaskLabelMenu';
+import { Popover } from '../../components/ui/index';
 
 export interface TaskLabelsEditorClient {
   attachTaskLabel(input: {
@@ -67,27 +68,6 @@ export function TaskLabelsEditor({
   const [busy, setBusy] = useState(false);
   const sorted = sortTeamTaskLabels(labels);
   const attached = new Set(labels.map(label => label.id));
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: MouseEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      // Ours, not the dialog's: the popover closes, the editor stays.
-      event.preventDefault();
-      event.stopPropagation();
-      setOpen(false);
-      trigger.current?.focus();
-    };
-    window.addEventListener('mousedown', close);
-    window.addEventListener('keydown', escape, true);
-    return () => {
-      window.removeEventListener('mousedown', close);
-      window.removeEventListener('keydown', escape, true);
-    };
-  }, [open]);
 
   const run = async (action: () => Promise<void>) => {
     setBusy(true);
@@ -158,7 +138,20 @@ export function TaskLabelsEditor({
             {t('teamTaskTagAddToTask')}
           </button>
         )}
-        {open && canEdit && (
+        <Popover
+          open={open && canEdit}
+          /* The tag list closes, the task editor it sits in stays: the shared
+             stack gives Escape to the innermost surface. */
+          onClose={() => {
+            setOpen(false);
+            trigger.current?.focus();
+          }}
+          anchor={root}
+          placement="bottom-start"
+          frequent
+          label={t('teamTaskTagsLabel')}
+          className="team-task-label-menu-popover"
+        >
           <TaskLabelMenu
             labels={available}
             selectedIds={attached}
@@ -168,7 +161,7 @@ export function TaskLabelsEditor({
             emptyTarget={{ kind: 'settings', tab: 'tags' }}
             onToggle={toggle}
           />
-        )}
+        </Popover>
       </div>
     </div>
   );
