@@ -105,7 +105,9 @@ export function Progress({
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={indeterminate ? undefined : Math.round(clamped)}
-      style={indeterminate ? undefined : { '--ui-progress': `${clamped}%` } as never}
+      style={
+        indeterminate ? undefined : ({ '--ui-progress-ratio': clamped / 100 } as never)
+      }
     >
       <span className="ui-progress-fill" aria-hidden="true" />
     </div>

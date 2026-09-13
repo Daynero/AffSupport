@@ -937,7 +937,7 @@
 .lv-stage {
   position: relative;
   margin: 0 auto;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: #fff;
   box-shadow: 0 18px 60px rgb(0 0 0 / 36%);
 }
@@ -945,7 +945,7 @@
 .lv-stage-stack {
   display: grid;
   overflow: hidden;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .lv-stage-stack img {
@@ -975,7 +975,7 @@
   gap: 6px;
   padding: 6px 10px;
   border: 1px solid color-mix(in srgb, var(--color-warning) 40%, var(--color-border));
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   color: var(--color-warning);
   background: color-mix(in srgb, var(--color-surface) 92%, var(--color-warning));
   box-shadow: var(--shadow-md);
@@ -1039,7 +1039,7 @@
   height: 56px;
   place-items: center;
   border: 1px solid var(--color-border);
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   color: var(--color-accent);
   background: var(--color-surface);
 }
@@ -1062,7 +1062,7 @@
   height: 58px;
   place-items: center;
   border: 1px solid var(--color-border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   color: var(--color-text);
   background: color-mix(in srgb, var(--color-surface) 82%, transparent);
   box-shadow: var(--shadow-md);
@@ -1174,7 +1174,7 @@
   align-items: center;
   gap: 4px;
   padding: 3px 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   color: var(--color-warning);
   background: color-mix(in srgb, var(--color-surface) 90%, var(--color-warning));
   box-shadow: var(--shadow-sm);

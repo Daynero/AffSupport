@@ -23,7 +23,7 @@
 .transcription-quality-note {
   margin: 6px 0 0;
   color: var(--color-text-muted);
-  font-size: 0.82rem;
+  font-size: var(--text-caption);
   line-height: 1.45;
 }
 /* A field label's hint is a footnote beside a word, not a control in its own right: the
@@ -34,7 +34,7 @@
   min-width: 24px;
   min-height: 24px;
   flex: 0 0 24px;
-  font-size: 0.82rem;
+  font-size: var(--text-caption);
   font-weight: 700;
 }
 @media (max-width: 760px) {
@@ -48,7 +48,7 @@
 .transcription-processed-locally {
   margin: var(--space-2) 0 0;
   color: var(--color-text-muted);
-  font-size: 0.82rem;
+  font-size: var(--text-caption);
   text-align: center;
 }
 
@@ -65,7 +65,7 @@
   justify-content: space-between;
   gap: var(--space-3);
   color: var(--color-text-muted);
-  font-size: 0.86rem;
+  font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
 }
 .transcription-confirm-modal .inline-actions {
@@ -125,7 +125,7 @@
 }
 .transcription-row .job-row-name {
   margin: 0;
-  font-size: 0.98rem;
+  font-size: var(--text-body);
   font-weight: 600;
   line-height: 1.3;
   overflow: hidden;
@@ -139,7 +139,7 @@
   gap: 4px var(--space-2);
   margin: 3px 0 0;
   color: var(--color-text-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-caption);
 }
 .transcription-row .transcription-row-meta > span {
   white-space: nowrap;
@@ -170,8 +170,8 @@
   width: auto;
   max-width: 190px;
   padding: 3px 20px 3px 9px;
-  border-radius: 999px;
-  font-size: 0.8rem;
+  border-radius: var(--radius-full);
+  font-size: var(--text-caption);
 }
 /* The field is sized from its text in the font it is drawn in, so the shared compact rule's
    lighter hover weight made it visibly shrink under the pointer. One weight in every state:
@@ -187,7 +187,7 @@
   flex: none;
   padding: 2px 6px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: transparent;
   color: var(--color-warning);
   font: inherit;
@@ -266,7 +266,7 @@
   background: var(--color-surface);
   box-shadow: var(--shadow-lg);
   color: var(--color-text);
-  font-size: 0.82rem;
+  font-size: var(--text-caption);
   line-height: 1.45;
 }
 .transcription-language-doubt-title {
@@ -278,7 +278,7 @@
 .transcription-language-doubt-note {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 0.76rem;
+  font-size: var(--text-caption);
 }
 .transcription-language-doubt-note {
   padding-top: var(--space-2);
@@ -344,7 +344,7 @@
 .transcription-language-doubt-bar {
   display: block;
   height: 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--color-border) 70%, transparent);
   overflow: hidden;
 }
@@ -367,7 +367,7 @@
 .transcription-language-doubt-also {
   margin: var(--space-1) 0 0;
   color: var(--color-text-muted);
-  font-size: 0.76rem;
+  font-size: var(--text-caption);
 }
 .transcription-language-doubt-neighbours {
   display: flex;
@@ -378,11 +378,11 @@
   min-height: 0;
   padding: 4px 10px;
   border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--color-surface-subtle);
   color: var(--color-text);
   font: inherit;
-  font-size: 0.78rem;
+  font-size: var(--text-caption);
   cursor: pointer;
 }
 .transcription-language-doubt-neighbours button:hover:not(:disabled),
@@ -419,7 +419,7 @@
   background: var(--color-surface-subtle);
   color: var(--color-text);
   font: inherit;
-  font-size: 0.86rem;
+  font-size: var(--text-caption);
   line-height: 1.5;
   text-align: start;
   overflow: hidden;
@@ -456,7 +456,7 @@
 .transcription-row-progress-value {
   min-width: 64px;
   color: var(--color-text-muted);
-  font-size: 0.86rem;
+  font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;
@@ -467,7 +467,7 @@
      its full width past the card's edge, and the install button read "Вста". */
   min-width: 0;
   margin: 0;
-  font-size: 0.8rem;
+  font-size: var(--text-caption);
 }
 .transcription-row-translation-line {
   display: flex;
@@ -481,7 +481,7 @@
 }
 .transcription-row-translation-line .button {
   padding: 2px 8px;
-  font-size: 0.78rem;
+  font-size: var(--text-caption);
 }
 /* The inline language picker: a quiet control sized to its word. */
 .transcript-language-combobox.is-compact {
@@ -529,14 +529,14 @@
   gap: 6px;
   min-height: 40px;
   padding: 6px 14px;
-  font-size: 0.86rem;
+  font-size: var(--text-caption);
   white-space: nowrap;
 }
 /* The file's own actions are the second voice on the card: same targets, less weight. */
 .transcription-row-quiet-actions .button {
   min-height: 34px;
   padding: 4px 10px;
-  font-size: 0.8rem;
+  font-size: var(--text-caption);
   color: var(--color-text-muted);
 }
 .transcription-row-quiet-actions .button:hover:not(:disabled) {
@@ -654,7 +654,7 @@
 }
 .transcription-export-group-title {
   color: var(--color-text-muted);
-  font-size: 0.78rem;
+  font-size: var(--text-caption);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -670,7 +670,7 @@
   background: var(--color-surface-subtle);
   color: var(--color-text);
   font: inherit;
-  font-size: 0.82rem;
+  font-size: var(--text-caption);
   cursor: pointer;
 }
 .transcription-export-formats button:hover:not(:disabled) {
@@ -717,7 +717,7 @@
 }
 .transcript-match .tooltip-trigger,
 .transcript-match .tooltip {
-  font-size: 0.8rem;
+  font-size: var(--text-caption);
 }
 .transcript-player-volume svg {
   color: var(--color-text-muted);
@@ -762,11 +762,11 @@
   border-radius: var(--radius-md);
   background: var(--color-warning-soft);
   color: var(--color-text);
-  font-size: 0.82rem;
+  font-size: var(--text-caption);
 }
 .transcription-row-hint .button {
   padding: 3px 10px;
-  font-size: 0.8rem;
+  font-size: var(--text-caption);
 }
 
 /* The reasons under a greyed-out choice, said once. */
@@ -775,7 +775,7 @@
   gap: 2px;
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 0.78rem;
+  font-size: var(--text-caption);
   line-height: 1.4;
 }
 /* Where the actions sit at the left edge, the menu opens to the right instead of off-screen. */
@@ -805,7 +805,7 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
-  font-size: 0.9rem;
+  font-size: var(--text-label);
   line-height: 1.55;
 }
 .transcript-translation-notice > * {
@@ -840,7 +840,7 @@
   border-bottom: 1px solid var(--color-border);
   background: color-mix(in srgb, var(--color-surface) 60%, transparent);
   color: var(--color-text-muted);
-  font-size: 0.78rem;
+  font-size: var(--text-caption);
   line-height: 1.45;
 }
 /* Row translation line: the install link sits with the language, not on its own line. */
@@ -973,7 +973,7 @@
   border-radius: var(--radius-md);
   background: var(--color-surface-subtle);
   color: var(--color-text-muted);
-  font-size: 0.86rem;
+  font-size: var(--text-caption);
 }
 .transcription-translator-banner .button {
   margin-left: auto;
@@ -1010,13 +1010,13 @@
 
 /* The column title is the loudest thing in a column head; the copy control is quieter. */
 .transcript-column-title {
-  font-size: 1rem;
+  font-size: var(--text-body);
   font-weight: 650;
   color: var(--color-text);
 }
 .transcript-column-head .button-ghost {
   padding: 4px 10px;
-  font-size: 0.86rem;
+  font-size: var(--text-caption);
   font-weight: 500;
 }
 
@@ -1024,7 +1024,7 @@
 .transcription-consent-hint {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-caption);
 }
 
 /* Short viewports: the header keeps to one row so the columns keep their lines. The meter
@@ -1074,7 +1074,7 @@
   top: 50%;
   width: 3px;
   height: 3px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: currentColor;
   opacity: 0.45;
   transform: translate(-50%, -50%);
@@ -1089,7 +1089,7 @@
 @media (max-height: 640px) {
   .transcript-modal.transcript-split .transcript-match-label {
     display: inline;
-    font-size: 0.72rem;
+    font-size: var(--text-micro);
   }
 }
 
@@ -1099,7 +1099,7 @@
   gap: var(--space-2);
   margin-top: var(--space-3);
   color: var(--color-text-muted);
-  font-size: 0.84rem;
+  font-size: var(--text-caption);
   line-height: 1.45;
 }
 .transcription-gemma-consent.checkbox .checkbox-mark {

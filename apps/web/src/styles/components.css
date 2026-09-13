@@ -1116,10 +1116,14 @@
 }
 .ui-progress .ui-progress-fill {
   display: block;
-  width: var(--ui-progress, 0%);
+  width: 100%;
   height: 100%;
   background: var(--ui-solid);
-  transition: width var(--motion-base) var(--ease-out-curve);
+  /* Scaled, not resized: animating `width` forces layout on every frame, and a
+     progress bar animates for as long as the work runs. */
+  transform: scaleX(calc(var(--ui-progress-ratio, 0)));
+  transform-origin: left center;
+  transition: transform var(--motion-base) var(--ease-out-curve);
 }
 .ui-progress.is-indeterminate .ui-progress-fill {
   width: 40%;
@@ -1148,7 +1152,7 @@
   border: 2px solid color-mix(in srgb, currentcolor 25%, transparent);
   border-top-color: currentcolor;
   border-radius: var(--radius-full);
-  animation: ui-spin var(--motion-slow) var(--ease-linear) infinite;
+  animation: ui-spin var(--motion-spin) var(--ease-linear) infinite;
 }
 .ui-spinner--md {
   width: 18px;
@@ -1159,11 +1163,7 @@
     transform: rotate(360deg);
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .ui-spinner {
-    animation-duration: 1.2s;
-  }
-}
+
 
 .ui-tooltip-anchor {
   position: relative;

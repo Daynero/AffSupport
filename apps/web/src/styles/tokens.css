@@ -188,6 +188,13 @@
   /* Interactive feedback: a press is felt, not watched. */
   --press-scale: 0.97;
 
+  /* The one exception to the ceiling: a spinner is not a transition a person
+     waits through, it is the signal that work is still running. Under reduced
+     motion it slows to this rather than stopping, because a stopped spinner and
+     a hung request look identical. */
+  --motion-spin: 700ms;
+  --motion-spin-reduced: 1200ms;
+
   /* ---- Layers -------------------------------------------------------------- */
   --layer-beneath: -1;
   --layer-base: 0;
@@ -309,6 +316,7 @@
     --motion-fast: 1ms;
     --motion-base: 1ms;
     --motion-slow: 1ms;
+    --motion-spin: var(--motion-spin-reduced);
     --press-scale: 1;
   }
 }

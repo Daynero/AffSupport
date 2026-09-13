@@ -53,14 +53,14 @@
   padding: 0 12px 0 10px;
   border: 1px solid var(--color-border);
   background: var(--color-surface-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-caption);
 }
 
 .team-task-card-date {
   flex: 0 0 auto;
   margin-left: auto;
   color: var(--color-text-muted);
-  font-size: 0.78rem;
+  font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -78,14 +78,14 @@
 .team-task-progress-knob {
   width: 36px;
   height: 36px;
-  font-size: 0.95rem;
+  font-size: var(--text-label);
 }
 
 /* --- The task: title and brief --------------------------------------------- */
 
 .team-task-card h3 {
   min-height: 0;
-  font-size: 1.02rem;
+  font-size: var(--text-body);
   line-height: 1.3;
 }
 
@@ -94,7 +94,7 @@
 .team-task-card-description {
   overflow: hidden;
   color: var(--color-text);
-  font-size: 0.86rem;
+  font-size: var(--text-caption);
   line-height: 1.5;
 }
 
@@ -133,7 +133,7 @@
 
 .team-task-card-description > span {
   color: color-mix(in oklab, var(--color-text-muted) 72%, transparent);
-  font-size: 0.83rem;
+  font-size: var(--text-caption);
 }
 
 .team-task-card-more {
@@ -145,12 +145,12 @@
   margin-top: 4px;
   padding: 2px 8px 2px 6px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: none;
   color: var(--color-accent);
   cursor: pointer;
   font: inherit;
-  font-size: 0.78rem;
+  font-size: var(--text-caption);
   font-weight: 650;
 }
 
@@ -181,7 +181,7 @@
   gap: 4px;
   max-width: 100%;
   color: var(--color-text-muted);
-  font-size: 0.78rem;
+  font-size: var(--text-caption);
 }
 
 .team-task-card .team-task-assignee {
@@ -234,10 +234,10 @@
 .task-date-filter .task-date-filter-trigger {
   min-height: 34px;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: none;
   color: var(--color-text-muted);
-  font-size: 0.85rem;
+  font-size: var(--text-caption);
   font-weight: 600;
 }
 
@@ -282,12 +282,12 @@
   margin-left: auto;
   padding: 0 var(--space-3) 0 10px;
   border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: none;
   color: var(--color-text-muted);
   cursor: pointer;
   font: inherit;
-  font-size: 0.85rem;
+  font-size: var(--text-caption);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -317,12 +317,12 @@
   gap: 6px;
   padding: 0 12px 0 10px;
   border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: none;
   color: var(--color-text-muted);
   cursor: pointer;
   font: inherit;
-  font-size: 0.85rem;
+  font-size: var(--text-caption);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -367,12 +367,12 @@
   min-height: 30px;
   padding: 0 10px;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: none;
   color: var(--color-text-muted);
   cursor: pointer;
   font: inherit;
-  font-size: 0.8rem;
+  font-size: var(--text-caption);
   font-weight: 600;
 }
 
@@ -401,10 +401,10 @@
   min-height: 26px;
   padding: 0 10px 0 8px;
   border: 1px solid color-mix(in srgb, var(--task-tag-color) 45%, transparent);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--task-tag-color) 14%, var(--color-surface));
   color: var(--color-text);
-  font-size: 0.78rem;
+  font-size: var(--text-caption);
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
@@ -442,7 +442,7 @@
   flex: 0 0 auto;
   width: 7px;
   height: 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--task-tag-color);
 }
 
@@ -454,7 +454,7 @@
 button.team-task-label-chip {
   cursor: pointer;
   font: inherit;
-  font-size: 0.78rem;
+  font-size: var(--text-caption);
   font-weight: 600;
   transition:
     border-color var(--dur-control) var(--ease-standard),
@@ -483,7 +483,7 @@ button.team-task-label-chip:hover:not(:disabled),
   justify-content: center;
   padding: 0;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   margin-right: -4px;
   background: none;
   color: var(--color-text-muted);
@@ -520,7 +520,7 @@ button.team-task-label-chip:hover:not(:disabled),
 .team-task-card .team-task-label-chip {
   min-height: 34px;
   padding: 0 12px 0 10px;
-  font-size: 0.8rem;
+  font-size: var(--text-caption);
 }
 
 /* --- The row in the editor ------------------------------------------------- */
@@ -566,7 +566,7 @@ button.team-task-label-chip:hover:not(:disabled),
   margin: 0;
   padding: var(--space-2);
   color: var(--color-text-muted);
-  font-size: 0.82rem;
+  font-size: var(--text-caption);
 }
 
 .team-task-label-option {
@@ -644,7 +644,7 @@ button.team-task-label-chip:hover:not(:disabled),
   min-height: 0;
   padding: 0;
   border: 2px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--task-tag-color);
   cursor: pointer;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-text) 12%, transparent);
@@ -730,7 +730,7 @@ button.team-task-label-chip:hover:not(:disabled),
 .team-task-labels-count {
   margin-right: auto;
   color: var(--color-text-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
 }
 
@@ -765,7 +765,7 @@ button.team-task-label-chip:hover:not(:disabled),
 .team-task-labels-stale {
   margin: var(--space-2) 0 0;
   color: var(--color-text-muted);
-  font-size: 0.82rem;
+  font-size: var(--text-caption);
 }
 
 /* --- The filter row, now that it carries two more controls (018) ----------- */
@@ -864,7 +864,7 @@ button.team-task-label-chip:hover:not(:disabled),
   justify-content: center;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: none;
   color: var(--color-text-muted);
   cursor: pointer;

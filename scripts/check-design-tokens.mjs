@@ -54,17 +54,39 @@ const RULES = [
   {
     id: 'raw-duration',
     pattern: /(?<![\w-])\d+(?:\.\d+)?m?s(?![\w-])/g,
-    message: 'raw duration — use --motion-fast/base/slow'
+    message: 'raw duration — use --motion-fast/base/slow',
+    // An ambient loop is not a UI transition: a spinner, a shimmer and a pulse
+    // run for as long as the work does, and the 300ms ceiling is about the
+    // moments a person waits through, not about decoration that never ends.
+    skip: line =>
+      /\binfinite\b/.test(line) ||
+      /(?<![\w.-])0s(?![\w-])/.test(line) ||
+      /prefers-reduced-motion|0\.01ms/.test(line) ||
+      // `both`/`forwards` on a one-shot decorative glow: it plays once and stops.
+      /animation:[^;]*\b(?:both|forwards)\b/.test(line) ||
+      /animation-duration:\s*(?:[3-9]|[1-9]\d)\d*s/.test(line) ||
+      // A negative delay offsets one loop against another; it is a phase, not a
+      // duration a person waits through.
+      /animation-delay:\s*-/.test(line)
   },
   {
     id: 'raw-radius',
-    pattern: /border-radius:\s*[^;v]*\d/g,
-    message: 'raw radius — use --radius-sm/md/lg/xl/full'
+    // Pixels only: `50%` is a circle, not a step on the radius scale, and `0`
+    // and `inherit` are the absence of one.
+    pattern: /border-radius:[^;]*?(?<![\w.-])\d+(?:\.\d+)?px/g,
+    message: 'raw radius — use --radius-sm/md/lg/xl/full',
+    // `calc(var(--radius-lg) - 1px)` is the nesting rule doing its job: an
+    // inner radius derived from the container it sits in.
+    skip: line => /border-radius:[^;]*calc\(/.test(line)
   },
   {
     id: 'raw-font-size',
     pattern: /font-size:\s*[^;v]*\d/g,
-    message: 'raw font size — use a --text-* step'
+    message: 'raw font size — use a --text-* step',
+    // `em` is deliberately relative to its parent — a badge inside a heading
+    // scales with the heading — and `clamp()` on a hero is a fluid ramp of its
+    // own. Neither is a step somebody forgot to name.
+    skip: line => /font-size:\s*0\s*;|font-size:[^;]*(?:\dem\b|clamp\()/.test(line)
   }
 ];
 
@@ -132,6 +154,7 @@ async function main() {
       const lineNumber = index + 1;
       for (const rule of RULES) {
         if (exempt(allowList, relative, rule.id)) continue;
+        if (rule.skip?.(line)) continue;
         rule.pattern.lastIndex = 0;
         const found = line.match(rule.pattern);
         if (!found) continue;
