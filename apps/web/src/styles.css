@@ -13154,11 +13154,9 @@ button.team-landing-tile:hover {
   color: var(--color-text-muted);
 }
 
+/* Placed by the component (021). */
 .team-space-switcher-menu {
-  position: absolute;
   z-index: var(--layer-popover);
-  top: calc(100% + var(--space-1));
-  left: 0;
   width: max(240px, 100%);
   max-height: 60vh;
   padding: var(--space-2);
@@ -13954,11 +13952,10 @@ button.team-landing-tile:hover {
   z-index: 3;
 }
 
+/* Placed by the component (021): a row clips what spills past its edge, so the
+   swatches open on the body beside the dot that summoned them. */
 .team-tag-menu {
-  position: absolute;
   z-index: var(--layer-popover);
-  top: calc(100% + 6px);
-  right: 0;
   display: grid;
   gap: 6px;
   padding: 8px;
@@ -13966,6 +13963,10 @@ button.team-landing-tile:hover {
   border-radius: var(--radius-md);
   background: var(--color-surface-raised);
   box-shadow: var(--shadow-md);
+}
+/* The menu's own element inside the surface; it takes no space of its own. */
+.team-tag-menu-items {
+  display: contents;
 }
 .team-tag-swatches {
   display: flex;

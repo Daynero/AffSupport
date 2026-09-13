@@ -15,9 +15,10 @@
  * done by someone who cannot do it.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { TEAM_MATERIAL_TAG_COLORS, type TeamMaterialTagColor } from '@video-compressor/shared';
 import { useI18n, type TranslationKey } from '../../i18n';
+import { Popover } from '../../components/ui/index';
 
 const COLOR_LABEL: Record<TeamMaterialTagColor, TranslationKey> = {
   red: 'teamTagRed',
@@ -46,25 +47,6 @@ export function TagDot({
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement | null>(null);
   const trigger = useRef<HTMLButtonElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: PointerEvent) => {
-      if (event.target instanceof Node && root.current?.contains(event.target)) return;
-      setOpen(false);
-    };
-    const key = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      setOpen(false);
-      trigger.current?.focus();
-    };
-    document.addEventListener('pointerdown', close);
-    document.addEventListener('keydown', key);
-    return () => {
-      document.removeEventListener('pointerdown', close);
-      document.removeEventListener('keydown', key);
-    };
-  }, [open]);
 
   const label = color ? t(COLOR_LABEL[color]) : t('teamTagNone');
 
@@ -98,8 +80,19 @@ export function TagDot({
         aria-label={t('teamTagOf', { name, tag: label })}
         onClick={() => setOpen(value => !value)}
       />
-      {open && (
-        <div className="team-tag-menu" role="menu" aria-label={t('teamTagPick')}>
+      <Popover
+        open={open}
+        onClose={() => {
+          setOpen(false);
+          trigger.current?.focus();
+        }}
+        anchor={root}
+        placement="bottom-start"
+        frequent
+        label={t('teamTagPick')}
+        className="team-tag-menu"
+      >
+        <div className="team-tag-menu-items" role="menu" aria-label={t('teamTagPick')}>
           <div className="team-tag-swatches">
             {TEAM_MATERIAL_TAG_COLORS.map(option => (
               <button
@@ -131,7 +124,7 @@ export function TagDot({
             {t('teamTagClear')}
           </button>
         </div>
-      )}
+      </Popover>
     </div>
   );
 }

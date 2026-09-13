@@ -1,10 +1,11 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import type { TeamContextSnapshot } from '../../api/team';
 import { useI18n } from '../../i18n';
 import { internalLink } from '../../lib/navigation';
 import { buildTeamRoute, teamResolverRoute } from '../routes';
 import { spaceReadiness } from '../lobby/SpaceCard';
 import { useTeam } from '../TeamContext';
+import { Popover } from '../../components/ui/index';
 
 /**
  * The space name, made into the way you change space.
@@ -36,22 +37,6 @@ export function SpaceSwitcher({
   // none to the create wizard that lives only there. FR-015 asks that a control
   // which cannot act be hidden; this one can.
 
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: MouseEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [open]);
-
   return (
     <div className="team-space-switcher" ref={containerRef}>
       <h1 id={headingId} className="team-space-shell-title">
@@ -68,8 +53,16 @@ export function SpaceSwitcher({
           </span>
         </button>
       </h1>
-      {open && (
-        <div className="team-space-switcher-menu" id={menuId}>
+      <Popover
+        open={open}
+        onClose={() => setOpen(false)}
+        anchor={containerRef}
+        placement="bottom-start"
+        frequent
+        label={t('teamSpaceSwitcherOther')}
+        className="team-space-switcher-menu"
+      >
+        <div id={menuId}>
           {others.length > 0 && (
             <p className="team-space-switcher-label">{t('teamSpaceSwitcherOther')}</p>
           )}
@@ -115,7 +108,7 @@ export function SpaceSwitcher({
             {t('teamSpaceSwitcherAll')}
           </a>
         </div>
-      )}
+      </Popover>
     </div>
   );
 }
