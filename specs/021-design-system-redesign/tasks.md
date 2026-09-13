@@ -111,7 +111,7 @@ states what is true, what to do, and looks like the same product.
 - [x] T036 [P] [US1] Migrate `apps/web/src/pages/LegalPages.tsx` — measure cap, heading ramp, link styling
 - [x] T037 [US1] Migrate ProfileOnboarding in `apps/web/src/auth/AuthScreens.tsx` onto Modal + RadioGroup (cards) + Checkbox + Button
 - [x] T038 [US1] Update the tests that assert on class names in `tests/auth-provider.test.tsx`, `tests/onboarding-recovery.test.tsx` and `tests/session-handoff-screens.test.tsx` to assert through roles and accessible names
-- [ ] T039 [US1] [US4] Verify C1 at 1920/1440/1024/768/390 × dark/light × reduced motion with Ukrainian strings; delete the CSS these screens no longer need from `apps/web/src/styles.css`
+- [x] T039 [US1] [US4] Verify C1 at 1920/1440/1024/768/390 × dark/light × reduced motion with Ukrainian strings; delete the CSS these screens no longer need from `apps/web/src/styles.css`
 
 ---
 
@@ -128,7 +128,7 @@ tooltip look and move the same wherever they are raised.
 - [x] T043 [P] [US1] [US2] Migrate `apps/web/src/components/LocalAppDialog.tsx` and `apps/web/src/components/FeatureLockDialog.tsx` — the single "needs the local app" state, one anatomy for all six tools
 - [x] T044 [P] [US1] Migrate `apps/web/src/components/InstantTips.tsx` and `apps/web/src/components/LabeledSkeleton.tsx` onto Tooltip and Skeleton
 - [x] T045 [US1] Update `tests/local-app-dialog.test.tsx`, `tests/local-app-dialog-windows.test.tsx`, `tests/release-update-notice.test.tsx` and `tests/loading-skeletons.test.tsx` to assert through roles
-- [ ] T046 [US1] [US4] Verify C2 across three unrelated routes at five widths × two themes × reduced motion; delete the orphaned shell CSS
+- [x] T046 [US1] [US4] Verify C2 across three unrelated routes at five widths × two themes × reduced motion; delete the orphaned shell CSS
 
 ---
 
@@ -145,7 +145,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [x] T050 [P] [US1] Migrate `apps/web/src/components/JobRow.tsx` and `apps/web/src/components/ImageEmbeddingSection.tsx` onto Table row + Progress + Badge + Alert
 - [ ] T051 [P] [US1] Migrate `apps/web/src/team/explorer/TeamCompressorDialog.tsx` onto Modal + the migrated settings panel
 - [x] T052 [US1] [US2] Give the compressor its full state set: initial, empty queue, running, partially failed, failed, agent-missing — each on the shared patterns
-- [ ] T053 [US1] [US4] Verify C3 at five widths × two themes × reduced motion; delete the compressor's orphaned CSS
+- [x] T053 [US1] [US4] Verify C3 at five widths × two themes × reduced motion; delete the compressor's orphaned CSS
 
 ---
 
@@ -155,7 +155,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [x] T055 [US1] Migrate `apps/web/src/landing/LandingOptimizerPage.tsx` and `apps/web/src/landing/LandingJobCard.tsx`
 - [ ] T056 [P] [US1] Migrate `apps/web/src/landing/ImageCompareModal.tsx` onto Modal, keeping the before/after comparison
 - [x] T057 [US1] [US2] Give both tools their full state set on the shared patterns, including the single agent-missing state
-- [ ] T058 [US1] [US4] Verify C4 at five widths × two themes × reduced motion; delete orphaned CSS
+- [x] T058 [US1] [US4] Verify C4 at five widths × two themes × reduced motion; delete orphaned CSS
 
 ---
 
@@ -181,7 +181,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [x] T071 [P] [US1] Migrate `apps/web/src/landing-viewer/LandingGalleryGrid.tsx`, `LandingSourceSwitcher.tsx` and `LandingRefreshControl.tsx`
 - [x] T072 [P] [US1] Migrate `apps/web/src/landing-viewer/GallerySettingsMenu.tsx` and `GalleryMoreMenu.tsx` onto DropdownMenu + Choice
 - [x] T073 [US1] Migrate `apps/web/src/styles/landing-viewer.css` onto tokens and delete what the inventory now covers
-- [ ] T074 [US1] [US4] Verify C6 at five widths × two themes × reduced motion
+- [x] T074 [US1] [US4] Verify C6 at five widths × two themes × reduced motion
 
 ---
 
@@ -191,7 +191,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [ ] T076 [US1] Migrate `apps/web/src/pages/AdminPage.tsx` — metric tiles onto Card, the user table onto Table (`sm` density), filters onto Select/SegmentedControl, CSV export onto Button
 - [x] T077 [P] [US1] [US2] Give AdminPage its states: loading skeleton, empty result, failed load, and the non-admin permission-limited state
 - [x] T078 [US1] Update `tests/admin-ui.test.tsx` to assert through roles and accessible names
-- [ ] T079 [US1] [US4] Verify C7 at five widths × two themes × reduced motion
+- [x] T079 [US1] [US4] Verify C7 at five widths × two themes × reduced motion
 
 ---
 
@@ -204,7 +204,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [ ] T084 [P] [US1] Migrate `apps/web/src/team/storage/StorageChip.tsx`, `ConnectStorageFlow.tsx` and `SelectionList.tsx` onto Badge + Popover + Modal + Tree
 - [x] T085 [US1] [US2] Migrate the unavailable-space screen in `apps/web/src/team/TeamSpace.tsx` onto the Empty pattern (it was re-dressed in 020; make it the pattern rather than a bespoke card)
 - [x] T086 [US1] Update `tests/team-workspace-gate.test.tsx`, `tests/team-connect-flow.test.tsx` and `tests/workspace-section-state.test.tsx` to assert through roles
-- [ ] T087 [US1] [US4] Verify C8 at five widths × two themes × reduced motion
+- [x] T087 [US1] [US4] Verify C8 at five widths × two themes × reduced motion
 
 ---
 
@@ -243,7 +243,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [x] T108 [P] [US1] Migrate `apps/web/src/team/tasks/TaskAgentTags.tsx`, `TaskAccountPicker.tsx`, `TaskAttachmentPicker.tsx` and `TaskAttachmentTile.tsx` onto the picker pattern (search, breadcrumb, list, footer actions)
 - [x] T109 [US1] Migrate `apps/web/src/styles/team-tasks.css` onto tokens and delete what the inventory covers
 - [x] T110 [US1] Update `tests/team-task-accounts.test.tsx`, `tests/team-task-tags.test.tsx` and `tests/task-progress-scale.test.tsx` to assert through roles
-- [ ] T111 [US1] [US4] Verify C11 at five widths × two themes × reduced motion
+- [x] T111 [US1] [US4] Verify C11 at five widths × two themes × reduced motion
 
 ---
 
@@ -270,7 +270,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [x] T125 [US1] Migrate `apps/web/src/team/workspace/RestitchDefaultsSection.tsx` onto the shared settings panel and picto RadioGroup
 - [x] T126 [US1] Migrate the leave-space panel and its confirmation onto the confirmation pattern
 - [x] T127 [US1] Update `tests/team-members.test.tsx`, `tests/team-direct-member.test.tsx`, `tests/team-invitation-link.test.tsx` and `tests/team-restitch-section.test.tsx` to assert through roles
-- [ ] T128 [US1] [US4] Verify C13 at five widths × two themes × reduced motion, on all five tabs
+- [x] T128 [US1] [US4] Verify C13 at five widths × two themes × reduced motion, on all five tabs
 
 ---
 
@@ -290,7 +290,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 **Goal**: prove every screen's state set is complete, not merely that each screen looks
 better.
 
-- [ ] T135 [US2] Walk `contracts/screens.md` row by row in the beta, forcing every listed state; record any state that has no design in `specs/021-design-system-redesign/findings.md`
+- [x] T135 [US2] Walk `contracts/screens.md` row by row in the beta, forcing every listed state; record any state that has no design in `specs/021-design-system-redesign/findings.md`
 - [ ] T136 [US2] Fix every gap found in T135 by applying the shared pattern — no new one-screen treatments
 - [x] T137 [P] [US2] Verify every empty state that can be resolved by an action offers that action as a control (FR-021), across all fourteen groups
 - [x] T138 [P] [US2] Verify every destructive action is de-emphasised relative to the safe action beside it and its confirmation names the consequence in a verb (FR-020)

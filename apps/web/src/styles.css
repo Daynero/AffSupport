@@ -4161,8 +4161,10 @@ body:has(.public-home) {
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--color-accent) 20%, var(--color-border));
   border-radius: 50%;
-  color: var(--purple-700);
-  background: var(--purple-100);
+  /* The role, not two fixed steps: the pair has to flip with the theme, and it
+     did not — 1.76:1 in dark, for a letter 33px tall. */
+  color: var(--color-secondary-text);
+  background: var(--color-secondary-soft);
   font-weight: 750;
   letter-spacing: -0.02em;
 }
@@ -5534,6 +5536,17 @@ body:has(.public-home) {
   padding: 54px 0 80px;
 }
 
+/*
+ * A grid item's floor is `min-content`, so one long word in one section made
+ * every section 404px wide inside a 358px column and the page scrolled
+ * sideways on a phone. The floor is the column.
+ */
+.legal-content > *,
+.legal-content section > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .legal-content > header {
   display: grid;
   gap: var(--space-2);
@@ -5544,6 +5557,15 @@ body:has(.public-home) {
 .legal-content h1 {
   font-size: var(--text-16xl);
   letter-spacing: -0.025em;
+  /* At display size a single long word is wider than a phone, and the page
+     scrolled sideways to reach the rest of it. */
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 520px) {
+  .legal-content h1 {
+    font-size: var(--text-8xl);
+  }
 }
 
 .legal-content > header p,
@@ -15052,14 +15074,16 @@ input[type='number'] {
   font-weight: 600;
   white-space: nowrap;
 }
+/* The role's *text* shade, not a step of the palette chosen by eye: amber-600
+   and green-400 came to 2.88:1 and 3.41:1 on white. */
 .batch-chip.is-processing {
-  color: var(--amber-600);
+  color: var(--color-warning-text);
 }
 .batch-chip.is-done {
-  color: var(--green-400);
+  color: var(--color-success-text);
 }
 .batch-chip.is-failed {
-  color: var(--red-550);
+  color: var(--color-error-text);
 }
 /* The progress row keeps the bar; its plain counters are now the chips. */
 .batch-toolbar .batch-counts {
@@ -15893,19 +15917,9 @@ input[type='number'] {
 :root:not([data-theme='dark']) .job-row[data-state='interrupted']::before {
   background: var(--color-white);
 }
-/* Status counters keep their meaning but stop glowing on white. */
-:root[data-theme='light'] .batch-chip.is-processing,
-:root:not([data-theme='dark']) .batch-chip.is-processing {
-  color: var(--amber-700);
-}
-:root[data-theme='light'] .batch-chip.is-done,
-:root:not([data-theme='dark']) .batch-chip.is-done {
-  color: var(--green-700);
-}
-:root[data-theme='light'] .batch-chip.is-failed,
-:root:not([data-theme='dark']) .batch-chip.is-failed {
-  color: var(--red-700);
-}
+/* Status counters keep their meaning but stop glowing on white — the light
+   theme used to darken them by hand here, which is what the role's text shade
+   is for, and by hand they landed at 2.88:1 and 3.41:1. */
 
 /* Each gallery sits on its own light slab, the same one the settings rows
    use — so the tiles read as a group rather than floating on the panel. */
