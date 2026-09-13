@@ -40,6 +40,7 @@ import { type KaraokeStore, useActiveWordInSegment } from './karaoke-store';
 import { useScrollSync } from './useScrollSync';
 import { useKaraoke } from './useKaraoke';
 import { hasTimings, type TranscriptExportContent, type TranscriptExportFormat } from './export';
+import { EmptyState, ErrorState } from '../components/ui/index';
 
 const TARGET_LANGUAGES = [...TRANSLATEGEMMA_LANGUAGE_CODES];
 
@@ -744,19 +745,19 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
                   />
                 ))}
               </div>
+            ) : loadFailed ? (
+              <ErrorState
+                className="transcript-modal-empty"
+                message={t('transcriptionModalLoadFailed')}
+                retryLabel={t('tryAgain')}
+                onRetry={() => setLoadAttempt(count => count + 1)}
+              />
             ) : (
-              <div className="transcript-modal-empty">
-                {loadFailed ? (
-                  <>
-                    <span>{t('transcriptionModalLoadFailed')}</span>
-                    <Button variant="secondary" onClick={() => setLoadAttempt(count => count + 1)}>
-                      {t('tryAgain')}
-                    </Button>
-                  </>
-                ) : (
-                  t('transcriptionModalEmpty')
-                )}
-              </div>
+              <EmptyState
+                className="transcript-modal-empty"
+                size="sm"
+                title={t('transcriptionModalEmpty')}
+              />
             )}
           </div>
         </section>
@@ -895,7 +896,11 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
                 })}
               </div>
             ) : !translationError && !translating && !loading ? (
-              <div className="transcript-modal-empty">{t('transcriptionTranslationEmpty')}</div>
+              <EmptyState
+                className="transcript-modal-empty"
+                size="sm"
+                title={t('transcriptionTranslationEmpty')}
+              />
             ) : null}
           </div>
 

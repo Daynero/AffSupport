@@ -4,6 +4,7 @@ import type { TeamAuditEventSummary } from '../../api/team';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { SettingsSection } from '../workspace/SettingsSection';
+import { EmptyState } from '../../components/ui/index';
 
 /**
  * The history is for people, so it says what happened rather than printing the
@@ -126,7 +127,9 @@ export function TeamAuditPanel({
       {/* Loading and empty are different answers: the panel used to give the
           second one while it was still waiting for the first (finding S9). */}
       {loading && !error && <LabeledSkeleton label="teamAuditLoading" rows={3} />}
-      {!loading && !error && events.length === 0 && <p>{t('teamAuditEmpty')}</p>}
+      {!loading && !error && events.length === 0 && (
+        <EmptyState size="sm" title={t('teamAuditEmpty')} />
+      )}
       <ol className="team-audit-list">
         {events.map(event => {
           /*
@@ -157,7 +160,19 @@ export function TeamAuditPanel({
                 )}
                 <span>{event.actorLabel ?? t('teamFormerMember')}</span>
               </div>
-              <span className={`team-audit-result is-${event.result}`}>
+              {/* The outcome's colour is its role, so a denied action here is
+                  the same amber as a denied action anywhere (021, T123). */}
+              <span
+                className={`team-audit-result is-${event.result} ui-color-${
+                  event.result === 'succeeded'
+                    ? 'success'
+                    : event.result === 'denied'
+                      ? 'warning'
+                      : event.result === 'canceled'
+                        ? 'neutral'
+                        : 'error'
+                }`}
+              >
                 {t(
                   event.result === 'succeeded'
                     ? 'teamAuditSucceeded'

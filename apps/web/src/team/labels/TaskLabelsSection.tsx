@@ -33,6 +33,7 @@ import { agentCountKey, taskCountKey } from '../accounts/plural';
 import { TaskLabelChip, TaskLabelColorPicker } from './TaskLabelChip';
 import { useTaskLabels, type TaskLabelsClient } from './useTaskLabels';
 import { SettingsSection } from '../workspace/SettingsSection';
+import { EmptyState } from '../../components/ui/index';
 
 export type TaskLabelsSectionClient = TaskLabelsClient;
 
@@ -194,9 +195,11 @@ export function TaskLabelsSection({
           the server's own reason. A list already on screen keeps a quiet word
           that it may be out of date. */}
       {!labels.loading && labels.labels.length === 0 && (
-        <p className="team-task-labels-empty">
-          {t(agents ? 'teamAgentTagsEmpty' : 'teamTaskTagsEmpty')}
-        </p>
+        <EmptyState
+          className="team-task-labels-empty"
+          size="sm"
+          title={t(agents ? 'teamAgentTagsEmpty' : 'teamTaskTagsEmpty')}
+        />
       )}
       {labels.error && labels.labels.length > 0 && (
         <p className="team-task-labels-stale" role="status">
