@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { Card } from '../components/Card';
-import { Button, type Translate } from '../components/ui';
+import { type Translate } from '../components/ui';
+import { Button } from '../components/ui/index';
 import { Alert } from '../components/ui/index';
 import { formatSize } from '../format';
 import { useI18n, type TranslationKey } from '../i18n';

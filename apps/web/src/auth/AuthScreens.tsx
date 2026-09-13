@@ -14,7 +14,9 @@ import { internalLink, navigateTo } from '../lib/navigation';
 import { useI18n } from '../i18n';
 import { Card } from '../components/Card';
 import { Modal } from '../components/Modal';
-import { Button, Checkbox, SotyLoader } from '../components/ui';
+import { Checkbox, SotyLoader } from '../components/ui';
+// Migrated screen: the inventory's button, reached past the legacy shim (021).
+import { Button } from '../components/ui/index';
 import { Alert, Empty } from '../components/ui/index';
 import { SotyLogo, SotyMark } from '../components/SotyLogo';
 import { LanguageSwitch } from '../components/LanguageSwitch';

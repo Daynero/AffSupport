@@ -173,6 +173,23 @@
   --shadow-md: 0 4px 14px rgba(33, 26, 44, 0.1);
   --shadow-lg: 0 16px 40px rgba(33, 26, 44, 0.14);
   --shadow-menu: 0 12px 32px rgba(33, 26, 44, 0.16);
+  /* The one place elevation is literal: a rendered page floating on the
+     viewer's canvas, which is a sheet of paper and reads as one. */
+  --shadow-stage: 0 18px 60px rgba(0, 0, 0, 0.36);
+
+  /* ---- Material ground ----------------------------------------------------
+     A rendered landing, a preview thumbnail and a transcript page are the
+     customer's own artefact, not our surface: they stay on paper in both
+     themes, because inverting someone else's page is lying about it. */
+  --color-paper: #ffffff;
+  --color-on-paper: #10111a;
+
+  /* ---- Account identity ---------------------------------------------------
+     An account's colour is derived from its id (`teamAccountHue`), so the hue
+     is data and only the two lightness settings are design. They live here
+     with the rest of the palette rather than in the accounts sheet. */
+  --team-account-colour-dark: hsl(var(--team-account-hue, 265) 62% 66%);
+  --team-account-colour-light: hsl(var(--team-account-hue, 265) 52% 42%);
 
   /* ---- Motion -------------------------------------------------------------
      300ms is a ceiling, not a default (docs/DESIGN-PRINCIPLES.md). Custom
@@ -305,6 +322,7 @@
   --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.55);
   --shadow-menu: 0 12px 32px rgba(0, 0, 0, 0.5);
+  --shadow-stage: 0 18px 60px rgba(0, 0, 0, 0.6);
 }
 
 /* ============================================================

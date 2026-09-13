@@ -1,5 +1,5 @@
 {
-  "$comment": "Design-token exemptions (021). Every entry is a debt with a reason and an owning task; the list must be empty before T151 closes the feature. Radius, font-size and duration cleared across every stylesheet; what remains is colour and the transitions that animate layout, both of which need a screen-by-screen eye.",
+  "$comment": "Design-token exemptions (021). Every entry is a debt with a reason and an owning task; the list must be empty before T151 closes the feature. Radius, font-size, duration and colour are clear across every stylesheet except styles.css, which is migrated group by group with the screens it dresses.",
   "exemptions": [
     {
       "file": "apps/web/src/styles.css",
@@ -12,54 +12,6 @@
       "rule": "layout-transition",
       "reason": "Pre-021 screen rules, migrated group by group (C1-C14).",
       "clearedBy": "T150"
-    },
-    {
-      "file": "apps/web/src/styles/team-accounts.css",
-      "rule": "raw-colour",
-      "reason": "Migrated with the accounts group.",
-      "clearedBy": "T116"
-    },
-    {
-      "file": "apps/web/src/styles/team-accounts.css",
-      "rule": "layout-transition",
-      "reason": "Migrated with the accounts group.",
-      "clearedBy": "T116"
-    },
-    {
-      "file": "apps/web/src/styles/team-tasks.css",
-      "rule": "raw-colour",
-      "reason": "Migrated with the tasks group.",
-      "clearedBy": "T109"
-    },
-    {
-      "file": "apps/web/src/styles/team-tasks.css",
-      "rule": "layout-transition",
-      "reason": "Migrated with the tasks group.",
-      "clearedBy": "T109"
-    },
-    {
-      "file": "apps/web/src/styles/transcription.css",
-      "rule": "raw-colour",
-      "reason": "Migrated with the transcription group.",
-      "clearedBy": "T066"
-    },
-    {
-      "file": "apps/web/src/styles/transcription.css",
-      "rule": "layout-transition",
-      "reason": "Migrated with the transcription group.",
-      "clearedBy": "T066"
-    },
-    {
-      "file": "apps/web/src/styles/landing-viewer.css",
-      "rule": "raw-colour",
-      "reason": "Migrated with the landing viewer group.",
-      "clearedBy": "T073"
-    },
-    {
-      "file": "apps/web/src/styles/landing-viewer.css",
-      "rule": "layout-transition",
-      "reason": "Migrated with the landing viewer group.",
-      "clearedBy": "T073"
     }
   ]
 }

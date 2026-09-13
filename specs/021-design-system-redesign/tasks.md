@@ -81,7 +81,7 @@ building a new screen from them needs no new token.
 - [x] T020 [P] [US5] Implement SelectMenu and InputTags in `apps/web/src/components/ui/Field.tsx` (search, multiple, empty state)
 - [x] T021 [US2] [US5] Implement Empty, Skeleton and Progress in `apps/web/src/components/ui/Feedback.tsx` — Empty takes icon, title, one sentence and an optional action; Skeleton takes the shape of what is coming (text, block, row, tile)
 - [x] T022 [US5] Implement Modal, Drawer, Popover, DropdownMenu and ContextMenu in `apps/web/src/components/ui/Overlay.tsx`, with focus trap, restore-on-close, and the 0.95→1 scale from the trigger's origin
-- [ ] T023 [US5] Re-home `apps/web/src/components/Modal.tsx` and `apps/web/src/components/toast.tsx` onto Overlay and Feedback without changing their public API
+- [x] T023 [US5] Re-home `apps/web/src/components/Modal.tsx` and `apps/web/src/components/toast.tsx` onto Overlay and Feedback without changing their public API
 - [x] T024 [P] [US5] Implement Tooltip with a delay group (delay on the first of a group, none on its neighbours) in `apps/web/src/components/ui/Feedback.tsx`
 - [x] T025 [P] [US5] Implement Tabs, Breadcrumb, Link and Pagination in `apps/web/src/components/ui/Navigation.tsx`
 - [x] T026 [US5] Implement Table (header, row, cell, `xs`/`sm` density, sticky header, selectable, row actions), Accordion, Tree, Timeline and User in `apps/web/src/components/ui/Table.tsx`

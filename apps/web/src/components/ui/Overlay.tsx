@@ -24,65 +24,178 @@ import { uiClasses, type UiSize } from './types';
  * is a rule about frequency, not about taste, and it lives in the stylesheet.
  */
 
-/** Everything currently open, innermost last — so Escape closes the right one. */
-const openStack: Array<() => void> = [];
-
-function useEscape(active: boolean, close: () => void) {
-  useEffect(() => {
-    if (!active) return;
-    openStack.push(close);
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      if (openStack.at(-1) !== close) return;
-      event.stopPropagation();
-      close();
-    };
-    window.addEventListener('keydown', onKeyDown, true);
-    return () => {
-      const at = openStack.lastIndexOf(close);
-      if (at !== -1) openStack.splice(at, 1);
-      window.removeEventListener('keydown', onKeyDown, true);
-    };
-  }, [active, close]);
+/**
+ * One stack for every dialog-like surface in the product.
+ *
+ * There used to be two — this file's and `components/Modal.tsx`'s — which meant
+ * Escape could reach a dialog that was not the top one, and two overlapping
+ * dialogs closing out of order could leave `overflow: hidden` on the body with
+ * nothing on screen to explain why the page had stopped scrolling. Innermost
+ * last; only the last entry reacts to a key.
+ */
+interface OverlayEntry {
+  close: () => void;
+  /** Absent for a popover: it closes on Escape but does not trap Tab. */
+  surface?: HTMLElement | null;
 }
 
-/** Keeps Tab inside the surface, and puts focus back where it came from. */
-function useFocusTrap(active: boolean, container: RefObject<HTMLElement | null>) {
+const openStack: OverlayEntry[] = [];
+
+/**
+ * What Tab can reach inside a dialog.
+ *
+ * Anything missing from this list is a control a keyboard user cannot reach
+ * while the dialog is up, with no way to tell why — and three kinds were
+ * missing from the first version, all three of which this product shows: the
+ * transcript editor is a `contenteditable` region, the preview dialogs mount
+ * `<video>`/`<audio>` with native controls, and `<summary>` is what opens the
+ * details blocks inside the support dialog.
+ */
+export const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'textarea:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  // `="false"` is the explicit opt-out: matching the attribute alone would trap
+  // focus in something the author deliberately made read-only.
+  '[contenteditable]:not([contenteditable="false"])',
+  'audio[controls]',
+  'video[controls]',
+  'details > summary',
+  'iframe',
+  '[tabindex]:not([tabindex="-1"])'
+].join(', ');
+
+export function focusableIn(surface: HTMLElement): HTMLElement[] {
+  const candidates = Array.from(surface.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+    element => !element.closest('[hidden], [aria-hidden="true"], [inert]')
+  );
+  // Prefer elements that take part in layout — a collapsed panel keeps its
+  // controls mounted. jsdom reports no layout at all, so fall back to the
+  // attribute list when nothing claims to be visible.
+  const visible = candidates.filter(element => element.offsetParent !== null);
+  return visible.length ? visible : candidates;
+}
+
+/**
+ * The page's own scroll setting, held while any dialog is up.
+ *
+ * It belongs to the stack, not to each dialog: taken when the stack goes
+ * empty→one and given back when it goes one→empty, the closing order cannot
+ * matter.
+ */
+let lockedOverflow: string | null = null;
+
+function lockPageScroll(): void {
+  if (openStack.length !== 1 || typeof document === 'undefined') return;
+  lockedOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+}
+
+function unlockPageScroll(): void {
+  if (openStack.length > 0 || lockedOverflow === null || typeof document === 'undefined') return;
+  document.body.style.overflow = lockedOverflow;
+  lockedOverflow = null;
+}
+
+export interface DialogBehaviour {
+  /** The dialog surface; Tab is kept inside it. */
+  surface: RefObject<HTMLElement | null>;
+  active?: boolean;
+  onClose?: () => void;
+  closeOnEscape?: boolean;
+  /** CSS selector for what to focus on open; default is the first focusable. */
+  initialFocus?: string;
+  /** Where focus goes on close; default is whatever had it when the dialog opened. */
+  returnFocus?: HTMLElement | null;
+  /** Popovers close on Escape but leave Tab alone and do not lock the page. */
+  modal?: boolean;
+}
+
+/**
+ * Everything a dialog does besides drawing itself: join the stack, take focus,
+ * keep Tab inside, close on Escape, lock the page, and hand focus back.
+ *
+ * Both dialog implementations call this — the system's `Modal` below and the
+ * product's older `components/Modal.tsx`, which keeps its own API and markup
+ * but no longer its own copy of the behaviour.
+ */
+export function useDialogBehaviour({
+  surface,
+  active = true,
+  onClose,
+  closeOnEscape = true,
+  initialFocus,
+  returnFocus,
+  modal = true
+}: DialogBehaviour): void {
+  // Read from the mount-only effect, so a changing callback does not re-run the
+  // trap and steal focus back to the first control mid-edit.
+  const live = useRef({ onClose, closeOnEscape, initialFocus, returnFocus });
+  live.current = { onClose, closeOnEscape, initialFocus, returnFocus };
+
   useEffect(() => {
     if (!active) return;
-    const previous = document.activeElement as HTMLElement | null;
-    const focusable = () =>
-      [
-        ...(container.current?.querySelectorAll<HTMLElement>(
-          'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
-        ) ?? [])
-      ].filter(element => element.offsetParent !== null || element === document.activeElement);
+    const node = surface.current;
+    const entry: OverlayEntry = {
+      close: () => live.current.onClose?.(),
+      surface: modal ? node : undefined
+    };
+    openStack.push(entry);
+    const previouslyFocused =
+      typeof document !== 'undefined' && document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    if (modal) lockPageScroll();
 
-    const first = focusable()[0];
-    first?.focus();
+    let focusFrame = 0;
+    if (modal && node) {
+      focusFrame = requestAnimationFrame(() => {
+        const selector = live.current.initialFocus;
+        const target =
+          (selector ? node.querySelector<HTMLElement>(selector) : null) ?? focusableIn(node)[0];
+        target?.focus();
+      });
+    }
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Tab') return;
-      const elements = focusable();
-      if (elements.length === 0) return;
-      const firstElement = elements[0]!;
-      const lastElement = elements.at(-1)!;
-      if (event.shiftKey && document.activeElement === firstElement) {
+      if (openStack.at(-1) !== entry) return;
+      if (event.key === 'Escape') {
+        if (!live.current.closeOnEscape || !live.current.onClose) return;
         event.preventDefault();
-        lastElement.focus();
-      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.stopPropagation();
+        live.current.onClose();
+        return;
+      }
+      if (event.key !== 'Tab' || !modal || !node) return;
+      const focusable = focusableIn(node);
+      if (focusable.length === 0) return;
+      const first = focusable[0]!;
+      const last = focusable.at(-1)!;
+      const activeElement = document.activeElement;
+      const inside = activeElement instanceof HTMLElement && node.contains(activeElement);
+      if (event.shiftKey && (!inside || activeElement === first)) {
         event.preventDefault();
-        firstElement.focus();
+        last.focus();
+      } else if (!event.shiftKey && (!inside || activeElement === last)) {
+        event.preventDefault();
+        first.focus();
       }
     };
+    document.addEventListener('keydown', onKeyDown, true);
 
-    const node = container.current;
-    node?.addEventListener('keydown', onKeyDown);
     return () => {
-      node?.removeEventListener('keydown', onKeyDown);
-      previous?.focus?.();
+      if (focusFrame) cancelAnimationFrame(focusFrame);
+      document.removeEventListener('keydown', onKeyDown, true);
+      const at = openStack.lastIndexOf(entry);
+      if (at !== -1) openStack.splice(at, 1);
+      if (modal) unlockPageScroll();
+      (live.current.returnFocus ?? previouslyFocused)?.focus?.();
     };
-  }, [active, container]);
+    // Mount-only on purpose: see `live` above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, modal]);
 }
 
 export interface ModalProps {
@@ -117,8 +230,7 @@ export function Modal({
   const surface = useRef<HTMLDivElement>(null);
   const generatedId = useId();
   const close = useCallback(() => onClose(), [onClose]);
-  useEscape(open, close);
-  useFocusTrap(open, surface);
+  useDialogBehaviour({ surface, active: open, onClose: close });
 
   if (!open || typeof document === 'undefined') return null;
 
@@ -197,7 +309,7 @@ export function Popover({
 }: PopoverProps) {
   const surface = useRef<HTMLDivElement>(null);
   const close = useCallback(() => onClose(), [onClose]);
-  useEscape(open, close);
+  useDialogBehaviour({ surface, active: open, onClose: close, modal: false });
 
   useEffect(() => {
     if (!open) return;

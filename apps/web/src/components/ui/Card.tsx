@@ -18,7 +18,9 @@ import { uiClasses } from './types';
 
 export type CardRole = 'surface' | 'panel' | 'section';
 
-export interface CardProps extends HTMLAttributes<HTMLElement> {
+// `title` is a heading here, not the browser's tooltip attribute, so the DOM
+// one is dropped rather than narrowed to a string.
+export interface CardProps extends Omit<HTMLAttributes<HTMLElement>, 'title'> {
   role?: CardRole;
   /** Renders as <section> with the heading wired to it. */
   as?: 'div' | 'section' | 'article' | 'li';

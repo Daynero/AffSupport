@@ -42,7 +42,7 @@ import {
   type TeamAccountOccupancyFilter,
   type TeamAgentRun
 } from '@video-compressor/shared';
-import { Button, IconButton } from '../../components/ui';
+import { Button, IconButton } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { Empty, ErrorState, LoadingState } from '../../components/ui/index';
 import { useToasts } from '../../components/toast';
