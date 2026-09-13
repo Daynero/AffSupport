@@ -34,6 +34,7 @@ import { useToasts } from '../../components/toast';
 import { uploadTeamFile } from '../catalog/material-actions-client';
 import { classifyMaterial } from '@video-compressor/shared';
 import { teamErrorMessageFor } from '../errors';
+import { PermissionState } from '../../components/ui/index';
 
 export interface TaskEditorClient
   extends
@@ -921,6 +922,10 @@ export function TaskEditor({
         <div className="team-task-editor">
           <form className="team-dialog-form" onSubmit={saveFromSubmit}>
             <h2 id="team-task-editor-title">{t('teamTaskEditTitle')}</h2>
+            {/* A viewer sees a dialog of dead fields and no reason for it. The
+                fields stay — reading them is the point — and the boundary is
+                said once, at the top, in the product's own words (FR-004). */}
+            {!canEdit && <PermissionState message={t('teamTaskReadOnly')} />}
             <section className="team-task-editor-status" aria-labelledby="team-task-status-title">
               <span id="team-task-status-title">{t('teamTaskStatus')}</span>
               <TaskStatusControl

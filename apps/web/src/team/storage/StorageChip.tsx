@@ -9,6 +9,7 @@ import { teamErrorMessageFor } from '../errors';
 import { useOptionalBackgroundRender } from '../explorer/BackgroundRenderProvider';
 import type { DriveRootResult } from '../../api/team';
 import { rememberDriveAuthorization } from '../drive/authorizationReturn';
+import { PermissionState } from '../../components/ui/index';
 
 /**
  * One chip, one state, on every team screen (011, FR-031). Click for the
@@ -101,14 +102,16 @@ export function StorageChip({
   const titleId = useId();
   if (!health) return null;
 
+  /* The chip's colour is the state's role, so storage needing attention is the
+     same amber as anything else that needs attention (021, T084). */
   const tone =
     health.kind === 'attention'
-      ? 'ui-chip-warn'
+      ? 'ui-chip-warn ui-color-warning'
       : health.kind === 'indexing' ||
           health.kind === 'preparing' ||
           health.kind === 'waiting_provider'
-        ? 'ui-chip-busy'
-        : '';
+        ? 'ui-chip-busy ui-color-info'
+        : 'ui-color-success';
   const busyState =
     health.kind === 'indexing' || health.kind === 'preparing' || health.kind === 'waiting_provider';
 
@@ -186,11 +189,10 @@ export function StorageChip({
           {health.kind === 'waiting_provider' && <p>{t('teamStorageBodyWaiting')}</p>}
           {health.kind === 'indexing' && <p>{t('teamStorageBodyIndexing')}</p>}
           {health.kind === 'preparing' && <p>{t('teamStorageBodyPreparing')}</p>}
-          {fixerCopy && (
-            <p className="team-inline-error" role="alert">
-              {fixerCopy}
-            </p>
-          )}
+          {/* Not a failure — a boundary. Whoever is reading this cannot fix
+              the storage, and saying so in red reads as something they did
+              wrong (FR-004). */}
+          {fixerCopy && <PermissionState message={fixerCopy} />}
           <div className="team-dialog-actions">
             {health.kind === 'attention' &&
               health.reason === 'needs_reauth' &&

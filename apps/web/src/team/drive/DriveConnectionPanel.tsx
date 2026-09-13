@@ -416,8 +416,9 @@ export function DriveConnectionPanel({
           {/* States what everyone loses, and what is untouched. */}
           <p>{t('teamDriveDetachConfirmBody')}</p>
           <div className="team-dialog-actions">
+            {/* The verb names the consequence, not the gesture (FR-020). */}
             <Button type="button" variant="danger" onClick={() => void detach()}>
-              {t('teamDriveDetach')}
+              {t('teamDriveDetachAction')}
             </Button>
             <Button type="button" variant="ghost" onClick={() => setConfirmingDetach(false)}>
               {t('teamCancel')}

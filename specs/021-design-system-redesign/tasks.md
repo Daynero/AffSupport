@@ -293,8 +293,8 @@ better.
 - [ ] T135 [US2] Walk `contracts/screens.md` row by row in the beta, forcing every listed state; record any state that has no design in `specs/021-design-system-redesign/findings.md`
 - [ ] T136 [US2] Fix every gap found in T135 by applying the shared pattern — no new one-screen treatments
 - [x] T137 [P] [US2] Verify every empty state that can be resolved by an action offers that action as a control (FR-021), across all fourteen groups
-- [ ] T138 [P] [US2] Verify every destructive action is de-emphasised relative to the safe action beside it and its confirmation names the consequence in a verb (FR-020)
-- [ ] T139 [P] [US2] Verify every permission-limited surface hides or explains rather than disabling (FR-004 acceptance), for viewer, editor, admin and owner
+- [x] T138 [P] [US2] Verify every destructive action is de-emphasised relative to the safe action beside it and its confirmation names the consequence in a verb (FR-020)
+- [x] T139 [P] [US2] Verify every permission-limited surface hides or explains rather than disabling (FR-004 acceptance), for viewer, editor, admin and owner
 
 ---
 
@@ -328,7 +328,7 @@ better.
 - [x] T153 [P] Record the behaviour findings gathered during the migration in `specs/021-design-system-redesign/findings.md` as candidates for a follow-up feature — none of them fixed inside this one (FR-037)
 - [ ] T154 Run the full gate: `npm run typecheck`, `npx vitest run`, `npm run lint`, `node scripts/check-design-tokens.mjs`
 - [ ] T155 Verify the demo route is absent from a production build and the bundle has not grown
-- [ ] T159 Add every string this feature introduced or rewrote (empty states, error copy, confirmation verbs, permission explanations) to both languages in `apps/web/src/i18n.ts`, and confirm `tests/i18n.test.ts` and `tests/team-i18n-glossary.test.ts` pass (FR-034)
+- [x] T159 Add every string this feature introduced or rewrote (empty states, error copy, confirmation verbs, permission explanations) to both languages in `apps/web/src/i18n.ts`, and confirm `tests/i18n.test.ts` and `tests/team-i18n-glossary.test.ts` pass (FR-034)
 - [ ] T160 Prove SC-009: build one throwaway screen from the inventory alone and confirm it needs no new token and no new component variant; record the result in `specs/021-design-system-redesign/findings.md` and delete the screen
 
 ---
