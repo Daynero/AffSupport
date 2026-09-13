@@ -1946,3 +1946,9 @@
   font-weight: var(--weight-label);
   white-space: nowrap;
 }
+
+/* Invitation delivery state (cleared by C13). Same pill, colour by role. */
+.team-delivery-state {
+  color: var(--ui-text);
+  background: var(--ui-soft);
+}

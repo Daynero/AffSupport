@@ -17,6 +17,7 @@ import { openFolderPicker, pickerConfig, type PickFolders } from '../storage/loa
 import { SelectionList, selectionModeEnabled } from '../storage/SelectionList';
 import { rememberDriveAuthorization } from './authorizationReturn';
 import { SettingsSection } from '../workspace/SettingsSection';
+import { Badge } from '../../components/ui/index';
 
 type SafeConnectionStatus = Partial<DriveConnectionStatus> & {
   state: DriveConnectionStatus['state'];
@@ -279,7 +280,21 @@ export function DriveConnectionPanel({
       title={t('teamDriveTitle')}
       /* The connection's state belongs on the title line, the way the compressor keeps its
          summary there: it is the one thing a person opens this panel to read. */
-      aside={<span className={`team-connection-badge is-${status.state}`}>{badge}</span>}
+      aside={
+        <Badge
+          color={
+            status.state === 'connected'
+              ? 'success'
+              : status.state === 'needs_reauth' || status.state === 'unavailable'
+                ? 'warning'
+                : status.state === 'root_missing'
+                  ? 'error'
+                  : 'neutral'
+          }
+        >
+          {badge}
+        </Badge>
+      }
       description={status.rootFolderName}
       className="team-drive-panel"
     >
