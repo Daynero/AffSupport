@@ -122,7 +122,7 @@ states what is true, what to do, and looks like the same product.
 **Independent test**: every route shows the same top bar behaviour; a toast, a modal and a
 tooltip look and move the same wherever they are raised.
 
-- [ ] T040 [US1] Migrate the top bar in `apps/web/src/ProtectedSoty.tsx` and its controls — `SotyLogo`, `EnvironmentBadge`, `ThemeToggle`, `LanguageSwitch`, `UserAvatar`, `UserMenu` — onto Button/Badge/DropdownMenu
+- [x] T040 [US1] Migrate the top bar in `apps/web/src/ProtectedSoty.tsx` and its controls — `SotyLogo`, `EnvironmentBadge`, `ThemeToggle`, `LanguageSwitch`, `UserAvatar`, `UserMenu` — onto Button/Badge/DropdownMenu
 - [ ] T041 [US1] Migrate `apps/web/src/components/SupportDialog.tsx` (trigger chip + dialog) onto Badge + Modal + Progress
 - [x] T042 [P] [US1] Migrate `apps/web/src/components/ReleaseUpdateNotice.tsx` onto Alert + Button
 - [x] T043 [P] [US1] [US2] Migrate `apps/web/src/components/LocalAppDialog.tsx` and `apps/web/src/components/FeatureLockDialog.tsx` — the single "needs the local app" state, one anatomy for all six tools

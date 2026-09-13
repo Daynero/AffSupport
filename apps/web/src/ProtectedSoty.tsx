@@ -46,14 +46,14 @@ export default function ProtectedSoty({ path, route = path }: { path: string; ro
  * styles.css), so the header never crossfades with the page content.
  */
 function ApplicationShell({ path, route }: { path: string; route: string }) {
-  const { language, setLanguage, t } = useI18n();
+  const { t } = useI18n();
   // Status only: this sits above every page and has no interest in a
   // progress tick.
   const { connection } = useAgentStatus();
   return (
     <div className="app-shell">
       <InstantTips />
-      <Header language={language} setLanguage={setLanguage} connection={connection} t={t} />
+      <Header connection={connection} t={t} />
       <div className="page-viewport">
         <ProtectedApplication path={path} route={route} />
       </div>

@@ -22,7 +22,7 @@ import {
 } from './api/client';
 import { type ConnectionState } from './connection';
 import { formatSize } from './format';
-import { fileCountKey, type Language, type TranslationKey, useI18n } from './i18n';
+import { fileCountKey, type TranslationKey, useI18n } from './i18n';
 import { mergeSettingsPatches } from './settings-patch';
 import { preferredDownload } from './release-manifest';
 import {
@@ -56,6 +56,7 @@ import {
   safeCompressionProperties
 } from './analytics/compression';
 import { EmptyState } from './components/ui/index';
+import { LanguageSwitch } from './components/LanguageSwitch';
 
 const COMPRESSOR_SELECTION_KEY = 'wishly.compressor.selection.v1';
 
@@ -855,17 +856,11 @@ export default function CompressorPage() {
   );
 }
 
-export function Header({
-  language,
-  setLanguage,
-  connection,
-  t
-}: {
-  language: Language;
-  setLanguage: (language: Language) => void;
-  connection: ConnectionState;
-  t: Translate;
-}) {
+/**
+ * The shell every tool sits in. The language switch reads the context itself
+ * (021, T040), so the header no longer takes a language it only passed on.
+ */
+export function Header({ connection, t }: { connection: ConnectionState; t: Translate }) {
   return (
     <header className="topbar">
       <div className="topbar-lead">
@@ -890,26 +885,7 @@ export function Header({
             that a language was already selected, or which one. The active state
             was carried by a class — visible, and invisible to anything that is
             not looking at pixels. */}
-        <div className="language-switch" role="radiogroup" aria-label={t('language')}>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={language === 'en'}
-            className={language === 'en' ? 'is-active' : ''}
-            onClick={() => setLanguage('en')}
-          >
-            EN
-          </button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={language === 'uk'}
-            className={language === 'uk' ? 'is-active' : ''}
-            onClick={() => setLanguage('uk')}
-          >
-            UA
-          </button>
-        </div>
+        <LanguageSwitch />
         <ConnectionBadge state={connection} t={t} />
         <UserMenu />
       </div>
