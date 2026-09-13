@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -133,13 +133,35 @@ describe('the repair bridge inbox', () => {
     }
   });
 
-  it('will not let a job id name a file outside its inbox', async () => {
+  it('stores a job under a name no file system can object to', async () => {
     const directory = await inbox();
     try {
-      // The id crosses a process boundary, so it names a file only after it has
-      // been proven to be one path segment.
-      const reply = await handleRequest(directory, { ...job, jobId: '../escape' });
-      expect(reply).toMatchObject({ state: 'unknown', error: 'BRIDGE_JOB_ID_INVALID' });
+      // Two ids that would both be trouble as file names: a colon, which the
+      // runner's own `run:fingerprint` shape produces and which NTFS reads as an
+      // alternate data stream, and a traversal. Both are stored, both stay
+      // inside the inbox, and both read back as themselves.
+      for (const jobId of ['run-1:fp-1', '../escape']) {
+        const reply = await handleRequest(directory, { ...job, jobId });
+        expect(reply).toMatchObject({ jobId, state: 'acknowledged' });
+        expect((await readJob(directory, jobId))?.jobId).toBe(jobId);
+      }
+      const stored = await listJobs(directory);
+      expect(stored.map(entry => entry.jobId).sort()).toEqual(['../escape', 'run-1:fp-1']);
+      expect((await readdir(directory)).every(name => /^[0-9a-f]{64}\.json$/u.test(name))).toBe(
+        true
+      );
+    } finally {
+      await removeTemporaryDirectory(directory);
+    }
+  });
+
+  it('refuses an id that is not one', async () => {
+    const directory = await inbox();
+    try {
+      expect(await handleRequest(directory, { ...job, jobId: '' })).toMatchObject({
+        state: 'unknown',
+        error: 'BRIDGE_JOB_ID_INVALID'
+      });
       expect(await listJobs(directory)).toEqual([]);
     } finally {
       await removeTemporaryDirectory(directory);
@@ -151,9 +173,9 @@ describe('the repair bridge inbox', () => {
     try {
       const stored = await submitJob(directory, job);
       expect(stored.state).toBe('acknowledged');
-      // Diagnostics travel in these records; they are not world-readable.
-      const contents = await readFile(join(directory, `${job.jobId}.json`), 'utf8');
-      expect(JSON.parse(contents).payload.step).toBe('macos_package');
+      // Diagnostics travel in these records, so the payload has to survive the
+      // round trip intact — it is what the person reading the inbox works from.
+      expect((await readJob(directory, job.jobId))?.payload.step).toBe('macos_package');
     } finally {
       await removeTemporaryDirectory(directory);
     }

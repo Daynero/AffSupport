@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -19,11 +20,23 @@ export const BRIDGE_PROTOCOL_VERSION = 1;
 /** What the runner is allowed to see. `unknown` is a real answer, not an error. */
 export const BRIDGE_STATES = Object.freeze(['unknown', 'acknowledged', 'completed']);
 
+/**
+ * The file is named by a hash of the job id, never by the id itself.
+ *
+ * The runner derives an id from a run and a failure fingerprint, and the
+ * obvious separator between those is a colon — which is a perfectly good
+ * character everywhere except NTFS, where it opens an alternate data stream and
+ * the write simply fails. A Windows run caught exactly that. Hashing settles it
+ * for every id the runner will ever invent, and takes path traversal off the
+ * table at the same time: no input reaches the path.
+ *
+ * The id itself lives inside the record, so nothing is lost by not seeing it in
+ * the directory listing.
+ */
 function recordPath(directory, jobId) {
-  // A job id reaches this from another process, so it names a file only after
-  // it has been proven to be one path segment and nothing else.
-  if (!/^[A-Za-z0-9._:-]{1,200}$/u.test(jobId ?? '')) throw new Error('BRIDGE_JOB_ID_INVALID');
-  return path.join(directory, `${jobId}.json`);
+  if (typeof jobId !== 'string' || !jobId.length || jobId.length > 200)
+    throw new Error('BRIDGE_JOB_ID_INVALID');
+  return path.join(directory, `${createHash('sha256').update(jobId).digest('hex')}.json`);
 }
 
 async function replaceRecord(file, record) {
