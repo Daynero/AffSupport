@@ -4,6 +4,7 @@ import { useAgent } from './AgentContext';
 import { useI18n } from './i18n';
 import { analytics } from './analytics/service';
 import { Card } from './components/Card';
+import { Badge } from './components/ui/index';
 import FeatureLockDialog from './components/FeatureLockDialog';
 import { isLocked } from './lib/feature-flags';
 import { usePageEntrance } from './lib/navigation';
@@ -146,16 +147,20 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
               <div className="team-workspace-launcher-title">
                 <h3>{t('teamWorkspace')}</h3>
                 {pendingInvitations > 0 && (
-                  <span className="ui-chip ui-chip-busy">
+                  <Badge color="info" variant="soft">
                     {t('teamInvitationBadge', { count: pendingInvitations })}
-                  </span>
+                  </Badge>
                 )}
-                <span className="soon-badge">{t('inDevelopment')}</span>
+                <Badge color="warning" variant="soft">
+                  {t('inDevelopment')}
+                </Badge>
               </div>
               <p>{t('teamWorkspaceDescription')}</p>
             </div>
           </div>
-          <span className="button button-primary">{t('openTool')}</span>
+          <span className="ui-button ui-button--solid ui-button--lg ui-color-primary">
+            {t('openTool')}
+          </span>
         </Card>
 
         <div className="agent-panel-slot" ref={panel} tabIndex={-1}>
@@ -222,9 +227,15 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
                     <tool.icon />
                   </span>
                   {tool.status === 'coming-soon' && (
-                    <span className="soon-badge">{t('comingSoon')}</span>
+                    <Badge color="neutral" variant="subtle">
+                      {t('comingSoon')}
+                    </Badge>
                   )}
-                  {underDevelopment && <span className="soon-badge">{t('inDevelopment')}</span>}
+                  {underDevelopment && (
+                    <Badge color="warning" variant="soft">
+                      {t('inDevelopment')}
+                    </Badge>
+                  )}
                 </div>
                 <div className="tool-copy">
                   <h3>{t(tool.labelKey)}</h3>
@@ -239,7 +250,11 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
                         {t(beta ? 'betaTesting' : connected ? 'readyToWork' : 'agentRequired')}
                       </span>
                     )}
-                    <span className={`button button-primary ${available ? '' : 'is-disabled'}`}>
+                    <span
+                      className={`ui-button ui-button--solid ui-button--lg ui-color-primary ${
+                        available ? '' : 'is-disabled'
+                      }`}
+                    >
                       {t('openTool')}
                     </span>
                   </div>
