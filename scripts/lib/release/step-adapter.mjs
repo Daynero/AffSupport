@@ -299,7 +299,12 @@ export async function createStepAdapter({
         .catch(() => null);
       if (!existing) {
         try {
-          await exec('gh', ['release', 'create', `v${version}`, dmg, '--title', `Soty v${version}`, '--notes-file', 'RELEASE_NOTES.md'], { cwd, shell: false });
+          // `--target` is not optional. Without it `gh` creates the tag at the
+          // default branch's tip, which during a release is wherever development
+          // has got to -- so the tag would name commits the artifacts beside it
+          // were not built from, and every later question ("what shipped in
+          // 1.1.1?") would be answered with somebody else's work.
+          await exec('gh', ['release', 'create', `v${version}`, dmg, '--target', sourceSha, '--title', `Soty v${version}`, '--notes-file', 'RELEASE_NOTES.md'], { cwd, shell: false });
         } catch (error) {
           return fail('EFFECT_AMBIGUOUS', `gh release create failed: ${messageOf(error)}`);
         }
