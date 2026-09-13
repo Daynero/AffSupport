@@ -292,7 +292,7 @@ better.
 
 - [ ] T135 [US2] Walk `contracts/screens.md` row by row in the beta, forcing every listed state; record any state that has no design in `specs/021-design-system-redesign/findings.md`
 - [ ] T136 [US2] Fix every gap found in T135 by applying the shared pattern — no new one-screen treatments
-- [ ] T137 [P] [US2] Verify every empty state that can be resolved by an action offers that action as a control (FR-021), across all fourteen groups
+- [x] T137 [P] [US2] Verify every empty state that can be resolved by an action offers that action as a control (FR-021), across all fourteen groups
 - [ ] T138 [P] [US2] Verify every destructive action is de-emphasised relative to the safe action beside it and its confirmation names the consequence in a verb (FR-020)
 - [ ] T139 [P] [US2] Verify every permission-limited surface hides or explains rather than disabling (FR-004 acceptance), for viewer, editor, admin and owner
 

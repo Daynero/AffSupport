@@ -1246,6 +1246,18 @@ function ExplorerBody({
   };
 
   const trash = query.trash;
+  /*
+   * An empty folder is resolved by putting something in it, so the empty state
+   * offers the same control the toolbar does rather than describing it. A
+   * member who may not upload gets the sentence without a door, which is the
+   * permission rule: absent or explained, never present and dead.
+   */
+  const emptyUploadAction =
+    permissions?.upload && !trash ? (
+      <Button type="button" variant="secondary" onClick={() => fileInput.current?.click()}>
+        {t('teamExplorerAddFiles')}
+      </Button>
+    ) : undefined;
 
   // `/` opens the search from anywhere on the folder screen (FR-027). The
   // search bar binds the same key once it is mounted; before that there was
@@ -1638,6 +1650,7 @@ function ExplorerBody({
                 actions={actions}
                 sort={sort}
                 tagging={tagging}
+                emptyAction={emptyUploadAction}
               />
             ) : (
               <ContentList
@@ -1646,6 +1659,7 @@ function ExplorerBody({
                 actions={actions}
                 sort={sort}
                 tagging={tagging}
+                emptyAction={emptyUploadAction}
               />
             )}
           </div>

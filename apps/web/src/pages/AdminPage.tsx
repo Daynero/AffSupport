@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { Card } from '../components/Card';
 import { type Translate } from '../components/ui';
-import { Button, fillRatio } from '../components/ui/index';
+import { Button, EmptyState, ErrorState, fillRatio } from '../components/ui/index';
 import { Alert } from '../components/ui/index';
 import { formatSize } from '../format';
 import { useI18n, type TranslationKey } from '../i18n';
@@ -408,7 +408,11 @@ export default function AdminPage() {
                 </table>
               </div>
             ) : (
-              <p className="admin-empty">{t('adminTeamWaitlistEmpty')}</p>
+              <EmptyState
+                className="admin-empty"
+                size="sm"
+                title={t('adminTeamWaitlistEmpty')}
+              />
             )}
           </Card>
 
@@ -443,7 +447,11 @@ export default function AdminPage() {
                 </table>
               </div>
             ) : (
-              <p className="admin-empty">{t('adminWindowsWaitlistEmpty')}</p>
+              <EmptyState
+                className="admin-empty"
+                size="sm"
+                title={t('adminWindowsWaitlistEmpty')}
+              />
             )}
           </Card>
 
@@ -592,7 +600,30 @@ export default function AdminPage() {
                 </table>
               </div>
             ) : (
-              <div className="admin-empty">{t('adminEmpty')}</div>
+              /* Nothing matched: the filters are what emptied the table, so
+                 clearing them is the action rather than a sentence about it. */
+              <EmptyState
+                className="admin-empty"
+                title={t('adminEmpty')}
+                action={
+                  (search || consentFilter || statusFilter) && (
+                    <Button
+                      type="button"
+                      color="neutral"
+                      variant="outline"
+                      onClick={() => {
+                        setSearchInput('');
+                        setSearch('');
+                        setConsentFilter('');
+                        setStatusFilter('');
+                        setPage(0);
+                      }}
+                    >
+                      {t('adminClearFilters')}
+                    </Button>
+                  )
+                }
+              />
             )}
             <div className="pagination">
               <Button
@@ -716,10 +747,10 @@ function SupportGoalAdminCard({
             </time>
           </div>
         </>
+      ) : state === 'error' ? (
+        <ErrorState className="admin-empty" message={t('adminSupportGoalError')} />
       ) : (
-        <p className="admin-empty">
-          {state === 'error' ? t('adminSupportGoalError') : t('adminSupportGoalUnavailable')}
-        </p>
+        <EmptyState className="admin-empty" size="sm" title={t('adminSupportGoalUnavailable')} />
       )}
     </Card>
   );

@@ -1033,7 +1033,7 @@
   text-align: center;
 }
 
-.lv-empty-icon {
+.lv-empty .ui-empty-icon {
   display: grid;
   width: 56px;
   height: 56px;

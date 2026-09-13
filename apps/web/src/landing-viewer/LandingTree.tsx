@@ -4,6 +4,7 @@ import type { LandingPreviewItem } from '@video-compressor/shared';
 import { ICON_STROKE } from '../components/icons';
 import { Spinner } from '../components/ui';
 import { useI18n } from '../i18n';
+import { EmptyState } from '../components/ui/index';
 
 interface TreeNode {
   key: string;
@@ -81,7 +82,10 @@ export function LandingTree({
     event.preventDefault();
   };
 
-  if (!visible.length) return <p className="lv-tree-empty">{t('landingGallerySearchEmpty')}</p>;
+  if (!visible.length)
+    return (
+      <EmptyState className="lv-tree-empty" size="sm" title={t('landingGallerySearchEmpty')} />
+    );
   const tabStop = selectedId && visible.some(item => item.id === selectedId) ? selectedId : null;
   return (
     <div className="lv-tree" role="tree" aria-label={t('landingGalleryTree')} onKeyDown={onKeyDown}>

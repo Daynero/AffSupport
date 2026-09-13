@@ -13,6 +13,7 @@ import { ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import type { TeamMemberSummary } from '../../api/team';
 import type { TaskAssigneeFilter as AssigneeFilter } from './useTasks';
+import { SpaceSettingsLink } from '../SpaceSettingsLink';
 
 /** What a member is called on screen: their name, else their address, else nothing. */
 export function memberLabel(member: TeamMemberSummary): string {
@@ -147,10 +148,16 @@ export function TaskAssigneeFilter({
           >
             {t('teamTaskAssigneeFilterNobody')}
           </button>
+          {/* Nobody to filter by yet: the sentence says so and the door under
+              it opens on the panel where people are invited (FR-021). */}
           {members.length === 0 && (
-            <p className="task-account-filter-empty" role="presentation">
-              {t('teamTaskAssigneeFilterEmpty')}
-            </p>
+            <div className="task-account-filter-empty" role="presentation">
+              <p>{t('teamTaskAssigneeFilterEmpty')}</p>
+              <SpaceSettingsLink
+                target={{ kind: 'settings', tab: 'members' }}
+                label={t('teamSettingsTabMembers')}
+              />
+            </div>
           )}
           {members.map(member => (
             <button
