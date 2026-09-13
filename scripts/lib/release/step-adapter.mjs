@@ -287,7 +287,7 @@ async function dispatchAndWatch(stepId, { cwd, env, admission, sourceSha, releas
  *   binding: {bindingId: string, kind: string},
  *   backendPlan?: {changes: readonly object[]} | null,
  *   backendAdapter?: object | null,
- *   journal?: {flush: (receipt: object) => Promise<void>} | null,
+ *   journal?: {append: (type: string, payload: unknown) => Promise<unknown>} | null,
  *   admission?: object | null,
  *   allowRemote?: boolean
  * }} options
@@ -526,7 +526,32 @@ export async function createStepAdapter({
       if (!resolvedBackendAdapter || !journal)
         return fail('ACCESS_UNAVAILABLE', 'no backend adapter or journal is configured');
       try {
-        const result = await applyBackendPlan({ binding, plan: backendPlan, sourceSha, adapter: resolvedBackendAdapter, journal });
+        const result = await applyBackendPlan({
+          binding,
+          plan: backendPlan,
+          sourceSha,
+          adapter: resolvedBackendAdapter,
+          /**
+           * The receipt sink `applyBackendPlan` has always asked for.
+           *
+           * It writes one receipt per change before making it -- "a crash after
+           * this line is interpretable" -- through a method called `flush` that
+           * nothing in this repository implemented. Declared in two JSDoc blocks
+           * and provided nowhere, so the step that applies a release to the
+           * production database failed on `journal.flush is not a function`,
+           * having first proved every digest and compatibility check and
+           * touched nothing.
+           *
+           * The run journal is the durable record this run already keeps, and
+           * its `append` fsyncs, which is what flushing a receipt before an
+           * irreversible write is for.
+           */
+          journal: {
+            flush: async receipt => {
+              await journal.append('backend_receipt', receipt);
+            }
+          }
+        });
         return result.ok ? { ok: true } : fail('GATE_FAILED', 'backend apply did not complete');
       } catch (error) {
         return fail(codeOf(error) ?? 'GATE_FAILED', messageOf(error));
