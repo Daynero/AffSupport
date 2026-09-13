@@ -45,6 +45,28 @@ export function workerReady(runId) {
 }
 
 /**
+ * A cancellation is a decision, not a note to be written over.
+ *
+ * `cancel` marks the run and returns; the worker keeps going, finishes whatever
+ * it was doing, and saves its own state on top -- so a cancelled release
+ * reported itself as blocked a second later, enqueued a repair job nobody
+ * asked for, and carried on holding the machine until somebody sent it a
+ * signal by hand. Twice, tonight.
+ *
+ * Every write the worker makes goes through here, and every write first reads
+ * what is on disk. A run somebody cancelled stays cancelled, and the worker
+ * learns about it at the next thing it tries to record.
+ *
+ * @returns {Promise<{cancelled: boolean, run: object}>}
+ */
+async function persist(run) {
+  const persisted = await loadSnapshot(run.runId).catch(() => null);
+  if (persisted?.state === 'cancelled') return { cancelled: true, run: persisted };
+  await saveSnapshot(run);
+  return { cancelled: false, run };
+}
+
+/**
  * Runs one step: journal first, then the effect, then the journal again.
  *
  * The order is the whole recovery story. An entry written before the effect
@@ -55,6 +77,10 @@ export function workerReady(runId) {
  */
 async function performStep({ stepId, run, journal, adapter, snapshot }) {
   const step = stepDefinition(stepId);
+  // Asked before the effect, because "it was already running" is not a reason
+  // to start the next one.
+  if ((await loadSnapshot(run.runId).catch(() => null))?.state === 'cancelled')
+    return { ok: false, error: { code: 'RELEASE_CANCELLED', subject: 'the run was cancelled' } };
   await journal.append('step_started', { stepId, resourceClass: step.resourceClass });
   const started = Date.now();
   let result;
@@ -70,8 +96,9 @@ async function performStep({ stepId, run, journal, adapter, snapshot }) {
   });
   if (result?.ok) {
     const advanced = completeStep(startStep(snapshot.current, stepId), stepId);
-    snapshot.current = advanced;
-    await saveSnapshot(advanced);
+    const stored = await persist(advanced);
+    snapshot.current = stored.run;
+    if (stored.cancelled) return { ok: false, error: { code: 'RELEASE_CANCELLED', subject: 'the run was cancelled' } };
     await journal.snapshot(advanced);
   }
   return result;
@@ -156,8 +183,7 @@ export async function runWorker({
       waitReason: event.reason,
       nextCheckAt: new Date(event.nextCheckAt).toISOString()
     };
-    snapshot.current = waiting;
-    await saveSnapshot(waiting);
+    snapshot.current = (await persist(waiting)).run;
   });
 
   try {
@@ -175,8 +201,7 @@ export async function runWorker({
         if (event.phase !== 'not_declared') return;
         await journal.append('step_not_declared', { stepId: event.stepId });
         const advanced = completeStep(startStep(snapshot.current, event.stepId), event.stepId);
-        snapshot.current = advanced;
-        await saveSnapshot(advanced);
+        snapshot.current = (await persist(advanced)).run;
         await journal.snapshot(advanced);
       }
     });
@@ -187,8 +212,10 @@ export async function runWorker({
           : { ...snapshot.current, state: 'running' },
         'blocked'
       );
-      snapshot.current = blocked;
-      await saveSnapshot(blocked);
+      const stored = await persist(blocked);
+      snapshot.current = stored.run;
+      // Nobody is asked to repair a release somebody stopped on purpose.
+      if (stored.cancelled) return { ok: false, state: 'cancelled', failedStep: result.failedStep };
       await journal.snapshot(blocked);
       await handOffFailure({
         directory,
