@@ -33,17 +33,46 @@ export function reservationFor(classProfile, { residentBytes = 0 } = {}) {
  * to whatever the next step wants, so a stack that has not yet grown into its
  * claim cannot be counted as free memory twice.
  */
-export function createResourceAdmission(profile, leases, { standingReservation = () => ({ ramBytes: 0, diskBytes: 0 }) } = {}) {
+/**
+ * @param {object} profile
+ * @param {object} leases
+ * @param {{standingReservation?: (resourceClass?: string) => {ramBytes?: number, diskBytes?: number}}} [options]
+ */
+export function createResourceAdmission(
+  profile,
+  leases,
+  { standingReservation = () => ({ ramBytes: 0, diskBytes: 0 }) } = {}
+) {
   const samples = [];
   return {
     sample(value) { samples.push(value); if (samples.length > 7) samples.shift(); },
     request(request) {
       const classProfile = request.resourceClass ? profile.classes?.[request.resourceClass] : null;
-      const standing = standingReservation();
-      const reservation = {
-        ramBytes: (standing.ramBytes ?? 0) + (classProfile?.ramBytes ?? 0),
-        diskBytes: (standing.diskBytes ?? 0) + (classProfile?.diskBytes ?? 0)
-      };
+      const standing = standingReservation(request.resourceClass);
+      /**
+       * A resident reservation is not paid for twice.
+       *
+       * `beta_stack` names one number for two different things: starting the
+       * stack, and running a step that talks to one already up. When the stack
+       * is resident it declares 3.2 GB, the class asks for 3.2 GB, and the sum
+       * charges 6.4 GB for a stack that exists and is already using its half. On
+       * a machine with three gigabytes free that is refused forever, in both
+       * directions at once: the rehearsal needs the stack running, and the stack
+       * running is what forbids the rehearsal.
+       *
+       * So a reservation that already covers its own class satisfies it. The
+       * memory is spent; asking for it again asks the machine to have it twice.
+       */
+      const coversItsOwnClass =
+        request.resourceClass === 'beta_stack' &&
+        (standing.ramBytes ?? 0) >= (classProfile?.ramBytes ?? 0) &&
+        (standing.diskBytes ?? 0) >= (classProfile?.diskBytes ?? 0);
+      const reservation = coversItsOwnClass
+        ? { ramBytes: 0, diskBytes: 0 }
+        : {
+            ramBytes: (standing.ramBytes ?? 0) + (classProfile?.ramBytes ?? 0),
+            diskBytes: (standing.diskBytes ?? 0) + (classProfile?.diskBytes ?? 0)
+          };
       if (!stableWindow(samples, profile, reservation)) return { ok: false, reason: 'RESOURCE_WAIT' };
       return leases.request(request);
     },
