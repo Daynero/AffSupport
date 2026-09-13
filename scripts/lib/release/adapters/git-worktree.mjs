@@ -56,6 +56,10 @@ const PROVISIONED_PATHS = Object.freeze([
   'config/keys',
   '.env.production',
   '.env.production.local',
+  // The beta packaging step refuses without it, and refuses for a good reason:
+  // it compares the beta entitlement key against the production one so a beta
+  // build cannot be signed as production.
+  '.env.beta',
   'apps/agent/runtime'
 ]);
 
