@@ -166,7 +166,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [ ] T061 [P] [US1] Migrate `apps/web/src/transcription/TranscriptionRow.tsx` onto Table row + Progress + Badge, covering queued/running/paused/done/failed
 - [ ] T062 [P] [US1] Migrate `apps/web/src/transcription/LanguageCombobox.tsx` and `LanguageDoubt.tsx` onto SelectMenu + Alert
 - [ ] T063 [P] [US1] Migrate `apps/web/src/transcription/ModelGate.tsx`, `GemmaConsent.tsx`, `TranslatorNotice.tsx` and `TranslationElapsed.tsx` onto Alert + Progress + Button
-- [ ] T064 [P] [US1] Migrate `apps/web/src/transcription/ExportMenu.tsx` and `TranscriptionCopyMenu.tsx` onto DropdownMenu
+- [x] T064 [P] [US1] Migrate `apps/web/src/transcription/ExportMenu.tsx` and `TranscriptionCopyMenu.tsx` onto DropdownMenu
 - [ ] T065 [US1] Migrate `apps/web/src/transcription/TranscriptTextModal.tsx` and `TranscriptPlayer.tsx` onto Modal + the product-specific player, splitting the file only as far as the migration needs (it is a known debt, not this feature's target)
 - [ ] T066 [US1] Migrate `apps/web/src/styles/transcription.css` onto tokens and delete what the inventory now covers
 - [ ] T067 [US1] [US4] Verify C5 at five widths × two themes × reduced motion, including a long transcript and an RTL-ish long language name
@@ -179,7 +179,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [ ] T069 [P] [US1] Migrate `apps/web/src/two-factor/CodeCell.tsx`, `Countdown.tsx` and `QuickCode.tsx` onto tokens, keeping the expiry ring and copy feedback (no animation on copy — frequent action)
 - [ ] T070 [US1] Migrate `apps/web/src/landing-viewer/LandingViewer.tsx`, `LandingViewerWelcome.tsx` and `LandingTree.tsx` onto the inventory (Tree, Empty, Card)
 - [ ] T071 [P] [US1] Migrate `apps/web/src/landing-viewer/LandingGalleryGrid.tsx`, `LandingSourceSwitcher.tsx` and `LandingRefreshControl.tsx`
-- [ ] T072 [P] [US1] Migrate `apps/web/src/landing-viewer/GallerySettingsMenu.tsx` and `GalleryMoreMenu.tsx` onto DropdownMenu + Choice
+- [x] T072 [P] [US1] Migrate `apps/web/src/landing-viewer/GallerySettingsMenu.tsx` and `GalleryMoreMenu.tsx` onto DropdownMenu + Choice
 - [ ] T073 [US1] Migrate `apps/web/src/styles/landing-viewer.css` onto tokens and delete what the inventory now covers
 - [ ] T074 [US1] [US4] Verify C6 at five widths × two themes × reduced motion
 
@@ -213,7 +213,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [ ] T088 [US1] Migrate `apps/web/src/team/explorer/ExplorerShell.tsx` — toolbar, view switch, selection bar (with its `Clear selection (N)`), scope controls
 - [ ] T089 [P] [US1] Migrate `apps/web/src/team/explorer/ContentList.tsx` and `ContentGrid.tsx` onto Table (`sm`) and a tile grid, keeping today's density
 - [ ] T090 [P] [US1] Migrate `apps/web/src/team/explorer/FolderTree.tsx` and `Breadcrumb.tsx` onto Tree and Breadcrumb, keeping drag-and-drop targets
-- [ ] T091 [P] [US1] Migrate `apps/web/src/team/explorer/SortMenu.tsx`, `KindFilterMenu.tsx`, `RowActions.tsx` and `ShareButton.tsx` onto DropdownMenu + IconButton (no open/close animation — frequent actions)
+- [x] T091 [P] [US1] Migrate `apps/web/src/team/explorer/SortMenu.tsx`, `KindFilterMenu.tsx`, `RowActions.tsx` and `ShareButton.tsx` onto DropdownMenu + IconButton (no open/close animation — frequent actions)
 - [ ] T092 [P] [US1] [US2] Migrate `apps/web/src/team/explorer/PreviewPane.tsx` with its empty, loading, failed and unsupported states
 - [ ] T093 [P] [US1] Migrate `apps/web/src/team/explorer/UploadConflictDialog.tsx`, `FolderScopeDialog.tsx` and `ProcessPanel.tsx` onto Modal + the confirmation pattern
 - [ ] T094 [P] [US1] Migrate `apps/web/src/team/catalog/TrashView.tsx` onto Table + Empty + the confirmation pattern (purge is destructive and de-emphasised)
@@ -238,7 +238,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [x] T103 [US1] Migrate `apps/web/src/team/tasks/TaskSpace.tsx` — board columns, header, filters row
 - [ ] T104 [P] [US1] Migrate `apps/web/src/team/tasks/TaskCard.tsx` onto Card + Chip + Progress + Avatar
 - [ ] T105 [US1] Migrate `apps/web/src/team/tasks/TaskEditor.tsx` onto Modal + FormField + the shared patterns — the densest dialog in the product
-- [ ] T106 [P] [US1] Migrate `apps/web/src/team/tasks/TaskStatusControl.tsx`, `TaskSortControl.tsx`, `TaskDateField.tsx` and `TaskProgressScale.tsx`
+- [x] T106 [P] [US1] Migrate `apps/web/src/team/tasks/TaskStatusControl.tsx`, `TaskSortControl.tsx`, `TaskDateField.tsx` and `TaskProgressScale.tsx`
 - [x] T107 [P] [US1] [US2] Migrate the four filters — `TaskDateFilter.tsx`, `TaskAssigneeFilter.tsx`, `TaskAccountFilter.tsx`, `TaskLabelFilter.tsx` — onto SelectMenu + Popover with their empty states (which link to where the dictionary is filled, as 020 established)
 - [x] T108 [P] [US1] Migrate `apps/web/src/team/tasks/TaskAgentTags.tsx`, `TaskAccountPicker.tsx`, `TaskAttachmentPicker.tsx` and `TaskAttachmentTile.tsx` onto the picker pattern (search, breadcrumb, list, footer actions)
 - [ ] T109 [US1] Migrate `apps/web/src/styles/team-tasks.css` onto tokens and delete what the inventory covers

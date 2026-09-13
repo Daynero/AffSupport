@@ -13718,9 +13718,13 @@ button.team-landing-tile:hover {
   background: var(--color-surface-muted);
   color: var(--color-text);
 }
-.team-explorer-breadcrumb-folded .team-explorer-menu {
-  left: 0;
-  right: auto;
+.team-explorer-breadcrumb-folded /* The menus' own element inside the shared popover surface; it takes no space
+   of its own. */
+.team-explorer-menu-items {
+  display: contents;
+}
+
+.team-explorer-menu {
   min-width: max-content;
   max-width: min(320px, calc(100vw - 2 * var(--space-4)));
 }
@@ -14724,10 +14728,9 @@ button.team-landing-tile:hover {
   color: var(--color-text);
   border-color: var(--color-accent);
 }
+/* Placed by the component (021): portalled past the toolbar and flipped when
+   the window is short. */
 .team-explorer-menu {
-  position: absolute;
-  top: calc(100% + var(--space-1));
-  left: 0;
   z-index: var(--layer-popover);
   min-width: 220px;
   padding: var(--space-1);

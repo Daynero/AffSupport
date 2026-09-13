@@ -19,6 +19,7 @@ import { teamApi, type TeamMaterialSummary } from '../../api/team';
 import { downloadTeamFileWithAgent } from '../../api/client';
 import { Download, ListPlus, Play, Shrink, Trash2, X } from 'lucide-react';
 import { Button } from '../../components/ui';
+import { Popover } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import {
@@ -1995,26 +1996,6 @@ function ProcessMenu({
     run();
   };
 
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && box.current?.contains(event.target)) return;
-      setOpen(false);
-    };
-    const onKey = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setOpen(false);
-        button.current?.focus();
-      }
-    };
-    document.addEventListener('pointerdown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
   // A menu that says `role="menu"` promises arrow keys; Tab alone was all it
   // had, and the first item never took focus when the menu opened.
   useEffect(() => {
@@ -2077,9 +2058,20 @@ function ProcessMenu({
       >
         {t('teamExplorerProcess')}
       </Button>
-      {open && (
+      <Popover
+        open={open}
+        onClose={() => {
+          setOpen(false);
+          button.current?.focus();
+        }}
+        anchor={box}
+        placement="bottom-start"
+        frequent
+        label={t('teamExplorerProcessScope')}
+        className="team-explorer-menu"
+      >
         <div
-          className="team-explorer-menu"
+          className="team-explorer-menu-items"
           role="menu"
           aria-label={t('teamExplorerProcessScope')}
           ref={list}
@@ -2127,7 +2119,7 @@ function ProcessMenu({
             </button>
           )}
         </div>
-      )}
+      </Popover>
     </div>
   );
 }

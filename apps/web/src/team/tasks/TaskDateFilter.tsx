@@ -3,6 +3,7 @@ import type { TeamTaskStatus } from '@video-compressor/shared';
 import { useI18n } from '../../i18n';
 import { TaskStatusIcon, taskStatusLabel } from './TaskStatusControl';
 import { localDateValue, type TaskDateFilter, type TaskStatusFilter } from './useTasks';
+import { Popover } from '../../components/ui/index';
 
 /**
  * The day-grid helpers, shared with the task editor's own date field: one
@@ -166,18 +167,6 @@ export function TaskDateFilterControl({
     if (selected) setMonth(monthStart(dateFromValue(selected)));
   }, [value]);
 
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: MouseEvent) => {
-      if (!root.current?.contains(event.target as Node)) {
-        setOpen(false);
-        setPendingStart(null);
-      }
-    };
-    window.addEventListener('mousedown', close);
-    return () => window.removeEventListener('mousedown', close);
-  }, [open]);
-
   const choose = (date: string, single = false) => {
     if (single) {
       onChange({ kind: 'range', from: date, to: date });
@@ -248,75 +237,78 @@ export function TaskDateFilterControl({
             ×
           </button>
         )}
-        {open && (
-          <div
-            className="task-date-filter-popover"
-            role="dialog"
-            aria-label={t('teamTasksCalendar')}
-          >
-            <div className="task-calendar-heading">
-              <button
-                type="button"
-                aria-label={t('teamTasksCalendarPreviousMonth')}
-                onClick={() =>
-                  setMonth(
-                    current => new Date(current.getFullYear(), current.getMonth() - 1, 1, 12)
-                  )
-                }
-              >
-                <Chevron direction="left" />
-              </button>
-              <strong>
-                {new Intl.DateTimeFormat(language === 'uk' ? 'uk-UA' : 'en-US', {
-                  month: 'long',
-                  year: 'numeric'
-                }).format(month)}
-              </strong>
-              <button
-                type="button"
-                aria-label={t('teamTasksCalendarNextMonth')}
-                onClick={() =>
-                  setMonth(
-                    current => new Date(current.getFullYear(), current.getMonth() + 1, 1, 12)
-                  )
-                }
-              >
-                <Chevron direction="right" />
-              </button>
-            </div>
-            <div className="task-calendar-weekdays" aria-hidden="true">
-              {weekdays.map((day, index) => (
-                <span key={`${day}-${index}`}>{day}</span>
-              ))}
-            </div>
-            <div className="task-calendar-days">
-              {days.map(day => {
-                const date = localDateValue(day);
-                const inMonth = day.getMonth() === month.getMonth();
-                const selected = isInRange(date, value);
-                const pending = pendingStart === date;
-                return (
-                  <button
-                    key={date}
-                    type="button"
-                    className={`${inMonth ? '' : 'is-outside'} ${selected ? 'is-selected' : ''} ${pending ? 'is-pending' : ''} ${date === today ? 'is-today' : ''}`.trim()}
-                    aria-label={date}
-                    aria-pressed={selected || pending}
-                    onClick={event => {
-                      if (event.detail !== 2) choose(date);
-                    }}
-                    onDoubleClick={() => choose(date, true)}
-                  >
-                    {day.getDate()}
-                  </button>
-                );
-              })}
-            </div>
-            <p>
-              {pendingStart ? t('teamTasksCalendarChooseEnd') : t('teamTasksCalendarChooseStart')}
-            </p>
+        <Popover
+          open={open}
+          /* Leaving with a half-made range abandons it: a single chosen day is
+             a start nobody finished, not a filter. */
+          onClose={() => {
+            setOpen(false);
+            setPendingStart(null);
+          }}
+          anchor={root}
+          placement="bottom-start"
+          frequent
+          label={t('teamTasksCalendar')}
+          className="task-date-filter-popover"
+        >
+          <div className="task-calendar-heading">
+            <button
+              type="button"
+              aria-label={t('teamTasksCalendarPreviousMonth')}
+              onClick={() =>
+                setMonth(current => new Date(current.getFullYear(), current.getMonth() - 1, 1, 12))
+              }
+            >
+              <Chevron direction="left" />
+            </button>
+            <strong>
+              {new Intl.DateTimeFormat(language === 'uk' ? 'uk-UA' : 'en-US', {
+                month: 'long',
+                year: 'numeric'
+              }).format(month)}
+            </strong>
+            <button
+              type="button"
+              aria-label={t('teamTasksCalendarNextMonth')}
+              onClick={() =>
+                setMonth(current => new Date(current.getFullYear(), current.getMonth() + 1, 1, 12))
+              }
+            >
+              <Chevron direction="right" />
+            </button>
           </div>
-        )}
+          <div className="task-calendar-weekdays" aria-hidden="true">
+            {weekdays.map((day, index) => (
+              <span key={`${day}-${index}`}>{day}</span>
+            ))}
+          </div>
+          <div className="task-calendar-days">
+            {days.map(day => {
+              const date = localDateValue(day);
+              const inMonth = day.getMonth() === month.getMonth();
+              const selected = isInRange(date, value);
+              const pending = pendingStart === date;
+              return (
+                <button
+                  key={date}
+                  type="button"
+                  className={`${inMonth ? '' : 'is-outside'} ${selected ? 'is-selected' : ''} ${pending ? 'is-pending' : ''} ${date === today ? 'is-today' : ''}`.trim()}
+                  aria-label={date}
+                  aria-pressed={selected || pending}
+                  onClick={event => {
+                    if (event.detail !== 2) choose(date);
+                  }}
+                  onDoubleClick={() => choose(date, true)}
+                >
+                  {day.getDate()}
+                </button>
+              );
+            })}
+          </div>
+          <p>
+            {pendingStart ? t('teamTasksCalendarChooseEnd') : t('teamTasksCalendarChooseStart')}
+          </p>
+        </Popover>
       </div>
       {children}
       <div className="task-status-filter" aria-label={t('teamTaskStatus')}>
