@@ -188,7 +188,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 ## Phase 10: [US1] C7 — Account and admin
 
 - [x] T075 [US1] Migrate `apps/web/src/pages/AccountPage.tsx` — profile, language, marketing consent, danger zone (destructive action de-emphasised, confirmation names the consequence)
-- [ ] T076 [US1] Migrate `apps/web/src/pages/AdminPage.tsx` — metric tiles onto Card, the user table onto Table (`sm` density), filters onto Select/SegmentedControl, CSV export onto Button
+- [x] T076 [US1] Migrate `apps/web/src/pages/AdminPage.tsx` — metric tiles onto Card, the user table onto Table (`sm` density), filters onto Select/SegmentedControl, CSV export onto Button
 - [x] T077 [P] [US1] [US2] Give AdminPage its states: loading skeleton, empty result, failed load, and the non-admin permission-limited state
 - [x] T078 [US1] Update `tests/admin-ui.test.tsx` to assert through roles and accessible names
 - [x] T079 [US1] [US4] Verify C7 at five widths × two themes × reduced motion

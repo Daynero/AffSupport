@@ -242,7 +242,108 @@ const RPC: Record<string, (args: Record<string, unknown>) => unknown> = {
   },
   get_team_storage_health: () => [
     { team_id: TEAM_ID, kind: 'ready', reason: null, fixer: null, checked_at: ago(2) }
+  ],
+  /* The dashboard, so its tables, tiles and filters can be walked without a
+     database. Numbers chosen to be awkward on purpose: a six-figure count, a
+     long display name and an account in each of the three states. */
+  is_admin: () => true,
+  admin_overview: () => ADMIN_OVERVIEW,
+  admin_daily_activity: () => ADMIN_DAILY,
+  admin_tool_usage: () => [
+    { category: 'tool', label: 'Compressor', total: 4821 },
+    { category: 'tool', label: 'Transcription', total: 1290 },
+    { category: 'tool', label: 'Landing optimizer', total: 344 }
+  ],
+  admin_agent_versions: () => [
+    { agent_version: '1.1.0', total: 18 },
+    { agent_version: '1.0.3', total: 5 }
+  ],
+  admin_list_users: () => ADMIN_USERS,
+  admin_active_support_goal: () => SUPPORT_GOAL,
+  admin_list_team_workspace_waitlist: () => [
+    { user_id: 'u-w1', email: 'buyer@example.com', created_at: ago(48) },
+    { user_id: 'u-w2', email: 'media@example.com', created_at: ago(12) }
+  ],
+  admin_list_windows_app_waitlist: () => [
+    { user_id: 'u-x1', email: 'windows@example.com', created_at: ago(72) }
   ]
+};
+
+const ADMIN_OVERVIEW = {
+  total_users: 124_803,
+  new_users_24h: 41,
+  new_users_7d: 318,
+  new_users_30d: 1_204,
+  active_users_7d: 902,
+  active_users_30d: 3_411,
+  marketing_consent_users: 58_120,
+  agent_connections: 23,
+  compressor_opens: 9_812,
+  compression_batches: 1_455,
+  successful_compressions: 1_398,
+  failed_compressions: 57,
+  total_videos: 7_204,
+  total_input_bytes: 4_812_000_000,
+  total_output_bytes: 1_240_000_000,
+  total_saved_bytes: 3_572_000_000,
+  average_saving_percent: 74,
+  optimal_batches: 1_102,
+  custom_batches: 353,
+  image_embedding_batches: 211,
+  videos_optimal: 5_400,
+  videos_custom: 1_804,
+  videos_with_image: 640
+};
+
+const ADMIN_DAILY = Array.from({ length: 30 }, (_, index) => ({
+  activity_date: new Date(Date.now() - (29 - index) * 86_400_000).toISOString().slice(0, 10),
+  active_users: 60 + ((index * 37) % 90),
+  event_count: 240 + ((index * 91) % 400)
+}));
+
+const ADMIN_USERS = [
+  {
+    id: 'u-1',
+    email: 'roman@example.com',
+    display_name: 'Roman Kravchenko',
+    created_at: ago(24 * 90),
+    last_seen_at: ago(3),
+    marketing_consent: true,
+    account_status: 'active'
+  },
+  {
+    id: 'u-2',
+    email: 'a.very.long.address.for.a.media.buyer@some-agency-domain.example',
+    display_name: 'Олександра Ковальчук-Петренко',
+    created_at: ago(24 * 40),
+    last_seen_at: null,
+    marketing_consent: false,
+    account_status: 'blocked'
+  },
+  {
+    id: 'u-3',
+    email: 'gone@example.com',
+    display_name: null,
+    created_at: ago(24 * 200),
+    last_seen_at: ago(24 * 30),
+    marketing_consent: true,
+    account_status: 'deleted'
+  }
+];
+
+const SUPPORT_GOAL = {
+  id: 'goal-1',
+  slug: 'for-bug-fixes',
+  title_en: 'For bug fixes',
+  title_uk: 'На виправлення багів',
+  description_en: 'Keeping the lights on.',
+  description_uk: 'Щоб світло не гасло.',
+  currency: 'USD',
+  raised_cents: 0,
+  target_cents: 2_500,
+  status: 'active',
+  created_at: ago(24 * 30),
+  updated_at: ago(5)
 };
 
 /* Two accounts and five agents, with runs, balances and markers — the density

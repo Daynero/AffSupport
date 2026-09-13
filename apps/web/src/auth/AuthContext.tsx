@@ -105,7 +105,12 @@ const localDevSnapshot: AuthSnapshot = {
   user: localDevUser,
   session: localDevSession,
   profile: localDevProfile,
-  isAdmin: false,
+  /*
+   * The mocked local shell is the whole product on one machine, and the
+   * dashboard is part of the product. Real local dev, which talks to a real
+   * Supabase, still asks it (`is_admin`) rather than assuming.
+   */
+  isAdmin: import.meta.env.DEV && import.meta.env.VITE_MOCK_DATA === 'true',
   error: null
 };
 

@@ -266,7 +266,6 @@ function SupportGoalCard() {
         size="sm"
         label={t('supportGoalProgressLabel')}
         valueText={progressText}
-        className="support-goal-progress"
       />
       <small className="support-goal-note">{t('supportGoalManualNote')}</small>
     </Card>
