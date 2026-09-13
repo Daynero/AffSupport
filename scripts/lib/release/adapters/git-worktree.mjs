@@ -113,7 +113,7 @@ const PROVISIONED_PATHS = Object.freeze([
  * check was reaching for is kept: the borrowed tree matches the source being
  * built, or the release refuses to borrow it.
  */
-function dependencyClosure(text) {
+export function dependencyClosure(text) {
   const { packages = {} } = JSON.parse(text);
   return JSON.stringify(
     Object.fromEntries(

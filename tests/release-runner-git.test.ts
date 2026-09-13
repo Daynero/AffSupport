@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   createOwnedWorktree,
+  dependencyClosure,
   freezeSource,
   promoteBeta,
   remoteBetaSha
@@ -79,3 +80,30 @@ it('promotes origin/beta only as a fast-forward from the commit it expected', as
     await removeTemporaryDirectory(root);
   }
 }, 60_000);
+
+it('lets a version bump borrow the closure, and refuses a changed dependency', () => {
+  const lockfile = (version: string, closure: Record<string, unknown>) =>
+    JSON.stringify({
+      name: 'soty',
+      version,
+      packages: {
+        '': { name: 'soty', version, dependencies: { '@video-compressor/shared': version } },
+        'packages/shared': { version },
+        ...closure
+      }
+    });
+  const closure = { 'node_modules/vite': { version: '5.4.0', resolved: 'https://example/vite' } };
+  // Every release bumps the product version, and byte equality called that a
+  // different dependency tree. It is the same tree; nothing was installed.
+  expect(dependencyClosure(lockfile('1.1.0', closure))).toBe(
+    dependencyClosure(lockfile('1.1.1', closure))
+  );
+  // A dependency that actually moved still has to be installed, not borrowed.
+  expect(dependencyClosure(lockfile('1.1.0', closure))).not.toBe(
+    dependencyClosure(
+      lockfile('1.1.0', {
+        'node_modules/vite': { version: '5.5.0', resolved: 'https://example/vite' }
+      })
+    )
+  );
+});
