@@ -111,3 +111,31 @@ describe('crash matrix across every effect boundary', () => {
     expect(effects).toEqual(STEP_IDS.filter(id => !['preflight', 'prepare'].includes(id)));
   });
 });
+
+it('takes the completed steps from the journal, not from a snapshot start rewrote', () => {
+  // `start` writes a fresh snapshot before spawning the worker, so the snapshot
+  // is the one record that does not survive a resume. The journal does.
+  const journal = [
+    { type: 'step_completed', payload: { stepId: 'preflight' } },
+    { type: 'step_started', payload: { stepId: 'macos_package' } },
+    { type: 'step_completed', payload: { stepId: 'macos_package' } },
+    { type: 'step_failed', payload: { stepId: 'windows_smoke' } }
+  ];
+  expect(recoverState({ state: 'queued', completedSteps: [] }, journal)).toMatchObject({
+    state: 'queued',
+    completedSteps: ['preflight', 'macos_package']
+  });
+  // Replaying macOS packaging is not merely slow: the packager refuses to
+  // overwrite an artifact of a published version, so the run would be stopped by
+  // the evidence of its own success.
+  expect(recoverState({ state: 'blocked', completedSteps: ['preflight'] }, journal).completedSteps).toEqual([
+    'preflight',
+    'macos_package'
+  ]);
+  // An interrupted worker still reconciles, and keeps what it had finished.
+  expect(recoverState({ state: 'running', completedSteps: [] }, journal)).toMatchObject({
+    state: 'reconciling',
+    recoveryReason: 'interrupted_worker',
+    completedSteps: ['preflight', 'macos_package']
+  });
+});
