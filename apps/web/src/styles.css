@@ -8702,7 +8702,7 @@ body:has(.public-home) {
   border-bottom: 1px solid var(--color-border);
   scrollbar-width: thin;
 }
-.team-space-tab {
+.team-space-tabs .ui-tab {
   padding: var(--space-2) var(--space-3);
   font-size: var(--text-label);
   font-weight: 500;
@@ -8714,10 +8714,10 @@ body:has(.public-home) {
      than stacking a second line under it. */
   margin-bottom: -1px;
 }
-.team-space-tab:hover {
+.team-space-tabs .ui-tab:hover {
   color: var(--color-text);
 }
-.team-space-tab.is-active {
+.team-space-tabs .ui-tab.is-selected {
   color: var(--color-accent);
   border-bottom-color: var(--color-accent);
 }

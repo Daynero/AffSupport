@@ -199,7 +199,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 
 - [x] T080 [US1] Migrate `apps/web/src/team/lobby/SpaceLobby.tsx`, `SpaceCard.tsx` and `InvitationList.tsx` onto Card + Empty + Badge + Button
 - [ ] T081 [P] [US1] Migrate `apps/web/src/team/create/CreateSpaceWizard.tsx` and `SpaceNameStep.tsx` onto Modal + Stepper-style header + FormField
-- [ ] T082 [US1] Migrate `apps/web/src/team/workspace/WorkspaceShell.tsx` — header, section tabs, and the space header actions — onto Tabs + Button + Breadcrumb
+- [x] T082 [US1] Migrate `apps/web/src/team/workspace/WorkspaceShell.tsx` — header, section tabs, and the space header actions — onto Tabs + Button + Breadcrumb
 - [x] T083 [P] [US1] Migrate `apps/web/src/team/workspace/SpaceSwitcher.tsx`, `SpaceStatePanel.tsx`, `RealtimeChip.tsx` and `BackgroundWorkChip.tsx` onto DropdownMenu + Alert + Badge
 - [ ] T084 [P] [US1] Migrate `apps/web/src/team/storage/StorageChip.tsx`, `ConnectStorageFlow.tsx` and `SelectionList.tsx` onto Badge + Popover + Modal + Tree
 - [x] T085 [US1] [US2] Migrate the unavailable-space screen in `apps/web/src/team/TeamSpace.tsx` onto the Empty pattern (it was re-dressed in 020; make it the pattern rather than a bespoke card)
