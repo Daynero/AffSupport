@@ -13422,6 +13422,10 @@ button.team-landing-tile:hover {
   justify-content: center;
   width: 34px;
   height: 30px;
+  min-height: 0;
+  /* The shared control pads for a word; this one holds an icon, and the
+     inherited padding left the glyph a 2px column to draw in. */
+  padding: 0;
   border: 0;
   border-radius: var(--radius-full);
   background: transparent;
@@ -13431,7 +13435,7 @@ button.team-landing-tile:hover {
 .team-explorer-view-toggle button:hover {
   color: var(--color-text);
 }
-.team-explorer-view-toggle button[aria-pressed='true'] {
+.team-explorer-view-toggle button.is-selected {
   background: var(--color-surface);
   color: var(--color-text);
   box-shadow: var(--shadow-sm);

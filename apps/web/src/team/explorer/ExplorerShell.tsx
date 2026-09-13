@@ -19,7 +19,7 @@ import { teamApi, type TeamMaterialSummary } from '../../api/team';
 import { downloadTeamFileWithAgent } from '../../api/client';
 import { Download, ListPlus, Play, Shrink, Trash2, X } from 'lucide-react';
 import { Button } from '../../components/ui';
-import { Popover } from '../../components/ui/index';
+import { Popover, SegmentedControl } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import {
@@ -1411,30 +1411,27 @@ function ExplorerBody({
             />
           )}
           {!trash && (
-            <div
+            /* A choice of two, told as one: it was a pair of `aria-pressed`
+               toggles, which says "this button is down" twice rather than
+               "this is the one of two that is chosen" (021, T088). */
+            <SegmentedControl<'list' | 'grid'>
               className="team-explorer-view-toggle"
-              role="group"
-              aria-label={t('teamExplorerViewLabel')}
-            >
-              <button
-                type="button"
-                aria-pressed={view === 'list'}
-                aria-label={t('teamExplorerViewList')}
-                title={t('teamExplorerViewList')}
-                onClick={() => setView('list')}
-              >
-                <ListViewIcon />
-              </button>
-              <button
-                type="button"
-                aria-pressed={view === 'grid'}
-                aria-label={t('teamExplorerViewGrid')}
-                title={t('teamExplorerViewGrid')}
-                onClick={() => setView('grid')}
-              >
-                <GridViewIcon />
-              </button>
-            </div>
+              label={t('teamExplorerViewLabel')}
+              value={view}
+              onChange={setView}
+              options={[
+                {
+                  value: 'list',
+                  label: <ListViewIcon />,
+                  title: t('teamExplorerViewList')
+                },
+                {
+                  value: 'grid',
+                  label: <GridViewIcon />,
+                  title: t('teamExplorerViewGrid')
+                }
+              ]}
+            />
           )}
         </div>
       </div>
