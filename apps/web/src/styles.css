@@ -1024,10 +1024,9 @@ a {
 .job-row,
 .result-summary,
 .onboarding-panel,
+/* The shared Alert, with the larger corner the launcher's panels have. */
 .blocking-message {
-  border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  background: var(--color-surface);
 }
 
 .settings-panel {
@@ -2806,31 +2805,8 @@ input.is-invalid {
 }
 
 .blocking-message {
-  display: flex;
   align-items: center;
-  gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-}
-
-.blocking-message > div:not(.inline-actions) {
-  display: grid;
-  flex: 1;
-  gap: 2px;
-}
-
-.blocking-message span {
-  color: var(--color-text-muted);
-  font-size: var(--text-xl);
-}
-
-.blocking-warning {
-  border-color: color-mix(in srgb, var(--color-warning) 30%, var(--color-border));
-  background: var(--color-warning-soft);
-}
-
-.blocking-error {
-  border-color: color-mix(in srgb, var(--color-error) 30%, var(--color-border));
-  background: var(--color-error-soft);
 }
 
 .onboarding-panel {
@@ -3406,7 +3382,7 @@ input.is-invalid {
     width: 100%;
   }
 
-  .primary-actions .button-primary {
+  .primary-actions .ui-button--solid {
     flex: 1;
   }
 
@@ -3418,7 +3394,7 @@ input.is-invalid {
     width: auto;
   }
 
-  .batch-toolbar-row .primary-actions .button-primary {
+  .batch-toolbar-row .primary-actions .ui-button {
     flex: 0 0 auto;
   }
 
@@ -3444,8 +3420,7 @@ input.is-invalid {
     flex-wrap: wrap;
   }
 
-  .launcher .blocking-message > .inline-actions,
-  .launcher .blocking-message > .button {
+  .launcher .blocking-message .ui-alert-action {
     margin-left: 40px;
   }
 }
@@ -3541,12 +3516,11 @@ input.is-invalid {
 
   .launcher .onboarding-panel > .inline-actions .button,
   .launcher .blocking-message .inline-actions,
-  .launcher .blocking-message .button {
+  .launcher .blocking-message .ui-button {
     width: 100%;
   }
 
-  .launcher .blocking-message > .inline-actions,
-  .launcher .blocking-message > .button {
+  .launcher .blocking-message .ui-alert-action {
     margin-left: 0;
   }
 
@@ -3603,7 +3577,7 @@ input.is-invalid {
     display: none;
   }
 
-  .batch-toolbar .button {
+  .batch-toolbar .ui-button {
     min-height: 36px;
   }
 
@@ -14933,7 +14907,7 @@ input[type='number'] {
   padding-left: 24px;
 }
 /* Every action in the bar shares one size and radius. */
-.batch-toolbar .primary-actions .button {
+.batch-toolbar .primary-actions .ui-button {
   min-height: 44px;
   padding: 0 24px;
   border-radius: var(--radius-md);
@@ -14943,16 +14917,16 @@ input[type='number'] {
   font-size: var(--text-2xl);
   font-weight: 500;
 }
-.batch-toolbar .selection-actions .checkbox span:last-child,
+.batch-toolbar .selection-actions .ui-checkbox-label,
 .batch-toolbar .selection-actions button {
   font-size: var(--text-2xl);
   font-weight: 500;
 }
-.batch-toolbar .selection-actions .checkbox strong {
+.batch-toolbar .selection-actions .ui-checkbox-label strong {
   font-weight: 500;
 }
 /* Text-only selection actions. */
-.batch-toolbar .selection-actions .button,
+.batch-toolbar .selection-actions .ui-button,
 .batch-toolbar .selection-actions button {
   padding: 0 2px;
   border: none;
@@ -14964,41 +14938,11 @@ input[type='number'] {
   color: var(--color-text);
   background: transparent;
 }
-/* Primary: filled orange gradient with white type. */
-.batch-toolbar .primary-actions .button-primary {
-  border: none;
-  border-radius: var(--radius-md);
-  color: var(--color-white);
-  background: linear-gradient(180deg, var(--amber-550) 0%, var(--amber-700) 100%);
-  box-shadow: none;
+/* The three looks the reference painted by hand — a filled primary, an
+   outlined destructive and a quiet neutral — are the inventory's solid, soft
+   and ghost now. What is left is the weight this bar's actions carry. */
+.batch-toolbar .primary-actions .ui-button {
   font-weight: 700;
-}
-.batch-toolbar .primary-actions .button-primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, var(--amber-400) 0%, var(--amber-550) 100%);
-}
-/* Destructive: outlined red on a transparent field. */
-.batch-toolbar .primary-actions .button-danger {
-  border: 1px solid color-mix(in oklab, var(--red-400) 55%, transparent);
-  border-radius: var(--radius-md);
-  color: var(--red-350);
-  background: transparent;
-  font-weight: 700;
-}
-.batch-toolbar .primary-actions .button-danger:hover:not(:disabled) {
-  border-color: var(--red-400);
-  background: color-mix(in oklab, var(--red-400) 12%, transparent);
-}
-/* Neutral action: quiet outline, white type. */
-.batch-toolbar .primary-actions .button-ghost {
-  border: 1px solid color-mix(in oklab, var(--color-text) 16%, transparent);
-  border-radius: var(--radius-md);
-  color: var(--color-text);
-  background: transparent;
-  font-weight: 700;
-}
-.batch-toolbar .primary-actions .button-ghost:hover:not(:disabled) {
-  border-color: color-mix(in oklab, var(--color-text) 30%, transparent);
-  background: color-mix(in oklab, var(--color-text) 6%, transparent);
 }
 
 /* ============================================================
@@ -15371,6 +15315,18 @@ input[type='number'] {
 .job-progress-panel .job-actions {
   flex-wrap: nowrap;
 }
+/* On a phone the running panel's line is a size, an elapsed time and two
+   controls, and it does not fit: it wrapped off the left edge of its own card,
+   taking "175 MB → ~49.6 MB" with it. It wraps onto two lines instead. */
+@media (max-width: 560px) {
+  .job-progress-panel .job-progress-meta {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .job-progress-panel .job-actions {
+    margin-left: 0;
+  }
+}
 
 /* Card actions share the toolbar's palette: filled orange for the run/repeat
    action, outlined red for delete, quiet outlines for the rest. */
@@ -15390,14 +15346,14 @@ input[type='number'] {
 /* When the bar runs out of room the three actions drop their words and become
    square icon buttons — compress, delete, sweep. Their labels stay as instant
    hints (title → data-tip) so nothing is lost. */
-.batch-toolbar .primary-actions .button {
+.batch-toolbar .primary-actions .ui-button {
   gap: 10px;
 }
 /* Set by App when the row measures as overflowing. */
 .batch-toolbar-row.is-compact .primary-actions .action-label {
   display: none;
 }
-.batch-toolbar-row.is-compact .primary-actions .button {
+.batch-toolbar-row.is-compact .primary-actions .ui-button {
   /* A fixed square, and it must not grow: something further down the sheet gives buttons a
      flex-grow on narrow screens, and a growing button in a `nowrap` row pushes the row off
      the side of the screen instead of shrinking to its icon. */
@@ -15408,13 +15364,20 @@ input[type='number'] {
   justify-content: center;
 }
 
-/* Narrow windows: the card's two columns stack instead of squeezing. */
+/* Narrow windows: the card's two columns stack instead of squeezing.
+ *
+ * `.job-side` is `display: contents`, so its panels are the card's own grid
+ * items — and the running panel asks for column 2. With one column declared
+ * that request made an implicit second one, which took the width and left the
+ * file's name a fifteen-pixel sliver on a phone. Everything spans the single
+ * column here instead. */
 @media (max-width: 1180px) {
   .job-row {
     grid-template-columns: minmax(0, 1fr);
   }
-  .job-side {
-    grid-template-columns: minmax(0, 1fr) auto;
+  .job-row > .job-main,
+  .job-row .job-side > * {
+    grid-column: 1 / -1;
   }
 }
 
@@ -15425,15 +15388,22 @@ input[type='number'] {
 }
 .batch-toolbar-row.is-compact-chips .batch-chips {
   gap: 14px;
+  /* The strip's own inset goes with its words: at the last stage the bar is
+     four square buttons, three numbers and a checkbox, and 24px of padding
+     between two of them is what pushed the last button off a phone. */
+  padding-left: 0;
+}
+.batch-toolbar-row.is-compact-chips {
+  gap: var(--space-3);
 }
 
 /* Third stage: the selection group keeps its checkbox and drops its words, so a
    phone-width window still shows every control instead of pushing the last group off
    the edge of the page. The checkbox stays named for assistive technology. */
-.batch-toolbar-row .selection-actions.is-compact .button {
+.batch-toolbar-row .selection-actions.is-compact .ui-button {
   display: none;
 }
-.batch-toolbar-row .selection-actions.is-compact .checkbox strong {
+.batch-toolbar-row .selection-actions.is-compact .ui-checkbox-label strong {
   position: absolute;
   width: 1px;
   height: 1px;

@@ -39,7 +39,7 @@ import { DropZone } from './components/DropZone';
 import { JobRow } from './components/JobRow';
 import { MediaActionsPanel } from './components/MediaActionsPanel';
 import { SettingsPanel } from './components/SettingsPanel';
-import { Button, ProgressBar, Spinner, type Translate, Checkbox } from './components/ui';
+import { type Translate } from './components/ui';
 import { SotyLogo, SotyMark } from './components/SotyLogo';
 import { PowerThrottle } from './components/PowerThrottle';
 import { ThemeToggle } from './components/ThemeToggle';
@@ -55,7 +55,15 @@ import {
   safeBatchProperties,
   safeCompressionProperties
 } from './analytics/compression';
-import { EmptyState } from './components/ui/index';
+import {
+  Alert,
+  Button,
+  Checkbox,
+  EmptyState,
+  Progress,
+  Spinner,
+  uiClasses
+} from './components/ui/index';
 import { LanguageSwitch } from './components/LanguageSwitch';
 
 const COMPRESSOR_SELECTION_KEY = 'wishly.compressor.selection.v1';
@@ -627,6 +635,7 @@ export default function CompressorPage() {
                     label={<strong>{t('selectAll')}</strong>}
                   />
                   <Button
+                    color="neutral"
                     variant="ghost"
                     disabled={!connected || selected.size === 0}
                     onClick={() => {
@@ -696,7 +705,8 @@ export default function CompressorPage() {
                     sit beside said the same thing and did nothing. */}
                   {runningJob ? (
                     <Button
-                      variant="primary"
+                      color="primary"
+                      variant="solid"
                       disabled={!connected}
                       title={t(allPaused ? 'resumeAll' : 'pauseAll')}
                       onClick={() =>
@@ -716,7 +726,8 @@ export default function CompressorPage() {
                     </Button>
                   ) : (
                     <Button
-                      variant="primary"
+                      color="primary"
+                      variant="solid"
                       disabled={!connected || blocked !== null}
                       title={t('compressSelected')}
                       onClick={() => void startSelected()}
@@ -729,7 +740,8 @@ export default function CompressorPage() {
                   )}
                   {anythingStoppable && (
                     <Button
-                      variant="danger"
+                      color="error"
+                      variant="soft"
                       disabled={!connected || stopInFlight}
                       title={t('stopAll')}
                       onClick={() => void stopAll()}
@@ -739,7 +751,8 @@ export default function CompressorPage() {
                     </Button>
                   )}
                   <Button
-                    variant="danger"
+                    color="error"
+                    variant="soft"
                     disabled={!connected || selectedRemovable.length === 0}
                     title={t('removeSelected')}
                     onClick={() => void removeSelected()}
@@ -749,6 +762,7 @@ export default function CompressorPage() {
                   </Button>
                   {state.jobs.some(job => isSettled(COMPRESSION_LIFECYCLE, job.status)) && (
                     <Button
+                      color="neutral"
                       variant="ghost"
                       disabled={!connected}
                       title={t('clearFinished')}
@@ -782,7 +796,7 @@ export default function CompressorPage() {
               title={t('queueEmpty')}
               description={t('queueEmptyBody')}
               action={
-                <Button type="button" variant="secondary" onClick={() => void selectNativeFiles()}>
+                <Button color="neutral" variant="outline" onClick={() => void selectNativeFiles()}>
                   {t('chooseFiles')}
                 </Button>
               }
@@ -939,7 +953,7 @@ export function Onboarding({
         title={t('pairingTitle')}
         body={t('pairingBody')}
         action={
-          <Button variant="primary" onClick={connect} loading={busy}>
+          <Button color="primary" variant="solid" onClick={connect} loading={busy}>
             {t('connectAgent')}
           </Button>
         }
@@ -953,10 +967,16 @@ export function Onboarding({
         body={t('updateBody')}
         action={
           <div className="inline-actions">
-            <a className="button button-primary" href={agentLocalUrl()}>
+            <a
+              className={uiClasses('button', { color: 'primary', variant: 'solid', size: 'md' })}
+              href={agentLocalUrl()}
+            >
               {t('openInstalledVersion')}
             </a>
-            <a className="button button-secondary" href={downloadUrl}>
+            <a
+              className={uiClasses('button', { color: 'neutral', variant: 'outline', size: 'md' })}
+              href={downloadUrl}
+            >
               {t('downloadLatest')}
             </a>
           </div>
@@ -970,7 +990,7 @@ export function Onboarding({
         title={t('webUpdateTitle')}
         body={t('webUpdateBody')}
         action={
-          <Button variant="primary" onClick={() => window.location.reload()}>
+          <Button color="primary" variant="solid" onClick={() => window.location.reload()}>
             {t('reloadPage')}
           </Button>
         }
@@ -991,7 +1011,10 @@ export function Onboarding({
              * starts again. This is the recovery path for a local check that
              * failed after an Agent restart or an update.
              */}
-            <a className="button button-primary" href={agentLocalUrl()}>
+            <a
+              className={uiClasses('button', { color: 'primary', variant: 'solid', size: 'md' })}
+              href={agentLocalUrl()}
+            >
               {t('reconnectThroughSoty')}
             </a>
             <Button onClick={connect}>{t('tryAgain')}</Button>
@@ -1012,7 +1035,10 @@ export function Onboarding({
         body={t('blockedBody')}
         action={
           <div className="inline-actions">
-            <a className="button button-primary" href={agentLocalUrl()}>
+            <a
+              className={uiClasses('button', { color: 'primary', variant: 'solid', size: 'md' })}
+              href={agentLocalUrl()}
+            >
               {t('openSoty')}
             </a>
             <Button onClick={connect}>{t('tryAgain')}</Button>
@@ -1035,7 +1061,10 @@ export function Onboarding({
       <div className="inline-actions">
         {known ? (
           <>
-            <a className="button button-primary" href={agentLocalUrl()}>
+            <a
+              className={uiClasses('button', { color: 'primary', variant: 'solid', size: 'md' })}
+              href={agentLocalUrl()}
+            >
               {t('openSoty')}
             </a>
             <Button onClick={connect} loading={busy}>
@@ -1045,7 +1074,7 @@ export function Onboarding({
         ) : (
           <>
             <a
-              className="button button-primary"
+              className={uiClasses('button', { color: 'primary', variant: 'solid', size: 'md' })}
               href={downloadUrl}
               onClick={markAgentInstallStarted}
             >
@@ -1110,23 +1139,26 @@ function BlockingMessage({
   tone?: 'neutral' | 'warning' | 'error';
 }) {
   return (
-    <section className={`blocking-message blocking-${tone}`} role="alert">
-      <div>
-        <strong>{title}</strong>
-        {body && <span>{body}</span>}
-      </div>
-      {action}
-    </section>
+    <Alert
+      className="blocking-message"
+      color={tone}
+      variant={tone === 'neutral' ? 'subtle' : 'soft'}
+      live="alert"
+      title={title}
+      action={action}
+    >
+      {body}
+    </Alert>
   );
 }
 
 function BatchProgress({ metrics, t }: { metrics: ReturnType<typeof batchMetrics>; t: Translate }) {
   return (
     <div className="batch-progress" aria-label={t('batchProgress')}>
-      <ProgressBar
+      <Progress
         value={metrics.progress}
         label={t('overallProgress')}
-        active={metrics.processing > 0}
+        color={metrics.processing > 0 ? 'primary' : 'neutral'}
       />
       <span className="batch-progress-value">{Math.round(metrics.progress)}%</span>
     </div>
