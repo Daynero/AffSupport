@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdtemp, mkdir, readFile, rm, symlink } from 'node:fs/promises';
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, realpathSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 const exec = promisify(execFile);
@@ -69,7 +69,21 @@ export async function adoptWorktree({ cwd, sourceSha, directory, env = process.e
       .split('\n')
       .filter(line => line.startsWith('worktree '))
       .map(line => line.slice('worktree '.length));
-    if (!registered.some(entry => path.resolve(entry) === path.resolve(directory))) return null;
+    // Compared as real paths, not resolved ones. `mkdtemp` in the system
+    // temporary directory answers `/var/folders/...` and git answers
+    // `/private/var/folders/...` for the same directory, because `/var` is a
+    // symlink on macOS -- so a string comparison says "not a worktree of this
+    // repository" about the worktree this repository just made, and the release
+    // builds a second one beside the first, complete with a second copy of the
+    // dependency closure and none of the artifacts.
+    const sameDirectory = candidate => {
+      try {
+        return realpathSync(candidate) === realpathSync(directory);
+      } catch {
+        return false;
+      }
+    };
+    if (!registered.some(sameDirectory)) return null;
     await exec('git', ['merge-base', '--is-ancestor', frozen.sourceSha, 'HEAD'], {
       cwd: directory,
       env: worktreeEnv
