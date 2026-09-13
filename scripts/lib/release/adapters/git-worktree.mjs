@@ -60,6 +60,11 @@ const PROVISIONED_PATHS = Object.freeze([
   // it compares the beta entitlement key against the production one so a beta
   // build cannot be signed as production.
   '.env.beta',
+  // Which Supabase project this checkout is linked to. `migration list --linked`
+  // and every backend step read it, and it is ignored, so an isolated checkout
+  // is linked to nothing and the migration comparison fails with a bare
+  // "command failed".
+  'supabase/.temp',
   'apps/agent/runtime'
 ]);
 
