@@ -184,11 +184,18 @@ export function useDialogBehaviour({
         first.focus();
       }
     };
-    document.addEventListener('keydown', onKeyDown, true);
+    /*
+     * On the window, in the bubble phase. The stack already decides which
+     * overlay answers Escape; what capture would take away is the chance for
+     * something inside the surface to answer first — an inline field in a
+     * dialog closes itself and stops the key, and the dialog around it stays
+     * open. Capturing here swallowed that field's Escape and left it on screen.
+     */
+    window.addEventListener('keydown', onKeyDown);
 
     return () => {
       if (focusFrame) cancelAnimationFrame(focusFrame);
-      document.removeEventListener('keydown', onKeyDown, true);
+      window.removeEventListener('keydown', onKeyDown);
       const at = openStack.lastIndexOf(entry);
       if (at !== -1) openStack.splice(at, 1);
       if (modal) unlockPageScroll();

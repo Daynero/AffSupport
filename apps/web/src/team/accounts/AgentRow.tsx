@@ -157,6 +157,7 @@ function AgentMenu({
   /** Which item the roving focus is on; only that one is tabbable. */
   const [active, setActive] = useState(0);
   const box = useRef<HTMLDivElement>(null);
+  const menuItems = useRef<HTMLDivElement>(null);
   const items = useRef<(HTMLButtonElement | null)[]>([]);
 
   const close = useCallback(
@@ -271,16 +272,19 @@ function AgentMenu({
         className="team-agent-menu-list"
       >
         <div
+          ref={menuItems}
           className="team-agent-menu-items"
           role="menu"
           aria-label={label}
           onKeyDown={onKeyDown}
           // The pointer can leave a menu without a click — into another row's
           // trigger, or out of the window. Losing the focus closes it too.
+          // Measured against the menu itself, not against the row: the surface
+          // is portalled to the body, so the row no longer contains it.
           onBlur={event => {
-            if (event.relatedTarget instanceof Node && box.current?.contains(event.relatedTarget)) {
-              return;
-            }
+            const next = event.relatedTarget;
+            if (next instanceof Node && menuItems.current?.contains(next)) return;
+            if (next instanceof Node && box.current?.contains(next)) return;
             setOpen(false);
           }}
         >

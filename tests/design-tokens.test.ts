@@ -116,11 +116,29 @@ describe('the token layer', () => {
   });
 
   it('keeps every duration inside the 300ms ceiling', () => {
+    /*
+     * The ceiling is about the moments a person waits through — a transition
+     * from one state to another. A spinner's loop is not one of those: it is
+     * the signal that work is still running, and it turns for as long as the
+     * work does. It is named here rather than excluded silently.
+     */
+    const AMBIENT = new Set(['--motion-spin', '--motion-spin-reduced']);
     for (const [name, value] of light) {
-      if (!name.startsWith('--motion-')) continue;
+      if (!name.startsWith('--motion-') || AMBIENT.has(name)) continue;
       const ms = /^(\d+(?:\.\d+)?)ms$/.exec(value);
       expect(ms, `${name} should be a plain millisecond value`).not.toBeNull();
       expect(Number(ms![1]), name).toBeLessThanOrEqual(300);
+    }
+    /*
+     * The loop still has to read as one: fast enough to look alive, slow enough
+     * not to strobe. Read from the sheet rather than from the flattened map,
+     * because `--motion-spin` is declared twice on purpose — once at its own
+     * speed, once under reduced motion pointing at the slower of the two.
+     */
+    for (const name of AMBIENT) {
+      const declared = new RegExp(`${name}:\\s*(\\d+(?:\\.\\d+)?)ms`).exec(TOKENS);
+      expect(declared, `${name} should be declared as a millisecond value`).not.toBeNull();
+      expect(Number(declared![1]), name).toBeGreaterThanOrEqual(400);
     }
   });
 
@@ -138,7 +156,9 @@ describe('the token layer', () => {
       ['--color-neutral-text', '--color-neutral-surface'],
       ['--color-neutral-text-muted', '--color-neutral-bg'],
       ['--color-neutral-text-muted', '--color-neutral-surface'],
-      ...ROLES.map(role => [`--color-${role}-on-solid`, `--color-${role}-solid`] as [string, string])
+      ...ROLES.map(
+        role => [`--color-${role}-on-solid`, `--color-${role}-solid`] as [string, string]
+      )
     ];
     for (const [theme, name] of [
       [light, 'light'],
@@ -150,7 +170,10 @@ describe('the token layer', () => {
         // color-mix() values cannot be resolved statically; those pairs are
         // verified on the demo surface instead (T030).
         if (!front || !back) continue;
-        expect(contrast(front, back), `${name}: ${foreground} on ${background}`).toBeGreaterThanOrEqual(4.5);
+        expect(
+          contrast(front, back),
+          `${name}: ${foreground} on ${background}`
+        ).toBeGreaterThanOrEqual(4.5);
       }
     }
   });

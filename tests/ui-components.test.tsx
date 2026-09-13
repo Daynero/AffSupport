@@ -87,13 +87,13 @@ describe('Button', () => {
     const loading = screen.getByRole('button');
     expect(loading.className).toContain('is-loading');
     expect(loading.getAttribute('aria-busy')).toBe('true');
-    expect(loading).toBeDisabled();
+    expect((loading as HTMLButtonElement).disabled).toBe(true);
 
     rerender(<Button disabled>Save</Button>);
     const disabled = screen.getByRole('button');
     expect(disabled.className).not.toContain('is-loading');
     expect(disabled.getAttribute('aria-busy')).toBeNull();
-    expect(disabled).toBeDisabled();
+    expect((disabled as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('does not submit a form unless it is asked to', () => {
@@ -164,7 +164,11 @@ describe('Card', () => {
 
 describe('Alert', () => {
   it('announces a failure and merely states a standing note', () => {
-    const { rerender } = render(<Alert color="error" live="alert">Could not connect.</Alert>);
+    const { rerender } = render(
+      <Alert color="error" live="alert">
+        Could not connect.
+      </Alert>
+    );
     expect(screen.getByRole('alert')).toBeTruthy();
     rerender(<Alert color="info">Storage is read-only in beta.</Alert>);
     expect(screen.getByRole('status')).toBeTruthy();

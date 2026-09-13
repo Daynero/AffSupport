@@ -687,7 +687,7 @@ describe('accounts and agents', () => {
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText('Delete v31?')).toBeTruthy();
     expect(within(dialog).getByText('Its 2 agents and their runs go with it.')).toBeTruthy();
-    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Delete the account' }));
     await waitFor(() =>
       expect(api.deleteAccount).toHaveBeenCalledWith({ teamId: TEAM_ID, accountId: V31 })
     );

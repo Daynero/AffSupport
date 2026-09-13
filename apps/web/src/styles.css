@@ -9311,11 +9311,10 @@ button,
   outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
-/* The search is the inventory's field now (021), so the border and the ground
-   belong to its wrapper and the input inside it is bare. The filter selects
-   still draw their own. */
+/* Both are the inventory's controls now (021), so the border and the ground
+   belong to the wrapper and the native element inside it is bare. */
 .team-catalog-search .ui-input,
-.team-catalog-filters select {
+.team-catalog-filters .ui-select {
   width: 100%;
   min-height: 42px;
   border: 1px solid var(--color-border);
@@ -9324,7 +9323,8 @@ button,
   color: var(--color-text);
   padding-inline: var(--space-3);
 }
-.team-catalog-search .ui-input input {
+.team-catalog-search .ui-input input,
+.team-catalog-filters .ui-select select {
   width: 100%;
   border: 0;
   background: none;
