@@ -160,7 +160,21 @@ function ToastRegion({
   return (
     <div className="ui-toast-region" aria-live="polite" aria-atomic="false">
       {toasts.map(toast => (
-        <div key={toast.id} className={`ui-toast ui-toast-${toast.tone}`} role="status">
+        <div
+          key={toast.id}
+          /* The tone decides the role, so a failure in a toast is the same red
+             as a failure in an alert or on a badge. */
+          className={`ui-toast ui-toast-${toast.tone} ui-color-${
+            toast.tone === 'error'
+              ? 'error'
+              : toast.tone === 'success'
+                ? 'success'
+                : toast.tone === 'warning'
+                  ? 'warning'
+                  : 'info'
+          }`}
+          role={toast.tone === 'error' ? 'alert' : 'status'}
+        >
           <div className="ui-toast-body">
             <p className="ui-toast-text">{toast.text}</p>
             {toast.progress !== undefined && (

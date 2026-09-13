@@ -2036,3 +2036,14 @@
   background: var(--color-neutral-surface-muted);
   color: var(--color-neutral-text);
 }
+
+/* Toasts (cleared by C2). The layout stays where it is; the colour comes from
+   the role the component now declares, so the four tones stop being four
+   hand-picked palettes. */
+.ui-toast {
+  border-color: var(--ui-border);
+  color: var(--color-neutral-text);
+}
+.ui-toast .ui-toast-text {
+  color: inherit;
+}
