@@ -277,10 +277,10 @@ in inventory components, with the compressor looking exactly as good as it does 
 ## Phase 17: [US1] C14 — Team: media and processing
 
 - [x] T129 [US1] [US2] Migrate `apps/web/src/team/preview/MaterialPreview.tsx` and `PreviewUnavailable.tsx` — media, transcript, archive and landing previews with their loading, failed and unsupported states
-- [ ] T130 [P] [US1] Migrate `apps/web/src/team/preview/LandingPreviewFrame.tsx`, `apps/web/src/team/landings/LandingFullView.tsx` and `LandingViewerControls.tsx`
+- [x] T130 [P] [US1] Migrate `apps/web/src/team/preview/LandingPreviewFrame.tsx`, `apps/web/src/team/landings/LandingFullView.tsx` and `LandingViewerControls.tsx`
 - [x] T131 [US1] Migrate `apps/web/src/team/processing/MaterialProcessFlow.tsx`, `ProcessMaterialDialog.tsx` and `OperationStatus.tsx` onto Modal + Progress + Alert, keeping the stage copy
 - [x] T132 [P] [US1] Migrate `apps/web/src/team/library/BulkUploadDialog.tsx` and `ProcessLibraryDialog.tsx` onto Modal + FileUpload + Progress, including the per-file partial-failure state
-- [ ] T133 [P] [US1] Migrate `apps/web/src/team/library/LibraryShareActions.tsx`, `VideoTextActions.tsx` and `CopyDriveLinkButton.tsx` onto Button + DropdownMenu (copy gives feedback without animation)
+- [x] T133 [P] [US1] Migrate `apps/web/src/team/library/LibraryShareActions.tsx`, `VideoTextActions.tsx` and `CopyDriveLinkButton.tsx` onto Button + DropdownMenu (copy gives feedback without animation)
 - [ ] T134 [US1] [US4] Verify C14 at five widths × two themes × reduced motion
 
 ---

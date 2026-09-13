@@ -6,7 +6,7 @@ import {
   type LandingViewerPreset,
   type RenderArtifactRef
 } from '@video-compressor/shared';
-import { Button } from '../../components/ui';
+import { Button, ErrorState, Spinner } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { MaterialPreview, type MaterialPreviewClient } from '../preview/MaterialPreview';
 import { LandingViewerControls } from './LandingViewerControls';
@@ -96,7 +96,7 @@ export function LandingFullView({
             <p>{t('teamPreviewEyebrow')}</p>
             <h2 id="team-preview-title">{material.name}</h2>
           </div>
-          <Button type="button" variant="ghost" onClick={onClose}>
+          <Button color="neutral" variant="ghost" onClick={onClose}>
             {t('teamPreviewClose')}
           </Button>
         </header>
@@ -104,12 +104,13 @@ export function LandingFullView({
           <LandingViewerControls preset={preset} onChange={updatePreset} />
         </div>
         <div className="team-preview-content">
-          {!cachedArtifact && !cachedError && <p aria-live="polite">{t('teamPreviewLoading')}</p>}
-          {cachedError && (
-            <p className="team-inline-error" role="alert">
-              {t('teamLandingNeedsRerender')}
+          {!cachedArtifact && !cachedError && (
+            <p className="team-preview-waiting" aria-live="polite">
+              <Spinner />
+              {t('teamPreviewLoading')}
             </p>
           )}
+          {cachedError && <ErrorState message={t('teamLandingNeedsRerender')} />}
           {cachedArtifact?.segmentTokens && (
             <div
               className="team-landing-preview team-landing-cached"
