@@ -179,7 +179,11 @@ export function TaskLabelsSection({
       )}
       {/* Said where it becomes true, not as a warning nobody near the limit
           needs to read. */}
-      {full && <p className="team-inline-error">{t('teamTaskTagsFull')}</p>}
+      {full && (
+        <p className="team-inline-error" role="alert">
+          {t('teamTaskTagsFull')}
+        </p>
+      )}
 
       {labels.loading && labels.labels.length === 0 && (
         <p aria-live="polite">{t('teamTaskTagsLoading')}</p>

@@ -22,11 +22,7 @@ export const Badge = forwardRef<HTMLSpanElement, BadgeProps>(function Badge(
   ref
 ) {
   return (
-    <span
-      ref={ref}
-      {...props}
-      className={uiClasses('badge', { color, variant, size, className })}
-    >
+    <span ref={ref} {...props} className={uiClasses('badge', { color, variant, size, className })}>
       {leading && (
         <span className="ui-badge-leading" aria-hidden="true">
           {leading}

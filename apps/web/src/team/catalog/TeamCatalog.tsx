@@ -465,7 +465,11 @@ function TextVersionDialog({
         {t('teamFileNewName')}
         <input value={name} onChange={event => setName(event.target.value)} />
       </label>
-      {error && <p className="team-inline-error">{error}</p>}
+      {error && (
+        <p className="team-inline-error" role="alert">
+          {error}
+        </p>
+      )}
       <Button
         type="button"
         variant="primary"

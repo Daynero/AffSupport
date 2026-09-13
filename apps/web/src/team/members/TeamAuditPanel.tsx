@@ -118,7 +118,11 @@ export function TeamAuditPanel({
       title={t('teamAuditTitle')}
       className="team-audit-panel"
     >
-      {error && <p className="team-inline-error">{error}</p>}
+      {error && (
+        <p className="team-inline-error" role="alert">
+          {error}
+        </p>
+      )}
       {/* Loading and empty are different answers: the panel used to give the
           second one while it was still waiting for the first (finding S9). */}
       {loading && !error && <LabeledSkeleton label="teamAuditLoading" rows={3} />}

@@ -179,7 +179,11 @@ export function SelectionBar({
 }: SelectionBarProps) {
   if (count === 0) return null;
   return (
-    <div className={uiClasses('selection-bar', { className })} role="toolbar" aria-label={clearLabel}>
+    <div
+      className={uiClasses('selection-bar', { className })}
+      role="toolbar"
+      aria-label={clearLabel}
+    >
       <span className="ui-selection-count">{label}</span>
       <div className="ui-selection-actions">{actions}</div>
       <Button size="sm" color="neutral" variant="ghost" onClick={onClear}>

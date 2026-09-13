@@ -86,7 +86,11 @@ export function MaterialMetadataEditor({
           <span>{t('teamCatalogMaterialTags')}</span>
           <input value={tags} onChange={event => setTags(event.target.value)} />
         </label>
-        {error && <p className="team-inline-error">{t('teamCatalogMetadataFailed')}</p>}
+        {error && (
+          <p className="team-inline-error" role="alert">
+            {t('teamCatalogMetadataFailed')}
+          </p>
+        )}
         <div className="team-dialog-actions">
           <Button type="button" variant="ghost" onClick={onClose}>
             {t('teamCancel')}

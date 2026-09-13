@@ -607,7 +607,11 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
         <LoadingState shape="row" count={4} label={t('teamAccountsLoading')} />
       )}
       {accounts.error && (
-        <ErrorState message={t('teamAccountsLoadFailed')} onRetry={() => void accounts.refetch()} retryLabel={t('retry')} />
+        <ErrorState
+          message={t('teamAccountsLoadFailed')}
+          onRetry={() => void accounts.refetch()}
+          retryLabel={t('retry')}
+        />
       )}
 
       {(creating || accounts.accounts.length > 0) && (

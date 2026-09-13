@@ -177,7 +177,9 @@ export function LibraryShareActions({
             <h2 id="creative-library-share-title">{t('creativeLibraryShareTitle')}</h2>
             <p>{t('creativeLibrarySharePrompt')}</p>
             {!confirmation.canShare && (
-              <p className="team-inline-error">{t('creativeLibraryShareUnavailable')}</p>
+              <p className="team-inline-error" role="alert">
+                {t('creativeLibraryShareUnavailable')}
+              </p>
             )}
             <label className="creative-library-share-remember">
               <input

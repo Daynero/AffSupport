@@ -160,9 +160,15 @@ export function ProcessLibraryDialog({
           </p>
         )}
         {batch.phase === 'ready' && batch.total === 0 && <p>{t('teamBatchNothing')}</p>}
-        {!agentCompatible && <p className="team-inline-error">{t('teamProcessAgentUpdate')}</p>}
+        {!agentCompatible && (
+          <p className="team-inline-error" role="alert">
+            {t('teamProcessAgentUpdate')}
+          </p>
+        )}
         {agentCompatible && batch.supportedKinds.length === 0 && (
-          <p className="team-inline-error">{t('teamProcessToolUpdate')}</p>
+          <p className="team-inline-error" role="alert">
+            {t('teamProcessToolUpdate')}
+          </p>
         )}
         {batch.phase === 'running' && (
           <div className="team-batch-progress" aria-live="polite">
@@ -196,7 +202,9 @@ export function ProcessLibraryDialog({
         {batch.outcome?.kind === 'canceled' && <p>{t('teamBatchCanceled')}</p>}
         {batch.outcome?.kind === 'complete' && <p>{t('teamBatchComplete')}</p>}
         {batch.errorCode && (
-          <p className="team-inline-error">{teamErrorMessage(batch.errorCode, t)}</p>
+          <p className="team-inline-error" role="alert">
+            {teamErrorMessage(batch.errorCode, t)}
+          </p>
         )}
         <div className="team-dialog-actions">
           {batch.phase !== 'running' && batch.total > 0 && (

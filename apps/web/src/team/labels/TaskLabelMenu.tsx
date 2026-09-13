@@ -102,7 +102,11 @@ export function TaskLabelMenu({
         />
       )}
       {sorted.length > 0 && shown.length === 0 && (
-        <EmptyState size="sm" className="team-task-label-menu-empty" title={t('teamTaskTagSearchEmpty')} />
+        <EmptyState
+          size="sm"
+          className="team-task-label-menu-empty"
+          title={t('teamTaskTagSearchEmpty')}
+        />
       )}
       {shown.map(label => {
         const selected = selectedIds.has(label.id);

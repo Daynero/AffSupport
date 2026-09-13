@@ -82,7 +82,12 @@ export function MaterialResults({
    * colour the moment React re-rendered the list.
    */
   const [justTagged, setJustTagged] = useState<Record<string, TeamMaterialTagColor | null>>({});
-  if (error) return <p className="team-inline-error">{t('teamCatalogLoadFailed')}</p>;
+  if (error)
+    return (
+      <p className="team-inline-error" role="alert">
+        {t('teamCatalogLoadFailed')}
+      </p>
+    );
   if (loading && !result) return <LabeledSkeleton label="teamCatalogLoadingResults" />;
   if (!result || result.items.length === 0) return <p>{t('teamCatalogEmpty')}</p>;
 

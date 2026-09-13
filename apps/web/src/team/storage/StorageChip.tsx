@@ -186,7 +186,11 @@ export function StorageChip({
           {health.kind === 'waiting_provider' && <p>{t('teamStorageBodyWaiting')}</p>}
           {health.kind === 'indexing' && <p>{t('teamStorageBodyIndexing')}</p>}
           {health.kind === 'preparing' && <p>{t('teamStorageBodyPreparing')}</p>}
-          {fixerCopy && <p className="team-inline-error">{fixerCopy}</p>}
+          {fixerCopy && (
+            <p className="team-inline-error" role="alert">
+              {fixerCopy}
+            </p>
+          )}
           <div className="team-dialog-actions">
             {health.kind === 'attention' &&
               health.reason === 'needs_reauth' &&

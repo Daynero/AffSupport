@@ -408,11 +408,7 @@ export default function AdminPage() {
                 </table>
               </div>
             ) : (
-              <EmptyState
-                className="admin-empty"
-                size="sm"
-                title={t('adminTeamWaitlistEmpty')}
-              />
+              <EmptyState className="admin-empty" size="sm" title={t('adminTeamWaitlistEmpty')} />
             )}
           </Card>
 

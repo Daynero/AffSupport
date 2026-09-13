@@ -390,7 +390,9 @@ export function BulkUploadDialog({
         </ul>
 
         {error && (
-          <p className="team-inline-error">{t('creativeLibraryBulkFailed', { code: error })}</p>
+          <p className="team-inline-error" role="alert">
+            {t('creativeLibraryBulkFailed', { code: error })}
+          </p>
         )}
         <div className="team-dialog-actions">
           <Button type="button" variant="ghost" onClick={onClose}>

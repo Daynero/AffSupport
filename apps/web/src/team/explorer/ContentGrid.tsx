@@ -134,7 +134,11 @@ export function ContentGrid({
       {page.loading && page.rows.length === 0 && (
         <LabeledSkeleton label="teamMaterialsLoading" rows={4} />
       )}
-      {page.error && <p className="team-inline-error">{t('teamExplorerLoadFailed')}</p>}
+      {page.error && (
+        <p className="team-inline-error" role="alert">
+          {t('teamExplorerLoadFailed')}
+        </p>
+      )}
       {/* One sentence, centred in a content area that keeps its shape. It was
           "Елементів: 0" and "Ця папка порожня." stacked flush left, saying the
           same thing twice above a card that had collapsed to a strip. */}

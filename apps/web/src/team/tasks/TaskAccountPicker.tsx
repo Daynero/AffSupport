@@ -224,9 +224,7 @@ export function TaskAccountPicker({
           !error &&
           !openAccount &&
           accounts.length > 0 &&
-          shownAccounts.length === 0 && (
-            <EmptyState size="sm" title={t('teamAccountsEmptyFree')} />
-          )}
+          shownAccounts.length === 0 && <EmptyState size="sm" title={t('teamAccountsEmptyFree')} />}
 
         {/* Step one: the accounts, each with what is inside it. */}
         {!loading && !error && !openAccount && shownAccounts.length > 0 && (

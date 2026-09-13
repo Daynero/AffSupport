@@ -26,9 +26,7 @@ const ProtectedSoty = lazy(() => import('./ProtectedSoty'));
  * is a compile-time constant, so the whole branch — and the module behind it —
  * is dropped from a production bundle rather than merely unreachable in it.
  */
-const DesignSystemPage = import.meta.env.DEV
-  ? lazy(() => import('./dev/DesignSystemPage'))
-  : null;
+const DesignSystemPage = import.meta.env.DEV ? lazy(() => import('./dev/DesignSystemPage')) : null;
 const PrivacyPage = lazy(() =>
   import('./pages/LegalPages').then(module => ({ default: module.PrivacyPage }))
 );

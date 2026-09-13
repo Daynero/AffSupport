@@ -359,11 +359,19 @@ export function TaskSpace({
           <TaskSortControl value={tasks.sort} onChange={tasks.setSort} />
         )}
       </TaskDateFilterControl>
-      {error && <p className="team-inline-error">{t('teamTaskCreateFailed')}</p>}
+      {error && (
+        <p className="team-inline-error" role="alert">
+          {t('teamTaskCreateFailed')}
+        </p>
+      )}
       {tasks.loading && tasks.tasks.length === 0 && (
         <p aria-live="polite">{t('teamTasksLoadingList')}</p>
       )}
-      {tasks.error && <p className="team-inline-error">{t('teamTasksLoadFailed')}</p>}
+      {tasks.error && (
+        <p className="team-inline-error" role="alert">
+          {t('teamTasksLoadFailed')}
+        </p>
+      )}
       {/* Three distinguishable answers, not one: still loading, nothing here
           at all, or nothing matching the filter in force (FR-020). */}
       {!tasks.loading && !tasks.error && tasks.tasks.length === 0 && (
@@ -373,12 +381,7 @@ export function TaskSpace({
           action={
             !filtered &&
             can('edit') && (
-              <Button
-                type="button"
-                color="primary"
-                loading={busy}
-                onClick={() => void startTask()}
-              >
+              <Button type="button" color="primary" loading={busy} onClick={() => void startTask()}>
                 {t('teamTasksEmptyAction')}
               </Button>
             )

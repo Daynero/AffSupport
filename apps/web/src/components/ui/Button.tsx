@@ -71,7 +71,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 ) {
   const legacy = isLegacy(variant) ? LEGACY[variant] : null;
   const resolvedColor = color ?? legacy?.color ?? 'neutral';
-  const resolvedVariant = legacy?.variant ?? ((variant as UiVariant | undefined) ?? 'solid');
+  const resolvedVariant = legacy?.variant ?? (variant as UiVariant | undefined) ?? 'solid';
 
   return (
     <button

@@ -119,9 +119,15 @@ export function ProcessMaterialDialog({
         </Button>
       </div>
 
-      {!agentCompatible && <p className="team-inline-error">{t('teamProcessAgentUpdate')}</p>}
+      {!agentCompatible && (
+        <p className="team-inline-error" role="alert">
+          {t('teamProcessAgentUpdate')}
+        </p>
+      )}
       {agentCompatible && !compatible && (
-        <p className="team-inline-error">{t('teamProcessToolUpdate')}</p>
+        <p className="team-inline-error" role="alert">
+          {t('teamProcessToolUpdate')}
+        </p>
       )}
       <label>
         {t('teamProcessTool')}

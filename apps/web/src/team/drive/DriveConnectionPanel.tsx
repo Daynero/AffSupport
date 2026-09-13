@@ -318,7 +318,9 @@ export function DriveConnectionPanel({
 
       {rootMissing && (
         <div className="team-inline-actions">
-          <p className="team-inline-error">{t('teamDriveRootMissingBody')}</p>
+          <p className="team-inline-error" role="alert">
+            {t('teamDriveRootMissingBody')}
+          </p>
           {client.restoreRoot && (
             <Button type="button" variant="primary" loading={busy} onClick={() => void restore()}>
               {t('teamDriveRestoreRoot')}
@@ -403,7 +405,11 @@ export function DriveConnectionPanel({
         )}
 
       {resyncQueued && <p role="status">{t('teamDriveResyncQueued')}</p>}
-      {error && <p className="team-inline-error">{error}</p>}
+      {error && (
+        <p className="team-inline-error" role="alert">
+          {error}
+        </p>
+      )}
       {confirmingDetach && (
         <Modal labelledBy={detachTitleId} size="sm" onClose={() => setConfirmingDetach(false)}>
           <h3 id={detachTitleId}>{t('teamDriveDetachConfirmTitle')}</h3>

@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type HTMLAttributes,
-  type ReactNode
-} from 'react';
+import { useEffect, useRef, useState, type HTMLAttributes, type ReactNode } from 'react';
 import { uiClasses, type UiColor, type UiSize } from './types';
 
 /**
@@ -105,9 +99,7 @@ export function Progress({
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={indeterminate ? undefined : Math.round(clamped)}
-      style={
-        indeterminate ? undefined : ({ '--ui-progress-ratio': clamped / 100 } as never)
-      }
+      style={indeterminate ? undefined : ({ '--ui-progress-ratio': clamped / 100 } as never)}
     >
       <span className="ui-progress-fill" aria-hidden="true" />
     </div>

@@ -170,7 +170,11 @@ export function ConnectStorageFlow({
         </Button>
       )}
 
-      {error && <p className="team-inline-error">{error}</p>}
+      {error && (
+        <p className="team-inline-error" role="alert">
+          {error}
+        </p>
+      )}
       <p className="team-create-hint">{t('teamCreateFinishHint')}</p>
       <div className="team-create-actions">
         {onBack && (

@@ -457,9 +457,7 @@ export function DropdownMenu({
   className
 }: DropdownMenuProps) {
   const [active, setActive] = useState(0);
-  const rows = items.filter(
-    (item): item is MenuItem => item !== 'separator' && !isHeading(item)
-  );
+  const rows = items.filter((item): item is MenuItem => item !== 'separator' && !isHeading(item));
 
   useEffect(() => {
     if (open) setActive(0);

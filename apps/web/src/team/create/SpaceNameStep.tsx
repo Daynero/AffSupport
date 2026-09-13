@@ -64,7 +64,11 @@ export function SpaceNameStep({
           onChange={event => setName(event.target.value)}
         />
       </label>
-      {error && <p className="team-inline-error">{error}</p>}
+      {error && (
+        <p className="team-inline-error" role="alert">
+          {error}
+        </p>
+      )}
       <div className="team-create-actions">
         <Button type="button" variant="ghost" onClick={onCancel}>
           {t('teamCancel')}

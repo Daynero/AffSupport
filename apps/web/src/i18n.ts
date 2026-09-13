@@ -1612,7 +1612,7 @@ const en = {
   teamTasksCalendarChooseEnd: 'Choose the end of the date range.',
   teamTasksLoadFailed: 'Could not load tasks.',
   teamTasksEmpty: 'No tasks for this date.',
-  teamTasksEmptyBody: 'A task is work on the space\'s material: a creative, a landing, an edit.',
+  teamTasksEmptyBody: "A task is work on the space's material: a creative, a landing, an edit.",
   teamTasksLoadMore: 'Load more tasks',
   teamTaskCreate: 'Create task',
   teamTaskCreateFailed: 'Could not create the task.',

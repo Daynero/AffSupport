@@ -12,7 +12,10 @@ import { uiClasses, type UiSize } from './types';
  * container's border disappears so there is not a double outline.
  */
 
-export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size' | 'type'> {
+export interface CheckboxProps extends Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  'size' | 'type'
+> {
   label?: ReactNode;
   size?: Extract<UiSize, 'xs' | 'sm' | 'md'>;
   indeterminate?: boolean;

@@ -68,7 +68,11 @@ export function SpaceLobby({
             </Button>
           }
         />
-        {error && <p className="team-inline-error">{error}</p>}
+        {error && (
+          <p className="team-inline-error" role="alert">
+            {error}
+          </p>
+        )}
       </section>
     );
   }
@@ -85,7 +89,11 @@ export function SpaceLobby({
         </Button>
       </header>
       <InvitationList headingId="team-lobby-invitations" client={invitationClient} hideWhenEmpty />
-      {error && <p className="team-inline-error">{error}</p>}
+      {error && (
+        <p className="team-inline-error" role="alert">
+          {error}
+        </p>
+      )}
       <ul className="team-space-card-grid">
         {teams.map(space => (
           <li key={space.id}>

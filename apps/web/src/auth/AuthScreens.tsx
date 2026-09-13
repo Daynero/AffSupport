@@ -302,11 +302,7 @@ export function BlockedAccountScreen({ deleted = false }: { deleted?: boolean })
         title={t(deleted ? 'deletedAccountTitle' : 'blockedAccountTitle')}
         description={t(deleted ? 'deletedAccountBody' : 'blockedAccountBody')}
         action={
-          <Button
-            color="primary"
-            loading={status === 'signing-out'}
-            onClick={() => void signOut()}
-          >
+          <Button color="primary" loading={status === 'signing-out'} onClick={() => void signOut()}>
             {t('signOut')}
           </Button>
         }

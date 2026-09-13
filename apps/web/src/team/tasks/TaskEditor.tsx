@@ -1074,7 +1074,7 @@ export function TaskEditor({
               />
             </label>
             {error && (
-              <p className="team-inline-error">
+              <p className="team-inline-error" role="alert">
                 {t(error === 'read' ? 'teamTaskReadFailed' : 'teamTaskSaveFailed')}
               </p>
             )}

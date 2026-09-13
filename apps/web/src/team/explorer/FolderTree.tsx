@@ -246,7 +246,11 @@ export function FolderTree({
       {loading && nodes === null && (
         <p className="team-explorer-muted">{t('teamExplorerLoading')}</p>
       )}
-      {error && <p className="team-inline-error">{t('teamExplorerLoadFailed')}</p>}
+      {error && (
+        <p className="team-inline-error" role="alert">
+          {t('teamExplorerLoadFailed')}
+        </p>
+      )}
       {nodes && nodes.length === 0 && (
         <p className="team-explorer-muted">{t('teamExplorerNoFolders')}</p>
       )}
