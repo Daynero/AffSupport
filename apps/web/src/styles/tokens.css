@@ -60,6 +60,86 @@
   --grey-900: #211a2c;
   --grey-950: #120f17;
 
+  /* ---- Status hues --------------------------------------------------------
+     The greens, reds and ambers the product signals with. The roles above are
+     built to be read as text and as fills; these are the brighter steps the
+     screens reach for when the signal has to carry across a dark canvas — an
+     agent that is live, a run that failed, a queue that is throttled. Kept as
+     a scale so the contrast audit has one place to work. */
+  --green-300: #6fe08f;
+  --green-400: #4ade6a;
+  --green-450: #34c759;
+  --green-500: #22c55e;
+  --green-600: #16a34a;
+  --green-700: #2f9e56;
+  --green-950: #06301a;
+
+  --red-300: #ff9b9b;
+  --red-350: #ff7a6b;
+  --red-400: #ff6b6b;
+  --red-450: #ff5f56;
+  --red-500: #ef4444;
+  --red-550: #ff4d4d;
+  --red-600: #dc2626;
+  --red-700: #b34343;
+  --red-950: #360a0a;
+
+  --amber-100: #fff2cc;
+  --amber-200: #ffebac;
+  --amber-300: #ffd780;
+  --amber-400: #ff9a33;
+  --amber-450: #ffa023;
+  --amber-500: #eab308;
+  --amber-550: #fb8b1e;
+  --amber-600: #ff8c1a;
+  --amber-650: #e89a2a;
+  --amber-700: #f2740c;
+
+  --slate-400: #9aa0aa;
+  --slate-500: #94a3b8;
+  --slate-600: #808080;
+  --sky-300: #7cb2ff;
+  --ice-50: #eafcff;
+
+  /* ---- Identity hues ------------------------------------------------------
+     Not roles: a repeated action keeps its own colour so the eye finds it in a
+     row of six (view, open, download, copy). They never stand in for success
+     or error, and nothing reads meaning off them. */
+  --blue-500: #3b82f6;
+  --blue-600: #2563eb;
+  --teal-500: #0f9f8f;
+  --teal-700: #0f766e;
+  --cyan-600: #0891b2;
+  --cyan-800: #0e7490;
+  --violet-500: #8b5cf6;
+  --violet-600: #7c3aed;
+
+  --action-view: var(--blue-500);
+  --action-view-text: var(--blue-600);
+  --action-open: var(--cyan-600);
+  --action-open-text: var(--cyan-800);
+  --action-download: var(--teal-500);
+  --action-download-text: var(--teal-700);
+  --action-copy: var(--violet-500);
+  --action-copy-text: var(--violet-600);
+
+  /* ---- Team tag palette (012) ---------------------------------------------
+     Seven hues a person picks by hand. Like the task tags, they are labels,
+     not states. */
+  --team-tag-red: #ff5f56;
+  --team-tag-orange: #ffa023;
+  --team-tag-yellow: #ffe14d;
+  --team-tag-green: #4cd964;
+  --team-tag-blue: #2f9bff;
+  --team-tag-purple: #cc6bff;
+  --team-tag-grey: #b6b6bd;
+
+  /* Absolute white and black. Not roles — the two ends every wash, scrim and
+     shadow is mixed from. Named here so that no other stylesheet has to spell
+     a colour of its own to say "a quarter of white over this". */
+  --color-white: #ffffff;
+  --color-black: #000000;
+
   /* ---- Colour roles: primary ---------------------------------------------
      The one action a surface exists for. Honey — which is what
      `.button-primary` has been since the beginning; naming it `primary` only
@@ -167,6 +247,33 @@
   --radius-xl: 18px;
   --radius-full: 999px;
 
+  /* ---- Brand gradients ----------------------------------------------------
+     One family each: violet for identity, honey for work in flight. A gradient
+     that crosses families reads as two things at once. */
+  --gradient-brand: linear-gradient(90deg, #6842d9 0%, #7c59e0 55%, #9b7aee 100%);
+  --gradient-progress: linear-gradient(90deg, #f5a318 0%, #ffb51b 100%);
+
+  /* ---- Task-tag palette (018) ---------------------------------------------
+     Nine hues a team can tell apart at chip size. They are labels a person
+     chose, not states the product decided, so they stay clear of the seven
+     roles and never stand in for one. */
+  --task-tag-purple: #7c59e0;
+  --task-tag-blue: #2f6fd0;
+  --task-tag-teal: #0f8b8d;
+  --task-tag-green: #2c8a52;
+  --task-tag-honey: #c98a06;
+  --task-tag-orange: #d1600f;
+  --task-tag-red: #c23b30;
+  --task-tag-pink: #c2418b;
+  --task-tag-slate: #5f6b7a;
+
+  /* ---- Ink tints ----------------------------------------------------------
+     Three steps of the page's own ink, for washes that must stay readable over
+     whatever surface they land on. */
+  --tint-soft: rgba(36, 27, 58, 0.06);
+  --tint-medium: rgba(36, 27, 58, 0.14);
+  --tint-strong: rgba(36, 27, 58, 0.24);
+
   /* ---- Shadow -------------------------------------------------------------
      Used sparingly: this product separates surfaces by tint, not elevation. */
   --shadow-sm: 0 1px 2px rgba(33, 26, 44, 0.08);
@@ -177,11 +284,20 @@
      viewer's canvas, which is a sheet of paper and reads as one. */
   --shadow-stage: 0 18px 60px rgba(0, 0, 0, 0.36);
 
+  /* ---- Third-party brand --------------------------------------------------
+     Google dictates the colours of its sign-in button; they are its mark, not
+     a role of ours, so they are named rather than mapped onto one. */
+  --google-surface: var(--color-white);
+  --google-surface-hover: #f8faff;
+  --google-border: #747775;
+  --google-text: #1f1f1f;
+  --google-ink: #3c4043;
+
   /* ---- Material ground ----------------------------------------------------
      A rendered landing, a preview thumbnail and a transcript page are the
      customer's own artefact, not our surface: they stay on paper in both
      themes, because inverting someone else's page is lying about it. */
-  --color-paper: #ffffff;
+  --color-paper: var(--color-white);
   --color-on-paper: #10111a;
 
   /* ---- Account identity ---------------------------------------------------
@@ -318,11 +434,35 @@
   --color-focus-ring: var(--purple-300);
   --color-overlay-backdrop: rgba(0, 0, 0, 0.62);
 
+  --gradient-brand: linear-gradient(90deg, #6842d9 0%, #8a67e8 55%, #9b7aee 100%);
+  --gradient-progress: linear-gradient(90deg, #ffb51b 0%, #f5a318 100%);
+
+  /* The same nine hues, lifted so a chip reads on the dark canvas. */
+  --task-tag-purple: #a98bf2;
+  --task-tag-blue: #6ba5ee;
+  --task-tag-teal: #3cc3c0;
+  --task-tag-green: #61cc8c;
+  --task-tag-honey: #f2c14e;
+  --task-tag-orange: #f0925a;
+  --task-tag-red: #f4776a;
+  --task-tag-pink: #ec84bd;
+  --task-tag-slate: #9aa6b5;
+
+  /* Ink on a dark canvas is light: the same three steps, inverted. */
+  --tint-soft: rgba(255, 255, 255, 0.06);
+  --tint-medium: rgba(255, 255, 255, 0.12);
+  --tint-strong: rgba(255, 255, 255, 0.2);
+
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.55);
   --shadow-menu: 0 12px 32px rgba(0, 0, 0, 0.5);
   --shadow-stage: 0 18px 60px rgba(0, 0, 0, 0.6);
+  /* Google's dark button, from the same guidelines. */
+  --google-surface: #131314;
+  --google-surface-hover: #1e1f20;
+  --google-border: #8e918f;
+  --google-text: #e3e3e3;
 }
 
 /* ============================================================

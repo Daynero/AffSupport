@@ -323,7 +323,7 @@ better.
 ## Phase 21: Polish and close-out
 
 - [ ] T150 Delete every dialect class left orphaned by C1–C14 from `apps/web/src/styles.css` and the four style modules; confirm the total line count has fallen
-- [ ] T151 Empty the token-lint allow-list from T011 and confirm `node scripts/check-design-tokens.mjs` passes with zero exemptions
+- [x] T151 Empty the token-lint allow-list from T011 and confirm `node scripts/check-design-tokens.mjs` passes with zero exemptions
 - [ ] T152 [P] Add the token reference and the component inventory to `docs/DESIGN.md` (the product's rule book), leave `docs/DESIGN-PRINCIPLES.md` as the craft reference it is, and point `README.md` and `AGENTS.md` at both as the contributor path
 - [ ] T153 [P] Record the behaviour findings gathered during the migration in `specs/021-design-system-redesign/findings.md` as candidates for a follow-up feature — none of them fixed inside this one (FR-037)
 - [ ] T154 Run the full gate: `npm run typecheck`, `npx vitest run`, `npm run lint`, `node scripts/check-design-tokens.mjs`

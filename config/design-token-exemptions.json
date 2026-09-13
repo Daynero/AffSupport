@@ -1,11 +1,4 @@
 {
-  "$comment": "Design-token exemptions (021). Every entry is a debt with a reason and an owning task; the list must be empty before T151 closes the feature. Radius, font-size, duration and layout transitions are clear everywhere; what is left is colour in styles.css, migrated group by group with the screens it dresses.",
-  "exemptions": [
-    {
-      "file": "apps/web/src/styles.css",
-      "rule": "raw-colour",
-      "reason": "Pre-021 screen rules, migrated group by group (C1-C14).",
-      "clearedBy": "T150"
-    }
-  ]
+  "$comment": "Design-token exemptions (021). The list is empty: every stylesheet reads its colours, radii, type steps and durations off styles/tokens.css, and nothing animates a layout property. An entry here is a debt with a reason and an owning task \u2014 the check fails on anything it does not cover, so adding one is a deliberate act.",
+  "exemptions": []
 }
