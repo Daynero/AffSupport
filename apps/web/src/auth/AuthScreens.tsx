@@ -15,6 +15,7 @@ import { useI18n } from '../i18n';
 import { Card } from '../components/Card';
 import { Modal } from '../components/Modal';
 import { Button, Checkbox, SotyLoader } from '../components/ui';
+import { Alert, Empty } from '../components/ui/index';
 import { SotyLogo, SotyMark } from '../components/SotyLogo';
 import { LanguageSwitch } from '../components/LanguageSwitch';
 import { ThemeToggle } from '../components/ThemeToggle';
@@ -37,10 +38,13 @@ export function ConfigErrorScreen() {
   const { t } = useI18n();
   return (
     <main className="auth-state-screen auth-error-screen" role="status" aria-live="polite">
-      <SotyMark size={42} />
-      <h1>{t('authConfigTitle')}</h1>
-      <p>{t('authConfigBody')}</p>
-      <small>{t('authConfigHint')}</small>
+      <Empty
+        size="lg"
+        icon={<SotyMark size={42} />}
+        title={t('authConfigTitle')}
+        description={t('authConfigBody')}
+        action={<small>{t('authConfigHint')}</small>}
+      />
     </main>
   );
 }
@@ -99,9 +103,9 @@ export function LoginPage() {
         </div>
         <p className="login-pitch">{t('loginSupportPitch')}</p>
         {message && (
-          <div className="inline-alert inline-alert-error" role="alert">
+          <Alert color="error" live="alert">
             {message}
-          </div>
+          </Alert>
         )}
         <button
           type="button"
@@ -120,14 +124,18 @@ export function LoginPage() {
           )}
         </button>
         {beta && (
-          <button
-            type="button"
-            className={`google-sign-in ${authenticating ? 'is-loading' : ''}`}
+          /* Secondary to the real sign-in, and on one line: this is the beta
+             build's convenience door, not the way in. */
+          <Button
+            color="neutral"
+            variant="outline"
+            size="lg"
+            block
             disabled={authenticating}
             onClick={() => void signInWithBetaFixture()}
           >
-            <span>Увійти тестовим beta-акаунтом</span>
-          </button>
+            {t('loginBetaFixture')}
+          </Button>
         )}
         <p className="login-legal">
           {t('loginFooterPrefix')}
@@ -259,16 +267,24 @@ export function AuthRecoveryScreen() {
           : t('profileError');
   return (
     <main className="auth-state-screen auth-error-screen">
-      <SotyMark size={42} />
-      <h1>{message}</h1>
-      <div className="inline-actions">
-        {error !== 'session' && (
-          <Button variant="primary" onClick={() => void refreshProfile()}>
-            {t('retry')}
-          </Button>
-        )}
-        <Button onClick={() => void signOut()}>{t('signOut')}</Button>
-      </div>
+      <Empty
+        size="lg"
+        icon={<SotyMark size={42} />}
+        title={message}
+        description={t('authRecoveryBody')}
+        action={
+          <div className="inline-actions">
+            {error !== 'session' && (
+              <Button color="primary" onClick={() => void refreshProfile()}>
+                {t('retry')}
+              </Button>
+            )}
+            <Button color="neutral" variant="outline" onClick={() => void signOut()}>
+              {t('signOut')}
+            </Button>
+          </div>
+        }
+      />
     </main>
   );
 }
@@ -278,12 +294,21 @@ export function BlockedAccountScreen({ deleted = false }: { deleted?: boolean })
   const { t } = useI18n();
   return (
     <main className="auth-state-screen auth-error-screen blocked-screen">
-      <SotyMark size={42} />
-      <h1>{t(deleted ? 'deletedAccountTitle' : 'blockedAccountTitle')}</h1>
-      <p>{t(deleted ? 'deletedAccountBody' : 'blockedAccountBody')}</p>
-      <Button variant="primary" loading={status === 'signing-out'} onClick={() => void signOut()}>
-        {t('signOut')}
-      </Button>
+      <Empty
+        size="lg"
+        icon={<SotyMark size={42} />}
+        title={t(deleted ? 'deletedAccountTitle' : 'blockedAccountTitle')}
+        description={t(deleted ? 'deletedAccountBody' : 'blockedAccountBody')}
+        action={
+          <Button
+            color="primary"
+            loading={status === 'signing-out'}
+            onClick={() => void signOut()}
+          >
+            {t('signOut')}
+          </Button>
+        }
+      />
     </main>
   );
 }
