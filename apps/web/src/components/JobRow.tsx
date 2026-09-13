@@ -554,9 +554,12 @@ function JobActions({
           </Button>
         </>
       )}
+      {/* Secondary, not primary: the surface here is the page, and its one
+          primary action is the toolbar's — a queue of forty rows each raising
+          its own filled button leaves nothing leading anywhere (FR-022). */}
       {job.status === 'ready' && (
         <Button
-          variant="primary"
+          variant="secondary"
           disabled={disabled || compressionRunning}
           onClick={() => action('/api/queue/start', 'POST', { ids: [job.id] })}
         >
@@ -566,7 +569,7 @@ function JobActions({
       )}
       {job.status === 'completed' && (
         <Button
-          variant="primary"
+          variant="secondary"
           disabled={disabled || compressionRunning}
           onClick={() => action(`/api/jobs/${job.id}/repeat`)}
         >
@@ -576,7 +579,7 @@ function JobActions({
       )}
       {isSettled(COMPRESSION_LIFECYCLE, job.status) && job.status !== 'completed' && (
         <Button
-          variant="primary"
+          variant="secondary"
           disabled={disabled || compressionRunning}
           onClick={() => action(`/api/jobs/${job.id}/retry`)}
         >

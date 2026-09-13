@@ -190,10 +190,12 @@ export const TranscriptionRow = memo(function TranscriptionRow({
       >
         {done && (
           <>
-            {/* What is done with a finished transcript, loudest first. */}
+            {/* What is done with a finished transcript, loudest first —
+                loudest within the row, that is: the page's one primary action
+                is the toolbar's (FR-022). */}
             <div className="transcription-row-actions-main">
               <Button
-                variant="primary"
+                variant="secondary"
                 onClick={event => actions.view(job.id, event.currentTarget)}
               >
                 <Eye size={16} strokeWidth={1.75} aria-hidden="true" />
@@ -259,7 +261,7 @@ export const TranscriptionRow = memo(function TranscriptionRow({
         )}
         {job.status === 'ready' && (
           <div className="transcription-row-actions-main">
-            <Button variant="primary" disabled={!connected} onClick={() => actions.start(job.id)}>
+            <Button variant="secondary" disabled={!connected} onClick={() => actions.start(job.id)}>
               <Play size={16} strokeWidth={1.75} aria-hidden="true" />
               {t('transcriptionStart')}
             </Button>
@@ -300,7 +302,7 @@ export const TranscriptionRow = memo(function TranscriptionRow({
         )}
         {settledNotDone && (
           <div className="transcription-row-actions-main">
-            <Button variant="primary" disabled={!connected} onClick={() => actions.retry(job.id)}>
+            <Button variant="secondary" disabled={!connected} onClick={() => actions.retry(job.id)}>
               <RotateCcw size={16} strokeWidth={1.75} aria-hidden="true" />
               {t('transcriptionRetry')}
             </Button>

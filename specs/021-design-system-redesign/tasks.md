@@ -151,7 +151,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 
 ## Phase 7: [US1] C4 — Stitcher and landing optimizer
 
-- [ ] T054 [US1] Migrate `apps/web/src/stitcher/StitcherPage.tsx` onto the inventory, reusing the compressor's drop zone, settings panel and toolbar
+- [x] T054 [US1] Migrate `apps/web/src/stitcher/StitcherPage.tsx` onto the inventory, reusing the compressor's drop zone, settings panel and toolbar
 - [x] T055 [US1] Migrate `apps/web/src/landing/LandingOptimizerPage.tsx` and `apps/web/src/landing/LandingJobCard.tsx`
 - [ ] T056 [P] [US1] Migrate `apps/web/src/landing/ImageCompareModal.tsx` onto Modal, keeping the before/after comparison
 - [x] T057 [US1] [US2] Give both tools their full state set on the shared patterns, including the single agent-missing state
@@ -316,7 +316,7 @@ better.
 - [ ] T148 [P] [US4] Verify every control with the longer (Ukrainian) translation; fix anything that clips or overflows
 - [ ] T149 [P] [US4] Verify no state is communicated by colour alone (FR-032), particularly the marker colours, connection states and task statuses
 - [x] T157 [P] [US1] Audit every paragraph and helper text in the product for the 70ch measure cap (FR-023); fix at the pattern level, not per screen
-- [ ] T158 [P] [US1] Audit every surface for exactly one `primary`-variant control, positioned at the end of the reading flow (FR-022); demote the extras to `secondary` or `ghost`
+- [x] T158 [P] [US1] Audit every surface for exactly one `primary`-variant control, positioned at the end of the reading flow (FR-022); demote the extras to `secondary` or `ghost`
 
 ---
 

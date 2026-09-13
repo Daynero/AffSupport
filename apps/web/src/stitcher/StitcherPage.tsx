@@ -762,13 +762,15 @@ function StitchRow({
             <>
               {/* Run first, then folder, open, delete — the compressor's order, so the same
                   action sits in the same place whatever state the file is in. */}
+              {/* Secondary: within the row this is the leading action, but the
+                  page's one primary is the toolbar's (FR-022). */}
               {job.status === 'ready' ? (
-                <Button variant="primary" disabled={disabled} onClick={onStart}>
+                <Button variant="secondary" disabled={disabled} onClick={onStart}>
                   <Play size={16} strokeWidth={1.75} aria-hidden="true" />
                   {t('stitcherStartOne')}
                 </Button>
               ) : (
-                <Button variant="primary" disabled={disabled} onClick={onRepeat}>
+                <Button variant="secondary" disabled={disabled} onClick={onRepeat}>
                   <RefreshCw size={16} strokeWidth={1.75} aria-hidden="true" />
                   {t(job.status === 'done' ? 'repeatCompression' : 'retry')}
                 </Button>
