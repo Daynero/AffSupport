@@ -176,7 +176,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 ## Phase 9: [US1] C6 — 2FA notebook and landing viewer
 
 - [x] T068 [US1] Migrate `apps/web/src/two-factor/TwoFactorPage.tsx` and `TwoFactorRow.tsx` onto Table + Card + Button
-- [ ] T069 [P] [US1] Migrate `apps/web/src/two-factor/CodeCell.tsx`, `Countdown.tsx` and `QuickCode.tsx` onto tokens, keeping the expiry ring and copy feedback (no animation on copy — frequent action)
+- [x] T069 [P] [US1] Migrate `apps/web/src/two-factor/CodeCell.tsx`, `Countdown.tsx` and `QuickCode.tsx` onto tokens, keeping the expiry ring and copy feedback (no animation on copy — frequent action)
 - [ ] T070 [US1] Migrate `apps/web/src/landing-viewer/LandingViewer.tsx`, `LandingViewerWelcome.tsx` and `LandingTree.tsx` onto the inventory (Tree, Empty, Card)
 - [x] T071 [P] [US1] Migrate `apps/web/src/landing-viewer/LandingGalleryGrid.tsx`, `LandingSourceSwitcher.tsx` and `LandingRefreshControl.tsx`
 - [x] T072 [P] [US1] Migrate `apps/web/src/landing-viewer/GallerySettingsMenu.tsx` and `GalleryMoreMenu.tsx` onto DropdownMenu + Choice
@@ -212,7 +212,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 
 - [ ] T088 [US1] Migrate `apps/web/src/team/explorer/ExplorerShell.tsx` — toolbar, view switch, selection bar (with its `Clear selection (N)`), scope controls
 - [ ] T089 [P] [US1] Migrate `apps/web/src/team/explorer/ContentList.tsx` and `ContentGrid.tsx` onto Table (`sm`) and a tile grid, keeping today's density
-- [ ] T090 [P] [US1] Migrate `apps/web/src/team/explorer/FolderTree.tsx` and `Breadcrumb.tsx` onto Tree and Breadcrumb, keeping drag-and-drop targets
+- [x] T090 [P] [US1] Migrate `apps/web/src/team/explorer/FolderTree.tsx` and `Breadcrumb.tsx` onto Tree and Breadcrumb, keeping drag-and-drop targets
 - [x] T091 [P] [US1] Migrate `apps/web/src/team/explorer/SortMenu.tsx`, `KindFilterMenu.tsx`, `RowActions.tsx` and `ShareButton.tsx` onto DropdownMenu + IconButton (no open/close animation — frequent actions)
 - [x] T092 [P] [US1] [US2] Migrate `apps/web/src/team/explorer/PreviewPane.tsx` with its empty, loading, failed and unsupported states
 - [ ] T093 [P] [US1] Migrate `apps/web/src/team/explorer/UploadConflictDialog.tsx`, `FolderScopeDialog.tsx` and `ProcessPanel.tsx` onto Modal + the confirmation pattern
@@ -225,10 +225,10 @@ in inventory components, with the compressor looking exactly as good as it does 
 ## Phase 13: [US1] C10 — Team: catalogue and search
 
 - [x] T097 [US1] Migrate `apps/web/src/team/catalog/TeamCatalog.tsx` and `CatalogSearchBar.tsx` onto Input (with leading icon) + SegmentedControl for scope
-- [ ] T098 [US1] Migrate `apps/web/src/team/catalog/CatalogFilters.tsx` onto Select/SelectMenu + Chip, keeping the facet-driven options and localised values added in 020
+- [x] T098 [US1] Migrate `apps/web/src/team/catalog/CatalogFilters.tsx` onto Select/SelectMenu + Chip, keeping the facet-driven options and localised values added in 020
 - [x] T099 [P] [US1] [US2] Migrate `apps/web/src/team/catalog/MaterialResults.tsx` with loading skeleton, empty result and failed states
 - [x] T100 [P] [US1] Migrate `apps/web/src/team/catalog/MaterialMetadataEditor.tsx` and `MaterialRowMenu.tsx` onto Modal + FormField + DropdownMenu
-- [ ] T101 [P] [US1] Migrate `apps/web/src/team/catalog/ProvenancePanel.tsx`, `FolderPicker.tsx` and `TeamTextEditor.tsx`
+- [x] T101 [P] [US1] Migrate `apps/web/src/team/catalog/ProvenancePanel.tsx`, `FolderPicker.tsx` and `TeamTextEditor.tsx`
 - [ ] T102 [US1] [US4] Verify C10 at five widths × two themes × reduced motion
 
 ---
@@ -326,7 +326,7 @@ better.
 - [x] T151 Empty the token-lint allow-list from T011 and confirm `node scripts/check-design-tokens.mjs` passes with zero exemptions
 - [x] T152 [P] Add the token reference and the component inventory to `docs/DESIGN.md` (the product's rule book), leave `docs/DESIGN-PRINCIPLES.md` as the craft reference it is, and point `README.md` and `AGENTS.md` at both as the contributor path
 - [x] T153 [P] Record the behaviour findings gathered during the migration in `specs/021-design-system-redesign/findings.md` as candidates for a follow-up feature — none of them fixed inside this one (FR-037)
-- [ ] T154 Run the full gate: `npm run typecheck`, `npx vitest run`, `npm run lint`, `node scripts/check-design-tokens.mjs`
+- [x] T154 Run the full gate: `npm run typecheck`, `npx vitest run`, `npm run lint`, `node scripts/check-design-tokens.mjs`
 - [ ] T155 Verify the demo route is absent from a production build and the bundle has not grown
 - [x] T159 Add every string this feature introduced or rewrote (empty states, error copy, confirmation verbs, permission explanations) to both languages in `apps/web/src/i18n.ts`, and confirm `tests/i18n.test.ts` and `tests/team-i18n-glossary.test.ts` pass (FR-034)
 - [ ] T160 Prove SC-009: build one throwaway screen from the inventory alone and confirm it needs no new token and no new component variant; record the result in `specs/021-design-system-redesign/findings.md` and delete the screen
@@ -481,3 +481,43 @@ eyes on a running beta, but it is no longer "rewrite fourteen screens".
    class floor moved.
 4. `node scripts/check-design-tokens.mjs`
 5. The beta at `/design`, then the five screens in T013.
+
+---
+
+## Second implementation pass (gates now green)
+
+The five commands above have all been run and all pass: `tsc` clean, `eslint`
+clean, `node scripts/check-design-tokens.mjs` clean with an **empty** exemption
+list, and `npx vitest run` at **383 files / 3,291 tests, 0 failures**. T154 is
+closed on that evidence; only the beta walk (T013 and the verify tasks) is
+outstanding, and that waits on the machine.
+
+**What the suite caught.** Running it found twelve failures, five of them real
+defects this migration introduced, and each is fixed:
+
+| Defect | Why it happened |
+|---|---|
+| The agent row menu closed on the first arrow press | Its blur handler asked whether focus was still inside the *row*, which stopped being true once the surface was portalled out of it |
+| Escape stopped reaching anything inside a dialog | The shared stack listened in the capture phase and pre-empted the inline field that closes itself and keeps the dialog open |
+| A row menu made two dialogs on one screen | `Popover` claimed `role="dialog"` even when its content was already a menu, a listbox or a group |
+| "This space is not available" had no heading | A whole-screen empty state drew its title as a `strong`, so nothing could navigate to it |
+| A toast could not be reached over a full-bleed viewer | The layer ladder had `--layer-toast` below `--layer-fullbleed` |
+
+The other seven were tests describing the old structure — a menu now portalled
+out of the strip that clipped it, radios whose `name` is a generated id, an
+attribute order, the palette after it moved to the token layer — plus one dead
+screen (`.team-material-browser`) whose test outlived it.
+
+**Screen groups: what "done" means here.** Nine of the fourteen were satisfied
+by consolidation rather than rewrite, which is what the class floor was built
+for. The ones still open are open honestly:
+
+- **Open and untouched** — T041 (support dialog), T051 (team compressor
+  dialog), T082 (workspace shell), T093 (three explorer dialogs), T119
+  (settings dialog and its tabs), T130 (landing preview frame).
+- **Open, partly done** — T049, T056, T059, T065, T070, T076, T081, T084,
+  T088, T089, T104, T105, T133. Each has had its states, its menus or its
+  colours brought onto the inventory; what remains in each is the layout-level
+  swap (Table, Tabs, Modal) that needs a browser to judge.
+- **Deliberately not done** — T113, T114, T123, recorded with reasons in
+  `findings.md`.
