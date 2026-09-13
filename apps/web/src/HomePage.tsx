@@ -12,6 +12,7 @@ import LocalAppDialog from './components/LocalAppDialog';
 import { TeamWorkspaceIcon } from './components/tool-icons';
 import { catalogueTools, type AgentWebTool, type WebTool } from './lib/tool-registry';
 import { teamApi } from './api/team';
+import { Alert } from './components/ui/index';
 
 export default function HomePage({ navigate }: { navigate: (path: string) => void }) {
   const { t } = useI18n();
@@ -115,9 +116,9 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
         </div>
 
         {notice && (
-          <div className="launcher-notice" role="status">
+          <Alert className="launcher-notice" color="info" variant="soft">
             {notice}
-          </div>
+          </Alert>
         )}
 
         <Card

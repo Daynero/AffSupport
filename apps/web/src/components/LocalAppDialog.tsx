@@ -15,6 +15,7 @@ import { analytics } from '../analytics/service';
 import { Modal } from './Modal';
 import { SotyMark } from './SotyLogo';
 import { Button } from './ui';
+import { ErrorState } from './ui/index';
 
 export default function LocalAppDialog({
   tool,
@@ -252,9 +253,7 @@ function WindowsComingSoonDialog({ onClose }: { onClose: () => void }) {
           {t(waitlistState === 'saved' ? 'windowsAppWaitlistSaved' : 'windowsAppWaitlist')}
         </Button>
         {waitlistState === 'error' && (
-          <p className="support-error" role="alert">
-            {t('windowsAppWaitlistError')}
-          </p>
+          <ErrorState className="support-error" message={t('windowsAppWaitlistError')} />
         )}
       </div>
     </Modal>

@@ -152,7 +152,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 ## Phase 7: [US1] C4 — Stitcher and landing optimizer
 
 - [ ] T054 [US1] Migrate `apps/web/src/stitcher/StitcherPage.tsx` onto the inventory, reusing the compressor's drop zone, settings panel and toolbar
-- [ ] T055 [US1] Migrate `apps/web/src/landing/LandingOptimizerPage.tsx` and `apps/web/src/landing/LandingJobCard.tsx`
+- [x] T055 [US1] Migrate `apps/web/src/landing/LandingOptimizerPage.tsx` and `apps/web/src/landing/LandingJobCard.tsx`
 - [ ] T056 [P] [US1] Migrate `apps/web/src/landing/ImageCompareModal.tsx` onto Modal, keeping the before/after comparison
 - [x] T057 [US1] [US2] Give both tools their full state set on the shared patterns, including the single agent-missing state
 - [ ] T058 [US1] [US4] Verify C4 at five widths × two themes × reduced motion; delete orphaned CSS
@@ -163,7 +163,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 
 - [ ] T059 [US1] Migrate `apps/web/src/transcription/TranscriptionPage.tsx` — intake, toolbar, selection bar, results
 - [x] T060 [US1] Migrate `apps/web/src/transcription/TranscriptionSettingsPanel.tsx` onto the shared settings panel (mode, language, turbo)
-- [ ] T061 [P] [US1] Migrate `apps/web/src/transcription/TranscriptionRow.tsx` onto Table row + Progress + Badge, covering queued/running/paused/done/failed
+- [x] T061 [P] [US1] Migrate `apps/web/src/transcription/TranscriptionRow.tsx` onto Table row + Progress + Badge, covering queued/running/paused/done/failed
 - [x] T062 [P] [US1] Migrate `apps/web/src/transcription/LanguageCombobox.tsx` and `LanguageDoubt.tsx` onto SelectMenu + Alert
 - [x] T063 [P] [US1] Migrate `apps/web/src/transcription/ModelGate.tsx`, `GemmaConsent.tsx`, `TranslatorNotice.tsx` and `TranslationElapsed.tsx` onto Alert + Progress + Button
 - [x] T064 [P] [US1] Migrate `apps/web/src/transcription/ExportMenu.tsx` and `TranscriptionCopyMenu.tsx` onto DropdownMenu

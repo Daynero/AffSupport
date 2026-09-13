@@ -22,6 +22,7 @@ import {
   type Translate
 } from '../components/ui';
 import { ImageCompareModal } from './ImageCompareModal';
+import { Alert } from '../components/ui/index';
 
 export function LandingJobCard({
   job,
@@ -289,10 +290,15 @@ export function LandingJobCard({
 
       {completed && <LandingSuccessSummary job={job} language={language} t={t} />}
       {failed && (
-        <div className="landing-batch-error" role="alert">
-          <strong>{t('landingResultFailedTitle')}</strong>
-          {job.error && <span>{job.error}</span>}
-        </div>
+        <Alert
+          className="landing-batch-error"
+          color="error"
+          variant="soft"
+          live="alert"
+          title={t('landingResultFailedTitle')}
+        >
+          {job.error}
+        </Alert>
       )}
 
       {canExpand && (

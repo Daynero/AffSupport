@@ -30,6 +30,7 @@ import { LanguageCombobox } from './LanguageCombobox';
 import { LanguageDoubt } from './LanguageDoubt';
 import { isRtlLanguage } from './language';
 import { describeError } from './errors';
+import { Alert } from '../components/ui/index';
 
 /**
  * What a row can ask the page to do. One object, stable for the page's lifetime, keyed by
@@ -473,9 +474,9 @@ export const TranscriptionRow = memo(function TranscriptionRow({
         )}
 
         {settledNotDone && job.error && (
-          <div className="transcription-row-error" role="alert">
+          <Alert className="transcription-row-error" color="error" variant="soft" live="alert">
             {describeError(job.error, t)}
-          </div>
+          </Alert>
         )}
       </div>
     </article>
