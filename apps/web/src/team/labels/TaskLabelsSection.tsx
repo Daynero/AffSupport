@@ -320,7 +320,7 @@ export function TaskLabelsSection({
             >
               {t('teamTaskTagDelete')}
             </Button>
-            <Button type="button" variant="ghost" onClick={() => setConfirming(null)}>
+            <Button type="button" variant="secondary" onClick={() => setConfirming(null)}>
               {t('teamCancel')}
             </Button>
           </div>

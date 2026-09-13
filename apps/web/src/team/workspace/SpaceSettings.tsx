@@ -337,7 +337,7 @@ function LeaveSpacePanel({
             <Button type="button" variant="danger" loading={busy} onClick={() => void leave()}>
               {t('teamLeaveAction')}
             </Button>
-            <Button type="button" variant="ghost" onClick={() => setConfirming(false)}>
+            <Button type="button" variant="secondary" onClick={() => setConfirming(false)}>
               {t('teamCancel')}
             </Button>
           </div>

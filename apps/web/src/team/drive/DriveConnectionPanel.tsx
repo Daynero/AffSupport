@@ -420,7 +420,7 @@ export function DriveConnectionPanel({
             <Button type="button" variant="danger" onClick={() => void detach()}>
               {t('teamDriveDetachAction')}
             </Button>
-            <Button type="button" variant="ghost" onClick={() => setConfirmingDetach(false)}>
+            <Button type="button" variant="secondary" onClick={() => setConfirmingDetach(false)}>
               {t('teamCancel')}
             </Button>
           </div>

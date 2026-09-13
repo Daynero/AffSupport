@@ -155,7 +155,7 @@ export function TeamTextEditor({
             <Button type="button" variant="danger" onClick={onClose}>
               {t('teamTextEditorDiscardAction')}
             </Button>
-            <Button type="button" variant="ghost" onClick={() => setConfirmingDiscard(false)}>
+            <Button type="button" variant="secondary" onClick={() => setConfirmingDiscard(false)}>
               {t('teamCancel')}
             </Button>
           </div>

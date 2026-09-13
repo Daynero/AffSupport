@@ -602,7 +602,7 @@ function DiscardDraftDialog({
         <Button type="button" variant="danger" loading={busy} onClick={() => void discard()}>
           {t('teamDraftDeleteAction')}
         </Button>
-        <Button type="button" variant="ghost" onClick={onClose}>
+        <Button type="button" variant="secondary" onClick={onClose}>
           {t('teamCancel')}
         </Button>
       </div>

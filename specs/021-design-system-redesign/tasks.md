@@ -268,7 +268,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [ ] T123 [P] [US1] Migrate `apps/web/src/team/members/TeamAuditPanel.tsx` onto Timeline
 - [x] T124 [P] [US1] Migrate `apps/web/src/team/labels/TaskLabelsSection.tsx`, `TaskLabelChip.tsx` and `TaskLabelMenu.tsx` onto Chip + Popover + the empty-state pattern
 - [x] T125 [US1] Migrate `apps/web/src/team/workspace/RestitchDefaultsSection.tsx` onto the shared settings panel and picto RadioGroup
-- [ ] T126 [US1] Migrate the leave-space panel and its confirmation onto the confirmation pattern
+- [x] T126 [US1] Migrate the leave-space panel and its confirmation onto the confirmation pattern
 - [ ] T127 [US1] Update `tests/team-members.test.tsx`, `tests/team-direct-member.test.tsx`, `tests/team-invitation-link.test.tsx` and `tests/team-restitch-section.test.tsx` to assert through roles
 - [ ] T128 [US1] [US4] Verify C13 at five widths × two themes × reduced motion, on all five tabs
 
