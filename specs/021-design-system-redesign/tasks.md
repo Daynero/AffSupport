@@ -276,7 +276,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 
 ## Phase 17: [US1] C14 — Team: media and processing
 
-- [ ] T129 [US1] [US2] Migrate `apps/web/src/team/preview/MaterialPreview.tsx` and `PreviewUnavailable.tsx` — media, transcript, archive and landing previews with their loading, failed and unsupported states
+- [x] T129 [US1] [US2] Migrate `apps/web/src/team/preview/MaterialPreview.tsx` and `PreviewUnavailable.tsx` — media, transcript, archive and landing previews with their loading, failed and unsupported states
 - [ ] T130 [P] [US1] Migrate `apps/web/src/team/preview/LandingPreviewFrame.tsx`, `apps/web/src/team/landings/LandingFullView.tsx` and `LandingViewerControls.tsx`
 - [ ] T131 [US1] Migrate `apps/web/src/team/processing/MaterialProcessFlow.tsx`, `ProcessMaterialDialog.tsx` and `OperationStatus.tsx` onto Modal + Progress + Alert, keeping the stage copy
 - [ ] T132 [P] [US1] Migrate `apps/web/src/team/library/BulkUploadDialog.tsx` and `ProcessLibraryDialog.tsx` onto Modal + FileUpload + Progress, including the per-file partial-failure state
@@ -324,8 +324,8 @@ better.
 
 - [ ] T150 Delete every dialect class left orphaned by C1–C14 from `apps/web/src/styles.css` and the four style modules; confirm the total line count has fallen
 - [x] T151 Empty the token-lint allow-list from T011 and confirm `node scripts/check-design-tokens.mjs` passes with zero exemptions
-- [ ] T152 [P] Add the token reference and the component inventory to `docs/DESIGN.md` (the product's rule book), leave `docs/DESIGN-PRINCIPLES.md` as the craft reference it is, and point `README.md` and `AGENTS.md` at both as the contributor path
-- [ ] T153 [P] Record the behaviour findings gathered during the migration in `specs/021-design-system-redesign/findings.md` as candidates for a follow-up feature — none of them fixed inside this one (FR-037)
+- [x] T152 [P] Add the token reference and the component inventory to `docs/DESIGN.md` (the product's rule book), leave `docs/DESIGN-PRINCIPLES.md` as the craft reference it is, and point `README.md` and `AGENTS.md` at both as the contributor path
+- [x] T153 [P] Record the behaviour findings gathered during the migration in `specs/021-design-system-redesign/findings.md` as candidates for a follow-up feature — none of them fixed inside this one (FR-037)
 - [ ] T154 Run the full gate: `npm run typecheck`, `npx vitest run`, `npm run lint`, `node scripts/check-design-tokens.mjs`
 - [ ] T155 Verify the demo route is absent from a production build and the bundle has not grown
 - [ ] T159 Add every string this feature introduced or rewrote (empty states, error copy, confirmation verbs, permission explanations) to both languages in `apps/web/src/i18n.ts`, and confirm `tests/i18n.test.ts` and `tests/team-i18n-glossary.test.ts` pass (FR-034)
