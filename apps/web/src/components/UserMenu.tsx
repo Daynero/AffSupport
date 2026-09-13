@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { Popover } from './ui/index';
 import { useAuth } from '../auth/AuthContext';
 import { useI18n } from '../i18n';
 import { navigateTo } from '../lib/navigation';
@@ -19,23 +20,12 @@ export function UserMenu() {
 
   useEffect(() => {
     if (!open) return;
-    const closeOutside = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const closeEscape = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      setOpen(false);
-      trigger.current?.focus();
-    };
-    document.addEventListener('pointerdown', closeOutside);
-    document.addEventListener('keydown', closeEscape);
-    requestAnimationFrame(() =>
+    // Dismissal is the shared Popover's; what is left is the menu taking the
+    // keyboard when it opens.
+    const frame = requestAnimationFrame(() =>
       menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus()
     );
-    return () => {
-      document.removeEventListener('pointerdown', closeOutside);
-      document.removeEventListener('keydown', closeEscape);
-    };
+    return () => cancelAnimationFrame(frame);
   }, [open]);
 
   const menuKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -89,8 +79,19 @@ export function UserMenu() {
           ⌄
         </span>
       </button>
-      {open && (
-        <div className="user-menu-popover" role="menu" ref={menu} onKeyDown={menuKeyDown}>
+      <Popover
+        open={open}
+        onClose={() => {
+          setOpen(false);
+          trigger.current?.focus();
+        }}
+        anchor={root}
+        placement="bottom-end"
+        frequent
+        label={t('userMenu')}
+        className="user-menu-popover"
+      >
+        <div className="user-menu-items" role="menu" ref={menu} onKeyDown={menuKeyDown}>
           <div className="user-menu-identity">
             <strong>{profile?.display_name || email}</strong>
             {profile?.display_name && <span>{email}</span>}
@@ -119,7 +120,7 @@ export function UserMenu() {
             {t('signOut')}
           </button>
         </div>
-      )}
+      </Popover>
       {technicalSupportOpen && (
         <SupportDialog
           mode="technical"

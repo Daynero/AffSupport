@@ -337,6 +337,19 @@ export function Popover({
       const target = event.target as Node;
       if (surface.current?.contains(target)) return;
       if (anchor?.current?.contains(target)) return;
+      /*
+       * A dialog this popover opened is portalled to the body, outside the
+       * popover's own subtree — but a press inside it is not "outside the
+       * menu". Closing here would unmount the menu and the dialog with it,
+       * before the dialog's own click handler ran: the row menu's folder
+       * picker used to cancel the move it had just been asked for.
+       */
+      if (
+        target instanceof Element &&
+        target.closest('[role="dialog"], .modal-backdrop, .ui-overlay')
+      ) {
+        return;
+      }
       close();
     };
     window.addEventListener('mousedown', onPointerDown);

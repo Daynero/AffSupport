@@ -4494,11 +4494,10 @@ body:has(.public-home) {
   transform: translateY(-1px);
 }
 
+/* Placed by the component (021): portalled to the body and flipped when the
+   window is short. What is left here is what it looks like. */
 .user-menu-popover {
-  position: absolute;
   z-index: var(--layer-popover);
-  top: calc(100% + 8px);
-  right: 0;
   display: grid;
   width: 248px;
   padding: var(--space-2);
@@ -4508,6 +4507,12 @@ body:has(.public-home) {
   box-shadow: var(--shadow-menu);
   animation: menu-pop var(--dur-pop) var(--ease-enter);
   transform-origin: top right;
+}
+
+/* The list, between the popover surface and its entries so the arrow-key walk
+   has something to own. */
+.user-menu-items {
+  display: contents;
 }
 
 .user-menu-identity {
@@ -4529,7 +4534,7 @@ body:has(.public-home) {
   font-size: var(--text-xl);
 }
 
-.user-menu-popover > button {
+.user-menu-items > button {
   width: 100%;
   padding: 9px var(--space-3);
   border: 0;
@@ -4540,8 +4545,8 @@ body:has(.public-home) {
   cursor: pointer;
 }
 
-.user-menu-popover > button:hover,
-.user-menu-popover > button:focus-visible {
+.user-menu-items > button:hover,
+.user-menu-items > button:focus-visible {
   background: var(--color-surface-muted);
 }
 
@@ -13219,16 +13224,12 @@ button.team-landing-tile:hover {
   position: relative;
 }
 
-.team-row-menu-panel {
-  position: absolute;
+/* Placed by the component (021): the shared popover portals it out of the row
+   — which clips it — and opens it over the trigger when the row is near the
+   bottom of the window. The surface is the popover's; this is its content. */
+.team-row-menu-popover {
   z-index: var(--layer-popover);
-  top: calc(100% + var(--space-1));
-  right: 0;
-}
-/* Opened over the trigger, for a row near the bottom of the window. */
-.team-row-menu-panel.is-above {
-  top: auto;
-  bottom: calc(100% + var(--space-1));
+  padding: 0;
 }
 .team-row-menu-panel {
   /* The panel takes the width its longest item needs, between a floor that
