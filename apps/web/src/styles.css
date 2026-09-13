@@ -1,71 +1,14 @@
 /* ============================================================
-   Soty design tokens
-   Purple leads attention; most surfaces stay neutral.
+   Screen-level variables that are not design tokens
+
+   The token layer lives in styles/tokens.css (021). What is left here is
+   layout geometry this product measures in its own terms — shell widths,
+   dialog widths, the header's height — plus the tag palette and the tint
+   steps, which are data, not roles.
    ============================================================ */
 :root {
   --ui-cache-generation: 2;
   color-scheme: light;
-
-  /* Soty brand — purple scale (design-tokens.json primitives) */
-  --purple-50: #f5f1ff;
-  --purple-100: #ece5ff;
-  --purple-200: #d9ccff;
-  --purple-300: #bca7f7;
-  --purple-400: #9b7aee;
-  --purple-500: #7c59e0;
-  --purple-600: #6842d9;
-  --purple-700: #5532b8;
-  --purple-800: #42288f;
-  --purple-900: #2d1b62;
-  --purple-950: #191033;
-
-  /* Soty honey — primary action, active progress, honey material */
-  --honey-50: #fff8e5;
-  --honey-100: #ffefbd;
-  --honey-200: #ffdd7a;
-  --honey-300: #ffc83d;
-  --honey-400: #ffb51b;
-  --honey-500: #f5a318;
-  --honey-600: #d98508;
-  --honey-700: #ad6605;
-  --honey-800: #804a0b;
-  --honey-900: #55310a;
-  --honey-950: #2d1a05;
-
-  /* Neutral — purple-tinted canvas, surfaces, text, borders */
-  --color-bg: #f7f4fa;
-  --color-surface: #ffffff;
-  /* What floats above a panel: a menu, a popover, a control laid over a
-     thumbnail. On the light theme the panel is already white, so this is the
-     same white and the border and shadow do the lifting. On dark they cannot —
-     a shadow is black on black — so the surface itself steps up. */
-  --color-surface-raised: #ffffff;
-  --color-surface-subtle: #fbf9fd;
-  --color-surface-muted: #eeeaf1;
-  /* Tinted surface steps below subtle: gradient stops and washed panels */
-  --color-surface-2: #fbf9fd;
-  --color-surface-3: #f7f4fa;
-  --color-text: #211a2c;
-  --color-text-muted: #6c6173;
-  /* Text/icons on purple accent fills and dark media overlays */
-  --color-on-accent: #ffffff;
-  --color-border: #ded8e2;
-  --color-border-strong: #c7becf;
-
-  /* Brand roles — purple leads identity, structure, nav, focus, links, secondary */
-  --color-accent: var(--purple-600);
-  --color-accent-hover: var(--purple-700);
-  --color-accent-active: var(--purple-800);
-  --color-accent-soft: var(--purple-100);
-  --color-accent-softer: var(--purple-50);
-  --color-focus: var(--purple-400);
-
-  /* Honey action roles — the single primary CTA + active progress only */
-  --color-action: var(--honey-500);
-  --color-action-hover: var(--honey-600);
-  --color-action-active: var(--honey-700);
-  --color-action-soft: var(--honey-50);
-  --color-on-action: var(--honey-950);
 
   /* Gradients stay within one family (no purple-to-orange) */
   --gradient-brand: linear-gradient(90deg, #6842d9 0%, #7c59e0 55%, #9b7aee 100%);
@@ -85,24 +28,8 @@
   --task-tag-slate: #5f6b7a;
 
   /* Semantic colors stay non-purple */
-  --color-success: #18794e;
-  --color-success-soft: #eaf7f0;
-  --color-warning: #9a6700;
-  --color-warning-soft: #fff7db;
-  --color-error: #b42318;
-  --color-error-soft: #fff0ee;
 
   /* Spacing, radius, shadows */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 18px;
 
   /* Global page-header geometry. Every full-page topbar uses these values so
      controls stay on the same axes while navigating between public, auth,
@@ -163,52 +90,20 @@
 
      Toasts sit above every dialog on purpose: an Undo offered by a dialog's own
      action must stay reachable while that dialog is up. */
-  --layer-popover: 80;
-  --layer-modal: 100;
-  --layer-modal-nested: 110;
-  --layer-fullbleed: 120;
-  --layer-toast: 130;
 
   /* The lower half of the same scale, added when fifty-three raw z-index
      declarations were moved onto it. The values above were already chosen and
      documented; these fill in what sits below a popover, in the order the raw
      numbers already implied — so nothing moved relative to anything else. */
-  --layer-beneath: -1;
-  --layer-base: 0;
-  --layer-raised: 1;
-  --layer-content: 2;
-  --layer-sticky: 10;
-  --layer-header: 20;
-  --layer-dropdown: 30;
-  --layer-overlay: 40;
-  --layer-preview: 50;
-  --layer-tooltip: 90;
-  --layer-top: 140;
 
   /* Ink tints (the rgba(36,27,58,α) family) and overlays */
   --tint-soft: rgba(36, 27, 58, 0.06);
   --tint-medium: rgba(36, 27, 58, 0.14);
   --tint-strong: rgba(36, 27, 58, 0.24);
-  --overlay-backdrop: rgb(36 27 58 / 42%);
 
   /* Shadow scale; menu/raise stay as aliases for existing call sites */
-  --shadow-sm: 0 1px 2px var(--tint-soft);
-  --shadow-md: 0 2px 6px rgba(36, 27, 58, 0.12);
-  --shadow-lg: 0 12px 32px var(--tint-medium);
-  --shadow-xl: 0 24px 80px var(--tint-strong);
-  --shadow-menu: var(--shadow-lg);
-  --shadow-raise: var(--shadow-md);
 
   /* Motion system */
-  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
-  --ease-enter: cubic-bezier(0, 0, 0.2, 1);
-  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
-  --dur-micro: 130ms;
-  --dur-control: 180ms;
-  --dur-pop: 160ms;
-  --dur-section: 260ms;
-  --dur-layout: 300ms;
-  --dur-complete: 450ms;
 
   font-family:
     -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
@@ -7586,43 +7481,10 @@ body:has(.public-home) {
    Semantic tokens flip; the purple brand brightens so accents
    keep contrast against deep indigo surfaces.
    ============================================================ */
+/* Dark theme: the roles live in styles/tokens.css. What stays here is the tag
+   palette and the two gradients — data rather than roles, and they need a
+   value per theme like anything else. */
 :root[data-theme='dark'] {
-  color-scheme: dark;
-
-  /* Neutral — deepest Soty neutral, never pure black */
-  --color-bg: #120f17;
-  --color-surface: #1c1725;
-  --color-surface-subtle: #171220;
-  --color-surface-muted: #241d2f;
-  --color-surface-2: #1c1725;
-  --color-surface-3: #171220;
-  /* Two steps above the panel it opens over, which is the only thing that
-     separates them when the shadow has nothing to fall on. */
-  --color-surface-raised: #2b2338;
-  --color-text: #f6f2f8;
-  --color-text-muted: #b8adbe;
-  --color-border: #382f43;
-  --color-border-strong: #51435e;
-
-  /* Brand roles — purple */
-  /* Lightened from #8a67e8, which measured 4.33:1 against the dark surface
-     where WCAG asks for 4.5:1 on body text — a link that read as slightly dim
-     to a sighted user and failed outright for anyone who needs the contrast.
-     This is 5.35:1 and keeps the hue. */
-  --color-accent: #9b7aee;
-  --color-accent-hover: #9b7aee;
-  --color-accent-active: #6842d9;
-  --color-accent-soft: color-mix(in srgb, #9b7aee 22%, transparent);
-  --color-accent-softer: color-mix(in srgb, #9b7aee 12%, transparent);
-  --color-focus: #bca7f7;
-
-  /* Honey action roles — brighter honey reads on the dark canvas */
-  --color-action: #ffb51b;
-  --color-action-hover: #f5a318;
-  --color-action-active: #d98508;
-  --color-action-soft: color-mix(in srgb, #ffb51b 16%, transparent);
-  --color-on-action: #2d1a05;
-
   --gradient-brand: linear-gradient(90deg, #6842d9 0%, #8a67e8 55%, #9b7aee 100%);
   --gradient-progress: linear-gradient(90deg, #ffb51b 0%, #f5a318 100%);
 
@@ -7636,19 +7498,6 @@ body:has(.public-home) {
   --task-tag-red: #f4776a;
   --task-tag-pink: #ec84bd;
   --task-tag-slate: #9aa6b5;
-
-  --color-success: #56d597;
-  --color-success-soft: color-mix(in srgb, #56d597 15%, transparent);
-  --color-warning: #f2c14e;
-  --color-warning-soft: color-mix(in srgb, #f2c14e 15%, transparent);
-  --color-error: #f4776a;
-  --color-error-soft: color-mix(in srgb, #f4776a 15%, transparent);
-
-  /* Shadow scale flips to black; menu/raise aliases resolve through it */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.55);
-  --shadow-xl: 0 24px 80px rgba(0, 0, 0, 0.6);
 }
 
 /* Hardcoded light surfaces that tokens don't reach */
