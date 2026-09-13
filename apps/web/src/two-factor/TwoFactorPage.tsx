@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Clipboard, Plus, Search, Shield, Trash2 } from 'lucide-react';
 import { analytics } from '../analytics/service';
-import { IconButton } from '../components/ui';
+import { Button, IconButton } from '../components/ui';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { ToastProvider, useToasts } from '../components/toast';
 import { useI18n, type TranslationKey } from '../i18n';
@@ -24,7 +24,8 @@ import { QuickCode } from './QuickCode';
 import { useIdle, useTotpStep } from './totp-clock';
 import { TwoFactorProvider, useTwoFactor } from './TwoFactorContext';
 import { TwoFactorEditRow, TwoFactorRow } from './TwoFactorRow';
-import { DropdownMenu } from '../components/ui/index';
+import { Alert, DropdownMenu, EmptyState, ErrorState } from '../components/ui/index';
+import { LabeledSkeleton } from '../components/LabeledSkeleton';
 
 type SortOrder = 'az' | 'za' | 'newest' | 'oldest';
 
@@ -220,10 +221,12 @@ function TwoFactorWallet() {
         </div>
       </header>
 
+      {/* A clock that has drifted makes every code here wrong; that is a
+          warning, and it reads as one. */}
       {clockOffBy !== null && (
-        <p className="tfa-clock-warning" role="status">
+        <Alert className="tfa-clock-warning" color="warning" variant="soft">
           {t('twoFactorClockOff', { seconds: clockOffBy })}
-        </p>
+        </Alert>
       )}
 
       {/* Always there, never behind a toggle: the moment somebody needs a code
@@ -323,28 +326,52 @@ function TwoFactorWallet() {
           </tbody>
         </table>
 
-        {status === 'loading' && <p className="tfa-notice">{t('twoFactorLoading')}</p>}
+        {status === 'loading' && <LabeledSkeleton label="twoFactorLoading" rows={3} />}
         {status === 'failed' && (
-          <p className="tfa-notice tfa-notice-error" role="alert">
-            {errorCode === 'NOT_AUTHENTICATED'
-              ? t('twoFactorLoadFailedSignedOut')
-              : t('twoFactorLoadFailed')}
-          </p>
+          <ErrorState
+            className="tfa-notice tfa-notice-error"
+            message={
+              errorCode === 'NOT_AUTHENTICATED'
+                ? t('twoFactorLoadFailedSignedOut')
+                : t('twoFactorLoadFailed')
+            }
+          />
         )}
+        {/* An empty notebook is filled by adding a key, so the state carries
+            the same control the header does (FR-021). */}
         {status === 'ready' && entries.length === 0 && !adding && (
-          <p className="tfa-notice">
-            <strong>{t('twoFactorEmpty')}</strong>
-            <span>{t('twoFactorEmptyBody')}</span>
-          </p>
+          <EmptyState
+            className="tfa-notice"
+            title={t('twoFactorEmpty')}
+            description={t('twoFactorEmptyBody')}
+            action={
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setEditingId(null);
+                  setAdding(true);
+                }}
+              >
+                {t('twoFactorAdd')}
+              </Button>
+            }
+          />
         )}
         {/* Distinct from the empty notebook on purpose: "you have nothing" and
             "you have things, none of them this" are different situations, and
             only one is solved by adding a key. */}
         {status === 'ready' && entries.length > 0 && visible.length === 0 && (
-          <p className="tfa-notice">
-            <strong>{t('twoFactorNoMatches', { query: query.trim() })}</strong>
-            <span>{t('twoFactorNoMatchesBody')}</span>
-          </p>
+          <EmptyState
+            className="tfa-notice"
+            title={t('twoFactorNoMatches', { query: query.trim() })}
+            description={t('twoFactorNoMatchesBody')}
+            action={
+              <Button type="button" variant="ghost" onClick={() => setQuery('')}>
+                {t('twoFactorSearchClear')}
+              </Button>
+            }
+          />
         )}
       </div>
     </main>

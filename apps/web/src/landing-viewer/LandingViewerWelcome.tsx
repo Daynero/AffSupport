@@ -5,6 +5,7 @@ import { DropZone } from '../components/DropZone';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { useI18n } from '../i18n';
 import { GalleryIconButton } from './internal/GalleryIconButton';
+import { ErrorState } from '../components/ui/index';
 
 /**
  * The tool before a folder is open: the compressor's drop zone, then the folders opened
@@ -55,11 +56,7 @@ export function LandingViewerWelcome({
           t={t}
         />
       </section>
-      {message && (
-        <p className="lv-welcome-error" role="alert">
-          {message}
-        </p>
-      )}
+      {message && <ErrorState className="lv-welcome-error" message={message} />}
       {(recent.length > 0 || team.length > 0 || teamSources) && (
         <div className="lv-sources">
           {recent.length > 0 && (
@@ -97,7 +94,7 @@ export function LandingViewerWelcome({
           )}
         </div>
       )}
-      <p className="lv-welcome-note">{t('landingGalleryLocalNote')}</p>
+      <p className="lv-welcome-note prose">{t('landingGalleryLocalNote')}</p>
     </main>
   );
 }

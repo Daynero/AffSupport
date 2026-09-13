@@ -2340,6 +2340,7 @@ const en = {
   twoFactorLoading: 'Opening your notebook…',
   twoFactorLoadFailed: 'Could not open your notebook. Reload the page to try again.',
   twoFactorLoadFailedSignedOut: 'Sign in again to open your notebook.',
+  twoFactorSearchClear: 'Clear the search',
   twoFactorEmpty: 'No keys yet',
   // 2FA notebook (016) — its tile in the catalogue.
   twoFactorNotebook: '2FA notebook',
@@ -4737,6 +4738,7 @@ const uk: Record<keyof typeof en, string> = {
   twoFactorLoadFailed:
     'Не вдалося відкрити записник. Перезавантаж сторінку, щоб спробувати ще раз.',
   twoFactorLoadFailedSignedOut: 'Увійди знову, щоб відкрити записник.',
+  twoFactorSearchClear: 'Скинути пошук',
   twoFactorEmpty: 'Ключів ще немає',
   // 2FA notebook (016) — its tile in the catalogue.
   twoFactorNotebook: 'Записник 2FA',

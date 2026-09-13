@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { Card } from '../components/Card';
 import { type Translate } from '../components/ui';
-import { Button, EmptyState, ErrorState, fillRatio } from '../components/ui/index';
+import { Button, EmptyState, ErrorState, PermissionState, fillRatio } from '../components/ui/index';
 import { Alert } from '../components/ui/index';
 import { formatSize } from '../format';
 import { useI18n, type TranslationKey } from '../i18n';
@@ -247,10 +247,15 @@ export default function AdminPage() {
   }, [load]);
 
   if (!isAdmin) {
+    /*
+     * A boundary, not a failure: this page is for one role and the reader is
+     * not in it. The shared permission note says so in the product's own voice
+     * rather than in a heading that reads like an error page (FR-004).
+     */
     return (
       <main className={`admin-forbidden page-container${entering ? ' page-enter' : ''}`}>
         <h2>{t('adminForbiddenTitle')}</h2>
-        <p>{t('adminForbiddenBody')}</p>
+        <PermissionState message={t('adminForbiddenBody')} />
       </main>
     );
   }

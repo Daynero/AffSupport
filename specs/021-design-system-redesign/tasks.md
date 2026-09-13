@@ -175,7 +175,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 
 ## Phase 9: [US1] C6 — 2FA notebook and landing viewer
 
-- [ ] T068 [US1] Migrate `apps/web/src/two-factor/TwoFactorPage.tsx` and `TwoFactorRow.tsx` onto Table + Card + Button
+- [x] T068 [US1] Migrate `apps/web/src/two-factor/TwoFactorPage.tsx` and `TwoFactorRow.tsx` onto Table + Card + Button
 - [ ] T069 [P] [US1] Migrate `apps/web/src/two-factor/CodeCell.tsx`, `Countdown.tsx` and `QuickCode.tsx` onto tokens, keeping the expiry ring and copy feedback (no animation on copy — frequent action)
 - [ ] T070 [US1] Migrate `apps/web/src/landing-viewer/LandingViewer.tsx`, `LandingViewerWelcome.tsx` and `LandingTree.tsx` onto the inventory (Tree, Empty, Card)
 - [ ] T071 [P] [US1] Migrate `apps/web/src/landing-viewer/LandingGalleryGrid.tsx`, `LandingSourceSwitcher.tsx` and `LandingRefreshControl.tsx`
@@ -189,7 +189,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 
 - [x] T075 [US1] Migrate `apps/web/src/pages/AccountPage.tsx` — profile, language, marketing consent, danger zone (destructive action de-emphasised, confirmation names the consequence)
 - [ ] T076 [US1] Migrate `apps/web/src/pages/AdminPage.tsx` — metric tiles onto Card, the user table onto Table (`sm` density), filters onto Select/SegmentedControl, CSV export onto Button
-- [ ] T077 [P] [US1] [US2] Give AdminPage its states: loading skeleton, empty result, failed load, and the non-admin permission-limited state
+- [x] T077 [P] [US1] [US2] Give AdminPage its states: loading skeleton, empty result, failed load, and the non-admin permission-limited state
 - [ ] T078 [US1] Update `tests/admin-ui.test.tsx` to assert through roles and accessible names
 - [ ] T079 [US1] [US4] Verify C7 at five widths × two themes × reduced motion
 
