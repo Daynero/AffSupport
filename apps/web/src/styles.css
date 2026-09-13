@@ -9301,19 +9301,23 @@ body:has(.public-home) {
   box-shadow: none;
 }
 
-.settings-section-heading {
+.settings-section-heading,
+.settings-section .ui-card-heading {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   min-width: 0;
 }
-.settings-section-heading > svg {
+.settings-section-heading > svg,
+.settings-section .ui-card-icon {
+  display: inline-flex;
   flex: none;
   color: var(--color-accent);
 }
 /* The largest thing in its panel, which is what a heading is for: the labels
    below it are captions and read like captions. */
-.settings-section-heading h2 {
+.settings-section-heading h2,
+.settings-section .ui-card-title {
   min-width: 0;
   margin: 0;
   font-size: var(--text-5xl);
@@ -9321,7 +9325,8 @@ body:has(.public-home) {
 }
 /* Where the compressor keeps its summary — the one line that says what this
    panel is currently set to. */
-.settings-section-aside {
+.settings-section-aside,
+.settings-section .ui-card-aside {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -9332,7 +9337,8 @@ body:has(.public-home) {
   font-size: var(--text-lg);
   font-weight: 650;
 }
-.settings-section-note {
+.settings-section-note,
+.settings-section .ui-card-description {
   max-width: 74ch;
   color: var(--color-text-muted);
   font-size: var(--text-lg);

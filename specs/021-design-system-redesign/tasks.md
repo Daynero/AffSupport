@@ -262,7 +262,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 ## Phase 16: [US1] C13 — Team: settings and members
 
 - [ ] T119 [US1] Migrate `apps/web/src/team/workspace/SettingsDialog.tsx` and `SpaceSettings.tsx` — the sticky bar and the five tabs — onto Modal + Tabs
-- [ ] T120 [US1] Migrate `apps/web/src/team/workspace/SettingsSection.tsx` onto Card (section role), and with it `TeamPreferencesSection.tsx` and the share-preference panel
+- [x] T120 [US1] Migrate `apps/web/src/team/workspace/SettingsSection.tsx` onto Card (section role), and with it `TeamPreferencesSection.tsx` and the share-preference panel
 - [x] T121 [P] [US1] Migrate `apps/web/src/team/drive/DriveConnectionPanel.tsx` and `BetaStorageNotice.tsx` onto Card + Badge + Alert, covering connected / needs-reauth / root-missing / unavailable
 - [x] T122 [P] [US1] Migrate `apps/web/src/team/members/MemberList.tsx`, `InvitationPanel.tsx`, `MemberPermissionsDialog.tsx` and `OwnershipTransferDialog.tsx` onto Table + Modal + Choice
 - [ ] T123 [P] [US1] Migrate `apps/web/src/team/members/TeamAuditPanel.tsx` onto Timeline

@@ -10,6 +10,7 @@
 
 import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
+import { Card } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 
 export function SettingsSection({
@@ -32,21 +33,17 @@ export function SettingsSection({
   children?: ReactNode;
 }) {
   return (
-    <section
+    <Card
+      as="section"
+      role="section"
       className={`team-panel settings-section${className ? ` ${className}` : ''}`}
-      aria-labelledby={titleId}
+      icon={<Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+      title={title}
+      titleId={titleId}
+      aside={aside}
+      description={description}
     >
-      <div className="settings-section-heading">
-        <Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        <h2 id={titleId}>{title}</h2>
-        {aside !== undefined && aside !== null && aside !== false && (
-          <span className="settings-section-aside">{aside}</span>
-        )}
-      </div>
-      {description !== undefined && description !== null && description !== false && (
-        <p className="settings-section-note">{description}</p>
-      )}
       {children}
-    </section>
+    </Card>
   );
 }

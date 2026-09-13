@@ -35,6 +35,7 @@ import { uploadTeamFile } from '../catalog/material-actions-client';
 import { classifyMaterial } from '@video-compressor/shared';
 import { teamErrorMessageFor } from '../errors';
 import { PermissionState } from '../../components/ui/index';
+import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 
 export interface TaskEditorClient
   extends
@@ -1159,7 +1160,10 @@ export function TaskEditor({
               <span>{t('teamTaskAttachmentsCount', { count: attachmentCount })}</span>
             </div>
 
-            {loading && <p aria-live="polite">{t('teamTaskLoadingAttachments')}</p>}
+            {/* The shape of what is coming, so the list does not jump when it
+                lands — and the sentence stays, because a bare shimmer is
+                indistinguishable from a stuck screen. */}
+            {loading && <LabeledSkeleton label="teamTaskLoadingAttachments" rows={2} />}
             <div className="team-task-attachment-grid">
               {visibleAttachments.map(attachment => (
                 <TaskAttachmentTile
