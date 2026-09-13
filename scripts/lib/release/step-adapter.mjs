@@ -139,23 +139,76 @@ const npm = (...args) => ['npm', 'run', ...args];
  * person to go and look it up. The correlation is the source SHA plus the
  * dispatch time: a run older than the dispatch belongs to somebody else.
  */
-async function findWorkflowRun({ cwd, workflow, sourceSha, dispatchedAt }) {
+/**
+ * Which of the workflow's runs is ours.
+ *
+ * It matched on `headSha`, and a dispatched run's head is the *ref it was
+ * dispatched on*, never the commit it was asked to check out. That is the same
+ * thing only when the release is the tip of `main` -- true of the last release
+ * by accident, false of any release cut while development continues, which is
+ * the case this runner exists for. So the dispatch succeeded, the build ran, and
+ * the lookup returned nothing: `EFFECT_AMBIGUOUS`, a live Windows build nobody
+ * was watching, and a release stopped for want of a name it already had.
+ *
+ * The workflow puts `release_id` in its own run name for exactly this purpose.
+ * Correlating on it identifies the run we caused and no other, on any ref. The
+ * head-sha match is kept as a fallback for runs started by a push, which carry
+ * no release id.
+ */
+async function findWorkflowRun({ cwd, workflow, sourceSha, releaseId, publish, dispatchedAt }) {
   const { stdout } = await exec(
     'gh',
     ['run', 'list', '--workflow', workflow, '--limit', '10', '--json',
-     'databaseId,headSha,createdAt,status,conclusion'],
+     'databaseId,headSha,createdAt,status,conclusion,displayTitle'],
     { cwd, shell: false }
   );
-  const candidates = JSON.parse(stdout)
-    .filter(candidate => candidate.headSha === sourceSha)
-    .filter(candidate => Date.parse(candidate.createdAt) >= dispatchedAt - 60_000)
-    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+  const runs = JSON.parse(stdout).filter(
+    candidate => Date.parse(candidate.createdAt) >= dispatchedAt - 60_000
+  );
+  // The workflow names itself "Windows <release id> publish|build-only", so the
+  // two dispatches one release makes are told apart as well as one release is
+  // told from another.
+  const mine = candidate =>
+    candidate.displayTitle?.includes(releaseId) &&
+    candidate.displayTitle.endsWith(publish ? 'publish' : 'build-only');
+  const candidates = (
+    releaseId && runs.some(mine) ? runs.filter(mine) : runs.filter(candidate => candidate.headSha === sourceSha)
+  ).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
   return candidates[0] ?? null;
 }
 
 async function dispatchAndWatch(stepId, { cwd, env, admission, sourceSha, releaseId, publish }) {
   const workflow = 'release-windows.yml';
   const dispatchedAt = Date.now();
+
+  /**
+   * A run already under way for this release is the one to watch.
+   *
+   * The release id names one dispatch of one release, so a run carrying it was
+   * caused by this step and no other. Dispatching a second one would not be a
+   * retry: the workflow serialises on a concurrency group, so the duplicate
+   * would queue behind the build already running and the release would wait out
+   * both. Adopting it is the same rule `publish` already applies to a release
+   * tag that exists -- evidence the effect happened, not a reason to repeat it.
+   *
+   * A run that failed or was cancelled is not adopted; that one does need doing
+   * again.
+   */
+  const started = await findWorkflowRun({
+    cwd,
+    workflow,
+    sourceSha,
+    releaseId,
+    publish,
+    dispatchedAt: 0
+  });
+  if (started && !['failure', 'cancelled', 'timed_out'].includes(started.conclusion ?? ''))
+    return run(stepId, [process.execPath, 'scripts/watch-github-run.mjs', String(started.databaseId)], {
+      cwd,
+      env,
+      admission
+    });
+
   try {
     await exec(
       'gh',
@@ -168,7 +221,7 @@ async function dispatchAndWatch(stepId, { cwd, env, admission, sourceSha, releas
   }
   // The dispatch may have started a run even if finding it fails, so a lookup
   // failure is ambiguous rather than a clean "nothing happened".
-  const found = await findWorkflowRun({ cwd, workflow, sourceSha, dispatchedAt });
+  const found = await findWorkflowRun({ cwd, workflow, sourceSha, releaseId, publish, dispatchedAt });
   if (!found)
     return fail('EFFECT_AMBIGUOUS', `dispatched ${workflow} for ${sourceSha} but no run was found`);
   return run(stepId, [process.execPath, 'scripts/watch-github-run.mjs', String(found.databaseId)], {
