@@ -1369,6 +1369,31 @@
   margin: var(--space-1) 0;
   background: var(--color-neutral-border);
 }
+/* The question a run of radio items answers. Quiet: it is a label, not a row
+   anyone can press. */
+.ui-menu-heading {
+  padding: var(--space-2) var(--space-2) var(--space-1);
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ui-menu-heading:first-child {
+  padding-top: var(--space-1);
+}
+/* A fixed gutter for the tick, so the labels of a radio group line up whether
+   or not any of them is the current answer. */
+.ui-menu-check {
+  display: inline-flex;
+  flex: none;
+  justify-content: center;
+  width: 14px;
+  color: var(--color-primary-text);
+}
+.ui-menu-item.is-checked {
+  font-weight: 650;
+}
 
 /* ============================================================
    Navigation

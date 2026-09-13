@@ -8,6 +8,7 @@ import {
   type RefObject
 } from 'react';
 import { createPortal } from 'react-dom';
+import { useAnchoredLayer } from '../useAnchoredLayer';
 import { uiClasses, type UiSize } from './types';
 
 /**
@@ -287,11 +288,21 @@ export function Drawer({ side = 'left', size = 'md', className, ...props }: Draw
 export interface PopoverProps {
   open: boolean;
   onClose: () => void;
-  /** The element the surface grows out of; its box sets the transform origin. */
+  /** The element the surface grows out of; its box sets the placement and origin. */
   anchor?: RefObject<HTMLElement | null>;
+  /**
+   * Which corner it prefers. The side is a preference, not a promise: the
+   * placement flips when the window has more room the other way, which is why
+   * the surface is portalled out of a card that would otherwise clip it.
+   */
   placement?: 'bottom-start' | 'bottom-end' | 'top-start' | 'top-end';
   /** True for something opened many times an hour: no animation at all. */
   frequent?: boolean;
+  /** The surface takes the anchor's width — a select, a combobox. */
+  matchWidth?: boolean;
+  /** Floor for that width, so a short chip does not open an unreadable list. */
+  minWidth?: number;
+  maxHeight?: number;
   label?: string;
   className?: string;
   children: ReactNode;
@@ -303,6 +314,9 @@ export function Popover({
   anchor,
   placement = 'bottom-start',
   frequent = false,
+  matchWidth = false,
+  minWidth,
+  maxHeight,
   label,
   className,
   children
@@ -310,6 +324,12 @@ export function Popover({
   const surface = useRef<HTMLDivElement>(null);
   const close = useCallback(() => onClose(), [onClose]);
   useDialogBehaviour({ surface, active: open, onClose: close, modal: false });
+  const placed = useAnchoredLayer(anchor ?? emptyAnchor, surface, open && Boolean(anchor), {
+    align: placement.endsWith('end') ? 'end' : 'start',
+    matchWidth,
+    minWidth,
+    maxHeight
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -323,8 +343,9 @@ export function Popover({
     return () => window.removeEventListener('mousedown', onPointerDown);
   }, [anchor, close, open]);
 
-  if (!open) return null;
-  return (
+  if (!open || typeof document === 'undefined') return null;
+
+  const surfaceElement = (
     <div
       ref={surface}
       role="dialog"
@@ -333,11 +354,20 @@ export function Popover({
         states: { frequent },
         className: [`ui-popover--${placement}`, className].filter(Boolean).join(' ')
       })}
+      style={anchor ? (placed ?? { visibility: 'hidden' }) : undefined}
     >
       {children}
     </div>
   );
+
+  // Anchored surfaces are portalled: a menu inside a list card is clipped by
+  // the card, which hides its overflow for the status rail and skips painting
+  // what is off screen. Unanchored ones stay where they were written.
+  return anchor ? createPortal(surfaceElement, document.body) : surfaceElement;
 }
+
+/** A stable empty ref, so the placement hook's arguments keep their shape. */
+const emptyAnchor: RefObject<HTMLElement | null> = { current: null };
 
 export interface MenuItem {
   id: string;
@@ -348,15 +378,48 @@ export interface MenuItem {
   disabled?: boolean;
   /** Drawn right-aligned: a shortcut, a count. */
   trailing?: ReactNode;
+  /**
+   * Present when the item is one answer to a question the menu is asking —
+   * a sort key, a direction, a filter. It then reads as a radio rather than a
+   * command, and carries a tick.
+   */
+  checked?: boolean;
   onSelect: () => void;
+}
+
+/** A line naming the question the items under it answer. */
+export interface MenuHeading {
+  heading: ReactNode;
+}
+
+export type MenuEntry = MenuItem | MenuHeading | 'separator';
+
+function isHeading(entry: MenuEntry): entry is MenuHeading {
+  return entry !== 'separator' && 'heading' in entry;
 }
 
 export interface DropdownMenuProps {
   open: boolean;
   onClose: () => void;
-  items: ReadonlyArray<MenuItem | 'separator'>;
+  items: ReadonlyArray<MenuEntry>;
   anchor?: RefObject<HTMLElement | null>;
   placement?: PopoverProps['placement'];
+  matchWidth?: boolean;
+  minWidth?: number;
+  maxHeight?: number;
+  /**
+   * Whether choosing closes the menu. True for a list of commands; false for a
+   * menu that asks more than one question — a sort key and a direction and a
+   * grouping are three answers, and closing after the first makes the reader
+   * open it three times.
+   */
+  closeOnSelect?: boolean;
+  /**
+   * What a ticked item means: one answer out of several (`single`) or one of a
+   * set that can all be on at once (`multiple`). Only affects items that carry
+   * a `checked`.
+   */
+  selection?: 'single' | 'multiple';
   label: string;
   className?: string;
 }
@@ -372,11 +435,18 @@ export function DropdownMenu({
   items,
   anchor,
   placement = 'bottom-end',
+  matchWidth,
+  minWidth,
+  maxHeight,
+  closeOnSelect = true,
+  selection = 'single',
   label,
   className
 }: DropdownMenuProps) {
   const [active, setActive] = useState(0);
-  const rows = items.filter((item): item is MenuItem => item !== 'separator');
+  const rows = items.filter(
+    (item): item is MenuItem => item !== 'separator' && !isHeading(item)
+  );
 
   useEffect(() => {
     if (open) setActive(0);
@@ -388,6 +458,9 @@ export function DropdownMenu({
       onClose={onClose}
       anchor={anchor}
       placement={placement}
+      matchWidth={matchWidth}
+      minWidth={minWidth}
+      maxHeight={maxHeight}
       frequent
       label={label}
       className={['ui-menu', className].filter(Boolean).join(' ')}
@@ -408,19 +481,41 @@ export function DropdownMenu({
         {items.map((item, index) =>
           item === 'separator' ? (
             <span key={`separator-${index}`} className="ui-menu-separator" role="separator" />
+          ) : isHeading(item) ? (
+            <p key={`heading-${index}`} className="ui-menu-heading" role="presentation">
+              {item.heading}
+            </p>
           ) : (
             <button
               key={item.id}
               type="button"
-              role="menuitem"
+              role={
+                item.checked === undefined
+                  ? 'menuitem'
+                  : selection === 'multiple'
+                    ? 'menuitemcheckbox'
+                    : 'menuitemradio'
+              }
+              aria-checked={item.checked}
               disabled={item.disabled}
               tabIndex={rows.indexOf(item) === active ? 0 : -1}
-              className={`ui-menu-item${item.destructive ? ' is-destructive' : ''}`}
+              className={[
+                'ui-menu-item',
+                item.destructive ? 'is-destructive' : '',
+                item.checked ? 'is-checked' : ''
+              ]
+                .filter(Boolean)
+                .join(' ')}
               onClick={() => {
                 item.onSelect();
-                onClose();
+                if (closeOnSelect) onClose();
               }}
             >
+              {item.checked !== undefined && (
+                <span className="ui-menu-check" aria-hidden="true">
+                  {item.checked ? '✓' : ''}
+                </span>
+              )}
               {item.icon && (
                 <span className="ui-menu-icon" aria-hidden="true">
                   {item.icon}

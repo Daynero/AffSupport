@@ -50,12 +50,16 @@ export type { EmptyProps, ProgressProps, SkeletonProps, TooltipProps } from './F
 
 export { Drawer, DropdownMenu, Modal, Popover } from './Overlay';
 export type {
+  DialogBehaviour,
   DrawerProps,
   DropdownMenuProps,
+  MenuEntry,
+  MenuHeading,
   MenuItem,
   ModalProps,
   PopoverProps
 } from './Overlay';
+export { useDialogBehaviour } from './Overlay';
 
 export { Breadcrumb, Link, Pagination, Tabs } from './Navigation';
 export type {
