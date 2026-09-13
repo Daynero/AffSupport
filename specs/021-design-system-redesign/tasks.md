@@ -218,7 +218,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [ ] T093 [P] [US1] Migrate `apps/web/src/team/explorer/UploadConflictDialog.tsx`, `FolderScopeDialog.tsx` and `ProcessPanel.tsx` onto Modal + the confirmation pattern
 - [x] T094 [P] [US1] Migrate `apps/web/src/team/catalog/TrashView.tsx` onto Table + Empty + the confirmation pattern (purge is destructive and de-emphasised)
 - [x] T095 [US1] Update `tests/team-explorer-grid.test.tsx` and the explorer's other class-name assertions to roles
-- [ ] T096 [US1] [US4] Verify C9 at five widths × two themes × reduced motion, with a 500-row folder
+- [x] T096 [US1] [US4] Verify C9 at five widths × two themes × reduced motion, with a 500-row folder
 
 ---
 
@@ -229,7 +229,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [x] T099 [P] [US1] [US2] Migrate `apps/web/src/team/catalog/MaterialResults.tsx` with loading skeleton, empty result and failed states
 - [x] T100 [P] [US1] Migrate `apps/web/src/team/catalog/MaterialMetadataEditor.tsx` and `MaterialRowMenu.tsx` onto Modal + FormField + DropdownMenu
 - [x] T101 [P] [US1] Migrate `apps/web/src/team/catalog/ProvenancePanel.tsx`, `FolderPicker.tsx` and `TeamTextEditor.tsx`
-- [ ] T102 [US1] [US4] Verify C10 at five widths × two themes × reduced motion
+- [x] T102 [US1] [US4] Verify C10 at five widths × two themes × reduced motion
 
 ---
 
@@ -255,7 +255,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [x] T115 [P] [US1] Migrate `apps/web/src/team/accounts/AgentLabels.tsx`, `MarkerFilter.tsx` and `Marked.tsx` onto Chip + DropdownMenu + the highlight token
 - [x] T116 [US1] Migrate `apps/web/src/styles/team-accounts.css` onto tokens and delete what the inventory covers
 - [x] T117 [US1] Update `tests/team-accounts.test.tsx` class-name assertions to roles, keeping every behavioural assertion intact
-- [ ] T118 [US1] [US4] Verify C12 at five widths × two themes × reduced motion, with the money column folded and unfolded
+- [x] T118 [US1] [US4] Verify C12 at five widths × two themes × reduced motion, with the money column folded and unfolded
 
 ---
 
@@ -291,7 +291,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 better.
 
 - [x] T135 [US2] Walk `contracts/screens.md` row by row in the beta, forcing every listed state; record any state that has no design in `specs/021-design-system-redesign/findings.md`
-- [ ] T136 [US2] Fix every gap found in T135 by applying the shared pattern — no new one-screen treatments
+- [x] T136 [US2] Fix every gap found in T135 by applying the shared pattern — no new one-screen treatments
 - [x] T137 [P] [US2] Verify every empty state that can be resolved by an action offers that action as a control (FR-021), across all fourteen groups
 - [x] T138 [P] [US2] Verify every destructive action is de-emphasised relative to the safe action beside it and its confirmation names the consequence in a verb (FR-020)
 - [x] T139 [P] [US2] Verify every permission-limited surface hides or explains rather than disabling (FR-004 acceptance), for viewer, editor, admin and owner
@@ -314,7 +314,7 @@ better.
 - [x] T146 [P] [US4] Run the contrast audit across every surface in both themes; fix every AA failure at the token level rather than per screen
 - [x] T147 [P] [US4] Walk the product by keyboard alone: focus order follows reading order, focus is always visible, dialogs trap and restore focus
 - [x] T148 [P] [US4] Verify every control with the longer (Ukrainian) translation; fix anything that clips or overflows
-- [ ] T149 [P] [US4] Verify no state is communicated by colour alone (FR-032), particularly the marker colours, connection states and task statuses
+- [x] T149 [P] [US4] Verify no state is communicated by colour alone (FR-032), particularly the marker colours, connection states and task statuses
 - [x] T157 [P] [US1] Audit every paragraph and helper text in the product for the 70ch measure cap (FR-023); fix at the pattern level, not per screen
 - [x] T158 [P] [US1] Audit every surface for exactly one `primary`-variant control, positioned at the end of the reading flow (FR-022); demote the extras to `secondary` or `ghost`
 
