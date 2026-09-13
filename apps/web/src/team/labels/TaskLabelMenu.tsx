@@ -15,6 +15,7 @@ import { ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { TaskLabelChip } from './TaskLabelChip';
 import { SpaceSettingsLink, type SpaceSettingsTarget } from '../SpaceSettingsLink';
+import { EmptyState } from '../../components/ui/index';
 
 /** Past this many tags, scanning is slower than typing three letters. */
 const SEARCH_FROM = 8;
@@ -93,15 +94,15 @@ export function TaskLabelMenu({
         />
       )}
       {sorted.length === 0 && (
-        <div className="team-task-label-menu-empty" role="presentation">
-          <p>{emptyText}</p>
-          {emptyTarget && <SpaceSettingsLink target={emptyTarget} />}
-        </div>
+        <EmptyState
+          size="sm"
+          className="team-task-label-menu-empty"
+          title={emptyText}
+          action={emptyTarget && <SpaceSettingsLink target={emptyTarget} />}
+        />
       )}
       {sorted.length > 0 && shown.length === 0 && (
-        <p className="team-task-label-menu-empty" role="presentation">
-          {t('teamTaskTagSearchEmpty')}
-        </p>
+        <EmptyState size="sm" className="team-task-label-menu-empty" title={t('teamTaskTagSearchEmpty')} />
       )}
       {shown.map(label => {
         const selected = selectedIds.has(label.id);
