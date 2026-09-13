@@ -139,7 +139,7 @@ tooltip look and move the same wherever they are raised.
 **Independent test**: drop files, change every setting, run a batch, hit an error — all of it
 in inventory components, with the compressor looking exactly as good as it does today.
 
-- [ ] T047 [US1] Migrate `apps/web/src/HomePage.tsx` — tool cards onto Card + Badge + Button, including the "in development" state
+- [x] T047 [US1] Migrate `apps/web/src/HomePage.tsx` — tool cards onto Card + Badge + Button, including the "in development" state
 - [ ] T048 [US1] Migrate `apps/web/src/components/SettingsPanel.tsx` onto Card + Collapsible + FormField + Choice, keeping the summary-in-the-heading behaviour
 - [ ] T049 [US1] Migrate the compressor shell in `apps/web/src/App.tsx` — drop zone, batch toolbar, selection bar with its count, results summary
 - [ ] T050 [P] [US1] Migrate `apps/web/src/components/JobRow.tsx` and `apps/web/src/components/ImageEmbeddingSection.tsx` onto Table row + Progress + Badge + Alert
@@ -263,8 +263,8 @@ in inventory components, with the compressor looking exactly as good as it does 
 
 - [ ] T119 [US1] Migrate `apps/web/src/team/workspace/SettingsDialog.tsx` and `SpaceSettings.tsx` — the sticky bar and the five tabs — onto Modal + Tabs
 - [ ] T120 [US1] Migrate `apps/web/src/team/workspace/SettingsSection.tsx` onto Card (section role), and with it `TeamPreferencesSection.tsx` and the share-preference panel
-- [ ] T121 [P] [US1] Migrate `apps/web/src/team/drive/DriveConnectionPanel.tsx` and `BetaStorageNotice.tsx` onto Card + Badge + Alert, covering connected / needs-reauth / root-missing / unavailable
-- [ ] T122 [P] [US1] Migrate `apps/web/src/team/members/MemberList.tsx`, `InvitationPanel.tsx`, `MemberPermissionsDialog.tsx` and `OwnershipTransferDialog.tsx` onto Table + Modal + Choice
+- [x] T121 [P] [US1] Migrate `apps/web/src/team/drive/DriveConnectionPanel.tsx` and `BetaStorageNotice.tsx` onto Card + Badge + Alert, covering connected / needs-reauth / root-missing / unavailable
+- [x] T122 [P] [US1] Migrate `apps/web/src/team/members/MemberList.tsx`, `InvitationPanel.tsx`, `MemberPermissionsDialog.tsx` and `OwnershipTransferDialog.tsx` onto Table + Modal + Choice
 - [ ] T123 [P] [US1] Migrate `apps/web/src/team/members/TeamAuditPanel.tsx` onto Timeline
 - [x] T124 [P] [US1] Migrate `apps/web/src/team/labels/TaskLabelsSection.tsx`, `TaskLabelChip.tsx` and `TaskLabelMenu.tsx` onto Chip + Popover + the empty-state pattern
 - [ ] T125 [US1] Migrate `apps/web/src/team/workspace/RestitchDefaultsSection.tsx` onto the shared settings panel and picto RadioGroup
@@ -430,8 +430,8 @@ hiding them would make the plan's central decision (reference, not dependency) u
 Written while a release held the machine, so nothing was typechecked, tested or
 opened in the beta — that is the first thing to do when the release lets go.
 
-**Done** (46 of 161): the whole foundation and inventory, plus the screen work
-that could be done without a browser to check it in.
+**Done** (49 of 161 by task, more by effect): the whole foundation and inventory,
+plus the screen work that could be done without a browser to check it in.
 
 - **Phase 1–2, T001–T012** — `styles/tokens.css` (seven roles × two themes, the
   type ramp, space/radius/shadow/motion/layer, control geometry),
@@ -453,6 +453,25 @@ and every call to action in the product is honey, while violet is identity,
 navigation, selection and focus. Swapped before anything depended on it, and the
 aliases were adjusted so no screen changed colour. Recorded in commit
 `72e6d52`.
+
+**The class floor changes what is left to do.** Nine of the fourteen screen
+groups are largely a deletion now rather than a rewrite: the pre-021 names —
+buttons, inline notices, empty states, dialog footers, picker rows, tab strips,
+icon plates, toasts, status badges — are all re-expressed in tokens and loaded
+*before* `styles.css`. A group's remaining work is to delete its own copies from
+`styles.css` and let the screen land on the floor, then swap the handful of
+components that need real markup changes. That is still work, and it still needs
+eyes on a running beta, but it is no longer "rewrite fourteen screens".
+
+**What genuinely remains, and why it needs a browser:**
+
+- the geometry-heavy screens — compressor settings, the transcript modal, the
+  landing viewer, the explorer grid — where markup and layout move together;
+- the four whole-product sweeps (states, motion, widths, contrast), none of
+  which can be done without looking;
+- deleting the pre-021 rules from `styles.css`, which is safe only once each
+  group has been seen on the floor;
+- the test updates for class-name assertions the migrations break.
 
 **First things to run when the machine is free** (in this order):
 
