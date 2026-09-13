@@ -1791,3 +1791,141 @@
   position: relative;
   display: inline-flex;
 }
+
+/* ============================================================
+   Legacy class bridge (021)
+
+   Fourteen screen groups cannot migrate in one change, and until they do the
+   product would show two generations of the same control side by side. So the
+   pre-021 classes are re-expressed here in terms of the inventory: the same
+   tokens, the same geometry, the same states.
+
+   It is loaded *before* styles.css, so it is a floor rather than an override:
+   where a pre-021 rule still declares a property, that rule wins and the screen
+   looks exactly as it does today; where it declares nothing, the value now comes
+   from a token instead of from the browser. As each group migrates, its old
+   rules are deleted and the screen lands on this floor — which is why the
+   migration can be a deletion rather than a rewrite.
+
+   This is a bridge, not a home. Each block names the group that clears it.
+   Nothing new may use these names.
+   ============================================================ */
+
+/* Buttons — the seven dialects, brought to one geometry (cleared by C1–C14). */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--control-height-md);
+  padding: var(--control-padding-md);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--text-label);
+  font-weight: var(--weight-label);
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background-color var(--motion-fast) var(--ease-out-curve),
+    border-color var(--motion-fast) var(--ease-out-curve),
+    color var(--motion-fast) var(--ease-out-curve),
+    transform var(--motion-fast) var(--ease-out-curve);
+}
+.button:active:not(:disabled) {
+  transform: scale(var(--press-scale));
+}
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* The outline pills three screens each invented separately: the run button in
+   accounts, the fold-all control, and the empty-state door added in 020. One
+   shape now, which is what they were always trying to be. */
+.team-agent-run-add,
+.team-accounts-fold-all,
+.team-empty-action,
+.team-accounts-money-fold {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-secondary-border);
+  border-radius: var(--radius-full);
+  background: none;
+  color: var(--color-secondary-text);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-emphasis);
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background-color var(--motion-fast) var(--ease-out-curve),
+    border-color var(--motion-fast) var(--ease-out-curve);
+}
+.team-agent-run-add:hover:not(:disabled),
+.team-accounts-fold-all:hover:not(:disabled),
+.team-empty-action:hover,
+.team-accounts-money-fold:hover:not(:disabled) {
+  border-color: var(--color-secondary-solid);
+  background: var(--color-secondary-softer);
+}
+
+/* Inline notices — four shapes for one job (cleared by C1–C14). */
+.inline-alert,
+.team-inline-error,
+.team-inline-note,
+.team-test-mode-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+}
+.inline-alert-error,
+.team-inline-error {
+  color: var(--color-error-text);
+  background: var(--color-error-soft);
+}
+.inline-alert-success {
+  color: var(--color-success-text);
+  background: var(--color-success-soft);
+}
+.team-inline-note {
+  color: var(--color-neutral-text);
+  background: var(--color-neutral-surface-subtle);
+  border-color: var(--color-neutral-border);
+}
+.team-test-mode-note {
+  color: var(--color-warning-text);
+  background: var(--color-warning-soft);
+}
+
+/* Empty states — the shape the Empty component draws (cleared by C1–C14). */
+.team-empty-state {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+}
+.team-empty-state > p {
+  margin: 0;
+  max-width: var(--measure);
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+}
+
+/* Panels — the compressor's slab and the team panel were different answers to
+   the same question (cleared by C3, C8–C14). */
+.settings-panel,
+.settings-section,
+.team-panel {
+  border-radius: var(--radius-lg);
+}
