@@ -384,8 +384,20 @@ export function StatusBadge({
     cancelled: 'statusCancelled',
     interrupted: 'statusInterrupted'
   };
+  /* Each status carries a role, so the same state is the same colour wherever
+     it appears — a failed job, a failed upload and a failed render agree. */
+  const color: Record<JobStatus, 'neutral' | 'info' | 'success' | 'error' | 'warning'> = {
+    analyzing: 'info',
+    ready: 'neutral',
+    queued: 'neutral',
+    processing: 'info',
+    completed: 'success',
+    failed: 'error',
+    cancelled: 'neutral',
+    interrupted: 'warning'
+  };
   return (
-    <span className={`status-badge status-${status}`}>
+    <span className={`status-badge status-${status} ui-color-${color[status]}`}>
       {status === 'processing' ? (
         context === 'transcription' ? (
           <TranscriptionLoader size={13} />

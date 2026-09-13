@@ -1929,3 +1929,20 @@
 .team-panel {
   border-radius: var(--radius-lg);
 }
+
+/* The product's own status badge (cleared by C3/C5/C6 as its screens migrate).
+   It keeps its anatomy — a loader while work runs, a check when it is done —
+   and takes its colour from the role the component now declares. */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 26px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  color: var(--ui-text);
+  background: var(--ui-soft);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-label);
+  white-space: nowrap;
+}
