@@ -444,6 +444,15 @@ export async function createStepAdapter({
           return fail('EFFECT_AMBIGUOUS', `gh release create failed: ${messageOf(error)}`);
         }
       }
+      // The tag exists on GitHub the moment the release does; it exists here
+      // only if somebody fetches it. `deploy:web` requires it locally -- a
+      // deployment must be able to name the artifacts it is advertising -- so a
+      // release that created its own tag and never brought it home stopped one
+      // step from shipping, with the tag visible in a browser.
+      await exec('git', ['fetch', '--no-tags', 'origin', `refs/tags/v${version}:refs/tags/v${version}`], {
+        cwd,
+        shell: false
+      }).catch(() => {});
       return dispatchAndWatch('publish', { cwd, env: childEnv, admission, sourceSha, releaseId, publish: true });
     },
 
