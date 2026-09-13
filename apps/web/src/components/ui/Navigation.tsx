@@ -57,11 +57,19 @@ export function Tabs<T extends string>({
   panelId,
   onNavigate
 }: TabsProps<T>) {
+  const enabled = () => items.filter(item => !item.disabled);
+  const go = (index: number) => {
+    const list = enabled();
+    const next = list[((index % list.length) + list.length) % list.length];
+    if (!next) return;
+    onChange(next.id);
+    // The strip is a roving tab stop: the chosen tab is the one Tab reaches,
+    // so the arrows have to carry focus with them.
+    requestAnimationFrame(() => document.getElementById(`tab-${next.id}`)?.focus());
+  };
   const move = (from: T, step: number) => {
-    const enabled = items.filter(item => !item.disabled);
-    const at = enabled.findIndex(item => item.id === from);
-    const next = enabled[(at + step + enabled.length) % enabled.length];
-    if (next) onChange(next.id);
+    const at = enabled().findIndex(item => item.id === from);
+    go(at + step);
   };
 
   /* A strip of addresses is navigation, not a tablist: a screen reader that is

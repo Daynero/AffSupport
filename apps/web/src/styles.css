@@ -8816,26 +8816,24 @@ body:has(.public-home) {
   scrollbar-width: thin;
   scroll-snap-type: x proximity;
 }
-.team-settings-tabs .team-space-tab {
+.team-settings-tabs .ui-tab {
   flex: none;
-  scroll-snap-align: start;
-}
-.team-settings-tabs .team-space-tab {
   min-height: 0;
   border: 0;
   border-bottom: 2px solid transparent;
   border-radius: 0;
   background: transparent;
   cursor: pointer;
+  scroll-snap-align: start;
 }
-.team-settings-tabs .team-space-tab:hover {
+.team-settings-tabs .ui-tab:hover {
   background: transparent;
   color: var(--color-text);
 }
-.team-settings-tabs .team-space-tab.is-active {
+.team-settings-tabs .ui-tab.is-selected {
   border-bottom-color: var(--color-accent);
 }
-.team-settings-tabs .team-space-tab:focus-visible {
+.team-settings-tabs .ui-tab:focus-visible {
   outline: 3px solid var(--color-focus);
   outline-offset: -3px;
 }
