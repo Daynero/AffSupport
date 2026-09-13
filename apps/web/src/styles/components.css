@@ -253,6 +253,11 @@
 .ui-icon-button {
   display: inline-grid;
   place-items: center;
+  /* The plate's size is the whole point of this control, so it states both:
+     the element defaults gave it a 44px floor and 6px of side padding, which
+     left a 20px glyph a 10px column inside a 24px `xs` plate. */
+  min-height: 0;
+  padding: 0;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;

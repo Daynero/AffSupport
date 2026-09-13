@@ -800,10 +800,26 @@ button.team-task-label-chip:hover:not(:disabled),
  * keeps the rule the row was built on ("no control breaks inside itself")
  * without the page scrolling to reach one.
  */
+/*
+ * On a phone the filter row is a strip that scrolls inside itself.
+ *
+ * With the longer translation a single group is wider than the window — "За
+ * весь час · За тиждень · За місяць" is 372px inside a 390px screen — and
+ * wrapping it fought the row: whichever group was allowed to wrap took the
+ * line and pushed the rest out. A strip that scrolls is what the rules allow
+ * for exactly this, and it keeps every control whole, which is what the row
+ * was built for.
+ */
 @media (max-width: 520px) {
-  .task-quick-ranges,
-  .task-sort-control {
-    flex-wrap: wrap;
+  .task-date-filter {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    overscroll-behavior-x: contain;
+  }
+
+  .task-date-filter > * {
+    flex: 0 0 auto;
   }
 }
 

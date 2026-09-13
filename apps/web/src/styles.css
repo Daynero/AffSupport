@@ -290,18 +290,6 @@ a {
  * the pill itself; the connection chip, the language switch and the account
  * menu are what remain, because those are what a person needs.
  */
-@media (max-width: 1100px) {
-  .support-trigger .support-trigger-label {
-    display: none;
-  }
-}
-
-@media (max-width: 960px) {
-  .support-trigger {
-    display: none;
-  }
-}
-
 /* Whatever remains may shrink rather than push its neighbours off the edge. */
 .topbar-actions > * {
   min-width: 0;
@@ -489,6 +477,26 @@ a {
 
 .support-trigger.is-complete .support-trigger-progress i {
   background: var(--color-success);
+}
+
+/*
+ * The narrow-window ladder, declared after the component it narrows.
+ *
+ * It used to sit above it, and a media query adds no specificity: the
+ * unconditional `display: inline-flex` below simply won, so the pill stayed on
+ * a phone and kept squeezing the bar it was supposed to leave — which is the
+ * exact failure the ladder was written for.
+ */
+@media (max-width: 1100px) {
+  .support-trigger .support-trigger-label {
+    display: none;
+  }
+}
+
+@media (max-width: 960px) {
+  .support-trigger {
+    display: none;
+  }
 }
 
 /* Product launcher */
