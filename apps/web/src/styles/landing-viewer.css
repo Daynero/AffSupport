@@ -654,12 +654,6 @@
   color: inherit;
 }
 
-.lv-menu-note {
-  padding: 6px 10px 8px;
-  color: var(--color-text-muted);
-  font-size: var(--text-base);
-}
-
 /* Sidebar ------------------------------------------------------------------ */
 
 .lv-sidebar {

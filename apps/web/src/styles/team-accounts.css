@@ -1152,12 +1152,6 @@
   height: 28px;
 }
 
-.team-agent-runs-empty {
-  color: color-mix(in oklab, var(--color-text-muted) 60%, transparent);
-  font-size: var(--text-sm);
-  line-height: 28px;
-}
-
 /* When a run was written, beside it. The dates inside the run's own text are
    typed by hand; this one is not, so it is the quieter of the two. */
 .team-agent-run-age {
@@ -1865,12 +1859,6 @@ button.team-task-agent-chip.is-selected {
 .team-task-accounts-label {
   color: var(--color-text-muted);
   font-size: var(--text-caption);
-}
-
-.team-task-accounts-empty {
-  color: color-mix(in oklab, var(--color-text-muted) 72%, transparent);
-  font-size: var(--text-caption);
-  font-style: italic;
 }
 
 /* "+ Account": the same pill as "+ Agent" in the Accounts tab. */
