@@ -51,14 +51,27 @@ export async function createOwnedWorktree({ cwd, sourceSha, root = tmpdir(), env
  * because a worktree that silently lacks one produces a build that is wrong in a
  * way only the artifact shows.
  */
-const PROVISIONED_PATHS = Object.freeze([
+/**
+ * Dependency trees are copied, never linked.
+ *
+ * npm resolves a symlinked `node_modules` back to where it points, decides it is
+ * looking at a tree installed for a different package.json, and reports every
+ * package in it as `extraneous` or `missing` — a megabyte of output naming
+ * `cac`'s dev dependencies, which is true and has nothing to do with anything.
+ * A worktree has to own its closure, as the design always said.
+ *
+ * Copy-on-write makes owning it nearly free: same bytes, same disk, its own
+ * directory entry. npm workspaces also keep a few packages beside the workspace
+ * that needs them — `vite` and its React plugin — so the root is not the whole
+ * closure.
+ */
+const CLONED_PATHS = Object.freeze([
   'node_modules',
-  // npm workspaces keep a few packages beside the workspace that needs them
-  // rather than at the root — `vite` and its React plugin live here — so the
-  // root closure alone is not the closure. The web build dies on `vite build`
-  // without them, and says only "command failed".
   'apps/web/node_modules',
-  'apps/soty-review/node_modules',
+  'apps/soty-review/node_modules'
+]);
+
+const PROVISIONED_PATHS = Object.freeze([
   'config/keys',
   '.env.production',
   '.env.production.local',
@@ -94,6 +107,16 @@ export async function provisionWorktree({ cwd, directory }) {
     if (!here.equals(there)) throw new Error('RELEASE_WORKTREE_DEPENDENCIES_DIFFER');
   }
   const provisioned = [];
+  for (const relative of CLONED_PATHS) {
+    const source = path.join(cwd, relative);
+    const target = path.join(directory, relative);
+    if (!existsSync(source) || existsSync(target)) continue;
+    await mkdir(path.dirname(target), { recursive: true });
+    // -c asks APFS for a clone; the copy costs a directory entry rather than
+    // the closure's size, and falls back to a real copy on a volume without it.
+    await exec('cp', ['-Rc', source, target]);
+    provisioned.push(`${relative} (copied)`);
+  }
   for (const relative of PROVISIONED_PATHS) {
     const source = path.join(cwd, relative);
     const target = path.join(directory, relative);
