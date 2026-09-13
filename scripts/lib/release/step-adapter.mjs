@@ -479,14 +479,24 @@ export async function createStepAdapter({
        * what ships is verified after the digests are recorded, not before.
        */
       const expectedBetaSha = await remoteBetaSha({ cwd, env: childEnv });
-      const committed = await commitKnownFiles({
+      await commitKnownFiles({
         cwd,
         files: [MANIFEST_PATH],
         message: `release: record ${version} artifact digests`,
         env: childEnv
       });
-      const manifestSha = 'sourceSha' in committed ? committed.sourceSha : null;
-      if (!committed.committed || !manifestSha) return { ok: true };
+      /**
+       * The commit may already exist, and the promotion may still be owed.
+       *
+       * A first attempt that committed the manifest and then failed to push
+       * leaves the checkout ahead of `beta` with nothing left to commit. Keying
+       * the promotion off "did I just commit" then skips it forever, and the
+       * release ends with a beta line that does not contain what shipped. What
+       * matters is where the two refs are, not which attempt moved them.
+       */
+      const { stdout: headSha } = await exec('git', ['rev-parse', 'HEAD'], { cwd, shell: false });
+      const manifestSha = headSha.trim();
+      if (manifestSha === expectedBetaSha) return { ok: true };
       const promoted = await promoteBeta({
         cwd,
         sourceSha: manifestSha,

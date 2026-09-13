@@ -296,7 +296,25 @@ export async function promoteBeta({ cwd, sourceSha, expectedBetaSha, env = proce
   try {
     await exec(
       'git',
-      ['push', '--no-verify', `--force-with-lease=refs/heads/beta:${expectedBetaSha}`, 'origin', `${frozen.sourceSha}:refs/heads/beta`],
+      [
+        // Appended after whatever the checkout already configures, so the
+        // keychain is still asked first and this only answers when it does not.
+        //
+        // The worker is a detached process: it has no controlling terminal and
+        // no window session, so `osxkeychain` finds nothing and git falls back
+        // to prompting for a username on a terminal that does not exist --
+        // "could not read Username: Device not configured", at the end of a
+        // release that had already published both installers. `gh` reads its
+        // own token and demonstrably works here; every other remote call this
+        // release makes goes through it.
+        '-c',
+        'credential.helper=!gh auth git-credential',
+        'push',
+        '--no-verify',
+        `--force-with-lease=refs/heads/beta:${expectedBetaSha}`,
+        'origin',
+        `${frozen.sourceSha}:refs/heads/beta`
+      ],
       { cwd, env: worktreeEnv }
     );
   } catch (error) {
