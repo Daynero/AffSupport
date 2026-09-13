@@ -40,7 +40,7 @@ describe('one role, one appearance', () => {
     const first = signature(screen.getByRole('button'));
     compressor.unmount();
 
-    const tasks = render(
+    render(
       <Button color="primary" size="md">
         Create task
       </Button>
@@ -59,7 +59,7 @@ describe('one role, one appearance', () => {
     const first = signature(screen.getByRole('button'));
     explorer.unmount();
 
-    const settings = render(
+    render(
       <Button color="error" variant="soft">
         Leave the space
       </Button>

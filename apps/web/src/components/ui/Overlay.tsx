@@ -201,9 +201,9 @@ export function useDialogBehaviour({
       if (modal) unlockPageScroll();
       (live.current.returnFocus ?? previouslyFocused)?.focus?.();
     };
-    // Mount-only on purpose: see `live` above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, modal]);
+    // Mount-only on purpose: `live` above carries the changing callbacks, so
+    // the effect does not need them in its list and must not re-run on them.
+  }, [active, modal, surface]);
 }
 
 export interface ModalProps {

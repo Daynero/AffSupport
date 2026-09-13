@@ -21,6 +21,12 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const STYLESHEET = path.join(root, 'apps/web/src/styles.css');
+/*
+ * The token layer (021). The browser loads it before the screen stylesheet, and
+ * the checker's own default run reads both; a copy made for a probe has to be
+ * the same two files or every token in it reads as undefined.
+ */
+const TOKENS = path.join(root, 'apps/web/src/styles/tokens.css');
 const CHECKER = path.join(root, 'scripts/verify-styles.mjs');
 
 /** Runs the checker against a stylesheet of our own, never the committed one. */
@@ -51,17 +57,20 @@ afterEach(() => {
  * the stylesheet two lines long. A test that mutates the working tree is a test
  * that can destroy it.
  */
-function stylesheetWith(rule: string): string {
+function stylesheetWith(rule = ''): string {
   const directory = mkdtempSync(path.join(os.tmpdir(), 'wishly-tokens-'));
   scratchDirectories.push(directory);
   const copy = path.join(directory, 'styles.css');
-  writeFileSync(copy, `${readFileSync(STYLESHEET, 'utf8')}\n${rule}\n`);
+  writeFileSync(
+    copy,
+    `${readFileSync(TOKENS, 'utf8')}\n${readFileSync(STYLESHEET, 'utf8')}\n${rule}\n`
+  );
   return copy;
 }
 
 describe('the style checker', () => {
   it('passes on the stylesheet as committed', () => {
-    expect(run(STYLESHEET).ok).toBe(true);
+    expect(run(stylesheetWith()).ok).toBe(true);
   });
 
   it('catches a property that is referenced and never defined', () => {

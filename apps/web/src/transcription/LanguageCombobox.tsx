@@ -33,7 +33,6 @@ export const LanguageCombobox = memo(function LanguageCombobox({
   pinned,
   emptyLabel,
   ariaLabelledBy,
-  portal = false,
   onChange
 }: {
   value: string;

@@ -8267,31 +8267,6 @@ body:has(.public-home) {
   font-size: var(--text-label);
   font-weight: 650;
 }
-.team-invitation-list,
-.team-member-list,
-.team-audit-list,
-.team-folder-browser ul,
-.team-material-list,
-.team-invitation-inbox ul {
-  display: grid;
-  gap: var(--space-2);
-  list-style: none;
-  margin: var(--space-4) 0 0;
-  padding: 0;
-}
-.team-invitation-list li,
-.team-member-list li,
-.team-audit-list li,
-.team-folder-browser li,
-.team-material-list li,
-.team-invitation-inbox li {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-  border-top: 1px solid var(--color-border);
-  padding-top: var(--space-2);
-}
 .team-invitation-list li {
   flex-wrap: wrap;
 }
@@ -8306,28 +8281,6 @@ body:has(.public-home) {
 .team-invitation-list li > .button,
 .team-inline-actions > .button {
   min-width: max-content;
-}
-.team-invitation-list li > *,
-.team-member-list li > *,
-.team-audit-list li > *,
-.team-folder-browser li > *,
-.team-material-list li > *,
-.team-invitation-inbox li > * {
-  min-width: 0;
-}
-.team-invitation-list strong,
-.team-member-list strong,
-.team-audit-list span,
-.team-folder-browser span,
-.team-material-list strong,
-.team-invitation-inbox strong {
-  overflow-wrap: anywhere;
-}
-.team-invitation-list li > :first-child,
-.team-material-list li > :first-child,
-.team-invitation-inbox li > :first-child {
-  min-width: 0;
-  margin-right: auto;
 }
 .team-drive-panel,
 .team-drive-confirmation,
@@ -8386,11 +8339,6 @@ body:has(.public-home) {
 .team-invitation-link input {
   width: 100%;
   font-family: var(--font-family-mono, monospace);
-}
-
-.team-material-list small,
-.team-folder-browser small {
-  margin-left: auto;
 }
 .team-dialog-form {
   display: grid;
@@ -11630,25 +11578,6 @@ body {
 .team-media-action.is-transcribe:hover:not(:disabled) {
   border-color: var(--color-warning);
   background: color-mix(in oklab, var(--color-warning) 18%, var(--color-surface));
-}
-
-/* Catalog list (View A): let each file row's actions wrap and align right so a
-   long name plus three actions never spills past the panel. */
-.team-material-browser .team-material-list li {
-  flex-wrap: wrap;
-}
-/* The name takes the row, so every row's action group starts at the same place
-   and the category reads as a real column. Without this the base list rule
-   splits the free space between two auto margins, and the actions land at a
-   different x in every row -- the ragged look the catalog had. */
-.team-material-browser .team-material-list li > :first-child {
-  flex: 1 1 12rem;
-  margin-right: 0;
-}
-.team-material-browser .team-material-list small {
-  flex: 0 0 5rem;
-  margin-left: var(--space-3);
-  text-align: right;
 }
 
 /* Library card (View B): a larger, stylised selection cell overlaid on the tile,
@@ -16060,7 +15989,7 @@ input[type='number'] {
 }
 
 .stitch-note.is-error {
-  color: var(--color-danger);
+  color: var(--color-error);
 }
 
 /* "No screen" is a choice, so it is a tile like the photographs beside it —
@@ -16098,7 +16027,7 @@ input[type='number'] {
 }
 
 .stitch-row[data-state='failed'] .stitch-row-detail {
-  color: var(--color-danger);
+  color: var(--color-error);
 }
 
 /* ===========================================================================
@@ -16324,7 +16253,7 @@ input[type='number'] {
 }
 
 .tfa-menu .tfa-menu-danger {
-  color: var(--color-danger);
+  color: var(--color-error);
 }
 
 /* --- A code for a key that is not stored ----------------------------------- */
@@ -16385,7 +16314,7 @@ input[type='number'] {
 }
 
 .tfa-quick-error {
-  color: var(--color-danger);
+  color: var(--color-error);
   font-size: var(--text-sm);
 }
 
@@ -16827,8 +16756,8 @@ input[type='number'] {
 }
 
 .tfa-cell-actions .tfa-danger:hover {
-  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
-  color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-error) 14%, transparent);
+  color: var(--color-error);
 }
 
 @media (hover: none) {
@@ -16844,8 +16773,8 @@ input[type='number'] {
 }
 
 .tfa-cell-actions .tfa-reject {
-  border: 1px solid color-mix(in srgb, var(--color-danger) 55%, var(--color-border));
-  color: var(--color-danger);
+  border: 1px solid color-mix(in srgb, var(--color-error) 55%, var(--color-border));
+  color: var(--color-error);
 }
 
 .tfa-bulk-delete {
@@ -16853,10 +16782,10 @@ input[type='number'] {
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-1) var(--space-3);
-  border: 1px solid color-mix(in srgb, var(--color-danger) 45%, var(--color-border));
+  border: 1px solid color-mix(in srgb, var(--color-error) 45%, var(--color-border));
   border-radius: var(--radius-sm);
   background: none;
-  color: var(--color-danger);
+  color: var(--color-error);
   cursor: pointer;
   font-size: var(--text-xs);
   letter-spacing: normal;
@@ -16906,7 +16835,7 @@ input[type='number'] {
 .tfa-edit-error {
   display: block;
   margin-top: var(--space-1);
-  color: var(--color-danger);
+  color: var(--color-error);
   font-size: var(--text-sm);
   letter-spacing: normal;
   text-align: left;
@@ -16960,7 +16889,7 @@ input[type='number'] {
 
 .tfa-notice-error,
 .tfa-notice-error strong {
-  color: var(--color-danger);
+  color: var(--color-error);
 }
 
 .tfa-clock-warning {

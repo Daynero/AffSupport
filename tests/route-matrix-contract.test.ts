@@ -77,6 +77,11 @@ describe('the route matrix', () => {
     // invisible to a check that read one file. The tool paths are not here
     // because a signed-out visitor asking for one is a real arrival: it
     // redirects to sign-in, and that redirect is worth sweeping.
-    expect(unswept).toEqual(['/account', '/admin', '/auth/callback']);
+    //
+    // `/design` is the component demo (021). It is behind `import.meta.env.DEV`
+    // — a compile-time constant, so the branch and the module behind it are
+    // dropped from a production build — and there is nothing in a shipped app
+    // for a sweep to reach.
+    expect(unswept).toEqual(['/account', '/admin', '/auth/callback', '/design']);
   });
 });
