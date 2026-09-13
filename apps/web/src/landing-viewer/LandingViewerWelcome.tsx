@@ -5,7 +5,7 @@ import { DropZone } from '../components/DropZone';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { useI18n } from '../i18n';
 import { GalleryIconButton } from './internal/GalleryIconButton';
-import { ErrorState } from '../components/ui/index';
+import { Card, ErrorState } from '../components/ui/index';
 
 /**
  * The tool before a folder is open: the compressor's drop zone, then the folders opened
@@ -60,27 +60,31 @@ export function LandingViewerWelcome({
       {(recent.length > 0 || team.length > 0 || teamSources) && (
         <div className="lv-sources">
           {recent.length > 0 && (
-            <section className="lv-source-card" aria-labelledby="lv-recent-title">
-              <h2 id="lv-recent-title">
-                <History size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                {t('landingGalleryRecent')}
-              </h2>
-              <p>{t('landingGalleryRecentBody')}</p>
+            <Card
+              as="section"
+              className="lv-source-card"
+              titleId="lv-recent-title"
+              icon={<History size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+              title={t('landingGalleryRecent')}
+              description={t('landingGalleryRecentBody')}
+            >
               <RecentList
                 catalogs={recent}
                 canRemove={canRemove}
                 activate={activate}
                 remove={remove}
               />
-            </section>
+            </Card>
           )}
           {(team.length > 0 || teamSources) && (
-            <section className="lv-source-card" aria-labelledby="lv-team-title">
-              <h2 id="lv-team-title">
-                <Users size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                {t('landingGalleryTeamSourceLabel')}
-              </h2>
-              <p>{t('landingGalleryTeamCardBody')}</p>
+            <Card
+              as="section"
+              className="lv-source-card"
+              titleId="lv-team-title"
+              icon={<Users size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+              title={t('landingGalleryTeamSourceLabel')}
+              description={t('landingGalleryTeamCardBody')}
+            >
               {team.length > 0 && (
                 <RecentList
                   catalogs={team}
@@ -90,7 +94,7 @@ export function LandingViewerWelcome({
                 />
               )}
               {teamSources}
-            </section>
+            </Card>
           )}
         </div>
       )}

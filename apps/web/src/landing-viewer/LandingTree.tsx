@@ -1,18 +1,24 @@
-import { useMemo, useState, type KeyboardEvent } from 'react';
-import { ChevronDown, FileArchive, Folder, TriangleAlert } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { FileArchive, Folder, TriangleAlert } from 'lucide-react';
 import type { LandingPreviewItem } from '@video-compressor/shared';
 import { ICON_STROKE } from '../components/icons';
-import { Spinner } from '../components/ui';
 import { useI18n } from '../i18n';
-import { EmptyState } from '../components/ui/index';
+import { EmptyState, Spinner, Tree, type TreeNode } from '../components/ui/index';
 
-interface TreeNode {
+interface Branch {
   key: string;
   name: string;
-  children: TreeNode[];
+  children: Branch[];
   landing: LandingPreviewItem | null;
 }
 
+/**
+ * The gallery's folder tree (021, T070).
+ *
+ * It is the inventory's Tree now — which is where its one-tab-stop keyboard
+ * went: two hundred landings were two hundred tab stops, and that fix belonged
+ * to every tree in the product rather than to this one.
+ */
 export function LandingTree({
   landings,
   selectedId,
@@ -33,100 +39,9 @@ export function LandingTree({
     : landings;
   const tree = useMemo(() => buildTree(visible), [visible]);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const toggle = (key: string) =>
-    setCollapsed(current => {
-      const next = new Set(current);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
 
-  // One tab stop for the whole tree, arrows inside it: two hundred landings used to be two
-  // hundred tabs. Focus moves between the rows that are actually shown, in document order.
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const target = event.target as HTMLElement;
-    if (!target.matches('[role="treeitem"]')) return;
-    const rows = Array.from(
-      event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="treeitem"]')
-    );
-    const index = rows.indexOf(target as HTMLButtonElement);
-    const focus = (next: number) => rows[Math.max(0, Math.min(rows.length - 1, next))]?.focus();
-    const folderKey = target.dataset.folder;
-    switch (event.key) {
-      case 'ArrowDown':
-        focus(index + 1);
-        break;
-      case 'ArrowUp':
-        focus(index - 1);
-        break;
-      case 'Home':
-        focus(0);
-        break;
-      case 'End':
-        focus(rows.length - 1);
-        break;
-      case 'ArrowRight':
-        if (folderKey && collapsed.has(folderKey)) toggle(folderKey);
-        else focus(index + 1);
-        break;
-      case 'ArrowLeft':
-        if (folderKey && !collapsed.has(folderKey)) toggle(folderKey);
-        else {
-          const parent = target.closest('[role="group"]')?.previousElementSibling;
-          if (parent instanceof HTMLElement && parent.matches('[role="treeitem"]')) parent.focus();
-        }
-        break;
-      default:
-        return;
-    }
-    event.preventDefault();
-  };
-
-  if (!visible.length)
-    return (
-      <EmptyState className="lv-tree-empty" size="sm" title={t('landingGallerySearchEmpty')} />
-    );
-  const tabStop = selectedId && visible.some(item => item.id === selectedId) ? selectedId : null;
-  return (
-    <div className="lv-tree" role="tree" aria-label={t('landingGalleryTree')} onKeyDown={onKeyDown}>
-      {tree.children.map((node, index) => (
-        <TreeBranch
-          key={node.key}
-          node={node}
-          depth={0}
-          collapsed={collapsed}
-          toggle={toggle}
-          selectedId={selectedId}
-          // Without a selection the first row carries the tab stop.
-          tabStop={tabStop ?? (index === 0 ? firstLandingId(node) : null)}
-          onSelect={onSelect}
-        />
-      ))}
-    </div>
-  );
-}
-
-function TreeBranch({
-  node,
-  depth,
-  collapsed,
-  toggle,
-  selectedId,
-  tabStop,
-  onSelect
-}: {
-  node: TreeNode;
-  depth: number;
-  collapsed: Set<string>;
-  toggle: (key: string) => void;
-  selectedId: string | null;
-  tabStop: string | null;
-  onSelect: (id: string) => void;
-}) {
-  const { t } = useI18n();
-  if (node.landing) {
-    const item = node.landing;
-    const status = item.stale
+  const status = (item: LandingPreviewItem) =>
+    item.stale
       ? t('landingGalleryStatusStale')
       : item.status === 'rendering'
         ? t('landingGalleryStatusRendering')
@@ -134,93 +49,76 @@ function TreeBranch({
           ? t('landingGalleryStatusFailed')
           : item.status === 'queued'
             ? t('landingGalleryStatusQueued')
-            : '';
+            : undefined;
+
+  const toNode = (branch: Branch): TreeNode => {
+    const item = branch.landing;
+    if (!item) {
+      return {
+        id: branch.key,
+        label: branch.name,
+        className: 'lv-tree-folder',
+        children: branch.children.map(toNode)
+      };
+    }
     const Icon = item.sourceKind === 'zip' ? FileArchive : Folder;
+    return {
+      id: item.id,
+      label: branch.name,
+      description: status(item),
+      className: `lv-tree-landing is-${item.status}${item.stale ? ' is-stale' : ''}`,
+      icon: <Icon size={18} strokeWidth={ICON_STROKE} aria-hidden="true" />,
+      meta:
+        item.status === 'rendering' ? (
+          <Spinner />
+        ) : item.status === 'failed' ? (
+          <TriangleAlert size={14} strokeWidth={2} aria-hidden="true" />
+        ) : item.previewAvailable ? (
+          <i className="lv-tree-ready" aria-hidden="true" />
+        ) : undefined
+    };
+  };
+
+  if (!visible.length)
     return (
-      <button
-        type="button"
-        role="treeitem"
-        aria-selected={selectedId === item.id}
-        aria-level={depth + 1}
-        tabIndex={tabStop === item.id ? 0 : -1}
-        className={`lv-tree-landing is-${item.status} ${item.stale ? 'is-stale' : ''}`.trim()}
-        style={{ paddingLeft: 6 + depth * 16 }}
-        onClick={() => onSelect(item.id)}
-      >
-        <Icon size={18} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        <span className="lv-tree-copy">
-          <strong>{node.name}</strong>
-          {status && <small>{status}</small>}
-        </span>
-        <span className="lv-tree-state" aria-hidden="true">
-          {item.status === 'rendering' ? (
-            <Spinner small />
-          ) : item.status === 'failed' ? (
-            <TriangleAlert size={14} strokeWidth={2} />
-          ) : item.previewAvailable ? (
-            <i />
-          ) : null}
-        </span>
-      </button>
+      <EmptyState className="lv-tree-empty" size="sm" title={t('landingGallerySearchEmpty')} />
     );
-  }
-  const closed = collapsed.has(node.key);
-  // A collapsed folder that hides the selected row carries its tab stop, so the tree can
-  // still be entered from the keyboard and opened again.
-  const holdsTabStop = closed && tabStop !== null && containsLanding(node, tabStop);
-  // The folder row first, its children in a group after it — a group must not contain the
-  // row that owns it.
+
+  /* The tree holds which folders are *closed*; the inventory asks which are
+     open, so the expansion is the folders minus those. */
+  const expanded = new Set<string>();
+  const collectFolders = (branch: Branch) => {
+    for (const child of branch.children) {
+      if (!child.landing) {
+        if (!collapsed.has(child.key)) expanded.add(child.key);
+        collectFolders(child);
+      }
+    }
+  };
+  collectFolders(tree);
+
   return (
-    <>
-      <button
-        type="button"
-        role="treeitem"
-        aria-expanded={!closed}
-        aria-level={depth + 1}
-        tabIndex={holdsTabStop ? 0 : -1}
-        data-folder={node.key}
-        className="lv-tree-folder"
-        style={{ paddingLeft: 6 + depth * 16 }}
-        onClick={() => toggle(node.key)}
-      >
-        <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
-        <strong>{node.name}</strong>
-      </button>
-      {!closed && (
-        <div role="group">
-          {node.children.map(child => (
-            <TreeBranch
-              key={child.key}
-              node={child}
-              depth={depth + 1}
-              collapsed={collapsed}
-              toggle={toggle}
-              selectedId={selectedId}
-              tabStop={tabStop}
-              onSelect={onSelect}
-            />
-          ))}
-        </div>
-      )}
-    </>
+    <Tree
+      className="lv-tree"
+      label={t('landingGalleryTree')}
+      nodes={tree.children.map(toNode)}
+      selectedId={selectedId}
+      expandedIds={expanded}
+      onSelect={onSelect}
+      onToggle={key =>
+        setCollapsed(current => {
+          const next = new Set(current);
+          if (next.has(key)) next.delete(key);
+          else next.add(key);
+          return next;
+        })
+      }
+    />
   );
 }
 
-function containsLanding(node: TreeNode, id: string): boolean {
-  return node.landing?.id === id || node.children.some(child => containsLanding(child, id));
-}
-
-function firstLandingId(node: TreeNode): string | null {
-  if (node.landing) return node.landing.id;
-  for (const child of node.children) {
-    const found = firstLandingId(child);
-    if (found) return found;
-  }
-  return null;
-}
-
-function buildTree(landings: LandingPreviewItem[]): TreeNode {
-  const root: TreeNode = { key: 'root', name: '', children: [], landing: null };
+function buildTree(landings: LandingPreviewItem[]): Branch {
+  const root: Branch = { key: 'root', name: '', children: [], landing: null };
   for (const landing of landings) {
     const segments = landing.relativePath.split('/').filter(Boolean);
     let parent = root;
@@ -237,7 +135,7 @@ function buildTree(landings: LandingPreviewItem[]): TreeNode {
       parent = child;
     }
   }
-  const sort = (node: TreeNode) => {
+  const sort = (node: Branch) => {
     node.children.sort((left, right) => {
       if (Boolean(left.landing) !== Boolean(right.landing)) return left.landing ? 1 : -1;
       return left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: 'base' });

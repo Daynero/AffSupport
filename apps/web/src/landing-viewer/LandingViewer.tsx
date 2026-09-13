@@ -27,7 +27,7 @@ import {
   Search,
   TriangleAlert
 } from 'lucide-react';
-import { Button, ProgressBar, Spinner } from '../components/ui';
+import { Button, Progress, Spinner } from '../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { useI18n } from '../i18n';
 import { navigateTo } from '../lib/navigation';
@@ -735,7 +735,8 @@ export function LandingViewer({
               action={
                 selected.sourceKind === 'team' && selected.status !== 'rendering' ? (
                   <Button
-                    variant="primary"
+                    color="primary"
+                    variant="solid"
                     disabled={renderingTeamMaterialId !== null || openingTeam}
                     onClick={() => onCreateTeamPreview?.()}
                   >
@@ -754,7 +755,7 @@ export function LandingViewer({
             body={t('landingGalleryEmptyBody')}
             action={
               capabilities.refresh ? (
-                <Button variant="primary" onClick={() => refresh('changed')}>
+                <Button color="primary" variant="solid" onClick={() => refresh('changed')}>
                   {t('landingGalleryRefreshFolder')}
                 </Button>
               ) : capabilities.chooseFolder ? (
@@ -794,7 +795,7 @@ export function LandingViewer({
             {state.error || message || connectionLost ? (
               <TriangleAlert size={18} strokeWidth={ICON_STROKE} aria-hidden="true" />
             ) : (
-              <Spinner small />
+              <Spinner />
             )}
             <strong>
               {state.error ||
@@ -812,9 +813,15 @@ export function LandingViewer({
           </div>
           {state.running && (
             <>
-              <ProgressBar value={progress} label={phaseLabel} active />
-              <Button variant="ghost" onClick={() => cancel()}>
-                <Ban size={18} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              {/* A run with no total to measure against is indeterminate, and
+                  the shared bar says so by being given nothing. */}
+              <Progress value={progress ?? undefined} label={phaseLabel} size="sm" />
+              <Button
+                color="neutral"
+                variant="ghost"
+                leading={<Ban size={18} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+                onClick={() => cancel()}
+              >
                 {t('landingGalleryCancel')}
               </Button>
             </>

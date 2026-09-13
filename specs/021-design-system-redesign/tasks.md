@@ -177,7 +177,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 
 - [x] T068 [US1] Migrate `apps/web/src/two-factor/TwoFactorPage.tsx` and `TwoFactorRow.tsx` onto Table + Card + Button
 - [x] T069 [P] [US1] Migrate `apps/web/src/two-factor/CodeCell.tsx`, `Countdown.tsx` and `QuickCode.tsx` onto tokens, keeping the expiry ring and copy feedback (no animation on copy — frequent action)
-- [ ] T070 [US1] Migrate `apps/web/src/landing-viewer/LandingViewer.tsx`, `LandingViewerWelcome.tsx` and `LandingTree.tsx` onto the inventory (Tree, Empty, Card)
+- [x] T070 [US1] Migrate `apps/web/src/landing-viewer/LandingViewer.tsx`, `LandingViewerWelcome.tsx` and `LandingTree.tsx` onto the inventory (Tree, Empty, Card)
 - [x] T071 [P] [US1] Migrate `apps/web/src/landing-viewer/LandingGalleryGrid.tsx`, `LandingSourceSwitcher.tsx` and `LandingRefreshControl.tsx`
 - [x] T072 [P] [US1] Migrate `apps/web/src/landing-viewer/GallerySettingsMenu.tsx` and `GalleryMoreMenu.tsx` onto DropdownMenu + Choice
 - [x] T073 [US1] Migrate `apps/web/src/styles/landing-viewer.css` onto tokens and delete what the inventory now covers

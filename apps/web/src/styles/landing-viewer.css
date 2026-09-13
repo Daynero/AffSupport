@@ -723,28 +723,17 @@
   scrollbar-width: thin;
 }
 
+/*
+ * The gallery's tree is the inventory's Tree (021, T070); what is left here is
+ * what this tree looks like — a folder row that reads as a label, a landing row
+ * with its state on the right, and the two colours that state can be.
+ */
 .lv-tree,
 .lv-tree [role='group'] {
-  display: grid;
   gap: 1px;
 }
 
-.lv-tree button {
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  align-items: center;
-  gap: 8px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  color: var(--color-text);
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-}
-
-.lv-tree button:focus-visible {
+.lv-tree .ui-tree-row:focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: -2px;
 }
@@ -754,25 +743,11 @@
   padding: 3px 8px 3px 6px;
   color: var(--color-text-muted);
   font-size: var(--text-base);
-}
-
-.lv-tree-folder > svg:first-child {
-  flex: 0 0 auto;
-  transition: transform var(--dur-micro) var(--ease-standard);
-}
-
-.lv-tree-folder[aria-expanded='false'] > svg:first-child {
-  transform: rotate(-90deg);
-}
-
-.lv-tree-folder > strong {
-  overflow: hidden;
   font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.lv-tree-folder:hover {
+.lv-tree-folder:hover,
+.lv-tree-landing:hover {
   background: var(--color-surface-muted);
 }
 
@@ -781,82 +756,61 @@
   padding: 4px 8px 4px 6px;
 }
 
-.lv-tree-landing:hover {
-  background: var(--color-surface-muted);
-}
-
 .lv-tree-landing[aria-selected='true'] {
   color: var(--color-accent-hover);
   background: var(--color-accent-soft);
 }
 
-.lv-tree-landing > svg:first-child {
-  flex: 0 0 auto;
+.lv-tree-landing .ui-tree-icon {
   color: var(--color-text-muted);
 }
 
-.lv-tree-landing[aria-selected='true'] > svg:first-child {
+.lv-tree-landing[aria-selected='true'] .ui-tree-icon {
   color: inherit;
 }
 
-.lv-tree-landing.is-failed > svg:first-child {
+.lv-tree-landing.is-failed .ui-tree-icon {
   color: var(--color-error);
 }
 
-.lv-tree-copy {
-  display: grid;
-  min-width: 0;
-  flex: 1 1 auto;
-  line-height: 1.25;
-}
-
-.lv-tree-copy > strong,
-.lv-tree-copy > small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lv-tree-copy > strong {
+.lv-tree-landing .ui-tree-name {
   font-size: var(--text-lg);
   font-weight: 600;
 }
 
-.lv-tree-copy > small {
-  color: var(--color-text-muted);
+.lv-tree-landing .ui-tree-description {
   font-size: var(--text-base);
 }
 
-.lv-tree-landing.is-failed .lv-tree-copy > small {
+.lv-tree-landing.is-failed .ui-tree-description {
   color: var(--color-error);
 }
 
-.lv-tree-landing.is-stale .lv-tree-copy > small {
+.lv-tree-landing.is-stale .ui-tree-description {
   color: var(--color-warning);
 }
 
 /* What the row says at a glance: a green dot when the preview is ready, a spinner while it
    renders, amber when the source moved on. */
-.lv-tree-state {
+.lv-tree-landing .ui-tree-meta {
   display: grid;
   width: 16px;
   height: 16px;
-  flex: 0 0 auto;
   place-items: center;
 }
 
-.lv-tree-state > i {
+.lv-tree-ready {
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: var(--color-success);
 }
 
-.lv-tree-landing.is-stale .lv-tree-state > i {
+.lv-tree-landing.is-stale .lv-tree-ready {
   background: var(--color-warning);
 }
 
-.lv-tree-state > .spinner {
+.lv-tree-landing .ui-spinner {
   width: 14px;
   height: 14px;
   border-width: 2px;
@@ -1348,7 +1302,7 @@
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .lv-progress > .progress-track {
+  .lv-progress > .ui-progress {
     display: none;
   }
 }

@@ -1627,43 +1627,38 @@
 }
 
 .ui-tree,
-.ui-tree ul {
+.ui-tree [role='group'] {
   display: grid;
-  margin: 0;
-  padding: 0;
-  list-style: none;
 }
+/* The row is the treeitem: one tab stop for the tree, arrows inside it. */
 .ui-tree-row {
   display: flex;
   align-items: center;
   gap: var(--space-1);
+  width: 100%;
   min-height: var(--control-height-sm);
   padding-left: calc(var(--ui-tree-depth, 0) * var(--space-4));
-  border-radius: var(--radius-sm);
-}
-.ui-tree-item.is-selected > .ui-tree-row {
-  background: var(--color-secondary-soft);
-}
-.ui-tree-item.is-drop-target > .ui-tree-row {
-  outline: 2px dashed var(--color-secondary-solid);
-}
-.ui-tree-twisty,
-.ui-tree-label {
   border: 0;
+  border-radius: var(--radius-sm);
   background: none;
   color: inherit;
   font: inherit;
+  text-align: left;
   cursor: pointer;
+}
+.ui-tree-row.is-selected {
+  background: var(--color-secondary-soft);
+}
+.ui-tree-row.is-drop-target {
+  outline: 2px dashed var(--color-secondary-solid);
 }
 .ui-tree-twisty {
   display: inline-grid;
   place-items: center;
   width: 20px;
   height: 20px;
+  flex: none;
   color: var(--color-neutral-text-muted);
-}
-.ui-tree-twisty.is-empty {
-  cursor: default;
 }
 .ui-tree-twisty svg {
   width: var(--icon-size-sm);
@@ -1674,9 +1669,7 @@
   transform: rotate(90deg);
 }
 .ui-tree-label {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
+  display: grid;
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -1684,7 +1677,24 @@
   white-space: nowrap;
   text-align: left;
 }
+.ui-tree-name,
+.ui-tree-description {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-tree-description {
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-micro);
+}
+.ui-tree-icon {
+  display: inline-flex;
+  flex: none;
+}
 .ui-tree-meta {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
   color: var(--color-neutral-text-muted);
   font-size: var(--text-caption);
 }
