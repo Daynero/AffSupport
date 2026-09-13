@@ -315,7 +315,7 @@ better.
 - [ ] T147 [P] [US4] Walk the product by keyboard alone: focus order follows reading order, focus is always visible, dialogs trap and restore focus
 - [ ] T148 [P] [US4] Verify every control with the longer (Ukrainian) translation; fix anything that clips or overflows
 - [ ] T149 [P] [US4] Verify no state is communicated by colour alone (FR-032), particularly the marker colours, connection states and task statuses
-- [ ] T157 [P] [US1] Audit every paragraph and helper text in the product for the 70ch measure cap (FR-023); fix at the pattern level, not per screen
+- [x] T157 [P] [US1] Audit every paragraph and helper text in the product for the 70ch measure cap (FR-023); fix at the pattern level, not per screen
 - [ ] T158 [P] [US1] Audit every surface for exactly one `primary`-variant control, positioned at the end of the reading flow (FR-022); demote the extras to `secondary` or `ghost`
 
 ---

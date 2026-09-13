@@ -2071,3 +2071,19 @@
 .ui-toast .ui-toast-text {
   color: inherit;
 }
+
+/* ============================================================
+   Measure (021, T157 — FR-023)
+
+   A paragraph is read, so it gets a measure. Applied where prose actually
+   lives — a dialog's body, a card's description, an alert, an empty state —
+   and not to every `p` in the product: a paragraph inside a table cell or a
+   chip is a label, and capping it there would leave a ragged column.
+   ============================================================ */
+.modal > p,
+.team-dialog-form > p,
+.ui-card-description,
+.ui-alert-text,
+.ui-empty-description {
+  max-width: var(--measure);
+}

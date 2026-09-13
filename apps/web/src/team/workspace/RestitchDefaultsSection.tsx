@@ -41,7 +41,7 @@ import {
   type RestitchPreparationState
 } from '../restitch/useRestitchPreparation';
 import { SettingsSection } from './SettingsSection';
-import { PermissionState, RadioGroup } from '../../components/ui/index';
+import { Alert, PermissionState, RadioGroup } from '../../components/ui/index';
 
 export interface RestitchDefaultsClient {
   getRestitchDefaults: (teamId: string) => Promise<TeamRestitchDefaults | null>;
@@ -195,7 +195,13 @@ export function RestitchDefaultsSection({
       {!editable && (
         <PermissionState className="team-inline-note" message={t('teamRestitchReadOnly')} />
       )}
-      {!connected && <p className="team-inline-note">{t('teamRestitchAgentMissing')}</p>}
+      {/* A condition that stops the panel working, not a note about it: it is
+          announced, and it carries the role's colour and its icon. */}
+      {!connected && (
+        <Alert className="team-inline-note" color="warning" variant="soft">
+          {t('teamRestitchAgentMissing')}
+        </Alert>
+      )}
 
       <div className="field-group">
         <div className="field-label">
@@ -270,7 +276,7 @@ export function RestitchDefaultsSection({
 
       {editable && (
         <div className="team-restitch-prepare">
-          <p className="team-inline-note">{t('teamRestitchPrepareExplain')}</p>
+          <p className="team-inline-note prose">{t('teamRestitchPrepareExplain')}</p>
           {/* One reason at a time. Two "first do this" lines side by side make neither of them
               the next step. */}
           {!driveConnected ? (
