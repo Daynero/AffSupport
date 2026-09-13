@@ -135,8 +135,22 @@ jobs:
       # from the repository root, while the Windows host needs the public site
       # origin in its CORS allowlist. Missing either half produces an installer
       # that compiles but cannot connect from the already-open hosted Soty tab.
+      # The installer ships `web\dist`, so the Windows build is a production web
+      # build and needs everything one needs.
+      #
+      # Two of those values are not in the repository and should not be: this
+      # repository is public, and a Google API key committed to a public
+      # repository is harvested within the hour whatever it is restricted to.
+      # They are repository variables instead -- not secrets, because both are
+      # compiled into a bundle anybody can read, and declared `secret: false` in
+      # `config/environments.json` for that reason. Absent, `verify-web-env`
+      # stops the build here rather than letting an installer ship in which the
+      # storage chooser silently never opens.
       - name: Load and verify the production environment
         shell: bash
+        env:
+          VITE_GOOGLE_PICKER_API_KEY: ${{ vars.VITE_GOOGLE_PICKER_API_KEY }}
+          VITE_GOOGLE_PROJECT_NUMBER: ${{ vars.VITE_GOOGLE_PROJECT_NUMBER }}
         run: |
           set -euo pipefail
           for file in apps/web/.env.production config/production.env; do
@@ -147,6 +161,15 @@ jobs:
               echo "$line" >> "$GITHUB_ENV"
               export "$line"
             done < "$file"
+          done
+          for name in VITE_GOOGLE_PICKER_API_KEY VITE_GOOGLE_PROJECT_NUMBER; do
+            value="$(printenv "$name" || true)"
+            if [ -n "$value" ]; then
+              echo "$name=$value" >> "$GITHUB_ENV"
+            else
+              echo "::error::$name is not set. Add it as a repository variable (Settings > Secrets and variables > Actions > Variables); it is not a secret, but it does not belong in a public repository."
+              exit 1
+            fi
           done
           echo "PRODUCTION_AGENT_ENTITLEMENT_PUBLIC_KEY=$AGENT_ENTITLEMENT_PUBLIC_KEY" >> "$GITHUB_ENV"
           npm run build -w @video-compressor/shared
