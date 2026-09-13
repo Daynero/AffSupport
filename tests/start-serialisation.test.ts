@@ -86,16 +86,18 @@ describe('starting the same work twice', () => {
         })
       )
     );
-    // TEMPORARY DIAGNOSTIC. Whether the yeses cluster or alternate says which of
-    // two very different things is happening: a gate that never engages, or a
-    // queue that goes idle between calls.
-    console.log('DIAG trace', trace.join(' '));
-    console.log('DIAG liveness', JSON.stringify(queue.liveness()));
-    console.log('DIAG batches', batches.length, 'built:', batches.filter(Boolean).length);
+    // TEMPORARY DIAGNOSTIC, carried in the assertion message rather than logged:
+    // the aggregator prints an assertion's own text and swallows console output,
+    // so a `console.log` here reached nobody. Whether the yeses cluster or
+    // alternate says which of two very different things is happening — a gate
+    // that never engages, or a queue that goes idle between calls.
+    const diagnostic =
+      `trace=${trace.slice(0, 24).join(',')} batches=${batches.filter(Boolean).length} ` +
+      `liveness=${JSON.stringify(queue.liveness())}`;
 
     // Exactly one caller is told it started something. Ninety-nine honest refusals beat one
     // hundred cheerful yeses over a queue in an unrecoverable state.
-    expect(answers.filter(Boolean)).toHaveLength(1);
+    expect(answers.filter(Boolean), diagnostic).toHaveLength(1);
 
     // And exactly one batch was ever built. A second batch is the failure: it takes over
     // `this.batch`, and the jobs the first one queued are left waiting on a batch that no
@@ -118,13 +120,12 @@ describe('starting the same work twice', () => {
     // TEMPORARY DIAGNOSTIC. The encode is provably running by now — the wait
     // above only returns once the job says `processing` — so a second start that
     // is allowed means `running()` disagreed with the job it is about.
-    console.log('DIAG before-second', JSON.stringify(queue.liveness()));
+    const before = JSON.stringify(queue.liveness());
 
     // Sequential rather than simultaneous — the ordinary case, and the one that would still
     // be broken if the guard had simply been moved after the awaits.
     const second = await queue.start([jobs[0].id]);
-    console.log('DIAG second', second, JSON.stringify(queue.liveness()));
-    expect(second).toBe(false);
+    expect(second, `before=${before} after=${JSON.stringify(queue.liveness())}`).toBe(false);
     expect(queue.state().jobs.filter(job => job.status === 'processing')).toHaveLength(1);
 
     await queue.cancelAll();
