@@ -6,6 +6,7 @@ import { SupportDialog } from '../components/SupportDialog';
 import { ToastProvider, useToasts } from '../components/toast';
 import { Button } from '../components/ui';
 import { ICON_STROKE } from '../components/icons';
+import { Empty } from '../components/ui/index';
 import { requireSupabaseClient } from '../lib/supabase';
 import type { TeamContextSnapshot, TeamInvitationSummary } from '../api/team';
 import { teamApi } from '../api/team';
@@ -471,25 +472,29 @@ export function TeamSpace({
         className="team-space-lobby team-space-lobby-empty team-space-no-access"
         aria-labelledby="team-no-access"
       >
-        <div className="team-space-lobby-empty-copy team-space-no-access-card">
-          <span className="team-space-no-access-icon" aria-hidden="true">
-            <LockKeyhole size={26} strokeWidth={ICON_STROKE} />
-          </span>
-          <h1 id="team-no-access">{t('teamSpaceNoAccessTitle')}</h1>
-          <p>{t('teamSpaceNoAccessBody')}</p>
-          <Button
-            type="button"
-            variant="primary"
-            onClick={() => {
-              // `replace`: a dead address should not sit in history waiting for
-              // Back to walk into it again.
-              setActiveTeamId(null);
-              navigateTo(teamResolverRoute(), true);
-            }}
-          >
-            {t('teamSpaceNoAccessAction')}
-          </Button>
-        </div>
+        {/* 020 dressed this by hand; it is the shared pattern now, so the next
+            whole-screen state inherits the treatment rather than copying it. */}
+        <Empty
+          className="team-space-no-access-card"
+          size="lg"
+          icon={<LockKeyhole size={26} strokeWidth={ICON_STROKE} />}
+          title={<span id="team-no-access">{t('teamSpaceNoAccessTitle')}</span>}
+          description={t('teamSpaceNoAccessBody')}
+          action={
+            <Button
+              type="button"
+              color="primary"
+              onClick={() => {
+                // `replace`: a dead address should not sit in history waiting
+                // for Back to walk into it again.
+                setActiveTeamId(null);
+                navigateTo(teamResolverRoute(), true);
+              }}
+            >
+              {t('teamSpaceNoAccessAction')}
+            </Button>
+          }
+        />
       </section>
     );
   }
