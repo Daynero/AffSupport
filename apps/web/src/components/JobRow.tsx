@@ -369,7 +369,9 @@ function EstimatePanel({
               <span>{t('estimatedSaving', { value: saving })}</span>
             )}
           </div>
-          {saving !== null && saving < 0 && <p className="inline-warning">{t('largerEstimate')}</p>}
+          {saving !== null && saving < 0 && (
+            <p className="inline-warning ui-color-warning">{t('largerEstimate')}</p>
+          )}
         </>
       ) : (
         <div className="estimate-state">
@@ -449,7 +451,9 @@ function ResultPanel({
             happened. `keptOriginalReason` has had no writer since. */}
         {saving !== null && saving >= 0 && <span>{t('actualSaving', { value: saving })}</span>}
         {saving !== null && saving < 0 && (
-          <span className="warning-text">{t('largerActual', { value: Math.abs(saving) })}</span>
+          <span className="warning-text ui-color-warning">
+            {t('largerActual', { value: Math.abs(saving) })}
+          </span>
         )}
       </div>
       <MediaGrid

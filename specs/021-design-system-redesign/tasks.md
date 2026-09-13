@@ -107,7 +107,7 @@ states what is true, what to do, and looks like the same product.
 
 - [x] T033 [US1] Migrate `apps/web/src/auth/AuthScreens.tsx` — LoginPage (Google primary, beta account secondary; fix the four-line wrap on the beta button), AuthCallbackPage, AuthHandoffPage
 - [x] T034 [US1] [US2] Migrate the system states in `apps/web/src/auth/AuthScreens.tsx` — AuthLoadingScreen, AuthRecoveryScreen, BlockedAccountScreen (blocked and deleted), ConfigErrorScreen — onto the Empty/Alert patterns with title, one sentence and the way out
-- [ ] T035 [P] [US1] Migrate `apps/web/src/PublicHomePage.tsx` — CTA above the fold, consistent header buttons, 70ch measure
+- [x] T035 [P] [US1] Migrate `apps/web/src/PublicHomePage.tsx` — CTA above the fold, consistent header buttons, 70ch measure
 - [x] T036 [P] [US1] Migrate `apps/web/src/pages/LegalPages.tsx` — measure cap, heading ramp, link styling
 - [x] T037 [US1] Migrate ProfileOnboarding in `apps/web/src/auth/AuthScreens.tsx` onto Modal + RadioGroup (cards) + Checkbox + Button
 - [x] T038 [US1] Update the tests that assert on class names in `tests/auth-provider.test.tsx`, `tests/onboarding-recovery.test.tsx` and `tests/session-handoff-screens.test.tsx` to assert through roles and accessible names
@@ -142,7 +142,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [x] T047 [US1] Migrate `apps/web/src/HomePage.tsx` — tool cards onto Card + Badge + Button, including the "in development" state
 - [x] T048 [US1] Migrate `apps/web/src/components/SettingsPanel.tsx` onto Card + Collapsible + FormField + Choice, keeping the summary-in-the-heading behaviour
 - [ ] T049 [US1] Migrate the compressor shell in `apps/web/src/App.tsx` — drop zone, batch toolbar, selection bar with its count, results summary
-- [ ] T050 [P] [US1] Migrate `apps/web/src/components/JobRow.tsx` and `apps/web/src/components/ImageEmbeddingSection.tsx` onto Table row + Progress + Badge + Alert
+- [x] T050 [P] [US1] Migrate `apps/web/src/components/JobRow.tsx` and `apps/web/src/components/ImageEmbeddingSection.tsx` onto Table row + Progress + Badge + Alert
 - [ ] T051 [P] [US1] Migrate `apps/web/src/team/explorer/TeamCompressorDialog.tsx` onto Modal + the migrated settings panel
 - [x] T052 [US1] [US2] Give the compressor its full state set: initial, empty queue, running, partially failed, failed, agent-missing — each on the shared patterns
 - [ ] T053 [US1] [US4] Verify C3 at five widths × two themes × reduced motion; delete the compressor's orphaned CSS
@@ -168,7 +168,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [x] T063 [P] [US1] Migrate `apps/web/src/transcription/ModelGate.tsx`, `GemmaConsent.tsx`, `TranslatorNotice.tsx` and `TranslationElapsed.tsx` onto Alert + Progress + Button
 - [x] T064 [P] [US1] Migrate `apps/web/src/transcription/ExportMenu.tsx` and `TranscriptionCopyMenu.tsx` onto DropdownMenu
 - [ ] T065 [US1] Migrate `apps/web/src/transcription/TranscriptTextModal.tsx` and `TranscriptPlayer.tsx` onto Modal + the product-specific player, splitting the file only as far as the migration needs (it is a known debt, not this feature's target)
-- [ ] T066 [US1] Migrate `apps/web/src/styles/transcription.css` onto tokens and delete what the inventory now covers
+- [x] T066 [US1] Migrate `apps/web/src/styles/transcription.css` onto tokens and delete what the inventory now covers
 - [ ] T067 [US1] [US4] Verify C5 at five widths × two themes × reduced motion, including a long transcript and an RTL-ish long language name
 
 ---
@@ -180,7 +180,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [ ] T070 [US1] Migrate `apps/web/src/landing-viewer/LandingViewer.tsx`, `LandingViewerWelcome.tsx` and `LandingTree.tsx` onto the inventory (Tree, Empty, Card)
 - [ ] T071 [P] [US1] Migrate `apps/web/src/landing-viewer/LandingGalleryGrid.tsx`, `LandingSourceSwitcher.tsx` and `LandingRefreshControl.tsx`
 - [x] T072 [P] [US1] Migrate `apps/web/src/landing-viewer/GallerySettingsMenu.tsx` and `GalleryMoreMenu.tsx` onto DropdownMenu + Choice
-- [ ] T073 [US1] Migrate `apps/web/src/styles/landing-viewer.css` onto tokens and delete what the inventory now covers
+- [x] T073 [US1] Migrate `apps/web/src/styles/landing-viewer.css` onto tokens and delete what the inventory now covers
 - [ ] T074 [US1] [US4] Verify C6 at five widths × two themes × reduced motion
 
 ---
@@ -241,7 +241,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [x] T106 [P] [US1] Migrate `apps/web/src/team/tasks/TaskStatusControl.tsx`, `TaskSortControl.tsx`, `TaskDateField.tsx` and `TaskProgressScale.tsx`
 - [x] T107 [P] [US1] [US2] Migrate the four filters — `TaskDateFilter.tsx`, `TaskAssigneeFilter.tsx`, `TaskAccountFilter.tsx`, `TaskLabelFilter.tsx` — onto SelectMenu + Popover with their empty states (which link to where the dictionary is filled, as 020 established)
 - [x] T108 [P] [US1] Migrate `apps/web/src/team/tasks/TaskAgentTags.tsx`, `TaskAccountPicker.tsx`, `TaskAttachmentPicker.tsx` and `TaskAttachmentTile.tsx` onto the picker pattern (search, breadcrumb, list, footer actions)
-- [ ] T109 [US1] Migrate `apps/web/src/styles/team-tasks.css` onto tokens and delete what the inventory covers
+- [x] T109 [US1] Migrate `apps/web/src/styles/team-tasks.css` onto tokens and delete what the inventory covers
 - [x] T110 [US1] Update `tests/team-task-accounts.test.tsx`, `tests/team-task-tags.test.tsx` and `tests/task-progress-scale.test.tsx` to assert through roles
 - [ ] T111 [US1] [US4] Verify C11 at five widths × two themes × reduced motion
 
@@ -253,7 +253,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [ ] T113 [US1] Migrate `apps/web/src/team/accounts/AccountGroup.tsx` and `AgentRow.tsx` onto Table (`xs` density — this is the product's density reference)
 - [ ] T114 [P] [US1] Migrate `apps/web/src/team/accounts/AgentMoney.tsx` onto InputNumber with steppers
 - [ ] T115 [P] [US1] Migrate `apps/web/src/team/accounts/AgentLabels.tsx`, `MarkerFilter.tsx` and `Marked.tsx` onto Chip + DropdownMenu + the highlight token
-- [ ] T116 [US1] Migrate `apps/web/src/styles/team-accounts.css` onto tokens and delete what the inventory covers
+- [x] T116 [US1] Migrate `apps/web/src/styles/team-accounts.css` onto tokens and delete what the inventory covers
 - [x] T117 [US1] Update `tests/team-accounts.test.tsx` class-name assertions to roles, keeping every behavioural assertion intact
 - [ ] T118 [US1] [US4] Verify C12 at five widths × two themes × reduced motion, with the money column folded and unfolded
 
