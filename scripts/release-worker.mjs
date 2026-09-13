@@ -149,7 +149,8 @@ async function handOffFailure({ directory, runId, sourceSha, failedStep, error, 
  *   adapter: {execute: (stepId: string, run: unknown) => Promise<{ok: boolean, error?: unknown}>},
  *   backendPlan?: {changes: readonly unknown[]} | null,
  *   admission?: {withAdmission: (stepId: string, run: () => Promise<any>) => Promise<any>, setWaitReporter?: (reporter: (event: any) => Promise<void>) => void} | null,
- *   directory?: string
+ *   directory?: string,
+ *   journal?: {append: (type: string, payload: unknown) => Promise<unknown>, snapshot: (run: unknown) => Promise<unknown>, journalPath: string} | null
  * }} options
  */
 export async function runWorker({
@@ -157,9 +158,10 @@ export async function runWorker({
   adapter,
   backendPlan = null,
   admission = null,
-  directory = runDirectory(runId)
+  directory = runDirectory(runId),
+  journal: suppliedJournal = null
 }) {
-  const journal = await createJournal(directory, runId);
+  const journal = suppliedJournal ?? (await createJournal(directory, runId));
   // Anything the previous worker left behind is reconciled before this one
   // takes over; a torn final write is quarantined rather than trusted.
   const { events, quarantined } = await recoverJournal(journal.journalPath, runId);
@@ -270,8 +272,21 @@ if (invokedDirectly) {
       : await import('./lib/release/step-adapter.mjs');
     let adapter;
     let worktree = null;
+    /**
+     * The journal is made here, not inside the worker loop, because the step
+     * adapter needs it as much as the loop does.
+     *
+     * `backend_apply` writes its own receipts -- one per migration and function,
+     * before and after -- and refuses outright without somewhere to write them.
+     * The adapter's `journal` parameter defaults to null and nothing ever passed
+     * one, so the step that applies the release to the production database
+     * reported `ACCESS_UNAVAILABLE` and stopped, at the end of a release that
+     * had already published both installers and moved the beta line.
+     */
+    const journal = await createJournal(runDirectory(runId), runId);
     try {
       const identity = {
+        journal,
         // The adapter defaults to an empty environment, which is right for a
         // test and wrong for a release: the direct git calls -- the manifest
         // commit, the promotion -- take that environment verbatim rather than
@@ -351,7 +366,7 @@ if (invokedDirectly) {
         onWait: () => {}
       });
       try {
-        const result = await runWorker({ runId, backendPlan, adapter, admission });
+        const result = await runWorker({ runId, backendPlan, adapter, admission, journal });
         process.exitCode = result.ok ? 0 : 1;
       } finally {
         admission.stop();
