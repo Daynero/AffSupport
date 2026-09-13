@@ -1,3 +1,89 @@
+/**
+ * The pre-021 shared controls, plus the inventory they are being replaced by.
+ *
+ * `Button`, `IconButton`, `SegmentedControl`, `Checkbox`, `ProgressBar`,
+ * `Spinner`, `StatusBadge`, `Tooltip` and `Collapse` below are the originals:
+ * about sixty modules import them from this path, and they keep working
+ * untouched until their screen migrates.
+ *
+ * Everything the inventory adds — Badge, Chip, Card, Alert, the form field
+ * family, the overlays, the data surfaces and the five state patterns — is
+ * re-exported from `components/ui/`, so a screen being migrated can reach the
+ * new components from the import it already has. A name that exists in both
+ * places (Button, Checkbox, Tooltip, …) resolves to the original here; a
+ * migrated screen imports those from `components/ui/index` directly, which is
+ * how the two generations stay apart without a flag day.
+ *
+ * See specs/021-design-system-redesign/contracts/components.md.
+ */
+
+export {
+  Accordion,
+  Alert,
+  Badge,
+  Breadcrumb,
+  Card,
+  Chip,
+  ConfirmDialog,
+  Drawer,
+  DropdownMenu,
+  Empty,
+  EmptyState,
+  ErrorState,
+  FormField,
+  Input,
+  InputNumber,
+  InputTags,
+  LoadingState,
+  Link as UiLink,
+  Pagination,
+  PermissionState,
+  Popover,
+  Progress,
+  RadioGroup,
+  Select,
+  SelectionBar,
+  Separator,
+  Skeleton,
+  Slider,
+  Switch,
+  Table,
+  TableCell,
+  TableHeader,
+  TableHeaderCell,
+  TableRow,
+  Tabs,
+  Textarea,
+  Timeline,
+  Tree,
+  User,
+  UI_COLORS,
+  UI_SIZES,
+  UI_VARIANTS,
+  uiClasses
+} from './ui/index';
+export type {
+  AlertProps,
+  BadgeProps,
+  CardProps,
+  CardRole,
+  ChipProps,
+  ConfirmDialogProps,
+  EmptyStateProps,
+  ErrorStateProps,
+  InputProps,
+  LoadingStateProps,
+  MenuItem,
+  PermissionStateProps,
+  SelectProps,
+  SelectionBarProps,
+  TabItem,
+  TreeNode,
+  UiColor,
+  UiSize,
+  UiVariant
+} from './ui/index';
+
 import {
   forwardRef,
   useEffect,
