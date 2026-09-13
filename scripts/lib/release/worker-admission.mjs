@@ -88,16 +88,48 @@ export async function createWorkerAdmission({
   let standing = { ramBytes: 0, diskBytes: 0 };
   let running = true;
 
+  /**
+   * How many readings in a row may fail before the release stops waiting.
+   *
+   * A sample is a spawned binary, so it can fail for reasons that have nothing
+   * to do with the machine being unfit: a moment of memory pressure, a
+   * temporarily unavailable fork. Those recover on their own and a release
+   * should ride them out.
+   *
+   * What it must not do is ride them out forever. This loop used to stop on the
+   * first failure and let admission stay closed — safe against admitting
+   * wrongly, and a release that hangs with no explanation and no end. It
+   * happened on the first real release this runner ever attempted: eighty
+   * minutes of a live worker using two seconds of CPU, one `resource_wait` in
+   * the journal, and nothing after it.
+   */
+  const MAX_CONSECUTIVE_SAMPLE_FAILURES = 12;
+  let sampleFailures = 0;
+  /** Set once sampling has failed long enough that waiting is no longer honest. */
+  let samplingLost = null;
+
   const pump = (async () => {
     while (running) {
-      scheduler.sample(await sampler.sample());
-      standing = await readResidentReservations(reservationsDirectory);
+      try {
+        scheduler.sample(await sampler.sample());
+        standing = await readResidentReservations(reservationsDirectory);
+        sampleFailures = 0;
+      } catch (error) {
+        sampleFailures += 1;
+        if (sampleFailures >= MAX_CONSECUTIVE_SAMPLE_FAILURES) {
+          samplingLost = error instanceof Error ? error.message : 'unknown error';
+          running = false;
+          break;
+        }
+      }
       await sleep(profile.sampleIntervalMs);
     }
   })();
-  pump.catch(() => {
-    // A failed sample is already an unknown sample; the loop stops and
-    // admission stays closed, which is the safe direction.
+  pump.catch(error => {
+    // The loop handles its own sampling failures; anything reaching here is the
+    // loop itself breaking, and a release must not wait on a pump that is gone.
+    samplingLost = error instanceof Error ? error.message : 'unknown error';
+    running = false;
   });
 
   return {
@@ -111,6 +143,14 @@ export async function createWorkerAdmission({
       let lease = null;
       let announced = '';
       while (!lease) {
+        // Waiting is only honest while the machine is still being measured. A
+        // release that cannot be measured is refused with a reason, never left
+        // to wait on readings that will never arrive.
+        if (samplingLost)
+          throw new Error(
+            `PROBE_UNAVAILABLE: the resource probe stopped answering (${samplingLost}) — ` +
+              `refusing to keep ${stepId} waiting on readings that will not arrive`
+          );
         const decision = scheduler.request({ runId, resourceClass });
         if (decision.ok) {
           lease = decision;
