@@ -76,22 +76,7 @@ describe('starting the same work twice', () => {
 
     // Fired together, not awaited in turn: awaiting each one would serialise them at the
     // call site and the test would pass against the unserialised implementation too.
-    const trace: string[] = [];
-    const answers = await Promise.all(
-      Array.from({ length: 100 }, (_, index) =>
-        queue.start(ids).then(result => {
-          // TEMPORARY DIAGNOSTIC — remove once the Windows failure is understood.
-          trace.push(`${index}${result ? '+' : '-'}${queue.liveness().running ? 'R' : 'i'}`);
-          return result;
-        })
-      )
-    );
-    // TEMPORARY DIAGNOSTIC. Whether the yeses cluster or alternate says which of
-    // two very different things is happening: a gate that never engages, or a
-    // queue that goes idle between calls.
-    console.log('DIAG trace', trace.join(' '));
-    console.log('DIAG liveness', JSON.stringify(queue.liveness()));
-    console.log('DIAG batches', batches.length, 'built:', batches.filter(Boolean).length);
+    const answers = await Promise.all(Array.from({ length: 100 }, () => queue.start(ids)));
 
     // Exactly one caller is told it started something. Ninety-nine honest refusals beat one
     // hundred cheerful yeses over a queue in an unrecoverable state.
@@ -115,16 +100,9 @@ describe('starting the same work twice', () => {
       describe: 'the encode to start'
     });
 
-    // TEMPORARY DIAGNOSTIC. The encode is provably running by now — the wait
-    // above only returns once the job says `processing` — so a second start that
-    // is allowed means `running()` disagreed with the job it is about.
-    console.log('DIAG before-second', JSON.stringify(queue.liveness()));
-
     // Sequential rather than simultaneous — the ordinary case, and the one that would still
     // be broken if the guard had simply been moved after the awaits.
-    const second = await queue.start([jobs[0].id]);
-    console.log('DIAG second', second, JSON.stringify(queue.liveness()));
-    expect(second).toBe(false);
+    expect(await queue.start([jobs[0].id])).toBe(false);
     expect(queue.state().jobs.filter(job => job.status === 'processing')).toHaveLength(1);
 
     await queue.cancelAll();
